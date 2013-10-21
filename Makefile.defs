@@ -1,0 +1,416 @@
+
+#=================================================================================================================================#
+# CONFIGURATION                                                                                                                   #
+#=================================================================================================================================#
+INIFILE=$(MAINDIR)ini/particles.ini
+COMPILER=GNU
+MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
+# Cut compiler for use with DEBUG-flags
+ifeq ($(findstring _,$(COMPILER)),_)
+  EINS=1
+  INDEX=`expr index "${COMPILER}" _`
+  INDEXM1=$(shell echo ${INDEX}-${EINS} | bc)
+  SHARECOMP_MOD=$(shell echo $(COMPILER) | cut -c 1-$(INDEXM1))
+else
+  SHARECOMP_MOD=$(COMPILER)
+endif
+
+#=================================================================================================================================#
+# INI-FILE PARSING                                                                                                                #
+#=================================================================================================================================#
+INIVARS = EQNSYS PARABOLIC NODETYPE RIEMANN TIMEDISCMETHOD NELEMZ N MPI VISC OPTIMIZED
+
+# Defaults
+EQNSYS         = maxwell
+PARABOLIC      =
+NODETYPE       = 1
+TIMEDISCMETHOD = 2
+RIEMANN        = 1
+NELEMS         = NELEMZ
+N              = N
+MPI            = 
+VISC           = 0
+OPTIMIZED      =
+PARTICLES      = T 
+
+# Filter rule
+define PARSE
+  ifneq ($(subst #$(1)=,,$(filter #$(1)=%,$(shell cat $(INIFILE)))),)
+    $(1) = $(subst #$(1)=,,$(filter #$(1)=%,$(shell cat $(INIFILE))))
+  endif
+endef
+
+$(foreach PARAM,$(INIVARS),$(eval $(call PARSE,$(PARAM))))
+
+ifeq ($(EQNSYS),maxwell)
+  NVAR = 8
+endif
+ifeq ($(EQNSYS),electrostatic)
+  NVAR = 4
+endif
+
+#=================================================================================================================================#
+# GET MACHINE ENVIRONMENT 
+#=================================================================================================================================#
+ifeq ($(findstring AUTO,$(MACHINE)),AUTO)
+  NODE = $(shell hostname)
+  ifeq ($(findstring cl3fr,$(NODE)),cl3fr)
+    MACHINE=NEHALEM
+  endif
+  ifeq ($(findstring eslogin,$(NODE)),eslogin)
+    MACHINE=CRAY
+  endif
+  ifeq ($(findstring AUTO,$(MACHINE)),AUTO)
+    MACHINE=
+  endif
+endif
+
+#=================================================================================================================================#
+# PREPROCESSOR-DIRECTIVES                                                                                                         #
+#=================================================================================================================================#
+PREPROC  =-DPP_TimeDiscMethod=$(TIMEDISCMETHOD)
+PREPROC +=-DPP_NodeType=$(NODETYPE)
+PREPROC +=-DPP_Riemann=$(RIEMANN)
+PREPROC +=-DPP_nVar=$(NVAR)
+PREPROC +=-DPP_nElems=$(NELEMS)
+PREPROC +=-DPP_N=$(N)
+PREPROC +=-DPP_VISC=$(VISC)
+ifneq ($(PARABOLIC),)
+  PREPROC +=-DPARABOLIC=$(PARABOLIC)
+endif
+ifneq ($(MPI),)
+  PREPROC +=-DMPI
+  FC=$(FCM)
+  CC=$(CCM)
+  SHARECOMP_MOD+=-MPI
+else
+  FC=$(FCS)
+  CC=$(CCS)
+  SHARECOMP_MOD+=-SINGLE
+endif
+ifneq ($(OPTIMIZED),)
+  ifneq ($(findstring DEBUG,$(COMPILER)),DEBUG) #don't set optimizations if in debug mode
+    PREPROC +=-DOPTIMIZED=$(OPTIMIZED)
+  endif
+endif
+ifneq ($(PARTICLES),)
+  PREPROC +=-DPARTICLES=$(PARTICLES)
+endif
+empty:=
+space:=$(empty) $(empty)
+SHARECOMP=$(subst $(space),$(empty),$(SHARECOMP_MOD))
+
+#=================================================================================================================================#
+# LIBRARIES                                                                                                                       #
+#=================================================================================================================================#
+
+#---------------------------------------------------------------------------------------------------------------------------------#
+# HDF5
+#---------------------------------------------------------------------------------------------------------------------------------#
+# Download and compile HDF5 libraries
+ifeq ($(MACHINE),)
+  HDF5_VERSION = 1.8.7
+  ifneq ($(HDF5_VERSION),)
+    HDF5_LIB = -L../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5/lib
+    HDF5_INC = -I../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5/include
+  endif
+  HDF5_LIBS  = -lhdf5_fortran -lhdf5 -lz
+endif
+# HLRB - Use available HDF5 libraries. Don't forget: "module load hdf5/mpi/1.8.3"
+#---------------------------------------------------------------------------------------------------------------------------------#
+
+# HLR_B - Use available HDF5 libraries. Don't forget to load HDF5 module!
+ifeq ($(findstring HLRB,$(MACHINE)),HLRB)
+  HDF5_LIB = -L$(HDF5_BASE)/lib
+  #HDF5_INC is already available as environment variable!
+  HDF5_LIBS    = -lhdf5_fortran -lhdf5 $(SZIP_LIB) -lz
+endif
+
+# HLR_S, Nehalem - Use available HDF5 libraries. Don't forget to load HDF5 module!
+ifeq ($(findstring NEHALEM,$(MACHINE)),NEHALEM)
+  HDF5_LIB  = -L/sw/laki/hlrs/tools/hdf5/1.8.6-openmpi-1.5.2-intel-12.0/lib
+  HDF5_INC  = -I/sw/laki/hlrs/tools/hdf5/1.8.6-openmpi-1.5.2-intel-12.0/include
+  HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz
+endif
+
+# HLR_S, CRAY - Use available HDF5 libraries. Don't forget to load HDF5 module!
+ifeq ($(findstring CRAY,$(MACHINE)),CRAY)
+  HDF5_LIB  = -L/opt/cray/hdf5-parallel/1.8.8/intel/120/lib/
+  HDF5_INC  = -I/opt/cray/hdf5-parallel/1.8.8/intel/120/include/
+  HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz
+endif
+
+#---------------------------------------------------------------------------------------------------------------------------------#
+# CGNS 
+#---------------------------------------------------------------------------------------------------------------------------------#
+# Directly added in src/Makefile_PostProc
+CGNS_VERSION = 2.5
+CGNS_SUBVERSION = 4
+ifneq ($(CGNS_VERSION),)
+  CGNS_LIB = -L../share/cgnslib_$(CGNS_VERSION)/LINUX64
+  CGNS_INC = -I../share/cgnslib_$(CGNS_VERSION)
+endif
+CGNS_LIBS = -lcgns
+#---------------------------------------------------------------------------------------------------------------------------------#
+
+#---------------------------------------------------------------------------------------------------------------------------------#
+# Tecplot Binary
+#---------------------------------------------------------------------------------------------------------------------------------#
+  TECLIB_VERSION = 12.0
+  TECBIN_LIB = -L../share/$(SHARECOMP)/tecio-$(TECLIB_VERSION)
+  TECBIN_LIBS = -ltecio -lstdc++
+#---------------------------------------------------------------------------------------------------------------------------------#
+
+ifeq ($(EQNSYS),maxwell)
+#---------------------------------------------------------------------------------------------------------------------------------#
+# Numerical Recipes
+#---------------------------------------------------------------------------------------------------------------------------------#
+  NR_LIB  = -L../lib
+  NR_LIBS = -lrecipes
+#---------------------------------------------------------------------------------------------------------------------------------#
+endif
+
+ifeq ($(EQNSYS),electrostatic)
+#---------------------------------------------------------------------------------------------------------------------------------#
+# Numerical Recipes
+#---------------------------------------------------------------------------------------------------------------------------------#
+  NR_LIB  = -L../lib
+  NR_LIBS = -lrecipes
+#---------------------------------------------------------------------------------------------------------------------------------#
+endif
+
+
+#=================================================================================================================================#
+# COMPILER                                                                                                                        #
+#=================================================================================================================================#
+
+ENVIRONMENT=$(COMPILER) # specified at top of file
+AR         =ar
+AR_FLAGS   =clr
+
+#---------------------------------------------------------------------------------------------------------------------------------#
+# INTEL
+#---------------------------------------------------------------------------------------------------------------------------------#
+ifeq ($(findstring INTEL,$(ENVIRONMENT)),INTEL)
+  FCS=ifort
+  FCM=mpif90
+  CCS=cc
+  CCM=mpicc
+  ifeq ($(findstring CRAY,$(MACHINE)),CRAY)
+    FCM=ftn
+    CCM=cc
+  endif
+  AR =xiar # required for compilation using -ipo and -fast
+  PREPROC +=-DINTEL
+
+  FCFLAGS  =-fpp -assume bscc -r8 -i4 -traceback -warn all # don't change
+  FLFLAGS  =-r8 -i4 -traceback -assume bscc #-static # don't change
+  F03STD   =-std03
+
+  # ix86
+  ifneq ($(findstring ia64,$(ENVIRONMENT)),ia64)
+    ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
+      FCFLAGS  +=-g -O0 -fpe0 -traceback \
+                 -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,bounds,uninit
+      FLFLAGS  +=-g -O0 
+    else
+      FCFLAGS  +=-O3 -xhost #-ipo
+      FLFLAGS  +=-O3 -xhost #-ipo
+    endif 
+
+  # ia64
+  else
+    ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
+      FCFLAGS  +=-g -O0 -fpe0 -check noarg_temp_created,noformat,nooutput_conversion,pointer,bounds,uninit #,all
+      FLFLAGS  +=-g -O0 
+    else
+      FCFLAGS  +=-O3 -xhost #-ipo
+      FLFLAGS  +=-O3 -xhost #-ipo
+    endif
+  endif
+
+  ifeq ($(findstring OMP,$(ENVIRONMENT)),OMP)
+    FCFLAGS += -openmp
+    OMP_LIB = -openmp
+  endif
+endif
+
+#---------------------------------------------------------------------------------------------------------------------------------#
+# GNU
+#---------------------------------------------------------------------------------------------------------------------------------#
+ifeq ($(findstring GNU,$(ENVIRONMENT)),GNU)
+  FCS=gfortran
+  FCM=mpif90
+  CCM=mpicc
+  ifeq ($(findstring CRAY,$(MACHINE)),CRAY)
+    FCM=ftn
+    CCM=cc
+  endif
+  PREPROC +=-DGNU
+
+  FCFLAGS    = -xf95-cpp-input -fdefault-real-8 -fdefault-double-8 -fbackslash -DGNU # don't change
+  FLFLAGS    = -fdefault-real-8 -fbackslash # don't change
+
+  ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
+    FCFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
+    FLFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
+  else
+    FCFLAGS  += -O3 -march=native #-flto
+    FLFLAGS  += -O3 -march=native #-flto
+  endif
+
+  ifeq ($(findstring OMP,$(ENVIRONMENT)),OMP)
+    FCFLAGS += -fopenmp
+    FLFLAGS += -fopenmp
+  endif
+
+  ifeq ($(HOST),frbw)
+    FCFLAGS += -I/opt/bwgrid/mpi/openmpi/1.3-gnu-4.1/include
+  endif
+endif
+
+#---------------------------------------------------------------------------------------------------------------------------------#
+# SX
+#---------------------------------------------------------------------------------------------------------------------------------#
+ifeq ($(findstring SX,$(ENVIRONMENT)),SX)
+  FCS=sxf90
+  FCM=sxmpif90
+  CCM=sxmpicc
+
+  AR=sxar
+
+  FCFLAGS  =-w -Wf,"-A idbl -init stack=nan heap=nan" -EP -R1 #-DSX -f2003 nocbind # don't change
+  FLFLAGS  =-w -Wf,"-A idbl -init stack=nan heap=nan" -EP -R2 #     -f2003 nocbind # don't change
+  RECIFLAGS=-w -Wf,"-A idbl -init stack=nan heap=nan" -EP -R2 #     -f2003 nocbind # don't change
+  F03STD   =
+
+  ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
+    FCFLAGS  +=-C debug -g 
+    FLFLAGS  +=-C debug -g
+    RECIFLAGS+=-C debug -g
+  else
+    FCFLAGS  +=-C hopt  #-p
+    FLFLAGS  +=-C hopt 
+    RECIFLAGS+=-C hopt #-p
+  endif
+endif
+
+#---------------------------------------------------------------------------------------------------------------------------------#
+# CRAY
+#---------------------------------------------------------------------------------------------------------------------------------#
+ifeq ($(findstring CRAY,$(ENVIRONMENT)),CRAY)
+  ifeq ($(findstring PGI,$(ENVIRONMENT)),PGI)
+    FCS=pgf90
+    FCM=ftn
+    PREPROC +=-DPGI
+  else # Cray CCE
+    FCS=ftn # ??
+    FCM=ftn
+    PREPROC +=-DCRAY
+  endif
+  CCS=cc
+  CCM=cc
+
+  ifeq ($(findstring PGI,$(ENVIRONMENT)),PGI)
+    FCFLAGS    =-r8 -i4 -byteswapio -Mextend -Mpreprocess -DPGI # don't change
+    FLFLAGS    =-r8 -i4 -byteswapio -Mextend # don't change
+    F03STD     =-std=f2003
+  else # Cray CCE
+   FCFLAGS    =-eZ -F -f free -s real64 -hbyteswapio -em -J .# don't change
+   FLFLAGS    =-f free -s real64 -hbyteswapio -em -J .# don't change
+   F03STD     =
+  endif
+
+  ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
+    ifeq ($(findstring PGI,$(ENVIRONMENT)),PGI)
+      FCFLAGS  +=-O0 -g -Minform=inform
+      FLFLAGS  +=-O0 -g -Minform=inform
+    else # Cray CCE
+      FCFLAGS  +=-O0 -eD
+      FLFLAGS  +=-O0 -eD
+    endif
+  else
+    ifeq ($(findstring PGI,$(ENVIRONMENT)),PGI)
+      FCFLAGS  +=-fast #-Mipa=fast,inline #-O2 #-fastsse #-Munroll=n:4 -Mipa=fast,inline
+      FLFLAGS  +=-fast #-Mipa=fast,inline #-O2 #-fastsse #-Munroll=n:4 -Mipa=fast,inline
+    else # Cray CCE
+      FCFLAGS  +=-O2 -p . -rm#-O ipa5 # -O3
+      FLFLAGS  +=-O2 -p . -rm#-O ipa5 # -O3
+    endif
+  endif
+endif
+
+#---------------------------------------------------------------------------------------------------------------------------------#
+# BLUGENE P
+#---------------------------------------------------------------------------------------------------------------------------------#
+ifeq ($(findstring BLUEGENE,$(ENVIRONMENT)),BLUEGENE)
+
+  # HDF5
+  SZ_INC        = -I/bgsys/local/szip/include -I/bgsys/local/zlib/include
+  SZ_LIBS       = -L/bgsys/local/szip/lib -L/bgsys/local/zlib/lib
+  SZ_LIB        = -lsz -lz
+
+  HDF5_INC      = -I/bgsys/local/hdf5/include
+  HDF5_LIBS     = -L/bgsys/local/hdf5/lib_450d
+  HDF5_LIB      = -lhdf5_fortran -lhdf5  -lhdf5_hl -lhdf5hl_fortran
+
+  # HPCT
+  ifeq ($(findstring HPCT,$(ENVIRONMENT)),HPCT)
+    LIBHPC_INC  = -I/bgsys/local/ihpct/include
+    LIBHPC_LIBS = -L/bgsys/local/ihpct/lib/
+    LIBHPC_LIB  = -lhpc -llicense /bgsys/local/ihpct/lib/fake_dlfcn.o /bgsys/local/ihpct/lib/average.o
+    JUGE1_HPCT  =-DHPM,-DDYNAMIC,-DPRINT,
+  endif
+  
+  comma:= ,
+  empty:=
+  space:= $(empty) $(empty)
+
+  JUGEPREPROC = $(subst $(space),$(comma),$(PREPROC))
+  PREPROC    := $(JUGEPREPROC)
+
+  # SCALASCA
+  ifeq ($(findstring SCALASCA,$(ENVIRONMENT)),SCALASCA)
+    # Don't forget to do "module load UNITE;module load scalasca/1.3(rc2)"
+    FCS  =scalasca -instrument bgxlf2003_r
+    FCM  =scalasca -instrument mpixlf2003_r
+    CCM  =scalasca -instrument mpixlc_r
+  else
+    FCS  =bgxlf2003_r
+    FCM  =mpixlf2003_r
+    CCM  =mpixlc_r
+  endif
+
+  F03STD =#-qlanglvl=2003std
+  JUGE1  ='-WF,-DBLUEGENE,$(JUGE1_HPCT)
+  JUGE2  ='
+
+  FCFLAGS     = -qsuffix=cpp=f90 -qrealsize=8 -qintsize=4 -qinit #-qreport -qxflag=diagnostic
+  FLFLAGS     = -qsuffix=cpp=f90 -qrealsize=8 -qintsize=4 -qinit #-qreport -qxflag=diagnostic
+
+  ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
+    FCFLAGS  += -O0 -g -qcheck -pg
+    FLFLAGS  += -O0 -g -qcheck -pg
+  else
+    FCFLAGS  += -O5 -d -qstrict -qhot -qarch=450d -qtune=450 -qunroll=yes -qessl# -v
+    FLFLAGS  += -O5 -d -qstrict -qhot -qarch=450d -qtune=450 -qunroll=yes -qessl -L/bgsys/local/lib -lesslbg# -v
+  endif
+
+  # GPROF
+  ifeq ($(findstring GPROF,$(ENVIRONMENT)),GPROF)
+    FCFLAGS  += -g -pg
+    FLFLAGS  += -g -pg
+  endif
+endif
+
+#---------------------------------------------------------------------------------------------------------------------------------#
+
+EXTERNAL_LIBS = $(HDF5_LIBS) $(SZ_LIBS) $(LIBHPC_LIBS) $(NR_LIBS) $(TECBIN_LIBS)
+LIBDIRS       = $(HDF5_LIB) $(SZ_LIB) $(LIBHPC_LIB) $(NR_LIB) $(TECBIN_LIB)
+INCDIRS       = $(HDF5_INC) $(SZ_INC) $(LIBHPC_INC)
+ 
+BOLTZPLATZ_LIB     = libboltzplatz.a
+#PREPROC_LIB  = libpreproc.a
+
+FCFLAGS += $(JUGE1)$(PREPROC)$(JUGE2) -I.
+FLFLAGS += $(JUGE1)$(PREPROC)$(JUGE2)
