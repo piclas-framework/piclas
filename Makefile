@@ -2,7 +2,7 @@
 include Makefile.defs
 
 # List of executables to be built within the package
-#PROGRAMS = flexi
+#PROGRAMS = boltzplatz
 
 # "make" builds all
 all: boltzplatz
@@ -10,7 +10,7 @@ all: boltzplatz
 	@echo ' SUCCESS: ALL EXECUTABLES GENERATED!'
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 
-flexi: shared
+boltzplatz: shared
 	cd src && touch deplist.mk && $(MAKE) -j #create deplist.mk for builddebs to prevent errors if not existing
 
 shared:
@@ -31,7 +31,7 @@ clean:
 
 veryclean:
 	cd src   && $(MAKE) veryclean
-	rm -f lib/$(FLEXI_LIB)
+	rm -f lib/$(BOLTZPLATZ_LIB)
 	rm -f *~ */*~ */*/*~
 
 cleanshare:

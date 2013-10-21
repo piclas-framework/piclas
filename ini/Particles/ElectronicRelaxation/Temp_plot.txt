@@ -1,0 +1,7 @@
+set xlabel 't / s'
+set ylabel 'T / K'
+#set yrange[19000:21000]
+plot 'Database.csv' u 1:4 w l t 'tr','Database.csv' u 1:8 w l t 'vib','Database.csv' u 1:9 w l t 'rot','Database.csv' u 1:10 w l t 'el'
+pause 1
+replot
+reread

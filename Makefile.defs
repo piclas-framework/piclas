@@ -109,7 +109,7 @@ SHARECOMP=$(subst $(space),$(empty),$(SHARECOMP_MOD))
 #---------------------------------------------------------------------------------------------------------------------------------#
 # Download and compile HDF5 libraries
 ifeq ($(MACHINE),)
-  HDF5_VERSION = 1.8.7
+  HDF5_VERSION = 1.8.10-patch1
   ifneq ($(HDF5_VERSION),)
     HDF5_LIB = -L../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5/lib
     HDF5_INC = -I../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5/include
