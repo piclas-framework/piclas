@@ -52,11 +52,6 @@ USE MOD_DG_Vars,ONLY:U
 USE MOD_Output_Vars,ONLY:ProjectName
 USE MOD_Interpolation_Vars,ONLY:StrNodeType
 USE MOD_Mesh_Vars,ONLY:offsetElem,nGlobalElems
-#ifdef PARTICLES
-USE MOD_Particle_Vars, ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,enableParticleMerge
-USE MOD_part_tools,    ONLY: UpdateNextFreePosition
-USE MOD_DSMC_Vars,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
-#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -74,56 +69,13 @@ CHARACTER(LEN=255)             :: FileName,FileString,MeshFile255,StrVarNames(PP
 #ifdef MPI
 REAL                           :: StartT,EndT
 #endif
-#ifdef PARTICLES
-INTEGER(KIND=8)                :: pcount
-INTEGER(KIND=4)                :: nParticles(0:nProcessors-1)
-LOGICAL                        :: withDSMC=.FALSE.
-INTEGER                        :: locnPart,offsetnPart
-INTEGER                        :: iPart,nPart_glob, iElem, iElem_glob, iElem_loc
-INTEGER,ALLOCATABLE            :: PartInt(:,:)
-REAL,ALLOCATABLE               :: PartData(:,:)
-INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
-INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-#endif /*PARTICLES*/
-#ifdef MPI 
-INTEGER                        :: sendbuf(2),recvbuf(2)
-#endif
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
 #ifdef MPI
-StartT=MPI_WTIME()
+  StartT=MPI_WTIME()
 #endif
-FileName=TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime)
-FileString=TRIM(FileName)//'.h5'
-CALL OpenDataFile(Filestring,.TRUE.) !create=.TRUE.
-! Write file header
-Statedummy = 'State'
-CALL WriteHDF5Header(Statedummy,File_ID)
-
-! Write DG solution ----------------------------------------------------------------------------------------------------------------
-nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
-CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),offsetElem,5,RealArray=U)
-
-! Write properties -----------------------------------------------------------------------------------------------------------------
-! Open dataset
-CALL H5DOPEN_F(File_ID,'DG_Solution',Dset_id,iError)
-
-! Create dataset attribute "Time"
-!CALL WriteAttributeToHDF5(File_ID,'Time',1,DatasetName='DG_Solution',RealScalar=OutputTime)
-CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
-
-! Create dataset attribute "MeshFile"
-MeshFile255=TRIM(MeshFileName)
-CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=MeshFile255)
-
-IF(PRESENT(FutureTime))THEN
-  ! Create dataset attribute "NextFile"
-  MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',FutureTime))//'.h5'
-  CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=MeshFile255)
 END IF
-
-! Create dataset attribute "NodeType"
-CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=StrNodeType)
 
 ! Create dataset attribute "VarNames"
 #if PP_nVar==8
@@ -142,9 +94,84 @@ StrVarNames(2)='ElectricFieldY'
 StrVarNames(3)='ElectricFieldZ' 
 StrVarNames(4)='Psi'       
 #endif
-CALL WriteAttributeToHDF5(File_ID,'VarNames',PP_nVar,StrArray=StrVarNames)
 
-#ifdef PARTICLES  
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
+IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
+#ifdef MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
+
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+
+! Write DG solution ----------------------------------------------------------------------------------------------------------------
+nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),offsetElem,5,existing=.TRUE.,RealArray=U)
+
+#ifdef PARTICLES
+CALL WriteParticleToHDF5()
+#endif /*Particles*/
+
+! Close the dataset and property list.
+CALL H5DCLOSE_F(Dset_id, iError)
+
+! Close the file.
+CALL CloseDataFile()
+
+#ifdef MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif
+END SUBROUTINE WriteStateToHDF5
+
+#ifdef PARTICLES
+SUBROUTINE WriteParticleToHDF5()
+!===================================================================================================================================
+! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Output_Vars,ONLY:ProjectName
+USE MOD_Interpolation_Vars,ONLY:StrNodeType
+USE MOD_Mesh_Vars,ONLY:nGlobalElems, offsetElem
+USE MOD_Particle_Vars, ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,enableParticleMerge
+USE MOD_part_tools,    ONLY: UpdateNextFreePosition
+USE MOD_DSMC_Vars,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER(HID_T)                 :: Dset_ID
+INTEGER                        :: nVal
+#ifdef MPI
+REAL                           :: StartT,EndT
+#endif
+INTEGER(KIND=8)                :: pcount
+INTEGER(KIND=4)                :: nParticles(0:nProcessors-1)
+LOGICAL                        :: withDSMC=.FALSE.
+INTEGER                        :: locnPart,offsetnPart
+INTEGER                        :: iPart,nPart_glob, iElem, iElem_glob, iElem_loc
+INTEGER,ALLOCATABLE            :: PartInt(:,:)
+REAL,ALLOCATABLE               :: PartData(:,:)
+INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
+INTEGER                        :: PartDataSize       !number of entries in each line of PartData
+#ifdef MPI 
+INTEGER                        :: sendbuf(2),recvbuf(2)
+#endif
+!=============================================
+! Write properties -----------------------------------------------------------------------------------------------------------------
+! Open dataset
+!CALL H5DOPEN_F(File_ID,'DG_Solution',Dset_id,iError)
+ 
   !!added for Evib, Erot writeout
   withDSMC=useDSMC
   IF (withDSMC) THEN
@@ -261,17 +288,13 @@ CALL WriteAttributeToHDF5(File_ID,'VarNames',PP_nVar,StrArray=StrVarNames)
     PartInt(iElem_glob,2)=iPart
   END DO 
 
-  CALL WriteArrayToHDF5('PartInt',nGlobalElems,2,(/PP_nElems,PartIntSize/),offsetElem,1,IntegerArray=PartInt)
-  CALL WriteArrayToHDF5('PartData',nPart_glob,2,(/locnPart,PartDataSize/),offsetnPart,1,RealArray=PartData)!,&
+  CALL WriteArrayToHDF5('PartInt',nGlobalElems,2,(/PP_nElems,PartIntSize/),offsetElem,1,existing=.FALSE.,IntegerArray=PartInt)
+  CALL WriteArrayToHDF5('PartData',nPart_glob,2,(/locnPart,PartDataSize/),offsetnPart,1,existing=.FALSE.,RealArray=PartData)!,&
                         !xfer_mode_independent=.TRUE.)  ! könnte bei Procs die keine Teilchen schreiben 
                                                         ! problematisch werden
 
   DEALLOCATE(PartInt,PartData)
-#endif /*PARTICLES*/
-  ! very useful for non-uniformly distributed particles (e.g. streamer)
-  !CALL WriteWeights(iAnalyseTime)
 
-#ifdef PARTICLES
 !!! Kleiner Hack von JN (Teil 2/2):
   useDSMC=withDSMC
   IF (.NOT.(useDSMC.OR.enableParticleMerge)) THEN
@@ -282,22 +305,69 @@ CALL WriteAttributeToHDF5(File_ID,'VarNames',PP_nVar,StrArray=StrVarNames)
                !PDM%nextUsedPosition  )
   END IF
 !!! Ende kleiner Hack von JN (Teil 2/2)
+
+
+END SUBROUTINE WriteParticleToHDF5
 #endif /*PARTICLES*/
 
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
+!===================================================================================================================================
+! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Output_Vars,ONLY:ProjectName
+USE MOD_Interpolation_Vars,ONLY:StrNodeType
+USE MOD_Mesh_Vars,ONLY:nGlobalElems
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)    :: TypeString
+INTEGER                        :: nVar
+CHARACTER(LEN=255)             :: StrVarNames(nVar)
+CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
+REAL,INTENT(IN)                :: OutputTime
+REAL,INTENT(IN),OPTIONAL       :: FutureTime
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER(HID_T)                 :: DSet_ID,FileSpace,HDF5DataType
+INTEGER(HSIZE_T)               :: Dimsf(5)
+CHARACTER(LEN=255)             :: FileName,MeshFile255
+!===================================================================================================================================
+! Create file
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.)
 
-! Close the dataset and property list.
+! Write file header
+CALL WriteHDF5Header(TRIM(TypeString),File_ID)
+
+! Preallocate the data space for the dataset.
+Dimsf=(/nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/)
+CALL H5SCREATE_SIMPLE_F(5, Dimsf, FileSpace, iError)
+! Create the dataset with default properties.
+HDF5DataType=H5T_NATIVE_DOUBLE
+CALL H5DCREATE_F(File_ID,'DG_Solution', HDF5DataType, FileSpace, DSet_ID, iError)
+! Close the filespace and the dataset
 CALL H5DCLOSE_F(Dset_id, iError)
-! Close the file.
+CALL H5SCLOSE_F(FileSpace, iError)
+
+! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
+CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
+MeshFile255=TRIM(MeshFileName)
+CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=MeshFile255)
+IF(PRESENT(FutureTime))THEN
+  MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),FutureTime))//'.h5'
+  CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=MeshFile255)
+END IF
+CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=StrNodeType)
+CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
+
 CALL CloseDataFile()
-
-#ifdef MPI
-EndT=MPI_WTIME()
-SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-#else
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
-END SUBROUTINE WriteStateToHDF5
-
+END SUBROUTINE GenerateFileSkeleton
 
 SUBROUTINE FlushHDF5(FlushTime_In)
 !===================================================================================================================================
@@ -317,12 +387,13 @@ REAL,INTENT(IN),OPTIONAL :: FlushTime_In
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: IOstat
+INTEGER                  :: stat,ioUnit
 REAL                     :: FlushTime
 CHARACTER(LEN=255)       :: FileName,InputFile,NextFile
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' DELETING OLD HDF5 FILES...'
+IF(.NOT.MPIRoot) RETURN
 
+WRITE(UNIT_stdOut,'(a)')' DELETING OLD HDF5 FILES...'
 IF (.NOT.PRESENT(FlushTime_In)) THEN
   FlushTime=0.0
 ELSE
@@ -333,37 +404,36 @@ FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',FlushTime))//'.h5'
 ! Delete state files
 InputFile=TRIM(FileName)
 ! Read calculation time from file
-CALL GetHDF5NextFileName(Inputfile,NextFile)
+CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
 ! Delete File - only root
-IF(MPIRoot)THEN
-  IOstat=0
-  OPEN ( UNIT   = 104,            &
+stat=0
+ioUnit=GETFREEUNIT()
+OPEN ( UNIT   = ioUnit,            &
+       FILE   = InputFile,      &
+       STATUS = 'OLD',          &
+       ACTION = 'WRITE',        &
+       ACCESS = 'SEQUENTIAL',   &
+       IOSTAT = stat          )
+IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
+DO
+  InputFile=TRIM(NextFile)
+  ! Read calculation time from file
+  CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
+  ! Delete File - only root
+  stat=0
+  ioUnit=GETFREEUNIT()
+  OPEN ( UNIT   = ioUnit,            &
          FILE   = InputFile,      &
          STATUS = 'OLD',          &
          ACTION = 'WRITE',        &
          ACCESS = 'SEQUENTIAL',   &
-         IOSTAT = IOstat          )
-  IF(IOstat .EQ. 0) CLOSE ( 104,STATUS = 'DELETE' )
-END IF ! MPIRoot
-DO WHILE (.TRUE.)
-  InputFile=TRIM(NextFile)
-  ! Read calculation time from file
-  CALL GetHDF5NextFileName(Inputfile,NextFile)
-  ! Delete File - only root
-  IF(MPIRoot)THEN
-    IOstat=0
-    OPEN ( UNIT   = 104,            &
-           FILE   = InputFile,      &
-           STATUS = 'OLD',          &
-           ACTION = 'WRITE',        &
-           ACCESS = 'SEQUENTIAL',   &
-           IOSTAT = IOstat          )
-    IF(IOstat .EQ. 0) CLOSE ( 104,STATUS = 'DELETE' )
-  END IF ! MPIRoot
+         IOSTAT = stat          )
+  IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
   IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
 END DO
 
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+
 END SUBROUTINE FlushHDF5
 
 
@@ -384,17 +454,21 @@ INTEGER(HID_T),INTENT(IN)                :: File_ID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+CHARACTER(LEN=255)                       :: tmp255
 !===================================================================================================================================
-! Write a small file header to identify a Boltzplatz HDF5 files
+! Write a small file header to identify a Flexi HDF5 files
 
 ! First write program name
-CALL WriteAttributeToHDF5(File_ID,'Program',1,StrScalar=ProgramName)
+tmp255=TRIM(ProgramName)
+CALL WriteAttributeToHDF5(File_ID,'Program',1,StrScalar=tmp255)
 
 ! Second, write file type identifier
-CALL WriteAttributeToHDF5(File_ID,'File_Type',1,StrScalar=FileType_in)
+tmp255=TRIM(FileType_in)
+CALL WriteAttributeToHDF5(File_ID,'File_Type',1,StrScalar=tmp255)
 
 ! Third, write project name
-CALL WriteAttributeToHDF5(File_ID,'Project_Name',1,StrScalar=ProjectName)
+tmp255=TRIM(ProjectName)
+CALL WriteAttributeToHDF5(File_ID,'Project_Name',1,StrScalar=tmp255)
 
 ! Last, file version number
 CALL WriteAttributeToHDF5(File_ID,'File_Version',1,RealScalar=FileVersion)
@@ -402,7 +476,8 @@ END SUBROUTINE WriteHDF5Header
 
 
 
-SUBROUTINE WriteArrayToHDF5(ArrayName,nValglobal,Rank,nVal,offset_in,offset_dim,RealArray,IntegerArray,StrArray)
+
+SUBROUTINE WriteArrayToHDF5(DataSetName,nValglobal,Rank,nVal,offset_in,offset_dim,RealArray,IntegerArray,StrArray,existing)
 !===================================================================================================================================
 ! Subroutine to write Data to HDF5 format
 !===================================================================================================================================
@@ -413,11 +488,12 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER                        :: Rank                  ! number of dimensions of the array
-INTEGER                        :: offset_in             ! offset =0, start at beginning of the array
-INTEGER                        :: offset_dim            ! which dimension is the offset (only one dimension possible here)
-INTEGER                        :: nValglobal            ! max size of array in offset dimension
-INTEGER                        :: nVal(Rank)            ! size of complete (local) array to write
-CHARACTER(LEN=*), INTENT(IN)   :: ArrayName
+INTEGER,INTENT(IN)             :: offset_in             ! offset =0, start at beginning of the array
+INTEGER,INTENT(IN)             :: offset_dim            ! which dimension is the offset (only one dimension possible here)
+INTEGER,INTENT(IN)             :: nValglobal            ! max size of array in offset dimension
+INTEGER,INTENT(IN)             :: nVal(Rank)            ! size of complete (local) array to write
+CHARACTER(LEN=*),INTENT(IN)    :: DataSetName
+LOGICAL,INTENT(IN)             :: existing
 REAL              ,DIMENSION(Rank),OPTIONAL,INTENT(IN) :: RealArray
 INTEGER           ,DIMENSION(Rank),OPTIONAL,INTENT(IN) :: IntegerArray
 CHARACTER(LEN=255),DIMENSION(Rank),OPTIONAL,INTENT(IN) :: StrArray
@@ -428,16 +504,15 @@ CHARACTER(LEN=255),DIMENSION(Rank),OPTIONAL,INTENT(IN) :: StrArray
 ! LOCAL VARIABLES
 !INTEGER(SIZE_T)                :: tmp1,tmp2,typeoffset,typesize
 INTEGER(HID_T)                 :: PList_ID,DSet_ID,MemSpace,FileSpace,HDF5DataType
-INTEGER(HSIZE_T)               :: Dimsf(Rank),Offset(Rank),SizeSet
+INTEGER(HSIZE_T)               :: Dimsf(Rank),Offset(Rank)
+INTEGER(SIZE_T)                :: SizeSet
 !===================================================================================================================================
-LOGWRITE(*,'(A,I1.1,A,A,A)')' WRITE ',Rank,'D ARRAY "',TRIM(ArrayName),'" TO HDF5 FILE...'
+LOGWRITE(*,'(A,I1.1,A,A,A)')' WRITE ',Rank,'D ARRAY "',TRIM(DataSetName),'" TO HDF5 FILE...'
 
 ! Get global array size, always last dimension!!
 Dimsf=nVal
 Dimsf(offset_dim)=nValGlobal 
 
-! Create the data space for the  dataset.
-CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, FileSpace, iError)
 ! Create the dataset with default properties.
 IF(PRESENT(RealArray))     HDF5DataType=H5T_NATIVE_DOUBLE
 IF(PRESENT(IntegerArray))  HDF5DataType=H5T_NATIVE_INTEGER
@@ -447,8 +522,15 @@ IF(PRESENT(StrArray))THEN
   SizeSet=255
   CALL H5TSET_SIZE_F(HDF5DataType, SizeSet, iError)
 END IF
-CALL H5DCREATE_F(File_ID, TRIM(ArrayName), HDF5DataType, FileSpace, DSet_ID, iError)
-CALL H5SCLOSE_F(FileSpace, iError)
+
+IF(existing)THEN
+  CALL H5DOPEN_F(File_ID, TRIM(DatasetName),DSet_ID, iError)
+ELSE
+  ! Create the data space for the  dataset.
+  CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, FileSpace, iError)
+  CALL H5DCREATE_F(File_ID, TRIM(DataSetName), HDF5DataType, FileSpace, DSet_ID, iError)
+  CALL H5SCLOSE_F(FileSpace, iError)
+END IF
 
 ! Each process defines dataset in memory and writes it to the hyperslab in the file.
 Dimsf=nVal  ! Now we need the local array size
@@ -502,7 +584,7 @@ END SUBROUTINE WriteArrayToHDF5
 SUBROUTINE WriteAttributeToHDF5(Loc_ID_in,AttribName,nVal,DataSetname,RealScalar,IntegerScalar,StrScalar,LogicalScalar, &
                                                                       RealArray,IntegerArray,StrArray)
 !===================================================================================================================================
-! Subroutine to write Attributes to HDF5 format of a given Loc_ID, which can be the File_ID,datasetID,goupID. This must be opened
+! Subroutine to write Attributes to HDF5 format of a given Loc_ID, which can be the File_ID,datasetID,groupID. This must be opened
 ! outside of the routine. If you directly want to write an attribute to a dataset, just provide the name of the dataset
 !===================================================================================================================================
 ! MODULES
@@ -517,25 +599,25 @@ INTEGER,INTENT(IN)                     :: nVal
 CHARACTER(LEN=*),OPTIONAL,INTENT(IN)   :: DatasetName
 REAL,OPTIONAL,INTENT(IN)               :: RealArray(nVal)
 INTEGER,OPTIONAL,INTENT(IN)            :: IntegerArray(nVal)
-CHARACTER(LEN=*),OPTIONAL,INTENT(IN)   :: StrArray(nVal)
+CHARACTER(LEN=255),OPTIONAL,INTENT(IN) :: StrArray(nVal)
 REAL,OPTIONAL,INTENT(IN)               :: RealScalar
 INTEGER,OPTIONAL,INTENT(IN)            :: IntegerScalar
-CHARACTER(LEN=*),OPTIONAL,INTENT(IN)   :: StrScalar
+CHARACTER(LEN=255),OPTIONAL,INTENT(IN) :: StrScalar
 LOGICAL,OPTIONAL,INTENT(IN)            :: LogicalScalar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: Rank
-INTEGER(HID_T)                 :: DataSpace, Attr_ID,Loc_ID,aType_ID
+INTEGER(HID_T)                 :: DataSpace,Attr_ID,Loc_ID,aType_ID
 INTEGER(HSIZE_T), DIMENSION(1) :: Dimsf
 INTEGER(SIZE_T)                :: AttrLen
 INTEGER                        :: logtoint
 !===================================================================================================================================
 LOGWRITE(*,*)' WRITE ATTRIBUTE "',TRIM(AttribName),'" TO HDF5 FILE...'
 IF(PRESENT(DataSetName))THEN
- ! Open dataset
-  CALL H5DOPEN_F(File_ID, TRIM(DatasetName),Loc_ID, iError)
+  ! Open dataset
+  IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID, TRIM(DatasetName),Loc_ID, iError)
 ELSE
   Loc_ID=Loc_ID_in
 END IF
@@ -593,7 +675,7 @@ END IF
 CALL H5SCLOSE_F(DataSpace, iError)
 ! Close the attribute.
 CALL H5ACLOSE_F(Attr_ID, iError)
-IF(PRESENT(DataSetName))THEN
+IF(Loc_ID.NE.Loc_ID_in)THEN
   ! Close the dataset and property list.
   CALL H5DCLOSE_F(Loc_ID, iError)
 END IF

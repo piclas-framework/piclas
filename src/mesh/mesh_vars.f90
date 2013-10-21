@@ -101,7 +101,9 @@ TYPE tElem
   INTEGER                      :: ind             ! global element index
   INTEGER                      :: Type            ! element type (linear/bilinear/curved)
   INTEGER                      :: Zone
+  INTEGER                      :: nCurvedNodes 
   TYPE(tNodePtr),POINTER       :: Node(:)
+  TYPE(tNodePtr),POINTER       :: CurvedNode(:)
   TYPE(tSidePtr),POINTER       :: Side(:)
 END TYPE tElem
 
@@ -112,9 +114,7 @@ TYPE tSide
   INTEGER                      :: NbProc 
   INTEGER                      :: BCindex         ! index in BoundaryType array! 
   INTEGER                      :: flip 
-  INTEGER                      :: nCurvedNodes 
   TYPE(tNodePtr),POINTER       :: Node(:)
-  TYPE(tNodePtr),POINTER       :: CurvedNode(:)
   TYPE(tElem),POINTER          :: Elem
   TYPE(tSide),POINTER          :: connection
 END TYPE tSide
@@ -167,10 +167,8 @@ ALLOCATE(getNewSide%Node(4))
 DO iNode=1,4
   NULLIFY(getNewSide%Node(iNode)%np)
 END DO
-NULLIFY(getNewSide%CurvedNode)
 NULLIFY(getNewSide%Elem)
 NULLIFY(getNewSide%connection)
-getNewSide%nCurvedNodes=0
 getNewSide%sideID=0
 getNewSide%ind=0
 getNewSide%tmp=0
@@ -204,9 +202,11 @@ ALLOCATE(getNewElem%Side(6))
 DO iLocSide=1,6
   getNewElem%Side(iLocSide)%sp=>getNewSide()
 END DO
+NULLIFY(getNewElem%CurvedNode)
 getNewElem%ind=0
 getNewElem%Zone=0
 getNewElem%Type=0
+getNewElem%nCurvedNodes=0
 END FUNCTION GETNEWELEM
 
 
@@ -282,16 +282,16 @@ DO iElem=FirstElemInd,LastElemInd
     NULLIFY(aElem%Node(iNode)%np)
   END DO
   DEALLOCATE(aElem%Node)
+  DO iNode=1,aElem%nCurvedNodes
+    NULLIFY(aElem%curvedNode(iNode)%np)
+  END DO
+  IF(ASSOCIATED(aElem%CurvedNode)) DEALLOCATE(aElem%curvedNode)
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
     DO iNode=1,4
       NULLIFY(aSide%Node(iNode)%np)
     END DO
-    DO iNode=1,aSide%nCurvedNodes
-      NULLIFY(aSide%CurvedNode(iNode)%np)
-    END DO
     DEALLOCATE(aSide%Node)
-    IF(ASSOCIATED(aSide%CurvedNode))DEALLOCATE(aSide%CurvedNode)
     DEALLOCATE(aSide)
   END DO
   DEALLOCATE(aElem%Side)

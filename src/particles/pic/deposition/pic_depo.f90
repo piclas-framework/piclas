@@ -105,6 +105,13 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
                           * (alpha_sf + 1.)/(PI*(r_sf**3))
     r2_sf = r_sf * r_sf 
     r2_sf_inv = 1./r2_sf
+  CASE('delta_distri')
+    ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
+    ALLOCATE(PartPosMapped(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      WRITE(*,*)'ERROR in pic_depo.f90: Cannot allocate mapped particle pos!'
+      STOP
+    END IF
   CASE('cartmesh_volumeweighting')
     ! read in background mesh size
     BGMdeltas = GETREALARRAY('PIC-BGMdeltas',3,'0. , 0. , 0.')
@@ -542,6 +549,36 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
     SDEALLOCATE(ExtPartState)
     SDEALLOCATE(ExtPartSpecies)
 #endif
+  CASE('delta_distri')
+    DO i=1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(i)) THEN
+        Element = PEM%Element(i)
+        ! Map Particle to -1|1 space (re-used in interpolation)
+        CALL GeoCoordToMap(PartState(i,1:3),PartPosMapped(i,1:3),Element)
+        ! get value of test function at particle position
+        ! xi   -direction
+        CALL LagrangeInterpolationPolys(PartPosMapped(i,1),PP_N,xGP,wBary,L_xi(1,:))
+        ! eta  -direction
+        CALL LagrangeInterpolationPolys(PartPosMapped(i,2),PP_N,xGP,wBary,L_xi(2,:))
+        ! zeta -direction
+        CALL LagrangeInterpolationPolys(PartPosMapped(i,3),PP_N,xGP,wBary,L_xi(3,:))
+        DO m=0,PP_N
+          DO l=0,PP_N
+            DO k=0,PP_N
+              DeltaIntCoeff = L_xi(1,k)* L_xi(2,l)* L_xi(3,m)*sJ(k,l,m,Element)/(wGP(k)*wGP(l)*wGP(m)) &
+                              * Species(PartSpecies(i))%ChargeIC &
+                              * Species(PartSpecies(i))%MacroParticleFactor 
+#if (PP_nVar==8)
+              source(1:3,k,l,m,Element) = source(1:3,k,l,m,Element) &
+                                        + PartState(i,4:6) * DeltaIntCoeff
+#endif
+              source( 4 ,k,l,m,Element) = source( 4 ,k,l,m,Element) + DeltaIntCoeff
+            END DO ! k
+          END DO ! l
+        END DO ! m
+      END IF ! ParticleInside
+    END DO ! ParticleVecLength
+
   CASE('nearest_gausspoint')
     SAVE_GAUSS = .FALSE.
     IF(TRIM(InterpolationType).EQ.'nearest_gausspoint') SAVE_GAUSS = .TRUE.

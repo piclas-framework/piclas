@@ -537,25 +537,41 @@ Statedummy = 'DSMCState'
 CALL WriteHDF5Header(Statedummy,File_ID)
 ! Write DG solution ----------------------------------------------------------------------------------------------------------------
 nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
-CALL WriteArrayToHDF5('DSMC_velx',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV(1))
-CALL WriteArrayToHDF5('DSMC_vely',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV(2))
-CALL WriteArrayToHDF5('DSMC_velz',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV(3))
-CALL WriteArrayToHDF5('DSMC_vel',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV(4))
-CALL WriteArrayToHDF5('DSMC_velx2',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV2(1))
-CALL WriteArrayToHDF5('DSMC_vely2',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV2(2))
-CALL WriteArrayToHDF5('DSMC_velz2',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV2(3))
-CALL WriteArrayToHDF5('DSMC_tempx',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%Temp(1))
-CALL WriteArrayToHDF5('DSMC_tempy',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%Temp(2))
-CALL WriteArrayToHDF5('DSMC_tempz',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%Temp(3))
-CALL WriteArrayToHDF5('DSMC_temp',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%Temp(4))
-CALL WriteArrayToHDF5('DSMC_dens',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%NumDens)
-CALL WriteArrayToHDF5('DSMC_partnum',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartNum)
+CALL WriteArrayToHDF5('DSMC_velx',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%PartV(1))
+CALL WriteArrayToHDF5('DSMC_vely',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%PartV(2))
+CALL WriteArrayToHDF5('DSMC_velz',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%PartV(3))
+CALL WriteArrayToHDF5('DSMC_vel',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%PartV(4))
+CALL WriteArrayToHDF5('DSMC_velx2',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%PartV2(1))
+CALL WriteArrayToHDF5('DSMC_vely2',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%PartV2(2))
+CALL WriteArrayToHDF5('DSMC_velz2',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%PartV2(3))
+CALL WriteArrayToHDF5('DSMC_tempx',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%Temp(1))
+CALL WriteArrayToHDF5('DSMC_tempy',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%Temp(2))
+CALL WriteArrayToHDF5('DSMC_tempz',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%Temp(3))
+CALL WriteArrayToHDF5('DSMC_temp',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%Temp(4))
+CALL WriteArrayToHDF5('DSMC_dens',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%NumDens)
+CALL WriteArrayToHDF5('DSMC_partnum',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%PartNum)
 IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-  CALL WriteArrayToHDF5('DSMC_tvib',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%TVib)  
-  CALL WriteArrayToHDF5('DSMC_trot',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%TRot)  
+  CALL WriteArrayToHDF5('DSMC_tvib',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%TVib)  
+  CALL WriteArrayToHDF5('DSMC_trot',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=MacroDSMC(:,:)%TRot)  
 END IF
 IF (DSMC%ElectronicState) THEN
-  CALL WriteArrayToHDF5('DSMC_telec',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%Telec)  
+  CALL WriteArrayToHDF5('DSMC_telec',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
+                                                                              RealArray=MacroDSMC(:,:)%Telec)  
 END IF
 CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
 CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)

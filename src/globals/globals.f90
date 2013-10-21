@@ -40,10 +40,15 @@ END INTERFACE
 INTERFACE BOLTZPLATZTIME
   MODULE PROCEDURE BOLTZPLATZTIME
 END INTERFACE
+
+INTERFACE GETFREEUNIT
+  MODULE PROCEDURE GETFREEUNIT
+END INTERFACE GETFREEUNIT
+
 !===================================================================================================================================
 CONTAINS
 
-SUBROUTINE Abort(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfo,RealInfo)
+SUBROUTINE Abort(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt)
 !===================================================================================================================================
 ! Terminate program correctly if an error has occurred (important in MPI mode!).
 !===================================================================================================================================
@@ -57,14 +62,18 @@ INTEGER                           :: SourceLine      ! Line in source file
 CHARACTER(LEN=*)                  :: CompDate        ! Compilation date
 CHARACTER(LEN=*)                  :: CompTime        ! Compilation time
 CHARACTER(LEN=*)                  :: ErrorMessage    ! Error message
-INTEGER                           :: IntInfo         ! Error info (integer)
-REAL                              :: RealInfo        ! Error info (real)
+INTEGER,OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
+REAL,OPTIONAL                     :: RealInfoOpt     ! Error info (real)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !   There is no way back!
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                           :: IntInfo         ! Error info (integer)
+REAL                              :: RealInfo        ! Error info (real)
 !===================================================================================================================================
+IntInfo  = MERGE(IntInfoOpt ,999 ,PRESENT(IntInfoOpt) )
+RealInfo = MERGE(RealInfoOpt,999.,PRESENT(RealInfoOpt))
 WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,*)'_____________________________________________________________________________'
 WRITE(UNIT_stdOut,*)'Program abort caused on Proc ',myRank,' in File : ',TRIM(SourceFile),' Line ',SourceLine
@@ -161,5 +170,52 @@ BoltzplatzTime=MPI_WTIME()
 CALL CPU_TIME(BoltzplatzTime)
 #endif
 END FUNCTION BOLTZPLATZTIME
+
+FUNCTION GETFREEUNIT()
+!===================================================================================================================================
+! Get unused file unit number
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER :: GetFreeUnit ! File unit number
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL :: connected
+!===================================================================================================================================
+GetFreeUnit=55
+INQUIRE(UNIT=GetFreeUnit, OPENED=connected)
+IF(connected)THEN
+  DO  
+    GetFreeUnit=GetFreeUnit+1
+    INQUIRE(UNIT=GetFreeUnit, OPENED=connected)
+    IF(.NOT.connected)EXIT
+  END DO
+END IF
+END FUNCTION GETFREEUNIT
+
+PURE FUNCTION CROSS(v1,v2)
+!===================================================================================================================================
+! computes the cross product of to 3 dimensional vectpors: cross=v1 x v2
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+    IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+    REAL,INTENT(IN) :: v1(3)    ! 
+    REAL,INTENT(IN) :: v2(3)    ! 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+    REAL            :: CROSS(3) !
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+!===================================================================================================================================
+  CROSS=(/v1(2)*v2(3)-v1(3)*v2(2),v1(3)*v2(1)-v1(1)*v2(3),v1(1)*v2(2)-v1(2)*v2(1)/)
+END FUNCTION CROSS
 
 END MODULE MOD_Globals

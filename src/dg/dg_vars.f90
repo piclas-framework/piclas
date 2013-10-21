@@ -11,6 +11,7 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! DG basis
+REAL,ALLOCATABLE                      :: D(:,:)
 REAL,ALLOCATABLE                      :: D_Hat(:,:)
 REAL,ALLOCATABLE                      :: L_HatMinus(:)
 REAL,ALLOCATABLE                      :: L_HatPlus(:)

@@ -68,7 +68,7 @@ IMPLICIT NONE
 INTEGER   :: iElem,FirstElemInd,LastElemInd
 INTEGER   :: iLocSide,iSide,iInnerSide,iBCSide
 #ifdef MPI
-INTEGER               :: iNbProc
+INTEGER               :: iNbProc,ioUnit
 INTEGER,ALLOCATABLE   :: SideIDMap(:)
 CHARACTER(LEN=10)     :: formatstr
 INTEGER,ALLOCATABLE   :: NBinfo(:,:),NBinfo_glob(:,:,:),nNBProcs_glob(:),Procinfo_glob(:,:),tmparray(:,:)  !for output only
@@ -76,108 +76,117 @@ REAL,ALLOCATABLE      :: tmpreal(:,:)
 INTEGER               :: i,j,ProcInfo(4),nNBmax      !for output only
 #endif
 !===================================================================================================================================
-  FirstElemInd= offsetElem+1
-  LastElemInd = offsetElem+nElems
-  ! set side ID, so that BC Sides come first, tehn InnerSides and then MPIsides
-  ! MPI Sides are not included here!
-  DO iElem=FirstElemInd,LastElemInd
-    aElem=>Elems(iElem)%ep
-    DO iLocSide=1,6
+FirstElemInd= offsetElem+1
+LastElemInd = offsetElem+nElems
+! ----------------------------------------
+! Set side IDs to arrange sides:
+! 1. BC sides
+! 2. inner sides
+! 3. MPI sides
+! MPI Sides are not included here!
+! ----------------------------------------
+
+DO iElem=FirstElemInd,LastElemInd
+  aElem=>Elems(iElem)%ep
+  DO iLocSide=1,6
       aElem%Side(iLocSide)%sp%sideID=-1
-    END DO
   END DO
+END DO
+
+iSide=0
+iBCSide=0
+iInnerSide=nBCSides
+DO iElem=FirstElemInd,LastElemInd
+  aElem=>Elems(iElem)%ep
+  DO iLocSide=1,6
+    aSide=>aElem%Side(iLocSide)%sp
+    IF(aSide%sideID.EQ.-1)THEN
+      IF(aSide%NbProc.EQ.-1)THEN ! no MPI Sides
+        IF(ASSOCIATED(aSide%connection))THEN
+          iInnerSide=iInnerSide+1
+          iSide=iSide+1
+          aSide%SideID=iInnerSide
+          aSide%connection%SideID=iInnerSide
+        ELSE
+          iBCSide=iBCSide+1
+          iSide=iSide+1
+          aSide%SideID=iBCSide
+        END IF !associated connection
+      END IF ! .NOT. MPISide
+    END IF !sideID NE -1
+  END DO ! iLocSide=1,6
+END DO !iElem
+IF(iSide.NE.(nInnerSides+nBCSides)) STOP 'not all SideIDs are set!'
+
+nMPISides_MINE=0
+nMPISides_YOUR=0
+#ifdef MPI
+! SPLITTING MPISides in MINE and YOURS
+ALLOCATE(nMPISides_MINE_Proc(1:nNbProcs),nMPISides_YOUR_Proc(1:nNbProcs))
+nMPISides_MINE_Proc=0
+nMPISides_YOUR_Proc=0
+DO iNbProc=1,nNbProcs
+  IF(myRank.LT.NbProc(iNbProc)) THEN
+    nMPISides_MINE_Proc(iNbProc)=nMPISides_Proc(iNbProc)/2
+  ELSE
+    nMPISides_MINE_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_Proc(iNbProc)/2
+  END IF    
+  nMPISides_YOUR_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_MINE_Proc(iNbProc)
+END DO
+nMPISides_MINE=SUM(nMPISides_MINE_Proc)
+nMPISides_YOUR=SUM(nMPISides_YOUR_Proc)
+
+ALLOCATE(offsetMPISides_YOUR(0:nNbProcs),offsetMPISides_MINE(0:nNbProcs))
+offsetMPISides_MINE=0
+offsetMPISides_YOUR=0
+! compute offset, first all MINE , then all YOUR MPISides
+offsetMPISides_MINE(0)=nInnerSides+nBCSides
+DO iNbProc=1,nNbProcs
+  offsetMPISides_MINE(iNbProc)=offsetMPISides_MINE(iNbProc-1)+nMPISides_MINE_Proc(iNbProc)
+END DO
+offsetMPISides_YOUR(0)=offsetMPISides_MINE(nNbProcs)
+DO iNbProc=1,nNbProcs
+  offsetMPISides_YOUR(iNbProc)=offsetMPISides_YOUR(iNbProc-1)+nMPISides_YOUR_Proc(iNbProc)
+END DO
+IF(nProcessors.EQ.1) RETURN
+DO iNbProc=1,nNbProcs
+  ALLOCATE(SideIDMap(nMPISides_Proc(iNbProc)))
   iSide=0
-  iBCSide=0
-  iInnerSide=nBCSides
   DO iElem=FirstElemInd,LastElemInd
     aElem=>Elems(iElem)%ep
     DO iLocSide=1,6
       aSide=>aElem%Side(iLocSide)%sp
-      IF(aSide%sideID.EQ.-1)THEN
-        IF(aSide%NbProc.EQ.-1)THEN ! no MPI Sides
-          IF(ASSOCIATED(aSide%connection))THEN
-            iInnerSide=iInnerSide+1
-            iSide=iSide+1
-            aSide%SideID=iInnerSide
-            aSide%connection%SideID=iInnerSide
-          ELSE
-            iBCSide=iBCSide+1
-            iSide=iSide+1
-            aSide%SideID=iBCSide
-          END IF !associated connection
-        END IF ! .NOT. MPISide
-      END IF !sideID NE -1
-    END DO ! iLocSide=1,6
+      IF(aSide%NbProc.NE.NbProc(iNbProc))CYCLE
+      iSide=iSide+1
+      SideIDMap(iSide)=aSide%ind !global Side Index 
+    END DO !iLocSide
   END DO !iElem
-  IF(iSide.NE.nInnerSides+nBCSides) STOP'not all SideIDs are set!'
+  CALL Qsort1Int(SideIDMap) !sort by global side index
+  DO iElem=FirstElemInd,LastElemInd
+    aElem=>Elems(iElem)%ep
+    DO iLocSide=1,6
+      aSide=>aElem%Side(iLocSide)%sp
+      IF(aSide%NbProc.NE.NbProc(iNbProc))CYCLE
+      aSide%SideID=INVMAP(aSide%ind,nMPISides_Proc(iNbProc),SideIDMap) ! get sorted iSide
+      IF(myRank.LT.aSide%NbProc)THEN
+        IF(aSide%SideID.LE.nMPISides_MINE_Proc(iNbProc))THEN !MINE
+          aSide%SideID=aSide%SideID +offsetMPISides_MINE(iNbProc-1)
+        ELSE !YOUR
+          aSide%SideID=(aSide%SideID-nMPISides_MINE_Proc(iNbProc))+offsetMPISides_YOUR(iNbProc-1)
+        END IF
+      ELSE
+        IF(aSide%SideID.LE.nMPISides_YOUR_Proc(iNbProc))THEN !MINE
+          aSide%SideID=aSide%SideID +offsetMPISides_YOUR(iNbProc-1)
+        ELSE !YOUR
+          aSide%SideID=(aSide%SideID-nMPISides_YOUR_Proc(iNbProc))+offsetMPISides_MINE(iNbProc-1)
+        END IF
+      END IF !myrank<NbProc
+    END DO !iLocSide
+  END DO !iElem
+  DEALLOCATE(SideIDMap)
+END DO !nbProc(i)
 
-  nMPISides_MINE=0
-  nMPISides_YOUR=0
-#ifdef MPI
-  ! SPLITTING MPISides in MINE and YOURS
-  ALLOCATE(nMPISides_MINE_Proc(1:nNbProcs),nMPISides_YOUR_Proc(1:nNbProcs))
-  nMPISides_MINE_Proc=0
-  nMPISides_YOUR_Proc=0
-  DO iNbProc=1,nNbProcs
-    IF(myRank.LT.NbProc(iNbProc)) THEN
-      nMPISides_MINE_Proc(iNbProc)=nMPISides_Proc(iNbProc)/2
-    ELSE
-      nMPISides_MINE_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_Proc(iNbProc)/2
-    END IF    
-    nMPISides_YOUR_Proc(iNbProc)=nMPISides_Proc(iNbProc)-nMPISides_MINE_Proc(iNbProc)
-  END DO
-  nMPISides_MINE=SUM(nMPISides_MINE_Proc)
-  nMPISides_YOUR=SUM(nMPISides_YOUR_Proc)
 
-  ALLOCATE(offsetMPISides_YOUR(0:nNbProcs),offsetMPISides_MINE(0:nNbProcs))
-  offsetMPISides_MINE=0
-  offsetMPISides_YOUR=0
-  ! compute offset, first all MINE , then all YOUR MPISides
-  offsetMPISides_MINE(0)=nInnerSides+nBCSides
-  DO iNbProc=1,nNbProcs
-    offsetMPISides_MINE(iNbProc)=offsetMPISides_MINE(iNbProc-1)+nMPISides_MINE_Proc(iNbProc)
-  END DO
-  offsetMPISides_YOUR(0)=offsetMPISides_MINE(nNbProcs)
-  DO iNbProc=1,nNbProcs
-    offsetMPISides_YOUR(iNbProc)=offsetMPISides_YOUR(iNbProc-1)+nMPISides_YOUR_Proc(iNbProc)
-  END DO
-  IF(nProcessors.EQ.1) RETURN
-  DO iNbProc=1,nNbProcs
-    ALLOCATE(SideIDMap(nMPISides_Proc(iNbProc)))
-    iSide=0
-    DO iElem=FirstElemInd,LastElemInd
-      aElem=>Elems(iElem)%ep
-      DO iLocSide=1,6
-        aSide=>aElem%Side(iLocSide)%sp
-        IF(aSide%NbProc.NE.NbProc(iNbProc))CYCLE
-        iSide=iSide+1
-        SideIDMap(iSide)=aSide%ind !global Side Index 
-      END DO !iLocSide
-    END DO !iElem
-    CALL Qsort1Int(SideIDMap) !sort by global side index
-    DO iElem=FirstElemInd,LastElemInd
-      aElem=>Elems(iElem)%ep
-      DO iLocSide=1,6
-        aSide=>aElem%Side(iLocSide)%sp
-        IF(aSide%NbProc.NE.NbProc(iNbProc))CYCLE
-        aSide%SideID=INVMAP(aSide%ind,nMPISides_Proc(iNbProc),SideIDMap) ! get sorted iSide
-        IF(myRank.LT.aSide%NbProc)THEN
-          IF(aSide%SideID.LE.nMPISides_MINE_Proc(iNbProc))THEN !MINE
-            aSide%SideID=aSide%SideID +offsetMPISides_MINE(iNbProc-1)
-          ELSE !YOUR
-            aSide%SideID=(aSide%SideID-nMPISides_MINE_Proc(iNbProc))+offsetMPISides_YOUR(iNbProc-1)
-          END IF
-        ELSE
-          IF(aSide%SideID.LE.nMPISides_YOUR_Proc(iNbProc))THEN !MINE
-            aSide%SideID=aSide%SideID +offsetMPISides_YOUR(iNbProc-1)
-          ELSE !YOUR
-            aSide%SideID=(aSide%SideID-nMPISides_YOUR_Proc(iNbProc))+offsetMPISides_MINE(iNbProc-1)
-          END IF
-        END IF !myrank<NbProc
-      END DO !iLocSide
-    END DO !iElem
-    DEALLOCATE(SideIDMap)
-  END DO !nbProc(i)
 WRITE(formatstr,'(a5,I2,a3)')'(A22,',nNBProcs,'I8)'
 LOGWRITE(*,*)'-------------------------------------------------------'
 LOGWRITE(*,'(A22,I8)')'nNbProcs:',nNbProcs
@@ -229,13 +238,14 @@ NBinfo(6,1:nNBProcs)=offsetMPISides_YOUR(0:nNBProcs-1)
 CALL MPI_GATHER(NBinfo,6*nNBmax,MPI_INTEGER,NBinfo_glob,6*nNBmax,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 DEALLOCATE(NBinfo)
 IF(MPIroot)THEN
-  OPEN(UNIT=111,FILE='partitionInfo.out',STATUS='REPLACE')
-  WRITE(111,*)'Partition Information:'
-  WRITE(111,*)'total number of Procs,',nProcessors
-  WRITE(111,*)'total number of Elems,',SUM(Procinfo_glob(1,:))
+  ioUnit=GETFREEUNIT()
+  OPEN(UNIT=ioUnit,FILE='partitionInfo.out',STATUS='REPLACE')
+  WRITE(ioUnit,*)'Partition Information:'
+  WRITE(ioUnit,*)'total number of Procs,',nProcessors
+  WRITE(ioUnit,*)'total number of Elems,',SUM(Procinfo_glob(1,:))
 
-  WRITE(111,'(8(A15))')'Rank','nElems','nSides','nInnerSides','nBCSides','nMPISides','nMPISides_MINE','nNBProcs'
-  WRITE(111,'(A120)')&
+  WRITE(ioUnit,'(8(A15))')'Rank','nElems','nSides','nInnerSides','nBCSides','nMPISides','nMPISides_MINE','nNBProcs'
+  WRITE(ioUnit,'(A120)')&
       '======================================================================================================================='
   !statistics
   ALLOCATE(tmparray(7,0:3),tmpreal(7,2))
@@ -276,39 +286,39 @@ IF(MPIroot)THEN
     END DO
   END DO
   tmpreal(:,2)=SQRT(tmpreal(:,2)/REAL(nProcessors))
-  WRITE(111,'(A15,7(5X,F10.2))')'   MEAN        ',tmpreal(:,1)
-  WRITE(111,'(A120)')&
+  WRITE(ioUnit,'(A15,7(5X,F10.2))')'   MEAN        ',tmpreal(:,1)
+  WRITE(ioUnit,'(A120)')&
       '-----------------------------------------------------------------------------------------------------------------------'
-  WRITE(111,'(A15,7(5X,F10.2))')'   RMS         ',tmpreal(:,2)
-  WRITE(111,'(A120)')&
+  WRITE(ioUnit,'(A15,7(5X,F10.2))')'   RMS         ',tmpreal(:,2)
+  WRITE(ioUnit,'(A120)')&
       '-----------------------------------------------------------------------------------------------------------------------'
-  WRITE(111,'(A15,7(5X,I10))')'   MIN         ',tmparray(:,3)
-  WRITE(111,'(A120)')&
+  WRITE(ioUnit,'(A15,7(5X,I10))')'   MIN         ',tmparray(:,3)
+  WRITE(ioUnit,'(A120)')&
       '-----------------------------------------------------------------------------------------------------------------------'
-  WRITE(111,'(A15,7(5X,I10))')'   MAX         ',tmparray(:,2)
-  WRITE(111,'(A120)')&
+  WRITE(ioUnit,'(A15,7(5X,I10))')'   MAX         ',tmparray(:,2)
+  WRITE(ioUnit,'(A120)')&
       '======================================================================================================================='
   DO i=0,nProcessors-1
-    WRITE(111,'(8(5X,I10))')i,Procinfo_glob(:,i),SUM(NBinfo_glob(2,:,i)),SUM(NBinfo_glob(3,:,i)),nNBProcs_glob(i)
-    WRITE(111,'(A120)')&
+    WRITE(ioUnit,'(8(5X,I10))')i,Procinfo_glob(:,i),SUM(NBinfo_glob(2,:,i)),SUM(NBinfo_glob(3,:,i)),nNBProcs_glob(i)
+    WRITE(ioUnit,'(A120)')&
       '-----------------------------------------------------------------------------------------------------------------------'
   END DO
-  WRITE(111,*)' '
-  WRITE(111,*)'Information per neighbor processor'
-  WRITE(111,*)' '
-  WRITE(111,'(7(A15))')'Rank','NBProc','nMPISides_Proc','nMPISides_MINE','nMPISides_YOUR','offset_MINE','offset_YOUR'
-  WRITE(111,'(A120)')&
+  WRITE(ioUnit,*)' '
+  WRITE(ioUnit,*)'Information per neighbor processor'
+  WRITE(ioUnit,*)' '
+  WRITE(ioUnit,'(7(A15))')'Rank','NBProc','nMPISides_Proc','nMPISides_MINE','nMPISides_YOUR','offset_MINE','offset_YOUR'
+  WRITE(ioUnit,'(A120)')&
       '======================================================================================================================='
   DO i=0,nProcessors-1
-    WRITE(111,'(7(5X,I10))')i,NBinfo_glob(:,1,i)
+    WRITE(ioUnit,'(7(5X,I10))')i,NBinfo_glob(:,1,i)
     DO j=2,nNBProcs_glob(i)
-      WRITE(111,'(A15,6(5X,I10))')' ',NBinfo_glob(:,j,i)
+      WRITE(ioUnit,'(A15,6(5X,I10))')' ',NBinfo_glob(:,j,i)
     END DO
-    WRITE(111,'(A120)')&
+    WRITE(ioUnit,'(A120)')&
       '-----------------------------------------------------------------------------------------------------------------------'
   END DO
   DEALLOCATE(tmparray,tmpreal)
-  CLOSE(111) 
+  CLOSE(ioUnit) 
 END IF !MPIroot
 DEALLOCATE(NBinfo_glob,nNBProcs_glob,ProcInfo_glob)
 #endif /*MPI*/  
@@ -415,7 +425,7 @@ IF(iSide.NE.(2*nInnerSides+nBCSides+nMPISides)) STOP 'wrong number of nInnerSide
 IF(MPIroot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,nSides_flip,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 ELSE
-  CALL MPI_REDUCE(nSides_flip,nSides_flip2,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(nSides_flip,nSides_flip,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 END IF
 #endif /*MPI*/
 SWRITE(UNIT_StdOut,'(132("."))')
@@ -508,7 +518,7 @@ END SUBROUTINE exchangeFlip
 
 SUBROUTINE fillElemGeo(XCL_NGeo)
 !===================================================================================================================================
-! 
+! Fill XCL_NGeo with interpolation points and transform those to Chebyshev-Lobatto points
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -516,7 +526,8 @@ USE MOD_Mesh_Vars,ONLY:nElems,offsetElem
 USE MOD_Mesh_Vars,ONLY:Elems
 USE MOD_Mesh_Vars,ONLY:aElem
 USE MOD_Mesh_Vars,ONLY:aSide
-USE MOD_Mesh_Vars,ONLY:NGeo,Xi_NGeo
+USE MOD_Mesh_Vars,ONLY:NGeo,Xi_NGeo,Vdm_NGeo_CLNGeo
+USE MOD_ChangeBasis,ONLY:changeBasis3D
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -526,155 +537,74 @@ REAL,INTENT(INOUT)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: p,q,i,d
-INTEGER            :: iElem,iNode,iLocSide,iGeo(3)
-INTEGER            :: CornerMapping(8,3)
-INTEGER            :: CurvedNodeMapping(0:NGeo,0:NGeo)
-REAL               :: xi(2),rxi(2),sNGeo
-REAL               :: Xside(3,0:NGeo,0:NGeo)
+INTEGER            :: iElem,iNode,iGeo(3)
+INTEGER            :: NodeMap((NGeo+1)**3,3)
 !===================================================================================================================================
-sNgeo=1./REAL(NGeo)
-CornerMapping(1,:)=(/   0,   0,   0/)
-CornerMapping(2,:)=(/NGeo,   0,   0/)
-CornerMapping(3,:)=(/NGeo,NGeo,   0/)
-CornerMapping(4,:)=(/   0,NGeo,   0/)
-CornerMapping(5,:)=(/   0,   0,NGeo/)
-CornerMapping(6,:)=(/NGeo,   0,NGeo/)
-CornerMapping(7,:)=(/NGeo,NGeo,NGeo/)
-CornerMapping(8,:)=(/   0,NGeo,NGeo/)
+IF(NGeo.EQ.1)THEN
+  NodeMap(1,:)=(/   0,   0,   0/)
+  NodeMap(2,:)=(/NGeo,   0,   0/)
+  NodeMap(3,:)=(/NGeo,NGeo,   0/)
+  NodeMap(4,:)=(/   0,NGeo,   0/)
+  NodeMap(5,:)=(/   0,   0,NGeo/)
+  NodeMap(6,:)=(/NGeo,   0,NGeo/)
+  NodeMap(7,:)=(/NGeo,NGeo,NGeo/)
+  NodeMap(8,:)=(/   0,NGeo,NGeo/)
+ELSE
+  CALL getBasisMappingHexa(NGeo,NodeMap)
+END IF
 
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
-  DO iNode=1,8
-    iGeo=CornerMapping(iNode,:)
-    XCL_NGeo(:,iGeo(1),iGeo(2),iGeo(3),iElem) = aElem%Node(iNode)%np%x
-  END DO !iNode
-END DO  !iElem
+  IF(aElem%nCurvedNodes.EQ.0)THEN !Only use corner nodes
+    DO iNode=1,8
+      iGeo=NodeMap(iNode,:)
+      XCL_NGeo(:,iGeo(1),iGeo(2),iGeo(3),iElem) = aElem%Node(iNode)%np%x
+    END DO !iNode
+  ELSE !NGeo > 1, so curved elements
+    DO iNode=1,aElem%nCurvedNodes
+      iGeo=NodeMap(iNode,:)
+      XCL_NGeo(:,iGeo(1),iGeo(2),iGeo(3),iElem) = aElem%curvedNode(iNode)%np%x
+    END DO !iNode
+  END IF
+  !from equidistant to CL
+  CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_NGeo_CLNGeo,XCL_NGeo(:,:,:,:,iElem),XCL_NGeo(:,:,:,:,iElem))
+END DO
 
-IF(NGeo .GT. 1)THEN !NGeo > 1, so curved elements
-  i=0
-  DO d=1,2*NGeo+1
-    DO p=0,NGeo
-      DO q=0,NGeo
-        IF(p+q+1 .EQ. d) THEN
-          i=i+1
-          CurvedNodeMapping(p,q)=i
-        END IF
-      END DO
-    END DO
-  END DO
 
-  DO iElem=1,nElems
-    aElem=>Elems(iElem+offsetElem)%ep
-    DO iLocSide=1,6
-      aSide=>aElem%Side(iLocSide)%sp
-      IF(.NOT.ASSOCIATED(aSide%CurvedNode))THEN !bilinear side
-        DO q=0,NGeo
-          DO p=0,NGeo
-            IF(p.EQ.   0.AND.q.EQ.   0)CYCLE !No corner points
-            IF(p.EQ.NGeo.AND.q.EQ.   0)CYCLE !No corner points
-            IF(p.EQ.NGeo.AND.q.EQ.NGeo)CYCLE !No corner points
-            IF(p.EQ.   0.AND.q.EQ.NGeo)CYCLE !No corner points
-!            xi = REAL((/p,q/))*sNGeo !xi =[0,1]^2
-            xi = 0.5*((/Xi_NGeo(p),Xi_NGeo(q)/)+1.) !xi =[0,1]^2
-            rxi= 1-xi                
-            SELECT CASE(iLocSide)
-            CASE(XI_MINUS)
-              XCL_NGeo(:,   0,p,q,iElem) =  rxi(1)*rxi(2)*XCL_NGeo(:,   0,   0,   0,iElem) +&
-                                             xi(1)*rxi(2)*XCL_NGeo(:,   0,NGeo,   0,iElem) +&
-                                             xi(1)* xi(2)*XCL_NGeo(:,   0,NGeo,NGeo,iElem) +&
-                                            rxi(1)* xi(2)*XCL_NGeo(:,   0,   0,NGeo,iElem)
-            CASE(XI_PLUS)
-              XCL_NGeo(:,NGeo,p,q,iElem) =  rxi(1)*rxi(2)*XCL_NGeo(:,NGeo,   0,   0,iElem) +&
-                                             xi(1)*rxi(2)*XCL_NGeo(:,NGeo,NGeo,   0,iElem) +&
-                                             xi(1)* xi(2)*XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) +&
-                                            rxi(1)* xi(2)*XCL_NGeo(:,NGeo,   0,NGeo,iElem)
-            CASE(ETA_MINUS)
-              XCL_NGeo(:,p,   0,q,iElem) =  rxi(1)*rxi(2)*XCL_NGeo(:,   0,   0,   0,iElem) +&
-                                             xi(1)*rxi(2)*XCL_NGeo(:,NGeo,   0,   0,iElem) +&
-                                             xi(1)* xi(2)*XCL_NGeo(:,NGeo,   0,NGeo,iElem) +&
-                                            rxi(1)* xi(2)*XCL_NGeo(:,   0,   0,NGeo,iElem)
-            CASE(ETA_PLUS)
-              XCL_NGeo(:,p,NGeo,q,iElem) =  rxi(1)*rxi(2)*XCL_NGeo(:,   0,NGeo,   0,iElem) +&
-                                             xi(1)*rxi(2)*XCL_NGeo(:,NGeo,NGeo,   0,iElem) +&
-                                             xi(1)* xi(2)*XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) +&
-                                            rxi(1)* xi(2)*XCL_NGeo(:,   0,NGeo,NGeo,iElem)
-            CASE(ZETA_MINUS)
-              XCL_NGeo(:,p,q,   0,iElem) =  rxi(1)*rxi(2)*XCL_NGeo(:,   0,   0,   0,iElem) +&
-                                             xi(1)*rxi(2)*XCL_NGeo(:,NGeo,   0,   0,iElem) +&
-                                             xi(1)* xi(2)*XCL_NGeo(:,NGeo,NGeo,   0,iElem) +&
-                                            rxi(1)* xi(2)*XCL_NGeo(:,   0,NGeo,   0,iElem)
-            CASE(ZETA_PLUS)
-              XCL_NGeo(:,p,q,NGeo,iElem) =  rxi(1)*rxi(2)*XCL_NGeo(:,   0,   0,NGeo,iElem) +&
-                                             xi(1)*rxi(2)*XCL_NGeo(:,NGeo,   0,NGeo,iElem) +&
-                                             xi(1)* xi(2)*XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) +&
-                                            rxi(1)* xi(2)*XCL_NGeo(:,   0,NGeo,NGeo,iElem)
-            END SELECT
-          END DO !p
-        END DO !q
-      ELSE ! curved side
-        SELECT CASE(aSide%flip)
-        CASE(0)
-          DO q=0,NGeo 
-            DO p=0,NGeo
-              Xside(:,p,q)=aSide%CurvedNode(CurvedNodeMapping(p,q))%np%x
-            END DO !p
-          END DO !q
-        CASE(1)
-          DO q=0,NGeo 
-            DO p=0,NGeo
-              Xside(:,p,q)=aSide%CurvedNode(CurvedNodeMapping(q,p))%np%x
-            END DO !p
-          END DO !q
-        CASE(2)
-          DO q=0,NGeo 
-            DO p=0,NGeo
-              Xside(:,p,q)=aSide%CurvedNode(CurvedNodeMapping(NGeo-p,q))%np%x
-            END DO !p
-          END DO !q
-        CASE(3)
-          DO q=0,NGeo 
-            DO p=0,NGeo
-              Xside(:,p,q)=aSide%CurvedNode(CurvedNodeMapping(NGeo-q,Ngeo-p))%np%x
-            END DO !p
-          END DO !q
-        CASE(4)
-          DO q=0,NGeo 
-            DO p=0,NGeo
-              Xside(:,p,q)=aSide%CurvedNode(CurvedNodeMapping(p,Ngeo-q))%np%x
-            END DO !p
-          END DO !q
-        END SELECT  
-        DO q=0,NGeo
-          DO p=0,NGeo
-            IF(p.EQ.   0.AND.q.EQ.   0)CYCLE !No corner points
-            IF(p.EQ.NGeo.AND.q.EQ.   0)CYCLE !No corner points
-            IF(p.EQ.NGeo.AND.q.EQ.NGeo)CYCLE !No corner points
-            IF(p.EQ.   0.AND.q.EQ.NGeo)CYCLE !No corner points
-            SELECT CASE(iLocSide)
-            CASE(XI_PLUS)
-              XCL_NGeo(:,NGeo,p,q,iElem) = Xside(:,p,q)
-            CASE(ETA_MINUS)
-              XCL_NGeo(:,p,   0,q,iElem) = Xside(:,p,q)  
-            CASE(ZETA_PLUS)
-              XCL_NGeo(:,p,q,NGeo,iElem) = Xside(:,p,q)
-            CASE(XI_MINUS)
-              XCL_NGeo(:,   0,p,q,iElem) = Xside(:,q,p) 
-            CASE(ETA_PLUS)
-              XCL_NGeo(:,p,NGeo,q,iElem) = Xside(:,NGeo-p,q) 
-            CASE(ZETA_MINUS)
-              XCL_NGeo(:,p,q,   0,iElem) =  Xside(:,q,p)
-            END SELECT
-          END DO !p
-        END DO !q
-      END IF ! linear/curved
-    END DO !iLocSide
-  END DO  !iElem
-  !aSide%CurvedNode(iNode)%np%x
-END IF !(NGeo .GT. 1)
 END SUBROUTINE fillElemGeo
 
-
+SUBROUTINE getBasisMappingHexa(N,bMap,bMapInv)
+!===================================================================================================================================
+! mapping from iAns -> i,j  in [0,Deg], can be used for nodeMap too: CALL getBasisMapping(nNodes1D-1,nodeMap) 
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)           :: N 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)          :: bMap((N+1)**3,3)
+INTEGER,INTENT(OUT),OPTIONAL :: bMapInv(0:N,0:N,0:N)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER                      :: iAns,i,j,k
+!===================================================================================================================================
+iAns=0
+DO k=0,N; DO j=0,N; DO i=0,N
+  iAns=iAns+1
+  bMap(iAns,:)=(/i,j,k/)
+END DO; END DO; END DO
+IF(PRESENT(bMapInv))THEN
+  bMapInv=0
+  iAns=0
+  DO k=0,N; DO j=0,N; DO i=0,N
+    iAns=iAns+1
+    bMapInv(i,j,k)=iAns
+  END DO; END DO; END DO
+END IF
+END SUBROUTINE getBasisMappingHexa
 
 SUBROUTINE getVolumeMapping(XCL_NGeo)
 !===================================================================================================================================

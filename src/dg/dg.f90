@@ -105,7 +105,7 @@ SUBROUTINE InitDGbasis(N_in,xGP,wGP,wBary)
 ! MODULES
 USE MOD_Basis,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
-USE MOD_DG_Vars,ONLY:D_Hat,L_HatMinus,L_HatPlus
+USE MOD_DG_Vars,ONLY:D,D_Hat,L_HatMinus,L_HatPlus
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -116,15 +116,16 @@ REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP,wGP,wBary
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL,DIMENSION(0:N_in,0:N_in)              :: M,Minv,D
+REAL,DIMENSION(0:N_in,0:N_in)              :: M,Minv
 REAL,DIMENSION(0:N_in)                     :: L_minus,L_plus        
 INTEGER                                    :: iMass         
 !===================================================================================================================================
 ALLOCATE(D_Hat(0:N_in,0:N_in), L_HatMinus(0:N_in), L_HatPlus(0:N_in))
+ALLOCATE(D(0:N_in,0:N_in))
 ! Compute Differentiation matrix D for given Gausspoints
 CALL PolynomialDerivativeMatrix(N_in,xGP,D)
 
-! Build D_Hat matrix. (D^ = M^(-1) * D * M
+! Build D_Hat matrix. (D^ = M^(-1) * D^T * M
 M(:,:)=0.
 Minv(:,:)=0.
 DO iMass=0,N_in
@@ -248,7 +249,7 @@ USE MOD_VolInt,        ONLY: VolInt
 USE MOD_ProlongToFace, ONLY: ProlongToFace
 USE MOD_FillFlux,      ONLY: FillFlux,FillFlux_BC
 USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nBCSides,nInnerSides
-USE MOD_Equation,      ONLY: CalcSource
+!USE MOD_Equation,      ONLY: CalcSource
 USE MOD_Equation_Vars, ONLY: IniExactFunc
 #ifdef MPI
 USE MOD_MPI_Vars

@@ -161,9 +161,9 @@ INTEGER                        :: iSide
 INTEGER                        :: FirstNodeInd,LastNodeInd,FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
 LOGICAL                        :: oriented
 INTEGER                        :: nPeriodicSides 
-INTEGER                        :: REDUCEdata(7)
-INTEGER                        :: REDUCEdata2(7)
+INTEGER                        :: ReduceData(7)
 #ifdef MPI
+INTEGER                        :: ReduceData_glob(7)
 INTEGER                        :: iNbProc, locnPart
 INTEGER                        :: iProc, curiElem
 INTEGER,ALLOCATABLE            :: MPISideCount(:)
@@ -187,7 +187,7 @@ SWRITE(UNIT_stdOut,'(A)')'READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 ! Open data file
-CALL OpenDataFile(FileString,create=.FALSE.)
+CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
 
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
 nGlobalElems=HSize(1) !global number of elements
@@ -329,6 +329,24 @@ DO iElem=FirstElemInd,LastElemInd
     aElem%Node(jNode)%np=>Nodes(iNodeP)%np
   END DO
   CALL createSides(aElem)
+  aElem%nCurvedNodes=0
+  IF(useCurveds) THEN
+    aElem%nCurvedNodes= ElemInfo(iElem,ELEM_LastNodeInd) - ElemInfo(iElem,ELEM_FirstNodeInd) - 14 ! corner + oriented nodes
+    IF((aElem%nCurvedNodes.GT.0).OR.(NGeo.GT.1))THEN
+      ALLOCATE(aElem%CurvedNode(aElem%nCurvedNodes))
+      DO jNode=1,aElem%nCurvedNodes
+        iNode=iNode+1
+        NodeID=NodeInfo(iNode) !first oriented corner node
+        iNodeP=INVMAP(NodeID,nNodes,NodeMap)  ! index in local Nodes pointer array
+        IF(iNodeP.LE.0) STOP 'Problem in INVMAP' 
+        IF(.NOT.ASSOCIATED(Nodes(iNodeP)%np))THEN
+          ALLOCATE(Nodes(iNodeP)%np)
+          Nodes(iNodeP)%np%ind=NodeID 
+        END IF
+        aElem%CurvedNode(jNode)%np=>Nodes(iNodeP)%np
+      END DO !jNode=1,nCurvedNodes
+    END IF
+  END IF
 END DO
 
 !----------------------------------------------------------------------------------------------------------------------------
@@ -352,8 +370,10 @@ CALL ReadArray('SideInfo',2,(/nSideIDs,SideinfoSize/),offsetSideID,1,IntegerArra
 
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
-  iNode=ElemInfo(iElem,ELEM_FirstNodeInd) !first index -1 in NodeInfo
-  iNode=iNode+8
+  !iNode=ElemInfo(iElem,ELEM_FirstNodeInd) !first index -1 in NodeInfo
+  !iNode=iNode+8
+  iNode=ElemInfo(iElem,ELEM_LastNodeInd) !first index -1 in NodeInfo
+  iNode=iNode-6
   iSide=ElemInfo(iElem,ELEM_FirstSideInd) !first index -1 in Sideinfo
   !build up sides of the element using element Nodes and CGNS standard
   ! assign flip
@@ -375,27 +395,6 @@ DO iElem=FirstElemInd,LastElemInd
       IF(jNode.GT.4) STOP 'NodeID doesnt belong to side'
       aSide%flip=jNode
     END IF
-    SELECT CASE(SideInfo(iSide,SIDE_TYPE))
-    CASE(7) !non-linear
-      IF(useCurveds)THEN
-        !assign nodes to Side%curvedNode array
-        aSide%nCurvedNodes=BoundaryOrder_mesh**2
-        ALLOCATE(aSide%CurvedNode(aSide%nCurvedNodes))
-        DO jNode=1,aSide%nCurvedNodes
-          iNode=iNode+1
-          NodeID=NodeInfo(iNode) !first oriented corner node
-          iNodeP=INVMAP(NodeID,nNodes,NodeMap)  ! index in local Nodes pointer array
-          IF(iNodeP.LE.0) STOP 'Problem in INVMAP' 
-          IF(.NOT.ASSOCIATED(Nodes(iNodeP)%np))THEN
-            ALLOCATE(Nodes(iNodeP)%np) 
-            Nodes(iNodeP)%np%ind=NodeID 
-          END IF
-          aSide%CurvedNode(jNode)%np=>Nodes(iNodeP)%np
-        END DO !jNode=1,nCurvedNodes
-      ELSE
-        iNode=iNode+BoundaryOrder_mesh**2
-      END IF
-    END SELECT
   END DO !i=1,locnSides
 END DO !iElem
 
@@ -545,29 +544,29 @@ DEALLOCATE(MPISideCount)
 
 #endif /*MPI*/
 
-REDUCEdata(1)=nElems
-REDUCEdata(2)=nSides
-REDUCEdata(3)=nNodes
-REDUCEdata(4)=nInnerSides
-REDUCEdata(5)=nPeriodicSides
-REDUCEdata(6)=nBCSides
-REDUCEdata(7)=nMPISides
+ReduceData(1)=nElems
+ReduceData(2)=nSides
+ReduceData(3)=nNodes
+ReduceData(4)=nInnerSides
+ReduceData(5)=nPeriodicSides
+ReduceData(6)=nBCSides
+ReduceData(7)=nMPISides
 
 #ifdef MPI
-IF(MPIroot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,REDUCEdata,7,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-ELSE
-  CALL MPI_REDUCE(REDUCEdata,REDUCEdata2,7,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-END IF
+CALL MPI_REDUCE(ReduceData,ReduceData_glob,7,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+ReduceData=ReduceData_glob
 #endif /*MPI*/
 
-SWRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',REDUCEdata(1) !nElems
-SWRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides | ',REDUCEdata(2) !nSides
-SWRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes | ',REDUCEdata(3) !nNodes
-SWRITE(UNIT_stdOut,'(A,A34,I0)')' |','nInnerSides,not periodic | ',REDUCEdata(4)-REDUCEdata(5) !nInnerSides-nPeriodicSides
-SWRITE(UNIT_stdOut,'(A,A34,I0)')' |','                periodic | ',REDUCEdata(5) !nPeriodicSides
-SWRITE(UNIT_stdOut,'(A,A34,I0)')' |','nBCSides | ',REDUCEdata(6) !nBCSides
-SWRITE(UNIT_stdOut,'(A,A34,I0)')' |','nMPISides | ',REDUCEdata(7)/2 !nMPISides
+IF(MPIRoot)THEN
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides | ',ReduceData(2) !nSides
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes | ',ReduceData(3) !nNodes
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nInnerSides,not periodic | ',ReduceData(4)-ReduceData(5) !nInnerSides-nPeriodicSides
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','                periodic | ',ReduceData(5) !nPeriodicSides
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nBCSides | ',ReduceData(6) !nBCSides
+  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nMPISides | ',ReduceData(7)/2 !nMPISides
+  WRITE(UNIT_stdOut,'(132("."))')
+END IF
 
 SWRITE(UNIT_stdOut,'(132("."))')
 END SUBROUTINE ReadMesh

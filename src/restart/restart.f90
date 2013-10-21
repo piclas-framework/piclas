@@ -36,7 +36,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars, ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
-USE MOD_HDF5_Input,ONLY:OpenDataFile,CloseDataFile,GetDataProps
+USE MOD_HDF5_Input,ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute
 USE MOD_ReadInTools,ONLY:GETLOGICAL,GETREALARRAY,ReadInDone 
 USE MOD_DSMC_Vars,ONLY: UseDSMC
 ! IMPLICIT VARIABLE HANDLING
@@ -81,6 +81,7 @@ IF (nArgs .EQ. maxNArgs) THEN
   PrimScaling=GETLOGICAL('PrimScaling','.FALSE.')
   IF(PrimScaling) PrimScale=GETREALARRAY('PrimScale',PP_nVar)
 ELSE
+  RestartTime = 0.
   SWRITE(UNIT_StdOut,'(A)')' | No restart wanted, doing a fresh computation!'
 END IF
 IF(DoRestart .AND. (N_Restart .NE. PP_N))THEN

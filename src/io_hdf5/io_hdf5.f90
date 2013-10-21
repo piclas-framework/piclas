@@ -103,8 +103,8 @@ END IF
 ! Open the file collectively.
 IF(create)THEN
  CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, access_prp = Plist_ID)
-ELSE !read-only
- CALL H5FOPEN_F(TRIM(FileString), H5F_ACC_RDONLY_F, File_ID, iError, access_prp = Plist_ID)
+ELSE !read-only ! and write (added later)
+ CALL H5FOPEN_F(TRIM(FileString), H5F_ACC_RDWR_F, File_ID, iError, access_prp = Plist_ID)
  IF(iError.EQ.-1) THEN
     WRITE(*,*) "ERROR: Can't open file: ", TRIM(FileString)
     STOP

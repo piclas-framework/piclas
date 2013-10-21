@@ -347,7 +347,7 @@ END SUBROUTINE ReadArray
 
 
 SUBROUTINE ReadAttributeFromHDF5(Loc_ID_in,AttribName,nVal,DatasetName,RealScalar,IntegerScalar,StrScalar,LogicalScalar,&
-                                                                       RealArray,IntegerArray)
+                                                                       RealArray,IntegerArray,StrArray)
 !===================================================================================================================================
 ! Subroutine to read attributes from HDF5 file.
 !===================================================================================================================================
@@ -369,49 +369,66 @@ REAL              ,OPTIONAL :: RealScalar
 INTEGER           ,OPTIONAL :: IntegerScalar
 LOGICAL           ,OPTIONAL :: LogicalScalar
 CHARACTER(LEN=255),OPTIONAL :: StrScalar
+CHARACTER(LEN=255),OPTIONAL :: StrArray(nVal)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID
 INTEGER(HSIZE_T), DIMENSION(1) :: Dimsf
-INTEGER                        :: IntToLog
+INTEGER                        :: IntToLog,i
 !===================================================================================================================================
 LOGWRITE(*,*)' READ ATTRIBUTE "',TRIM(AttribName),'" FROM HDF5 FILE...'
 Dimsf(1)=nVal
+Loc_ID=Loc_ID_in
 IF(PRESENT(DatasetName))THEN
- ! Open dataset
-  CALL H5DOPEN_F(File_ID, TRIM(DatasetName),Loc_ID, iError)
-ELSE
-  Loc_ID=Loc_ID_in
+  ! Open dataset
+  IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID, TRIM(DatasetName),Loc_ID, iError)
 END IF
 ! Create scalar data space for the attribute.
 ! Create the attribute for group Loc_ID.
 CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
 ! Write the attribute data.
 IF(PRESENT(RealArray))THEN
+  RealArray=0.
   CALL H5AREAD_F(Attr_ID, H5T_NATIVE_DOUBLE, RealArray, Dimsf, iError)
 END IF
 IF(PRESENT(RealScalar))THEN
+  RealScalar=0.
   CALL H5AREAD_F(Attr_ID, H5T_NATIVE_DOUBLE, RealScalar, Dimsf, iError)
 END IF
 IF(PRESENT(IntegerArray))THEN
+  IntegerArray=0
   CALL H5AREAD_F(Attr_ID, H5T_NATIVE_INTEGER, IntegerArray, Dimsf, iError)
 END IF
 IF(PRESENT(IntegerScalar))THEN
+  IntegerScalar=0
   CALL H5AREAD_F(Attr_ID, H5T_NATIVE_INTEGER, IntegerScalar, Dimsf, iError)
 END IF
 IF(PRESENT(LogicalScalar))THEN
+  LogicalScalar=.FALSE.
   CALL H5AREAD_F(Attr_ID, H5T_NATIVE_INTEGER, IntToLog, Dimsf, iError)
   LogicalScalar=(inttolog.EQ.1)
 END IF
 IF(PRESENT(StrScalar))THEN
+  StrScalar=''
   CALL H5AGET_TYPE_F(Attr_ID, Type_ID, iError)  ! Get HDF5 data type for character string
   CALL H5AREAD_F(Attr_ID, Type_ID, StrScalar, Dimsf, iError)
   CALL H5TCLOSE_F(Type_ID, iError)
   LOGWRITE(*,*)' SCALAR STRING READ "',TRIM(StrScalar)
 END IF
+IF(PRESENT(StrArray))THEN
+  DO i=1,nVal
+    StrArray(i)=''
+  END DO
+  CALL H5AGET_TYPE_F(Attr_ID, Type_ID, iError)  ! Get HDF5 data type for character string
+  CALL H5AREAD_F(Attr_ID, Type_ID, StrArray, Dimsf, iError)
+  CALL H5TCLOSE_F(Type_ID, iError)
+  DO i=1,nVal
+    LOGWRITE(*,*)' ARRAY STRING READ "',TRIM(StrArray(i))
+  END DO
+END IF
 ! Close the attribute.
 CALL H5ACLOSE_F(Attr_ID, iError)
-IF(PRESENT(DataSetName))THEN
+IF(Loc_ID.NE.Loc_ID_in)THEN
   ! Close the dataset and property list.
   CALL H5DCLOSE_F(Loc_ID, iError)
 END IF
@@ -420,7 +437,7 @@ END SUBROUTINE ReadAttributeFromHDF5
 
 
 
-SUBROUTINE GetHDF5NextFileName(FileName,NextFileName_HDF5)
+SUBROUTINE GetHDF5NextFileName(FileName,NextFileName_HDF5,single)
 !===================================================================================================================================
 ! Subroutine to determine filename of next HDF5 file for FlushHDF5
 !===================================================================================================================================
@@ -431,6 +448,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: FileName
+LOGICAL,INTENT(IN)             :: single
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 CHARACTER(LEN=255),INTENT(OUT) :: NextFileName_HDF5
@@ -439,6 +457,7 @@ CHARACTER(LEN=255),INTENT(OUT) :: NextFileName_HDF5
 INTEGER                        :: ReadError
 INTEGER(HID_T)                 :: File_ID_loc,Plist_ID
 !===================================================================================================================================
+LOGWRITE(*,*)' GET NEXT FILE NAME FROM HDF5 FILE ', TRIM (FileName),' ...'
 ReadError=0
 NextFileName_HDF5=''
 ! Disable error messages
@@ -448,8 +467,10 @@ CALL H5OPEN_F(iError)
 ! Setup file access property list
 CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
 #ifdef MPI
-! Set property list to MPI IO
-CALL H5PSET_FAPL_MPIO_F(Plist_ID, MPI_COMM_WORLD, MPI_INFO_NULL, iError)
+IF(.NOT.single)THEN
+  ! Set property list to MPI IO
+  CALL H5PSET_FAPL_MPIO_F(Plist_ID, MPI_COMM_WORLD, MPI_INFO_NULL, iError)
+END IF
 #endif /* MPI */
 ! Open file
 CALL H5FOPEN_F(TRIM(FileName), H5F_ACC_RDONLY_F, File_ID_loc, iError,access_prp = Plist_ID)
@@ -469,6 +490,7 @@ ELSE
   CALL H5CLOSE_F(iError)
   iError=-1
 END IF
+LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE GetHDF5NextFileName
 
 

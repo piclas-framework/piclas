@@ -61,6 +61,8 @@ IMPLICIT NONE
 INTEGER           :: iBC
 LOGICAL           :: debugmesh
 REAL,ALLOCATABLE  :: XCL_NGeo(:,:,:,:,:)
+REAL              :: x(3),PI
+INTEGER           :: iElem,i,j,k
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.',999,999.)
@@ -77,6 +79,12 @@ IF(usecurveds)THEN
   IF(PP_N.LT.NGeo) THEN
     SWRITE(*,*)'WARNING: N<NGeo, for curved hexa normals are only approximated,&
                                 can cause problems on periodic boundaries! Set N>NGeo'
+  END IF
+END IF
+
+IF(.NOT.(usecurveds))THEN
+  IF(NGeo.GT.1) THEN
+    CALL abort(__STAMP__,'NGeo > 1 is only allowed for curved hexahedra.',999,999.)
   END IF
 END IF
 ! read in boundary conditions, will overwrite BCs from meshfile!
@@ -98,19 +106,19 @@ CALL readMesh(MeshFile) !set nElems
 !schmutz fink
 PP_nElems=nElems
 
-SWRITE(*,*) "NOW CALLING setLocalSideIDs..."
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
 CALL setLocalSideIDs()
 
 ALLOCATE(XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems))
 XCL_NGeo = 0.
 
 ! map pointer structure to XCL_NGeo
-SWRITE(*,*) "NOW CALLING fillElemGeo..."
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillElemGeo..."
 CALL fillElemGeo(XCL_NGeo)
 
 #ifdef MPI
 ! for MPI, we need to exchange flips, so that MINE MPISides have flip>0, YOUR MpiSides flip=0
-SWRITE(*,*) "NOW CALLING exchangeFlip..."
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
 CALL exchangeFlip()
 #endif
 
@@ -131,7 +139,7 @@ sideID_minus_upper = nBCSides+nInnerSides+nMPISides_MINE
 sideID_plus_lower  = nBCSides+1
 sideID_plus_upper  = nBCSides+nInnerSides+nMPISides
 
-SWRITE(*,*) "NOW CALLING fillMeshInfo..."
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 CALL fillMeshInfo()
 
 #ifdef PARTICLES
@@ -140,10 +148,21 @@ CALL InitParticleGeometry()
 #endif
 
 ! dealloacte pointers
-SWRITE(*,*) "NOW CALLING deleteMeshPointer..."
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
 CALL deleteMeshPointer()
 
 IF(NGeo.GT.1) CALL getVolumeMapping(XCL_NGeo)
+
+IF(GETLOGICAL('deform','.FALSE.'))THEN
+  Pi = ACOS(-1.) 
+  DO iElem=1,nElems
+    DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
+      x(:)=XCL_Ngeo(:,i,j,k,iElem)
+      XCL_Ngeo(:,i,j,k,iElem) = x+ 0.1*SIN(Pi*x(1))*SIN(Pi*x(2))*SIN(Pi*x(3))
+    END DO; END DO; END DO;
+  END DO
+END IF
+
 
 ALLOCATE(Elem_xGP(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 
@@ -169,7 +188,7 @@ ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
 ! assign 1/detJ (sJ)
 ! assign normal and tangential vectors and surfElems on faces
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
-SWRITE(*,*) "NOW CALLING calcMetrics..."
+SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
 CALL CalcMetrics(XCL_NGeo)
 
 #ifdef PARTICLES

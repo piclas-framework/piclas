@@ -83,7 +83,7 @@ SUBROUTINE InitMPIvars()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_Mesh_Vars,ONLY:MeshInitIsDone
+USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -93,8 +93,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF(.NOT.MeshInitIsDone)THEN
-  CALL Abort(__STAMP__,'InitMPITypes called before InitInterpolation',999,999.)
+IF(.NOT.InterpolationInitIsDone)THEN
+  CALL Abort(__STAMP__,'InitMPITypes called before InitInterpolation')
 END IF
 ALLOCATE(SendRequest_U(nNbProcs)     )
 ALLOCATE(SendRequest_Flux(nNbProcs)  )

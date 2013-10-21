@@ -66,6 +66,7 @@ SUBROUTINE CalcMetrics(XCL_NGeo)
 !             Metrics_hTilde(n,iElem)=Ja(3,n)
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars, ONLY:NGeo
 USE MOD_Mesh_Vars, ONLY:Vdm_CLNGeo_GaussN,Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
@@ -96,6 +97,7 @@ REAL               :: XCL_N(3,0:PP_N,0:PP_N,0:PP_N)       ! mapping X(xi) P\in N
 REAL               :: dXCL_N(3,3,0:PP_N,0:PP_N,0:PP_N)    !jacobi matrix interpolated on P\in N
 REAL               :: R_CL_N(3,3,0:PP_N,0:PP_N,0:PP_N)    ! buffer for metric terms, uses XCL_N,dXCL_N 
 REAL               :: JaCL_N(3,3,0:PP_N,0:PP_N,0:PP_N)    ! metric terms P\in N
+REAL               :: scaledJac(2)
 !===================================================================================================================================
 ! Prerequisites
 
@@ -152,8 +154,36 @@ DO iElem=1,nElems
       END DO !j=0,N
     END DO !k=0,N
   END DO !nn=1,3
+  ! Interpolate the coordinates of the mapping (living in a NGeo world) to the N (Cheb Lob) world
+  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,XCL_NGeo_loc(:,:,:,:),XCL_N(:,:,:,:))
   !interpolate detJac to the GaussPoints
   CALL ChangeBasis3D(1,PP_N,PP_N,Vdm_CLN_GaussN,detJacCL_N(:,:,:,:),DetJacGauss_N(:,:,:,:))
+
+  ! check scaled Jacobians
+  scaledJac(1)=MINVAL(detJacCL_N(1,:,:,:))/MAXVAL(detJacCL_N(1,:,:,:))
+  scaledJac(2)=MINVAL(detJacGauss_N(1,:,:,:))/MAXVAL(detJacGauss_N(1,:,:,:))
+  IF(ANY(scaledJac.LT.0.01)) THEN
+    WRITE(Unit_StdOut,*) 'Too small scaled Jacobians found (CL/Gauss):', scaledJac 
+    CALL abort(__STAMP__,'Scaled Jacobian lower then tolerance!',iElem)
+  END IF
+  ! check for negative Jacobians
+  DO k=0,PP_N
+    DO j=0,PP_N
+      DO i=0,PP_N
+        IF(detJacCL_N(1,i,j,k).LE.0.)THEN
+          WRITE(Unit_StdOut,*) 'Negative Jacobian found in element on CL points. Coords:', XCL_NGeo_loc(:,i,j,k)
+          WRITE(Unit_StdOut,*) 'Jacobian is:', detJacCL_N(1,i,j,k)
+          CALL abort(__STAMP__,'Negative Jacobian found! Elem:',iElem)
+        END IF
+        IF(detJacGauss_N(1,i,j,k).LE.0.)THEN
+          WRITE(Unit_StdOut,*) 'Negative Jacobian found in element on Gauss points. Coords:', XCL_N(:,i,j,k)
+          WRITE(Unit_StdOut,*) 'Jacobian is:', detJacGauss_N(1,i,j,k)
+          CALL abort(__STAMP__,'Negative Jacobian found! Elem:', iElem)
+        END IF
+      END DO !i=0,N
+    END DO !j=0,N
+  END DO !k=0,N
+
   ! assign to global Variable sJ
   DO k=0,PP_N
     DO j=0,PP_N
@@ -162,8 +192,7 @@ DO iElem=1,nElems
       END DO !iGeo=0,NGeo
     END DO !jGeo=0,NGeo
   END DO !kGeo=0,NGeo
-  ! Interpolate the coordinates of the mapping (living in a NGeo world) to the N (Cheb Lob) world
-  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,XCL_NGeo_loc(:,:,:,:),XCL_N(:,:,:,:))
+
   IF(crossProductMetrics)THEN
     ! exact (cross-product) form
     DO nn=1,3
@@ -272,6 +301,7 @@ SUBROUTINE CalcSurfMetrics(JaCL_N,XCL_N,iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
+USE MOD_Globals,     ONLY:CROSS
 USE MOD_Mesh_Vars,   ONLY:NGeo
 USE MOD_Mesh_Vars,   ONLY:Vdm_CLN_GaussN
 USE MOD_Mesh_Vars,   ONLY:ElemToSide,BCFace_xGP,nInnerSides,nBCSides,Face_xGP
@@ -517,27 +547,5 @@ IF(ElemToSide(E2S_FLIP,ZETA_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
 END IF !flip=0
 
 END SUBROUTINE CalcSurfMetrics
-
-
-
-PURE FUNCTION CROSS(v1,v2)
-!===================================================================================================================================
-! computes the cross product of to 3 dimensional vectpors: cross=v1 x v2
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-    IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-    REAL,INTENT(IN) :: v1(3)    ! 
-    REAL,INTENT(IN) :: v2(3)    ! 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-    REAL            :: CROSS(3) !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-!===================================================================================================================================
-  CROSS=(/v1(2)*v2(3)-v1(3)*v2(2),v1(3)*v2(1)-v1(1)*v2(3),v1(1)*v2(2)-v1(2)*v2(1)/)
-END FUNCTION CROSS
 
 END MODULE MOD_Metrics
