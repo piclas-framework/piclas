@@ -322,24 +322,41 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
 END SUBROUTINE InitializeDeposition
 
 SUBROUTINE Deposition()                                                                            !
+!============================================================================================================================
+! This subroutine performes the deposition of the particle charge and current density to the grid
+! following list of distribution methods are implemted
+! - nearest blurrycenter (barycenter of hexahedra)
+! - nearest Gauss Point  (only volome of IP - higher resolution than nearest blurrycenter )
+! - shape function       (only one type implemented)
+! - delta distributio
+!============================================================================================================================
+! use MODULES
 USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_inv
 USE MOD_Particle_Vars
 USE MOD_PreProc
-USE MOD_Mesh_Vars,     ONLY : nElems, Elem_xGP, sJ
-USE MOD_Globals,       ONLY : UNIT_errOut, MPIRoot
-USE MOD_part_MPI_Vars, ONLY : casematrix, NbrOfCases
-USE MOD_Interpolation_Vars, ONLY : wGP
-USE MOD_PICInterpolation_Vars, ONLY : InterpolationType
-USE MOD_part_MPFtools, ONLY: GeoCoordToMap
+USE MOD_Mesh_Vars,             ONLY: nElems, Elem_xGP, sJ
+USE MOD_Globals,               ONLY: UNIT_errOut, MPIRoot
+USE MOD_part_MPI_Vars,         ONLY: casematrix, NbrOfCases
+USE MOD_Interpolation_Vars,    ONLY: wGP
+USE MOD_PICInterpolation_Vars, ONLY: InterpolationType
+USE MOD_part_MPFtools,         ONLY: GeoCoordToMap
+USE MOD_Basis,                 ONLY: LagrangeInterpolationPolys
+USE MOD_Interpolation_Vars,    ONLY: wBary,xGP
 #ifdef MPI
 USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
 #endif 
-!--------------------------------------------------------------------------------------------------!
-  IMPLICIT NONE                                                                                    !
-!--------------------------------------------------------------------------------------------------!
-! Local variable declaration                                                                       !
-  INTEGER                          :: i, k, l, m, Element, iPart, iElem                                   !
-  LOGICAL                          :: chargedone(1:nElems), bound_check(6), SAVE_GAUSS                         !
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE                                                                                   
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT variable declaration                                                                       
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT variable declaration                                                                       
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Local variable declaration                                                                       
+!-----------------------------------------------------------------------------------------------------------------------------------
+  INTEGER                          :: i, k, l, m, Element, iPart, iElem                            !
+  LOGICAL                          :: chargedone(1:nElems), bound_check(6), SAVE_GAUSS             !
   INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           !
   INTEGER                          :: kk, ll, mm, ppp                                              !
   INTEGER                          :: ElemID, iCase, ind
@@ -352,7 +369,9 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
   REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
   REAL                             :: alpha1, alpha2, alpha3
   INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
-!--------------------------------------------------------------------------------------------------!
+  REAL,DIMENSION(3,0:PP_N)         :: L_xi
+  REAL                             :: DeltaIntCoeff
+!============================================================================================================================
   source=0.0
   SELECT CASE(TRIM(DepositionType))
   CASE('nearest_blurrycenter')
