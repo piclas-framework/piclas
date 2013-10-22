@@ -703,13 +703,8 @@ DO iElem=1,nElems
   WMag_tmp=0. 
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-! old and wrong
-!    E_abs = SUM(ABS(U(1:3,i,j,k,iElem)))
-!    WEl_tmp = WEl_tmp + wGP(i)*wGP(j)*wGP(k) * E_abs * E_abs * J_N(1,i,j,k)
-!    B_abs = SUM(ABS(U(4:6,i,j,k,iElem)))
-!    WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * B_abs * B_abs * J_N(1,i,j,k)
-! new  WMag = 1/(2mu) * int_V B^2 dV 
 ! in electromagnetische felder by henke 2011 - springer
+! WMag = 1/(2mu) * int_V B^2 dV 
     E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
           + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
           + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)

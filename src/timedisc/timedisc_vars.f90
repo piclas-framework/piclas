@@ -15,7 +15,8 @@ REAL      :: TEnd
 REAL      :: TAnalyze
 REAL      :: dt
 REAL      :: CFLScale 
-REAL      :: eps_LinearSolver,eps2_LinearSolver,maxIter_LinearSolver,epsTilde_LinearSolver
+REAL      :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver
+INTEGER   :: maxIter_LinearSolver
 INTEGER(KIND=8) :: iter
 LOGICAL   :: ViscousTimeStep=.FALSE.
 LOGICAl   :: TimediscInitIsDone = .FALSE.

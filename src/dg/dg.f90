@@ -44,9 +44,7 @@ SUBROUTINE InitDG()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars,            ONLY: D_Hat,L_HatMinus,L_HatPlus 
-USE MOD_DG_Vars,            ONLY: U,Ut,nTotalU,U_Minus,U_Plus
-USE MOD_DG_Vars,            ONLY: Flux,DGInitIsDone
+USE MOD_DG_Vars
 USE MOD_Restart_Vars,       ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars, ONLY: xGP,wGP,wBary,InterpolationInitIsDone
 USE MOD_Mesh_Vars,          ONLY: nSides,nInnerSides,nBCSides

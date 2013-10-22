@@ -70,6 +70,7 @@ LOGICAL                        :: isValidHDF5File
 REAL                           :: FileVersion
 INTEGER(HID_T)                 :: Plist_ID
 CHARACTER(LEN=255)             :: ProgramName
+LOGICAL                        :: help
 !===================================================================================================================================
 isValidHDF5File=.TRUE.
 iError=0
@@ -90,7 +91,10 @@ IF(iError.EQ.0) THEN
   ! Check program name -------------------------------------------------------------------------------------------------------------
   ! Open the attribute "Program" of root group
   CALL ReadAttributeFromHDF5(File_ID,'Program',1,StrScalar=ProgramName)
-  IF(TRIM(ProgramName) .NE. 'Boltzplatz') isValidHDF5File=.FALSE.
+  help=.FALSE.
+  IF(TRIM(ProgramName) .EQ. 'Boltzplatz') help=.TRUE.
+  IF(TRIM(ProgramName) .EQ. 'Flexi') help=.TRUE.
+  IF(.NOT.help) isValidHDF5File=.FALSE.
  
   ! Check file version -------------------------------------------------------------------------------------------------------------
   ! Open the attribute "File_Version" of root group

@@ -104,8 +104,7 @@ DO SideID=1,nBCSides
   BCState=Boundarytype(BC(SideID),BC_STATE)
   IF (BCState.EQ.0)BCState=IniExactFunc
   CALL GetBoundaryFlux(Flux(:,:,:,SideID),BCType,BCState,BCFace_xGP(:,:,:,SideID),NormVec(:,:,:,SideID),TangVec1(:,:,:,SideID),  &
-                       TangVec2(:,:,:,SideID),t,tDeriv,U_Minus(:,:,:,SideID) )
-
+                       TangVec2(:,:,:,SideID),t,tDeriv,U_Minus(:,:,:,SideID))
   DO q=0,PP_N
     DO p=0,PP_N
       Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)

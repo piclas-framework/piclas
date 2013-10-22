@@ -24,7 +24,7 @@ END INTERFACE
 
 INTERFACE FinalizePoyntingInt
   MODULE PROCEDURE FinalizePoyntingInt
-END INTERFACE 
+END INTERFACE
 
 INTERFACE CalcPoyntingIntegral
   MODULE PROCEDURE CalcPoyntingIntegral

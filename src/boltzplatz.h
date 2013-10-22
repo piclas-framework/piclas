@@ -15,6 +15,10 @@
 #endif
 #define __STAMP__ __FILE__,__LINE__,__DATE__,__TIME__
 
+#ifdef GNU
+#  define IEEE_IS_NAN ISNAN
+#endif
+
 #ifdef MPI
 #  define SWRITE IF(MPIRoot) WRITE
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
@@ -26,6 +30,14 @@
 #define LOGWRITE(a,b) IF(Logging) WRITE(UNIT_logOut,b)
 #define SDEALLOCATE(A) IF(ALLOCATED(A)) DEALLOCATE(A)
 
+
+#ifdef OPTIMIZED
+#define PP_IJK     i,0,0
+#define PP_ij      i,0
+#else
+#define PP_IJK     i,j,k
+#define PP_ij      i,j
+#endif
 ! Predefined "PARAMETER-like" variables
 #define XI_MINUS   5
 #define XI_PLUS    3

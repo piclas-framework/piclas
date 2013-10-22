@@ -58,6 +58,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT TIMEDISC...'
 
 ! Read the normalized CFL number
 CFLScale = GETREAL('CFLScale')
+CALL fillCFL_DFL()
 
 #if (PP_TimeDiscMethod>=100 && PP_TimeDiscMethod<200) 
 eps_LinearSolver = GETREAL('eps_LinearSolver')

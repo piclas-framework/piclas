@@ -230,6 +230,7 @@ CASE(3) ! Resonator
   resu(8)=0.
 
 CASE(4) ! Dipole
+  resu(1:8) = 0.
   RETURN
   eps=1e-10
   xrel    = x - xDipole
@@ -393,6 +394,7 @@ USE MOD_DG_Vars,       ONLY : Ut
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
 USE MOD_PICDepo_Vars,  ONLY : Source
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
+!USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -415,14 +417,9 @@ CASE(0) ! Particles
       !  Get source from Particles
       Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * source(1:3,i,j,k,iElem)
       Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * source(  4,i,j,k,iElem) * c_corr 
-      !IF((t.GT.0).AND.(ABS(source(4,i,j,k,iElem)*c_corr).EQ.0))THEN
-      !print*, t
-     ! print*, eps0inv * source(4,i,j,k,iElem)*c_corr
-      !print*, eps0inv * source(1:3,i,j,k,iElem)
-      !read*
-      !END IF
     END DO; END DO; END DO
   END DO
+  !CALL CalcDepositedCharge()
 CASE(1) ! Constant          - no sources
 CASE(2) ! Coaxial Waveguide - no sources
 CASE(3) ! Resonator         - no sources
@@ -432,7 +429,8 @@ CASE(4) ! Dipole
       r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
         Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) * Q*d*omega * COS(omega*t) * eps0inv
-        !Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) * c_corr*Q * eps0inv
+    ! dipole should be neutral
+       ! Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) * c_corr*Q * eps0inv
       END IF
     END DO; END DO; END DO
   END DO
