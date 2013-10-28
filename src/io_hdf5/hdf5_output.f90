@@ -136,11 +136,11 @@ SUBROUTINE WriteParticleToHDF5()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Output_Vars,ONLY:ProjectName
-USE MOD_Interpolation_Vars,ONLY:StrNodeType
-USE MOD_Mesh_Vars,ONLY:nGlobalElems, offsetElem
-USE MOD_Particle_Vars, ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,enableParticleMerge
-USE MOD_part_tools,    ONLY: UpdateNextFreePosition
+USE MOD_Output_Vars,        ONLY:ProjectName
+USE MOD_Interpolation_Vars, ONLY:StrNodeType
+USE MOD_Mesh_Vars,          ONLY:nGlobalElems, offsetElem
+USE MOD_Particle_Vars,      ONLY:PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,enableParticleMerge
+USE MOD_part_tools,         ONLY:UpdateNextFreePosition
 USE MOD_DSMC_Vars,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
