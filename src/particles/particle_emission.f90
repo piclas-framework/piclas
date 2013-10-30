@@ -377,6 +377,8 @@ SUBROUTINE SetParticlePosition(FractNbr,NbrOfParticle)
 #ifdef MPI
    IF ( (nbrOfParticle.GT.10*PMPIVAR%nProcs                                      ) .AND. &
         (TRIM(Species(FractNbr)%SpaceIC).NE.'circle_equidistant'                 ) .AND. &
+        (TRIM(Species(FractNbr)%SpaceIC).NE.'sin_deviation'                      ) .AND. &
+        (TRIM(Species(FractNbr)%SpaceIC).NE.'cuboid_with_equidistant_distribution') .AND. &
         (TRIM(Species(FractNbr)%SpaceIC).NE.'line_with_equidistant_distribution' )) THEN
       nChunks = PMPIVAR%nProcs
    ELSE
@@ -784,39 +786,72 @@ IF (mode.EQ.1) THEN
             particle_positions(i*3-2 : i*3) = PartState(ParticleIndexNbr-Species(1)%initialParticleNumber,1:3)
          END DO
 #endif
-      CASE('sin_deviation')
-#ifdef MPI
-         WRITE(*,*)"ERROR: Initializing Postitions for sin_deviation not implemented for MPI!"
-         STOP
-#else
+      CASE ('cuboid_with_equidistant_distribution') 
          IF(Species(FractNbr)%initialParticleNumber.NE. &
               (Species(FractNbr)%maxParticleNumberX*Species(FractNbr)%maxParticleNumberY*Species(FractNbr)%maxParticleNumberZ)) THEN
            WRITE(*,*) 'ERROR: Number of ini particles of species ',FractNbr,' does not match number of particles in each direction!'
            STOP
          END IF
-         xlen = abs(GEO%xmax  - GEO%xmin)  
-         ylen = abs(GEO%ymax  - GEO%ymin)
-         zlen = abs(GEO%zmax  - GEO%zmin)
+         xlen = SQRT(Species(FractNbr)%BaseVector1IC(1)**2 &
+              + Species(FractNbr)%BaseVector1IC(2)**2 &
+              + Species(FractNbr)%BaseVector1IC(3)**2 )
+         ylen = SQRT(Species(FractNbr)%BaseVector2IC(1)**2 &
+              + Species(FractNbr)%BaseVector2IC(2)**2 &
+              + Species(FractNbr)%BaseVector2IC(3)**2 )
+         zlen = ABS(Species(FractNbr)%CuboidHeightIC)
+
+         ! make sure the vectors correspond to x,y,z-dir
+         IF ((xlen.NE.Species(FractNbr)%BaseVector1IC(1)).OR. &
+            (ylen.NE.Species(FractNbr)%BaseVector2IC(2)).OR. &
+            (zlen.NE.Species(FractNbr)%CuboidHeightIC)) THEN
+            WRITE(*,*) 'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition'
+            STOP
+          END IF
+         x_step = xlen/Species(FractNbr)%maxParticleNumberX
+         y_step = ylen/Species(FractNbr)%maxParticleNumberY
+         z_step = zlen/Species(FractNbr)%maxParticleNumberZ
+         iPart = 1
+         DO i=1,Species(FractNbr)%maxParticleNumberX
+           x_pos = (i-0.5) * x_step + Species(FractNbr)%BasePointIC(1)
+           DO j=1,Species(FractNbr)%maxParticleNumberY
+             y_pos =  Species(FractNbr)%BasePointIC(2) + (j-0.5) * y_step
+             DO k=1,Species(FractNbr)%maxParticleNumberZ
+               particle_positions(iPart*3-2) = x_pos
+               particle_positions(iPart*3-1) = y_pos
+               particle_positions(iPart*3  ) = Species(FractNbr)%BasePointIC(3) &
+                    + (k-0.5) * z_step
+               iPart = iPart + 1
+             END DO
+           END DO
+         END DO
+      CASE('sin_deviation')
+         IF(Species(FractNbr)%initialParticleNumber.NE. &
+              (Species(FractNbr)%maxParticleNumberX*Species(FractNbr)%maxParticleNumberY*Species(FractNbr)%maxParticleNumberZ)) THEN
+           WRITE(*,*) 'ERROR: Number of ini particles of species ',FractNbr,' does not match number of particles in each direction!'
+           STOP
+         END IF
+         xlen = abs(GEO%xmaxglob  - GEO%xminglob)  
+         ylen = abs(GEO%ymaxglob  - GEO%yminglob)
+         zlen = abs(GEO%zmaxglob  - GEO%zminglob)
          x_step = xlen/Species(FractNbr)%maxParticleNumberX
          y_step = ylen/Species(FractNbr)%maxParticleNumberY
          z_step = zlen/Species(FractNbr)%maxParticleNumberZ
          iPart = 1
          DO i=1,Species(FractNbr)%maxParticleNumberX
             x_pos = (i * x_step - x_step*0.5)
-            x_pos = GEO%xmin + x_pos + Species(FractNbr)%Amplitude &
+            x_pos = GEO%xminglob + x_pos + Species(FractNbr)%Amplitude &
                     * sin(Species(FractNbr)%WaveNumber * x_pos)
             DO j=1,Species(FractNbr)%maxParticleNumberY
-              y_pos =  GEO%ymin + j * y_step - y_step * 0.5
+              y_pos =  GEO%yminglob + j * y_step - y_step * 0.5
               DO k=1,Species(FractNbr)%maxParticleNumberZ
                 particle_positions(iPart*3-2) = x_pos                                
                 particle_positions(iPart*3-1) = y_pos
-                particle_positions(iPart*3  ) = GEO%zmin &
+                particle_positions(iPart*3  ) = GEO%zminglob &
                                           + k * z_step - z_step * 0.5
                 iPart = iPart + 1
               END DO
             END DO
          END DO
-#endif
       END SELECT
 #ifdef MPI
    ELSE !no mpi root, nchunks=1
