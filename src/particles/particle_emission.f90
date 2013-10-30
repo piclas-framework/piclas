@@ -789,6 +789,11 @@ IF (mode.EQ.1) THEN
          WRITE(*,*)"ERROR: Initializing Postitions for sin_deviation not implemented for MPI!"
          STOP
 #else
+         IF(Species(FractNbr)%initialParticleNumber.NE. &
+              (Species(FractNbr)%maxParticleNumberX*Species(FractNbr)%maxParticleNumberY*Species(FractNbr)%maxParticleNumberZ)) THEN
+           WRITE(*,*) 'ERROR: Number of ini particles of species ',FractNbr,' does not match number of particles in each direction!'
+           STOP
+         END IF
          xlen = abs(GEO%xmax  - GEO%xmin)  
          ylen = abs(GEO%ymax  - GEO%ymin)
          zlen = abs(GEO%zmax  - GEO%zmin)
