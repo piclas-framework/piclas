@@ -1575,9 +1575,8 @@ SUBROUTINE DomainUpdate()
    DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, CellProcNum)
    CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 #endif
-   
 
-  IF(useDSMC) CALL WriteOutputMesh()
+!CALL WriteOutputMesh()
 
  END SUBROUTINE DomainUpdate
 
