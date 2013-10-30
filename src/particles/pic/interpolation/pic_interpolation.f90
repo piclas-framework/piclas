@@ -343,13 +343,16 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     STOP
   END SELECT
 END IF
-! Temp stuff for pseudo recordline
-!DO iPart = 1,PDM%ParticleVecLength
-!  IF (PDM%ParticleInside(iPart)) THEN
-!    WRITE(*,'(6(1X,E14.7))') PartState(iPart,1), FieldAtParticle(iPart,1),FieldAtParticle(iPart,2) &
-!          ,FieldAtParticle(iPart,3),FieldAtParticle(iPart,4),FieldAtParticle(iPart,5)
-!  END IF
-!END DO
+
+!! Temp stuff for pseudo recordlines
+!IF(MOD(iter,1000).EQ.0) THEN
+!  DO iPart = 1,PDM%ParticleVecLength
+!    IF (PDM%ParticleInside(iPart)) THEN
+!      WRITE(*,'(I4,6(X,E14.6))') ipart, PartState(iPart,1),PartState(iPart,2),PartState(iPart,3), &
+!         FieldAtParticle(iPart,4),FieldAtParticle(iPart,5),FieldAtParticle(iPart,6)
+!    END IF
+!  END DO
+!END IF
     
 RETURN
 END SUBROUTINE InterpolateFieldToParticle
