@@ -647,20 +647,20 @@ IF (t.GE.DelayTime) THEN
   Pt_temp(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,6) 
   Pt_temp(1:PDM%ParticleVecLength,4) = Pt(1:PDM%ParticleVecLength,1) 
   Pt_temp(1:PDM%ParticleVecLength,5) = Pt(1:PDM%ParticleVecLength,2) 
-  Pt_temp(1:PDM%ParticleVecLength,6) = Pt(1:PDM%ParticleVecLength,3) 
-END IF
-PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) &
+  Pt_temp(1:PDM%ParticleVecLength,6) = Pt(1:PDM%ParticleVecLength,3)
+  PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) &
                                        + PartState(1:PDM%ParticleVecLength,4)*b_dt(1)
-PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) &
+  PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) &
                                        + PartState(1:PDM%ParticleVecLength,5)*b_dt(1)
-PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
+  PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
                                        + PartState(1:PDM%ParticleVecLength,6)*b_dt(1)
-PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
                                        + Pt(1:PDM%ParticleVecLength,1)*b_dt(1)
-PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
                                        + Pt(1:PDM%ParticleVecLength,2)*b_dt(1)
-PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                        + Pt(1:PDM%ParticleVecLength,3)*b_dt(1)
+END IF
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   CALL ParticleBoundary()
 #ifdef MPI
@@ -721,13 +721,11 @@ DO rk=2,5
                                        + Pt_temp(1:PDM%ParticleVecLength,5)*b_dt(rk)
     PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                        + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(rk)
-    IF (t.GE.DelayTime) THEN
-      CALL ParticleBoundary()
+    CALL ParticleBoundary()
 #ifdef MPI
       CALL Communicate_PIC()
 !    CALL UpdateNextFreePosition() ! only required for parallel communication
 #endif
-    END IF
   END IF
 END DO
 CALL UpdateNextFreePosition()
