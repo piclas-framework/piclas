@@ -346,7 +346,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem,iSide,LocSideID,nSides_flip(0:4),nSides_flip2(0:4)
+INTEGER             :: iElem,iSide,LocSideID,nSides_flip(0:4),nSides_flip2(0:4),dummy(0:4)
 !===================================================================================================================================
 !  LOGWRITE(*,'(4A8)')'SideID', 'globID','NbProc','Flip'
 !  DO iElem=1,nElems
@@ -425,7 +425,7 @@ IF(iSide.NE.(2*nInnerSides+nBCSides+nMPISides)) STOP 'wrong number of nInnerSide
 IF(MPIroot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,nSides_flip,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 ELSE
-  CALL MPI_REDUCE(nSides_flip,nSides_flip,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE(nSides_flip,dummy,5,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 END IF
 #endif /*MPI*/
 SWRITE(UNIT_StdOut,'(132("."))')
