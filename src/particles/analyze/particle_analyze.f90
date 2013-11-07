@@ -306,64 +306,63 @@ unit_index = 535
 !IF (CalcCharge.AND.(.NOT.ChargeCalcDone)) CALL CalcDepositedCharge()
 IF (CalcEpot) THEN
   CALL CalcPotentialEnergy(WEl,WMag)
-#ifdef MPI
-  CALL MPI_ALLREDUCE(WEl , sumWEl , 1 , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
-  WEl = sumWEl
-  CALL MPI_ALLREDUCE(WMag, sumWMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
-  WMag = sumWMag
-#endif
 END IF
 IF (CalcEkin) THEN
   CALL CalcKineticEnergy(Ekin)
-#ifdef MPI
-  CALL MPI_ALLREDUCE(Ekin(:) , sumEkin , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
-  Ekin(:) = sumEkin(:)
-#endif
 END IF
 IF (CalcTemp) THEN
   CALL CalcTemperature(Temp, NumSpec)
-#ifdef MPI
-! average over all cells
-  sumTemp = 0
-  CALL MPI_ALLREDUCE(Temp   , sumTemp    , nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
-  Temp = sumTemp / PMPIVAR%nProcs
-#endif
 END IF
+! MPI Communication
+#ifdef MPI
+IF (CalcEpot) THEN
+  CALL MPI_REDUCE(WEl , sumWEl , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  WEl = sumWEl
+  CALL MPI_REDUCE(WMag, sumWMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  WMag = sumWMag
+END IF
+IF (CalcEkin) THEN
+  CALL MPI_REDUCE(Ekin(:) , sumEkin , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  Ekin(:) = sumEkin(:)
+END IF
+IF (CalcTemp) THEN
+  sumTemp = 0
+  CALL MPI_REDUCE(Temp   , sumTemp    , nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  Temp = sumTemp / PMPIVAR%nProcs
+END IF
+#endif
+
 #if (PP_TimeDiscMethod==42)
 CALL CollRates(CRate)
 IF (CollisMode.EQ.3) CALL ReacRates(RRate, NumSpec)
 IF (CollisMode.NE.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
+CALL GetNumSpec(NumSpec)
 ! currently, calculation of internal electronic energy not implemented !
 #ifdef MPI
 ! average over all cells
   IF (CollisMode.NE.1) THEN
-    CALL MPI_ALLREDUCE(IntTemp(:,1), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(IntTemp(:,1), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
     IntTemp(:,1) = sumIntTemp / PMPIVAR%nProcs
-    CALL MPI_ALLREDUCE(IntTemp(:,2), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(IntTemp(:,2), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0,PMPIVAR%COMM, IERROR)
     IntTemp(:,2) = sumIntTemp / PMPIVAR%nProcs
-    CALL MPI_ALLREDUCE(IntEn(:,1) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(IntEn(:,1) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
     IntEn(:,1) = sumIntEn 
-    CALL MPI_ALLREDUCE(IntEn(:,2) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(IntEn(:,2) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
     IntEn(:,2) = sumIntEn 
     IF ( DSMC%ElectronicState ) THEN
-      CALL MPI_ALLREDUCE(IntTemp(:,3), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+      CALL MPI_REDUCE(IntTemp(:,3), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
       IntTemp(:,3) = sumIntTemp / PMPIVAR%nProcs
-      CALL MPI_ALLREDUCE(IntEN(:,3), sumIntEn , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+      CALL MPI_REDUCE(IntEN(:,3), sumIntEn , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
       IntEn(:,3) = sumIntEn
     END IF
   END IF 
-#endif
-#endif
-#if (PP_TimeDiscMethod==42)
-CALL GetNumSpec(NumSpec)
-#ifdef MPI
-   CALL MPI_ALLREDUCE(NumSpec, sumNumSpec, nSpecies, MPI_INTEGER, MPI_SUM, PMPIVAR%COMM, IERROR)
-   NumSpec = sumNumSpec
-#endif
-#endif
+  CALL MPI_REDUCE(NumSpec, sumNumSpec, nSpecies, MPI_INTEGER, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  NumSpec = sumNumSpec
+#endif /*MPI*/
+#endif /*PP_TimeDiscMethod==42*/
+
 IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed in the file but directly in "out"
 
-! Wo ist die MPI-Communication? 
 #ifdef MPI
  IF (PMPIVAR%iProc .EQ. 0) THEN
 #endif    /* MPI */
