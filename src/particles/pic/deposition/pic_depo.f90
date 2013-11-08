@@ -49,15 +49,6 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     WRITE(*,*) 'ERROR in pic_depo.f90: Interpolation type nearest_gausspoint only allowed with same deposition type!'
     STOP
   END IF
-!  Periodic_Depo  = GETLOGICAL('PIC-Depo-Periodic','.FALSE.')
-  IF (GEO%nPeriodicVectors.GT.0) THEN 
-    GEO%nnx = SUM(GEO%PeriodicVectors(1,1:3))    ! sum of all periodic vecs in x dir
-    GEO%nny = SUM(GEO%PeriodicVectors(2,1:3))    ! sum of all periodic vecs in y dir
-    GEO%nnz = SUM(GEO%PeriodicVectors(3,1:3))    ! sum of all periodic vecs in z dir
-!    GEO%nnx = (/ABS(GEO%xmax-GEO%xmin),0.,0./)
-!    GEO%nny = (/0.,ABS(GEO%ymax-GEO%ymin),0./)
-!    GEO%nnz = (/0.,0.,ABS(GEO%zmax-GEO%zmin)/)
-  END IF
   !--- Allocate arrays for charge density collection and initialize
   SDEALLOCATE(source)
   ALLOCATE(source(1:4,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
@@ -181,18 +172,18 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
         STOP
       END IF
       DO i = 1, GEO%nPeriodicVectors
-        GEO%PeriodicBGMVectors(i,1) = NINT(GEO%PeriodicVectors(i,1)/BGMdeltas(1))
-        IF(ABS(GEO%PeriodicVectors(i,1)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(i,1))).GT.1E-10)THEN
+        GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
+        IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
           WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
           STOP
         END IF
-        GEO%PeriodicBGMVectors(i,2) = NINT(GEO%PeriodicVectors(i,2)/BGMdeltas(2))
-        IF(ABS(GEO%PeriodicVectors(i,2)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(i,2))).GT.1E-10)THEN
+        GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
+        IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
           WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
           STOP
         END IF
-        GEO%PeriodicBGMVectors(i,3) = NINT(GEO%PeriodicVectors(i,3)/BGMdeltas(3))
-        IF(ABS(GEO%PeriodicVectors(i,3)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(i,3))).GT.1E-10)THEN
+        GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
+        IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
           WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
           STOP
         END IF
@@ -297,18 +288,18 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
         STOP
       END IF
       DO i = 1, GEO%nPeriodicVectors
-        GEO%PeriodicBGMVectors(i,1) = NINT(GEO%PeriodicVectors(i,1)/BGMdeltas(1))
-        IF(ABS(GEO%PeriodicVectors(i,1)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(i,1))).GT.1E-10)THEN
+        GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
+        IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
           WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
           STOP
         END IF
-        GEO%PeriodicBGMVectors(i,2) = NINT(GEO%PeriodicVectors(i,2)/BGMdeltas(2))
-        IF(ABS(GEO%PeriodicVectors(i,2)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(i,2))).GT.1E-10)THEN
+        GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
+        IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
           WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
           STOP
         END IF
-        GEO%PeriodicBGMVectors(i,3) = NINT(GEO%PeriodicVectors(i,3)/BGMdeltas(3))
-        IF(ABS(GEO%PeriodicVectors(i,3)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(i,3))).GT.1E-10)THEN
+        GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
+        IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
           WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
           STOP
         END IF
@@ -1540,18 +1531,18 @@ SUBROUTINE MPIBackgroundMeshInit()                                              
      STOP
    END IF
    DO i = 1, GEO%nPeriodicVectors
-     GEO%PeriodicBGMVectors(i,1) = NINT(GEO%PeriodicVectors(i,1)/BGMdeltas(1))
-     IF(ABS(GEO%PeriodicVectors(i,1)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(i,1))).GT.1E-10)THEN
+     GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
+     IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
        WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
        STOP
      END IF
-     GEO%PeriodicBGMVectors(i,2) = NINT(GEO%PeriodicVectors(i,2)/BGMdeltas(2))
-     IF(ABS(GEO%PeriodicVectors(i,2)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(i,2))).GT.1E-10)THEN
+     GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
+     IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
        WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
        STOP
      END IF
-     GEO%PeriodicBGMVectors(i,3) = NINT(GEO%PeriodicVectors(i,3)/BGMdeltas(3))
-     IF(ABS(GEO%PeriodicVectors(i,3)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(i,3))).GT.1E-10)THEN
+     GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
+     IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
        WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
        STOP
      END IF
@@ -1569,31 +1560,20 @@ SUBROUTINE MPIBackgroundMeshInit()                                              
    DO k = -1,1
      DO m = -1,1
        DO n = -1,1
-         CHECK = .TRUE.
-         PeriodicVec = k*GEO%PeriodicBGMVectors(1,:) + m*GEO%PeriodicBGMVectors(2,:) + n*GEO%PeriodicBGMVectors(3,:)
-         IF (ALL(PeriodicVec(:).EQ.0)) THEN
-           !-- do nothing, no periodic vector exists
-         ELSE
-           periodicminmax(1) = localminmax(1) + PeriodicVec(1)
-           periodicminmax(2) = localminmax(2) + PeriodicVec(2)
-           periodicminmax(3) = localminmax(3) + PeriodicVec(3)
-           periodicminmax(4) = localminmax(4) + PeriodicVec(1)
-           periodicminmax(5) = localminmax(5) + PeriodicVec(2)
-           periodicminmax(6) = localminmax(6) + PeriodicVec(3)
-           !--- find overlap
-           DO coord = 1,3           ! x y z direction
-             maxofmin = MAX(periodicminmax(coord),localminmax(coord))
-             minofmax = MIN(periodicminmax(3+coord),localminmax(3+coord))
-             IF (maxofmin.LE.minofmax) THEN           ! overlapping
-               !-- nothing
-             ELSE
-               CHECK = .FALSE.
-             END IF
-           END DO
-           IF(CHECK)THEN
-             GEO%SelfPeriodic = .TRUE.
-           END IF
-         END IF
+         PeriodicVec = k*GEO%PeriodicBGMVectors(:,1) + m*GEO%PeriodicBGMVectors(:,1) + n*GEO%PeriodicBGMVectors(:,1)
+         IF (ALL(PeriodicVec(:).EQ.0)) CYCLE
+         periodicminmax(1) = localminmax(1) + PeriodicVec(1)
+         periodicminmax(2) = localminmax(2) + PeriodicVec(2)
+         periodicminmax(3) = localminmax(3) + PeriodicVec(3)
+         periodicminmax(4) = localminmax(4) + PeriodicVec(1)
+         periodicminmax(5) = localminmax(5) + PeriodicVec(2)
+         periodicminmax(6) = localminmax(6) + PeriodicVec(3)
+         !--- find overlap
+         DO coord = 1,3           ! x y z direction
+           maxofmin = MAX(periodicminmax(coord),localminmax(coord))
+           minofmax = MIN(periodicminmax(3+coord),localminmax(3+coord))
+           IF (maxofmin.LE.minofmax) GEO%SelfPeriodic = .TRUE.      ! overlapping
+         END DO
        END DO
      END DO
    END DO
@@ -1673,6 +1653,7 @@ SDEALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder)
           DO k = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
             DO m = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
               DO n = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
+                IF ((k.EQ.0).AND.(m.EQ.0).AND.(n.EQ.0)) CYCLE !this is not periodic and already done above
                 CHECKNEIGHBOR = .TRUE.
                 PeriodicVec = k*GEO%PeriodicBGMVectors(:,1)
                 IF (GEO%nPeriodicVectors.GT.1) THEN
