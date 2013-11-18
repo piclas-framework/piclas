@@ -22,6 +22,7 @@ REAL                                  :: r2_sf_inv          ! 1/cutoff radius of
 REAL                                  :: w_sf               ! shapefuntion weight
 REAL                                  :: alpha_sf           ! shapefuntion exponent 
 REAL                                  :: BGMdeltas(3)       ! Backgroundmesh size in x,y,z
+REAL                                  :: FactorBGM(3)       ! Divider for BGM (to allow real numbers)
 REAL                                  :: BGMVolume          ! Volume of a BGM Cell
 INTEGER                               :: BGMminX            ! Local minimum BGM Index in x
 INTEGER                               :: BGMminY            ! Local minimum BGM Index in y

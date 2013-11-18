@@ -105,7 +105,9 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     END IF
   CASE('cartmesh_volumeweighting')
     ! read in background mesh size
-    BGMdeltas = GETREALARRAY('PIC-BGMdeltas',3,'0. , 0. , 0.')
+    BGMdeltas(1:3) = GETREALARRAY('PIC-BGMdeltas',3,'0. , 0. , 0.')
+    FactorBGM(1:3) = GETREALARRAY('PIC-FactorBGM',3,'1. , 1. , 1.')
+    BGMdeltas(1:3) = 1./FactorBGM(1:3)*BGMdeltas(1:3)
     IF (ANY(BGMdeltas.EQ.0.0)) THEN
       WRITE(*,*)'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.'
       STOP
@@ -191,7 +193,9 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     END IF
 #endif
   CASE('cartmesh_splines')
-    BGMdeltas = GETREALARRAY('PIC-BGMdeltas',3,'0. , 0. , 0.')
+    BGMdeltas(1:3) = GETREALARRAY('PIC-BGMdeltas',3,'0. , 0. , 0.')
+    FactorBGM(1:3) = GETREALARRAY('PIC-FactorBGM',3,'1. , 1. , 1.')
+    BGMdeltas(1:3) = 1./FactorBGM(1:3)*BGMdeltas(1:3)
     IF (ANY(BGMdeltas.EQ.0)) THEN
       WRITE(*,*)'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.'
       STOP
