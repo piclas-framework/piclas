@@ -149,25 +149,25 @@ INTEGER, INTENT(IN)           :: nOutput                                        
         IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
           (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
           IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-              TVib_TempFac=SampDSMC(iElem,iSpec)%EVib &
+            TVib_TempFac=SampDSMC(iElem,iSpec)%EVib &
                       /(SampDSMC(iElem,iSpec)%PartNum*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-              IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-                MacroDSMC(iElem,iSpec)%TVib = 0.0           
-              ELSE
-                MacroDSMC(iElem,iSpec)%TVib = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
-              END IF
+            IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
+              MacroDSMC(iElem,iSpec)%TVib = 0.0           
+            ELSE
+              MacroDSMC(iElem,iSpec)%TVib = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
+            END IF
           ELSE                                            ! TSHO-model
-              MacroDSMC(iElem,iSpec)%TVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
+            MacroDSMC(iElem,iSpec)%TVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
                 , SampDSMC(iElem,iSpec)%EVib/SampDSMC(iElem,iSpec)%PartNum, SpecDSMC(iSpec)%MaxVibQuant) 
           END IF       
-              MacroDSMC(iElem,iSpec)%TRot = SampDSMC(iElem, iSpec)%ERot/(BoltzmannConst*SampDSMC(iElem,iSpec)%PartNum)
-!              MacroDSMC(iElem,iSpec)%TVib = SpecDSMC(iSpec)%CharaTVib / LOG(1.0 + &
-!                                SpecDSMC(iSpec)%CharaTVib * BoltzmannConst * SampDSMC(iElem, iSpec)%PartNum &
-!                                 /SampDSMC(iElem,iSpec)%EVib)
-!              print*,'TVIB:',MacroDSMC(iElem,iSpec)%TVib
-        IF (DSMC%ElectronicState) THEN
-          MacroDSMC(iElem,iSpec)%TElec= CalcTelec( SampDSMC(iElem,iSpec)%EElec/SampDSMC(iElem,iSpec)%PartNum, iSpec)
-        END IF
+          MacroDSMC(iElem,iSpec)%TRot = SampDSMC(iElem, iSpec)%ERot/(BoltzmannConst*SampDSMC(iElem,iSpec)%PartNum)
+!          MacroDSMC(iElem,iSpec)%TVib = SpecDSMC(iSpec)%CharaTVib / LOG(1.0 + &
+!                             SpecDSMC(iSpec)%CharaTVib * BoltzmannConst * SampDSMC(iElem, iSpec)%PartNum &
+!                              /SampDSMC(iElem,iSpec)%EVib)
+!          print*,'TVIB:',MacroDSMC(iElem,iSpec)%TVib
+          IF (DSMC%ElectronicState) THEN
+            MacroDSMC(iElem,iSpec)%TElec= CalcTelec( SampDSMC(iElem,iSpec)%EElec/SampDSMC(iElem,iSpec)%PartNum, iSpec)
+          END IF
         END IF
       END IF
     END DO
@@ -239,7 +239,7 @@ INTEGER, INTENT(IN)           :: nOutput                                        
     END IF
   END DO
   CALL WriteDSMCToHDF5(TRIM(MeshFile),realtime)
-  CALL WriteOutputDSMC(nOutput)
+!  CALL WriteOutputDSMC(nOutput)
   DEALLOCATE(MacroDSMC)
   
 END SUBROUTINE DSMC_output_calc

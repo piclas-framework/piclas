@@ -997,6 +997,8 @@ END SUBROUTINE PeriodicWallBnd3D
 
 SUBROUTINE PerfectReflection3D (i,iLocSide,Element,TriNum, WallVelo)                                         !
   USE MOD_Particle_Vars
+  USE MOD_LD_Vars,    ONLY : UseLD
+  USE MOD_LD,         ONLY : LD_PerfectReflection
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -1128,6 +1130,8 @@ SUBROUTINE PerfectReflection3D (i,iLocSide,Element,TriNum, WallVelo)            
    PartState(i,4)   = VelX + WallVelo(1) 
    PartState(i,5)   = VelY + WallVelo(2)
    PartState(i,6)   = VelZ + WallVelo(3)
+
+   IF(UseLD) CALL LD_PerfectReflection(nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,PoldStarZ,i)
 
  RETURN
 END SUBROUTINE PerfectReflection3D

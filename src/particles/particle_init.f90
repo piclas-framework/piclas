@@ -327,6 +327,8 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars, ONLY: ParticlesInitIsDone, WriteMacroValues, nSpecies
 USE MOD_part_emission, ONLY: InitializeParticleEmission
 USE MOD_DSMC_Init,     ONLY: InitDSMC
+USE MOD_LD_Init,       ONLY: InitLD
+USE MOD_LD_Vars,       ONLY: useLD
 USE MOD_DSMC_Vars,     ONLY: useDSMC, DSMC, SampDSMC
 USE MOD_Mesh_Vars,     ONLY : nElems
 USE MOD_InitializeBackgroundField
@@ -362,6 +364,7 @@ CALL InitializeParticleEmission()
 
 IF (useDSMC) THEN
   CALL  InitDSMC()
+  IF (useLD) CALL InitLD
 ELSE IF (WriteMacroValues) THEN
   DSMC%SampNum = 0
   ALLOCATE(SampDSMC(nElems,nSpecies))
@@ -1575,7 +1578,7 @@ SUBROUTINE DomainUpdate()
    DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, CellProcNum)
    CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 #endif
-
+IF(useDSMC) CALL WriteOutputMesh()
 !CALL WriteOutputMesh()
 
  END SUBROUTINE DomainUpdate

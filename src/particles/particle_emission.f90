@@ -211,9 +211,13 @@ SUBROUTINE ParticleInserting()
   USE MOD_Timedisc_Vars         , ONLY : dt
   USE MOD_Particle_Vars       ! , ONLY : time
   USE MOD_PIC_Vars
-  USE MOD_part_tools             ,ONLY: UpdateNextFreePosition  
-  USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode                                   
-  USE MOD_DSMC_Init              ,ONLY: DSMC_SetInternalEnr_LauxVFD
+  USE MOD_part_tools             ,ONLY : UpdateNextFreePosition  
+  USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode                                   
+  USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
+#if (PP_TimeDiscMethod==1000)
+  USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
+  USE MOD_LD_Vars
+#endif
 !===================================================================================================================================
 ! implicit variable handling
 !===================================================================================================================================
@@ -286,6 +290,20 @@ SUBROUTINE ParticleInserting()
           iPart = iPart + 1
         END DO
       END IF
+#if (PP_TimeDiscMethod==1000)
+      iPart = 1
+      DO WHILE (iPart .le. NbrOfParticle)
+          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+          IF (PositionNbr .ne. 0) THEN
+            PartStateBulkValues(PositionNbr,1) = Species(i)%VeloVecIC(1) * Species(i)%VeloIC
+            PartStateBulkValues(PositionNbr,2) = Species(i)%VeloVecIC(2) * Species(i)%VeloIC
+            PartStateBulkValues(PositionNbr,3) = Species(i)%VeloVecIC(3) * Species(i)%VeloIC
+            PartStateBulkValues(PositionNbr,4) = Species(i)%MWTemperatureIC
+            PartStateBulkValues(PositionNbr,5) = CalcDegreeOfFreedom(PositionNbr)
+          END IF
+          iPart = iPart + 1
+      END DO
+#endif
       ! instead of UpdateNextfreePosition we update the
       ! particleVecLength only. 
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
@@ -299,7 +317,7 @@ SUBROUTINE ParticleInserting()
 END SUBROUTINE ParticleInserting
                                                                                                    
 #ifdef MPI
-SUBROUTINE SetParticlePosition(FractNbr,NbrOfParticle,mode)                                        
+SUBROUTINE SetParticlePosition(FractNbr,NbrOfParticle,mode)
 !===================================================================================================================================
   USE MOD_part_MPI_Vars,      ONLY : PMPIVAR,PMPIInsert
 !===================================================================================================================================
@@ -317,6 +335,7 @@ SUBROUTINE SetParticlePosition(FractNbr,NbrOfParticle)
   USE MOD_PICInterpolation,      ONLY : InterpolateCurvedExternalField
   USE MOD_PICInterpolation_vars, ONLY : CurvedExternalField,useCurvedExternalField
   USE MOD_Equation_vars,         ONLY : c_inv
+  USE MOD_LD,                    ONLY : LD_SetParticlePosition
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
    IMPLICIT NONE                                                                                   
@@ -357,7 +376,8 @@ SUBROUTINE SetParticlePosition(FractNbr,NbrOfParticle)
    REAL                             :: xlen, ylen, zlen                                            
    INTEGER                          :: iPart                                                       
    CHARACTER(50)                    :: debugFileName                                               
-   REAL, PARAMETER                  :: PI=3.14159265358979323846_8                                 
+   REAL, PARAMETER                  :: PI=3.14159265358979323846_8
+   REAL,ALLOCATABLE                 :: particle_positions_Temp(:)                                
 !----------------------------------------------------------------------------------------------------------------------------------
    INTENT(IN)                       :: FractNbr                                                    
    INTENT(INOUT)                    :: NbrOfParticle                                               
@@ -734,6 +754,20 @@ IF (mode.EQ.1) THEN
            particle_positions(i*3-1) = Particle_pos(2)
            particle_positions(i*3  ) = Particle_pos(3)
         END DO
+      CASE('LD_insert')
+        CALL LD_SetParticlePosition(chunkSize,particle_positions_Temp)
+        DEALLOCATE( particle_positions, STAT=allocStat )
+        IF (allocStat .NE. 0) THEN
+          WRITE(*,*)'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!'
+          STOP
+        END IF
+        ALLOCATE(particle_positions(3*chunkSize))
+        particle_positions(1:3*chunkSize) = particle_positions_Temp(1:3*chunkSize)
+        DEALLOCATE( particle_positions_Temp, STAT=allocStat )
+        IF (allocStat .NE. 0) THEN
+          WRITE(*,*)'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!'
+          STOP
+        END IF
       CASE('cuboid_equal')
 #ifdef MPI
          IF (PMPIVAR%nProcs .GT. 1) THEN
@@ -1049,10 +1083,14 @@ ELSE ! mode.NE.1:
       WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
       WRITE(*,'(A,I7,A)')'matched ', sumOfMatchedParticles, ' particles'
       WRITE(*,'(A,I7,A)')'when ', NbrOfParticle, ' particles were required!'
+#if (PP_TimeDiscMethod==1000)
+!      STOP
+#else
       STOP
+#endif
    ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
-    !  WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
-    !  WRITE(*,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
+      WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
+      WRITE(*,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
    END IF
 #ifdef MPI
    END IF ! PMPIVAR%iProc.EQ.0

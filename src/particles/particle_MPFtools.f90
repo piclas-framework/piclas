@@ -8,7 +8,8 @@ MODULE MOD_part_MPFtools                                                        
 
 !===================================================================================================================================
 ! PUBLIC 
-PUBLIC :: SplitParticle, MergeParticles, DefineElemT_inv, DefinePolyVec, DefineSplitVec, StartParticleMerge, GeoCoordToMap
+PUBLIC :: SplitParticle, MergeParticles, DefineElemT_inv, DefinePolyVec, DefineSplitVec, StartParticleMerge, GeoCoordToMap &
+        , MapToGeo
 !===================================================================================================================================
 
 CONTAINS   

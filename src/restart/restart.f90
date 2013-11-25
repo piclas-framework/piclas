@@ -39,6 +39,7 @@ USE MOD_Restart_Vars
 USE MOD_HDF5_Input,ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute
 USE MOD_ReadInTools,ONLY:GETLOGICAL,GETREALARRAY,ReadInDone 
 USE MOD_DSMC_Vars,ONLY: UseDSMC
+USE MOD_LD_Vars,ONLY: UseLD
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -66,6 +67,13 @@ IF (useDSMC) THEN
   maxNArgs = 3
 ELSE
   maxNArgs = 2
+END IF
+! LD handling:
+useLD=GETLOGICAL('UseLD','.FALSE.')
+IF (useLD) THEN
+  useDSMC=.TRUE.
+  ReadInDone = .FALSE.
+  maxNArgs = 3
 END IF
 
 ! Check if we want to perform a restart
@@ -154,6 +162,7 @@ USE MOD_HDF5_Output,ONLY:FlushHDF5
 USE MOD_Particle_Vars, ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF
 USE MOD_part_tools, ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
+USE MOD_LD_Vars,       ONLY: UseLD, PartStateBulkValues
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -199,7 +208,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   END IF
 
 #ifdef PARTICLES
-  IF (useDSMC) THEN
+  IF (useDSMC.AND.(.NOT.(useLD))) THEN
     IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN !int ener + 3, vmpf +1
       PartDataSize=11
     ELSE IF ((CollisMode.GT.1).AND.((usevMPF) .OR. (DSMC%ElectronicState)) ) THEN ! int ener + 2 and vmpf +1
@@ -211,6 +220,19 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
       PartDataSize=8 ! vMPF + 1
     ELSE 
       PartDataSize=7 !+ 0
+    END IF
+  ELSE IF (useLD) THEN
+    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
+      PartDataSize=16
+    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
+                                                                             ! or int energ +3 but no vmpf +1
+      PartDataSize=15
+    ELSE IF (CollisMode.GT.1) THEN
+      PartDataSize=14!int ener + 2
+    ELSE IF (usevMPF) THEN
+      PartDataSize=13!+ 1 vmpf
+    ELSE
+      PartDataSize=12 !+ 0
     END IF
   ELSE IF (usevMPF) THEN
     PartDataSize=8 !vmpf +1
@@ -239,7 +261,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     PartState(1:locnPart,5)   = PartData(offsetnPart+1:offsetnPart+locnPart,5)
     PartState(1:locnPart,6)   = PartData(offsetnPart+1:offsetnPart+locnPart,6)
     PartSpecies(1:locnPart)= INT(PartData(offsetnPart+1:offsetnPart+locnPart,7))
-    IF (useDSMC) THEN
+    IF (useDSMC.AND.(.NOT.(useLD))) THEN
       IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
         PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
         PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
@@ -258,6 +280,57 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
         PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
       ELSE IF (usevMPF) THEN
         PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)        
+      END IF
+    ELSE IF (useLD) THEN
+      IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
+        PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+        PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+        PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+        PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
+        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
+        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
+        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
+        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,15)
+        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,16)
+      ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
+        PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+        PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+        PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
+        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
+        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
+        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
+        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,15)
+      ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicState)) THEN
+        PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+        PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+        PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
+        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
+        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
+        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
+        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,15)
+      ELSE IF (CollisMode.GT.1) THEN
+        PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+        PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
+        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
+        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
+        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
+      ELSE IF (usevMPF) THEN
+        PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
+        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
+        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
+      ELSE
+        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
+        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
+        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
+        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,12)  
       END IF
     ELSE IF (usevMPF) THEN
       PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
