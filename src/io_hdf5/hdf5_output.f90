@@ -129,11 +129,15 @@ nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number
 #ifdef PP_POIS
 Utemp(1,:,:,:,:)=Phi(1,:,:,:,:)
 Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
-CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),offsetElem,5,existing=.TRUE.,RealArray=Utemp)
-CALL WriteArrayToHDF5('DG_SolutionE',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),offsetElem,5,existing=.TRUE.,RealArray=U)
-CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),offsetElem,5,existing=.TRUE.,RealArray=Phi)
+CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+,offsetElem,5,existing=.TRUE.,RealArray=Utemp)
+CALL WriteArrayToHDF5('DG_SolutionE',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+,offsetElem,5,existing=.FALSE.,RealArray=U)
+CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+,offsetElem,5,existing=.FALSE.,RealArray=Phi)
 #else
-CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),offsetElem,5,existing=.TRUE.,RealArray=U)
+CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+,offsetElem,5,existing=.TRUE.,RealArray=U)
 #endif
 
 
