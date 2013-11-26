@@ -131,8 +131,10 @@ USE MOD_PICInterpolation_Vars
 USE MOD_PICDepo_Vars,  ONLY : DepositionType
 USE MOD_PreProc
 USE MOD_Eval_xyz
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
+#ifdef PP_POIS
+USE MOD_Equation_Vars,ONLY: E
+#endif
+!--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                    !
 !----------------------------------------------------------------------------------------------------------------------------------
 ! ARGUMENT LIST DECLARATION                                                                        !
@@ -270,9 +272,15 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       IF (PDM%ParticleInside(iPart)) THEN
         iElem = PEM%Element(iPart)
         m = INT(PP_N/2)+1
+#ifdef PP_POIS
+        FieldAtParticle(iPart,1) = FieldAtParticle(iPart,1) + E(1,m,m,m,iElem) 
+        FieldAtParticle(iPart,2) = FieldAtParticle(iPart,2) + E(2,m,m,m,iElem) 
+        FieldAtParticle(iPart,3) = FieldAtParticle(iPart,3) + E(3,m,m,m,iElem) 
+#else
         FieldAtParticle(iPart,1) = FieldAtParticle(iPart,1) + U(1,m,m,m,iElem) 
         FieldAtParticle(iPart,2) = FieldAtParticle(iPart,2) + U(2,m,m,m,iElem) 
         FieldAtParticle(iPart,3) = FieldAtParticle(iPart,3) + U(3,m,m,m,iElem) 
+#endif
 #if (PP_nVar==8)
         FieldAtParticle(iPart,4) = FieldAtParticle(iPart,4) + U(4,m,m,m,iElem) 
         FieldAtParticle(iPart,5) = FieldAtParticle(iPart,5) + U(5,m,m,m,iElem) 
@@ -289,7 +297,11 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #if (PP_nVar==8)
         CALL eval_xyz(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
 #else
+#ifdef PP_POIS
+        CALL eval_xyz(Pos,3,PP_N,E(1:3,:,:,:,iElem),field,iElem)
+#else
         CALL eval_xyz(Pos,3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
+#endif
 #endif
         FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
       END IF
@@ -304,7 +316,11 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #if (PP_nVar==8)
           CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
 #else
+#ifdef PP_POIS
+          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),3,PP_N,E(1:3,:,:,:,iElem),field,iElem)     
+#else
           CALL eval_xyz_part2(PartPosMapped(iPart,1:3),3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
+#endif
 #endif
           FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
         END IF
@@ -318,7 +334,11 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #if (PP_nVar==8)
           CALL eval_xyz_fast(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
 #else
-          CALL eval_xyz_fast(Pos,3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
+#ifdef PP_POIS
+         CALL eval_xyz_fast(Pos,3,PP_N,E(1:3,:,:,:,iElem),field,iElem)
+#else
+         CALL eval_xyz_fast(Pos,3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
+#endif         
 #endif
           FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
         END IF
@@ -332,10 +352,16 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           !--- evaluate at Particle position
 #if (PP_nVar==8)
           field = U(1:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+#else
+#ifdef PP_POIS
+          field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+          FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
 #else
           field(1:3) = U(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+          FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
 #endif
-          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+#endif
         END IF
       END DO
   CASE DEFAULT

@@ -1,6 +1,6 @@
 #include "boltzplatz.h"
 
-MODULE MOD_GetBoundaryFlux
+MODULE MOD_GetBoundaryFlux_Pois
 !===================================================================================================================================
 ! Contains FillBoundary (which depends on the considered equation)
 !===================================================================================================================================
@@ -14,19 +14,19 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE GetBoundaryFlux
+INTERFACE GetBoundaryFlux_Pois
   MODULE PROCEDURE GetBoundaryFlux
 END INTERFACE
 
 
-PUBLIC::GetBoundaryFlux
+PUBLIC::GetBoundaryFlux_Pois
 !===================================================================================================================================
 
 CONTAINS
 
 
 
-SUBROUTINE GetBoundaryFlux(F_Face,BCType,BCState,xGP_Face,normal,tangent1,tangent2,t,tDeriv,U_Face)
+SUBROUTINE GetBoundaryFlux(F_Face,BCType,BCState,xGP_Face,normal,tangent1,tangent2,t,tDeriv,U_Face,iSide)
 !===================================================================================================================================
 ! Computes the boundary values for a given Cartesian mesh face (defined by FaceID)
 ! BCType: 1...periodic, 2...exact BC
@@ -37,8 +37,11 @@ SUBROUTINE GetBoundaryFlux(F_Face,BCType,BCState,xGP_Face,normal,tangent1,tangen
 ! MODULES
 USE MOD_Globals,ONLY:Abort
 USE MOD_PreProc
-USE MOD_Riemann,ONLY:Riemann
+USE MOD_Riemann_Pois,ONLY:Riemann_Pois
 USE MOD_Equation,ONLY:ExactFunc
+USE MOD_Equation_Vars, ONLY:c,c_inv
+USE MOD_Particle_Vars,ONLY: PartBound
+USE MOD_Mesh_Vars,ONLY:BC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -51,6 +54,7 @@ REAL,INTENT(IN)                      :: tangent1(3,0:PP_N,0:PP_N)
 REAL,INTENT(IN)                      :: tangent2(3,0:PP_N,0:PP_N)
 REAL,INTENT(IN)                      :: t
 INTEGER,INTENT(IN)                   :: tDeriv
+INTEGER,INTENT(IN)                   :: iSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                     :: F_Face(PP_nVar,0:PP_N,0:PP_N)
@@ -70,12 +74,23 @@ CASE(2) ! exact BC = Dirichlet BC !!
     END DO ! p
   END DO ! q
   ! Dirichlet means that we use the gradients from inside the grid cell
-  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
+  CALL Riemann_Pois(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
                normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
 
 CASE(3) ! 1st order absorbing BC
   U_Face_loc=0.
-  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
+
+!  DO q=0,PP_N
+!    DO p=0,PP_N
+!      resul=U_Face(:,p,q)
+!      n_loc=normal(:,p,q)   
+!!      U_Face_loc(1,p,q) = resul(1) - c*DOT_PRODUCT(resul(2:4),n_loc)
+!      U_Face_loc(2:4,p,q) = -resul(2:4) + c_inv*U_Face(1,p,q)*normal(1:3,p,q)
+
+!    END DO ! p
+!  END DO
+
+  CALL Riemann_Pois(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
                normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
   
 CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
@@ -83,13 +98,17 @@ CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
   DO q=0,PP_N
     DO p=0,PP_N
       resul=U_Face(:,p,q)
-      n_loc=normal(:,p,q)
-      U_Face_loc(1:3,p,q) = resul(1:3) !-resul(1:3) + 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
-      U_Face_loc(  4,p,q) = -resul(  4)
+      n_loc=normal(:,p,q)    
+    ! U_Face_loc(1,p,q) = 2. * 1000. - resul(1)  !- c*DOT_PRODUCT(resul(2:4),n_loc)
+      U_Face_loc(1,p,q) = 2. * PartBound%Voltage(BC(iSide)) - resul(1)  !+ c*DOT_PRODUCT(resul(2:4),n_loc)
+      U_Face_loc(2:4,p,q) = + resul(2:4) !- 1./c*resul(1)*n_loc
     END DO ! p
+  
   END DO ! q
   ! Dirichlet means that we use the gradients from inside the grid cell
-  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
+!print*,resul(1)
+!      read*
+  CALL Riemann_Pois(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
                normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
 
 CASE DEFAULT ! unknown BCType
@@ -98,4 +117,5 @@ CASE DEFAULT ! unknown BCType
 END SELECT ! BCType
 END SUBROUTINE GetBoundaryFlux
 
-END MODULE MOD_GetBoundaryFlux
+
+END MODULE MOD_GetBoundaryFlux_Pois

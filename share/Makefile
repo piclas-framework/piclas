@@ -6,8 +6,10 @@ ifeq ($(EQNSYS),maxwell)
 all: hdf5 recipes teclib  
 else ifeq ($(EQNSYS),electrostatic)
 all: hdf5 recipes teclib  
+else ifeq ($(EQNSYS),electrostatic_pois)
+all: hdf5 recipes teclib  
 else
-all: hdf5 teclib
+all: hdf5 teclib recipes
 endif
 
 dir:

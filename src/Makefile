@@ -11,6 +11,9 @@ SRCFILE = srcfiles.mk
 ifneq ($(PARTICLES),)
   SRCFILE = particles/srcfiles_particles.mk
 endif
+ifeq ($(EQNSYS),electrostatic_pois)
+  SRCFILE = particles/srcfiles_particles_pois.mk
+endif
 SRC_RAW = $(shell cat $(SRCFILE))
 SRC     = $(subst $$(EQNSYS),$(EQNSYS),$(SRC_RAW))
 

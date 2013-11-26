@@ -17,9 +17,11 @@ PRIVATE
 INTERFACE GetBoundaryFlux
   MODULE PROCEDURE GetBoundaryFlux
 END INTERFACE
+INTERFACE FillFlux_BC_Pois
+  MODULE PROCEDURE FillFlux_BC
+END INTERFACE
 
-
-PUBLIC::GetBoundaryFlux
+PUBLIC::GetBoundaryFlux,FillFlux_BC_Pois
 !===================================================================================================================================
 
 CONTAINS
@@ -87,8 +89,11 @@ CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
       U_Face_loc(1:3,p,q) = resul(1:3) !-resul(1:3) + 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
       U_Face_loc(  4,p,q) = -resul(  4)
     END DO ! p
+  
   END DO ! q
   ! Dirichlet means that we use the gradients from inside the grid cell
+!print*,resul(1)
+!      read*
   CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
                normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
 
@@ -97,5 +102,47 @@ CASE DEFAULT ! unknown BCType
        'no BC defined in maxwell/getboundaryflux.f90!',999,999.)
 END SELECT ! BCType
 END SUBROUTINE GetBoundaryFlux
+
+
+
+
+SUBROUTINE FillFlux_BC(t,tDeriv,Flux)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Equation_Vars,   ONLY: Phi_Minus
+USE MOD_Mesh_Vars,       ONLY: NormVec,TangVec1,TangVec2,SurfElem,BCFace_xGP,BC,BoundaryType
+USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides
+USE MOD_Equation_Vars,   ONLY: IniExactFunc
+USE MOD_GetBoundaryFlux_Pois,ONLY: GetBoundaryFlux_Pois
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: t
+INTEGER,INTENT(IN) :: tDeriv
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)   :: Flux(1:PP_nVar,0:PP_N,0:PP_N,nSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            ::SideID,BCType,BCState,p,q
+!===================================================================================================================================
+! fill flux for boundary sides
+DO SideID=1,nBCSides
+  BCType=Boundarytype(BC(SideID),BC_TYPE)
+  BCState=Boundarytype(BC(SideID),BC_STATE)
+  IF (BCState.EQ.0)BCState=IniExactFunc
+  CALL GetBoundaryFlux_Pois(Flux(:,:,:,SideID),BCType,BCState,BCFace_xGP(:,:,:,SideID),NormVec(:,:,:,SideID), &
+                TangVec1(:,:,:,SideID), TangVec2(:,:,:,SideID),t,tDeriv,Phi_Minus(:,:,:,SideID) ,SideID)
+  DO q=0,PP_N
+    DO p=0,PP_N
+      Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)
+    END DO
+  END DO
+END DO! SideID
+END SUBROUTINE FillFlux_BC
 
 END MODULE MOD_GetBoundaryFlux

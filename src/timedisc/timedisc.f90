@@ -886,6 +886,11 @@ USE MOD_TimeDisc_Vars,ONLY: RK4_a,RK4_b,RK4_c
 USE MOD_DG,ONLY:DGTimeDerivative_weakForm
 USE MOD_Filter,ONLY:Filter
 USE MOD_Equation,ONLY:DivCleaningDamping
+#ifdef PP_POIS
+USE MOD_Equation,ONLY:DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG,ONLY:DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
+#endif
 #ifdef PARTICLES
 USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
@@ -912,6 +917,7 @@ REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
+REAL                  :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                  :: tStage,b_dt(1:5)
 INTEGER               :: i,rk
 !===================================================================================================================================
@@ -972,6 +978,28 @@ DO rk=2,5
   Ut_temp = Ut - Ut_temp*RK4_a(rk)
   U = U + Ut_temp*b_dt(rk)
 END DO
+
+#ifdef PP_POIS
+! EM field
+CALL DGTimeDerivative_weakForm_Pois(t,t,0)
+
+CALL DivCleaningDamping_Pois()
+Phit_temp = Phit 
+Phi = Phi + Phit*b_dt(1)
+
+DO rk=2,5
+  tStage=t+dt*RK4_c(rk)
+  ! field RHS
+  CALL DGTimeDerivative_weakForm_Pois(t,tStage,0)
+  CALL DivCleaningDamping_Pois()
+  ! field step
+  Phit_temp = Phit - Phit_temp*RK4_a(rk)
+  Phi = Phi + Phit_temp*b_dt(rk)
+END DO
+
+CALL EvalGradient()
+#endif
+
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
   CALL DSMC_main()

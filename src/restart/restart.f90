@@ -158,6 +158,9 @@ USE MOD_Output_Vars,ONLY:ProjectName
 USE MOD_ChangeBasis,ONLY:ChangeBasis3D
 USE MOD_HDF5_input ,ONLY:OpenDataFile,CloseDataFile,File_ID,ReadArray,ReadAttribute
 USE MOD_HDF5_Output,ONLY:FlushHDF5
+#ifdef PP_POIS
+USE MOD_Equation_Vars,ONLY:Phi
+#endif
 #ifdef PARTICLES
 USE MOD_Particle_Vars, ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF
 USE MOD_part_tools, ONLY: UpdateNextFreePosition
@@ -193,17 +196,35 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   ! Read in state
   IF(.NOT. InterpolateSolution)THEN
     ! No interpolation needed, read solution directly from file
+#ifdef PP_POIS
+    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+    CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
+#else
     CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+#endif
     !CALL ReadState(RestartFile,PP_nVar,PP_N,PP_nElems,U)
   ELSE
     ! We need to interpolate the solution to the new computational grid
     SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
+#ifdef PP_POIS
+    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+    DO iElem=1,PP_nElems
+      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
+    END DO
+    CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+    DO iElem=1,PP_nElems
+      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
+    END DO
+    DEALLOCATE(U_local)
+#else
     ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
     CALL ReadArray('DG_Solution',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
     DO iElem=1,PP_nElems
       CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
     END DO
     DEALLOCATE(U_local)
+#endif
     SWRITE(UNIT_stdOut,*)'DONE!'
   END IF
 
