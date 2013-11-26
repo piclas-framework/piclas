@@ -375,7 +375,7 @@ INTEGER                         :: i,j,k,iElem
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
-      Phi(2:4,i,j,k,iElem) = Phi(2:4,i,j,k,iElem) * 0.9995
+      Phi(2:4,i,j,k,iElem) = Phi(2:4,i,j,k,iElem) * fDamping
     END DO; END DO; END DO
   END DO
 END SUBROUTINE DivCleaningDamping_Pois
