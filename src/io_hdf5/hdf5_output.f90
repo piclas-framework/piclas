@@ -52,6 +52,11 @@ USE MOD_DG_Vars,ONLY:U
 USE MOD_Output_Vars,ONLY:ProjectName
 USE MOD_Interpolation_Vars,ONLY:StrNodeType
 USE MOD_Mesh_Vars,ONLY:offsetElem,nGlobalElems
+
+#ifdef PP_POIS
+USE MOD_Equation_Vars, ONLY:E,Phi
+USE MOD_Mesh_Vars,          ONLY : nElems, sJ, Elem_xGP
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -68,6 +73,14 @@ INTEGER                        :: nVal
 CHARACTER(LEN=255)             :: FileName,FileString,MeshFile255,StrVarNames(PP_nVar),Statedummy
 #ifdef MPI
 REAL                           :: StartT,EndT
+#endif
+
+#ifdef PP_POIS
+REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
+#endif
+
+#ifdef MPI 
+INTEGER                        :: sendbuf(2),recvbuf(2)
 #endif
 !===================================================================================================================================
 IF(MPIROOT)THEN
@@ -89,10 +102,17 @@ StrVarNames(7)='Phi'
 StrVarNames(8)='Psi'       
 #endif
 #if PP_nVar==4
+#ifndef PP_POIS
 StrVarNames(1)='ElectricFieldX'
 StrVarNames(2)='ElectricFieldY'
 StrVarNames(3)='ElectricFieldZ' 
-StrVarNames(4)='Psi'       
+StrVarNames(4)='Psi'        
+#else
+StrVarNames(1)='Phi'
+StrVarNames(2)='Ex'
+StrVarNames(3)='Ey' 
+StrVarNames(4)='Ez'        
+#endif       
 #endif
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -106,7 +126,16 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
 
 ! Write DG solution ----------------------------------------------------------------------------------------------------------------
 nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+#ifdef PP_POIS
+Utemp(1,:,:,:,:)=Phi(1,:,:,:,:)
+Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
+CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),offsetElem,5,existing=.TRUE.,RealArray=Utemp)
+CALL WriteArrayToHDF5('DG_SolutionE',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),offsetElem,5,existing=.TRUE.,RealArray=U)
+CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),offsetElem,5,existing=.TRUE.,RealArray=Phi)
+#else
 CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),offsetElem,5,existing=.TRUE.,RealArray=U)
+#endif
+
 
 #ifdef PARTICLES
 CALL WriteParticleToHDF5()
@@ -141,7 +170,8 @@ USE MOD_Interpolation_Vars, ONLY:StrNodeType
 USE MOD_Mesh_Vars,          ONLY:nGlobalElems, offsetElem
 USE MOD_Particle_Vars,      ONLY:PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,enableParticleMerge
 USE MOD_part_tools,         ONLY:UpdateNextFreePosition
-USE MOD_DSMC_Vars,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
+USE MOD_DSMC_Vars,          ONLY:UseDSMC, CollisMode,PartStateIntEn, DSMC
+USE MOD_LD_Vars,            ONLY:UseLD, PartStateBulkValues
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -174,7 +204,7 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
  
   !!added for Evib, Erot writeout
   withDSMC=useDSMC
-  IF (withDSMC) THEN
+  IF (withDSMC.AND.(.NOT.(useLD))) THEN
     IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
       PartDataSize=11
     ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
@@ -186,6 +216,19 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
       PartDataSize=8 !+ 1 vmpf
     ELSE
       PartDataSize=7 !+ 0
+    END IF
+  ELSE IF (useLD) THEN
+    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
+      PartDataSize=16
+    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
+                                                                             ! or int energ +3 but no vmpf +1
+      PartDataSize=15
+    ELSE IF (CollisMode.GT.1) THEN
+      PartDataSize=14!int ener + 2
+    ELSE IF (usevMPF) THEN
+      PartDataSize=13!+ 1 vmpf
+    ELSE
+      PartDataSize=12 !+ 0
     END IF
   ELSE IF (usevMPF) THEN
     PartDataSize=8 !vmpf +1
@@ -253,7 +296,7 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
         PartData(iPart,5)=PartState(pcount,5)
         PartData(iPart,6)=PartState(pcount,6)
         PartData(iPart,7)=REAL(PartSpecies(pcount))
-        IF (withDSMC) THEN
+        IF (withDSMC.AND.(.NOT.(useLD))) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)    
@@ -272,6 +315,57 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
             PartData(iPart,9)=PartStateIntEn(pcount,2) 
           ELSE IF (usevMPF) THEN
             PartData(iPart,8)=PartMPF(pcount)    
+          END IF
+        ELSE IF (useLD) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState) ) THEN
+            PartData(iPart,8)=PartStateIntEn(pcount,1)
+            PartData(iPart,9)=PartStateIntEn(pcount,2)    
+            PartData(iPart,10)=PartMPF(pcount)
+            PartData(iPart,11)=PartStateIntEn(pcount,3)  
+            PartData(iPart,12)=PartStateBulkValues(pcount,1)    
+            PartData(iPart,13)=PartStateBulkValues(pcount,2)
+            PartData(iPart,14)=PartStateBulkValues(pcount,3)
+            PartData(iPart,15)=PartStateBulkValues(pcount,4)
+            PartData(iPart,16)=PartStateBulkValues(pcount,5)
+          ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
+            PartData(iPart,8)=PartStateIntEn(pcount,1)
+            PartData(iPart,9)=PartStateIntEn(pcount,2)    
+            PartData(iPart,10)=PartMPF(pcount)
+            PartData(iPart,11)=PartStateBulkValues(pcount,1)    
+            PartData(iPart,12)=PartStateBulkValues(pcount,2)
+            PartData(iPart,13)=PartStateBulkValues(pcount,3)
+            PartData(iPart,14)=PartStateBulkValues(pcount,4)
+            PartData(iPart,15)=PartStateBulkValues(pcount,5)
+          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicState) ) THEN
+            PartData(iPart,8)=PartStateIntEn(pcount,1)
+            PartData(iPart,9)=PartStateIntEn(pcount,2)
+            PartData(iPart,10)=PartStateIntEn(pcount,3)
+            PartData(iPart,11)=PartStateBulkValues(pcount,1)    
+            PartData(iPart,12)=PartStateBulkValues(pcount,2)
+            PartData(iPart,13)=PartStateBulkValues(pcount,3)
+            PartData(iPart,14)=PartStateBulkValues(pcount,4)
+            PartData(iPart,15)=PartStateBulkValues(pcount,5)
+          ELSE IF (CollisMode.GT.1) THEN
+            PartData(iPart,8)=PartStateIntEn(pcount,1)
+            PartData(iPart,9)=PartStateIntEn(pcount,2) 
+            PartData(iPart,10)=PartStateBulkValues(pcount,1)    
+            PartData(iPart,11)=PartStateBulkValues(pcount,2)
+            PartData(iPart,12)=PartStateBulkValues(pcount,3)
+            PartData(iPart,13)=PartStateBulkValues(pcount,4)
+            PartData(iPart,14)=PartStateBulkValues(pcount,5)
+          ELSE IF (usevMPF) THEN
+            PartData(iPart,8)=PartMPF(pcount)    
+            PartData(iPart,9)=PartStateBulkValues(pcount,1)    
+            PartData(iPart,10)=PartStateBulkValues(pcount,2)
+            PartData(iPart,11)=PartStateBulkValues(pcount,3)
+            PartData(iPart,12)=PartStateBulkValues(pcount,4)
+            PartData(iPart,13)=PartStateBulkValues(pcount,5)
+          ELSE
+            PartData(iPart,8)=PartStateBulkValues(pcount,1)    
+            PartData(iPart,9)=PartStateBulkValues(pcount,2)
+            PartData(iPart,10)=PartStateBulkValues(pcount,3)
+            PartData(iPart,11)=PartStateBulkValues(pcount,4)
+            PartData(iPart,12)=PartStateBulkValues(pcount,5)
           END IF
         ELSE IF (usevMPF) THEN
             PartData(iPart,8)=PartMPF(pcount)
