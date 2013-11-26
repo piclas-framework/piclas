@@ -92,6 +92,7 @@ END IF
 
 ! Create dataset attribute "VarNames"
 #if PP_nVar==8
+#ifndef PP_POIS
 StrVarNames(1)='ElectricFieldX'
 StrVarNames(2)='ElectricFieldY'
 StrVarNames(3)='ElectricFieldZ'
@@ -99,7 +100,17 @@ StrVarNames(4)='MagneticFieldX'
 StrVarNames(5)='MagneticFieldY'
 StrVarNames(6)='MagneticFieldZ'
 StrVarNames(7)='Phi'       
-StrVarNames(8)='Psi'       
+StrVarNames(8)='Psi'
+#else
+StrVarNames(1)='ElectricFieldX'
+StrVarNames(2)='ElectricFieldY'
+StrVarNames(3)='ElectricFieldZ'
+StrVarNames(4)='MagneticFieldX'
+StrVarNames(5)='MagneticFieldY'
+StrVarNames(6)='MagneticFieldZ'
+StrVarNames(7)='Phi_LMP'       
+StrVarNames(8)='Potential'       
+#endif
 #endif
 #if PP_nVar==4
 #ifndef PP_POIS
@@ -127,6 +138,18 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
 ! Write DG solution ----------------------------------------------------------------------------------------------------------------
 nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
 #ifdef PP_POIS
+#if PP_nVar==8
+Utemp(8,:,:,:,:)=Phi(1,:,:,:,:)
+Utemp(1:3,:,:,:,:)=E(1:3,:,:,:,:)
+Utemp(4:7,:,:,:,:)=U(4:7,:,:,:,:)
+CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+,offsetElem,5,existing=.TRUE.,RealArray=Utemp)
+CALL WriteArrayToHDF5('DG_SolutionE',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+,offsetElem,5,existing=.FALSE.,RealArray=U)
+CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+,offsetElem,5,existing=.FALSE.,RealArray=Phi)
+#endif
+#if PP_nVar==4
 Utemp(1,:,:,:,:)=Phi(1,:,:,:,:)
 Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
 CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
@@ -135,6 +158,7 @@ CALL WriteArrayToHDF5('DG_SolutionE',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nE
 ,offsetElem,5,existing=.FALSE.,RealArray=U)
 CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
 ,offsetElem,5,existing=.FALSE.,RealArray=Phi)
+#endif
 #else
 CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
 ,offsetElem,5,existing=.TRUE.,RealArray=U)

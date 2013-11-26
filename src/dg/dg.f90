@@ -319,7 +319,7 @@ DO iElem=1,PP_nElems
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
-        DO iVar=1,PP_nVar
+        DO iVar=1,4
           Phit(iVar,i,j,k,iElem) = - Phit(iVar,i,j,k,iElem) * sJ(i,j,k,iElem)
         END DO ! iVar
       END DO !i
