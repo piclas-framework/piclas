@@ -236,6 +236,7 @@ CALL CalcSource(tStage)
 END SUBROUTINE DGTimeDerivative_weakForm
 
 #ifdef PP_POIS
+
 SUBROUTINE DGTimeDerivative_weakForm_Pois(t,tStage,tDeriv)
 !===================================================================================================================================
 ! Computes the DG time derivative consisting of Volume Integral and Surface integral for the whole field
@@ -244,16 +245,15 @@ SUBROUTINE DGTimeDerivative_weakForm_Pois(t,tStage,tDeriv)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_SurfInt,       ONLY: SurfInt
-USE MOD_Equation,      ONLY: VolInt_Pois,FillFlux_Pois
+USE MOD_Equation,      ONLY: VolInt_Pois,FillFlux_Pois,ProlongToFace_Pois, SurfInt_Pois
 USE MOD_GetBoundaryFlux, ONLY: FillFlux_BC_Pois
-USE MOD_ProlongToFace, ONLY: ProlongToFace
 USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nBCSides,nInnerSides
 USE MOD_Equation,      ONLY: CalcSource_Pois
 USE MOD_Equation_Vars, ONLY: IniExactFunc,Phi,Phit,Phi_Minus,Phi_Plus,FluxPhi,nTotalPhi
 #ifdef MPI
+USE MOD_Equation,      ONLY:StartExchangeMPIData_Pois
 USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:StartExchangeMPIData,FinishExchangeMPIData
+USE MOD_MPI,           ONLY:FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -272,13 +272,18 @@ INTEGER :: iElem,i,j,k,iVar
 ! prolong the solution to the face integration points for flux computation
 #ifdef MPI
 ! Prolong to face for MPI sides - send direction
-CALL ProlongToFace(Phi,Phi_Minus,Phi_Plus,doMPiSides=.TRUE.)
-CALL StartExchangeMPIData(Phi_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) 
+
+!CALL ProlongToFace(Phi,Phi_Minus,Phi_Plus,doMPiSides=.TRUE.)
+CALL ProlongToFace_Pois(Phi,Phi_Minus,Phi_Plus,doMPiSides=.TRUE.)
+
+!CALL StartExchangeMPIData(Phi_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) 
+CALL StartExchangeMPIData_Pois(Phi_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) 
 ! Send YOUR - receive MINE
 #endif /*MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
-CALL ProlongToFace(Phi,Phi_Minus,Phi_Plus,doMPISides=.FALSE.)
+!CALL ProlongToFace(Phi,Phi_Minus,Phi_Plus,doMPISides=.FALSE.)
+CALL ProlongToFace_Pois(Phi,Phi_Minus,Phi_Plus,doMPISides=.FALSE.)
 
 
 #ifdef MPI
@@ -296,14 +301,16 @@ CALL VolInt_Pois(Phit)
 #ifdef MPI
 ! fill the global surface flux list
 CALL FillFlux_Pois(FluxPhi,doMPISides=.TRUE.)
-CALL StartExchangeMPIData(FluxPhi,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
+
+!CALL StartExchangeMPIData(FluxPhi,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
+CALL StartExchangeMPIData_Pois(FluxPhi,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1)
 #endif /* MPI*/
 
 ! fill the all surface fluxes on this proc
 CALL FillFlux_BC_Pois(t,tDeriv,FluxPhi)
 CALL FillFlux_Pois(FluxPhi,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
-CALL SurfInt(FluxPhi,Phit,doMPISides=.FALSE.)
+CALL SurfInt_Pois(FluxPhi,Phit,doMPISides=.FALSE.)
 !! compute volume integral contribution and add to ut
 !CALL VolInt(Ut)
 
@@ -311,7 +318,7 @@ CALL SurfInt(FluxPhi,Phit,doMPISides=.FALSE.)
 ! Complete send / receive
 CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
 !FINALIZE Fluxes for MPI Sides
-CALL SurfInt(FluxPhi,Phit,doMPISides=.TRUE.)
+CALL SurfInt_Pois(FluxPhi,Phit,doMPISides=.TRUE.)
 #endif
 
 ! We have to take the inverse of the Jacobians into account
@@ -331,6 +338,7 @@ END DO ! iElem=1,nElems
 CALL CalcSource_Pois(tStage)
 
 END SUBROUTINE DGTimeDerivative_weakForm_Pois
+
 #endif
 
 

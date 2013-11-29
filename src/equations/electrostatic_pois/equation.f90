@@ -34,8 +34,18 @@ INTERFACE FillFlux_Pois
   MODULE PROCEDURE FillFlux
 END INTERFACE
 
+INTERFACE ProlongToFace_Pois
+  MODULE PROCEDURE ProlongToFace_sideBased
+END INTERFACE
 
-PUBLIC::VolInt_Pois,FillFlux_Pois
+INTERFACE SurfInt_Pois
+  MODULE PROCEDURE SurfInt2
+END INTERFACE
+
+#ifdef MPI
+PUBLIC::StartExchangeMPIData_Pois
+#endif
+PUBLIC::VolInt_Pois,FillFlux_Pois, ProlongToFace_Pois, SurfInt_Pois
 PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping,EvalGradient,CalcSource_Pois,DivCleaningDamping_Pois
 !===================================================================================================================================
 
@@ -602,6 +612,578 @@ END DO ! SideID
 
 END SUBROUTINE FillFlux
 
+SUBROUTINE ProlongToFace_SideBased(Uvol,Uface_Minus,Uface_Plus,doMPISides)
+!===================================================================================================================================
+! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
+! integration points, using fast 1D Interpolation and store in global side structure
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
+USE MOD_PreProc
+USE MOD_Mesh_Vars,          ONLY: SideToElem
+USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
+USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE 
+REAL,INTENT(IN)                 :: Uvol(4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: Uface_Minus(4,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper)
+REAL,INTENT(INOUT)              :: Uface_Plus(4,0:PP_N,0:PP_N,sideID_plus_lower:sideID_plus_upper)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER                         :: i,l,p,q,ElemID(2),SideID,flip(2),LocSideID(2),firstSideID,lastSideID
+REAL                            :: Uface(4,0:PP_N,0:PP_N)
+!===================================================================================================================================
+IF(doMPISides)THEN
+  ! only YOUR MPI Sides are filled
+  firstSideID = nBCSides+nInnerSides+nMPISides_MINE+1
+  lastSideID  = firstSideID-1+nMPISides_YOUR 
+  flip(1)      = -1
+ELSE
+  ! BCSides, InnerSides and MINE MPISides are filled
+  firstSideID = 1
+  lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
+  flip(1)      = 0
+END IF
+DO SideID=firstSideID,lastSideID
+  ! master side, flip=0
+  ElemID(1)     = SideToElem(S2E_ELEM_ID,SideID)  
+  locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
+  ! neighbor side !ElemID,locSideID and flip =-1 if not existing
+  ElemID(2)     = SideToElem(S2E_NB_ELEM_ID,SideID)
+  locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+  flip(2)      = SideToElem(S2E_FLIP,SideID)
+  DO i=1,2 !first maste then slave side
+#if (PP_NodeType==1) /* for Gauss-points*/
+    SELECT CASE(locSideID(i))
+    CASE(XI_MINUS)
+      DO q=0,PP_N
+        DO p=0,PP_N
+          Uface(:,q,p)=Uvol(:,0,p,q,ElemID(i))*L_Minus(0)
+          DO l=1,PP_N
+            ! switch to right hand system
+            Uface(:,q,p)=Uface(:,q,p)+Uvol(:,l,p,q,ElemID(i))*L_Minus(l)
+          END DO ! l
+        END DO ! p
+      END DO ! q
+    CASE(ETA_MINUS)
+      DO q=0,PP_N
+        DO p=0,PP_N
+          Uface(:,p,q)=Uvol(:,p,0,q,ElemID(i))*L_Minus(0)
+          DO l=1,PP_N
+            Uface(:,p,q)=Uface(:,p,q)+Uvol(:,p,l,q,ElemID(i))*L_Minus(l)
+          END DO ! l
+        END DO ! p
+      END DO ! q
+    CASE(ZETA_MINUS)
+      DO q=0,PP_N
+        DO p=0,PP_N
+          Uface(:,q,p)=Uvol(:,p,q,0,ElemID(i))*L_Minus(0)
+          DO l=1,PP_N
+            ! switch to right hand system
+            Uface(:,q,p)=Uface(:,q,p)+Uvol(:,p,q,l,ElemID(i))*L_Minus(l)
+          END DO ! l
+        END DO ! p
+      END DO ! q
+    CASE(XI_PLUS)
+      DO q=0,PP_N
+        DO p=0,PP_N
+          Uface(:,p,q)=Uvol(:,0,p,q,ElemID(i))*L_Plus(0)
+          DO l=1,PP_N
+            Uface(:,p,q)=Uface(:,p,q)+Uvol(:,l,p,q,ElemID(i))*L_Plus(l)
+          END DO ! l
+        END DO ! p
+      END DO ! q
+    CASE(ETA_PLUS)
+      DO q=0,PP_N
+        DO p=0,PP_N
+          Uface(:,PP_N-p,q)=Uvol(:,p,0,q,ElemID(i))*L_Plus(0)
+          DO l=1,PP_N
+            ! switch to right hand system
+            Uface(:,PP_N-p,q)=Uface(:,PP_N-p,q)+Uvol(:,p,l,q,ElemID(i))*L_Plus(l)
+          END DO ! l
+        END DO ! p
+      END DO ! q
+    CASE(ZETA_PLUS)
+      DO q=0,PP_N
+        DO p=0,PP_N
+          Uface(:,p,q)=Uvol(:,p,q,0,ElemID(i))*L_Plus(0)
+          DO l=1,PP_N
+            Uface(:,p,q)=Uface(:,p,q)+Uvol(:,p,q,l,ElemID(i))*L_Plus(l)
+          END DO ! l
+        END DO ! p
+      END DO ! q
+    END SELECT
+#else /* for Gauss-Lobatto-points*/
+    SELECT CASE(locSideID(i))
+    CASE(XI_MINUS)
+      DO q=0,PP_N
+        DO p=0,PP_N
+          Uface(:,q,p)=Uvol(:,0,p,q,ElemID(i))
+        END DO ! p
+      END DO ! q
+    CASE(ETA_MINUS)
+      Uface(:,:,:)=Uvol(:,:,0,:,ElemID(i))
+    CASE(ZETA_MINUS)
+      DO q=0,PP_N
+        DO p=0,PP_N
+          Uface(:,q,p)=Uvol(:,p,q,0,ElemID(i))
+        END DO ! p
+      END DO ! q
+    CASE(XI_PLUS)
+      Uface(:,:,:)=Uvol(:,PP_N,:,:,ElemID(i))
+    CASE(ETA_PLUS)
+      DO q=0,PP_N
+        DO p=0,PP_N
+          Uface(:,PP_N-p,q)=Uvol(:,p,PP_N,q,ElemID(i))
+        END DO ! p
+      END DO ! q
+    CASE(ZETA_PLUS)
+      DO q=0,PP_N
+        DO p=0,PP_N
+          Uface(:,p,q)=Uvol(:,p,q,PP_N,ElemID(i))
+        END DO ! p
+      END DO ! q
+    END SELECT
+#endif
+    SELECT CASE(Flip(i))
+      CASE(0) ! master side
+        Uface_Minus(:,:,:,SideID)=Uface(:,:,:)
+      CASE(1) ! slave side, SideID=q,jSide=p
+        DO q=0,PP_N
+          DO p=0,PP_N
+            Uface_Plus(:,p,q,SideID)=Uface(:,q,p)
+          END DO ! p
+        END DO ! q
+      CASE(2) ! slave side, SideID=N-p,jSide=q
+        DO q=0,PP_N
+          DO p=0,PP_N
+            Uface_Plus(:,p,q,SideID)=Uface(:,PP_N-p,q)
+          END DO ! p
+        END DO ! q
+      CASE(3) ! slave side, SideID=N-q,jSide=N-p
+        DO q=0,PP_N
+          DO p=0,PP_N
+            Uface_Plus(:,p,q,SideID)=Uface(:,PP_N-q,PP_N-p)
+          END DO ! p
+        END DO ! q
+      CASE(4) ! slave side, SideID=p,jSide=N-q
+        DO q=0,PP_N
+          DO p=0,PP_N
+            Uface_Plus(:,p,q,SideID)=Uface(:,p,PP_N-q)
+          END DO ! p
+        END DO ! q
+    END SELECT
+  END DO !i=1,2, masterside & slave side 
+END DO !SideID
+END SUBROUTINE ProlongToFace_SideBased
+
+#ifdef MPI
+SUBROUTINE StartExchangeMPIData_Pois(FaceData,LowerBound,UpperBound,SendRequest,RecRequest,SendID)
+!===================================================================================================================================
+! Subroutine does the send and receive operations for the face data that has to be exchanged between processors.
+! FaceData: the complete face data (for inner, BC and MPI sides).
+! LowerBound / UpperBound: lower side index and upper side index for last dimension of FaceData
+! SendRequest, RecRequest: communication handles
+! SendID: defines the send / receive direction -> 1=send MINE / receive YOUR  2=send YOUR / recieve MINE
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)          :: SendID
+INTEGER, INTENT(IN)          :: LowerBound,UpperBound
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(OUT)         :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+REAL, INTENT(INOUT)          :: FaceData(1:4,0:PP_N,0:PP_N,LowerBound:UpperBound)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+DO iNbProc=1,nNbProcs
+  ! Start send face data
+  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+    nSendVal    =4*(PP_N+1)*(PP_N+1)*nMPISides_send(iNbProc,SendID)
+    SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
+    SideID_end  =OffsetMPISides_send(iNbProc,SendID)
+    CALL MPI_ISEND(FaceData(:,:,:,SideID_start:SideID_end),nSendVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
+  END IF
+  ! Start receive face data
+  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+    nRecVal     =4*(PP_N+1)*(PP_N+1)*nMPISides_rec(iNbProc,SendID)
+    SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
+    SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
+    CALL MPI_IRECV(FaceData(:,:,:,SideID_start:SideID_end),nRecVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+  END IF
+END DO !iProc=1,nNBProcs
+END SUBROUTINE StartExchangeMPIData_Pois
+#endif
+
+SUBROUTINE SurfInt2(Flux,Ut,doMPISides)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
+USE MOD_Mesh_Vars,          ONLY: SideToElem
+USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides+InnerSides+MPISides MINE  
+REAL,INTENT(IN)    :: Flux(1:4,0:PP_N,0:PP_N,nSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)   :: Ut(4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: i,ElemID(2),p,q,l,Flip(2),SideID,locSideID(2)
+INTEGER            :: firstSideID,lastSideID
+#if (PP_NodeType>1)
+REAL            ::L_HatMinus0,L_HatPlusN 
+#endif
+!===================================================================================================================================
+IF(doMPISides)THEN 
+  ! surfInt only for YOUR MPISides
+  firstSideID = nBCSides+nInnerSides+nMPISides_MINE +1
+  lastSideID  = firstSideID-1+nMPISides_YOUR 
+ELSE
+  ! fill only InnerSides
+  firstSideID = 1
+  lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
+END IF
+
+#if (PP_NodeType>1)
+L_HatMinus0 = L_HatMinus(0)
+L_HatPlusN  = L_HatPlus(PP_N)
+#endif
+flip(1)        = 0 !flip=0 for master side
+DO SideID=firstSideID,lastSideID
+  ! master side, flip=0
+  ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
+  locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
+  ! neighbor side
+  ElemID(2)    = SideToElem(S2E_NB_ELEM_ID,SideID)
+  locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+  flip(2)      = SideToElem(S2E_FLIP,SideID)
+  
+  DO i=1,2
+  ! update DG time derivative with corresponding SurfInt contribution
+#if (PP_NodeType==1)
+    SELECT CASE(locSideID(i))
+    CASE(XI_MINUS)
+      SELECT CASE(flip(i))
+      CASE(0) ! master side
+        DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
+          Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))+Flux(:,q,p,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! l,p,q
+      CASE(1) ! slave side, SideID=q,jSide=p
+        DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
+          Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))-Flux(:,p,q,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! l,p,q
+      CASE(2) ! slave side, SideID=N-p,jSide=q
+        DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
+          Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))-Flux(:,PP_N-q,p,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! l,p,q
+      CASE(3) ! slave side, SideID=N-q,jSide=N-p
+        DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
+          Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))-Flux(:,PP_N-p,PP_N-q,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! l,p,q
+      CASE(4) ! slave side, SideID=p,jSide=N-q
+        DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
+          Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))-Flux(:,q,PP_N-p,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! l,p,q
+      END SELECT
+
+    CASE(ETA_MINUS)
+      SELECT CASE(flip(i))
+      CASE(0) ! master side
+        DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
+          Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))+Flux(:,p,q,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! p,l,q
+      CASE(1) ! slave side, SideID=q,jSide=p
+        DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
+          Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))-Flux(:,q,p,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! p,l,q
+      CASE(2) ! slave side, SideID=N-p,jSide=q
+        DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
+          Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))-Flux(:,PP_N-p,q,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! p,l,q
+      CASE(3) ! slave side, SideID=N-q,jSide=N-p
+        DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
+          Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))-Flux(:,PP_N-q,PP_N-p,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! p,l,q
+      CASE(4) ! slave side, SideID=p,jSide=N-q
+        DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
+          Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))-Flux(:,p,PP_N-q,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! p,l,q
+      END SELECT
+    
+    CASE(ZETA_MINUS)
+      SELECT CASE(flip(i))
+      CASE(0) ! master side
+        DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))+Flux(:,q,p,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! p,q,l
+      CASE(1) ! slave side, SideID=q,jSide=p
+        DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))-Flux(:,p,q,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! p,q,l
+      CASE(2) ! slave side, SideID=N-p,jSide=q
+        DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))-Flux(:,PP_N-q,p,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! p,q,l
+      CASE(3) ! slave side, SideID=N-q,jSide=N-p
+        DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))-Flux(:,PP_N-p,PP_N-q,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! p,q,l
+      CASE(4) ! slave side, SideID=p,jSide=N-q
+        DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))-Flux(:,q,PP_N-p,SideID)*L_hatMinus(l)
+        END DO; END DO; END DO ! p,q,l
+      END SELECT
+      
+    CASE(XI_PLUS)
+      SELECT CASE(flip(i))
+      CASE(0) ! master side
+        DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
+          Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))+Flux(:,p,q,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! l,p,q
+      CASE(1) ! slave side, SideID=q,jSide=p
+        DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
+          Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))-Flux(:,q,p,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! l,p,q
+      CASE(2) ! slave side, SideID=N-p,jSide=q
+        DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
+          Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))-Flux(:,PP_N-p,q,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! l,p,q
+      CASE(3) ! slave side, SideID=N-q,jSide=N-p
+        DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
+          Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))-Flux(:,PP_N-q,PP_N-p,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! l,p,q
+      CASE(4) ! slave side, SideID=p,jSide=N-q
+        DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
+          Ut(:,l,p,q,ElemID(i))=Ut(:,l,p,q,ElemID(i))-Flux(:,p,PP_N-q,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! l,p,q
+      END SELECT
+
+    CASE(ETA_PLUS)
+      SELECT CASE(flip(i))
+      CASE(0) ! master side
+        DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
+          Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))+Flux(:,PP_N-p,q,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! p,l,q
+      CASE(1) ! slave side, SideID=q,jSide=p
+        DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
+          Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))-Flux(:,q,PP_N-p,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! p,l,q
+      CASE(2) ! slave side, SideID=N-p,jSide=q
+        DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
+          Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))-Flux(:,p,q,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! p,l,q
+      CASE(3) ! slave side, SideID=N-q,jSide=N-p
+        DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
+          Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))-Flux(:,PP_N-q,p,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! p,l,q
+      CASE(4) ! slave side, SideID=p,jSide=N-q
+        DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
+          Ut(:,p,l,q,ElemID(i))=Ut(:,p,l,q,ElemID(i))-Flux(:,PP_N-p,PP_N-q,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! p,l,q
+      END SELECT
+    
+    CASE(ZETA_PLUS)
+      SELECT CASE(flip(i))
+      CASE(0) ! master side
+        DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))+Flux(:,p,q,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! p,q,l
+      CASE(1) ! slave side, SideID=q,jSide=p
+        DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))-Flux(:,q,p,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! p,q,l
+      CASE(2) ! slave side, SideID=N-p,jSide=q
+        DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))-Flux(:,PP_N-p,q,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! p,q,l
+      CASE(3) ! slave side, SideID=N-q,jSide=N-p
+        DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))-Flux(:,PP_N-q,PP_N-p,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! p,q,l
+      CASE(4) ! slave side, SideID=p,jSide=N-q
+        DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,l,ElemID(i))=Ut(:,p,q,l,ElemID(i))-Flux(:,p,PP_N-q,SideID)*L_hatPlus(l)
+        END DO; END DO; END DO ! p,q,l
+      END SELECT
+    END SELECT !locSideID
+#else
+    !update local grid cell
+    SELECT CASE(locSideID(i))
+    CASE(XI_MINUS)
+      SELECT CASE(flip(i))
+      CASE(0)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,0,p,q,ElemID(i))=Ut(:,0,p,q,ElemID(i))+Flux(:,q,p,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(1)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,0,p,q,ElemID(i))=Ut(:,0,p,q,ElemID(i))-Flux(:,p,q,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(2)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,0,p,q,ElemID(i))=Ut(:,0,p,q,ElemID(i))-Flux(:,PP_N-q,p,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(3)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,0,p,q,ElemID(i))=Ut(:,0,p,q,ElemID(i))-Flux(:,PP_N-p,PP_N-q,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(4)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,0,p,q,ElemID(i))=Ut(:,0,p,q,ElemID(i))-Flux(:,q,PP_N-p,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      END SELECT
+    
+    ! switch to right hand system for ETA_PLUS direction
+    CASE(ETA_MINUS)
+      SELECT CASE(flip(i))
+      CASE(0)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,0,q,ElemID(i))=Ut(:,p,0,q,ElemID(i))+Flux(:,p,q,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(1)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,0,q,ElemID(i))=Ut(:,p,0,q,ElemID(i))-Flux(:,q,p,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(2)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,0,q,ElemID(i))=Ut(:,p,0,q,ElemID(i))-Flux(:,PP_N-p,q,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(3)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,0,q,ElemID(i))=Ut(:,p,0,q,ElemID(i))-Flux(:,PP_N-q,PP_N-p,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(4)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,0,q,ElemID(i))=Ut(:,p,0,q,ElemID(i))-Flux(:,p,PP_N-q,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      END SELECT
+    
+    ! switch to right hand system for ZETA_MINUS direction
+    CASE(ZETA_MINUS)
+      SELECT CASE(flip(i))
+      CASE(0)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,0,ElemID(i))=Ut(:,p,q,0,ElemID(i))+Flux(:,q,p,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(1)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,0,ElemID(i))=Ut(:,p,q,0,ElemID(i))-Flux(:,p,q,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(2)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,0,ElemID(i))=Ut(:,p,q,0,ElemID(i))-Flux(:,PP_N-q,p,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(3)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,0,ElemID(i))=Ut(:,p,q,0,ElemID(i))-Flux(:,PP_N-p,PP_N-q,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      CASE(4)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,0,ElemID(i))=Ut(:,p,q,0,ElemID(i))-Flux(:,q,PP_N-p,SideID)*L_hatMinus0
+        END DO; END DO ! p,q
+      END SELECT
+    
+    CASE(XI_PLUS)
+      SELECT CASE(flip(i))
+      CASE(0)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,PP_N,p,q,ElemID(i))=Ut(:,PP_N,p,q,ElemID(i))+Flux(:,p,q,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(1)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,PP_N,p,q,ElemID(i))=Ut(:,PP_N,p,q,ElemID(i))-Flux(:,q,p,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(2)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,PP_N,p,q,ElemID(i))=Ut(:,PP_N,p,q,ElemID(i))-Flux(:,PP_N-p,q,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(3)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,PP_N,p,q,ElemID(i))=Ut(:,PP_N,p,q,ElemID(i))-Flux(:,PP_N-q,PP_N-p,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(4)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,PP_N,p,q,ElemID(i))=Ut(:,PP_N,p,q,ElemID(i))-Flux(:,p,PP_N-q,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      END SELECT
+    
+    ! switch to right hand system for ETA_PLUS direction
+    CASE(ETA_PLUS)
+      SELECT CASE(flip(i))
+      CASE(0)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,PP_N,q,ElemID(i))=Ut(:,p,PP_N,q,ElemID(i))+Flux(:,PP_N-p,q,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(1)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,PP_N,q,ElemID(i))=Ut(:,p,PP_N,q,ElemID(i))-Flux(:,q,PP_N-p,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(2)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,PP_N,q,ElemID(i))=Ut(:,p,PP_N,q,ElemID(i))-Flux(:,p,q,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(3)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,PP_N,q,ElemID(i))=Ut(:,p,PP_N,q,ElemID(i))-Flux(:,PP_N-q,p,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(4)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,PP_N,q,ElemID(i))=Ut(:,p,PP_N,q,ElemID(i))-Flux(:,PP_N-p,PP_N-q,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      END SELECT
+
+    ! switch to right hand system for ZETA_MINUS direction
+    CASE(ZETA_PLUS)
+      SELECT CASE(flip(i))
+      CASE(0)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,PP_N,ElemID(i))=Ut(:,p,q,PP_N,ElemID(i))+Flux(:,p,q,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(1)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,PP_N,ElemID(i))=Ut(:,p,q,PP_N,ElemID(i))-Flux(:,q,p,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(2)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,PP_N,ElemID(i))=Ut(:,p,q,PP_N,ElemID(i))-Flux(:,PP_N-p,q,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(3)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,PP_N,ElemID(i))=Ut(:,p,q,PP_N,ElemID(i))-Flux(:,PP_N-q,PP_N-p,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      CASE(4)
+        DO q=0,PP_N; DO p=0,PP_N
+          Ut(:,p,q,PP_N,ElemID(i))=Ut(:,p,q,PP_N,ElemID(i))-Flux(:,p,PP_N-q,SideID)*L_hatPlusN
+        END DO; END DO ! p,q
+      END SELECT
+    END SELECT !locSideID
+#endif
+  END DO ! i=1,2 master side, slave side
+END DO ! SideID=1,nSides
+END SUBROUTINE SurfInt2
 
 END MODULE MOD_Equation
 

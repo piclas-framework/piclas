@@ -138,7 +138,7 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
 ! Write DG solution ----------------------------------------------------------------------------------------------------------------
 nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
 #ifdef PP_POIS
-#if PP_nVar==8
+#if (PP_nVar==8)
 Utemp(8,:,:,:,:)=Phi(1,:,:,:,:)
 Utemp(1:3,:,:,:,:)=E(1:3,:,:,:,:)
 Utemp(4:7,:,:,:,:)=U(4:7,:,:,:,:)
@@ -149,7 +149,7 @@ CALL WriteArrayToHDF5('DG_SolutionE',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nE
 CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
 ,offsetElem,5,existing=.FALSE.,RealArray=Phi)
 #endif
-#if PP_nVar==4
+#if (PP_nVar==4)
 Utemp(1,:,:,:,:)=Phi(1,:,:,:,:)
 Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
 CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &

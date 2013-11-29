@@ -197,8 +197,13 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   IF(.NOT. InterpolateSolution)THEN
     ! No interpolation needed, read solution directly from file
 #ifdef PP_POIS
+#if (PP_nVar==8)
+    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+    CALL ReadArray('DG_SolutionPhi',5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
+#else
     CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
     CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
+#endif
 #else
     CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
 #endif
@@ -207,6 +212,21 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     ! We need to interpolate the solution to the new computational grid
     SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
 #ifdef PP_POIS
+#if (PP_nVar==8)
+    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+    DO iElem=1,PP_nElems
+      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
+    END DO
+    DEALLOCATE(U_local)
+
+    ALLOCATE(U_local(4,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+    CALL ReadArray('DG_SolutionPhi',5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+    DO iElem=1,PP_nElems
+      CALL ChangeBasis3D(4,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
+    END DO
+    DEALLOCATE(U_local)
+#else
     ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
     CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
     DO iElem=1,PP_nElems
@@ -217,6 +237,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
       CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
     END DO
     DEALLOCATE(U_local)
+#endif
 #else
     ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
     CALL ReadArray('DG_Solution',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
