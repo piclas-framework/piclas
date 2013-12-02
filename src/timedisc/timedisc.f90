@@ -135,6 +135,9 @@ USE MOD_LD_Vars            ,ONLY: useLD
 #ifdef MPI
 USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
 #endif
+#ifdef PP_POIS
+USE MOD_Equation,ONLY:EvalGradient
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -237,6 +240,11 @@ SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
 CalcTimeStart=BOLTZPLATZTIME()
 iter=0
 iter_loc=0
+
+!Evaluate Gradients to get Potential in case of Restart and Poisson Calc
+#ifdef PP_POIS
+IF(DoRestart) CALL EvalGradient()
+#endif
 
 ! fill recordpoints buffer (first iteration)
 IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
@@ -586,6 +594,11 @@ USE MOD_TimeDisc_Vars,ONLY: RK4_a,RK4_b,RK4_c
 USE MOD_DG,ONLY:DGTimeDerivative_weakForm
 USE MOD_Filter,ONLY:Filter
 USE MOD_Equation,ONLY:DivCleaningDamping
+#ifdef PP_POIS
+USE MOD_Equation,ONLY:DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG,ONLY:DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
+#endif
 #ifdef PARTICLES
 USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
@@ -634,6 +647,13 @@ END IF
 
 CALL DGTimeDerivative_weakForm(t,t,0)
 CALL DivCleaningDamping()
+
+#ifdef PP_POIS
+! Potential
+CALL DGTimeDerivative_weakForm_Pois(t,t,0)
+CALL DivCleaningDamping_Pois()
+#endif
+
 IF (t.GE.DelayTime) THEN
   CALL InterpolateFieldToParticle()
   CALL CalcPartRHS()
@@ -641,6 +661,11 @@ END IF
 ! EM field
 Ut_temp = Ut 
 U = U + Ut*b_dt(1)
+#ifdef PP_POIS
+Phit_temp = Phit 
+Phi = Phi + Phit*b_dt(1)
+CALL EvalGradient()
+#endif
 ! particles
 LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
 LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
@@ -688,6 +713,10 @@ DO rk=2,5
   END IF
   CALL DGTimeDerivative_weakForm(t,tStage,0)
   CALL DivCleaningDamping()
+#ifdef PP_POIS
+  CALL DGTimeDerivative_weakForm_Pois(t,tStage,0)
+  CALL DivCleaningDamping_Pois()
+#endif
   ! particle RHS
   IF (t.GE.DelayTime) THEN
     CALL InterpolateFieldToParticle()
@@ -696,6 +725,11 @@ DO rk=2,5
   ! field step
   Ut_temp = Ut - Ut_temp*RK4_a(rk)
   U = U + Ut_temp*b_dt(rk)
+#ifdef PP_POIS
+  Phit_temp = Phit - Phit_temp*RK4_a(rk)
+  Phi = Phi + Phit_temp*b_dt(rk)
+  CALL EvalGradient()
+#endif
   ! particle step
   IF (t.GE.DelayTime) THEN
     LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
@@ -997,7 +1031,7 @@ DO rk=2,5
   Phi = Phi + Phit_temp*b_dt(rk)
 END DO
 
-CALL EvalGradient()
+  CALL EvalGradient()
 #endif
 
 CALL UpdateNextFreePosition()
@@ -1349,6 +1383,11 @@ USE MOD_DG,ONLY:DGTimeDerivative_weakForm
 USE MOD_Filter,ONLY:Filter
 USE MOD_Equation,ONLY:DivCleaningDamping
 USE MOD_Globals
+#ifdef PP_POIS
+USE MOD_Equation,ONLY:DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG,ONLY:DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
+#endif
 #ifdef PARTICLES
 USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
@@ -1441,9 +1480,33 @@ DO iLoop = 1, MaxwellIterNum
     Ut_temp = Ut - Ut_temp*RK4_a(rk)
     U = U + Ut_temp*b_dt(rk)
   END DO
+
+#ifdef PP_POIS
+  ! Potential field
+  CALL DGTimeDerivative_weakForm_Pois(t_rk,t_rk,0)
+
+  CALL DivCleaningDamping_Pois()
+  Phit_temp = Phit
+  Phi = Phi + Phit*b_dt(1)
+
+  DO rk=2,5
+    tStage=t_rk+dt*RK4_c(rk)
+    ! field RHS
+    CALL DGTimeDerivative_weakForm_Pois(t_rk,tStage,0)
+    CALL DivCleaningDamping_Pois()
+    ! field step
+    Phit_temp = Phit - Phit_temp*RK4_a(rk)
+    Phi = Phi + Phit_temp*b_dt(rk)
+  END DO
+#endif
+
   t_rk = t_rk + dt
 END DO
 dt = dt_save
+
+#ifdef PP_POIS
+  CALL EvalGradient()
+#endif
 
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
@@ -1473,6 +1536,11 @@ USE MOD_DG,ONLY:DGTimeDerivative_weakForm
 USE MOD_Filter,ONLY:Filter
 USE MOD_Equation,ONLY:DivCleaningDamping
 USE MOD_Globals
+#ifdef PP_POIS
+USE MOD_Equation,ONLY:DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG,ONLY:DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
+#endif
 #ifdef PARTICLES
 USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
@@ -1565,9 +1633,32 @@ DO iLoop = 1, MaxwellIterNum
     Ut_temp = Ut - Ut_temp*RK4_a(rk)
     U = U + Ut_temp*b_dt(rk)
   END DO
+#ifdef PP_POIS
+  ! Potential field
+  CALL DGTimeDerivative_weakForm_Pois(t_rk,t_rk,0)
+
+  CALL DivCleaningDamping_Pois()
+  Phit_temp = Phit
+  Phi = Phi + Phit*b_dt(1)
+
+  DO rk=2,5
+    tStage=t_rk+dt*RK4_c(rk)
+    ! field RHS
+    CALL DGTimeDerivative_weakForm_Pois(t_rk,tStage,0)
+    CALL DivCleaningDamping_Pois()
+    ! field step
+    Phit_temp = Phit - Phit_temp*RK4_a(rk)
+    Phi = Phi + Phit_temp*b_dt(rk)
+  END DO
+#endif
+
   t_rk = t_rk + dt
 END DO
 dt = dt_save
+
+#ifdef PP_POIS
+  CALL EvalGradient()
+#endif
 
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
