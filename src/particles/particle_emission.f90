@@ -1089,8 +1089,8 @@ ELSE ! mode.NE.1:
       STOP
 #endif
    ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
-      WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
-      WRITE(*,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
+!      WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
+!      WRITE(*,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
    END IF
 #ifdef MPI
    END IF ! PMPIVAR%iProc.EQ.0
