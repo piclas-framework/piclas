@@ -664,6 +664,7 @@ DO i=1,nPartBound
   SELECT CASE (TRIM(tmpString))
   CASE('open')
      PartBound%TargetBoundCond(i) = PartBound%OpenBC          ! definitions see typesdef_pic
+     PartBound%Voltage(i)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
      PartBound%TargetBoundCond(i) = PartBound%ReflectiveBC
      PartBound%MomentumACC(i)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC','0')
