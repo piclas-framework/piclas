@@ -144,6 +144,7 @@ USE MOD_Equation_Vars,ONLY: E
   REAL                             :: field(6)                                                     !
   INTEGER                          :: i,j,k,m,iPart,iElem, iNode                                   !
   REAL                             :: dist_node(8), sum_dist
+  REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 !===================================================================================================================================
 
 IF(usecurvedExternalField) THEN ! used curved external Bz
@@ -295,7 +296,13 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         Pos = PartState(iPart,1:3)
         !--- evaluate at Particle position
 #if (PP_nVar==8)
+#ifdef PP_POIS
+        HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+        HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
+        CALL eval_xyz(Pos,6,PP_N,HelperU,field,iElem)
+#else
         CALL eval_xyz(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
+#endif
 #else
 #ifdef PP_POIS
         CALL eval_xyz(Pos,3,PP_N,E(1:3,:,:,:,iElem),field,iElem)
@@ -314,7 +321,13 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           iElem = PEM%Element(iPart)
           !--- evaluate at Particle position
 #if (PP_nVar==8)
+#ifdef PP_POIS
+          HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+          HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
+          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,HelperU,field,iElem)
+#else
           CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
+#endif
 #else
 #ifdef PP_POIS
           CALL eval_xyz_part2(PartPosMapped(iPart,1:3),3,PP_N,E(1:3,:,:,:,iElem),field,iElem)     
@@ -332,7 +345,13 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           Pos = PartState(iPart,1:3)
           !--- evaluate at Particle position
 #if (PP_nVar==8)
+#ifdef PP_POIS
+          HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+          HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
+          CALL eval_xyz_fast(Pos,6,PP_N,HelperU,field,iElem)
+#else
           CALL eval_xyz_fast(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
+#endif
 #else
 #ifdef PP_POIS
          CALL eval_xyz_fast(Pos,3,PP_N,E(1:3,:,:,:,iElem),field,iElem)
@@ -351,8 +370,14 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           iElem = PEM%Element(iPart)
           !--- evaluate at Particle position
 #if (PP_nVar==8)
+#ifdef PP_POIS
+          field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+          field(4:6) = U(4:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+#else
           field = U(1:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
           FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+#endif
 #else
 #ifdef PP_POIS
           field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
