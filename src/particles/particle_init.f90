@@ -1030,18 +1030,19 @@ SUBROUTINE DomainUpdate()
    ELSE
      deltaT=ManualTimeStep
    END IF
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42)
    halo_eps_velo = GETREAL('Particles-HaloEpsVelo','0')
-   IF (halo_eps_velo.EQ.0) THEN
+   IF (halo_eps_velo.EQ.0) halo_eps_velo = c
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42)
+   IF (halo_eps_velo.EQ.c) THEN
       WRITE(*,*) 'Halo Eps Velocity for MPI not defined'
       STOP
    END IF
-   halo_eps = halo_eps_velo*deltaT*SafetyFactor
-#elif (PP_TimeDiscMethod==201) 
+#endif
+#if (PP_TimeDiscMethod==201)
   deltaT=CALCTIMESTEP()
   halo_eps = c*deltaT*SafetyFactor*3.8
 #else
-   halo_eps = c*deltaT*SafetyFactor
+  halo_eps = halo_eps_velo*deltaT*SafetyFactor
 #endif
    !SWRITE(*,*)'  - eps=',halo_eps
    IF (DepositionType.EQ.'shape_function') THEN
