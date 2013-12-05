@@ -625,6 +625,9 @@ REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
+#ifdef PP_POIS
+REAL                  :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+#endif
 REAL                  :: tStage,b_dt(1:5)
 INTEGER               :: i,rk
 !===================================================================================================================================
@@ -951,7 +954,9 @@ REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
+#ifdef PP_POIS
 REAL                  :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+#endif
 REAL                  :: tStage,b_dt(1:5)
 INTEGER               :: i,rk
 !===================================================================================================================================
@@ -1415,6 +1420,9 @@ REAL,INTENT(IN)       :: t
 ! LOCAL VARIABLES
 INTEGER               :: i,rk, iLoop
 REAL                  :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
+#ifdef PP_POIS
+REAL                  :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+#endif
 REAL                  :: b_dt(1:5)
 REAL                  :: dt_save, tStage, t_rk
 !===================================================================================================================================
@@ -1568,6 +1576,9 @@ REAL,INTENT(IN)       :: t
 ! LOCAL VARIABLES
 INTEGER               :: i,rk, iLoop
 REAL                  :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
+#ifdef PP_POIS
+REAL                  :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+#endif
 REAL                  :: b_dt(1:5)
 REAL                  :: dt_save, tStage, t_rk
 !===================================================================================================================================
