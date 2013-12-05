@@ -697,8 +697,8 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
            WRITE(*,*) 'Particle left halo cell domain:'
            WRITE(*,*) 'Part',i,'Proc:',PMPIVAR%iProc
            WRITE(*,*) 'PartState',PartState(i,:)
-           CALL abort(__STAMP__,'ERROR: particle left halo cell domain. &
-                                 Increase halo radius, proc',PMPIVAR%iProc,999.)
+           WRITE(*,*) "Error: particle left halo cell domain. Increase halo radius of proc ",PMPIVAR%iProc
+           STOP
          END IF
        ELSE   ! Inner or periodic side
          INNERFLAG = .FALSE.

@@ -70,55 +70,72 @@ SUBROUTINE Initialize()
     IF (ALLOCATED(MPIGEO%ElemSideNodeID)) THEN
       LOGWRITE(*,*)'  - Deleting existing halo Cells...'
       DEALLOCATE(MPIGEO%ElemSideNodeID,STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not deallocate halo Cell array',999,999.)
+      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+        'Could not deallocate halo Cell array.',999,999.)
       LOGWRITE(*,*)'    ...Done'
     END IF
     IF (ALLOCATED(MPIGEO%NodeCoords)) THEN
       LOGWRITE(*,*)'  - Deleting existing halo Cells...'
       DEALLOCATE(MPIGEO%NodeCoords,STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not deallocate halo Cell array',999,999.)
+      IF (ALLOCSTAT.NE.0) THEN
+        CALL abort(__STAMP__,&
+          'Could not deallocate halo Cell array',999,999.)
+      END IF
       LOGWRITE(*,*)'    ...Done'
     END IF
     IF (ALLOCATED(MPIGEO%ElemToSide)) THEN
       LOGWRITE(*,*)'  - Deleting existing halo Cells...'
       DEALLOCATE(MPIGEO%ElemToSide,STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not deallocate halo Cell array',999,999.)
+      IF (ALLOCSTAT.NE.0) THEN
+        CALL abort(__STAMP__,&
+          'Could not deallocate halo Cell array',999,999.)
+      END IF
       LOGWRITE(*,*)'    ...Done'
     END IF
     IF (ALLOCATED(MPIGEO%SideToElem)) THEN
       LOGWRITE(*,*)'  - Deleting existing halo Cells...'
       DEALLOCATE(MPIGEO%SideToElem,STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not deallocate halo Cell array',999,999.)
+      IF (ALLOCSTAT.NE.0) THEN
+        CALL abort(__STAMP__,&
+          'Could not deallocate halo Cell array',999,999.)
+      END IF
       LOGWRITE(*,*)'    ...Done'
     END IF
     IF (ALLOCATED(MPIGEO%NativeElemID)) THEN
       LOGWRITE(*,*)'  - Deleting existing halo Cells...'
       DEALLOCATE(MPIGEO%NativeElemID,STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not deallocate halo Cell array',999,999.)
+      IF (ALLOCSTAT.NE.0) THEN
+        CALL abort(__STAMP__,&
+          'Could not deallocate halo Cell array',999,999.)
+      END IF
       LOGWRITE(*,*)'    ...Done'
     END IF
     IF (ALLOCATED(MPIGEO%BC)) THEN
       LOGWRITE(*,*)'  - Deleting existing halo Cells...'
       DEALLOCATE(MPIGEO%BC,STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not deallocate halo Cell array',999,999.)
+      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+        'Could not deallocate halo Cell array',999,999.)
       LOGWRITE(*,*)'    ...Done'
     END IF
     IF (ALLOCATED(MPIGEO%ElemMPIID)) THEN
       LOGWRITE(*,*)'  - Deleting existing halo Cells...'
       DEALLOCATE(MPIGEO%ElemMPIID,STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not deallocate halo Cell array',999,999.)
+      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+        'Could not deallocate halo Cell array',999,999.)
       LOGWRITE(*,*)'    ...Done'
     END IF
     IF (ALLOCATED(MPIGEO%PeriodicElemSide)) THEN
       LOGWRITE(*,*)'  - Deleting existing halo Cells...'
       DEALLOCATE(MPIGEO%PeriodicElemSide,STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not deallocate halo Cell array',999,999.)
+      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+        'Could not deallocate halo Cell array',999,999.)
       LOGWRITE(*,*)'    ...Done'
     END IF
     IF (ALLOCATED(MPIGEO%ConcaveElemSide)) THEN
       LOGWRITE(*,*)'  - Deleting existing halo Cells...'
       DEALLOCATE(MPIGEO%ConcaveElemSide,STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not deallocate halo Cell array',999,999.)
+      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+        'Could not deallocate halo Cell array',999,999.)
       LOGWRITE(*,*)'    ...Done'
     END IF
 
@@ -312,7 +329,8 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
 !===================================================================================================================================
 
   ALLOCATE(ElemIndex(1:nElems), SideIndex(1:nSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate Elem- or SideIndex',999,999.)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    'Could not allocate Elem- or SideIndex',999,999.)
   SideIndex = 0
   ElemIndex = 0
 
@@ -373,48 +391,57 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
   !--- ElemToSide Mapping ------------------------------------------------------!
   IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
     ALLOCATE(SendMsg%ElemToSide(1:2,1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate SendMsg%ElemToSide',SendMsg%nElems,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate SendMsg%ElemToSide',SendMsg%nElems,999.)
     SendMsg%ElemToSide(:,:,:)=0
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
     ALLOCATE(RecvMsg%ElemToSide(1:2,1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate RecvMsg%ElemToSide',RecvMsg%nElems,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate RecvMsg%ElemToSide',RecvMsg%nElems,999.)
     RecvMsg%ElemToSide(:,:,:)=0
   END IF
 
   !--- NodeCoords --------------------------------------------------------------!
   IF (SendMsg%nNodes.GT.0) THEN
     ALLOCATE(SendMsg%NodeCoords(1:3,1:SendMsg%nNodes),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate SendMsg%NodeCoords',SendMsg%nNodes,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate SendMsg%NodeCoords',SendMsg%nNodes,999.)
     SendMsg%NodeCoords(:,:)=0.
   END IF
   IF (RecvMsg%nNodes.GT.0) THEN
     ALLOCATE(RecvMsg%NodeCoords(1:3,1:RecvMsg%nNodes),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate RecvMsg%NodeCoords',RecvMsg%nNodes,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate RecvMsg%NodeCoords',RecvMsg%nNodes,999.)
     RecvMsg%NodeCoords(:,:)=0.
   END IF
 
   !--- ElemSideNodeID Mapping ------------------------------------------------------!
   IF (SendMsg%nElems.GT.0) THEN       ! ElemSideNodeID(1:iNode,1:iLocSide,1:nElems)
     ALLOCATE(SendMsg%ElemSideNodeID(1:4,1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save NodeID for each iLocSide  
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate SendMsg%ElemSideNodeID',SendMsg%nElems,999.)
+    IF (ALLOCSTAT.NE.0) &
+      CALL abort(__STAMP__,&
+      'Could not allocate SendMsg%ElemSideNodeID',SendMsg%nElems,999.)
     SendMsg%ElemSideNodeID(:,:,:)=0
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
     ALLOCATE(RecvMsg%ElemSideNodeID(1:4,1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate RecvMsg%ElemSideNodeID',RecvMsg%nElems,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate RecvMsg%ElemSideNodeID',RecvMsg%nElems,999.)
     RecvMsg%ElemSideNodeID(:,:,:)=0
   END IF
 
   !--- SideToElem Mapping ------------------------------------------------------!
   IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides) 
     ALLOCATE(SendMsg%SideToElem(1:5,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate SendMsg%SideToElem',SendMsg%nSides,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate SendMsg%SideToElem',SendMsg%nSides,999.)
     SendMsg%SideToElem(:,:)=0
   END IF
   IF (RecvMsg%nSides.GT.0) THEN
     ALLOCATE(RecvMsg%SideToElem(1:5,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides,999.)
     RecvMsg%SideToElem(:,:)=0
   END IF
 
@@ -426,47 +453,55 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
   ! 4:SIDE_ID-MPI_Offset(NBProc)  
   IF (SendMsg%nSides.GT.0) THEN       
     ALLOCATE(SendMsg%BC(1:4,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate SendMsg%BC',SendMsg%nSides,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate SendMsg%BC',SendMsg%nSides,999.)
     SendMsg%BC(:,:)=0
   END IF
   IF (RecvMsg%nSides.GT.0) THEN
     ALLOCATE(RecvMsg%BC(1:4,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate RecvMsg%BC',RecvMsg%nSides,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate RecvMsg%BC',RecvMsg%nSides,999.)
     RecvMsg%BC(:,:)=0
   END IF
 
   !--- NativeElemID ------------------------------------------------------!
   IF (SendMsg%nElems.GT.0) THEN 
     ALLOCATE(SendMsg%NativeElemID(1:SendMsg%nElems),STAT=ALLOCSTAT)  
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate SendMsg%NativeElemID',SendMsg%nElems,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate SendMsg%NativeElemID',SendMsg%nElems,999.)
     SendMsg%NativeElemID(:)=0
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
     ALLOCATE(RecvMsg%NativeElemID(1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate RecvMsg%NativeElemID',RecvMsg%nElems,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate RecvMsg%NativeElemID',RecvMsg%nElems,999.)
     RecvMsg%NativeElemID(:)=0
   END IF
 
   !--- PeriodicElemSide Mapping ------------------------------------------------------!
   IF (SendMsg%nElems.GT.0) THEN       ! PeriodicElemSide(1:iLocSide,1:nElems)
     ALLOCATE(SendMsg%PeriodicElemSide(1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate SendMsg%PeriodicElemSide',SendMsg%nElems,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate SendMsg%PeriodicElemSide',SendMsg%nElems,999.)
     SendMsg%PeriodicElemSide(:,:)=0
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
     ALLOCATE(RecvMsg%PeriodicElemSide(1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate RecvMsg%PeriodicElemSide',RecvMsg%nElems,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate RecvMsg%PeriodicElemSide',RecvMsg%nElems,999.)
     RecvMsg%PeriodicElemSide(:,:)=0
   END IF
   !--- ConcaveElemSide Mapping ------------------------------------------------------!
   IF (SendMsg%nElems.GT.0) THEN       ! PeriodicElemSide(1:iLocSide,1:nElems)
     ALLOCATE(SendMsg%ConcaveElemSide(1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate SendMsg%PeriodicElemSide',SendMsg%nElems,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate SendMsg%PeriodicElemSide',SendMsg%nElems,999.)
     SendMsg%ConcaveElemSide(:,:)=.FALSE.
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
     ALLOCATE(RecvMsg%ConcaveElemSide(1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate RecvMsg%PeriodicElemSide',RecvMsg%nElems,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate RecvMsg%PeriodicElemSide',RecvMsg%nElems,999.)
     RecvMsg%ConcaveElemSide(:,:)=.FALSE.
   END IF
 
@@ -654,7 +689,8 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
 
   IF ((RecvMsg%nElems.EQ.0) .AND. ((RecvMsg%nSides.GT.0).OR.(RecvMsg%nNodes.GT.0))) THEN
       ERRWRITE(*,*)'ERROR: nElems=0 when nSides=',RecvMsg%nSides,' and nNodes=',RecvMsg%nNodes,'!'
-      CALL abort(__STAMP__,'nElems=0 while nNodes=',RecvMsg%nNodes,999.)
+      CALL abort(__STAMP__,&
+        'nElems=0 while nNodes=',RecvMsg%nNodes,999.)
   END IF
   IF (.NOT.RecvMsg%nNodes.EQ.0) THEN
   IF (ALLOCATED(MPIGEO%ElemSideNodeID)) THEN   !--- Resize Arrays
@@ -662,93 +698,111 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
     HALOoffsetSide=SIZE(MPIGEO%SideToElem,2)
     HALOoffsetElem=SIZE(MPIGEO%ElemSideNodeID,3)
     ALLOCATE(TEMPARRAY2(1:4,1:6,1:HALOoffsetElem),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (1)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (1)!',iProc,999.)
     TEMPARRAY2(1:4,1:6,1:HALOoffsetElem)=MPIGEO%ElemSideNodeID(1:4,1:6,1:HALOoffsetElem)
     DEALLOCATE(MPIGEO%ElemSideNodeID)
     ALLOCATE(MPIGEO%ElemSideNodeID(1:4,1:6,1:HALOoffsetElem+RecvMsg%nElems), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (2)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (2)!',iProc,999.)
     MPIGEO%ElemSideNodeID(:,:,:)=0
     MPIGEO%ElemSideNodeID(1:4,1:6,1:HALOoffsetElem)=TEMPARRAY2(1:4,1:6,1:HALOoffsetElem)
     DEALLOCATE(TEMPARRAY2)
 
     ALLOCATE(TEMPARRAY_R(1:3,1:HALOoffsetNode),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (3)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (3)!',iProc,999.)
     TEMPARRAY_R(1:3,1:HALOoffsetNode)=MPIGEO%NodeCoords(1:3,1:HALOoffsetNode)
     DEALLOCATE(MPIGEO%NodeCoords)
     ALLOCATE(MPIGEO%NodeCoords(1:3,1:HALOoffsetNode+RecvMsg%nNodes), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (4)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (4)!',iProc,999.)
     MPIGEO%NodeCoords(:,:)=0.
     MPIGEO%NodeCoords(1:3,1:HALOoffsetNode)=TEMPARRAY_R(1:3,1:HALOoffsetNode)
     DEALLOCATE(TEMPARRAY_R)
 
     ALLOCATE(TEMPARRAY2(1:2,1:6,1:HALOoffsetElem),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (5)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (5)!',iProc,999.)
     TEMPARRAY2(1:2,1:6,1:HALOoffsetElem)=MPIGEO%ElemToSide(1:2,1:6,1:HALOoffsetElem)
     DEALLOCATE(MPIGEO%ElemToSide)
     ALLOCATE(MPIGEO%ElemToSide(1:2,1:6,1:HALOoffsetElem+RecvMsg%nElems), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (6)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (6)!',iProc,999.)
     MPIGEO%ElemToSide(:,:,:)=0
     MPIGEO%ElemToSide(1:2,1:6,1:HALOoffsetElem)=TEMPARRAY2(1:2,1:6,1:HALOoffsetElem)
     DEALLOCATE(TEMPARRAY2)
 
     ALLOCATE(TEMPARRAY(1:5,1:HALOoffsetSide),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (7)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (7)!',iProc,999.)
     TEMPARRAY(1:5,1:HALOoffsetSide)=MPIGEO%SideToElem(1:5,1:HALOoffsetSide)
     DEALLOCATE(MPIGEO%SideToElem)
     ALLOCATE(MPIGEO%SideToElem(1:5,1:HALOoffsetSide+RecvMsg%nSides), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (8)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (8)!',iProc,999.)
     MPIGEO%SideToElem(:,:)=-1  ! consistent with SideToElem
     MPIGEO%SideToElem(1:5,1:HALOoffsetSide)=TEMPARRAY(1:5,1:HALOoffsetSide)
     DEALLOCATE(TEMPARRAY)
 
     ALLOCATE(TEMPARRAY0(1:HALOoffsetElem),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (9)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (9)!',iProc,999.)
     TEMPARRAY0(1:HALOoffsetElem)=MPIGEO%ElemMPIID(1:HALOoffsetElem)
     DEALLOCATE(MPIGEO%ElemMPIID)
     ALLOCATE(MPIGEO%ElemMPIID(1:HALOoffsetElem+RecvMsg%nElems), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (10)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (10)!',iProc,999.)
     MPIGEO%ElemMPIID(:)=0
     MPIGEO%ElemMPIID(1:HALOoffsetElem)=TEMPARRAY0(1:HALOoffsetElem)
     DEALLOCATE(TEMPARRAY0)
 
     ALLOCATE(TEMPARRAY(1:5,1:HALOoffsetSide),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (11)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (11)!',iProc,999.)
     TEMPARRAY(1:5,1:HALOoffsetSide)=MPIGEO%BC(1:5,1:HALOoffsetSide)
     DEALLOCATE(MPIGEO%BC)
     ALLOCATE(MPIGEO%BC(1:5,1:HALOoffsetSide+RecvMsg%nSides), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (12)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (12)!',iProc,999.)
     MPIGEO%BC(1:5,:)=0
     MPIGEO%BC(1:5,1:HALOoffsetSide)=TEMPARRAY(1:5,1:HALOoffsetSide)
     DEALLOCATE(TEMPARRAY)
 
     ALLOCATE(TEMPARRAY0(1:HALOoffsetElem),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (9)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (9)!',iProc,999.)
     TEMPARRAY0(1:HALOoffsetElem)=MPIGEO%NativeElemID(1:HALOoffsetElem)
     DEALLOCATE(MPIGEO%NativeElemID)
     ALLOCATE(MPIGEO%NativeElemID(1:HALOoffsetElem+RecvMsg%nElems), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (10)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (10)!',iProc,999.)
     MPIGEO%NativeElemID(:)=0
     MPIGEO%NativeElemID(1:HALOoffsetElem)=TEMPARRAY0(1:HALOoffsetElem)
     DEALLOCATE(TEMPARRAY0)
 
     IF(GEO%nPeriodicVectors.GT.0)THEN
       ALLOCATE(TEMPARRAY(1:6,1:HALOoffsetElem),STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (9)!',iProc,999.)
+      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+        'Could not allocate (9)!',iProc,999.)
       TEMPARRAY(1:6,1:HALOoffsetElem)=MPIGEO%PeriodicElemSide(1:6,1:HALOoffsetElem)
       DEALLOCATE(MPIGEO%PeriodicElemSide)
       ALLOCATE(MPIGEO%PeriodicElemSide(1:6,1:HALOoffsetElem+RecvMsg%nElems), STAT=ALLOCSTAT)
-      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (10)!',iProc,999.)
+      IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+        'Could not allocate (10)!',iProc,999.)
       MPIGEO%PeriodicElemSide(:,:)=0
       MPIGEO%PeriodicElemSide(1:6,1:HALOoffsetElem)=TEMPARRAY(1:6,1:HALOoffsetElem)
       DEALLOCATE(TEMPARRAY)
     END IF
 
     ALLOCATE(TEMPARRAYL(1:6,1:HALOoffsetElem),STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (9)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (9)!',iProc,999.)
     TEMPARRAYL(1:6,1:HALOoffsetElem)=MPIGEO%ConcaveElemSide(1:6,1:HALOoffsetElem)
     DEALLOCATE(MPIGEO%ConcaveElemSide)
     ALLOCATE(MPIGEO%ConcaveElemSide(1:6,1:HALOoffsetElem+RecvMsg%nElems), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not allocate (10)!',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not allocate (10)!',iProc,999.)
     MPIGEO%ConcaveElemSide(:,:)=.FALSE.
     MPIGEO%ConcaveElemSide(1:6,1:HALOoffsetElem)=TEMPARRAYL(1:6,1:HALOoffsetElem)
     DEALLOCATE(TEMPARRAYL)
@@ -766,7 +820,8 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
              MPIGEO%ConcaveElemSide(1:6,1:RecvMsg%nElems),    &
              STAT=ALLOCSTAT                                        )
     IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(__STAMP__,'Could not allocate receive messages for HALO-cells!',iProc,999.)
+      CALL abort(__STAMP__,&
+        'Could not allocate receive messages for HALO-cells!',iProc,999.)
     END IF
     MPIGEO%ElemSideNodeID(:,:,:) = 0
     MPIGEO%NodeCoords(:,:)       = 0.
@@ -1036,7 +1091,8 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
                RecvMsg%PeriodicElemSide, &
                RecvMsg%ConcaveElemSide, &
                STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not deallocate RecvMsg%*, proc',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not deallocate RecvMsg%*, proc',iProc,999.)
   END IF
   IF (SendMsg%nNodes.GT.0) THEN
     DEALLOCATE(SendMsg%ElemToSide,       &
@@ -1048,7 +1104,8 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
                SendMsg%PeriodicElemSide, &
                SendMsg%ConcaveElemSide,  &
                STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'Could not deallocate SendMsg%*, proc',iProc,999.)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+      'Could not deallocate SendMsg%*, proc',iProc,999.)
   END IF
 END SUBROUTINE ExchangeMPINeighborhoodGeometry
 

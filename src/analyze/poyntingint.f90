@@ -409,7 +409,8 @@ sumAllFaces=0
 DO iPlane= 1, nPoyntingIntPlanes
   SWRITE(UNIT_stdOut,'(A,I2,A,I10,A)') 'Processed plane no.: ',iPlane,'. Found ',nFaces(iPlane),' surfaces.'
 END DO
-SWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',nPoyntingIntSides,' surfaces for the poynting vector integral calculation are found.'
+SWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',nPoyntingIntSides, &
+                        ' surfaces for the poynting vector integral calculation are found.'
 
 ALLOCATE(S(1:3,0:PP_N,0:PP_N,1:nPoyntingIntSides) , &
          STEM(0:PP_N,0:PP_N,1:nPoyntingIntSides)  )

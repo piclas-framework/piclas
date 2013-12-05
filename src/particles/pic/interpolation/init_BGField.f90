@@ -126,7 +126,7 @@ IF (npoints.NE.nNodes) THEN
   CALL abort(__STAMP__,&
   'ERROR: wrong number of points in VTK-File',999,999.)
 END IF
-#endif MPI
+#endif /*MPI*/
 DO iVTKnode = 1,npoints
   nFoundNodes = 0
   IsAssociated2 = .FALSE.
@@ -322,7 +322,7 @@ IF (npoints.NE.nNodes) THEN
   CALL abort(__STAMP__,&
   'ERROR: wrong number of points in VTK-File',999,999.)
 END IF
-#endif MPI
+#endif /*MPI*/
 DO iVTKnode = 1,npoints
   nFoundNodes = 0
   IsAssociated2 = .FALSE.
