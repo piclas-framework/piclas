@@ -187,8 +187,8 @@ REAL                          :: gtemp, gmax
   IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID.EQ.2) THEN
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%RotRelaxProb.GT.iRan) THEN
       DoRot1 = .TRUE.
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) ! adding rot energy to coll energy
-      Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
+     ! Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) ! adding rot energy to coll energy
+     ! Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
       IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%VibRelaxProb.GT.iRan) DoVib1 = .TRUE.
     END IF
   END IF
@@ -205,8 +205,8 @@ REAL                          :: gtemp, gmax
     CALL RANDOM_NUMBER(iRan)
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%RotRelaxProb.GT.iRan) THEN
       DoRot2 = .TRUE.
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) ! adding rot energy to coll energy
-      Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
+    !  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) ! adding rot energy to coll energy
+     ! Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
       IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%VibRelaxProb.GT.iRan) DoVib2 = .TRUE.
     END IF
   END IF
@@ -268,7 +268,15 @@ REAL                          :: gtemp, gmax
 !--------------------------------------------------------------------------------------------------!
 ! Vibrational Relaxation
 !--------------------------------------------------------------------------------------------------!
-
+  IF (DoRot1) THEN
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
+    Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
+  END IF
+  IF (DoRot2) THEN 
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
+    Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
+  END IF
+  FakXi = 0.5*Xi  - 1
 
   IF(DoVib1) THEN
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) ! adding vib energy to coll energy
