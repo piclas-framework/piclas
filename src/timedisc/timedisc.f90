@@ -332,7 +332,9 @@ DO !iter_t=0,MaxIter
     IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL AnalyzeParticles(t) 
   END IF
   ! poynting vector
-  IF (CalcPoyntingInt) CALL CalcPoyntingIntegral(t)
+  IF (CalcPoyntingInt) THEN
+    IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
+  END IF
   ! fill recordpoints buffer
   IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
   ! write DSMC macroscopic values 
