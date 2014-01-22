@@ -63,7 +63,7 @@ USE MOD_Interpolation_Vars,  ONLY:InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k,iElem,iProbe,iPMLElem
-REAL                :: xyzMinMax(6),xi,L
+REAL                :: xyzMinMax(6),xi,L,XiN
 LOGICAL,ALLOCATABLE :: isPMLElem(:)
 INTEGER             :: PMLID,nGlobalPMLElems
 #ifdef MPI
@@ -210,7 +210,7 @@ CASE(1) ! Linear Distribution of the Damping Coefficient
           PMLzeta(2,i,j,k,ElemToPML(iElem)) = PMLzeta0*(ABS(Elem_xGP(2,i,j,k,iElem))-ABS(xyzPhysicalMinMax(3)))/&
                                       (ABS(xyzMinMax(3))-ABS(xyzPhysicalMinMax(3)))
         ELSEIF (Elem_xGP(2,i,j,k,iElem) .GT. xyzPhysicalMinMax(4)) THEN    
-          PMLzeta(2,i,j,k,iElem) = PMLzeta0*(ABS(Elem_xGP(2,i,j,k,iElem))-ABS(xyzPhysicalMinMax(4)))/&
+          PMLzeta(2,i,j,k,ElemToPML(iElem)) = PMLzeta0*(ABS(Elem_xGP(2,i,j,k,iElem))-ABS(xyzPhysicalMinMax(4)))/&
                                       (ABS(xyzMinMax(4))-ABS(xyzPhysicalMinMax(4)))
         END IF
         ! z-PML region
@@ -255,6 +255,48 @@ CASE(2) ! Sinusoidal  Distribution of the Damping Coefficient
           PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0*(xi/L-SIN(2*ACOS(-1.)*xi/L)/(2*ACOS(-1.)))
         ENDIF 
   END DO; END DO; END DO; END DO !iElem,k,i,j
+CASE(3) ! polynomial
+        ! f''(0) = 0, f'(1) = 0
+  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+        ! x-PML region
+        IF     (Elem_xGP(1,i,j,k,iElem) .LT. xyzPhysicalMinMax(1)) THEN
+          xi                  = ABS(Elem_xGP(1,i,j,k,iElem))-ABS(xyzPhysicalMinMax(1))
+          L                   = ABS(xyzMinMax(1))-ABS(xyzPhysicalMinMax(1))
+          XiN                 = xi/L
+          PMLzeta(1,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
+        ELSEIF (Elem_xGP(1,i,j,k,iElem) .GT. xyzPhysicalMinMax(2)) THEN
+          xi                  = ABS(Elem_xGP(1,i,j,k,iElem))-ABS(xyzPhysicalMinMax(2))
+          L                   = ABS(xyzMinMax(2))-ABS(xyzPhysicalMinMax(2))
+          XiN                 = xi/L
+          PMLzeta(1,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
+        END IF
+        ! y-PML region
+        IF     (Elem_xGP(2,i,j,k,iElem) .LT. xyzPhysicalMinMax(3)) THEN
+          xi                  = ABS(Elem_xGP(2,i,j,k,iElem))-ABS(xyzPhysicalMinMax(3))
+          L                   = ABS(xyzMinMax(3))-ABS(xyzPhysicalMinMax(3))
+          XiN                 = xi/L
+          PMLzeta(2,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
+        ELSEIF (Elem_xGP(2,i,j,k,iElem) .GT. xyzPhysicalMinMax(4)) THEN
+          xi                  = ABS(Elem_xGP(2,i,j,k,iElem))-ABS(xyzPhysicalMinMax(4))
+          L                   = ABS(xyzMinMax(4))-ABS(xyzPhysicalMinMax(4))
+          XiN                 = xi/L
+          PMLzeta(2,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
+        END IF
+        ! z-PML region
+        IF     (Elem_xGP(3,i,j,k,iElem) .LT. xyzPhysicalMinMax(5)) THEN
+          xi                  = ABS(Elem_xGP(3,i,j,k,iElem))-ABS(xyzPhysicalMinMax(5))
+          L                   = ABS(xyzMinMax(5))-ABS(xyzPhysicalMinMax(5))
+          XiN                 = xi/L
+          PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
+        ELSEIF (Elem_xGP(3,i,j,k,iElem) .GT. xyzPhysicalMinMax(6)) THEN
+          xi                  = ABS(Elem_xGP(3,i,j,k,iElem))-ABS(xyzPhysicalMinMax(6))
+          L                   = ABS(xyzMinMax(6))-ABS(xyzPhysicalMinMax(6))
+          PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0*(xi/L-SIN(2*ACOS(-1.)*xi/L)/(2*ACOS(-1.)))
+          XiN                 = xi/L
+        PMLzeta(3,i,j,k,ElemToPML(iElem)) = PMLzeta0*(-3*XiN**4+4*XiN**3)
+      ENDIF 
+END DO; END DO; END DO; END DO !iElem,k,i,j
+
 CASE DEFAULT
 !  CALL abort(__STAMP__,'Shape function for damping coefficient in PML region not specified!',999,999.)
 END SELECT ! PMLzetaShape
