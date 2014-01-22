@@ -106,37 +106,39 @@ SUBROUTINE TimeDisc()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Analyze_Vars,ONLY: Analyze_dt,CalcPoyntingInt
-USE MOD_TimeDisc_Vars,ONLY:TEnd,dt,tAnalyze,ViscousTimeStep,iter
-USE MOD_Restart_Vars,ONLY:DoRestart,RestartTime
-USE MOD_CalcTimeStep,ONLY:CalcTimeStep
-USE MOD_Analyze,ONLY:CalcError
-USE MOD_Particle_Analyze,ONLY:AnalyzeParticles
-USE MOD_Particle_Analyze_Vars,ONLY:DoAnalyze, PartAnalyzeStep
-USE MOD_Output,ONLY:Visualize
-USE MOD_HDF5_output,ONLY:WriteStateToHDF5
-USE MOD_Mesh_Vars,ONLY:MeshFile,nGlobalElems, nElems
-USE MOD_DG_Vars,ONLY:U
-USE MOD_Filter,ONLY:Filter
-USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
-USE MOD_PICDepo_Vars,     ONLY : DepositionType
-USE MOD_Particle_Output,  ONLY : Visualize_Particles
-USE MOD_PARTICLE_Vars,    ONLY : ManualTimeStep, Time, dt_max_particles, dt_maxwell, NextTimeStepAdjustmentIter, &
-                                 dt_adapt_maxwell,useManualTimestep
-USE MOD_PARTICLE_Vars,    ONLY : PDM, PartState, MaxwellIterNum, GEO, WriteMacroValues, MacroValSamplIterNum, nSpecies, Pt
+USE MOD_Analyze_Vars,          ONLY: Analyze_dt,CalcPoyntingInt
+USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze,ViscousTimeStep,iter
+USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
+USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
+USE MOD_Analyze,               ONLY: CalcError
+USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
+USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
+USE MOD_Output,                ONLY: Visualize
+USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
+USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems, nElems
+USE MOD_DG_Vars,               ONLY: U
+USE MOD_PML,                   ONLY: TransformPMLVars,BacktransformPMLVars
+USE MOD_PML_Vars,              ONLY: DoPML
+USE MOD_Filter,                ONLY: Filter
+USE MOD_PICDepo,               ONLY: Deposition, DepositionMPF
+USE MOD_PICDepo_Vars,          ONLY: DepositionType
+USE MOD_Particle_Output,       ONLY: Visualize_Particles
+USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, Time, dt_max_particles, dt_maxwell, NextTimeStepAdjustmentIter, &
+                                     dt_adapt_maxwell,useManualTimestep
+USE MOD_PARTICLE_Vars,         ONLY: PDM, PartState, MaxwellIterNum, GEO, WriteMacroValues, MacroValSamplIterNum, nSpecies, Pt
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC, SampDSMC, realtime
-USE MOD_DSMC_Analyze,     ONLY : DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
-USE MOD_Equation_Vars,ONLY:c,c_corr
-USE MOD_RecordPoints       ,ONLY:RecordPoints,WriteRPToHDF5
-USE MOD_RecordPoints_Vars  ,ONLY:RP_inUse,RP_onProc
-USE MOD_PoyntingInt        ,ONLY:CalcPoyntingIntegral
-USE MOD_LD_Vars            ,ONLY: useLD
+USE MOD_DSMC_Vars,             ONLY: useDSMC, DSMC, SampDSMC, realtime
+USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
+USE MOD_Equation_Vars,         ONLY: c,c_corr
+USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
+USE MOD_RecordPoints_Vars,     ONLY: RP_inUse,RP_onProc
+USE MOD_PoyntingInt,           ONLY: CalcPoyntingIntegral
+USE MOD_LD_Vars,               ONLY: useLD
 #ifdef MPI
-USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
+USE MOD_part_boundary,        ONLY: ParticleBoundary, Communicate_PIC
 #endif
 #ifdef PP_POIS
-USE MOD_Equation,ONLY:EvalGradient
+USE MOD_Equation,             ONLY: EvalGradient
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -377,7 +379,9 @@ DO !iter_t=0,MaxIter
     ! future time
     tFuture=t+Analyze_dt
     ! Write state to file
+    IF(DoPML) CALL BacktransformPMLVars()
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
+    IF(DoPML) CALL TransformPMLVars()
     ! Write recordpoints data to hdf5
     IF(RP_inUse) CALL WriteRPtoHDF5(iter,t)
     ! Calculate error norms
@@ -589,35 +593,37 @@ SUBROUTINE TimeStepByRK4(t)
 ! the current time U(t) and returns the solution at the next time level.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,ONLY: U,Ut,nTotalU
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY: dt
-USE MOD_TimeDisc_Vars,ONLY: RK4_a,RK4_b,RK4_c
-USE MOD_DG,ONLY:DGTimeDerivative_weakForm
-USE MOD_Filter,ONLY:Filter
-USE MOD_Equation,ONLY:DivCleaningDamping
+USE MOD_TimeDisc_Vars,    ONLY: dt
+USE MOD_TimeDisc_Vars,    ONLY: RK4_a,RK4_b,RK4_c
+USE MOD_DG,               ONLY: DGTimeDerivative_weakForm
+USE MOD_DG_Vars,          ONLY: U,Ut,nTotalU
+USE MOD_PML_Vars,         ONLY: PMLzeta,U2,U2t,nPMLElems,DoPML
+USE MOD_PML,              ONLY: PMLTimeDerivative,CalcPMLSource
+USE MOD_Filter,           ONLY: Filter
+USE MOD_Equation,         ONLY: DivCleaningDamping
 #ifdef PP_POIS
-USE MOD_Equation,ONLY:DivCleaningDamping_Pois,EvalGradient
-USE MOD_DG,ONLY:DGTimeDerivative_weakForm_Pois
-USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
+USE MOD_Equation,         ONLY: DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG,               ONLY: DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars,    ONLY: Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
-USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
-USE MOD_PIC_Vars,         ONLY : PIC
-USE MOD_Particle_Vars,    ONLY : PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
-USE MOD_part_RHS,         ONLY : CalcPartRHS
-USE MOD_part_boundary,    ONLY : ParticleBoundary
-USE MOD_part_emission,    ONLY : ParticleInserting
-USE MOD_DSMC,             ONLY : DSMC_main
-USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
+USE MOD_PICDepo,          ONLY: Deposition, DepositionMPF
+USE MOD_PICInterpolation, ONLY: InterpolateFieldToParticle
+USE MOD_PIC_Vars,         ONLY: PIC
+USE MOD_Particle_Vars,    ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
+USE MOD_part_RHS,         ONLY: CalcPartRHS
+USE MOD_part_boundary,    ONLY: ParticleBoundary
+USE MOD_part_emission,    ONLY: ParticleInserting
+USE MOD_DSMC,             ONLY: DSMC_main
+USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS, DSMC
 #ifdef MPI
-USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
+USE MOD_part_boundary,    ONLY: ParticleBoundary, Communicate_PIC
 #else
-USE MOD_part_boundary,    ONLY : ParticleBoundary
+USE MOD_part_boundary,    ONLY: ParticleBoundary
 #endif
-USE MOD_PIC_Analyze,ONLY: CalcDepositedCharge
-USE MOD_part_tools,     ONLY : UpdateNextFreePosition
+USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
+USE MOD_part_tools,       ONLY: UpdateNextFreePosition
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -627,6 +633,7 @@ REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
+REAL                  :: U2t_temp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
 #ifdef PP_POIS
 REAL                  :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif
@@ -651,6 +658,10 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 END IF
 
 CALL DGTimeDerivative_weakForm(t,t,0)
+IF(DoPML) THEN
+  CALL CalcPMLSource()
+  CALL PMLTimeDerivative()
+END IF
 CALL DivCleaningDamping()
 
 #ifdef PP_POIS
@@ -666,6 +677,11 @@ END IF
 ! EM field
 Ut_temp = Ut 
 U = U + Ut*b_dt(1)
+!PML auxiliary variables
+IF(DoPML) THEN
+  U2t_temp = U2t
+  U2 = U2 + U2t*b_dt(1)
+END IF
 #ifdef PP_POIS
 Phit_temp = Phit 
 Phi = Phi + Phit*b_dt(1)
@@ -717,6 +733,7 @@ DO rk=2,5
     END IF
   END IF
   CALL DGTimeDerivative_weakForm(t,tStage,0)
+  IF(DoPML) CALL CalcPMLSource()
   CALL DivCleaningDamping()
 #ifdef PP_POIS
   CALL DGTimeDerivative_weakForm_Pois(t,tStage,0)
@@ -730,6 +747,12 @@ DO rk=2,5
   ! field step
   Ut_temp = Ut - Ut_temp*RK4_a(rk)
   U = U + Ut_temp*b_dt(rk)
+  !PML auxiliary variables
+  IF(DoPML)THEN
+    CALL PMLTimeDerivative()
+    U2t_temp = U2t - U2t_temp*RK4_a(rk)
+    U2 = U2 + U2t_temp*b_dt(rk)
+  END IF
 #ifdef PP_POIS
   Phit_temp = Phit - Phit_temp*RK4_a(rk)
   Phi = Phi + Phit_temp*b_dt(rk)

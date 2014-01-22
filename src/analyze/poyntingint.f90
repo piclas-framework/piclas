@@ -198,7 +198,8 @@ DO iELEM = 1, nElems
 END DO ! iElems
 
 #ifdef MPI
-  CALL MPI_ALLREDUCE(Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+  CALL MPI_REDUCE   (Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,iError)
+  !CALL MPI_ALLREDUCE(Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
   Sabs(:) = sumSabs(:)
 #endif /* MPI */
 
@@ -400,9 +401,9 @@ END DO ! iPlanes
 ALLOCATE(sumFaces(nPoyntingIntPlanes))
 sumFaces=0
 sumAllFaces=0
-  CALL MPI_ALLREDUCE(nFaces , sumFaces , nPoyntingIntPlanes , MPI_INTEGER, MPI_SUM, PMPIVAR%COMM, IERROR)
+  CALL MPI_REDUCE(nFaces , sumFaces , nPoyntingIntPlanes , MPI_INTEGER, MPI_SUM,0, PMPIVAR%COMM, IERROR)
   nFaces(:) = sumFaces(:)
-  CALL MPI_ALLREDUCE(nPoyntingIntSides , sumAllFaces , 1 , MPI_INTEGER, MPI_SUM, PMPIVAR%COMM, IERROR)
+  CALL MPI_REDUCE(nPoyntingIntSides , sumAllFaces , 1 , MPI_INTEGER, MPI_SUM,0, PMPIVAR%COMM, IERROR)
   nPoyntingIntSides = sumAllFaces
 #endif /* MPI */
 

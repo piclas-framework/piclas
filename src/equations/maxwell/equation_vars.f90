@@ -28,6 +28,8 @@ REAL              :: c2_inv
 REAL              :: eps0 
 REAL              :: mu0 
 REAL              :: smu0
+REAL              :: DipoleOmega ! electric dipole angular frequency
+REAL              :: tPulse
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff

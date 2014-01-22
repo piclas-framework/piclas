@@ -53,7 +53,9 @@ USE MOD_Interpolation_Vars, ONLY: xGP,wGP,wBary,InterpolationInitIsDone
 USE MOD_Mesh_Vars,          ONLY: nSides,nInnerSides,nBCSides
 USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
 USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
-USE MOD_Mesh_Vars,          ONLY: MeshInitIsDone 
+USE MOD_Mesh_Vars,          ONLY: MeshInitIsDone
+USE MOD_PML,                ONLY: TransformPMLVars 
+USE MOD_PML_Vars,           ONLY: DoPML
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -79,6 +81,7 @@ nTotalU=PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*PP_nElems
 IF(.NOT.DoRestart)THEN
   ! U is filled with the ini solution
   CALL FillIni()
+  IF(DoPML) CALL TransformPMLVars()
 END IF
 ! Ut is set to zero because it is successively updated with DG contributions
 Ut=0.

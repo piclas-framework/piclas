@@ -677,7 +677,9 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,          ONLY : nElems, sJ
 USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_Equation_Vars,      ONLY : smu0, eps0 
-USE MOD_DG_Vars,ONLY:U
+USE MOD_DG_Vars,            ONLY : U
+USE MOD_Mesh_Vars,          ONLY : Elem_xGP
+USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -710,8 +712,14 @@ DO iElem=1,nElems
     B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
           + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
           + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-    WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
-    WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+    ! if x, y or z is in PML region
+    IF (Elem_xGP(1,i,j,k,iElem) .GE. xyzPhysicalMinMax(1) .OR. Elem_xGP(1,i,j,k,iElem) .LE. xyzPhysicalMinMax(2) .OR. &
+        Elem_xGP(2,i,j,k,iElem) .GE. xyzPhysicalMinMax(3) .OR. Elem_xGP(2,i,j,k,iElem) .LE. xyzPhysicalMinMax(4) .OR. &
+        Elem_xGP(3,i,j,k,iElem) .GE. xyzPhysicalMinMax(5) .OR. Elem_xGP(3,i,j,k,iElem) .LE. xyzPhysicalMinMax(6)) THEN        
+      WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+    END IF
+        
   END DO; END DO; END DO
   WEl = WEl + WEl_tmp
   WMag = WMag + WMag_tmp

@@ -70,6 +70,8 @@ eps0               = GETREAL('eps','1.')
 mu0                = GETREAL('mu','1.')
 smu0               = 1./mu0
 fDamping           = GETREAL('fDamping','0.99')
+DipoleOmega        = GETREAL('omega','6.28318E08') ! f=100 MHz default
+tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
 c_test = 1./SQRT(eps0*mu0)
 IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   SWRITE(*,*) "ERROR: c does not equal 1/sqrt(eps*mu)!"
@@ -79,6 +81,7 @@ IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   SWRITE(*,*) "1/sqrt(eps*mu):", c_test
   STOP
 END IF
+
 Pi=ACOS(-1.)
 spi = 1./pi
 
@@ -270,6 +273,7 @@ CASE(4) ! Dipole
   ELSE
     resu(3)= cos(theta)         *Er - sin(theta)         *Etheta
   END IF
+  
 CASE(5) ! Initialization and BC Gyrotron Mode Converter
   eps=1e-10
   IF (x(3).GT.eps) RETURN
@@ -358,6 +362,10 @@ CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   resu(7)= 0.0
   resu(8)= 0.0
 
+CASE(41) ! pulsed Dipole
+  resu = 0.0
+  RETURN
+
 CASE DEFAULT
   SWRITE(*,*)'Exact function not specified'
 END SELECT ! ExactFunction
@@ -391,7 +399,7 @@ SUBROUTINE CalcSource(t)
 USE MOD_Globals,       ONLY : abort
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : Ut
-USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
+USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega, tPulse
 USE MOD_PICDepo_Vars,  ONLY : Source
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 !USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
@@ -407,7 +415,7 @@ REAL,INTENT(IN)                 :: t
 INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv
 REAL                            :: r                                                 ! for Dipole
-REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/), Q=1, d=1, omega=6.28318E8 !2.096     ! for Dipole
+REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/), Q=1, d=1    ! for Dipole
 !===================================================================================================================================
 eps0inv = 1./eps0
 SELECT CASE (IniExactFunc)
@@ -428,13 +436,28 @@ CASE(4) ! Dipole
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
-        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) * Q*d*omega * COS(omega*t) * eps0inv
+        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) * Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
     ! dipole should be neutral
        ! Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) * c_corr*Q * eps0inv
       END IF
     END DO; END DO; END DO
   END DO
 CASE(5) ! TE_34,19 Mode     - no sources
+CASE(41) ! Dipole via temporal Gausspuls
+!t0=TEnd/5, w=t0/4 ! for pulsed Dipole (t0=offset and w=width of pulse)
+!TEnd=30.E-9 -> short pulse for 100ns runtime
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
+      IF (t.LE.2*tPulse) THEN
+        IF (shapefunc(r) .GT. 0 ) THEN
+          Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - ((shapefunc(r))*Q*d*COS(DipoleOmega*t)*eps0inv)*&
+                              EXP(-(t-tPulse/5)**2/(2*(tPulse/(4*5))**2))
+        END IF
+      END IF
+    END DO; END DO; END DO
+  END DO
+  
 CASE(50,51) ! TE_34,19 Mode - no sources
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)

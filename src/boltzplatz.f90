@@ -12,6 +12,7 @@ USE MOD_Interpolation,ONLY:InitInterpolation,FinalizeInterpolation
 USE MOD_Mesh,         ONLY:InitMesh,FinalizeMesh
 USE MOD_Equation,     ONLY:InitEquation,FinalizeEquation
 USE MOD_DG,           ONLY:InitDG,FinalizeDG
+USE MOD_PML,          ONLY:InitPML,FinalizePML
 !USE MOD_Limiter,     ONLY:InitLimiter
 !USE MOD_Indicator,   ONLY:InitIndicator
 USE MOD_Filter,       ONLY:InitFilter,FinalizeFilter
@@ -74,6 +75,7 @@ CALL InitEquation()
 !1#ifdef PARTICLES
 !CALL InitParticles()
 !#endif
+CALL InitPML()
 CALL InitDG()
 CALL InitFilter()
 CALL InitTimeDisc()
@@ -102,6 +104,7 @@ CALL FinalizeOutput()
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
 CALL FinalizeDG()
+CALL FinalizePML()
 CALL FinalizeEquation()
 CALL FinalizeInterpolation()
 CALL FinalizeTimeDisc()
