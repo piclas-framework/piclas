@@ -3,7 +3,7 @@
 # CONFIGURATION                                                                                                                   #
 #=================================================================================================================================#
 INIFILE=$(MAINDIR)ini/particles.ini
-COMPILER=GNU
+COMPILER=INTEL
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
 # Cut compiler for use with DEBUG-flags
 ifeq ($(findstring _,$(COMPILER)),_)
