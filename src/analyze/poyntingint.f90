@@ -198,7 +198,8 @@ DO iELEM = 1, nElems
 END DO ! iElems
 
 #ifdef MPI
-  CALL MPI_REDUCE   (Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,iError)
+  CALL MPI_REDUCE   (Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, PMPIVAR%COMM,IERROR)
+  !CALL MPI_REDUCE   (WEl     , sumWEl     , 1                  , MPI_DOUBLE_PRECISION, MPI_SUM, 0, PMPIVAR%COMM,IERROR)
   !CALL MPI_ALLREDUCE(Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
   Sabs(:) = sumSabs(:)
 #endif /* MPI */
@@ -402,19 +403,22 @@ ALLOCATE(sumFaces(nPoyntingIntPlanes))
 sumFaces=0
 sumAllFaces=0
   CALL MPI_REDUCE(nFaces , sumFaces , nPoyntingIntPlanes , MPI_INTEGER, MPI_SUM,0, PMPIVAR%COMM, IERROR)
-  nFaces(:) = sumFaces(:)
+  !nFaces(:) = sumFaces(:)
   CALL MPI_REDUCE(nPoyntingIntSides , sumAllFaces , 1 , MPI_INTEGER, MPI_SUM,0, PMPIVAR%COMM, IERROR)
-  nPoyntingIntSides = sumAllFaces
+  !nPoyntingIntSides = sumAllFaces
+#else
+sumFaces=nFaces
+sumAllFaces=nPoyntingIntSides
 #endif /* MPI */
 
 DO iPlane= 1, nPoyntingIntPlanes
-  SWRITE(UNIT_stdOut,'(A,I2,A,I10,A)') 'Processed plane no.: ',iPlane,'. Found ',nFaces(iPlane),' surfaces.'
+  SWRITE(UNIT_stdOut,'(A,I2,A,I10,A)') 'Processed plane no.: ',iPlane,'. Found ',sumFaces(iPlane),' surfaces.'
 END DO
-SWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',nPoyntingIntSides, &
+SWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',sumAllFaces, &
                         ' surfaces for the poynting vector integral calculation are found.'
 
-ALLOCATE(S(1:3,0:PP_N,0:PP_N,1:nPoyntingIntSides) , &
-         STEM(0:PP_N,0:PP_N,1:nPoyntingIntSides)  )
+ALLOCATE(S    (1:3,0:PP_N,0:PP_N,1:nPoyntingIntSides) , &
+         STEM     (0:PP_N,0:PP_N,1:nPoyntingIntSides)  )
 
 SWRITE(UNIT_stdOut,'(A)') ' ... POYNTING VECTOR INTEGRAL INITIALIZATION DONE.'  
 
