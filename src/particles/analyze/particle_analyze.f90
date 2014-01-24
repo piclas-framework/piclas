@@ -679,7 +679,7 @@ USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_Equation_Vars,      ONLY : smu0, eps0 
 USE MOD_DG_Vars,            ONLY : U
 USE MOD_Mesh_Vars,          ONLY : Elem_xGP
-USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax
+USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax,DoPML
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -698,32 +698,55 @@ REAL              :: WEl_tmp, WMag_tmp, E_abs, B_abs
 Wel=0.
 WMag=0.
 
-DO iElem=1,nElems
-  !--- Calculate and save volume of element iElem
-  WEl_tmp=0. 
-  WMag_tmp=0. 
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-! in electromagnetische felder by henke 2011 - springer
-! WMag = 1/(2mu) * int_V B^2 dV 
-    E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
-          + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
-          + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
-    B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
-          + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
-          + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-    ! if x, y or z is in PML region
-    IF (Elem_xGP(1,i,j,k,iElem) .GE. xyzPhysicalMinMax(1) .OR. Elem_xGP(1,i,j,k,iElem) .LE. xyzPhysicalMinMax(2) .OR. &
-        Elem_xGP(2,i,j,k,iElem) .GE. xyzPhysicalMinMax(3) .OR. Elem_xGP(2,i,j,k,iElem) .LE. xyzPhysicalMinMax(4) .OR. &
-        Elem_xGP(3,i,j,k,iElem) .GE. xyzPhysicalMinMax(5) .OR. Elem_xGP(3,i,j,k,iElem) .LE. xyzPhysicalMinMax(6)) THEN        
+IF(DoPML)THEN
+  DO iElem=1,nElems
+    !--- Calculate and save volume of element iElem
+    WEl_tmp=0. 
+    WMag_tmp=0. 
+    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  ! in electromagnetische felder by henke 2011 - springer
+  ! WMag = 1/(2mu) * int_V B^2 dV 
+      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
+            + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
+            + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
+            + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
+            + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
+      ! if x, y or z is in PML region
+      IF (Elem_xGP(1,i,j,k,iElem) .GE. xyzPhysicalMinMax(1) .OR. Elem_xGP(1,i,j,k,iElem) .LE. xyzPhysicalMinMax(2) .OR. &
+            Elem_xGP(2,i,j,k,iElem) .GE. xyzPhysicalMinMax(3) .OR. Elem_xGP(2,i,j,k,iElem) .LE. xyzPhysicalMinMax(4) .OR. &
+            Elem_xGP(3,i,j,k,iElem) .GE. xyzPhysicalMinMax(5) .OR. Elem_xGP(3,i,j,k,iElem) .LE. xyzPhysicalMinMax(6)) THEN        
+          WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
+          WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+      END IF
+    END DO; END DO; END DO
+    WEl = WEl + WEl_tmp
+    WMag = WMag + WMag_tmp
+  END DO
+ELSE
+  DO iElem=1,nElems
+    !--- Calculate and save volume of element iElem
+    WEl_tmp=0. 
+    WMag_tmp=0. 
+    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  ! in electromagnetische felder by henke 2011 - springer
+  ! WMag = 1/(2mu) * int_V B^2 dV 
+      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
+            + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
+            + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
+            + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
+            + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
+      ! if x, y or z is in PML region
       WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
-    END IF
-        
-  END DO; END DO; END DO
-  WEl = WEl + WEl_tmp
-  WMag = WMag + WMag_tmp
-END DO
+    END DO; END DO; END DO
+    WEl = WEl + WEl_tmp
+    WMag = WMag + WMag_tmp
+  END DO
+END IF ! noPML
 
 WEl = WEl * eps0 * 0.5 
 WMag = WMag * smu0 * 0.5
