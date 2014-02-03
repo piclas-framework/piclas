@@ -1070,7 +1070,7 @@ REAL FUNCTION CalcTelec(MeanEelec, iSpec)
       MiddleTemp = 0.5*( LowerTemp + UpperTemp)
       SumOne = 0.0
       SumTwo = 0.0
-      DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant
+      DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
         SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * &
                   exp( - SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp )
         SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * &

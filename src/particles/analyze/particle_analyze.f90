@@ -1165,6 +1165,7 @@ SUBROUTINE WriteEletronicTransition ( Time )
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
+  USE MOD_Globals,            ONLY: Getfreeunit
   USE MOD_DSMC_Vars,          ONLY: DSMC, SpecDSMC
   USE MOD_Particle_Vars,      ONLY: nSpecies
 !   ! IMPLICIT VARIABLE HANDLING
@@ -1191,6 +1192,7 @@ SUBROUTINE WriteEletronicTransition ( Time )
         INQUIRE( FILE = FileNameTransition, EXIST=bExist)
 !-----------------------------------------------------------------------------------------------------------------------------------
         IF ( bExist .EQV. .false. ) THEN 
+          iunit=GETFREEUNIT()
           OPEN(UNIT=iunit,FILE=FileNameTransition,FORM='FORMATTED',STATUS='UNKNOWN')
 !         ! writing header
           WRITE(iunit,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
@@ -1206,6 +1208,7 @@ SUBROUTINE WriteEletronicTransition ( Time )
           END DO
         ELSE
 !-----------------------------------------------------------------------------------------------------------------------------------
+!         ! writing header
           OPEN(unit=iunit,FILE=FileNameTransition,FORM='Formatted',POSITION='APPEND',STATUS='old')
           WRITE(iunit,104,ADVANCE='NO') TIME
           DO iSpec2 = 1, nSpecies

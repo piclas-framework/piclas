@@ -332,10 +332,8 @@ REAL                :: diff
 REAL                :: testvec ! only in z
 INTEGER             :: p,q
 CHARACTER(LEN=32)   :: index_plane
-!#ifdef MPI
-  INTEGER,ALLOCATABLE :: sumFaces(:)
-  INTEGER             :: sumAllfaces
-!#endif /* MPI */
+INTEGER,ALLOCATABLE :: sumFaces(:)
+INTEGER             :: sumAllfaces
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' GET PLANES TO CALCULATE POYNTING VECTOR INTEGRAL ...'
