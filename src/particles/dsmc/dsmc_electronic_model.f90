@@ -13,7 +13,7 @@ MODULE MOD_DSMC_ElectronicModel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-  PUBLIC :: ElectronicEnergyExchange, InitElectronShell
+  PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange
   PUBLIC :: ReadSpeciesLevel
 !-----------------------------------------------------------------------------------------------------------------------------------
   CONTAINS
@@ -122,13 +122,14 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
       END IF
     ELSE
     ! exit loop
-      EXIT
+  !    EXIT
+      CYCLE
     END IF
   END DO
   ! max value for denominator == max. propability
-  iQuaMax3 = min(iQuaMax,iQuaMax2)
-  gmax = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQuaMax3) * &
-        ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQuaMax3))**FakXi
+!  iQuaMax3 = min(iQuaMax,iQuaMax2)
+!  gmax = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQuaMax3) * &
+!       ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQuaMax3))**FakXi
   ! max iQuant for dicing
   iQuaMax  = max(iQuaMax,iQuaMax2)
   CALL RANDOM_NUMBER(iRan)
@@ -197,6 +198,168 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   END IF
 #endif
 END SUBROUTINE ElectronicEnergyExchange
+
+!--------------------------------------------------------------------------------------------------!
+!--------------------------------------------------------------------------------------------------!
+
+SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
+!--------------------------------------------------------------------------------------------------!
+! electronic energy exchange
+!--------------------------------------------------------------------------------------------------!
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, GEO, usevMPF,PartMPF
+!--------------------------------------------------------------------------------------------------!
+  IMPLICIT NONE                                                                                   !
+!  argument list declaration                                                                        !
+!--------------------------------------------------------------------------------------------------! 
+!  input variable declaration           
+  REAL, INTENT(INOUT)           :: CollisionEnergy                                                !
+  INTEGER, INTENT(IN)           :: iPart1
+  INTEGER, INTENT(IN), OPTIONAL :: iPart2,iElem
+  REAL, INTENT(IN)              :: FakXi
+!--------------------------------------------------------------------------------------------------! 
+!  Local variable declaration                                                                        !
+  INTEGER                       :: iQuaMax, MaxElecQuant, iQua, iQuaold, iQuaMax2, iQuaMax3
+  INTEGER                       :: jQVib, QMaxVib
+  REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, iRanVib
+! vMPF
+  REAL                          :: DeltaPartStateIntEn, Phi, PartStateIntEnTemp
+!--------------------------------------------------------------------------------------------------! 
+
+  ! Determine max electronic quant
+  MaxElecQuant = SpecDSMC(PartSpecies(iPart1))%MaxElecQuant - 1
+#if ( PP_TimeDiscMethod==42 )
+  ! determine old Quant
+  DO iQua = 0, MaxElecQuant
+    IF ( PartStateIntEn(iPart1,3) / BoltzmannConst .ge. &
+      SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) ) THEN
+      iQuaold = iQua
+    ELSE
+    ! exit loop
+      EXIT
+    END IF
+  END DO
+#endif
+  ! determine maximal Quant and term according to Eq (7) of Liechty
+  gmax = 0
+  PartStateTemp = CollisionEnergy / BoltzmannConst
+  DO iQua = 0, MaxElecQuant
+    IF ( (PartStateTemp  &
+             - SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) &
+             - DSMC%GammaQuant * SpecDSMC(PartSpecies(iPart1))%CharaTVib) &
+        .ge. 0 ) THEN
+      gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
+              ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) &
+              -DSMC%GammaQuant * SpecDSMC(PartSpecies(iPart1))%CharaTVib * BoltzmannConst)**FakXi
+      ! maximal possible Quant before term goes negative
+      iQuaMax = iQua
+      IF ( gtemp .gt. gmax ) THEN
+      ! Quant of largest value of Eq (7)
+        gmax = gtemp
+        iQuaMax2 = iQua
+      END IF
+    ELSE
+    ! exit loop
+    !  EXIT
+      CYCLE
+    END IF
+  END DO
+  ! max value for denominator == max. propability
+ ! iQuaMax3 = min(iQuaMax,iQuaMax2)
+ ! gmax = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQuaMax3) * &
+ !       ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQuaMax3) &
+ !         -DSMC%GammaQuant * SpecDSMC(PartSpecies(iPart1))%CharaTVib * BoltzmannConst)**FakXi
+  ! max iQuant for dicing
+  iQuaMax  = max(iQuaMax,iQuaMax2)
+  QMaxVib = CollisionEnergy/(BoltzmannConst*SpecDSMC(PartSpecies(iPart1))%CharaTVib)  &
+              - DSMC%GammaQuant
+  QMaxVib = MIN(INT(QMaxVib) + 1, SpecDSMC(PartSpecies(iPart1))%MaxVibQuant)
+  CALL RANDOM_NUMBER(iRan)
+  CALL RANDOM_NUMBER(iRanVib)
+  iQua = int( ( iQuaMax +1 ) * iRan)
+  jQVib =  INT(iRanVib * QMaxVib)
+!  gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
+!          ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) &
+!          -(DSMC%GammaQuant + jQVib) * SpecDSMC(PartSpecies(iPart1))%CharaTVib * BoltzmannConst)**FakXi
+  gtemp =( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) &
+        -(DSMC%GammaQuant + jQVib) * SpecDSMC(PartSpecies(iPart1))%CharaTVib * BoltzmannConst)
+  IF (gtemp.LE.0.0) THEN
+    gtemp = 0.0
+  ELSE
+    gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) *(gtemp)**FakXi
+  END IF
+  CALL RANDOM_NUMBER(iRan2)
+  ! acceptance-rejection for iQuaElec
+  DO WHILE ( iRan2 .ge. gtemp / gmax )
+    CALL RANDOM_NUMBER(iRan)
+    CALL RANDOM_NUMBER(iRanVib)
+    iQua = int( ( iQuaMax +1 ) * iRan)
+    jQVib =  INT(iRanVib * QMaxVib)
+    gtemp =( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) &
+          -(DSMC%GammaQuant + jQVib) * SpecDSMC(PartSpecies(iPart1))%CharaTVib * BoltzmannConst)
+    IF (gtemp.LE.0.0) THEN
+      gtemp = 0.0
+    ELSE
+      gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) *(gtemp)**FakXi
+    END IF
+    CALL RANDOM_NUMBER(iRan2)
+  END DO
+
+!vmpf muss noch gemacht werden !!!!
+  IF (usevMPF) THEN
+    IF (PartMPF( iPart1).GT.PartMPF( iPart2)) THEN
+  !      DeltaPartStateIntEn = 0.0
+      Phi = PartMPF( iPart2) / PartMPF( iPart1)
+      PartStateIntEnTemp = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
+      CollisionEnergy = CollisionEnergy - PartStateIntEnTemp
+      PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn( iPart1,3) + Phi * PartStateIntEnTemp
+      PartStateTemp = PartStateIntEnTemp / BoltzmannConst
+      ! searche for new vib quant
+      iQuaMax = 0
+      DO iQua = 0, MaxElecQuant
+        IF ( PartStateTemp .ge. &
+          SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) ) THEN
+          iQuaMax = iQua
+        ELSE
+        ! exit loop
+          EXIT
+        END IF
+      END DO
+      iQua = iQuaMax
+      PartStateIntEn( iPart1,3) = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
+      DeltaPartStateIntEn = PartMPF( iPart1) &
+                          * (PartStateIntEnTemp - PartStateIntEn( iPart1,3))
+  !      CollisionEnergy = CollisionEnergy + DeltaPartStateIntEn / PartMPF(PairE_vMPF(2)) 
+      GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
+    END IF
+  ELSE
+#if (PP_TimeDiscMethod==42)
+  ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
+    IF ( DSMC%ReservoirSimuRate .EQV. .FALSE. ) THEN
+# endif
+     PartStateIntEn(iPart1,3) = BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)
+     PartStateIntEn(iPart1,1) = (jQVib + DSMC%GammaQuant) * BoltzmannConst &
+                    * SpecDSMC(PartSpecies(iPart1))%CharaTVib
+     CollisionEnergy = CollisionEnergy - PartStateIntEn(iPart1,3) - PartStateIntEn(iPart1,1)
+#if (PP_TimeDiscMethod==42)
+    END IF
+# endif
+  END IF
+
+#if ( PP_TimeDiscMethod ==42 )
+      ! list of number of particles in each energy level
+  IF ( DSMC%ReservoirSimuRate .EQV. .FALSE. ) THEN
+    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQuaold) - 1
+    SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    = SpecDSMC(PartSpecies(iPart1))%levelcounter(iQua)    + 1
+    SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  = SpecDSMC(PartSpecies(iPart1))%dtlevelcounter(iQua)  + 1
+  END IF
+  ! collision with X resulting in a transition from i to j
+  IF ( present(iPart2) .AND. (.NOT.usevMPF) ) THEN
+  SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) = &
+                                SpecDSMC(PartSpecies(iPart1))%ElectronicTransition(PartSpecies(iPart2),iQuaold,iQua) + 1
+  END IF
+#endif
+END SUBROUTINE TVEEnergyExchange
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 
