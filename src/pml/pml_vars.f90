@@ -12,7 +12,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! PML region damping factor
 LOGICAL                               :: DoPML
-LOGICAL                               :: PMLScale
 REAL,ALLOCATABLE                      :: PMLzeta(:,:,:,:,:)   ! damping factor in xyz
 INTEGER                               :: nPMLElems
 INTEGER,ALLOCATABLE                   :: PMLtoElem(:)    
