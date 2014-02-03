@@ -637,9 +637,13 @@ REAL                  :: U2t_temp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! tempor
 #ifdef PP_POIS
 REAL                  :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif
-REAL                  :: tStage,b_dt(1:5)
+REAL                  :: tStage,b_dt(1:5),tDG,tPart,t1,t2
 INTEGER               :: i,rk
 !===================================================================================================================================
+
+tDG=0.
+tPart=0.
+
 Time = t
 CALL ParticleInserting()
 !CALL UpdateNextFreePosition()
@@ -657,7 +661,10 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   !CALL CalcDepositedCharge()
 END IF
 
+CALL CPU_TIME(t1)
 CALL DGTimeDerivative_weakForm(t,t,0)
+CALL CPU_TIME(t2)
+tDG=tDG+t2-t1
 IF(DoPML) THEN
   CALL CalcPMLSource()
   CALL PMLTimeDerivative()

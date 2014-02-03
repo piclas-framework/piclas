@@ -457,7 +457,7 @@ END IF ! DoAnalyze
 
 #if ( PP_TimeDiscMethod ==42 )
 IF ( DSMC%ElectronicState ) THEN
-  CALL ElectronicTransition( Time, NumSpec )
+  IF(Time.GT.0.) CALL ElectronicTransition( Time, NumSpec )
 END IF
 #endif
 #if ( PP_TimeDiscMethod ==42 )
@@ -1209,6 +1209,7 @@ SUBROUTINE WriteEletronicTransition ( Time )
         ELSE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !         ! writing header
+          iunit=GETFREEUNIT()
           OPEN(unit=iunit,FILE=FileNameTransition,FORM='Formatted',POSITION='APPEND',STATUS='old')
           WRITE(iunit,104,ADVANCE='NO') TIME
           DO iSpec2 = 1, nSpecies

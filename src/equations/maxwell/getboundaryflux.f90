@@ -79,15 +79,16 @@ CASE(3) ! 1st order absorbing BC
   U_Face_loc=0.
   ! A problem of the absorbing BC arises if E or B is close to zero. 
   ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
-  !          that E cross n is zero which is enforced through the div. cleaning of E
+  !!          that E cross n is zero which is enforced through the div. cleaning of E
   DO q=0,PP_N
     DO p=0,PP_N
-      IF (SUM(abs(U_Face(4:6,p,q))).GT.epsBC)THEN
-        U_Face_loc(7,p,q) = - U_Face(7,p,q) - c*(DOT_PRODUCT(U_Face(4:6,p,q),normal(1:3,p,q)))
-        U_Face_loc(8,p,q) = - U_Face(8,p,q) - c_inv*(DOT_PRODUCT(U_Face(1:3,p,q),normal(1:3,p,q)))
-      END IF ! sum(abs(B)) > epsBC
+  !    IF (SUM(abs(U_Face(4:6,p,q))).GT.epsBC)THEN
+        U_Face_loc(7,p,q) =-U_Face(7,p,q) - c*(DOT_PRODUCT(U_Face(4:6,p,q),normal(1:3,p,q)))
+        U_Face_loc(8,p,q) =-U_Face(8,p,q) - c_inv*(DOT_PRODUCT(U_Face(1:3,p,q),normal(1:3,p,q)))
+  !    END IF ! sum(abs(B)) > epsBC
     END DO ! p
   END DO ! q
+
 
   CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
                normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
