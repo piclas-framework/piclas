@@ -742,7 +742,7 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
           PartToExec = Coll_pData(iPair)%iPart_p2
           PartReac2 = Coll_pData(iPair)%iPart_p1
         END IF
-        EZeroPoint = DSMC%GammaQuant*BoltzmannConst*SpecDSMC(PartSpecies(PartReac2))%CharaTVib
+        EZeroPoint = DSMC%GammaQuant*BoltzmannConst*SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%CharaTVib
         IF((Coll_pData(iPair)%Ec-EZeroPoint).GE.ChemReac%EActiv(iReac)) THEN
 ! would be the equation if phi3 would not be zero for exchange reactions
 !        ReactionProb = ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius( &
@@ -911,7 +911,7 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
           PartToExec = Coll_pData(iPair)%iPart_p2
           PartReac2 = Coll_pData(iPair)%iPart_p1
         END IF
-        EZeroPoint = DSMC%GammaQuant*BoltzmannConst*SpecDSMC(PartSpecies(PartReac2))%CharaTVib
+        EZeroPoint = DSMC%GammaQuant*BoltzmannConst*SpecDSMC(ChemReac%DefinedReact(iReac,2,1))%CharaTVib
         IF((Coll_pData(iPair)%Ec-EZeroPoint).GE.ChemReac%EActiv(iReac)) THEN
 ! would be the equation if phi3 would not be zero for exchange reactions
 !        ReactionProb = ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius( &
