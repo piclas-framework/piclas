@@ -641,13 +641,14 @@ REAL                  :: tStage,b_dt(1:5)
 INTEGER               :: i,rk
 !===================================================================================================================================
 Time = t
-CALL ParticleInserting()
+
+IF (t.GE.DelayTime) CALL ParticleInserting()
+
 !CALL UpdateNextFreePosition()
 DO rk=1,5
   b_dt(rk)=RK4_b(rk)*dt   ! TBD: put in initiation (with maxwell we are linear!!!)
 END DO
 
-!IF(t.EQ.0) CALL Deposition()
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   IF (usevMPF) THEN 
     CALL DepositionMPF()
@@ -986,7 +987,7 @@ REAL                  :: tStage,b_dt(1:5)
 INTEGER               :: i,rk
 !===================================================================================================================================
 Time = t
-CALL ParticleInserting()
+IF (t.GE.DelayTime) CALL ParticleInserting()
 !CALL UpdateNextFreePosition()
 DO rk=1,5
   b_dt(rk)=RK4_b(rk)*dt   ! TBD: put in initiation (with maxwell we are linear!!!)
@@ -1198,7 +1199,7 @@ REAL,INTENT(IN)    :: t
 ! LOCAL VARIABLES
 !===================================================================================================================================
 Time = t
-CALL ParticleInserting()
+IF (t.GE.DelayTime) CALL ParticleInserting()
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   IF (usevMPF) THEN 
@@ -1305,7 +1306,7 @@ REAL     :: K5(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL     :: tStage
 
 Time = t
-CALL ParticleInserting()
+IF (t.GE.DelayTime) CALL ParticleInserting()
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
     IF (usevMPF) THEN 
@@ -1452,7 +1453,7 @@ REAL                  :: b_dt(1:5)
 REAL                  :: dt_save, tStage, t_rk
 !===================================================================================================================================
 Time = t
-CALL ParticleInserting()
+IF (t.GE.DelayTime) CALL ParticleInserting()
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
     IF (usevMPF) THEN 
@@ -1543,13 +1544,15 @@ dt = dt_save
 
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
-  CALL DSMC_main()
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+  IF (t.GE.DelayTime) THEN
+    CALL DSMC_main()
+    PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,1)
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+    PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,2)
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+    PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  END IF
 END IF
 END SUBROUTINE TimeStepByEulerStaticExp
 #endif
@@ -1608,7 +1611,7 @@ REAL                  :: b_dt(1:5)
 REAL                  :: dt_save, tStage, t_rk
 !===================================================================================================================================
 Time = t
-CALL ParticleInserting()
+IF (t.GE.DelayTime) CALL ParticleInserting()
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
     IF (usevMPF) THEN 
@@ -1698,13 +1701,15 @@ dt = dt_save
 
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
-  CALL DSMC_main()
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+  IF (t.GE.DelayTime) THEN
+    CALL DSMC_main()
+    PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,1)
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+    PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,2)
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+    PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  END IF
 END IF
 END SUBROUTINE TimeStepByEulerStaticExpAdapTS
 #endif
