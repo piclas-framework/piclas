@@ -248,7 +248,7 @@ END SUBROUTINE DSMC_output_calc
 !--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE WriteOutputMesh()
-   USE MOD_Particle_Vars,  ONLY : GEO,nSpecies
+   USE MOD_Particle_Vars
    USE MOD_DSMC_Vars,      ONLY : CollisMode, useDSMC  
    USE MOD_Mesh_Vars,     ONLY : nElems, nNodes
 #ifdef MPI
@@ -261,7 +261,7 @@ SUBROUTINE WriteOutputMesh()
 ! argument list declaration                                      !                                       
 ! Local variable declaration                                                                       !
   CHARACTER(LEN=26)                  :: myFileName
-  INTEGER                            :: iElem, iNode
+  INTEGER                            :: iElem, iNode, iSpec
   INTEGER                            :: withMolecules                   
 
 !--------------------------------------------------------------------------------------------------!
@@ -308,6 +308,15 @@ SUBROUTINE WriteOutputMesh()
   WRITE(1112,*)''
   WRITE(1112,*)''
   WRITE(1112,'(A,I0)')'CELL_DATA ',nElems
+  DO iSpec=1, nSpecies
+    IF ( Species(iSpec)%ParticleEmissionType.EQ.3) THEN
+      WRITE(1112,'(A,I3.3,A)')'SCALARS PressureElemType_', iSpec, ' FLOAT'
+      WRITE(1112,'(A)')'LOOKUP_TABLE default'
+      DO iElem = 1, nElems
+        WRITE(1112,*) Species(iSpec)%ConstPress%ElemStat(iElem)
+      END DO
+    END IF
+  END DO
   CLOSE(1112)
 
 END SUBROUTINE WriteOutputMesh

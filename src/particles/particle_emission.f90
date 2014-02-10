@@ -24,6 +24,7 @@ USE MOD_part_tools,     ONLY : UpdateNextFreePosition
 USE MOD_Restart_Vars,   ONLY : DoRestart 
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,      ONLY : useDSMC
+USE MOD_part_pressure,  ONLY : ParticleInsideCheck
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -54,8 +55,10 @@ USE MOD_DSMC_Vars,      ONLY : useDSMC
   REAL                                   :: WaveNumber                       ! WaveNumber for sin-deviation initiation.
   INTEGER(8)                             :: maxParticleNumberX               ! Maximum Number of all Particles in x direction
   INTEGER(8)                             :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
-  INTEGER(8)                             :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction 
-!===================================================================================================================================
+  INTEGER(8)                             :: maxParticleNumberZ  
+  INTEGER                                :: nPartInside
+  REAL                                   :: EInside, TempInside
+!==================================================================================================
 
 CALL UpdateNextFreePosition()
 
@@ -190,6 +193,26 @@ IF (.NOT.DoRestart) THEN
        Species(i)%Alpha = Alpha
        Species(i)%MWTemperatureIC = MWTemperatureIC
      END IF
+! constant pressure condition
+     IF (Species(i)%ParticleEmissionType .EQ. 3) THEN
+       CALL ParticleInsideCheck(i, nPartInside, TempInside, EInside)
+       IF (Species(i)%ParticleEmission .GT. nPartInside) THEN
+        NbrOfParticle = Species(i)%ParticleEmission - nPartInside
+        WRITE(*,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
+#ifdef MPI
+        CALL SetParticlePosition(i,NbrOfParticle,1)
+        CALL SetParticlePosition(i,NbrOfParticle,2)
+#else
+        CALL SetParticlePosition(i,NbrOfParticle)
+#endif
+        CALL SetParticleVelocity(i,NbrOfParticle)
+        CALL SetParticleChargeAndMass(i,NbrOfParticle)
+        IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+        !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
+        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+        CALL UpdateNextFreePosition()
+       END IF
+     END IF
    END DO ! species
  END IF ! not restart
 !--- set last element to current element (needed when ParticlePush is not executed, e.g. "delay")
@@ -218,6 +241,7 @@ SUBROUTINE ParticleInserting()
   USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
   USE MOD_LD_Vars
 #endif
+  USE MOD_part_pressure          ,ONLY: ParticlePressure
 !===================================================================================================================================
 ! implicit variable handling
 !===================================================================================================================================
@@ -265,6 +289,8 @@ SUBROUTINE ParticleInserting()
          Species(i)%InsertedParticle = Species(i)%InsertedParticle + NbrOfParticle
       CASE(2)    ! Emission Type: Particles per Iteration
          NbrOfParticle = INT(Species(i)%ParticleEmission)
+      CASE(3)
+        CALL ParticlePressure (i, NbrOfParticle)
       CASE DEFAULT
          NbrOfParticle = 0
       END SELECT

@@ -65,6 +65,24 @@ TYPE tInit                                                                   ! P
   INTEGER(8)                             :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction 
 END TYPE tInit
 
+TYPE tConstPressure
+  INTEGER                                :: nElemTotalInside                  ! Number of elements totally in Emission Particle  
+  INTEGER                                :: nElemPartlyInside                 ! Number of elements partly in Emission Particle 
+  INTEGER, ALLOCATABLE                   :: ElemTotalInside(:)                ! List of elements totally in Emission Particle 
+                                                                              ! ElemTotalInside(1:nElemTotalInside)
+  INTEGER, ALLOCATABLE                   :: ElemPartlyInside(:)               ! List of elements partly in Emission Particle 
+                                                                              ! ElemTotalInside(1:nElemPartlyInside)
+  INTEGER(2), ALLOCATABLE                :: ElemStat(:)                       ! Status of Element to Emission Particle Space
+                                                                              ! ElemStat(nElem) = 1  -->  Element is totally insid
+                                                                              !                 = 2  -->  Element is partly  insid
+                                                                              !                 = 3  -->  Element is totally outsi
+  REAL                                   :: OrthoVector(3)                    ! Vector othogonal on BaseVector1IC and BaseVector2
+  REAL                                   :: Determinant                       ! Determinant for solving a 3x3 system of equations
+                                                                              ! to see whether a point is inside a cuboid
+  REAL                                   :: EkinInside                        ! Kinetic Energy in Emission-Area
+  REAL                                   :: InitialTemp                       ! Initial MWTemerature
+END TYPE
+
 TYPE tSpecies                                                                ! Particle Data for each Species
   TYPE(tInit), POINTER                   :: Init(:)                =>NULL()  ! Particle Data for each Initialisation
   CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
@@ -76,6 +94,9 @@ TYPE tSpecies                                                                ! P
   INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
                                                                              !               2 = emission rate 1/iteration
                                                                              !               3 = user def. emission rate
+  REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
+                                                                             ! in EmissioType 3  [Pa] !!!!
+  TYPE (tConstPressure)                  :: ConstPress!(:)           =>NULL() !
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
   REAL                                   :: RadiusIC                         ! Radius for IC circle
   REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)

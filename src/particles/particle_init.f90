@@ -402,6 +402,7 @@ USE MOD_Particle_Output_Vars, ONLY: WriteFieldsToVTK
 USE MOD_Equation_Vars,    ONLY: Pi
 USE MOD_part_MPFtools, ONLY: DefineElemT_inv, DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation_Vars, ONLY: InterpolationType
+USE MOD_part_pressure, ONLY : ParticlePressureIni
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -566,6 +567,7 @@ DO i=1,nSpecies
   Species(i)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf)//'-MacroParticleFactor','1.')
   Species(i)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf)//'-ParticleEmissionType','2')
   Species(i)%ParticleEmission      = GETREAL('Part-Species'//TRIM(hilf)//'-ParticleEmission','0.')
+  Species(i)%ConstantPressure      = GETREAL('Part-Species'//TRIM(hilf)//'-ConstantPressure','0.')
   IF((Species(i)%ParticleEmissionType.EQ.2).AND.((Species(i)%ParticleEmission-INT(Species(i)%ParticleEmission)).NE.0)) THEN
     WRITE(*,*) 'ERROR: If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number'
     STOP
@@ -819,7 +821,7 @@ END DO
 DelayTime = GETREAL('Part-DelayTime','0.')
 
 CALL DomainUpdate()
-
+CALL ParticlePressureIni
 IF(enableParticleMerge) THEN
  IF (TRIM(InterpolationType).NE.'particle_position') CALL DefineElemT_inv()
  CALL DefinePolyVec(vMPFMergePolyOrder) 
