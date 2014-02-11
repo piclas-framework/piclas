@@ -398,11 +398,10 @@ USE MOD_Particle_Vars!, ONLY:
 USE MOD_part_MPI_Vars,ONLY: PMPIVAR
 USE MOD_Restart_Vars, ONLY: DoRestart
 USE MOD_DSMC_Vars,    ONLY: useDSMC
-USE MOD_Particle_Output_Vars, ONLY: WriteFieldsToVTK
+USE MOD_Particle_Output_Vars, ONLY: WriteFieldsToVTK, OutputMesh
 USE MOD_Equation_Vars,    ONLY: Pi
 USE MOD_part_MPFtools, ONLY: DefineElemT_inv, DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation_Vars, ONLY: InterpolationType
-USE MOD_part_pressure, ONLY : ParticlePressureIni
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -531,6 +530,9 @@ IF (useDSMC) THEN
     STOP
   END IF
 END IF
+
+!WriteOutputMesh (=vtk mesh at start, seperate mesh for each proc
+OutputMesh = GETLOGICAL('Part-WriteOutputMesh','.FALSE.')
            
 ! output of macroscopic values
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
@@ -821,7 +823,6 @@ END DO
 DelayTime = GETREAL('Part-DelayTime','0.')
 
 CALL DomainUpdate()
-CALL ParticlePressureIni
 IF(enableParticleMerge) THEN
  IF (TRIM(InterpolationType).NE.'particle_position') CALL DefineElemT_inv()
  CALL DefinePolyVec(vMPFMergePolyOrder) 
@@ -845,6 +846,8 @@ SUBROUTINE DomainUpdate()
   USE MOD_PICInit,               ONLY : InitPIC
   USE MOD_ReadInTools
   USE MOD_DSMC_Vars,             ONLY : useDSMC
+  USE MOD_part_pressure,         ONLY : ParticlePressureIni
+  USE MOD_Particle_Output_Vars,  ONLY : OutputMesh
 #ifdef MPI
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_Equation_Vars,          ONLY : c
@@ -1582,8 +1585,15 @@ SUBROUTINE DomainUpdate()
    DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, CellProcNum)
    CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 #endif
-IF(useDSMC) CALL WriteOutputMesh()
-!CALL WriteOutputMesh()
+
+DO i = 1,nSpecies
+  IF(Species(i)%ParticleEmissionType .EQ. 3) THEN
+    CALL ParticlePressureIni()
+    EXIT
+  END IF
+END DO
+
+IF (OutputMesh) CALL WriteOutputMesh()
 
  END SUBROUTINE DomainUpdate
 
