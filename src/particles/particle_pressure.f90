@@ -702,15 +702,13 @@ SUBROUTINE ParticlePressure (i, NbrOfParticle)
   INTEGER          :: IERROR
 
     CALL ParticleInsideCheck(i, nPartInside, TempInside, EInside)
-
 #ifdef MPI
     TempComSend(1) = REAL(nPartInside)
     TempComSend(2) = EInside
-    CALL MPI_ALLREDUCE(TempComSend, TempComRec, 2, MPI_REAL, MPI_SUM, PMPIVAR%COMM, IERROR)
+    CALL MPI_ALLREDUCE(TempComSend, TempComRec, 2, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
     nPartInside = INT(TempComRec(1))
     EInside = TempComRec(2)
 #endif    
-
     IF (nPartInside .LE. Species(i)%ParticleEmission) THEN
       NbrOfParticle = INT(Species(i)%ParticleEmission) - nPartInside
       IF ((Species(i)%ConstPress%EkinInside - EInside).GT. 0.) THEN   !Both Factors should be bigger than 0
