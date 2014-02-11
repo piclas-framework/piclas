@@ -748,7 +748,7 @@ SUBROUTINE ParticleInsideCheck(i, nPartInside, TempInside, EkinInside)
     BV2 = Species(i)%BaseVector2IC
     OV  = Species(i)%ConstPress%OrthoVector
     DO Particle = 1,PDM%ParticleVecLength
-      IF ((PartSpecies(Particle) .EQ. i) .AND. (PDM%ParticleInside(Particle) .EQ. .TRUE.)) THEN
+      IF ((PartSpecies(Particle) .EQ. i) .AND. (PDM%ParticleInside(Particle))) THEN
         SELECT CASE (Species(i)%ConstPress%ElemStat(PEM%Element(Particle)))
         CASE (1)
           nPartInside = nPartInside + 1
@@ -788,7 +788,7 @@ SUBROUTINE ParticleInsideCheck(i, nPartInside, TempInside, EkinInside)
   CASE ('cylinder')
     OV  = Species(i)%ConstPress%OrthoVector
     DO Particle = 1,PDM%ParticleVecLength
-      IF ((PartSpecies(Particle) .EQ. i) .AND. (PDM%ParticleInside(Particle) .EQ. .TRUE.)) THEN
+      IF ((PartSpecies(Particle) .EQ. i) .AND. (PDM%ParticleInside(Particle))) THEN
         SELECT CASE (Species(i)%ConstPress%ElemStat(PEM%Element(Particle)))
         CASE (1)
           nPartInside = nPartInside + 1
