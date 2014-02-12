@@ -120,7 +120,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, RandomVec, NumRanVec, &
                                          PartState, BoltzmannConst, usevMPF, GEO, PartMPF
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
-  USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange
+  USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
 
 !--------------------------------------------------------------------------------------------------!
 ! perform collision
@@ -187,8 +187,8 @@ REAL                          :: gtemp, gmax
   IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID.EQ.2) THEN
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%RotRelaxProb.GT.iRan) THEN
       DoRot1 = .TRUE.
-     ! Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) ! adding rot energy to coll energy
-     ! Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) ! adding rot energy to coll energy
+      Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
       IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%VibRelaxProb.GT.iRan) DoVib1 = .TRUE.
     END IF
   END IF
@@ -201,12 +201,12 @@ REAL                          :: gtemp, gmax
     END IF
   END IF
 
+  CALL RANDOM_NUMBER(iRan)
   IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%InterID.EQ.2) THEN
-    CALL RANDOM_NUMBER(iRan)
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%RotRelaxProb.GT.iRan) THEN
       DoRot2 = .TRUE.
-    !  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) ! adding rot energy to coll energy
-     ! Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) ! adding rot energy to coll energy
+      Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
       IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%VibRelaxProb.GT.iRan) DoVib2 = .TRUE.
     END IF
   END IF
@@ -225,16 +225,40 @@ REAL                          :: gtemp, gmax
 ! Electronic Relaxation / Transition
 !--------------------------------------------------------------------------------------------------!
 
-  IF ( DSMC%ElectronicState ) THEN
-!    IF (usevMPF) THEN
-!      STOP 'vMPF not implemented for electronic relaxation'
-!    END IF
-    ! Relaxation of first particle
-    IF ( DoElec1 ) THEN
-    ! calculate energy for electronic relaxation of particle 1
+  IF(DoElec1.AND.DoVib1) THEN
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)  &
+                         +    PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
+#if ( PP_TimeDiscMethod == 42)
+    CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2)
+#else
+    CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi)
+#endif
+    DoElec1=.false.
+    DoVib1=.false.
+  END IF
+
+  IF(DoElec2.AND.DoVib2) THEN
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)  &
+                         +    PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
+#if ( PP_TimeDiscMethod == 42)
+    CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1)
+#else
+    CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi)
+#endif
+    DoElec2=.false.
+    DoVib2=.false.
+  END IF
+
+!    IF ( DSMC%ElectronicState ) THEN
+  !    IF (usevMPF) THEN
+  !      STOP 'vMPF not implemented for electronic relaxation'
+  !    END IF
+      ! Relaxation of first particle
+  IF ( DoElec1 ) THEN
+      ! calculate energy for electronic relaxation of particle 1
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)
 #if ( PP_TimeDiscMethod == 42)
-      CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2)
+    CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2)
 #else
     IF (usevMPF) THEN
       CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2,iElem)
@@ -242,13 +266,13 @@ REAL                          :: gtemp, gmax
       CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi )
     END IF
 #endif
-    END IF
+  END IF
     ! Electronic relaxation of second particle
-    IF ( DoElec2 ) THEN
+  IF ( DoElec2 ) THEN
     ! calculate energy for electronic relaxation of particle 1
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
 #if ( PP_TimeDiscMethod == 42)
-      CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1)
+    CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1)
 #else
     IF (usevMPF) THEN
       CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1,iElem)
@@ -256,8 +280,8 @@ REAL                          :: gtemp, gmax
       CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi )
     END IF
 #endif
-    END IF
   END IF
+!  END IF
 
 #if (PP_TimeDiscMethod==42)
   ! for TimeDisc 42 & only transition counting: prohibit relaxation and energy exchange
@@ -268,15 +292,15 @@ REAL                          :: gtemp, gmax
 !--------------------------------------------------------------------------------------------------!
 ! Vibrational Relaxation
 !--------------------------------------------------------------------------------------------------!
-  IF (DoRot1) THEN
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
-    Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
-  END IF
-  IF (DoRot2) THEN 
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-    Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
-  END IF
-  FakXi = 0.5*Xi  - 1
+!  IF (DoRot1) THEN
+!    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
+!    Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
+!  END IF
+!  IF (DoRot2) THEN 
+!    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
+!    Xi = Xi + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
+!  END IF
+!  FakXi = 0.5*Xi  - 1
 
   IF(DoVib1) THEN
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) ! adding vib energy to coll energy
