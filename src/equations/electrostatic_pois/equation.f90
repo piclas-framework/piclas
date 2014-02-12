@@ -138,6 +138,7 @@ ShapeFuncPrefix = 1/(2 * beta(1.5, alpha_shape + 1.) * alpha_shape + 2 * beta(1.
 
 !Init PHI
 ALLOCATE(Phi(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+Phi=0.
 ! the time derivative computed with the DG scheme
 ALLOCATE(Phit(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 nTotalPhi=PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*PP_nElems
@@ -161,8 +162,9 @@ FluxPhi=0.
 
 !ElectricField as grad Phi
 ALLOCATE(E(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-
+E=0.
 ALLOCATE(D(0:PP_N,0:PP_N))
+D=0.
 CALL PolynomialDerivativeMatrix(N,xGP,D)
 
 EquationInitIsDone=.TRUE.
