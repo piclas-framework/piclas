@@ -286,11 +286,15 @@ SUBROUTINE ParticleInserting()
          inserted_Particle_diff = INT(inserted_Particle_time - Species(i)%InsertedParticle &
                                   - inserted_Particle_iter )
          NbrOfParticle = inserted_Particle_iter + inserted_Particle_diff
+         ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
+        IF (Species(i)%velocityDistribution.EQ.'maxwell') NbrOfParticle = MIN(NbrOfParticle,0)
          Species(i)%InsertedParticle = Species(i)%InsertedParticle + NbrOfParticle
       CASE(2)    ! Emission Type: Particles per Iteration
          NbrOfParticle = INT(Species(i)%ParticleEmission)
       CASE(3)
         CALL ParticlePressure (i, NbrOfParticle)
+        ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
+        IF (Species(i)%velocityDistribution.EQ.'maxwell') NbrOfParticle = MIN(NbrOfParticle,0)
       CASE DEFAULT
          NbrOfParticle = 0
       END SELECT
