@@ -175,6 +175,10 @@ tAnalyze=MIN(t+Analyze_dt,tEnd)
 
 ! Determine next analyze time, since it will be written into output file
 tFuture=MIN(t+Analyze_dt,tEnd)
+!Evaluate Gradients to get Potential in case of Restart and Poisson Calc
+#ifdef PP_POIS
+IF(DoRestart) CALL EvalGradient()
+#endif
 ! Write the state at time=0, i.e. the initial condition
 CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
 ! Determine the initial error
@@ -242,11 +246,6 @@ SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
 CalcTimeStart=BOLTZPLATZTIME()
 iter=0
 iter_loc=0
-
-!Evaluate Gradients to get Potential in case of Restart and Poisson Calc
-#ifdef PP_POIS
-IF(DoRestart) CALL EvalGradient()
-#endif
 
 ! fill recordpoints buffer (first iteration)
 IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
