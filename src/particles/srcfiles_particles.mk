@@ -79,6 +79,7 @@ particles/dsmc/dsmc_chemical_reactions.f90
 particles/dsmc/dsmc_bg_gas.f90
 particles/dsmc/dsmc_particle_pairing.f90
 particles/dsmc/dsmc_collision_prob.f90
+particles/dsmc/dsmc_polyatomic_model.f90
 implicit/linear_solver.f90
 particles/dsmc/dsmc_vmpf_collision.f90
 particles/particle_MPFtools.f90
