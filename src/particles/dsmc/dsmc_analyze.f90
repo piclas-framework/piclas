@@ -12,7 +12,7 @@ PRIVATE
 ! Private Part ------------------------------------------------------------------------------------
 ! Public Part -------------------------------------------------------------------------------------
 PUBLIC :: DSMC_data_sampling, WriteOutputMesh, WriteDSMCToHDF5
-PUBLIC :: DSMC_output_calc, CalcTVib, CalcSurfaceValues, OutputMaxCollProb, CalcTelec
+PUBLIC :: DSMC_output_calc, CalcTVib, CalcSurfaceValues, OutputMaxCollProb, CalcTelec, CalcTVibPoly
 !===================================================================================================
 
 CONTAINS
@@ -1101,5 +1101,52 @@ REAL FUNCTION CalcTelec(MeanEelec, iSpec)
 END FUNCTION CalcTelec
 
 !--------------------------------------------------------------------------------------------------!
+REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
+  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
+  USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PolyatomMolDSMC
+!--------------------------------------------------------------------------------------------------!
+   IMPLICIT NONE                                                                                   !
+!--------------------------------------------------------------------------------------------------!
+! argument list declaration                                                              !
+! Local variable declaration                                                                       !
+  REAL, INTENT(IN)                :: MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
+  INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+  INTEGER                         :: iDOF,iPolyatMole
+  REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified
+                                                                      ! zero point search
+  REAl(KIND=8)                    :: eps_prec=1.0E-5,JToEv   ! precision of zero point search
+  REAL(KIND=8)                    :: SumOne, SumTwo    ! both summs
+  REAL(KIND=8)                    :: ZeroVal1, ZeroVal2 ! both fuction values to compare
+
+!--------------------------------------------------------------------------------------------------!
+  ! lower limit: very small value or lowest temperature if ionized
+  ! upper limit: highest possible temperature
+  JToEv = 1.602176565E-19  
+  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+  IF ( MeanEVib .GT. 0 ) THEN
+    LowerTemp = 1.0
+    UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*JToEv/BoltzmannConst
+    DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
+      MiddleTemp = 0.5*( LowerTemp + UpperTemp)
+      SumOne = 0.0
+      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+        SumOne = SumOne + 0.5*BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
+              + BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
+              / (EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/MiddleTemp) -1.0)
+              
+      END DO
+      IF ( SumOne .GT. MeanEVib) THEN
+        UpperTemp = MiddleTemp
+      ELSE
+        LowerTemp = MiddleTemp
+      END IF
+    END DO
+    CalcTVibPoly = UpperTemp ! or 0.5*( Tmax + Tmin)
+  ELSE
+    CalcTVibPoly = 0. ! sup
+  END IF
+  RETURN
+
+END FUNCTION CalcTVibPoly
 
 END MODULE MOD_DSMC_Analyze

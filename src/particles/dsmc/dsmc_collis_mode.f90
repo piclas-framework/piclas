@@ -121,6 +121,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
                                          PartState, BoltzmannConst, usevMPF, GEO, PartMPF
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
+  USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
 
 !--------------------------------------------------------------------------------------------------!
 ! perform collision
@@ -303,133 +304,155 @@ REAL                          :: gtemp, gmax
 !  FakXi = 0.5*Xi  - 1
 
   IF(DoVib1) THEN
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) ! adding vib energy to coll energy
-    MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib)  &
-              - DSMC%GammaQuant
-    iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%MaxVibQuant)
-    CALL RANDOM_NUMBER(iRan)
-    iQua = INT(iRan * iQuaMax)
-    CALL RANDOM_NUMBER(iRan)
-    DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
-     !laux diss page 31
-     CALL RANDOM_NUMBER(iRan)
-     iQua = INT(iRan * iQuaMax)
-     CALL RANDOM_NUMBER(iRan)
-    END DO
+    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol) THEN
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
+      CALL DSMC_VibRelaxPoly(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p1),Coll_pData(iPair)%iPart_p1,FakXi)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
+    ELSE
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) ! adding vib energy to coll energy
+      MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib)  &
+                - DSMC%GammaQuant
+      iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%MaxVibQuant)
+      CALL RANDOM_NUMBER(iRan)
+      iQua = INT(iRan * iQuaMax)
+      CALL RANDOM_NUMBER(iRan)
+      DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
+       !laux diss page 31
+       CALL RANDOM_NUMBER(iRan)
+       iQua = INT(iRan * iQuaMax)
+       CALL RANDOM_NUMBER(iRan)
+      END DO
 
-    IF (usevMPF) THEN
-      IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-  !      DeltaPartStateIntEn = 0.0
-        Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
-        PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                      * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-        PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + Phi * PartStateIntEnTemp
-        ! searche for new vib quant
-        iQua = INT(PartStateIntEnTemp/ &
-               (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant)
-        CALL RANDOM_NUMBER(iRan)
-        IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
-                   * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant &
-                   - DBLE(iQua)) THEN
-          iQua = iQua + 1
+      IF (usevMPF) THEN
+        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
+    !      DeltaPartStateIntEn = 0.0
+          Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
+          PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+                        * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
+          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
+          PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + Phi * PartStateIntEnTemp
+          ! searche for new vib quant
+          iQua = INT(PartStateIntEnTemp/ &
+                 (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant)
+          CALL RANDOM_NUMBER(iRan)
+          IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
+                     * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant &
+                     - DBLE(iQua)) THEN
+            iQua = iQua + 1
+          END IF
+          PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+                        * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
+          DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p1) &
+                              * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1))
+    !      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + DeltaPartStateIntEn / PartMPF(PairE_vMPF(2)) 
+          GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
         END IF
+      ELSE
         PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
                       * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
-        DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p1) &
-                            * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1))
-  !      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + DeltaPartStateIntEn / PartMPF(PairE_vMPF(2)) 
-        GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
       END IF
-    ELSE
-      PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                    * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
     END IF
-
   END IF
 
   IF(DoVib2) THEN
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) ! adding vib energy to coll energy
-    MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib)  &
-              - DSMC%GammaQuant
-    iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%MaxVibQuant)
-    CALL RANDOM_NUMBER(iRan)
-    iQua = INT(iRan * iQuaMax)
-    CALL RANDOM_NUMBER(iRan)
-    DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
-     !laux diss page 31
-     CALL RANDOM_NUMBER(iRan)
-     iQua = INT(iRan * iQuaMax)
-     CALL RANDOM_NUMBER(iRan)
-    END DO
+    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol) THEN
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
+      CALL DSMC_VibRelaxPoly(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p2),Coll_pData(iPair)%iPart_p2,FakXi)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
+    ELSE
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) ! adding vib energy to coll energy
+      MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib)  &
+                - DSMC%GammaQuant
+      iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%MaxVibQuant)
+      CALL RANDOM_NUMBER(iRan)
+      iQua = INT(iRan * iQuaMax)
+      CALL RANDOM_NUMBER(iRan)
+      DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
+       !laux diss page 31
+       CALL RANDOM_NUMBER(iRan)
+       iQua = INT(iRan * iQuaMax)
+       CALL RANDOM_NUMBER(iRan)
+      END DO
 
-    IF (usevMPF) THEN
-      IF (PartMPF(Coll_pData(iPair)%iPart_p2).GT.PartMPF(Coll_pData(iPair)%iPart_p1)) THEN
-  !      DeltaPartStateIntEn = 0.0
-        Phi = PartMPF(Coll_pData(iPair)%iPart_p1) / PartMPF(Coll_pData(iPair)%iPart_p2)
-        PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                      * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-        PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) + Phi * PartStateIntEnTemp
-        ! searche for new vib quant
-        iQua = INT(PartStateIntEnTemp/ &
-               (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib) - DSMC%GammaQuant)
-        CALL RANDOM_NUMBER(iRan)
-        IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
-                   * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib) - DSMC%GammaQuant &
-                   - DBLE(iQua)) THEN
-          iQua = iQua + 1
+      IF (usevMPF) THEN
+        IF (PartMPF(Coll_pData(iPair)%iPart_p2).GT.PartMPF(Coll_pData(iPair)%iPart_p1)) THEN
+    !      DeltaPartStateIntEn = 0.0
+          Phi = PartMPF(Coll_pData(iPair)%iPart_p1) / PartMPF(Coll_pData(iPair)%iPart_p2)
+          PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+                        * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib
+          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
+          PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) + Phi * PartStateIntEnTemp
+          ! searche for new vib quant
+          iQua = INT(PartStateIntEnTemp/ &
+                 (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib) - DSMC%GammaQuant)
+          CALL RANDOM_NUMBER(iRan)
+          IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
+                     * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib) - DSMC%GammaQuant &
+                     - DBLE(iQua)) THEN
+            iQua = iQua + 1
+          END IF
+          PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+                        * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib
+          DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p2) &
+                              * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1))
+    !      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + DeltaPartStateIntEn / PartMPF(PairE_vMPF(2)) 
+          GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
         END IF
+      ELSE
         PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
                       * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib
-        DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p2) &
-                            * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1))
-  !      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + DeltaPartStateIntEn / PartMPF(PairE_vMPF(2)) 
-        GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) 
       END IF
-    ELSE
-      PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                    * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) 
     END IF
-
   END IF
 
 !--------------------------------------------------------------------------------------------------! 
 ! Rotational Relaxation
 !--------------------------------------------------------------------------------------------------! 
   IF(DoRot1) THEN
-    CALL RANDOM_NUMBER(iRan)
-    IF (usevMPF) THEN
-      IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-        Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
-        PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-        FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
-        PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) &
-                                                     + Phi * PartStateIntEnTemp
-      END IF
-    ELSE
-      PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
+    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol) THEN
       FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
+      CALL DSMC_RotRelaxPoly(Coll_pData(iPair)%Ec, Coll_pData(iPair)%iPart_p1, FakXi)      
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
+    ELSE
+      CALL RANDOM_NUMBER(iRan)
+      IF (usevMPF) THEN
+        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
+          Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
+          PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
+          FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
+          PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) &
+                                                       + Phi * PartStateIntEnTemp
+        END IF
+      ELSE
+        PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
+        FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
+      END IF
     END IF
   END IF
 
   IF(DoRot2) THEN
-    CALL RANDOM_NUMBER(iRan)
-    IF (usevMPF) THEN
-      IF (PartMPF(Coll_pData(iPair)%iPart_p2).GT.PartMPF(Coll_pData(iPair)%iPart_p1)) THEN
-        Phi = PartMPF(Coll_pData(iPair)%iPart_p1) / PartMPF(Coll_pData(iPair)%iPart_p2)
-        PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-        PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) &
-                                                     + Phi * PartStateIntEnTemp
-      END IF
-    ELSE
-      PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol) THEN
+      FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
+      CALL DSMC_RotRelaxPoly(Coll_pData(iPair)%Ec, Coll_pData(iPair)%iPart_p2, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
+    ELSE
+      CALL RANDOM_NUMBER(iRan)
+      IF (usevMPF) THEN
+        IF (PartMPF(Coll_pData(iPair)%iPart_p2).GT.PartMPF(Coll_pData(iPair)%iPart_p1)) THEN
+          Phi = PartMPF(Coll_pData(iPair)%iPart_p1) / PartMPF(Coll_pData(iPair)%iPart_p2)
+          PartStateIntEnTemp = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
+          PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) = (1-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) &
+                                                       + Phi * PartStateIntEnTemp
+        END IF
+      ELSE
+        PartStateIntEn(Coll_pData(iPair)%iPart_p2,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
+      END IF
     END IF
   END IF
 

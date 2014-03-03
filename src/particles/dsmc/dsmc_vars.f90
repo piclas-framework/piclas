@@ -33,6 +33,8 @@ END TYPE tSpecInit
 
 TYPE tSpeciesDSMC !DSMC Species Param
   TYPE(tSpecInit), POINTER    :: Init(:)    =>NULL()
+  LOGICAL                     :: PolyatomicMol
+  INTEGER                     :: SpecToPolyArray
   REAL                        :: TVib                 ! vibrational temperature, ini_1
   REAL                        :: TRot                 ! rotational temperature, ini_1
   REAL                        :: Telec                ! electronic temperature, ini_1
@@ -102,6 +104,7 @@ TYPE tDSMC
   REAL                          :: CollMeanCount      ! counter for mean Collision Probability max
   LOGICAL                       :: ElectronicState    ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicStateDatabase ! Name of Electronic State Database | h5 file
+  INTEGER                       :: NumPolyatomMolecs  ! Number of polyatomic molecules
 END TYPE tDSMC
 
 TYPE(tDSMC)                        :: DSMC
@@ -262,5 +265,15 @@ END TYPE
 TYPE (tSurfaceMesh)               :: SurfMesh
  
 REAL                              :: realtime                     ! realtime of simulation
+
+TYPE tPolyatomMolDSMC !DSMC Species Param
+  LOGICAL                         :: LinearMolec                  ! Is a linear Molec?
+  INTEGER                         :: NumOfAtoms                   ! Number of Atoms in Molec
+  INTEGER                         :: VibDOF                       ! DOF in Vibration, equals number of independent SHO's
+  REAL, ALLOCATABLE               :: CharaTVibDOF(:)              ! Chara TVib for each DOF
+  INTEGER, ALLOCATABLE            :: MaxVibQuantDOF(:)            ! Max Vib Quant for each DOF
+END TYPE
+
+TYPE (tPolyatomMolDSMC), ALLOCATABLE    :: PolyatomMolDSMC(:)        ! Infos for Polyatomic Molecule
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars
