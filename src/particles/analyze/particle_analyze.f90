@@ -927,7 +927,7 @@ SUBROUTINE CalcIntTempsAndEn(IntTemp, IntEn)
 ! MODULES
 USE MOD_Particle_Vars,      ONLY : PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
 USE MOD_DSMC_Vars,          ONLY : PartStateIntEn, SpecDSMC, DSMC
-USE MOD_DSMC_Analyze,       ONLY : CalcTVib, CalcTelec
+USE MOD_DSMC_Analyze,       ONLY : CalcTVib, CalcTelec, CalcTVibPoly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -976,22 +976,30 @@ RealNumSpec  = 0
       IF (usevMPF) THEN
         IntTemp(iSpec,2) = ERot(iSpec)/(BoltzmannConst*RealNumSpec(iSpec))  !Calc TRot
       ELSE
-        IntTemp(iSpec,2) = ERot(iSpec)/(BoltzmannConst*NumSpec(iSpec))  !Calc TRot
+        IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(SpecDSMC(iSpec)%Xi_Rot.EQ.3)) THEN 
+          IntTemp(iSpec,2) = 2.0*ERot(iSpec)/(3.0*BoltzmannConst*NumSpec(iSpec))  !Calc TRot          
+        ELSE
+          IntTemp(iSpec,2) = ERot(iSpec)/(BoltzmannConst*NumSpec(iSpec))  !Calc TRot
+        END IF
       END IF
       IF (EVib(iSpec).GT.0) THEN
-        IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-          IF (usevMPF) THEN
-            IntTemp(iSpec,1) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(EVib(iSpec) & 
-                            /(RealNumSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
-          ELSE
-            IntTemp(iSpec,1) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(EVib(iSpec) & 
-                            /(NumSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
-          END IF
-        ELSE                                            ! TSHO-model
-          IF (usevMPF) THEN
-            IntTemp(iSpec,1) = CalcTVib(SpecDSMC(iSpec)%CharaTVib, EVib(iSpec)/RealNumSpec(iSpec), SpecDSMC(iSpec)%MaxVibQuant)
-          ELSE
-            IntTemp(iSpec,1) = CalcTVib(SpecDSMC(iSpec)%CharaTVib, EVib(iSpec)/NumSpec(iSpec), SpecDSMC(iSpec)%MaxVibQuant)
+        IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
+          IntTemp(iSpec,1) = CalcTVibPoly(EVib(iSpec)/NumSpec(iSpec), iSpec)
+        ELSE
+          IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
+            IF (usevMPF) THEN
+              IntTemp(iSpec,1) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(EVib(iSpec) & 
+                              /(RealNumSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
+            ELSE
+              IntTemp(iSpec,1) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(EVib(iSpec) & 
+                              /(NumSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
+            END IF
+          ELSE                                            ! TSHO-model
+            IF (usevMPF) THEN
+              IntTemp(iSpec,1) = CalcTVib(SpecDSMC(iSpec)%CharaTVib, EVib(iSpec)/RealNumSpec(iSpec), SpecDSMC(iSpec)%MaxVibQuant)
+            ELSE
+              IntTemp(iSpec,1) = CalcTVib(SpecDSMC(iSpec)%CharaTVib, EVib(iSpec)/NumSpec(iSpec), SpecDSMC(iSpec)%MaxVibQuant)
+            END IF
           END IF
         END IF
       ELSE
