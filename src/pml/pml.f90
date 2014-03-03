@@ -49,7 +49,7 @@ USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_PML_Vars,            ONLY: PMLzeta,U2,U2t,Probes,DoPML
 USE MOD_PML_Vars,            ONLY: nPMLElems,ElemtoPML,PMLtoElem
-USE MOD_PML_Vars,            ONLY: PMLzeta0,xyzPhysicalMinMax,PMLzetaShape,PMLspread,PMLwritezeta
+USE MOD_PML_Vars,            ONLY: PMLzeta0,xyzPhysicalMinMax,PMLzetaShape,PMLspread,PMLwritezeta, PMLzetaNorm
 USE MOD_Mesh_Vars,           ONLY: Elem_xGP,BCFace_xGP  ! for PML region: xyz position of the Gauss points and Face Gauss points
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars,  ONLY:InterpolationInitIsDone
@@ -64,6 +64,8 @@ USE MOD_Interpolation_Vars,  ONLY:InterpolationInitIsDone
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k,iElem,iProbe,iPMLElem
 REAL                :: xyzMinMax(6),xi,L,XiN
+REAL                :: zetaVec,zetaVecABS
+INTEGER             :: multVec
 LOGICAL,ALLOCATABLE :: isPMLElem(:)
 INTEGER             :: PMLID,nGlobalPMLElems
 #ifdef MPI
@@ -85,6 +87,7 @@ xyzPhysicalMinMax(1:6) = GETREALARRAY('xyzPhysicalMinMax',6,'0.0,0.0,0.0,0.0,0.0
 PMLzetaShape           = GETINT('PMLzetaShape','0')
 PMLspread              = GETINT('PMLspread','0')
 PMLwriteZeta           = GETINT('PMLwriteZeta','0')
+PMLzetaNorm            = GETLOGICAL('PMLzetaNorm','.FALSE.')
 ! only for Maxwell, PP_nVar=8
 #if PP_nVar == 8
   IF(SUM(ABS(xyzPhysicalMinMax)).GT.1e-12) DoPML=.TRUE.
@@ -301,7 +304,6 @@ CASE DEFAULT
 !  CALL abort(__STAMP__,'Shape function for damping coefficient in PML region not specified!',999,999.)
 END SELECT ! PMLzetaShape
 
-
 !Test: Set All PMLzeta values for a direction to PMLzeta
 IF (PMLspread.EQ.1) THEN
   DO iElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -310,6 +312,21 @@ IF (PMLspread.EQ.1) THEN
         IF (PMLzeta(3,i,j,k,iElem) .GT. 0.0) PMLzeta(:,i,j,k,iElem)=PMLzeta(3,i,j,k,iElem) 
   END DO; END DO; END DO; END DO !iElem,k,i,j
 END IF
+
+!PMLzetaNorm=.TRUE.
+! Normalize zeta if multiple direction
+IF (PMLzetaNorm) THEN
+  DO iElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+        zetaVecABS=SQRT(PMLzeta(1,i,j,k,iElem)**2 &
+                       +PMLzeta(2,i,j,k,iElem)**2 &
+                       +PMLzeta(3,i,j,k,iElem)**2 )
+        zetaVec=MAX(PMLzeta(1,i,j,k,iElem),0.)
+        zetaVec=MAX(PMLzeta(2,i,j,k,iElem),zetaVec)
+        zetaVec=MAX(PMLzeta(3,i,j,k,iElem),zetaVec)
+        PMLzeta(:,i,j,k,iElem) = PMLzeta(:,i,j,k,iElem)/zetaVecABS*zetaVec
+  END DO; END DO; END DO; END DO !iElem,k,i,j
+END IF
+
 !===================================================================================================================================
 ! write PMLzeta field
 !===================================================================================================================================

@@ -733,7 +733,10 @@ DO rk=2,5
     END IF
   END IF
   CALL DGTimeDerivative_weakForm(t,tStage,0)
-  IF(DoPML) CALL CalcPMLSource()
+  IF(DoPML) THEN
+    CALL CalcPMLSource()
+    CALL PMLTimeDerivative()
+  END IF
   CALL DivCleaningDamping()
 #ifdef PP_POIS
   CALL DGTimeDerivative_weakForm_Pois(t,tStage,0)
@@ -749,7 +752,6 @@ DO rk=2,5
   U = U + Ut_temp*b_dt(rk)
   !PML auxiliary variables
   IF(DoPML)THEN
-    CALL PMLTimeDerivative()
     U2t_temp = U2t - U2t_temp*RK4_a(rk)
     U2 = U2 + U2t_temp*b_dt(rk)
   END IF

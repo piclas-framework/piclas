@@ -32,5 +32,6 @@ INTEGER                               :: PMLwriteZeta ! output zeta field for de
 INTEGER                               :: PMLspread
 REAL,DIMENSION(6)                     :: xyzPhysicalMinMax ! physical boundary coordinates, outside = PML region
 REAL                                  :: PMLzeta0             ! damping constant for PML region
+LOGICAL                               :: PMLzetaNorm
 !===================================================================================================================================
 END MODULE MOD_PML_Vars
