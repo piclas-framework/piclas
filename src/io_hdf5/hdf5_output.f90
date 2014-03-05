@@ -196,7 +196,7 @@ USE MOD_Globals
 USE MOD_Output_Vars,        ONLY:ProjectName
 USE MOD_Interpolation_Vars, ONLY:StrNodeType
 USE MOD_Mesh_Vars,          ONLY:nGlobalElems, offsetElem
-USE MOD_Particle_Vars,      ONLY:PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,enableParticleMerge
+USE MOD_Particle_Vars,      ONLY:PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,enableParticleMerge,PartPressureCell
 USE MOD_part_tools,         ONLY:UpdateNextFreePosition
 USE MOD_DSMC_Vars,          ONLY:UseDSMC, CollisMode,PartStateIntEn, DSMC
 USE MOD_LD_Vars,            ONLY:UseLD, PartStateBulkValues
@@ -299,7 +299,7 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
 
 !!! Kleiner Hack von JN (Teil 1/2):
   
-  IF (.NOT.(useDSMC.OR.enableParticleMerge)) THEN
+  IF (.NOT.(useDSMC.OR.enableParticleMerge.OR.PartPressureCell)) THEN
     ALLOCATE(PEM%pStart(1:PP_nElems)           , &
              PEM%pNumber(1:PP_nElems)          , &
              PEM%pNext(1:PDM%maxParticleNumber), &
@@ -419,7 +419,7 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
 
 !!! Kleiner Hack von JN (Teil 2/2):
   useDSMC=withDSMC
-  IF (.NOT.(useDSMC.OR.enableParticleMerge)) THEN
+  IF (.NOT.(useDSMC.OR.enableParticleMerge.OR.PartPressureCell)) THEN
     DEALLOCATE(PEM%pStart , &
                PEM%pNumber, &
                PEM%pNext  , &

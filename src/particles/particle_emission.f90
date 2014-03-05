@@ -385,10 +385,10 @@ SUBROUTINE ParticleInserting()
    !---  Emission at time step (initial emission see pic_init.f90, InitParticles)
 
    DO i=1,nSpecies
+     IF (Species(i)%ParticleEmissionType.NE.4) THEN ! NOT Constant pressure in cell
 #ifdef MPI
-     IF (mode.NE.2) THEN
+       IF (mode.NE.2) THEN
 #endif
-       IF (Species(i)%ParticleEmissionType.NE.4) THEN ! NOT Constant pressure in cell
          SELECT CASE(Species(i)%ParticleEmissionType)
          CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
            inserted_Particle_iter = INT(Species(i)%ParticleEmission * dt)
@@ -448,45 +448,50 @@ SUBROUTINE ParticleInserting()
            iPart = iPart + 1
          END DO
 #endif
-       ELSE  ! Constant Pressure in Cell Emission (type 4)
-         CALL ParticleInsertingCellPressure(i,NbrofParticle)
-         CALL SetParticleVelocity(i,NbrOfParticle)
-         CALL SetParticleChargeAndMass(i,NbrOfParticle)
-         IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-         ! define molecule stuff
-         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
-           iPart = 1
-           DO WHILE (iPart .le. NbrOfParticle)
-             PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-             IF (PositionNbr .ne. 0) THEN
-               CALL DSMC_SetInternalEnr_LauxVFD(i, PositionNbr)
-             END IF
-             iPart = iPart + 1
-           END DO
-         END IF
-#if (PP_TimeDiscMethod==1000)
+         ! instead of UpdateNextfreePosition we update the
+         ! particleVecLength only.
+         PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
+         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+         !CALL UpdateNextFreePosition()
+#ifdef MPI
+       END IF
+#endif
+     ELSE  ! Constant Pressure in Cell Emission (type 4)
+       CALL ParticleInsertingCellPressure(i,NbrofParticle)
+       CALL SetParticleVelocity(i,NbrOfParticle)
+       CALL SetParticleChargeAndMass(i,NbrOfParticle)
+       IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+       ! define molecule stuff
+       IF (useDSMC.AND.(CollisMode.NE.1)) THEN
          iPart = 1
          DO WHILE (iPart .le. NbrOfParticle)
            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
            IF (PositionNbr .ne. 0) THEN
-             PartStateBulkValues(PositionNbr,1) = Species(i)%VeloVecIC(1) * Species(i)%VeloIC
-             PartStateBulkValues(PositionNbr,2) = Species(i)%VeloVecIC(2) * Species(i)%VeloIC
-             PartStateBulkValues(PositionNbr,3) = Species(i)%VeloVecIC(3) * Species(i)%VeloIC
-             PartStateBulkValues(PositionNbr,4) = Species(i)%MWTemperatureIC
-             PartStateBulkValues(PositionNbr,5) = CalcDegreeOfFreedom(PositionNbr)
+             CALL DSMC_SetInternalEnr_LauxVFD(i, PositionNbr)
            END IF
            iPart = iPart + 1
          END DO
-#endif
        END IF
-       ! instead of UpdateNextfreePosition we update the
+#if (PP_TimeDiscMethod==1000)
+       iPart = 1
+       DO WHILE (iPart .le. NbrOfParticle)
+         PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+         IF (PositionNbr .ne. 0) THEN
+           PartStateBulkValues(PositionNbr,1) = Species(i)%VeloVecIC(1) * Species(i)%VeloIC
+           PartStateBulkValues(PositionNbr,2) = Species(i)%VeloVecIC(2) * Species(i)%VeloIC
+           PartStateBulkValues(PositionNbr,3) = Species(i)%VeloVecIC(3) * Species(i)%VeloIC
+           PartStateBulkValues(PositionNbr,4) = Species(i)%MWTemperatureIC
+           PartStateBulkValues(PositionNbr,5) = CalcDegreeOfFreedom(PositionNbr)
+         END IF
+         iPart = iPart + 1
+       END DO
+#endif
+     ! instead of UpdateNextfreePosition we update the
        ! particleVecLength only.
        PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
        !CALL UpdateNextFreePosition()
-#ifdef MPI
      END IF
-#endif
    END DO
  RETURN
 END SUBROUTINE ParticleInserting
@@ -1649,7 +1654,7 @@ DO iElem = 1,Species(iSpec)%ConstPress%nElemTotalInside
   ! step 1: count and build array of particles in cell (of current species only)
   ALLOCATE(PartsInCell(1:PEM%pNumber(Elem)))
   NbrPartsInCell = 0
-  iPart = PEM%pStart(Elem)                        
+  iPart = PEM%pStart(Elem)   
   DO i = 1, PEM%pNumber(Elem)
     IF (PartSpecies(iPart).EQ.iSpec) THEN
       NbrPartsInCell = NbrPartsInCell + 1

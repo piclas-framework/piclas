@@ -505,32 +505,6 @@ IF (usevMPF) THEN
   END IF
 END IF
 
-
-ALLOCATE(PEM%Element(1:PDM%maxParticleNumber), PEM%lastElement(1:PDM%maxParticleNumber), STAT=ALLOCSTAT) 
-IF (ALLOCSTAT.NE.0) THEN
-  WRITE(*,*)'ERROR in particle_init.f90: Cannot allocate PEM arrays!'
-  STOP
-END IF
-IF (useDSMC.OR.enableParticleMerge.OR.PartPressureCell) THEN
-  ALLOCATE(PEM%pStart(1:nElems)                         , &
-           PEM%pNumber(1:nElems)                        , &
-           PEM%pEnd(1:nElems)                           , &
-           PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT) 
-           !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
-  IF (ALLOCSTAT.NE.0) THEN
-    WRITE(*,*)'ERROR in particle_init.f90: Cannot allocate DSMC PEM arrays!'
-    STOP
-  END IF
-END IF
-IF (useDSMC) THEN
-  ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT) 
-           !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
-  IF (ALLOCSTAT.NE.0) THEN
-    WRITE(*,*)'ERROR in particle_init.f90: Cannot allocate DSMC PEM arrays!'
-    STOP
-  END IF
-END IF
-
 !WriteOutputMesh (=vtk mesh at start, seperate mesh for each proc
 OutputMesh = GETLOGICAL('Part-WriteOutputMesh','.FALSE.')
            
@@ -553,6 +527,7 @@ IF (nSpecies.LE.0) THEN
   SWRITE(*,*) "ERROR: nSpecies .LE. 0:", nSpecies
   STOP
 END IF
+PartPressureCell = .FALSE.
 ALLOCATE(Species(1:nSpecies))
 DO i=1,nSpecies
   WRITE(UNIT=hilf,FMT='(I2)') i
@@ -580,6 +555,7 @@ DO i=1,nSpecies
     WRITE(*,*) 'ERROR: If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number'
     STOP
   END IF
+  IF(Species(i)%ParticleEmissionType.EQ.4) PartPressureCell = .TRUE.
   Species(i)%InsertedParticle      = 0
   Species(i)%Amplitude             = GETREAL('Part-Species'//TRIM(hilf)//'-Amplitude','0.01')
   Species(i)%WaveNumber            = GETREAL('Part-Species'//TRIM(hilf)//'-WaveNumber','2.')
@@ -722,7 +698,30 @@ DO iBC = 1,nBCs
   END IF
 END DO
 
-
+ALLOCATE(PEM%Element(1:PDM%maxParticleNumber), PEM%lastElement(1:PDM%maxParticleNumber), STAT=ALLOCSTAT) 
+IF (ALLOCSTAT.NE.0) THEN
+  WRITE(*,*)'ERROR in particle_init.f90: Cannot allocate PEM arrays!'
+  STOP
+END IF
+IF (useDSMC.OR.enableParticleMerge.OR.PartPressureCell) THEN
+  ALLOCATE(PEM%pStart(1:nElems)                         , &
+           PEM%pNumber(1:nElems)                        , &
+           PEM%pEnd(1:nElems)                           , &
+           PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT) 
+           !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
+  IF (ALLOCSTAT.NE.0) THEN
+    WRITE(*,*)'ERROR in particle_init.f90: Cannot allocate DSMC PEM arrays!'
+    STOP
+  END IF
+END IF
+IF (useDSMC) THEN
+  ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT) 
+           !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
+  IF (ALLOCSTAT.NE.0) THEN
+    WRITE(*,*)'ERROR in particle_init.f90: Cannot allocate DSMC PEM arrays!'
+    STOP
+  END IF
+END IF
 
 !--- Read Manual Time Step
 useManualTimeStep = .FALSE.
@@ -1600,10 +1599,9 @@ DO i = 1,nSpecies
     EXIT
   END IF
 END DO
-PartPressureCell = .false.
+
 DO i = 1,nSpecies
   IF(Species(i)%ParticleEmissionType .EQ. 4) THEN
-    PartPressureCell = .true.
     CALL ParticlePressureCellIni()
     EXIT
   END IF
