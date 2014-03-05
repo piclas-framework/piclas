@@ -106,7 +106,7 @@ SUBROUTINE DSMC_chemical_init()
   
     ! Case 6: only ionization possible
     DO iReac = 1, ChemReac%NumOfReact
-      IF ((ChemReac%ReactType(iReac).EQ.'I').AND.(.NOT.YetDefined_Help(iReac))) THEN
+      IF ((ChemReac%ReactType(iReac).EQ.'i').AND.(.NOT.YetDefined_Help(iReac))) THEN
           Reactant1 = ChemReac%DefinedReact(iReac,1,1)
           Reactant2 = ChemReac%DefinedReact(iReac,1,2)
           ChemReac%ReactCase(Reactant1, Reactant2) = 6
