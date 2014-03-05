@@ -60,6 +60,7 @@ TYPE tInit                                                                   ! P
   REAL                                   :: alpha                            ! WaveNumber for sin-deviation initiation.
   REAL                                   :: Amplitude                        ! Amplitude for sin-deviation initiation.
   REAL                                   :: WaveNumber                       ! WaveNumber for sin-deviation initiation.
+  REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
   INTEGER(8)                             :: maxParticleNumberX               ! Maximum Number of all Particles in x direction
   INTEGER(8)                             :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
   INTEGER(8)                             :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction 
@@ -274,6 +275,9 @@ REAL, ALLOCATABLE                        :: vMPFOldPos(:,:)                   ! 
 REAL, ALLOCATABLE                        :: vMPFOldMPF(:)                     ! Old Particle MPF
 INTEGER, ALLOCATABLE                     :: vMPF_SpecNumElem(:,:)             ! number of particles of spec (:,i) in element (j,:)
 CHARACTER(30)                            :: vMPF_velocityDistribution         ! specifying keyword for velocity distribution
+LOGICAL                                  :: PartPressureCell                  ! Flag: constant pressure in cells emission (type4)
+LOGICAL                                  :: PartPressAddParts                 ! Should Parts be added to reach wanted pressure?
+LOGICAL                                  :: PartPressRemParts                 ! Should Parts be removed to reach wanted pressure?
 
 INTEGER                                  :: NumRanVec      ! Number of predefined random vectors
 REAL  , ALLOCATABLE                      :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)

@@ -5,7 +5,7 @@ MODULE MOD_part_pressure
    IMPLICIT NONE
    
    PRIVATE
-   PUBLIC       :: ParticlePressureIni, ParticlePressure, ParticleInsideCheck
+   PUBLIC       :: ParticlePressureIni, ParticlePressure, ParticleInsideCheck,ParticlePressureCellIni
 
 CONTAINS   
    
@@ -29,7 +29,7 @@ SUBROUTINE ParticlePressureIni()
   DO iSpec = 1,nSpecies
     Species(iSpec)%ConstPress%InitialTemp = Species(iSpec)%MWTemperatureIC
     !Species(iSpec)%ConstPress%OrthoVector(1) = 0
-    IF (Species(iSpec)%ParticleEmissionType .GE. 3) THEN
+    IF (Species(iSpec)%ParticleEmissionType .EQ. 3) THEN
       ALLOCATE (TempElemTotalInside(nElems))
       ALLOCATE (TempElemPartlyInside(nElems))
       ALLOCATE (Species(iSpec)%ConstPress%ElemStat(nElems))
@@ -647,6 +647,649 @@ SUBROUTINE ParticlePressureIni()
   END DO  
   
 END SUBROUTINE ParticlePressureIni
+
+
+
+
+SUBROUTINE ParticlePressureCellIni()
+
+  USE MOD_Particle_Vars
+  USE MOD_Globals
+  USE MOD_Mesh_Vars,      ONLY : nElems,ElemToSide,SideToElem, nSides, nInnerSides, nBCSides
+
+  IMPLICIT NONE
+ 
+  REAL                 :: BN(3), BV1(3), BV2(3), BV3(3), SV1(3), SV2(3), OV(3), epsi
+  REAL                 :: det1, det2, det3, RandVal(2), dist1, dist2, dete(6,2)
+  INTEGER, ALLOCATABLE :: TempElemTotalInside(:), TempElemPartlyInside(:)
+  INTEGER              :: nNodesInside, nBoundNodes, nInterest, nInterOld, Element, Side, ExamElem
+  INTEGER              :: iShot, iElem, iNode, iSpec, iSide, i, n
+  LOGICAL              :: ElementFound, InElementCheck
+  
+  
+  epsi = 100.*epsilon(epsi)
+  DO iSpec = 1,nSpecies
+    Species(iSpec)%ConstPress%InitialTemp = Species(iSpec)%MWTemperatureIC
+    IF (Species(iSpec)%ParticleEmissionType .EQ. 4) THEN
+      ALLOCATE (TempElemTotalInside(nElems))
+      ALLOCATE (TempElemPartlyInside(nElems))
+      ALLOCATE (Species(iSpec)%ConstPress%ElemStat(nElems))
+      
+      Species(iSpec)%ConstPress%nElemTotalInside = 0
+      Species(iSpec)%ConstPress%nElemPartlyInside = 0
+      Species(iSpec)%ConstPress%ElemStat(1:nElems) = 3
+      SELECT CASE (TRIM(Species(iSpec)%SpaceIC))
+      CASE ('cuboid')
+        BV1 = Species(iSpec)%BaseVector1IC
+        BV2 = Species(iSpec)%BaseVector2IC
+
+        Species(iSpec)%ConstPress%OrthoVector(1) = BV1(2) * BV2(3) - BV1(3) * BV2(2)
+        Species(iSpec)%ConstPress%OrthoVector(2) = BV1(3) * BV2(1) - BV1(1) * BV2(3)
+        Species(iSpec)%ConstPress%OrthoVector(3) = BV1(1) * BV2(2) - BV1(2) * BV2(1)
+        OV = Species(iSpec)%ConstPress%OrthoVector
+        
+        IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
+          WRITE(*,*) 'Error in InitializeVariables: Cannot calculate Normal Vector of InitVolume in EmissionCase(3 or 4)!'
+          STOP
+        END IF
+        
+        Species(iSpec)%ConstPress%OrthoVector = OV*(Species(iSpec)%CuboidHeightIC/SQRT(OV(1)**2 + OV(2)**2 + OV(3)**2))
+        OV = Species(iSpec)%ConstPress%OrthoVector
+        Species(iSpec)%ConstPress%Determinant = ABS(BV1(1)*BV2(2)*OV(3) + BV1(2)*BV2(3)*OV(1) + BV1(3)*BV2(1)*OV(2) - &
+                                                    BV1(3)*BV2(2)*OV(1) - BV1(1)*BV2(3)*OV(2) - BV1(2)*BV2(1)*OV(3))
+        !WRITE (*,*) 'ConstPress', Species(iSpec)%ConstantPressure , 'Deter', Species(iSpec)%ConstPress%Determinant, 'ispec', &
+        !iSpec &
+                      !,'MPF',Species(iSpec)%MacroParticleFactor
+
+        ! ParticleEmission multiplied by cell volume equals particles to be in cells
+        Species(iSpec)%ParticleEmission = Species(iSpec)%ConstantPressure/ &
+                            (BoltzmannConst * Species(iSpec)%MWTemperatureIC * Species(iSpec)%MacroParticleFactor)
+!        Species(iSpec)%ConstPress%EkinInside = 1.5*Species(iSpec)%ConstantPressure*Species(iSpec)%ConstPress%Determinant + &
+!                            INT(Species(iSpec)%ParticleEmission)*0.5*Species(iSpec)%MassIC*Species(iSpec)%VeloIC**2* &
+!        Species(iSpec)%MacroParticleFactor
+
+!        WRITE(*,*) 'Number of Particles in Constant-Pressure-Area:', Species(iSpec)%ParticleEmission
+                        
+        DO iElem = 1,nElems
+          nNodesInside = 0
+          nBoundNodes = 0
+          DO iNode = 1,8
+            BN(1:3) = GEO%NodeCoords(:,GEO%ElemToNodeID(iNode,iElem)) - Species(iSpec)%BasePointIC
+            det1 = BN(1)*BV2(2)*OV(3) + BN(2)*BV2(3)*OV(1) + BN(3)*BV2(1)*OV(2) - &
+                  BN(3)*BV2(2)*OV(1) - BN(1)*BV2(3)*OV(2) - BN(2)*BV2(1)*OV(3)
+            det2 = BV1(1)*BN(2)*OV(3) + BV1(2)*BN(3)*OV(1) + BV1(3)*BN(1)*OV(2) - &
+                  BV1(3)*BN(2)*OV(1) - BV1(1)*BN(3)*OV(2) - BV1(2)*BN(1)*OV(3)
+            det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + BV1(3)*BV2(1)*BN(2) - &
+                  BV1(3)*BV2(2)*BN(1) - BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
+            
+            det1 = det1/Species(iSpec)%ConstPress%Determinant
+            det2 = det2/Species(iSpec)%ConstPress%Determinant
+            det3 = det3/Species(iSpec)%ConstPress%Determinant
+
+            IF (((det1 .LE. 1. + epsi) .AND. (det1 .GE. 1.-epsi)) .OR. ((det1 .LE. epsi) .AND. (det1 .GE. -epsi))) THEN
+              IF (((det2 .LE. 1.+epsi) .AND. (det2 .GE. -epsi)) .AND. ((det3 .LE. 1.+epsi) .AND. (det3 .GE. -epsi))) THEN
+                nBoundNodes = nBoundNodes + 1 
+              END IF
+            ELSE IF (((det2 .LE. 1.+epsi).AND.(det2 .GE.1-epsi)) .OR. ((det2 .GE. -epsi).AND.(det2 .LE. epsi))) THEN
+              IF ((det1 .LE. 1.+epsi) .AND. (det1 .GE. -epsi) .AND. (det3 .LE. 1.+epsi) .AND. (det3 .GE. -epsi)) THEN
+                nBoundNodes = nBoundNodes + 1
+              END IF
+            ELSE IF (((det3 .GE. 1.-epsi).AND.(det3 .LE.1+epsi)) .OR. ((det3 .GE.-epsi).AND.(det3.LE.epsi))) THEN
+              IF ((det2 .LE. 1.+epsi) .AND. (det2 .GE. -epsi) .AND. (det1 .LE. 1.+epsi) .AND. (det1 .GE. -epsi)) THEN
+                nBoundNodes = nBoundNodes + 1
+              END IF
+            ELSE IF ((det1 .LT. 1.) .AND. (det1 .GT. 0.) .AND. (det2 .LT. 1.) .AND. (det2 .GT. 0.) &
+                    .AND. (det3 .LT. 1.) .AND. (det3 .GT. 0.)) THEN
+              nNodesInside = nNodesInside + 1
+            END IF
+          END DO
+
+          IF (nNodesInside .EQ. 8) THEN
+            Species(iSpec)%ConstPress%nElemTotalInside = Species(iSpec)%ConstPress%nElemTotalInside + 1
+            TempElemTotalInside(Species(iSpec)%ConstPress%nElemTotalInside)=iElem
+            Species(iSpec)%ConstPress%ElemStat(iELem) = 1
+          ELSE IF ((nNodesInside .GE. 1) .AND. (nNodesInside .LE. 7)) THEN
+            IF (nNodesInside + nBoundNodes .EQ. 8) THEN
+              Species(iSpec)%ConstPress%nElemTotalInside = Species(iSpec)%ConstPress%nElemTotalInside + 1
+              TempElemTotalInside(Species(iSpec)%ConstPress%nElemTotalInside)=iElem
+              Species(iSpec)%ConstPress%ElemStat(iELem) = 1
+            ELSE
+              Species(iSpec)%ConstPress%nElemPartlyInside = Species(iSpec)%ConstPress%nElemPartlyInside + 1
+              TempElemPartlyInside(Species(iSpec)%ConstPress%nElemPartlyInside) = iElem
+              Species(iSpec)%ConstPress%ElemStat(iELem) = 2
+            END IF
+          ELSE
+            IF (nBoundNodes .EQ. 8) THEN
+              Species(iSpec)%ConstPress%nElemTotalInside = Species(iSpec)%ConstPress%nElemTotalInside + 1
+              TempElemTotalInside(Species(iSpec)%ConstPress%nElemTotalInside)=iElem
+              Species(iSpec)%ConstPress%ElemStat(iELem) = 1
+            ELSE
+              Species(iSpec)%ConstPress%ElemStat(iELem) = 3
+            END IF
+          END IF
+        END DO
+      
+  ! If no Element has been found, search for Basepoint ========================================   
+        IF ((Species(iSpec)%ConstPress%nElemTotalInside .EQ. 0) .AND. &
+            (Species(iSpec)%ConstPress%nElemPartlyInside .EQ. 0)) THEN
+          CALL PointInsideQuad3D(iSpec,Element,InElementCheck,dete)
+          IF (InElementCheck) THEN
+            Species(iSpec)%ConstPress%ElemStat(Element) = 2
+            Species(iSpec)%ConstPress%nElemPartlyInside = 1
+            TempElemPartlyInside(1) = Element
+          END IF
+        END IF
+
+  ! Shoot on Sides of Neighbour-Elements of totally inside Elements ===========================
+        
+        DO iElem = 1,Species(iSpec)%ConstPress%nElemTotalInside
+          Element = TempElemTotalInside(iElem)
+          DO iSide = 1,6
+            Side = ElemToSide(E2S_SIDE_ID, iSide, Element)
+            IF (SideToElem(S2E_ELEM_ID,Side) .EQ. Element) THEN
+              ExamElem = SideToElem(S2E_NB_ELEM_ID, Side)
+            ELSE IF (SideToElem(S2E_NB_ELEM_ID,Side) .EQ. Element) THEN
+              ExamElem = SideToElem(S2E_ELEM_ID,Side)
+            END IF
+            IF (Species(iSpec)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN
+              DO iShot = 1,200
+                IF (iShot .LE. 100) THEN
+                  !Shooting (123)
+                  SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(2, iSide, Element)) - &
+                        GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                ELSE
+                  !Shooting (134)
+                  SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(4, iSide, Element)) - &
+                        GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                END IF
+                SV2 = GEO%NodeCoords(:,GEO%ElemSideNodeID(3, iSide, Element)) - &
+                      GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                DO
+                  CALL RANDOM_NUMBER(RandVal)
+                  IF (RandVal(1) + RandVal(2) .LE. 1) EXIT
+                END DO
+                BN = GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element)) + RandVal(1)*SV1 + RandVal(2)*SV2
+                BN = BN - Species(iSpec)%BasePointIC
+                !Lokalisierung
+                det1 = BN(1)*BV2(2)*OV(3) + BN(2)*BV2(3)*OV(1) + &
+                      BN(3)*BV2(1)*OV(2) - BN(3)*BV2(2)*OV(1) - &
+                      BN(1)*BV2(3)*OV(2) - BN(2)*BV2(1)*OV(3)
+                det2 = BV1(1)*BN(2)*OV(3) + BV1(2)*BN(3)*OV(1) + &
+                      BV1(3)*BN(1)*OV(2) - BV1(3)*BN(2)*OV(1) - &
+                      BV1(1)*BN(3)*OV(2) - BV1(2)*BN(1)*OV(3)
+                det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + &
+                      BV1(3)*BV2(1)*BN(2) - BV1(3)*BV2(2)*BN(1) - &
+                      BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
+                
+                det1 = det1/Species(iSpec)%ConstPress%Determinant
+                det2 = det2/Species(iSpec)%ConstPress%Determinant
+                det3 = det3/Species(iSpec)%ConstPress%Determinant
+                
+                IF ((det1 .LT. 1.-epsi) .AND. (det1 .GT. epsi) .AND. (det2 .LT. 1-epsi) .AND. &
+                    (det2 .GT. epsi) .AND. (det3 .LT. 1.-epsi) .AND. (det3 .GT. epsi)) THEN
+                  Species(iSpec)%ConstPress%ElemStat(ExamElem) = 2
+                  Species(iSpec)%ConstPress%nElemPartlyInside = Species(iSpec)%ConstPress%nElemPartlyInside + 1
+                  TempElemPartlyInside(Species(iSpec)%ConstPress%nElemPartlyInside) = ExamElem
+                  EXIT
+                END IF
+              END DO
+            END IF
+          END DO
+        END DO
+
+#ifdef MPI
+
+      DO Side=1, nSides
+        IF (Side.GT.nInnerSides+nBCSides) THEN
+          IF (SideToElem(S2E_ELEM_ID,Side).NE.-1) THEN
+            Element = SideToElem(S2E_ELEM_ID,Side)
+            iSide = SideToElem(S2E_LOC_SIDE_ID,Side)
+          ELSE
+            Element = SideToElem(S2E_NB_ELEM_ID,Side)
+            iSide = SideToElem(S2E_NB_LOC_SIDE_ID,Side)
+          END IF
+          IF (Species(iSpec)%ConstPress%ElemStat(Element) .EQ. 3) THEN
+            DO iShot = 1,200
+              IF (iShot .LE. 100) THEN
+                !Shooting (123)
+                SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(2, iSide, Element)) - &
+                      GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+              ELSE
+                !Shooting (134)
+                SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(4, iSide, Element)) - &
+                      GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+              END IF
+              SV2 = GEO%NodeCoords(:,GEO%ElemSideNodeID(3, iSide, Element)) - &
+                    GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+              DO
+                CALL RANDOM_NUMBER(RandVal)
+                IF (RandVal(1) + RandVal(2) .LE. 1) EXIT
+              END DO
+              BN = GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element)) + RandVal(1)*SV1 + RandVal(2)*SV2
+              BN = BN - Species(iSpec)%BasePointIC
+              !Lokalisierung
+              det1 = BN(1)*BV2(2)*OV(3) + BN(2)*BV2(3)*OV(1) + &
+                    BN(3)*BV2(1)*OV(2) - BN(3)*BV2(2)*OV(1) - &
+                    BN(1)*BV2(3)*OV(2) - BN(2)*BV2(1)*OV(3)
+              det2 = BV1(1)*BN(2)*OV(3) + BV1(2)*BN(3)*OV(1) + &
+                    BV1(3)*BN(1)*OV(2) - BV1(3)*BN(2)*OV(1) - &
+                    BV1(1)*BN(3)*OV(2) - BV1(2)*BN(1)*OV(3)
+              det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + &
+                    BV1(3)*BV2(1)*BN(2) - BV1(3)*BV2(2)*BN(1) - &
+                    BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
+              
+              det1 = det1/Species(iSpec)%ConstPress%Determinant
+              det2 = det2/Species(iSpec)%ConstPress%Determinant
+              det3 = det3/Species(iSpec)%ConstPress%Determinant
+                
+              IF ((det1 .LT. 1.-epsi) .AND. (det1 .GT. epsi) .AND. (det2 .LT. 1-epsi) .AND. &
+                  (det2 .GT. epsi) .AND. (det3 .LT. 1.-epsi) .AND. (det3 .GT. epsi)) THEN
+                Species(iSpec)%ConstPress%ElemStat(Element) = 2
+                Species(iSpec)%ConstPress%nElemPartlyInside = Species(iSpec)%ConstPress%nElemPartlyInside + 1
+                TempElemPartlyInside(Species(iSpec)%ConstPress%nElemPartlyInside) = Element
+                EXIT
+              END IF
+            END DO
+          END IF
+        END IF
+      END DO
+#endif
+
+  ! Shoot on Sides of Neighbour-Elements of partly inside Elements ==========================================
+      nInterest = Species(iSpec)%ConstPress%nElemPartlyInside
+      nInterOld = 1
+      DO WHILE (nInterest .GE. nInterOld)
+        DO iElem = nInterOld, nInterest
+          
+          Element = TempElemPartlyInside(iElem)
+          DO iSide = 1, 6
+            Side = ElemToSide(E2S_SIDE_ID, iSide, Element)
+            IF (SideToElem(S2E_ELEM_ID,Side) .EQ. Element) THEN
+              ExamElem = SideToElem(S2E_NB_ELEM_ID, Side)
+            ELSE IF (SideToElem(S2E_NB_ELEM_ID,Side) .EQ. Element) THEN
+              ExamElem = SideToElem(S2E_ELEM_ID,Side)
+            END IF
+
+            IF (Species(iSpec)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN
+              DO iShot = 1,200
+                IF (iShot .LE. 100) THEN
+                  !Shooting (123)
+                  SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(2, iSide, Element)) - &
+                        GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                ELSE
+                  !Shooting (134)
+                  SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(4, iSide, Element)) - &
+                        GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                END IF
+                SV2 = GEO%NodeCoords(:,GEO%ElemSideNodeID(3, iSide, Element)) - &
+                      GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                
+                DO
+                  CALL RANDOM_NUMBER(RandVal)
+                  IF (RandVal(1) + RandVal(2) .LE. 1.-epsi) EXIT
+                END DO
+                BN = GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element)) + RandVal(1)*SV1 + RandVal(2)*SV2
+                BN = BN - Species(iSpec)%BasePointIC
+                !Lokalisierung
+                det1 = BN(1)*BV2(2)*OV(3) + BN(2)*BV2(3)*OV(1) + &
+                      BN(3)*BV2(1)*OV(2) - BN(3)*BV2(2)*OV(1) - &
+                      BN(1)*BV2(3)*OV(2) - BN(2)*BV2(1)*OV(3)
+                det2 = BV1(1)*BN(2)*OV(3) + BV1(2)*BN(3)*OV(1) + &
+                      BV1(3)*BN(1)*OV(2) - BV1(3)*BN(2)*OV(1) - &
+                      BV1(1)*BN(3)*OV(2) - BV1(2)*BN(1)*OV(3)
+                det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + &
+                      BV1(3)*BV2(1)*BN(2) - BV1(3)*BV2(2)*BN(1) - &
+                      BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
+                
+                det1 = det1/Species(iSpec)%ConstPress%Determinant
+                det2 = det2/Species(iSpec)%ConstPress%Determinant
+                det3 = det3/Species(iSpec)%ConstPress%Determinant
+              
+                IF (((det1-0.5)**2 .LT. 0.25-epsi).AND.((det2-0.5)**2 .LT. 0.25-epsi).AND.((det3-0.5)**2 .LT. 0.25-epsi)) THEN
+                  Species(iSpec)%ConstPress%ElemStat(ExamElem) = 2
+                  Species(iSpec)%ConstPress%nElemPartlyInside = Species(iSpec)%ConstPress%nElemPartlyInside + 1
+                  TempElemPartlyInside(Species(iSpec)%ConstPress%nElemPartlyInside) = ExamElem
+                  EXIT
+                END IF
+              END DO
+            END IF
+          END DO
+        END DO
+        nInterOld = nInterest + 1
+        nInterest = Species(iSpec)%ConstPress%nElemPartlyInside
+      END DO
+
+        
+      CASE ('cylinder')
+  !       Species(iSpec)%ConstPress%BV1 = Species(iSpec)%CylinderHeightIC * Species(iSpec)%NormalIC
+        
+        Species(iSpec)%ConstPress%OrthoVector(1) = Species(iSpec)%BaseVector1IC(2) * Species(iSpec)%BaseVector2IC(3) - &
+                            Species(iSpec)%BaseVector1IC(3) * Species(iSpec)%BaseVector2IC(2)
+        Species(iSpec)%ConstPress%OrthoVector(2) = Species(iSpec)%BaseVector1IC(3) * Species(iSpec)%BaseVector2IC(1) - &
+                            Species(iSpec)%BaseVector1IC(1) * Species(iSpec)%BaseVector2IC(3)
+        Species(iSpec)%ConstPress%OrthoVector(3) = Species(iSpec)%BaseVector1IC(1) * Species(iSpec)%BaseVector2IC(2) - &
+                            Species(iSpec)%BaseVector1IC(2) * Species(iSpec)%BaseVector2IC(1)
+        OV(1:3) = Species(iSpec)%ConstPress%OrthoVector(1:3)
+  !       WRITE(*,*) 'iSpec', iSpec                  
+  !       WRITE(*,*) 'BaseVec1', Species(iSpec)%BaseVector1IC
+  !       WRITE(*,*) 'BaseVec2', Species(iSpec)%BaseVector2IC
+  !       WRITE(*,*) 'BV1', Species(iSpec)%ConstPress%OrthoVector
+  !       
+        IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
+          WRITE(*,*) 'Error in InitializeVariables: Cannot calculate NormalVector(Cyl) of InitVolume in EmissionCase(3 or 4)!'
+          STOP
+        END IF
+        Species(iSpec)%ConstPress%OrthoVector = OV*(Species(iSpec)%CylinderHeightIC/SQRT(OV(1)**2 + OV(2)**2 + OV(3)**2))
+        OV(1:3) = Species(iSpec)%ConstPress%OrthoVector(1:3)
+        
+        Species(iSpec)%ParticleEmission = Species(iSpec)%ConstantPressure * Species(iSpec)%RadiusIC**2 * &
+                                          3.1415926535 * Species(iSpec)%CylinderHeightIC / (BoltzmannConst * &
+                                          Species(iSpec)%MWTemperatureIC * Species(iSpec)%MacroParticleFactor)
+        Species(iSpec)%ConstPress%EkinInside = 1.5*Species(iSpec)%ConstantPressure*Species(iSpec)%RadiusIC**2 * &
+                                              3.1415926535 * Species(iSpec)%CylinderHeightIC + &
+                                  INT(Species(iSpec)%ParticleEmission)*0.5*Species(iSpec)%MassIC*Species(iSpec)%VeloIC**2 &
+* Species(iSpec)%MacroParticleFactor
+        WRITE(*,*) 'Number of Particles in Constant-Pressure-Area:', Species(iSpec)%ParticleEmission
+        
+        DO iElem = 1,nElems
+          nNodesInside = 0
+          nBoundNodes = 0
+          DO iNode = 1,8
+            BN  = GEO%NodeCoords(:, GEO%ElemToNodeID(iNode,iElem)) - Species(iSpec)%BasePointIC
+            BV2(1) = BN(2) * OV(3) - BN(3) * OV(2)                   !Vector orthogonal on BN and NormalIC
+            BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
+            BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
+            dist1 = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/(OV(1)**2 + OV(2)**2 + OV(3)**2))
+
+            IF (dist1 .LE. Species(iSpec)%RadiusIC + epsi) THEN
+              BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
+              BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
+              BV3(3) = OV(1) * BV2(2) - OV(2) * BV2(1)
+              IF (BV3(1)**2 + BV3(2)**2 + BV3(3)**2 .NE. 0.) THEN
+                BV3    = dist1 * BV3/SQRT(BV3(1)**2 + BV3(2)**2 + BV3(3)**2)   !Shortest Vector from Node to Cylinder-Axis
+              ELSE
+                BV3(:) = 0.
+              END IF
+              IF (OV(1) .NE. 0.) THEN
+                dist2 = (BN(1) - BV3(1))/OV(1)
+              ELSE IF (OV(2) .NE. 0.) THEN
+                dist2 = (BN(2) - BV3(2))/OV(2)
+              ELSE IF (OV(3) .NE. 0.) THEN
+                dist2 = (BN(3) - BV3(3))/OV(3)
+              ELSE
+                dist2 = 0.
+              END IF
+              
+              IF (((dist2 .GE. 1.-epsi).AND.(dist2 .LE. 1+epsi)) .OR. ((dist2 .GE. -epsi).AND.(dist2 .LE. epsi))) THEN
+                nBoundNodes = nBoundNodes + 1
+              ELSE IF ((dist1 .LE. Species(iSpec)%RadiusIC+epsi) .AND. (dist1 .GE. Species(iSpec)%RadiusIC-epsi) &
+                      .AND. (dist2 .GT. 0.) .AND. (dist2 .LT. 1.)) THEN
+                nBoundNodes = nBoundNodes + 1
+              ELSE IF ((dist2 .LT. 1.) .AND. (dist2 .GT. 0.)) THEN
+                nNodesInside = nNodesInside + 1
+              END IF
+            END IF
+          END DO
+          
+          IF (nNodesInside .EQ. 8) THEN
+            Species(iSpec)%ConstPress%nElemTotalInside = Species(iSpec)%ConstPress%nElemTotalInside + 1
+            TempElemTotalInside(Species(iSpec)%ConstPress%nElemTotalInside)=iElem
+            Species(iSpec)%ConstPress%ElemStat(iELem) = 1
+          ELSE IF ((nNodesInside .GE. 1) .AND. (nNodesInside .LE. 7)) THEN
+            IF (nNodesInside + nBoundNodes .EQ. 8) THEN
+              Species(iSpec)%ConstPress%nElemTotalInside = Species(iSpec)%ConstPress%nElemTotalInside + 1
+              TempElemTotalInside(Species(iSpec)%ConstPress%nElemTotalInside)=iElem
+              Species(iSpec)%ConstPress%ElemStat(iELem) = 1
+            ELSE
+              Species(iSpec)%ConstPress%nElemPartlyInside = Species(iSpec)%ConstPress%nElemPartlyInside + 1
+              TempElemPartlyInside(Species(iSpec)%ConstPress%nElemPartlyInside) = iElem
+              Species(iSpec)%ConstPress%ElemStat(iELem) = 2
+            END IF
+          ELSE
+            IF (nBoundNodes .EQ. 8) THEN
+              Species(iSpec)%ConstPress%nElemTotalInside = Species(iSpec)%ConstPress%nElemTotalInside + 1
+              TempElemTotalInside(Species(iSpec)%ConstPress%nElemTotalInside)=iElem
+              Species(iSpec)%ConstPress%ElemStat(iELem) = 1
+            ELSE
+              Species(iSpec)%ConstPress%ElemStat(iELem) = 3
+            END IF
+          END IF 
+        END DO 
+        
+  ! If no Element has been found, search for Basepoint ========================================   
+        IF ((Species(iSpec)%ConstPress%nElemTotalInside .EQ. 0) .AND. &
+            (Species(iSpec)%ConstPress%nElemPartlyInside .EQ. 0)) THEN
+          CALL PointInsideQuad3D(iSpec,Element,InElementCheck,dete)
+          IF (InElementCheck) THEN
+            Species(iSpec)%ConstPress%ElemStat(Element) = 2
+            Species(iSpec)%ConstPress%nElemPartlyInside = 1
+            TempElemPartlyInside(1) = Element
+          END IF
+        END IF
+        
+    !Schießen auf Nachbarzellen der totalen ===================================================   
+        DO iElem = 1,Species(iSpec)%ConstPress%nElemTotalInside
+          Element = TempElemTotalInside(iElem)
+          DO iSide = 1,6
+            Side = ElemToSide(E2S_SIDE_ID, iSide, Element)
+            IF (SideToElem(S2E_ELEM_ID,Side) .EQ. Element) THEN
+              ExamElem = SideToElem(S2E_NB_ELEM_ID, Side)
+            ELSE IF (SideToElem(S2E_NB_ELEM_ID,Side) .EQ. Element) THEN
+              ExamElem = SideToElem(S2E_ELEM_ID,Side)
+            END IF
+            IF (Species(iSpec)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN
+              DO iShot = 1,200
+                IF (iShot .LE. 100) THEN
+                  !Shooting (123)
+                  SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(2, iSide, Element)) - &
+                        GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                ELSE
+                  !Shooting (134)
+                  SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(4, iSide, Element)) - &
+                        GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                END IF
+                SV2 = GEO%NodeCoords(:,GEO%ElemSideNodeID(3, iSide, Element)) - &
+                      GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                DO
+                  CALL RANDOM_NUMBER(RandVal)
+                  IF (RandVal(1) + RandVal(2) .LE. 1) EXIT
+                END DO
+                BN = GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element)) + RandVal(1)*SV1 + RandVal(2)*SV2
+                BN = BN - Species(iSpec)%BasePointIC
+                !Lokalisierung
+                BV2(1) = BN(2) * OV(3) - BN(3) * OV(2)                   !Vector orthogonal on BN and NormalIC
+                BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
+                BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
+                dist1  = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/ (OV(1)**2 + OV(2)**2 + OV(3)**2))
+
+                IF (dist1 .LE. Species(iSpec)%RadiusIC + epsi) THEN
+                  BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
+                  BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
+                  BV3(3) = OV(1) * BV2(2) - OV(2) * BV2(1)
+                  IF (BV3(1)**2 + BV3(2)**2 + BV3(3)**2 .NE. 0.) THEN
+                    BV3    = dist1 * BV3/SQRT(BV3(1)**2 + BV3(2)**2 + BV3(3)**2)   !Shortest Vector from Node to Cylinder-Axis
+                  ELSE
+                    BV3(:) = 0.
+                  END IF
+                  IF (OV(1) .NE. 0.) THEN
+                    dist2 = (BN(1) - BV3(1))/OV(1)
+                  ELSE IF (OV(2) .NE. 0.) THEN
+                    dist2 = (BN(2) - BV3(2))/OV(2)
+                  ELSE IF (OV(3) .NE. 0.) THEN
+                    dist2 = (BN(3) - BV3(3))/OV(3)
+                  ELSE
+                    dist2 = 0.
+                  END IF
+                  
+                  IF ((dist2 .LT. 1.-epsi) .AND. (dist2 .GT. epsi)) THEN
+                    Species(iSpec)%ConstPress%ElemStat(ExamElem) = 2
+                    Species(iSpec)%ConstPress%nElemPartlyInside = Species(iSpec)%ConstPress%nElemPartlyInside + 1
+                    TempElemPartlyInside(Species(iSpec)%ConstPress%nElemPartlyInside) = ExamElem
+                    EXIT
+                  END IF
+                END IF
+              END DO
+            END IF
+          END DO
+        END DO
+
+#ifdef MPI
+! Schiessen auf MPI Seiten
+      DO Side=1, nSides
+        IF (Side.GT.nInnerSides+nBCSides) THEN
+          IF (SideToElem(S2E_ELEM_ID,Side).NE.-1) THEN
+            Element = SideToElem(S2E_ELEM_ID,Side)
+            iSide = SideToElem(S2E_LOC_SIDE_ID,Side)
+          ELSE
+            Element = SideToElem(S2E_NB_ELEM_ID,Side)
+            iSide = SideToElem(S2E_NB_LOC_SIDE_ID,Side)
+          END IF
+          IF (Species(iSpec)%ConstPress%ElemStat(Element) .EQ. 3) THEN
+            DO iShot = 1,200
+              IF (iShot .LE. 100) THEN
+                !Shooting (123)
+                SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(2, iSide, Element)) - &
+                      GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+              ELSE
+                !Shooting (134)
+                SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(4, iSide, Element)) - &
+                      GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+              END IF
+              SV2 = GEO%NodeCoords(:,GEO%ElemSideNodeID(3, iSide, Element)) - &
+                    GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+              DO
+                CALL RANDOM_NUMBER(RandVal)
+                IF (RandVal(1) + RandVal(2) .LE. 1) EXIT
+              END DO
+              BN = GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element)) + RandVal(1)*SV1 + RandVal(2)*SV2
+              BN = BN - Species(iSpec)%BasePointIC
+              !Lokalisierung
+              BV2(1) = BN(2) * OV(3) - BN(3) * OV(2)                   !Vector orthogonal on BN and NormalIC
+              BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
+              BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
+              dist1 = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/(OV(1)**2 + OV(2)**2 + OV(3)**2))
+              IF (dist1 .LE. Species(iSpec)%RadiusIC + epsi) THEN
+                BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
+                BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
+                BV3(3) = OV(1) * BV2(2) - OV(2) * BV2(1)
+                IF (BV3(1)**2 + BV3(2)**2 + BV3(3)**2 .NE. 0.) THEN
+                  BV3    = dist1 * BV3/SQRT(BV3(1)**2 + BV3(2)**2 + BV3(3)**2)   !Shortest Vector from Node to Cylinder-Axis
+                ELSE
+                  BV3(:) = 0.
+                END IF
+                IF (OV(1) .NE. 0.) THEN
+                  dist2 = (BN(1) - BV3(1))/OV(1)
+                ELSE IF (OV(2) .NE. 0.) THEN
+                  dist2 = (BN(2) - BV3(2))/OV(2)
+                ELSE IF (OV(3) .NE. 0.) THEN
+                  dist2 = (BN(3) - BV3(3))/OV(3)
+                ELSE
+                  dist2 = 0.
+                END IF
+                IF ((dist2 .LT. 1.-epsi) .AND. (dist2 .GT. epsi)) THEN
+                  Species(iSpec)%ConstPress%ElemStat(Element) = 2
+                  Species(iSpec)%ConstPress%nElemPartlyInside = Species(iSpec)%ConstPress%nElemPartlyInside + 1
+                  TempElemPartlyInside(Species(iSpec)%ConstPress%nElemPartlyInside) = Element
+                  EXIT
+                END IF
+              END IF
+            END DO
+          END IF
+        END IF
+      END DO
+#endif
+
+    !!!Schießen auf Nachbarelemente der teilweisen ===============================================
+        nInterest = Species(iSpec)%ConstPress%nElemPartlyInside
+        nInterOld = 1
+        DO WHILE (nInterest .GE. nInterOld)
+          DO iElem = nInterOld,nInterest
+            Element = TempElemPartlyInside(iElem)
+            DO iSide = 1,6
+              Side = ElemToSide(E2S_SIDE_ID, iSide, Element)
+              IF (SideToElem(S2E_ELEM_ID,Side) .EQ. Element) THEN
+                ExamElem = SideToElem(S2E_NB_ELEM_ID, Side)
+              ELSE IF (SideToElem(S2E_NB_ELEM_ID,Side) .EQ. Element) THEN
+                ExamElem = SideToElem(S2E_ELEM_ID,Side)
+              END IF
+              IF (Species(iSpec)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN
+                DO iShot = 1,200
+                  IF (iShot .LE. 100) THEN
+                    !Shooting (123)
+                    SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(2, iSide, Element)) - &
+                          GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                  ELSE
+                    !Shooting (134)
+                    SV1 = GEO%NodeCoords(:,GEO%ElemSideNodeID(4, iSide, Element)) - &
+                          GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                  END IF
+                  SV2 = GEO%NodeCoords(:,GEO%ElemSideNodeID(3, iSide, Element)) - &
+                        GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element))
+                  DO
+                    CALL RANDOM_NUMBER(RandVal)
+                    IF (RandVal(1) + RandVal(2) .LE. 1-epsi) EXIT
+                  END DO
+                  BN = GEO%NodeCoords(:,GEO%ElemSideNodeID(1, iSide, Element)) + RandVal(1)*SV1 + RandVal(2)*SV2
+                  BN = BN - Species(iSpec)%BasePointIC
+                  !Lokalisierung
+                  BV2(1) = BN(2) * OV(3) - BN(3) * OV(2)                   !Vector orthogonal on BN and NormalIC
+                  BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
+                  BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
+                  dist1 = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/(OV(1)**2 + OV(2)**2 + OV(3)**2))
+                  IF (dist1 .LE. Species(iSpec)%RadiusIC + epsi) THEN
+                    BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
+                    BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
+                    BV3(3) = OV(1) * BV2(2) - OV(2) * BV2(1)
+                    IF (BV3(1)**2 + BV3(2)**2 + BV3(3)**2 .NE. 0.) THEN
+                      BV3    = dist1 * BV3/SQRT(BV3(1)**2 + BV3(2)**2 + BV3(3)**2)   !Shortest Vector from Node to Cylinder-Axis
+                    ELSE
+                      BV3(:) = 0.
+                    END IF
+                    IF (OV(1) .NE. 0.) THEN
+                      dist2 = (BN(1) - BV3(1))/OV(1)
+                    ELSE IF (OV(2) .NE. 0.) THEN
+                      dist2 = (BN(2) - BV3(2))/OV(2)
+                    ELSE IF (OV(3) .NE. 0.) THEN
+                      dist2 = (BN(3) - BV3(3))/OV(3)
+                    ELSE
+                      dist2 = 0.
+                    END IF
+                    IF ((dist2 .LT. 1.-epsi) .AND. (dist2 .GT. epsi)) THEN
+                      Species(iSpec)%ConstPress%ElemStat(ExamElem) = 2
+                      Species(iSpec)%ConstPress%nElemPartlyInside = Species(iSpec)%ConstPress%nElemPartlyInside + 1
+                      TempElemPartlyInside(Species(iSpec)%ConstPress%nElemPartlyInside) = ExamElem
+                      EXIT
+                    END IF
+                  END IF
+                END DO
+              END IF
+            END DO
+          END DO
+          nInterOld = nInterest + 1
+          nInterest = Species(iSpec)%ConstPress%nElemPartlyInside
+        END DO
+
+
+
+      END SELECT
+      
+      ALLOCATE (Species(iSpec)%ConstPress%ElemTotalInside(1:Species(iSpec)%ConstPress%nElemTotalInside+ &
+           Species(iSpec)%ConstPress%nElemPartlyInside))
+      Species(iSpec)%ConstPress%ElemTotalInside(1:Species(iSpec)%ConstPress%nElemTotalInside) = &
+           TempElemTotalInside(1:Species(iSpec)%ConstPress%nElemTotalInside)
+      Species(iSpec)%ConstPress%ElemTotalInside(Species(iSpec)%ConstPress%nElemTotalInside + 1: &
+           Species(iSpec)%ConstPress%nElemPartlyInside + Species(iSpec)%ConstPress%nElemTotalInside) = &
+           TempElemPartlyInside(1:Species(iSpec)%ConstPress%nElemPartlyInside)
+      Species(iSpec)%ConstPress%nElemTotalInside = Species(iSpec)%ConstPress%nElemTotalInside + &
+                                                   Species(iSpec)%ConstPress%nElemPartlyInside
+      DEALLOCATE (TempElemTotalInside)
+      DEALLOCATE (TempElemPartlyInside)
+
+      WRITE (*,*) 'Number of Elements inside ConstPressArea:', Species(iSpec)%ConstPress%nElemTotalInside
+    END IF
+  END DO  
+END SUBROUTINE ParticlePressureCellIni
+
    
 ! SUBROUTINE ParticlePressureiniInsert(i)
 !   

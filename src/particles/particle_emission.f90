@@ -57,7 +57,7 @@ USE MOD_part_pressure,  ONLY : ParticleInsideCheck
   INTEGER(8)                             :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
   INTEGER(8)                             :: maxParticleNumberZ  
   INTEGER                                :: nPartInside
-  REAL                                   :: EInside, TempInside
+  REAL                                   :: EInside, TempInside, ConstantPressure
 !==================================================================================================
 
 CALL UpdateNextFreePosition()
@@ -72,152 +72,261 @@ IF (.NOT.DoRestart) THEN
 !  END DO
 !ELSE
 
-   DO i = 1,nSpecies
-     ! check whether initial particles are defined twice (old and new method) to prevent erroneous doubling
-     ! of particles
-     IF ((Species(i)%initialParticleNumber.NE.0).AND.(Species(i)%NumberOfInits.NE.0)) THEN
-       WRITE(*,*) 'ERROR in ParticleEmission: Initial emission may only be defined in additional *Init#* blocks'
-       WRITE(*,*) 'OR the standard initialisation, not both!'
-       STOP
-     END IF
+  DO i = 1,nSpecies
+    ! check whether initial particles are defined twice (old and new method) to prevent erroneous doubling
+    ! of particles
+    IF ((Species(i)%initialParticleNumber.NE.0).AND.(Species(i)%NumberOfInits.NE.0)) THEN
+      WRITE(*,*) 'ERROR in ParticleEmission: Initial emission may only be defined in additional *Init#* blocks'
+      WRITE(*,*) 'OR the standard initialisation, not both!'
+      STOP
+    END IF
 
-     IF (Species(i)%NumberOfInits.EQ.0) THEN
-       ! Standard Emission
-       NbrOfParticle = Species(i)%initialParticleNumber
-#ifdef MPI
-       CALL SetParticlePosition(i,NbrOfParticle,1)
-       CALL SetParticlePosition(i,NbrOfParticle,2)
-#else
-       CALL SetParticlePosition(i,NbrOfParticle)
-#endif /*MPI*/
-       CALL SetParticleVelocity(i,NbrOfParticle)
-       CALL SetParticleChargeAndMass(i,NbrOfParticle)
-       IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-       !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-       CALL UpdateNextFreePosition()
-     ELSE
-       ! temporarily store data
-       SpaceIC = Species(i)%SpaceIC
-       velocityDistribution = Species(i)%velocityDistribution
-       initialParticleNumber = Species(i)%initialParticleNumber
-       RadiusIC = Species(i)%RadiusIC
-       Radius2IC = Species(i)%Radius2IC
-       RadiusICGyro = Species(i)%RadiusICGyro
-       NormalIC = Species(i)%NormalIC
-       BasePointIC = Species(i)%BasePointIC
-       BaseVector1IC = Species(i)%BaseVector1IC
-       BaseVector2IC = Species(i)%BaseVector2IC
-       CuboidHeightIC = Species(i)%CuboidHeightIC
-       CylinderHeightIC = Species(i)%CylinderHeightIC
-       VeloIC = Species(i)%VeloIC
-       VeloVecIC = Species(i)%VeloVecIC
-       Amplitude = Species(i)%Amplitude
-       WaveNumber = Species(i)%WaveNumber
-       maxParticleNumberX = Species(i)%maxParticleNumberX
-       maxParticleNumberY = Species(i)%maxParticleNumberY
-       maxParticleNumberZ = Species(i)%maxParticleNumberZ
-       Alpha = Species(i)%Alpha
-       MWTemperatureIC = Species(i)%MWTemperatureIC
+    IF (Species(i)%ParticleEmissionType .EQ. 4) THEN ! Special emission type: constant density in cell
+      IF (Species(i)%NumberOfInits.EQ.0) THEN
+        ! Standard Emission
+        CALL ParticleInsertingCellPressure(i,NbrofParticle)
+        CALL SetParticleVelocity(i,NbrOfParticle)
+        CALL SetParticleChargeAndMass(i,NbrOfParticle)
+        IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+        PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+        CALL UpdateNextFreePosition()
+      ELSE ! emission with multiple inits
+        ! temporarily store data
+        SpaceIC = Species(i)%SpaceIC
+        velocityDistribution = Species(i)%velocityDistribution
+        initialParticleNumber = Species(i)%initialParticleNumber
+        RadiusIC = Species(i)%RadiusIC
+        Radius2IC = Species(i)%Radius2IC
+        RadiusICGyro = Species(i)%RadiusICGyro
+        NormalIC = Species(i)%NormalIC
+        BasePointIC = Species(i)%BasePointIC
+        BaseVector1IC = Species(i)%BaseVector1IC
+        BaseVector2IC = Species(i)%BaseVector2IC
+        CuboidHeightIC = Species(i)%CuboidHeightIC
+        CylinderHeightIC = Species(i)%CylinderHeightIC
+        VeloIC = Species(i)%VeloIC
+        VeloVecIC = Species(i)%VeloVecIC
+        Amplitude = Species(i)%Amplitude
+        WaveNumber = Species(i)%WaveNumber
+        maxParticleNumberX = Species(i)%maxParticleNumberX
+        maxParticleNumberY = Species(i)%maxParticleNumberY
+        maxParticleNumberZ = Species(i)%maxParticleNumberZ
+        Alpha = Species(i)%Alpha
+        MWTemperatureIC = Species(i)%MWTemperatureIC
+        ConstantPressure = Species(i)%ConstantPressure
 
-       DO iInit = 1, Species(i)%NumberOfInits
-         NbrOfParticle = Species(i)%Init(iInit)%initialParticleNumber
-         ! to prevent doubling of subroutines and conflicts with earlier versions, the relevant data is 
-         ! temporarily copied into the regular species emission data and then re-read from the ini file
-         Species(i)%SpaceIC               = Species(i)%Init(iInit)%SpaceIC
-         Species(i)%velocityDistribution  = Species(i)%Init(iInit)%velocityDistribution
-         Species(i)%initialParticleNumber = Species(i)%Init(iInit)%initialParticleNumber
-         Species(i)%RadiusIC              = Species(i)%Init(iInit)%RadiusIC
-         Species(i)%Radius2IC             = Species(i)%Init(iInit)%Radius2IC
-         Species(i)%RadiusICGyro          = Species(i)%Init(iInit)%RadiusICGyro
-         Species(i)%NormalIC              = Species(i)%Init(iInit)%NormalIC
-         Species(i)%BasePointIC           = Species(i)%Init(iInit)%BasePointIC
-         Species(i)%BaseVector1IC         = Species(i)%Init(iInit)%BaseVector1IC
-         Species(i)%BaseVector2IC         = Species(i)%Init(iInit)%BaseVector2IC
-         Species(i)%CuboidHeightIC        = Species(i)%Init(iInit)%CuboidHeightIC
-         Species(i)%CylinderHeightIC      = Species(i)%Init(iInit)%CylinderHeightIC
-         Species(i)%VeloIC                = Species(i)%Init(iInit)%VeloIC
-         Species(i)%VeloVecIC             = Species(i)%Init(iInit)%VeloVecIC
-         Species(i)%Amplitude             = Species(i)%Init(iInit)%Amplitude
-         Species(i)%WaveNumber            = Species(i)%Init(iInit)%WaveNumber
-         Species(i)%maxParticleNumberX    = Species(i)%Init(iInit)%maxParticleNumberX
-         Species(i)%maxParticleNumberY    = Species(i)%Init(iInit)%maxParticleNumberY
-         Species(i)%maxParticleNumberZ    = Species(i)%Init(iInit)%maxParticleNumberZ
-         Species(i)%Alpha                 = Species(i)%Init(iInit)%Alpha
-         Species(i)%MWTemperatureIC       = Species(i)%Init(iInit)%MWTemperatureIC
-#ifdef MPI
-         CALL SetParticlePosition(i,NbrOfParticle,1)
-         CALL SetParticlePosition(i,NbrOfParticle,2)
-#else
-         CALL SetParticlePosition(i,NbrOfParticle)
-#endif /*MPI*/
-         CALL SetParticleVelocity(i,NbrOfParticle)
-         CALL SetParticleChargeAndMass(i,NbrOfParticle)
-         IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-         IF (useDSMC) THEN
-           IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
-             NbrOfParticle = PDM%maxParticleNumber
-           END IF
-           iPart = 1
-           DO WHILE (iPart .le. NbrOfParticle)
-             PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-             IF (PositionNbr .ne. 0) THEN
-               PDM%PartInit(PositionNbr) = iInit
-             END IF
-             iPart = iPart + 1
-           END DO
-         END IF
-         !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-         CALL UpdateNextFreePosition()
-       END DO
-       Species(i)%SpaceIC = SpaceIC
-       Species(i)%velocityDistribution = velocityDistribution
-       Species(i)%initialParticleNumber = initialParticleNumber
-       Species(i)%RadiusIC = RadiusIC
-       Species(i)%Radius2IC = Radius2IC
-       Species(i)%RadiusICGyro = RadiusICGyro
-       Species(i)%NormalIC = NormalIC
-       Species(i)%BasePointIC = BasePointIC
-       Species(i)%BaseVector1IC = BaseVector1IC
-       Species(i)%BaseVector2IC = BaseVector2IC
-       Species(i)%CuboidHeightIC = CuboidHeightIC
-       Species(i)%CylinderHeightIC = CylinderHeightIC
-       Species(i)%VeloIC = VeloIC
-       Species(i)%VeloVecIC = VeloVecIC
-       Species(i)%Amplitude = Amplitude
-       Species(i)%WaveNumber = WaveNumber
-       Species(i)%maxParticleNumberX = maxParticleNumberX
-       Species(i)%maxParticleNumberY = maxParticleNumberY
-       Species(i)%maxParticleNumberZ = maxParticleNumberZ
-       Species(i)%Alpha = Alpha
-       Species(i)%MWTemperatureIC = MWTemperatureIC
-     END IF
-! constant pressure condition
-     IF (Species(i)%ParticleEmissionType .EQ. 3) THEN
-       CALL ParticleInsideCheck(i, nPartInside, TempInside, EInside)
-       IF (Species(i)%ParticleEmission .GT. nPartInside) THEN
-        NbrOfParticle = Species(i)%ParticleEmission - nPartInside
-        WRITE(*,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
+        DO iInit = 1, Species(i)%NumberOfInits
+          ! to prevent doubling of subroutines and conflicts with earlier versions, the relevant data is
+          ! temporarily copied into the regular species emission data and then re-read from the ini file
+          Species(i)%SpaceIC               = Species(i)%Init(iInit)%SpaceIC
+          Species(i)%velocityDistribution  = Species(i)%Init(iInit)%velocityDistribution
+          Species(i)%initialParticleNumber = Species(i)%Init(iInit)%initialParticleNumber
+          Species(i)%RadiusIC              = Species(i)%Init(iInit)%RadiusIC
+          Species(i)%Radius2IC             = Species(i)%Init(iInit)%Radius2IC
+          Species(i)%RadiusICGyro          = Species(i)%Init(iInit)%RadiusICGyro
+          Species(i)%NormalIC              = Species(i)%Init(iInit)%NormalIC
+          Species(i)%BasePointIC           = Species(i)%Init(iInit)%BasePointIC
+          Species(i)%BaseVector1IC         = Species(i)%Init(iInit)%BaseVector1IC
+          Species(i)%BaseVector2IC         = Species(i)%Init(iInit)%BaseVector2IC
+          Species(i)%CuboidHeightIC        = Species(i)%Init(iInit)%CuboidHeightIC
+          Species(i)%CylinderHeightIC      = Species(i)%Init(iInit)%CylinderHeightIC
+          Species(i)%VeloIC                = Species(i)%Init(iInit)%VeloIC
+          Species(i)%VeloVecIC             = Species(i)%Init(iInit)%VeloVecIC
+          Species(i)%Amplitude             = Species(i)%Init(iInit)%Amplitude
+          Species(i)%WaveNumber            = Species(i)%Init(iInit)%WaveNumber
+          Species(i)%maxParticleNumberX    = Species(i)%Init(iInit)%maxParticleNumberX
+          Species(i)%maxParticleNumberY    = Species(i)%Init(iInit)%maxParticleNumberY
+          Species(i)%maxParticleNumberZ    = Species(i)%Init(iInit)%maxParticleNumberZ
+          Species(i)%Alpha                 = Species(i)%Init(iInit)%Alpha
+          Species(i)%MWTemperatureIC       = Species(i)%Init(iInit)%MWTemperatureIC
+          Species(i)%ConstantPressure      = Species(i)%Init(iInit)%ConstantPressure
+          CALL ParticleInsertingCellPressure(i,NbrofParticle)
+          CALL SetParticleVelocity(i,NbrOfParticle)
+          CALL SetParticleChargeAndMass(i,NbrOfParticle)
+          IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+          IF (useDSMC) THEN
+            IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
+              NbrOfParticle = PDM%maxParticleNumber
+            END IF
+            iPart = 1
+            DO WHILE (iPart .le. NbrOfParticle)
+              PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+              IF (PositionNbr .ne. 0) THEN
+                PDM%PartInit(PositionNbr) = iInit
+              END IF
+              iPart = iPart + 1
+            END DO
+          END IF
+          !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
+          PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+          CALL UpdateNextFreePosition()
+        END DO
+        Species(i)%SpaceIC = SpaceIC
+        Species(i)%velocityDistribution = velocityDistribution
+        Species(i)%initialParticleNumber = initialParticleNumber
+        Species(i)%RadiusIC = RadiusIC
+        Species(i)%Radius2IC = Radius2IC
+        Species(i)%RadiusICGyro = RadiusICGyro
+        Species(i)%NormalIC = NormalIC
+        Species(i)%BasePointIC = BasePointIC
+        Species(i)%BaseVector1IC = BaseVector1IC
+        Species(i)%BaseVector2IC = BaseVector2IC
+        Species(i)%CuboidHeightIC = CuboidHeightIC
+        Species(i)%CylinderHeightIC = CylinderHeightIC
+        Species(i)%VeloIC = VeloIC
+        Species(i)%VeloVecIC = VeloVecIC
+        Species(i)%Amplitude = Amplitude
+        Species(i)%WaveNumber = WaveNumber
+        Species(i)%maxParticleNumberX = maxParticleNumberX
+        Species(i)%maxParticleNumberY = maxParticleNumberY
+        Species(i)%maxParticleNumberZ = maxParticleNumberZ
+        Species(i)%Alpha = Alpha
+        Species(i)%MWTemperatureIC = MWTemperatureIC
+        Species(i)%ConstantPressure = ConstantPressure
+      END IF
+    ELSE ! not emissiontype 4
+      IF (Species(i)%NumberOfInits.EQ.0) THEN
+        ! Standard Emission
+        NbrOfParticle = Species(i)%initialParticleNumber
 #ifdef MPI
         CALL SetParticlePosition(i,NbrOfParticle,1)
         CALL SetParticlePosition(i,NbrOfParticle,2)
 #else
         CALL SetParticlePosition(i,NbrOfParticle)
-#endif
+#endif /*MPI*/
         CALL SetParticleVelocity(i,NbrOfParticle)
         CALL SetParticleChargeAndMass(i,NbrOfParticle)
         IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
         !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
         CALL UpdateNextFreePosition()
-       END IF
-     END IF
-   END DO ! species
- END IF ! not restart
+      ELSE
+        ! temporarily store data
+        SpaceIC = Species(i)%SpaceIC
+        velocityDistribution = Species(i)%velocityDistribution
+        initialParticleNumber = Species(i)%initialParticleNumber
+        RadiusIC = Species(i)%RadiusIC
+        Radius2IC = Species(i)%Radius2IC
+        RadiusICGyro = Species(i)%RadiusICGyro
+        NormalIC = Species(i)%NormalIC
+        BasePointIC = Species(i)%BasePointIC
+        BaseVector1IC = Species(i)%BaseVector1IC
+        BaseVector2IC = Species(i)%BaseVector2IC
+        CuboidHeightIC = Species(i)%CuboidHeightIC
+        CylinderHeightIC = Species(i)%CylinderHeightIC
+        VeloIC = Species(i)%VeloIC
+        VeloVecIC = Species(i)%VeloVecIC
+        Amplitude = Species(i)%Amplitude
+        WaveNumber = Species(i)%WaveNumber
+        maxParticleNumberX = Species(i)%maxParticleNumberX
+        maxParticleNumberY = Species(i)%maxParticleNumberY
+        maxParticleNumberZ = Species(i)%maxParticleNumberZ
+        Alpha = Species(i)%Alpha
+        MWTemperatureIC = Species(i)%MWTemperatureIC
+        ConstantPressure = Species(i)%ConstantPressure
+
+        DO iInit = 1, Species(i)%NumberOfInits
+          NbrOfParticle = Species(i)%Init(iInit)%initialParticleNumber
+          ! to prevent doubling of subroutines and conflicts with earlier versions, the relevant data is
+          ! temporarily copied into the regular species emission data and then re-read from the ini file
+          Species(i)%SpaceIC               = Species(i)%Init(iInit)%SpaceIC
+          Species(i)%velocityDistribution  = Species(i)%Init(iInit)%velocityDistribution
+          Species(i)%initialParticleNumber = Species(i)%Init(iInit)%initialParticleNumber
+          Species(i)%RadiusIC              = Species(i)%Init(iInit)%RadiusIC
+          Species(i)%Radius2IC             = Species(i)%Init(iInit)%Radius2IC
+          Species(i)%RadiusICGyro          = Species(i)%Init(iInit)%RadiusICGyro
+          Species(i)%NormalIC              = Species(i)%Init(iInit)%NormalIC
+          Species(i)%BasePointIC           = Species(i)%Init(iInit)%BasePointIC
+          Species(i)%BaseVector1IC         = Species(i)%Init(iInit)%BaseVector1IC
+          Species(i)%BaseVector2IC         = Species(i)%Init(iInit)%BaseVector2IC
+          Species(i)%CuboidHeightIC        = Species(i)%Init(iInit)%CuboidHeightIC
+          Species(i)%CylinderHeightIC      = Species(i)%Init(iInit)%CylinderHeightIC
+          Species(i)%VeloIC                = Species(i)%Init(iInit)%VeloIC
+          Species(i)%VeloVecIC             = Species(i)%Init(iInit)%VeloVecIC
+          Species(i)%Amplitude             = Species(i)%Init(iInit)%Amplitude
+          Species(i)%WaveNumber            = Species(i)%Init(iInit)%WaveNumber
+          Species(i)%maxParticleNumberX    = Species(i)%Init(iInit)%maxParticleNumberX
+          Species(i)%maxParticleNumberY    = Species(i)%Init(iInit)%maxParticleNumberY
+          Species(i)%maxParticleNumberZ    = Species(i)%Init(iInit)%maxParticleNumberZ
+          Species(i)%Alpha                 = Species(i)%Init(iInit)%Alpha
+          Species(i)%MWTemperatureIC       = Species(i)%Init(iInit)%MWTemperatureIC
+          Species(i)%ConstantPressure      = Species(i)%Init(iInit)%ConstantPressure
+#ifdef MPI
+          CALL SetParticlePosition(i,NbrOfParticle,1)
+          CALL SetParticlePosition(i,NbrOfParticle,2)
+#else
+          CALL SetParticlePosition(i,NbrOfParticle)
+#endif /*MPI*/
+          CALL SetParticleVelocity(i,NbrOfParticle)
+          CALL SetParticleChargeAndMass(i,NbrOfParticle)
+          IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+          IF (useDSMC) THEN
+            IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
+              NbrOfParticle = PDM%maxParticleNumber
+            END IF
+            iPart = 1
+            DO WHILE (iPart .le. NbrOfParticle)
+              PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+              IF (PositionNbr .ne. 0) THEN
+                PDM%PartInit(PositionNbr) = iInit
+              END IF
+              iPart = iPart + 1
+            END DO
+          END IF
+          !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
+          PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+          CALL UpdateNextFreePosition()
+        END DO
+        Species(i)%SpaceIC = SpaceIC
+        Species(i)%velocityDistribution = velocityDistribution
+        Species(i)%initialParticleNumber = initialParticleNumber
+        Species(i)%RadiusIC = RadiusIC
+        Species(i)%Radius2IC = Radius2IC
+        Species(i)%RadiusICGyro = RadiusICGyro
+        Species(i)%NormalIC = NormalIC
+        Species(i)%BasePointIC = BasePointIC
+        Species(i)%BaseVector1IC = BaseVector1IC
+        Species(i)%BaseVector2IC = BaseVector2IC
+        Species(i)%CuboidHeightIC = CuboidHeightIC
+        Species(i)%CylinderHeightIC = CylinderHeightIC
+        Species(i)%VeloIC = VeloIC
+        Species(i)%VeloVecIC = VeloVecIC
+        Species(i)%Amplitude = Amplitude
+        Species(i)%WaveNumber = WaveNumber
+        Species(i)%maxParticleNumberX = maxParticleNumberX
+        Species(i)%maxParticleNumberY = maxParticleNumberY
+        Species(i)%maxParticleNumberZ = maxParticleNumberZ
+        Species(i)%Alpha = Alpha
+        Species(i)%MWTemperatureIC = MWTemperatureIC
+        Species(i)%ConstantPressure = ConstantPressure
+      END IF
+      ! constant pressure condition
+      IF (Species(i)%ParticleEmissionType .EQ. 3) THEN
+        CALL ParticleInsideCheck(i, nPartInside, TempInside, EInside)
+        IF (Species(i)%ParticleEmission .GT. nPartInside) THEN
+          NbrOfParticle = Species(i)%ParticleEmission - nPartInside
+          WRITE(*,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
+#ifdef MPI
+          CALL SetParticlePosition(i,NbrOfParticle,1)
+          CALL SetParticlePosition(i,NbrOfParticle,2)
+#else
+          CALL SetParticlePosition(i,NbrOfParticle)
+#endif
+          CALL SetParticleVelocity(i,NbrOfParticle)
+          CALL SetParticleChargeAndMass(i,NbrOfParticle)
+          IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+          !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
+          PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+          CALL UpdateNextFreePosition()
+        END IF
+      END IF
+    END IF ! not Emissiontype 4
+  END DO ! species
+END IF ! not restart
+
 !--- set last element to current element (needed when ParticlePush is not executed, e.g. "delay")
 DO i = 1,PDM%ParticleVecLength
-   PEM%lastElement(i) = PEM%Element(i)
+  PEM%lastElement(i) = PEM%Element(i)
 END DO
 
 END SUBROUTINE InitializeParticleEmission
@@ -277,74 +386,106 @@ SUBROUTINE ParticleInserting()
 
    DO i=1,nSpecies
 #ifdef MPI
-         IF (mode.NE.2) THEN
+     IF (mode.NE.2) THEN
 #endif
-      SELECT CASE(Species(i)%ParticleEmissionType)
-      CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns) 
-         inserted_Particle_iter = INT(Species(i)%ParticleEmission * dt)
-         inserted_Particle_time = INT(Species(i)%ParticleEmission * (Time + dt))
-         inserted_Particle_diff = INT(inserted_Particle_time - Species(i)%InsertedParticle &
-                                  - inserted_Particle_iter )
-         NbrOfParticle = inserted_Particle_iter + inserted_Particle_diff
-         ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
-        IF (Species(i)%velocityDistribution.EQ.'maxwell') THEN
-          IF (NbrOfParticle.LT.5) NbrOfParticle=0
-        END IF
-         Species(i)%InsertedParticle = Species(i)%InsertedParticle + NbrOfParticle
-      CASE(2)    ! Emission Type: Particles per Iteration
-         NbrOfParticle = INT(Species(i)%ParticleEmission)
-      CASE(3)
-        CALL ParticlePressure (i, NbrOfParticle)
-        ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
-        IF (Species(i)%velocityDistribution.EQ.'maxwell') THEN
-          IF (NbrOfParticle.LT.5) NbrOfParticle=0
-        END IF
-      CASE DEFAULT
-         NbrOfParticle = 0
-      END SELECT
+       IF (Species(i)%ParticleEmissionType.NE.4) THEN ! NOT Constant pressure in cell
+         SELECT CASE(Species(i)%ParticleEmissionType)
+         CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
+           inserted_Particle_iter = INT(Species(i)%ParticleEmission * dt)
+           inserted_Particle_time = INT(Species(i)%ParticleEmission * (Time + dt))
+           inserted_Particle_diff = INT(inserted_Particle_time - Species(i)%InsertedParticle &
+                - inserted_Particle_iter )
+           NbrOfParticle = inserted_Particle_iter + inserted_Particle_diff
+           ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
+           IF (Species(i)%velocityDistribution.EQ.'maxwell') THEN
+             IF (NbrOfParticle.LT.5) NbrOfParticle=0
+           END IF
+           Species(i)%InsertedParticle = Species(i)%InsertedParticle + NbrOfParticle
+         CASE(2)    ! Emission Type: Particles per Iteration
+           NbrOfParticle = INT(Species(i)%ParticleEmission)
+         CASE(3)
+           CALL ParticlePressure (i, NbrOfParticle)
+           ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
+           IF (Species(i)%velocityDistribution.EQ.'maxwell') THEN
+             IF (NbrOfParticle.LT.5) NbrOfParticle=0
+           END IF
+         CASE DEFAULT
+           NbrOfParticle = 0
+         END SELECT
 #ifdef MPI
-      CALL SetParticlePosition(i,NbrOfParticle,1)
-         END IF
-         IF (mode.NE.1) THEN
-      CALL SetParticlePosition(i,NbrOfParticle,2)
+         CALL SetParticlePosition(i,NbrOfParticle,1)
+       END IF
+       IF (mode.NE.1) THEN
+         CALL SetParticlePosition(i,NbrOfParticle,2)
 #else
-      CALL SetParticlePosition(i,NbrOfParticle)
+         CALL SetParticlePosition(i,NbrOfParticle)
 #endif
-      CALL SetParticleVelocity(i,NbrOfParticle)
-      CALL SetParticleChargeAndMass(i,NbrOfParticle)
-      IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-      ! define molecule stuff
-      IF (useDSMC.AND.(CollisMode.NE.1)) THEN
-        iPart = 1
-        DO WHILE (iPart .le. NbrOfParticle)
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) THEN
-            CALL DSMC_SetInternalEnr_LauxVFD(i, PositionNbr)
-          END IF
-          iPart = iPart + 1
-        END DO
-      END IF
-#if (PP_TimeDiscMethod==1000)
-      iPart = 1
-      DO WHILE (iPart .le. NbrOfParticle)
-          PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-          IF (PositionNbr .ne. 0) THEN
-            PartStateBulkValues(PositionNbr,1) = Species(i)%VeloVecIC(1) * Species(i)%VeloIC
-            PartStateBulkValues(PositionNbr,2) = Species(i)%VeloVecIC(2) * Species(i)%VeloIC
-            PartStateBulkValues(PositionNbr,3) = Species(i)%VeloVecIC(3) * Species(i)%VeloIC
-            PartStateBulkValues(PositionNbr,4) = Species(i)%MWTemperatureIC
-            PartStateBulkValues(PositionNbr,5) = CalcDegreeOfFreedom(PositionNbr)
-          END IF
-          iPart = iPart + 1
-      END DO
-#endif
-      ! instead of UpdateNextfreePosition we update the
-      ! particleVecLength only. 
-      PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-      PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-      !CALL UpdateNextFreePosition()
-#ifdef MPI
+         CALL SetParticleVelocity(i,NbrOfParticle)
+         CALL SetParticleChargeAndMass(i,NbrOfParticle)
+         IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+         ! define molecule stuff
+         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+           iPart = 1
+           DO WHILE (iPart .le. NbrOfParticle)
+             PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+             IF (PositionNbr .ne. 0) THEN
+               CALL DSMC_SetInternalEnr_LauxVFD(i, PositionNbr)
+             END IF
+             iPart = iPart + 1
+           END DO
          END IF
+#if (PP_TimeDiscMethod==1000)
+         iPart = 1
+         DO WHILE (iPart .le. NbrOfParticle)
+           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+           IF (PositionNbr .ne. 0) THEN
+             PartStateBulkValues(PositionNbr,1) = Species(i)%VeloVecIC(1) * Species(i)%VeloIC
+             PartStateBulkValues(PositionNbr,2) = Species(i)%VeloVecIC(2) * Species(i)%VeloIC
+             PartStateBulkValues(PositionNbr,3) = Species(i)%VeloVecIC(3) * Species(i)%VeloIC
+             PartStateBulkValues(PositionNbr,4) = Species(i)%MWTemperatureIC
+             PartStateBulkValues(PositionNbr,5) = CalcDegreeOfFreedom(PositionNbr)
+           END IF
+           iPart = iPart + 1
+         END DO
+#endif
+       ELSE  ! Constant Pressure in Cell Emission (type 4)
+         CALL ParticleInsertingCellPressure(i,NbrofParticle)
+         CALL SetParticleVelocity(i,NbrOfParticle)
+         CALL SetParticleChargeAndMass(i,NbrOfParticle)
+         IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+         ! define molecule stuff
+         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+           iPart = 1
+           DO WHILE (iPart .le. NbrOfParticle)
+             PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+             IF (PositionNbr .ne. 0) THEN
+               CALL DSMC_SetInternalEnr_LauxVFD(i, PositionNbr)
+             END IF
+             iPart = iPart + 1
+           END DO
+         END IF
+#if (PP_TimeDiscMethod==1000)
+         iPart = 1
+         DO WHILE (iPart .le. NbrOfParticle)
+           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+           IF (PositionNbr .ne. 0) THEN
+             PartStateBulkValues(PositionNbr,1) = Species(i)%VeloVecIC(1) * Species(i)%VeloIC
+             PartStateBulkValues(PositionNbr,2) = Species(i)%VeloVecIC(2) * Species(i)%VeloIC
+             PartStateBulkValues(PositionNbr,3) = Species(i)%VeloVecIC(3) * Species(i)%VeloIC
+             PartStateBulkValues(PositionNbr,4) = Species(i)%MWTemperatureIC
+             PartStateBulkValues(PositionNbr,5) = CalcDegreeOfFreedom(PositionNbr)
+           END IF
+           iPart = iPart + 1
+         END DO
+#endif
+       END IF
+       ! instead of UpdateNextfreePosition we update the
+       ! particleVecLength only.
+       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
+       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+       !CALL UpdateNextFreePosition()
+#ifdef MPI
+     END IF
 #endif
    END DO
  RETURN
@@ -1477,5 +1618,91 @@ SUBROUTINE SetParticleMPF(FractNbr,NbrOfParticle)                               
   END DO
  RETURN
 END SUBROUTINE SetParticleMPF
+
+SUBROUTINE ParticleInsertingCellPressure(iSpec,NbrOfParticle)
+!===================================================================================================================================
+! Insert constant cell pressure particles (and remove additionals)
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars
+USE MOD_part_MPFtools,   ONLY : MapToGEO
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! Argument list variables
+  INTEGER               :: iSpec, NbrOfParticle
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER               :: iElem, Elem, iPart, i, NbrPartsInCell, iNode, NbrNewParts
+  INTEGER               :: ParticleIndexNbr
+  REAL                  :: PartDiff, PartDiffRest, RandVal, RandVal3(1:3), P(1:3,1:8)
+  INTEGER, ALLOCATABLE  :: PartsInCell(:)
+!----------------------------------------------------------------------------------------------------------------------------------
+! INTENTIONS
+  INTENT(IN)            :: iSpec
+  INTENT(OUT)           :: NbrOfParticle
+!==================================================================================================
+
+NbrOfParticle = 0
+DO iElem = 1,Species(iSpec)%ConstPress%nElemTotalInside
+  Elem = Species(iSpec)%ConstPress%ElemTotalInside(iElem)
+  ! step 1: count and build array of particles in cell (of current species only)
+  ALLOCATE(PartsInCell(1:PEM%pNumber(Elem)))
+  NbrPartsInCell = 0
+  iPart = PEM%pStart(Elem)                        
+  DO i = 1, PEM%pNumber(Elem)
+    IF (PartSpecies(iPart).EQ.iSpec) THEN
+      NbrPartsInCell = NbrPartsInCell + 1
+      PartsInCell(NbrPartsInCell) = iPart
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  ! step 2: determine number of particles to insert (or remove)
+  PartDiff = Species(iSpec)%ParticleEmission * GEO%Volume(Elem) - NbrPartsInCell
+  PartDiffRest = PartDiff - INT(PartDiff)
+  ! step 3: if PartDiff positive (and PartPressAddParts=T), add particles
+  IF(PartPressAddParts.AND.PartDiff.GT.0) THEN
+    CALL RANDOM_NUMBER(RandVal)
+    IF(PartDiffRest.GT.RandVal) PartDiff = PartDiff + 1.0
+    NbrNewParts = INT(PartDiff)
+    ! Build array for element nodes
+    DO iNode = 1,8
+      P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,Elem))
+    END DO
+    ! insert particles (positions)
+    DO i = 1, NbrNewParts
+      ! set random position in -1,1 space
+      CALL RANDOM_NUMBER(RandVal3)
+      RandVal3 = RandVal3 * 2.0 - 1.0 
+      ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
+      IF (ParticleIndexNbr.NE.0) THEN
+        PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
+        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
+        PEM%Element(ParticleIndexNbr) = Elem
+      ELSE
+        WRITE(*,*)'ERROR in ParticleInsertingCellPressure:'
+        WRITE(*,*)'ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?'
+        STOP
+      END IF
+    END DO
+    NbrOfParticle = NbrOfParticle + NbrNewParts
+  END IF
+  ! step 4: if PartDiff negative (and PartPressRemParts=T), remove particles
+  IF(PartPressRemParts.AND.PartDiff.LT.0) THEN
+    PartDiff = -PartDiff
+    CALL RANDOM_NUMBER(RandVal)
+    IF(ABS(PartDiffRest).GT.RandVal) PartDiff = PartDiff + 1.0
+    NbrNewParts = INT(PartDiff)
+    ! remove random part
+    DO i = 1, NbrNewParts
+      CALL RANDOM_NUMBER(RandVal)
+      RandVal = RandVal * REAL(NbrPartsInCell)
+      PDM%ParticleInside(PartsInCell(INT(RandVal)+1)) = .FALSE.
+    END DO
+  END IF
+  DEALLOCATE(PartsInCell)
+END DO
+
+END SUBROUTINE ParticleInsertingCellPressure
 
 END MODULE MOD_part_emission

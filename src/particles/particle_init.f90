@@ -511,7 +511,7 @@ IF (ALLOCSTAT.NE.0) THEN
   WRITE(*,*)'ERROR in particle_init.f90: Cannot allocate PEM arrays!'
   STOP
 END IF
-IF (useDSMC.OR.enableParticleMerge) THEN
+IF (useDSMC.OR.enableParticleMerge.OR.PartPressureCell) THEN
   ALLOCATE(PEM%pStart(1:nElems)                         , &
            PEM%pNumber(1:nElems)                        , &
            PEM%pEnd(1:nElems)                           , &
@@ -539,6 +539,12 @@ WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
 MacroValSamplIterNum = GETINT('Part-IterationForMacroVal','1')
 !ParticlePushMethod = GETSTR('Part-ParticlePushMethod','boris_leap_frog_scheme')
 WriteFieldsToVTK = GETLOGICAL('Part-WriteFieldsToVTK','.FALSE.')
+
+!!!! Logicals for Constant Pressure in Cells
+! are particles to be ADDED to cells in order to reach constant pressure? Default YES
+PartPressAddParts = GETLOGICAL('Part-ConstPressAddParts','.TRUE.')
+! are particles to be REMOVED from cells in order to reach constant pressure? Default NO
+PartPressRemParts = GETLOGICAL('Part-ConstPressRemParts','.FALSE.')
 
 ! Read particle species data
 !nSpecies = CNTSTR('Part-Species-SpaceIC')
@@ -629,6 +635,8 @@ DO i=1,nSpecies
          GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-Alpha','0.')
     Species(i)%Init(iInit)%MWTemperatureIC       = &
          GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-MWTemperatureIC','0')
+    Species(i)%Init(iInit)%ConstantPressure      = &
+         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-ConstantPressure','0')
   END DO
 END DO
 ! Which Lorentz boost method should be used?
@@ -846,7 +854,7 @@ SUBROUTINE DomainUpdate()
   USE MOD_PICInit,               ONLY : InitPIC
   USE MOD_ReadInTools
   USE MOD_DSMC_Vars,             ONLY : useDSMC
-  USE MOD_part_pressure,         ONLY : ParticlePressureIni
+  USE MOD_part_pressure,         ONLY : ParticlePressureIni,ParticlePressureCellIni
   USE MOD_Particle_Output_Vars,  ONLY : OutputMesh
 #ifdef MPI
   USE MOD_TimeDisc_Vars,          ONLY : dt
@@ -1589,6 +1597,14 @@ SUBROUTINE DomainUpdate()
 DO i = 1,nSpecies
   IF(Species(i)%ParticleEmissionType .EQ. 3) THEN
     CALL ParticlePressureIni()
+    EXIT
+  END IF
+END DO
+PartPressureCell = .false.
+DO i = 1,nSpecies
+  IF(Species(i)%ParticleEmissionType .EQ. 4) THEN
+    PartPressureCell = .true.
+    CALL ParticlePressureCellIni()
     EXIT
   END IF
 END DO

@@ -18,7 +18,7 @@ SUBROUTINE UpdateNextFreePosition()                                             
 !
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars, ONLY : PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem
+  USE MOD_Particle_Vars, ONLY : PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem, PartPressureCell
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    !
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -30,7 +30,7 @@ SUBROUTINE UpdateNextFreePosition()                                             
 
    IF(PDM%maxParticleNumber.EQ.0) RETURN
    counter1 = 1
-   IF (useDSMC.OR.doParticleMerge) THEN
+   IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
      PEM%pNumber(:) = 0
      !PDM%nextUsedPosition(:) = 0
    END IF
@@ -40,7 +40,7 @@ SUBROUTINE UpdateNextFreePosition()                                             
    PDM%insideParticleNumber = 0
    IF (doParticleMerge) vMPF_SpecNumElem = 0
    !PDM%nextFreePosition(1) = 1
-   IF (useDSMC.OR.doParticleMerge) THEN
+   IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
      DO i=1,n
        IF (.NOT.PDM%ParticleInside(i)) THEN
          PDM%nextFreePosition(counter1) = i
