@@ -295,6 +295,9 @@ DO !iter_t=0,MaxIter
   tAnalyzeDiff=tAnalyze-t    ! time to next analysis, put in extra variable so number does not change due to numerical errors
   tEndDiff=tEnd-t            ! dito for end time
   dt=MIN(MIN(dt_Min,tAnalyzeDiff),MIN(dt_Min,tEndDiff))
+  IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
+  IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
+
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
@@ -1464,7 +1467,6 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
     END IF
   !CALL CalcDepositedCharge()
 END IF
-
 IF (t.GE.DelayTime) THEN
   CALL InterpolateFieldToParticle()
   CALL CalcPartRHS()
@@ -1487,7 +1489,6 @@ CALL ParticleBoundary()
 CALL Communicate_PIC()
 !CALL UpdateNextFreePosition() ! only required for parallel communication
 #endif
-
 ! EM field
 
 dt_save = dt  !quick hack
@@ -1497,7 +1498,6 @@ dt = dt_maxwell
 DO rk=1,5
   b_dt(rk)=RK4_b(rk)*dt   ! TBD: put in initiation (with maxwell we are linear!!!)
 END DO
-
 DO iLoop = 1, MaxwellIterNum
   ! EM field
 
@@ -1515,7 +1515,6 @@ DO iLoop = 1, MaxwellIterNum
     Ut_temp = Ut - Ut_temp*RK4_a(rk)
     U = U + Ut_temp*b_dt(rk)
   END DO
-
 #ifdef PP_POIS
   ! Potential field
   CALL DGTimeDerivative_weakForm_Pois(t_rk,t_rk,0)
@@ -1534,15 +1533,12 @@ DO iLoop = 1, MaxwellIterNum
     Phi = Phi + Phit_temp*b_dt(rk)
   END DO
 #endif
-
   t_rk = t_rk + dt
 END DO
 dt = dt_save
-
 #ifdef PP_POIS
   CALL EvalGradient()
 #endif
-
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
   IF (t.GE.DelayTime) THEN
