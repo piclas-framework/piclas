@@ -120,6 +120,7 @@ FUNCTION TIMESTAMP(Filename,Time)
 ! Creates a timestamp, consistent of a filename (project name + processor) and current time niveau
 !===================================================================================================================================
 ! MODULES
+USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -133,7 +134,11 @@ CHARACTER(LEN=255) :: TimeStamp ! the complete timestamp
 ! LOCAL VARIABLES
 INTEGER            :: i         ! loop variable
 !===================================================================================================================================
-WRITE(TimeStamp,'(F15.12)')Time
+IF (Analyze_dt.LT.1E-10) THEN
+  WRITE(TimeStamp,'(F15.14)')Time
+ELSE
+  WRITE(TimeStamp,'(F15.12)')Time
+END IF
 ! Replace spaces with 0's
 DO i=1,LEN(TRIM(TimeStamp))
   IF(TimeStamp(i:i).EQ.' ') TimeStamp(i:i)='0'
