@@ -1643,6 +1643,8 @@ USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad
   INTEGER               :: ParticleIndexNbr
   REAL                  :: PartDiff, PartDiffRest, RandVal, RandVal3(1:3), P(1:3,1:8)
   INTEGER, ALLOCATABLE  :: PartsInCell(:)
+  LOGICAL               :: InElementCheck
+  REAL                  :: det(16)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INTENTIONS
   INTENT(IN)            :: iSpec
