@@ -1631,6 +1631,7 @@ SUBROUTINE ParticleInsertingCellPressure(iSpec,NbrOfParticle)
 ! MODULES
 USE MOD_Particle_Vars
 USE MOD_part_MPFtools,   ONLY : MapToGEO
+USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1683,7 +1684,12 @@ DO iElem = 1,Species(iSpec)%ConstPress%nElemTotalInside
       IF (ParticleIndexNbr.NE.0) THEN
         PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-        PEM%Element(ParticleIndexNbr) = Elem
+        CALL ParticleInsideQuad3D(ParticleIndexNbr,Elem,InElementCheck,det)
+        IF (InElementCheck) THEN
+          PEM%Element(ParticleIndexNbr) = Elem
+        ELSE
+          CALL SingleParticleToExactElement(ParticleIndexNbr)
+        END IF
       ELSE
         WRITE(*,*)'ERROR in ParticleInsertingCellPressure:'
         WRITE(*,*)'ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?'
