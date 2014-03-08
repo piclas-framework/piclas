@@ -392,6 +392,8 @@ IF((GEO%nPeriodicVectors.GE.0).AND.(ALLOCATED(partShiftVector))) partShiftVector
                CALL PerfectReflection3D(i,LocalSide,Element,TriNum,PartBound%WallVelo(1:3,BC(GlobSideID)))
                DoneSideID(1) = GlobSideID
                DoneSideID(2) = TriNum
+               DoneLastElem(:,:) = 0
+               DoneLastElemHC(:) = 0
              ELSE
 !.... Diffuse re-emission
                CALL DiffuseReflection3D (i,LocalSide,Element,TriNum,            &
@@ -402,6 +404,8 @@ IF((GEO%nPeriodicVectors.GE.0).AND.(ALLOCATED(partShiftVector))) partShiftVector
                                          PartBound%WallVelo(1:3,BC(GlobSideID)) )
                DoneSideID(1) = GlobSideID
                DoneSideID(2) = TriNum
+               DoneLastElem(:,:) = 0
+               DoneLastElemHC(:) = 0
              END IF
            ELSE IF (PartBound%Map(BC(GlobSideID)).EQ.PartBound%SimpleAnodeBC) THEN
              WRITE(*,*)'ERROR: SimpleAnodeBC not implemented yet';STOP
@@ -641,6 +645,8 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
                CALL PerfectReflection3D_halocells(i,LocalSide,Element,TriNum,PartBound%WallVelo(1:3,MPIGEO%BC(1,haloSideID)))
                DoneSideID(1) = haloSideID
                DoneSideID(2) = TriNum
+               DoneLastElem(:,:) = 0
+               DoneLastElemHC(:) = 0
              ELSE
 !.... Diffuse re-emission
                CALL DiffuseReflection3D_halocells(i,LocalSide,Element,TriNum,         &
@@ -651,6 +657,8 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
                                                 PartBound%WallVelo(1:3,MPIGEO%BC(1,haloSideID))       )
                DoneSideID(1) = haloSideID
                DoneSideID(2) = TriNum
+               DoneLastElem(:,:) = 0
+               DoneLastElemHC(:) = 0
              END IF
            ELSE IF (PartBound%Map(MPIGEO%BC(1,haloSideID)).EQ.PartBound%SimpleAnodeBC) THEN
              WRITE(*,*)'ERROR: SimpleAnodeBC not implemented yet';STOP
