@@ -193,7 +193,7 @@ IF (useVTKFileEField.AND.useVTKFileBField) THEN
       END DO
       dist_node = SQRT(dist_node)
       sum_dist  = SUM(dist_node)
-      dist_node = dist_node/sum_dist
+      dist_node = 1.0-dist_node/sum_dist
       DO iNode = 1,8
         FieldAtParticle(iPart,1) = FieldAtParticle(iPart,1) + dist_node(iNode) * BGEfieldAtNode(1,GEO%ElemToNodeID(iNode,iElem))
         FieldAtParticle(iPart,2) = FieldAtParticle(iPart,2) + dist_node(iNode) * BGEfieldAtNode(2,GEO%ElemToNodeID(iNode,iElem))
@@ -215,7 +215,7 @@ ELSE IF (useVTKFileEField) THEN
       END DO
       dist_node = SQRT(dist_node)
       sum_dist  = SUM(dist_node)
-      dist_node = dist_node/sum_dist
+      dist_node = 1.0-dist_node/sum_dist
       DO iNode = 1,8
         FieldAtParticle(iPart,1) = FieldAtParticle(iPart,1) + dist_node(iNode) * BGEfieldAtNode(1,GEO%ElemToNodeID(iNode,iElem))
         FieldAtParticle(iPart,2) = FieldAtParticle(iPart,2) + dist_node(iNode) * BGEfieldAtNode(2,GEO%ElemToNodeID(iNode,iElem))
@@ -234,7 +234,7 @@ ELSE IF (useVTKFileBField) THEN
       END DO
       dist_node = SQRT(dist_node)
       sum_dist  = SUM(dist_node)
-      dist_node = dist_node/sum_dist
+      dist_node = 1.0 - dist_node/sum_dist
       DO iNode = 1,8
         FieldAtParticle(iPart,4) = FieldAtParticle(iPart,4) + dist_node(iNode) * BGBfieldAtNode(1,GEO%ElemToNodeID(iNode,iElem))
         FieldAtParticle(iPart,5) = FieldAtParticle(iPart,5) + dist_node(iNode) * BGBfieldAtNode(2,GEO%ElemToNodeID(iNode,iElem))
@@ -255,7 +255,7 @@ IF (useVTKFileEField) THEN
       END DO
       dist_node = SQRT(dist_node)
       sum_dist  = SUM(dist_node)
-      dist_node = dist_node/sum_dist
+      dist_node = 1.0-dist_node/sum_dist
       DO iNode = 1,8
         FieldAtParticle(iPart,1) = FieldAtParticle(iPart,1) + dist_node(iNode) * BGEfieldAtNode(1,GEO%ElemToNodeID(iNode,iElem))
         FieldAtParticle(iPart,2) = FieldAtParticle(iPart,2) + dist_node(iNode) * BGEfieldAtNode(2,GEO%ElemToNodeID(iNode,iElem))
