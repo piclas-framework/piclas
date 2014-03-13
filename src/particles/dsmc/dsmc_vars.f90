@@ -275,5 +275,11 @@ TYPE tPolyatomMolDSMC !DSMC Species Param
 END TYPE
 
 TYPE (tPolyatomMolDSMC), ALLOCATABLE    :: PolyatomMolDSMC(:)        ! Infos for Polyatomic Molecule
+
+TYPE tPolyatomMolVibQuant !DSMC Species Param
+  INTEGER, ALLOCATABLE               :: Quants(:)              ! Vib quants of each DOF for each particle
+END TYPE
+
+TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars
