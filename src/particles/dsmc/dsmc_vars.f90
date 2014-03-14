@@ -271,6 +271,7 @@ TYPE tPolyatomMolDSMC !DSMC Species Param
   INTEGER                         :: NumOfAtoms                   ! Number of Atoms in Molec
   INTEGER                         :: VibDOF                       ! DOF in Vibration, equals number of independent SHO's
   REAL, ALLOCATABLE               :: CharaTVibDOF(:)              ! Chara TVib for each DOF
+  INTEGER,ALLOCATABLE             :: LastVibQuantNums(:)          ! Last Quantum Numbers for vibrational insering
   INTEGER, ALLOCATABLE            :: MaxVibQuantDOF(:)            ! Max Vib Quant for each DOF
 END TYPE
 
