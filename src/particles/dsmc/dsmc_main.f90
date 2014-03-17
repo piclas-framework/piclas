@@ -75,7 +75,7 @@ DO iElem = 1, nElems ! element/cell main loop
     nPair = int(nPart/2)
     DO iPair = 1, nPair
       IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
-        IF (usevMPF) THEN            ! calculation of collision prob
+        IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0)) THEN            ! calculation of collision prob
           CALL DSMC_vmpf_prob(iElem, iPair)
         ELSE
           CALL DSMC_prob_calc(iElem, iPair)
