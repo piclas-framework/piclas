@@ -126,6 +126,7 @@ USE MOD_Particle_Output,       ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, Time, dt_max_particles, dt_maxwell, NextTimeStepAdjustmentIter, &
                                      dt_adapt_maxwell,useManualTimestep
 USE MOD_PARTICLE_Vars,         ONLY: PDM, PartState, MaxwellIterNum, GEO, WriteMacroValues, MacroValSamplIterNum, nSpecies, Pt
+USE MOD_PARTICLE_Vars,    ONLY : doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,             ONLY: useDSMC, DSMC, SampDSMC, realtime
 USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
@@ -291,6 +292,10 @@ DO !iter_t=0,MaxIter
     print*, 'New Particle TimeStep: ', dt_max_particles
   END IF
 #endif
+
+IF(enableParticleMerge) THEN
+  IF ((iter.GT.0).AND.(MOD(iter,vMPFMergeParticleIter).EQ.0)) doParticleMerge=.true.
+END IF
 
   tAnalyzeDiff=tAnalyze-t    ! time to next analysis, put in extra variable so number does not change due to numerical errors
   tEndDiff=tEnd-t            ! dito for end time
@@ -962,12 +967,13 @@ USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
 USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY : PIC
-USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
+USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF, doParticleMerge
 USE MOD_part_RHS,         ONLY : CalcPartRHS
 USE MOD_part_boundary,    ONLY : ParticleBoundary
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
+USE MOD_part_MPFtools,    ONLY : StartParticleMerge
 #ifdef MPI
 USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
 #else
@@ -1070,6 +1076,12 @@ END DO
 #endif
 
 CALL UpdateNextFreePosition()
+
+IF (doParticleMerge) THEN
+  CALL StartParticleMerge()
+  CALL UpdateNextFreePosition()
+END IF
+
 IF (useDSMC) THEN
   CALL DSMC_main()
   PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
