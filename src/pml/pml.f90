@@ -79,7 +79,6 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PML...'
 ! Readin
 !===================================================================================================================================
 
-DoPML=.FALSE.
 
 ! get information of PML size
 PMLzeta0               = GETREAL('PMLzeta0','0.')
@@ -90,7 +89,9 @@ PMLwriteZeta           = GETINT('PMLwriteZeta','0')
 PMLzetaNorm            = GETLOGICAL('PMLzetaNorm','.FALSE.')
 ! only for Maxwell, PP_nVar=8
 #if PP_nVar == 8
-  IF(SUM(ABS(xyzPhysicalMinMax)).GT.1e-12) DoPML=.TRUE.
+  DoPML                = GETLOGICAL('DoPML','.FALSE.')
+#else
+  DoPML=.FALSE.
 #endif
 
 IF(.NOT.DoPML) THEN

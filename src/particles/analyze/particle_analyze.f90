@@ -714,9 +714,9 @@ IF(DoPML)THEN
             + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
             + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
       ! if x, y or z is in PML region
-      IF (Elem_xGP(1,i,j,k,iElem) .GE. xyzPhysicalMinMax(1) .OR. Elem_xGP(1,i,j,k,iElem) .LE. xyzPhysicalMinMax(2) .OR. &
-            Elem_xGP(2,i,j,k,iElem) .GE. xyzPhysicalMinMax(3) .OR. Elem_xGP(2,i,j,k,iElem) .LE. xyzPhysicalMinMax(4) .OR. &
-            Elem_xGP(3,i,j,k,iElem) .GE. xyzPhysicalMinMax(5) .OR. Elem_xGP(3,i,j,k,iElem) .LE. xyzPhysicalMinMax(6)) THEN        
+      IF (Elem_xGP(1,i,j,k,iElem) .GE. xyzPhysicalMinMax(1) .AND. Elem_xGP(1,i,j,k,iElem) .LE. xyzPhysicalMinMax(2) .AND. &
+          Elem_xGP(2,i,j,k,iElem) .GE. xyzPhysicalMinMax(3) .AND. Elem_xGP(2,i,j,k,iElem) .LE. xyzPhysicalMinMax(4) .AND. &
+          Elem_xGP(3,i,j,k,iElem) .GE. xyzPhysicalMinMax(5) .AND. Elem_xGP(3,i,j,k,iElem) .LE. xyzPhysicalMinMax(6)) THEN        
           WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
           WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
       END IF
@@ -766,6 +766,7 @@ USE MOD_Equation_Vars,          ONLY : c2
 USE MOD_Particle_Vars,          ONLY : PartState, PartSpecies, Species, PDM
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PartMPF, usevMPF
 USE MOD_Particle_Analyze_Vars,  ONLY : nEkin
+USE MOD_PML_Vars,               ONLY : DoPML,xyzPhysicalMinMax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -783,6 +784,13 @@ Ekin = 0.
 IF (nEkin .GT. 1 ) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
+      IF(DoPML)THEN
+        IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
+            PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
+            PartState(i,3) .GE. xyzPhysicalMinMax(5) .AND. PartState(i,3) .LE. xyzPhysicalMinMax(6)) THEN        
+          CYCLE
+        END IF
+      ENDIF
       partV2 = PartState(i,4) * PartState(i,4) &
               + PartState(i,5) * PartState(i,5) &
               + PartState(i,6) * PartState(i,6)
@@ -823,6 +831,13 @@ IF (nEkin .GT. 1 ) THEN
 ELSE ! nEkin = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
+      IF(DoPML)THEN
+        IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
+            PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
+            PartState(i,3) .GE. xyzPhysicalMinMax(5) .AND. PartState(i,3) .LE. xyzPhysicalMinMax(6)) THEN        
+          CYCLE
+        END IF
+      ENDIF
       partV2 = PartState(i,4) * PartState(i,4) &
              + PartState(i,5) * PartState(i,5) &
              + PartState(i,6) * PartState(i,6)
