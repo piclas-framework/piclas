@@ -167,6 +167,7 @@ USE MOD_Particle_Vars, ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies,
 USE MOD_part_tools, ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
 USE MOD_LD_Vars,       ONLY: UseLD, PartStateBulkValues
+USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -188,6 +189,8 @@ INTEGER                  :: locnPart,offsetnPart
 INTEGER,PARAMETER        :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER        :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE         :: PartData(:,:)
+LOGICAL                  :: InElementCheck
+REAL                     :: det(16)
 #endif /*PARTICLES*/
 !===================================================================================================================================
 IF(DoRestart)THEN
@@ -411,11 +414,24 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   END IF
   DEALLOCATE(PartInt,PartData)
   PDM%ParticleVecLength = PDM%ParticleVecLength + locnPart
-  CALL UpdateNextFreePosition()
   SWRITE(UNIT_stdOut,*)'DONE!' 
   DO i=1,nSpecies
     Species(i)%InsertedParticle = INT(Species(i)%ParticleEmission * RestartTime)
   END DO
+  ! make sure location is correct and, if necessary, correct it (to prevent crashes further down)
+  DO i = 1,PDM%ParticleVecLength
+    CALL ParticleInsideQuad3D(i,PEM%Element(i),InElementCheck,det)
+    IF (.NOT.InElementCheck) THEN
+      CALL SingleParticleToExactElement(i)
+      IF (.NOT.PDM%ParticleInside(i)) THEN
+        WRITE(*,*) 'WARNING: Particle',i,'is not inside domain after restart... will be removed'
+      ELSE
+        PEM%LastElement(i) = PEM%Element(i)
+      END IF
+    END IF
+  END DO
+  CALL UpdateNextFreePosition()
+
 #endif /*PARTICLES*/
 
   CALL CloseDataFile() 
