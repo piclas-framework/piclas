@@ -205,13 +205,14 @@ END SUBROUTINE AddOctreeNode
 SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 
   USE MOD_DSMC_Vars,              ONLY : CollInf, tTreeNode, CollisMode, ChemReac, PartStateIntEn, Coll_pData
-  USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF
-  USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, usevMPF, PartMPF
+  USE MOD_DSMC_Vars,              ONLY : DSMC, PairE_vMPF, CollMean
+  USE MOD_Particle_Vars,          ONLY : PartState, nSpecies, PartSpecies, usevMPF, PartMPF, Time
   USE MOD_DSMC_ChemReact,         ONLY : SetMeanVibQua   
   USE MOD_Particle_Analyze_Vars,  ONLY : CalcEkin
   USE MOD_DSMC_CollisionProb,     ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,            ONLY : DSMC_perform_collision
   USE MOD_vmpf_collision,         ONLY : DSMC_vmpf_prob
+  USE MOD_TimeDisc_Vars,          ONLY : TEnd
 !--------------------------------------------------------------------------------------------------!
 ! statistical pairing method
 !--------------------------------------------------------------------------------------------------!
@@ -219,9 +220,9 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-INTEGER                       :: iPair, nPair, iPart1, iPart2, iLoop, iPart, nPart
-INTEGER                       :: cSpec1, cSpec2, iCase , PairNum_Node
-REAL                          :: Dist1, Dist2, iRan
+INTEGER                       :: iPair, nPair, iPart1, iPart2, iLoop, iPart, nPart, iSpec
+INTEGER                       :: cSpec1, cSpec2, iCase , PairNum_Node, ProbMeanCellCount
+REAL                          :: Dist1, Dist2, iRan, CollMeanCell, ProbMeanCell
 REAL                          :: TempMPFFac, MPFFac
 ! input variable declaration                                                                       !
 REAL, INTENT(IN)                        :: NodeVolume
@@ -323,6 +324,10 @@ IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) THEN
   CALL SetMeanVibQua()
 END IF
 
+CollMeanCell=0
+ProbMeanCell=0
+ProbMeanCellCount=0
+
 DO iPair = 1,  PairNum_Node
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN  
     IF (usevMPF) THEN            ! calculation of collision prob
@@ -340,10 +345,24 @@ DO iPair = 1,  PairNum_Node
         DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
         DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
       END IF
+      IF(Time.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN             ! collision probability per cell of actual collions
+        ProbMeanCell = ProbMeanCell + Coll_pData(iPair)%Prob
+        ProbMeanCellCount = ProbMeanCellCount + 1
+      END IF
       CALL DSMC_perform_collision(iPair, iElem, NodeVolume, PartNum)  ! call collision from octree
     END IF
   END IF
+  IF(Time.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN ! all collision probabilities per cell
+    CollMeanCell = CollMeanCell + Coll_pData(iPair)%Prob
+  END IF
 END DO
+IF(Time.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN ! mean collision probability
+  IF (ProbMeanCellCount.eq.0) THEN
+  ELSE
+  CollMean(iElem,1)=CollMean(iElem,1)+ProbMeanCell/ProbMeanCellCount
+  END IF
+  CollMean(iElem,2)=CollMean(iElem,2)+CollMeanCell/PairNum_Node
+END IF
 DEALLOCATE(Coll_pData)
 
 

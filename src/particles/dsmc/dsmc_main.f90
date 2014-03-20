@@ -23,7 +23,7 @@ SUBROUTINE DSMC_main()
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-  USE MOD_DSMC_Vars,             ONLY : ChemReac
+  USE MOD_DSMC_Vars,             ONLY : ChemReac, CollMean
   USE MOD_Particle_Vars,         ONLY : PEM, Time, PDM, nSpecies, WriteMacroValues, usevMPF
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
   USE MOD_DSMC_Analyze,          ONLY : DSMC_data_sampling, DSMC_output_calc, CalcSurfaceValues, OutputMaxCollProb
@@ -41,8 +41,8 @@ SUBROUTINE DSMC_main()
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-  INTEGER           :: iElem, nPart, nPair, iPair
-  REAL              :: iRan
+  INTEGER           :: iElem, nPart, nPair, iPair, ProbMeanCellCount
+  REAL              :: iRan, CollMeanCell, ProbMeanCell
   INTEGER           :: nOutput
 !--------------------------------------------------------------------------------------------------!
 
@@ -50,6 +50,7 @@ DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
 DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
 DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
 DSMCSumOfFormedParticles =0
+
 IF (DSMC%CollProbMaxOut) THEN
   DSMC%CollProbMax = 0.0  
   DSMC%CollMean = 0.0
@@ -57,6 +58,9 @@ IF (DSMC%CollProbMaxOut) THEN
 END IF
 IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas 
 DO iElem = 1, nElems ! element/cell main loop 
+  CollMeanCell=0
+  ProbMeanCell=0
+  ProbMeanCellCount=0
   IF(BGGas%BGGasSpecies.NE.0) THEN
     CALL DSMC_pairing_bggas(iElem)
   ELSE IF (DSMC%UseOctree) THEN
@@ -70,9 +74,10 @@ DO iElem = 1, nElems ! element/cell main loop
     IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) THEN
       CALL SetMeanVibQua()
     END IF
-
+    
     nPart = PEM%pNumber(iElem)
     nPair = int(nPart/2)
+
     DO iPair = 1, nPair
       IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
         IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0)) THEN            ! calculation of collision prob
@@ -90,10 +95,26 @@ DO iElem = 1, nElems ! element/cell main loop
             DSMC%NumColl(Coll_pData(iPair)%PairType) = DSMC%NumColl(Coll_pData(iPair)%PairType) + 1
             DSMC%NumColl(CollInf%NumCase + 1) = DSMC%NumColl(CollInf%NumCase + 1) + 1
           END IF
+          IF(Time.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN
+            ProbMeanCell = ProbMeanCell + Coll_pData(iPair)%Prob    ! collision probabilities of actual collisions
+            ProbMeanCellCount = ProbMeanCellCount + 1               ! counting collisions
+          END IF
           CALL DSMC_perform_collision(iPair,iElem)
         END IF
       END IF
+      
+      IF(Time.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN                   ! all collision probabilities
+        CollMeanCell = CollMeanCell + Coll_pData(iPair)%Prob
+      END IF
+
     END DO
+    IF(Time.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN ! mean collision probability of cell
+      IF (ProbMeanCellCount.eq.0) THEN
+        ELSE                                              
+        CollMean(iElem,1)=CollMean(iElem,1)+ProbMeanCell/ProbMeanCellCount
+      END IF
+        CollMean(iElem,2)=CollMean(iElem,2)+CollMeanCell/nPair
+    END IF
     DEALLOCATE(Coll_pData)
   END IF                                                                                     ! no end octree
 END DO
@@ -119,7 +140,6 @@ IF (.NOT.WriteMacroValues) THEN
     END IF
   END IF
 END IF
-
 END SUBROUTINE DSMC_main
 
 !--------------------------------------------------------------------------------------------------!

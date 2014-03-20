@@ -110,6 +110,10 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_P
   SampDSMC(1:nElems,1:nSpecies)%ERot      = 0
   SampDSMC(1:nElems,1:nSpecies)%EVib      = 0
   SampDSMC(1:nElems,1:nSpecies)%EElec     = 0
+
+  ALLOCATE(CollMean(nElems,2))
+  CollMean(1:nElems,1:2)=0
+
 ! definition of DSMC particle values
   ALLOCATE(DSMC_RHS(PDM%maxParticleNumber,3))
   DSMC_RHS = 0

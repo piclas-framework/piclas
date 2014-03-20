@@ -76,7 +76,6 @@ INTEGER                       :: iPart, iElem
       END IF
     END IF
   END DO
-
 END SUBROUTINE DSMC_data_sampling
 
 !--------------------------------------------------------------------------------------------------!
@@ -85,8 +84,10 @@ END SUBROUTINE DSMC_data_sampling
 SUBROUTINE DSMC_output_calc(nOutput)
 
   USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, MacroDSMC, CollisMode, SpecDSMC, realtime
+  USE MOD_DSMC_Vars,              ONLY : CollMean, CollMeanOut
   USE MOD_Mesh_Vars,              ONLY : nElems,MeshFile
   USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species, GEO, PartSpecies, usevMPF
+  USE MOD_TimeDisc_Vars,          ONLY : iter
 !--------------------------------------------------------------------------------------------------!
 ! statistical pairing method                                                                       !
 !--------------------------------------------------------------------------------------------------!
@@ -117,6 +118,8 @@ INTEGER, INTENT(IN)           :: nOutput                                        
   MacroDSMC(1:nElems,1:nSpecies+1)%TVib      = 0
   MacroDSMC(1:nElems,1:nSpecies+1)%TRot      = 0
   MacroDSMC(1:nElems,1:nSpecies+1)%TElec     = 0
+  ALLOCATE(CollMeanOut(nElems,2))
+  CollMeanOut(1:nElems,1:2) = 0
   
   DO iSpec = 1, nSpecies
     DO iElem = 1, nElems ! element/cell main loop    
@@ -237,11 +240,13 @@ INTEGER, INTENT(IN)           :: nOutput                                        
         MacroDSMC(iElem,nSpecies + 1)%PartNum = MacroDSMC(iElem,nSpecies + 1)%PartNum + MacroDSMC(iElem,iSpec)%PartNum
       END DO
     END IF
+    CollMeanOut(iElem,1) = CollMean(iElem,1) / iter
+    CollMeanOut(iElem,2) = CollMean(iElem,2) / iter
   END DO
   CALL WriteDSMCToHDF5(TRIM(MeshFile),realtime)
 !  CALL WriteOutputDSMC(nOutput)
   DEALLOCATE(MacroDSMC)
-  
+  DEALLOCATE(CollMeanOut)
 END SUBROUTINE DSMC_output_calc
 
 !--------------------------------------------------------------------------------------------------!
@@ -327,7 +332,7 @@ SUBROUTINE WriteOutputDSMC(nOutput)
    USE MOD_Globals
    USE MOD_Particle_Vars
    USE MOD_Mesh_Vars,     ONLY : nElems, nNodes
-   USE MOD_DSMC_Vars,     ONLY : MacroDSMC, CollisMode, SpecDSMC, useDSMC
+   USE MOD_DSMC_Vars,     ONLY : MacroDSMC, CollisMode, SpecDSMC, useDSMC, CollMeanOut
 #ifdef MPI
    USE MOD_part_MPI_Vars, ONLY : PMPIVAR
 #endif
@@ -522,7 +527,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
    USE MOD_HDF5_output
    USE MOD_PARTICLE_Vars, ONLY:nSpecies
    USE MOD_Mesh_Vars,ONLY:offsetElem,nGlobalElems
-   USE MOD_DSMC_Vars,     ONLY :MacroDSMC, CollisMode, DSMC
+   USE MOD_DSMC_Vars,     ONLY :MacroDSMC, CollisMode, DSMC, CollMeanOut
    USE MOD_Output_Vars,   ONLY:ProjectName
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
@@ -572,6 +577,8 @@ CALL WriteArrayToHDF5('DSMC_dens',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offse
                                                                                           RealArray=MacroDSMC(:,:)%NumDens)
 CALL WriteArrayToHDF5('DSMC_partnum',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
                                                                                           RealArray=MacroDSMC(:,:)%PartNum)
+CALL WriteArrayToHDF5('DSMC_collmean',nGlobalElems,2,(/PP_nElems, 2/),offsetElem,1,existing=.FALSE., &
+                                                                                          RealArray=CollMeanOut(:,:))
 IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
   CALL WriteArrayToHDF5('DSMC_tvib',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,existing=.FALSE., &
                                                                                           RealArray=MacroDSMC(:,:)%TVib)  
@@ -629,29 +636,23 @@ Statedummy = 'DSMCSurfState'
 CALL WriteHDF5Header(Statedummy,File_ID)
 ! Write DG solution ----------------------------------------------------------------------------------------------------------------
 nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
-!CALL WriteArrayToHDF5('DSMC_velx',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV(1))
-!CALL WriteArrayToHDF5('DSMC_vely',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV(2))
-!CALL WriteArrayToHDF5('DSMC_velz',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV(3))
-!CALL WriteArrayToHDF5('DSMC_vel',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV(4))
-!CALL WriteArrayToHDF5('DSMC_velx2',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV2(1))
-!CALL WriteArrayToHDF5('DSMC_vely2',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV2(2))
-!CALL WriteArrayToHDF5('DSMC_velz2',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartV2(3))
-!CALL WriteArrayToHDF5('DSMC_tempx',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%Temp(1))
-!CALL WriteArrayToHDF5('DSMC_tempy',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%Temp(2))
-!CALL WriteArrayToHDF5('DSMC_tempz',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%Temp(3))
-!CALL WriteArrayToHDF5('DSMC_temp',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%Temp(4))
-!CALL WriteArrayToHDF5('DSMC_dens',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%NumDens)
-!CALL WriteArrayToHDF5('DSMC_partnum',nGlobalElems,2,(/PP_nElems, nSpecies+1/),offsetElem,1,RealArray=MacroDSMC(:,:)%PartNum)
+
+CALL WriteArrayToHDF5('DSMC_ForceX',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetElem,1, &
+                                                                           existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Force(1))
+CALL WriteArrayToHDF5('DSMC_ForceY',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetElem,1, &
+                                                                           existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Force(2))
+CALL WriteArrayToHDF5('DSMC_ForceZ',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetElem,1, & 
+                                                                           existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Force(3))
+CALL WriteArrayToHDF5('DSMC_Heatflux',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetElem,1, &
+                                                                           existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Heatflux)
+CALL WriteArrayToHDF5('DSMC_Counter',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetElem,1, &
+                                                                           existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Counter(1))
 
 CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
 CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
 MeshFile255=TRIM(MeshFileName)
 CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=MeshFile255)
 CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
-
-!CALL WriteAttributeToHDF5(File_ID,'DSMCSurf_nSurfNode',1,IntegerScalar=SurfMesh%nSurfaceNode)
-!CALL WriteArrayToHDF5('DSMC_partnum',nGlobalElems,2,(/PP_nElems, SurfMesh%nSurfaceNode/), &
-!      offsetElem,1,IntegerArray=SurfMesh%BCSurfNodes(:)
 
 CALL CloseDataFile()
 
@@ -663,9 +664,10 @@ END SUBROUTINE WriteDSMCSurfToHDF5
 
 
 SUBROUTINE CalcSurfaceValues(nOutput)
-   USE MOD_DSMC_Vars,      ONLY : SurfMesh, SampWall, MacroSurfaceVal, DSMC
+   USE MOD_DSMC_Vars,      ONLY : SurfMesh, SampWall, MacroSurfaceVal, DSMC, realtime
    USE MOD_Particle_Vars,  ONLY : Time
-   USE MOD_TimeDisc_Vars,  ONLY : TEnd  
+   USE MOD_TimeDisc_Vars,  ONLY : TEnd
+   USE MOD_Mesh_Vars,      ONLY : MeshFile  
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -690,7 +692,7 @@ SUBROUTINE CalcSurfaceValues(nOutput)
     MacroSurfaceVal(iElem)%Counter(1) = SampWall(iElem)%Counter(1) / (Time-(1-DSMC%TimeFracSamp)*TEnd)
   END DO
 
-  CALL WriteOutputSurfaceMesh(nOutput)
+  CALL WriteDSMCSurfToHDF5(TRIM(MeshFile),realtime)
   DEALLOCATE(MacroSurfaceVal)
 
 END SUBROUTINE CalcSurfaceValues

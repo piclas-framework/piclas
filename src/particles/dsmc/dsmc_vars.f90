@@ -25,6 +25,10 @@ INTEGER                       :: PairE_vMPF(2)  ! 1: Pair chosen for energy redi
 LOGICAL                       :: useDSMC
 REAL    , ALLOCATABLE         :: PartStateIntEn(:,:) ! (npartmax,1:3) with 2nd index: Evib, Erot, Eel
 
+REAL  , ALLOCATABLE           :: CollMean(:,:)     ! Mean collision probability summed over time
+REAL  , ALLOCATABLE           :: CollMeanOut(:,:)  ! Time-average mean collision probability per cell
+                                                   ! (1: Probability of actual collisions, 2: all collision probabilities)
+
 TYPE tSpecInit
   REAL                        :: TVib                 ! vibrational temperature, ini_1
   REAL                        :: TRot                 ! rotational temperature, ini_1
