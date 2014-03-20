@@ -409,6 +409,7 @@ SUBROUTINE FillStrings(IniFile)
 ! with "firstString"
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_ISO_VARYING_STRING
 USE MOD_DSMC_Vars,ONLY: UseDSMC
 ! IMPLICIT VARIABLE HANDLING
@@ -420,11 +421,14 @@ CHARACTER(LEN=*),INTENT(IN),OPTIONAL   :: IniFile                    ! Name of i
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-TYPE(tString),POINTER                  :: Str1=>NULL(),Str2=>NULL()
-CHARACTER(LEN=255)                     :: HelpStr,Str
-CHARACTER(LEN=300)                     :: File, DSMCFile
-TYPE(Varying_String)                   :: aStr,bStr,Separator
-INTEGER                                :: EOF
+TYPE(tString),POINTER                       :: Str1=>NULL(),Str2=>NULL()
+CHARACTER(LEN=255)                          :: HelpStr,Str
+CHARACTER(LEN=300)                          :: File, DSMCFile
+TYPE(Varying_String)                        :: aStr,bStr,Separator
+INTEGER                                     :: EOF
+INTEGER                                     :: stat,iniUnit,nLines,i
+CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent,FileContent2
+CHARACTER(LEN=1)                            :: tmpChar=''
 !===================================================================================================================================
 ! Check if we have read in ini file already
 IF (ReadInDone) RETURN
@@ -437,102 +441,155 @@ ELSE
 END IF
 SWRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(File),'":'
 
-OPEN(UNIT   = 103,        &
-     FILE   = File,       &
-     STATUS = 'OLD',      &
-     ACTION = 'READ',     &
-     ACCESS = 'SEQUENTIAL')
-EOF=0
+IF(MPIRoot)THEN
+  iniUnit=GETFREEUNIT()
+  OPEN(UNIT   = iniUnit,       &
+       FILE   = File,          &
+       STATUS = 'OLD',         &
+       ACTION = 'READ',        &
+       ACCESS = 'SEQUENTIAL',  &
+       IOSTAT = stat)
+  IF(stat.NE.0) THEN
+    CALL abort(__STAMP__,"Could not open ini file.")
+  ELSE
+    nLines=0
+    stat=0
+    DO
+      READ(iniunit,"(A)",IOSTAT=stat)tmpChar
+      IF(stat.NE.0)EXIT
+      nLines=nLines+1
+    END DO
+  END IF
+END IF
+#ifdef MPI
+CALL MPI_BCAST(nLines,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+#endif
+ALLOCATE(FileContent(nLines))
+IF (MPIRoot) THEN
+  !read file
+  REWIND(iniUnit)
+  READ(iniUnit,'(A)')FileContent
+  CLOSE(iniUnit)
+END IF
+#ifdef MPI
+CALL MPI_BCAST(FileContent,LEN(FileContent)*nLines,MPI_CHARACTER,0,MPI_COMM_WORLD,iError)
+#endif
+
 NULLIFY(Str1,Str2)
-DO WHILE(EOF.NE.-1)
+DO i=1,nLines
   IF(.NOT.ASSOCIATED(Str1)) CALL GetNewString(Str1)
-    ! Read line from file
-    CALL Get(103,aStr,iostat=EOF)
-    Str=aStr
-    IF (EOF.NE.-1) THEN
-      ! Remove comments with "!"
-      CALL Split(aStr,Str1%Str,"!")
-      ! Remove comments with "#"
-      CALL Split(Str1%Str,bStr,"#")
-      Str1%Str=bStr
-      ! Remove "%" sign from old ini files, i.e. mesh% disc% etc.
-      CALL Split(Str1%Str,bStr,"%",Separator,Back=.false.)
-      ! If we have a newtype ini file, take the other part
-      IF(LEN(CHAR(Separator)).EQ.0) Str1%Str=bStr
-      ! Remove blanks
-      Str1%Str=Replace(Str1%Str," ","",Every=.true.)
-      ! Replace brackets
-      Str1%Str=Replace(Str1%Str,"(/"," ",Every=.true.)
-      Str1%Str=Replace(Str1%Str,"/)"," ",Every=.true.)
-      ! Replace commas
-      Str1%Str=Replace(Str1%Str,","," ",Every=.true.)
-      ! Lower case
-      CALL LowCase(CHAR(Str1%Str),HelpStr)
-      ! If we have a remainder (no comment only)
-      IF(LEN_TRIM(HelpStr).GT.2) THEN
-        Str1%Str=Var_Str(HelpStr)
-        IF(.NOT.ASSOCIATED(Str2)) THEN
-          FirstString=>Str1
-        ELSE
-          Str2%NextStr=>Str1
-          Str1%PrevStr=>Str2
-        END IF
-        Str2=>Str1
-        CALL GetNewString(Str1)
-      END IF
+  ! Read line from memory
+  aStr=var_str(FileContent(i))
+  Str=aStr
+  ! Remove comments with "!"
+  CALL Split(aStr,Str1%Str,"!")
+  ! Remove comments with "#"
+  CALL Split(Str1%Str,bStr,"#")
+  Str1%Str=bStr
+  ! Remove "%" sign from old ini files, i.e. mesh% disc% etc.
+  CALL Split(Str1%Str,bStr,"%",Separator,Back=.false.)
+
+  ! If we have a newtype ini file, take the other part
+  IF(LEN(CHAR(Separator)).EQ.0) Str1%Str=bStr
+  ! Remove blanks
+  Str1%Str=Replace(Str1%Str," ","",Every=.true.)
+  ! Replace brackets
+  Str1%Str=Replace(Str1%Str,"(/"," ",Every=.true.)
+  Str1%Str=Replace(Str1%Str,"/)"," ",Every=.true.)
+  ! Replace commas
+  Str1%Str=Replace(Str1%Str,","," ",Every=.true.)
+  ! Lower case
+  CALL LowCase(CHAR(Str1%Str),HelpStr)
+  ! If we have a remainder (no comment only)
+  IF(LEN_TRIM(HelpStr).GT.2) THEN
+    Str1%Str=Var_Str(HelpStr)
+    IF(.NOT.ASSOCIATED(Str2)) THEN
+      FirstString=>Str1
+    ELSE
+      Str2%NextStr=>Str1
+      Str1%PrevStr=>Str2
     END IF
+    Str2=>Str1
+    CALL GetNewString(Str1)
+  END IF
 END DO
-CLOSE(103)
 
 IF (useDSMC) THEN
-  CALL GETARG(2,DSMCFile)
-  SWRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(DSMCFile),'":'
-  OPEN(UNIT   = 104,        &
-       FILE   = DSMCFile,       &
-       STATUS = 'OLD',      &
-       ACTION = 'READ',     &
-       ACCESS = 'SEQUENTIAL')
-  EOF=0
-  DO WHILE(EOF.NE.-1)
+  IF(MPIRoot) THEN  
+    CALL GETARG(2,DSMCFile)
+    SWRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(DSMCFile),'":'
+    iniUnit=GETFREEUNIT()
+    OPEN(UNIT   = iniUnit,    &
+         FILE   = DSMCFile,       &
+         STATUS = 'OLD',      &
+         ACTION = 'READ',     &
+         ACCESS = 'SEQUENTIAL',&
+         IOSTAT = stat)
+    IF(stat.NE.0) THEN
+      CALL abort(__STAMP__,"Could not open ini file.")
+    ELSE
+      nLines=0
+      stat=0
+      DO
+        READ(iniunit,"(A)",IOSTAT=stat)tmpChar
+        IF(stat.NE.0)EXIT
+        nLines=nLines+1
+      END DO
+    END IF
+  END IF
+#ifdef MPI
+  CALL MPI_BCAST(nLines,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+#endif
+  ALLOCATE(FileContent2(nLines))
+  IF (MPIRoot) THEN
+    !read file
+    REWIND(iniUnit)
+    READ(iniUnit,'(A)')FileContent2
+    CLOSE(iniUnit)
+  END IF
+#ifdef MPI
+  CALL MPI_BCAST(FileContent2,LEN(FileContent2)*nLines,MPI_CHARACTER,0,MPI_COMM_WORLD,iError)
+#endif
+  NULLIFY(Str1,Str2)
+  DO i=1,nLines
     IF(.NOT.ASSOCIATED(Str1)) CALL GetNewString(Str1)
-      ! Read line from file
-      CALL Get(104,aStr,iostat=EOF)
-      Str=aStr
-      IF (EOF.NE.-1) THEN
-        ! Remove comments with "!"
-        CALL Split(aStr,Str1%Str,"!")
-        ! Remove comments with "#"
-        CALL Split(Str1%Str,bStr,"#")
-        Str1%Str=bStr
-        ! Remove "%" sign from old ini files, i.e. mesh% disc% etc.
-        CALL Split(Str1%Str,bStr,"%",Separator,Back=.false.)
-        ! If we have a newtype ini file, take the other part
-        IF(LEN(CHAR(Separator)).EQ.0) Str1%Str=bStr
-        ! Remove blanks
-        Str1%Str=Replace(Str1%Str," ","",Every=.true.)
-        ! Replace brackets
-        Str1%Str=Replace(Str1%Str,"(/"," ",Every=.true.)
-        Str1%Str=Replace(Str1%Str,"/)"," ",Every=.true.)
-        ! Replace commas
-        Str1%Str=Replace(Str1%Str,","," ",Every=.true.)
-        ! Lower case
-        CALL LowCase(CHAR(Str1%Str),HelpStr)
-        ! If we have a remainder (no comment only)
-        IF(LEN_TRIM(HelpStr).GT.2) THEN
-          Str1%Str=Var_Str(HelpStr)
-          IF(.NOT.ASSOCIATED(Str2)) THEN
-            FirstString=>Str1
-          ELSE
-            Str2%NextStr=>Str1
-            Str1%PrevStr=>Str2
-          END IF
-          Str2=>Str1
-          CALL GetNewString(Str1)
-        END IF
+    ! Read line from memory
+    aStr=var_str(FileContent2(i))
+    Str=aStr
+    ! Remove comments with "!"
+    CALL Split(aStr,Str1%Str,"!")
+    ! Remove comments with "#"
+    CALL Split(Str1%Str,bStr,"#")
+    Str1%Str=bStr
+    ! Remove "%" sign from old ini files, i.e. mesh% disc% etc.
+    CALL Split(Str1%Str,bStr,"%",Separator,Back=.false.)
+  
+    ! If we have a newtype ini file, take the other part
+    IF(LEN(CHAR(Separator)).EQ.0) Str1%Str=bStr
+    ! Remove blanks
+    Str1%Str=Replace(Str1%Str," ","",Every=.true.)
+    ! Replace brackets
+    Str1%Str=Replace(Str1%Str,"(/"," ",Every=.true.)
+    Str1%Str=Replace(Str1%Str,"/)"," ",Every=.true.)
+    ! Replace commas
+    Str1%Str=Replace(Str1%Str,","," ",Every=.true.)
+    ! Lower case
+    CALL LowCase(CHAR(Str1%Str),HelpStr)
+    ! If we have a remainder (no comment only)
+    IF(LEN_TRIM(HelpStr).GT.2) THEN
+      Str1%Str=Var_Str(HelpStr)
+      IF(.NOT.ASSOCIATED(Str2)) THEN
+        FirstString=>Str1
+      ELSE
+        Str2%NextStr=>Str1
+        Str1%PrevStr=>Str2
       END IF
+      Str2=>Str1
+      CALL GetNewString(Str1)
+    END IF
   END DO
-CLOSE(104)
 END IF
+
 END SUBROUTINE FillStrings
 
 

@@ -1,3571 +1,2618 @@
-MODULE MOD_ISO_VARYING_STRING
-  
-! Written by J.L.Schonfelder 
-! Incorporating suggestions by C.Tanasescu, C.Weber, J.Wagener and W.Walter,
-! and corrections due to L.Moss, M.Cohen, P.Griffiths, B.T.Smith
-! and many other members of the committee ISO/IEC JTC1/SC22/WG5
+module MOD_ISO_VARYING_STRING
+! Modified version of Rich Townsend's iso_varying_string.f90, minimal
+! modifications have been made in order to make the internal string
+! storage compatible with a null-terminated C string; the original API
+! has not changed, it has been completed with a constructor from a
+! pointer to a C null-terminated string and a function returning a C
+! const char* pointer to an existing varying string. The iso_c_binding
+! intrinsic module is now required.
+!
+!    Copyright 2003 Rich Townsend <rhdt@bartol.udel.edu>
+!    Copyright 2011 Davide Cesari <dcesari69 at gmail dot com>
+!
+!    This file is part of FortranGIS.
+!
+! The original copyright notice follows:
+! ******************************************************************************
+! *                                                                            *
+! * iso_varying_string.f90                                                     *
+! *                                                                            *
+! * Copyright (c) 2003, Rich Townsend <rhdt@bartol.udel.edu>                   *
+! * All rights reserved.                                                       *
+! *                                                                            *
+! * Redistribution and use in source and binary forms, with or without         *
+! * modification, are permitted provided that the following conditions are     *
+! * met:                                                                       *
+! *                                                                            *
+! *  * Redistributions of source code must retain the above copyright notice,  *
+! *    this list of conditions and the following disclaimer.                   *
+! *  * Redistributions in binary form must reproduce the above copyright       *
+! *    notice, this list of conditions and the following disclaimer in the     *
+! *    documentation and/or other materials provided with the distribution.    *
+! *                                                                            *
+! * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS    *
+! * IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,  *
+! * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR     *
+! * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR           *
+! * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,      *
+! * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,        *
+! * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR         *
+! * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF     *
+! * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING       *
+! * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS         *
+! * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.               *
+! *                                                                            *
+! ******************************************************************************
+!
+! Author    : Rich Townsend <rhdt@bartol.udel.edu>
+! Synopsis  : Definition of iso_varying_string module, conformant to the API 
+!             specified in ISO/IEC 1539-2:2000 (varying-length strings for 
+!             Fortran 95). 
+! Version   : 1.3-F
+! Thanks    : Lawrie Schonfelder (bugfixes and design pointers), Walt Brainerd
+!             (conversion to F).
 
-! Version produced (??-Jul-94)
+USE,INTRINSIC :: iso_c_binding
 
-!-----------------------------------------------------------------------------! 
-! This module defines the interface and one possible implementation for a     ! 
-! dynamic length character string facility in Fortran 90. The Fortran 90      !
-! language is defined by the standard ISO/IEC 1539 : 1991.                    !
-! The publicly accessible interface defined by this module is conformant      !
-! with the auxilliary standard, ISO/IEC 1539-2 : 1994.                        !
-! The detailed implementation may be considered as an informal definition of  !
-! the required semantics, and may also be used as a guide to the production   !
-! of a portable implementation.                                               !
-! N.B. Although every care has been taken to produce valid Fortran code in    ! 
-!      construction of this module no guarantee is given or implied that this ! 
-!      code will work correctly without error on any specific processor, nor  !
-!      is this implementation intended to be in any way optimal either in use !
-!      of storage or CPU cycles.                                              !
-!-----------------------------------------------------------------------------! 
-  
-PRIVATE 
-  
-!-----------------------------------------------------------------------------! 
-! By default all entities declared or defined in this module are private to   !
-! the module. Only those entities declared explicitly as being public are     ! 
-! accessible to programs using the module. In particular, the procedures and  ! 
-! operators defined herein are made accessible via their generic identifiers  ! 
-! only; their specific names are private.                                     ! 
-!-----------------------------------------------------------------------------! 
-  
-TYPE VARYING_STRING
- PRIVATE 
- CHARACTER,DIMENSION(:),POINTER :: chars 
-ENDTYPE VARYING_STRING 
-  
-!-----------------------------------------------------------------------------! 
-! The representation chosen for this definition of the module is of a string  ! 
-! type consisting of a single component that is a pointer to a rank one array ! 
-! of characters.                                                              ! 
-! Note: this Module is defined only for characters of default kind. A similar ! 
-! module could be defined for non-default characters if these are supported   ! 
-! on a processor by adding a KIND parameter to the component in the type      ! 
-! definition, and to all delarations of objects of CHARACTER type.            ! 
-!-----------------------------------------------------------------------------! 
-  
-CHARACTER,PARAMETER :: blank = " " 
-  
-!----- GENERIC PROCEDURE INTERFACE DEFINITIONS -------------------------------! 
-  
-!----- LEN interface ---------------------------------------------------------! 
-INTERFACE LEN 
-  MODULE PROCEDURE len_s   ! length of string
-ENDINTERFACE 
-  
-!----- Conversion procedure interfaces ---------------------------------------!
-INTERFACE VAR_STR
-  MODULE PROCEDURE c_to_s   ! character to string
-ENDINTERFACE 
-  
-INTERFACE CHAR
-  MODULE PROCEDURE s_to_c, &   ! string to character
-                   s_to_fix_c  ! string to specified length character
-ENDINTERFACE 
-  
-!----- ASSIGNMENT interfaces -------------------------------------------------! 
-INTERFACE ASSIGNMENT(=) 
-  MODULE PROCEDURE s_ass_s, &   ! string    = string
-                   c_ass_s, &   ! character = string
-                   s_ass_c      ! string    = character
-ENDINTERFACE 
-  
-!----- Concatenation operator interfaces -------------------------------------!
-INTERFACE OPERATOR(//) 
-  MODULE PROCEDURE s_concat_s, &  ! string//string
-                   s_concat_c, &  ! string//character
-                   c_concat_s     ! character//string
-ENDINTERFACE 
-  
-!----- Repeated Concatenation interface --------------------------------------! 
-INTERFACE REPEAT 
-  MODULE PROCEDURE repeat_s
-ENDINTERFACE 
-  
-!------ Equality comparison operator interfaces-------------------------------!
-INTERFACE OPERATOR(==) 
-  MODULE PROCEDURE s_eq_s, &  ! string==string
-                   s_eq_c, &  ! string==character
-                   c_eq_s     ! character==string
-ENDINTERFACE 
-  
-!----- not-equality comparison operator interfaces ---------------------------! 
-INTERFACE OPERATOR(/=) 
-  MODULE PROCEDURE s_ne_s, &  ! string/=string
-                   s_ne_c, &  ! string/=character
-                   c_ne_s     ! character/=string
-ENDINTERFACE 
-  
-!----- less-than comparison operator interfaces ------------------------------!
-INTERFACE OPERATOR(<) 
-  MODULE PROCEDURE s_lt_s, &  ! string<string
-                   s_lt_c, &  ! string<character
-                   c_lt_s     ! character<string
-ENDINTERFACE 
-  
-!----- less-than-or-equal comparison operator interfaces ---------------------! 
-INTERFACE OPERATOR(<=) 
-  MODULE PROCEDURE s_le_s, &  ! string<=string
-                   s_le_c, &  ! string<=character
-                   c_le_s     ! character<=string
-ENDINTERFACE 
-  
-!----- greater-than-or-equal comparison operator interfaces ------------------!
-INTERFACE OPERATOR(>=) 
-  MODULE PROCEDURE s_ge_s, &  ! string>=string
-                   s_ge_c, &  ! string>=character
-                   c_ge_s     ! character>=string
-ENDINTERFACE 
-  
-!----- greater-than comparison operator interfaces ---------------------------! 
-INTERFACE OPERATOR(>) 
-  MODULE PROCEDURE s_gt_s, &  ! string>string
-                   s_gt_c, &  ! string>character
-                   c_gt_s     ! character>string
-ENDINTERFACE 
-  
-!----- LLT procedure interfaces ----------------------------------------------!
-INTERFACE LLT 
-  MODULE PROCEDURE s_llt_s, &  ! LLT(string,string)
-                   s_llt_c, &  ! LLT(string,character)
-                   c_llt_s     ! LLT(character,string)
-ENDINTERFACE 
-  
-!----- LLE procedure interfaces ----------------------------------------------! 
-INTERFACE LLE 
-  MODULE PROCEDURE s_lle_s, &  ! LLE(string,string)
-                   s_lle_c, &  ! LLE(string,character)
-                   c_lle_s     ! LLE(character,string)
-ENDINTERFACE 
-  
-!----- LGE procedure interfaces ----------------------------------------------!
-INTERFACE LGE 
-  MODULE PROCEDURE s_lge_s, &  ! LGE(string,string)
-                   s_lge_c, &  ! LGE(string,character)
-                   c_lge_s     ! LGE(character,string)
-ENDINTERFACE 
-  
-!----- LGT procedure interfaces ----------------------------------------------! 
-INTERFACE LGT 
-  MODULE PROCEDURE s_lgt_s, &  ! LGT(string,string)
-                   s_lgt_c, &  ! LGT(string,character)
-                   c_lgt_s     ! LGT(character,string)
-ENDINTERFACE 
-  
-!----- Input procedure interfaces --------------------------------------------!
-INTERFACE GET
-  MODULE PROCEDURE get_d_eor, &    ! default unit, EoR termination
-                   get_u_eor, &    ! specified unit, EoR termination
-                   get_d_tset_s, & ! default unit, string set termination
-                   get_u_tset_s, & ! specified unit, string set termination
-                   get_d_tset_c, & ! default unit, char set termination
-                   get_u_tset_c    ! specified unit, char set termination
-ENDINTERFACE 
-  
-!----- Output procedure interfaces -------------------------------------------!
-INTERFACE PUT
-  MODULE PROCEDURE put_d_s, & ! string to default unit
-                   put_u_s, & ! string to specified unit
-                   put_d_c, & ! char to default unit
-                   put_u_c    ! char to specified unit
-ENDINTERFACE 
-  
-INTERFACE PUT_LINE
-  MODULE PROCEDURE putline_d_s, & ! string to default unit
-                   putline_u_s, & ! string to specified unit
-                   putline_d_c, & ! char to default unit
-                   putline_u_c    ! char to specified unit
-ENDINTERFACE 
-  
-!----- Insert procedure interfaces -------------------------------------------!
-INTERFACE INSERT 
-  MODULE PROCEDURE insert_ss, & ! string in string
-                   insert_sc, & ! char in string
-                   insert_cs, & ! string in char
-                   insert_cc    ! char in char
-ENDINTERFACE 
+! No implicit typing
 
-!----- Replace procedure interfaces ------------------------------------------!
-INTERFACE REPLACE 
-  MODULE PROCEDURE replace_ss, &   ! string by string, at specified
-                   replace_sc, &   ! string by char  , starting
-                   replace_cs, &   ! char by string  , point
-                   replace_cc, &   ! char by char
-                   replace_ss_sf,& ! string by string, between
-                   replace_sc_sf,& ! string by char  , specified
-                   replace_cs_sf,& ! char by string  , starting and
-                   replace_cc_sf,& ! char by char    , finishing points
-                   replace_sss, &  ! in string replace string by string
-                   replace_ssc, &  ! in string replace string by char
-                   replace_scs, &  ! in string replace char by string
-                   replace_scc, &  ! in string replace char by char
-                   replace_css, &  ! in char replace string by string
-                   replace_csc, &  ! in char replace string by char
-                   replace_ccs, &  ! in char replace char by string
-                   replace_ccc     ! in char replace char by char
-ENDINTERFACE 
+  implicit none
 
-!----- Remove procedure interface --------------------------------------------! 
-INTERFACE REMOVE 
-  MODULE PROCEDURE remove_s, & ! characters from string, between start
-                   remove_c    ! characters from char  , and finish
-ENDINTERFACE 
-  
-!----- Extract procedure interface -------------------------------------------!
-INTERFACE EXTRACT 
-  MODULE PROCEDURE extract_s, & ! from string extract string, between start
-                   extract_c    ! from char   extract string, and finish
-ENDINTERFACE 
-  
-!----- Split procedure interface ---------------------------------------------!
-INTERFACE SPLIT
-  MODULE PROCEDURE split_s, & ! split string at first occurance of
-                   split_c    !   character in set
-ENDINTERFACE
+! Parameter definitions
 
-!----- Index procedure interfaces --------------------------------------------!
-INTERFACE INDEX 
-  MODULE PROCEDURE index_ss, index_sc, index_cs
-ENDINTERFACE 
-  
-!----- Scan procedure interfaces ---------------------------------------------!
-INTERFACE SCAN 
-  MODULE PROCEDURE scan_ss, scan_sc, scan_cs
-ENDINTERFACE 
-  
-!----- Verify procedure interfaces -------------------------------------------!
-INTERFACE VERIFY 
-  MODULE PROCEDURE verify_ss, verify_sc, verify_cs
-ENDINTERFACE 
-  
-!----- Interfaces for remaining intrinsic function overloads -----------------!
-INTERFACE LEN_TRIM 
-  MODULE PROCEDURE len_trim_s
-ENDINTERFACE 
-  
-INTERFACE TRIM 
-  MODULE PROCEDURE trim_s
-ENDINTERFACE 
-  
-INTERFACE IACHAR
-  MODULE PROCEDURE iachar_s
-ENDINTERFACE 
-  
-INTERFACE ICHAR 
-  MODULE PROCEDURE ichar_s
-ENDINTERFACE 
-  
-INTERFACE ADJUSTL 
-  MODULE PROCEDURE adjustl_s
-ENDINTERFACE 
-  
-INTERFACE ADJUSTR 
-  MODULE PROCEDURE adjustr_s
-ENDINTERFACE 
-  
-!----- specification of publically accessible entities -----------------------! 
-PUBLIC :: VARYING_STRING,VAR_STR,CHAR,LEN,GET,PUT,PUT_LINE,INSERT,REPLACE,   &
-          SPLIT,REMOVE,REPEAT,EXTRACT,INDEX,SCAN,VERIFY,LLT,LLE,LGE,LGT,     &
-          ASSIGNMENT(=),OPERATOR(//),OPERATOR(==),OPERATOR(/=),OPERATOR(<),  &
-          OPERATOR(<=),OPERATOR(>=),OPERATOR(>),LEN_TRIM,TRIM,IACHAR,ICHAR,  &
-          ADJUSTL,ADJUSTR
-  
-CONTAINS 
-  
-!----- LEN Procedure ---------------------------------------------------------! 
- FUNCTION len_s(string) 
-  type(VARYING_STRING),INTENT(IN) :: string 
-  INTEGER                         :: len_s 
-  ! returns the length of the string argument or zero if there is no current 
-  ! string value 
-  IF(.NOT.ASSOCIATED(string%chars))THEN 
-    len_s = 0 
-  ELSE 
-    len_s = SIZE(string%chars) 
-  ENDIF 
- ENDFUNCTION len_s 
-  
-!----- Conversion Procedures ------------------------------------------------! 
- FUNCTION c_to_s(chr) 
-  type(VARYING_STRING)        :: c_to_s 
-  CHARACTER(LEN=*),INTENT(IN) :: chr 
-  ! returns the string consisting of the characters char 
-  INTEGER                     :: lc,i 
-  lc=LEN(chr) 
-  ALLOCATE(c_to_s%chars(1:lc)) 
-  DO i=1,lc 
-    c_to_s%chars(i) = chr(i:i) 
-  ENDDO 
- ENDFUNCTION c_to_s 
-  
- FUNCTION s_to_c(string) 
-  type(VARYING_STRING),INTENT(IN)   :: string 
-  CHARACTER(LEN=SIZE(string%chars)) :: s_to_c 
-  ! returns the characters of string as an automatically sized character 
-  INTEGER                           :: lc,i 
-  lc=SIZE(string%chars) 
-  DO i=1,lc 
-    s_to_c(i:i) = string%chars(i) 
-  ENDDO 
- ENDFUNCTION s_to_c 
-  
- FUNCTION s_to_fix_c(string,length)
-  type(VARYING_STRING),INTENT(IN) :: string
-  INTEGER,INTENT(IN)              :: length
-  CHARACTER(LEN=length)           :: s_to_fix_c
-  ! returns the character of fixed length, length, containing the characters
-  ! of string either padded with blanks or truncated on the right to fit
-  INTEGER                         :: lc,i
-  lc=MIN(SIZE(string%chars),length)
-  DO i=1,lc 
-    s_to_fix_c(i:i) = string%chars(i)
-  ENDDO 
-  IF(lc < length)THEN  ! result longer than string padding needed
-    s_to_fix_c(lc+1:length) = blank
-  ENDIF
- ENDFUNCTION s_to_fix_c
+  integer, parameter, private :: GET_BUFFER_LEN = 256
 
-!----- ASSIGNMENT Procedures -------------------------------------------------!
- SUBROUTINE s_ass_s(var,expr) 
-  type(VARYING_STRING),INTENT(OUT) :: var 
-  type(VARYING_STRING),INTENT(IN)  :: expr 
-  !  assign a string value to a string variable overriding default assignement 
-  !  reallocates string variable to size of string value and copies characters 
-  ALLOCATE(var%chars(1:LEN(expr)))
-  var%chars = expr%chars 
- ENDSUBROUTINE s_ass_s 
-  
- SUBROUTINE c_ass_s(var,expr) 
-  CHARACTER(LEN=*),INTENT(OUT)    :: var 
-  type(VARYING_STRING),INTENT(IN) :: expr 
-  ! assign a string value to a character variable 
-  ! if the string is longer than the character truncate the string on the right 
-  ! if the string is shorter the character is blank padded on the right 
-  INTEGER                         :: lc,ls,i
-  lc = LEN(var); ls = MIN(LEN(expr),lc) 
-  DO i = 1,ls 
-   var(i:i) = expr%chars(i) 
-  ENDDO 
-  DO i = ls+1,lc 
-   var(i:i) = blank 
-  ENDDO 
- ENDSUBROUTINE c_ass_s 
-  
- SUBROUTINE s_ass_c(var,expr)
-  type(VARYING_STRING),INTENT(OUT) :: var 
-  CHARACTER(LEN=*),INTENT(IN)      :: expr 
-  !  assign a character value to a string variable 
-  !  disassociates the string variable from its current value, allocates new 
-  !  space to hold the characters and copies them from the character value 
-  !  into this space.
-  INTEGER                          :: lc,i
-  lc = LEN(expr) 
-  ALLOCATE(var%chars(1:lc)) 
-  DO i = 1,lc 
-    var%chars(i) = expr(i:i) 
-  ENDDO 
- ENDSUBROUTINE s_ass_c 
-  
-!----- Concatenation operator procedures ------------------------------------! 
- FUNCTION s_concat_s(string_a,string_b)  ! string//string 
-  type(VARYING_STRING),INTENT(IN) :: string_a,string_b 
-  type(VARYING_STRING)            :: s_concat_s 
-  INTEGER                         :: la,lb 
-  la = LEN(string_a); lb = LEN(string_b)
-  ALLOCATE(s_concat_s%chars(1:la+lb)) 
-  s_concat_s%chars(1:la) = string_a%chars 
-  s_concat_s%chars(1+la:la+lb) = string_b%chars 
- ENDFUNCTION s_concat_s 
-  
- FUNCTION s_concat_c(string_a,string_b)  ! string//character
-  type(VARYING_STRING),INTENT(IN) :: string_a 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_b 
-  type(VARYING_STRING)            :: s_concat_c 
-  INTEGER                         :: la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b)
-  ALLOCATE(s_concat_c%chars(1:la+lb)) 
-  s_concat_c%chars(1:la) = string_a%chars 
-  DO i = 1,lb
-    s_concat_c%chars(la+i) = string_b(i:i)
-  ENDDO 
- ENDFUNCTION s_concat_c 
-  
- FUNCTION c_concat_s(string_a,string_b)  ! character//string 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_a 
-  type(VARYING_STRING),INTENT(IN) :: string_b 
-  type(VARYING_STRING)            :: c_concat_s 
-  INTEGER                         :: la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b)
-  ALLOCATE(c_concat_s%chars(1:la+lb)) 
-  DO i = 1,la 
-     c_concat_s%chars(i) = string_a(i:i) 
-  ENDDO 
-  c_concat_s%chars(1+la:la+lb) = string_b%chars 
- ENDFUNCTION c_concat_s 
-  
-!----- Reapeated concatenation procedures -----------------------------------! 
-FUNCTION repeat_s(string,ncopies)                                     
- type(VARYING_STRING),INTENT(IN) :: string 
- INTEGER,INTENT(IN)              :: ncopies 
- type(VARYING_STRING)            :: repeat_s
- ! Returns a string produced by the concatenation of ncopies of the 
- ! argument string 
- INTEGER                         :: lr,ls,i 
- IF (ncopies < 0) THEN 
-     WRITE(*,*) " Negative ncopies requested in REPEAT" 
-     STOP 
- ENDIF 
- ls = LEN(string); lr = ls*ncopies 
- ALLOCATE(repeat_s%chars(1:lr))
- DO i = 1,ncopies 
-    repeat_s%chars(1+(i-1)*ls:i*ls) = string%chars 
- ENDDO 
-ENDFUNCTION repeat_s 
-  
-!------ Equality comparison operators ----------------------------------------! 
- FUNCTION s_eq_s(string_a,string_b)  ! string==string 
-  type(VARYING_STRING),INTENT(IN) :: string_a,string_b 
-  LOGICAL                         :: s_eq_s 
-  INTEGER                         :: la,lb 
-  la = LEN(string_a); lb = LEN(string_b)
-  IF (la > lb) THEN
-     s_eq_s = ALL(string_a%chars(1:lb) == string_b%chars) .AND. &
-              ALL(string_a%chars(lb+1:la) == blank)
-  ELSEIF (la < lb) THEN
-     s_eq_s = ALL(string_a%chars == string_b%chars(1:la)) .AND. &
-              ALL(blank == string_b%chars(la+1:lb))
-  ELSE
-     s_eq_s = ALL(string_a%chars == string_b%chars) 
-  ENDIF 
- ENDFUNCTION s_eq_s 
+! Type definitions
 
- FUNCTION s_eq_c(string_a,string_b)  ! string==character 
-  type(VARYING_STRING),INTENT(IN) :: string_a 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_b 
-  LOGICAL                         :: s_eq_c 
-  INTEGER                         :: la,lb,ls,i
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls
-    IF( string_a%chars(i) /= string_b(i:i) )THEN
-      s_eq_c = .FALSE.; RETURN
-    ENDIF
-  ENDDO
-  IF( la > lb .AND. ANY( string_a%chars(lb+1:la) /= blank ) )THEN
-    s_eq_c = .FALSE.; RETURN
-  ELSEIF( la < lb .AND. blank /= string_b(la+1:lb) )THEN
-    s_eq_c = .FALSE.; RETURN
-  ENDIF
-  s_eq_c = .TRUE.
- ENDFUNCTION s_eq_c 
-  
- FUNCTION c_eq_s(string_a,string_b)  ! character==string 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_a 
-  type(VARYING_STRING),INTENT(IN) :: string_b 
-  LOGICAL                         :: c_eq_s 
-  INTEGER                         :: la,lb,ls,i
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls
-    IF( string_a(i:i) /= string_b%chars(i) )THEN
-      c_eq_s = .FALSE.; RETURN
-    ENDIF
-  ENDDO
-  IF( la > lb .AND. string_a(lb+1:la) /= blank )THEN
-    c_eq_s = .FALSE.; RETURN
-  ELSEIF( la < lb .AND. ANY( blank /= string_b%chars(la+1:lb) ) )THEN
-    c_eq_s = .FALSE.; RETURN
-  ENDIF
-  c_eq_s = .TRUE.
- ENDFUNCTION c_eq_s 
-  
-!------ Non-equality operators -----------------------------------------------! 
- FUNCTION s_ne_s(string_a,string_b)  ! string/=string 
-  type(VARYING_STRING),INTENT(IN) :: string_a,string_b 
-  LOGICAL                         :: s_ne_s 
-  INTEGER                         :: la,lb 
-  la = LEN(string_a); lb = LEN(string_b)
-  IF (la > lb) THEN
-     s_ne_s = ANY(string_a%chars(1:lb) /= string_b%chars) .OR. &
-              ANY(string_a%chars(lb+1:la) /= blank)
-  ELSEIF (la < lb) THEN
-     s_ne_s = ANY(string_a%chars /= string_b%chars(1:la)) .OR. &
-              ANY(blank /= string_b%chars(la+1:lb))
-  ELSE
-     s_ne_s = ANY(string_a%chars /= string_b%chars)
-  ENDIF 
- ENDFUNCTION s_ne_s 
-  
- FUNCTION s_ne_c(string_a,string_b)  ! string/=character
-  type(VARYING_STRING),INTENT(IN) :: string_a 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_b 
-  LOGICAL                         :: s_ne_c 
-  INTEGER                         :: la,lb,ls,i
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls
-    IF( string_a%chars(i) /= string_b(i:i) )THEN
-      s_ne_c = .TRUE.; RETURN
-    ENDIF
-  ENDDO
-  IF( la > lb .AND. ANY( string_a%chars(lb+1:la) /= blank ) )THEN
-    s_ne_c = .TRUE.; RETURN
-  ELSEIF( la < lb .AND. blank /= string_b(la+1:lb) )THEN
-    s_ne_c = .TRUE.; RETURN
-  ENDIF
-  s_ne_c = .FALSE.
- ENDFUNCTION s_ne_c 
-  
- FUNCTION c_ne_s(string_a,string_b)  ! character/=string 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_a 
-  type(VARYING_STRING),INTENT(IN) :: string_b 
-  LOGICAL                         :: c_ne_s 
-  INTEGER                         :: la,lb,ls,i
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls
-    IF( string_a(i:i) /= string_b%chars(i) )THEN
-      c_ne_s = .TRUE.; RETURN
-    ENDIF
-  ENDDO
-  IF( la > lb .AND. string_a(lb+1:la) /= blank )THEN
-    c_ne_s = .TRUE.; RETURN
-  ELSEIF( la < lb .AND. ANY( blank /= string_b%chars(la+1:lb) ) )THEN
-    c_ne_s = .TRUE.; RETURN
-  ENDIF
-  c_ne_s = .FALSE.
- ENDFUNCTION c_ne_s 
-  
-!------ Less-than operators --------------------------------------------------! 
- FUNCTION s_lt_s(string_a,string_b)  ! string<string
-  type(VARYING_STRING),INTENT(IN) :: string_a,string_b 
-  LOGICAL                         :: s_lt_s 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a%chars(i) < string_b%chars(i) )THEN 
-      s_lt_s = .TRUE.; RETURN
-    ELSEIF( string_a%chars(i) > string_b%chars(i) )THEN 
-      s_lt_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( blank < string_b%chars(i) )THEN
-        s_lt_s = .TRUE.; RETURN
-      ELSEIF( blank > string_b%chars(i) )THEN
-        s_lt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( string_a%chars(i) < blank )THEN
-        s_lt_s = .TRUE.; RETURN
-      ELSEIF( string_a%chars(i) > blank )THEN
-        s_lt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_lt_s = .FALSE.
- ENDFUNCTION s_lt_s 
-  
- FUNCTION s_lt_c(string_a,string_b)  ! string<character 
-  type(VARYING_STRING),INTENT(IN) :: string_a 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_b 
-  LOGICAL                         :: s_lt_c 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a%chars(i) < string_b(i:i) )THEN 
-      s_lt_c = .TRUE.; RETURN
-    ELSEIF( string_a%chars(i) > string_b(i:i) )THEN 
-      s_lt_c = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    IF( blank < string_b(la+1:lb) )THEN
-      s_lt_c = .TRUE.; RETURN
-    ELSEIF( blank > string_b(la+1:lb) )THEN
-      s_lt_c = .FALSE.; RETURN
-    ENDIF
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( string_a%chars(i) < blank )THEN
-        s_lt_c = .TRUE.; RETURN
-      ELSEIF( string_a%chars(i) > blank )THEN
-        s_lt_c = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_lt_c = .FALSE.
- ENDFUNCTION s_lt_c 
-  
- FUNCTION c_lt_s(string_a,string_b)  ! character<string
-  CHARACTER(LEN=*),INTENT(IN)     :: string_a 
-  type(VARYING_STRING),INTENT(IN) :: string_b 
-  LOGICAL                         :: c_lt_s 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a(i:i) < string_b%chars(i) )THEN 
-      c_lt_s = .TRUE.; RETURN
-    ELSEIF( string_a(i:i) > string_b%chars(i) )THEN 
-      c_lt_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( blank < string_b%chars(i) )THEN
-        c_lt_s = .TRUE.; RETURN
-      ELSEIF( blank > string_b%chars(i) )THEN
-        c_lt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    IF( string_a(lb+1:la) < blank )THEN
-      c_lt_s = .TRUE.; RETURN
-    ELSEIF( string_a(lb+1:la) > blank )THEN
-      c_lt_s = .FALSE.; RETURN
-    ENDIF
-  ENDIF
-  c_lt_s = .FALSE.
- ENDFUNCTION c_lt_s 
+  type, public :: varying_string
+     private
+     character(LEN=1), dimension(:), allocatable :: chars
+  end type varying_string
 
-!------ Less-than-or-equal-to operators --------------------------------------! 
- FUNCTION s_le_s(string_a,string_b)  ! string<=string 
-  type(VARYING_STRING),INTENT(IN) :: string_a,string_b 
-  LOGICAL                         :: s_le_s 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a%chars(i) < string_b%chars(i) )THEN 
-      s_le_s = .TRUE.; RETURN
-    ELSEIF( string_a%chars(i) > string_b%chars(i) )THEN 
-      s_le_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( blank < string_b%chars(i) )THEN
-        s_le_s = .TRUE.; RETURN
-      ELSEIF( blank > string_b%chars(i) )THEN
-        s_le_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( string_a%chars(i) < blank )THEN
-        s_le_s = .TRUE.; RETURN
-      ELSEIF( string_a%chars(i) > blank )THEN
-        s_le_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_le_s = .TRUE.
- ENDFUNCTION s_le_s 
-  
- FUNCTION s_le_c(string_a,string_b)  ! string<=character
-  type(VARYING_STRING),INTENT(IN) :: string_a 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_b 
-  LOGICAL                         :: s_le_c 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a%chars(i) < string_b(i:i) )THEN 
-      s_le_c = .TRUE.; RETURN
-    ELSEIF( string_a%chars(i) > string_b(i:i) )THEN 
-      s_le_c = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    IF( blank < string_b(la+1:lb) )THEN
-      s_le_c = .TRUE.; RETURN
-    ELSEIF( blank > string_b(la+1:lb) )THEN
-      s_le_c = .FALSE.; RETURN
-    ENDIF
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( string_a%chars(i) < blank )THEN
-        s_le_c = .TRUE.; RETURN
-      ELSEIF( string_a%chars(i) > blank )THEN
-        s_le_c = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_le_c = .TRUE.
- ENDFUNCTION s_le_c 
-  
- FUNCTION c_le_s(string_a,string_b)  ! character<=string 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_a 
-  type(VARYING_STRING),INTENT(IN) :: string_b 
-  LOGICAL                         :: c_le_s 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a(i:i) < string_b%chars(i) )THEN 
-      c_le_s = .TRUE.; RETURN
-    ELSEIF( string_a(i:i) > string_b%chars(i) )THEN 
-      c_le_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( blank < string_b%chars(i) )THEN
-        c_le_s = .TRUE.; RETURN
-      ELSEIF( blank > string_b%chars(i) )THEN
-        c_le_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    IF( string_a(lb+1:la) < blank )THEN
-      c_le_s = .TRUE.; RETURN
-    ELSEIF( string_a(lb+1:la) > blank )THEN
-      c_le_s = .FALSE.; RETURN
-    ENDIF
-  ENDIF
-  c_le_s = .TRUE.
- ENDFUNCTION c_le_s 
-  
-!------ Greater-than-or-equal-to operators -----------------------------------! 
- FUNCTION s_ge_s(string_a,string_b)  ! string>=string
-  type(VARYING_STRING),INTENT(IN) :: string_a,string_b 
-  LOGICAL                         :: s_ge_s 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a%chars(i) > string_b%chars(i) )THEN
-      s_ge_s = .TRUE.; RETURN
-    ELSEIF( string_a%chars(i) < string_b%chars(i) )THEN
-      s_ge_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( blank > string_b%chars(i) )THEN
-        s_ge_s = .TRUE.; RETURN
-      ELSEIF( blank < string_b%chars(i) )THEN
-        s_ge_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( string_a%chars(i) > blank )THEN
-        s_ge_s = .TRUE.; RETURN
-      ELSEIF( string_a%chars(i) < blank )THEN
-        s_ge_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_ge_s = .TRUE.
- ENDFUNCTION s_ge_s 
-  
- FUNCTION s_ge_c(string_a,string_b)  ! string>=character 
-  type(VARYING_STRING),INTENT(IN) :: string_a 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_b 
-  LOGICAL                         :: s_ge_c 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a%chars(i) > string_b(i:i) )THEN
-      s_ge_c = .TRUE.; RETURN
-    ELSEIF( string_a%chars(i) < string_b(i:i) )THEN
-      s_ge_c = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    IF( blank > string_b(la+1:lb) )THEN
-      s_ge_c = .TRUE.; RETURN
-    ELSEIF( blank < string_b(la+1:lb) )THEN
-      s_ge_c = .FALSE.; RETURN
-    ENDIF
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( string_a%chars(i) > blank )THEN
-        s_ge_c = .TRUE.; RETURN
-      ELSEIF( string_a%chars(i) < blank )THEN
-        s_ge_c = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_ge_c = .TRUE.
- ENDFUNCTION s_ge_c 
-  
- FUNCTION c_ge_s(string_a,string_b)  ! character>=string
-  CHARACTER(LEN=*),INTENT(IN)     :: string_a 
-  type(VARYING_STRING),INTENT(IN) :: string_b 
-  LOGICAL                         :: c_ge_s 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a(i:i) > string_b%chars(i) )THEN
-      c_ge_s = .TRUE.; RETURN
-    ELSEIF( string_a(i:i) < string_b%chars(i) )THEN
-      c_ge_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( blank > string_b%chars(i) )THEN
-        c_ge_s = .TRUE.; RETURN
-      ELSEIF( blank < string_b%chars(i) )THEN
-        c_ge_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    IF( string_a(lb+1:la) > blank )THEN
-      c_ge_s = .TRUE.; RETURN
-    ELSEIF( string_a(lb+1:la) < blank )THEN
-      c_ge_s = .FALSE.; RETURN
-    ENDIF
-  ENDIF
-  c_ge_s = .TRUE.
- ENDFUNCTION c_ge_s 
-  
-!------ Greater-than operators -----------------------------------------------! 
- FUNCTION s_gt_s(string_a,string_b)  ! string>string 
-  type(VARYING_STRING),INTENT(IN) :: string_a,string_b 
-  LOGICAL                         :: s_gt_s 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a%chars(i) > string_b%chars(i) )THEN
-      s_gt_s = .TRUE.; RETURN
-    ELSEIF( string_a%chars(i) < string_b%chars(i) )THEN
-      s_gt_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( blank > string_b%chars(i) )THEN
-        s_gt_s = .TRUE.; RETURN
-      ELSEIF( blank < string_b%chars(i) )THEN
-        s_gt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( string_a%chars(i) > blank )THEN
-        s_gt_s = .TRUE.; RETURN
-      ELSEIF( string_a%chars(i) < blank )THEN
-        s_gt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_gt_s = .FALSE.
- ENDFUNCTION s_gt_s 
-  
- FUNCTION s_gt_c(string_a,string_b)  ! string>character
-  type(VARYING_STRING),INTENT(IN) :: string_a 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_b 
-  LOGICAL                         :: s_gt_c 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a%chars(i) > string_b(i:i) )THEN
-      s_gt_c = .TRUE.; RETURN
-    ELSEIF( string_a%chars(i) < string_b(i:i) )THEN
-      s_gt_c = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    IF( blank > string_b(la+1:lb) )THEN
-      s_gt_c = .TRUE.; RETURN
-    ELSEIF( blank < string_b(la+1:lb) )THEN
-      s_gt_c = .FALSE.; RETURN
-    ENDIF
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( string_a%chars(i) > blank )THEN
-        s_gt_c = .TRUE.; RETURN
-      ELSEIF( string_a%chars(i) < blank )THEN
-        s_gt_c = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_gt_c = .FALSE.
- ENDFUNCTION s_gt_c 
-  
- FUNCTION c_gt_s(string_a,string_b)  ! character>string 
-  CHARACTER(LEN=*),INTENT(IN)     :: string_a 
-  type(VARYING_STRING),INTENT(IN) :: string_b 
-  LOGICAL                         :: c_gt_s 
-  INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( string_a(i:i) > string_b%chars(i) )THEN
-      c_gt_s = .TRUE.; RETURN
-    ELSEIF( string_a(i:i) < string_b%chars(i) )THEN
-      c_gt_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( blank > string_b%chars(i) )THEN
-        c_gt_s = .TRUE.; RETURN
-      ELSEIF( blank < string_b%chars(i) )THEN
-        c_gt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    IF( string_a(lb+1:la) > blank )THEN
-      c_gt_s = .TRUE.; RETURN
-    ELSEIF( string_a(lb+1:la) < blank )THEN
-      c_gt_s = .FALSE.; RETURN
-    ENDIF
-  ENDIF
-  c_gt_s = .FALSE.
- ENDFUNCTION c_gt_s 
-  
-!----- LLT procedures -------------------------------------------------------!
-FUNCTION s_llt_s(string_a,string_b)  ! string_a<string_b ISO-646 ordering 
- type(VARYING_STRING),INTENT(IN) :: string_a,string_b 
- LOGICAL                         :: s_llt_s 
- ! Returns TRUE if string_a preceeds string_b in the ISO 646 collating 
- ! sequence. Otherwise the result is FALSE. The result is FALSE if both 
- ! string_a and string_b are zero length. 
- INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LLT(string_a%chars(i),string_b%chars(i)) )THEN
-      s_llt_s = .TRUE.; RETURN
-    ELSEIF( LGT(string_a%chars(i),string_b%chars(i)) )THEN
-      s_llt_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( LLT(blank,string_b%chars(i)) )THEN
-        s_llt_s = .TRUE.; RETURN
-      ELSEIF( LGT(blank,string_b%chars(i)) )THEN
-        s_llt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( LLT(string_a%chars(i),blank) )THEN
-        s_llt_s = .TRUE.; RETURN
-      ELSEIF( LGT(string_a%chars(i),blank) )THEN
-        s_llt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_llt_s = .FALSE.
-ENDFUNCTION s_llt_s 
-  
-FUNCTION s_llt_c(string_a,string_b)   ! string_a<string_b ISO-646 ordering 
- type(VARYING_STRING),INTENT(IN) :: string_a 
- CHARACTER(LEN=*),INTENT(IN)     :: string_b 
- LOGICAL                         :: s_llt_c 
- INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LLT(string_a%chars(i),string_b(i:i)) )THEN
-      s_llt_c = .TRUE.; RETURN
-    ELSEIF( LGT(string_a%chars(i),string_b(i:i)) )THEN
-      s_llt_c = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    IF( LLT(blank,string_b(la+1:lb)) )THEN
-      s_llt_c = .TRUE.; RETURN
-    ELSEIF( LGT(blank,string_b(la+1:lb)) )THEN
-      s_llt_c = .FALSE.; RETURN
-    ENDIF
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( LLT(string_a%chars(i),blank) )THEN
-        s_llt_c = .TRUE.; RETURN
-      ELSEIF( LGT(string_a%chars(i),blank) )THEN
-        s_llt_c = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_llt_c = .FALSE.
-ENDFUNCTION s_llt_c 
-  
-FUNCTION c_llt_s(string_a,string_b)  ! string_a,string_b ISO-646 ordering
- CHARACTER(LEN=*),INTENT(IN)     :: string_a
- type(VARYING_STRING),INTENT(IN) :: string_b
- LOGICAL                         :: c_llt_s
- INTEGER                         :: ls,la,lb,i
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LLT(string_a(i:i),string_b%chars(i)) )THEN
-      c_llt_s = .TRUE.; RETURN
-    ELSEIF( LGT(string_a(i:i),string_b%chars(i)) )THEN
-      c_llt_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( LLT(blank,string_b%chars(i)) )THEN
-        c_llt_s = .TRUE.; RETURN
-      ELSEIF( LGT(blank,string_b%chars(i)) )THEN
-        c_llt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    IF( LLT(string_a(lb+1:la),blank) )THEN
-      c_llt_s = .TRUE.; RETURN
-    ELSEIF( LGT(string_a(lb+1:la),blank) )THEN
-      c_llt_s = .FALSE.; RETURN
-    ENDIF
-  ENDIF
-  c_llt_s = .FALSE.
-ENDFUNCTION c_llt_s 
-  
-!----- LLE procedures -------------------------------------------------------! 
-FUNCTION s_lle_s(string_a,string_b)  ! string_a<=string_b ISO-646 ordering 
- type(VARYING_STRING),INTENT(IN) :: string_a,string_b 
- LOGICAL                         :: s_lle_s 
- ! Returns TRUE if strings are equal or if string_a preceeds string_b in the 
- ! ISO 646 collating sequence.  Otherwise the result is FALSE.
- INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LLT(string_a%chars(i),string_b%chars(i)) )THEN
-      s_lle_s = .TRUE.; RETURN
-    ELSEIF( LGT(string_a%chars(i),string_b%chars(i)) )THEN
-      s_lle_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( LLT(blank,string_b%chars(i)) )THEN
-        s_lle_s = .TRUE.; RETURN
-      ELSEIF( LGT(blank,string_b%chars(i)) )THEN
-        s_lle_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( LLT(string_a%chars(i),blank) )THEN
-        s_lle_s = .TRUE.; RETURN
-      ELSEIF( LGT(string_a%chars(i),blank) )THEN
-        s_lle_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_lle_s = .TRUE.
-ENDFUNCTION s_lle_s 
-  
-FUNCTION s_lle_c(string_a,string_b)  ! strung_a<=string_b ISO-646 ordering
- type(VARYING_STRING),INTENT(IN) :: string_a 
- CHARACTER(LEN=*),INTENT(IN)     :: string_b 
- LOGICAL                         :: s_lle_c 
- INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LLT(string_a%chars(i),string_b(i:i)) )THEN
-      s_lle_c = .TRUE.; RETURN
-    ELSEIF( LGT(string_a%chars(i),string_b(i:i)) )THEN
-      s_lle_c = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    IF( LLT(blank,string_b(la+1:lb)) )THEN
-      s_lle_c = .TRUE.; RETURN
-    ELSEIF( LGT(blank,string_b(la+1:lb)) )THEN
-      s_lle_c = .FALSE.; RETURN
-    ENDIF
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( LLT(string_a%chars(i),blank) )THEN
-        s_lle_c = .TRUE.; RETURN
-      ELSEIF( LGT(string_a%chars(i),blank) )THEN
-        s_lle_c = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_lle_c = .TRUE.
-ENDFUNCTION s_lle_c 
-  
-FUNCTION c_lle_s(string_a,string_b)  ! string_a<=string_b ISO-646 ordering 
- CHARACTER(LEN=*),INTENT(IN)     :: string_a 
- type(VARYING_STRING),INTENT(IN) :: string_b 
- LOGICAL                         :: c_lle_s 
- INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LLT(string_a(i:i),string_b%chars(i)) )THEN
-      c_lle_s = .TRUE.; RETURN
-    ELSEIF( LGT(string_a(i:i),string_b%chars(i)) )THEN
-      c_lle_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( LLT(blank,string_b%chars(i)) )THEN
-        c_lle_s = .TRUE.; RETURN
-      ELSEIF( LGT(blank,string_b%chars(i)) )THEN
-        c_lle_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    IF( LLT(string_a(lb+1:la),blank) )THEN
-      c_lle_s = .TRUE.; RETURN
-    ELSEIF( LGT(string_a(lb+1:la),blank) )THEN
-      c_lle_s = .FALSE.; RETURN
-    ENDIF
-  ENDIF
-  c_lle_s = .TRUE.
-ENDFUNCTION c_lle_s 
-  
-!----- LGE procedures -------------------------------------------------------! 
-FUNCTION s_lge_s(string_a,string_b)  ! string_a>=string_b ISO-646 ordering 
- type(VARYING_STRING),INTENT(IN) :: string_a,string_b 
- LOGICAL                         :: s_lge_s 
- ! Returns TRUE if strings are equal or if string_a follows string_b in the 
- ! ISO 646 collating sequence. Otherwise the result is FALSE.
- INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LGT(string_a%chars(i),string_b%chars(i)) )THEN
-      s_lge_s = .TRUE.; RETURN
-    ELSEIF( LLT(string_a%chars(i),string_b%chars(i)) )THEN
-      s_lge_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( LGT(blank,string_b%chars(i)) )THEN
-        s_lge_s = .TRUE.; RETURN
-      ELSEIF( LLT(blank,string_b%chars(i)) )THEN
-        s_lge_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( LGT(string_a%chars(i),blank) )THEN
-        s_lge_s = .TRUE.; RETURN
-      ELSEIF( LLT(string_a%chars(i),blank) )THEN
-        s_lge_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_lge_s = .TRUE.
-ENDFUNCTION s_lge_s 
-  
-FUNCTION s_lge_c(string_a,string_b)  ! string_a>=string_b ISO-646 ordering
- type(VARYING_STRING),INTENT(IN) :: string_a 
- CHARACTER(LEN=*),INTENT(IN)     :: string_b 
- LOGICAL                         :: s_lge_c 
- INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LGT(string_a%chars(i),string_b(i:i)) )THEN
-      s_lge_c = .TRUE.; RETURN
-    ELSEIF( LLT(string_a%chars(i),string_b(i:i)) )THEN
-      s_lge_c = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    IF( LGT(blank,string_b(la+1:lb)) )THEN
-      s_lge_c = .TRUE.; RETURN
-    ELSEIF( LLT(blank,string_b(la+1:lb)) )THEN
-      s_lge_c = .FALSE.; RETURN
-    ENDIF
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( LGT(string_a%chars(i),blank) )THEN
-        s_lge_c = .TRUE.; RETURN
-      ELSEIF( LLT(string_a%chars(i),blank) )THEN
-        s_lge_c = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_lge_c = .TRUE.
-ENDFUNCTION s_lge_c 
-  
-FUNCTION c_lge_s(string_a,string_b)  ! string_a>=string_b ISO-646 ordering 
- CHARACTER(LEN=*),INTENT(IN)     :: string_a 
- type(VARYING_STRING),INTENT(IN) :: string_b 
- LOGICAL                         :: c_lge_s 
- INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LGT(string_a(i:i),string_b%chars(i)) )THEN
-      c_lge_s = .TRUE.; RETURN
-    ELSEIF( LLT(string_a(i:i),string_b%chars(i)) )THEN
-      c_lge_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( LGT(blank,string_b%chars(i)) )THEN
-        c_lge_s = .TRUE.; RETURN
-      ELSEIF( LLT(blank,string_b%chars(i)) )THEN
-        c_lge_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    IF( LGT(string_a(lb+1:la),blank) )THEN
-      c_lge_s = .TRUE.; RETURN
-    ELSEIF( LLT(string_a(lb+1:la),blank) )THEN
-      c_lge_s = .FALSE.; RETURN
-    ENDIF
-  ENDIF
-  c_lge_s = .TRUE.
-ENDFUNCTION c_lge_s 
+! Interface blocks
 
-!----- LGT procedures -------------------------------------------------------!
-FUNCTION s_lgt_s(string_a,string_b)  ! string_a>string_b ISO-646 ordering 
- type(VARYING_STRING),INTENT(IN) :: string_a,string_b 
- LOGICAL                         :: s_lgt_s 
- ! Returns TRUE if string_a follows string_b in the ISO 646 collating sequence.
- ! Otherwise the result is FALSE. The result is FALSE if both string_a and 
- ! string_b are zero length. 
- INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LGT(string_a%chars(i),string_b%chars(i)) )THEN
-      s_lgt_s = .TRUE.; RETURN
-    ELSEIF( LLT(string_a%chars(i),string_b%chars(i)) )THEN
-      s_lgt_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( LGT(blank,string_b%chars(i)) )THEN
-        s_lgt_s = .TRUE.; RETURN
-      ELSEIF( LLT(blank,string_b%chars(i)) )THEN
-        s_lgt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( LGT(string_a%chars(i),blank) )THEN
-        s_lgt_s = .TRUE.; RETURN
-      ELSEIF( LLT(string_a%chars(i),blank) )THEN
-        s_lgt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_lgt_s = .FALSE.
-ENDFUNCTION s_lgt_s 
-  
-FUNCTION s_lgt_c(string_a,string_b)  ! string_a>string_b ISO-646 ordering 
- type(VARYING_STRING),INTENT(IN) :: string_a 
- CHARACTER(LEN=*),INTENT(IN)     :: string_b 
- LOGICAL                         :: s_lgt_c 
- INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LGT(string_a%chars(i),string_b(i:i)) )THEN
-      s_lgt_c = .TRUE.; RETURN
-    ELSEIF( LLT(string_a%chars(i),string_b(i:i)) )THEN
-      s_lgt_c = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    IF( LGT(blank,string_b(la+1:lb)) )THEN
-      s_lgt_c = .TRUE.; RETURN
-    ELSEIF( LLT(blank,string_b(la+1:lb)) )THEN
-      s_lgt_c = .FALSE.; RETURN
-    ENDIF
-  ELSEIF( la > lb )THEN
-    DO i = lb+1,la
-      IF( LGT(string_a%chars(i),blank) )THEN
-        s_lgt_c = .TRUE.; RETURN
-      ELSEIF( LLT(string_a%chars(i),blank) )THEN
-        s_lgt_c = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ENDIF
-  s_lgt_c = .FALSE.
-ENDFUNCTION s_lgt_c 
-  
-FUNCTION c_lgt_s(string_a,string_b)  ! string_a>string_b ISO-646 ordering
- CHARACTER(LEN=*),INTENT(IN)     :: string_a 
- type(VARYING_STRING),INTENT(IN) :: string_b 
- LOGICAL                         :: c_lgt_s 
- INTEGER                         :: ls,la,lb,i 
-  la = LEN(string_a); lb = LEN(string_b); ls = MIN(la,lb)
-  DO i = 1,ls 
-    IF( LGT(string_a(i:i),string_b%chars(i)) )THEN
-      c_lgt_s = .TRUE.; RETURN
-    ELSEIF( LLT(string_a(i:i),string_b%chars(i)) )THEN
-      c_lgt_s = .FALSE.; RETURN
-    ENDIF 
-  ENDDO 
-  IF( la < lb )THEN
-    DO i = la+1,lb
-      IF( LGT(blank,string_b%chars(i)) )THEN
-        c_lgt_s = .TRUE.; RETURN
-      ELSEIF( LLT(blank,string_b%chars(i)) )THEN
-        c_lgt_s = .FALSE.; RETURN
-      ENDIF
-    ENDDO
-  ELSEIF( la > lb )THEN
-    IF( LGT(string_a(lb+1:la),blank) )THEN
-      c_lgt_s = .TRUE.; RETURN
-    ELSEIF( LLT(string_a(lb+1:la),blank) )THEN
-      c_lgt_s = .FALSE.; RETURN
-    ENDIF
-  ENDIF
-  c_lgt_s = .FALSE.
-ENDFUNCTION c_lgt_s 
-  
-  
-!----- Input string procedure -----------------------------------------------!
-SUBROUTINE get_d_eor(string,maxlen,iostat)
- type(VARYING_STRING),INTENT(OUT) :: string
-                                  ! the string variable to be filled with
-                                  ! characters read from the
-                                  ! file connected to the default unit
- INTEGER,INTENT(IN),OPTIONAL      :: maxlen
-                                  ! if present indicates the maximum
-                                  ! number of characters that will be
-                                  ! read from the file
- INTEGER,INTENT(OUT),OPTIONAL     :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
-! reads string from the default unit starting at next character in the file
-! and terminating at the end of record or after maxlen characters.
- CHARACTER(LEN=80) :: buffer
- INTEGER           :: ist,nch,toread,nb
- IF(PRESENT(maxlen))THEN
-   toread=maxlen
- ELSE
-   toread=HUGE(1)
- ENDIF
- string = "" ! clears return string
- DO  ! repeatedly read buffer and add to string until EoR
-     ! or maxlen reached
-   IF(toread <= 0)EXIT
-   nb=MIN(80,toread)
-   READ(*,FMT='(A)',ADVANCE='NO',EOR=9999,SIZE=nch,IOSTAT=ist) buffer(1:nb)
-   IF( ist /= 0 )THEN 
-     IF(PRESENT(iostat)) THEN 
-       iostat=ist 
-       RETURN 
-     ELSE 
-       WRITE(*,*) " Error No.",ist, &
-                  " during READ_STRING of varying string on default unit"
-       STOP 
-     ENDIF 
-   ENDIF 
-   string = string //buffer(1:nb)
-   toread = toread - nb
- ENDDO
- IF(PRESENT(iostat)) iostat = 0
- RETURN
- 9999 string = string //buffer(1:nch) 
- IF(PRESENT(iostat)) iostat = ist
-ENDSUBROUTINE get_d_eor
-  
-SUBROUTINE get_u_eor(unit,string,maxlen,iostat)
- INTEGER,INTENT(IN)               :: unit
-                                  ! identifies the input unit which must be
-                                  ! connected for sequential formatted read
- type(VARYING_STRING),INTENT(OUT) :: string
-                                  ! the string variable to be filled with
-                                  ! characters read from the
-                                  ! file connected to the unit
- INTEGER,INTENT(IN),OPTIONAL      :: maxlen
-                                  ! if present indicates the maximum
-                                  ! number of characters that will be
-                                  ! read from the file
- INTEGER,INTENT(OUT),OPTIONAL     :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
-! reads string from unit starting at next character in the file and 
-! terminating at the end of record or after maxlen characters.
- CHARACTER(LEN=80) :: buffer
- INTEGER           :: ist,nch,toread,nb
- IF(PRESENT(maxlen))THEN
-   toread=maxlen
- ELSE
-   toread=HUGE(1)
- ENDIF
- string=""  ! clears return string
- DO  ! repeatedly read buffer and add to string until EoR
-     ! or maxlen reached
-   IF(toread <= 0)EXIT
-   nb=MIN(80,toread)
-   READ(unit,FMT='(A)',ADVANCE='NO',EOR=9999,SIZE=nch,IOSTAT=ist) buffer(1:nb)
-   IF( ist /= 0 )THEN 
-     IF(PRESENT(iostat)) THEN 
-       iostat=ist 
-       RETURN 
-     ELSE 
-       WRITE(*,*) " Error No.",ist, &
-                  " during READ_STRING of varying string on UNIT ",unit
-       STOP 
-     ENDIF 
-   ENDIF 
-   string = string //buffer(1:nb)
-   toread = toread - nb
- ENDDO
- IF(PRESENT(iostat)) iostat = 0
- RETURN
- 9999 string = string //buffer(1:nch) 
- IF(PRESENT(iostat)) iostat = ist
-ENDSUBROUTINE get_u_eor
+  interface assignment(=)
+     module procedure op_assign_CH_VS
+     module procedure op_assign_VS_CH
+  end interface assignment(=)
 
-SUBROUTINE get_d_tset_s(string,set,separator,maxlen,iostat)
- type(VARYING_STRING),INTENT(OUT) :: string
-                                  ! the string variable to be filled with
-                                  ! characters read from the
-                                  ! file connected to the default unit
- type(VARYING_STRING),INTENT(IN)  :: set
-                                  ! the set of characters which if found in
-                                  ! the input terminate the read
- type(VARYING_STRING),INTENT(OUT),OPTIONAL :: separator
-                                  ! the actual separator character from set
-                                  ! found as the input string terminator
-                                  ! returned as zero length if termination
-                                  ! by maxlen or EOR
- INTEGER,INTENT(IN),OPTIONAL      :: maxlen
-                                  ! if present indicates the maximum
-                                  ! number of characters that will be
-                                  ! read from the file
- INTEGER,INTENT(OUT),OPTIONAL     :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
-! reads string from the default unit starting at next character in the file and
-! terminating at the end of record, occurance of a character in set,
-! or after reading maxlen characters.
- CHARACTER :: buffer  ! characters must be read one at a time to detect
-                      ! first terminator character in set
- INTEGER   :: ist,toread,lenset,j
- lenset = LEN(set)
- IF(PRESENT(maxlen))THEN
-   toread=maxlen
- ELSE
-   toread=HUGE(1)
- ENDIF
- string = ""  ! clears return string
- IF(PRESENT(separator)) separator="" ! clear the separator
- readchar:DO  ! repeatedly read buffer and add to string
-   IF(toread <= 0)EXIT readchar  ! maxlen reached
-   READ(*,FMT='(A)',ADVANCE='NO',EOR=9999,IOSTAT=ist) buffer
-   IF( ist /= 0 )THEN 
-     IF(PRESENT(iostat)) THEN 
-       iostat=ist 
-       RETURN 
-     ELSE 
-       WRITE(*,*) " Error No.",ist, &
-                  " during GET of varying string on default unit"
-       STOP 
-     ENDIF 
-   ENDIF 
-   ! check for occurance of set character in buffer
-     DO j = 1,lenset
-       IF(buffer == set%chars(j))THEN
-         IF(PRESENT(separator)) separator=buffer
-         EXIT readchar  ! separator terminator found
-       ENDIF
-     ENDDO
-   string = string//buffer
-   toread = toread - 1
-  ENDDO readchar
- IF(PRESENT(iostat)) iostat = 0
- RETURN
- 9999 CONTINUE  ! EOR terminator read
- IF(PRESENT(iostat)) iostat = ist
-ENDSUBROUTINE get_d_tset_s
+  interface operator(//)
+     module procedure op_concat_VS_VS
+     module procedure op_concat_CH_VS
+     module procedure op_concat_VS_CH
+  end interface operator(//)
 
-SUBROUTINE get_u_tset_s(unit,string,set,separator,maxlen,iostat)
- INTEGER,INTENT(IN)               :: unit
-                                  ! identifies the input unit which must be
-                                  ! connected for sequential formatted read
- type(VARYING_STRING),INTENT(OUT) :: string
-                                  ! the string variable to be filled with
-                                  ! characters read from the
-                                  ! file connected to the unit
- type(VARYING_STRING),INTENT(IN)  :: set
-                                  ! the set of characters which if found in
-                                  ! the input terminate the read
- type(VARYING_STRING),INTENT(OUT),OPTIONAL :: separator
-                                  ! the actual separator character from set
-                                  ! found as the input string terminator
-                                  ! returned as zero length if termination
-                                  ! by maxlen or EOR
- INTEGER,INTENT(IN),OPTIONAL      :: maxlen
-                                  ! if present indicates the maximum
-                                  ! number of characters that will be
-                                  ! read from the file
- INTEGER,INTENT(OUT),OPTIONAL     :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
-! reads string from unit starting at next character in the file and 
-! terminating at the end of record, occurance of a character in set,
-! or after reading maxlen characters.
- CHARACTER :: buffer  ! characters must be read one at a time to detect
-                      ! first terminator character in set
- INTEGER   :: ist,toread,lenset,j
- lenset = LEN(set)
- IF(PRESENT(maxlen))THEN
-   toread=maxlen
- ELSE
-   toread=HUGE(1)
- ENDIF
- string = ""  ! clears return string
- IF(PRESENT(separator)) separator="" ! clear the separator
- readchar:DO  ! repeatedly read buffer and add to string
-   IF(toread <= 0)EXIT readchar ! maxlen reached
-   READ(unit,FMT='(A)',ADVANCE='NO',EOR=9999,IOSTAT=ist) buffer
-   IF( ist /= 0 )THEN 
-     IF(PRESENT(iostat)) THEN 
-       iostat=ist 
-       RETURN 
-     ELSE 
-       WRITE(*,*) " Error No.",ist, &
-                  " during GET of varying string on unit ",unit
-       STOP 
-     ENDIF 
-   ENDIF 
-   ! check for occurance of set character in buffer
-     DO j = 1,lenset
-       IF(buffer == set%chars(j))THEN
-         IF(PRESENT(separator)) separator=buffer
-         EXIT readchar ! separator terminator found
-       ENDIF
-     ENDDO
-   string = string//buffer
-   toread = toread - 1
- ENDDO readchar
- IF(PRESENT(iostat)) iostat = 0
- RETURN
- 9999 CONTINUE  ! EOR terminator found
- IF(PRESENT(iostat)) iostat = ist
-ENDSUBROUTINE get_u_tset_s
+  interface operator(==)
+     module procedure op_eq_VS_VS
+     module procedure op_eq_CH_VS
+     module procedure op_eq_VS_CH
+  end interface operator(==)
 
-SUBROUTINE get_d_tset_c(string,set,separator,maxlen,iostat)
- type(VARYING_STRING),INTENT(OUT) :: string
-                                  ! the string variable to be filled with
-                                  ! characters read from the
-                                  ! file connected to the default unit
- CHARACTER(LEN=*),INTENT(IN)      :: set
-                                  ! the set of characters which if found in
-                                  ! the input terminate the read
- type(VARYING_STRING),INTENT(OUT),OPTIONAL :: separator
-                                  ! the actual separator character from set
-                                  ! found as the input string terminator
-                                  ! returned as zero length if termination
-                                  ! by maxlen or EOR
- INTEGER,INTENT(IN),OPTIONAL      :: maxlen
-                                  ! if present indicates the maximum
-                                  ! number of characters that will be
-                                  ! read from the file
- INTEGER,INTENT(OUT),OPTIONAL     :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
-! reads string from the default unit starting at next character in the file and
-! terminating at the end of record, occurance of a character in set,
-! or after reading maxlen characters.
- CHARACTER :: buffer  ! characters must be read one at a time to detect
-                      ! first terminator character in set
- INTEGER   :: ist,toread,lenset,j
- lenset = LEN(set)
- IF(PRESENT(maxlen))THEN
-   toread=maxlen
- ELSE
-   toread=HUGE(1)
- ENDIF
- string = ""  ! clears return string
- IF(PRESENT(separator)) separator=""  ! clear separator
- readchar:DO  ! repeatedly read buffer and add to string
-   IF(toread <= 0)EXIT readchar ! maxlen reached
-   READ(*,FMT='(A)',ADVANCE='NO',EOR=9999,IOSTAT=ist) buffer
-   IF( ist /= 0 )THEN 
-     IF(PRESENT(iostat)) THEN 
-       iostat=ist 
-       RETURN 
-     ELSE 
-       WRITE(*,*) " Error No.",ist, &
-                  " during GET of varying string on default unit"
-       STOP 
-     ENDIF 
-   ENDIF 
-   ! check for occurance of set character in buffer
-     DO j = 1,lenset
-       IF(buffer == set(j:j))THEN
-         IF(PRESENT(separator)) separator=buffer
-         EXIT readchar
-       ENDIF
-     ENDDO
-   string = string//buffer
-   toread = toread - 1
- ENDDO readchar
- IF(PRESENT(iostat)) iostat = 0
- RETURN
- 9999 CONTINUE ! EOR terminator read
- IF(PRESENT(iostat)) iostat = ist
-ENDSUBROUTINE get_d_tset_c
-
-SUBROUTINE get_u_tset_c(unit,string,set,separator,maxlen,iostat)
- INTEGER,INTENT(IN)               :: unit
-                                  ! identifies the input unit which must be
-                                  ! connected for sequential formatted read
- type(VARYING_STRING),INTENT(OUT) :: string
-                                  ! the string variable to be filled with
-                                  ! characters read from the
-                                  ! file connected to the unit
- CHARACTER(LEN=*),INTENT(IN)      :: set
-                                  ! the set of characters which if found in
-                                  ! the input terminate the read
- type(VARYING_STRING),INTENT(OUT),OPTIONAL :: separator
-                                  ! the actual separator character from set
-                                  ! found as the input string terminator
-                                  ! returned as zero length if termination
-                                  ! by maxlen or EOR
- INTEGER,INTENT(IN),OPTIONAL      :: maxlen
-                                  ! if present indicates the maximum
-                                  ! number of characters that will be
-                                  ! read from the file
- INTEGER,INTENT(OUT),OPTIONAL     :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
-! reads string from unit starting at next character in the file and
-! terminating at the end of record, occurance of a character in set,
-! or after reading maxlen characters.
- CHARACTER :: buffer  ! characters must be read one at a time to detect
-                      ! first terminator character in set
- INTEGER   :: ist,toread,lenset,j
- lenset = LEN(set)
- IF(PRESENT(maxlen))THEN
-   toread=maxlen
- ELSE
-   toread=HUGE(1)
- ENDIF
- string = ""  ! clears return string
- IF(PRESENT(separator)) separator="" ! clear separator
- readchar:DO  ! repeatedly read buffer and add to string
-   IF(toread <= 0)EXIT readchar ! maxlen reached
-   READ(unit,FMT='(A)',ADVANCE='NO',EOR=9999,IOSTAT=ist) buffer
-   IF( ist /= 0 )THEN 
-     IF(PRESENT(iostat)) THEN 
-       iostat=ist 
-       RETURN 
-     ELSE 
-       WRITE(*,*) " Error No.",ist, &
-                  " during GET of varying string on unit ",unit
-       STOP 
-     ENDIF 
-   ENDIF 
-   ! check for occurance of set character in buffer
-     DO j = 1,lenset
-       IF(buffer == set(j:j))THEN
-         IF(PRESENT(separator)) separator=buffer
-         EXIT readchar ! separator terminator found
-       ENDIF
-     ENDDO
-   string = string//buffer
-   toread = toread - 1
- ENDDO readchar
- IF(PRESENT(iostat)) iostat = 0
- RETURN
- 9999 CONTINUE ! EOR terminator read
- IF(PRESENT(iostat)) iostat = ist
-ENDSUBROUTINE get_u_tset_c
-
-!----- Output string procedures ----------------------------------------------!
-SUBROUTINE put_d_s(string,iostat)
- type(VARYING_STRING),INTENT(IN) :: string
-                                  ! the string variable to be appended to
-                                  ! the current record or to the start of
-                                  ! the next record if there is no
-                                  ! current record
-                                  ! uses the default unit
- INTEGER,INTENT(OUT),OPTIONAL    :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
- INTEGER           :: ist
- WRITE(*,FMT='(A)',ADVANCE='NO',IOSTAT=ist) CHAR(string)
- IF( ist /= 0 )THEN
-   IF(PRESENT(iostat))THEN
-     iostat = ist
-     RETURN
-   ELSE
-     WRITE(*,*) " Error No.",ist, &
-                "  during PUT of varying string on default unit"
-     STOP
-   ENDIF
- ENDIF
- IF(PRESENT(iostat)) iostat=0
-ENDSUBROUTINE put_d_s
-
-SUBROUTINE put_u_s(unit,string,iostat)
- INTEGER,INTENT(IN)              :: unit
-                                  ! identifies the output unit which must
-                                  ! be connected for sequential formatted
-                                  ! write
- type(VARYING_STRING),INTENT(IN) :: string
-                                  ! the string variable to be appended to
-                                  ! the current record or to the start of
-                                  ! the next record if there is no
-                                  ! current record
- INTEGER,INTENT(OUT),OPTIONAL    :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
-  INTEGER :: ist
-  WRITE(unit,FMT='(A)',ADVANCE='NO',IOSTAT=ist) CHAR(string)
-  IF( ist /= 0 )THEN
-   IF(PRESENT(iostat))THEN
-    iostat = ist
-    RETURN
-   ELSE
-    WRITE(*,*) " Error No.",ist, &
-               "  during PUT of varying string on UNIT ",unit
-    STOP
-   ENDIF
-  ENDIF
- IF(PRESENT(iostat)) iostat=0
-ENDSUBROUTINE put_u_s
+  interface operator(/=)
+     module procedure op_ne_VS_VS
+     module procedure op_ne_CH_VS
+     module procedure op_ne_VS_CH
+  end interface operator (/=)
   
-SUBROUTINE put_d_c(string,iostat)
- CHARACTER(LEN=*),INTENT(IN)     :: string
-                                  ! the character variable to be appended to
-                                  ! the current record or to the start of
-                                  ! the next record if there is no
-                                  ! current record
-                                  ! uses the default unit
- INTEGER,INTENT(OUT),OPTIONAL    :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
- INTEGER :: ist
- WRITE(*,FMT='(A)',ADVANCE='NO',IOSTAT=ist) string
- IF( ist /= 0 )THEN
-  IF(PRESENT(iostat))THEN
-   iostat = ist
-   RETURN
-  ELSE
-   WRITE(*,*) " Error No.",ist, &
-              " during PUT of character on default unit"
-   STOP
-  ENDIF
- ENDIF
- IF(PRESENT(iostat)) iostat=0
-ENDSUBROUTINE put_d_c
-
-SUBROUTINE put_u_c(unit,string,iostat)
- INTEGER,INTENT(IN)              :: unit
-                                  ! identifies the output unit which must
-                                  ! be connected for sequential formatted
-                                  ! write
- CHARACTER(LEN=*),INTENT(IN)     :: string
-                                  ! the character variable to be appended to
-                                  ! the current record or to the start of
-                                  ! the next record if there is no
-                                  ! current record
- INTEGER,INTENT(OUT),OPTIONAL    :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
- INTEGER :: ist
- WRITE(unit,FMT='(A)',ADVANCE='NO',IOSTAT=ist) string
- IF( ist /= 0 )THEN
-  IF(PRESENT(iostat))THEN
-   iostat = ist
-   RETURN
-  ELSE
-   WRITE(*,*) " Error No.",ist," during PUT of character on UNIT ",unit
-   STOP
-  ENDIF
- ENDIF
- IF(PRESENT(iostat)) iostat=0
-ENDSUBROUTINE put_u_c
-
-SUBROUTINE putline_d_s(string,iostat)
- type(VARYING_STRING),INTENT(IN) :: string
-                                  ! the string variable to be appended to
-                                  ! the current record or to the start of
-                                  ! the next record if there is no
-                                  ! current record
-                                  ! uses the default unit
- INTEGER,INTENT(OUT),OPTIONAL    :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
-! appends the string to the current record and then ends the record
-! leaves the file positioned after the record just completed which then
-! becomes the previous and last record in the file.
- INTEGER           :: ist
-  WRITE(*,FMT='(A,/)',ADVANCE='NO',IOSTAT=ist) CHAR(string)
-  IF( ist /= 0 )THEN
-   IF(PRESENT(iostat))THEN
-    iostat = ist; RETURN
-   ELSE
-    WRITE(*,*) " Error No.",ist, &
-               " during PUT_LINE of varying string on default unit"
-    STOP
-   ENDIF
-  ENDIF
- IF(PRESENT(iostat)) iostat=0
-ENDSUBROUTINE putline_d_s
+  interface operator(<)
+     module procedure op_lt_VS_VS
+     module procedure op_lt_CH_VS
+     module procedure op_lt_VS_CH
+  end interface operator (<)
   
-SUBROUTINE putline_u_s(unit,string,iostat)
- INTEGER,INTENT(IN)              :: unit
-                                  ! identifies the output unit which must
-                                  ! be connected for sequential formatted
-                                  ! write
- type(VARYING_STRING),INTENT(IN) :: string
-                                  ! the string variable to be appended to
-                                  ! the current record or to the start of
-                                  ! the next record if there is no
-                                  ! current record
- INTEGER,INTENT(OUT),OPTIONAL    :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
-! appends the string to the current record and then ends the record
-! leaves the file positioned after the record just completed which then
-! becomes the previous and last record in the file.
- INTEGER  :: ist
-  WRITE(unit,FMT='(A,/)',ADVANCE='NO',IOSTAT=ist) CHAR(string)
-  IF( ist /= 0 )THEN
-   IF(PRESENT(iostat))THEN
-    iostat = ist; RETURN
-   ELSE
-    WRITE(*,*) " Error No.",ist, &
-               " during PUT_LINE of varying string on UNIT",unit
-    STOP
-   ENDIF
-  ENDIF
- IF(PRESENT(iostat)) iostat=0
-ENDSUBROUTINE putline_u_s
+  interface operator(<=)
+     module procedure op_le_VS_VS
+     module procedure op_le_CH_VS
+     module procedure op_le_VS_CH
+  end interface operator (<=)
+  
+  interface operator(>=)
+     module procedure op_ge_VS_VS
+     module procedure op_ge_CH_VS
+     module procedure op_ge_VS_CH
+  end interface operator (>=)
 
-SUBROUTINE putline_d_c(string,iostat)
- CHARACTER(LEN=*),INTENT(IN)     :: string
-                                  ! the character variable to be appended to
-                                  ! the current record or to the start of
-                                  ! the next record if there is no
-                                  ! current record
-                                  ! uses the default unit
- INTEGER,INTENT(OUT),OPTIONAL    :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
-! appends the string to the current record and then ends the record
-! leaves the file positioned after the record just completed which then
-! becomes the previous and last record in the file.
- INTEGER :: ist
- WRITE(*,FMT='(A,/)',ADVANCE='NO',IOSTAT=ist) string
- IF(PRESENT(iostat))THEN
-  iostat = ist
-  RETURN
- ELSEIF( ist /= 0 )THEN
-  WRITE(*,*) " Error No.",ist, &
-              " during PUT_LINE of character on default unit"
-  STOP
- ENDIF
-ENDSUBROUTINE putline_d_c
+  interface operator(>)
+     module procedure op_gt_VS_VS
+     module procedure op_gt_CH_VS
+     module procedure op_gt_VS_CH
+  end interface operator (>)
   
-SUBROUTINE putline_u_c(unit,string,iostat)
- INTEGER,INTENT(IN)              :: unit
-                                  ! identifies the output unit which must
-                                  ! be connected for sequential formatted
-                                  ! write
- CHARACTER(LEN=*),INTENT(IN)     :: string
-                                  ! the character variable to be appended to
-                                  ! the current record or to the start of
-                                  ! the next record if there is no
-                                  ! current record
- INTEGER,INTENT(OUT),OPTIONAL    :: iostat
-                                  ! if present used to return the status
-                                  ! of the data transfer
-                                  ! if absent errors cause termination
-! appends the string to the current record and then ends the record
-! leaves the file positioned after the record just completed which then
-! becomes the previous and last record in the file.
- INTEGER :: ist
- WRITE(unit,FMT='(A,/)',ADVANCE='NO',IOSTAT=ist) string
- IF(PRESENT(iostat))THEN
-  iostat = ist
-  RETURN
- ELSEIF( ist /= 0 )THEN
-  WRITE(*,*) " Error No.",ist, &
-              " during WRITE_LINE of character on UNIT",unit
-  STOP
- ENDIF
-ENDSUBROUTINE putline_u_c
-  
-!----- Insert procedures ----------------------------------------------------!
- FUNCTION insert_ss(string,start,substring)
-  type(VARYING_STRING)            :: insert_ss
-  type(VARYING_STRING),INTENT(IN) :: string
-  INTEGER,INTENT(IN)              :: start
-  type(VARYING_STRING),INTENT(IN) :: substring
-  ! calculates result string by inserting the substring into string
-  ! beginning at position start pushing the remainder of the string
-  ! to the right and enlarging it accordingly,
-  ! if start is greater than LEN(string) the substring is simply appended
-  ! to string by concatenation. if start is less than 1
-  ! substring is inserted before string, ie. start is treated as if it were 1 
-  CHARACTER,POINTER,DIMENSION(:) :: work 
-  INTEGER                        :: ip,is,lsub,ls 
-  lsub = LEN(substring); ls = LEN(string)
-  is = MAX(start,1) 
-  ip = MIN(ls+1,is) 
-  ALLOCATE(work(1:lsub+ls))
-  work(1:ip-1) = string%chars(1:ip-1) 
-  work(ip:ip+lsub-1) =substring%chars
-  work(ip+lsub:lsub+ls) = string%chars(ip:ls)
-  insert_ss%chars => work
- ENDFUNCTION insert_ss
-  
- FUNCTION insert_sc(string,start,substring)
-  type(VARYING_STRING)            :: insert_sc
-  type(VARYING_STRING),INTENT(IN) :: string
-  INTEGER,INTENT(IN)              :: start
-  CHARACTER(LEN=*),INTENT(IN) :: substring
-  ! calculates result string by inserting the substring into string
-  ! beginning at position start pushing the remainder of the string
-  ! to the right and enlarging it accordingly,
-  ! if start is greater than LEN(string) the substring is simply appended
-  ! to string by concatenation. if start is less than 1
-  ! substring is inserted before string, ie. start is treated as if it were 1 
-  CHARACTER,POINTER,DIMENSION(:) :: work 
-  INTEGER                        :: ip,is,lsub,ls,i 
-  lsub = LEN(substring); ls = LEN(string)
-  is = MAX(start,1) 
-  ip = MIN(ls+1,is) 
-  ALLOCATE(work(1:lsub+ls))
-  work(1:ip-1) = string%chars(1:ip-1) 
-  DO i = 1,lsub 
-   work(ip-1+i) = substring(i:i) 
-  ENDDO 
-  work(ip+lsub:lsub+ls) = string%chars(ip:ls)
-  insert_sc%chars => work
- ENDFUNCTION insert_sc
+  interface adjustl
+     module procedure adjustl_
+  end interface adjustl
 
- FUNCTION insert_cs(string,start,substring)
-  type(VARYING_STRING)            :: insert_cs
-  CHARACTER(LEN=*),INTENT(IN)     :: string
-  INTEGER,INTENT(IN)              :: start
-  type(VARYING_STRING),INTENT(IN) :: substring
-  ! calculates result string by inserting the substring into string
-  ! beginning at position start pushing the remainder of the string
-  ! to the right and enlarging it accordingly,
-  ! if start is greater than LEN(string) the substring is simply appended
-  ! to string by concatenation. if start is less than 1
-  ! substring is inserted before string, ie. start is treated as if it were 1 
-  CHARACTER,POINTER,DIMENSION(:) :: work 
-  INTEGER                        :: ip,is,lsub,ls,i 
-  lsub = LEN(substring); ls = LEN(string)
-  is = MAX(start,1) 
-  ip = MIN(ls+1,is) 
-  ALLOCATE(work(1:lsub+ls))
-  DO i=1,ip-1
-    work(i) = string(i:i)
-  ENDDO
-  work(ip:ip+lsub-1) =substring%chars
-  DO i=ip,ls
-    work(i+lsub) = string(i:i)
-  ENDDO
-  insert_cs%chars => work
- ENDFUNCTION insert_cs
-  
- FUNCTION insert_cc(string,start,substring)
-  type(VARYING_STRING)        :: insert_cc
-  CHARACTER(LEN=*),INTENT(IN) :: string
-  INTEGER,INTENT(IN)          :: start
-  CHARACTER(LEN=*),INTENT(IN) :: substring
-  ! calculates result string by inserting the substring into string
-  ! beginning at position start pushing the remainder of the string
-  ! to the right and enlarging it accordingly,
-  ! if start is greater than LEN(string) the substring is simply appended
-  ! to string by concatenation. if start is less than 1
-  ! substring is inserted before string, ie. start is treated as if it were 1 
-  CHARACTER,POINTER,DIMENSION(:) :: work 
-  INTEGER                        :: ip,is,lsub,ls,i 
-  lsub = LEN(substring); ls = LEN(string)
-  is = MAX(start,1) 
-  ip = MIN(ls+1,is) 
-  ALLOCATE(work(1:lsub+ls))
-  DO i=1,ip-1
-    work(i) = string(i:i)
-  ENDDO
-  DO i = 1,lsub 
-   work(ip-1+i) = substring(i:i) 
-  ENDDO 
-  DO i=ip,ls
-    work(i+lsub) = string(i:i)
-  ENDDO
-  insert_cc%chars => work
- ENDFUNCTION insert_cc
+  interface adjustr
+     module procedure adjustr_
+  end interface adjustr
 
-!----- Replace procedures ---------------------------------------------------!
-FUNCTION replace_ss(string,start,substring)
- type(VARYING_STRING)            :: replace_ss
- type(VARYING_STRING),INTENT(IN) :: string
- INTEGER,INTENT(IN)              :: start
- type(VARYING_STRING),INTENT(IN) :: substring
- !  calculates the result string by the following actions:
- !  inserts the substring into string beginning at position 
- !  start replacing the following LEN(substring) characters of the string 
- !  and enlarging string if necessary. if start is greater than LEN(string) 
- !  substring is simply appended to string by concatenation. If start is less 
- !  than 1, substring replaces characters in string starting at 1
- CHARACTER,POINTER,DIMENSION(:) :: work
- INTEGER                        :: ip,is,nw,lsub,ls
- lsub = LEN(substring); ls = LEN(string)
- is = MAX(start,1)
- ip = MIN(ls+1,is)
- nw = MAX(ls,ip+lsub-1)
- ALLOCATE(work(1:nw))
- work(1:ip-1) = string%chars(1:ip-1)
- work(ip:ip+lsub-1) = substring%chars
- work(ip+lsub:nw) = string%chars(ip+lsub:ls)
- replace_ss%chars => work
-ENDFUNCTION replace_ss
-  
-FUNCTION replace_ss_sf(string,start,finish,substring)
- type(VARYING_STRING)            :: replace_ss_sf
- type(VARYING_STRING),INTENT(IN) :: string
- INTEGER,INTENT(IN)              :: start,finish
- type(VARYING_STRING),INTENT(IN) :: substring
- !  calculates the result string by the following actions:
- !  inserts the substring into string beginning at position 
- !  start replacing the following finish-start+1 characters of the string
- !  and enlarging or shrinking the string if necessary.
- !  If start is greater than LEN(string) substring is simply appended to string
- !  by concatenation. If start is less than 1, start = 1 is used
- !  If finish is greater than LEN(string), finish = LEN(string) is used
- !  If finish is less than start, substring is inserted before start
- CHARACTER,POINTER,DIMENSION(:) :: work
- INTEGER                        :: ip,is,if,nw,lsub,ls
- lsub = LEN(substring); ls = LEN(string)
- is = MAX(start,1)
- ip = MIN(ls+1,is)
- if = MAX(ip-1,MIN(finish,ls))
- nw = lsub + ls - if+ip-1
- ALLOCATE(work(1:nw))
- work(1:ip-1) = string%chars(1:ip-1)
- work(ip:ip+lsub-1) = substring%chars
- work(ip+lsub:nw) = string%chars(if+1:ls)
- replace_ss_sf%chars => work
-ENDFUNCTION replace_ss_sf
+  interface char
+     module procedure char_auto
+     module procedure char_fixed
+  end interface char
 
-FUNCTION replace_sc(string,start,substring)
- type(VARYING_STRING)            :: replace_sc
- type(VARYING_STRING),INTENT(IN) :: string
- INTEGER,INTENT(IN)              :: start
- CHARACTER(LEN=*),INTENT(IN)     :: substring
- !  calculates the result string by the following actions:
- !  inserts the characters from substring into string beginning at position 
- !  start replacing the following LEN(substring) characters of the string 
- !  and enlarging string if necessary. If start is greater than LEN(string) 
- !  substring is simply appended to string by concatenation. If start is less 
- !  than 1, substring replaces characters in string starting at 1
- CHARACTER,POINTER,DIMENSION(:) :: work
- INTEGER                        :: ip,is,nw,lsub,ls,i
- lsub = LEN(substring); ls = LEN(string)
- is = MAX(start,1)
- ip = MIN(ls+1,is)
- nw = MAX(ls,ip+lsub-1)
- ALLOCATE(work(1:nw))
- work(1:ip-1) = string%chars(1:ip-1)
- DO i = 1,lsub
-   work(ip-1+i) = substring(i:i)
- ENDDO
- work(ip+lsub:nw) = string%chars(ip+lsub:ls)
- replace_sc%chars => work
-ENDFUNCTION replace_sc
-  
-FUNCTION replace_sc_sf(string,start,finish,substring)
- type(VARYING_STRING)            :: replace_sc_sf
- type(VARYING_STRING),INTENT(IN) :: string
- INTEGER,INTENT(IN)              :: start,finish
- CHARACTER(LEN=*),INTENT(IN)     :: substring
- !  calculates the result string by the following actions:
- !  inserts the substring into string beginning at position 
- !  start replacing the following finish-start+1 characters of the string
- !  and enlarging or shrinking the string if necessary.
- !  If start is greater than LEN(string) substring is simply appended to string
- !  by concatenation. If start is less than 1, start = 1 is used
- !  If finish is greater than LEN(string), finish = LEN(string) is used
- !  If finish is less than start, substring is inserted before start
- CHARACTER,POINTER,DIMENSION(:) :: work
- INTEGER                        :: ip,is,if,nw,lsub,ls,i
- lsub = LEN(substring); ls = LEN(string)
- is = MAX(start,1)
- ip = MIN(ls+1,is)
- if = MAX(ip-1,MIN(finish,ls))
- nw = lsub + ls - if+ip-1
- ALLOCATE(work(1:nw))
- work(1:ip-1) = string%chars(1:ip-1)
- DO i = 1,lsub
-   work(ip-1+i) = substring(i:i)
- ENDDO
- work(ip+lsub:nw) = string%chars(if+1:ls)
- replace_sc_sf%chars => work
-ENDFUNCTION replace_sc_sf
+  interface iachar
+     module procedure iachar_
+  end interface iachar
 
-FUNCTION replace_cs(string,start,substring)
- type(VARYING_STRING)            :: replace_cs
- CHARACTER(LEN=*),INTENT(IN)     :: string
- INTEGER,INTENT(IN)              :: start
- type(VARYING_STRING),INTENT(IN) :: substring
- !  calculates the result string by the following actions:
- !  inserts the substring into string beginning at position 
- !  start replacing the following LEN(substring) characters of the string 
- !  and enlarging string if necessary. if start is greater than LEN(string) 
- !  substring is simply appended to string by concatenation. If start is less 
- !  than 1, substring replaces characters in string starting at 1
- CHARACTER,POINTER,DIMENSION(:) :: work
- INTEGER                        :: ip,is,nw,lsub,ls,i
- lsub = LEN(substring); ls = LEN(string)
- is = MAX(start,1)
- ip = MIN(ls+1,is)
- nw = MAX(ls,ip+lsub-1)
- ALLOCATE(work(1:nw))
- DO i=1,ip-1
-   work(i) = string(i:i)
- ENDDO
- work(ip:ip+lsub-1) = substring%chars
- DO i=ip+lsub,nw
-   work(i) = string(i:i)
- ENDDO
- replace_cs%chars => work
-ENDFUNCTION replace_cs
-  
-FUNCTION replace_cs_sf(string,start,finish,substring)
- type(VARYING_STRING)            :: replace_cs_sf
- CHARACTER(LEN=*),INTENT(IN)     :: string
- INTEGER,INTENT(IN)              :: start,finish
- type(VARYING_STRING),INTENT(IN) :: substring
- !  calculates the result string by the following actions:
- !  inserts the substring into string beginning at position 
- !  start replacing the following finish-start+1 characters of the string
- !  and enlarging or shrinking the string if necessary.
- !  If start is greater than LEN(string) substring is simply appended to string
- !  by concatenation. If start is less than 1, start = 1 is used
- !  If finish is greater than LEN(string), finish = LEN(string) is used
- !  If finish is less than start, substring is inserted before start
- CHARACTER,POINTER,DIMENSION(:) :: work
- INTEGER                        :: ip,is,if,nw,lsub,ls,i
- lsub = LEN(substring); ls = LEN(string)
- is = MAX(start,1)
- ip = MIN(ls+1,is)
- if = MAX(ip-1,MIN(finish,ls))
- nw = lsub + ls - if+ip-1
- ALLOCATE(work(1:nw))
- DO i=1,ip-1
-   work(i) = string(i:i)
- ENDDO
- work(ip:ip+lsub-1) = substring%chars
- DO i=1,nw-ip-lsub+1
-   work(i+ip+lsub-1) = string(if+i:if+i)
- ENDDO
- replace_cs_sf%chars => work
-ENDFUNCTION replace_cs_sf
+  interface ichar
+     module procedure ichar_
+  end interface ichar
 
-FUNCTION replace_cc(string,start,substring)
- type(VARYING_STRING)            :: replace_cc
- CHARACTER(LEN=*),INTENT(IN)     :: string
- INTEGER,INTENT(IN)              :: start
- CHARACTER(LEN=*),INTENT(IN)     :: substring
- !  calculates the result string by the following actions:
- !  inserts the characters from substring into string beginning at position 
- !  start replacing the following LEN(substring) characters of the string 
- !  and enlarging string if necessary. If start is greater than LEN(string) 
- !  substring is simply appended to string by concatenation. If start is less 
- !  than 1, substring replaces characters in string starting at 1
- CHARACTER,POINTER,DIMENSION(:) :: work
- INTEGER                        :: ip,is,nw,lsub,ls,i
- lsub = LEN(substring); ls = LEN(string)
- is = MAX(start,1)
- ip = MIN(ls+1,is)
- nw = MAX(ls,ip+lsub-1)
- ALLOCATE(work(1:nw))
- DO i=1,ip-1
-   work(i) = string(i:i)
- ENDDO
- DO i=1,lsub
-   work(ip-1+i) = substring(i:i)
- ENDDO
- DO i=ip+lsub,nw
-   work(i) = string(i:i)
- ENDDO
- replace_cc%chars => work
-ENDFUNCTION replace_cc
-  
-FUNCTION replace_cc_sf(string,start,finish,substring)
- type(VARYING_STRING)            :: replace_cc_sf
- CHARACTER(LEN=*),INTENT(IN)     :: string
- INTEGER,INTENT(IN)              :: start,finish
- CHARACTER(LEN=*),INTENT(IN)     :: substring
- !  calculates the result string by the following actions:
- !  inserts the substring into string beginning at position 
- !  start replacing the following finish-start+1 characters of the string
- !  and enlarging or shrinking the string if necessary.
- !  If start is greater than LEN(string) substring is simply appended to string
- !  by concatenation. If start is less than 1, start = 1 is used
- !  If finish is greater than LEN(string), finish = LEN(string) is used
- !  If finish is less than start, substring is inserted before start
- CHARACTER,POINTER,DIMENSION(:) :: work
- INTEGER                        :: ip,is,if,nw,lsub,ls,i
- lsub = LEN(substring); ls = LEN(string)
- is = MAX(start,1)
- ip = MIN(ls+1,is)
- if = MAX(ip-1,MIN(finish,ls))
- nw = lsub + ls - if+ip-1
- ALLOCATE(work(1:nw))
- DO i=1,ip-1
-   work(i) = string(i:i)
- ENDDO
- DO i=1,lsub
-   work(i+ip-1) = substring(i:i)
- ENDDO
- DO i=1,nw-ip-lsub+1
-   work(i+ip+lsub-1) = string(if+i:if+i)
- ENDDO
- replace_cc_sf%chars => work
-ENDFUNCTION replace_cc_sf
+  interface index
+     module procedure index_VS_VS
+     module procedure index_CH_VS
+     module procedure index_VS_CH
+  end interface index
 
-FUNCTION replace_sss(string,target,substring,every,back)
- type(VARYING_STRING)            :: replace_sss
- type(VARYING_STRING),INTENT(IN) :: string,target,substring
- LOGICAL,INTENT(IN),OPTIONAL     :: every,back
- !  calculates the result string by the following actions:
- !  searches for occurences of target in string, and replaces these with
- !  substring. if back present with value true search is backward otherwise
- !  search is done forward. if every present with value true all occurences
- !  of target in string are replaced, otherwise only the first found is
- !  replaced. if target is not found the result is the same as string.
- LOGICAL                        :: dir_switch, rep_search
- CHARACTER,DIMENSION(:),POINTER :: work,temp
- INTEGER                        :: ls,lt,lsub,ipos,ipow
- ls = LEN(string); lt = LEN(target); lsub = LEN(substring)
- IF(lt==0)THEN
-   WRITE(*,*) " Zero length target in REPLACE"
-   STOP
- ENDIF
- ALLOCATE(work(1:ls)); work = string%chars
- IF( PRESENT(back) )THEN
-   dir_switch = back
- ELSE
-   dir_switch = .FALSE.
- ENDIF
- IF( PRESENT(every) )THEN
-   rep_search = every
- ELSE
-   rep_search = .FALSE.
- ENDIF
- IF( dir_switch )THEN ! backwards search
-   ipos = ls-lt+1
-   DO
-     IF( ipos < 1 )EXIT ! search past start of string
-     ! test for occurance of target in string at this position
-     IF( ALL(string%chars(ipos:ipos+lt-1) == target%chars) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipos-1) = work(1:ipos-1)
-       temp(ipos:ipos+lsub-1) = substring%chars
-       temp(ipos+lsub:) = work(ipos+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos-lt+1
-     ENDIF
-     ipos=ipos-1
-   ENDDO
- ELSE ! forward search
-   ipos = 1; ipow = 1
-   DO
-     IF( ipos > ls-lt+1 )EXIT ! search past end of string
-     ! test for occurance of target in string at this position
-     IF( ALL(string%chars(ipos:ipos+lt-1) == target%chars) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipow-1) = work(1:ipow-1)
-       temp(ipow:ipow+lsub-1) = substring%chars
-       temp(ipow+lsub:) = work(ipow+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos+lt-1; ipow = ipow+lsub-1
-     ENDIF
-     ipos=ipos+1; ipow=ipow+1
-   ENDDO
- ENDIF
- replace_sss%chars => work
-ENDFUNCTION replace_sss
+  interface len
+     module procedure len_
+  end interface len
 
-FUNCTION replace_ssc(string,target,substring,every,back)
- type(VARYING_STRING)            :: replace_ssc
- type(VARYING_STRING),INTENT(IN) :: string,target
- CHARACTER(LEN=*),INTENT(IN)     :: substring
- LOGICAL,INTENT(IN),OPTIONAL     :: every,back
- !  calculates the result string by the following actions:
- !  searches for occurences of target in string, and replaces these with
- !  substring. if back present with value true search is backward otherwise
- !  search is done forward. if every present with value true all occurences
- !  of target in string are replaced, otherwise only the first found is
- !  replaced. if target is not found the result is the same as string.
- LOGICAL                        :: dir_switch, rep_search
- CHARACTER,DIMENSION(:),POINTER :: work,temp
- INTEGER                        :: ls,lt,lsub,ipos,ipow,i
- ls = LEN(string); lt = LEN(target); lsub = LEN(substring)
- IF(lt==0)THEN
-   WRITE(*,*) " Zero length target in REPLACE"
-   STOP
- ENDIF
- ALLOCATE(work(1:ls)); work = string%chars
- IF( PRESENT(back) )THEN
-   dir_switch = back
- ELSE
-   dir_switch = .FALSE.
- ENDIF
- IF( PRESENT(every) )THEN
-   rep_search = every
- ELSE
-   rep_search = .FALSE.
- ENDIF
- IF( dir_switch )THEN ! backwards search
-   ipos = ls-lt+1
-   DO
-     IF( ipos < 1 )EXIT ! search past start of string
-     ! test for occurance of target in string at this position
-     IF( ALL(string%chars(ipos:ipos+lt-1) == target%chars) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipos-1) = work(1:ipos-1)
-       DO i=1,lsub
-         temp(i+ipos-1) = substring(i:i)
-       ENDDO
-       temp(ipos+lsub:) = work(ipos+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos-lt+1
-     ENDIF
-     ipos=ipos-1
-   ENDDO
- ELSE ! forward search
-   ipos = 1; ipow = 1
-   DO
-     IF( ipos > ls-lt+1 )EXIT ! search past end of string
-     ! test for occurance of target in string at this position
-     IF( ALL(string%chars(ipos:ipos+lt-1) == target%chars) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipow-1) = work(1:ipow-1)
-       DO i=1,lsub
-         temp(i+ipow-1) = substring(i:i)
-       ENDDO
-       temp(ipow+lsub:) = work(ipow+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos+lt-1; ipow = ipow+lsub-1
-     ENDIF
-     ipos=ipos+1; ipow=ipow+1
-   ENDDO
- ENDIF
- replace_ssc%chars => work
-ENDFUNCTION replace_ssc
+  interface len_trim
+     module procedure len_trim_
+  end interface len_trim
 
-FUNCTION replace_scs(string,target,substring,every,back)
- type(VARYING_STRING)            :: replace_scs
- type(VARYING_STRING),INTENT(IN) :: string,substring
- CHARACTER(LEN=*),INTENT(IN)     :: target
- LOGICAL,INTENT(IN),OPTIONAL     :: every,back
- !  calculates the result string by the following actions:
- !  searches for occurences of target in string, and replaces these with
- !  substring. if back present with value true search is backward otherwise
- !  search is done forward. if every present with value true all accurences
- !  of target in string are replaced, otherwise only the first found is
- !  replaced. if target is not found the result is the same as string.
- LOGICAL                        :: dir_switch, rep_search
- CHARACTER,DIMENSION(:),POINTER :: work,temp,tget
- INTEGER                        :: ls,lt,lsub,ipos,ipow,i
- ls = LEN(string); lt = LEN(target); lsub = LEN(substring)
- IF(lt==0)THEN
-   WRITE(*,*) " Zero length target in REPLACE"
-   STOP
- ENDIF
- ALLOCATE(work(1:ls)); work = string%chars
- ALLOCATE(tget(1:lt))
- DO i=1,lt
-   tget(i) = target(i:i)
- ENDDO
- IF( PRESENT(back) )THEN
-   dir_switch = back
- ELSE
-   dir_switch = .FALSE.
- ENDIF
- IF( PRESENT(every) )THEN
-   rep_search = every
- ELSE
-   rep_search = .FALSE.
- ENDIF
- IF( dir_switch )THEN ! backwards search
-   ipos = ls-lt+1
-   DO
-     IF( ipos < 1 )EXIT ! search past start of string
-     ! test for occurance of target in string at this position
-     IF( ALL(string%chars(ipos:ipos+lt-1) == tget) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipos-1) = work(1:ipos-1)
-       temp(ipos:ipos+lsub-1) = substring%chars
-       temp(ipos+lsub:) = work(ipos+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos-lt+1
-     ENDIF
-     ipos=ipos-1
-   ENDDO
- ELSE ! forward search
-   ipos = 1; ipow = 1
-   DO
-     IF( ipos > ls-lt+1 )EXIT ! search past end of string
-     ! test for occurance of target in string at this position
-     IF( ALL(string%chars(ipos:ipos+lt-1) == tget) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipow-1) = work(1:ipow-1)
-       temp(ipow:ipow+lsub-1) = substring%chars
-       temp(ipow+lsub:) = work(ipow+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos+lt-1; ipow = ipow+lsub-1
-     ENDIF
-     ipos=ipos+1; ipow=ipow+1
-   ENDDO
- ENDIF
- replace_scs%chars => work
-ENDFUNCTION replace_scs
+  interface lge
+     module procedure lge_VS_VS
+     module procedure lge_CH_VS
+     module procedure lge_VS_CH
+  end interface lge
+  
+  interface lgt
+     module procedure lgt_VS_VS
+     module procedure lgt_CH_VS
+     module procedure lgt_VS_CH
+  end interface lgt
 
-FUNCTION replace_scc(string,target,substring,every,back)
- type(VARYING_STRING)            :: replace_scc
- type(VARYING_STRING),INTENT(IN) :: string
- CHARACTER(LEN=*),INTENT(IN)     :: target,substring
- LOGICAL,INTENT(IN),OPTIONAL     :: every,back
- !  calculates the result string by the following actions:
- !  searches for occurences of target in string, and replaces these with
- !  substring. if back present with value true search is backward otherwise
- !  search is done forward. if every present with value true all accurences
- !  of target in string are replaced, otherwise only the first found is
- !  replaced. if target is not found the result is the same as string.
- LOGICAL                        :: dir_switch, rep_search
- CHARACTER,DIMENSION(:),POINTER :: work,temp,tget
- INTEGER                        :: ls,lt,lsub,ipos,ipow,i
- ls = LEN(string); lt = LEN(target); lsub = LEN(substring)
- IF(lt==0)THEN
-   WRITE(*,*) " Zero length target in REPLACE"
-   STOP
- ENDIF
- ALLOCATE(work(1:ls)); work = string%chars
- ALLOCATE(tget(1:lt))
- DO i=1,lt
-   tget(i) = target(i:i)
- ENDDO
- IF( PRESENT(back) )THEN
-   dir_switch = back
- ELSE
-   dir_switch = .FALSE.
- ENDIF
- IF( PRESENT(every) )THEN
-   rep_search = every
- ELSE
-   rep_search = .FALSE.
- ENDIF
- IF( dir_switch )THEN ! backwards search
-   ipos = ls-lt+1
-   DO
-     IF( ipos < 1 )EXIT ! search past start of string
-     ! test for occurance of target in string at this position
-     IF( ALL(string%chars(ipos:ipos+lt-1) == tget) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipos-1) = work(1:ipos-1)
-       DO i=1,lsub
-         temp(i+ipos-1) = substring(i:i)
-       ENDDO
-       temp(ipos+lsub:) = work(ipos+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos-lt+1
-     ENDIF
-     ipos=ipos-1
-   ENDDO
- ELSE ! forward search
-   ipos = 1; ipow = 1
-   DO
-     IF( ipos > ls-lt+1 )EXIT ! search past end of string
-     ! test for occurance of target in string at this position
-     IF( ALL(string%chars(ipos:ipos+lt-1) == tget) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipow-1) = work(1:ipow-1)
-       DO i=1,lsub
-         temp(i+ipow-1) = substring(i:i)
-       ENDDO
-       temp(ipow+lsub:) = work(ipow+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos+lt-1; ipow = ipow+lsub-1
-     ENDIF
-     ipos=ipos+1; ipow=ipow+1
-   ENDDO
- ENDIF
- replace_scc%chars => work
-ENDFUNCTION replace_scc
+  interface lle
+     module procedure lle_VS_VS
+     module procedure lle_CH_VS
+     module procedure lle_VS_CH
+  end interface lle
 
-FUNCTION replace_css(string,target,substring,every,back)
- type(VARYING_STRING)            :: replace_css
- CHARACTER(LEN=*),INTENT(IN)     :: string
- type(VARYING_STRING),INTENT(IN) :: target,substring
- LOGICAL,INTENT(IN),OPTIONAL     :: every,back
- ! calculates the result string by the following actions:
- ! searches for occurences of target in string, and replaces these with
- ! substring. if back present with value true search is backward otherwise
- ! search is done forward. if every present with value true all accurences
- ! of target in string are replaced, otherwise only the first found is
- ! replaced. if target is not found the result is the same as string.
- LOGICAL                        :: dir_switch, rep_search
- CHARACTER,DIMENSION(:),POINTER :: work,temp,str
- INTEGER                        :: ls,lt,lsub,ipos,ipow,i
- ls = LEN(string); lt = LEN(target); lsub = LEN(substring)
- IF(lt==0)THEN
-   WRITE(*,*) " Zero length target in REPLACE"
-   STOP
- ENDIF
- ALLOCATE(work(1:ls)); ALLOCATE(str(1:ls))
- DO i=1,ls
-   str(i) = string(i:i)
- ENDDO
- work = str
- IF( PRESENT(back) )THEN
-   dir_switch = back
- ELSE
-   dir_switch = .FALSE.
- ENDIF
- IF( PRESENT(every) )THEN
-   rep_search = every
- ELSE
-   rep_search = .FALSE.
- ENDIF
- IF( dir_switch )THEN ! backwards search
-   ipos = ls-lt+1
-   DO
-     IF( ipos < 1 )EXIT ! search past start of string
-     ! test for occurance of target in string at this position
-     IF( ALL(str(ipos:ipos+lt-1) == target%chars) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipos-1) = work(1:ipos-1)
-       temp(ipos:ipos+lsub-1) = substring%chars
-       temp(ipos+lsub:) = work(ipos+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos-lt+1
-     ENDIF
-     ipos=ipos-1
-   ENDDO
- ELSE ! forward search
-   ipos = 1; ipow = 1
-   DO
-     IF( ipos > ls-lt+1 )EXIT ! search past end of string
-     ! test for occurance of target in string at this position
-     IF( ALL(str(ipos:ipos+lt-1) == target%chars) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipow-1) = work(1:ipow-1)
-       temp(ipow:ipow+lsub-1) = substring%chars
-       temp(ipow+lsub:) = work(ipow+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos+lt-1; ipow = ipow+lsub-1
-     ENDIF
-     ipos=ipos+1; ipow=ipow+1
-   ENDDO
- ENDIF
- replace_css%chars => work
-ENDFUNCTION replace_css
+  interface llt
+     module procedure llt_VS_VS
+     module procedure llt_CH_VS
+     module procedure llt_VS_CH
+  end interface llt
 
-FUNCTION replace_csc(string,target,substring,every,back)
- type(VARYING_STRING)            :: replace_csc
- type(VARYING_STRING),INTENT(IN) :: target
- CHARACTER(LEN=*),INTENT(IN)     :: string,substring
- LOGICAL,INTENT(IN),OPTIONAL     :: every,back
- !  calculates the result string by the following actions:
- !  searches for occurences of target in string, and replaces these with
- !  substring. if back present with value true search is backward otherwise
- !  search is done forward. if every present with value true all accurences
- !  of target in string are replaced, otherwise only the first found is
- !  replaced. if target is not found the result is the same as string.
- LOGICAL                        :: dir_switch, rep_search
- CHARACTER,DIMENSION(:),POINTER :: work,temp,str
- INTEGER                        :: ls,lt,lsub,ipos,ipow,i
- ls = LEN(string); lt = LEN(target); lsub = LEN(substring)
- IF(lt==0)THEN
-   WRITE(*,*) " Zero length target in REPLACE"
-   STOP
- ENDIF
- ALLOCATE(work(1:ls)); ALLOCATE(str(1:ls))
- DO i=1,ls
-   str(i) = string(i:i)
- ENDDO
- work = str
- IF( PRESENT(back) )THEN
-   dir_switch = back
- ELSE
-   dir_switch = .FALSE.
- ENDIF
- IF( PRESENT(every) )THEN
-   rep_search = every
- ELSE
-   rep_search = .FALSE.
- ENDIF
- IF( dir_switch )THEN ! backwards search
-   ipos = ls-lt+1
-   DO
-     IF( ipos < 1 )EXIT ! search past start of string
-     ! test for occurance of target in string at this position
-     IF( ALL(str(ipos:ipos+lt-1) == target%chars) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipos-1) = work(1:ipos-1)
-       DO i=1,lsub
-         temp(i+ipos-1) = substring(i:i)
-       ENDDO
-       temp(ipos+lsub:) = work(ipos+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos-lt+1
-     ENDIF
-     ipos=ipos-1
-   ENDDO
- ELSE ! forward search
-   ipos = 1; ipow = 1
-   DO
-     IF( ipos > ls-lt+1 )EXIT ! search past end of string
-     ! test for occurance of target in string at this position
-     IF( ALL(str(ipos:ipos+lt-1) == target%chars) )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipow-1) = work(1:ipow-1)
-       DO i=1,lsub
-         temp(i+ipow-1) = substring(i:i)
-       ENDDO
-       temp(ipow+lsub:) = work(ipow+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos+lt-1; ipow = ipow+lsub-1
-     ENDIF
-     ipos=ipos+1; ipow=ipow+1
-   ENDDO
- ENDIF
- replace_csc%chars => work
-ENDFUNCTION replace_csc
+  interface repeat
+     module procedure repeat_
+  end interface repeat
 
-FUNCTION replace_ccs(string,target,substring,every,back)
- type(VARYING_STRING)            :: replace_ccs
- type(VARYING_STRING),INTENT(IN) :: substring
- CHARACTER(LEN=*),INTENT(IN)     :: string,target
- LOGICAL,INTENT(IN),OPTIONAL     :: every,back
- !  calculates the result string by the following actions:
- !  searches for occurences of target in string, and replaces these with
- !  substring. if back present with value true search is backward otherwise
- !  search is done forward. if every present with value true all accurences
- !  of target in string are replaced, otherwise only the first found is
- !  replaced. if target is not found the result is the same as string.
- LOGICAL                        :: dir_switch, rep_search
- CHARACTER,DIMENSION(:),POINTER :: work,temp
- INTEGER                        :: ls,lt,lsub,ipos,ipow,i
- ls = LEN(string); lt = LEN(target); lsub = LEN(substring)
- IF(lt==0)THEN
-   WRITE(*,*) " Zero length target in REPLACE"
-   STOP
- ENDIF
- ALLOCATE(work(1:ls))
- DO i=1,ls
-   work(i) = string(i:i)
- ENDDO
- IF( PRESENT(back) )THEN
-   dir_switch = back
- ELSE
-   dir_switch = .FALSE.
- ENDIF
- IF( PRESENT(every) )THEN
-   rep_search = every
- ELSE
-   rep_search = .FALSE.
- ENDIF
- IF( dir_switch )THEN ! backwards search
-   ipos = ls-lt+1
-   DO
-     IF( ipos < 1 )EXIT ! search past start of string
-     ! test for occurance of target in string at this position
-     IF( string(ipos:ipos+lt-1) == target )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipos-1) = work(1:ipos-1)
-       temp(ipos:ipos+lsub-1) = substring%chars
-       temp(ipos+lsub:) = work(ipos+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos-lt+1
-     ENDIF
-     ipos=ipos-1
-   ENDDO
- ELSE ! forward search
-   ipos = 1; ipow = 1
-   DO
-     IF( ipos > ls-lt+1 )EXIT ! search past end of string
-     ! test for occurance of target in string at this position
-     IF( string(ipos:ipos+lt-1) == target )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipow-1) = work(1:ipow-1)
-       temp(ipow:ipow+lsub-1) = substring%chars
-       temp(ipow+lsub:) = work(ipow+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos+lt-1; ipow = ipow+lsub-1
-     ENDIF
-     ipos=ipos+1; ipow=ipow+1
-   ENDDO
- ENDIF
- replace_ccs%chars => work
-ENDFUNCTION replace_ccs
+  interface scan
+     module procedure scan_VS_VS
+     module procedure scan_CH_VS
+     module procedure scan_VS_CH
+  end interface scan
 
-FUNCTION replace_ccc(string,target,substring,every,back)
- type(VARYING_STRING)            :: replace_ccc
- CHARACTER(LEN=*),INTENT(IN)     :: string,target,substring
- LOGICAL,INTENT(IN),OPTIONAL     :: every,back
- !  calculates the result string by the following actions:
- !  searches for occurences of target in string, and replaces these with
- !  substring. if back present with value true search is backward otherwise
- !  search is done forward. if every present with value true all accurences
- !  of target in string are replaced, otherwise only the first found is
- !  replaced. if target is not found the result is the same as string.
- LOGICAL                        :: dir_switch, rep_search
- CHARACTER,DIMENSION(:),POINTER :: work,temp
- INTEGER                        :: ls,lt,lsub,ipos,ipow,i
- ls = LEN(string); lt = LEN(target); lsub = LEN(substring)
- IF(lt==0)THEN
-   WRITE(*,*) " Zero length target in REPLACE"
-   STOP
- ENDIF
- ALLOCATE(work(1:ls))
- DO i=1,ls
-   work(i) = string(i:i)
- ENDDO
- IF( PRESENT(back) )THEN
-   dir_switch = back
- ELSE
-   dir_switch = .FALSE.
- ENDIF
- IF( PRESENT(every) )THEN
-   rep_search = every
- ELSE
-   rep_search = .FALSE.
- ENDIF
- IF( dir_switch )THEN ! backwards search
-   ipos = ls-lt+1
-   DO
-     IF( ipos < 1 )EXIT ! search past start of string
-     ! test for occurance of target in string at this position
-     IF( string(ipos:ipos+lt-1) == target )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipos-1) = work(1:ipos-1)
-       DO i=1,lsub
-         temp(i+ipos-1) = substring(i:i)
-       ENDDO
-       temp(ipos+lsub:) = work(ipos+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos-lt+1
-     ENDIF
-     ipos=ipos-1
-   ENDDO
- ELSE ! forward search
-   ipos = 1; ipow = 1
-   DO
-     IF( ipos > ls-lt+1 )EXIT ! search past end of string
-     ! test for occurance of target in string at this position
-     IF( string(ipos:ipos+lt-1) == target )THEN
-       ! match found allocate space for string with this occurance of
-       ! target replaced by substring
-       ALLOCATE(temp(1:SIZE(work)+lsub-lt))
-       ! copy work into temp replacing this occurance of target by
-       ! substring
-       temp(1:ipow-1) = work(1:ipow-1)
-       DO i=1,lsub
-         temp(i+ipow-1) = substring(i:i)
-       ENDDO
-       temp(ipow+lsub:) = work(ipow+lt:)
-       work => temp ! make new version of work point at the temp space
-       IF(.NOT.rep_search)EXIT ! exit if only first replacement wanted
-       ! move search and replacement positions over the effected positions
-       ipos = ipos+lt-1; ipow = ipow+lsub-1
-     ENDIF
-     ipos=ipos+1; ipow=ipow+1
-   ENDDO
- ENDIF
- replace_ccc%chars => work
-ENDFUNCTION replace_ccc
+  interface trim
+     module procedure trim_
+  end interface trim
 
-!----- Remove procedures ----------------------------------------------------!
-FUNCTION remove_s(string,start,finish)
- type(VARYING_STRING)            :: remove_s
- type(VARYING_STRING),INTENT(IN) :: string
- INTEGER,INTENT(IN),OPTIONAL     :: start
- INTEGER,INTENT(IN),OPTIONAL     :: finish
- !  returns as result the string produced by the actions
- !  removes the characters between start and finish from string reducing it in 
- !  size by MAX(0,ABS(finish-start+1)) 
- !  if start < 1 or is missing then assumes start=1 
- !  if finish > LEN(string) or is missing then assumes finish=LEN(string) 
- CHARACTER,DIMENSION(:),POINTER :: arg_str
- INTEGER                        :: is,if,ls
- ls = LEN(string)
- IF (PRESENT(start)) THEN
-   is = MAX(1,start)
- ELSE
-   is = 1
- ENDIF
- IF (PRESENT(finish)) THEN
-   if = MIN(ls,finish)
- ELSE
-   if = ls
- ENDIF
- IF( if < is ) THEN  ! zero characters to be removed, string is unchanged
-   ALLOCATE(arg_str(1:ls))
-   arg_str = string%chars
- ELSE
-   ALLOCATE(arg_str(1:ls-if+is-1) )
-   arg_str(1:is-1) = string%chars(1:is-1)
-   arg_str(is:) = string%chars(if+1:)
- ENDIF
- remove_s%chars => arg_str
-ENDFUNCTION remove_s
-  
-FUNCTION remove_c(string,start,finish)
- type(VARYING_STRING)        :: remove_c
- CHARACTER(LEN=*),INTENT(IN) :: string
- INTEGER,INTENT(IN),OPTIONAL :: start
- INTEGER,INTENT(IN),OPTIONAL :: finish
- !  returns as result the string produced by the actions
- !  removes the characters between start and finish from string reducing it in 
- !  size by MAX(0,ABS(finish-start+1)) 
- !  if start < 1 or is missing then assumes start=1 
- !  if finish > LEN(string) or is missing then assumes finish=LEN(string) 
- CHARACTER,DIMENSION(:),POINTER :: arg_str
- INTEGER                        :: is,if,ls,i
- ls = LEN(string)
- IF (PRESENT(start)) THEN
-   is = MAX(1,start)
- ELSE
-   is = 1
- ENDIF
- IF (PRESENT(finish)) THEN
-   if = MIN(ls,finish)
- ELSE
-   if = ls
- ENDIF
- IF( if < is ) THEN  ! zero characters to be removed, string is unchanged
-   ALLOCATE(arg_str(1:ls))
-   DO i=1,ls
-     arg_str(i) = string(i:i)
-   ENDDO
- ELSE
-   ALLOCATE(arg_str(1:ls-if+is-1) )
-   DO i=1,is-1
-     arg_str(i) = string(i:i)
-   ENDDO
-   DO i=is,ls-if+is-1
-     arg_str(i) = string(i-is+if+1:i-is+if+1)
-   ENDDO
- ENDIF
- remove_c%chars => arg_str
-ENDFUNCTION remove_c
-  
-!----- Extract procedures ---------------------------------------------------!
- FUNCTION extract_s(string,start,finish) 
-  type(VARYING_STRING),INTENT(IN) :: string 
-  INTEGER,INTENT(IN),OPTIONAL     :: start     
-  INTEGER,INTENT(IN),OPTIONAL     :: finish     
-  type(VARYING_STRING)            :: extract_s 
-  ! extracts the characters between start and finish from string  and 
-  ! delivers these as the result of the function, string is unchanged 
-  ! if start < 1 or is missing then it is treated as 1 
-  ! if finish > LEN(string) or is missing then it is treated as LEN(string) 
-  INTEGER                         :: is,if 
-  IF (PRESENT(start)) THEN  
-     is = MAX(1,start) 
-  ELSE 
-     is = 1 
-  ENDIF 
-  IF (PRESENT(finish)) THEN  
-     if = MIN(LEN(string),finish) 
-  ELSE 
-     if = LEN(string) 
-  ENDIF 
-  ALLOCATE(extract_s%chars(1:if-is+1)) 
-  extract_s%chars = string%chars(is:if)
- ENDFUNCTION extract_s 
-  
- FUNCTION extract_c(string,start,finish)
-  CHARACTER(LEN=*),INTENT(IN) :: string 
-  INTEGER,INTENT(IN),OPTIONAL :: start   
-  INTEGER,INTENT(IN),OPTIONAL :: finish  
-  type(VARYING_STRING)        :: extract_c 
-  ! extracts the characters between start and finish from character string and 
-  ! delivers these as the result of the function, string is unchanged 
-  ! if start < 1 or is missing then it is treated as 1 
-  ! if finish > LEN(string) or is missing then it is treated as LEN(string) 
-  INTEGER                      :: is,if,i 
-  IF (PRESENT(start)) THEN    
-     is = MAX(1,start) 
-  ELSE 
-     is = 1 
-  ENDIF 
-  IF (PRESENT(finish)) THEN  
-     if = MIN(LEN(string),finish) 
-  ELSE 
-     if = LEN(string) 
-  ENDIF 
-  ALLOCATE(extract_c%chars(1:if-is+1)) 
-  DO i=is,if 
-    extract_c%chars(i-is+1) = string(i:i) 
-  ENDDO 
- ENDFUNCTION extract_c 
+  interface verify
+     module procedure verify_VS_VS
+     module procedure verify_CH_VS
+     module procedure verify_VS_CH
+  end interface verify
 
-!----- Split procedures ------------------------------------------------------!
- SUBROUTINE split_s(string,word,set,separator,back)
-  type(VARYING_STRING),INTENT(INOUT)        :: string
-  type(VARYING_STRING),INTENT(OUT)          :: word
-  type(VARYING_STRING),INTENT(IN)           :: set
-  type(VARYING_STRING),INTENT(OUT),OPTIONAL :: separator
-  LOGICAL,INTENT(IN),OPTIONAL               :: back
-  ! splits the input string at the first(last) character in set
-  ! returns the leading(trailing) substring in word and the trailing(leading)
-  ! substring in string. The search is done in the forward or backward
-  ! direction depending on back. If separator is present, the actual separator
-  ! character found is returned in separator.
-  ! If no character in set is found string and separator are returned as
-  ! zero length and the whole input string is returned in word.
-  LOGICAL                         :: dir_switch 
-  INTEGER                         :: ls,tpos
-  ls = LEN(string)
-  IF( PRESENT(back) )THEN 
-    dir_switch = back 
-  ELSE 
-    dir_switch = .FALSE. 
-  ENDIF 
-  IF(dir_switch)THEN ! backwards search 
-    DO tpos = ls,1,-1
-       IF(ANY(string%chars(tpos) == set%chars))EXIT
-    ENDDO
-    word%chars => string%chars(tpos+1:ls)
-    IF(PRESENT(separator))THEN
-      IF(tpos==0)THEN
-        separator = ""
-      ELSE
-        separator%chars => string%chars(tpos:tpos)
-      ENDIF
-    ENDIF
-    string%chars => string%chars(1:tpos-1)
-  ELSE ! forwards search
-    DO tpos =1,ls
-       IF(ANY(string%chars(tpos) == set%chars))EXIT
-    ENDDO
-    word%chars => string%chars(1:tpos-1)
-    IF(PRESENT(separator))THEN
-      IF(tpos==ls+1)THEN
-        separator = ""
-      ELSE
-        separator%chars => string%chars(tpos:tpos)
-      ENDIF
-    ENDIF
-    string%chars => string%chars(tpos+1:ls)
-  ENDIF
- ENDSUBROUTINE split_s
+  interface var_str
+     module procedure var_str_
+     module procedure var_str_c_ptr
+  end interface var_str
 
- SUBROUTINE split_c(string,word,set,separator,back)
-  type(VARYING_STRING),INTENT(INOUT)        :: string
-  type(VARYING_STRING),INTENT(OUT)          :: word
-  CHARACTER(LEN=*),INTENT(IN)               :: set
-  type(VARYING_STRING),INTENT(OUT),OPTIONAL :: separator
-  LOGICAL,INTENT(IN),OPTIONAL               :: back
-  ! splits the input string at the first(last) character in set
-  ! returns the leading(trailing) substring in word and the trailing(leading)
-  ! substring in string. The search is done in the forward or backward
-  ! direction depending on back. If separator is present, the actual separator
-  ! character found is returned in separator.
-  ! If no character in set is found string and separator are returned as
-  ! zero length and the whole input string is returned in word.
-  LOGICAL                         :: dir_switch 
-  INTEGER                         :: ls,tpos,lset,i
-  ls = LEN(string); lset = LEN(set)
-  IF( PRESENT(back) )THEN 
-    dir_switch = back 
-  ELSE 
-    dir_switch = .FALSE. 
-  ENDIF 
-  IF(dir_switch)THEN ! backwards search 
-    BSEARCH:DO tpos = ls,1,-1
-       DO i=1,lset
-         IF(string%chars(tpos) == set(i:i))EXIT BSEARCH
-       ENDDO
-    ENDDO BSEARCH
-    word%chars => string%chars(tpos+1:ls)
-    IF(PRESENT(separator))THEN
-      IF(tpos==0)THEN
-        separator = ""
-      ELSE
-        separator%chars => string%chars(tpos:tpos)
-      ENDIF
-    ENDIF
-    string%chars => string%chars(1:tpos-1)
-  ELSE ! forwards search
-    FSEARCH:DO tpos =1,ls
-       DO i=1,lset
-         IF(string%chars(tpos) == set(i:i))EXIT FSEARCH
-       ENDDO
-    ENDDO FSEARCH
-    word%chars => string%chars(1:tpos-1)
-    IF(PRESENT(separator))THEN
-      IF(tpos==ls+1)THEN
-        separator = ""
-      ELSE
-        separator%chars => string%chars(tpos:tpos)
-      ENDIF
-    ENDIF
-    string%chars => string%chars(tpos+1:ls)
-  ENDIF
- ENDSUBROUTINE split_c
+  interface get
+     module procedure get_
+     module procedure get_unit
+     module procedure get_set_VS
+     module procedure get_set_CH
+     module procedure get_unit_set_VS
+     module procedure get_unit_set_CH
+  end interface get
 
-!----- INDEX procedures ------------------------------------------------------!
- FUNCTION index_ss(string,substring,back) 
-  type(VARYING_STRING),INTENT(IN) :: string,substring 
-  LOGICAL,INTENT(IN),OPTIONAL     :: back 
-  INTEGER                         :: index_ss 
-  ! returns the starting position in string of the substring 
-  ! scanning from the front or back depending on the logical argument back 
-  LOGICAL                         :: dir_switch 
-  INTEGER                         :: ls,lsub,i 
-  ls = LEN(string); lsub = LEN(substring) 
-  IF( PRESENT(back) )THEN 
-    dir_switch = back 
-  ELSE 
-    dir_switch = .FALSE. 
-  ENDIF 
-  IF(dir_switch)THEN ! backwards search 
-    DO i = ls-lsub+1,1,-1 
-      IF( ALL(string%chars(i:i+lsub-1) == substring%chars) )THEN 
-        index_ss = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    index_ss = 0 
-  ELSE ! forward search 
-    DO i = 1,ls-lsub+1 
-      IF( ALL(string%chars(i:i+lsub-1) == substring%chars) )THEN 
-        index_ss = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    index_ss = 0 
-  ENDIF 
- ENDFUNCTION index_ss 
-  
- FUNCTION index_sc(string,substring,back)
-  type(VARYING_STRING),INTENT(IN) :: string 
-  CHARACTER(LEN=*),INTENT(IN)     :: substring 
-  LOGICAL,INTENT(IN),OPTIONAL     :: back 
-  INTEGER                         :: index_sc 
-  ! returns the starting position in string of the substring 
-  ! scanning from the front or back depending on the logical argument back 
-  LOGICAL                         :: dir_switch,matched 
-  INTEGER                         :: ls,lsub,i,j 
-  ls = LEN(string); lsub = LEN(substring) 
-  IF( PRESENT(back) )THEN 
-    dir_switch = back 
-  ELSE 
-    dir_switch = .FALSE. 
-  ENDIF 
-  IF (dir_switch) THEN ! backwards search 
-    DO i = ls-lsub+1,1,-1 
-      matched = .TRUE. 
-      DO j = 1,lsub 
-        IF( string%chars(i+j-1) /= substring(j:j) )THEN 
-          matched = .FALSE. 
-          EXIT 
-        ENDIF 
-      ENDDO 
-      IF( matched )THEN 
-        index_sc = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    index_sc = 0 
-  ELSE ! forward search 
-    DO i = 1,ls-lsub+1 
-      matched = .TRUE. 
-      DO j = 1,lsub 
-        IF( string%chars(i+j-1) /= substring(j:j) )THEN 
-          matched = .FALSE. 
-          EXIT 
-        ENDIF 
-      ENDDO 
-      IF( matched )THEN 
-        index_sc = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    index_sc = 0 
-  ENDIF 
- ENDFUNCTION index_sc 
-  
- FUNCTION index_cs(string,substring,back)
-  CHARACTER(LEN=*),INTENT(IN)     :: string 
-  type(VARYING_STRING),INTENT(IN) :: substring 
-  LOGICAL,INTENT(IN),OPTIONAL     :: back 
-  INTEGER                         :: index_cs 
-  ! returns the starting position in string of the substring 
-  ! scanning from the front or back depending on the logical argument back 
-  LOGICAL                         :: dir_switch,matched 
-  INTEGER                         :: ls,lsub,i,j 
-  ls = LEN(string); lsub = LEN(substring) 
-  IF( PRESENT(back) )THEN 
-    dir_switch = back 
-  ELSE 
-    dir_switch = .FALSE. 
-  ENDIF 
-  IF(dir_switch)THEN ! backwards search 
-    DO i = ls-lsub+1,1,-1 
-      matched = .TRUE. 
-      DO j = 1,lsub 
-        IF( string(i+j-1:i+j-1) /= substring%chars(j) )THEN 
-          matched = .FALSE. 
-          EXIT 
-        ENDIF 
-      ENDDO 
-      IF( matched )THEN 
-        index_cs = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    index_cs = 0 
-  ELSE ! forward search 
-    DO i = 1,ls-lsub+1 
-      matched = .TRUE. 
-      DO j = 1,lsub 
-        IF( string(i+j-1:i+j-1) /= substring%chars(j) )THEN 
-          matched = .FALSE. 
-          EXIT 
-        ENDIF 
-      ENDDO 
-      IF( matched )THEN 
-        index_cs = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    index_cs = 0 
-  ENDIF 
- ENDFUNCTION index_cs 
-  
-!----- SCAN procedures ------------------------------------------------------!
- FUNCTION scan_ss(string,set,back) 
-  type(VARYING_STRING),INTENT(IN) :: string,set 
-  LOGICAL,INTENT(IN),OPTIONAL     :: back 
-  INTEGER                         :: scan_ss 
-  ! returns the first position in string occupied by a character from 
-  ! the characters in set, scanning is forward or backwards depending on back 
-  LOGICAL                         :: dir_switch 
-  INTEGER                         :: ls,i 
-  ls = LEN(string) 
-  IF( PRESENT(back) )THEN 
-    dir_switch = back 
-  ELSE 
-    dir_switch = .FALSE. 
-  ENDIF 
-  IF(dir_switch)THEN ! backwards search 
-    DO i = ls,1,-1 
-      IF( ANY( set%chars == string%chars(i) ) )THEN 
-        scan_ss = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    scan_ss = 0 
-  ELSE ! forward search 
-    DO i = 1,ls 
-      IF( ANY( set%chars == string%chars(i) ) )THEN 
-        scan_ss = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    scan_ss = 0 
-  ENDIF 
- ENDFUNCTION scan_ss 
-  
- FUNCTION scan_sc(string,set,back)
-  type(VARYING_STRING),INTENT(IN) :: string 
-  CHARACTER(LEN=*),INTENT(IN)     :: set 
-  LOGICAL,INTENT(IN),OPTIONAL     :: back 
-  INTEGER                         :: scan_sc 
-  ! returns the first position in string occupied by a character from 
-  ! the characters in set, scanning is forward or backwards depending on back 
-  LOGICAL                         :: dir_switch,matched 
-  INTEGER                         :: ls,i,j 
-  ls = LEN(string) 
-  IF( PRESENT(back) )THEN 
-    dir_switch = back 
-  ELSE 
-    dir_switch = .FALSE. 
-  ENDIF 
-  IF(dir_switch)THEN ! backwards search 
-    DO i = ls,1,-1 
-      matched = .FALSE. 
-      DO j = 1,LEN(set) 
-        IF( string%chars(i) == set(j:j) )THEN 
-          matched = .TRUE. 
-          EXIT 
-        ENDIF 
-      ENDDO 
-      IF( matched )THEN 
-        scan_sc = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    scan_sc = 0 
-  ELSE ! forward search 
-    DO i = 1,ls 
-      matched = .FALSE. 
-      DO j = 1,LEN(set) 
-        IF( string%chars(i) == set(j:j) )THEN 
-          matched = .TRUE. 
-          EXIT 
-        ENDIF 
-      ENDDO 
-      IF( matched )THEN 
-        scan_sc = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    scan_sc = 0 
-  ENDIF 
- ENDFUNCTION scan_sc 
-  
- FUNCTION scan_cs(string,set,back)
-  CHARACTER(LEN=*),INTENT(IN)     :: string 
-  type(VARYING_STRING),INTENT(IN) :: set 
-  LOGICAL,INTENT(IN),OPTIONAL     :: back 
-  INTEGER                         :: scan_cs 
-  ! returns the first position in character string occupied by a character from 
-  ! the characters in set, scanning is forward or backwards depending on back 
-  LOGICAL                         :: dir_switch,matched 
-  INTEGER                         :: ls,i,j 
-  ls = LEN(string) 
-  IF( PRESENT(back) )THEN 
-    dir_switch = back 
-  ELSE 
-    dir_switch = .FALSE. 
-  ENDIF 
-  IF(dir_switch)THEN ! backwards search 
-    DO i = ls,1,-1 
-      matched = .FALSE. 
-      DO j = 1,LEN(set) 
-        IF( string(i:i) == set%chars(j) )THEN 
-          matched = .TRUE. 
-          EXIT 
-        ENDIF 
-      ENDDO 
-      IF( matched )THEN 
-        scan_cs = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    scan_cs = 0 
-  ELSE ! forward search 
-    DO i = 1,ls 
-      matched = .FALSE. 
-      DO j = 1,LEN(set) 
-        IF( string(i:i) == set%chars(j) )THEN 
-          matched = .TRUE. 
-          EXIT 
-        ENDIF 
-      ENDDO 
-      IF( matched )THEN 
-        scan_cs = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    scan_cs = 0 
-  ENDIF 
- ENDFUNCTION scan_cs 
-  
-!----- VERIFY procedures ----------------------------------------------------!
- FUNCTION verify_ss(string,set,back) 
-  type(VARYING_STRING),INTENT(IN) :: string,set 
-  LOGICAL,INTENT(IN),OPTIONAL     :: back 
-  INTEGER                         :: verify_ss 
-  ! returns the first position in string not occupied by a character from 
-  ! the characters in set, scanning is forward or backwards depending on back 
-  LOGICAL                     :: dir_switch 
-  INTEGER                     :: ls,i 
-  ls = LEN(string) 
-  IF( PRESENT(back) )THEN 
-    dir_switch = back 
-  ELSE 
-    dir_switch = .FALSE. 
-  ENDIF 
-  IF(dir_switch)THEN ! backwards search 
-    DO i = ls,1,-1 
-      IF( .NOT.(ANY( set%chars == string%chars(i) )) )THEN 
-        verify_ss = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    verify_ss = 0 
-  ELSE ! forward search 
-    DO i = 1,ls 
-      IF( .NOT.(ANY( set%chars == string%chars(i) )) )THEN 
-        verify_ss = i 
-        RETURN 
-      ENDIF 
-    ENDDO 
-    verify_ss = 0 
-  ENDIF 
- ENDFUNCTION verify_ss 
-  
- FUNCTION verify_sc(string,set,back)
-  type(VARYING_STRING),INTENT(IN) :: string 
-  CHARACTER(LEN=*),INTENT(IN)     :: set 
-  LOGICAL,INTENT(IN),OPTIONAL     :: back 
-  INTEGER                         :: verify_sc 
-  ! returns the first position in string not occupied by a character from 
-  ! the characters in set, scanning is forward or backwards depending on back 
-  LOGICAL                     :: dir_switch
-  INTEGER                     :: ls,i,j 
-  ls = LEN(string) 
-  IF( PRESENT(back) )THEN 
-    dir_switch = back 
-  ELSE 
-    dir_switch = .FALSE. 
-  ENDIF 
-  IF(dir_switch)THEN ! backwards search 
-    back_string_search:DO i = ls,1,-1 
-      DO j = 1,LEN(set) 
-        IF( string%chars(i) == set(j:j) )CYCLE back_string_search
-        ! cycle string search if string character found in set
-      ENDDO 
-      ! string character not found in set index i is result
-        verify_sc = i 
-        RETURN 
-    ENDDO back_string_search
-    ! each string character found in set
-    verify_sc = 0 
-  ELSE ! forward search 
-    frwd_string_search:DO i = 1,ls 
-      DO j = 1,LEN(set) 
-        IF( string%chars(i) == set(j:j) )CYCLE frwd_string_search
-      ENDDO 
-        verify_sc = i 
-        RETURN 
-    ENDDO frwd_string_search
-    verify_sc = 0 
-  ENDIF 
- ENDFUNCTION verify_sc 
-  
- FUNCTION verify_cs(string,set,back)
-  CHARACTER(LEN=*),INTENT(IN)     :: string 
-  type(VARYING_STRING),INTENT(IN) :: set 
-  LOGICAL,INTENT(IN),OPTIONAL     :: back 
-  INTEGER                         :: verify_cs 
-  ! returns the first position in icharacter string not occupied by a character 
-  ! from the characters in set, scanning is forward or backwards depending on 
-  ! back 
-  LOGICAL                     :: dir_switch
-  INTEGER                     :: ls,i,j 
-  ls = LEN(string) 
-  IF( PRESENT(back) )THEN 
-    dir_switch = back 
-  ELSE 
-    dir_switch = .FALSE. 
-  ENDIF 
-  IF(dir_switch)THEN ! backwards search 
-    back_string_search:DO i = ls,1,-1 
-      DO j = 1,LEN(set) 
-        IF( string(i:i) == set%chars(j) )CYCLE back_string_search
-      ENDDO 
-        verify_cs = i 
-        RETURN 
-    ENDDO back_string_search
-    verify_cs = 0 
-  ELSE ! forward search 
-    frwd_string_search:DO i = 1,ls 
-      DO j = 1,LEN(set) 
-        IF( string(i:i) == set%chars(j) )CYCLE frwd_string_search
-      ENDDO 
-        verify_cs = i 
-        RETURN 
-    ENDDO frwd_string_search
-    verify_cs = 0 
-  ENDIF 
- ENDFUNCTION verify_cs 
+  interface put
+     module procedure put_VS
+     module procedure put_CH
+     module procedure put_unit_VS
+     module procedure put_unit_CH
+  end interface put
+
+  interface put_line
+     module procedure put_line_VS
+     module procedure put_line_CH
+     module procedure put_line_unit_VS
+     module procedure put_line_unit_CH
+  end interface put_line
+
+  interface extract
+     module procedure extract_VS
+     module procedure extract_CH
+  end interface extract
+
+  interface insert
+     module procedure insert_VS_VS
+     module procedure insert_CH_VS
+     module procedure insert_VS_CH
+     module procedure insert_CH_CH
+  end interface insert
+
+  interface remove
+     module procedure remove_VS
+     module procedure remove_CH
+  end interface remove
+
+  interface replace
+     module procedure replace_VS_VS_auto
+     module procedure replace_CH_VS_auto
+     module procedure replace_VS_CH_auto
+     module procedure replace_CH_CH_auto
+     module procedure replace_VS_VS_fixed
+     module procedure replace_CH_VS_fixed
+     module procedure replace_VS_CH_fixed
+     module procedure replace_CH_CH_fixed
+     module procedure replace_VS_VS_VS_target
+     module procedure replace_CH_VS_VS_target
+     module procedure replace_VS_CH_VS_target
+     module procedure replace_CH_CH_VS_target
+     module procedure replace_VS_VS_CH_target
+     module procedure replace_CH_VS_CH_target
+     module procedure replace_VS_CH_CH_target
+     module procedure replace_CH_CH_CH_target
+  end interface
+
+  interface split
+     module procedure split_VS
+     module procedure split_CH
+  end interface split
+
+  interface c_ptr_new
+     module procedure c_ptr_new_VS
+  end interface c_ptr_new
+
+
+! Access specifiers
+
+  public :: assignment(=)
+  public :: operator(//)
+  public :: operator(==)
+  public :: operator(/=)
+  public :: operator(<)
+  public :: operator(<=)
+  public :: operator(>=)
+  public :: operator(>)
+  public :: adjustl
+  public :: adjustr
+  public :: char
+  public :: iachar
+  public :: ichar
+  public :: index
+  public :: len
+  public :: len_trim
+  public :: lge
+  public :: lgt
+  public :: lle
+  public :: llt
+  public :: repeat
+  public :: scan
+  public :: trim
+  public :: verify
+  public :: var_str
+  public :: get
+  public :: put
+  public :: put_line
+  public :: extract
+  public :: insert
+  public :: remove
+  public :: replace
+  public :: split
+
+  private :: op_assign_CH_VS
+  private :: op_assign_VS_CH
+  private :: op_concat_VS_VS
+  private :: op_concat_CH_VS
+  private :: op_concat_VS_CH
+  private :: op_eq_VS_VS
+  private :: op_eq_CH_VS
+  private :: op_eq_VS_CH
+  private :: op_ne_VS_VS
+  private :: op_ne_CH_VS
+  private :: op_ne_VS_CH
+  private :: op_lt_VS_VS
+  private :: op_lt_CH_VS
+  private :: op_lt_VS_CH
+  private :: op_le_VS_VS
+  private :: op_le_CH_VS
+  private :: op_le_VS_CH
+  private :: op_ge_VS_VS
+  private :: op_ge_CH_VS
+  private :: op_ge_VS_CH
+  private :: op_gt_VS_VS
+  private :: op_gt_CH_VS
+  private :: op_gt_VS_CH
+  private :: adjustl_
+  private :: adjustr_
+  private :: char_auto
+  private :: char_fixed
+  private :: iachar_
+  private :: ichar_
+  private :: index_VS_VS
+  private :: index_CH_VS
+  private :: index_VS_CH
+  private :: len_
+  private :: len_trim_
+  private :: lge_VS_VS
+  private :: lge_CH_VS
+  private :: lge_VS_CH
+  private :: lgt_VS_VS
+  private :: lgt_CH_VS
+  private :: lgt_VS_CH
+  private :: lle_VS_VS
+  private :: lle_CH_VS
+  private :: lle_VS_CH
+  private :: llt_VS_VS
+  private :: llt_CH_VS
+  private :: llt_VS_CH
+  private :: repeat_
+  private :: scan_VS_VS
+  private :: scan_CH_VS
+  private :: scan_VS_CH
+  private :: trim_
+  private :: verify_VS_VS
+  private :: verify_CH_VS
+  private :: verify_VS_CH
+  private :: var_str_
+  private :: var_str_c_ptr
+  private :: get_
+  private :: get_unit
+  private :: get_set_VS
+  private :: get_set_CH
+  private :: get_unit_set_VS
+  private :: get_unit_set_CH
+  private :: put_VS
+  private :: put_CH
+  private :: put_unit_VS
+  private :: put_unit_CH
+  private :: put_line_VS
+  private :: put_line_CH
+  private :: put_line_unit_VS
+  private :: put_line_unit_CH
+  private :: extract_VS
+  private :: extract_CH
+  private :: insert_VS_VS
+  private :: insert_CH_VS
+  private :: insert_VS_CH
+  private :: insert_CH_CH
+  private :: remove_VS
+  private :: remove_CH
+  private :: replace_VS_VS_auto
+  private :: replace_CH_VS_auto
+  private :: replace_VS_CH_auto
+  private :: replace_CH_CH_auto
+  private :: replace_VS_VS_fixed
+  private :: replace_CH_VS_fixed
+  private :: replace_VS_CH_fixed
+  private :: replace_CH_CH_fixed
+  private :: replace_VS_VS_VS_target
+  private :: replace_CH_VS_VS_target
+  private :: replace_VS_CH_VS_target
+  private :: replace_CH_CH_VS_target
+  private :: replace_VS_VS_CH_target
+  private :: replace_CH_VS_CH_target
+  private :: replace_VS_CH_CH_target
+  private :: replace_CH_CH_CH_target
+  private :: split_VS
+  private :: split_CH
+
+! Procedures
+
+contains
+
+!****
+
+  elemental subroutine op_assign_CH_VS (var, exp)
+
+    character(LEN=*), intent(out)    :: var
+    type(varying_string), intent(in) :: exp
+
+! Assign a varying string to a character string
+
+    var = char(exp)
+
+! Finish
+
+    return
+
+  end subroutine op_assign_CH_VS
+
+!****
+
+  elemental subroutine op_assign_VS_CH (var, exp)
+
+    type(varying_string), intent(out) :: var
+    character(LEN=*), intent(in)      :: exp
+
+! Assign a character string to a varying string
+
+    var = var_str(exp)
+
+! Finish
+
+    return
+
+  end subroutine op_assign_VS_CH
+
+!****
+
+  elemental function op_concat_VS_VS (string_a, string_b) result (concat_string)
+
+    type(varying_string), intent(in) :: string_a
+    type(varying_string), intent(in) :: string_b
+    type(varying_string)             :: concat_string
+
+    integer                          :: len_string_a
+
+! Concatenate two varying strings
+
+    len_string_a = len(string_a)
+
+    ALLOCATE(concat_string%chars(len_string_a+len(string_b)+1))
+    concat_string%chars(:len_string_a) = string_a%chars(:len_string_a)
+    concat_string%chars(len_string_a+1:) = string_b%chars(:)
+
+
+! Finish
+
+    return
+
+  end function op_concat_VS_VS
+
+!****
+
+  elemental function op_concat_CH_VS (string_a, string_b) result (concat_string)
+
+    character(LEN=*), intent(in)     :: string_a
+    type(varying_string), intent(in) :: string_b
+    type(varying_string)             :: concat_string
+
+! Concatenate a character string and a varying 
+! string
+
+    concat_string = op_concat_VS_VS(var_str(string_a), string_b)
+
+! Finish
+
+    return
+
+  end function op_concat_CH_VS
+
+!****
+
+  elemental function op_concat_VS_CH (string_a, string_b) result (concat_string)
+
+    type(varying_string), intent(in) :: string_a
+    character(LEN=*), intent(in)     :: string_b
+    type(varying_string)             :: concat_string
+
+! Concatenate a varying string and a character
+! string
+
+    concat_string = op_concat_VS_VS(string_a, var_str(string_b))
+
+! Finish
+
+    return
+
+  end function op_concat_VS_CH
+
+!****
+
+  elemental function op_eq_VS_VS (string_a, string_b) result (op_eq)
+
+    type(varying_string), intent(in) :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_eq
+
+! Compare (==) two varying strings
+
+    op_eq = char(string_a) == char(string_b)
+
+! Finish
+
+    return
+
+  end function op_eq_VS_VS
+
+!****
+
+  elemental function op_eq_CH_VS (string_a, string_b) result (op_eq)
+
+    character(LEN=*), intent(in)     :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_eq
+
+! Compare (==) a character string and a varying 
+! string
+
+    op_eq = string_a == char(string_b)
+
+! Finish
+
+    return
+
+  end function op_eq_CH_VS
+
+!****
+
+  elemental function op_eq_VS_CH (string_a, string_b) result (op_eq)
+
+    type(varying_string), intent(in) :: string_a
+    character(LEN=*), intent(in)     :: string_b
+    logical                          :: op_eq
+
+! Compare (==) a varying string and a character
+! string
+
+    op_eq = char(string_a) == string_b
+
+! Finish
+
+    return
+
+  end function op_eq_VS_CH
+
+!****
+
+  elemental function op_ne_VS_VS (string_a, string_b) result (op_ne)
+
+    type(varying_string), intent(in) :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_ne
+
+! Compare (/=) two varying strings
+
+    op_ne = char(string_a) /= char(string_b)
+
+! Finish
+
+    return
+
+  end function op_ne_VS_VS
+
+!****
+
+  elemental function op_ne_CH_VS (string_a, string_b) result (op_ne)
+
+    character(LEN=*), intent(in)     :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_ne
+
+! Compare (/=) a character string and a varying
+! string
+
+    op_ne = string_a /= char(string_b)
+
+! Finish
+
+    return
+
+  end function op_ne_CH_VS
+
+!****
+
+  elemental function op_ne_VS_CH (string_a, string_b) result (op_ne)
+
+    type(varying_string), intent(in) :: string_a
+    character(LEN=*), intent(in)     :: string_b
+    logical                          :: op_ne
+
+! Compare (/=) a varying string and a character
+! string
+
+    op_ne = char(string_a) /= string_b
+
+! Finish
+
+    return
+
+  end function op_ne_VS_CH
+
+!****
+
+  elemental function op_lt_VS_VS (string_a, string_b) result (op_lt)
+
+    type(varying_string), intent(in) :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_lt
+
+! Compare (<) two varying strings
+
+    op_lt = char(string_a) < char(string_b)
+
+! Finish
+
+    return
+
+  end function op_lt_VS_VS
+
+!****
+
+  elemental function op_lt_CH_VS (string_a, string_b) result (op_lt)
+
+    character(LEN=*), intent(in)     :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_lt
+
+! Compare (<) a character string and a varying
+! string
+
+    op_lt = string_a < char(string_b)
+
+! Finish
+
+    return
+
+  end function op_lt_CH_VS
+
+!****
+
+  elemental function op_lt_VS_CH (string_a, string_b) result (op_lt)
+
+    type(varying_string), intent(in) :: string_a
+    character(LEN=*), intent(in)     :: string_b
+    logical                          :: op_lt
+
+! Compare (<) a varying string and a character 
+! string
+
+    op_lt = char(string_a) < string_b
+
+! Finish
+
+    return
+
+  end function op_lt_VS_CH
+
+!****
+
+  elemental function op_le_VS_VS (string_a, string_b) result (op_le)
+
+    type(varying_string), intent(in) :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_le
+
+! Compare (<=) two varying strings
+
+    op_le = char(string_a) <= char(string_b)
+
+! Finish
+
+    return
+
+  end function op_le_VS_VS
+
+!****
+
+  elemental function op_le_CH_VS (string_a, string_b) result (op_le)
+
+    character(LEN=*), intent(in)     :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_le
+
+! Compare (<=) a character string and a varying 
+! string
+
+    op_le = string_a <= char(string_b)
+
+! Finish
+
+    return
+
+  end function op_le_CH_VS
+
+!****
+
+  elemental function op_le_VS_CH (string_a, string_b) result (op_le)
+
+    type(varying_string), intent(in) :: string_a
+    character(LEN=*), intent(in)     :: string_b
+    logical                          :: op_le
+
+! Compare (<=) a varying string and a character 
+! string
+
+    op_le = char(string_a) <= string_b
+
+! Finish
+
+    return
+
+  end function op_le_VS_CH
+
+!****
+
+  elemental function op_ge_VS_VS (string_a, string_b) result (op_ge)
+
+    type(varying_string), intent(in) :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_ge
+
+! Compare (>=) two varying strings
+
+    op_ge = char(string_a) >= char(string_b)
+
+! Finish
+
+    return
+
+  end function op_ge_VS_VS
+
+!****
+
+  elemental function op_ge_CH_VS (string_a, string_b) result (op_ge)
+
+    character(LEN=*), intent(in)     :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_ge
+
+! Compare (>=) a character string and a varying
+! string
+
+    op_ge = string_a >= char(string_b)
+
+! Finish
+
+    return
+
+  end function op_ge_CH_VS
+
+!****
+
+  elemental function op_ge_VS_CH (string_a, string_b) result (op_ge)
+
+    type(varying_string), intent(in) :: string_a
+    character(LEN=*), intent(in)     :: string_b
+    logical                          :: op_ge
+
+! Compare (>=) a varying string and a character
+! string
+
+    op_ge = char(string_a) >= string_b
+
+! Finish
+
+    return
+
+  end function op_ge_VS_CH
+
+!****
+
+  elemental function op_gt_VS_VS (string_a, string_b) result (op_gt)
+
+    type(varying_string), intent(in) :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_gt
+
+! Compare (>) two varying strings
+
+    op_gt = char(string_a) > char(string_b)
+
+! Finish
+
+    return
+
+  end function op_gt_VS_VS
+
+!****
+
+  elemental function op_gt_CH_VS (string_a, string_b) result (op_gt)
+
+    character(LEN=*), intent(in)     :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: op_gt
+
+! Compare (>) a character string and a varying
+! string
+
+    op_gt = string_a > char(string_b)
+
+! Finish
+
+    return
+
+  end function op_gt_CH_VS
+
+!****
+
+  elemental function op_gt_VS_CH (string_a, string_b) result (op_gt)
+
+    type(varying_string), intent(in) :: string_a
+    character(LEN=*), intent(in)     :: string_b
+    logical                          :: op_gt
+
+! Compare (>) a varying string and a character
+! string
+
+    op_gt = char(string_a) > string_b
+
+! Finish
+
+    return
+
+  end function op_gt_VS_CH
+
+!****
+
+  elemental function adjustl_ (string) result (adjustl_string)
+
+    type(varying_string), intent(in) :: string
+    type(varying_string)             :: adjustl_string
+
+! Adjust the varying string to the left
+
+    adjustl_string = ADJUSTL(CHAR(string))
+
+! Finish
+
+    return
+
+  end function adjustl_
+
+!****
+
+  elemental function adjustr_ (string) result (adjustr_string)
+
+    type(varying_string), intent(in) :: string
+    type(varying_string)             :: adjustr_string
+
+! Adjust the varying string to the right
+
+    adjustr_string = ADJUSTR(CHAR(string))
+
+! Finish
+
+    return
+
+  end function adjustr_
+
+!****
+
+  pure function char_auto (string) result (char_string)
+
+    type(varying_string), intent(in) :: string
+    character(LEN=len(string))       :: char_string
+
+    integer                          :: i_char
+
+! Convert a varying string into a character string
+! (automatic length)
     
-!----- LEN_TRIM procedure ----------------------------------------------------!
-FUNCTION len_trim_s(string) 
- type(VARYING_STRING),INTENT(IN) :: string 
- INTEGER                         :: len_trim_s 
- ! Returns the length of the string without counting trailing blanks 
- INTEGER                         :: ls,i 
- ls=LEN(string) 
- len_trim_s = 0 
- DO i = ls,1,-1 
-    IF (string%chars(i) /= BLANK) THEN 
-       len_trim_s = i 
-       EXIT 
-    ENDIF 
- ENDDO 
-ENDFUNCTION len_trim_s 
-  
-!----- TRIM procedure -------------------------------------------------------! 
-FUNCTION trim_s(string) 
- type(VARYING_STRING),INTENT(IN)  :: string 
- type(VARYING_STRING)             :: trim_s 
- ! Returns the argument string with trailing blanks removed 
- INTEGER                      :: ls,pos,i 
- ls=LEN(string) 
- pos=0 
- DO i = ls,1,-1 
-    IF(string%chars(i) /= BLANK) THEN 
-       pos=i 
-       EXIT 
-    ENDIF 
- ENDDO 
- ALLOCATE(trim_s%chars(1:pos))
- trim_s%chars(1:pos) = string%chars(1:pos) 
-ENDFUNCTION trim_s 
-  
-!----- IACHAR procedure ------------------------------------------------------! 
-FUNCTION iachar_s(string) 
- type(VARYING_STRING),INTENT(IN) :: string 
- INTEGER                         :: iachar_s 
- ! returns the position of the character string in the ISO 646 
- ! collating sequence. 
- ! string must be of length one 
- IF (LEN(string) /= 1) THEN 
-    WRITE(*,*) " ERROR, argument in IACHAR not of length one" 
-    STOP 
- ENDIF 
- iachar_s = IACHAR(string%chars(1)) 
-ENDFUNCTION iachar_s 
+    forall(i_char = 1:len(string))
+       char_string(i_char:i_char) = string%chars(i_char)
+    end forall
 
-!----- ICHAR procedure ------------------------------------------------------!
-FUNCTION ichar_s(string) 
- type(VARYING_STRING),INTENT(IN) :: string 
- INTEGER                         :: ichar_s 
- ! returns the position of character from string in the processor collating 
- ! sequence. 
- ! string must be of length one 
- IF (LEN(string) /= 1) THEN 
-    WRITE(*,*) " Argument string in ICHAR has to be of length one" 
-    STOP 
- ENDIF 
- ichar_s = ICHAR(string%chars(1)) 
-ENDFUNCTION ichar_s 
+! Finish
+
+    return
+
+  end function char_auto
+
+!****
+
+  pure function char_fixed (string, length) result (char_string)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(in)              :: length
+    character(LEN=length)            :: char_string
+
+! Convert a varying string into a character string
+! (fixed length)
+
+    char_string = char(string)
+
+! Finish
+
+    return
+
+  end function char_fixed
+
+!****
+
+  elemental function iachar_ (c) result (i)
+
+    type(varying_string), intent(in) :: c
+    integer                          :: i
+
+! Get the position in the ISO 646 collating sequence
+! of a varying string character
+
+    i = ICHAR(char(c))
+
+! Finish
+
+    return
+
+  end function iachar_
+
+!****
+
+  elemental function ichar_ (c) result (i)
+
+    type(varying_string), intent(in) :: c
+    integer                          :: i
+
+! Get the position in the processor collating 
+! sequence of a varying string character
+
+    i = ICHAR(char(c))
+
+! Finish
+
+    return
+
+  end function ichar_
+
+!****
+
+  elemental function index_VS_VS (string, substring, back) result (i_substring)
+
+    type(varying_string), intent(in) :: string
+    type(varying_string), intent(in) :: substring
+    logical, intent(in), optional    :: back
+    integer                          :: i_substring
+
+! Get the index of a varying substring within a
+! varying string
+
+    i_substring = INDEX(char(string), char(substring), back)
+
+! Finish
+
+    return
+
+  end function index_VS_VS
+
+!****
+
+  elemental function index_CH_VS (string, substring, back) result (i_substring)
+
+    character(LEN=*), intent(in)     :: string
+    type(varying_string), intent(in) :: substring
+    logical, intent(in), optional    :: back
+    integer                          :: i_substring
+
+! Get the index of a varying substring within a
+! character string
+
+    i_substring = INDEX(string, char(substring), back)
+
+! Finish
+
+    return
+
+  end function index_CH_VS
+
+!****
+
+  elemental function index_VS_CH (string, substring, back) result (i_substring)
+
+    type(varying_string), intent(in) :: string
+    character(LEN=*), intent(in)     :: substring
+    logical, intent(in), optional    :: back
+    integer                          :: i_substring
+
+! Get the index of a character substring within a
+! varying string
+
+    i_substring = INDEX(char(string), substring, back)
+
+! Finish
+
+    return
+
+  end function index_VS_CH
+
+!****
+
+  elemental function len_ (string) result (length)
+
+    type(varying_string), intent(in) :: string
+    integer                          :: length
+
+! Get the length of a varying string
+
+    if(ALLOCATED(string%chars)) then
+       length = SIZE(string%chars)-1
+    else
+       length = 0
+    endif
+
+! Finish
+
+    return
+
+  end function len_
+
+!****
+
+  elemental function len_trim_ (string) result (length)
+
+    type(varying_string), intent(in) :: string
+    integer                          :: length
+
+! Get the trimmed length of a varying string
+
+    if(ALLOCATED(string%chars)) then
+       length = LEN_TRIM(char(string))
+    else
+       length = 0
+    endif
+
+! Finish
+
+    return
+
+  end function len_trim_
+
+!****
+
+  elemental function lge_VS_VS (string_a, string_b) result (comp)
+
+    type(varying_string), intent(in) :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: comp
+
+! Compare (LGE) two varying strings
+
+    comp = (char(string_a) >= char(string_b))
+
+! Finish
+
+    return
+
+  end function lge_VS_VS
+
+!****
+
+  elemental function lge_CH_VS (string_a, string_b) result (comp)
+
+    character(LEN=*), intent(in)     :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: comp
+
+! Compare (LGE) a character string and a varying
+! string
+
+    comp = (string_a >= char(string_b))
+
+! Finish
+
+    return
+
+  end function lge_CH_VS
+
+!****
+
+  elemental function lge_VS_CH (string_a, string_b) result (comp)
+
+    type(varying_string), intent(in) :: string_a
+    character(LEN=*), intent(in)     :: string_b
+    logical                          :: comp
+
+! Compare (LGE) a varying string and a character
+! string
+
+    comp = (char(string_a) >= string_b)
+
+! Finish
+
+    return
+
+  end function lge_VS_CH
+
+!****
+
+  elemental function lgt_VS_VS (string_a, string_b) result (comp)
+
+    type(varying_string), intent(in) :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: comp
+
+! Compare (LGT) two varying strings
+
+    comp = (char(string_a) > char(string_b))
+
+! Finish
+
+    return
+
+  end function lgt_VS_VS
+
+!****
+
+  elemental function lgt_CH_VS (string_a, string_b) result (comp)
+
+    character(LEN=*), intent(in)     :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: comp
+
+! Compare (LGT) a character string and a varying
+! string
+
+    comp = (string_a > char(string_b))
+
+! Finish
+
+    return
+
+  end function lgt_CH_VS
+
+!****
+
+  elemental function lgt_VS_CH (string_a, string_b) result (comp)
+
+    type(varying_string), intent(in) :: string_a
+    character(LEN=*), intent(in)     :: string_b
+    logical                          :: comp
+
+! Compare (LGT) a varying string and a character
+! string
+
+    comp = (char(string_a) > string_b)
+
+! Finish
+
+    return
+
+  end function lgt_VS_CH
+
+!****
+
+  elemental function lle_VS_VS (string_a, string_b) result (comp)
+
+    type(varying_string), intent(in) :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: comp
+
+! Compare (LLE) two varying strings
+
+    comp = (char(string_a) <= char(string_b))
+
+! Finish
+
+    return
+
+  end function lle_VS_VS
+
+!****
+
+  elemental function lle_CH_VS (string_a, string_b) result (comp)
+
+    character(LEN=*), intent(in)     :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: comp
+
+! Compare (LLE) a character string and a varying
+! string
+
+    comp = (string_a <= char(string_b))
+
+! Finish
+
+    return
+
+  end function lle_CH_VS
+
+!****
+
+  elemental function lle_VS_CH (string_a, string_b) result (comp)
+
+    type(varying_string), intent(in) :: string_a
+    character(LEN=*), intent(in)     :: string_b
+    logical                          :: comp
+
+! Compare (LLE) a varying string and a character
+! string
+
+    comp = (char(string_a) <= string_b)
+
+! Finish
+
+    return
+
+  end function lle_VS_CH
+
+!****
+
+  elemental function llt_VS_VS (string_a, string_b) result (comp)
+
+    type(varying_string), intent(in) :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: comp
+
+! Compare (LLT) two varying strings
+
+    comp = (char(string_a) < char(string_b))
+
+! Finish
+
+    return
+
+  end function llt_VS_VS
+
+!****
+
+  elemental function llt_CH_VS (string_a, string_b) result (comp)
+
+    character(LEN=*), intent(in)     :: string_a
+    type(varying_string), intent(in) :: string_b
+    logical                          :: comp
+
+! Compare (LLT) a character string and a varying
+! string
+
+    comp = (string_a < char(string_b))
+
+! Finish
+
+    return
+
+  end function llt_CH_VS
+
+!****
+
+  elemental function llt_VS_CH (string_a, string_b) result (comp)
+
+    type(varying_string), intent(in) :: string_a
+    character(LEN=*), intent(in)     :: string_b
+    logical                          :: comp
+
+! Compare (LLT) a varying string and a character
+! string
+
+    comp = (char(string_a) < string_b)
+
+! Finish
+
+    return
+
+  end function llt_VS_CH
+
+!****
+
+  elemental function repeat_ (string, ncopies) result (repeat_string)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(in)              :: ncopies
+    type(varying_string)             :: repeat_string
+
+! Concatenate several copies of a varying string
+
+    repeat_string = var_str(REPEAT(char(string), ncopies))
+
+! Finish
+
+    return
+
+  end function repeat_
+
+!****
+
+  elemental function scan_VS_VS (string, set, back) result (i)
+
+    type(varying_string), intent(in) :: string
+    type(varying_string), intent(in) :: set
+    logical, intent(in), optional    :: back
+    integer                          :: i
+
+! Scan a varying string for occurrences of 
+! characters in a varying-string set
+
+    i = SCAN(char(string), char(set), back)
+
+! Finish
+
+    return
+
+  end function scan_VS_VS
+    
+!****
+
+  elemental function scan_CH_VS (string, set, back) result (i)
+
+    character(LEN=*), intent(in)     :: string
+    type(varying_string), intent(in) :: set
+    logical, intent(in), optional    :: back
+    integer                          :: i
+
+! Scan a character string for occurrences of 
+! characters in a varying-string set
+
+    i = SCAN(string, char(set), back)
+
+! Finish
+
+    return
+
+  end function scan_CH_VS
+    
+!****
+
+  elemental function scan_VS_CH (string, set, back) result (i)
+
+    type(varying_string), intent(in) :: string
+    character(LEN=*), intent(in)     :: set
+    logical, intent(in), optional    :: back
+    integer                          :: i
+
+! Scan a varying string for occurrences of 
+! characters in a character-string set
+
+    i = SCAN(char(string), set, back)
+
+! Finish
+
+    return
+
+  end function scan_VS_CH
+    
+!****
+
+  elemental function trim_ (string) result (trim_string)
+
+    type(varying_string), intent(in) :: string
+    type(varying_string)             :: trim_string
+
+! Remove trailing blanks from a varying string
+
+    trim_string = TRIM(char(string))
+
+! Finish
+
+    return
+
+  end function trim_
+
+!****
+
+  elemental function verify_VS_VS (string, set, back) result (i)
+
+    type(varying_string), intent(in) :: string
+    type(varying_string), intent(in) :: set
+    logical, intent(in), optional    :: back
+    integer                          :: i
+
+! Verify a varying string for occurrences of
+! characters in a varying-string set
+
+    i = VERIFY(char(string), char(set), back)
+
+! Finish
+
+    return
+
+  end function verify_VS_VS
+
+!****
+
+  elemental function verify_CH_VS (string, set, back) result (i)
+
+    character(LEN=*), intent(in)     :: string
+    type(varying_string), intent(in) :: set
+    logical, intent(in), optional    :: back
+    integer                          :: i
+
+! Verify a character string for occurrences of 
+! characters in a varying-string set
+
+    i = VERIFY(string, char(set), back)
+
+! Finish
+
+    return
+
+  end function verify_CH_VS
+
+!****
+
+  elemental function verify_VS_CH (string, set, back) result (i)
+
+    type(varying_string), intent(in) :: string
+    character(LEN=*), intent(in)     :: set
+    logical, intent(in), optional    :: back
+    integer                          :: i
+
+! Verify a varying string for occurrences of 
+! characters in a character-string set
+
+    i = VERIFY(char(string), set, back)
+
+! Finish
+
+    return
+
+  end function verify_VS_CH
+
+!****
+
+  elemental function var_str_ (char_) result (string)
+
+    character(LEN=*), intent(in) :: char_
+    type(varying_string)         :: string
+
+    integer                      :: length
+    integer                      :: i_char
+
+! Convert a character string to a varying string
+
+    length = LEN(char_)
+
+    ALLOCATE(string%chars(length+1))
+
+    forall(i_char = 1:length)
+       string%chars(i_char) = char_(i_char:i_char)
+    end forall
+    string%chars(length+1) = char(0)
+
+! Finish
+
+    return
+
+  end function var_str_
+
+!****
+
+  function var_str_c_ptr (char_c_ptr) result (string)
+
+    type(c_ptr), intent(in) :: char_c_ptr
+    type(varying_string)         :: string
+
+    CHARACTER(len=1),pointer :: char_(:)
+    INTEGER :: length
+
+! Convert a character string to a varying string
+
+    IF (c_ASSOCIATED(char_c_ptr)) THEN
+
+      CALL C_F_POINTER(char_c_ptr, char_, (/HUGE(1)-1/))
+
+      DO length = 1, SIZE(char_)
+        IF (char_(length) == CHAR(0)) EXIT
+      ENDDO
+
+      ALLOCATE(string%chars(length))
+      string%chars(:) = char_(1:length)
+      string%chars(length) = CHAR(0) ! handle absurdus HUGE() case
+
+    ELSE
+
+      string = var_str('')
+
+    ENDIF
+
+! Finish
+
+    return
+
+  end function var_str_c_ptr
+
+!****
+
+  subroutine get_ (string, maxlen, iostat)
+
+    type(varying_string), intent(out) :: string
+    integer, intent(in), optional     :: maxlen
+    integer, intent(out), optional    :: iostat
+
+    integer                           :: n_chars_remain
+    integer                           :: n_chars_read
+    character(LEN=GET_BUFFER_LEN)     :: buffer
+    integer                           :: local_iostat
+
+! Read from the default unit into a varying string
+
+    string = ""
+
+    if(PRESENT(maxlen)) then
+       n_chars_remain = maxlen
+    else
+       n_chars_remain = HUGE(1)
+    endif
+
+    read_loop : do
+
+       if(n_chars_remain <= 0) return
+
+       n_chars_read = MIN(n_chars_remain, GET_BUFFER_LEN)
+
+       if(PRESENT(iostat)) then
+          read(unit=*, FMT="(A)", ADVANCE="NO", &
+               IOSTAT=iostat, SIZE=n_chars_read) buffer(:n_chars_read)
+          if(iostat < 0) exit read_loop
+          if(iostat > 0) return
+       else
+          read(unit=*, FMT="(A)", ADVANCE="NO", &
+               IOSTAT=local_iostat, SIZE=n_chars_read) buffer(:n_chars_read)
+          if(local_iostat < 0) exit read_loop
+       endif
+
+       string = string//buffer(:n_chars_read)
+       n_chars_remain = n_chars_remain - n_chars_read
+
+    end do read_loop
+
+    string = string//buffer(:n_chars_read)
+
+! Finish (end-of-record)
+
+    return
+
+  end subroutine get_
+
+!****
+
+  subroutine get_unit (unit, string, maxlen, iostat)
+
+    integer, intent(in)               :: unit
+    type(varying_string), intent(out) :: string
+    integer, intent(in), optional     :: maxlen
+    integer, intent(out), optional    :: iostat
+
+    integer                           :: n_chars_remain
+    integer                           :: n_chars_read
+    character(LEN=GET_BUFFER_LEN)     :: buffer
+    integer                           :: local_iostat
+
+! Read from the specified unit into a varying string
+
+    string = ""
+
+    if(PRESENT(maxlen)) then
+       n_chars_remain = maxlen
+    else
+       n_chars_remain = HUGE(1)
+    endif
+
+    read_loop : do
+
+       if(n_chars_remain <= 0) return
+
+       n_chars_read = MIN(n_chars_remain, GET_BUFFER_LEN)
+
+       if(PRESENT(iostat)) then
+          read(unit=unit, FMT="(A)", ADVANCE="NO", &
+               IOSTAT=iostat, SIZE=n_chars_read) buffer(:n_chars_read)
+          if(iostat < 0) exit read_loop
+          if(iostat > 0) return
+       else
+          read(unit=unit, FMT="(A)", ADVANCE="NO", &
+               IOSTAT=local_iostat, SIZE=n_chars_read) buffer(:n_chars_read)
+          if(local_iostat < 0) exit read_loop
+       endif
+
+       string = string//buffer(:n_chars_read)
+       n_chars_remain = n_chars_remain - n_chars_read
+
+    end do read_loop
+
+    string = string//buffer(:n_chars_read)
+
+! Finish (end-of-record)
+
+    return
+
+  end subroutine get_unit
+
+!****
+
+  subroutine get_set_VS (string, set, separator, maxlen, iostat)
+
+    type(varying_string), intent(out)           :: string
+    type(varying_string), intent(in)            :: set
+    type(varying_string), intent(out), optional :: separator
+    integer, intent(in), optional               :: maxlen
+    integer, intent(out), optional              :: iostat
+
+! Read from the default unit into a varying string,
+! with a custom varying-string separator
+
+    call get(string, char(set), separator, maxlen, iostat)
+
+! Finish
+
+    return
+
+  end subroutine get_set_VS
+
+!****
+
+  subroutine get_set_CH (string, set, separator, maxlen, iostat)
+
+    type(varying_string), intent(out)           :: string
+    character(LEN=*), intent(in)                :: set
+    type(varying_string), intent(out), optional :: separator
+    integer, intent(in), optional               :: maxlen
+    integer, intent(out), optional              :: iostat
+
+    integer                                     :: n_chars_remain
+    character(LEN=1)                            :: buffer
+    integer                                     :: i_set
+    integer                                     :: local_iostat
+
+! Read from the default unit into a varying string,
+! with a custom character-string separator
+
+    string = ""
+
+    if(PRESENT(maxlen)) then
+       n_chars_remain = maxlen
+    else
+       n_chars_remain = HUGE(1)
+    endif
+
+    if(PRESENT(separator)) separator = ""
+
+    read_loop : do
+
+       if(n_chars_remain <= 0) return
+
+       if(PRESENT(iostat)) then
+          read(unit=*, FMT="(A1)", ADVANCE="NO", IOSTAT=iostat) buffer
+          if(iostat /= 0) exit read_loop
+       else
+          read(unit=*, FMT="(A1)", ADVANCE="NO", IOSTAT=local_iostat) buffer
+          if(local_iostat /= 0) exit read_loop
+       endif
+
+       i_set = SCAN(buffer, set)
+
+       if(i_set == 1) then
+          if(PRESENT(separator)) separator = buffer
+          exit read_loop
+       endif
+
+       string = string//buffer
+       n_chars_remain = n_chars_remain - 1
+
+    end do read_loop
+
+! Finish
+
+    return
+
+  end subroutine get_set_CH
+
+!****
+
+  subroutine get_unit_set_VS (unit, string, set, separator, maxlen, iostat)
+
+    integer, intent(in)                         :: unit
+    type(varying_string), intent(out)           :: string
+    type(varying_string), intent(in)            :: set
+    type(varying_string), intent(out), optional :: separator
+    integer, intent(in), optional               :: maxlen
+    integer, intent(out), optional              :: iostat
+
+! Read from the specified unit into a varying string,
+! with a custom varying-string separator
+
+    call get(unit, string, char(set), separator, maxlen, iostat)
+
+! Finish
+
+    return
+
+  end subroutine get_unit_set_VS
+
+!****
+
+  subroutine get_unit_set_CH (unit, string, set, separator, maxlen, iostat)
+
+    integer, intent(in)                         :: unit
+    type(varying_string), intent(out)           :: string
+    character(LEN=*), intent(in)                :: set
+    type(varying_string), intent(out), optional :: separator
+    integer, intent(in), optional               :: maxlen
+    integer, intent(out), optional              :: iostat
+
+    integer                                     :: n_chars_remain
+    character(LEN=1)                            :: buffer
+    integer                                     :: i_set
+    integer                                     :: local_iostat
+
+! Read from the default unit into a varying string,
+! with a custom character-string separator
+
+    string = ""
+
+    if(PRESENT(maxlen)) then
+       n_chars_remain = maxlen
+    else
+       n_chars_remain = HUGE(1)
+    endif
+
+    if(PRESENT(separator)) separator = ""
+
+    read_loop : do
+
+       if(n_chars_remain <= 0) return
+
+       if(PRESENT(iostat)) then
+          read(unit=unit, FMT="(A1)", ADVANCE="NO", IOSTAT=iostat) buffer
+          if(iostat /= 0) exit read_loop
+       else
+          read(unit=unit, FMT="(A1)", ADVANCE="NO", IOSTAT=local_iostat) buffer
+          if(local_iostat /= 0) exit read_loop
+       endif
+
+       i_set = SCAN(buffer, set)
+
+       if(i_set == 1) then
+          if(PRESENT(separator)) separator = buffer
+          exit read_loop
+       endif
+
+       string = string//buffer
+       n_chars_remain = n_chars_remain - 1
+
+    end do read_loop
+
+! Finish
+
+    return
+
+  end subroutine get_unit_set_CH
+
+!****
+
+  subroutine put_VS (string, iostat)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(out), optional   :: iostat
+
+! Append a varying string to the current record of 
+! the default unit
+
+    call put(char(string), iostat)
+
+! Finish
+
+  end subroutine put_VS
+    
+!****
+
+  subroutine put_CH (string, iostat)
+
+    character(LEN=*), intent(in)   :: string
+    integer, intent(out), optional :: iostat
+
+! Append a character string to the current record of 
+! the default unit
+
+    if(PRESENT(iostat)) then
+       write(unit=*, FMT="(A)", ADVANCE="NO", IOSTAT=iostat) string
+    else
+       write(unit=*, FMT="(A)", ADVANCE="NO") string
+    endif
+
+! Finish
+
+  end subroutine put_CH
+
+!****
+
+  subroutine put_unit_VS (unit, string, iostat)
+
+    integer, intent(in)              :: unit
+    type(varying_string), intent(in) :: string
+    integer, intent(out), optional   :: iostat
+
+! Append a varying string to the current record of 
+! the specified unit
+
+    call put(unit, char(string), iostat)
+
+! Finish
+
+    return
+
+  end subroutine put_unit_VS
+
+!****
+
+  subroutine put_unit_CH (unit, string, iostat)
+
+    integer, intent(in)            :: unit
+    character(LEN=*), intent(in)   :: string
+    integer, intent(out), optional :: iostat
+
+! Append a character string to the current record of 
+! the specified unit
+
+    if(PRESENT(iostat)) then
+       write(unit=unit, FMT="(A)", ADVANCE="NO", IOSTAT=iostat) string
+    else
+       write(unit=unit, FMT="(A)", ADVANCE="NO") string
+    endif
+
+! Finish
+
+    return
+
+  end subroutine put_unit_CH
+
+!****
+
+  subroutine put_line_VS (string, iostat)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(out), optional   :: iostat
+
+! Append a varying string to the current record of 
+! the default unit, terminating the record
+
+    call put_line(char(string), iostat)
+
+! Finish
+
+    return
+
+  end subroutine put_line_VS
+
+!****
+
+  subroutine put_line_CH (string, iostat)
+
+    character(LEN=*), intent(in)   :: string
+    integer, intent(out), optional :: iostat
+
+! Append a varying string to the current record of 
+! the default unit, terminating the record
+
+    if(PRESENT(iostat)) then
+       write(unit=*, FMT="(A,/)", ADVANCE="NO", IOSTAT=iostat) string
+    else
+       write(unit=*, FMT="(A,/)", ADVANCE="NO") string
+    endif
+
+! Finish
+
+    return
+
+  end subroutine put_line_CH
+
+!****
+
+  subroutine put_line_unit_VS (unit, string, iostat)
+
+    integer, intent(in)              :: unit
+    type(varying_string), intent(in) :: string
+    integer, intent(out), optional   :: iostat
+
+! Append a varying string to the current record of 
+! the specified unit, terminating the record
+
+    call put_line(unit, char(string), iostat)
+
+! Finish
+
+    return
+
+  end subroutine put_line_unit_VS
+
+!****
+
+  subroutine put_line_unit_CH (unit, string, iostat)
+
+    integer, intent(in)            :: unit
+    character(LEN=*), intent(in)   :: string
+    integer, intent(out), optional :: iostat
+
+! Append a varying string to the current record of 
+! the specified unit, terminating the record
+
+    if(PRESENT(iostat)) then
+       write(unit=unit, FMT="(A,/)", ADVANCE="NO", IOSTAT=iostat) string
+    else
+       write(unit=unit, FMT="(A,/)", ADVANCE="NO") string
+    endif
+
+! Finish
+
+    return
+
+  end subroutine put_line_unit_CH
+
+!****
+
+  elemental function extract_VS (string, start, finish) result (ext_string)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(in), optional    :: start
+    integer, intent(in), optional    :: finish
+    type(varying_string)             :: ext_string
+
+! Extract a varying substring from a varying string
+
+    ext_string = extract(char(string), start, finish)
+
+! Finish
+
+    return
+
+  end function extract_VS
+
+!****
+
+  elemental function extract_CH (string, start, finish) result (ext_string)
+
+    character(LEN=*), intent(in)  :: string
+    integer, intent(in), optional :: start
+    integer, intent(in), optional :: finish
+    type(varying_string)          :: ext_string
+
+    integer                       :: start_
+    integer                       :: finish_
+
+! Extract a varying substring from a character string
+
+    if(PRESENT(start)) then
+       start_ = MAX(1, start)
+    else
+       start_ = 1
+    endif
+
+    if(PRESENT(finish)) then
+       finish_ = MIN(LEN(string), finish)
+    else
+       finish_ = LEN(string)
+    endif
+
+    ext_string = var_str(string(start_:finish_))
+
+! Finish
+
+    return
+
+  end function extract_CH
+
+!****
+
+  elemental function insert_VS_VS (string, start, substring) result (ins_string)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(in)              :: start
+    type(varying_string), intent(in) :: substring
+    type(varying_string)             :: ins_string
+
+! Insert a varying substring into a varying string
+
+    ins_string = insert(char(string), start, char(substring))
+
+! Finish
+
+    return
+
+  end function insert_VS_VS
+
+!****
+
+  elemental function insert_CH_VS (string, start, substring) result (ins_string)
+
+    character(LEN=*), intent(in)     :: string
+    integer, intent(in)              :: start
+    type(varying_string), intent(in) :: substring
+    type(varying_string)             :: ins_string
+
+! Insert a varying substring into a character string
+
+    ins_string = insert(string, start, char(substring))
+
+! Finish
+
+    return
+
+  end function insert_CH_VS
+
+!****
+
+  elemental function insert_VS_CH (string, start, substring) result (ins_string)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(in)              :: start
+    character(LEN=*), intent(in)     :: substring
+    type(varying_string)             :: ins_string
+
+! Insert a character substring into a varying string
+
+    ins_string = insert(char(string), start, substring)
+
+! Finish
+
+    return
+
+  end function insert_VS_CH
+
+!****
+
+  elemental function insert_CH_CH (string, start, substring) result (ins_string)
+
+    character(LEN=*), intent(in) :: string
+    integer, intent(in)          :: start
+    character(LEN=*), intent(in) :: substring
+    type(varying_string)         :: ins_string
+
+    integer                      :: start_
+
+! Insert a character substring into a character
+! string
+
+    start_ = MAX(1, MIN(start, LEN(string)+1))
+
+    ins_string = var_str(string(:start_-1)//substring//string(start_:))
+
+! Finish
+
+    return
+
+  end function insert_CH_CH
+
+!****
+
+  elemental function remove_VS (string, start, finish) result (rem_string)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(in), optional    :: start
+    integer, intent(in), optional    :: finish
+    type(varying_string)             :: rem_string
+
+! Remove a substring from a varying string
+
+    rem_string = remove(char(string), start, finish)
+
+! Finish
+
+    return
+
+  end function remove_VS
+
+!****
+
+  elemental function remove_CH (string, start, finish) result (rem_string)
+
+    character(LEN=*), intent(in)  :: string
+    integer, intent(in), optional :: start
+    integer, intent(in), optional :: finish
+    type(varying_string)          :: rem_string
+
+    integer                       :: start_
+    integer                       :: finish_
+
+! Remove a substring from a character string
+
+    if(PRESENT(start)) then
+       start_ = MAX(1, start)
+    else
+       start_ = 1
+    endif
+
+    if(PRESENT(finish)) then
+       finish_ = MIN(LEN(string), finish)
+    else
+       finish_ = LEN(string)
+    endif
+
+    if(finish_ >= start_) then
+       rem_string = var_str(string(:start_-1)//string(finish_+1:))
+    else
+       rem_string = string
+    endif
+
+! Finish
+
+    return
+
+  end function remove_CH
+
+!****
+
+  elemental function replace_VS_VS_auto (string, start, substring) result (rep_string)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(in)              :: start
+    type(varying_string), intent(in) :: substring
+    type(varying_string)             :: rep_string
+
+! Replace part of a varying string with a varying
+! substring
+
+    rep_string = replace(char(string), start, MAX(start, 1)+len(substring)-1, char(substring))
+
+! Finish
+
+    return
+
+  end function replace_VS_VS_auto
+
+!****
+
+  elemental function replace_CH_VS_auto (string, start, substring) result (rep_string)
+
+    character(LEN=*), intent(in)     :: string
+    integer, intent(in)              :: start
+    type(varying_string), intent(in) :: substring
+    type(varying_string)             :: rep_string
+
+! Replace part of a character string with a varying
+! substring
+
+    rep_string = replace(string, start, MAX(start, 1)+len(substring)-1, char(substring))
+
+! Finish
+
+    return
+
+  end function replace_CH_VS_auto
+
+!****
+
+  elemental function replace_VS_CH_auto (string, start, substring) result (rep_string)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(in)              :: start
+    character(LEN=*), intent(in)     :: substring
+    type(varying_string)             :: rep_string
+
+! Replace part of a varying string with a character
+! substring
+
+    rep_string = replace(char(string), start, MAX(start, 1)+LEN(substring)-1, substring)
+
+! Finish
+
+    return
+
+  end function replace_VS_CH_auto
+
+!****
+
+  elemental function replace_CH_CH_auto (string, start, substring) result (rep_string)
+
+    character(LEN=*), intent(in) :: string
+    integer, intent(in)          :: start
+    character(LEN=*), intent(in) :: substring
+    type(varying_string)         :: rep_string
+
+! Replace part of a character string with a character
+! substring
+
+    rep_string = replace(string, start, MAX(start, 1)+LEN(substring)-1, substring)
+
+! Finish
+
+    return
+
+  end function replace_CH_CH_auto
+
+!****
+
+  elemental function replace_VS_VS_fixed (string, start, finish, substring) result (rep_string)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(in)              :: start
+    integer, intent(in)              :: finish
+    type(varying_string), intent(in) :: substring
+    type(varying_string)             :: rep_string
+
+! Replace part of a varying string with a varying
+! substring
+
+    rep_string = replace(char(string), start, finish, char(substring))
+
+! Finish
+
+    return
+
+  end function replace_VS_VS_fixed
+
+!****
+
+!****
+
+  elemental function replace_CH_VS_fixed (string, start, finish, substring) result (rep_string)
+
+    character(LEN=*), intent(in)     :: string
+    integer, intent(in)              :: start
+    integer, intent(in)              :: finish
+    type(varying_string), intent(in) :: substring
+    type(varying_string)             :: rep_string
+
+! Replace part of a character string with a varying
+! substring
+
+    rep_string = replace(string, start, finish, char(substring))
+
+! Finish
+
+    return
+
+  end function replace_CH_VS_fixed
+
+!****
+
+  elemental function replace_VS_CH_fixed (string, start, finish, substring) result (rep_string)
+
+    type(varying_string), intent(in) :: string
+    integer, intent(in)              :: start
+    integer, intent(in)              :: finish
+    character(LEN=*), intent(in)     :: substring
+    type(varying_string)             :: rep_string
+
+! Replace part of a varying string with a character
+! substring
+
+    rep_string = replace(char(string), start, finish, substring)
+
+! Finish
+
+    return
+
+  end function replace_VS_CH_fixed
+
+!****
+
+  elemental function replace_CH_CH_fixed (string, start, finish, substring) result (rep_string)
+
+    character(LEN=*), intent(in) :: string
+    integer, intent(in)          :: start
+    integer, intent(in)          :: finish
+    character(LEN=*), intent(in) :: substring
+    type(varying_string)         :: rep_string
+
+    integer                      :: start_
+    integer                      :: finish_
+
+! Replace part of a character string with a character
+! substring
+
+    start_ = MAX(1, start)
+    finish_ = MIN(LEN(string), finish)
+
+    if(finish_ < start_) then
+       rep_string = insert(string, start_, substring)
+    else
+       rep_string = var_str(string(:start_-1)//substring//string(finish_+1:))
+    endif
+
+! Finish
+
+    return
+
+  end function replace_CH_CH_fixed
+
+!****
+
+  elemental function replace_VS_VS_VS_target (string, target, substring, every, back) result (rep_string)
+
+    type(varying_string), intent(in) :: string
+    type(varying_string), intent(in) :: target
+    type(varying_string), intent(in) :: substring
+    logical, intent(in), optional    :: every
+    logical, intent(in), optional    :: back
+    type(varying_string)             :: rep_string
+
+! Replace part of a varying string with a varying
+! substring, at a location matching a varying-
+! string target
+
+    rep_string = replace(char(string), char(target), char(substring), every, back)
+
+! Finish
+
+    return
+
+  end function replace_VS_VS_VS_target
+
+!****
+
+  elemental function replace_CH_VS_VS_target (string, target, substring, every, back) result (rep_string)
+
+    character(LEN=*), intent(in)     :: string
+    type(varying_string), intent(in) :: target
+    type(varying_string), intent(in) :: substring
+    logical, intent(in), optional    :: every
+    logical, intent(in), optional    :: back
+    type(varying_string)             :: rep_string
+
+! Replace part of a character string with a varying
+! substring, at a location matching a varying-
+! string target
+
+    rep_string = replace(string, char(target), char(substring), every, back)
+
+! Finish
+
+    return
+
+  end function replace_CH_VS_VS_target
+
+!****
+
+  elemental function replace_VS_CH_VS_target (string, target, substring, every, back) result (rep_string)
+
+    type(varying_string), intent(in) :: string
+    character(LEN=*), intent(in)     :: target
+    type(varying_string), intent(in) :: substring
+    logical, intent(in), optional    :: every
+    logical, intent(in), optional    :: back
+    type(varying_string)             :: rep_string
+
+! Replace part of a character string with a varying
+! substring, at a location matching a character-
+! string target
+
+    rep_string = replace(char(string), target, char(substring), every, back)
+
+! Finish
+
+    return
+
+  end function replace_VS_CH_VS_target
+
+!****
+
+  elemental function replace_CH_CH_VS_target (string, target, substring, every, back) result (rep_string)
+
+    character(LEN=*), intent(in)     :: string
+    character(LEN=*), intent(in)     :: target
+    type(varying_string), intent(in) :: substring
+    logical, intent(in), optional    :: every
+    logical, intent(in), optional    :: back
+    type(varying_string)             :: rep_string
+
+! Replace part of a character string with a varying
+! substring, at a location matching a character-
+! string target
+
+    rep_string = replace(string, target, char(substring), every, back)
+
+! Finish
+
+    return
+
+  end function replace_CH_CH_VS_target
+
+!****
+
+  elemental function replace_VS_VS_CH_target (string, target, substring, every, back) result (rep_string)
+
+    type(varying_string), intent(in) :: string
+    type(varying_string), intent(in) :: target
+    character(LEN=*), intent(in)     :: substring
+    logical, intent(in), optional    :: every
+    logical, intent(in), optional    :: back
+    type(varying_string)             :: rep_string
+
+! Replace part of a varying string with a character
+! substring, at a location matching a varying-
+! string target
+
+    rep_string = replace(char(string), char(target), substring, every, back)
+
+! Finish
+
+    return
+
+  end function replace_VS_VS_CH_target
+
+!****
+
+  elemental function replace_CH_VS_CH_target (string, target, substring, every, back) result (rep_string)
+
+    character(LEN=*), intent(in)     :: string
+    type(varying_string), intent(in) :: target
+    character(LEN=*), intent(in)     :: substring
+    logical, intent(in), optional    :: every
+    logical, intent(in), optional    :: back
+    type(varying_string)             :: rep_string
+
+! Replace part of a character string with a character
+! substring, at a location matching a varying-
+! string target
+
+    rep_string = replace(string, char(target), substring, every, back)
+
+! Finish
+
+    return
+
+  end function replace_CH_VS_CH_target
+
+!****
+
+  elemental function replace_VS_CH_CH_target (string, target, substring, every, back) result (rep_string)
+
+    type(varying_string), intent(in) :: string
+    character(LEN=*), intent(in)     :: target
+    character(LEN=*), intent(in)     :: substring
+    logical, intent(in), optional    :: every
+    logical, intent(in), optional    :: back
+    type(varying_string)             :: rep_string
+
+! Replace part of a varying string with a character
+! substring, at a location matching a character-
+! string target
+
+    rep_string = replace(char(string), target, substring, every, back)
+
+! Finish
+
+    return
+
+  end function replace_VS_CH_CH_target
+
+!****
+
+  elemental function replace_CH_CH_CH_target (string, target, substring, every, back) result (rep_string)
+
+    character(LEN=*), intent(in)  :: string
+    character(LEN=*), intent(in)  :: target
+    character(LEN=*), intent(in)  :: substring
+    logical, intent(in), optional :: every
+    logical, intent(in), optional :: back
+    type(varying_string)          :: rep_string
+
+    logical                       :: every_
+    logical                       :: back_
+    type(varying_string)          :: work_string
+    integer                       :: length_target
+    integer                       :: i_target
+
+! Handle special cases when LEN(target) == 0. Such
+! instances are prohibited by the standard, but
+! since this function is elemental, no error can be
+! thrown. Therefore, it makes sense to handle them 
+! in a sensible manner
+
+    if(LEN(target) == 0) then
+       if(LEN(string) /= 0) then
+          rep_string = string
+       else
+          rep_string = substring
+       endif
+       return
+    end if
+
+! Replace part of a character string with a character
+! substring, at a location matching a character-
+! string target
+
+    if(PRESENT(every)) then
+       every_ = every
+    else
+       every_ = .false.
+    endif
+
+    if(PRESENT(back)) then
+       back_ = back
+    else
+       back_ = .false.
+    endif
+
+    rep_string = ""
+
+    work_string = string
+
+    length_target = LEN(target)
+
+    replace_loop : do
+
+       i_target = index(work_string, target, back_)
+
+       if(i_target == 0) exit replace_loop
+
+       if(back_) then
+          rep_string = substring//extract(work_string, start=i_target+length_target)//rep_string
+          work_string = extract(work_string, finish=i_target-1)
+       else
+          rep_string = rep_string//extract(work_string, finish=i_target-1)//substring
+          work_string = extract(work_string, start=i_target+length_target)
+       endif
+
+       if(.NOT. every_) exit replace_loop
+
+    end do replace_loop
+
+    if(back_) then
+       rep_string = work_string//rep_string
+    else
+       rep_string = rep_string//work_string
+    endif
+
+! Finish
+
+    return
+
+  end function replace_CH_CH_CH_target
+
+!****
+
+  elemental subroutine split_VS (string, word, set, separator, back)
+
+    type(varying_string), intent(inout)         :: string
+    type(varying_string), intent(out)           :: word
+    type(varying_string), intent(in)            :: set
+    type(varying_string), intent(out), optional :: separator
+    logical, intent(in), optional               :: back
+
+! Split a varying string into two verying strings
+
+    call split_CH(string, word, char(set), separator, back)
+
+! Finish
+
+    return
+
+  end subroutine split_VS
+
+!****
+
+  elemental subroutine split_CH (string, word, set, separator, back)
+
+    type(varying_string), intent(inout)         :: string
+    type(varying_string), intent(out)           :: word
+    character(LEN=*), intent(in)                :: set
+    type(varying_string), intent(out), optional :: separator
+    logical, intent(in), optional               :: back
+
+    logical                                     :: back_
+    integer                                     :: i_separator
+
+! Split a varying string into two verying strings
+
+    if(PRESENT(back)) then
+       back_ = back
+    else
+       back_ = .false.
+    endif
+
+    i_separator = scan(string, set, back_)
+
+    if(i_separator /= 0) then
+
+       if(back_) then
+          word = extract(string, start=i_separator+1)
+          if(PRESENT(separator)) separator = extract(string, start=i_separator, finish=i_separator)
+          string = extract(string, finish=i_separator-1)
+       else
+          word = extract(string, finish=i_separator-1)
+          if(PRESENT(separator)) separator = extract(string, start=i_separator, finish=i_separator)
+          string = extract(string, start=i_separator+1)
+       endif
+
+    else
+
+       word = string
+       if(PRESENT(separator)) separator = ""
+       string = ""
+
+    endif
+
+! Finish
+
+    return
+
+  end subroutine split_CH
+
+
+  FUNCTION c_ptr_new_VS(string) RESULT(c_ptr_new)
+  TYPE(varying_string),INTENT(in),TARGET :: string
+  TYPE(c_ptr) :: c_ptr_new
   
-!----- ADJUSTL procedure ----------------------------------------------------! 
-FUNCTION adjustl_s(string) 
- type(VARYING_STRING),INTENT(IN) :: string 
- type(VARYING_STRING)            :: adjustl_s 
- ! Returns the string adjusted to the left, removing leading blanks and 
- ! inserting trailing blanks 
- INTEGER                         :: ls,pos 
- ls=LEN(string) 
- DO pos = 1,ls 
-    IF(string%chars(pos) /= blank) EXIT 
- ENDDO 
- ! pos now holds the position of the first non-blank character 
- ! or ls+1 if all characters are blank
- ALLOCATE(adjustl_s%chars(1:ls)) 
- adjustl_s%chars(1:ls-pos+1) = string%chars(pos:ls)
- adjustl_s%chars(ls-pos+2:ls) = blank
-ENDFUNCTION adjustl_s 
-  
-!----- ADJUSTR procedure ----------------------------------------------------! 
-FUNCTION adjustr_s(string) 
- type(VARYING_STRING),INTENT(IN) :: string 
- type(VARYING_STRING)            :: adjustr_s 
- ! Returns the string adjusted to the right, removing trailing blanks 
- ! and inserting leading blanks 
- INTEGER                         :: ls,pos 
- ls=LEN(string) 
- DO pos = ls,1,-1 
-    IF(string%chars(pos) /= blank) EXIT 
- ENDDO 
- ! pos now holds the position of the last non-blank character
- ! or zero if all characters are blank
- ALLOCATE(adjustr_s%chars(1:ls)) 
- adjustr_s%chars(ls-pos+1:ls) = string%chars(1:pos) 
- adjustr_s%chars(1:ls-pos) = blank 
-ENDFUNCTION adjustr_s 
-  
-ENDMODULE MOD_ISO_VARYING_STRING
+  c_ptr_new = C_LOC(string%chars(1))
+
+  END FUNCTION c_ptr_new_VS
+
+
+end module MOD_ISO_VARYING_STRING
+
