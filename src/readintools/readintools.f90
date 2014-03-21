@@ -426,7 +426,7 @@ CHARACTER(LEN=255)                          :: HelpStr,Str
 CHARACTER(LEN=300)                          :: File, DSMCFile
 TYPE(Varying_String)                        :: aStr,bStr,Separator
 INTEGER                                     :: EOF
-INTEGER                                     :: stat,iniUnit,nLines,i
+INTEGER                                     :: stat,iniUnit,nLines,i,iniUnit2,nLines2
 CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent,FileContent2
 CHARACTER(LEN=1)                            :: tmpChar=''
 !===================================================================================================================================
@@ -515,8 +515,8 @@ DO i=1,nLines
 END DO
 
 IF (useDSMC) THEN
+  CALL GETARG(2,DSMCFile)
   IF(MPIRoot) THEN  
-    CALL GETARG(2,DSMCFile)
     SWRITE(UNIT_StdOut,*)'| Reading from file "',TRIM(DSMCFile),'":'
     iniUnit=GETFREEUNIT()
     OPEN(UNIT   = iniUnit,    &
@@ -550,7 +550,7 @@ IF (useDSMC) THEN
 #ifdef MPI
   CALL MPI_BCAST(FileContent2,LEN(FileContent2)*nLines,MPI_CHARACTER,0,MPI_COMM_WORLD,iError)
 #endif
-  NULLIFY(Str1,Str2)
+!  NULLIFY(Str1,Str2)
   DO i=1,nLines
     IF(.NOT.ASSOCIATED(Str1)) CALL GetNewString(Str1)
     ! Read line from memory
