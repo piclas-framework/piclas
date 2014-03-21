@@ -418,6 +418,12 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   DO i=1,nSpecies
     Species(i)%InsertedParticle = INT(Species(i)%ParticleEmission * RestartTime)
   END DO
+  ! if ParticleVecLength GT maxParticleNumber: Stop
+  IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
+    WRITE(*,*) 'ERROR: Number of Particles in Restart higher than MaxParticleNumber'
+    STOP
+  END IF
+
   ! make sure location is correct and, if necessary, correct it (to prevent crashes further down)
   DO i = 1,PDM%ParticleVecLength
     CALL ParticleInsideQuad3D(i,PEM%Element(i),InElementCheck,det)
