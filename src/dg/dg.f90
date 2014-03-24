@@ -189,13 +189,14 @@ CALL StartExchangeMPIData(U_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.FALSE.)
 
+! null here to increase time for communication
+Ut=0.
+CALL VolInt(Ut,dofirstElems=.TRUE.)
+
 #ifdef MPI
 ! Complete send / receive
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
 #endif /*MPI*/
-
-Ut=0.
-CALL VolInt(Ut)
 
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
@@ -210,8 +211,9 @@ CALL FillFlux_BC(t,tDeriv,Flux)
 CALL FillFlux(Flux,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
 CALL SurfInt(Flux,Ut,doMPISides=.FALSE.)
-!! compute volume integral contribution and add to ut
-!CALL VolInt(Ut)
+
+! compute volume integral contribution and add to ut
+CALL VolInt(Ut,dofirstElems=.FALSE.)
 
 #ifdef MPI
 ! Complete send / receive
@@ -389,13 +391,14 @@ CALL StartExchangeMPIData(U_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.FALSE.)
 
+Ut=0.
+CALL VolInt(Ut,dofirstElems=.TRUE.)
+
 #ifdef MPI
 ! Complete send / receive
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
 #endif /*MPI*/
 
-Ut=0.
-CALL VolInt(Ut)
 
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
@@ -412,6 +415,7 @@ CALL FillFlux(Flux,doMPISides=.FALSE.)
 CALL SurfInt(Flux,Ut,doMPISides=.FALSE.)
 !! compute volume integral contribution and add to ut
 !CALL VolInt(Ut)
+CALL VolInt(Ut,dofirstElems=.FALSE.)
 
 #ifdef MPI
 ! Complete send / receive

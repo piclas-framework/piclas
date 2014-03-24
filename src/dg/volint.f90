@@ -24,7 +24,7 @@ CONTAINS
 
 
 
-SUBROUTINE VolInt_weakForm(Ut)
+SUBROUTINE VolInt_weakForm(Ut,dofirstElems)
 !===================================================================================================================================
 ! Computes the volume integral of the weak DG form a la Kopriva
 ! Attention 1: 1/J(i,j,k) is not yet accounted for
@@ -42,6 +42,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                                  :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+LOGICAL,INTENT(IN)                                  :: dofirstElems
 ! Adds volume contribution to time derivative Ut contained in MOD_DG_Vars (=aufschmutzen!)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -49,8 +50,18 @@ REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N)      :: f,g,h                ! volu
 REAL,DIMENSION(PP_nVar)                           :: fTilde,gTilde,hTilde ! auxiliary variables needed to store the fluxes at one GP
 INTEGER                                           :: i,j,k,iElem
 INTEGER                                           :: l                    ! row index for matrix vector product
+INTEGER                                           :: firstElemID, lastElemID
 !===================================================================================================================================
-DO iElem=1,PP_nElems
+
+IF(dofirstElems)THEN
+  firstElemID = 1
+  lastElemID  = PP_nElems/2+1
+ELSE ! second half of elements
+  firstElemID = PP_nElems/2+2
+  lastElemID  = PP_nElems
+END IF
+
+DO iElem=firstElemID,lastElemID
   ! Cut out the local DG solution for a grid cell iElem and all Gauss points from the global field
   ! Compute for all Gauss point values the Cartesian flux components
   CALL EvalFlux3D(iElem,f,g,h)
