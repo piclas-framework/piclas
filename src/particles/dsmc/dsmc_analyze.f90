@@ -611,9 +611,12 @@ SUBROUTINE WriteDSMCSurfToHDF5(MeshFileName,OutputTime)
    USE MOD_io_HDF5
    USE MOD_HDF5_output
    USE MOD_PARTICLE_Vars, ONLY:nSpecies
-   USE MOD_Mesh_Vars,ONLY:offsetElem,nGlobalElems
+   USE MOD_Mesh_Vars,ONLY:offsetElem,nGlobalElems,offsetSurfElem
    USE MOD_DSMC_Vars,     ONLY :SurfMesh, MacroSurfaceVal , CollisMode, DSMC
    USE MOD_Output_Vars,   ONLY:ProjectName
+#ifdef MPI
+   USE MOD_MPI_Vars,      ONLY:offsetSurfElemMPI
+#endif
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -627,6 +630,7 @@ REAL,INTENT(IN)                :: OutputTime
   INTEGER                        :: nVal
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
+
 WRITE(*,*) ' WRITE DSMCSurfSTATE TO HDF5 FILE...'
 FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString=TRIM(FileName)//'.h5'
@@ -636,18 +640,29 @@ Statedummy = 'DSMCSurfState'
 CALL WriteHDF5Header(Statedummy,File_ID)
 ! Write DG solution ----------------------------------------------------------------------------------------------------------------
 nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
-
-CALL WriteArrayToHDF5('DSMC_ForceX',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetElem,1, &
+#ifdef MPI
+CALL WriteArrayToHDF5('DSMC_ForceX',offsetSurfElemMPI(nProcessors),1,(/SurfMesh%nSurfaceBCSides/),offsetSurfElem,1, &
                                                                            existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Force(1))
-CALL WriteArrayToHDF5('DSMC_ForceY',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetElem,1, &
+CALL WriteArrayToHDF5('DSMC_ForceY',offsetSurfElemMPI(nProcessors),1,(/SurfMesh%nSurfaceBCSides/),offsetSurfElem,1, &
                                                                            existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Force(2))
-CALL WriteArrayToHDF5('DSMC_ForceZ',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetElem,1, & 
+CALL WriteArrayToHDF5('DSMC_ForceZ',offsetSurfElemMPI(nProcessors),1,(/SurfMesh%nSurfaceBCSides/),offsetSurfElem,1, & 
                                                                            existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Force(3))
-CALL WriteArrayToHDF5('DSMC_Heatflux',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetElem,1, &
+CALL WriteArrayToHDF5('DSMC_Heatflux',offsetSurfElemMPI(nProcessors),1,(/SurfMesh%nSurfaceBCSides/),offsetSurfElem,1, &
                                                                            existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Heatflux)
-CALL WriteArrayToHDF5('DSMC_Counter',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetElem,1, &
+CALL WriteArrayToHDF5('DSMC_Counter',offsetSurfElemMPI(nProcessors),1,(/SurfMesh%nSurfaceBCSides/),offsetSurfElem,1, &
                                                                            existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Counter(1))
-
+#else
+CALL WriteArrayToHDF5('DSMC_ForceX',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetSurfElem,1, &
+                                                                           existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Force(1))
+CALL WriteArrayToHDF5('DSMC_ForceY',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetSurfElem,1, &
+                                                                           existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Force(2))
+CALL WriteArrayToHDF5('DSMC_ForceZ',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetSurfElem,1, & 
+                                                                           existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Force(3))
+CALL WriteArrayToHDF5('DSMC_Heatflux',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetSurfElem,1, &
+                                                                           existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Heatflux)
+CALL WriteArrayToHDF5('DSMC_Counter',SurfMesh%nSurfaceBCSides,1,(/SurfMesh%nSurfaceBCSides/),offsetSurfElem,1, &
+                                                                           existing=.FALSE.,RealArray=MacroSurfaceVal(:)%Counter(1))
+#endif
 CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
 CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
 MeshFile255=TRIM(MeshFileName)

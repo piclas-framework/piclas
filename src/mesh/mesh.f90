@@ -49,6 +49,7 @@ USE MOD_ParticleInit,       ONLY:InitParticleGeometry,InitElemVolumes
 #endif
 #ifdef MPI
 USE MOD_Prepare_Mesh,       ONLY:exchangeFlip
+USE MOD_MPI_Vars,           ONLY:offsetSurfElemMPI
 #endif
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -62,7 +63,8 @@ INTEGER           :: iBC
 LOGICAL           :: debugmesh
 REAL,ALLOCATABLE  :: XCL_NGeo(:,:,:,:,:)
 REAL              :: x(3),PI
-INTEGER           :: iElem,i,j,k
+INTEGER           :: iElem,i,j,k,iSide,countSurfElem,iProc
+INTEGER,ALLOCATABLE :: countSurfElemMPI(:)
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.',999,999.)
@@ -146,6 +148,43 @@ CALL fillMeshInfo()
 ! save geometry information for particle tracking
 CALL InitParticleGeometry()
 #endif
+
+! calculating offset of surface elements for DSMC surface output
+
+#ifdef MPI
+
+IF(ALLOCATED(offsetSurfElemMPI))DEALLOCATE(offsetSurfElemMPI)
+ALLOCATE(offsetSurfElemMPI(0:nProcessors))
+offsetSurfElemMPI=0
+
+countSurfElem=0
+
+DO iSide=1,nBCSides
+  IF (BoundaryType(BC(iSide),1).EQ.4) THEN
+    countSurfElem = countSurfElem + 1
+  END IF
+END DO
+
+IF (MPIroot) THEN
+ALLOCATE(countSurfElemMPI(0:nProcessors-1))
+countSurfElemMPI=0
+END IF
+
+CALL MPI_GATHER(countSurfElem,1,MPI_INTEGER,countSurfElemMPI,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+
+IF (MPIroot) THEN
+DO iProc=1,nProcessors-1
+offsetSurfElemMPI(iProc)=SUM(countSurfElemMPI(0:iProc-1))-1
+END DO
+offsetSurfElemMPI(nProcessors)=SUM(countSurfElemMPI(:))
+END IF
+
+CALL MPI_BCAST (offsetSurfElemMPI,size(offsetSurfElemMPI),MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+
+offsetSurfElem=offsetSurfElemMPI(myRank)
+#else /* MPI */
+offsetSurfElem=0          ! offset is the index of first entry, hdf5 array starts at 0-.GT. -1 
+#endif /* MPI */
 
 ! dealloacte pointers
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
