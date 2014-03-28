@@ -682,7 +682,8 @@ SUBROUTINE CalcSurfaceValues(nOutput)
    USE MOD_DSMC_Vars,      ONLY : SurfMesh, SampWall, MacroSurfaceVal, DSMC, realtime
    USE MOD_Particle_Vars,  ONLY : Time
    USE MOD_TimeDisc_Vars,  ONLY : TEnd
-   USE MOD_Mesh_Vars,      ONLY : MeshFile  
+   USE MOD_Mesh_Vars,      ONLY : MeshFile
+   USE MOD_Restart_Vars,  ONLY:RestartTime  
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -697,6 +698,18 @@ SUBROUTINE CalcSurfaceValues(nOutput)
 #endif
 
   ALLOCATE(MacroSurfaceVal(SurfMesh%nSurfaceBCSides))
+
+  IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
+  DO iElem=1,SurfMesh%nSurfaceBCSides
+    MacroSurfaceVal(iElem)%Heatflux = (SampWall(iElem)%Energy(1)+SampWall(iElem)%Energy(4)+SampWall(iElem)%Energy(7) &
+                                      -SampWall(iElem)%Energy(3)-SampWall(iElem)%Energy(6)-SampWall(iElem)%Energy(9))&
+                                     /(SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
+    MacroSurfaceVal(iElem)%Force(1) = SampWall(iElem)%Force(1) /(SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
+    MacroSurfaceVal(iElem)%Force(2) = SampWall(iElem)%Force(2) /(SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
+    MacroSurfaceVal(iElem)%Force(3) = SampWall(iElem)%Force(3) / (SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
+    MacroSurfaceVal(iElem)%Counter(1) = SampWall(iElem)%Counter(1) / (Time-RestartTime)
+  END DO
+  ELSE
   DO iElem=1,SurfMesh%nSurfaceBCSides
     MacroSurfaceVal(iElem)%Heatflux = (SampWall(iElem)%Energy(1)+SampWall(iElem)%Energy(4)+SampWall(iElem)%Energy(7) &
                                       -SampWall(iElem)%Energy(3)-SampWall(iElem)%Energy(6)-SampWall(iElem)%Energy(9))&
@@ -706,6 +719,7 @@ SUBROUTINE CalcSurfaceValues(nOutput)
     MacroSurfaceVal(iElem)%Force(3) = SampWall(iElem)%Force(3) / (SurfMesh%SurfaceArea(iElem) * (Time-(1-DSMC%TimeFracSamp)*TEnd))
     MacroSurfaceVal(iElem)%Counter(1) = SampWall(iElem)%Counter(1) / (Time-(1-DSMC%TimeFracSamp)*TEnd)
   END DO
+  END IF
 
   CALL WriteDSMCSurfToHDF5(TRIM(MeshFile),realtime)
   DEALLOCATE(MacroSurfaceVal)
