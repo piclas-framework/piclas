@@ -105,20 +105,13 @@ USE MOD_part_MPFtools,         ONLY : MapToGeo, GeoCoordToMap
     Matrix(3,3) = NVec3(3)
 ! ----
     Vector(1,1) = ChosenMeanBaseD1 &
-                + vLAG1 * dt &
-                * ( NVec1(1)**2 &
-                  + NVec1(2)**2 &
-                  + NVec1(3)**2 )
+                + vLAG1 * dt 
+
     Vector(2,1) = ChosenMeanBaseD2 &
-                + vLAG2 * dt &
-                * ( NVec2(1)**2 &
-                  + NVec2(2)**2 &
-                  + NVec2(3)**2 )
+                + vLAG2 * dt 
+
     Vector(3,1) = ChosenMeanBaseD3 &
-                + vLAG3 * dt &
-                * ( NVec3(1)**2 &
-                  + NVec3(2)**2 &
-                  + NVec3(3)**2 )
+                + vLAG3 * dt 
     CALL gaussj(Matrix,Vector)
     NewNodePos(1,iNode) = Vector(1,1)
     NewNodePos(2,iNode) = Vector(2,1)
@@ -130,21 +123,38 @@ USE MOD_part_MPFtools,         ONLY : MapToGeo, GeoCoordToMap
   DO ipart = 1, nPart
     CALL GeoCoordToMap(PartState(iPartIndx,1:3),xi_Out,iElem)
     PartNewPos = MapToGeo(xi_Out,NewNodePos)
-    IF ((ABS(PartNewPos(1) - PartState(iPartIndx,1)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
+
+    LD_RHS(iPartIndx,1) = (PartNewPos(1) - PartState(iPartIndx,1)) / dt - PartState(iPartIndx,4)
+    LD_RHS(iPartIndx,2) = (PartNewPos(2) - PartState(iPartIndx,2)) / dt - PartState(iPartIndx,5)
+    LD_RHS(iPartIndx,3) = (PartNewPos(3) - PartState(iPartIndx,3)) / dt - PartState(iPartIndx,6)
+
+    IF (LD_RHS(iPartIndx,1).NE.LD_RHS(iPartIndx,1)) THEN
       LD_RHS(iPartIndx,1) = 0.0
-    ELSE
-      LD_RHS(iPartIndx,1) = (PartNewPos(1) - PartState(iPartIndx,1)) / dt - PartState(iPartIndx,4)
     END IF
-    IF ((ABS(PartNewPos(2) - PartState(iPartIndx,2)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
+    IF (LD_RHS(iPartIndx,2).NE.LD_RHS(iPartIndx,2)) THEN
       LD_RHS(iPartIndx,2) = 0.0
-    ELSE
-      LD_RHS(iPartIndx,2) = (PartNewPos(2) - PartState(iPartIndx,2)) / dt - PartState(iPartIndx,5)
     END IF
-    IF ((ABS(PartNewPos(3) - PartState(iPartIndx,3)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
+    IF (LD_RHS(iPartIndx,3).NE.LD_RHS(iPartIndx,3)) THEN
       LD_RHS(iPartIndx,3) = 0.0
-    ELSE
-      LD_RHS(iPartIndx,3) = (PartNewPos(3) - PartState(iPartIndx,3)) / dt - PartState(iPartIndx,6)
     END IF
+
+!    IF ((ABS(PartNewPos(1) - PartState(iPartIndx,1)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
+!      LD_RHS(iPartIndx,1) = 0.0
+!    ELSE
+!      LD_RHS(iPartIndx,1) = (PartNewPos(1) - PartState(iPartIndx,1)) / dt - PartState(iPartIndx,4)
+!    END IF
+!    IF ((ABS(PartNewPos(2) - PartState(iPartIndx,2)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
+!      LD_RHS(iPartIndx,2) = 0.0
+!    ELSE
+!      LD_RHS(iPartIndx,2) = (PartNewPos(2) - PartState(iPartIndx,2)) / dt - PartState(iPartIndx,5)
+!    END IF
+!    IF ((ABS(PartNewPos(3) - PartState(iPartIndx,3)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
+!      LD_RHS(iPartIndx,3) = 0.0
+!    ELSE
+!      LD_RHS(iPartIndx,3) = (PartNewPos(3) - PartState(iPartIndx,3)) / dt - PartState(iPartIndx,6)
+!    END IF
+
+
     iPartIndx = PEM%pNext(iPartIndx)
   END DO
  

@@ -135,6 +135,7 @@ USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 USE MOD_RecordPoints_Vars,     ONLY: RP_inUse,RP_onProc
 USE MOD_PoyntingInt,           ONLY: CalcPoyntingIntegral
 USE MOD_LD_Vars,               ONLY: useLD
+USE MOD_LD_Analyze         ,ONLY: LD_data_sampling, LD_output_calc
 #ifdef MPI
 USE MOD_part_boundary,        ONLY: ParticleBoundary, Communicate_PIC
 #endif
@@ -348,10 +349,18 @@ END IF
   IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
   ! write DSMC macroscopic values 
   IF (WriteMacroValues) THEN
+#if (PP_TimeDiscMethod==1000)
+    CALL LD_data_sampling()  ! Data sampling for output
+#else
     CALL DSMC_data_sampling()
+#endif
     iter_macvalout = iter_macvalout + 1
     IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
+#if (PP_TimeDiscMethod==1000)
+      CALL LD_output_calc(nOutput)  ! Data sampling for output
+#else
       CALL DSMC_output_calc(nOutput)
+#endif
       nOutput = nOutput + 1
       iter_macvalout = 0
       DSMC%SampNum = 0
@@ -1730,18 +1739,15 @@ SUBROUTINE TimeStep_LD(t)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY: dt
+USE MOD_TimeDisc_Vars,ONLY: dt, iter
 USE MOD_Filter,ONLY:Filter
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, Time, PDM,PEM !,nSpecies
-USE MOD_LD_Vars,          ONLY : LD_RHS     ,BulkValues,LD_RepositionFak
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, Time, PDM,PEM 
+USE MOD_LD_Vars,          ONLY : LD_RHS
 USE MOD_LD,               ONLY : LD_main
 USE MOD_part_boundary,    ONLY : ParticleBoundary
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting
-USE MOD_DSMC_Vars,        ONLY : DSMC, SampDSMC
-!USE MOD_DSMC_Analyze,     ONLY : DSMC_output_calc, DSMC_data_sampling
-!USE MOD_Mesh_Vars,        ONLY : nElems
 #endif
 #ifdef MPI
 USE MOD_part_boundary,    ONLY : Communicate_PIC
@@ -1753,26 +1759,10 @@ IMPLICIT NONE
 REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
-REAL                  :: tStage,b_dt(1:5)
-INTEGER               :: i,rk, iPartIndx, ipart, nPart
+
 !===================================================================================================================================
-Time = t
-!      CALL DSMC_data_sampling()
-!      CALL DSMC_output_calc(99)
-!      DSMC%SampNum = 0
-!      SampDSMC(1:nElems,1:nSpecies)%PartV(1)  = 0
-!      SampDSMC(1:nElems,1:nSpecies)%PartV(2)  = 0
-!      SampDSMC(1:nElems,1:nSpecies)%PartV(3)  = 0
-!      SampDSMC(1:nElems,1:nSpecies)%PartV2(1) = 0
-!      SampDSMC(1:nElems,1:nSpecies)%PartV2(2) = 0
-!      SampDSMC(1:nElems,1:nSpecies)%PartV2(3) = 0
-!      SampDSMC(1:nElems,1:nSpecies)%PartNum   = 0
-!      SampDSMC(1:nElems,1:nSpecies)%ERot      = 0
-!      SampDSMC(1:nElems,1:nSpecies)%EVib      = 0
-!      stop
+  Time = t
   CALL LD_main()
-  print*,'Particle Number:',PDM%insideParticleNumber
   LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
   LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
   LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
@@ -1796,7 +1786,6 @@ Time = t
 !#endif
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
-!  CALL LD_main()
 
 END SUBROUTINE TimeStep_LD
 #endif

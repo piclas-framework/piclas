@@ -643,6 +643,12 @@ ALLOCATE(PartBound%TransACC(1:nPartBound))
 ALLOCATE(PartBound%VibACC(1:nPartBound))
 ALLOCATE(PartBound%RotACC(1:nPartBound))
 ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
+ALLOCATE(PartBound%AmbientCondition(1:nPartBound))
+ALLOCATE(PartBound%AmbientTemp(1:nPartBound))
+ALLOCATE(PartBound%AmbientMeanPartMass(1:nPartBound))
+ALLOCATE(PartBound%AmbientBeta(1:nPartBound))
+ALLOCATE(PartBound%AmbientVelo(1:3,1:nPartBound))
+ALLOCATE(PartBound%AmbientDens(1:nPartBound))
 
 ALLOCATE(PartBound%Voltage(1:nPartBound))
 
@@ -652,6 +658,14 @@ DO i=1,nPartBound
   SELECT CASE (TRIM(tmpString))
   CASE('open')
      PartBound%TargetBoundCond(i) = PartBound%OpenBC          ! definitions see typesdef_pic
+     PartBound%AmbientCondition(i) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-AmbientCondition','.FALSE.')
+     IF(PartBound%AmbientCondition(i)) THEN
+       PartBound%AmbientTemp(i) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientTemp','0')
+       PartBound%AmbientMeanPartMass(i) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientMeanPartMass','0')
+       PartBound%AmbientBeta(i) = SQRT(PartBound%AmbientMeanPartMass(i)/(2*BoltzmannConst*PartBound%AmbientTemp(i)))
+       PartBound%AmbientVelo(1:3,i) = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-AmbientVelo',3,'0. , 0. , 0.')
+       PartBound%AmbientDens(i) = GETREAL('Part-Boundary'//TRIM(hilf)//'-AmbientDens','0')
+     END IF
      PartBound%Voltage(i)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
   CASE('reflective')
      PartBound%TargetBoundCond(i) = PartBound%ReflectiveBC
@@ -674,6 +688,8 @@ DO i=1,nPartBound
   END SELECT
   PartBound%SourceBoundName(i) = GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName')
 END DO
+DEALLOCATE(PartBound%AmbientMeanPartMass)
+DEALLOCATE(PartBound%AmbientTemp)
 ! Set mapping from field boundary to particle boundary index
 ALLOCATE(PartBound%Map(1:nBCs))
 PartBound%Map(:)=-10

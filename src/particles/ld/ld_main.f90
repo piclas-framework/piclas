@@ -69,6 +69,8 @@ USE MOD_LD_Analyze
     END IF
   END IF
 
+  IF (LD_CalcDelta_t) CALL CALCTIMESTEP_LD
+
 END SUBROUTINE LD_main
 
 !--------------------------------------------------------------------------------------------------!
@@ -205,6 +207,7 @@ REAL                  :: PartDens, GlobalVol, FractNbr
 !--------------------------------------------------------------------------------------------------!
 
   ALLOCATE(particle_positions_Temp(6*chunkSize))
+  GlobalVol = 0.0
   DO iElem = 1, nElems
     GlobalVol = GlobalVol + GEO%Volume(iElem)
   END DO
@@ -231,9 +234,65 @@ REAL                  :: PartDens, GlobalVol, FractNbr
       ichunkSize = ichunkSize + 1
     END DO
   END DO
-  chunkSize = ichunkSize
+  chunkSize = ichunkSize - 1
 
 END SUBROUTINE LD_SetParticlePosition
 !--------------------------------------------------------------------------------------------------!
+
+!--------------------------------------------------------------------------------------------------!
+SUBROUTINE CALCTIMESTEP_LD
+!===================================================================================================================================
+! Calculate the time step for the current update of U for the Euler-Equations
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars,ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+USE MOD_Equation_Vars,ONLY:c,c_corr
+USE MOD_TimeDisc_Vars,ONLY:CFLScale
+USE MOD_LD_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                         :: CalcTimeStep
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                      :: i,j,k,iElem
+REAL                         :: Max_Lambda1,Max_Lambda2,Max_Lambda3,SpeedOfInformation
+REAL                         :: TimeStepConv
+!===================================================================================================================================
+TimeStepConv=HUGE(1.)
+DO iElem=1,PP_nElems
+  Max_Lambda1=0.
+  Max_Lambda2=0.
+  Max_Lambda3=0.
+  SpeedOfInformation = SQRT(BulkValues(iElem)%CellV(1)**2+BulkValues(iElem)%CellV(2)**2+BulkValues(iElem)%CellV(3)**2) &
+                          + SQRT(1.4 * 296.8 * BulkValues(iElem)%BulkTemperature)
+  DO k=0,PP_N
+    DO j=0,PP_N
+      DO i=0,PP_N
+        ! Convective Eigenvalues
+! VERSION 1 & 2: -----------------------------
+        Max_Lambda1=MAX(Max_Lambda1,sJ(i,j,k,iElem)*(SpeedOfInformation &
+                        *SQRT(SUM(Metrics_fTilde(:,i,j,k,iElem)*Metrics_fTilde(:,i,j,k,iElem)))))
+        Max_Lambda2=MAX(Max_Lambda2,sJ(i,j,k,iElem)*(SpeedOfInformation &
+                        *SQRT(SUM(Metrics_gTilde(:,i,j,k,iElem)*Metrics_gTilde(:,i,j,k,iElem)))))
+        Max_Lambda3=MAX(Max_Lambda3,sJ(i,j,k,iElem)*(SpeedOfInformation &
+                        *SQRT(SUM(Metrics_hTilde(:,i,j,k,iElem)*Metrics_hTilde(:,i,j,k,iElem)))))
+      END DO ! i
+    END DO ! j
+  END DO ! k
+  TimeStepConv=MIN(TimeStepConv,CFLScale*2./SQRT(Max_Lambda1**2+Max_Lambda2**2+Max_Lambda3**2))
+END DO ! iElem
+#ifdef MPI
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+#endif /*MPI*/
+
+PRINT*,'delta_t for given CFL-number:',TimeStepConv
+
+END SUBROUTINE CALCTIMESTEP_LD
 
 END MODULE MOD_LD

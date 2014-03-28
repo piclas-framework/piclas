@@ -14,8 +14,10 @@ SAVE
   REAL  , ALLOCATABLE               :: LD_RHS(:,:)  ! RHS of the LD Method/ deltaV (npartmax, direction)
   REAL                              :: LD_RepositionFak
   REAL                              :: LD_RelaxationFak
-  LOGICAL  , ALLOCATABLE            :: IsDoneLagVelo(:)  ! (nSides) 
-  REAL  , ALLOCATABLE               :: TempDens(:)
+  LOGICAL  , ALLOCATABLE           :: IsDoneLagVelo(:)  ! (nSides) 
+  REAL  , ALLOCATABLE              :: TempDens(:)
+!!!  REAL  , ALLOCATABLE               :: NewNodePosIndx(:,:) ! (1:nDim,1:nNodes)  !!! nur für "Tetra-Methode"
+  LOGICAL                           :: LD_CalcDelta_t
 
 TYPE tLD_SecantMethod
   REAL                              :: Guess        ! 2nd guess, plus user defined value, [m/s], (default 10 m/s)
@@ -29,6 +31,7 @@ TYPE tBulkValues                                                  ! LD bulk valu
   REAL                              :: DegreeOfFreedom            ! Average number of internal degree of freedom
   REAL                              :: Beta                       ! Thermal speed scale
   REAL                              :: MassDens                   ! Mass Density
+  REAL                              :: BulkTemperature            ! BulkTemperature
 !  INTEGER                           :: CellType                   ! CellType (1:DSMC, 2: Bufferzone_A, 3: Bufferzone_B, 4: LD
 END TYPE
 TYPE(tBulkValues), ALLOCATABLE      :: BulkValues(:)              ! LD bulk values array (number of Elements)

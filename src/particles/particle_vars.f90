@@ -148,6 +148,12 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: RotACC(:) 
   REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
   REAL    , ALLOCATABLE                  :: Voltage(:)
+  LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
+  REAL    , ALLOCATABLE                  :: AmbientTemp(:)
+  REAL    , ALLOCATABLE                  :: AmbientMeanPartMass(:)
+  REAL    , ALLOCATABLE                  :: AmbientBeta(:)
+  REAL    , ALLOCATABLE                  :: AmbientVelo(:,:)
+  REAL    , ALLOCATABLE                  :: AmbientDens(:)
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries

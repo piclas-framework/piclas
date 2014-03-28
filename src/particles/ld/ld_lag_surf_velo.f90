@@ -58,22 +58,38 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
             IF (PartBound%Map(BC(SideID)).EQ.PartBound%OpenBC) THEN ! open => copy cell values
               Elem2 = -1
               IF (iter.GE. 1) THEN
-                BulkValuesOpenBC(iElem)%CellV = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%CellV &
-                                              + LD_RelaxationFak * BulkValues(iElem)%CellV
-                BulkValuesOpenBC(iElem)%Beta = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%Beta &
-                                             + LD_RelaxationFak * BulkValues(iElem)%Beta
-                BulkValuesOpenBC(iElem)%MassDens = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%MassDens & 
-                                                 + LD_RelaxationFak * BulkValues(iElem)%MassDens
-                Velo2 = BulkValuesOpenBC(iElem)%CellV
-                Beta2 = BulkValuesOpenBC(iElem)%Beta
-                Dens2 = BulkValuesOpenBC(iElem)%MassDens
+                IF (PartBound%AmbientCondition(BC(SideID))) THEN  
+                  Velo2(1) = PartBound%AmbientVelo(1,BC(SideID))
+                  Velo2(2) = PartBound%AmbientVelo(2,BC(SideID))
+                  Velo2(3) = PartBound%AmbientVelo(3,BC(SideID))
+                  Beta2 = PartBound%AmbientBeta(BC(SideID))
+                  Dens2 = PartBound%AmbientDens(BC(SideID))
+                ELSE  
+                  BulkValuesOpenBC(iElem)%CellV = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%CellV &
+                                                + LD_RelaxationFak * BulkValues(iElem)%CellV
+                  BulkValuesOpenBC(iElem)%Beta = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%Beta &
+                                               + LD_RelaxationFak * BulkValues(iElem)%Beta
+                  BulkValuesOpenBC(iElem)%MassDens = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%MassDens & 
+                                                   + LD_RelaxationFak * BulkValues(iElem)%MassDens
+                  Velo2 = BulkValuesOpenBC(iElem)%CellV
+                  Beta2 = BulkValuesOpenBC(iElem)%Beta
+                  Dens2 = BulkValuesOpenBC(iElem)%MassDens
+                END IF
               ELSE
-                BulkValuesOpenBC(iElem)%CellV    = BulkValues(iElem)%CellV
-                BulkValuesOpenBC(iElem)%Beta     = BulkValues(iElem)%Beta
-                BulkValuesOpenBC(iElem)%MassDens = BulkValues(iElem)%MassDens
-                Velo2 = BulkValuesOpenBC(iElem)%CellV
-                Beta2 = BulkValuesOpenBC(iElem)%Beta
-                Dens2 = BulkValuesOpenBC(iElem)%MassDens
+                IF (PartBound%AmbientCondition(BC(SideID))) THEN  
+                  Velo2(1) = PartBound%AmbientVelo(1,BC(SideID))
+                  Velo2(2) = PartBound%AmbientVelo(2,BC(SideID))
+                  Velo2(3) = PartBound%AmbientVelo(3,BC(SideID))
+                  Beta2 = PartBound%AmbientBeta(BC(SideID))
+                  Dens2 = PartBound%AmbientDens(BC(SideID))
+                ELSE  
+                  BulkValuesOpenBC(iElem)%CellV    = BulkValues(iElem)%CellV
+                  BulkValuesOpenBC(iElem)%Beta     = BulkValues(iElem)%Beta
+                  BulkValuesOpenBC(iElem)%MassDens = BulkValues(iElem)%MassDens
+                  Velo2 = BulkValuesOpenBC(iElem)%CellV
+                  Beta2 = BulkValuesOpenBC(iElem)%Beta
+                  Dens2 = BulkValuesOpenBC(iElem)%MassDens
+                END IF
               END IF
             ELSE IF (PartBound%Map(BC(SideID)).EQ.PartBound%ReflectiveBC) THEN
               IsStationary = .TRUE.
@@ -108,9 +124,17 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
           IF (SideToElem(1,SideID) .LT. 1) THEN ! it must be a BC
             IF (PartBound%Map(BC(SideID)).EQ.PartBound%OpenBC) THEN ! open => copy cell values
               Elem2 = -1
-              Velo2 = BulkValues(iElem)%CellV
-              Beta2 = BulkValues(iElem)%Beta
-              Dens2 = BulkValues(iElem)%MassDens
+              IF (PartBound%AmbientCondition(BC(SideID))) THEN  
+                Velo2(1) = PartBound%AmbientVelo(1,BC(SideID))
+                Velo2(2) = PartBound%AmbientVelo(2,BC(SideID))
+                Velo2(3) = PartBound%AmbientVelo(3,BC(SideID))
+                Beta2 = PartBound%AmbientBeta(BC(SideID))
+                Dens2 = PartBound%AmbientDens(BC(SideID))
+              ELSE 
+                Velo2 = BulkValues(iElem)%CellV
+                Beta2 = BulkValues(iElem)%Beta
+                Dens2 = BulkValues(iElem)%MassDens
+              END IF
             ELSE IF (PartBound%Map(BC(SideID)).EQ.PartBound%ReflectiveBC) THEN
               IsStationary = .TRUE.
             END IF
@@ -122,6 +146,7 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
             Dens2 = BulkValues(Elem2)%MassDens
           END IF
         END IF
+
         IF (.NOT.IsStationary) THEN
           DO trinum=1, 3  ! third loop for mean surf value
             IF (trinum.EQ.3) THEN
@@ -135,8 +160,8 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
                      + Velo1(2) * NVec(2) &  
                      + Velo1(3) * NVec(3) 
             VeloDir2 = Velo2(1) * NVec(1) &
-                     + Velo2(2) * NVec(2) &  
-                     + Velo2(3) * NVec(3)
+                     + Velo2(2) * NVec(2) &
+                     + Velo2(3) * NVec(3) 
             IF (trinum.EQ.3) THEN
               vLAG_old = MeanSurfValues(iLocSide, iElem)%MeanLagVelo   ! 1st guess, former velocity, [m/s]
               vLAG_new = MeanSurfValues(iLocSide, iElem)%MeanLagVelo &
@@ -163,17 +188,17 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
               END IF
               IterForSecant = IterForSecant + 1                                   ! increase local iteration counter
               VeloDiff1_new =  Beta1 * ( VeloDir1 - vLAG_new )
-              VeloDiff2_new = -Beta2 * ( VeloDir2 - vLAG_new )
+              VeloDiff2_new = -Beta2 * ( VeloDir2 - vLAG_new ) !
               VeloDiff1_old =  Beta1 * ( VeloDir1 - vLAG_old ) 
-              VeloDiff2_old = -Beta2 * ( VeloDir2 - vLAG_old )
+              VeloDiff2_old = -Beta2 * ( VeloDir2 - vLAG_old ) !
               G_old  = kon1 * ( VeloDiff1_old * EXP(-VeloDiff1_old**2) + SQRT(PI) &
-                     * ( 1 + ERF(VeloDiff1_old) ) * ( 0.5 + VeloDiff1_old**2 ) ) &
+                     * ( 1. + ERF(VeloDiff1_old) ) * ( 0.5 + VeloDiff1_old**2 ) ) &
                      - kon2 * ( VeloDiff2_old * EXP(-VeloDiff2_old**2) + SQRT(PI) &
-                     * ( 1 + ERF(VeloDiff2_old) ) * ( 0.5 + VeloDiff2_old**2) )
+                     * ( 1. + ERF(VeloDiff2_old) ) * ( 0.5 + VeloDiff2_old**2) )
               G_new  = kon1 * ( VeloDiff1_new * EXP(-VeloDiff1_new**2) + SQRT(PI) &
-                     * ( 1 + ERF(VeloDiff1_new) ) * ( 0.5 + VeloDiff1_new**2 ) ) &
+                     * ( 1. + ERF(VeloDiff1_new) ) * ( 0.5 + VeloDiff1_new**2 ) ) &
                      - kon2 * ( VeloDiff2_new * EXP(-VeloDiff2_new**2) + SQRT(PI) &
-                     * ( 1 + ERF(VeloDiff2_new) ) * ( 0.5 + VeloDiff2_new**2) ) 
+                     * ( 1. + ERF(VeloDiff2_new) ) * ( 0.5 + VeloDiff2_new**2) ) 
               IF ( ( G_new - G_old ) .NE. 0.0 ) THEN
                 vLAG  = vLAG_new + ( vLAG_old - vLAG_new ) * ( G_new / ( G_new - G_old ) )
               ELSE
@@ -184,10 +209,12 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
             END DO                                                      ! end of iteration loop
             IF (trinum.EQ.3) THEN
                 MeanSurfValues(iLocSide, iElem)%MeanLagVelo = vLAG
-                IF (Elem2.GT. 0) MeanSurfValues(iLocSide2, Elem2)%MeanLagVelo = (-1) * vLAG
+                IF (Elem2.GT. 0) THEN
+                  MeanSurfValues(iLocSide2, Elem2)%MeanLagVelo =  (-1.) * vLAG
+                END IF
             ELSE
                 SurfLagValues(iLocSide, iElem,trinum)%LagVelo = vLAG
-                IF (Elem2.GT. 0) SurfLagValues(iLocSide2, Elem2,trinum)%LagVelo = (-1) * vLAG
+                IF (Elem2.GT. 0) SurfLagValues(iLocSide2, Elem2,trinum)%LagVelo =  (-1.) * vLAG
             END IF
           END DO  ! end of trinum
         ELSE ! Side is stationary

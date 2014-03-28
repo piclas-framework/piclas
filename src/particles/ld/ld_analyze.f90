@@ -25,7 +25,7 @@ SUBROUTINE LD_data_sampling()
   USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, PartStateIntEn, CollisMode, SpecDSMC
   USE MOD_Particle_Vars,          ONLY : PEM, PDM, PartSpecies, PartState, PartMPF, usevMPF
 !--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                   !
+   IMPLICIT NONE                                                                                 !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !

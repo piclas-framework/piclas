@@ -94,6 +94,7 @@ DO iElem = 1, nElems ! element=cell main loop
   ELSE ! if there is no particle => keep old LD-state
     LowPartCount = LowPartCount + 1
   END IF
+
 END DO
 ! Abfangen von Nulldivisionen
 IF (LowPartCount.GE. 1) THEN

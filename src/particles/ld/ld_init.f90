@@ -26,7 +26,7 @@ SUBROUTINE InitLD()
 ! MODULES
 USE MOD_Globals
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,             ONLY : nElems, nSides, SideToElem, ElemToSide, nNodes
+USE MOD_Mesh_Vars,             ONLY : nElems, nSides, SideToElem, ElemToSide, nNodes, Elem_xGP
 USE MOD_Particle_Vars,         ONLY : GEO, PDM, Species, PartSpecies, nSpecies
 USE nr,                        ONLY : gaussj 
 USE MOD_DSMC_Init,             ONLY : InitDSMC
@@ -42,6 +42,7 @@ USE MOD_ReadInTools
 ! LOCAL VARIABLES
 INTEGER                 :: iElem, trinum, iLocSide, iNode, iPart, iInit, iSpec
 REAL                    :: IdentityMat(8,8), MatForGaussj(8,8)
+REAL                    :: NVecTest
 INTEGER,ALLOCATABLE     :: LocalNumberOfElemPerNode(:)
 TYPE tElemIndxPerNode 
   INTEGER,ALLOCATABLE   :: NodeCellIndex(:)
@@ -58,6 +59,7 @@ CHARACTER(32)           :: hilf
   LD_SecantMeth%Accuracy = GETREAL('LD-AccuracyForLagVelo','0.001')
   LD_RepositionFak = GETREAL('LD-RepositionsFaktor','0.0')
   LD_RelaxationFak = GETREAL('LD-RelaxationsFaktor','0.0')
+  LD_CalcDelta_t=GETLOGICAL('LD-CFL-CalcDelta-t','.FALSE.')
 
   ALLOCATE(TempDens(nElems))
 
@@ -93,19 +95,42 @@ CHARACTER(32)           :: hilf
   MeanSurfValues(1:6,1:nElems)%MeanNormVec(2)  = 0.0
   MeanSurfValues(1:6,1:nElems)%MeanNormVec(3)  = 0.0
 
+!!!!  ALLOCATE(NewNodePosIndx(1:3,nNodes))  !!! nur für "Tetra-Methode"
+
   ALLOCATE(IsDoneLagVelo(nSides))
   IsDoneLagVelo(1:nSides)   = .FALSE.
-
   DO iElem=1, nElems
     DO iLocSide = 1, 6
       DO trinum=1, 2
         SurfLagValues(iLocSide, iElem, trinum)%Area = CalcTriNumArea(iLocSide, iElem, trinum)
         CALL CalcLagNormVec(iLocSide, iElem, trinum)
+        NVecTest = (GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(1,0,0,0,iElem)) &
+                 * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(1) &
+                 + (GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(2,0,0,0,iElem)) &
+                 * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(2) &
+                 + (GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(3,0,0,0,iElem)) &
+                 * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(3)
+        IF (NVecTest.LE.0.0) THEN
+          WRITE(*,*)'=============================================='
+          WRITE(*,*)' ERROR in Calculation of NormVec for Element:', iElem
+          STOP
+        END IF    
+
       END DO
       CALL SetMeanSurfValues(iLocSide, iElem)
+      NVecTest = (GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(1,0,0,0,iElem)) &  
+               * MeanSurfValues(iLocSide, iElem)%MeanNormVec(1) &
+               + (GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(2,0,0,0,iElem)) &
+               * MeanSurfValues(iLocSide, iElem)%MeanNormVec(2) &
+               + (GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(3,0,0,0,iElem)) & 
+               * MeanSurfValues(iLocSide, iElem)%MeanNormVec(3)
+      IF (NVecTest.LE.0.0) THEN
+        WRITE(*,*)'=============================================='
+        WRITE(*,*)' ERROR in Calculation of NormVec for Element:', iElem
+        STOP
+      END IF
     END DO
   END DO
-
   ALLOCATE(PartStateBulkValues(PDM%maxParticleNumber,5))
   ALLOCATE(LD_RHS(PDM%maxParticleNumber,3))
   LD_RHS = 0.0
