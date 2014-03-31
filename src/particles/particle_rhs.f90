@@ -208,7 +208,8 @@ SELECT CASE(PartLorentzType)
       END IF
     END DO
   CASE DEFAULT
-    CALL abort(__STAMP__,'This Type of Lorentz-force calculation is not implemented:.',PartLorentzType,999.)
+    CALL abort(__STAMP__,&
+      'This Type of Lorentz-force calculation is not implemented:.',PartLorentzType,999.)
 END SELECT
 
 END SUBROUTINE CalcPartRHS
