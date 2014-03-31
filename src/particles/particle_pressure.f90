@@ -656,6 +656,9 @@ SUBROUTINE ParticlePressureCellIni()
   USE MOD_Particle_Vars
   USE MOD_Globals
   USE MOD_Mesh_Vars,      ONLY : nElems,ElemToSide,SideToElem, nSides, nInnerSides, nBCSides
+#ifdef MPI
+  USE MOD_part_MPI_Vars, ONLY : PMPIVAR
+#endif
 
   IMPLICIT NONE
  
@@ -989,7 +992,7 @@ SUBROUTINE ParticlePressureCellIni()
                                               3.1415926535 * Species(iSpec)%CylinderHeightIC + &
                                   INT(Species(iSpec)%ParticleEmission)*0.5*Species(iSpec)%MassIC*Species(iSpec)%VeloIC**2 &
 * Species(iSpec)%MacroParticleFactor
-        WRITE(*,*) 'Number of Particles in Constant-Pressure-Area:', Species(iSpec)%ParticleEmission
+!        WRITE(*,*) 'Number of Particles in Constant-Pressure-Area:', Species(iSpec)%ParticleEmission
         
         DO iElem = 1,nElems
           nNodesInside = 0
@@ -1284,8 +1287,13 @@ SUBROUTINE ParticlePressureCellIni()
                                                    Species(iSpec)%ConstPress%nElemPartlyInside
       DEALLOCATE (TempElemTotalInside)
       DEALLOCATE (TempElemPartlyInside)
-
+#ifdef MPI
+      IF(Species(iSpec)%ConstPress%nElemTotalInside.NE.0)THEN
+        WRITE(*,*) 'Proc | Number of Elements inside ConstPressArea:',PMPIVAR%iProc,Species(iSpec)%ConstPress%nElemTotalInside
+      END IF
+#else
       WRITE (*,*) 'Number of Elements inside ConstPressArea:', Species(iSpec)%ConstPress%nElemTotalInside
+#endif
     END IF
   END DO  
 END SUBROUTINE ParticlePressureCellIni
