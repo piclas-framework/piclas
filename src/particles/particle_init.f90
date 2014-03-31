@@ -616,7 +616,7 @@ DO i=1,nSpecies
   END DO
 END DO
 ! Which Lorentz boost method should be used?
-PartLorentzExact = GETLOGICAL('Part-PartLorentzExact','.FALSE.')
+PartLorentzType = GETINT('Part-PartLorentzType','1')
 !#if (!((PP_TimeDiscMethod==5)||(PP_TimeDiscMethod==200)||(PP_TimeDiscMethod==100)))
 !IF(PartLorentzExact) THEN
 !  WRITE(*,*) 'ERROR: Exact relativistic Lorentz solver only implemented for euler particle time stepping'
