@@ -169,6 +169,9 @@ USE MOD_DSMC_Vars,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
 USE MOD_LD_Vars,       ONLY: UseLD, PartStateBulkValues
 USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
 #endif /*PARTICLES*/
+#ifdef MPI
+USE MOD_part_MPI_Vars, ONLY : PMPIVAR
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -191,6 +194,12 @@ INTEGER,PARAMETER        :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE         :: PartData(:,:)
 LOGICAL                  :: InElementCheck
 REAL                     :: det(16)
+INTEGER                  :: COUNTER, COUNTER2
+#ifdef MPI
+REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
+INTEGER                  :: LostParts(0:PMPIVAR%nProcs-1), Displace(0:PMPIVAR%nProcs-1),CurrentPartNum
+INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PMPIVAR%nProcs-1)
+#endif
 #endif /*PARTICLES*/
 !===================================================================================================================================
 IF(DoRestart)THEN
@@ -424,19 +433,174 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     STOP
   END IF
 
-  ! make sure location is correct and, if necessary, correct it (to prevent crashes further down)
+  ! Since the elementside-local node number are NOT persistant and dependent on the location
+  ! of the MPI borders, all particle-element mappings need to be checked after a restart
+  ! Step 1: Identify particles that are not in the element in which they were before the restart
+  COUNTER = 0
+  COUNTER2 = 0
   DO i = 1,PDM%ParticleVecLength
     CALL ParticleInsideQuad3D(i,PEM%Element(i),InElementCheck,det)
-    IF (.NOT.InElementCheck) THEN
+    IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
+      COUNTER = COUNTER + 1
       CALL SingleParticleToExactElement(i)
       IF (.NOT.PDM%ParticleInside(i)) THEN
-        WRITE(*,*) 'WARNING: Particle',i,'is not inside domain after restart... will be removed'
+        COUNTER2 = COUNTER2 + 1
       ELSE
         PEM%LastElement(i) = PEM%Element(i)
       END IF
     END IF
   END DO
+#ifdef MPI
+  ! Step 2: All particles that are not found withing MyProc need to be communicated to the others and located there
+  ! Combine number of lost particles of all processes and allocate variables
+  CALL MPI_ALLGATHER(COUNTER2, 1, MPI_INTEGER, LostParts, 1, MPI_INTEGER, PMPIVAR%COMM, IERROR)
+  IF (SUM(LostParts).GT.0) THEN
+    ALLOCATE(SendBuff(1:COUNTER2*PartDataSize))
+    ALLOCATE(RecBuff(1:SUM(LostParts)*PartDataSize))
+    ! Fill SendBuffer
+    COUNTER = 0
+    DO i = 1, PDM%ParticleVecLength
+      IF (.NOT.PDM%ParticleInside(i)) THEN
+        SendBuff(COUNTER+1:COUNTER+6) = PartState(i,1:6)
+        SendBuff(COUNTER+7)           = REAL(PartSpecies(i))
+        IF (useDSMC.AND.(.NOT.(useLD))) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
+            SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
+            SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+            SendBuff(COUNTER+10) = PartMPF(i)
+            SendBuff(COUNTER+11) = PartStateIntEn(i,3)
+          ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
+            SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
+            SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+            SendBuff(COUNTER+10) = PartMPF(i)
+          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicState)) THEN
+            SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
+            SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+            SendBuff(COUNTER+10) = PartStateIntEn(i,3)
+          ELSE IF (CollisMode.GT.1) THEN
+            SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
+            SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+          ELSE IF (usevMPF) THEN
+            SendBuff(COUNTER+8) = PartMPF(i)
+          END IF
+        ELSE IF (useLD) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
+            SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
+            SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+            SendBuff(COUNTER+10) = PartMPF(i)
+            SendBuff(COUNTER+11) = PartStateIntEn(i,3)
+            SendBuff(COUNTER+12:COUNTER+16) = PartStateBulkValues(i,1:5)
+          ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
+            SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
+            SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
+            SendBuff(COUNTER+10) = PartMPF(i)
+            SendBuff(COUNTER+11:COUNTER+15) = PartStateBulkValues(i,1:5)
+          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicState)) THEN
+            SendBuff(COUNTER+8:COUNTER+10)  = PartStateIntEn(i,1:3)
+            SendBuff(COUNTER+11:COUNTER+15) = PartStateBulkValues(i,1:5)
+          ELSE IF (CollisMode.GT.1) THEN
+            SendBuff(COUNTER+8:COUNTER+9)  = PartStateIntEn(i,1:2)
+            SendBuff(COUNTER+10:COUNTER+14) = PartStateBulkValues(i,1:5)
+          ELSE IF (usevMPF) THEN
+            SendBuff(COUNTER+8) = PartMPF(i)
+            SendBuff(COUNTER+9:COUNTER+13) = PartStateBulkValues(i,1:5)
+          ELSE
+            SendBuff(COUNTER+8:COUNTER+12) = PartStateBulkValues(i,1:5)
+          END IF
+        ELSE IF (usevMPF) THEN
+          SendBuff(COUNTER+8) = PartMPF(i)
+        END IF
+        COUNTER = COUNTER + PartDataSize
+      END IF
+    END DO
+    ! Distribute lost particles to all procs
+    COUNTER = 0
+    DO i = 0, PMPIVAR%nProcs-1
+      RecCount(i) = LostParts(i) * PartDataSize
+      Displace(i) = COUNTER
+      COUNTER = COUNTER + LostParts(i)*PartDataSize
+    END DO
+    CALL MPI_ALLGATHERV(SendBuff, PartDataSize*LostParts(PMPIVAR%iProc), MPI_DOUBLE_PRECISION, &
+         RecBuff, RecCount, Displace, MPI_DOUBLE_PRECISION, PMPIVAR%COMM, IERROR)
+    ! Add them to particle list and check if they are in MyProcs domain
+    NbrOfFoundParts = 0
+    CurrentPartNum = PDM%ParticleVecLength+1
+    COUNTER = 0
+    DO i = 1, SUM(LostParts)
+      PartState(CurrentPartNum,1:6) = RecBuff(COUNTER+1:COUNTER+6)
+      PDM%ParticleInside(CurrentPartNum) = .true.
+      CALL SingleParticleToExactElement(CurrentPartNum)
+      IF (PDM%ParticleInside(CurrentPartNum)) THEN
+        PEM%LastElement(CurrentPartNum) = PEM%Element(CurrentPartNum)
+        NbrOfFoundParts = NbrOfFoundParts + 1
+        PartSpecies(CurrentPartNum) = INT(RecBuff(COUNTER+7))
+        IF (useDSMC.AND.(.NOT.(useLD))) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
+            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
+            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+            PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+11)
+            PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
+          ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
+            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
+            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+            PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
+          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicState)) THEN
+            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
+            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+            PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+10)
+          ELSE IF (CollisMode.GT.1) THEN
+            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
+            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+          ELSE IF (usevMPF) THEN
+            PartMPF(CurrentPartNum)          = RecBuff(COUNTER+8)
+          END IF
+        ELSE IF (useLD) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
+            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
+            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+            PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+11)
+            PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
+            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+12:COUNTER+16)
+          ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
+            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
+            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+            PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
+            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+11:COUNTER+15)
+          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicState)) THEN
+            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
+            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+            PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+10)
+            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+11:COUNTER+15)
+          ELSE IF (CollisMode.GT.1) THEN
+            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
+            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
+            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+10:COUNTER+14)
+          ELSE IF (usevMPF) THEN
+            PartMPF(CurrentPartNum)          = RecBuff(COUNTER+8)
+            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+9:COUNTER+13)
+          ELSE
+            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+8:COUNTER+12)
+          END IF
+        ELSE IF (usevMPF) THEN
+          PartMPF(CurrentPartNum)          = RecBuff(COUNTER+8)
+        END IF
+        CurrentPartNum = CurrentPartNum + 1
+      END IF
+      COUNTER = COUNTER + PartDataSize
+    END DO
+    PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfFoundParts
+    ! Combine number of found particles to make sure none are lost completely
+    CALL MPI_ALLREDUCE(NbrOfFoundParts, CompleteNbrOfFound, 1, MPI_INTEGER, MPI_SUM, PMPIVAR%COMM, IERROR)
+    SWRITE(UNIT_stdOut,*) SUM(LostParts),'were not in the correct proc after restart.'
+    SWRITE(UNIT_stdOut,*) CompleteNbrOfFound,'of these were found in other procs.'
+    SWRITE(UNIT_stdOut,*) SUM(LostParts)-CompleteNbrOfFound,'were not found and have been removed.'
+    CALL UpdateNextFreePosition()
+  END IF
+#else
+  IF (COUNTER.NE.0) WRITE(*,*) COUNTER,'Particles are in different element after restart!'
+  IF (COUNTER2.NE.0) WRITE(*,*) COUNTER2,'of which could not be found and are removed!'
   CALL UpdateNextFreePosition()
+#endif
 
 #endif /*PARTICLES*/
 
