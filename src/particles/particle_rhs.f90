@@ -169,8 +169,8 @@ SELECT CASE(PartLorentzType)
         Vinv(2,1) = Vinv(1,2)
         Vinv(2,2) = (c2*gamma3 + (v1s+v3s)*gamma)*normfac
         Vinv(2,3) =-(v2*v3*gamma)*normfac
-        Vinv(3,1) = Vinv(3,1)
-        Vinv(3,2) = Vinv(3,2)
+        Vinv(3,1) = Vinv(1,3)
+        Vinv(3,2) = Vinv(2,3)
         Vinv(3,3) = (c2*gamma3 + (v1s+v2s)*gamma)*normfac
 
 !        gamma1= 1./SQRT(1.0 - velosq * c2_inv)
