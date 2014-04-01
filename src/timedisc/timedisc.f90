@@ -251,7 +251,7 @@ iter_loc=0
 
 ! read in requested IterDisplayStep (i.e. how often the message "iter: etc" is displayed)
 IterDisplayStep = GETINT('IterDisplayStep','1')
-IF (IterDisplayStep.EQ.0) IterDisplayStep = 2000000000  ! = de facto no output
+IF (IterDisplayStep.EQ.0) IterDisplayStep = HUGE(IterDisplayStep)  ! = de facto no output
 
 ! fill recordpoints buffer (first iteration)
 IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
