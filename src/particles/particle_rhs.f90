@@ -47,6 +47,10 @@ SELECT CASE(PartLorentzType)
         velosq = PartState(i,4) * PartState(i,4) &
                  + PartState(i,5) * PartState(i,5) &
                  + PartState(i,6) * PartState(i,6)  
+
+        IF(velosq.GT.c2) CALL abort(__STAMP__,&
+          'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',i,velosq/c2)
+
       ! MPF in ChargeIC and MassIC cancels out.
         ! old method
         gamma = (SQRT(1.0 - velosq * c2_inv))
@@ -76,6 +80,8 @@ SELECT CASE(PartLorentzType)
         velosq = PartState(i,4) * PartState(i,4) &
                + PartState(i,5) * PartState(i,5) &
                + PartState(i,6) * PartState(i,6)  
+        IF(velosq.GT.c2) CALL abort(__STAMP__,&
+          'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',i,velosq/c2)
           ! MPF in ChargeIC and MassIC cancels out.
         qmt = Species(PartSpecies(i))%ChargeIC/Species(PartSpecies(i))%MassIC
         E(1:3) = FieldAtParticle(i,1:3) * qmt
@@ -157,6 +163,8 @@ SELECT CASE(PartLorentzType)
         v2s = PartState(i,5) * PartState(i,5)
         v3s = PartState(i,6) * PartState(i,6)
         velosq = v1s+v2s+v3s
+        IF(velosq.GT.c2) CALL abort(__STAMP__,&
+          'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',i,velosq/c2)
 
         gamma=SQRT(1.0 - velosq*c2_inv)
         gamma2=gamma1*gamma1
