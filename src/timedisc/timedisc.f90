@@ -153,7 +153,7 @@ REAL                         :: dt_Min, tEndDiff, tAnalyzeDiff, dt_temp
 INTEGER(KIND=8)              :: iter_loc, iter_macvalout, istep
 REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
-INTEGER                      :: nOutput, MaximumIterNum 
+INTEGER                      :: nOutput, MaximumIterNum, IterDisplayStep
 !===================================================================================================================================
 ! init
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -249,6 +249,10 @@ CalcTimeStart=BOLTZPLATZTIME()
 iter=0
 iter_loc=0
 
+! read in requested IterDisplayStep (i.e. how often the message "iter: etc" is displayed)
+IterDisplayStep = GETINT('IterDisplayStep','1')
+IF (IterDisplayStep.EQ.0) IterDisplayStep = 2000000000  ! = de facto no output
+
 ! fill recordpoints buffer (first iteration)
 IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
 
@@ -333,7 +337,7 @@ END IF
   iter_loc=iter_loc+1
   t=t+dt
   realtime=realtime+dt
-  IF(MOD(iter,1).EQ.0) THEN
+  IF(MOD(iter,IterDisplayStep).EQ.0) THEN
      SWRITE(*,*) "iter:", iter,"t:",t
   END IF
   ! now calling all the analyzis routines
@@ -657,7 +661,6 @@ REAL                  :: tStage,b_dt(1:5)
 INTEGER               :: i,rk
 !===================================================================================================================================
 Time = t
-
 IF (t.GE.DelayTime) CALL ParticleInserting()
 
 !CALL UpdateNextFreePosition()
