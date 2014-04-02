@@ -182,13 +182,14 @@ unit_index = 535
       ! of the second species is added to the filename
        IF ( DSMC%ReservoirSimuRate .EQV. .true. ) THEN
         IF ( SpecDSMC(1)%InterID .eq. 2 .or. SpecDSMC(1)%InterID .eq. 20 ) THEN
-          iTvib = INT(SpecDSMC(1)%Telec)
+          iTvib = INT(SpecDSMC(1)%Tvib)
           WRITE( hilf, '(I5.5)') iTvib
           outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
         ELSE
-          iTvib = INT(SpecDSMC(1)%Telec )
+          !iTvib = INT(SpecDSMC(1)%Telec )
+          iTvib = INT(Species(1)%MWTemperatureIC
           WRITE( hilf, '(I5.5)') iTvib
-          outfile = 'Database_Telec_'//TRIM(hilf)//'.csv'
+          outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
         END IF
        ELSE
         outfile = 'Database.csv'

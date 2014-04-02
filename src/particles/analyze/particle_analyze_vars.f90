@@ -17,6 +17,7 @@ LOGICAL            :: CalcCharge
 LOGICAL            :: CalcEpot
 LOGICAL            :: CalcEkin
 LOGICAL            :: CalcTemp
+LOGICAL            :: TrackParticlePosition
 INTEGER            :: nEkin
 LOGICAL            :: DoAnalyze
 LOGICAL            :: IsRestart
