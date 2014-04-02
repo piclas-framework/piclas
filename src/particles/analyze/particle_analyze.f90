@@ -75,6 +75,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
  CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
  CalcTemp = GETLOGICAL('CalcTransTemp','.FALSE.')
  IF (CalcTemp) CalcEkin = .TRUE.
+ TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
  IF(CalcEkin) THEN
    DoAnalyze = .TRUE.
    IF (nSpecies .GT. 1) THEN
@@ -181,13 +182,13 @@ unit_index = 535
       ! of the second species is added to the filename
        IF ( DSMC%ReservoirSimuRate .EQV. .true. ) THEN
         IF ( SpecDSMC(1)%InterID .eq. 2 .or. SpecDSMC(1)%InterID .eq. 20 ) THEN
-          iTvib = INT(SpecDSMC(1)%TVib)
+          iTvib = INT(SpecDSMC(1)%Telec)
           WRITE( hilf, '(I5.5)') iTvib
           outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
         ELSE
-          iTvib = INT(Species(1)%MWTemperatureIC )
+          iTvib = INT(SpecDSMC(1)%Telec )
           WRITE( hilf, '(I5.5)') iTvib
-          outfile = 'Database_Ttr_'//TRIM(hilf)//'.csv'
+          outfile = 'Database_Telec_'//TRIM(hilf)//'.csv'
         END IF
        ELSE
         outfile = 'Database.csv'
@@ -304,15 +305,11 @@ unit_index = 535
 
 
 !IF (CalcCharge.AND.(.NOT.ChargeCalcDone)) CALL CalcDepositedCharge()
-IF (CalcEpot) THEN
-  CALL CalcPotentialEnergy(WEl,WMag)
-END IF
-IF (CalcEkin) THEN
-  CALL CalcKineticEnergy(Ekin)
-END IF
-IF (CalcTemp) THEN
-  CALL CalcTemperature(Temp, NumSpec)
-END IF
+IF(CalcEpot) CALL CalcPotentialEnergy(WEl,WMag)
+IF(CalcEkin) CALL CalcKineticEnergy(Ekin)
+IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
+IF(CalcTemp) CALL CalcTemperature(Temp, NumSpec)
+
 ! MPI Communication
 #ifdef MPI
 IF (CalcEpot) THEN
@@ -456,6 +453,8 @@ ELSE
 END IF ! DoAnalyze
 
 #if ( PP_TimeDiscMethod ==42 )
+! hard coded
+! array not allocated
 IF ( DSMC%ElectronicState ) THEN
   IF(Time.GT.0.) CALL ElectronicTransition( Time, NumSpec )
 END IF
@@ -762,7 +761,7 @@ SUBROUTINE CalcKineticEnergy(Ekin)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Equation_Vars,          ONLY : c2 
+USE MOD_Equation_Vars,          ONLY : c2, c2_inv
 USE MOD_Particle_Vars,          ONLY : PartState, PartSpecies, Species, PDM
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PartMPF, usevMPF
 USE MOD_Particle_Analyze_Vars,  ONLY : nEkin
@@ -777,10 +776,10 @@ REAL,INTENT(OUT)                :: Ekin(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i
-REAL(KIND=8)              :: partV2, Gamma  
+REAL(KIND=8)              :: partV2, Gamma, VelocityFactor, ParticleValues
 !===================================================================================================================================
 
-Ekin = 0.
+Ekin = 0.!d0
 IF (nEkin .GT. 1 ) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
@@ -852,15 +851,16 @@ ELSE ! nEkin = 1 : only 1 species
       ELSE ! partV2 > 1e6
         Gamma = partV2/c2      
         Gamma = 1./SQRT(1.-Gamma)
-        IF(usevMPF) THEN
+        IF(usevMPF)THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + PartMPF(i) * (Gamma-1.) &
-                        * Species(PartSpecies(i))%MassIC * c2
+                      * Species(PartSpecies(i))%MassIC * c2
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + (Gamma -1.) &
-                        * Species(PartSpecies(i))%MassIC &
-                        * Species(PartSpecies(i))%MacroParticleFactor * c2
-        END IF ! usevMPF
-      END IF ! partV2
+                      * Species(PartSpecies(i))%MassIC &
+                      * Species(PartSpecies(i))%MacroParticleFactor * c2
+        END IF ! useuvMPF
+
+      END IF ! par2
     END IF ! particle inside
   END DO ! particleveclength
 END IF
@@ -1114,11 +1114,17 @@ INTEGER           :: iReac
                      * GEO%Volume(1) / (dt &
                      * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                      * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) )
-    CASE('I')
+    CASE('i')
         RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
                      * GEO%Volume(1) / (dt &
                      * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                      * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) )
+    CASE('r')
+        RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
+                     * GEO%Volume(1)**2 / (dt &
+                     * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
+                     * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) &
+                     * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,3)) )
     END SELECT
   END DO
   ChemReac%NumReac = 0
@@ -1175,7 +1181,9 @@ SUBROUTINE ElectronicTransition (  Time, NumSpec )
     CALL WriteEletronicTransition( Time )
     ! nullyfy
     DO iSpec = 1, nSpecies
-      SpecDSMC(iSpec)%ElectronicTransition = 0
+      IF(SpecDSMC(iSpec)%InterID.ne.4)THEN
+        SpecDSMC(iSpec)%ElectronicTransition = 0
+      END IF
     END DO
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1274,6 +1282,73 @@ IMPLICIT NONE
 ParticleAnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeParticleAnalyze
 
+SUBROUTINE TrackingParticlePosition(time) 
+!===================================================================================================================================
+! Initializes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars,          ONLY : PartState, PDM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                :: time
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: i,iunit,iPartState
+CHARACTER(LEN=60) :: TrackingFilename,hilf
+LOGICAL            :: fexist
+!===================================================================================================================================
 
+iunit=GETFREEUNIT()
+WRITE(UNIT=hilf,FMT='(I6.6)') MyRank
+TrackingFilename = ('MyRank'//TRIM(hilf)//'_ParticlePosition.csv')
+
+INQUIRE(FILE = TrackingFilename, EXIST=fexist)
+IF(.NOT.fexist) THEN 
+ iunit=GETFREEUNIT()
+ OPEN(UNIT=iunit,FILE=TrackingFilename,FORM='FORMATTED',STATUS='UNKNOWN')
+  ! writing header
+  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'TIME', ' '
+  WRITE(iunit,'(A1)',ADVANCE='NO') ','
+  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartNum', ' '
+  WRITE(iunit,'(A1)',ADVANCE='NO') ','
+  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosX', ' '
+  WRITE(iunit,'(A1)',ADVANCE='NO') ','
+  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosY', ' '
+  WRITE(iunit,'(A1)',ADVANCE='NO') ','
+  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosZ', ' '
+  WRITE(iunit,'(A1)',ADVANCE='NO') ','
+  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelX', ' '
+  WRITE(iunit,'(A1)',ADVANCE='NO') ','
+  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelY', ' '
+  WRITE(iunit,'(A1)',ADVANCE='NO') ','
+  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelZ', ' '
+  CLOSE(iunit)
+ELSE
+  iunit=GETFREEUNIT()
+  OPEN(unit=iunit,FILE=TrackingFileName,FORM='Formatted',POSITION='APPEND',STATUS='old')
+  DO i=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(i)) THEN
+      WRITE(iunit,104,ADVANCE='NO') TIME
+      WRITE(iunit,'(A1)',ADVANCE='NO') ','
+      WRITE(iunit,'(I12)',ADVANCE='NO') i
+      DO iPartState=1,6
+        WRITE(iunit,'(A1)',ADVANCE='NO') ','
+        WRITE(iunit,104,ADVANCE='NO') PartState(i,iPartState)
+      END DO
+      WRITE(iunit,'(A)') ' '
+     END IF
+  END DO
+  CLOSE(iunit)
+END IF
+
+104    FORMAT (e25.14)
+
+END SUBROUTINE TrackingParticlePosition
 
 END MODULE MOD_Particle_Analyze
