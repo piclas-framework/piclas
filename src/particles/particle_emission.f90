@@ -301,7 +301,7 @@ IF (.NOT.DoRestart) THEN
         Species(i)%ConstantPressure = ConstantPressure
       END IF
       ! constant pressure condition
-      IF (Species(i)%ParticleEmissionType .EQ. 3) THEN
+      IF ((Species(i)%ParticleEmissionType .EQ. 3).OR.(Species(i)%ParticleEmissionType .EQ. 5)) THEN
         CALL ParticleInsideCheck(i, nPartInside, TempInside, EInside)
         IF (Species(i)%ParticleEmission .GT. nPartInside) THEN
           NbrOfParticle = Species(i)%ParticleEmission - nPartInside
@@ -350,7 +350,7 @@ SUBROUTINE ParticleInserting()
   USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
   USE MOD_LD_Vars
 #endif
-  USE MOD_part_pressure          ,ONLY: ParticlePressure
+  USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
 !===================================================================================================================================
 ! implicit variable handling
 !===================================================================================================================================
@@ -409,6 +409,8 @@ SUBROUTINE ParticleInserting()
            IF (Species(i)%velocityDistribution.EQ.'maxwell') THEN
              IF (NbrOfParticle.LT.5) NbrOfParticle=0
            END IF
+         CASE(5) ! removal of all parts in pressure area and re-insertion
+           CALL ParticlePressureRem (i, NbrOfParticle)
          CASE DEFAULT
            NbrOfParticle = 0
          END SELECT
@@ -510,7 +512,7 @@ SUBROUTINE SetParticlePosition(FractNbr,NbrOfParticle)
   ! modules
   USE MOD_Particle_Vars
   USE MOD_PIC_Vars
-  USE MOD_Timedisc_Vars,         ONLY : dt
+  USE MOD_Timedisc_Vars,         ONLY : dt, iter, IterDisplayStep
   USE MOD_BoundaryTools,         ONLY : SingleParticleToExactElement                                  
   USE MOD_PICInterpolation,      ONLY : InterpolateCurvedExternalField
   USE MOD_PICInterpolation_vars, ONLY : CurvedExternalField,useCurvedExternalField
@@ -1254,10 +1256,12 @@ ELSE ! mode.NE.1:
    IF(PMPIVAR%iProc.EQ.0) THEN
 #endif
    IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
-      WRITE(*,*)'WARNING in ParticleEmission_parallel:'
-      WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
-      WRITE(*,'(A,I7,A)')'matched only ', sumOfMatchedParticles, ' particles'
-      WRITE(*,'(A,I7,A)')'when ', NbrOfParticle, ' particles were required!'
+     IF(MOD(iter,IterDisplayStep).EQ.0) THEN
+       WRITE(*,*)'WARNING in ParticleEmission_parallel:'
+       WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
+       WRITE(*,'(A,I7,A)')'matched only ', sumOfMatchedParticles, ' particles'
+       WRITE(*,'(A,I7,A)')'when ', NbrOfParticle, ' particles were required!'
+     END IF
    ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
       WRITE(*,*)'ERROR in ParticleEmission_parallel:'
       WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr

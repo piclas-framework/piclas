@@ -1610,7 +1610,7 @@ SUBROUTINE DomainUpdate()
 #endif
 
 DO i = 1,nSpecies
-  IF(Species(i)%ParticleEmissionType .EQ. 3) THEN
+  IF((Species(i)%ParticleEmissionType .EQ. 3).OR.(Species(i)%ParticleEmissionType .EQ. 5)) THEN
     CALL ParticlePressureIni()
     EXIT
   END IF

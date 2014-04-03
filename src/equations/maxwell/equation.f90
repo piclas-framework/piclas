@@ -415,7 +415,7 @@ REAL,INTENT(IN)                 :: t
 INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv
 REAL                            :: r                                                 ! for Dipole
-REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/), Q=1, d=1    ! for Dipole
+REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/), Q=1, d=1, omega=6.283185307E8 !2.096     ! for Dipole
 !===================================================================================================================================
 eps0inv = 1./eps0
 SELECT CASE (IniExactFunc)
@@ -434,12 +434,21 @@ CASE(3) ! Resonator         - no sources
 CASE(4) ! Dipole
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
-      IF (shapefunc(r) .GT. 0 ) THEN
-        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) * Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
-    ! dipole should be neutral
-       ! Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) * c_corr*Q * eps0inv
-      END IF
+IF (ABS(Elem_xGP(1,i,j,k,iElem)).LE.0.5)THEN
+IF (ABS(Elem_xGP(2,i,j,k,iElem)).LE.0.5)THEN
+IF (ABS(Elem_xGP(3,i,j,k,iElem)).LE.0.5)THEN
+       Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - Q*d*omega * COS(omega*t) * eps0inv
+END IF
+END IF
+END IF
+
+
+!      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
+!      IF (shapefunc(r) .GT. 0 ) THEN
+!        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) * Q*d*omega * COS(omega*t) * eps0inv
+!    ! dipole should be neutral
+!       ! Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) * c_corr*Q * eps0inv
+!      END IF
     END DO; END DO; END DO
   END DO
 CASE(5) ! TE_34,19 Mode     - no sources

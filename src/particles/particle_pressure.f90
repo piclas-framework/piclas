@@ -5,7 +5,7 @@ MODULE MOD_part_pressure
    IMPLICIT NONE
    
    PRIVATE
-   PUBLIC       :: ParticlePressureIni, ParticlePressure, ParticleInsideCheck,ParticlePressureCellIni
+   PUBLIC       :: ParticlePressureIni, ParticlePressure, ParticleInsideCheck,ParticlePressureCellIni,ParticlePressureRem
 
 CONTAINS   
    
@@ -29,7 +29,7 @@ SUBROUTINE ParticlePressureIni()
   DO iSpec = 1,nSpecies
     Species(iSpec)%ConstPress%InitialTemp = Species(iSpec)%MWTemperatureIC
     !Species(iSpec)%ConstPress%OrthoVector(1) = 0
-    IF (Species(iSpec)%ParticleEmissionType .EQ. 3) THEN
+    IF ((Species(iSpec)%ParticleEmissionType .EQ.3).OR.(Species(iSpec)%ParticleEmissionType.EQ.5)) THEN
       ALLOCATE (TempElemTotalInside(nElems))
       ALLOCATE (TempElemPartlyInside(nElems))
       ALLOCATE (Species(iSpec)%ConstPress%ElemStat(nElems))
@@ -1373,7 +1373,96 @@ SUBROUTINE ParticlePressure (i, NbrOfParticle)
 !    WRITE(*,*) 'Temperature  inside ConstPress:', TempInside
 !    WRITE(*,*) 'EmissionTemperature:', Species(i)%MWTemperatureIC, 'nPartInside:', nPartInside
 END SUBROUTINE ParticlePressure
-  
+
+
+SUBROUTINE ParticlePressureRem (i, NbrOfParticle)
+! Removes all Particles in Pressure Area and sets NbrOfParticles to be inserted
+  USE MOD_Particle_Vars
+!--------------------------------------------------------------------------------------------------!
+  IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------! 
+  INTEGER, INTENT(IN)    :: i
+  INTEGER, INTENT(OUT)   :: NbrOfParticle
+!--------------------------------------------------------------------------------------------------!
+  INTEGER          :: Particle
+  REAL             :: BV1(3), BV2(3), BV3(3), OV(3), BN(3), vau(3), vauquad(3), TempVec(3)
+  REAL             :: det1, det2, det3, dist1, dist2
+!--------------------------------------------------------------------------------------------------
+
+  SELECT CASE (TRIM(Species(i)%SpaceIC))
+  CASE ('cuboid')
+    BV1 = Species(i)%BaseVector1IC
+    BV2 = Species(i)%BaseVector2IC
+    OV  = Species(i)%ConstPress%OrthoVector
+    DO Particle = 1,PDM%ParticleVecLength
+      IF ((PartSpecies(Particle) .EQ. i) .AND. (PDM%ParticleInside(Particle))) THEN
+        SELECT CASE (Species(i)%ConstPress%ElemStat(PEM%Element(Particle)))
+        CASE (1)
+          PDM%ParticleInside(Particle)=.false.
+        CASE (2)
+          BN(1:3) = PartState(Particle,1:3) - Species(i)%BasePointIC
+          det1 = BN(1)*BV2(2)*OV(3) + BN(2)*BV2(3)*OV(1) + BN(3)*BV2(1)*OV(2) - &
+                 BN(3)*BV2(2)*OV(1) - BN(1)*BV2(3)*OV(2) - BN(2)*BV2(1)*OV(3)
+          det2 = BV1(1)*BN(2)*OV(3) + BV1(2)*BN(3)*OV(1) + BV1(3)*BN(1)*OV(2) - &
+                 BV1(3)*BN(2)*OV(1) - BV1(1)*BN(3)*OV(2) - BV1(2)*BN(1)*OV(3)
+          det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + BV1(3)*BV2(1)*BN(2) - &
+                 BV1(3)*BV2(2)*BN(1) - BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
+      
+          det1 = det1/Species(i)%ConstPress%Determinant
+          det2 = det2/Species(i)%ConstPress%Determinant
+          det3 = det3/Species(i)%ConstPress%Determinant
+          
+          IF (((det1-0.5)**2 .LE. 0.25).AND.((det2-0.5)**2 .LE. 0.25).AND.((det3-0.5)**2 .LE. 0.25)) THEN
+            PDM%ParticleInside(Particle)=.false.
+          END IF
+        END SELECT
+      END IF
+    END DO
+  CASE ('cylinder')
+    OV  = Species(i)%ConstPress%OrthoVector
+    DO Particle = 1,PDM%ParticleVecLength
+      IF ((PartSpecies(Particle) .EQ. i) .AND. (PDM%ParticleInside(Particle))) THEN
+        SELECT CASE (Species(i)%ConstPress%ElemStat(PEM%Element(Particle)))
+        CASE (1)
+          PDM%ParticleInside(Particle)=.false.
+        CASE (2)
+          BN(1:3) = PartState(Particle,1:3) - Species(i)%BasePointIC
+          BV2(1) = BN(2) * OV(3) - BN(3) * OV(2)                   !Vector orthogonal on BN and OrthoVector
+          BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
+          BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
+          dist1  = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/(OV(1)**2 + OV(2)**2 + OV(3)**2))
+      
+          IF (dist1 .LE. Species(i)%RadiusIC) THEN
+            BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
+            BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
+            BV3(3) = OV(1) * BV2(2) - OV(2) * BV2(1)
+            IF (BV3(1)**2 + BV3(2)**2 + BV3(3)**2 .NE. 0.) THEN
+              BV3    = dist1 * BV3/SQRT(BV3(1)**2 + BV3(2)**2 + BV3(3)**2)   !Shortest Vector from Node to Cylinder-Axis
+            ELSE
+              BV3(:) = 0.
+            END IF
+
+            IF (OV(1) .NE. 0.) THEN
+              dist2 = (BN(1) - BV3(1))/OV(1)
+            ELSE IF (OV(2) .NE. 0.) THEN
+              dist2 = (BN(2) - BV3(2))/OV(2)
+            ELSE IF (OV(3) .NE. 0.) THEN
+              dist2 = (BN(3) - BV3(3))/OV(3)
+            ELSE
+              dist2 = 0.
+            END IF
+            IF ((dist2 .LT. 1.) .AND. (dist2 .GT. 0.)) THEN
+              PDM%ParticleInside(Particle)=.false.
+            END IF
+          END IF
+        END SELECT
+      END IF
+    END DO
+  END SELECT
+  NbrOfParticle = INT(Species(i)%ParticleEmission)
+END SUBROUTINE ParticlePressureRem
+
+
 SUBROUTINE ParticleInsideCheck(i, nPartInside, TempInside, EkinInside)
   USE MOD_Particle_Vars
 !--------------------------------------------------------------------------------------------------!

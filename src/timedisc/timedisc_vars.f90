@@ -17,7 +17,7 @@ REAL      :: dt
 REAL      :: CFLScale 
 REAL      :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver
 INTEGER   :: maxIter_LinearSolver
-INTEGER(KIND=8) :: iter
+INTEGER(KIND=8) :: iter, IterDisplayStep
 LOGICAL   :: ViscousTimeStep=.FALSE.
 LOGICAl   :: TimediscInitIsDone = .FALSE.
 #if (PP_TimeDiscMethod==1)

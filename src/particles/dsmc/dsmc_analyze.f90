@@ -321,7 +321,7 @@ SUBROUTINE WriteOutputMesh()
   WRITE(1112,*)''
   WRITE(1112,'(A,I0)')'CELL_DATA ',nElems
   DO iSpec=1, nSpecies
-    IF ((Species(iSpec)%ParticleEmissionType.EQ.3).OR.(Species(iSpec)%ParticleEmissionType.EQ.4)) THEN
+    IF ((Species(iSpec)%ParticleEmissionType.GE.3).AND.(Species(iSpec)%ParticleEmissionType.LE.5)) THEN
       WRITE(1112,'(A,I3.3,A)')'SCALARS PressureElemType_', iSpec, ' FLOAT'
       WRITE(1112,'(A)')'LOOKUP_TABLE default'
       DO iElem = 1, nElems

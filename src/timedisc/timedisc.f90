@@ -107,7 +107,7 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt,CalcPoyntingInt
-USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze,ViscousTimeStep,iter
+USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze,ViscousTimeStep,iter,IterDisplayStep
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
 USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
 USE MOD_Analyze,               ONLY: CalcError
@@ -153,7 +153,7 @@ REAL                         :: dt_Min, tEndDiff, tAnalyzeDiff, dt_temp
 INTEGER(KIND=8)              :: iter_loc, iter_macvalout, istep
 REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
-INTEGER                      :: nOutput, MaximumIterNum, IterDisplayStep
+INTEGER                      :: nOutput, MaximumIterNum
 !===================================================================================================================================
 ! init
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -248,10 +248,6 @@ SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
 CalcTimeStart=BOLTZPLATZTIME()
 iter=0
 iter_loc=0
-
-! read in requested IterDisplayStep (i.e. how often the message "iter: etc" is displayed)
-IterDisplayStep = GETINT('IterDisplayStep','1')
-IF (IterDisplayStep.EQ.0) IterDisplayStep = HUGE(IterDisplayStep)  ! = de facto no output
 
 ! fill recordpoints buffer (first iteration)
 IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
