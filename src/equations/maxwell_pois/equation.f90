@@ -66,7 +66,7 @@ USE MOD_Interpolation_Vars, ONLY: xGP
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
 #endif
 USE MOD_Equation_Vars 
-USE MOD_TimeDisc_Vars, ONLY: TEnd,IterDisplayStep
+USE MOD_TimeDisc_Vars, ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -115,9 +115,6 @@ c_corr2   = c_corr*c_corr
 c_corr_c  = c_corr*c 
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
-! read in requested IterDisplayStep (i.e. how often the message "iter: etc" is displayed)
-IterDisplayStep = GETINT('IterDisplayStep','1')
-IF (IterDisplayStep.EQ.0) IterDisplayStep = HUGE(IterDisplayStep)  ! = de facto no output
 
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
