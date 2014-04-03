@@ -33,6 +33,7 @@ SUBROUTINE DSMC_main()
   USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
   USE MOD_vmpf_collision,        ONLY : DSMC_vmpf_prob
+  USE MOD_Restart_Vars,          ONLY : RestartTime
 
 !--------------------------------------------------------------------------------------------------!
 ! main DSMC routine
@@ -134,8 +135,11 @@ IF (.NOT.WriteMacroValues) THEN
       nOutput = (DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput-DSMC%NumOutput + 1
       IF(Time.ge.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
         DSMC%NumOutput = DSMC%NumOutput - 1
-        CALL DSMC_output_calc(nOutput)
-        IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(nOutput)
+        ! Skipping outputs immediately after the first few iterations
+        IF(RestartTime.lt.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN 
+          CALL DSMC_output_calc(nOutput)
+          IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(nOutput)
+        END IF
       END IF
     END IF
   END IF
