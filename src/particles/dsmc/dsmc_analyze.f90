@@ -88,7 +88,7 @@ SUBROUTINE DSMC_output_calc(nOutput)
   USE MOD_Mesh_Vars,              ONLY : nElems,MeshFile
   USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species, GEO, PartSpecies, usevMPF
   USE MOD_Particle_Vars,          ONLY : Time
-  USE MOD_TimeDisc_Vars,          ONLY : TEnd
+  USE MOD_TimeDisc_Vars,          ONLY : TEnd, iter, dt
   USE MOD_Restart_Vars,           ONLY : RestartTime
 !--------------------------------------------------------------------------------------------------!
 ! statistical pairing method                                                                       !
@@ -243,11 +243,11 @@ INTEGER, INTENT(IN)           :: nOutput                                        
       END DO
     END IF
     IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
-      CollMeanOut(iElem,1) = CollMean(iElem,1) / (Time-RestartTime)
-      CollMeanOut(iElem,2) = CollMean(iElem,2) / (Time-RestartTime)
+      CollMeanOut(iElem,1) = CollMean(iElem,1) / iter
+      CollMeanOut(iElem,2) = CollMean(iElem,2) / iter
     ELSE
-      CollMeanOut(iElem,1) = CollMean(iElem,1) / (Time-(1-DSMC%TimeFracSamp)*TEnd)
-      CollMeanOut(iElem,2) = CollMean(iElem,2) / (Time-(1-DSMC%TimeFracSamp)*TEnd)
+      CollMeanOut(iElem,1) = CollMean(iElem,1)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
+      CollMeanOut(iElem,2) = CollMean(iElem,2)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
     END IF
   END DO
   CALL WriteDSMCToHDF5(TRIM(MeshFile),realtime)
