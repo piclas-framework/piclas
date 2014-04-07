@@ -306,8 +306,8 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
              PEM%pEnd(1:PP_nElems) )!            , &
              !PDM%nextUsedPosition(PDM%maxParticleNumber)  )
     useDSMC=.TRUE.
-    CALL UpdateNextFreePosition()
   END IF
+  CALL UpdateNextFreePosition()
 !!! Ende kleiner Hack von JN (Teil 1/2)
   iPart=offsetnPart
   DO iElem_loc=1,PP_nElems
