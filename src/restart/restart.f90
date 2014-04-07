@@ -423,6 +423,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   END IF
   DEALLOCATE(PartInt,PartData)
   PDM%ParticleVecLength = PDM%ParticleVecLength + locnPart
+  CALL UpdateNextFreePosition()
   SWRITE(UNIT_stdOut,*)'DONE!' 
   DO i=1,nSpecies
     Species(i)%InsertedParticle = INT(Species(i)%ParticleEmission * RestartTime)
@@ -594,13 +595,12 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     SWRITE(UNIT_stdOut,*) SUM(LostParts),'were not in the correct proc after restart.'
     SWRITE(UNIT_stdOut,*) CompleteNbrOfFound,'of these were found in other procs.'
     SWRITE(UNIT_stdOut,*) SUM(LostParts)-CompleteNbrOfFound,'were not found and have been removed.'
-    CALL UpdateNextFreePosition()
   END IF
 #else
   IF (COUNTER.NE.0) WRITE(*,*) COUNTER,'Particles are in different element after restart!'
   IF (COUNTER2.NE.0) WRITE(*,*) COUNTER2,'of which could not be found and are removed!'
-  CALL UpdateNextFreePosition()
 #endif
+  CALL UpdateNextFreePosition()
 
 #endif /*PARTICLES*/
 
