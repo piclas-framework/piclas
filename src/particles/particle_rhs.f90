@@ -167,8 +167,8 @@ SELECT CASE(PartLorentzType)
           'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',i,velosq/c2)
 
         gamma=SQRT(1.0 - velosq*c2_inv)
-        gamma2=gamma1*gamma1
-        gamma3=gamma2*gamma1
+        gamma2=gamma*gamma
+        gamma3=gamma2*gamma
         normfac=1.0/(c2*gamma2 + velosq)
         ! define inverted matrix
         Vinv(1,1) = (c2*gamma3 + (v2s+v3s)*gamma)*normfac
