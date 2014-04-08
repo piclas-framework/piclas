@@ -165,10 +165,10 @@ DO iSide=1,nBCSides
   END IF
 END DO
 
-IF (MPIroot) THEN
+!IF (MPIroot) THEN
 ALLOCATE(countSurfElemMPI(0:nProcessors-1))
 countSurfElemMPI=0
-END IF
+!END IF
 
 CALL MPI_GATHER(countSurfElem,1,MPI_INTEGER,countSurfElemMPI,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 
@@ -185,6 +185,8 @@ offsetSurfElem=offsetSurfElemMPI(myRank)
 #else /* MPI */
 offsetSurfElem=0          ! offset is the index of first entry, hdf5 array starts at 0-.GT. -1 
 #endif /* MPI */
+
+DEALLOCATE(countSurfElemMPI)
 
 ! dealloacte pointers
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
@@ -228,8 +230,7 @@ ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
 ! assign normal and tangential vectors and surfElems on faces
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
-CALL CalcMetrics(XCL_NGeo)
-
+CALL CalcMetrics(XCL_NGeo) 
 #ifdef PARTICLES
 ! save geometry information for particle tracking
 CALL InitElemVolumes()
