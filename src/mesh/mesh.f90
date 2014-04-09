@@ -172,6 +172,8 @@ countSurfElemMPI=0
 
 CALL MPI_GATHER(countSurfElem,1,MPI_INTEGER,countSurfElemMPI,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 
+print*,'here'
+read*
 IF (MPIroot) THEN
 DO iProc=1,nProcessors-1
 offsetSurfElemMPI(iProc)=SUM(countSurfElemMPI(0:iProc-1))-1
@@ -182,11 +184,12 @@ END IF
 CALL MPI_BCAST (offsetSurfElemMPI,size(offsetSurfElemMPI),MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 
 offsetSurfElem=offsetSurfElemMPI(myRank)
+
+DEALLOCATE(countSurfElemMPI)
 #else /* MPI */
 offsetSurfElem=0          ! offset is the index of first entry, hdf5 array starts at 0-.GT. -1 
 #endif /* MPI */
 
-DEALLOCATE(countSurfElemMPI)
 
 ! dealloacte pointers
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
