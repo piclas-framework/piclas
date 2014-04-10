@@ -42,6 +42,7 @@ SUBROUTINE Initialize()
   USE MOD_part_MPI_Vars,          ONLY : MPIGEO, PMPIVAR, PMPIExchange, FIBGMCellPadding, &
                                          SafetyFactor, halo_eps
   USE MOD_CalcTimeStep,           ONLY:CalcTimeStep
+  USE MOD_PICDepo_Vars,           ONLY : DepositionType
   !USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_Equation_Vars,          ONLY : c
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -51,6 +52,7 @@ SUBROUTINE Initialize()
 ! ARGUMENT LIST DECLARATION
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLE DECLARATION
+  LOGICAL                :: TmpNeigh
   INTEGER                :: iProc
   INTEGER                :: MPIProcPIC
   INTEGER                :: ALLOCSTAT
@@ -164,12 +166,27 @@ SUBROUTINE Initialize()
 
   DEALLOCATE(NodeIndex)
 
-  !--- Setup PMPIVAR%MPINeighbor array, marking each MPI Proc with which
-  !    I have to exchange particle data each time step
-!  PMPIVAR%MPINeighbor(:)=.FALSE.
-!  DO iProc=0,PMPIVAR%nProcs-1
-!    IF (MPIGEO%nElems(iProc).GT.0) PMPIVAR%MPINeighbor(iProc)=.TRUE. ! ATTENTION: EXTRA CHECK REQUIRED FOR SHAPEFUNCTION!
-!  END DO
+  ! Make sure PMPIVAR%MPINeighbor is consistent
+  DO iProc=0,PMPIVAR%nProcs-1
+    IF (PMPIVAR%iProc.EQ.iProc) CYCLE
+    IF (PMPIVAR%iProc.LT.iProc) THEN
+      CALL MPI_SEND(PMPIVAR%MPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,IERROR)
+      CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
+    ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
+      CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
+      CALL MPI_SEND(PMPIVAR%MPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,IERROR)
+    END IF
+    IF (TmpNeigh.NEQV.PMPIVAR%MPINeighbor(iProc)) THEN
+      WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PMPIVAR%iProc,iProc
+      PMPIVAR%MPINeighbor(iProc) = .TRUE.
+    END IF
+  END DO
+  IF(DepositionType.EQ.'shape_function') THEN
+    PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .TRUE.
+  ELSE
+    PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .FALSE.
+  END IF
+
 
   !--- Additional error checking
 !  nConnectedInnerSides(0:PMPIVAR%nProcs-1,1:2) = 0
@@ -836,7 +853,8 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
     HALOoffsetElem               = 0
     HALOoffsetSide               = 0
   END IF !--- end of resize
- 
+  PMPIVAR%MPINeighbor(iProc)=.true.
+
   ! Fill new grid
 
   !--- PeriodicElemSide  --------------------------------------------------------------!

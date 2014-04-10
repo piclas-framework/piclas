@@ -1003,6 +1003,13 @@ SUBROUTINE DomainUpdate()
 !   END DO
 #endif
 
+#ifdef MPI
+  ! allocate and initialize MPINeighbor
+  ALLOCATE(PMPIVAR%MPINeighbor(0:PMPIVAR%nProcs-1))
+  PMPIVAR%MPINeighbor(:) = .FALSE.
+#endif
+
+
    !--- calculate variables necessary for fast initial localization
 
 #ifdef MPI
@@ -1464,6 +1471,7 @@ SUBROUTINE DomainUpdate()
        j=2
        DO m=0,PMPIVAR%nProcs-1
          IF (TempProcList(m) .EQ. 1) THEN
+           PMPIVAR%MPINeighbor(m) = .true.
            GEO%FIBGM(ii-nShapePaddingX,kk-nShapePaddingY,ll-nShapePaddingZ)%ShapeProcs(j)=m
            j=j+1
          END IF

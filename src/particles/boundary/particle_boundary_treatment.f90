@@ -164,6 +164,7 @@ SUBROUTINE Communicate_PIC()                                                    
    DO iProc = 0,PMPIVAR%nProcs-1
      !--- Don't send messages to myself!
      IF ((iProc.EQ.PMPIVAR%iProc).AND.(DepositionType.NE.'shape_function')) CYCLE
+     IF (.NOT.(PMPIVAR%MPINeighbor(iProc))) CYCLE
      !--- Wait for number of communicated particles message to be complete
      CALL MPI_WAIT(PMPIExchange%send_request(iProc,1),send_status(:),IERROR)
      IF (SUM(PMPIExchange%nbrOfSendParticles(iProc,:)) .GT. 0) THEN
@@ -175,10 +176,11 @@ SUBROUTINE Communicate_PIC()                                                    
    !--- deallocate message buffers and request buffers
    DEALLOCATE(PMPIExchange%send_message,PMPIExchange%send_request,PMPIExchange%nbrOfSendParticles,PMPIExchange%NbrArray)
 !   !--- error checking
+
+
 !   CALL MPI_ALLREDUCE(nSend,totalNSendParticles,1,MPI_INTEGER,MPI_SUM,PMPIVAR%COMM,IERROR)
-!   CALL MPI_ALLREDUCE(nRecv,totalNRecvParticles,1,MPI_INTEGER,MPI_SUM,PMPIVAR%COMM,IERROR)
-!   IF ((PMPIVAR%iProc.EQ.0).AND.(totalNSendParticles.NE.totalNRecvParticles)) THEN
-!     WRITE(*,'(A,I0,A,I0)')'number of sent particles: ',totalNSendParticles,', number of recv particles: ',totalNRecvParticles
+!   IF ((PMPIVAR%iProc.EQ.0)) THEN
+!     WRITE(*,*) 'number of sent particles: ',totalNSendParticles
 !   END IF
    !CALL UpdateNextFreePosition() ! now is done in the timedisc 
    RETURN
@@ -598,7 +600,9 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
          WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
          WRITE(*,*) 'Pos:     ', PartState(i,1:3)
          WRITE(*,*) 'Velo:    ', PartState(i,3:6)
-         STOP
+         PDM%ParticleInside(i) = .false.
+         DONE=.TRUE.
+         EXIT
        END IF
        IF (NrOfThroughSides.GT.1) THEN
          SecondNrOfThroughSides = 0
@@ -629,7 +633,9 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
            WRITE(*,*) 'LastPos: ', LastPartPos(i,1:3)
            WRITE(*,*) 'Pos:     ', PartState(i,1:3)
            WRITE(*,*) 'Velo:    ', PartState(i,3:6)
-           STOP
+           PDM%ParticleInside(i) = .false.
+           DONE=.TRUE.
+           EXIT
          END IF
        END IF
        IF (MPIGEO%BC(1,haloSideID).NE.0) THEN
@@ -956,6 +962,7 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
     DO iProc=0,PMPIVAR%nProcs-1
       !--- Don't send messages to myself!
       IF ((iProc.EQ.PMPIVAR%iProc).AND.(DepositionType.NE.'shape_function')) CYCLE
+      IF (.NOT.(PMPIVAR%MPINeighbor(iProc))) CYCLE
       !--- MPI_ISEND lengths of lists of particles leaving local mesh
 !WRITE(*,*) 'send',PMPIVAR%iProc,iProc, PMPIExchange%NbrArray(iProc*2+1:iProc*2+2)
       CALL MPI_ISEND(PMPIExchange%NbrArray(iProc*2+1:iProc*2+2), 2, MPI_INTEGER, iProc, 1001, PMPIVAR%COMM, &
@@ -1198,6 +1205,7 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
       NbrOfParticlesToReceive(:) = 0
       !--- Don't send messages to myself unless shape_function!
       IF ((iProc.EQ.PMPIVAR%iProc).AND.(DepositionType.NE.'shape_function')) CYCLE
+      IF (.NOT.(PMPIVAR%MPINeighbor(iProc))) CYCLE
       CALL MPI_IRECV(NbrOfParticlesToReceive(:), 2, MPI_INTEGER, iProc, 1001, PMPIVAR%COMM, &
                         recv_request(iProc,1), IERROR)
       CALL MPI_WAIT(recv_request(iProc,1),recv_status_list(:,iProc,1),IERROR)
