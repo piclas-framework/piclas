@@ -813,15 +813,19 @@ DO rk=2,5
 #endif
   END IF
 END DO
-CALL UpdateNextFreePosition()
+IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+  CALL UpdateNextFreePosition()
+END IF
 IF (useDSMC) THEN
-  CALL DSMC_main()
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,1)
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,2)
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  IF (t.GE.DelayTime) THEN
+    CALL DSMC_main()
+    PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,1)
+    PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,2)
+    PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  END IF
   !CALL UpdateNextFreePosition()
 END IF
 END SUBROUTINE TimeStepByRK4
@@ -1082,22 +1086,24 @@ END DO
 
   CALL EvalGradient()
 #endif
-
-CALL UpdateNextFreePosition()
-
+IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+  CALL UpdateNextFreePosition()
+END IF
 IF (doParticleMerge) THEN
   CALL StartParticleMerge()
   CALL UpdateNextFreePosition()
 END IF
 
 IF (useDSMC) THEN
-  CALL DSMC_main()
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,1)
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,2)
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  IF (t.GE.DelayTime) THEN
+    CALL DSMC_main()
+    PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,1)
+    PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,2)
+    PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  END IF
 END IF
 END SUBROUTINE TimeStepByRK4EulerExpl
 #endif
@@ -1559,7 +1565,9 @@ dt = dt_save
 #ifdef PP_POIS
   CALL EvalGradient()
 #endif
-CALL UpdateNextFreePosition()
+IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+  CALL UpdateNextFreePosition()
+END IF
 IF (useDSMC) THEN
   IF (t.GE.DelayTime) THEN
     CALL DSMC_main()
@@ -1715,8 +1723,9 @@ dt = dt_save
 #ifdef PP_POIS
   CALL EvalGradient()
 #endif
-
-CALL UpdateNextFreePosition()
+IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+  CALL UpdateNextFreePosition()
+END IF
 IF (useDSMC) THEN
   IF (t.GE.DelayTime) THEN
     CALL DSMC_main()
