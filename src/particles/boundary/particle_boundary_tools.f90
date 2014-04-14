@@ -935,11 +935,11 @@ SUBROUTINE SingleParticleToExactElement(i)                                      
       RETURN
    END IF
    !--- get background mesh cell of particle
-   CellX = INT((PartState(i,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1 
+   CellX = CEILING((PartState(i,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
    CellX = MIN(GEO%FIBGMimax,CellX)                             
-   CellY = INT((PartState(i,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+   CellY = CEILING((PartState(i,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
    CellY = MIN(GEO%FIBGMkmax,CellY) 
-   CellZ = INT((PartState(i,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+   CellZ = CEILING((PartState(i,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
    CellZ = MIN(GEO%FIBGMlmax,CellZ)
    !--- check all cells associated with this beckground mesh cell
    DO k = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem

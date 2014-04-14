@@ -90,10 +90,10 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     END IF
   CASE('shape_function')
     r_sf     = GETREAL('PIC-shapefunction-radius','1.')
-    alpha_sf = GETREAL('PIC-shapefunction-alpha','2.')
-    BetaFac = beta(1.5, alpha_sf + 1.)
-    w_sf = 1./(2. * BetaFac * alpha_sf + 2 * BetaFac) &
-                          * (alpha_sf + 1.)/(PI*(r_sf**3))
+    alpha_sf = GETINT('PIC-shapefunction-alpha','2')
+    BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
+    w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) &
+                          * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
     r2_sf = r_sf * r_sf 
     r2_sf_inv = 1./r2_sf
   CASE('delta_distri')
@@ -355,10 +355,10 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
   INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           !
   INTEGER                          :: kk, ll, mm, ppp                                              !
   INTEGER                          :: ElemID, iCase, ind
-  REAL                             :: radius, deltax, deltay, deltaz, S
+  REAL                             :: radius, S, S1, Fac(4)
   REAL                             :: New_Pos(3), perVec(3), SearchPos(3)
   REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
-  INTEGER                          :: a,b, ii
+  INTEGER                          :: a,b, ii, expo
   REAL                             :: ElemSource(nElems,1:4)
   REAL, ALLOCATABLE                :: BGMSource(:,:,:,:)
   REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
@@ -421,23 +421,25 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
     DO i=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(i)) THEN
         chargedone(:) = .FALSE.
+        Fac(4) = Species(PartSpecies(i))%ChargeIC * Species(PartSpecies(i))%MacroParticleFactor*w_sf
+        Fac(1:3) = PartState(i,4:6)*Fac(4)
         !-- determine which background mesh cells (and interpolation points within) need to be considered
         DO iCase = 1, NbrOfCases
           DO ind = 1,3
             ShiftedPart(ind) = PartState(i,ind) + casematrix(iCase,1)*Vec1(ind) + &
                  casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
           END DO
-          kmax = INT((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+          kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
           kmax = MIN(kmax,GEO%FIBGMimax)
-          kmin = INT((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+          kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
           kmin = MAX(kmin,GEO%FIBGMimin)
-          lmax = INT((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+          lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
           lmax = MIN(lmax,GEO%FIBGMkmax)
-          lmin = INT((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+          lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
           lmin = MAX(lmin,GEO%FIBGMkmin)
-          mmax = INT((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+          mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
           mmax = MIN(mmax,GEO%FIBGMlmax)
-          mmin = INT((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+          mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
           mmin = MAX(mmin,GEO%FIBGMlmin)
           !-- go through all these cells
           DO kk = kmin,kmax
@@ -450,25 +452,21 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
                     !--- go through all gauss points
                     DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                       !-- calculate distance between gauss and particle
-                      deltax = ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID) 
-                      deltay = ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID) 
-                      deltaz = ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID) 
-                      radius = deltax * deltax + deltay * deltay + deltaz * deltaz
+                      radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
+                             + (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
+                             + (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
                       !-- calculate charge and current density at ip point using a shape function
                       !-- currently only one shapefunction available, more to follow (including structure change)
                       IF (radius .LT. r2_sf) THEN
                         S = 1 - r2_sf_inv * radius
-                        S = S**alpha_sf 
-                        S = w_sf * S
+                        S1 = S*S
+                        DO expo = 3, alpha_sf
+                          S1 = S*S1
+                        END DO
 #if (PP_nVar==8)
-                        source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) &
-                                                 + PartState(i,4:6) &
-                                                 * Species(PartSpecies(i))%ChargeIC &
-                                                 * Species(PartSpecies(i))%MacroParticleFactor * S
+                        source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
 #endif
-                        source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) &
-                                                 + Species(PartSpecies(i))%ChargeIC &
-                                                 * Species(PartSpecies(i))%MacroParticleFactor * S
+                        source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
                       END IF
                     END DO; END DO; END DO
                     chargedone(ElemID) = .TRUE.
@@ -502,23 +500,25 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
     
     DO iPart=1,NbrOfextParticles  !external Particles
       chargedone(:) = .FALSE.
+      Fac(4) = Species(PartSpecies(i))%ChargeIC * Species(PartSpecies(i))%MacroParticleFactor*w_sf
+      Fac(1:3) = PartState(i,4:6)*Fac(4)
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
         DO ind = 1,3
           ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
-        kmax = INT((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
+        kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
         kmax = MIN(kmax,GEO%FIBGMimax)
-        kmin = INT((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
+        kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
         kmin = MAX(kmin,GEO%FIBGMimin)
-        lmax = INT((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
+        lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
         lmax = MIN(lmax,GEO%FIBGMkmax)
-        lmin = INT((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
+        lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
         lmin = MAX(lmin,GEO%FIBGMkmin)
-        mmax = INT((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
+        mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
         mmax = MIN(mmax,GEO%FIBGMlmax)
-        mmin = INT((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
+        mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
         mmin = MAX(mmin,GEO%FIBGMlmin)
         !-- go through all these cells (should go through non if periodic and shiftedpart not in my domain
         DO kk = kmin,kmax
@@ -531,26 +531,22 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
                   !--- go through all gauss points
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                     !-- calculate distance between gauss and particle
-                    deltax = ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)
-                    deltay = ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)
-                    deltaz = ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)
-                    radius = deltax * deltax + deltay * deltay + deltaz * deltaz
-                    !-- calculate charge and current density at ip point using a shape function
-                    !-- currently only one shapefunction available, more to follow (including structure change)
-                    IF (radius .LT. r2_sf) THEN
-                      S = 1 - r2_sf_inv * radius
-                      S = S**alpha_sf
-                      S = w_sf * S
+                      radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
+                             + (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
+                             + (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
+                      !-- calculate charge and current density at ip point using a shape function
+                      !-- currently only one shapefunction available, more to follow (including structure change)
+                      IF (radius .LT. r2_sf) THEN
+                        S = 1 - r2_sf_inv * radius
+                        S1 = S*S
+                        DO expo = 3, alpha_sf
+                          S1 = S*S1
+                        END DO
 #if (PP_nVar==8)
-                      source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) &
-                           + ExtPartState(iPart,4:6) &
-                           * Species(ExtPartSpecies(iPart))%ChargeIC &
-                           * Species(ExtPartSpecies(iPart))%MacroParticleFactor * S
+                        source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
 #endif
-                      source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) &
-                           + Species(ExtPartSpecies(iPart))%ChargeIC &
-                           * Species(ExtPartSpecies(iPart))%MacroParticleFactor * S
-                    END IF
+                        source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
+                      END IF
                   END DO; END DO; END DO
                   chargedone(ElemID) = .TRUE.
                 END IF

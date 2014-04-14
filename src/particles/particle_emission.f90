@@ -1242,53 +1242,52 @@ ELSE ! mode.NE.1:
       END IF
    END DO
 
+   IF(MOD(iter,IterDisplayStep).EQ.0) THEN
 #ifdef MPI
-!   WRITE(*,*)'mySumOfMatchedParticles=',mySumOfMatchedParticles
-   ! check the sum of the matched particles: did each particle find its "home"-CPU?
-   CALL MPI_ALLREDUCE(mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM, PMPIVAR%COMM, IERROR)
+  !   WRITE(*,*)'mySumOfMatchedParticles=',mySumOfMatchedParticles
+     ! check the sum of the matched particles: did each particle find its "home"-CPU?
+     CALL MPI_ALLREDUCE(mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM, PMPIVAR%COMM, IERROR)
 #else
-   ! im seriellen Fall kommen alle Partikel auf einen CPU,
-   ! daher ist PIC%maxParticleNumber die harte Grenze
-   sumOfMatchedParticles = mySumOfMatchedParticles
+     ! im seriellen Fall kommen alle Partikel auf einen CPU,
+     ! daher ist PIC%maxParticleNumber die harte Grenze
+     sumOfMatchedParticles = mySumOfMatchedParticles
 #endif
 
 #ifdef MPI
-   IF(PMPIVAR%iProc.EQ.0) THEN
+     IF(PMPIVAR%iProc.EQ.0) THEN
 #endif
-   IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
-     IF(MOD(iter,IterDisplayStep).EQ.0) THEN
-       WRITE(*,*)'WARNING in ParticleEmission_parallel:'
-       WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
-       WRITE(*,'(A,I7,A)')'matched only ', sumOfMatchedParticles, ' particles'
-       WRITE(*,'(A,I7,A)')'when ', NbrOfParticle, ' particles were required!'
-     END IF
-   ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
-      WRITE(*,*)'ERROR in ParticleEmission_parallel:'
-      WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
-      WRITE(*,'(A,I7,A)')'matched ', sumOfMatchedParticles, ' particles'
-      WRITE(*,'(A,I7,A)')'when ', NbrOfParticle, ' particles were required!'
+     IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
+        WRITE(*,*)'WARNING in ParticleEmission_parallel:'
+        WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
+        WRITE(*,'(A,I7,A)')'matched only ', sumOfMatchedParticles, ' particles'
+        WRITE(*,'(A,I7,A)')'when ', NbrOfParticle, ' particles were required!'
+     ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
+        WRITE(*,*)'ERROR in ParticleEmission_parallel:'
+        WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
+        WRITE(*,'(A,I7,A)')'matched ', sumOfMatchedParticles, ' particles'
+        WRITE(*,'(A,I7,A)')'when ', NbrOfParticle, ' particles were required!'
 #if (PP_TimeDiscMethod==1000)
 !      STOP
 #else
-      STOP
+        STOP
 #endif
-   ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
+     ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
 !      WRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
 !      WRITE(*,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
-   END IF
+     END IF
 #ifdef MPI
-   END IF ! PMPIVAR%iProc.EQ.0
+     END IF ! PMPIVAR%iProc.EQ.0
 #endif
-
+  END IF ! IterDisplayStep
    ! Return the *local* NbrOfParticle so that the following Routines only fill in
    ! the values for the local particles
-   NbrOfParticle = mySumOfMatchedParticles
+  NbrOfParticle = mySumOfMatchedParticles
 
-   DEALLOCATE( particle_positions, STAT=allocStat )
-   IF (allocStat .NE. 0) THEN
-      WRITE(*,*)'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!'
-      STOP
-   END IF
+  DEALLOCATE( particle_positions, STAT=allocStat )
+  IF (allocStat .NE. 0) THEN
+     WRITE(*,*)'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!'
+     STOP
+  END IF
 #ifdef MPI
 END IF ! NbrOfParticle.LE.0
 #endif

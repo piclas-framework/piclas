@@ -1192,18 +1192,18 @@ SUBROUTINE DomainUpdate()
           zmax=MAX(zmax,GEO%NodeCoords(3,GEO%ElemSideNodeID(iNode,iLocSide,ElemID)))
         END DO
       END DO
-      BGMCellXmax = INT((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
+      BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
       BGMCellXmax = MIN(BGMCellXmax,BGMimax)
-      BGMCellXmin = INT((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
+      BGMCellXmin = FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
       BGMCellXmin = MAX(BGMCellXmin,BGMimin)
-      BGMCellYmax = INT((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
+      BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
       BGMCellYmax = MIN(BGMCellYmax,BGMkmax)
-      BGMCellYmin = INT((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
+      BGMCellYmin = FLOOR((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
       BGMCellYmin = MAX(BGMCellYmin,BGMkmin)
-      BGMCellZmax = INT((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
+      BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
       BGMCellZmax = MIN(BGMCellZmax,BGMlmax)
-      BGMCellZmin = INT((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
-      BGMCellZmin = MAX(BGMCellZmin,BGMlmin)
+      BGMCellZmin = FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+      BGMCellZmin = MAX(BGMCellZmin,BGMlmin)     
       DO i = BGMCellXmin,BGMCellXmax
          DO k = BGMCellYmin,BGMCellYmax
             DO l = BGMCellZmin,BGMCellZmax
