@@ -500,8 +500,8 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
     
     DO iPart=1,NbrOfextParticles  !external Particles
       chargedone(:) = .FALSE.
-      Fac(4) = Species(PartSpecies(i))%ChargeIC * Species(PartSpecies(i))%MacroParticleFactor*w_sf
-      Fac(1:3) = PartState(i,4:6)*Fac(4)
+      Fac(4) = Species(ExtPartSpecies(i))%ChargeIC * Species(ExtPartSpecies(i))%MacroParticleFactor*w_sf
+      Fac(1:3) = ExtPartState(i,4:6)*Fac(4)
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
         DO ind = 1,3
