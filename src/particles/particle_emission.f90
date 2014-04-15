@@ -363,8 +363,8 @@ SUBROUTINE ParticleInserting()
 ! Local variable declaration                                                                       
    INTEGER                          :: i , iPart, PositionNbr                                                          
    INTEGER                , SAVE    :: NbrOfParticle=0                                             
-   INTEGER                          :: inserted_Particle_iter,inserted_Particle_time               
-   INTEGER                          :: inserted_Particle_diff                                      
+   INTEGER(KIND=8)                          :: inserted_Particle_iter,inserted_Particle_time               
+   INTEGER(KIND=8)                  :: inserted_Particle_diff                                     
 #ifdef MPI
    INTEGER                          :: mode,iProc,iTag                                             
 #endif
@@ -391,10 +391,10 @@ SUBROUTINE ParticleInserting()
 #endif
          SELECT CASE(Species(i)%ParticleEmissionType)
          CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
-           inserted_Particle_iter = INT(Species(i)%ParticleEmission * dt)
-           inserted_Particle_time = INT(Species(i)%ParticleEmission * (Time + dt))
+           inserted_Particle_iter = INT(Species(i)%ParticleEmission * dt,8)
+           inserted_Particle_time = INT(Species(i)%ParticleEmission * (Time + dt),8)
            inserted_Particle_diff = INT(inserted_Particle_time - Species(i)%InsertedParticle &
-                - inserted_Particle_iter )
+                - inserted_Particle_iter,8)
            NbrOfParticle = inserted_Particle_iter + inserted_Particle_diff
            ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
            IF (Species(i)%velocityDistribution.EQ.'maxwell') THEN
