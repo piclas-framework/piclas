@@ -32,7 +32,7 @@ INTEGER                          :: counter1,i,n
 REAL                             :: E(1:3),B(1:3)                                                
 REAL                             :: qmt, gamma, velosq, v_norm_x, v_norm_y, v_norm_z,v_abs, Pt_sq
 REAL                             :: ax, ay, az, bx, by, bz, dx, dy, snx, sny, snz
-REAL                             :: gamma1,gamma2,gamma3, v1s,v2s,v3s, Vinv(3,3), v1,v2,v3, normfac
+REAL                             :: gamma2,gamma3, v1s,v2s,v3s, Vinv(3,3), v1,v2,v3, normfac
 !===================================================================================================================================
 
 ! Lorentzforce

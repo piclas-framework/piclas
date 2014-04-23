@@ -286,5 +286,8 @@ TYPE tPolyatomMolVibQuant !DSMC Species Param
 END TYPE
 
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
+
+INTEGER                           :: nOutput                    ! output counter for DSMC
+INTEGER(KIND=8)                   :: iter_loc, iter_macvalout, istep
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

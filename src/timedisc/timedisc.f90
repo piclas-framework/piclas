@@ -106,6 +106,7 @@ SUBROUTINE TimeDisc()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_Analyze,               ONLY: PerformeAnalyze
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt,CalcPoyntingInt
 USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze,ViscousTimeStep,iter,IterDisplayStep
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
@@ -115,7 +116,7 @@ USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_Output,                ONLY: Visualize
 USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
-USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems, nElems
+USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems
 USE MOD_DG_Vars,               ONLY: U
 USE MOD_PML,                   ONLY: TransformPMLVars,BacktransformPMLVars
 USE MOD_PML_Vars,              ONLY: DoPML
@@ -125,17 +126,14 @@ USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, Time, dt_max_particles, dt_maxwell, NextTimeStepAdjustmentIter, &
                                      dt_adapt_maxwell,useManualTimestep
-USE MOD_PARTICLE_Vars,         ONLY: PDM, PartState, MaxwellIterNum, GEO, WriteMacroValues, MacroValSamplIterNum, nSpecies, Pt
-USE MOD_PARTICLE_Vars,    ONLY : doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
+USE MOD_PARTICLE_Vars,         ONLY: PDM, PartState, MaxwellIterNum, GEO, Pt
+USE MOD_PARTICLE_Vars,         ONLY : doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars,             ONLY: useDSMC, DSMC, SampDSMC, realtime
-USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
+USE MOD_DSMC_Vars,             ONLY: useDSMC, realtime,nOutput, Iter_macvalout
 USE MOD_Equation_Vars,         ONLY: c,c_corr
-USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 USE MOD_RecordPoints_Vars,     ONLY: RP_inUse,RP_onProc
-USE MOD_PoyntingInt,           ONLY: CalcPoyntingIntegral
+USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 USE MOD_LD_Vars,               ONLY: useLD
-USE MOD_LD_Analyze         ,ONLY: LD_data_sampling, LD_output_calc
 #ifdef MPI
 USE MOD_part_boundary,        ONLY: ParticleBoundary, Communicate_PIC
 #endif
@@ -150,10 +148,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                         :: t,tFuture, vMax, vMaxx, vMaxy, vMaxz
 REAL                         :: dt_Min, tEndDiff, tAnalyzeDiff, dt_temp
-INTEGER(KIND=8)              :: iter_loc, iter_macvalout, istep
+INTEGER(KIND=8)              :: iter_loc
 REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
-INTEGER                      :: nOutput, MaximumIterNum
+INTEGER                      :: MaximumIterNum
 !===================================================================================================================================
 ! init
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -183,6 +181,8 @@ IF(DoRestart) CALL EvalGradient()
 #endif
 ! Write the state at time=0, i.e. the initial condition
 CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
+
+! init of analyzation and write file header
 ! Determine the initial error
 CALL CalcError(t)
 #ifdef MPI
@@ -336,49 +336,12 @@ END IF
   IF(MOD(iter,IterDisplayStep).EQ.0) THEN
      SWRITE(*,*) "iter:", iter,"t:",t
   END IF
-  ! now calling all the analyzis routines
-  ! particle analyze
-  IF (DoAnalyze)  THEN
-    IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL AnalyzeParticles(t) 
-  END IF
-  ! poynting vector
-  IF (CalcPoyntingInt) THEN
-    IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
-  END IF
-  ! fill recordpoints buffer
-  IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
-  ! write DSMC macroscopic values 
-  IF (WriteMacroValues) THEN
-#if (PP_TimeDiscMethod==1000)
-    CALL LD_data_sampling()  ! Data sampling for output
-#else
-    CALL DSMC_data_sampling()
-#endif
-    iter_macvalout = iter_macvalout + 1
-    IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
-#if (PP_TimeDiscMethod==1000)
-      CALL LD_output_calc(nOutput)  ! Data sampling for output
-#else
-      CALL DSMC_output_calc(nOutput)
-#endif
-      nOutput = nOutput + 1
-      iter_macvalout = 0
-      DSMC%SampNum = 0
-      SampDSMC(1:nElems,1:nSpecies)%PartV(1)  = 0
-      SampDSMC(1:nElems,1:nSpecies)%PartV(2)  = 0
-      SampDSMC(1:nElems,1:nSpecies)%PartV(3)  = 0
-      SampDSMC(1:nElems,1:nSpecies)%PartV2(1) = 0
-      SampDSMC(1:nElems,1:nSpecies)%PartV2(2) = 0
-      SampDSMC(1:nElems,1:nSpecies)%PartV2(3) = 0
-      SampDSMC(1:nElems,1:nSpecies)%PartNum   = 0
-      SampDSMC(1:nElems,1:nSpecies)%ERot      = 0
-      SampDSMC(1:nElems,1:nSpecies)%EVib      = 0
-    END IF
-  END IF
+  ! calling the analyze routines
+  CALL PerformeAnalyze(t,iter,tendDiff,force=.FALSE.)
   ! output of state file
   IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
-    IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
-    ! Analyze and output now
+    ! Analyze for output
+    CALL PerformeAnalyze(t,iter,tenddiff,force=.TRUE.)
     CalcTimeEnd=BOLTZPLATZTIME()
     IF(MPIroot)THEN
       ! Get calculation time per DOF
@@ -400,24 +363,11 @@ END IF
     IF(DoPML) CALL TransformPMLVars()
     ! Write recordpoints data to hdf5
     IF(RP_inUse) CALL WriteRPtoHDF5(iter,t)
-    ! Calculate error norms
-    CALL CalcError(t)
     iter_loc=0
     CalcTimeStart=BOLTZPLATZTIME()
     tAnalyze=tAnalyze+Analyze_dt
     IF (tAnalyze > tEnd) tAnalyze = tEnd
   ENDIF   
-#if (PP_TimeDiscMethod==42)
-  IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
-    CALL DSMC_output_calc(DSMC%NumOutput)
-  END IF
-#else
-  IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
-    nOutput = INT((DSMC%TimeFracSamp * TEnd) / DSMC%DeltaTimeOutput)
-    IF (.NOT. useLD) CALL DSMC_output_calc(nOutput)
-    IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(nOutput)
-  END IF
-#endif
   IF(t.GE.tEnd) THEN  ! done, worst case: one additional time step
     EXIT
   END IF

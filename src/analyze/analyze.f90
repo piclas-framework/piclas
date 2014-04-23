@@ -27,8 +27,13 @@ END INTERFACE
 INTERFACE FinalizeAnalyze
   MODULE PROCEDURE FinalizeAnalyze
 END INTERFACE
+
+INTERFACE PerformeAnalyze
+  MODULE PROCEDURE PerformeAnalyze
+END INTERFACE
+
 !===================================================================================================================================
-PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze
+PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformeAnalyze
 !===================================================================================================================================
 
 CONTAINS
@@ -303,5 +308,127 @@ SDEALLOCATE(wGPSurf)
 AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze
 
+SUBROUTINE PerformeAnalyze(t,iter,tenddiff,force)
+!===================================================================================================================================
+! Initializes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Analyze_Vars,          ONLY: Analyze_dt,CalcPoyntingInt
+USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
+USE MOD_RecordPoints,          ONLY: RecordPoints
+USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
+USE MOD_PoyntingInt,           ONLY: CalcPoyntingIntegral
+USE MOD_LD_Vars,               ONLY: useLD
+USE MOD_LD_Analyze,            ONLY: LD_data_sampling, LD_output_calc
+USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze
+USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
+USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
+USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
+USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC
+USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpecies
+USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
+USE MOD_Mesh_Vars,             ONLY: nGlobalElems, nElems
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(INOUT)           :: t
+REAL,INTENT(IN)              :: tenddiff
+INTEGER(KIND=8),INTENT(INOUT)        :: iter
+LOGICAL,INTENT(IN),OPTIONAL  :: force
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                      :: ForceAnalyze
+INTEGER(KIND=8)              :: iter_loc, iter_macvalout, istep
+!===================================================================================================================================
+
+IF(PRESENT(force))THEN
+  ForceAnalyze=force
+ELSE
+  ForceAnalyze=.FALSE.
+END IF
+
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! DG-Solver
+!----------------------------------------------------------------------------------------------------------------------------------
+
+! Calculate error norms
+IF(ForceAnalyze) CALL CalcError(t)
+
+! poynting vector
+IF (CalcPoyntingInt) THEN
+  IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
+END IF
+
+! fill recordpoints buffer
+IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! PIC & DG-Sovler
+!----------------------------------------------------------------------------------------------------------------------------------
+
+! particle analyze
+IF (DoAnalyze)  THEN
+  IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL AnalyzeParticles(t) 
+END IF
+
+IF(ForceAnalyze)THEN
+  IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
+END IF
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! DSMC & LD 
+!----------------------------------------------------------------------------------------------------------------------------------
+
+! write DSMC macroscopic values 
+IF (WriteMacroValues) THEN
+#if (PP_TimeDiscMethod==1000)
+  CALL LD_data_sampling()  ! Data sampling for output
+#else
+  CALL DSMC_data_sampling()
+#endif
+  iter_macvalout = iter_macvalout + 1
+  IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
+#if (PP_TimeDiscMethod==1000)
+    CALL LD_output_calc(nOutput)  ! Data sampling for output
+#else
+    CALL DSMC_output_calc(nOutput)
+#endif
+    iter_macvalout = 0
+    DSMC%SampNum = 0
+    SampDSMC(1:nElems,1:nSpecies)%PartV(1)  = 0
+    SampDSMC(1:nElems,1:nSpecies)%PartV(2)  = 0
+    SampDSMC(1:nElems,1:nSpecies)%PartV(3)  = 0
+    SampDSMC(1:nElems,1:nSpecies)%PartV2(1) = 0
+    SampDSMC(1:nElems,1:nSpecies)%PartV2(2) = 0
+    SampDSMC(1:nElems,1:nSpecies)%PartV2(3) = 0
+    SampDSMC(1:nElems,1:nSpecies)%PartNum   = 0
+    SampDSMC(1:nElems,1:nSpecies)%ERot      = 0
+    SampDSMC(1:nElems,1:nSpecies)%EVib      = 0
+  END IF
+END IF
+
+IF(ForceAnalyze)THEN
+#if (PP_TimeDiscMethod==42)
+  IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
+    CALL DSMC_output_calc(DSMC%NumOutput)
+  END IF
+#else
+  IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
+    nOutput = INT((DSMC%TimeFracSamp * TEnd) / DSMC%DeltaTimeOutput)
+    IF (.NOT. useLD)        CALL DSMC_output_calc(nOutput)
+    IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(nOutput)
+  END IF
+#endif
+END IF
+
+
+END SUBROUTINE PerformeAnalyze
 
 END MODULE MOD_Analyze
+

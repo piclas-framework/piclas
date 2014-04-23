@@ -292,7 +292,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER(KIND=8),INTENT(IN)     :: iter
 REAL,INTENT(IN)                :: t
-LOGICAL                        :: forceSampling ! force sampling independently from SamplingOffset
+LOGICAL,INTENT(IN)             :: forceSampling ! force sampling independently from SamplingOffset
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
