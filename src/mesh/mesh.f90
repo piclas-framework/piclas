@@ -174,7 +174,7 @@ CALL MPI_GATHER(countSurfElem,1,MPI_INTEGER,countSurfElemMPI,1,MPI_INTEGER,0,MPI
 
 IF (MPIroot) THEN
 DO iProc=1,nProcessors-1
-offsetSurfElemMPI(iProc)=SUM(countSurfElemMPI(0:iProc-1))-1
+  offsetSurfElemMPI(iProc)=SUM(countSurfElemMPI(0:iProc-1))
 END DO
 offsetSurfElemMPI(nProcessors)=SUM(countSurfElemMPI(:))
 END IF
