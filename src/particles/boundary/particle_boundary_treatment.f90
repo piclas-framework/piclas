@@ -336,6 +336,7 @@ IF((GEO%nPeriodicVectors.GE.0).AND.(ALLOCATED(partShiftVector))) partShiftVector
                         (DoneLastElem(3,2).EQ.TriNumTemp(ind2)))) THEN
                  CALL ParticleThroughSideLastPosCheck(i,LocSidesTemp(ind2),Element,InElementCheck,TriNumTemp(ind2),detM)
                  IF (InElementCheck) THEN
+                   IF((detM.EQ.0).AND.(det(LocSidesTemp(ind2),TriNumTemp(ind2)).EQ.0)) CYCLE ! particle moves within side
                    IF((detM.EQ.0).AND.(minRatio.EQ.0))THEN !safety measure
                      SecondNrOfThroughSides = SecondNrOfThroughSides + 1
                      GlobSideID = ElemToSide(E2S_SIDE_ID,LocSidesTemp(ind2),Element)
