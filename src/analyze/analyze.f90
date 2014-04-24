@@ -369,7 +369,7 @@ IF(ForceAnalyze) CALL CalcError(t)
 
 ! poynting vector
 IF (CalcPoyntingInt) THEN
-#if (PP_TimeDiscMethod==6)
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
   IF(ForceAnalyze)THEN
     IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
    ELSE
@@ -387,7 +387,7 @@ IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.)
 ! PIC & DG-Sovler
 !----------------------------------------------------------------------------------------------------------------------------------
 
-#if (PP_TimeDiscMethod==6)
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 #ifdef MPI
 IF(ForceAnalyze) THEN
   CALL Communicate_PIC() 
