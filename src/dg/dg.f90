@@ -290,16 +290,17 @@ CALL StartExchangeMPIData_Pois(Phi_Plus,SideID_plus_lower,SideID_plus_upper,Send
 !CALL ProlongToFace(Phi,Phi_Minus,Phi_Plus,doMPISides=.FALSE.)
 CALL ProlongToFace_Pois(Phi,Phi_Minus,Phi_Plus,doMPISides=.FALSE.)
 
+Phit=0.
+CALL VolInt_Pois(Phit)
+!print*,'Phi',Phit(:,1,1,1,4)
+!read*
+
 
 #ifdef MPI
 ! Complete send / receive
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
 #endif /*MPI*/
 
-Phit=0.
-CALL VolInt_Pois(Phit)
-!print*,'Phi',Phit(:,1,1,1,4)
-!read*
 
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)

@@ -433,7 +433,7 @@ USE MOD_TimeDisc_Vars, ONLY: IterDisplayStep
 
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2))  /* RK3 and RK4 only */
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
 print*, "SFSDRWE#"
 ALLOCATE(Pt_temp(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN

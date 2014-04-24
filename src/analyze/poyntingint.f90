@@ -35,7 +35,7 @@ PUBLIC:: GetPoyntingIntPlane,FinalizePoyntingInt, CalcPoyntingIntegral
 
 CONTAINS
 
-SUBROUTINE CalcPoyntingIntegral(t)
+SUBROUTINE CalcPoyntingIntegral(t,doProlong)
 !===================================================================================================================================
 ! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Labatto or Gaus Points is used is missing ... ups
 !===================================================================================================================================
@@ -44,7 +44,7 @@ USE MOD_Mesh_Vars             ,ONLY:nPoyntingIntSides, isPoyntingIntSide,nElems,
 USE MOD_Mesh_Vars             ,ONLY:ElemToSide,SideToElem,Face_xGP
 USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes,PoyntingIntPlaneFactor,wGPSurf, S!, STEM
 USE MOD_Interpolation_Vars    ,ONLY:L_Minus,L_Plus
-USE MOD_DG_Vars               ,ONLY:U
+USE MOD_DG_Vars               ,ONLY:U,U_Minus
 USE MOD_Equation_Vars         ,ONLY:mu0,eps0,smu0
 #ifdef MPI
   USE MOD_Globals
@@ -54,7 +54,8 @@ USE MOD_Equation_Vars         ,ONLY:mu0,eps0,smu0
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT):: t
+REAL,INTENT(INOUT)          :: t
+LOGICAL,INTENT(IN),OPTIONAL :: doProlong
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -67,9 +68,15 @@ REAL             :: Sabs(nPoyntingIntPlanes), STEMabs(nPoyntingIntPlanes)
 #ifdef MPI
 REAL             :: SumSabs(nPoyntingIntPlanes)
 #endif
+LOGICAL          :: Prolong=.TRUE.
 !REAL             :: sresvac
 !===================================================================================================================================
 
+IF(PRESENT(doProlong))THEN
+  Prolong=doProlong
+ELSE
+  Prolong=.TRUE.
+ENDIF  
 ! TEM coefficient
 !sresvac = 1./sqrt(mu0/eps0)
 
@@ -83,7 +90,8 @@ DO iELEM = 1, nElems
   Do ilocSide = 1, 6
     IF(ElemToSide(E2S_FLIP,ilocSide,iElem)==0)THEN ! only master sides
       SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-      IF(isPoyntingIntSide(SideID)) THEN ! only poynting sides
+      IF(.NOT.isPoyntingIntSide(SideID)) CYCLE
+      IF(Prolong)THEN
 #if (PP_NodeType==1) /* for Gauss-points*/
         SELECT CASE(ilocSide)
         CASE(XI_MINUS)
@@ -99,8 +107,8 @@ DO iELEM = 1, nElems
         CASE(ETA_MINUS)
           DO q=0,PP_N
             DO p=0,PP_N
-                      Uface(:,p,q)=U(:,p,0,q,iElem)*L_Minus(0)
-                      DO l=1,PP_N
+              Uface(:,p,q)=U(:,p,0,q,iElem)*L_Minus(0)
+              DO l=1,PP_N
                 Uface(:,p,q)=Uface(:,p,q)+U(:,p,l,q,iElem)*L_Minus(l)
               END DO ! l
             END DO ! p
@@ -176,6 +184,9 @@ DO iELEM = 1, nElems
           END DO ! q
         END SELECT
 #endif
+        ELSE ! no prolonge to face
+          Uface=U_Minus(:,:,:,SideID)
+        END IF ! Prolong
         ! calculate poynting vector
         iPoyntingSide = iPoyntingSide + 1
         CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
@@ -192,7 +203,6 @@ DO iELEM = 1, nElems
         SIP(:,:) = SIP(:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:)
         ! total flux through each plane
         Sabs(whichPoyntingPlane(SideID)) = Sabs(whichPoyntingPlane(SideID)) + smu0* SUM(SIP(:,:))
-      END IF ! isPoyntingSide = .TRUE.
     END IF ! flip =0
   END DO ! iSides
 END DO ! iElems
@@ -286,7 +296,7 @@ IF (.NOT.isOpen) THEN
     WRITE(unit_index_PI,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
     DO iPlane = 1, nPoyntingIntPlanes
       WRITE(unit_index_PI,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index_PI,'(A14,F5.3)',ADVANCE='NO') 'Plane-Pos-', PosPoyntingInt(iPlane)
+      WRITE(unit_index_PI,'(A14,F6.3)',ADVANCE='NO') 'Plane-Pos-', PosPoyntingInt(iPlane)
     END DO              
     WRITE(unit_index_PI,'(A1)') ''
   END IF
@@ -396,8 +406,8 @@ DO iPlane = 1, nPoyntingIntPlanes
   END DO !iElem=1,nElems
 END DO ! iPlanes
 
-#ifdef MPI
 ALLOCATE(sumFaces(nPoyntingIntPlanes))
+#ifdef MPI
 sumFaces=0
 sumAllFaces=0
   CALL MPI_REDUCE(nFaces , sumFaces , nPoyntingIntPlanes , MPI_INTEGER, MPI_SUM,0, PMPIVAR%COMM, IERROR)

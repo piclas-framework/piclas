@@ -79,6 +79,8 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: DSMC-Only'
 #elif (PP_TimeDiscMethod==5)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: RK4-Field, Euler-Explicit-Particles'
+#elif (PP_TimeDiscMethod==6)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-14 by Niegemann'
 #elif (PP_TimeDiscMethod==42)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: DSMC Reservoir and Debug'
 #elif (PP_TimeDiscMethod==100)
@@ -107,7 +109,7 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Analyze,               ONLY: PerformeAnalyze
-USE MOD_Analyze_Vars,          ONLY: Analyze_dt,CalcPoyntingInt
+USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze,ViscousTimeStep,iter,IterDisplayStep
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
 USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
@@ -125,7 +127,7 @@ USE MOD_PICDepo,               ONLY: Deposition, DepositionMPF
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, Time, dt_max_particles, dt_maxwell, NextTimeStepAdjustmentIter, &
-                                     dt_adapt_maxwell,useManualTimestep
+                                     dt_adapt_maxwell,useManualTimestep, DelayTime, usevMPF
 USE MOD_PARTICLE_Vars,         ONLY: PDM, PartState, MaxwellIterNum, GEO, Pt
 USE MOD_PARTICLE_Vars,         ONLY : doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_ReadInTools
@@ -186,11 +188,26 @@ CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
 ! Determine the initial error
 CALL CalcError(t)
 #ifdef MPI
+#if (PP_TimeDiscMethod!=6)
 IF (DepositionType.EQ."shape_function") THEN
   CALL ParticleBoundary()
   CALL Communicate_PIC()
 END IF
-#endif
+#else /*(PP_TimeDiscMethod==6)*/
+  CALL ParticleBoundary()
+! first initial deposition
+  IF(t.LT.DelayTime)THEN
+    CALL Communicate_PIC()
+    IF(usevMPF) THEN
+      CALL DepositionMPF()
+    ELSE
+      CALL Deposition()
+    END IF
+    CALL ParticleBoundary()
+  END IF
+#endif /*(PP_TimeDiscMethod!=6)*/ 
+#endif /*MPI*/
+
 ! first analyze Particles (write zero state)
 CALL AnalyzeParticles(t) 
 !CALL Visualize_Particles(t)
@@ -316,6 +333,8 @@ END IF
   CALL TimeStep_DSMC(t)
 #elif (PP_TimeDiscMethod==5)
   CALL TimeStepByRK4EulerExpl(t)
+#elif (PP_TimeDiscMethod==6)
+  CALL TimeStepByLSERK(t,iter,tEndDiff)
 #elif (PP_TimeDiscMethod==42)
   CALL TimeStep_DSMC_Debug(t) ! Reservoir and Debug
 #elif (PP_TimeDiscMethod==100)
@@ -336,8 +355,10 @@ END IF
   IF(MOD(iter,IterDisplayStep).EQ.0) THEN
      SWRITE(*,*) "iter:", iter,"t:",t
   END IF
+#if (PP_TimeDiscMethod!=6)
   ! calling the analyze routines
   CALL PerformeAnalyze(t,iter,tendDiff,force=.FALSE.)
+#endif
   ! output of state file
   IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
     ! Analyze for output
@@ -1058,6 +1079,252 @@ END IF
 END SUBROUTINE TimeStepByRK4EulerExpl
 #endif
 
+#if (PP_TimeDiscMethod==6)
+SUBROUTINE TimeStepByLSERK(t,iter,tEndDiff)
+!===================================================================================================================================
+! Hesthaven book, page 64
+! Low-Storage Runge-Kutta integration of degree 4 with 5 stages.
+! This procedure takes the current time t, the time step dt and the solution at
+! the current time U(t) and returns the solution at the next time level.
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Analyze,          ONLY: PerformeAnalyze
+USE MOD_TimeDisc_Vars,    ONLY: dt
+USE MOD_TimeDisc_Vars,    ONLY: RK4_a,RK4_b,RK4_c,nRKStages
+USE MOD_DG,               ONLY: DGTimeDerivative_WoSource_weakForm
+USE MOD_DG_Vars,          ONLY: U,Ut
+USE MOD_PML_Vars,         ONLY: PMLzeta,U2,U2t,nPMLElems,DoPML
+USE MOD_PML,              ONLY: PMLTimeDerivative,CalcPMLSource
+USE MOD_Filter,           ONLY: Filter
+USE MOD_Equation,         ONLY: DivCleaningDamping,CalcSource
+#ifdef PP_POIS
+USE MOD_Equation,         ONLY: DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG,               ONLY: DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars,    ONLY: Phi,Phit,nTotalPhi
+#endif
+#ifdef PARTICLES
+USE MOD_PICDepo,          ONLY: Deposition, DepositionMPF
+USE MOD_PICInterpolation, ONLY: InterpolateFieldToParticle
+USE MOD_PIC_Vars,         ONLY: PIC
+USE MOD_Particle_Vars,    ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
+USE MOD_part_RHS,         ONLY: CalcPartRHS
+USE MOD_part_boundary,    ONLY: ParticleBoundary
+USE MOD_part_emission,    ONLY: ParticleInserting
+USE MOD_DSMC,             ONLY: DSMC_main
+USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS, DSMC
+#ifdef MPI
+USE MOD_part_boundary,    ONLY: ParticleBoundary, Communicate_PIC
+#else /*No MPI*/
+USE MOD_part_boundary,    ONLY: ParticleBoundary
+#endif /*MPI*/
+USE MOD_part_tools,       ONLY: UpdateNextFreePosition
+#endif /*PARTICLES*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)               :: tendDiff
+REAL,INTENT(INOUT)            :: t
+INTEGER(KIND=8),INTENT(INOUT) :: iter
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
+REAL                          :: U2t_temp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
+REAL                          :: tStage,b_dt(1:nRKStages)
+INTEGER                       :: rk
+#ifdef PP_POIS
+REAL                          :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+#endif
+!===================================================================================================================================
+
+
+DO rk=1,nRKStages
+  b_dt(rk)=RK4_b(rk)*dt
+END DO
+
+! field solver
+CALL DGTimeDerivative_WoSource_weakForm(t,t,0)
+IF(DoPML) THEN
+  CALL CalcPMLSource()
+  CALL PMLTimeDerivative()
+END IF
+CALL DivCleaningDamping()
+
+#ifdef PP_POIS
+! Potential
+CALL DGTimeDerivative_weakForm_Pois(t,t,0)
+CALL DivCleaningDamping_Pois()
+#endif
+
+IF (t.GE.DelayTime) THEN
+! finish particle communication
+#ifdef MPI
+  CALL Communicate_PIC()
+#endif
+  CALL UpdateNextFreePosition()
+! particle emmission
+  CALL ParticleInserting()
+! particle-grid mapping
+  IF(usevMPF) THEN
+    CALL DepositionMPF()
+  ELSE
+    CALL Deposition()
+  END IF
+  CALL InterpolateFieldToParticle()
+  CALL CalcPartRHS()
+END IF
+
+! Add Source Terms to ut
+CALL CalcSource(t)
+
+! calling the analyze routines
+CALL PerformeAnalyze(t,iter,tendDiff,force=.FALSE.)
+
+! first RK step
+! EM field
+Ut_temp = Ut 
+U = U + Ut*b_dt(1)
+!PML auxiliary variables
+IF(DoPML) THEN
+  U2t_temp = U2t
+  U2 = U2 + U2t*b_dt(1)
+END IF
+
+#ifdef PP_POIS
+Phit_temp = Phit 
+Phi = Phi + Phit*b_dt(1)
+CALL EvalGradient()
+#endif
+
+! particles
+IF (t.GE.DelayTime) THEN
+  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+  Pt_temp(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,4) 
+  Pt_temp(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,5) 
+  Pt_temp(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,6) 
+  Pt_temp(1:PDM%ParticleVecLength,4) = Pt(1:PDM%ParticleVecLength,1) 
+  Pt_temp(1:PDM%ParticleVecLength,5) = Pt(1:PDM%ParticleVecLength,2) 
+  Pt_temp(1:PDM%ParticleVecLength,6) = Pt(1:PDM%ParticleVecLength,3)
+  PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) &
+                                       + PartState(1:PDM%ParticleVecLength,4)*b_dt(1)
+  PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) &
+                                       + PartState(1:PDM%ParticleVecLength,5)*b_dt(1)
+  PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
+                                       + PartState(1:PDM%ParticleVecLength,6)*b_dt(1)
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                       + Pt(1:PDM%ParticleVecLength,1)*b_dt(1)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                       + Pt(1:PDM%ParticleVecLength,2)*b_dt(1)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                       + Pt(1:PDM%ParticleVecLength,3)*b_dt(1)
+! particle tracking
+  CALL ParticleBoundary()
+END IF
+
+DO rk=2,nRKStages
+  tStage=t+dt*RK4_c(rk)
+
+  ! field solver
+  CALL DGTimeDerivative_WoSource_weakForm(t,tStage,0)
+  IF(DoPML) THEN
+    CALL CalcPMLSource()
+    CALL PMLTimeDerivative()
+  END IF
+  CALL DivCleaningDamping()
+
+#ifdef PP_POIS
+  CALL DGTimeDerivative_weakForm_Pois(t,tStage,0)
+  CALL DivCleaningDamping_Pois()
+#endif
+
+  IF (t.GE.DelayTime) THEN
+  ! finish particle communication
+#ifdef MPI
+   CALL Communicate_PIC()
+#endif
+  ! particle-grid mapping
+    IF (usevMPF) THEN 
+      CALL DepositionMPF()
+    ELSE 
+      CALL Deposition()
+    END IF
+    CALL InterpolateFieldToParticle()
+    CALL CalcPartRHS()
+  END IF
+
+  ! Add Source Terms
+  CALL CalcSource(tStage)
+
+  ! performe RK steps
+  ! field step
+  Ut_temp = Ut - Ut_temp*RK4_a(rk)
+  U = U + Ut_temp*b_dt(rk)
+  !PML auxiliary variables
+  IF(DoPML)THEN
+    U2t_temp = U2t - U2t_temp*RK4_a(rk)
+    U2 = U2 + U2t_temp*b_dt(rk)
+  END IF
+
+#ifdef PP_POIS
+  Phit_temp = Phit - Phit_temp*RK4_a(rk)
+  Phi = Phi + Phit_temp*b_dt(rk)
+  CALL EvalGradient()
+#endif
+
+  ! particle step
+  IF (t.GE.DelayTime) THEN
+    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+    PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+    Pt_temp(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,4) &
+                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,1)
+    Pt_temp(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,5) &
+                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,2)
+    Pt_temp(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,6) &
+                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,3)
+    Pt_temp(1:PDM%ParticleVecLength,4) = Pt(1:PDM%ParticleVecLength,1) &
+                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,4)
+    Pt_temp(1:PDM%ParticleVecLength,5) = Pt(1:PDM%ParticleVecLength,2) &
+                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,5)
+    Pt_temp(1:PDM%ParticleVecLength,6) = Pt(1:PDM%ParticleVecLength,3) &
+                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,6)
+    PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,1)*b_dt(rk)
+    PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,2)*b_dt(rk)
+    PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,3)*b_dt(rk)
+    PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,4)*b_dt(rk)
+    PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,5)*b_dt(rk)
+    PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(rk)
+    ! particle tracking
+    CALL ParticleBoundary()
+  END IF
+END DO
+
+IF (useDSMC) THEN
+  IF (t.GE.DelayTime) THEN
+    CALL DSMC_main()
+    PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,1)
+    PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,2)
+    PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,3)
+  END IF
+END IF
+
+END SUBROUTINE TimeStepByLSERK
+#endif
+
 #if (PP_TimeDiscMethod==42)
 SUBROUTINE TimeStep_DSMC_Debug(t)
 !===================================================================================================================================
@@ -1760,6 +2027,12 @@ SUBROUTINE FillCFL_DFL()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,ONLY:CFLScale
+#if (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==5) || (PP_TimeDiscMethod==200) || (PP_TimeDiscMethod==201)
+USE MOD_TimeDisc_Vars,ONLY:CFLScaleAlpha
+#endif
+#if (PP_TimeDiscMethod==6) || (PP_TimeDiscMethod==1)
+USE MOD_TimeDisc_Vars,ONLY:CFLScaleAlpha
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1768,75 +2041,29 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! CFL in DG depends on the polynomial degree
-#if (PP_NodeType==1)
-  !Gauss
-#  if (PP_TimeDiscMethod==1) 
-  !RK3
-  SELECT CASE(PP_N)
-  CASE(1) ; CFLscale=CFLscale*1.23
-  CASE(2) ; CFLscale=CFLscale*1.05
-  CASE(3) ; CFLscale=CFLscale*0.91
-  CASE(4) ; CFLscale=CFLscale*0.81
-  CASE(5) ; CFLscale=CFLscale*0.73
-  CASE(6) ; CFLscale=CFLscale*0.66
-  CASE(7) ; CFLscale=CFLscale*0.61
-  CASE(8) ; CFLscale=CFLscale*0.57
-  CASE(9) ; CFLscale=CFLscale*0.53
-  CASE(10); CFLscale=CFLscale*0.50
-  END SELECT
-#  elif (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==5) || (PP_TimeDiscMethod==200) || (PP_TimeDiscMethod==201)
-  !RK4
-  SELECT CASE(PP_N)
-  CASE(1) ; CFLscale=CFLscale*1.39
-  CASE(2) ; CFLscale=CFLscale*1.18
-  CASE(3) ; CFLscale=CFLscale*1.02
-  CASE(4) ; CFLscale=CFLscale*0.90
-  CASE(5) ; CFLscale=CFLscale*0.81
-  CASE(6) ; CFLscale=CFLscale*0.74
-  CASE(7) ; CFLscale=CFLscale*0.68
-  CASE(8) ; CFLscale=CFLscale*0.63
-  CASE(9) ; CFLscale=CFLscale*0.59
-  CASE(10); CFLscale=CFLscale*0.55
-  END SELECT
-#  elif (PP_TimeDiscMethod==3)
-  ! Taylor DG Timeorder=SpaceOrder
+
+#if (PP_TimeDiscMethod==3)
+#  if (PP_NodeType==1)
+  !Gauss  Taylor DG Timeorder=SpaceOrder
   CFLscale=CFLscale*0.55*(2*PP_N+1)/(PP_N+1)
-#  endif /*PP_TimeDiscMethod*/
-#elif (PP_NodeType==2)
-  !Gauss-Lobatto
-#  if (PP_TimeDiscMethod==1)
-  !RK3
-  SELECT CASE(PP_N)
-  CASE(1) ; CFLscale=CFLscale*3.20
-  CASE(2) ; CFLscale=CFLscale*2.25
-  CASE(3) ; CFLscale=CFLscale*1.78
-  CASE(4) ; CFLscale=CFLscale*1.51
-  CASE(5) ; CFLscale=CFLscale*1.32
-  CASE(6) ; CFLscale=CFLscale*1.19
-  CASE(7) ; CFLscale=CFLscale*1.08
-  CASE(8) ; CFLscale=CFLscale*0.98
-  CASE(9) ; CFLscale=CFLscale*0.92
-  CASE(10); CFLscale=CFLscale*0.87
-  END SELECT
-#  elif (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==5) || (PP_TimeDiscMethod==200) || (PP_TimeDiscMethod==201)
-  !RK4
-  SELECT CASE(PP_N)
-  CASE(1) ; CFLscale=CFLscale*3.71
-  CASE(2) ; CFLscale=CFLscale*2.57
-  CASE(3) ; CFLscale=CFLscale*2.02
-  CASE(4) ; CFLscale=CFLscale*1.70
-  CASE(5) ; CFLscale=CFLscale*1.49
-  CASE(6) ; CFLscale=CFLscale*1.33
-  CASE(7) ; CFLscale=CFLscale*1.21
-  CASE(8) ; CFLscale=CFLscale*1.11
-  CASE(9) ; CFLscale=CFLscale*1.03
-  CASE(10); CFLscale=CFLscale*0.96
-  END SELECT
-#  elif (PP_TimeDiscMethod==3)
-  ! Taylor DG Timeorder=SpaceOrder, scales with N+1
+#  elif (PP_NodeType==2)
+  !Gauss-Lobatto  Taylor DG Timeorder=SpaceOrder, scales with N+1
   CFLscale=CFLscale*(2*PP_N+1)/(PP_N+1)
-#  endif /*PP_TimeDiscMethod*/
-#endif /*PP_NodeType*/
+#  endif /*PP_NodeType*/
+#endif /*PP_TimeDiscMethod*/
+
+#if (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==5) || (PP_TimeDiscMethod==200)||(PP_TimeDiscMethod==201)||(PP_TimeDiscMethod==1)
+IF(PP_N.GT.10) CALL abort(&
+  __STAMP__,&
+  'Polynomial degree is to high!',PP_N,999.)
+CFLScale=CFLScale*CFLScaleAlpha(PP_N)
+#endif
+#if (PP_TimeDiscMethod==6)
+IF(PP_N.GT.15) CALL abort(&
+  __STAMP__,&
+  'Polynomial degree is to high!',PP_N,999.)
+CFLScale=CFLScale*CFLScaleAlpha(PP_N)
+#endif
 !scale with 2N+1
 CFLScale = CFLScale/(2.*PP_N+1.)
 SWRITE(UNIT_stdOut,'(A,ES16.7)') '   CFL:',CFLScale

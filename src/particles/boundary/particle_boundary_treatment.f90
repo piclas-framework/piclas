@@ -834,7 +834,7 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
         nbrOfVariablesPerParticle = 14
       END IF
     END IF
-#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2))  /* RK3 and RK4 only */
+#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
     nbrOfVariablesPerParticle = nbrOfVariablesPerParticle - 6
 #endif
     !--- determine number of particles sent to different procs
@@ -1064,7 +1064,7 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
             pos = counter_phys(iProc)
             PMPIExchange%send_message(iProc)%content(pos+1:pos+6) = PartState(i,1:6)   ! to get the positions in the list...
             PMPIExchange%send_message(iProc)%content(pos+7) = REAL(PartSpecies(i))
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2))  /* RK3 and RK4 only */
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
             PMPIExchange%send_message(iProc)%content(pos+8:pos+13) = Pt_temp(i,1:6)
             PMPIExchange%send_message(iProc)%content(pos+14) = MPIGEO%NativeElemID(PEM%Element(i))   
             IF (useDSMC.AND.(CollisMode.NE.1)) THEN
@@ -1196,7 +1196,7 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
         nbrOfVariablesPerParticle = 14
       END IF
     END IF
-#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2))  /* RK3 and RK4 only */
+#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
     nbrOfVariablesPerParticle = nbrOfVariablesPerParticle - 6
 #endif
     nbrOfRecvParticles(:,:) = 0
@@ -1270,7 +1270,7 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
             IF (ParticleIndexNbr .ne. 0) THEN
               PartState(ParticleIndexNbr,1:6)   = recv_message(iProc)%content(pos+1:pos+6)! to get the positions in the list...
               PartSpecies(ParticleIndexNbr)     = INT(recv_message(iProc)%content(pos+7))
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2))  /* RK3 and RK4 only */
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
               Pt_temp(ParticleIndexNbr,1:6)     = recv_message(iProc)%content(pos+8:pos+13)
               PEM%Element(ParticleIndexNbr)     = recv_message(iProc)%content(pos+14)
               IF (useDSMC.AND.(CollisMode.NE.1)) THEN

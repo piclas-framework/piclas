@@ -315,43 +315,50 @@ SUBROUTINE PerformeAnalyze(t,iter,tenddiff,force)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Mesh_Vars,             ONLY: nGlobalElems, nElems
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt,CalcPoyntingInt
-USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
+USE MOD_PoyntingInt,           ONLY: CalcPoyntingIntegral
 USE MOD_RecordPoints,          ONLY: RecordPoints
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
-USE MOD_PoyntingInt,           ONLY: CalcPoyntingIntegral
-USE MOD_LD_Vars,               ONLY: useLD
-USE MOD_LD_Analyze,            ONLY: LD_data_sampling, LD_output_calc
 USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze
-USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
+USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpecies
+USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC
-USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpecies
 USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
-USE MOD_Mesh_Vars,             ONLY: nGlobalElems, nElems
+USE MOD_LD_Vars,               ONLY: useLD
+USE MOD_LD_Analyze,            ONLY: LD_data_sampling, LD_output_calc
+#ifdef MPI
+USE MOD_part_boundary,         ONLY : ParticleBoundary, Communicate_PIC
+USE MOD_part_MPI_Vars,         ONLY : ExtPartState, ExtPartSpecies
+USE MOD_PICDepo_Vars,          ONLY: DepositionType
+#endif /*MPI*/
+
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT)           :: t
-REAL,INTENT(IN)              :: tenddiff
-INTEGER(KIND=8),INTENT(INOUT)        :: iter
-LOGICAL,INTENT(IN),OPTIONAL  :: force
+REAL,INTENT(INOUT)            :: t
+REAL,INTENT(IN)               :: tenddiff
+INTEGER(KIND=8),INTENT(INOUT) :: iter
+LOGICAL,INTENT(IN),OPTIONAL   :: force
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                      :: ForceAnalyze
-INTEGER(KIND=8)              :: iter_loc, iter_macvalout, istep
+LOGICAL                       :: ForceAnalyze
+INTEGER(KIND=8)               :: iter_loc, iter_macvalout, istep
 !===================================================================================================================================
+
+! not for first iteration
+IF(iter.EQ.0) RETURN
 
 IF(PRESENT(force))THEN
   ForceAnalyze=force
 ELSE
   ForceAnalyze=.FALSE.
 END IF
-
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
@@ -362,7 +369,15 @@ IF(ForceAnalyze) CALL CalcError(t)
 
 ! poynting vector
 IF (CalcPoyntingInt) THEN
+#if (PP_TimeDiscMethod==6)
+  IF(ForceAnalyze)THEN
+    IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+   ELSE
+    IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
+  END IF ! ForceAnalyze
+#else
   IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
+#endif
 END IF
 
 ! fill recordpoints buffer
@@ -371,6 +386,19 @@ IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC & DG-Sovler
 !----------------------------------------------------------------------------------------------------------------------------------
+
+#if (PP_TimeDiscMethod==6)
+#ifdef MPI
+IF(ForceAnalyze) THEN
+  CALL Communicate_PIC() 
+  IF (DepositionType.EQ."shape_function") THEN
+  SDEALLOCATE(ExtPartState)
+  SDEALLOCATE(ExtPartSpecies)
+  END IF
+  CALL ParticleBoundary()
+END IF
+#endif /*MPI*/
+#endif /*(PP_TimeDiscMethod!=6)*/ 
 
 ! particle analyze
 IF (DoAnalyze)  THEN
