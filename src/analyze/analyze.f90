@@ -387,19 +387,6 @@ IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.)
 ! PIC & DG-Sovler
 !----------------------------------------------------------------------------------------------------------------------------------
 
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-#ifdef MPI
-IF(ForceAnalyze) THEN
-  CALL Communicate_PIC() 
-  IF (DepositionType.EQ."shape_function") THEN
-  SDEALLOCATE(ExtPartState)
-  SDEALLOCATE(ExtPartSpecies)
-  END IF
-  CALL ParticleBoundary()
-END IF
-#endif /*MPI*/
-#endif /*(PP_TimeDiscMethod!=6)*/ 
-
 ! particle analyze
 IF (DoAnalyze)  THEN
   IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL AnalyzeParticles(t) 

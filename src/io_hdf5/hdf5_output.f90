@@ -48,14 +48,14 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,FutureTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars,ONLY:U
-USE MOD_Output_Vars,ONLY:ProjectName
-USE MOD_Interpolation_Vars,ONLY:StrNodeType
-USE MOD_Mesh_Vars,ONLY:offsetElem,nGlobalElems
-
+USE MOD_DG_Vars,              ONLY:U
+USE MOD_Output_Vars,          ONLY:ProjectName
+USE MOD_Interpolation_Vars,   ONLY:StrNodeType
+USE MOD_Mesh_Vars,            ONLY:offsetElem,nGlobalElems
+USE MOD_PML_Vars,             ONLY:DoPML,PMLToElem,U2,nPMLElems
 #ifdef PP_POIS
-USE MOD_Equation_Vars, ONLY:E,Phi
-USE MOD_Mesh_Vars,          ONLY : nElems, sJ, Elem_xGP
+USE MOD_Equation_Vars,        ONLY:E,Phi
+USE MOD_Mesh_Vars,            ONLY:nElems, sJ, Elem_xGP
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -78,7 +78,8 @@ REAL                           :: StartT,EndT
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #endif
-
+REAL,ALLOCATABLE               :: Upml(:,:,:,:,:)
+INTEGER                        :: iPML
 #ifdef MPI 
 INTEGER                        :: sendbuf(2),recvbuf(2)
 #endif
@@ -168,6 +169,19 @@ CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nEl
 #ifdef PARTICLES
 CALL WriteParticleToHDF5()
 #endif /*Particles*/
+
+#if (PP_nVar==8)
+IF(DoPML)THEN
+  ALLOCATE(UPML(6,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+  UPML=0.0
+  DO iPML=1,nPMLElems
+    Upml(:,:,:,:,PMLToElem(iPML)) = U2(:,:,:,:,iPML)
+  END DO ! iPML
+  CALL WriteArrayToHDF5('PML_Solution',nVal,5,(/6,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+    ,offsetElem,5,existing=.FALSE.,RealArray=UPML)
+  DEALLOCATE(UPML)
+END IF ! DoPML
+#endif
 
 ! Close the dataset and property list.
 CALL H5DCLOSE_F(Dset_id, iError)
