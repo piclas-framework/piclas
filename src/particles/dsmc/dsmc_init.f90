@@ -34,7 +34,8 @@ USE MOD_Equation_Vars,         ONLY: Pi
 USE MOD_DSMC_Analyze,          ONLY: WriteOutputMesh
 USE MOD_TimeDisc_Vars,         ONLY: TEnd
 USE MOD_DSMC_ChemInit,         ONLY: DSMC_chemical_init
-USE MOD_DSMC_PolyAtomicModel,  ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_PolyAtomicModel,  ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly, DSMC_SetInternalEnr_PolyFast 
+USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -292,6 +293,7 @@ IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular
   END DO
 
   IF(DSMC%NumPolyatomMolecs.GT.0) THEN
+    ALLOCATE(VibQuantsPar(PDM%maxParticleNumber))
     ALLOCATE(PolyatomMolDSMC(DSMC%NumPolyatomMolecs))
     DO iSpec = 1, nSpecies
       IF (SpecDSMC(iSpec)%PolyatomicMol) CALL InitPolyAtomicMolecs(iSpec)
@@ -317,11 +319,12 @@ IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular
     END DO
   END IF
 #endif
+!CALL DSMC_SetInternalEnr_PolyFast(1,PDM%ParticleVecLength)
   DO iPart = 1, PDM%ParticleVecLength
     IF (PDM%ParticleInside(ipart)) THEN
       IF (Species(PartSpecies(iPart))%NumberOfInits.EQ.0) THEN
         IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
-          CALL DSMC_SetInternalEnr_Poly(PartSpecies(iPart),iPart)
+          CALL DSMC_SetInternalEnr_PolyFastPart2(PartSpecies(iPart),iPart)
         ELSE
           CALL DSMC_SetInternalEnr_LauxVFD(PartSpecies(iPart),iPart)
         END IF
