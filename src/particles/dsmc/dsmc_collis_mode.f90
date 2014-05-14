@@ -121,7 +121,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
                                          PartState, BoltzmannConst, usevMPF, GEO, PartMPF
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
-  USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
+  USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolyFast
 
 !--------------------------------------------------------------------------------------------------!
 ! perform collision
@@ -306,7 +306,8 @@ REAL                          :: gtemp, gmax
   IF(DoVib1) THEN
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol) THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
-      CALL DSMC_VibRelaxPoly(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p1),Coll_pData(iPair)%iPart_p1,FakXi)
+!      CALL DSMC_VibRelaxPoly(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p1),Coll_pData(iPair)%iPart_p1,FakXi)
+      CALL DSMC_VibRelaxPolyFast(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p1),Coll_pData(iPair)%iPart_p1,FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
     ELSE
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) ! adding vib energy to coll energy
@@ -358,7 +359,8 @@ REAL                          :: gtemp, gmax
   IF(DoVib2) THEN
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol) THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
-      CALL DSMC_VibRelaxPoly(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p2),Coll_pData(iPair)%iPart_p2,FakXi)
+!      CALL DSMC_VibRelaxPoly(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p2),Coll_pData(iPair)%iPart_p2,FakXi)
+      CALL DSMC_VibRelaxPolyFast(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p2),Coll_pData(iPair)%iPart_p2,FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
     ELSE
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) ! adding vib energy to coll energy
@@ -411,7 +413,8 @@ REAL                          :: gtemp, gmax
 ! Rotational Relaxation
 !--------------------------------------------------------------------------------------------------! 
   IF(DoRot1) THEN
-    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol) THEN
+    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol.AND. &
+        (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot.EQ.3)) THEN
       FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
       CALL DSMC_RotRelaxPoly(Coll_pData(iPair)%Ec, Coll_pData(iPair)%iPart_p1, FakXi)      
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
@@ -435,7 +438,8 @@ REAL                          :: gtemp, gmax
   END IF
 
   IF(DoRot2) THEN
-    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol) THEN
+    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol.AND. &
+        (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot.EQ.3)) THEN
       FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
       CALL DSMC_RotRelaxPoly(Coll_pData(iPair)%Ec, Coll_pData(iPair)%iPart_p2, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
