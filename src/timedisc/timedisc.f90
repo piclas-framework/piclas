@@ -1593,9 +1593,9 @@ REAL,INTENT(IN)       :: t
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
                                          + PartState(1:PDM%ParticleVecLength,6) * dt
   CALL ParticleBoundary()
-!#ifdef MPI
-!  CALL Communicate_PIC()
-!#endif
+#ifdef MPI
+  CALL Communicate_PIC()
+#endif
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
 

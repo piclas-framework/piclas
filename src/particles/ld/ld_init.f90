@@ -32,6 +32,9 @@ USE nr,                        ONLY : gaussj
 USE MOD_DSMC_Init,             ONLY : InitDSMC
 USE MOD_DSMC_Vars,             ONLY : useDSMC, SpecDSMC, CollisMode
 USE MOD_ReadInTools
+#ifdef MPI
+USE MOD_MPI_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -41,6 +44,7 @@ USE MOD_ReadInTools
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem, trinum, iLocSide, iNode, iPart, iInit, iSpec
+INTEGER                 :: iProc, OffsetInnerAndBCSides, SumOfMPISides, EndOfMPINeighbor
 REAL                    :: IdentityMat(8,8), MatForGaussj(8,8)
 REAL                    :: NVecTest
 INTEGER,ALLOCATABLE     :: LocalNumberOfElemPerNode(:)
@@ -60,6 +64,15 @@ CHARACTER(32)           :: hilf
   LD_RepositionFak = GETREAL('LD-RepositionsFaktor','0.0')
   LD_RelaxationFak = GETREAL('LD-RelaxationsFaktor','0.0')
   LD_CalcDelta_t=GETLOGICAL('LD-CFL-CalcDelta-t','.FALSE.')
+  LD_CalcResidual=GETLOGICAL('LD_CalcResidual','.FALSE.')
+
+  ALLOCATE(LD_Residual(nElems,6))
+  LD_Residual(1:nElems,1) = 0.0
+  LD_Residual(1:nElems,2) = 0.0
+  LD_Residual(1:nElems,3) = 0.0
+  LD_Residual(1:nElems,4) = 0.0
+  LD_Residual(1:nElems,5) = 0.0
+  LD_Residual(1:nElems,6) = 0.0
 
   ALLOCATE(TempDens(nElems))
 
@@ -69,7 +82,8 @@ CHARACTER(32)           :: hilf
   BulkValues(1:nElems)%CellV(3)        = 0.0
   BulkValues(1:nElems)%DegreeOfFreedom = 0.0 
   BulkValues(1:nElems)%Beta            = 0.0  
-  BulkValues(1:nElems)%MassDens        = 0.0 
+  BulkValues(1:nElems)%MassDens        = 0.0
+  BulkValues(1:nElems)%BulkTemperature = 0.0
 !  BulkValues(1:nElems)%CellType        = 4
 
   ALLOCATE(BulkValuesOpenBC(nElems))
@@ -167,6 +181,16 @@ CHARACTER(32)           :: hilf
       END IF
     END IF
   END DO
+
+#ifdef MPI
+  SumOfMPISides = 0
+  DO iProc =1, nNbProcs
+    SumOfMPISides =SumOfMPISides + nMPISides_MINE_Proc(iProc) + nMPISides_YOUR_Proc(iProc)
+  END DO
+  OffsetInnerAndBCSides = OffsetMPISides_MINE(0) + 1
+  EndOfMPINeighbor = OffsetInnerAndBCSides + SumOfMPISides - 1
+  ALLOCATE(MPINeighborBulkVal(OffsetInnerAndBCSides:EndOfMPINeighbor,1:5))
+#endif
 
   SWRITE(UNIT_stdOut,'(A)')' INIT LD DONE!'
   SWRITE(UNIT_StdOut,'(132("-"))')

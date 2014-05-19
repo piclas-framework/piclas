@@ -18,7 +18,14 @@ SAVE
   REAL  , ALLOCATABLE              :: TempDens(:)
 !!!  REAL  , ALLOCATABLE               :: NewNodePosIndx(:,:) ! (1:nDim,1:nNodes)  !!! nur für "Tetra-Methode"
   LOGICAL                           :: LD_CalcDelta_t
-
+  LOGICAL                           :: LD_CalcResidual
+  REAL, ALLOCATABLE                :: LD_Residual(:,:) ! Def. for LD Residual (number of Elements, 2nd index: 
+                                                                                                  ! 1.Velocity ux
+                                                                                                  ! 2.Velocity uy
+                                                                                                  ! 3.Velocity uz
+                                                                                                  ! 4.Velocity |u|
+                                                                                                  ! 5.Mass Density
+                                                                                                  ! 6.Temperature
 TYPE tLD_SecantMethod
   REAL                              :: Guess        ! 2nd guess, plus user defined value, [m/s], (default 10 m/s)
   REAL                              :: MaxIter      ! Max. number of iterations for LAGRANGIAN vell calculation
@@ -61,12 +68,20 @@ TYPE tMeanSurfValues                                              ! LD Lagrangia
 END TYPE
 TYPE(tMeanSurfValues), ALLOCATABLE  :: MeanSurfValues(:,:)          ! Mean Surface for LD-Particle push (iLocSide, iElem)
  
-REAL    , ALLOCATABLE               :: PartStateBulkValues(:,:)   ! LD particle values (npartmax,1:2 with 2nd index: 
+REAL    , ALLOCATABLE               :: PartStateBulkValues(:,:)   ! LD particle values (npartmax, with 2nd index: 
                                                                                                   ! 1.Velocity ux
                                                                                                   ! 2.Velocity uy
                                                                                                   ! 3.Velocity uz
                                                                                                   ! 4.Temperature
                                                                                                   ! 5.Degree of freedom
+#ifdef MPI
+  REAL  , ALLOCATABLE               :: MPINeighborBulkVal(:,:) ! LD values for cells on other procs (SideID, with 2nd index: 
+                                                                                                  ! 1.Velocity ux
+                                                                                                  ! 2.Velocity uy
+                                                                                                  ! 3.Velocity uz
+                                                                                                  ! 4.Temperature
+                                                                                                  ! 5.Density
+#endif
 
 !===================================================================================================================================
 

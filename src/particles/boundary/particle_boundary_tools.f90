@@ -685,20 +685,21 @@ SUBROUTINE ParticleInsideQuad3D(i,Element,InElementCheck,det)                   
 ! Local variable declaration                                                                       !
   INTEGER                          :: iLocSide, NodeNum
   LOGICAL                          :: PosCheck, NegCheck                                           !
-  REAL                             :: A(1:3,1:4), cross(3)
+  REAL                             :: A(1:3,1:4), cross(3), PartStateLoc(3)
 !--------------------------------------------------------------------------------------------------!
   INTENT(IN)                       :: Element                                                      !
   INTENT(OUT)                      :: InElementCheck, det                                          !
 !--------------------------------------------------------------------------------------------------!
 
   InElementCheck = .TRUE.
+  PartStateLoc(1:3) = PartState(i,1:3)
   DO iLocSide = 1,6                 ! for all 6 sides of the element
      !--- initialize flags for side checks
      PosCheck = .FALSE.
      NegCheck = .FALSE.
      !--- A = vector from particle to node coords
      DO NodeNum = 1,4
-       A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,Element)) - PartState(i,1:3)
+       A(:,NodeNum) = GEO%NodeCoords(:,GEO%ElemSideNodeID(NodeNum,iLocSide,Element)) - PartStateLoc(1:3)
      END DO
 
      !--- compute cross product for vector 1 and 3

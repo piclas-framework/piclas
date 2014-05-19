@@ -61,9 +61,10 @@ TYPE tInit                                                                   ! P
   REAL                                   :: Amplitude                        ! Amplitude for sin-deviation initiation.
   REAL                                   :: WaveNumber                       ! WaveNumber for sin-deviation initiation.
   REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
+  REAL                                   :: PartDensity                      ! PartDensity for an Area
   INTEGER(8)                             :: maxParticleNumberX               ! Maximum Number of all Particles in x direction
   INTEGER(8)                             :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
-  INTEGER(8)                             :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction 
+  INTEGER(8)                             :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction
 END TYPE tInit
 
 TYPE tConstPressure
@@ -96,6 +97,7 @@ TYPE tSpecies                                                                ! P
                                                                              !               2 = emission rate 1/iteration
                                                                              !               3 = user def. emission rate
   REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
+  REAL                                   :: PartDensity                      ! PartDensity for an Area
                                                                              ! in EmissioType 3  [Pa] !!!!
   TYPE (tConstPressure)                  :: ConstPress!(:)           =>NULL() !
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements

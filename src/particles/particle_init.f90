@@ -552,6 +552,7 @@ DO i=1,nSpecies
   Species(i)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf)//'-ParticleEmissionType','2')
   Species(i)%ParticleEmission      = GETREAL('Part-Species'//TRIM(hilf)//'-ParticleEmission','0.')
   Species(i)%ConstantPressure      = GETREAL('Part-Species'//TRIM(hilf)//'-ConstantPressure','0.')
+  Species(i)%PartDensity           = GETREAL('Part-Species'//TRIM(hilf)//'-PartDensity','0')
   IF((Species(i)%ParticleEmissionType.EQ.2).AND.((Species(i)%ParticleEmission-INT(Species(i)%ParticleEmission)).NE.0)) THEN
     WRITE(*,*) 'ERROR: If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number'
     STOP
@@ -614,6 +615,8 @@ DO i=1,nSpecies
          GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-MWTemperatureIC','0')
     Species(i)%Init(iInit)%ConstantPressure      = &
          GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-ConstantPressure','0')
+    Species(i)%Init(iInit)%PartDensity      = &
+         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-PartDensity','0')
   END DO
 END DO
 ! Which Lorentz boost method should be used?
@@ -1071,7 +1074,7 @@ SUBROUTINE DomainUpdate()
    END IF
    halo_eps_velo = GETREAL('Particles-HaloEpsVelo','0')
    IF (halo_eps_velo.EQ.0) halo_eps_velo = c
-#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==1000)
    IF (halo_eps_velo.EQ.c) THEN
       WRITE(*,*) 'Halo Eps Velocity for MPI not defined'
       STOP

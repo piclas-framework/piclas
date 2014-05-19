@@ -63,6 +63,7 @@ SUBROUTINE LD_output_calc(nOutput)
   USE MOD_Mesh_Vars,              ONLY : nElems,MeshFile
   USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species, GEO, PartSpecies, usevMPF
   USE MOD_DSMC_Analyze,           ONLY : WriteDSMCToHDF5
+  USE MOD_LD_Vars,                ONLY : LD_Residual, LD_CalcResidual
 !--------------------------------------------------------------------------------------------------!
 ! statistical pairing method                                                                       !
 !--------------------------------------------------------------------------------------------------!
@@ -178,7 +179,7 @@ INTEGER, INTENT(IN)           :: nOutput                                        
                 MacroDSMC(iElem,nSpecies + 1)%TVib = MacroDSMC(iElem,nSpecies + 1)%TVib / MolecPartNum
                 MacroDSMC(iElem,nSpecies + 1)%TRot = MacroDSMC(iElem,nSpecies + 1)%TRot / MolecPartNum
       END IF
-      IF ( DSMC%ElectronicState .AND. (SpecDSMC(iSpec)%InterID.NE.4) ) THEN
+      IF ( DSMC%ElectronicState ) THEN
         MacroDSMC(iElem,nSpecies + 1)%TElec = MacroDSMC(iElem, nSpecies+1)%TElec / HeavyPartNum
       END IF
     END IF
@@ -194,12 +195,154 @@ INTEGER, INTENT(IN)           :: nOutput                                        
         MacroDSMC(iElem,nSpecies + 1)%PartNum = MacroDSMC(iElem,nSpecies + 1)%PartNum + MacroDSMC(iElem,iSpec)%PartNum
       END DO
     END IF
+
+    IF (LD_CalcResidual) THEN! residual calculation
+      IF(LD_Residual(iElem,1).NE.0.0) THEN
+        IF(MacroDSMC(iElem,nSpecies + 1)%PartV(1).GT. 1E-3) THEN
+          LD_Residual(iElem,1) = ABS( (LD_Residual(iElem,1) - MacroDSMC(iElem,nSpecies + 1)%PartV(1)) &
+                                      /MacroDSMC(iElem,nSpecies + 1)%PartV(1) )
+          ! LD_Residual(iElem,1) = LD_Residual(iElem,1).....keep residual due to very small values
+        END IF
+        IF(MacroDSMC(iElem,nSpecies + 1)%PartV(2).GT. 1E-3) THEN
+          LD_Residual(iElem,2) = ABS( (LD_Residual(iElem,2) - MacroDSMC(iElem,nSpecies + 1)%PartV(2)) &
+                                      /MacroDSMC(iElem,nSpecies + 1)%PartV(2) )
+        END IF
+        IF(MacroDSMC(iElem,nSpecies + 1)%PartV(3).GT. 1E-3) THEN
+          LD_Residual(iElem,3) = ABS( (LD_Residual(iElem,2) - MacroDSMC(iElem,nSpecies + 1)%PartV(3)) &
+                                      /MacroDSMC(iElem,nSpecies + 1)%PartV(3) )
+        END IF
+        IF(MacroDSMC(iElem,nSpecies + 1)%PartV(4).GT. 1E-3) THEN
+          LD_Residual(iElem,4) = ABS( (LD_Residual(iElem,3) - MacroDSMC(iElem,nSpecies + 1)%PartV(4)) &
+                                      /MacroDSMC(iElem,nSpecies + 1)%PartV(4) )
+        END IF
+        LD_Residual(iElem,5) = ABS( (LD_Residual(iElem,4) - MacroDSMC(iElem,nSpecies + 1)%PartNum) &
+                                    /MacroDSMC(iElem,nSpecies + 1)%PartNum )
+        LD_Residual(iElem,6) = ABS( (LD_Residual(iElem,5) - MacroDSMC(iElem,nSpecies + 1)%Temp(4)) &
+                                    /MacroDSMC(iElem,nSpecies + 1)%Temp(4) )
+      ELSE
+        LD_Residual(iElem,1) = 1.0
+        LD_Residual(iElem,2) = 1.0
+        LD_Residual(iElem,3) = 1.0
+        LD_Residual(iElem,4) = 1.0
+        LD_Residual(iElem,5) = 1.0
+        LD_Residual(iElem,6) = 1.0
+      END IF
+    END IF ! end residual calculation
   END DO
+
+  IF (LD_CalcResidual) THEN! residual output
+    CALL LD_ResidualOutout
+    DO iElem = 1, nElems ! element/cell main loop  
+      LD_Residual(iElem,1) = MacroDSMC(iElem,nSpecies + 1)%PartV(1)
+      LD_Residual(iElem,2) = MacroDSMC(iElem,nSpecies + 1)%PartV(2)
+      LD_Residual(iElem,3) = MacroDSMC(iElem,nSpecies + 1)%PartV(3)
+      LD_Residual(iElem,4) = MacroDSMC(iElem,nSpecies + 1)%PartV(4)
+      LD_Residual(iElem,5) = MacroDSMC(iElem,nSpecies + 1)%PartNum
+      LD_Residual(iElem,6) = MacroDSMC(iElem,nSpecies + 1)%Temp(4)
+    END DO
+  END IF
+
   CALL WriteDSMCToHDF5(TRIM(MeshFile),realtime)
 !  CALL WriteOutputDSMC(nOutput)
   DEALLOCATE(MacroDSMC)
   
 END SUBROUTINE LD_output_calc
+!--------------------------------------------------------------------------------------------------!
+
+!--------------------------------------------------------------------------------------------------!
+
+SUBROUTINE LD_ResidualOutout
+!--------------------------------------------------------------------------------------------------!
+  USE MOD_Particle_Vars,         ONLY : Time
+  USE MOD_LD_Vars,               ONLY : LD_Residual
+  USE MOD_Mesh_Vars,             ONLY : nElems
+  IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------!
+! Local variable declaration                                                                       !
+!--------------------------------------------------------------------------------------------------!
+  LOGICAL             :: isOpen
+  CHARACTER(LEN=350)  :: outfile ,hilf
+  INTEGER             :: unit_index, iElem
+  REAL                 :: LD_ResidualTemp_Linf(6)
+  REAL                 :: LD_ResidualTemp_L1(6)
+!--------------------------------------------------------------------------------------------------!
+
+    unit_index = 12345
+    INQUIRE(UNIT   = unit_index , OPENED = isOpen)
+    IF (.NOT.isOpen) THEN
+      outfile = 'LD_Residual.csv'
+      OPEN(unit_index,file=TRIM(outfile))
+      !--- insert header  
+      WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_MAX_Linf' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloX_Linf' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloY_Linf' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloZ_Linf' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Velo_Abs_Linf' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Dens_Linf' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Temp_Linf' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_MAX_L1' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloX_L1' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloY_L1' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_VeloZ_L1' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Velo_Abs_L1' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Dens_L1' 
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(A14)',ADVANCE='NO') 'L_Temp_L1' 
+      WRITE(unit_index,'(A14)') ' ' 
+    END IF
+
+    PRINT*,'Write LD_Residual....'
+    LD_ResidualTemp_Linf = MAXVAL(LD_Residual,1) 
+    LD_ResidualTemp_L1  = SUM(LD_Residual,1) / nElems
+
+    WRITE(unit_index,104,ADVANCE='NO') Time
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') MAXVAL(LD_ResidualTemp_Linf)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_Linf(1)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_Linf(2)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_Linf(3)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_Linf(4)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_Linf(5)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_Linf(6)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') MAXVAL(LD_ResidualTemp_L1)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_L1(1)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_L1(2)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_L1(3)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_L1(4)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_L1(5)
+    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+    WRITE(unit_index,104,ADVANCE='NO') LD_ResidualTemp_L1(6)
+    WRITE(unit_index,'(A14)') ' ' 
+
+104    FORMAT (e25.14)
+
+END SUBROUTINE LD_ResidualOutout
 
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!

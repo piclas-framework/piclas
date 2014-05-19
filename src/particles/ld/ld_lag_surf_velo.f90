@@ -26,6 +26,9 @@ USE MOD_LD_Vars
 USE MOD_Mesh_Vars,             ONLY : nElems, SideToElem, BC, ElemToSide
 USE MOD_Particle_Vars,         ONLY : PartBound
 USE MOD_TimeDisc_Vars,         ONLY : iter
+#ifdef MPI
+USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
+#endif
 
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
@@ -42,7 +45,6 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
   REAL, PARAMETER   :: PI=3.14159265358979323846_8
   LOGICAL           :: IsStationary
 !--------------------------------------------------------------------------------------------------!
-
   DO iElem = 1, nElems
     Velo1 = BulkValues(iElem)%CellV
     Beta1 = BulkValues(iElem)%Beta
@@ -53,6 +55,16 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
       IF (.NOT.IsDoneLagVelo(SideID)) THEN
         IsDoneLagVelo(SideID) = .TRUE.
         IsStationary = .FALSE.
+#ifdef MPI
+        IF (SideID.GT.nBCSides+nInnerSides) THEN ! it must be a MPI Side
+          Elem2 = -1
+          Velo2(1) = MPINeighborBulkVal(SideID,1)
+          Velo2(2) = MPINeighborBulkVal(SideID,2) 
+          Velo2(3) = MPINeighborBulkVal(SideID,3)
+          Beta2 = MPINeighborBulkVal(SideID,4)
+          Dens2 = MPINeighborBulkVal(SideID,5)
+        ELSE
+#endif
         IF (SideToElem(1,SideID) .EQ. iElem) THEN
           IF (SideToElem(2,SideID) .LT. 1) THEN ! it must be a BC
             IF (PartBound%Map(BC(SideID)).EQ.PartBound%OpenBC) THEN ! open => copy cell values
@@ -93,6 +105,10 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
               END IF
             ELSE IF (PartBound%Map(BC(SideID)).EQ.PartBound%ReflectiveBC) THEN
               IsStationary = .TRUE.
+            ELSE
+              WRITE(*,*)'=============================================='
+              WRITE(*,*)' ERROR in PartBound%Map(BC(SideID))'
+              STOP
             END IF
           ELSE
             IF (SideToElem(1,SideID).EQ.SideToElem(2,SideID)) THEN ! one periodic cell
@@ -120,7 +136,7 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
               Dens2 = BulkValues(Elem2)%MassDens
             END IF
           END IF
-        ELSE          
+        ELSE         
           IF (SideToElem(1,SideID) .LT. 1) THEN ! it must be a BC
             IF (PartBound%Map(BC(SideID)).EQ.PartBound%OpenBC) THEN ! open => copy cell values
               Elem2 = -1
@@ -137,6 +153,10 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
               END IF
             ELSE IF (PartBound%Map(BC(SideID)).EQ.PartBound%ReflectiveBC) THEN
               IsStationary = .TRUE.
+            ELSE
+              WRITE(*,*)'=============================================='
+              WRITE(*,*)' ERROR in PartBound%Map(BC(SideID))'
+              STOP
             END IF
           ELSE
             Elem2 = SideToElem(1,SideID)
@@ -146,7 +166,9 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
             Dens2 = BulkValues(Elem2)%MassDens
           END IF
         END IF
-
+#ifdef MPI
+        END IF
+#endif
         IF (.NOT.IsStationary) THEN
           DO trinum=1, 3  ! third loop for mean surf value
             IF (trinum.EQ.3) THEN
@@ -175,7 +197,7 @@ USE MOD_TimeDisc_Vars,         ONLY : iter
       !
       !.... find root of G-function ==> Lag. Surface Velocity
       !
-            DO WHILE (ABS(vLAG_old - vLAG_new) .gt. LD_SecantMeth%Accuracy)  ! iteration loop
+            DO WHILE (ABS(vLAG_old - vLAG_new) .GT. LD_SecantMeth%Accuracy)  ! iteration loop
               IF (IterForSecant .GT. LD_SecantMeth%MaxIter) THEN
                 WRITE(*,*)'=============================================='
                 WRITE(*,*)' Max. number of iterations for LAGRANGian cell'

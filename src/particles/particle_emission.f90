@@ -57,7 +57,7 @@ USE MOD_part_pressure,  ONLY : ParticleInsideCheck
   INTEGER(8)                             :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
   INTEGER(8)                             :: maxParticleNumberZ  
   INTEGER                                :: nPartInside
-  REAL                                   :: EInside, TempInside, ConstantPressure
+  REAL                                   :: EInside, TempInside, ConstantPressure, PartDensity
 !==================================================================================================
 
 CALL UpdateNextFreePosition()
@@ -114,6 +114,7 @@ IF (.NOT.DoRestart) THEN
         Alpha = Species(i)%Alpha
         MWTemperatureIC = Species(i)%MWTemperatureIC
         ConstantPressure = Species(i)%ConstantPressure
+        PartDensity = Species(i)%PartDensity
 
         DO iInit = 1, Species(i)%NumberOfInits
           ! to prevent doubling of subroutines and conflicts with earlier versions, the relevant data is
@@ -140,6 +141,7 @@ IF (.NOT.DoRestart) THEN
           Species(i)%Alpha                 = Species(i)%Init(iInit)%Alpha
           Species(i)%MWTemperatureIC       = Species(i)%Init(iInit)%MWTemperatureIC
           Species(i)%ConstantPressure      = Species(i)%Init(iInit)%ConstantPressure
+          Species(i)%PartDensity           = Species(i)%Init(iInit)%PartDensity
           CALL ParticleInsertingCellPressure(i,NbrofParticle)
           CALL SetParticleVelocity(i,NbrOfParticle)
           CALL SetParticleChargeAndMass(i,NbrOfParticle)
@@ -183,6 +185,7 @@ IF (.NOT.DoRestart) THEN
         Species(i)%Alpha = Alpha
         Species(i)%MWTemperatureIC = MWTemperatureIC
         Species(i)%ConstantPressure = ConstantPressure
+        Species(i)%PartDensity = PartDensity
       END IF
     ELSE ! not emissiontype 4
       IF (Species(i)%NumberOfInits.EQ.0) THEN
@@ -224,6 +227,7 @@ IF (.NOT.DoRestart) THEN
         Alpha = Species(i)%Alpha
         MWTemperatureIC = Species(i)%MWTemperatureIC
         ConstantPressure = Species(i)%ConstantPressure
+        PartDensity = Species(i)%PartDensity
 
         DO iInit = 1, Species(i)%NumberOfInits
           NbrOfParticle = Species(i)%Init(iInit)%initialParticleNumber
@@ -251,6 +255,7 @@ IF (.NOT.DoRestart) THEN
           Species(i)%Alpha                 = Species(i)%Init(iInit)%Alpha
           Species(i)%MWTemperatureIC       = Species(i)%Init(iInit)%MWTemperatureIC
           Species(i)%ConstantPressure      = Species(i)%Init(iInit)%ConstantPressure
+          Species(i)%PartDensity      = Species(i)%Init(iInit)%PartDensity
 #ifdef MPI
           CALL SetParticlePosition(i,NbrOfParticle,1)
           CALL SetParticlePosition(i,NbrOfParticle,2)
@@ -299,6 +304,7 @@ IF (.NOT.DoRestart) THEN
         Species(i)%Alpha = Alpha
         Species(i)%MWTemperatureIC = MWTemperatureIC
         Species(i)%ConstantPressure = ConstantPressure
+        Species(i)%PartDensity = PartDensity
       END IF
       ! constant pressure condition
       IF ((Species(i)%ParticleEmissionType .EQ. 3).OR.(Species(i)%ParticleEmissionType .EQ. 5)) THEN
@@ -937,7 +943,7 @@ IF (mode.EQ.1) THEN
            particle_positions(i*3  ) = Particle_pos(3)
         END DO
       CASE('LD_insert')
-        CALL LD_SetParticlePosition(chunkSize,particle_positions_Temp)
+        CALL LD_SetParticlePosition(chunkSize,particle_positions_Temp,FractNbr)
         DEALLOCATE( particle_positions, STAT=allocStat )
         IF (allocStat .NE. 0) THEN
           WRITE(*,*)'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!'

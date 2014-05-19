@@ -351,7 +351,7 @@ REAL,INTENT(INOUT)    :: xi_Out(3)  ! Interpolated Pos
 INTEGER             :: iN_In,jN_In,kN_In,iN_Out,jN_Out,kN_Out,i,j,k, iNode
 REAL                :: xi(3)     
 REAL              :: P(3,8), F(3), dF_inv(3,3), s(3) 
-REAL, PARAMETER   :: EPS=1E-8
+REAL, PARAMETER   :: EPS=1E-14
 REAL              :: T_inv(3,3), DP(3)
 !===================================================================================================================================
 ! --------------------------------------------------

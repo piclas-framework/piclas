@@ -325,7 +325,7 @@ USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpec
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
-USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC
+USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout
 USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
 USE MOD_LD_Vars,               ONLY: useLD
 USE MOD_LD_Analyze,            ONLY: LD_data_sampling, LD_output_calc
@@ -348,11 +348,12 @@ LOGICAL,INTENT(IN),OPTIONAL   :: force
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                       :: ForceAnalyze
-INTEGER(KIND=8)               :: iter_loc, iter_macvalout, istep
 !===================================================================================================================================
 
 ! not for first iteration
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 IF(iter.EQ.0) RETURN
+#endif
 
 IF(PRESENT(force))THEN
   ForceAnalyze=force
@@ -414,6 +415,7 @@ IF (WriteMacroValues) THEN
 #else
     CALL DSMC_output_calc(nOutput)
 #endif
+    nOutput = nOutput + 1
     iter_macvalout = 0
     DSMC%SampNum = 0
     SampDSMC(1:nElems,1:nSpecies)%PartV(1)  = 0
