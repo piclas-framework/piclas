@@ -187,7 +187,7 @@ unit_index = 535
           outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
         ELSE
           !iTvib = INT(SpecDSMC(1)%Telec )
-          iTvib = INT(Species(1)%MWTemperatureIC
+          iTvib = INT(Species(1)%MWTemperatureIC)
           WRITE( hilf, '(I5.5)') iTvib
           outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
         END IF
