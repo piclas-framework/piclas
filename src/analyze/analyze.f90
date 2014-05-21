@@ -323,7 +323,6 @@ USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze
 USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpecies
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
-USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout
 USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
