@@ -245,7 +245,7 @@ JToEv = 1.602176565E-19
   ! Add heat of formation to collision energy
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + ChemReac%EForm(iReac)
 
-  Xi_rel = 2*(2 - SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) 
+  Xi_rel = 4*(2 - SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) 
     ! DOF of relative motion in VHS model, only for one omega!!
     ! this is a result of the mean value of the relative energy in the vhs model, laux diss page 31
   FakXi = 0.5*(Xi_rel + SpecDSMC(PartSpecies(React2Inx))%Xi_Rot) - 1  
