@@ -162,6 +162,7 @@ nOutput = 1
 IF(.NOT.DoRestart)THEN
   t=0.
   realtime=0.
+  time=0.
   SWRITE(UNIT_StdOut,*)'INITIAL PROJECTION:'
 ELSE
   t=RestartTime
@@ -254,6 +255,7 @@ iter_loc=0
 
 ! fill recordpoints buffer (first iteration)
 IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
+
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! iterations starting up from here
@@ -442,6 +444,8 @@ INTEGER                       :: rk
 REAL                          :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif
 !===================================================================================================================================
+
+Time=t
 
 ! RK coefficients
 DO rk=1,nRKStages
