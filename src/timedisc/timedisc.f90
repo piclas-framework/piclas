@@ -109,6 +109,7 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Analyze,               ONLY: PerformeAnalyze
+USE MOD_PoyntingInt,           ONLY: CalcPoyntingIntegral
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze,ViscousTimeStep,iter,IterDisplayStep
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
@@ -195,10 +196,6 @@ IF (DepositionType.EQ."shape_function") THEN
 END IF
 #endif /*MPI*/
 
-! first analyze Particles (write zero state)
-CALL AnalyzeParticles(t) 
-!CALL Visualize_Particles(t)
-
 ! No computation needed if tEnd=tStart!
 IF(t.EQ.tEnd)RETURN
 
@@ -233,6 +230,11 @@ ELSE ! .NO. ManualTimeStep
   STOP
 #endif
 END IF ! useManualTimestep
+
+! first analyze Particles (write zero state)
+CALL AnalyzeParticles(t) 
+CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+!CALL Visualize_Particles(t)
 
 #if (PP_TimeDiscMethod==201)
 dt_maxwell = CALCTIMESTEP()

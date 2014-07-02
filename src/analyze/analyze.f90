@@ -33,7 +33,7 @@ INTERFACE PerformeAnalyze
 END INTERFACE
 
 !===================================================================================================================================
-PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformeAnalyze
+PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformeAnalyze 
 !===================================================================================================================================
 
 CONTAINS
@@ -371,7 +371,7 @@ IF(ForceAnalyze) CALL CalcError(t)
 IF (CalcPoyntingInt) THEN
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
   IF(ForceAnalyze)THEN
-    IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+    CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
    ELSE
     IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
   END IF ! ForceAnalyze
@@ -393,7 +393,8 @@ IF (DoAnalyze)  THEN
 END IF
 
 IF(ForceAnalyze)THEN
-  IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
+  CALL AnalyzeParticles(t) 
+  !IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
 END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
