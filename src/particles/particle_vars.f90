@@ -41,32 +41,6 @@ CHARACTER(LEN=256)    :: ParticlePushMethod                                  ! T
 INTEGER               :: nrSeeds                                             ! Number of Seeds for Random Number Generator
 INTEGER , POINTER     :: seeds(:)                                 =>NULL()   ! Seeds for Random Number Generator
 
-TYPE tInit                                                                   ! Particle Data for each init emission for each species
-  CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
-  CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
-  INTEGER(8)                             :: initialParticleNumber            ! Number of Particles at time 0.0
-  REAL                                   :: RadiusIC
-  REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder
-  REAL                                   :: RadiusICGyro
-  REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
-  REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
-  REAL                                   :: BaseVector1IC(3)                 ! first base vector for IC cuboid
-  REAL                                   :: BaseVector2IC(3)                 ! second base vector for IC cuboid
-  REAL                                   :: CuboidHeightIC                   ! third measure of cuboid
-  REAL                                   :: CylinderHeightIC                 ! third measure of cylinder
-  REAL                                   :: VeloIC                           ! velocity for inital Data
-  REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
-  REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
-  REAL                                   :: alpha                            ! WaveNumber for sin-deviation initiation.
-  REAL                                   :: Amplitude                        ! Amplitude for sin-deviation initiation.
-  REAL                                   :: WaveNumber                       ! WaveNumber for sin-deviation initiation.
-  REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
-  REAL                                   :: PartDensity                      ! PartDensity for an Area
-  INTEGER(8)                             :: maxParticleNumberX               ! Maximum Number of all Particles in x direction
-  INTEGER(8)                             :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
-  INTEGER(8)                             :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction
-END TYPE tInit
-
 TYPE tConstPressure
   INTEGER                                :: nElemTotalInside                  ! Number of elements totally in Emission Particle  
   INTEGER                                :: nElemPartlyInside                 ! Number of elements partly in Emission Particle 
@@ -83,24 +57,21 @@ TYPE tConstPressure
                                                                               ! to see whether a point is inside a cuboid
   REAL                                   :: EkinInside                        ! Kinetic Energy in Emission-Area
   REAL                                   :: InitialTemp                       ! Initial MWTemerature
+  REAL, ALLOCATABLE                      :: ConstPressureSamp(:,:)            ! ElemTotalInside(1:nElemTotalInside,1 = v_x
+                                                                              !                                    2 = v_y
+                                                                              !                                    3 = v_z
+                                                                              !                                    4 = dens. [1/m3]
+                                                                              !                                    5 = pressure
+                                                                              !                                    6 = v of sound**2
 END TYPE
 
-TYPE tSpecies                                                                ! Particle Data for each Species
-  TYPE(tInit), POINTER                   :: Init(:)                =>NULL()  ! Particle Data for each Initialisation
+TYPE tInit                                                                   ! Particle Data for each init emission for each species
+  !Specific Emission/Init values
+  LOGICAL                                :: UseForInit                       ! Use Init/Emission for init.?
+  LOGICAL                                :: UseForEmission                   ! Use Init/Emission for emission?
   CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
-  CHARACTER(40)                          :: TypeIC                           ! specifying Keyword for initial condition
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
   INTEGER(8)                             :: initialParticleNumber            ! Number of Particles at time 0.0
-  INTEGER(8)                             :: InsertedParticle                 ! Number of all already inserted Particles
-  REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
-  INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
-                                                                             !               2 = emission rate 1/iteration
-                                                                             !               3 = user def. emission rate
-  REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
-  REAL                                   :: PartDensity                      ! PartDensity for an Area
-                                                                             ! in EmissioType 3  [Pa] !!!!
-  TYPE (tConstPressure)                  :: ConstPress!(:)           =>NULL() !
-  INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
   REAL                                   :: RadiusIC                         ! Radius for IC circle
   REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
   REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
@@ -116,18 +87,81 @@ TYPE tSpecies                                                                ! P
                                                                              ! negative value = opposite direction
   REAL                                   :: VeloIC                           ! velocity for inital Data
   REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
-  REAL                                   :: ChargeIC                         ! Particle Charge (without MPF)
-  REAL                                   :: MassIC                           ! Particle Mass (without MPF)
-  REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
-  REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
-  REAL                                   :: vmax                             ! Maximum velocity for probability distr. funct.
-  REAL                                   :: NumberDensity                    ! Numberdensity for each species.
-  REAL                                   :: alpha                            ! WaveNumber for sin-deviation initiation.
   REAL                                   :: Amplitude                        ! Amplitude for sin-deviation initiation.
   REAL                                   :: WaveNumber                       ! WaveNumber for sin-deviation initiation.
   INTEGER(8)                             :: maxParticleNumberX               ! Maximum Number of all Particles in x direction
   INTEGER(8)                             :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
   INTEGER(8)                             :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction 
+  REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
+  REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
+  REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
+  REAL                                   :: ConstPressureRelaxFac            ! RelaxFac. for ConstPressureSamp
+  REAL                                   :: PartDensity                      ! PartDensity for an Area
+                                                                             ! in EmissioType 3  [Pa] !?!
+  INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
+                                                                             !               2 = emission rate 1/iteration
+                                                                             !               3 = user def. emission rate
+                                                                             !               4 = const. cell pressure
+                                                                             !               5 = cell pres. w. complete part removal
+                                                                             !               6 = outflow BC (characteristics method)
+  REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
+  INTEGER(8)                             :: InsertedParticle                 ! Number of all already inserted Particles
+  TYPE (tConstPressure)                  :: ConstPress!(:)           =>NULL() !
+END TYPE tInit
+
+TYPE tSpecies                                                                ! Particle Data for each Species
+  !General Species Values
+  TYPE(tInit), POINTER                   :: Init(:)                =>NULL()  ! Particle Data for each Initialisation
+  REAL                                   :: ChargeIC                         ! Particle Charge (without MPF)
+  REAL                                   :: MassIC                           ! Particle Mass (without MPF)
+  REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
+  INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
+  INTEGER                                :: StartnumberOfInits               ! 0 if old emit defined (array is copied into 0. entry)
+  !Specific Emission/Init values
+  LOGICAL                                :: UseForInit                       ! Use Init/Emission for init.?
+  LOGICAL                                :: UseForEmission                   ! Use Init/Emission for emission?
+  CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
+  CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
+  INTEGER(8)                             :: initialParticleNumber            ! Number of Particles at time 0.0
+  REAL                                   :: RadiusIC                         ! Radius for IC circle
+  REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
+  REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
+  REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
+  REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
+  REAL                                   :: BaseVector1IC(3)                 ! first base vector for IC cuboid
+  REAL                                   :: BaseVector2IC(3)                 ! second base vector for IC cuboid
+  REAL                                   :: CuboidHeightIC                   ! third measure of cuboid
+                                                                             ! (set 0 for flat rectangle),
+                                                                             ! negative value = opposite direction
+  REAL                                   :: CylinderHeightIC                 ! third measure of cylinder
+                                                                             ! (set 0 for flat rectangle),
+                                                                             ! negative value = opposite direction
+  REAL                                   :: VeloIC                           ! velocity for inital Data
+  REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
+  REAL                                   :: Amplitude                        ! Amplitude for sin-deviation initiation.
+  REAL                                   :: WaveNumber                       ! WaveNumber for sin-deviation initiation.
+  INTEGER(8)                             :: maxParticleNumberX               ! Maximum Number of all Particles in x direction
+  INTEGER(8)                             :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
+  INTEGER(8)                             :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction 
+  REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
+  REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
+  REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
+  REAL                                   :: ConstPressureRelaxFac            ! RelaxFac. for ConstPressureSamp
+  REAL                                   :: PartDensity                      ! PartDensity for an Area
+                                                                             ! in EmissioType 3  [Pa] !?!
+  INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
+                                                                             !               2 = emission rate 1/iteration
+                                                                             !               3 = user def. emission rate
+                                                                             !               4 = const. cell pressure
+                                                                             !               5 = cell pres. w. complete part removal
+                                                                             !               6 = outflow BC (characteristics method)
+  REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
+  INTEGER(8)                             :: InsertedParticle                 ! Number of all already inserted Particles
+  TYPE (tConstPressure)                  :: ConstPress!(:)           =>NULL() !
+  !!!Variablen-Leichen!?!
+  !CHARACTER(40)                          :: TypeIC                           ! specifying Keyword for initial condition
+  !REAL                                   :: vmax                             ! Maximum velocity for probability distr. funct.
+  !REAL                                   :: NumberDensity                    ! Numberdensity for each species.
 END TYPE                                                                     !
 
 INTEGER                                  :: nSpecies                         ! number of species

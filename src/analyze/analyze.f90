@@ -325,7 +325,7 @@ USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpec
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout
-USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
+USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues, WriteOutputMeshSamp
 USE MOD_LD_Vars,               ONLY: useLD
 USE MOD_LD_Analyze,            ONLY: LD_data_sampling, LD_output_calc
 #ifdef MPI
@@ -414,6 +414,7 @@ IF (WriteMacroValues) THEN
     CALL LD_output_calc(nOutput)  ! Data sampling for output
 #else
     CALL DSMC_output_calc(nOutput)
+    IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
 #endif
     nOutput = nOutput + 1
     iter_macvalout = 0
@@ -438,7 +439,10 @@ IF(ForceAnalyze)THEN
 #else
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
     nOutput = INT((DSMC%TimeFracSamp * TEnd) / DSMC%DeltaTimeOutput)
-    IF (.NOT. useLD)        CALL DSMC_output_calc(nOutput)
+    IF (.NOT. useLD) THEN
+      CALL DSMC_output_calc(nOutput)
+      IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
+    END IF
     IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(nOutput)
   END IF
 #endif

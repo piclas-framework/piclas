@@ -187,7 +187,7 @@ unit_index = 535
           outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
         ELSE
           !iTvib = INT(SpecDSMC(1)%Telec )
-          iTvib = INT(Species(1)%MWTemperatureIC)
+          iTvib = INT(Species(1)%MWTemperatureIC) !wrong name, if MWTemp is defined in %Init!!!
           WRITE( hilf, '(I5.5)') iTvib
           outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
         END IF
@@ -470,7 +470,7 @@ IF ( DSMC%ElectronicState ) THEN
         iunit = 485
         DebugElectronicStateFilename = 'End_Electronic_State_Species_'//trim(DebugElectronicStateFilename)//'.dat'
         OPEN(unit=iunit,file=DebugElectronicStateFilename,form='formatted',status='unknown')
-        DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+        DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1                         !has to be changed when using %Init definitions!!!
           WRITE(iunit,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / REAL( Species(iSpec)%initialParticleNumber)
         END DO
         close(iunit)

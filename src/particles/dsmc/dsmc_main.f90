@@ -26,7 +26,7 @@ SUBROUTINE DSMC_main()
   USE MOD_DSMC_Vars,             ONLY : ChemReac, CollMean
   USE MOD_Particle_Vars,         ONLY : PEM, Time, PDM, nSpecies, WriteMacroValues, usevMPF
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
-  USE MOD_DSMC_Analyze,          ONLY : DSMC_data_sampling, DSMC_output_calc, CalcSurfaceValues, OutputMaxCollProb
+  USE MOD_DSMC_Analyze,          ONLY : DSMC_data_sampling,DSMC_output_calc,CalcSurfaceValues,OutputMaxCollProb,WriteOutputMeshSamp
   USE MOD_TimeDisc_Vars,         ONLY : TEnd
   USE MOD_DSMC_ChemReact,        ONLY : SetMeanVibQua
   USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical
@@ -138,6 +138,7 @@ IF (.NOT.WriteMacroValues) THEN
         ! Skipping outputs immediately after the first few iterations
         IF(RestartTime.lt.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN 
           CALL DSMC_output_calc(nOutput)
+          IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
           IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(nOutput)
         END IF
       END IF

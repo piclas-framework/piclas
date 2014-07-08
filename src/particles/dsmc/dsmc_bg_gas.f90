@@ -52,7 +52,7 @@ INTEGER           :: iNewPart, iPart, PositionNbr
       PEM%pNumber(PEM%Element(PositionNbr)) + 1
     END IF
   END DO
-  CALL SetParticleVelocity(BGGas%BGGasSpecies, iNewPart)
+  CALL SetParticleVelocity(BGGas%BGGasSpecies,0,iNewPart) !!!!!iInit uebergegen! -> welches? 0?
   !IF (usevMPF) CALL SetParticleMPF(BGGas%BGGasSpecies, iNewPart)
   PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart 

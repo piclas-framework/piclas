@@ -62,13 +62,16 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
   
-  
-! writing od output mesh
-  SWRITE(UNIT_stdOut,'(A)')' WRITING OUTPUT-MESH...'
-  CALL WriteOutputMesh()
-!  write(rmCommand,'(A12)') 'rm DSMCOut_*'
-!  CALL SYSTEM(rmCommand)
-  SWRITE(UNIT_stdOut,'(A)')' WRITING OUTPUT-MESH DONE!'
+! reading/writing OutputMesh stuff
+  DSMC%OutputMeshInit = GETLOGICAL('Particles-DSMC-OutputMeshInit','.TRUE.')
+  DSMC%OutputMeshSamp = GETLOGICAL('Particles-DSMC-OutputMeshSamp','.FALSE.')
+  IF (DSMC%OutputMeshInit) THEN
+    SWRITE(UNIT_stdOut,'(A)')' WRITING OUTPUT-MESH...'
+    CALL WriteOutputMesh()
+    !  write(rmCommand,'(A12)') 'rm DSMCOut_*'
+    !  CALL SYSTEM(rmCommand)
+    SWRITE(UNIT_stdOut,'(A)')' WRITING OUTPUT-MESH DONE!'
+  END IF
 ! reading and reset general DSMC values
   CollisMode = GETINT('Particles-DSMC-CollisMode','1') !1:elastic col, 2:elast+rela, 3:chem
   DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
@@ -226,43 +229,43 @@ IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular
   SpecDSMC(1:nSpecies)%SpecToPolyArray = 0
   DO iSpec = 1, nSpecies
     IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
-     WRITE(UNIT=hilf,FMT='(I2)') iSpec
-     
-     SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol','.FALSE.')
-     IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%ElectronicState)  THEN
+      WRITE(UNIT=hilf,FMT='(I2)') iSpec
+      
+      SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol','.FALSE.')
+      IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%ElectronicState)  THEN
         SWRITE(*,*) '! Simulation of Polyatomic Molecules and Electronic States are not possible yet!!!'
         STOP
-     END IF
-     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      END IF
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
         DSMC%NumPolyatomMolecs = DSMC%NumPolyatomMolecs + 1
         SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
-     ELSE
-    
-       SpecDSMC(iSpec)%TVib       = GETREAL('Part-Species'//TRIM(hilf)//'-TempVib','0.')
-       SpecDSMC(iSpec)%TRot       = GETREAL('Part-Species'//TRIM(hilf)//'-TempRot','0.')  
-       SpecDSMC(iSpec)%Xi_Rot     = 2
-       SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib','0.')  
-       SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV','0.')
-       IF(SpecDSMC(iSpec)%Ediss_eV*SpecDSMC(iSpec)%CharaTVib*SpecDSMC(iSpec)%TRot*SpecDSMC(iSpec)%TVib.EQ.0) THEN
-         SWRITE(*,*) '! =========================================================================== !'
-         SWRITE(*,*) "! ERROR in MolecularData of MolecSpec                                         !", iSpec
-         SWRITE(*,*) '! =========================================================================== !'
-         IF(SpecDSMC(iSpec)%Ediss_eV*SpecDSMC(iSpec)%CharaTVib.EQ.0) THEN
-           STOP
-         ELSE
-           IF (DSMC%VibEnergyModel.EQ.0) THEN
-             SpecDSMC(iSpec)%MaxVibQuant = 200
-           ELSE
-             SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*JToEv/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
-           END IF
-         END IF
-       ELSE
-         IF (DSMC%VibEnergyModel.EQ.0) THEN
-           SpecDSMC(iSpec)%MaxVibQuant = 200
-         ELSE
-           SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*JToEv/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
-         END IF
-       END IF
+      ELSE
+        
+        SpecDSMC(iSpec)%TVib       = GETREAL('Part-Species'//TRIM(hilf)//'-TempVib','0.')
+        SpecDSMC(iSpec)%TRot       = GETREAL('Part-Species'//TRIM(hilf)//'-TempRot','0.')
+        SpecDSMC(iSpec)%Xi_Rot     = 2
+        SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib','0.')
+        SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV','0.')
+        IF(SpecDSMC(iSpec)%Ediss_eV*SpecDSMC(iSpec)%CharaTVib*SpecDSMC(iSpec)%TRot*SpecDSMC(iSpec)%TVib.EQ.0) THEN
+          SWRITE(*,*) '! =========================================================================== !'
+          SWRITE(*,*) "! ERROR in MolecularData of MolecSpec                                         !", iSpec
+          SWRITE(*,*) '! =========================================================================== !'
+          IF(SpecDSMC(iSpec)%Ediss_eV*SpecDSMC(iSpec)%CharaTVib.EQ.0) THEN
+            STOP
+          ELSE
+            IF (DSMC%VibEnergyModel.EQ.0) THEN
+              SpecDSMC(iSpec)%MaxVibQuant = 200
+            ELSE
+              SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*JToEv/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
+            END IF
+          END IF
+        ELSE
+          IF (DSMC%VibEnergyModel.EQ.0) THEN
+            SpecDSMC(iSpec)%MaxVibQuant = 200
+          ELSE
+            SpecDSMC(iSpec)%MaxVibQuant = INT(SpecDSMC(iSpec)%Ediss_eV*JToEv/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)) + 1
+          END IF
+        END IF
       END IF
       ! read electronic temperature
       IF ( DSMC%ElectronicState ) THEN
@@ -276,21 +279,33 @@ IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular
       SpecDSMC(iSpec)%VibRelaxProb  = 0.02!0.02
       SpecDSMC(iSpec)%ElecRelaxProb = 0.01!or 0.02 | Bird: somewhere in range 0.01 .. 0.02
       ! multi init stuff #
-      IF(Species(iSpec)%NumberOfInits.NE.0) THEN
-        ALLOCATE(SpecDSMC(iSpec)%Init(1:Species(iSpec)%NumberOfInits))
-        DO iInit = 1, Species(iSpec)%NumberOfInits
-          IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+      !IF(Species(iSpec)%NumberOfInits.NE.0) THEN
+      ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
+      DO iInit = 0, Species(iSpec)%NumberOfInits
+        IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+          IF (iInit .EQ. 0) THEN !0. entry := old style parameter def. (default values if not def., some values might be needed)
+            SpecDSMC(iSpec)%Init(iInit)%TVib = SpecDSMC(iSpec)%TVib
+            SpecDSMC(iSpec)%Init(iInit)%TRot = SpecDSMC(iSpec)%TRot
+          ELSE
             WRITE(UNIT=hilf2,FMT='(I2)') iInit
             SpecDSMC(iSpec)%Init(iInit)%TVib = GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-TempVib','0.')
             SpecDSMC(iSpec)%Init(iInit)%TRot = GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-TempRot','0.')
           END IF
-        END DO
-        ! temp copy
-        SpecVib(iSpec) = SpecDSMC(iSpec)%TVib
-        SpecRot(iSpec) = SpecDSMC(iSpec)%TRot
-      END IF
-    END IF
-  END DO
+          IF (SpecDSMC(iSpec)%Ediss_eV*SpecDSMC(iSpec)%CharaTVib*SpecDSMC(iSpec)%Init(iInit)%TRot*SpecDSMC(iSpec)%Init(iInit)%TVib &
+               .EQ. 0) THEN
+            SWRITE(*,*) '! =========================================================================== !'
+            SWRITE(*,*) "! ERROR in MolecularData of MolecSpec                                         !", iSpec
+            SWRITE(*,*) '! =========================================================================== !'
+            IF(SpecDSMC(iSpec)%Ediss_eV*SpecDSMC(iSpec)%CharaTVib.EQ.0) STOP
+          END IF !!!!!!MaxVibQuant stuff neglected! (s. above)
+        END IF
+      END DO
+!        ! temp copy
+!        SpecVib(iSpec) = SpecDSMC(iSpec)%TVib
+!        SpecRot(iSpec) = SpecDSMC(iSpec)%TRot
+      !END IF
+    END IF !Molecule
+  END DO !Species
 
   IF(DSMC%NumPolyatomMolecs.GT.0) THEN
     ALLOCATE(VibQuantsPar(PDM%maxParticleNumber))
@@ -326,14 +341,14 @@ IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular
         IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
           CALL DSMC_SetInternalEnr_PolyFastPart2(PartSpecies(iPart),iPart)
         ELSE
-          CALL DSMC_SetInternalEnr_LauxVFD(PartSpecies(iPart),iPart)
+          CALL DSMC_SetInternalEnr_LauxVFD(PartSpecies(iPart),0,iPart)
         END IF
       ELSE
         iInit = PDM%PartInit(iPart)
         IF(SpecDSMC(PartSpecies(iPart))%InterID.EQ.2) THEN
-          SpecDSMC(PartSpecies(iPart))%TVib = SpecDSMC(PartSpecies(iPart))%Init(iInit)%TVib
-          SpecDSMC(PartSpecies(iPart))%TRot = SpecDSMC(PartSpecies(iPart))%Init(iInit)%TRot
-          CALL DSMC_SetInternalEnr_LauxVFD(PartSpecies(iPart),iPart)
+!          SpecDSMC(PartSpecies(iPart))%TVib = SpecDSMC(PartSpecies(iPart))%Init(iInit)%TVib
+!          SpecDSMC(PartSpecies(iPart))%TRot = SpecDSMC(PartSpecies(iPart))%Init(iInit)%TRot
+          CALL DSMC_SetInternalEnr_LauxVFD(PartSpecies(iPart),iInit,iPart)
         END IF
       END IF
     END IF
@@ -358,15 +373,15 @@ IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular
     END DO
   END IF
 #endif
-  DO iSpec = 1, nSpecies
-    IF(Species(iSpec)%NumberOfInits.NE.0) THEN
-      IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
-        ! copy it back
-        SpecDSMC(iSpec)%TVib = SpecVib(iSpec)
-        SpecDSMC(iSpec)%TRot = SpecRot(iSpec)
-      END IF
-    END IF
-  END DO
+!  DO iSpec = 1, nSpecies
+!    IF(Species(iSpec)%NumberOfInits.NE.0) THEN
+!      IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+!        ! copy it back
+!        SpecDSMC(iSpec)%TVib = SpecVib(iSpec)
+!        SpecDSMC(iSpec)%TRot = SpecRot(iSpec)
+!      END IF
+!    END IF
+!  END DO
   DEALLOCATE(PDM%PartInit)
 END IF
 
@@ -428,6 +443,7 @@ IF (DSMC%CalcSurfaceVal) THEN
   CALL DSMC_BuildHaloSurfaceOutputMapping()
 #endif
 END IF
+
 SWRITE(UNIT_stdOut,'(A)')' INIT DSMC DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
@@ -437,7 +453,7 @@ END SUBROUTINE InitDSMC
 !--------------------------------------------------------------------------------------------------!
 
 
-SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iPart)
+SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart)
 
   USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC
   USE MOD_Particle_Vars,        ONLY : BoltzmannConst
@@ -447,7 +463,7 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iPart)
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE 
 ! LOCAL VARIABLES
-  INTEGER, INTENT(IN)           :: iSpecies, iPart
+  INTEGER, INTENT(IN)           :: iSpecies, iInit, iPart
   REAL                          :: iRan, iRan2
   REAL                          :: ElectronicPartitionTemp, ElectronicPartition, summ
   INTEGER                       :: iQuant, ii ! maximal Quant of Species
@@ -458,16 +474,16 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iPart)
 !set vibrational energy
 IF (SpecDSMC(iSpecies)%InterID.EQ.2) THEN
   CALL RANDOM_NUMBER(iRan)
-  iQuant = INT(-LOG(iRan)*SpecDSMC(iSpecies)%TVib/SpecDSMC(iSpecies)%CharaTVib)
+  iQuant = INT(-LOG(iRan)*SpecDSMC(iSpecies)%Init(iInit)%TVib/SpecDSMC(iSpecies)%CharaTVib)
   DO WHILE (iQuant.GE.SpecDSMC(iSpecies)%MaxVibQuant)
     CALL RANDOM_NUMBER(iRan)
-    iQuant = INT(-LOG(iRan)*SpecDSMC(iSpecies)%TVib/SpecDSMC(iSpecies)%CharaTVib)
+    iQuant = INT(-LOG(iRan)*SpecDSMC(iSpecies)%Init(iInit)%TVib/SpecDSMC(iSpecies)%CharaTVib)
   END DO
   !evtl muß partstateinten nochmal geändert werden, mpi, resize etc..
   PartStateIntEn(iPart, 1) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpecies)%CharaTVib*BoltzmannConst
 !set rotational energy
   CALL RANDOM_NUMBER(iRan)
-  PartStateIntEn(iPart, 2) = -BoltzmannConst*SpecDSMC(iSpecies)%TRot*LOG(iRan)
+  PartStateIntEn(iPart, 2) = -BoltzmannConst*SpecDSMC(iSpecies)%Init(iInit)%TRot*LOG(iRan)
 ELSE
   PartStateIntEn(iPart, 1) = 0
   PartStateIntEn(iPart, 2) = 0

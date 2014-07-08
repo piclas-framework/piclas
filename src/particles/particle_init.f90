@@ -532,6 +532,13 @@ PartPressureCell = .FALSE.
 ALLOCATE(Species(1:nSpecies))
 DO i=1,nSpecies
   WRITE(UNIT=hilf,FMT='(I2)') i
+!General Species Values
+  Species(i)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC','0.')
+  Species(i)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC','0.')
+  Species(i)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf)//'-MacroParticleFactor','1.')
+!Specific Emission/Init values
+  Species(i)%UseForInit            = GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseForInit','.TRUE.')
+  Species(i)%UseForEmission        = GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseForEmission','.TRUE.')
   Species(i)%SpaceIC               = GETSTR('Part-Species'//TRIM(hilf)//'-SpaceIC','cuboid')
   Species(i)%velocityDistribution  = GETSTR('Part-Species'//TRIM(hilf)//'-velocityDistribution','constant')
   Species(i)%initialParticleNumber = GETINT('Part-Species'//TRIM(hilf)//'-initialParticleNumber','0')
@@ -546,77 +553,159 @@ DO i=1,nSpecies
   Species(i)%CylinderHeightIC      = GETREAL('Part-Species'//TRIM(hilf)//'-CylinderHeightIC','1.')
   Species(i)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf)//'-VeloIC','0.')
   Species(i)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf)//'-VeloVecIC',3,'0. , 0. , 0.')
-  Species(i)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC','0.')
-  Species(i)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC','0.')
-  Species(i)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf)//'-MacroParticleFactor','1.')
-  Species(i)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf)//'-ParticleEmissionType','2')
-  Species(i)%ParticleEmission      = GETREAL('Part-Species'//TRIM(hilf)//'-ParticleEmission','0.')
-  Species(i)%ConstantPressure      = GETREAL('Part-Species'//TRIM(hilf)//'-ConstantPressure','0.')
-  Species(i)%PartDensity           = GETREAL('Part-Species'//TRIM(hilf)//'-PartDensity','0')
-  IF((Species(i)%ParticleEmissionType.EQ.2).AND.((Species(i)%ParticleEmission-INT(Species(i)%ParticleEmission)).NE.0)) THEN
-    WRITE(*,*) 'ERROR: If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number'
-    STOP
-  END IF
-  IF(Species(i)%ParticleEmissionType.EQ.4) PartPressureCell = .TRUE.
-  Species(i)%InsertedParticle      = 0
   Species(i)%Amplitude             = GETREAL('Part-Species'//TRIM(hilf)//'-Amplitude','0.01')
   Species(i)%WaveNumber            = GETREAL('Part-Species'//TRIM(hilf)//'-WaveNumber','2.')
   Species(i)%maxParticleNumberX    = GETINT('Part-Species'//TRIM(hilf)//'-maxParticleNumber-x','0')
   Species(i)%maxParticleNumberY    = GETINT('Part-Species'//TRIM(hilf)//'-maxParticleNumber-y','0')
   Species(i)%maxParticleNumberZ    = GETINT('Part-Species'//TRIM(hilf)//'-maxParticleNumber-z','0')
   Species(i)%Alpha                 = GETREAL('Part-Species'//TRIM(hilf)//'-Alpha','0.')
-  Species(i)%MWTemperatureIC       = GETREAL('Part-Species'//TRIM(hilf)//'-MWTemperatureIC','0')
+  Species(i)%MWTemperatureIC       = GETREAL('Part-Species'//TRIM(hilf)//'-MWTemperatureIC','0.')
+  Species(i)%ConstantPressure      = GETREAL('Part-Species'//TRIM(hilf)//'-ConstantPressure','0.')
+  Species(i)%ConstPressureRelaxFac = GETREAL('Part-Species'//TRIM(hilf)//'-ConstPressureRelaxFac','1.')
+  Species(i)%PartDensity           = GETREAL('Part-Species'//TRIM(hilf)//'-PartDensity','0.')
+  Species(i)%ParticleEmissionType  = GETINT('Part-Species'//TRIM(hilf)//'-ParticleEmissionType','2')
+  Species(i)%ParticleEmission      = GETREAL('Part-Species'//TRIM(hilf)//'-ParticleEmission','0.')
+  Species(i)%InsertedParticle      = 0
+  IF((Species(i)%ParticleEmissionType.EQ.2).AND.((Species(i)%ParticleEmission-INT(Species(i)%ParticleEmission)).NE.0)) THEN
+    WRITE(*,*) 'ERROR: If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number'
+    STOP
+  END IF
+  IF ((Species(i)%ParticleEmissionType .EQ. 4).OR.(Species(i)%ParticleEmissionType .EQ. 6)) PartPressureCell = .TRUE.
 ! stuff for multiple initial emissions
   Species(i)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
-  IF(Species(i)%NumberOfInits.NE.0) ALLOCATE(Species(i)%Init(1:Species(i)%NumberOfInits))
-  DO iInit = 1, Species(i)%NumberOfInits
-    WRITE(UNIT=hilf2,FMT='(I2)') iInit
-    Species(i)%Init(iInit)%SpaceIC               = &
-         GETSTR('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-SpaceIC','cuboid')
-    Species(i)%Init(iInit)%velocityDistribution  = &
-         GETSTR('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-velocityDistribution','constant')
-    Species(i)%Init(iInit)%initialParticleNumber = &
-         GETINT('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-initialParticleNumber','0')
-    Species(i)%Init(iInit)%RadiusIC              = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-RadiusIC','1.')
-    Species(i)%Init(iInit)%Radius2IC              = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-Radius2IC','0.')
-    Species(i)%Init(iInit)%RadiusICGyro          = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-RadiusICGyro','1.')
-    Species(i)%Init(iInit)%NormalIC              = &
-         GETREALARRAY('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-NormalIC',3,'0. , 0. , 1.')
-    Species(i)%Init(iInit)%BasePointIC           = &
-         GETREALARRAY('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-BasePointIC',3,'0. , 0. , 0.')
-    Species(i)%Init(iInit)%BaseVector1IC         = &
-         GETREALARRAY('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-BaseVector1IC',3,'1. , 0. , 0.')
-    Species(i)%Init(iInit)%BaseVector2IC         = &
-         GETREALARRAY('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-BaseVector2IC',3,'0. , 1. , 0.')
-    Species(i)%Init(iInit)%CuboidHeightIC        = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-CuboidHeightIC','1.')
-    Species(i)%Init(iInit)%CylinderHeightIC      = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-CylinderHeightIC','1.')
-    Species(i)%Init(iInit)%VeloIC                = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-VeloIC','0.')
-    Species(i)%Init(iInit)%VeloVecIC             = &
-         GETREALARRAY('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-VeloVecIC',3,'0. , 0. , 0.')
-    Species(i)%Init(iInit)%Amplitude             = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-Amplitude','0.01')
-    Species(i)%Init(iInit)%WaveNumber            = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-WaveNumber','2.')
-    Species(i)%Init(iInit)%maxParticleNumberX    = &
-         GETINT('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-maxParticleNumber-x','0')
-    Species(i)%Init(iInit)%maxParticleNumberY    = &
-         GETINT('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-maxParticleNumber-y','0')
-    Species(i)%Init(iInit)%maxParticleNumberZ    = &
-         GETINT('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-maxParticleNumber-z','0')
-    Species(i)%Init(iInit)%Alpha                 = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-Alpha','0.')
-    Species(i)%Init(iInit)%MWTemperatureIC       = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-MWTemperatureIC','0')
-    Species(i)%Init(iInit)%ConstantPressure      = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-ConstantPressure','0')
-    Species(i)%Init(iInit)%PartDensity      = &
-         GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-PartDensity','0')
+  IF( ( (Species(i)%initialParticleNumber.NE.0).OR.(Species(i)%ParticleEmission.NE.0.) ) &
+       .OR.(Species(i)%ConstantPressure.NE.0.) ) THEN
+    Species(i)%StartnumberOfInits = 0 ! old style parameters has been defined for inits/emissions (Part-Species(i)-***)
+  ELSE
+    Species(i)%StartnumberOfInits = 1 ! only new style paramaters defined (Part-Species(i)-Init(iInit)-***)
+  END IF
+  IF((Species(i)%StartnumberOfInits .EQ. 1).AND.(Species(i)%NumberOfInits .EQ. 0)) THEN
+    WRITE(*,*)'Neither an old style emission nor a new init/emission has been defined!'
+    STOP
+  END IF
+
+!!!!!!!!!!--- normalize VeloVecIC and NormalIC (and BaseVector 1 & 2 IC for cylinder), !!!moved to this position!!!
+  IF (.NOT. ALL(Species(i)%VeloVecIC(:).eq.0.)) THEN
+    Species(i)%VeloVecIC = Species(i)%VeloVecIC /                 &
+         SQRT(Species(i)%VeloVecIC(1)*Species(i)%VeloVecIC(1) + &
+         Species(i)%VeloVecIC(2)*Species(i)%VeloVecIC(2) + &
+         Species(i)%VeloVecIC(3)*Species(i)%VeloVecIC(3))
+  END IF
+  Species(i)%NormalIC = Species(i)%NormalIC /                 &
+       SQRT(Species(i)%NormalIC(1)*Species(i)%NormalIC(1) + &
+       Species(i)%NormalIC(2)*Species(i)%NormalIC(2) + &
+       Species(i)%NormalIC(3)*Species(i)%NormalIC(3))
+  IF (Species(i)%SpaceIC.EQ.'cylinder') THEN
+    Species(i)%BaseVector1IC = Species(i)%RadiusIC * Species(i)%BaseVector1IC /     &
+         SQRT(Species(i)%BaseVector1IC(1)*Species(i)%BaseVector1IC(1) + &
+         Species(i)%BaseVector1IC(2)*Species(i)%BaseVector1IC(2) + &
+         Species(i)%BaseVector1IC(3)*Species(i)%BaseVector1IC(3))
+    Species(i)%BaseVector2IC =  Species(i)%RadiusIC * Species(i)%BaseVector2IC /    &
+         SQRT(Species(i)%BaseVector2IC(1)*Species(i)%BaseVector2IC(1) + &
+         Species(i)%BaseVector2IC(2)*Species(i)%BaseVector2IC(2) + &
+         Species(i)%BaseVector2IC(3)*Species(i)%BaseVector2IC(3))
+  END IF
+!!!!!!!!!!End of normalizing, part 1 (for Inits see below)
+
+  ALLOCATE(Species(i)%Init(0:Species(i)%NumberOfInits))
+  DO iInit = 0, Species(i)%NumberOfInits
+    IF (iInit .EQ. 0) THEN !0. entry := old style parameter definition (default values if not defined, some values might be needed)
+      Species(i)%Init(iInit)%UseForInit            = Species(i)%UseForInit
+      Species(i)%Init(iInit)%UseForEmission        = Species(i)%UseForEmission
+      Species(i)%Init(iInit)%SpaceIC               = Species(i)%SpaceIC
+      Species(i)%Init(iInit)%velocityDistribution  = Species(i)%velocityDistribution
+      Species(i)%Init(iInit)%initialParticleNumber = Species(i)%initialParticleNumber
+      Species(i)%Init(iInit)%RadiusIC              = Species(i)%RadiusIC
+      Species(i)%Init(iInit)%Radius2IC             = Species(i)%Radius2IC
+      Species(i)%Init(iInit)%RadiusICGyro          = Species(i)%RadiusICGyro
+      Species(i)%Init(iInit)%NormalIC              = Species(i)%NormalIC
+      Species(i)%Init(iInit)%BasePointIC           = Species(i)%BasePointIC
+      Species(i)%Init(iInit)%BaseVector1IC         = Species(i)%BaseVector1IC
+      Species(i)%Init(iInit)%BaseVector2IC         = Species(i)%BaseVector2IC
+      Species(i)%Init(iInit)%CuboidHeightIC        = Species(i)%CuboidHeightIC
+      Species(i)%Init(iInit)%CylinderHeightIC      = Species(i)%CylinderHeightIC
+      Species(i)%Init(iInit)%VeloIC                = Species(i)%VeloIC
+      Species(i)%Init(iInit)%VeloVecIC             = Species(i)%VeloVecIC
+      Species(i)%Init(iInit)%Amplitude             = Species(i)%Amplitude
+      Species(i)%Init(iInit)%WaveNumber            = Species(i)%WaveNumber
+      Species(i)%Init(iInit)%maxParticleNumberX    = Species(i)%maxParticleNumberX
+      Species(i)%Init(iInit)%maxParticleNumberY    = Species(i)%maxParticleNumberY
+      Species(i)%Init(iInit)%maxParticleNumberZ    = Species(i)%maxParticleNumberZ
+      Species(i)%Init(iInit)%Alpha                 = Species(i)%Alpha
+      Species(i)%Init(iInit)%MWTemperatureIC       = Species(i)%MWTemperatureIC
+      Species(i)%Init(iInit)%ConstantPressure      = Species(i)%ConstantPressure
+      Species(i)%Init(iInit)%ConstPressureRelaxFac = Species(i)%ConstPressureRelaxFac
+      Species(i)%Init(iInit)%PartDensity           = Species(i)%PartDensity
+      Species(i)%Init(iInit)%ParticleEmissionType  = Species(i)%ParticleEmissionType
+      Species(i)%Init(iInit)%ParticleEmission      = Species(i)%ParticleEmission
+      Species(i)%Init(iInit)%InsertedParticle      = 0
+    ELSE
+      WRITE(UNIT=hilf2,FMT='(I2)') iInit
+      Species(i)%Init(iInit)%UseForInit            = &
+           GETLOGICAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-UseForInit','.TRUE.')
+      Species(i)%Init(iInit)%UseForEmission         = &
+           GETLOGICAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
+      Species(i)%Init(iInit)%SpaceIC               = &
+           GETSTR('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-SpaceIC','cuboid')
+      Species(i)%Init(iInit)%velocityDistribution  = &
+           GETSTR('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-velocityDistribution','constant')
+      Species(i)%Init(iInit)%initialParticleNumber = &
+           GETINT('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-initialParticleNumber','0')
+      Species(i)%Init(iInit)%RadiusIC              = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-RadiusIC','1.')
+      Species(i)%Init(iInit)%Radius2IC              = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-Radius2IC','0.')
+      Species(i)%Init(iInit)%RadiusICGyro          = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-RadiusICGyro','1.')
+      Species(i)%Init(iInit)%NormalIC              = &
+           GETREALARRAY('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-NormalIC',3,'0. , 0. , 1.')
+      Species(i)%Init(iInit)%BasePointIC           = &
+           GETREALARRAY('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-BasePointIC',3,'0. , 0. , 0.')
+      Species(i)%Init(iInit)%BaseVector1IC         = &
+           GETREALARRAY('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-BaseVector1IC',3,'1. , 0. , 0.')
+      Species(i)%Init(iInit)%BaseVector2IC         = &
+           GETREALARRAY('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-BaseVector2IC',3,'0. , 1. , 0.')
+      Species(i)%Init(iInit)%CuboidHeightIC        = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-CuboidHeightIC','1.')
+      Species(i)%Init(iInit)%CylinderHeightIC      = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-CylinderHeightIC','1.')
+      Species(i)%Init(iInit)%VeloIC                = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-VeloIC','0.')
+      Species(i)%Init(iInit)%VeloVecIC             = &
+           GETREALARRAY('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-VeloVecIC',3,'0. , 0. , 0.')
+      Species(i)%Init(iInit)%Amplitude             = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-Amplitude','0.01')
+      Species(i)%Init(iInit)%WaveNumber            = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-WaveNumber','2.')
+      Species(i)%Init(iInit)%maxParticleNumberX    = &
+           GETINT('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-maxParticleNumber-x','0')
+      Species(i)%Init(iInit)%maxParticleNumberY    = &
+           GETINT('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-maxParticleNumber-y','0')
+      Species(i)%Init(iInit)%maxParticleNumberZ    = &
+           GETINT('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-maxParticleNumber-z','0')
+      Species(i)%Init(iInit)%Alpha                 = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-Alpha','0.')
+      Species(i)%Init(iInit)%MWTemperatureIC       = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-MWTemperatureIC','0.')
+      Species(i)%Init(iInit)%ConstantPressure      = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-ConstantPressure','0.')
+      Species(i)%Init(iInit)%ConstPressureRelaxFac = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-ConstPressureRelaxFac','1.')
+      Species(i)%Init(iInit)%PartDensity           = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-PartDensity','0.')
+      Species(i)%Init(iInit)%ParticleEmissionType  = &
+           GETINT('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-ParticleEmissionType','2')
+      Species(i)%Init(iInit)%ParticleEmission      = &
+           GETREAL('Part-Species'//TRIM(hilf)//'-Init'//TRIM(hilf2)//'-ParticleEmission','0.')
+      Species(i)%Init(iInit)%InsertedParticle      = 0
+      IF((Species(i)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
+           ((Species(i)%Init(iInit)%ParticleEmission-INT(Species(i)%Init(iInit)%ParticleEmission)).NE.0)) THEN
+        WRITE(*,*) 'ERROR: If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number'
+        STOP
+      END IF
+      IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4).OR. &
+           (Species(i)%Init(iInit)%ParticleEmissionType .EQ. 6)) PartPressureCell = .TRUE.
+    END IF
   END DO
 END DO
 ! Which Lorentz boost method should be used?
@@ -801,55 +890,55 @@ DO i = 1,n
 END DO
 DEALLOCATE(iseeds)
 
-!--- normalize VeloVecIC and NormalIC (and BaseVector 1 & 2 IC for cylinder)
+!--- normalize VeloVecIC and NormalIC (and BaseVector 1 & 2 IC for cylinder), !!!only for Inits stayed here!!!
 
 DO i = 1, nSpecies
-   IF (.NOT. ALL(Species(i)%VeloVecIC(:).eq.0.)) THEN
-     Species(i)%VeloVecIC = Species(i)%VeloVecIC /                 &
-            SQRT(Species(i)%VeloVecIC(1)*Species(i)%VeloVecIC(1) + &
-                 Species(i)%VeloVecIC(2)*Species(i)%VeloVecIC(2) + &
-                 Species(i)%VeloVecIC(3)*Species(i)%VeloVecIC(3))
-   END IF
-     Species(i)%NormalIC = Species(i)%NormalIC /                 &
-            SQRT(Species(i)%NormalIC(1)*Species(i)%NormalIC(1) + &
-                 Species(i)%NormalIC(2)*Species(i)%NormalIC(2) + &
-                 Species(i)%NormalIC(3)*Species(i)%NormalIC(3))
-     DO iInit = 1, Species(i)%NumberOfInits
-       IF (.NOT. ALL(Species(i)%Init(iInit)%VeloVecIC(:).eq.0.)) THEN
-         Species(i)%Init(iInit)%VeloVecIC = Species(i)%Init(iInit)%VeloVecIC /                 &
-                SQRT(Species(i)%Init(iInit)%VeloVecIC(1)*Species(i)%Init(iInit)%VeloVecIC(1) + &
-                     Species(i)%Init(iInit)%VeloVecIC(2)*Species(i)%Init(iInit)%VeloVecIC(2) + &
-                     Species(i)%Init(iInit)%VeloVecIC(3)*Species(i)%Init(iInit)%VeloVecIC(3))
-       END IF
-       Species(i)%Init(iInit)%NormalIC = Species(i)%Init(iInit)%NormalIC /                 &
-              SQRT(Species(i)%Init(iInit)%NormalIC(1)*Species(i)%Init(iInit)%NormalIC(1) + &
-                   Species(i)%Init(iInit)%NormalIC(2)*Species(i)%Init(iInit)%NormalIC(2) + &
-                   Species(i)%Init(iInit)%NormalIC(3)*Species(i)%Init(iInit)%NormalIC(3))
-     END DO
-   IF (Species(i)%SpaceIC.EQ.'cylinder') THEN
-     Species(i)%BaseVector1IC = Species(i)%RadiusIC * Species(i)%BaseVector1IC /     &
-                      SQRT(Species(i)%BaseVector1IC(1)*Species(i)%BaseVector1IC(1) + &
-                           Species(i)%BaseVector1IC(2)*Species(i)%BaseVector1IC(2) + &
-                           Species(i)%BaseVector1IC(3)*Species(i)%BaseVector1IC(3))
-     Species(i)%BaseVector2IC =  Species(i)%RadiusIC * Species(i)%BaseVector2IC /    &
-                      SQRT(Species(i)%BaseVector2IC(1)*Species(i)%BaseVector2IC(1) + &
-                           Species(i)%BaseVector2IC(2)*Species(i)%BaseVector2IC(2) + &
-                           Species(i)%BaseVector2IC(3)*Species(i)%BaseVector2IC(3))
-   END IF
-     DO iInit = 1, Species(i)%NumberOfInits
-       IF (Species(i)%Init(iInit)%SpaceIC.EQ.'cylinder') THEN
-         Species(i)%Init(iInit)%BaseVector1IC = Species(i)%Init(iInit)%RadiusIC * Species(i)%Init(iInit)%BaseVector1IC /     &
-                          SQRT(Species(i)%Init(iInit)%BaseVector1IC(1)*Species(i)%Init(iInit)%BaseVector1IC(1) + &
-                               Species(i)%Init(iInit)%BaseVector1IC(2)*Species(i)%Init(iInit)%BaseVector1IC(2) + &
-                               Species(i)%Init(iInit)%BaseVector1IC(3)*Species(i)%Init(iInit)%BaseVector1IC(3))
-         Species(i)%Init(iInit)%BaseVector2IC =  Species(i)%Init(iInit)%RadiusIC * Species(i)%Init(iInit)%BaseVector2IC /    &
-                          SQRT(Species(i)%Init(iInit)%BaseVector2IC(1)*Species(i)%Init(iInit)%BaseVector2IC(1) + &
-                               Species(i)%Init(iInit)%BaseVector2IC(2)*Species(i)%Init(iInit)%BaseVector2IC(2) + &
-                               Species(i)%Init(iInit)%BaseVector2IC(3)*Species(i)%Init(iInit)%BaseVector2IC(3))
-       END IF
-     END DO
+!  IF (.NOT. ALL(Species(i)%VeloVecIC(:).eq.0.)) THEN                  !moved before copying to Init(0)!!!
+!    Species(i)%VeloVecIC = Species(i)%VeloVecIC /                 &   !
+!         SQRT(Species(i)%VeloVecIC(1)*Species(i)%VeloVecIC(1) + &     !
+!         Species(i)%VeloVecIC(2)*Species(i)%VeloVecIC(2) + &          .
+!         Species(i)%VeloVecIC(3)*Species(i)%VeloVecIC(3))             .
+!  END IF                                                              .
+!  Species(i)%NormalIC = Species(i)%NormalIC /                 &
+!       SQRT(Species(i)%NormalIC(1)*Species(i)%NormalIC(1) + &
+!       Species(i)%NormalIC(2)*Species(i)%NormalIC(2) + &
+!       Species(i)%NormalIC(3)*Species(i)%NormalIC(3))
+  DO iInit = 1, Species(i)%NumberOfInits                               ! from 1, as 0 is already the copy of Species(i)%Velo...
+    IF (.NOT. ALL(Species(i)%Init(iInit)%VeloVecIC(:).eq.0.)) THEN
+      Species(i)%Init(iInit)%VeloVecIC = Species(i)%Init(iInit)%VeloVecIC /                 &
+           SQRT(Species(i)%Init(iInit)%VeloVecIC(1)*Species(i)%Init(iInit)%VeloVecIC(1) + &
+           Species(i)%Init(iInit)%VeloVecIC(2)*Species(i)%Init(iInit)%VeloVecIC(2) + &
+           Species(i)%Init(iInit)%VeloVecIC(3)*Species(i)%Init(iInit)%VeloVecIC(3))
+    END IF
+    Species(i)%Init(iInit)%NormalIC = Species(i)%Init(iInit)%NormalIC /                 &
+         SQRT(Species(i)%Init(iInit)%NormalIC(1)*Species(i)%Init(iInit)%NormalIC(1) + &
+         Species(i)%Init(iInit)%NormalIC(2)*Species(i)%Init(iInit)%NormalIC(2) + &
+         Species(i)%Init(iInit)%NormalIC(3)*Species(i)%Init(iInit)%NormalIC(3))
+!  END DO
+!  IF (Species(i)%SpaceIC.EQ.'cylinder') THEN
+!    Species(i)%BaseVector1IC = Species(i)%RadiusIC * Species(i)%BaseVector1IC /     &
+!         SQRT(Species(i)%BaseVector1IC(1)*Species(i)%BaseVector1IC(1) + &
+!         Species(i)%BaseVector1IC(2)*Species(i)%BaseVector1IC(2) + &
+!         Species(i)%BaseVector1IC(3)*Species(i)%BaseVector1IC(3))
+!    Species(i)%BaseVector2IC =  Species(i)%RadiusIC * Species(i)%BaseVector2IC /    &
+!         SQRT(Species(i)%BaseVector2IC(1)*Species(i)%BaseVector2IC(1) + &
+!         Species(i)%BaseVector2IC(2)*Species(i)%BaseVector2IC(2) + &
+!         Species(i)%BaseVector2IC(3)*Species(i)%BaseVector2IC(3))
+!  END IF
+!  DO iInit = 1, Species(i)%NumberOfInits
+    IF (Species(i)%Init(iInit)%SpaceIC.EQ.'cylinder') THEN
+      Species(i)%Init(iInit)%BaseVector1IC = Species(i)%Init(iInit)%RadiusIC * Species(i)%Init(iInit)%BaseVector1IC /     &
+           SQRT(Species(i)%Init(iInit)%BaseVector1IC(1)*Species(i)%Init(iInit)%BaseVector1IC(1) + &
+           Species(i)%Init(iInit)%BaseVector1IC(2)*Species(i)%Init(iInit)%BaseVector1IC(2) + &
+           Species(i)%Init(iInit)%BaseVector1IC(3)*Species(i)%Init(iInit)%BaseVector1IC(3))
+      Species(i)%Init(iInit)%BaseVector2IC =  Species(i)%Init(iInit)%RadiusIC * Species(i)%Init(iInit)%BaseVector2IC /    &
+           SQRT(Species(i)%Init(iInit)%BaseVector2IC(1)*Species(i)%Init(iInit)%BaseVector2IC(1) + &
+           Species(i)%Init(iInit)%BaseVector2IC(2)*Species(i)%Init(iInit)%BaseVector2IC(2) + &
+           Species(i)%Init(iInit)%BaseVector2IC(3)*Species(i)%Init(iInit)%BaseVector2IC(3))
+    END IF
+  END DO
 END DO
-   
+
 DelayTime = GETREAL('Part-DelayTime','0.')
 
 CALL DomainUpdate()
@@ -891,13 +980,14 @@ SUBROUTINE DomainUpdate()
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-   INTEGER                          :: i,k,l,ElemID,iLocSide,iNode                                 !
+   INTEGER                          :: i,k,l,ElemID,iLocSide,iNode, iInit                                 !
    INTEGER                          :: BGMimin,BGMimax,BGMkmin,BGMkmax,BGMlmin,BGMlmax             !
    REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax                          !
    INTEGER                          :: BGMCellXmax,BGMCellXmin                                     !
    INTEGER                          :: BGMCellYmax,BGMCellYmin                                     !
    INTEGER                          :: BGMCellZmax,BGMCellZmin                                     !
    INTEGER                          :: ALLOCSTAT                                                   !
+   LOGICAL                          :: exitTrue
 #ifdef MPI
    INTEGER                          :: BGMCells, j, m, CurrentProc, MaxShapeProcs, Cell, Procs
    INTEGER                          :: imin, imax, kmin, kmax, lmin, lmax                          !
@@ -1624,18 +1714,28 @@ SUBROUTINE DomainUpdate()
    CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 #endif
 
+exitTrue=.false.
 DO i = 1,nSpecies
-  IF((Species(i)%ParticleEmissionType .EQ. 3).OR.(Species(i)%ParticleEmissionType .EQ. 5)) THEN
-    CALL ParticlePressureIni()
-    EXIT
-  END IF
+  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+    IF((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
+      CALL ParticlePressureIni()
+      exitTrue=.true.
+      EXIT
+    END IF
+  END DO
+  IF (exitTrue) EXIT
 END DO
 
+exitTrue=.false.
 DO i = 1,nSpecies
-  IF(Species(i)%ParticleEmissionType .EQ. 4) THEN
-    CALL ParticlePressureCellIni()
-    EXIT
-  END IF
+  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+    IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 6)) THEN
+      CALL ParticlePressureCellIni()
+      exitTrue=.true.
+      EXIT
+    END IF
+  END DO
+  IF (exitTrue) EXIT
 END DO
 
 IF (OutputMesh) CALL WriteOutputMesh()

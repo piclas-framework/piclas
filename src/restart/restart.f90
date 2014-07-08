@@ -184,7 +184,7 @@ REAL,ALLOCATABLE         :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE         :: U_local2(:,:,:,:,:)
 INTEGER                  :: iElem,iPML
 #ifdef PARTICLES
-INTEGER                  :: FirstElemInd,LastelemInd,iVar,i
+INTEGER                  :: FirstElemInd,LastelemInd,iVar,i,iInit
 INTEGER,ALLOCATABLE      :: PartInt(:,:)
 INTEGER,PARAMETER        :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                  :: PartDataSize         !number of entries in each line of PartData
@@ -426,7 +426,9 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   CALL UpdateNextFreePosition()
   SWRITE(UNIT_stdOut,*)'DONE!' 
   DO i=1,nSpecies
-    Species(i)%InsertedParticle = INT(Species(i)%ParticleEmission * RestartTime)
+    DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+      Species(i)%Init(iInit)%InsertedParticle = INT(Species(i)%Init(iInit)%ParticleEmission * RestartTime)
+    END DO
   END DO
   ! if ParticleVecLength GT maxParticleNumber: Stop
   IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN

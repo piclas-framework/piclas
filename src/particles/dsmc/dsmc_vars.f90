@@ -109,6 +109,8 @@ TYPE tDSMC
   LOGICAL                       :: ElectronicState    ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicStateDatabase ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs  ! Number of polyatomic molecules
+  LOGICAL                       :: OutputMeshInit     ! Write Outputmesh (for const. pressure BC) at Init.
+  LOGICAL                       :: OutputMeshSamp     ! Write Outputmesh (for const. pressure BC) with sampling values at t_analyze
 END TYPE tDSMC
 
 TYPE(tDSMC)                        :: DSMC
