@@ -110,7 +110,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Analyze,               ONLY: PerformeAnalyze
 USE MOD_PoyntingInt,           ONLY: CalcPoyntingIntegral
-USE MOD_Analyze_Vars,          ONLY: Analyze_dt
+USE MOD_Analyze_Vars,          ONLY: Analyze_dt,CalcPoyntingInt
 USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze,ViscousTimeStep,iter,IterDisplayStep
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
 USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
@@ -233,7 +233,7 @@ END IF ! useManualTimestep
 
 ! first analyze Particles (write zero state)
 CALL AnalyzeParticles(t) 
-CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
+IF (CalcPoyntingInt) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
 !CALL Visualize_Particles(t)
 
 #if (PP_TimeDiscMethod==201)
