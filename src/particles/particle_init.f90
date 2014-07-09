@@ -573,16 +573,16 @@ DO i=1,nSpecies
   IF ((Species(i)%ParticleEmissionType .EQ. 4).OR.(Species(i)%ParticleEmissionType .EQ. 6)) PartPressureCell = .TRUE.
 ! stuff for multiple initial emissions
   Species(i)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
-  IF( ( (Species(i)%initialParticleNumber.NE.0).OR.(Species(i)%ParticleEmission.NE.0.) ) &
-       .OR.(Species(i)%ConstantPressure.NE.0.) ) THEN
-    Species(i)%StartnumberOfInits = 0 ! old style parameters has been defined for inits/emissions (Part-Species(i)-***)
-  ELSE
+  IF((((Species(i)%initialParticleNumber.EQ.0).AND.(Species(i)%ParticleEmission.EQ.0.) ) &
+       .AND.(Species(i)%ConstantPressure.EQ.0.).AND.Species(i)%NumberOfInits.GT.0)) THEN
     Species(i)%StartnumberOfInits = 1 ! only new style paramaters defined (Part-Species(i)-Init(iInit)-***)
+  ELSE
+    Species(i)%StartnumberOfInits = 0 ! old style parameters has been defined for inits/emissions (Part-Species(i)-***)
   END IF
-  IF((Species(i)%StartnumberOfInits .EQ. 1).AND.(Species(i)%NumberOfInits .EQ. 0)) THEN
-    WRITE(*,*)'Neither an old style emission nor a new init/emission has been defined!'
-    STOP
-  END IF
+!  IF((Species(i)%StartnumberOfInits .EQ. 1).AND.(Species(i)%NumberOfInits .EQ. 0)) THEN
+!    WRITE(*,*)'Neither an old style emission nor a new init/emission has been defined!'
+!    STOP
+!  END IF
 
 !!!!!!!!!!--- normalize VeloVecIC and NormalIC (and BaseVector 1 & 2 IC for cylinder), !!!moved to this position!!!
   IF (.NOT. ALL(Species(i)%VeloVecIC(:).eq.0.)) THEN
