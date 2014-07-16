@@ -364,7 +364,7 @@ SUBROUTINE ParticleInserting()
 #else
          nPartIn(i)=nPartIn(i) + NBrofParticle
          DO iPart=1,NbrOfparticle
-           nPartEkinIn(PartSpecies(iPart))=nPartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
+           PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
          END DO ! iPart
 #endif
        END IF ! CalcPartBalance
