@@ -196,6 +196,8 @@ SUBROUTINE ParticleInserting()
   USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
   USE MOD_LD_Vars
 #endif
+  USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn,PartAnalyzeStep,nPartInTemp,PartEkinInTemp
+  USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
   USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
 !===================================================================================================================================
 ! implicit variable handling
@@ -209,7 +211,7 @@ SUBROUTINE ParticleInserting()
 ! Local variable declaration                                                                       
    INTEGER                          :: i , iPart, PositionNbr, iInit                                                          
    INTEGER                , SAVE    :: NbrOfParticle=0                                             
-   INTEGER(KIND=8)                          :: inserted_Particle_iter,inserted_Particle_time               
+   INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time               
    INTEGER(KIND=8)                  :: inserted_Particle_diff  
 #ifdef MPI
    INTEGER                          :: mode,iProc,iTag                                             
@@ -345,6 +347,27 @@ SUBROUTINE ParticleInserting()
          PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
          !CALL UpdateNextFreePosition()
        END IF
+       ! compute number of input particles and energy
+       IF(CalcPartBalance) THEN
+#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+         IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
+           nPartInTemp(i)=nPartInTemp(i) + NBrofParticle
+           DO iPart=1,NbrOfparticle
+             PartEkinInTemp(PartSpecies(iPart))=PartEkinInTemp(PartSpecies(iPart))+CalcEkinPart(iPart)
+           END DO ! iPart
+         ELSE
+           nPartIn(i)=nPartIn(i) + NBrofParticle
+           DO iPart=1,NbrOfparticle
+             PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
+           END DO ! iPart
+         END IF
+#else
+         nPartIn(i)=nPartIn(i) + NBrofParticle
+         DO iPart=1,NbrOfparticle
+           nPartEkinIn(PartSpecies(iPart))=nPartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
+         END DO ! iPart
+#endif
+       END IF ! CalcPartBalance
      END DO
    END DO
  RETURN

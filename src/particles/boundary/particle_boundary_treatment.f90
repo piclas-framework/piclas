@@ -207,6 +207,9 @@ USE MOD_BoundaryTools, ONLY : DiffuseReflection3D
 USE MOD_BoundaryTools, ONLY : PeriodicWallBnd3D 
 USE MOD_BoundaryTools, ONLY : ParticleThroughSideLastPosCheck
 USE MOD_part_MPI_Vars, ONLY : partShiftVector
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,PartAnalyzeStep
+USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
+!--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
@@ -383,6 +386,12 @@ IF((GEO%nPeriodicVectors.GE.0).AND.(ALLOCATED(partShiftVector))) partShiftVector
              STOP
            END IF
            IF (PartBound%Map(BC(GlobSideID)).EQ.PartBound%OpenBC) THEN
+             IF(CalcPartBalance) THEN
+               !IF(MOD(iter+1,PartAnalyzeStep).EQ.0)THEN ! caution if correct
+                 nPartOut(PartSpecies(i))=nPartOut(PartSpecies(i)) + 1
+                 PartEkinOut(PartSpecies(i))=PartEkinOut(PartSpecies(i))+CalcEkinPart(i)
+               !END IF ! iter+1
+             END IF ! CalcPartBalance
              PDM%ParticleInside(i) = .FALSE.
              DONE = .TRUE.
            ELSE IF (PartBound%Map(BC(GlobSideID)).EQ.PartBound%ReflectiveBC) THEN
@@ -509,6 +518,8 @@ USE MOD_BoundaryTools, ONLY : PerfectReflection3D_halocells
 USE MOD_BoundaryTools, ONLY : DiffuseReflection3D_halocells 
 USE MOD_BoundaryTools, ONLY : ParticleThroughSideLastPosCheck_halocells
 USE MOD_part_MPI_Vars, ONLY : partShiftVector
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,PartAnalyzeStep
+USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
@@ -518,7 +529,7 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
   LOGICAL, INTENT(OUT)             :: isMPIPart
 !--------------------------------------------------------------------------------------------------!
 ! Local variable declaration                                                                       !
-  INTEGER                          :: n, k, Element, LocalSide, tempcount                                     !
+  INTEGER                          :: n, k, Element, LocalSide, tempcount !
   INTEGER                          :: NrOfThroughSides,DoneSideID(2), SecondNrOfThroughSides
   INTEGER                          :: TempSideID,iLocSide, ind2, ind
   INTEGER                          :: haloSideID, DoneLastElem(1:3,1:2)
@@ -645,6 +656,12 @@ USE MOD_part_MPI_Vars, ONLY : partShiftVector
            IF (PartBound%Map(MPIGEO%BC(1,haloSideID)).EQ.PartBound%OpenBC) THEN
              PDM%ParticleInside(i) = .FALSE.
              DONE = .TRUE.
+             IF(CalcPartBalance) THEN
+               !IF(MOD(iter+1,PartAnalyzeStep).EQ.0)THEN ! caution if correct
+                 nPartOut(PartSpecies(i))=nPartOut(PartSpecies(i)) + 1
+                 PartEkinOut(PartSpecies(i))=PartEkinOut(PartSpecies(i))+CalcEkinPart(i)
+               !END IF ! iter+1
+             END IF ! CalcPartBalance
            ELSE IF (PartBound%Map(MPIGEO%BC(1,haloSideID)).EQ.PartBound%ReflectiveBC) THEN
              CALL RANDOM_NUMBER(RanNum)
              IF(RanNum.GE.PartBound%MomentumACC(MPIGEO%BC(1,haloSideID))) THEN

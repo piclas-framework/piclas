@@ -33,7 +33,11 @@ INTERFACE CalcShapeEfficiencyR
   MODULE PROCEDURE CalcShapeEfficiencyR
 END INTERFACE
 
-PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze, AnalyzeParticles, CalcKineticEnergy, CalcPotentialEnergy
+INTERFACE CalcEkinPart
+  MODULE PROCEDURE CalcEkinPart
+END INTERFACE
+
+PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze, AnalyzeParticles, CalcKineticEnergy, CalcPotentialEnergy, CalcEkinPart
 #if (PP_TimeDiscMethod == 42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
@@ -67,6 +71,9 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
 
+PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
+IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
+
  DoAnalyze = .FALSE.
  CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
  IF(CalcCharge) DoAnalyze = .TRUE. 
@@ -75,7 +82,6 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
  CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
  CalcTemp = GETLOGICAL('CalcTransTemp','.FALSE.')
  IF (CalcTemp) CalcEkin = .TRUE.
- TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
  IF(CalcEkin) THEN
    DoAnalyze = .TRUE.
    IF (nSpecies .GT. 1) THEN
@@ -84,6 +90,25 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
     nEkin = 1
    END IF
  END IF
+ CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
+ IF (CalcPartBalance) THEN
+   DoAnalyze = .TRUE.
+   ALLOCATE( nPartIn(nSpecies)     &
+           , nPartOut(nSpecies)    &
+           , PartEkinOut(nSpecies) &
+           , PartEkinIn(nSpecies)  )
+  nPartIn=0
+  nPartOut=0
+  PartEkinOut=0.
+  PartEkinIn=0.
+#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+   ALLOCATE( nPartInTemp(nSpecies)     &
+           , PartEkinInTemp(nSpecies)  )
+   PartEkinInTemp=0.
+   nPartInTemp=0
+#endif
+ END IF
+ TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
  CalcNumSpec = GETLOGICAL('CalcNumSpec','.FALSE.')
  IF(CalcNumSpec) DoAnalyze = .TRUE.
  CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency','.FALSE.')
@@ -101,10 +126,6 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
  END IF
 
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
-
-
-PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
-IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
 
 
 ChargeCalcDone = .FALSE.
@@ -150,9 +171,7 @@ REAL                :: WEl, WMag
 REAL                :: Ekin(nSpecies + 1), Temp(nSpecies), IntTemp(nSpecies,3), IntEn(nSpecies,3)
 INTEGER             :: NumSpec(nSpecies), OutputCounter, iTvib
 #ifdef MPI
-INTEGER             :: sumNumSpec(nSpecies)
-REAL                :: sumTemp(nSpecies), sumIntTemp(nSpecies),sumIntEn(nSpecies), sumEkin(nSpecies + 1)
-REAL                :: sumWEl, sumWMag
+REAL                :: sumIntTemp(nSpecies),sumIntEn(nSpecies)
 #endif
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
@@ -211,19 +230,34 @@ unit_index = 535
           IF (CalcNumSpec) THEN
             DO iSpec = 1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(A14,I3.3)',ADVANCE='NO') 'PartNum-Spec-', iSpec
+              WRITE(unit_index,'(I3.3,A12,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPart-Spec-', iSpec
+              OutputCounter = OutputCounter + 1
             END DO              
+          END IF
+          IF (CalcPartBalance) THEN
+            DO iSpec=1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A14,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartIn-Spec-',iSpec,' '
+              OutputCounter = OutputCounter + 1
+            END DO
+            DO iSpec=1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A15,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartOut-Spec-',iSpec,' '
+              OutputCounter = OutputCounter + 1
+            END DO
           END IF
           IF (CalcEpot) THEN 
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(A14)',ADVANCE='NO') 'W-El'
+            WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-El      '
+              OutputCounter = OutputCounter + 1
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(A14)',ADVANCE='NO') 'W-Mag'
+            WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-Mag    '
+              OutputCounter = OutputCounter + 1
           END IF
           IF (CalcEkin) THEN
             DO iSpec=1, nEkin
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Ekin',iSpec,' '
+              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Ekin-',iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
             IF (CalcTemp) THEN
@@ -233,6 +267,19 @@ unit_index = 535
                 OutputCounter = OutputCounter + 1
               END DO
             END IF
+          END IF
+          IF (CalcPartBalance) THEN
+            DO iSpec=1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A8,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinIn-',iSpec,' '
+              OutputCounter = OutputCounter + 1
+            END DO
+            DO iSpec=1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A9,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinOut-',iSpec,' '
+              OutputCounter = OutputCounter + 1
+            END DO
+          END IF
 #if (PP_TimeDiscMethod==42)
               IF (CollisMode.NE.1) THEN
                 DO iSpec=1, nSpecies         
@@ -296,7 +343,6 @@ unit_index = 535
                 OutputCounter = OutputCounter + 1
               END DO              
 #endif
-          END IF
           WRITE(unit_index,'(A14)') ' ' 
        END IF
     END IF
@@ -310,23 +356,46 @@ IF(CalcEpot) CALL CalcPotentialEnergy(WEl,WMag)
 IF(CalcEkin) CALL CalcKineticEnergy(Ekin)
 IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
 IF(CalcTemp) CALL CalcTemperature(Temp, NumSpec)
+IF(CalcNumSpec.AND..NOT.CalcTemp) CALL GetNumSpec(NumSpec)
 
 ! MPI Communication
 #ifdef MPI
-IF (CalcEpot) THEN
-  CALL MPI_REDUCE(WEl , sumWEl , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
-  WEl = sumWEl
-  CALL MPI_REDUCE(WMag, sumWMag , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
-  WMag = sumWMag
-END IF
-IF (CalcEkin) THEN
-  CALL MPI_REDUCE(Ekin(:) , sumEkin , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
-  Ekin(:) = sumEkin(:)
-END IF
-IF (CalcTemp) THEN
-  sumTemp = 0
-  CALL MPI_REDUCE(Temp   , sumTemp    , nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
-  Temp = sumTemp / PMPIVAR%nProcs
+IF(MPIRoot) THEN
+  IF(CalcNumSpec) &
+    CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec,nSpecies,MPI_INTEGER,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+  IF (CalcEpot) THEN 
+    CALL MPI_REDUCE(MPI_IN_PLACE,WEl , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,WMag, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  END IF
+  IF (CalcEkin) &
+    CALL MPI_REDUCE(MPI_IN_PLACE,Ekin(:) , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  IF (CalcTemp) THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,Temp   , nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+    Temp = Temp / PMPIVAR%nProcs
+  END IF
+  IF (CalcPartBalance)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(:)    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,nPartOUt(:)   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(:) ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+  END IF
+ELSE ! no Root
+  IF(CalcNumSpec) &
+    CALL MPI_REDUCE(NumSpec,NumSpec,nSpecies,MPI_INTEGER,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+  IF (CalcEpot) THEN 
+    CALL MPI_REDUCE(WEl,WEl , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(WMag,WMag, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  END IF
+  IF (CalcEkin) &
+    CALL MPI_REDUCE(Ekin,Ekin(:) , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  IF (CalcTemp) &
+    CALL MPI_REDUCE(Temp,Temp   , nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  IF (CalcPartBalance)THEN
+    CALL MPI_REDUCE(nPartIn,nPartIn(:)    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+    CALL MPI_REDUCE(nPartOut,nPartOUt(:)   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+    CALL MPI_REDUCE(PartEkinIn,PartEkinIn(:) ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+    CALL MPI_REDUCE(PartEkinOut,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+  END IF
 END IF
 #endif
 
@@ -368,7 +437,17 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
    IF (CalcNumSpec) THEN
      DO iSpec=1, nSpecies
        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-       WRITE(unit_index,'(I10.1)',ADVANCE='NO') NumSpec(iSpec)
+       WRITE(unit_index,'(I18.1)',ADVANCE='NO') NumSpec(iSpec)
+     END DO
+   END IF
+   IF (CalcPartBalance) THEN
+     DO iSpec=1, nSpecies
+       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+       WRITE(unit_index,'(I20.1)',ADVANCE='NO') nPartIn(iSpec)
+     END DO
+     DO iSpec=1, nSpecies
+       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+       WRITE(unit_index,'(I21.1)',ADVANCE='NO') nPartOut(iSpec)
      END DO
    END IF
    IF (CalcEpot) THEN 
@@ -388,6 +467,17 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
          WRITE(unit_index,104,ADVANCE='NO') Temp(iSpec)
        END DO
      END IF
+   END IF
+   IF (CalcPartBalance) THEN
+     DO iSpec=1, nSpecies
+       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+       WRITE(unit_index,104,ADVANCE='NO') PartEkinIn(iSpec)
+     END DO
+     DO iSpec=1, nSpecies
+       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+       WRITE(unit_index,104,ADVANCE='NO') PartEkinOut(iSpec)
+     END DO
+   END IF
 #if (PP_TimeDiscMethod==42)
       IF (CollisMode.NE.1) THEN
         DO iSpec=1, nSpecies
@@ -438,7 +528,6 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
         WRITE(unit_index,'(I10.1)',ADVANCE='NO') NumSpec(iSpec)
       END DO
 #endif
-   END IF
    WRITE(unit_index,'(A1)') ' ' 
 #ifdef MPI
  END IF
@@ -452,6 +541,8 @@ ELSE
 !SWRITE(UNIT_stdOut,'(A)')' NO PARTCILE ANALYZE TO DO!'
 !SWRITE(UNIT_StdOut,'(132("-"))')
 END IF ! DoAnalyze
+
+IF( CalcPartBalance) CALL CalcParticleBalance()
 
 #if ( PP_TimeDiscMethod ==42 )
 ! hard coded
@@ -666,6 +757,39 @@ INTEGER           :: i, iSpec
   END DO
 END SUBROUTINE GetNumSpec
 
+SUBROUTINE CalcParticleBalance()
+!===================================================================================================================================
+! Initializes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars,      ONLY : nPartIn,nPartOut,nPartInTemp,PartEkinIn,PartEkinOut,PartEkinInTemp
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+nPartIn=nPartInTemp
+nPartOut=0
+PartEkinIn=PartEkinInTemp
+PartEkinOut=0.
+nPartInTemp=0
+PartEkinInTemp=0.
+#else
+nPartIn=0
+nPartOut=0
+PartEkinIn=0.
+PartEkinOut=0.
+#endif
+
+END SUBROUTINE CalcParticleBalance
 
 SUBROUTINE CalcPotentialEnergy(WEl, WMag) 
 !===================================================================================================================================
@@ -773,7 +897,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: Ekin(:) 
+REAL,INTENT(OUT)                :: Ekin(nEkin) 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i
@@ -1351,5 +1475,52 @@ END IF
 104    FORMAT (e25.14)
 
 END SUBROUTINE TrackingParticlePosition
+
+Function CalcEkinPart(iPart) 
+!===================================================================================================================================
+! computes the kinetic energy of one particle
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Equation_Vars,          ONLY : c2, c2_inv
+USE MOD_Particle_Vars,          ONLY : PartState, PartSpecies, Species
+USE MOD_PARTICLE_Vars,          ONLY : PartMPF, usevMPF
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(IN)                 :: iPart
+REAL                               :: CalcEkinPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                               :: partV2, gamma1, Ekin
+!===================================================================================================================================
+
+partV2 = PartState(iPart,4) * PartState(iPart,4) &
+       + PartState(iPart,5) * PartState(iPart,5) &
+       + PartState(iPart,6) * PartState(iPart,6)
+
+IF(usevMPF)THEN
+  IF (partV2.LT.1e6)THEN
+    Ekin= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * PartMPF(iPart)            
+  ELSE
+    gamma1=partV2*c2_inv
+    gamma1=1.0/SQRT(1.-gamma1)
+    Ekin=PartMPF(iPart)*(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2
+  END IF ! ipartV2
+ELSE ! novMPF
+  IF (partV2.LT.1e6)THEN
+    Ekin= 0.5*Species(PartSpecies(iPart))%MassIC*partV2* Species(PartSpecies(iPart))%MacroParticleFactor
+  ELSE
+    gamma1=partV2*c2_inv
+    gamma1=1.0/SQRT(1.-gamma1)
+    Ekin= (gamma1-1.0)* Species(PartSpecies(iPart))%MassIC*Species(PartSpecies(iPart))%MacroParticleFactor*c2
+  END IF ! ipartV2
+END IF ! usevMPF
+CalcEkinPart=Ekin
+END FUNCTION CalcEkinPart
 
 END MODULE MOD_Particle_Analyze
