@@ -1,0 +1,215 @@
+PROGRAM RayBilinearPatch
+!================================================================================================================================
+! this program computes the intersection of a ray with an bi-linear patch
+! first try is based on a certain paper      
+!================================================================================================================================
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! nodes and particle 
+REAL,DIMENSION(3,4)           :: xNode
+REAL,DIMENSION(3)             :: PartState, lastPartState
+!--------------------------------------------------------------------------------------------------------------------------------
+! vector equation
+REAL,DIMENSION(3)             :: tvec
+!--------------------------------------------------------------------------------------------------------------------------------
+! bi-linear equation
+REAL,DIMENSION(3,4)           :: BiCoeff
+!--------------------------------------------------------------------------------------------------------------------------------
+! information for quatric equation solver
+REAL                          :: A,B,C ! note: A=b, B=b**2-4*a*c, C=2*a
+REAL,DIMENSION(4)             :: a1,a2
+INTEGER                       :: nRoot
+REAL,DIMENSION(2)             :: iu,iv,alpha
+REAL,DIMENSION(3)             :: q1
+LOGICAL,DIMENSION(2)          :: isIntersection
+!--------------------------------------------------------------------------------------------------------------------------------
+! functions
+REAL                          :: ComputeAlpha
+!================================================================================================================================
+
+
+!--------------------------------------------------------------------------------------------------------------------------------
+! insert nodes and particle position
+!--------------------------------------------------------------------------------------------------------------------------------
+
+!xNode(1:3,1) = [0.0,0.0,1.8]
+!xNode(1:3,2) = [1.0,0.0,0.70]
+!xNode(1:3,3) = [1.0,1.0,1.8]
+!xNode(1:3,4) = [0.0,1.0,0.70]
+
+
+xNode(1:3,4) = [1.0,0.0,0.70]
+xNode(1:3,1) = [0.0,0.0,1.8]
+xNode(1:3,2) = [0.0,1.0,0.70]
+xNode(1:3,3) = [1.0,1.0,1.8]
+
+print*,xNode(:,1)
+print*,xNode(:,2)
+print*,xNode(:,3)
+print*,xNode(:,4)
+
+lastPartState = [0.8,0.7,0.8]
+PartState     = [0.5,0.5,1.5]
+
+!PartState     = [0.8,0.7,0.5]
+!lastPartState = [0.5,0.5,1.5]
+
+!--------------------------------------------------------------------------------------------------------------------------------
+! primarily computations
+!--------------------------------------------------------------------------------------------------------------------------------
+
+! particle vector
+tvec = PartState - lastPartState
+
+! bi-linear equation
+
+! setting the first node to p0
+BiCoeff(:,1) = xNode(:,4) - xNode(:,3) - xNode(:,2) + xNode(:,1)
+BiCoeff(:,2) = xNode(:,3) - xNode(:,1)
+BiCoeff(:,3) = xNode(:,2) - xNode(:,1)
+BiCoeff(:,4) = xNode(:,1)
+
+! prepare solver
+a1(1)= BiCoeff(1,1)*tvec(3) - BiCoeff(3,1)*tvec(1)
+a1(2)= BiCoeff(1,2)*tvec(3) - BiCoeff(3,2)*tvec(1)
+a1(3)= BiCoeff(1,3)*tvec(3) - BiCoeff(3,3)*tvec(1)
+a1(4)= (BiCoeff(1,4)-lastPartState(1))*tvec(3) &
+     - (BiCoeff(3,4)-lastpartState(3))*tvec(1)
+
+a2(1)= BiCoeff(2,1)*tvec(3) - BiCoeff(3,1)*tvec(2)
+a2(2)= BiCoeff(2,2)*tvec(3) - BiCoeff(3,2)*tvec(2)
+a2(3)= BiCoeff(2,3)*tvec(3) - BiCoeff(3,3)*tvec(2)
+a2(4)= (BiCoeff(2,4)-lastPartState(2))*tvec(3) &
+     - (BiCoeff(3,4)-lastpartState(3))*tvec(2)
+
+C = 2.0*(a2(1)*a1(3) -a1(1)*a2(3))
+A = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
+B = A*A - 2*C*(a1(4)*a2(2)-a1(2)*a2(4))
+
+CALL QuatricSolver(A,B,C,nRoot,iv(1),iv(2))
+print*,'nRoot,iv',nRoot,iv
+
+isIntersection=.FALSE.
+IF(nRoot.EQ.0)THEN
+  WRITE(*,*) ' no intersection'
+ELSE IF (nRoot.EQ.1) THEN
+  IF((iv(1).GE.0.).AND.iv(1).LT.1.)THEN
+    iu(1)=iv(1)*a2(1)-iv(1)*a1(1)+a2(2)-a1(2)
+    iu(1)=1.0/iu(1)
+    iu(1)=(iv(1)*a1(3)-iv(1)*a2(3)+a1(4)-a2(4))*iu(1)
+    IF((iu(1).GE.0).AND.iu(1).LT.1)THEN
+      q1=iu(1)*iv(1)*BiCoeff(:,1)+iu(1)*BiCoeff(:,2)+iv(1)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
+      alpha(1)=ComputeAlpha(q1,tvec)
+      IF((alpha(1).GE.0.).AND.(alpha(1).LE.1.0))THEN
+        WRITE(*,*) ' One Intersection'
+        WRITE(*,*) ' alpha ', alpha(1)
+        WRITE(*,*) ' Intersection at ', lastPartState+alpha(1)*Tvec
+        isIntersection(1)=.TRUE.
+      END IF 
+    END IF
+  END IF
+ELSE 
+  IF((iv(1).GE.0.).AND.iv(1).LT.1.)THEN
+    iu(1)=iv(1)*(a2(1)-a1(1))+a2(2)-a1(2)
+    iu(1)=1.0/iu(1)
+    iu(1)=(iv(1)*(a1(3)-a2(3))+a1(4)-a2(4))*iu(1)
+    print*,'iu',iu(1)
+    IF((iu(1).GE.0.).AND.iu(1).LT.1.)THEN
+      q1=iu(1)*iv(1)*BiCoeff(:,1)+iu(1)*BiCoeff(:,2)+iv(1)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
+      print*,'q1',q1
+      alpha(1)=ComputeAlpha(q1,tvec)
+      IF((alpha(1).GE.0.).AND.(alpha(1).LE.1.0))THEN
+        WRITE(*,*) ' One Intersection'
+        WRITE(*,*) ' alpha ', alpha(1)
+        WRITE(*,*) ' Intersection at ', lastPartState+alpha(1)*Tvec
+        WRITE(*,*) ' Intersection at ', iu(1)*iv(1)*BiCoeff(:,1)+iu(1)*BiCoeff(:,2)+iv(1)*BiCoeff(:,3)+BiCoeff(:,4)
+        isIntersection(1)=.TRUE.
+      END IF 
+    END IF
+  END IF
+  IF((iv(2).GE.0.).AND.iv(2).LT.1.)THEN
+    iu(2)=iv(2)*a2(1)-iv(2)*a1(1)+a2(2)-a1(2)
+    iu(2)=1.0/iu(2)
+    iu(2)=(iv(2)*a1(3)-iv(2)*a2(3)+a1(4)-a2(4))*iu(2)
+    IF((iu(2).GE.0.).AND.iu(2).LT.1.)THEN
+      q1=iu(2)*iv(2)*BiCoeff(:,1)+iu(2)*BiCoeff(:,2)+iv(2)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
+      alpha(2)=ComputeAlpha(q1,tvec)
+      IF((alpha(2).GE.0.).AND.(alpha(2).LE.1.0))THEN
+        WRITE(*,*) ' Second Intersection'
+        WRITE(*,*) ' alpha ', alpha(2)
+        WRITE(*,*) ' Intersection at ', lastPartState+alpha(2)*Tvec
+        isIntersection(1)=.TRUE.
+      END IF 
+    END IF
+  END IF
+END IF
+WRITE(*,*) ' Following intersections ', isIntersection
+
+!================================================================================================================================
+END PROGRAM RayBilinearPatch
+
+SUBROUTINE QuatricSolver(A,B,C,nRoot,r1,r2)
+!================================================================================================================================
+! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
+!================================================================================================================================
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)         :: A,B,C
+!--------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(OUT)     :: nRoot
+REAL,INTENT(OUT)        :: R1,R2
+!--------------------------------------------------------------------------------------------------------------------------------
+! local variables
+!================================================================================================================================
+
+
+IF(B.LT.0) THEN
+  nRoot = 0
+  R1=0.
+  R2=0.
+ELSE IF (B.EQ.0)THEN
+  nRoot =1
+  R1 = -A/C
+  R2 = 0.
+ELSE
+  nRoot=2
+  R1 = -A -SQRT(B)
+  R1 = R1/C
+  R2 = -A +SQRT(B)
+  R2 = R2/C
+END IF
+
+END SUBROUTINE QuatricSolver
+
+FUNCTION ComputeAlpha(q1,tvec)
+!================================================================================================================================
+! compute the required vector length to intersection
+!================================================================================================================================
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,DIMENSION(3),INTENT(IN)         :: q1,tvec
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                                 :: ComputeAlpha
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: alpha
+!================================================================================================================================
+
+print*,q1(1)/tvec(1)
+print*,q1(2)/tvec(2)
+print*,q1(3)/tvec(3)
+IF((ABS(tvec(1)).GE.ABS(tvec(2))).AND.(ABS(tvec(1)).GT.ABS(tvec(3))))THEN
+  alpha = q1(1)/tvec(1)
+ELSE IF(ABS(tvec(2)).GE.ABS(tvec(3)))THEN
+  alpha = q1(2)/tvec(2)
+ELSE
+  alpha = q1(3)/tvec(3)
+END IF
+
+ComputeAlpha=alpha
+
+END FUNCTION ComputeAlpha
+
