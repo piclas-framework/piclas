@@ -25,6 +25,7 @@ LOGICAL,DIMENSION(2)          :: isIntersection
 !--------------------------------------------------------------------------------------------------------------------------------
 ! pic paper
 REAL                          :: beta1, beta2,beta3,beta4, lenq
+!REAL,DIMENSION(3)             :: as,bs,cs,ds
 !--------------------------------------------------------------------------------------------------------------------------------
 ! functions
 REAL                          :: Computet
@@ -36,16 +37,17 @@ REAL                          :: Computet
 !--------------------------------------------------------------------------------------------------------------------------------
 
 ! bi linear
-xNode(1:3,1) = [0.0,0.0,1.8]
-xNode(1:3,2) = [1.0,0.0,0.70]
-xNode(1:3,3) = [0.0,1.0,0.70]
-xNode(1:3,4) = [1.0,1.0,1.8]
+!xNode(1:3,1) = [0.0,0.0,1.8]
+!xNode(1:3,2) = [1.0,0.0,0.70]
+!xNode(1:3,3) = [0.0,1.0,0.70]
+!xNode(1:3,4) = [1.0,1.0,1.8]
 
 !!! planar - required to be a right hand system
-!xNode(1:3,1) = [0.0,0.0,1.8]
-!xNode(1:3,2) = [1.0,0.0,1.8]
-!xNode(1:3,3) = [1.0,1.0,1.8]
-!xNode(1:3,4) = [0.0,1.0,1.8]
+xNode(1:3,1) = [0.0,0.0,1.8]
+xNode(1:3,2) = [1.0,0.0,1.8]
+xNode(1:3,3) = [1.0,1.0,1.8]
+xNode(1:3,4) = [0.0,1.0,1.8]
+
 
 ! wrong index
 !xNode(1:3,4) = [0.0,0.0,1.8]
@@ -114,9 +116,9 @@ a2(4)= (BiCoeff(2,4)-lastPartState(2))*q(3) &
 A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
-print*,'A,B,C', A,B,C
+!print*,'A,B,C', A,B,C
 CALL QuatricSolver(A,B,C,nRoot,v(1),v(2))
-print*,'nRoot,v', nRoot,v
+!print*,'nRoot,v', nRoot,v
 
 isIntersection=.FALSE.
 IF(nRoot.EQ.0)THEN
@@ -185,31 +187,51 @@ WRITE(*,*) '--------------------------------------------------------------------
 WRITE(*,*) ''
 
 ! prepare side coefficients
+! caution override D
+lenq=q(1)*q(1)+q(2)*q(2)+q(3)*q(3)
+lenq=SQRT(lenq)
+q=q/lenq
+BiCoeff(:,4) = BiCoeff(:,4) - lastPartState
 beta1 = BiCoeff(1,1)*q(1)+BiCoeff(2,1)*q(2)+BiCoeff(3,1)*q(3)
 beta2 = BiCoeff(1,2)*q(1)+BiCoeff(2,2)*q(2)+BiCoeff(3,2)*q(3)
 beta3 = BiCoeff(1,3)*q(1)+BiCoeff(2,3)*q(2)+BiCoeff(3,3)*q(3)
-beta4 = (BiCoeff(1,4)-lastPartState(1))*q(1) &
-      + (BiCoeff(2,4)-lastPartState(2))*q(2) &
-      + (BiCoeff(3,4)-lastPartState(3))*q(3)
+beta4 = BiCoeff(1,4)*q(1)+BiCoeff(2,4)*q(2)+BiCoeff(3,4)*q(3)
+
+! debug
+!as = BiCoeff(:,1) - beta1*q
+!bs = BiCoeff(:,2) - beta2*q
+!cs = BiCoeff(:,3) - beta3*q
+!ds = BiCoeff(:,4) - beta4*q
+!
+!a1(1) = as(3)-as(1)
+!a1(2) = bs(3)-bs(1)
+!a1(3) = cs(3)-cs(1)
+!a1(4) = ds(3)-ds(1)
+!
+!a2(1) = as(3)-as(2)
+!a2(2) = bs(3)-bs(2)
+!a2(3) = cs(3)-cs(2)
+!a2(4) = ds(3)-ds(2)
+
+!!!!! old stuff
 ! xz
-a1(1)=BiCoeff(3,1)-beta1*q(3)-BiCoeff(1,1)+beta1*q(1)
-a1(2)=BiCoeff(3,2)-beta2*q(3)-BiCoeff(1,2)+beta2*q(1)
-a1(3)=BiCoeff(3,3)-beta3*q(3)-BiCoeff(1,3)+beta3*q(1)
-a1(4)=BiCoeff(3,4)-beta4*q(3)-BiCoeff(1,4)+beta4*q(1)
+a1(1)= BiCoeff(3,1)-beta1*q(3)-BiCoeff(1,1)+beta1*q(1)
+a1(2)= BiCoeff(3,2)-beta2*q(3)-BiCoeff(1,2)+beta2*q(1)
+a1(3)= BiCoeff(3,3)-beta3*q(3)-BiCoeff(1,3)+beta3*q(1)
+a1(4)= BiCoeff(3,4)-beta4*q(3)-BiCoeff(1,4)+beta3*q(1)
 
 ! yz
-a2(1)=BiCoeff(3,1)-beta1*q(3)-BiCoeff(2,1)+beta1*q(2)
-a2(2)=BiCoeff(3,2)-beta2*q(3)-BiCoeff(2,2)+beta2*q(2)
-a2(3)=BiCoeff(3,3)-beta3*q(3)-BiCoeff(2,3)+beta3*q(2)
-a2(4)=BiCoeff(3,4)-beta4*q(3)-BiCoeff(2,4)+beta4*q(2)
-
+a2(1)= BiCoeff(3,1)-beta1*q(3)-BiCoeff(2,1)+beta1*q(2)
+a2(2)= BiCoeff(3,2)-beta2*q(3)-BiCoeff(2,2)+beta2*q(2)
+a2(3)= BiCoeff(3,3)-beta3*q(3)-BiCoeff(2,3)+beta3*q(2)
+a2(4)= BiCoeff(3,4)-beta4*q(3)-BiCoeff(2,4)+beta3*q(2)
 
 A = a1(1)*a2(3)-a2(1)*a1(3)
 B = a1(1)*a2(4)-a2(1)*a1(4)+a1(2)*a2(3)-a2(2)*a1(3)
-C = a1(2)*a1(4)-a2(2)*a1(4)
+C = a1(2)*a2(4)-a2(2)*a1(4)
 !print*,'A,B,C',A,B,C
 CALL QuatricSolver(A,B,C,nRoot,v(1),v(2))
-!print*,nRoot
+!print*,nRoot,v
 
 isIntersection=.FALSE.
 IF(nRoot.EQ.0)THEN
@@ -220,12 +242,12 @@ ELSE IF (nRoot.EQ.1) THEN
     u(1)=1.0/u(1)
     u(1)=(-v(1)*a1(3)-a1(4))*u(1)
     IF((u(1).GE.0).AND.u(1).LT.1)THEN
-      t(1)=(u(1)*v(1)*BiCoeff(1,1)+u(1)*BiCoeff(1,2)+v(1)*BiCoeff(1,3)+BiCoeff(1,4)-lastPartState(1))*q(1) &
-          +(u(1)*v(1)*BiCoeff(2,1)+u(1)*BiCoeff(2,2)+v(1)*BiCoeff(2,3)+BiCoeff(2,4)-lastPartState(2))*q(2) &
-          +(u(1)*v(1)*BiCoeff(3,1)+u(1)*BiCoeff(3,2)+v(1)*BiCoeff(3,3)+BiCoeff(3,4)-lastPartState(2))*q(3)
-      IF((t(1).GE.0.).AND.(t(1).LE.1.0))THEN
+      t(1)=(u(1)*v(1)*BiCoeff(1,1)+u(1)*BiCoeff(1,2)+v(1)*BiCoeff(1,3)+BiCoeff(1,4))*q(1) &
+          +(u(1)*v(1)*BiCoeff(2,1)+u(1)*BiCoeff(2,2)+v(1)*BiCoeff(2,3)+BiCoeff(2,4))*q(2) &
+          +(u(1)*v(1)*BiCoeff(3,1)+u(1)*BiCoeff(3,2)+v(1)*BiCoeff(3,3)+BiCoeff(3,4))*q(3)
+      IF((t(1).GE.0.).AND.(t(1).LE.lenq))THEN
         WRITE(*,*) ' One Intersection'
-        WRITE(*,*) ' t ', t(1)
+        !WRITE(*,*) ' t ', t(1)
         WRITE(*,*) ' Intersection at ', lastPartState+t(1)*q
         isIntersection(1)=.TRUE.
       END IF 
@@ -237,11 +259,10 @@ ELSE
     u(1)=1.0/u(1)
     u(1)=(-v(1)*a1(3)-a1(4))*u(1)
     IF((u(1).GE.0.).AND.u(1).LT.1.)THEN
-      t(1)=(u(1)*v(1)*BiCoeff(1,1)+u(1)*BiCoeff(1,2)+v(1)*BiCoeff(1,3)+BiCoeff(1,4)-lastPartState(1))*q(1) &
-          +(u(1)*v(1)*BiCoeff(2,1)+u(1)*BiCoeff(2,2)+v(1)*BiCoeff(2,3)+BiCoeff(2,4)-lastPartState(2))*q(2) &
-          +(u(1)*v(1)*BiCoeff(3,1)+u(1)*BiCoeff(3,2)+v(1)*BiCoeff(3,3)+BiCoeff(3,4)-lastPartState(2))*q(3)
-
-      IF((t(1).GE.0.).AND.(t(1).LE.1.0))THEN
+      t(1)=(u(1)*v(1)*BiCoeff(1,1)+u(1)*BiCoeff(1,2)+v(1)*BiCoeff(1,3)+BiCoeff(1,4))*q(1) &
+          +(u(1)*v(1)*BiCoeff(2,1)+u(1)*BiCoeff(2,2)+v(1)*BiCoeff(2,3)+BiCoeff(2,4))*q(2) &
+          +(u(1)*v(1)*BiCoeff(3,1)+u(1)*BiCoeff(3,2)+v(1)*BiCoeff(3,3)+BiCoeff(3,4))*q(3)
+      IF((t(1).GE.0.).AND.(t(1).LE.lenq))THEN
         WRITE(*,*) ' One Intersection'
         WRITE(*,*) ' t ', t(1)
         WRITE(*,*) ' Intersection at ', lastPartState+t(1)*q
@@ -254,10 +275,10 @@ ELSE
     u(2)=1.0/u(2)
     u(2)=(-v(2)*a1(3)-a1(4))*u(2)
     IF((u(2).GE.0.).AND.u(2).LT.1.)THEN
-      t(2)=(u(2)*v(2)*BiCoeff(1,1)+u(2)*BiCoeff(1,2)+v(2)*BiCoeff(1,3)+BiCoeff(1,4)-lastPartState(1))*q(1) &
-          +(u(2)*v(2)*BiCoeff(2,1)+u(2)*BiCoeff(2,2)+v(2)*BiCoeff(2,3)+BiCoeff(2,4)-lastPartState(2))*q(2) &
-          +(u(2)*v(2)*BiCoeff(3,1)+u(2)*BiCoeff(3,2)+v(2)*BiCoeff(3,3)+BiCoeff(3,4)-lastPartState(2))*q(3)
-      IF((t(2).GE.0.).AND.(t(2).LE.1.0))THEN
+      t(2)=(u(2)*v(2)*BiCoeff(1,1)+u(2)*BiCoeff(1,2)+v(2)*BiCoeff(1,3)+BiCoeff(1,4))*q(1) &
+          +(u(2)*v(2)*BiCoeff(2,1)+u(2)*BiCoeff(2,2)+v(2)*BiCoeff(2,3)+BiCoeff(2,4))*q(2) &
+          +(u(2)*v(2)*BiCoeff(3,1)+u(2)*BiCoeff(3,2)+v(2)*BiCoeff(3,3)+BiCoeff(3,4))*q(3)
+      IF((t(2).GE.0.).AND.(t(2).LE.lenq))THEN
         WRITE(*,*) ' Second Intersection'
         WRITE(*,*) ' t ', t(2)
         WRITE(*,*) ' Intersection at ', lastPartState+t(2)*q
@@ -289,9 +310,15 @@ REAL                    :: eps=1e-12
 !================================================================================================================================
 
 IF(ABS(a).LT.eps)THEN
-  nRoot=1
-  R1=-c/b
-  R2=0.
+  IF(B.EQ.0)THEN
+    nRoot=0
+    R1=0.
+    R2=0.
+  ELSE
+    nRoot=1
+    R1=-c/b
+    R2=0.
+  END IF
 ELSE
   IF(B.LT.0) THEN
     nRoot = 0
