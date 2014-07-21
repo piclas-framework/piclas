@@ -25,53 +25,79 @@ LOGICAL,DIMENSION(2)          :: isIntersection
 !--------------------------------------------------------------------------------------------------------------------------------
 ! pic paper
 REAL                          :: beta1, beta2,beta3,beta4, lenq
-!REAL,DIMENSION(3)             :: as,bs,cs,ds
+REAL,DIMENSION(3)             :: as,bs,cs,ds
 !--------------------------------------------------------------------------------------------------------------------------------
 ! functions
 REAL                          :: Computet
+REAL                          :: epsZero,epsOne,eps
+LOGICAL                       :: inPlane
 !================================================================================================================================
 
+epsZero=-1e-12
+eps    =1e-12
+epsOne =1.0+1e-12
 
 !--------------------------------------------------------------------------------------------------------------------------------
 ! insert nodes and particle position
 !--------------------------------------------------------------------------------------------------------------------------------
 
 ! bi linear
+xNode(1:3,1) = [0.0,0.0,1.8]
+xNode(1:3,2) = [1.0,0.0,0.70]
+xNode(1:3,3) = [0.0,1.0,0.70]
+xNode(1:3,4) = [1.0,1.0,1.8]
+
+! planar - plane
 !xNode(1:3,1) = [0.0,0.0,1.8]
-!xNode(1:3,2) = [1.0,0.0,0.70]
-!xNode(1:3,3) = [0.0,1.0,0.70]
+!xNode(1:3,2) = [1.0,0.0,1.8]
+!xNode(1:3,3) = [0.0,1.0,1.8]
 !xNode(1:3,4) = [1.0,1.0,1.8]
 
-!!! planar - required to be a right hand system
-xNode(1:3,1) = [0.0,0.0,1.8]
-xNode(1:3,2) = [1.0,0.0,1.8]
-xNode(1:3,3) = [1.0,1.0,1.8]
-xNode(1:3,4) = [0.0,1.0,1.8]
-
-
 ! wrong index
-!xNode(1:3,4) = [0.0,0.0,1.8]
-!xNode(1:3,1) = [1.0,0.0,1.8]
-!xNode(1:3,2) = [1.0,1.0,1.8]
-!xNode(1:3,3) = [0.0,1.0,1.8]
+! xNode(1:3,3) = [0.0,0.0,1.8]
+! xNode(1:3,4) = [1.0,0.0,1.8]
+! xNode(1:3,1) = [0.0,1.0,1.8]
+! xNode(1:3,2) = [1.0,1.0,1.8]
 
-!lastPartState = [0.8,0.7,0.8]
-!PartState     = [0.5,0.5,2.5]
+! one interesection | down
+! PartState     = [0.8,0.7,2.6]
+! lastPartState = [0.8,0.7,0.5]
 
+! one intersection | up
+! PartState     = [0.4,0.7,0.4]
+! lastPartState = [0.4,0.7,2.2]
 
-!lastPartState = [0.8,0.7,0.8]
-!PartState     = [0.8,0.7,2.5]
-
-!PartState     = [0.8,0.7,0.8]
-!lastPartState = [0.8,0.7,2.5]
-
-PartState     = [0.4,0.7,0.4]
-lastPartState = [0.4,0.7,2.2]
+! one intersection | abitary
+! lastPartState = [0.8,0.7,0.4]
+! PartState     = [0.5,0.3,2.5]
 
 ! two intersections
-!PartState     = [0.8,0.9,1.4]
-!lastPartState = [0.1,0.2,1.2]
+! PartState     = [0.8,0.9,1.4]
+! lastPartState = [0.1,0.2,1.2]
 
+! parallel to planar 
+! PartState     = [0.8,0.9,1.8]
+! lastPartState = [0.1,0.2,1.8]
+
+! end of vector in node 
+! PartState     = [1.0,1.0,1.8]
+! lastPartState = [0.0,0.0,0.0]
+
+! vector through node
+! PartState     = [2.0,2.0,3.6]
+! lastPartState = [0.0,0.0,0.0]
+
+! end of vector in edge | planar plane
+! PartState     = [1.0,0.5,1.8]
+! lastPartState = [0.0,0.0,0.0]
+
+! vector through edge | planar plane
+! PartState     = [2.0,0.5,3.6]
+! lastPartState = [0.0,0.0,0.0]
+
+! end of vector in edge of 0,0,1.8 1,1,1.8 plane
+ PartState     = [0.5455,0.0,1.2]
+ lastPartState = [0.0,0.0,0.0]
 
 !--------------------------------------------------------------------------------------------------------------------------------
 ! primarily computations
@@ -116,41 +142,54 @@ a2(4)= (BiCoeff(2,4)-lastPartState(2))*q(3) &
 A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
-!print*,'A,B,C', A,B,C
+print*,'A,B,C', A,B,C
 CALL QuatricSolver(A,B,C,nRoot,v(1),v(2))
-!print*,'nRoot,v', nRoot,v
+print*,'nRoot,v', nRoot,v
+
+inPlane=.FALSE.
+IF(nRoot.EQ.0)THEN
+  IF((ABS(A).LT.eps).AND.(ABS(B).LT.eps).AND.(ABS(C).LT.eps))THEN
+    inPlane=.TRUE.
+  END IF
+END IF
 
 isIntersection=.FALSE.
 IF(nRoot.EQ.0)THEN
-  WRITE(*,*) ' no intersection'
-ELSE IF (nRoot.EQ.1) THEN
-  IF((v(1).GE.0.).AND.v(1).LT.1.)THEN
-    u(1)=v(1)*(a2(1)-a1(1))+a2(2)-a1(2)
-    u(1)=1.0/u(1)
-    u(1)=(v(1)*(a1(3)-a2(3))+a1(4)-a2(4))*u(1)
-    IF((u(1).GE.0).AND.u(1).LT.1)THEN
-      q1=u(1)*v(1)*BiCoeff(:,1)+u(1)*BiCoeff(:,2)+v(1)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
-      t(1)=Computet(q1,q)
-      IF((t(1).GE.0.).AND.(t(1).LE.1.0))THEN
-        WRITE(*,*) ' One Intersection'
-        WRITE(*,*) ' t ', t(1)
-        WRITE(*,*) ' Intersection at ', lastPartState+t(1)*q
-        isIntersection(1)=.TRUE.
-      END IF 
-    END IF
+  IF(inPlane)THEN
+    WRITE(*,*) ' Trajectory in Plane '
+    WRITE(*,*) ' First Intersection at ', lastPartState
+  ELSE
+    WRITE(*,*) ' no intersection'
   END IF
+ELSE IF (nRoot.EQ.1) THEN
+ IF((v(1).GE.epsZero).AND.v(1).LT.epsOne)THEN
+   u(1)=v(1)*(a2(1)-a1(1))+a2(2)-a1(2)
+   u(1)=1.0/u(1)
+   u(1)=(v(1)*(a1(3)-a2(3))+a1(4)-a2(4))*u(1)
+   print*,'u(1)',u(1)
+   IF((u(1).GE.epsZero).AND.u(1).LT.epsOne)THEN
+     q1=u(1)*v(1)*BiCoeff(:,1)+u(1)*BiCoeff(:,2)+v(1)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
+     t(1)=Computet(q1,q)
+     IF((t(1).GE.0.).AND.(t(1).LE.epsOne))THEN
+       WRITE(*,*) ' One Intersection'
+       WRITE(*,*) ' t ', t(1)
+       WRITE(*,*) ' Intersection at ', lastPartState+t(1)*q
+       isIntersection(1)=.TRUE.
+     END IF 
+   END IF
+ END IF
 ELSE 
-  IF((v(1).GE.0.).AND.v(1).LT.1.)THEN
+  IF((v(1).GE.epsZero).AND.v(1).LT.epsOne)THEN
     !u(1)=v(1)*a2(1)+a2(2)
     !u(1)=1.0/u(1)
     !u(1)=(-v(1)*a2(3)-a2(4))*u(1)
     u(1)=v(1)*(a2(1)-a1(1))+a2(2)-a1(2)
     u(1)=1.0/u(1)
     u(1)=(v(1)*(a1(3)-a2(3))+a1(4)-a2(4))*u(1)
-    IF((u(1).GE.0.).AND.u(1).LT.1.)THEN
+    IF((u(1).GE.epsZero).AND.u(1).LT.epsOne)THEN
       q1=u(1)*v(1)*BiCoeff(:,1)+u(1)*BiCoeff(:,2)+v(1)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
       t(1)=Computet(q1,q)
-      IF((t(1).GE.0.).AND.(t(1).LE.1.0))THEN
+      IF((t(1).GE.epsZero).AND.(t(1).LE.epsOne))THEN
         WRITE(*,*) ' One Intersection'
         WRITE(*,*) ' t ', t(1)
         WRITE(*,*) ' Intersection at ', lastPartState+t(1)*q
@@ -158,14 +197,14 @@ ELSE
       END IF 
     END IF
   END IF
-  IF((v(2).GE.0.).AND.v(2).LT.1.)THEN
+  IF((v(2).GE.epsZero).AND.v(2).LT.epsOne)THEN
     u(2)=v(2)*a2(1)-v(2)*a1(1)+a2(2)-a1(2)
     u(2)=1.0/u(2)
     u(2)=(v(2)*a1(3)-v(2)*a2(3)+a1(4)-a2(4))*u(2)
-    IF((u(2).GE.0.).AND.u(2).LT.1.)THEN
+    IF((u(2).GE.epsZero).AND.u(2).LT.epsOne)THEN
       q1=u(2)*v(2)*BiCoeff(:,1)+u(2)*BiCoeff(:,2)+v(2)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
       t(2)=Computet(q1,q)
-      IF((t(2).GE.0.).AND.(t(2).LE.1.0))THEN
+      IF((t(2).GE.epsZero).AND.(t(2).LE.epsOne))THEN
         WRITE(*,*) ' Second Intersection'
         WRITE(*,*) ' t ', t(2)
         WRITE(*,*) ' Intersection at ', lastPartState+t(2)*q
@@ -198,54 +237,72 @@ beta3 = BiCoeff(1,3)*q(1)+BiCoeff(2,3)*q(2)+BiCoeff(3,3)*q(3)
 beta4 = BiCoeff(1,4)*q(1)+BiCoeff(2,4)*q(2)+BiCoeff(3,4)*q(3)
 
 ! debug
-!as = BiCoeff(:,1) - beta1*q
-!bs = BiCoeff(:,2) - beta2*q
-!cs = BiCoeff(:,3) - beta3*q
-!ds = BiCoeff(:,4) - beta4*q
-!
-!a1(1) = as(3)-as(1)
-!a1(2) = bs(3)-bs(1)
-!a1(3) = cs(3)-cs(1)
-!a1(4) = ds(3)-ds(1)
-!
-!a2(1) = as(3)-as(2)
-!a2(2) = bs(3)-bs(2)
-!a2(3) = cs(3)-cs(2)
-!a2(4) = ds(3)-ds(2)
+as = BiCoeff(:,1) - beta1*q
+bs = BiCoeff(:,2) - beta2*q
+cs = BiCoeff(:,3) - beta3*q
+ds = BiCoeff(:,4) - beta4*q
 
-!!!!! old stuff
-! xz
-a1(1)= BiCoeff(3,1)-beta1*q(3)-BiCoeff(1,1)+beta1*q(1)
-a1(2)= BiCoeff(3,2)-beta2*q(3)-BiCoeff(1,2)+beta2*q(1)
-a1(3)= BiCoeff(3,3)-beta3*q(3)-BiCoeff(1,3)+beta3*q(1)
-a1(4)= BiCoeff(3,4)-beta4*q(3)-BiCoeff(1,4)+beta3*q(1)
+a1(1) = as(3)-as(1)
+a1(2) = bs(3)-bs(1)
+a1(3) = cs(3)-cs(1)
+a1(4) = ds(3)-ds(1)
+
+a2(1) = as(3)-as(2)
+a2(2) = bs(3)-bs(2)
+a2(3) = cs(3)-cs(2)
+a2(4) = ds(3)-ds(2)
+
+!!!!! old stuff with nice error
+!! xz
+! a1(1)= BiCoeff(3,1)-beta1*q(3)-BiCoeff(1,1)+beta1*q(1)
+! a1(2)= BiCoeff(3,2)-beta2*q(3)-BiCoeff(1,2)+beta2*q(1)
+! a1(3)= BiCoeff(3,3)-beta3*q(3)-BiCoeff(1,3)+beta3*q(1)
+! a1(4)= BiCoeff(3,4)-beta4*q(3)-BiCoeff(1,4)+beta3*q(1)
 
 ! yz
-a2(1)= BiCoeff(3,1)-beta1*q(3)-BiCoeff(2,1)+beta1*q(2)
-a2(2)= BiCoeff(3,2)-beta2*q(3)-BiCoeff(2,2)+beta2*q(2)
-a2(3)= BiCoeff(3,3)-beta3*q(3)-BiCoeff(2,3)+beta3*q(2)
-a2(4)= BiCoeff(3,4)-beta4*q(3)-BiCoeff(2,4)+beta3*q(2)
+!a2(1)= BiCoeff(3,1)-beta1*q(3)-BiCoeff(2,1)+beta1*q(2)
+!a2(2)= BiCoeff(3,2)-beta2*q(3)-BiCoeff(2,2)+beta2*q(2)
+!a2(3)= BiCoeff(3,3)-beta3*q(3)-BiCoeff(2,3)+beta3*q(2)
+!a2(4)= BiCoeff(3,4)-beta4*q(3)-BiCoeff(2,4)+beta3*q(2)
 
 A = a1(1)*a2(3)-a2(1)*a1(3)
 B = a1(1)*a2(4)-a2(1)*a1(4)+a1(2)*a2(3)-a2(2)*a1(3)
 C = a1(2)*a2(4)-a2(2)*a1(4)
 !print*,'A,B,C',A,B,C
+!print*,' help of abc-formula',B*B-4.0*A*C
+!print*,' sqrt', SQRT(b*b-4.0*a*c)
 CALL QuatricSolver(A,B,C,nRoot,v(1),v(2))
-!print*,nRoot,v
+print*,nRoot,v
 
+inPlane=.FALSE.
+IF(nRoot.EQ.0)THEN
+  IF((ABS(A).LT.eps).AND.(ABS(B).LT.eps).AND.(ABS(C).LT.eps))THEN
+    inPlane=.TRUE.
+  END IF
+END IF
+
+lenq=lenq+eps
 isIntersection=.FALSE.
 IF(nRoot.EQ.0)THEN
-  WRITE(*,*) ' no intersection'
+  IF(inPlane)THEN
+    WRITE(*,*) ' Trajectory in Plane '
+    WRITE(*,*) ' First Intersection at ', lastPartState
+  ELSE
+    WRITE(*,*) ' no intersection'
+  END IF
 ELSE IF (nRoot.EQ.1) THEN
-  IF((v(1).GE.0.).AND.v(1).LT.1.)THEN
-    u(1)=v(1)*a1(1)+a1(2)
+  IF((v(1).GE.epsZero).AND.(v(1).LT.epsOne))THEN
+    !u(1)=v(1)*a1(1)+a1(2)
+    !u(1)=1.0/u(1)
+    !u(1)=(-v(1)*a1(3)-a1(4))*u(1)
+    u(1)=v(1)*(a2(1)-a1(1))+a2(2)-a1(2)
     u(1)=1.0/u(1)
-    u(1)=(-v(1)*a1(3)-a1(4))*u(1)
-    IF((u(1).GE.0).AND.u(1).LT.1)THEN
+    u(1)=(v(1)*(a1(3)-a2(3))+a1(4)-a2(4))*u(1)
+    IF((u(1).GE.0).AND.u(1).LT.epsOne)THEN
       t(1)=(u(1)*v(1)*BiCoeff(1,1)+u(1)*BiCoeff(1,2)+v(1)*BiCoeff(1,3)+BiCoeff(1,4))*q(1) &
           +(u(1)*v(1)*BiCoeff(2,1)+u(1)*BiCoeff(2,2)+v(1)*BiCoeff(2,3)+BiCoeff(2,4))*q(2) &
           +(u(1)*v(1)*BiCoeff(3,1)+u(1)*BiCoeff(3,2)+v(1)*BiCoeff(3,3)+BiCoeff(3,4))*q(3)
-      IF((t(1).GE.0.).AND.(t(1).LE.lenq))THEN
+      IF((t(1).GE.epsZero).AND.(t(1).LE.lenq))THEN
         WRITE(*,*) ' One Intersection'
         !WRITE(*,*) ' t ', t(1)
         WRITE(*,*) ' Intersection at ', lastPartState+t(1)*q
@@ -254,15 +311,18 @@ ELSE IF (nRoot.EQ.1) THEN
     END IF
   END IF
 ELSE 
-  IF((v(1).GE.0.).AND.v(1).LT.1.)THEN
-    u(1)=v(1)*a1(1)+a1(2)
+  IF((v(1).GE.epsZero).AND.v(1).LT.epsOne)THEN
+    !u(1)=v(1)*a1(1)+a1(2)
+    !u(1)=1.0/u(1)
+    !u(1)=(-v(1)*a1(3)-a1(4))*u(1)
+    u(1)=v(1)*(a2(1)-a1(1))+a2(2)-a1(2)
     u(1)=1.0/u(1)
-    u(1)=(-v(1)*a1(3)-a1(4))*u(1)
-    IF((u(1).GE.0.).AND.u(1).LT.1.)THEN
+    u(1)=(v(1)*(a1(3)-a2(3))+a1(4)-a2(4))*u(1)
+    IF((u(1).GE.epsZero).AND.u(1).LT.epsOne)THEN
       t(1)=(u(1)*v(1)*BiCoeff(1,1)+u(1)*BiCoeff(1,2)+v(1)*BiCoeff(1,3)+BiCoeff(1,4))*q(1) &
           +(u(1)*v(1)*BiCoeff(2,1)+u(1)*BiCoeff(2,2)+v(1)*BiCoeff(2,3)+BiCoeff(2,4))*q(2) &
           +(u(1)*v(1)*BiCoeff(3,1)+u(1)*BiCoeff(3,2)+v(1)*BiCoeff(3,3)+BiCoeff(3,4))*q(3)
-      IF((t(1).GE.0.).AND.(t(1).LE.lenq))THEN
+      IF((t(1).GE.epsZero).AND.(t(1).LE.lenq))THEN
         WRITE(*,*) ' One Intersection'
         WRITE(*,*) ' t ', t(1)
         WRITE(*,*) ' Intersection at ', lastPartState+t(1)*q
@@ -270,15 +330,18 @@ ELSE
       END IF 
     END IF
   END IF
-  IF((v(2).GE.0.).AND.v(2).LT.1.)THEN
-    u(2)=v(2)*a1(1)+a1(2)
+  IF((v(2).GE.epsZero).AND.v(2).LT.epsOne)THEN
+    u(2)=v(2)*(a2(1)-a1(1))+a2(2)-a1(2)
     u(2)=1.0/u(2)
-    u(2)=(-v(2)*a1(3)-a1(4))*u(2)
-    IF((u(2).GE.0.).AND.u(2).LT.1.)THEN
+    u(2)=(v(2)*(a1(3)-a2(3))+a1(4)-a2(4))*u(2)
+    !u(2)=v(2)*a1(1)+a1(2)
+    !u(2)=1.0/u(2)
+    !u(2)=(-v(2)*a1(3)-a1(4))*u(2)
+    IF((u(2).GE.epsZero).AND.u(2).LT.epsOne)THEN
       t(2)=(u(2)*v(2)*BiCoeff(1,1)+u(2)*BiCoeff(1,2)+v(2)*BiCoeff(1,3)+BiCoeff(1,4))*q(1) &
           +(u(2)*v(2)*BiCoeff(2,1)+u(2)*BiCoeff(2,2)+v(2)*BiCoeff(2,3)+BiCoeff(2,4))*q(2) &
           +(u(2)*v(2)*BiCoeff(3,1)+u(2)*BiCoeff(3,2)+v(2)*BiCoeff(3,3)+BiCoeff(3,4))*q(3)
-      IF((t(2).GE.0.).AND.(t(2).LE.lenq))THEN
+      IF((t(2).GE.epsZero).AND.(t(2).LE.lenq))THEN
         WRITE(*,*) ' Second Intersection'
         WRITE(*,*) ' t ', t(2)
         WRITE(*,*) ' Intersection at ', lastPartState+t(2)*q
@@ -306,11 +369,12 @@ INTEGER,INTENT(OUT)     :: nRoot
 REAL,INTENT(OUT)        :: R1,R2
 !--------------------------------------------------------------------------------------------------------------------------------
 ! local variables
-REAL                    :: eps=1e-12
+REAL                    :: eps=1e-12, radicant
 !================================================================================================================================
 
+radicant = B*B-4.0*A*C
 IF(ABS(a).LT.eps)THEN
-  IF(B.EQ.0)THEN
+  IF(ABS(b).LT.eps)THEN
     nRoot=0
     R1=0.
     R2=0.
@@ -320,11 +384,11 @@ IF(ABS(a).LT.eps)THEN
     R2=0.
   END IF
 ELSE
-  IF(B.LT.0) THEN
+  IF(radicant.LT.0) THEN
     nRoot = 0
     R1=0.
     R2=0.
-  ELSE IF (B.EQ.0)THEN
+  ELSE IF (ABS(radicant).LT.eps)THEN
     nRoot =1
     R1 = -0.5*B/A
     R2 = 0.
@@ -369,4 +433,3 @@ END IF
 Computet=t
 
 END FUNCTION Computet
-
