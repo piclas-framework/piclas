@@ -402,7 +402,6 @@ USE MOD_Particle_Output_Vars, ONLY: WriteFieldsToVTK, OutputMesh
 USE MOD_Equation_Vars,    ONLY: Pi
 USE MOD_part_MPFtools, ONLY: DefineElemT_inv, DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation_Vars, ONLY: InterpolationType
-USE MOD_TimeDisc_Vars, ONLY: IterDisplayStep
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -838,9 +837,6 @@ ManualTimeStep = GETREAL('Particles-ManualTimeStep', '0.0')
 IF (ManualTimeStep.GT.0.0) THEN
   useManualTimeStep=.True.
 END IF
-! read in requested IterDisplayStep (i.e. how often the message "iter: etc" is displayed)
-IterDisplayStep = GETINT('IterDisplayStep','1')
-IF (IterDisplayStep.EQ.0) IterDisplayStep = HUGE(IterDisplayStep)  ! = de facto no output
 
 !--- initialize randomization (= random if one or more seeds are 0 or random is wanted)
 nrSeeds = GETINT('Part-NumberOfRandomSeeds','0')

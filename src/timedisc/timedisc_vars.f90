@@ -18,7 +18,7 @@ REAL             :: CFLScale
 REAL             :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver
 INTEGER          :: maxIter_LinearSolver
 INTEGER(KIND=8)  :: iter, IterDisplayStep
-LOGICAL          :: ViscousTimeStep=.FALSE.
+LOGICAL          :: DoDisplayIter
 LOGICAl          :: TimediscInitIsDone = .FALSE.
 #if (PP_TimeDiscMethod==1)
 ! Low-storage Runge-Kutta 3, 3 stages, Kopriva,Algorithm 42 

@@ -56,10 +56,18 @@ REAL                             :: c_test
 !===================================================================================================================================
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
 TEnd=GetReal('TEnd') ! must be read in here due to DSMC_init
-IF(InterpolationInitIsDone.AND.EquationInitIsDone)THEN
-   SWRITE(*,*) "InitMaxwell not ready to be called or already called."
-   RETURN
+IF(EquationInitIsDone)THEN
+#ifdef PARTICLES
+  IF(InterpolationInitIsDone)THEN
+    SWRITE(*,*) "InitMaxwell not ready to be called or already called."
+    RETURN
+  END IF
+#else
+  SWRITE(*,*) "InitMaxwell not ready to be called or already called."
+  RETURN
+#endif /*PARTICLES*/
 END IF
+
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...' 
 

@@ -6,29 +6,25 @@ PROGRAM Boltzplatz
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools,  ONLY:IgnoredStrings
-USE MOD_Restart,      ONLY:InitRestart,Restart,FinalizeRestart
-USE MOD_Interpolation,ONLY:InitInterpolation,FinalizeInterpolation
-USE MOD_Mesh,         ONLY:InitMesh,FinalizeMesh
-USE MOD_Equation,     ONLY:InitEquation,FinalizeEquation
-USE MOD_DG,           ONLY:InitDG,FinalizeDG
-USE MOD_PML,          ONLY:InitPML,FinalizePML
-!USE MOD_Limiter,     ONLY:InitLimiter
-!USE MOD_Indicator,   ONLY:InitIndicator
-USE MOD_Filter,       ONLY:InitFilter,FinalizeFilter
-USE MOD_Output,       ONLY:InitOutput,FinalizeOutput
-USE MOD_Analyze,      ONLY:InitAnalyze,FinalizeAnalyze
-USE MOD_Particle_Analyze,ONLY:InitParticleAnalyze,FinalizeParticleAnalyze
-USE MOD_RecordPoints, ONLY:InitRecordPoints,FinalizeRecordPoints
-USE MOD_TimeDisc,     ONLY:InitTimeDisc,FinalizeTimeDisc,TimeDisc
-USE MOD_MPI,          ONLY:InitMPI
-USE MOD_Analyze_Vars, ONLY:CalcPoyntingInt
-USE MOD_PoyntingInt,  ONLY:GetPoyntingIntPlane,FinalizePoyntingInt
+USE MOD_ReadInTools,      ONLY:IgnoredStrings
+USE MOD_Restart,          ONLY:InitRestart,Restart,FinalizeRestart
+USE MOD_Interpolation,    ONLY:InitInterpolation,FinalizeInterpolation
+USE MOD_Mesh,             ONLY:InitMesh,FinalizeMesh
+USE MOD_Equation,         ONLY:InitEquation,FinalizeEquation
+USE MOD_DG,               ONLY:InitDG,FinalizeDG
+USE MOD_PML,              ONLY:InitPML,FinalizePML
+USE MOD_Filter,           ONLY:InitFilter,FinalizeFilter
+USE MOD_Output,           ONLY:InitOutput,FinalizeOutput
+USE MOD_Analyze,          ONLY:InitAnalyze,FinalizeAnalyze
+USE MOD_Particle_Analyze, ONLY:InitParticleAnalyze,FinalizeParticleAnalyze
+USE MOD_RecordPoints,     ONLY:InitRecordPoints,FinalizeRecordPoints
+USE MOD_TimeDisc,         ONLY:InitTimeDisc,FinalizeTimeDisc,TimeDisc
+USE MOD_MPI,              ONLY:InitMPI
 #ifdef MPI
-USE MOD_MPI,          ONLY:InitMPIvars
+USE MOD_MPI,              ONLY:InitMPIvars
 #endif
 #ifdef PARTICLES
-USE MOD_ParticleInit, ONLY:InitParticles
+USE MOD_ParticleInit,     ONLY:InitParticles
 #endif
 
 ! IMPLICIT VARIABLE HANDLING
@@ -79,15 +75,14 @@ CALL InitPML()
 CALL InitDG()
 CALL InitFilter()
 CALL InitTimeDisc()
+CALL InitParticleAnalyze()
 #ifdef PARTICLES
 CALL InitParticles()
-CALL InitParticleAnalyze()
 #endif
 CALL InitAnalyze()
 CALL InitRecordPoints()
 CALL IgnoredStrings()
 CALL Restart()
-IF(CalcPoyntingInt) CALL GetPoyntingIntPlane()
 
 ! Measure init duration
 Time=BOLTZPLATZTIME()
@@ -99,7 +94,6 @@ SWRITE(UNIT_stdOut,'(132("="))')
 CALL TimeDisc()
 
 !Finalize
-IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
 CALL FinalizeOutput()
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()

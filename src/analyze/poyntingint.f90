@@ -208,7 +208,7 @@ DO iELEM = 1, nElems
 END DO ! iElems
 
 #ifdef MPI
-  CALL MPI_REDUCE   (Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, PMPIVAR%COMM,IERROR)
+  CALL MPI_REDUCE   (Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,IERROR)
   !CALL MPI_REDUCE   (WEl     , sumWEl     , 1                  , MPI_DOUBLE_PRECISION, MPI_SUM, 0, PMPIVAR%COMM,IERROR)
   !CALL MPI_ALLREDUCE(Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
   Sabs(:) = sumSabs(:)
