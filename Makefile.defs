@@ -3,7 +3,7 @@
 # CONFIGURATION                                                                                                                   #
 #=================================================================================================================================#
 INIFILE=$(MAINDIR)ini/particles.ini
-COMPILER=INTEL
+COMPILER=INTEL_DEBUG
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
 # Cut compiler for use with DEBUG-flags
 ifeq ($(findstring _,$(COMPILER)),_)
@@ -18,21 +18,19 @@ endif
 #=================================================================================================================================#
 # INI-FILE PARSING                                                                                                                #
 #=================================================================================================================================#
-INIVARS = EQNSYS PARABOLIC NODETYPE RIEMANN TIMEDISCMETHOD NELEMZ N MPI VISC OPTIMIZED
+INIVARS = EQNSYS PARTICLES NODETYPE RIEMANN TIMEDISCMETHOD NELEMZ N MPI POIS OPTIMIZED
 
 # Defaults
 EQNSYS         = maxwell
-PARABOLIC      =
+PARTICLES      =
 NODETYPE       = 1
 TIMEDISCMETHOD = 2
 RIEMANN        = 1
 NELEMS         = NELEMZ
 N              = N
 MPI            = 
-VISC           = 0
-OPTIMIZED      =
-PARTICLES      = T 
 POIS           =
+OPTIMIZED      =
 
 # Filter rule
 define PARSE
@@ -85,9 +83,8 @@ PREPROC +=-DPP_Riemann=$(RIEMANN)
 PREPROC +=-DPP_nVar=$(NVAR)
 PREPROC +=-DPP_nElems=$(NELEMS)
 PREPROC +=-DPP_N=$(N)
-PREPROC +=-DPP_VISC=$(VISC)
-ifneq ($(PARABOLIC),)
-  PREPROC +=-DPARABOLIC=$(PARABOLIC)
+ifneq ($(PARTICLES),)
+  PREPROC +=-DPARTICLES=$(PARTICLES)
 endif
 ifneq ($(MPI),)
   PREPROC +=-DMPI
@@ -103,9 +100,6 @@ ifneq ($(OPTIMIZED),)
   ifneq ($(findstring DEBUG,$(COMPILER)),DEBUG) #don't set optimizations if in debug mode
     PREPROC +=-DOPTIMIZED=$(OPTIMIZED)
   endif
-endif
-ifneq ($(PARTICLES),)
-  PREPROC +=-DPARTICLES=$(PARTICLES)
 endif
 ifneq ($(POIS),)
   PREPROC +=-DPP_POIS=$(POIS)

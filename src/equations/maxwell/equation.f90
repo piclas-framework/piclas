@@ -186,7 +186,7 @@ CASE(2) ! Coaxial Waveguide
   zlen=2.5
   r=0.5
   r2=(x(1)*x(1)+x(2)*x(2))/r
-  omega=Frequency*2.*Pi/zlen
+  omega=Frequency*2.*Pi/zlen ! shift beruecksichtigen
   resu   =0.
   resu(1)=( x(1))*sin(omega*(x(3)-c*t))/r2
   resu(2)=( x(2))*sin(omega*(x(3)-c*t))/r2

@@ -441,9 +441,7 @@ IF (ALLOCSTAT.NE.0) THEN
 END IF
 #endif 
 
-
 ! predefine random vectors
-
 NumRanVec = GETINT('Particles-NumberOfRandomVectors','100000')
 IF ((usevMPF).OR.(useDSMC)) THEN
   ALLOCATE(RandomVec(NumRanVec, 3))

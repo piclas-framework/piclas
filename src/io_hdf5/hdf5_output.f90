@@ -74,7 +74,6 @@ CHARACTER(LEN=255)             :: FileName,FileString,MeshFile255,StrVarNames(PP
 #ifdef MPI
 REAL                           :: StartT,EndT
 #endif
-
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #endif
