@@ -193,7 +193,7 @@ offsetSurfElem=0          ! offset is the index of first entry, hdf5 array start
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
 CALL deleteMeshPointer()
 
-IF(NGeo.GT.1) CALL getVolumeMapping(XCL_NGeo)
+! IF(NGeo.GT.1) CALL getVolumeMapping(XCL_NGeo)
 
 IF(GETLOGICAL('deform','.FALSE.'))THEN
   Pi = ACOS(-1.) 
