@@ -39,8 +39,8 @@ LOGICAL                       :: inPlane
 ! speed test of different implementations
 INTEGER                       :: iloop,nloop
 REAL                          :: tstart, tend, Ran
-REAL,DIMENSION(3)             :: time
-INTEGER,DIMENSION(3)          :: nInter
+REAL,DIMENSION(4)             :: time
+INTEGER,DIMENSION(4)          :: nInter
 !================================================================================================================================
 
 INTEGER, DIMENSION(:), ALLOCATABLE :: seed
@@ -58,7 +58,7 @@ epsOne =1.0+1e-12
 time=0.
 nInter=3
 nloop=1e7
-nloop=1000
+!nloop=100
 
 DO iloop=1,nloop
 
@@ -485,13 +485,131 @@ DO iloop=1,nloop
 !    !STOP
 !  END IF
 
+  !--------------------------------------------------------------------------------------------------------------------------------
+  ! modified ray intersection with patch, Ramsey 2004 paper
+  ! instead of 0,1 the interval is -1;1
+  !--------------------------------------------------------------------------------------------------------------------------------
+  
+  ! generate coefficients
+  BiCoeff(:,1) = 0.25*( xNode(:,1) -xNode(:,2) +xNode(:,3) -xNode(:,4))
+  BiCoeff(:,2) = 0.25*(-xNode(:,1) +xNode(:,2) +xNode(:,3) -xNode(:,4))
+  BiCoeff(:,3) = 0.25*(-xNode(:,1) -xNode(:,2) +xNode(:,3) +xNode(:,4))
+  BiCoeff(:,4) = 0.25*( xNode(:,1) +xNode(:,2) +xNode(:,3) +xNode(:,4))
+  
+  CALL CPU_TIME(tstart)
+  ! particle vector / not normalized
+  q = PartState - lastPartState
+
+  ! prepare solver  ! has to be computed for each patch
+  a1(1)= BiCoeff(1,1)*q(3) - BiCoeff(3,1)*q(1)
+  a1(2)= BiCoeff(1,2)*q(3) - BiCoeff(3,2)*q(1)
+  a1(3)= BiCoeff(1,3)*q(3) - BiCoeff(3,3)*q(1)
+  a1(4)= (BiCoeff(1,4)-lastPartState(1))*q(3) &
+       - (BiCoeff(3,4)-lastpartState(3))*q(1)
+  
+  a2(1)= BiCoeff(2,1)*q(3) - BiCoeff(3,1)*q(2)
+  a2(2)= BiCoeff(2,2)*q(3) - BiCoeff(3,2)*q(2)
+  a2(3)= BiCoeff(2,3)*q(3) - BiCoeff(3,3)*q(2)
+  a2(4)= (BiCoeff(2,4)-lastPartState(2))*q(3) &
+       - (BiCoeff(3,4)-lastpartState(3))*q(2)
+  
+  A = a2(1)*a1(3)-a1(1)*a2(3)
+  B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
+  C = a1(4)*a2(2)-a1(2)*a2(4)
+  !print*,'A,B,C', A,B,C
+  CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
+  !print*,nRoot,Eta
+!  IF(iloop.EQ.34)THEN
+!    print*,eta
+!  END IF
+
+  !print*,'nRoot,v', nRoot,v
+  
+  inPlane=.FALSE.
+  IF(nRoot.EQ.0)THEN
+    IF((ABS(A).LT.eps).AND.(ABS(B).LT.eps).AND.(ABS(C).LT.eps))THEN
+      inPlane=.TRUE.
+    END IF
+  END IF
+  
+  isIntersection=.FALSE.
+  IF(nRoot.EQ.0)THEN
+    IF(inPlane)THEN
+      nInter(4)=nInter(4)+1
+    END IF
+  ELSE IF (nRoot.EQ.1) THEN
+    IF(ABS(eta(1)).LT.epsOne)THEN
+     xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
+     xi(1)=1.0/xi(1)
+     xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
+     !print*,'xi(1)',xi(1)
+     IF(ABS(xi(1)).LT.epsOne)THEN
+       q1=xi(1)*eta(1)*BiCoeff(:,1)+xi(1)*BiCoeff(:,2)+eta(1)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
+       t(1)=Computet(q1,q)
+       IF((t(1).GE.epsZero).AND.(t(1).LE.epsOne))THEN
+         !WRITE(*,*) ' One Intersection'
+         !WRITE(*,*) ' t ', t(1)
+         !WRITE(*,*) ' Intersection at ', lastPartState+t(1)*q
+         !isIntersection(1)=.TRUE.
+         nInter(4)=nInter(4)+1
+       END IF 
+     END IF
+   END IF
+  ELSE 
+    IF(ABS(eta(1)).LT.epsOne)THEN
+      !xi(1)=eta(1)*a2(1)+a2(2)
+      !xi(1)=1.0/xi(1)
+      !xi(1)=(-eta(1)*a2(3)-a2(4))*xi(1)
+      xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
+      xi(1)=1.0/xi(1)
+      xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
+      IF(ABS(xi(1)).LT.epsOne)THEN
+        q1=xi(1)*eta(1)*BiCoeff(:,1)+xi(1)*BiCoeff(:,2)+eta(1)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
+        t(1)=Computet(q1,q)
+        IF((t(1).GE.epsZero).AND.(t(1).LE.epsOne))THEN
+          !WRITE(*,*) ' One Intersection'
+          !WRITE(*,*) ' t ', t(1)
+          !WRITE(*,*) ' Intersection at ', lastPartState+t(1)*q
+          !isIntersection(1)=.TRxiE.
+          nInter(4)=nInter(4)+1
+        END IF 
+      END IF
+    END IF
+    IF(ABS(eta(2)).LT.epsOne)THEN
+      xi(2)=eta(2)*a2(1)-eta(2)*a1(1)+a2(2)-a1(2)
+      xi(2)=1.0/xi(2)
+      xi(2)=(eta(2)*a1(3)-eta(2)*a2(3)+a1(4)-a2(4))*xi(2)
+      IF(ABS(xi(2)).LT.epsOne)THEN
+        q1=xi(2)*eta(2)*BiCoeff(:,1)+xi(2)*BiCoeff(:,2)+eta(2)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
+        t(2)=Computet(q1,q)
+        IF((t(2).GE.epsZero).AND.(t(2).LE.epsOne))THEN
+          !WRITE(*,*) ' Second Intersection'
+          !WRITE(*,*) ' t ', t(2)
+          !WRITE(*,*) ' Intersection at ', lastPartState+t(2)*q
+          !isIntersection(2)=.TRxiE.
+          nInter(4)=nInter(4)+1
+        END IF 
+      END IF
+    END IF
+  END IF
+  CALL CPU_TIME(tend)   
+  time(4)=time(4)+tend-tstart
+
+!  IF(nInter(4).NE.nInter(1))THEN
+!    print*,"partpos",PartState
+!    print*,"lastpartpos",lastPartState
+!    print*,'iloop',iloop
+!    EXIT
+!    !STOP
+!  END IF
+
 END DO ! iloop
 
 WRITE(*,*) ' '
-WRITE(*,'(A)') '                    Ray-Paper         PIC-Paper           Own-PIC'
-WRITE(*,'(A,5x,I10,8x,I10,8x,I10)') ' Intersections', nInter(1), nInter(2), nInter(3)
-WRITE(*,'(A,12x,F12.9,6x,F12.9,6x,F12.9)') ' time', time(1), time(2), time(3)
-WRITE(*,'(A,9x,F12.9,6x,F12.9,6x,F12.9)') ' time,n1', time(1)/time(1), time(2)/time(1), time(3)/time(1)
+WRITE(*,'(A)') '                    Ray-Paper         PIC-Paper           Own-PIC           Own-Ray'
+WRITE(*,'(A,5x,I10,8x,I10,8x,I10,8x,I10)') ' Intersections', nInter(1), nInter(2), nInter(3),nInter(4)
+WRITE(*,'(A,12x,F12.9,6x,F12.9,6x,F12.9,6x,F12.9)') ' time', time(1), time(2), time(3), time(4)
+WRITE(*,'(A,9x,F12.9,6x,F12.9,6x,F12.9,6x,F12.9)') ' time,n1', time(1)/time(1), time(2)/time(1), time(3)/time(1), time(4)/time(1)
 
 
 !================================================================================================================================

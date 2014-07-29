@@ -1,8 +1,190 @@
+MODULE LocalSubs
+
+IMPLICIT NONE
+
+CONTAINS
+
+SUBROUTINE QuatricSolver(A,B,C,nRoot,r1,r2)
+!================================================================================================================================
+! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
+!================================================================================================================================
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)         :: A,B,C
+!--------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(OUT)     :: nRoot
+REAL,INTENT(OUT)        :: R1,R2
+!--------------------------------------------------------------------------------------------------------------------------------
+! local variables
+REAL                    :: eps=1e-12, radicant
+!================================================================================================================================
+
+radicant = B*B-4.0*A*C
+IF(ABS(a).LT.eps)THEN
+  IF(ABS(b).LT.eps)THEN
+    nRoot=0
+    R1=0.
+    R2=0.
+  ELSE
+    nRoot=1
+    R1=-c/b
+    R2=0.
+  END IF
+ELSE
+  IF(radicant.LT.0) THEN
+    nRoot = 0
+    R1=0.
+    R2=0.
+  ELSE IF (ABS(radicant).LT.eps)THEN
+    nRoot =1
+    R1 = -0.5*B/A
+    R2 = 0.
+  ELSE
+    nRoot=2
+    R1 = SQRT(B*B-4.0*A*C)
+    R2 = -R1
+    R1 = -B+R1
+    R1 = 0.5*R1/A
+    R2 = -B+R2
+    R2 = 0.5*R2/A
+  END IF
+END IF
+
+END SUBROUTINE QuatricSolver
+
+FUNCTION Computet(q1,q)
+!================================================================================================================================
+! compute the required vector length to intersection
+!================================================================================================================================
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,DIMENSION(3),INTENT(IN)         :: q1,q
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                                 :: Computet
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: t
+REAL                                 :: eps=1e-6
+!================================================================================================================================
+
+IF((ABS(q(1)).GE.ABS(q(2))).AND.(ABS(q(1)).GT.ABS(q(3))))THEN
+  t = q1(1)/q(1)-eps
+ELSE IF(ABS(q(2)).GE.ABS(q(3)))THEN
+  t = q1(2)/q(2)-eps
+ELSE
+  t = q1(3)/q(3)-eps
+END IF
+
+Computet=t
+
+END FUNCTION Computet
+
+FUNCTION CROSS_PRODUCT(a,b)
+!================================================================================================================================
+! compute the required vector length to intersection
+!================================================================================================================================
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,DIMENSION(3),INTENT(IN)           :: a,b
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,DIMENSION(3)                      :: CROSS_PRODUCT
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!REAL,DIMENSION(3)                      :: a,b,n
+!================================================================================================================================
+
+CROSS_PRODUCT(1)=a(2)*b(3)-a(3)*b(2)
+CROSS_PRODUCT(2)=a(3)*b(1)-a(1)*b(3)
+CROSS_PRODUCT(3)=a(1)*b(2)-a(2)*b(1)
+
+END FUNCTION CROSS_PRODUCT
+
+FUNCTION CalcBiLinearNVec(BiCoeff,u,v)
+!================================================================================================================================
+! compute the required vector length to intersection
+!================================================================================================================================
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,DIMENSION(3,4),INTENT(IN)         :: BiCoeff
+REAL,INTENT(IN)                        :: v,u
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,DIMENSION(3)                      :: CalcBiLinearNVec
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(3)                      :: a,b,n
+REAL                                   :: epsIntersect, length
+!================================================================================================================================
+
+a=v*BiCoeff(:,1)+BiCoeff(:,2)
+b=u*BiCoeff(:,1)+BiCoeff(:,3)
+
+n=CROSS_PRODUCT(a,b)
+length=n(1)*n(1)+n(2)*n(2)+n(3)*n(3)
+length=SQRT(length)
+n=n/length
+CalcBiLinearNVec=n
+
+END FUNCTION CalcBiLinearNVec
+
+FUNCTION GetBiLinearNormVec(BiCoeff,Point0,u,v)
+!================================================================================================================================
+! compute the required vector length to intersection
+!================================================================================================================================
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,DIMENSION(3,4),INTENT(IN)         :: BiCoeff
+REAL,DIMENSION(3),INTENT(IN)           :: Point0
+REAL,INTENT(IN)                        :: v,u
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,DIMENSION(3)                      :: GetBiLinearNormVec
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(3)                      :: a,b,n
+REAL                                   :: epsIntersect, length
+!================================================================================================================================
+
+epsIntersect=1e-3
+! get two new points on plane
+a=(u+epsIntersect)*v*BiCoeff(:,1)+(u+epsIntersect)*BiCoeff(:,2)+v*BiCoeff(:,3)+BiCoeff(:,4)
+b= u*(epsIntersect+v)*BiCoeff(:,1)+u*BiCoeff(:,2)+(v+epsIntersect)*BiCoeff(:,3)+BiCoeff(:,4)
+
+! patch tangential vectors
+a=a-Point0
+b=b-Point0
+
+! compute normal vector via cross product
+!n(1)=a(2)*b(3)-a(3)*b(2)
+!n(2)=a(3)*b(1)-a(1)*b(3)
+!n(3)=a(1)*b(2)-a(2)*b(1)
+n=CROSS_PRODUCT(a,b)
+length=n(1)*n(1)+n(2)*n(2)+n(3)*n(3)
+length=SQRT(length)
+n=n/length
+
+GetBiLinearNormVec=n
+GetBiLinearNormVec=n
+GetBiLinearNormVec=n
+
+END FUNCTION GetBiLinearNormVec
+
+
+END MODULE LocalSubs
+
 PROGRAM RayBilinearPatch
 !================================================================================================================================
 ! this program computes the intersection of a ray with an bi-linear patch
 ! first try is based on a certain paper      
 !================================================================================================================================
+USE LocalSubs
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! nodes and particle 
@@ -32,9 +214,12 @@ REAL                          :: beta1, beta2,beta3,beta4, lenq
 REAL,DIMENSION(3)             :: as,bs,cs,ds,dummy
 !--------------------------------------------------------------------------------------------------------------------------------
 ! functions
-REAL                          :: Computet
+!REAL                          :: Computet
 REAL                          :: epsZero,epsOne,eps
 LOGICAL                       :: inPlane
+!--------------------------------------------------------------------------------------------------------------------------------
+! normal vector
+REAL,DIMENSION(3)             :: nVec,xInter
 !================================================================================================================================
 
 epsZero=-1e-12
@@ -107,9 +292,11 @@ epsOne =1.0+1e-12
 ! PartState = [1.4303119025487365,0.61317288521386837,1.5419515802917927]
 ! LastpartState=[0.63198904723340954,0.10447829334921031,0.86419648251124259]
 
- PartState = [2.0047305505715016,4.1984006500050741E-002,0.36755964944814762]
- LastpartState=[0.43609215969368076,0.75166143051894063,0.88845637591997562]
+! PartState = [2.0047305505715016,4.1984006500050741E-002,0.36755964944814762]
+! LastpartState=[0.43609215969368076,0.75166143051894063,0.88845637591997562]
 
+! PartState = [1.3592421972359436,2.8974882220546450E-002,1.2585600871660365]
+! LastpartState=[8.6051621558332014E-002,0.91053279371444440,0.86106103503532527]
 
 !--------------------------------------------------------------------------------------------------------------------------------
 ! primarily computations
@@ -500,84 +687,129 @@ END IF
 WRITE(*,*) ' Following intersections ', isIntersection
 
 
+!--------------------------------------------------------------------------------------------------------------------------------
+! modified ray intersection with patch, Ramsey 2004 paper
+! instead of 0,1 the interval is -1;1
+!--------------------------------------------------------------------------------------------------------------------------------
+
+WRITE(*,*) '--------------------------------------------------------------------------------------------------------------------'
+WRITE(*,*) '    Own Ray alogirthm                                                                                               '
+WRITE(*,*) '--------------------------------------------------------------------------------------------------------------------'
+WRITE(*,*) ''
+
+! generate coefficients
+BiCoeff(:,1) = 0.25*( xNode(:,1) -xNode(:,2) +xNode(:,3) -xNode(:,4))
+BiCoeff(:,2) = 0.25*(-xNode(:,1) +xNode(:,2) +xNode(:,3) -xNode(:,4))
+BiCoeff(:,3) = 0.25*(-xNode(:,1) -xNode(:,2) +xNode(:,3) +xNode(:,4))
+BiCoeff(:,4) = 0.25*( xNode(:,1) +xNode(:,2) +xNode(:,3) +xNode(:,4))
+
+! particle vector / not normalized
+q = PartState - lastPartState
+
+! prepare solver  ! has to be computed for each patch
+a1(1)= BiCoeff(1,1)*q(3) - BiCoeff(3,1)*q(1)
+a1(2)= BiCoeff(1,2)*q(3) - BiCoeff(3,2)*q(1)
+a1(3)= BiCoeff(1,3)*q(3) - BiCoeff(3,3)*q(1)
+a1(4)= (BiCoeff(1,4)-lastPartState(1))*q(3) &
+     - (BiCoeff(3,4)-lastpartState(3))*q(1)
+
+a2(1)= BiCoeff(2,1)*q(3) - BiCoeff(3,1)*q(2)
+a2(2)= BiCoeff(2,2)*q(3) - BiCoeff(3,2)*q(2)
+a2(3)= BiCoeff(2,3)*q(3) - BiCoeff(3,3)*q(2)
+a2(4)= (BiCoeff(2,4)-lastPartState(2))*q(3) &
+     - (BiCoeff(3,4)-lastpartState(3))*q(2)
+
+A = a2(1)*a1(3)-a1(1)*a2(3)
+B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
+C = a1(4)*a2(2)-a1(2)*a2(4)
+!print*,'A,B,C', A,B,C
+CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
+print*,nRoot,Eta
+!  IF(iloop.EQ.34)THEN
+!    print*,eta
+!  END IF
+
+!print*,'nRoot,v', nRoot,v
+
+inPlane=.FALSE.
+IF(nRoot.EQ.0)THEN
+  IF((ABS(A).LT.eps).AND.(ABS(B).LT.eps).AND.(ABS(C).LT.eps))THEN
+    inPlane=.TRUE.
+  END IF
+END IF
+
+isIntersection=.FALSE.
+IF(nRoot.EQ.0)THEN
+  IF(inPlane)THEN
+    isIntersection(1)=.TRUE.
+  END IF
+ELSE IF (nRoot.EQ.1) THEN
+  IF(ABS(eta(1)).LT.epsOne)THEN
+   xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
+   xi(1)=1.0/xi(1)
+   xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
+   !print*,'xi(1)',xi(1)
+   IF(ABS(xi(1)).LT.epsOne)THEN
+     q1=xi(1)*eta(1)*BiCoeff(:,1)+xi(1)*BiCoeff(:,2)+eta(1)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
+     t(1)=Computet(q1,q)
+     IF((t(1).GE.epsZero).AND.(t(1).LE.epsOne))THEN
+       WRITE(*,*) ' One Intersection'
+       WRITE(*,*) ' t ', t(1)
+       WRITE(*,*) ' Intersection at ', lastPartState+t(1)*q
+       isIntersection(1)=.TRUE.
+       !nInter(4)=nInter(4)+1
+     END IF 
+   END IF
+ END IF
+ELSE 
+  IF(ABS(eta(1)).LT.epsOne)THEN
+    !xi(1)=eta(1)*a2(1)+a2(2)
+    !xi(1)=1.0/xi(1)
+    !xi(1)=(-eta(1)*a2(3)-a2(4))*xi(1)
+    xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
+    xi(1)=1.0/xi(1)
+    xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
+    !print*,'xi1',xi(1)
+    IF(ABS(xi(1)).LT.epsOne)THEN
+      q1=xi(1)*eta(1)*BiCoeff(:,1)+xi(1)*BiCoeff(:,2)+eta(1)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
+      t(1)=Computet(q1,q)
+      IF((t(1).GE.epsZero).AND.(t(1).LE.epsOne))THEN
+        WRITE(*,*) ' One Intersection'
+        WRITE(*,*) ' t ', t(1)
+        WRITE(*,*) ' Intersection at ', lastPartState+t(1)*q
+        xInter=lastPartState+t(1)*q
+        nVec=GetBiLinearNormVec(BiCoeff,xInter,xi(1),eta(1))
+        WRITE(*,*) ' nVec ',nVec
+        nVec=CalcBiLinearNVec(BiCoeff,xi(1),eta(1))
+        WRITE(*,*) ' nVec2',nVec
+        isIntersection(1)=.TRUE.
+      END IF 
+    END IF
+  END IF
+  IF(ABS(eta(2)).LT.epsOne)THEN
+    xi(2)=eta(2)*a2(1)-eta(2)*a1(1)+a2(2)-a1(2)
+    xi(2)=1.0/xi(2)
+    xi(2)=(eta(2)*a1(3)-eta(2)*a2(3)+a1(4)-a2(4))*xi(2)
+    IF(ABS(xi(2)).LT.epsOne)THEN
+      q1=xi(2)*eta(2)*BiCoeff(:,1)+xi(2)*BiCoeff(:,2)+eta(2)*BiCoeff(:,3)+BiCoeff(:,4)-lastPartState
+      t(2)=Computet(q1,q)
+      IF((t(2).GE.epsZero).AND.(t(2).LE.epsOne))THEN
+        WRITE(*,*) ' Second Intersection'
+        WRITE(*,*) ' t ', t(2)
+        WRITE(*,*) ' Intersection at ', lastPartState+t(2)*q
+        xInter=lastPartState+t(2)*q
+        nVec=GetBiLinearNormVec(BiCoeff,xInter,xi(2),eta(2))
+        WRITE(*,*) ' nVec ',nVec
+        nVec=CalcBiLinearNVec(BiCoeff,xi(2),eta(2))
+        WRITE(*,*) ' nVec2',nVec
+        isIntersection(2)=.TRUE.
+      END IF 
+    END IF
+  END IF
+END IF
+
+WRITE(*,*) ' Following intersections ', isIntersection
 
 !================================================================================================================================
 END PROGRAM RayBilinearPatch
 
-SUBROUTINE QuatricSolver(A,B,C,nRoot,r1,r2)
-!================================================================================================================================
-! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
-!================================================================================================================================
-IMPLICIT NONE
-!--------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)         :: A,B,C
-!--------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(OUT)     :: nRoot
-REAL,INTENT(OUT)        :: R1,R2
-!--------------------------------------------------------------------------------------------------------------------------------
-! local variables
-REAL                    :: eps=1e-12, radicant
-!================================================================================================================================
-
-radicant = B*B-4.0*A*C
-IF(ABS(a).LT.eps)THEN
-  IF(ABS(b).LT.eps)THEN
-    nRoot=0
-    R1=0.
-    R2=0.
-  ELSE
-    nRoot=1
-    R1=-c/b
-    R2=0.
-  END IF
-ELSE
-  IF(radicant.LT.0) THEN
-    nRoot = 0
-    R1=0.
-    R2=0.
-  ELSE IF (ABS(radicant).LT.eps)THEN
-    nRoot =1
-    R1 = -0.5*B/A
-    R2 = 0.
-  ELSE
-    nRoot=2
-    R1 = SQRT(B*B-4.0*A*C)
-    R2 = -R1
-    R1 = -B+R1
-    R1 = 0.5*R1/A
-    R2 = -B+R2
-    R2 = 0.5*R2/A
-  END IF
-END IF
-
-END SUBROUTINE QuatricSolver
-
-FUNCTION Computet(q1,q)
-!================================================================================================================================
-! compute the required vector length to intersection
-!================================================================================================================================
-IMPLICIT NONE
-!--------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,DIMENSION(3),INTENT(IN)         :: q1,q
-!--------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL                                 :: Computet
-!--------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                                 :: t
-REAL                                 :: eps=1e-6
-!================================================================================================================================
-
-IF((ABS(q(1)).GE.ABS(q(2))).AND.(ABS(q(1)).GT.ABS(q(3))))THEN
-  t = q1(1)/q(1)-eps
-ELSE IF(ABS(q(2)).GE.ABS(q(3)))THEN
-  t = q1(2)/q(2)-eps
-ELSE
-  t = q1(3)/q(3)-eps
-END IF
-
-Computet=t
-
-END FUNCTION Computet
