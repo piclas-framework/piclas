@@ -97,3 +97,7 @@ particles/ld/ld_reassign_part_prop.f90
 particles/ld/ld_particle_treatment.f90
 particles/ld/ld_analyze.f90
 particles/particle_pressure.f90
+mesh/particle_surfaces_vars.f90
+mesh/particle_surfaces.f90
+particles/boundary/particle_curved_surfaces.f90
+particles/boundary/particle_tracking.f90

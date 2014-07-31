@@ -25,6 +25,7 @@ USE MOD_MPI,              ONLY:InitMPIvars
 #endif
 #ifdef PARTICLES
 USE MOD_ParticleInit,     ONLY:InitParticles
+USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizePartilceSurfaces
 #endif
 
 ! IMPLICIT VARIABLE HANDLING
@@ -78,6 +79,7 @@ CALL InitTimeDisc()
 CALL InitParticleAnalyze()
 #ifdef PARTICLES
 CALL InitParticles()
+CALL InitParticleSurfaces()
 #endif
 CALL InitAnalyze()
 CALL InitRecordPoints()
@@ -105,6 +107,9 @@ CALL FinalizeTimeDisc()
 CALL FinalizeRestart()
 CALL FinalizeMesh()
 CALL FinalizeFilter()
+#ifdef PARTICLES
+CALL FinalizeParticleSurfaces()
+#endif
 ! Measure simulation duration
 Time=BOLTZPLATZTIME()
 #ifdef MPI
