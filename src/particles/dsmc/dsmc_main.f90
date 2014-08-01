@@ -42,7 +42,7 @@ SUBROUTINE DSMC_main()
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-  INTEGER           :: iElem, nPart, nPair, iPair, ProbMeanCellCount
+  INTEGER           :: iElem, nPart, nPair, iPair, ProbMeanCellCount,OutElem
   REAL              :: iRan, CollMeanCell, ProbMeanCell
   INTEGER           :: nOutput
 !--------------------------------------------------------------------------------------------------!

@@ -89,7 +89,7 @@ IMPLICIT NONE
 ! INPUT VARiABLES
 INTEGER, INTENT(IN)           :: iPair, iReac,iPart_p3
 LOGICAL, INTENT(INOUT)        :: RelaxToDo
-INTEGER, INTENT(INOUT)        :: iElem
+INTEGER, INTENT(IN)        :: iElem
 REAL, INTENT(IN), OPTIONAL    :: NodeVolume
 INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------

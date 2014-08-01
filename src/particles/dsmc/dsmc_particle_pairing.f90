@@ -30,7 +30,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 ! Local variable declaration                                                                       !
 INTEGER                       :: nPair, iPart, iLoop, nPart, iNode
 ! input variable declaration                                                                       !
-INTEGER, INTENT(INOUT)           :: iElem
+INTEGER, INTENT(IN)           :: iElem
 REAL                          :: ApproxElemMid(1:3)
 TYPE(tTreeNode), POINTER      :: TreeNode
 !--------------------------------------------------------------------------------------------------!
@@ -85,7 +85,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem)
 ! Local variable declaration                                                                       !
 INTEGER                       :: nPair, iPart, iLoop, iLoop2, iNode, iPartIndx
 ! input variable declaration                                                                       !
-INTEGER, INTENT(INOUT)                     :: iElem
+INTEGER, INTENT(IN)                     :: iElem
 TYPE(tTreeNode),INTENT(IN), POINTER     :: TreeNode
 INTEGER, ALLOCATABLE                    :: iPartIndx_ChildNode(:,:)
 REAL                          :: ChildMidPoints(3,8), NodeVolume(8)
@@ -227,7 +227,7 @@ REAL                          :: TempMPFFac, MPFFac
 ! input variable declaration                                                                       !
 REAL, INTENT(IN)                        :: NodeVolume
 INTEGER, INTENT(IN)                     :: PartNum
-INTEGER, INTENT(INOUT)                  :: iElem
+INTEGER, INTENT(IN)                  :: iElem
 INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 !--------------------------------------------------------------------------------------------------!
 PairNum_Node = INT(PartNum/2)

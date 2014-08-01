@@ -39,7 +39,7 @@ REAL                          :: iRan
 REAL                          :: Epre, Epost                      ! Energy check
 ! input variable declaration                                                                       !
 INTEGER, INTENT(IN)           :: iPair
-INTEGER, INTENT(INOUT)        :: iElem
+INTEGER, INTENT(IN)        :: iElem
 !--------------------------------------------------------------------------------------------------! 
 
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(Coll_pData(iPair)%iPart_p1), Coll_pData(iPair)%PairType)
@@ -143,7 +143,7 @@ REAL                          :: MaxColQua                        ! Max. Quantum
 REAL                          :: PartStateIntEnTemp, Phi, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
 ! input variable declaration                                                                       !
 INTEGER, INTENT(IN)           :: iPair
-INTEGER, INTENT(INOUT)        :: iElem
+INTEGER, INTENT(IN)        :: iElem
 !--------------------------------------------------------------------------------------------------!
 ! variables for electronic level relaxation and transition
 LOGICAL                       :: DoElec1, DoElec2
@@ -541,7 +541,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 ! Local variable declaration                                                                       !
 ! input variable declaration                                                                       !
   INTEGER, INTENT(IN)           :: iPair
-  INTEGER, INTENT(INOUT)        :: iElem
+  INTEGER, INTENT(IN)        :: iElem
   REAL, INTENT(IN), OPTIONAL    :: NodeVolume
   INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
   LOGICAL                       :: RelaxToDo
@@ -617,7 +617,7 @@ REAL (KIND=8)                 :: iRan
 !-------------------
 ! input variable declaration                                                                       !
 INTEGER, INTENT(IN)           :: iPair
-INTEGER, INTENT(INOUT)        :: iElem
+INTEGER, INTENT(IN)        :: iElem
 LOGICAL, INTENT(INOUT)        :: RelaxToDo
 REAL, INTENT(IN), OPTIONAL    :: NodeVolume
 INTEGER, INTENT(IN), OPTIONAL :: NodePartNum

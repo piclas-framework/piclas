@@ -246,7 +246,7 @@ IMPLICIT NONE                                                                   
   REAL                          :: DSMC_RHS_M_Temp(3)
 
   INTEGER, INTENT(IN)           :: iPair, iReac, iPart_p3
-  INTEGER, INTENT(INOUT)        :: iElem
+  INTEGER, INTENT(IN)        :: iElem
 !--------------------------------------------------------------------------------------------------!
 
   DSMC_RHS(React1Inx,1) = 0.0
@@ -530,7 +530,7 @@ REAL                          :: MaxColQua                        ! Max. Quantum
 REAL                          :: PartStateIntEnTemp, Phi, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
 ! input variable declaration                                                                       !
 INTEGER, INTENT(IN)           :: Part_1, Part_2
-INTEGER, INTENT(INOUT)        :: iElem
+INTEGER, INTENT(IN)        :: iElem
 !--------------------------------------------------------------------------------------------------! 
 
 !  DoRot1 = .FALSE.  Part_1 is allways a atom

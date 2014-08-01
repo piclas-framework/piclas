@@ -40,9 +40,12 @@ SUBROUTINE InitParticleSurfaces()
 ! read required parameters
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Particle_Surfaces_vars
-USE MOD_Mesh_Vars,                  ONLY:nSides
-USE MOD_ReadInTools,                ONLY:GetReal
+USE MOD_Preproc
+USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem
+USE MOD_ReadInTools,                ONLY:GETREAL
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -51,6 +54,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                         :: iElem,ilocSide,SideID,flip
 !===================================================================================================================================
 
 IF(ParticleSurfaceInitIsDone) RETURN
@@ -58,14 +62,36 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES ...!'
 
 epsilonbilinear = GETREAL('eps-bilinear','1e-6')
-epsilontol      = GETREAL('epsOne',1e-12)
+epsilontol      = GETREAL('epsOne','1e-12')
 epsilonOne      = 1.0 + epsilontol
 
 ALLOCATE( SideIsPlanar(nSides)            &
         , SideDistance(nSides)            &
-        , nElemBCSides(PP_nElems)         &
         , BiLinearCoeff(1:3,1:4,1:nSides) )
+        !, nElemBCSides(PP_nElems)         &
 SideIsPlanar=.FALSE.
+
+! construct connections to neighbor elems
+ALLOCATE( neighborElemID    (1:6,1:PP_nElems) &
+        , neighborlocSideID (1:6,1:PP_nElems) )
+neighborElemID=-1
+neighborlocSideID=-1
+
+DO iElem=1,PP_nElems
+  DO ilocSide=1,6
+    flip = ElemToSide(E2S_FLIP,ilocSide,iElem)
+    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF(flip.EQ.0)THEN
+      ! SideID of slave
+      neighborlocSideID(ilocSide,iElem)=SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+      neighborElemID   (ilocSide,iElem)=SideToElem(S2E_NB_ELEM_ID,SideID)
+    ELSE
+      ! SideID of master
+      neighborlocSideID(ilocSide,iElem)=SideToElem(S2E_LOC_SIDE_ID,SideID)
+      neighborElemID   (ilocSide,iElem)=SideToElem(S2E_ELEM_ID,SideID)
+    END IF
+  END DO ! ilocSide
+END DO ! Elem
 
 CALL GetBiLinearPlane()
 
@@ -82,7 +108,9 @@ SUBROUTINE FinalizeParticleSurfaces()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Surfaces_vars
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -92,7 +120,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-SDEALLOCATE( SideIsPlanar, BiLinearCoeff,SideNormVec,nElemBCSides,SideDistance)
+DEALLOCATE( SideIsPlanar, BiLinearCoeff,SideNormVec,SideDistance)
 ParticleSurfaceInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeParticleSurfaces
@@ -106,7 +134,8 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide,nBCSides
 USE MOD_Particle_Vars,            ONLY:GEO
-USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear, SideIsPlanar,BiLinearCoeff, SideNormVec
+USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear, SideIsPlanar,BiLinearCoeff, SideNormVec, SideDistance
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -175,19 +204,19 @@ DO iElem=1,PP_nElems ! caution, if particles are not seeded in the whole domain
 END DO ! iElem
 
 ! get number of bc-sides of each element
-nElemBCSides=0
-DO iElem=1,PP_nelems
-  DO ilocSide=1,6
-    SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
-    IF(SideID.LT.nBCSides) nElemBCSides=nElemBCSides+1
-  END DO ! ilocSide
-END DO ! nElemBCSides
+! nElemBCSides=0
+! DO iElem=1,PP_nelems
+!   DO ilocSide=1,6
+!     SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+!     IF(SideID.LT.nBCSides) nElemBCSides=nElemBCSides+1
+!   END DO ! ilocSide
+! END DO ! nElemBCSides
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar    surfaces: ', nPlanar
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear surfaces: ', nBilinear
 
-ALLOCATE(SideNormVec(nPlanar))
+ALLOCATE(SideNormVec(1:3,nPlanar))
 ! compute normal vector of planar sides
 DO iSide=1,nSides
   IF(SideIsPlanar(SideID))THEN
@@ -196,7 +225,7 @@ DO iSide=1,nSides
            +SideNormVec(2,SideID)*SideNormVec(2,SideID) &
            +SideNormVec(3,SideID)*SideNormVec(3,SideID) 
     SideNormVec(:,SideID) = SideNormVec(:,SideID)/SQRT(nlength)
-    SideDisctance(SideID) = DOT_PRODUCT(SideNormVec(:,SideID),BiLinearCoeff(:,4,SideID))
+    SideDistance(SideID)  = DOT_PRODUCT(SideNormVec(:,SideID),BiLinearCoeff(:,4,SideID))
   END IF
 END DO
 
@@ -210,6 +239,7 @@ FUNCTION CalcBiLinearNormVec(xi,eta,SideID)
 !================================================================================================================================
 USE MOD_Globals,                              ONLY:CROSS
 USE MOD_Particle_Surfaces_Vars,               ONLY:BiLinearCoeff
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -227,10 +257,10 @@ REAL                                   :: nlength
 a=xi* BiLinearCoeff(:,1,SideID)+BiLinearCoeff(:,2,SideID)
 b=eta*BiLinearCoeff(:,1,SideID)+BiLinearCoeff(:,3,SideID)
 
-n=CROSS(a,b)
-length=n(1)*n(1)+n(2)*n(2)+n(3)*n(3)
-length=SQRT(length)
-CalcBiLinearNormVec=n/length
+nVec=CROSS(a,b)
+nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
+nlength=SQRT(nlength)
+CalcBiLinearNormVec=nVec/nlength
 
 END FUNCTION CalcBiLinearNormVec
 

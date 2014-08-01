@@ -25,7 +25,7 @@ USE MOD_MPI,              ONLY:InitMPIvars
 #endif
 #ifdef PARTICLES
 USE MOD_ParticleInit,     ONLY:InitParticles
-USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizePartilceSurfaces
+USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces
 #endif
 
 ! IMPLICIT VARIABLE HANDLING
