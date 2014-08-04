@@ -472,6 +472,9 @@ REAL                          :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_n
 real:: tstart,tend,t1,t2
 !===================================================================================================================================
 
+t1=0.
+t2=0.
+
 ! RK coefficients
 DO rk=1,nRKStages
   b_dt(rk)=RK4_b(rk)*dt
@@ -556,18 +559,16 @@ IF (t.GE.DelayTime) THEN
                                        + Pt(1:PDM%ParticleVecLength,3)*b_dt(1)
 END IF
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+!CALL CPU_TIME(tStart)
+!  CALL ParticleBoundary()
+!CALL CPU_TIME(tend)
+!t1=tend-tstart
 
-CALL CPU_TIME(tStart)
+!CALL CPU_TIME(tStart)
   CALL ParticleTracking()
-CALL CPU_TIME(tend)
-t2=tend-tstart
+!jCALL CPU_TIME(tend)
+!jt2=tend-tstart
 
-
-CALL CPU_TIME(tStart)
-  CALL ParticleBoundary()
-CALL CPU_TIME(tend)
-t1=tend-tstart
-print*,'time',t1,t2
 #ifdef MPI
   CALL Communicate_PIC()
   !CALL UpdateNextFreePosition() ! only required for parallel communication
@@ -655,11 +656,22 @@ DO rk=2,nRKStages
     PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                        + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(rk)
     ! particle tracking
-    CALL ParticleBoundary()
+!    CALL ParticleBoundary()
+  CALL ParticleTracking()
 #ifdef MPI
       CALL Communicate_PIC()
 !    CALL UpdateNextFreePosition() ! only required for parallel communication
 #endif
+!CALL CPU_TIME(tStart)
+!  CALL ParticleBoundary()
+!CALL CPU_TIME(tend)
+!t1=t1+tend-tstart
+!
+!CALL CPU_TIME(tStart)
+!!  CALL ParticleTracking()
+!CALL CPU_TIME(tend)
+!t2=t2+tend-tstart
+
   END IF
 #endif /*PARTICLES*/
 
@@ -669,6 +681,8 @@ END DO
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   CALL UpdateNextFreePosition()
 END IF
+
+!print*,'time',t1,t2
 
 IF (useDSMC) THEN
   IF (t.GE.DelayTime) THEN
