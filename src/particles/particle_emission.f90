@@ -1249,7 +1249,7 @@ SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle)                    
          END IF
          i = i + 1
       END DO
-   CASE('radial_constant')
+     CASE('radial_constant')
       i = 1
       DO WHILE (i .le. NbrOfParticle)
          PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)

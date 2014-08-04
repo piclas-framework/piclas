@@ -132,7 +132,7 @@ SUBROUTINE GetBilinearPlane()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide,nBCSides
+USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide
 USE MOD_Particle_Vars,            ONLY:GEO
 USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear, SideIsPlanar,BiLinearCoeff, SideNormVec, SideDistance
 ! IMPLICIT VARIABLE HANDLING
@@ -160,6 +160,8 @@ DO iElem=1,PP_nElems ! caution, if particles are not seeded in the whole domain
   DO ilocSide=1,6
     SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem) 
     IF(.NOT.SideIsDone(SideID))THEN
+
+      ! for ray-bi-linear patch intersection see. ramsay
       ! compute the bi-linear coefficients for this side
       ! caution: the parameter space is [-1;1] x [-1;1] instead of [0,1]x[0,2] 
       ! the numbering of the nodes should be counterclockwise 
@@ -216,18 +218,19 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar    surfaces: ', nPlanar
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear surfaces: ', nBilinear
 
-ALLOCATE(SideNormVec(1:3,nPlanar))
+ALLOCATE(SideNormVec(1:3,nSides))
+SideNormVec=0.
 ! compute normal vector of planar sides
 DO iSide=1,nSides
   IF(SideIsPlanar(SideID))THEN
-    SideNormVec(:,SideID)=CROSS(BiLinearCoeff(:,2,SideID),BiLinearCoeff(:,3,SideID))
-    nlength=SideNormVec(1,SideID)*SideNormVec(1,SideID) &
-           +SideNormVec(2,SideID)*SideNormVec(2,SideID) &
-           +SideNormVec(3,SideID)*SideNormVec(3,SideID) 
-    SideNormVec(:,SideID) = SideNormVec(:,SideID)/SQRT(nlength)
-    SideDistance(SideID)  = DOT_PRODUCT(SideNormVec(:,SideID),BiLinearCoeff(:,4,SideID))
+    SideNormVec(:,iSide)=CROSS(BiLinearCoeff(:,2,iSide),BiLinearCoeff(:,3,iSide))
+    nlength=SideNormVec(1,iSide)*SideNormVec(1,iSide) &
+           +SideNormVec(2,iSide)*SideNormVec(2,iSide) &
+           +SideNormVec(3,iSide)*SideNormVec(3,iSide) 
+    SideNormVec(:,iSide) = SideNormVec(:,iSide)/SQRT(nlength)
+    SideDistance(iSide)  = DOT_PRODUCT(SideNormVec(:,iSide),BiLinearCoeff(:,4,iSide))
   END IF
-END DO
+END DO ! iSide
 
 DEALLOCATE( SideIsDone)
 

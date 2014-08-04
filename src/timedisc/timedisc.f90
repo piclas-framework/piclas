@@ -442,6 +442,7 @@ USE MOD_PIC_Vars,         ONLY: PIC
 USE MOD_Particle_Vars,    ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
 USE MOD_part_RHS,         ONLY: CalcPartRHS
 USE MOD_part_boundary,    ONLY: ParticleBoundary
+USE MOD_Particle_Tracking,ONLY: ParticleTracking
 USE MOD_part_emission,    ONLY: ParticleInserting
 USE MOD_DSMC,             ONLY: DSMC_main
 USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS, DSMC
@@ -468,6 +469,7 @@ INTEGER                       :: rk
 #ifdef PP_POIS
 REAL                          :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif
+real:: tstart,tend,t1,t2
 !===================================================================================================================================
 
 ! RK coefficients
@@ -554,7 +556,18 @@ IF (t.GE.DelayTime) THEN
                                        + Pt(1:PDM%ParticleVecLength,3)*b_dt(1)
 END IF
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+
+CALL CPU_TIME(tStart)
+  CALL ParticleTracking()
+CALL CPU_TIME(tend)
+t2=tend-tstart
+
+
+CALL CPU_TIME(tStart)
   CALL ParticleBoundary()
+CALL CPU_TIME(tend)
+t1=tend-tstart
+print*,'time',t1,t2
 #ifdef MPI
   CALL Communicate_PIC()
   !CALL UpdateNextFreePosition() ! only required for parallel communication

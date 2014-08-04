@@ -398,6 +398,7 @@ IF((GEO%nPeriodicVectors.GE.0).AND.(ALLOCATED(partShiftVector))) partShiftVector
 !IF(i.EQ.788729)THEN
 !WRITE(*,*) 'YESSSSSSSSSSS'
 !END IF
+              print*,'we hit boundary condition'
              CALL RANDOM_NUMBER(RanNum)
              IF(RanNum.GE.PartBound%MomentumACC(BC(GlobSideID))) THEN
 !.... Specular re-emission
