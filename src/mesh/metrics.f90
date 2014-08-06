@@ -41,7 +41,7 @@ PUBLIC::CalcMetrics
 
 CONTAINS
 
-SUBROUTINE CalcMetrics(XCL_NGeo)
+SUBROUTINE CalcMetrics()!XCL_NGeo)
 !===================================================================================================================================
 ! calculate the Volume Metric terms
 !           Metrics_fTilde(n=1:3) 
@@ -68,7 +68,7 @@ SUBROUTINE CalcMetrics(XCL_NGeo)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars, ONLY:NGeo
+USE MOD_Mesh_Vars, ONLY:NGeo,dXCL_NGeo,XCL_NGeo
 USE MOD_Mesh_Vars, ONLY:Vdm_CLNGeo_GaussN,Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
 USE MOD_Mesh_Vars, ONLY:DCL_NGeo,DCL_N
 USE MOD_Mesh_Vars, ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
@@ -82,7 +82,7 @@ USE MOD_ChangeBasis,        ONLY:changeBasis3D
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems)
+!REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -93,7 +93,7 @@ INTEGER            :: nn,mm,ll
 INTEGER            :: iGeo,jGeo,kGeo,lGeo
 INTEGER            :: Cyclic(5),CycIJK(3),Cyc(3)
 REAL               :: XCL_NGeo_loc(3,0:NGeo,0:NGeo,0:NGeo)    !mapping X(xi) P\in NGeo
-REAL               :: dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo) !jacobi matrix of the mapping P\in NGeo
+!REAL               :: dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo) !jacobi matrix of the mapping P\in NGeo
 REAL               :: DetJacCL_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL               :: DetJacGauss_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL               :: XCL_N(3,0:PP_N,0:PP_N,0:PP_N)       ! mapping X(xi) P\in N
@@ -102,6 +102,7 @@ REAL               :: R_CL_N(3,3,0:PP_N,0:PP_N,0:PP_N)    ! buffer for metric te
 REAL               :: JaCL_N(3,3,0:PP_N,0:PP_N,0:PP_N)    ! metric terms P\in N
 REAL               :: scaledJac(2)
 !===================================================================================================================================
+ALLOCATE(dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo,1:PP_nElems)) !jacobi matrix of the mapping P\in NGeo
 ! Prerequisites
 
 Metrics_fTilde=0.
@@ -112,7 +113,7 @@ Cyclic=(/1,2,3,1,2/)
 ! Outer loop over all elements
 DO iElem=1,nElems
   XCL_NGeo_loc(:,:,:,:)=XCL_NGeo(:,:,:,:,iElem)
-  !1.a) Jacobi Matrix of d/dxi_dd(X_nn): dXCL_NGeo(dd,nn,i,j,k)) 
+  !1.a) Jacobi Matrix of d/dxi_dd(X_nn): dXCL_NGeo(dd,nn,i,j,k,iElem)) 
   dXCL_NGeo=0.
   R_CL_N=0.
   dXCL_N=0.
@@ -130,7 +131,7 @@ DO iElem=1,nElems
             Cyc=CycIJK
             DO lGeo=0,NGeo
               Cyc(dd)=lGeo   !d/dxi_dd 
-              dXCL_NGeo(dd,nn,iGeo,jGeo,kGeo)=dXCL_NGeo(dd,nn,iGeo,jGeo,kGeo) + &
+              dXCL_NGeo(dd,nn,iGeo,jGeo,kGeo,iElem)=dXCL_NGeo(dd,nn,iGeo,jGeo,kGeo,iElem) + &
                                                DCL_NGeo(CycIJK(dd),lGeo)*XCL_NGeo_loc( nn ,Cyc(1),Cyc(2),Cyc(3))
             END DO !lGeo=0,NGeo
           END DO !iGeo=0,NGeo
@@ -139,9 +140,9 @@ DO iElem=1,nElems
     END DO !dd=1,3
   END DO !nn=1,3
   ! Interpolate the gradient of the mapping (living in a NGeo world) to the N (Cheb Lob) world
-  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,dXCL_NGeo(:,1,:,:,:),dXCL_N(:,1,:,:,:))
-  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,dXCL_NGeo(:,2,:,:,:),dXCL_N(:,2,:,:,:))
-  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,dXCL_NGeo(:,3,:,:,:),dXCL_N(:,3,:,:,:))
+  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,dXCL_NGeo(:,1,:,:,:,iElem),dXCL_N(:,1,:,:,:))
+  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,dXCL_NGeo(:,2,:,:,:,iElem),dXCL_N(:,2,:,:,:))
+  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,dXCL_NGeo(:,3,:,:,:,iElem),dXCL_N(:,3,:,:,:))
   ! 1.b)Jacobians! grad(X_1) (grad(X_2) x grad(X_3))
   DO dd=1,3
     ee=Cyclic(dd+1) !cyclic!

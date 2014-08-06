@@ -33,6 +33,13 @@ REAL,ALLOCATABLE :: Metrics_gTilde(:,:,:,:,:)
 REAL,ALLOCATABLE :: Metrics_hTilde(:,:,:,:,:)
 REAL,ALLOCATABLE :: sJ(:,:,:,:)               ! 1/DetJac for each Gauss Point
 !-----------------------------------------------------------------------------------------------------------------------------------
+! PIC - for Newton localisation of particles in curved Elements
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL,ALLOCATABLE :: wBaryCL_NGeo(:)
+REAL,ALLOCATABLE :: XiCL_NGeo(:)
+REAL,ALLOCATABLE :: XCL_NGeo(:,:,:,:,:)
+REAL,ALLOCATABLE :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! surface vectors 
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE :: NormVec(:,:,:,:)

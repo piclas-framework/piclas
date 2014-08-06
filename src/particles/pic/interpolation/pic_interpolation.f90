@@ -22,7 +22,7 @@ USE MOD_Globals!,                ONLY : UNIT_errOut, UNIT_StdOut
 USE MOD_ReadInTools
 USE MOD_Particle_Vars,          ONLY : PDM, GEO
 USE MOD_PICInterpolation_Vars
-USE MOD_Mesh_Vars,              ONLY : nElems
+USE MOD_Mesh_Vars,              ONLY : nElems,dXCL_NGeo,XCL_NGeo
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -56,6 +56,11 @@ INTEGER                   :: iNode, iElem, i, j, k
     STOP
   END IF
 
+  IF (TRIM(InterpolationType).NE.'particle_position') THEN
+    DEALLOCATE(dXCL_NGeo)
+    DEALLOCATE(XCL_NGeo)
+  END IF
+
   SELECT CASE(TRIM(InterpolationType))
   CASE('nearest_blurycenter')
      InterpolationType='nearest_blurrycenter'
@@ -64,25 +69,30 @@ INTEGER                   :: iNode, iElem, i, j, k
   CASE('particle_position')
     SWRITE(UNIT_StdOut,'(132("-"))')
     SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
+    ! ========================================================
+    ! ==== should not be required any more               ====
+    ! ==== only required by eval_xyz_fast and eval_xyz_2 ====
+    SWRITE(UNIT_stdOut,'(A)') ' ElemT_inv NOT built...'
     ! prebuild trafo matrices
 !    ALLOCATE(ElemPT(1:3,1:8,1:nElems),       &
 !             ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
-    ALLOCATE(ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) THEN
-      WRITE(*,*) 'ERROR in InterpolationInit: Cannot allocate ElemPT!'
-      STOP
-    END IF
-    ! prepare interpolation: calculate trafo matrices
-    DO iElem = 1,nElems
-      DO iNode = 1,8
-        P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-      END DO
-      T(:,1) = 0.5 * (P(:,2)-P(:,1))
-      T(:,2) = 0.5 * (P(:,4)-P(:,1))
-      T(:,3) = 0.5 * (P(:,5)-P(:,1))
-      T_inv = Calc_inv(T)
-      ElemT_inv(1:3,1:3,iElem) = T_inv
-    END DO
+    !ALLOCATE(ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
+    !IF (ALLOCSTAT.NE.0) THEN
+      !WRITE(*,*) 'ERROR in InterpolationInit: Cannot allocate ElemPT!'
+      !STOP
+    !END IF
+    !! prepare interpolation: calculate trafo matrices
+    !DO iElem = 1,nElems
+      !DO iNode = 1,8
+        !P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
+      !END DO
+      !T(:,1) = 0.5 * (P(:,2)-P(:,1))
+      !T(:,2) = 0.5 * (P(:,4)-P(:,1))
+      !T(:,3) = 0.5 * (P(:,5)-P(:,1))
+      !T_inv = Calc_inv(T)
+      !ElemT_inv(1:3,1:3,iElem) = T_inv
+    !END DO
+    ! =======================================================
 
     SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
     SWRITE(UNIT_StdOut,'(132("-"))')
@@ -343,6 +353,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         IF (PDM%ParticleInside(iPart)) THEN
           iElem = PEM%Element(iPart)
           Pos = PartState(iPart,1:3)
+          !print*,'Pos,iElem',Pos,iElem
           !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS

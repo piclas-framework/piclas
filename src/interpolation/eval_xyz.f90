@@ -1,3 +1,5 @@
+#include "boltzplatz.h"
+
 MODULE MOD_Eval_xyz
 !===================================================================================================================================
 ! Changes a 3D Tensor Product Lagrange Points of Lagrange Basis of degree N_In to  
@@ -23,7 +25,11 @@ INTERFACE eval_xyz_fast
   MODULE PROCEDURE eval_xyz_fast
 END INTERFACE
 
-PUBLIC :: eval_xyz, eval_xyz_fast, eval_xyz_part2, Calc_F, Calc_dF_inv 
+INTERFACE eval_xyz_curved
+  MODULE PROCEDURE eval_xyz_curved
+END INTERFACE
+
+PUBLIC :: eval_xyz, eval_xyz_fast, eval_xyz_part2, Calc_F, Calc_dF_inv, eval_xyz_curved
 !===================================================================================================================================
 
 CONTAINS
@@ -643,5 +649,205 @@ M_inv (3, 3) = (M (1, 1) * M (2, 2) &
 Calc_inv = M_inv
 END FUNCTION Calc_inv 
 
+SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,X3D_In,X3D_Out,iElem)
+!===================================================================================================================================
+! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
+! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
+! xi is defined in the 1DrefElem xi=[-1,1]
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
+USE MOD_Interpolation_Vars,      ONLY:wBary,xGP
+USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne
+!USE MOD_Mesh_Vars,ONLY: X_CP
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: NVar                                  ! 6 (Ex, Ey, Ez, Bx, By, Bz) 
+INTEGER,INTENT(IN)  :: N_In                                  ! usually PP_N
+INTEGER,INTENT(IN)  :: iElem                                 ! elem index
+REAL,INTENT(IN)     :: X3D_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
+REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)    :: X3D_Out(1:NVar)  ! Interpolated state
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER             :: i,j,k
+REAL                :: xi(3)
+INTEGER             :: NewTonIter
+REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
+REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
+REAL                :: Winner_Dist2,Dist2
+REAL, PARAMETER     :: EPS=1E-8
+INTEGER             :: n_Newton
+REAL                :: F(1:3),Lag(1:3,0:NGeo)
+REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
+!===================================================================================================================================
+
+! get initial guess by nearest GP search
+! x_in = PartState(1:3,iPart)
+Winner_Dist2=HUGE(1.)
+DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
+  Dist2=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
+  IF (Dist2.LT.Winner_Dist2) THEN
+    Winner_Dist2=Dist2 
+    Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
+  END IF
+END DO; END DO; END DO
+
+! initial guess
+CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+! F(xi) = x(xi) - x_in
+F=-x_in ! xRp
+DO k=0,NGeo
+  DO j=0,NGeo
+    DO i=0,NGeo
+      F=F+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+    END DO !l=0,NGeo
+  END DO !i=0,NGeo
+END DO !j=0,NGeo
+
+NewtonIter=0
+DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
+  NewtonIter=NewtonIter+1
+  ! 
+  DO k=0,NGeo
+    DO j=0,NGeo
+      DO i=0,NGeo
+        Jac=Jac+dXCL_NGeo(:,:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      END DO !l=0,NGeo
+    END DO !i=0,NGeo
+  END DO !j=0,NGeo
+  
+  ! Compute inverse of Jacobian
+  sdetJac=getDet(Jac)
+  IF(sdetJac.NE.0.) THEN
+   sdetJac=1./sdetJac
+  ELSE !shit
+   ! Newton has not converged !?!?
+   CALL abort(__STAMP__, &
+        'Newton in FindXiForPartPos singular')
+  ENDIF 
+  sJac=getInv(Jac,sdetJac)
+  
+  ! Iterate Xi using Newton step
+  ! Use FAIL
+  Xi = Xi - MATMUL(sJac,F)
+  IF(ANY(ABS(Xi).GT.1.5)) THEN
+    !SWRITE(*,*) ' Particle not inside of element!!!'
+    !SWRITE(*,*) ' xi  ', xi(1)
+    !SWRITE(*,*) ' eta ', xi(2)
+    !SWRITE(*,*) ' zeta', xi(3)
+    !EXIT
+  END IF
+  
+  ! Compute function value
+  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  ! F(xi) = x(xi) - x_in
+  F=-x_in ! xRp
+  DO k=0,NGeo
+    DO j=0,NGeo
+      DO i=0,NGeo
+        F=F+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      END DO !l=0,NGeo
+    END DO !i=0,NGeo
+  END DO !j=0,NGeo
+END DO !newton
+
+! check if Newton is successful
+IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
+  WRITE(*,*) ' Particle outside of parameter range!!!'
+  WRITE(*,*) ' xi  ', xi(1)
+  WRITE(*,*) ' eta ', xi(2)
+  WRITE(*,*) ' zeta', xi(3)
+END IF
+
+! 2.1) get "Vandermonde" vectors
+DO i=1,3
+  CALL LagrangeInterpolationPolys(xi(i),N_in,xGP,wBary,Lag(i,:))
+END DO
+
+! 2.2) do the tensor product thing 
+X3D_buf1=0.
+! first direction iN_In
+DO k=0,N_In
+  DO j=0,N_In
+    DO i=0,N_In
+      X3D_Buf1(:,j,k)=X3D_Buf1(:,j,k)+Lag(1,i)*X3D_In(:,i,j,k)
+    END DO
+  END DO
+END DO
+X3D_buf2=0.
+! second direction jN_In
+DO k=0,N_In
+  DO j=0,N_In
+    X3D_Buf2(:,k)=X3D_Buf2(:,k)+Lag(2,j)*X3D_Buf1(:,j,k)
+  END DO
+END DO
+X3D_Out=0.
+! last direction kN_In
+DO k=0,N_In
+  X3D_Out(:)=X3D_Out(:)+Lag(3,k)*X3D_Buf2(:,k)
+END DO
+
+END SUBROUTINE eval_xyz_curved
+
+FUNCTION getDet(Mat)
+!=================================================================================================================================
+! compute determinant of 3x3 matrix
+!=================================================================================================================================
+  ! MODULES
+  ! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!---------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)  :: Mat(3,3)
+!---------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL             :: getDet
+!---------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!=================================================================================================================================
+getDet=   ( Mat(1,1) * Mat(2,2) - Mat(1,2) * Mat(2,1) ) * Mat(3,3) &
+        + ( Mat(1,2) * Mat(2,3) - Mat(1,3) * Mat(2,2) ) * Mat(3,1) &
+        + ( Mat(1,3) * Mat(2,1) - Mat(1,1) * Mat(2,3) ) * Mat(3,2)
+END FUNCTION getDet
+
+
+FUNCTION getInv(Mat,sdet)
+!=================================================================================================================================
+! compute inverse of 3x3 matrix, needs sDet=1/det(Mat)
+!=================================================================================================================================
+  ! MODULES
+  ! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!---------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)  :: Mat(3,3),sDet
+!---------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL             :: getInv(3,3)
+!---------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!=================================================================================================================================
+getInv(1,1) = ( Mat(2,2) * Mat(3,3) - Mat(2,3) * Mat(3,2) ) * sdet
+getInv(1,2) = ( Mat(1,3) * Mat(3,2) - Mat(1,2) * Mat(3,3) ) * sdet
+getInv(1,3) = ( Mat(1,2) * Mat(2,3) - Mat(1,3) * Mat(2,2) ) * sdet
+getInv(2,1) = ( Mat(2,3) * Mat(3,1) - Mat(2,1) * Mat(3,3) ) * sdet
+getInv(2,2) = ( Mat(1,1) * Mat(3,3) - Mat(1,3) * Mat(3,1) ) * sdet
+getInv(2,3) = ( Mat(1,3) * Mat(2,1) - Mat(1,1) * Mat(2,3) ) * sdet
+getInv(3,1) = ( Mat(2,1) * Mat(3,2) - Mat(2,2) * Mat(3,1) ) * sdet
+getInv(3,2) = ( Mat(1,2) * Mat(3,1) - Mat(1,1) * Mat(3,2) ) * sdet
+getInv(3,3) = ( Mat(1,1) * Mat(2,2) - Mat(1,2) * Mat(2,1) ) * sdet
+END FUNCTION getInv 
 
 END MODULE MOD_Eval_xyz

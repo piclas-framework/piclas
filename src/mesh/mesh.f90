@@ -63,7 +63,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: iBC
 LOGICAL           :: debugmesh
-REAL,ALLOCATABLE  :: XCL_NGeo(:,:,:,:,:)
+!REAL,ALLOCATABLE  :: XCL_NGeo(:,:,:,:,:)
 REAL              :: x(3),PI
 INTEGER           :: iElem,i,j,k,iSide,countSurfElem,iProc
 INTEGER,ALLOCATABLE :: countSurfElemMPI(:)
@@ -249,7 +249,7 @@ ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,1:nSides)           
 
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
-CALL CalcMetrics(XCL_NGeo) 
+CALL CalcMetrics()!XCL_NGeo) 
 #ifdef PARTICLES
 ! save geometry information for particle tracking
 CALL InitElemVolumes()
@@ -285,6 +285,10 @@ IF(debugmesh)THEN
   CALL  WriteDebugMesh()
 END IF !/*debugmesh*/
 
+#ifndef PARTICLES
+DEALLOCATE(XCL_NGeo)
+#endif
+
 MeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -296,7 +300,8 @@ SUBROUTINE InitMeshBasis(NGeo_in,N_in,xGP)
 ! Read Parameter from inputfile 
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm_CLNGeo_GaussN,Vdm_NGeo_CLNGeo,DCL_NGeo,DCL_N
+USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm_CLNGeo_GaussN,Vdm_NGeo_CLNGeo,DCL_NGeo,DCL_N&
+                                       ,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
 #ifdef PARTICLES
@@ -315,7 +320,7 @@ REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(0:N_in)                     :: XiCL_N,wBaryCL_N
-REAL,DIMENSION(0:NGeo_in)                  :: XiCL_NGeo,wBaryCL_NGeo,wBary_NGeo
+REAL,DIMENSION(0:NGeo_in)                  :: wBary_NGeo!: XiCL_NGeo,!,wBaryCL_NGeo,wBary_NGeo
 #ifdef PARTICLES
 REAL,DIMENSION(0:NPartCurved)              :: XiEquiPartCurved
 #endif
@@ -329,6 +334,8 @@ ALLOCATE(Vdm_CLNGeo_CLN(0:N_in,0:NGeo_in))
 ALLOCATE(Vdm_NGeo_CLNGeo(0:NGeo_in,0:NGeo_in))
 ! new for curved particle sides
 ALLOCATE(Vdm_CLNGeo_EquiNPartCurved(0:NGeo_in,0:NPartCurved))
+ALLOCATE(wBaryCL_NGeo(0:NGeo_In))
+ALLOCATE(XiCL_NGeo(0:NGeo_In))
 ! Chebyshev-Lobatto N
 CALL ChebyGaussLobNodesAndWeights(N_in,XiCL_N)
 CALL BarycentricWeights(N_in,XiCL_N,wBaryCL_N)
