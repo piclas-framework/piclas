@@ -72,9 +72,10 @@ DO iPart=1,PDM%ParticleVecLength
           !                              ,XiEtaIntersect(2,ilocSide))
         END IF
         !print*,ilocSide,alpha
-        print*,'alpha,xi,eta',alpha,xi,eta
+        print*,'ilocSide,alpha,xi,eta',ilocSide,alpha,xi,eta
+        !print*,'neighborElemID',neighborElemID(ilocSide,ElemID)
         ! check after each side if particle went through checked side
-        IF(alpha.GT.0.)THEN ! or minus epsilontol
+        IF(alpha.GT.epsilontol)THEN ! or minus epsilontol
           !IF(alpha+epsilontol.GE.epsilonOne) PartisDone=.TRUE.
           IF(SideID.LE.nBCSides)THEN
             CALL abort(__STAMP__,&
@@ -95,10 +96,13 @@ DO iPart=1,PDM%ParticleVecLength
           END IF ! iInteSect
         END IF
       END DO ! ilocSide
+      !sop
       !read*
       ! no intersection found
-      PEM%Element(iPart) = ElemID
-      PartisDone=.TRUE.
+      IF(alpha.EQ.-1.0)THEN
+        PEM%Element(iPart) = ElemID
+        PartisDone=.TRUE.
+      END IF
     END DO ! PartisDone=.FALSE.
   END IF ! Part inside
 END DO ! iPart
@@ -249,7 +253,7 @@ alpha=coeffB/coeffA
 !!print*,'alpha',alpha
 !!read*
 
-IF((alpha.GT.epsilonOne).OR.(alpha.LT.epsilontol))THEN
+IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
   alpha=-1.0
   RETURN
 END IF
@@ -265,8 +269,8 @@ a2(3)= BilinearCoeff(2,3,SideID)*PartTrajectory(3) - BilinearCoeff(3,3,SideID)*P
 a2(4)= (BilinearCoeff(2,4,SideID)-LastPartPos(iPart,2))*PartTrajectory(3) &
      - (BilinearCoeff(3,4,SideID)-LastPartPos(iPart,3))*PartTrajectory(2)
 
-print*,'a23,a13',a2(3),a1(3)
-print*,'a22,a12',a2(2),a1(2)
+!print*,'a23,a13',a2(3),a1(3)
+!print*,'a22,a12',a2(2),a1(2)
 
 !! caution with accuracy
 IF(ABS(a2(3)).LT.epsilontol)THEN ! term c is close to zero ==> eta is zero
@@ -307,19 +311,19 @@ END IF
 !xi = 1.0/xi
 !xi = (-a1(4)-a1(3)*a2(4)/a2(3))*xi
 !! check distance of xi 
-!IF(ABS(xi).GT.epsilonOne)THEN
-!  alpha=-1.0
-!  RETURN
-!END IF
+IF(ABS(xi).GT.epsilonOne)THEN
+  alpha=-1.0
+  RETURN
+END IF
 !! compute eta
 !eta=a1(3)-a2(3)
 !eta=1.0/eta
 !eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
 !
-!IF(ABS(eta).GT.epsilonOne)THEN
-!  alpha=-1.0
-!  RETURN
-!END IF
+IF(ABS(eta).GT.epsilonOne)THEN
+  alpha=-1.0
+  RETURN
+END IF
 
 !! compute distance with intersection
 !IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GT.ABS(PartTrajectory(3))))THEN
