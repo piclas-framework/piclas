@@ -13,6 +13,12 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: BiLinearCoeff              ! contains the bi-linear coefficients for each side
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SuperSampledNodes          !  
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:)   :: SuperSampledBiLinearCoeff  !
+INTEGER                                 :: NPartCurved                !
+INTEGER                                 :: nTriangles
+LOGICAL                                 :: DoPartCurved=.FALSE.       !
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_CLNGeo_EquiNPartCurved
 LOGICAL,ALLOCATABLE,DIMENSION(:)        :: SideIsPlanar               ! logical error if side is planar, instead of bi-linear
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideNormVec                ! normal Vector of planar sides
 REAL,ALLOCATABLE,DIMENSION(:)           :: SideDistance               ! distance of planar base from origin 

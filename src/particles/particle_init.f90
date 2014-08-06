@@ -24,11 +24,12 @@ SUBROUTINE InitParticleGeometry()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals!,            ONLY : UNIT_StdOut
-USE MOD_Mesh_Vars,          ONLY : nElems,nSides,nNodes
-USE MOD_Mesh_Vars,          ONLY : Elems,offsetElem,ElemToSide
-USE MOD_Particle_Vars,      ONLY : GEO
-USE MOD_part_MPI_Vars,      ONLY : PMPIVAR
+USE MOD_Globals!,                   ONLY : UNIT_StdOut
+USE MOD_Mesh_Vars,                ONLY : nElems,nSides,nNodes
+USE MOD_Mesh_Vars,                ONLY : Elems,offsetElem,ElemToSide
+USE MOD_Particle_Vars,            ONLY : GEO
+USE MOD_part_MPI_Vars,            ONLY : PMPIVAR
+USE MOD_Particle_Surfaces_Vars,   ONLY:SuperSampledNodes,nPartCurved
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -42,6 +43,9 @@ INTEGER           :: nStart, NodeNum
 INTEGER           :: ALLOCSTAT
 INTEGER           :: NodeMap(4,6)
 REAL              :: A(3,3),detcon
+!INTEGER           :: nTriangles
+!LOGICAL,ALLOCATABLE  :: isConcaveTriangle(:)
+!INTEGER              :: iConcaveTriangle
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
@@ -117,6 +121,7 @@ DO iElem = 1,nElems
     IF (detcon.LT.0) GEO%ConcaveElemSide(iLocSide,iElem)=.TRUE.
   END DO
 END DO
+! for supersampeledsurfaces see particle_surfases, sub: GetSuperSampledSurfaces
 !--- check for elements with intersecting sides (e.g. very flat elements)
 CALL WeirdElementCheck()
 

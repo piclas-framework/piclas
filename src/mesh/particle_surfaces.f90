@@ -29,7 +29,11 @@ INTERFACE CalcBiLinearNormVec
   MODULE PROCEDURE CalcBiLinearNormVec
 END INTERFACE
 
-PUBLIC::GetBiLinearPlane, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec
+INTERFACE GetSuperSampledSurface
+  MODULE PROCEDURE GetSuperSampledSurface
+END INTERFACE
+
+PUBLIC::GetBiLinearPlane, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, GetSuperSampledSurface
 
 !===================================================================================================================================
 
@@ -44,7 +48,7 @@ USE MOD_Globals
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem
-USE MOD_ReadInTools,                ONLY:GETREAL
+USE MOD_ReadInTools,                ONLY:GETREAL,GETINT
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -64,12 +68,8 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES ...!'
 epsilonbilinear = GETREAL('eps-bilinear','1e-6')
 epsilontol      = GETREAL('epsOne','1e-12')
 epsilonOne      = 1.0 + epsilontol
-
-ALLOCATE( SideIsPlanar(nSides)            &
-        , SideDistance(nSides)            &
-        , BiLinearCoeff(1:3,1:4,1:nSides) )
-        !, nElemBCSides(PP_nElems)         &
-SideIsPlanar=.FALSE.
+!NPartCurved     = GETINT('NPartCurved','1')
+!IF(NPartCurved.GT.1) DoPartCurved=.TRUE.
 
 ! construct connections to neighbor elems
 ALLOCATE( neighborElemID    (1:6,1:PP_nElems) &
@@ -93,8 +93,18 @@ DO iElem=1,PP_nElems
   END DO ! ilocSide
 END DO ! Elem
 
-CALL GetBiLinearPlane()
-
+IF(.NOT.DoPartCurved)THEN
+  ALLOCATE( SideIsPlanar(nSides)            &
+          , SideDistance(nSides)            &
+          , BiLinearCoeff(1:3,1:4,1:nSides) )
+          !, nElemBCSides(PP_nElems)         &
+  SideIsPlanar=.FALSE.
+  CALL GetBiLinearPlane()
+!ELSE
+!  ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,nSides)               &
+!          , SuperSampledBiLinearCoeff(1:3,1:4,1:NPartCurved,1:NPartCurved,1:nSides) )
+  !kCALL GetSuperSampledPlane()
+END IF
 ParticleSurfaceInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -120,7 +130,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-DEALLOCATE( SideIsPlanar, BiLinearCoeff,SideNormVec,SideDistance)
+SDEALLOCATE(SideIsPlanar)
+SDEALLOCATE(BiLinearCoeff)
+SDEALLOCATE(SideNormVec)
+SDEALLOCATE(SideDistance)
+SDEALLOCATE(SuperSampledNodes)
+SDEALLOCATE(SuperSampledBiLinearCoeff)
 ParticleSurfaceInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeParticleSurfaces
@@ -266,5 +281,306 @@ nlength=SQRT(nlength)
 CalcBiLinearNormVec=nVec/nlength
 
 END FUNCTION CalcBiLinearNormVec
+
+SUBROUTINE GetSuperSampledSurface(XCL_NGeo,iElem)
+!===================================================================================================================================
+! computes the nodes and coeffs for [P][I][C] [A]daptive [S]uper [S]ampled Surfaces [O]perations
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide,SideToElem,NGeo
+USE MOD_Particle_Vars,            ONLY:GEO
+USE MOD_Particle_Surfaces_Vars,   ONLY:SuperSampledNodes,nPartCurved,Vdm_CLNGeo_EquiNPartCurved
+USE MOD_Mesh_Vars,                ONLY:nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+USE MOD_ChangeBasis,        ONLY:ChangeBasis2D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: iElem
+REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: lastSideID,flip,SideID
+INTEGER                           :: p,q
+REAL                              :: tmp(3,0:NPartCurved,0:NPartCurved)  
+
+!===================================================================================================================================
+
+! BCSides, InnerSides and MINE MPISides are filled
+lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
+
+! interpolate to xi sides
+! xi_minus
+SideID=ElemToSide(E2S_SIDE_ID,XI_MINUS,iElem)
+IF(SideID.LE.lastSideID)THEN
+  IF(ElemToSide(E2S_FLIP,XI_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
+    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,0,:,:),tmp)
+    ! turn into right hand system of side
+    DO q=0,NPartCurved
+      DO p=0,NPartCurved
+        SuperSampledNodes(1:3,p,q,sideID)=tmp(:,q,p)
+      END DO !p
+    END DO !q
+  END IF !flip=0
+ELSE ! no master, here has to come the suff with the slave
+  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,0,:,:),tmp)
+  flip= SideToElem(S2E_FLIP,SideID)
+  SELECT CASE(flip)
+    CASE(1) ! slave side, SideID=q,jSide=p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+        END DO ! p
+      END DO ! q
+    CASE(2) ! slave side, SideID=N-p,jSide=q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+        END DO ! p
+      END DO ! q
+    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+        END DO ! p
+      END DO ! q
+    CASE(4) ! slave side, SideID=p,jSide=N-q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+        END DO ! p
+      END DO ! q
+  END SELECT
+END IF
+
+SideID=ElemToSide(E2S_SIDE_ID,XI_PLUS,iElem)
+IF(SideID.LE.lastSideID)THEN
+  IF(ElemToSide(E2S_FLIP,XI_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
+    CALL ChangeBasis2D(3,NGeo,nPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,NGeo,:,:),SuperSampledNodes(1:3,:,:,sideID))
+  END IF !flip=0
+ELSE ! no master, here has to come the suff with the slave
+  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,NGeo,:,:),tmp)
+  flip= SideToElem(S2E_FLIP,SideID)
+  SELECT CASE(flip)
+    CASE(1) ! slave side, SideID=q,jSide=p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+        END DO ! p
+      END DO ! q
+    CASE(2) ! slave side, SideID=N-p,jSide=q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+        END DO ! p
+      END DO ! q
+    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+        END DO ! p
+      END DO ! q
+    CASE(4) ! slave side, SideID=p,jSide=N-q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+        END DO ! p
+      END DO ! q
+  END SELECT
+END IF
+
+! interpolate to eta sides
+SideID=ElemToSide(E2S_SIDE_ID,ETA_MINUS,iElem)
+IF(SideID.LE.lastSideID)THEN
+  IF(ElemToSide(E2S_FLIP,ETA_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
+    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,0,:),SuperSampledNodes(1:3,:,:,sideID))
+   END IF !flip=0
+ELSE ! no master, here has to come the suff with the slave
+  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,0,:),tmp)
+  flip= SideToElem(S2E_FLIP,SideID)
+  SELECT CASE(flip)
+    CASE(1) ! slave side, SideID=q,jSide=p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+        END DO ! p
+      END DO ! q
+    CASE(2) ! slave side, SideID=N-p,jSide=q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+        END DO ! p
+      END DO ! q
+    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+        END DO ! p
+      END DO ! q
+    CASE(4) ! slave side, SideID=p,jSide=N-q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+        END DO ! p
+      END DO ! q
+  END SELECT
+END IF
+  
+SideID=ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem)
+IF(SideID.LE.lastSideID)THEN
+  IF(ElemToSide(E2S_FLIP,ETA_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
+    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,NGeo,:),tmp)
+    ! turn into right hand system of side
+    DO q=0,NPartCurved
+      DO p=0,NPartCurved
+        SuperSampledNodes(1:3,p,q,sideID)=tmp(:,NPartCurved-p,q)
+      END DO !p
+    END DO !q
+  END IF !flip=0
+ELSE ! no master, here has to come the suff with the slave
+  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,NGeo,:),tmp)
+  flip= SideToElem(S2E_FLIP,SideID)
+  SELECT CASE(flip)
+    CASE(1) ! slave side, SideID=q,jSide=p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+        END DO ! p
+      END DO ! q
+    CASE(2) ! slave side, SideID=N-p,jSide=q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+        END DO ! p
+      END DO ! q
+    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+        END DO ! p
+      END DO ! q
+    CASE(4) ! slave side, SideID=p,jSide=N-q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+        END DO ! p
+      END DO ! q
+  END SELECT
+END IF
+
+! interpolate to zeta sides
+SideID=ElemToSide(E2S_SIDE_ID,ZETA_MINUS,iElem)
+IF(SideID.LE.lastSideID)THEN
+  IF(ElemToSide(E2S_FLIP,ZETA_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
+    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,0),tmp)
+    ! turn into right hand system of side
+    DO q=0,NPartCurved
+      DO p=0,NPartCurved
+        SuperSampledNodes(1:3,p,q,sideID)=tmp(:,q,p)
+      END DO !p
+    END DO !q
+  END IF !flip=0
+ELSE ! no master, here has to come the suff with the slave
+  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,0),tmp)
+  flip= SideToElem(S2E_FLIP,SideID)
+  SELECT CASE(flip)
+    CASE(1) ! slave side, SideID=q,jSide=p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+        END DO ! p
+      END DO ! q
+    CASE(2) ! slave side, SideID=N-p,jSide=q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+        END DO ! p
+      END DO ! q
+    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+        END DO ! p
+      END DO ! q
+    CASE(4) ! slave side, SideID=p,jSide=N-q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+        END DO ! p
+      END DO ! q
+  END SELECT
+  flip= SideToElem(S2E_FLIP,SideID)
+  SELECT CASE(flip)
+    CASE(1) ! slave side, SideID=q,jSide=p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+        END DO ! p
+      END DO ! q
+    CASE(2) ! slave side, SideID=N-p,jSide=q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+        END DO ! p
+      END DO ! q
+    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+        END DO ! p
+      END DO ! q
+    CASE(4) ! slave side, SideID=p,jSide=N-q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+        END DO ! p
+      END DO ! q
+  END SELECT
+END IF
+
+SideID=ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
+IF(SideID.LE.lastSideID)THEN
+  IF(ElemToSide(E2S_FLIP,ZETA_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
+    IF ((sideID.LE.nBCSides))THEN !BC
+      CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,NGeo),SuperSampledNodes(1:3,:,:,sideID))
+    END IF !BC
+  END IF !flip=0
+ELSE ! no master, here has to come the suff with the slave
+  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,NGeo),tmp)
+  flip= SideToElem(S2E_FLIP,SideID)
+  SELECT CASE(flip)
+    CASE(1) ! slave side, SideID=q,jSide=p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+        END DO ! p
+      END DO ! q
+    CASE(2) ! slave side, SideID=N-p,jSide=q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+        END DO ! p
+      END DO ! q
+    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+        END DO ! p
+      END DO ! q
+    CASE(4) ! slave side, SideID=p,jSide=N-q
+      DO q=0,NPartCurved
+        DO p=0,NPartCurved
+          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+        END DO ! p
+      END DO ! q
+  END SELECT
+END IF
+
+END SUBROUTINE GetSuperSampledSurface
 
 END MODULE MOD_Particle_Surfaces

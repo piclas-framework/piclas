@@ -560,12 +560,12 @@ IF (t.GE.DelayTime) THEN
 END IF
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 !CALL CPU_TIME(tStart)
-!  CALL ParticleBoundary()
+CALL ParticleBoundary()
 !CALL CPU_TIME(tend)
 !t1=tend-tstart
 
 !CALL CPU_TIME(tStart)
-  CALL ParticleTracking()
+  !CALL ParticleTracking()
 !jCALL CPU_TIME(tend)
 !jt2=tend-tstart
 
@@ -656,14 +656,14 @@ DO rk=2,nRKStages
     PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                        + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(rk)
     ! particle tracking
-!    CALL ParticleBoundary()
-  CALL ParticleTracking()
+    CALL ParticleBoundary()
+  !CALL ParticleTracking()
 #ifdef MPI
       CALL Communicate_PIC()
 !    CALL UpdateNextFreePosition() ! only required for parallel communication
 #endif
 !CALL CPU_TIME(tStart)
-!  CALL ParticleBoundary()
+  !CALL ParticleBoundary()
 !CALL CPU_TIME(tend)
 !t1=t1+tend-tstart
 !

@@ -10,11 +10,13 @@ MODULE                              MOD_BoundaryTools                           
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PUBLIC
    PUBLIC                        :: ParticleThroughSideCheck3DFast                                 !
+   PUBLIC                        :: ParticleThroughSideCheck3DFastold                              !
    PUBLIC                        :: ParticleThroughSideLastPosCheck
    PUBLIC                        :: ParticleThroughSideCheck3D                                     !
    PUBLIC                        :: PerfectReflection3D                                            !
    PUBLIC                        :: PeriodicWallBnd3D                                              !
    PUBLIC                        :: ParticleInsideQuad3D                                           !
+   PUBLIC                        :: ParticleInsideQuad3Dold                                           !
    PUBLIC                        :: SingleParticleToExactElement                                   !
    PUBLIC                        :: DiffuseReflection3D                                            !
 #ifdef MPI
@@ -30,6 +32,198 @@ MODULE                              MOD_BoundaryTools                           
 CONTAINS                                                                                           !
 
 SUBROUTINE ParticleThroughSideCheck3DFast(i,iLocSide,Element,ThroughSide,TriNum)                   !
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+  USE MOD_Particle_Vars                                                                            !
+  USE MOD_Particle_Surfaces_Vars, ONLY: nPartCurved, SuperSampledNodes,nTriangles
+  USE MOD_Mesh_Vars,     ONLY : ElemToSide
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+   IMPLICIT NONE                                                                                   !
+!----------------------------------------------------------------------------------------------------------------------------------
+! ARGUMENT LIST DECLARATION                                                                        !
+   INTEGER                          :: i                                                           !
+   INTEGER                          :: iLocSide                                                    !
+   INTEGER                          :: Element                                                     !
+   INTEGER                          :: TriNum                                                      !
+   LOGICAL                          :: ThroughSide                                                 !
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLE DECLARATION                                                                       !
+   INTEGER                          :: n, j, m                                                     !
+   REAL                             :: Px, Py, Pz                                                  !
+   REAL                             :: Vx, Vy, Vz, Vall                                            !
+   REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)           !
+   REAL                             :: det(3)                                                      !
+   REAL                             :: eps                                                         !
+   INTEGER                          :: QuadID,p,q,SideID,flip,h
+!----------------------------------------------------------------------------------------------------------------------------------
+   INTENT(IN)                       :: i                                                           !
+   INTENT(OUT)                      :: ThroughSide
+!===================================================================================================================================
+
+
+   eps = 0.
+   SideID=ElemToSide(E2S_SIDE_ID,ilocSide,Element)
+   flip  =ElemToSide(E2S_FLIP,ilocSide,Element)
+
+   ThroughSide = .FALSE.
+
+   Px = lastPartPos(i,1)
+   Py = lastPartPos(i,2)
+   Pz = lastPartPos(i,3)
+
+   Vx = PartState(i,1)-lastPartPos(i,1)
+   Vy = PartState(i,2)-lastPartPos(i,2)
+   Vz = PartState(i,3)-lastPartPos(i,3)
+
+   Vall = SQRT(Vx*Vx + Vy*Vy + Vz*Vz)
+
+   Vx = Vx/Vall
+   Vy = Vy/Vall
+   Vz = Vz/Vall
+
+!   xNode(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
+!   yNode(1) = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
+!   zNode(1) = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
+!   Ax(1) = xNode(1) - Px
+!   Ay(1) = yNode(1) - Py
+!   Az(1) = zNode(1) - Pz
+
+   ! we have to compute the p,q coordinates
+
+   ! quadrilateral id
+   QuadID=triNum/2+MOD(triNum,2)
+   q=(QuadID-1)/NPartCurved ! fortran takes floor of integer devision
+   p=MOD(QuadID-1,NPartCurved)
+   
+   !print*,'p,q',p,q
+   !xNode=0.
+   !yNode=0.
+   !zNode=0.
+   xNode(1) = SuperSampledNodes(1,p  ,q  ,SideID)
+   yNode(1) = SuperSampledNodes(2,p  ,q  ,SideID)
+   zNode(1) = SuperSampledNodes(3,p  ,q  ,SideID)
+   Ax(1) = xNode(1) - Px
+   Ay(1) = yNode(1) - Py
+   Az(1) = zNode(1) - Pz
+
+   !print*,'Node Coord in x,y,z'
+   !print*,'x1',SuperSampledNodes(:,0  ,0  ,SideID)
+   !print*,'x2',SuperSampledNodes(:,1  ,0  ,SideID)
+   !print*,'x3',SuperSampledNodes(:,1  ,1  ,SideID)
+   !print*,'x4',SuperSampledNodes(:,0  ,1  ,SideID)
+
+   IF(MOD(triNum,2).EQ.0)THEN
+     !print*,'tri2,p2',p+1,q+1
+     xNode(2) = SuperSampledNodes(1,p+1,q+1,SideID)
+     yNode(2) = SuperSampledNodes(2,p+1,q+1,SideID)
+     zNode(2) = SuperSampledNodes(3,p+1,q+1,SideID)
+     Ax(2) = xNode(2) - Px
+     Ay(2) = yNode(2) - Py
+     Az(2) = zNode(2) - Pz
+
+     m=0!MOD(triNum,2)
+     n=1!MOD(triNum+1,2)
+     !print*,'tri2,p3',p+m,q+n
+     xNode(3) = SuperSampledNodes(1,p+m,q+n,SideID)
+     yNode(3) = SuperSampledNodes(2,p+m,q+n,SideID)
+     zNode(3) = SuperSampledNodes(3,p+m,q+n,SideID)
+     Ax(3) = xNode(3) - Px
+     Ay(3) = yNode(3) - Py
+       Az(3) = zNode(3) - Pz
+   ELSE
+     !print*,'not here'
+     m=1!MOD(triNum,2)
+     n=0!MOD(triNum+1,2)
+     xNode(2) = SuperSampledNodes(1,p+m,q+n,SideID)
+     yNode(2) = SuperSampledNodes(2,p+m,q+n,SideID)
+     zNode(2) = SuperSampledNodes(3,p+m,q+n,SideID)
+     Ax(2) = xNode(2) - Px
+     Ay(2) = yNode(2) - Py
+     Az(2) = zNode(2) - Pz
+
+     xNode(3) = SuperSampledNodes(1,p+1,q+1,SideID)
+     yNode(3) = SuperSampledNodes(2,p+1,q+1,SideID)
+     zNode(3) = SuperSampledNodes(3,p+1,q+1,SideID)
+     Ax(3) = xNode(3) - Px
+     Ay(3) = yNode(3) - Py
+     Az(3) = zNode(3) - Pz
+
+   END IF
+
+
+   !print*,'xNode',xNode(1),xNode(2),xNode(3)
+   !print*,'yNode',yNode(1),yNode(2),yNode(3)
+   !print*,'zNode',zNode(1),zNode(2),zNode(3)
+   !print*,'dad',p+m,q+n
+   !xNode(2) = SuperSampledNodes(1,p+m,q+n,SideID)
+   !yNode(2) = SuperSampledNodes(2,p+m,q+n,SideID)
+   !zNode(2) = SuperSampledNodes(3,p+m,q+n,SideID)
+   !Ax(2) = xNode(2) - Px
+   !Ay(2) = yNode(2) - Py
+   !Az(2) = zNode(2) - Pz
+   !print*,'a1',ax(1),ay(1),az(1)
+   !print*,'a2',ax(2),ay(2),az(2)
+   !print*,'a3',ax(3),ay(3),az(3)
+
+   !xNode(3) = SuperSampledNodes(1,p+1,q+1,SideID)
+   !yNode(3) = SuperSampledNodes(2,p+1,q+1,SideID)
+   !zNode(3) = SuperSampledNodes(3,p+1,q+1,SideID)
+   !Ax(3) = xNode(3) - Px
+   !Ay(3) = yNode(3) - Py
+   !Az(3) = zNode(3) - Pz
+
+!!$IF((i.EQ.3389).AND.(iLocSide.EQ.1).AND.(Element.EQ.10913))THEN
+!!$WRITE(*,*) 'Triangle',j            
+!!$WRITE(*,*) xNode(1),yNode(1),zNode(1)
+!!$WRITE(*,*) xNode(2),yNode(2),zNode(2)
+!!$WRITE(*,*) xNode(3),yNode(3),zNode(3)
+!!$!WRITE(*,*) Vx,Vy,Vz
+!!$!WRITE(*,*) Ax(1),Ay(1),Az(1)
+!!$!WRITE(*,*) Ax(2),Ay(2),Az(2)
+!!$!WRITE(*,*) Ax(3),Ay(3),Az(3)
+!!$END IF         
+   !--- check whether v and the vectors from the particle to the two edge nodes build
+   !--- a right-hand-system. If yes for all edges: vector goes potentially through side
+   det(1) = ((Ay(1) * Vz - Az(1) * Vy) * Ax(3)  + &
+             (Az(1) * Vx - Ax(1) * Vz) * Ay(3)  + &
+             (Ax(1) * Vy - Ay(1) * Vx) * Az(3))
+   
+   det(2) = ((Ay(2) * Vz - Az(2) * Vy) * Ax(1)  + &
+             (Az(2) * Vx - Ax(2) * Vz) * Ay(1)  + &
+             (Ax(2) * Vy - Ay(2) * Vx) * Az(1))
+   
+   det(3) = ((Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + &
+             (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + &
+             (Ax(3) * Vy - Ay(3) * Vx) * Az(2))
+!!$IF((i.EQ.3389).AND.(iLocSide.EQ.1).AND.(Element.EQ.10913))THEN
+!!$WRITE(*,*) 'det:'
+!!$WRITE(*,*) det(:)
+!!$END IF
+!IF((i.EQ.359616).AND.(Element.EQ.13718))THEN
+!WRITE(*,*) '======='
+!WRITE(*,*) iLocSide,TriNum
+!WRITE(*,*) det(:)
+!WRITE(*,*) XNODE(1),YNODE(1),ZNODE(1)
+!WRITE(*,*) XNODE(2),YNODE(2),ZNODE(2)
+!WRITE(*,*) XNODE(3),YNODE(3),ZNODE(3)
+!WRITE(*,*) VX,VY,VZ
+!WRITE(*,*) AX(1),AY(1),AZ(1)
+!WRITE(*,*) AX(2),AY(2),AZ(2)
+!WRITE(*,*) AX(3),AY(3),AZ(3)
+!WRITE(*,*) '=-=-=-='
+!END IF
+   IF(flip.NE.0) det=-det
+   IF ((det(1).ge.-eps).AND.(det(2).ge.-eps).AND.(det(3).ge.-eps)) THEN
+   !  print*,'here',ilocSide
+     ThroughSide = .TRUE.
+   END IF
+ RETURN
+END SUBROUTINE ParticleThroughSideCheck3DFast
+
+SUBROUTINE ParticleThroughSideCheck3DFastold(i,iLocSide,Element,ThroughSide,TriNum)                   !
 !===================================================================================================================================
 !
 !===================================================================================================================================
@@ -94,6 +288,13 @@ SUBROUTINE ParticleThroughSideCheck3DFast(i,iLocSide,Element,ThroughSide,TriNum)
      Ay(n) = yNode(n) - Py
      Az(n) = zNode(n) - Pz
    END DO
+   !print*,'xNode',xNode(1),xNode(2),xNode(3)
+   !print*,'yNode',yNode(1),yNode(2),yNode(3)
+   !print*,'zNode',zNode(1),zNode(2),zNode(3)
+
+   !print*,'a1',ax(1),ay(1),az(1)
+   !print*,'a2',ax(2),ay(2),az(2)
+   !print*,'a3',ax(3),ay(3),az(3)
 !!$IF((i.EQ.3389).AND.(iLocSide.EQ.1).AND.(Element.EQ.10913))THEN
 !!$WRITE(*,*) 'Triangle',j            
 !!$WRITE(*,*) xNode(1),yNode(1),zNode(1)
@@ -135,10 +336,11 @@ SUBROUTINE ParticleThroughSideCheck3DFast(i,iLocSide,Element,ThroughSide,TriNum)
 !WRITE(*,*) '=-=-=-='
 !END IF
    IF ((det(1).ge.-eps).AND.(det(2).ge.-eps).AND.(det(3).ge.-eps)) THEN
+   !  print*,'here',ilocSide
      ThroughSide = .TRUE.
    END IF
  RETURN
-END SUBROUTINE ParticleThroughSideCheck3DFast
+END SUBROUTINE ParticleThroughSideCheck3DFastold
 
 !!$SUBROUTINE ParticleThroughSideScalarCheck(i,iLocSide,Element,ThroughSide,TriNum,det)            !
 !!$  USE MOD_Particle_Vars                                                                            !
@@ -671,7 +873,8 @@ SUBROUTINE ParticleInElementCheck3D(i,Element,InElementCheck,det)               
  RETURN
 END SUBROUTINE ParticleInElementCheck3D
 
-SUBROUTINE ParticleInsideQuad3D(i,Element,InElementCheck,det)                                      !
+
+SUBROUTINE ParticleInsideQuad3Dold(i,Element,InElementCheck,det)                                      !
 !DEC$ ATTRIBUTES FORCEINLINE :: ParticleInsideQuad3D
   USE MOD_Particle_Vars
   USE MOD_Mesh_Vars,     ONLY : ElemToSide
@@ -716,6 +919,7 @@ SUBROUTINE ParticleInsideQuad3D(i,Element,InElementCheck,det)                   
      det(iLocSide,2) = cross(1) * A(1,4) + &
                        cross(2) * A(2,4) + &
                        cross(3) * A(3,4)
+     !print*,iLocSide,det(iLocSide,:)
      IF (det(iLocSide,1).lt.0) THEN
        NegCheck = .TRUE.
      ELSE
@@ -734,8 +938,129 @@ SUBROUTINE ParticleInsideQuad3D(i,Element,InElementCheck,det)                   
        IF (NegCheck) InElementCheck = .FALSE.
      END IF
   END DO
+    !print*,InElementCheck
+    !read*
  RETURN
-END SUBROUTINE ParticleInsideQuad3D
+END SUBROUTINE ParticleInsideQuad3Dold
+
+
+SUBROUTINE ParticleInsideQuad3D(i,Element,InElementCheck,det)  
+!DEC$ ATTRIBUTES FORCEINLINE :: ParticleInsideQuad3D
+  USE MOD_Particle_Vars
+  USE MOD_Particle_Surfaces_Vars, ONLY: nPartCurved, SuperSampledNodes,nTriangles
+  USE MOD_Mesh_Vars,     ONLY : ElemToSide
+!--------------------------------------------------------------------------------------------------!
+  IMPLICIT NONE                                                                                    !
+!--------------------------------------------------------------------------------------------------!
+! argument list declaration                                                                        !
+  INTEGER                          :: i, Element!
+  LOGICAL                          :: InElementCheck                                               !
+    REAL                             :: det(6,ntriangles)                                                       !
+! Local variable declaration                                                                       !
+  INTEGER                          :: iLocSide, NodeNum,p,q,nPosCheck,nNegCheck
+  LOGICAL                          :: PosCheck, NegCheck                                           !
+    REAL                             :: A(1:3,1:4), cross(3), PartStateLoc(3)
+  INTEGER                          :: SideID,flip
+  INTEGER                          :: nlocTriangles
+!--------------------------------------------------------------------------------------------------!
+  INTENT(IN)                       :: Element!
+  INTENT(OUT)                      :: InElementCheck, det                                          !
+!--------------------------------------------------------------------------------------------------!
+
+  InElementCheck = .TRUE.
+  PartStateLoc(1:3) = PartState(i,1:3)
+  det=0.
+  DO iLocSide = 1,6                 ! for all 6 sides of the element
+     !--- initialize flags for side checks
+     PosCheck = .FALSE.
+     NegCheck = .FALSE.
+     nPosCheck=0
+     nNegCheck=0
+     nloctriangles=0
+     SideID=ElemToSide(E2S_SIDE_ID,ilocSide,Element)
+     flip  =ElemToSide(E2S_FLIP,ilocSide,Element)
+     DO q=0,NPartCurved-1
+       DO p=0,NPartCurved-1
+         A(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)-PartStateLoc(1:3)
+         A(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)-PartStateLoc(1:3)
+         A(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)-PartStateLoc(1:3)
+         A(:,4)=SuperSampledNodes(1:3,p  ,q+1,SideID)-PartStateLoc(1:3)
+
+         cross(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
+         cross(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
+         cross(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
+    
+         det(iLocSide,nlocTriangles+1) = cross(1) * A(1,2) + &
+                                         cross(2) * A(2,2) + &
+                                         cross(3) * A(3,2)
+         det(iLocSide,nlocTriangles+1) = -det(iLocSide,nlocTriangles+1)
+         !--- determinant of triangle 2 (points 1,3,4):
+         det(iLocSide,nlocTriangles+2) = cross(1) * A(1,4) + &
+                                         cross(2) * A(2,4) + &
+                                         cross(3) * A(3,4)
+
+        !print*,iLocSide,det(iLocSide,:)
+ !       IF(flip.EQ.0)THEN ! master side
+        IF(flip.NE.0)THEN ! master side
+          det(iLocSide,nlocTriangles+1:nlocTriangles+2)= -det(iLocSide,nlocTriangles+1:nlocTriangles+2)
+        END IF
+        IF (det(iLocSide,nlocTriangles+1).lt.0) THEN
+           nNegCheck = nNegCheck+1
+         ELSE
+           nPosCheck = nPosCheck+1
+         END IF
+         IF (det(iLocSide,nlocTriangles+2).lt.0) THEN
+           nNegCheck = nNegCheck+1
+         ELSE
+           nPosCheck = nPosCheck+1
+         END IF
+ !        ELSE ! slave sides
+ !         IF (det(iLocSide,nlocTriangles+1).GE.0) THEN
+ !            nNegCheck = nNegCheck+1
+ !          ELSE
+ !            nPosCheck = nPosCheck+1
+ !          END IF
+ !          IF (det(iLocSide,nlocTriangles+2).GE.0) THEN
+ !            nNegCheck = nNegCheck+1
+ !          ELSE
+ !            nPosCheck = nPosCheck+1
+ !          END IF
+ !        END IF ! flip
+         nloctriangles=nlocTriangles+2
+         END DO !p
+     END DO !q
+
+     !print*,'ilocside,flip,det',iLocSide,flip,det(iLocSide,:)
+     IF(nNegCheck.EQ.nTriangles)THEN
+       NegCheck=.TRUE.
+     ELSE IF(nPosCheck.EQ.nTriangles)THEN
+       PosCheck=.TRUE.
+     ELSE
+       print*,'wft'
+       stop
+     END IF
+
+!     IF(nPosCheck.EQ.nTriangles)THEN
+!       NegCheck=.TRUE.
+!     ELSE
+!       PosCheck=.TRUE.
+!     END IF
+!     IF(nPosCheck.NE.nTriangles.AND.nNegCheck.NE.nTriangles)THEN
+!       print*,'wft'
+!       stop
+!     END IF
+!     print*,"ici"
+
+     !--- final determination whether particle is in element
+     IF (GEO%ConcaveElemSide(iLocSide,Element)) THEN
+       IF (.NOT.PosCheck) InElementCheck = .FALSE.
+     ELSE
+       IF (NegCheck) InElementCheck = .FALSE.
+     END IF
+  END DO
+!print*,InElementCheck
+ RETURN
+  END SUBROUTINE ParticleInsideQuad3D
 
 #ifdef MPI
 SUBROUTINE ParticleInsideQuad3D_halocells(i,Element,InElementCheck,det)                                      !
@@ -807,6 +1132,95 @@ END SUBROUTINE ParticleInsideQuad3D_halocells
 SUBROUTINE ParticleThroughSideLastPosCheck(i,iLocSide,Element,InElementCheck,TriNum,det)
 !DEC$ ATTRIBUTES FORCEINLINE :: ParticleThroughSideLastPosCheck
   USE MOD_Particle_Vars
+  USE MOD_Particle_Surfaces_Vars, ONLY: nPartCurved, SuperSampledNodes,nTriangles
+  USE MOD_Mesh_Vars,     ONLY : ElemToSide
+!--------------------------------------------------------------------------------------------------!
+  IMPLICIT NONE                                                                                    !
+!--------------------------------------------------------------------------------------------------!
+! argument list declaration                                                                        !
+  INTEGER                          :: i, Element, iLocSide, TriNum
+  LOGICAL                          :: InElementCheck
+  REAL                             :: det
+! Local variable declaration                                                                       !
+  INTEGER                          :: NodeNum, ind, iNode
+  REAL                             :: Ax(3),Ay(3),Az(3)
+  REAL                             :: NodeCoord(1:3,1:3)
+  INTEGER                          :: QuadID,p,q,SideID,flip
+!--------------------------------------------------------------------------------------------------!
+  INTENT(IN)                       :: Element, iLocSide, i, TriNum
+  INTENT(OUT)                      :: InElementCheck, det
+!--------------------------------------------------------------------------------------------------!
+
+  InElementCheck = .TRUE.
+
+  SideID=ElemToSide(E2S_SIDE_ID,ilocSide,Element)
+  flip  =ElemToSide(E2S_FLIP,ilocSide,Element)
+
+  !--- coords of first node:
+   QuadID=triNum/2+MOD(triNum,2)
+   q=(QuadID-1)/NPartCurved ! fortran takes floor of integer devision
+   p=MOD(QuadID-1,NPartCurved)
+
+!  QuadID=triNum/2+MOD(triNum,2)
+!  IF(nPartCurved.EQ.1)THEN
+!    q=0
+!    p=0
+!  ELSE
+!    q=QuadID/NPartCurved-MOD(QuadID+1,2) 
+!    p=QuadID-NPartCurved*q-1
+!  END IF
+
+   NodeCoord(:,1) = SuperSampledNodes(:,p  ,q  ,SideID)
+
+  !!--- coords of other two nodes (depending on triangle):
+   IF(MOD(triNum,2).EQ.0)THEN
+     !print*,'tri2,p2',p+1,q+1
+     NodeCoord(:,2) = SuperSampledNodes(:,p+1,q+1,SideID)
+
+     NodeCoord(:,3) = SuperSampledNodes(:,p,q+1,SideID)
+   ELSE
+     NodeCoord(:,2) = SuperSampledNodes(:,p+1,q,SideID)
+
+     NodeCoord(:,3) = SuperSampledNodes(:,p+1,q+1,SideID)
+
+   END IF
+
+
+  !DO ind = 1,3
+  !  NodeCoord(ind,1) = GEO%NodeCoords(ind,GEO%ElemSideNodeID(1,iLocSide,Element))
+  !END DO
+
+  !!--- coords of other two nodes (depending on triangle):
+  !DO iNode = 2,3
+  !  NodeNum = iNode + TriNum - 1
+  !  DO ind = 1,3
+  !    NodeCoord(ind,iNode) = GEO%NodeCoords(ind,GEO%ElemSideNodeID(NodeNum,iLocSide,Element))
+  !  END DO
+  !END DO
+
+  !--- vector from lastPos(!) to triangle nodes
+  DO ind = 1,3
+    Ax(ind) = NodeCoord(1,ind) - lastPartPos(i,1)
+    Ay(ind) = NodeCoord(2,ind) - lastPartPos(i,2)
+    Az(ind) = NodeCoord(3,ind) - lastPartPos(i,3)
+  END DO
+
+  !--- determine whether particle is on inner side (rel. to element) of triangle
+  !--- set corresponding "flag" (see below)
+  det = ((Ay(1) * Az(2) - Az(1) * Ay(2)) * Ax(3) +     &
+         (Az(1) * Ax(2) - Ax(1) * Az(2)) * Ay(3) +     &
+         (Ax(1) * Ay(2) - Ay(1) * Ax(2)) * Az(3))
+
+  IF(flip.NE.0) det=-det
+  IF ((det.lt.0).OR.(det.NE.det)) THEN
+    InElementCheck = .FALSE.
+  END IF
+ RETURN
+END SUBROUTINE ParticleThroughSideLastPosCheck
+
+SUBROUTINE ParticleThroughSideLastPosCheckold(i,iLocSide,Element,InElementCheck,TriNum,det)
+!DEC$ ATTRIBUTES FORCEINLINE :: ParticleThroughSideLastPosCheck
+  USE MOD_Particle_Vars
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
@@ -856,7 +1270,7 @@ SUBROUTINE ParticleThroughSideLastPosCheck(i,iLocSide,Element,InElementCheck,Tri
     InElementCheck = .FALSE.
   END IF
  RETURN
-END SUBROUTINE ParticleThroughSideLastPosCheck
+END SUBROUTINE ParticleThroughSideLastPosCheckold
 
 #ifdef MPI
 SUBROUTINE ParticleThroughSideLastPosCheck_halocells(i,iLocSide,Element,InElementCheck,TriNum,det)
@@ -917,6 +1331,7 @@ END SUBROUTINE ParticleThroughSideLastPosCheck_halocells
 
 SUBROUTINE SingleParticleToExactElement(i)                                                         !
   USE MOD_Particle_Vars
+  USE MOD_Particle_Surfaces_Vars, ONLY: nTriangles
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -924,7 +1339,8 @@ SUBROUTINE SingleParticleToExactElement(i)                                      
 ! Local variable declaration                                                                       !
    INTEGER                          :: i, k, Element, CellX,CellY,CellZ                            !
    LOGICAL                          :: InElementCheck,ParticleFound                                !
-   REAL                             :: det(16)                                                     !
+   !REAL                             :: det(16)    ! caution, size is wrong
+   REAL                             :: det(6,nTriangles)    ! caution, size is wrong
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 
@@ -945,8 +1361,15 @@ SUBROUTINE SingleParticleToExactElement(i)                                      
    !--- check all cells associated with this beckground mesh cell
    DO k = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
       Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(k)
+      print*,'k',k,Element
       CALL ParticleInsideQuad3D(i,Element,InElementCheck,det)
+ !     print*,inElementCheck
+ !     CALL ParticleInsideQuad3Dold(i,Element,InElementCheck,det)
+ !     print*,inElementCheck
+ !     read*
       IF (InElementCheck) THEN
+ !       print*,Element
+ !       read*
          PEM%Element(i) = Element
          ParticleFound = .TRUE.
          EXIT
@@ -998,6 +1421,192 @@ END SUBROUTINE PeriodicWallBnd3D
 
 SUBROUTINE PerfectReflection3D (i,iLocSide,Element,TriNum, WallVelo)                                         !
   USE MOD_Particle_Vars
+  USE MOD_Particle_Surfaces_Vars, ONLY: nPartCurved, SuperSampledNodes,nTriangles
+  USE MOD_Mesh_Vars,     ONLY : ElemToSide
+  USE MOD_LD_Vars,    ONLY : UseLD
+  USE MOD_LD,         ONLY : LD_PerfectReflection
+!--------------------------------------------------------------------------------------------------!
+   IMPLICIT NONE                                                                                   !
+!--------------------------------------------------------------------------------------------------!
+! argument list declaration                                                                        !
+   INTEGER                          :: i                                                           !
+   INTEGER                          :: iLocSide                                                    !
+   INTEGER                          :: Element                                                     !
+   INTEGER                          :: TriNum                                                      !
+   REAL                             :: WallVelo(1:3)
+! Local variable declaration                                                                       !
+   INTEGER                          :: Node1, Node2                                                !
+   REAL                             :: PoldX, PoldY, PoldZ, PnewX, PnewY, PnewZ, nx, ny, nz, nVal  !
+   REAL                             :: bx,by,bz, ax,ay,az, dist, PoldStarX, PoldStarY, PoldStarZ   !
+   REAL                             :: xNod, yNod, zNod, PnewStarX, PnewStarY, PnewStarZ, Velo     !
+   REAL                             :: VelX, VelY, VelZ, NewVelocity                               !
+   REAL                             :: Vector1(1:3), Vector2(1:3)                                  !
+   INTEGER                          :: QuadID,p,q,SideID
+!--------------------------------------------------------------------------------------------------!
+!--------------------------------------------------------------------------------------------------!
+
+   SideID=ElemToSide(E2S_SIDE_ID,ilocSide,Element)
+   PoldX = lastPartPos(i,1)
+   PoldY = lastPartPos(i,2)
+   PoldZ = lastPartPos(i,3)
+   PnewX = PartState(i,1)
+   PnewY = PartState(i,2)
+   PnewZ = PartState(i,3)
+
+   !print*,trinum
+   QuadID=triNum/2+MOD(triNum,2)
+   q=(QuadID-1)/NPartCurved ! fortran takes floor of integer devision
+   p=MOD(QuadID-1,NPartCurved)
+
+!   QuadID=triNum/2+MOD(triNum,2)
+!   IF(nPartCurved.EQ.1)THEN
+!      q=0
+!      p=0
+!    ELSE
+!      q=QuadID/NPartCurved-MOD(QuadID+1,2) 
+!      p=QuadID-NPartCurved*q-1
+!    END IF
+
+    !print*,p,q,SideID
+   xNod= SuperSampledNodes(1,p  ,q  ,SideID)
+   yNod= SuperSampledNodes(2,p  ,q  ,SideID)
+   zNod= SuperSampledNodes(3,p  ,q  ,SideID)
+
+   !xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
+   !yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
+   !zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
+
+   !---- Calculate normal vector:
+
+   IF(MOD(triNum,2).EQ.0)THEN
+     !print*,'tri2,p2',p+1,q+1
+     Vector1(1) = SuperSampledNodes(1,p+1,q+1,SideID)-xNod
+     Vector1(2) = SuperSampledNodes(2,p+1,q+1,SideID)-yNod
+     Vector1(3) = SuperSampledNodes(3,p+1,q+1,SideID)-zNod
+
+     !print*,'tri2,p3',p+m,q+n
+     Vector2(1) = SuperSampledNodes(1,p,q+1,SideID)-xNod
+     Vector2(2) = SuperSampledNodes(2,p,q+1,SideID)-yNod
+     Vector2(3) = SuperSampledNodes(3,p,q+1,SideID)-zNod
+   ELSE
+     !print*,'not here'
+     Vector1(1) = SuperSampledNodes(1,p+1,q+0,SideID)-xNod
+     Vector1(2) = SuperSampledNodes(2,p+1,q+0,SideID)-yNod
+     Vector1(3) = SuperSampledNodes(3,p+1,q+0,SideID)-zNod
+
+     Vector2(1) = SuperSampledNodes(1,p+1,q+1,SideID)-xNod
+     Vector2(2) = SuperSampledNodes(2,p+1,q+1,SideID)-yNod
+     Vector2(3) = SuperSampledNodes(3,p+1,q+1,SideID)-zNod
+   END IF
+
+   !Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+   !Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+
+   !Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - xNod
+   !Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - yNod
+   !Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,iLocSide,Element)) - zNod
+
+   !Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - xNod
+   !Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - yNod
+   !Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,iLocSide,Element)) - zNod
+
+   nx = Vector1(2) * Vector2(3) - Vector1(3) * Vector2(2)
+   ny = Vector1(3) * Vector2(1) - Vector1(1) * Vector2(3)
+   nz = Vector1(1) * Vector2(2) - Vector1(2) * Vector2(1)
+
+   nVal = SQRT(nx*nx + ny*ny + nz*nz)
+
+   nx = nx/nVal
+   ny = ny/nVal
+   nz = nz/nVal
+
+   !---- Calculate part. positions PoldStar and PnewStar (symmetric to side)
+
+!--- the following has been used for impulse computations, not implemented yet?
+!   IF (nx.NE.0) PIC%InverseImpulseX(i) = .NOT.(PIC%InverseImpulseX(i))
+!   IF (ny.NE.0) PIC%InverseImpulseY(i) = .NOT.(PIC%InverseImpulseY(i))
+!   IF (nz.NE.0) PIC%InverseImpulseZ(i) = .NOT.(PIC%InverseImpulseZ(i))
+
+   bx = PoldX - xNod
+   by = PoldY - yNod
+   bz = PoldZ - zNod
+
+   ax = bx - nx * (bx * nx + by * ny + bz * nz)
+   ay = by - ny * (bx * nx + by * ny + bz * nz)
+   az = bz - nz * (bx * nx + by * ny + bz * nz)
+
+   dist = SQRT(((ay * bz - az * by) * (ay * bz - az * by) +   &
+          (az * bx - ax * bz) * (az * bx - ax * bz) +   &
+          (ax * by - ay * bx) * (ax * by - ay * bx))/   &
+          (ax * ax + ay * ay + az * az))
+
+   ! If vector from old point to new point goes through the node, a will be zero
+   ! dist is then simply length of vector b instead of |axb|/|a|
+   IF (dist.NE.dist) dist = SQRT(bx*bx+by*by+bz*bz)
+
+   PoldStarX = PoldX + 2 * dist * nx
+   PoldStarY = PoldY + 2 * dist * ny
+   PoldStarZ = PoldZ + 2 * dist * nz
+
+   bx = PnewX - xNod
+   by = PnewY - yNod
+   bz = PnewZ - zNod
+
+   ax = bx - nx * (bx * nx + by * ny + bz * nz)
+   ay = by - ny * (bx * nx + by * ny + bz * nz)
+   az = bz - nz * (bx * nx + by * ny + bz * nz)
+
+   dist = SQRT(((ay * bz - az * by) * (ay * bz - az * by) +   &
+        (az * bx - ax * bz) * (az * bx - ax * bz) +   &
+        (ax * by - ay * bx) * (ax * by - ay * bx))/   &
+        (ax * ax + ay * ay + az * az))
+
+   ! If vector from old point to new point goes through the node, a will be zero
+   ! dist is then simply length of vector b instead of |axb|/|a|
+   IF (dist.NE.dist) dist = SQRT(bx*bx+by*by+bz*bz)
+
+   PnewStarX = PnewX - 2 * dist * nx
+   PnewStarY = PnewY - 2 * dist * ny
+   PnewStarZ = PnewZ - 2 * dist * nz
+
+   !---- Calculate new velocity vector
+
+   Velo = SQRT(PartState(i,4) * PartState(i,4) + &
+               PartState(i,5) * PartState(i,5) + &
+               PartState(i,6) * PartState(i,6))
+
+   VelX = PnewStarX - PoldStarX
+   VelY = PnewStarY - PoldStarY
+   VelZ = PnewStarZ - PoldStarZ
+
+   NewVelocity = SQRT(VelX * VelX + VelY * VelY + VelZ * VelZ)
+
+   VelX = VelX/NewVelocity * Velo
+   VelY = VelY/NewVelocity * Velo
+   VelZ = VelZ/NewVelocity * Velo
+
+   !---- Assign new values to "old" variables to continue loop
+
+   lastPartPos(i,1) = PoldStarX
+   lastPartPos(i,2) = PoldStarY
+   lastPartPos(i,3) = PoldStarZ
+
+   PartState(i,1)   = PnewStarX
+   PartState(i,2)   = PnewStarY
+   PartState(i,3)   = PnewStarZ
+
+   PartState(i,4)   = VelX + WallVelo(1) 
+   PartState(i,5)   = VelY + WallVelo(2)
+   PartState(i,6)   = VelZ + WallVelo(3)
+
+   IF(UseLD) CALL LD_PerfectReflection(nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,PoldStarZ,i)
+
+ RETURN
+END SUBROUTINE PerfectReflection3D
+
+SUBROUTINE PerfectReflection3Dold (i,iLocSide,Element,TriNum, WallVelo)                                         !
+  USE MOD_Particle_Vars
+  USE MOD_Particle_Surfaces_Vars, ONLY: nPartCurved, SuperSampledNodes,nTriangles
   USE MOD_LD_Vars,    ONLY : UseLD
   USE MOD_LD,         ONLY : LD_PerfectReflection
 !--------------------------------------------------------------------------------------------------!
@@ -1026,6 +1635,7 @@ SUBROUTINE PerfectReflection3D (i,iLocSide,Element,TriNum, WallVelo)            
    PnewY = PartState(i,2)
    PnewZ = PartState(i,3)
 
+   print*,trinum
    xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
    yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
    zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
@@ -1135,7 +1745,7 @@ SUBROUTINE PerfectReflection3D (i,iLocSide,Element,TriNum, WallVelo)            
    IF(UseLD) CALL LD_PerfectReflection(nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,PoldStarZ,i)
 
  RETURN
-END SUBROUTINE PerfectReflection3D
+END SUBROUTINE PerfectReflection3Dold
 
 #ifdef MPI
 SUBROUTINE PerfectReflection3D_halocells(i,iLocSide,Element,TriNum, WallVelo)                                         !

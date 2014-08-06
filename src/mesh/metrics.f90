@@ -73,6 +73,9 @@ USE MOD_Mesh_Vars, ONLY:Vdm_CLNGeo_GaussN,Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
 USE MOD_Mesh_Vars, ONLY:DCL_NGeo,DCL_N
 USE MOD_Mesh_Vars, ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
 USE MOD_Mesh_Vars, ONLY:nElems
+#ifdef PARTICLES
+USE MOD_Particle_Surfaces,  ONLY:GetSuperSampledSurface
+#endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_ChangeBasis,        ONLY:changeBasis3D
 ! IMPLICIT VARIABLE HANDLING
@@ -290,6 +293,7 @@ DO iElem=1,nElems
   CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_GaussN,JaCL_N(2,:,:,:,:),Metrics_gTilde(:,:,:,:,iElem))
   CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_GaussN,JaCL_N(3,:,:,:,:),Metrics_hTilde(:,:,:,:,iElem))
   CALL CalcSurfMetrics(JaCL_N,XCL_N,iElem)
+  CALL GetSuperSampledSurface(XCL_NGeo(:,:,:,:,iElem),iElem)
 END DO !iElem=1,nElems
 END SUBROUTINE CalcMetrics 
 

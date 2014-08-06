@@ -199,16 +199,18 @@ USE MOD_Mesh_Vars,     ONLY : nInnerSides, nBCSides, BC, ElemToSide, SideToElem
 #ifdef MPI
 USE MOD_part_MPI_Vars, ONLY : MPIGEO,PMPIVAR
 #endif
-USE MOD_BoundaryTools, ONLY : ParticleThroughSideCheck3DFast
+  USE MOD_BoundaryTools, ONLY : ParticleThroughSideCheck3DFast, ParticleThroughSideCheck3DFastold
 USE MOD_BoundaryTools, ONLY : ParticleInsideQuad3D
+USE MOD_BoundaryTools, ONLY : ParticleInsideQuad3Dold
 USE MOD_BoundaryTools, ONLY : SingleParticleToExactElement
 USE MOD_BoundaryTools, ONLY : PerfectReflection3D
 USE MOD_BoundaryTools, ONLY : DiffuseReflection3D 
 USE MOD_BoundaryTools, ONLY : PeriodicWallBnd3D 
 USE MOD_BoundaryTools, ONLY : ParticleThroughSideLastPosCheck
 USE MOD_part_MPI_Vars, ONLY : partShiftVector
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,PartAnalyzeStep
-USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut,PartAnalyzeStep
+USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
+USE MOD_Particle_Surfaces_Vars, ONLY:nTriangles
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                    !
@@ -224,13 +226,13 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
   INTEGER                          :: n, k, Element, LocalSide, tempcount
   INTEGER                          :: NrOfThroughSides, ind, ind2
   INTEGER                          :: GlobSideID,TempSideID,iLocSide                    !
-  INTEGER                          :: TriNum, LocSidesTemp(1:6),TriNumTemp(1:6)                    !
+  INTEGER                          :: TriNum, LocSidesTemp(nTriangles*6),TriNumTemp(nTriangles*6)                    !
   INTEGER                          :: PV, PVsign,SecondNrOfThroughSides
   INTEGER                          :: DoneSideID(1:2)  ! 1 = Side, 2 = TriNum
   INTEGER                          :: DoneLastElem(1:3,1:2) ! 1:3: 1=Element,2=LocalSide,3=TriNum 1:2: 1=last 2=beforelast
   INTEGER                          :: DoneLastElemHC(1:3) !see above, for haloCells 
   LOGICAL                          :: ThroughSide, InElementCheck, DONE                            !
-  REAL                             :: det(6,2),detM,ratio,minRatio
+  REAL                             :: det(6,nTriangles),detM,ratio,minRatio
   REAL, PARAMETER                  :: eps = 0                                                      !
   REAL                             :: RanNum
 !--------------------------------------------------------------------------------------------------!
@@ -242,6 +244,7 @@ IF((GEO%nPeriodicVectors.GE.0).AND.(ALLOCATED(partShiftVector))) partShiftVector
 #endif
    DONE = .FALSE.
    Element = PEM%lastElement(i)
+   print*,Element
    GlobSideID = 0
    DoneSideID(:) = 0
    DoneLastElem(:,:) = 0
@@ -257,7 +260,9 @@ IF((GEO%nPeriodicVectors.GE.0).AND.(ALLOCATED(partShiftVector))) partShiftVector
 !END IF
 !---------------------------------------------------------------------------
       !---- Check whether particle is in element
+      !CALL ParticleInsideQuad3Dold(i,Element,InElementCheck,det)
       CALL ParticleInsideQuad3D(i,Element,InElementCheck,det)
+  !    print*,InElementCheck
       !---- If it is, set new ElementNumber = Element and LocalizeOn = .FALSE. ->DONE
       IF (InElementCheck) THEN
          PEM%Element(i) = Element
@@ -272,10 +277,15 @@ IF((GEO%nPeriodicVectors.GE.0).AND.(ALLOCATED(partShiftVector))) partShiftVector
          TriNumTemp(:) = 0
          DO iLocSide=1,6
             TempSideID=ElemToSide(E2S_SIDE_ID,iLocSide,Element)
-            DO TriNum = 1,2
+            DO TriNum = 1,nTriangles
               IF (det(iLocSide,TriNum).le.-eps) THEN
                 IF((TempSideID.EQ.DoneSideID(1)).AND.(TriNum.EQ.DoneSideID(2))) CYCLE  !necessary??? test one day
                 ThroughSide = .FALSE.
+                !print*,'-----------------------------------------------------------------'
+                !print*,'old'
+                !CALL ParticleThroughSideCheck3DFastold(i,iLocSide,Element,ThroughSide,TriNum)
+                !print*,'-----------------------------------------------------------------'
+                !print*,'new'
                 CALL ParticleThroughSideCheck3DFast(i,iLocSide,Element,ThroughSide,TriNum)
                 IF (ThroughSide) THEN
                   NrOfThroughSides = NrOfThroughSides + 1

@@ -76,11 +76,11 @@ CALL InitPML()
 CALL InitDG()
 CALL InitFilter()
 CALL InitTimeDisc()
-CALL InitParticleAnalyze()
 #ifdef PARTICLES
 CALL InitParticles()
 CALL InitParticleSurfaces()
 #endif
+CALL InitParticleAnalyze()
 CALL InitAnalyze()
 CALL InitRecordPoints()
 CALL IgnoredStrings()
