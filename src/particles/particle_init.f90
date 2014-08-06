@@ -1013,12 +1013,15 @@ SUBROUTINE DomainUpdate()
 !   IF (PMPIVAR%GROUP.EQ.MPI_GROUP_EMPTY) RETURN
 !#endif
    !--- calc min and max coordinates for mesh
+   ! error, should be huge!!!!!!!
    xmin = 1.0E200
    xmax = -1.0E200
    ymin = 1.0E200
    ymax = -1.0E200
    zmin = 1.0E200
    zmax = -1.0E200
+   ! wrong range, does not find min,max values
+   ! boeser buggggggggggg
    DO iNode=1,nNodes
      xmin=MIN(xmin,GEO%NodeCoords(1,iNode))
      xmax=MAX(xmax,GEO%NodeCoords(1,iNode))
@@ -1039,6 +1042,15 @@ SUBROUTINE DomainUpdate()
    CALL InitializeDeposition()
    CALL InitPIC()
 
+!  print*,
+!  print*, GEO%xmin
+!  print*, GEO%xmax
+!  print*, GEO%ymin
+!  print*, GEO%ymax
+!  print*, GEO%zmin
+!  print*, GEO%zmax
+!
+!  print*,
 
 #ifdef MPI
 !IF (ASSOCIATED(PMPIVAR%MPIConnect)) THEN
@@ -1142,6 +1154,15 @@ SUBROUTINE DomainUpdate()
    BGMkmin = INT((GEO%ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
    BGMlmax = INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
    BGMlmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
+
+!   print*,BGMimax
+!   print*,BGMimin
+!   print*,BGMkmax
+!   print*,BGMkmin
+!   print*,BGMlmax
+!   print*,BGMlmin
+!   read*
+
 !   IF(PMPIVAR%iProc.EQ.1) THEN
 !     print*, "INT",INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
 !     print*,"zmaxminglob", GEO%zminglob, GEO%zmax, GEO%zmin
@@ -1203,6 +1224,15 @@ SUBROUTINE DomainUpdate()
    GEO%FIBGMlmax=BGMlmax
    GEO%FIBGMlmin=BGMlmin
 
+!   print*,BGMimax
+!   print*,BGMimin
+!   print*,BGMkmax
+!   print*,BGMkmin
+!   print*,BGMlmax
+!   print*,BGMlmin
+!   read*
+
+
    ALLOCATE(GEO%FIBGM(BGMimin:BGMimax,BGMkmin:BGMkmax,BGMlmin:BGMlmax), STAT=ALLOCSTAT)
    IF (ALLOCSTAT.NE.0) THEN
      WRITE(*,'(A,6(I0,A))')'Problem allocating GEO%FIBGM(',BGMimin,':',BGMimax,',', &
@@ -1236,6 +1266,16 @@ SUBROUTINE DomainUpdate()
           zmax=MAX(zmax,GEO%NodeCoords(3,GEO%ElemSideNodeID(iNode,iLocSide,ElemID)))
         END DO
       END DO
+      !print*,'min max of element',ElemID
+      !print*,xmin
+      !print*,xmax
+      !print*,ymin
+      !print*,ymax
+      !print*,zmin
+      !print*,zmax
+      !read*
+
+
       !--- find minimum and maximum BGM cell for current element
       BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
       BGMCellXmax = MIN(BGMCellXmax,BGMimax)
@@ -1249,10 +1289,21 @@ SUBROUTINE DomainUpdate()
       BGMCellZmax = MIN(BGMCellZmax,BGMlmax)
       BGMCellZmin = FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
       BGMCellZmin = MAX(BGMCellZmin,BGMlmin) 
+
+      !print*,'numer of bgm cells'
+      !print*,BGMCellXmax != MIN(BGMCellXmax,BGMimax)
+      !print*,BGMCellXmin != MAX(BGMCellXmin,BGMimin)
+      !print*,BGMCellYmax != MIN(BGMCellYmax,BGMkmax)
+      !print*,BGMCellYmin != MAX(BGMCellYmin,BGMkmin)
+      !print*,BGMCellZmax != MIN(BGMCellZmax,BGMlmax)
+      !print*,BGMCellZmin != MAX(BGMCellZmin,BGMlmin) 
+      !read*
+      
       DO i = BGMCellXmin,BGMCellXmax
          DO k = BGMCellYmin,BGMCellYmax
             DO l = BGMCellZmin,BGMCellZmax
                GEO%FIBGM(i,k,l)%nElem = GEO%FIBGM(i,k,l)%nElem + 1
+               !print*,GEO%FIBGM(i,k,l)%nElem! = GEO%FIBGM(i,k,l)%nElem + 1
             END DO
          END DO
       END DO
@@ -1284,6 +1335,16 @@ SUBROUTINE DomainUpdate()
           zmax=MAX(zmax,GEO%NodeCoords(3,GEO%ElemSideNodeID(iNode,iLocSide,ElemID)))
         END DO
       END DO
+
+      !print*,'min max of element',ElemID
+      !print*,xmin
+      !print*,xmax
+      !print*,ymin
+      !print*,ymax
+      !print*,zmin
+      !print*,zmax
+      !read*
+
       BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
       BGMCellXmax = MIN(BGMCellXmax,BGMimax)
       BGMCellXmin = FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
@@ -1301,6 +1362,9 @@ SUBROUTINE DomainUpdate()
             DO l = BGMCellZmin,BGMCellZmax
                GEO%FIBGM(i,k,l)%nElem = GEO%FIBGM(i,k,l)%nElem + 1    
                GEO%FIBGM(i,k,l)%Element(GEO%FIBGM(i,k,l)%nElem) = ElemID
+
+!               print*,GEO%FIBGM(i,k,l)%nElem 
+!               print*,GEO%FIBGM(i,k,l)%Element(GEO%FIBGM(i,k,l)%nElem) 
             END DO
          END DO
       END DO

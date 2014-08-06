@@ -970,6 +970,7 @@ SUBROUTINE ParticleInsideQuad3D(i,Element,InElementCheck,det)
   InElementCheck = .TRUE.
   PartStateLoc(1:3) = PartState(i,1:3)
   det=0.
+
   DO iLocSide = 1,6                 ! for all 6 sides of the element
      !--- initialize flags for side checks
      PosCheck = .FALSE.
@@ -979,6 +980,13 @@ SUBROUTINE ParticleInsideQuad3D(i,Element,InElementCheck,det)
      nloctriangles=0
      SideID=ElemToSide(E2S_SIDE_ID,ilocSide,Element)
      flip  =ElemToSide(E2S_FLIP,ilocSide,Element)
+!     print*,'nodes'
+!     print*,SuperSampledNodes(1:3,0  ,0  ,SideID)
+!     print*,SuperSampledNodes(1:3,0  ,nPartCurved  ,SideID)
+!     print*,SuperSampledNodes(1:3,nPartCurved  ,0  ,SideID)
+!     print*,SuperSampledNodes(1:3,nPartCurved  ,nPartCurved  ,SideID)
+!     read*
+
      DO q=0,NPartCurved-1
        DO p=0,NPartCurved-1
          A(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)-PartStateLoc(1:3)
@@ -1004,6 +1012,8 @@ SUBROUTINE ParticleInsideQuad3D(i,Element,InElementCheck,det)
         IF(flip.NE.0)THEN ! master side
           det(iLocSide,nlocTriangles+1:nlocTriangles+2)= -det(iLocSide,nlocTriangles+1:nlocTriangles+2)
         END IF
+      !j  print*,det(iLocSide,nlocTriangles+1:nlocTriangles+2)
+      !j  read*
         IF (det(iLocSide,nlocTriangles+1).lt.0) THEN
            nNegCheck = nNegCheck+1
          ELSE
@@ -1030,14 +1040,19 @@ SUBROUTINE ParticleInsideQuad3D(i,Element,InElementCheck,det)
          END DO !p
      END DO !q
 
+      ! print*,nNegCheck
+      ! print*,nPosCheck
      !print*,'ilocside,flip,det',iLocSide,flip,det(iLocSide,:)
      IF(nNegCheck.EQ.nTriangles)THEN
        NegCheck=.TRUE.
      ELSE IF(nPosCheck.EQ.nTriangles)THEN
        PosCheck=.TRUE.
      ELSE
-       print*,'wft'
-       stop
+       NegCheck=.FALSE.
+       PosCheck=.FALSE.
+       !print*,'wtf'
+      ! print*,'false'
+       !stop
      END IF
 
 !     IF(nPosCheck.EQ.nTriangles)THEN
@@ -1058,6 +1073,7 @@ SUBROUTINE ParticleInsideQuad3D(i,Element,InElementCheck,det)
        IF (NegCheck) InElementCheck = .FALSE.
      END IF
   END DO
+  !stop
 !print*,InElementCheck
  RETURN
   END SUBROUTINE ParticleInsideQuad3D
@@ -1352,21 +1368,27 @@ SUBROUTINE SingleParticleToExactElement(i)                                      
       RETURN
    END IF
    !--- get background mesh cell of particle
+!   print*,PartState(i,:)
    CellX = CEILING((PartState(i,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
    CellX = MIN(GEO%FIBGMimax,CellX)                             
    CellY = CEILING((PartState(i,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
    CellY = MIN(GEO%FIBGMkmax,CellY) 
    CellZ = CEILING((PartState(i,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
    CellZ = MIN(GEO%FIBGMlmax,CellZ)
+!   print*,'cell indices',CellX,CellY,CellZ
+!   print*,'number of cells in bgm',GEO%FIBGM(CellX,CellY,CellZ)%nElem
+!   read*
    !--- check all cells associated with this beckground mesh cell
    DO k = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
       Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(k)
-      print*,'k',k,Element
+      !Element=k
+!      print*,'k',k,Element
+!      read*
       CALL ParticleInsideQuad3D(i,Element,InElementCheck,det)
  !     print*,inElementCheck
  !     CALL ParticleInsideQuad3Dold(i,Element,InElementCheck,det)
- !     print*,inElementCheck
- !     read*
+!      print*,inElementCheck
+!      read*
       IF (InElementCheck) THEN
  !       print*,Element
  !       read*
@@ -1375,6 +1397,7 @@ SUBROUTINE SingleParticleToExactElement(i)                                      
          EXIT
       END IF
    END DO
+!   print*,PEM%Element(i)
    IF (.NOT.ParticleFound) THEN
       PDM%ParticleInside(i) = .FALSE.
    END IF

@@ -244,7 +244,7 @@ IF((GEO%nPeriodicVectors.GE.0).AND.(ALLOCATED(partShiftVector))) partShiftVector
 #endif
    DONE = .FALSE.
    Element = PEM%lastElement(i)
-   print*,Element
+   !print*,Element
    GlobSideID = 0
    DoneSideID(:) = 0
    DoneLastElem(:,:) = 0
