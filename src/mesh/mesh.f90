@@ -47,7 +47,7 @@ USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
 #ifdef PARTICLES
 USE MOD_Particle_Vars,            ONLY:GEO
 USE MOD_ParticleInit,           ONLY:InitParticleGeometry,InitElemVolumes
-  USE MOD_Particle_Surfaces_Vars, ONLY: nPartCurved, DoPartCurved, SuperSampledNodes,nTriangles
+USE MOD_Particle_Surfaces_Vars, ONLY: nPartCurved, DoPartCurved, SuperSampledNodes,nTriangles,nQuads
 #endif
 #ifdef MPI
 USE MOD_Prepare_Mesh,       ONLY:exchangeFlip
@@ -257,6 +257,7 @@ CALL InitElemVolumes()
 
 ! new stuff with supersempled surfaces
 nTriangles=2*NPartCurved*NPartCurved
+nQuads=NPartCurved*NPartCurved
 !ALLOCATE(isConcaveTriangle(1:nTriangles))
 DO iElem=1,PP_nElems
   GEO%ConcaveElemSide(:,iElem)=.FALSE.

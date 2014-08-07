@@ -33,7 +33,12 @@ INTERFACE GetSuperSampledSurface
   MODULE PROCEDURE GetSuperSampledSurface
 END INTERFACE
 
-PUBLIC::GetBiLinearPlane, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, GetSuperSampledSurface
+INTERFACE CalcNormVec
+  MODULE PROCEDURE CalcNormVec
+END INTERFACE
+
+PUBLIC::GetBiLinearPlane, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, GetSuperSampledSurface, &
+        CalcNormVec
 
 !===================================================================================================================================
 
@@ -281,6 +286,58 @@ nlength=SQRT(nlength)
 CalcBiLinearNormVec=nVec/nlength
 
 END FUNCTION CalcBiLinearNormVec
+
+FUNCTION CalcNormVec(xi,eta,QuadID,SideID)
+!================================================================================================================================
+! function to compute the normal vector of a bi-linear surface
+!================================================================================================================================
+USE MOD_Globals,                              ONLY:CROSS
+USE MOD_Particle_Surfaces_Vars,               ONLY:SuperSampledNodes,NPartCurved
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                        :: xi,eta
+INTEGER,INTENT(IN)                     :: SideID,QuadID
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+REAL,DIMENSION(3)                      :: CalcNormVec
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(3)                      :: a,b,nVec
+INTEGER                                :: p,q
+REAL                                   :: nlength
+!================================================================================================================================
+
+q=(QuadID-1)/NPartCurved ! fortran takes floor of integer devision
+p=MOD(QuadID-1,NPartCurved)
+
+!xNodes(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)
+!xNodes(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)
+!xNodes(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)
+!xNodes(:,4)=SuperSampledNodes(1:3,p  ,q+1,SideID)
+
+!b=xi*0.25*( SuperSampledNodes(:,p  ,q  ,SideID)-SuperSampledNodes(:,p+1,q  ,SideID)   &
+!           +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) ) !&
+!
+
+b=xi*0.25*(SuperSampledNodes(:,p  ,q  ,SideID)-SuperSampledNodes(:,p+1,q  ,SideID)  & 
+           +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) ) &
+    +0.25*(-SuperSampledNodes(:,p  ,q  ,SideID)+SuperSampledNodes(:,p+1,q  ,SideID)   &
+           +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) )
+
+a=eta*0.25*( SuperSampledNodes(:,p  ,q  ,SideID)-SuperSampledNodes(:,p+1,q  ,SideID)   &
+            +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) ) &
+     +0.25*(-SuperSampledNodes(:,p  ,q  ,SideID)-SuperSampledNodes(:,p+1,q  ,SideID)   &
+            +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) )
+
+
+nVec=CROSS(a,b)
+nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
+nlength=SQRT(nlength)
+CalcNormVec=nVec/nlength
+
+END FUNCTION CalcNormVec
 
 SUBROUTINE GetSuperSampledSurface(XCL_NGeo,iElem)
 !===================================================================================================================================

@@ -16,7 +16,7 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: BiLinearCoeff              ! contains
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SuperSampledNodes          !  
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:)   :: SuperSampledBiLinearCoeff  !
 INTEGER                                 :: NPartCurved                !
-INTEGER                                 :: nTriangles
+INTEGER                                 :: nTriangles,nQuads
 LOGICAL                                 :: DoPartCurved=.FALSE.       !
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_CLNGeo_EquiNPartCurved
 LOGICAL,ALLOCATABLE,DIMENSION(:)        :: SideIsPlanar               ! logical error if side is planar, instead of bi-linear
