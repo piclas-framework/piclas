@@ -1349,6 +1349,7 @@ END SUBROUTINE ParticleThroughSideLastPosCheck_halocells
 SUBROUTINE SingleParticleToExactElement(i)                                                         !
   USE MOD_Particle_Vars
   USE MOD_Particle_Surfaces_Vars, ONLY: nTriangles
+  USE MOD_Eval_xyz,               ONLY: eval_xyz_elemcheck
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -1384,8 +1385,10 @@ SUBROUTINE SingleParticleToExactElement(i)                                      
       Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(k)
       !Element=k
 !      print*,'k',k,Element
+!      print*,'Pos',PartState(i,1:3)
 !      read*
-      CALL ParticleInsideQuad3D(i,Element,InElementCheck,det)
+      CALL Eval_xyz_elemcheck(PartState(i,1:3),InElementCheck,Element)
+      !CALL ParticleInsideQuad3D(i,Element,InElementCheck,det)
  !     print*,inElementCheck
  !     CALL ParticleInsideQuad3Dold(i,Element,InElementCheck,det)
 !      print*,inElementCheck

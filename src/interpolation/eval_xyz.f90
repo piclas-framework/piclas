@@ -29,7 +29,11 @@ INTERFACE eval_xyz_curved
   MODULE PROCEDURE eval_xyz_curved
 END INTERFACE
 
-PUBLIC :: eval_xyz, eval_xyz_fast, eval_xyz_part2, Calc_F, Calc_dF_inv, eval_xyz_curved
+INTERFACE eval_xyz_elemcheck
+  MODULE PROCEDURE eval_xyz_elemcheck
+END INTERFACE
+
+PUBLIC :: eval_xyz, eval_xyz_fast, eval_xyz_part2, Calc_F, Calc_dF_inv, eval_xyz_curved,eval_xyz_elemcheck
 !===================================================================================================================================
 
 CONTAINS
@@ -841,6 +845,170 @@ DO k=0,N_In
 END DO
 
 END SUBROUTINE eval_xyz_curved
+
+
+SUBROUTINE eval_xyz_elemcheck(x_in,PartInElem,iElem)
+!===================================================================================================================================
+! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
+! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
+! xi is defined in the 1DrefElem xi=[-1,1]
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
+USE MOD_Interpolation_Vars,      ONLY:wBary,xGP
+USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo,NGeo
+!USE MOD_Mesh_Vars,ONLY: X_CP
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: iElem                                 ! elem index
+REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT) :: PartInElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER             :: i,j,k
+REAL                :: xi(3)
+INTEGER             :: NewTonIter
+REAL                :: Winner_Dist,Dist
+REAL, PARAMETER     :: EPS=1E-8
+INTEGER             :: n_Newton
+REAL                :: F(1:3),Lag(1:3,0:NGeo)
+REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
+REAL                :: buff,buff2
+REAL                :: epsOne
+!===================================================================================================================================
+
+epsOne=1.0+eps
+!print*,'iElem',iElem
+!print*,'Pos',X_in
+! get initial guess by nearest GP search ! simple guess
+! x_in = PartState(1:3,iPart)
+Winner_Dist=HUGE(1.)
+DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
+  Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
+  IF (Dist.LT.Winner_Dist) THEN
+    Winner_Dist=Dist
+    Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
+  END IF
+END DO; END DO; END DO
+!print*,'Winnerdist',Winner_Dist
+!print*,'initial guess'
+!print*,'xi',xi
+!
+!print*,'NGeo',NGeo
+!print*,'Xi_CLNGeo',XiCL_NGeo
+!print*,'wbary_CLNGeo',wBaryCL_NGeo
+!read*
+
+!DO k=0,NGeo
+!  DO j=0,NGeo
+!    DO i=0,NGeo
+!     !! Matrix-vector multiplication
+!       print*,'dXCL_NGeo',dXCL_NGeo(:,1,i,j,k,iElem)
+!       print*,'dXCL_NGeo',dXCL_NGeo(:,2,i,j,k,iElem)
+!       print*,'dXCL_NGeo',dXCL_NGeo(:,3,i,j,k,iElem)
+!       read*
+!    END DO !i=0,NGeo
+!  END DO !j=0,NGeo
+!END DO !k=0,NGeo
+
+
+! initial guess
+CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+! F(xi) = x(xi) - x_in
+F=-x_in ! xRp
+DO k=0,NGeo
+  DO j=0,NGeo
+    DO i=0,NGeo
+      F=F+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      !print*,'XCL',i,j,k,XCL_NGeo(:,i,j,k,iElem)
+    END DO !l=0,NGeo
+  END DO !i=0,NGeo
+END DO !j=0,NGeo
+!print*,'F',F
+!read*
+
+NewtonIter=0
+DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
+  NewtonIter=NewtonIter+1
+  ! 
+  ! caution, dXCL_NGeo is transposed of required matrix
+  Jac=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      buff=Lag(2,j)*Lag(3,k)
+      DO i=0,NGeo
+        buff2=Lag(1,i)*buff
+        Jac(1,1:3)=Jac(1,1:3)+dXCL_NGeo(1:3,1,i,j,k,iElem)*buff2
+        Jac(2,1:3)=Jac(2,1:3)+dXCL_NGeo(1:3,2,i,j,k,iElem)*buff2
+        Jac(3,1:3)=Jac(3,1:3)+dXCL_NGeo(1:3,3,i,j,k,iElem)*buff2
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  
+  !print*,'print',Jac
+
+  ! Compute inverse of Jacobian
+  sdetJac=getDet(Jac)
+  IF(sdetJac.GT.0.) THEN
+   sdetJac=1./sdetJac
+  ELSE !shit
+   ! Newton has not converged !?!?
+   CALL abort(__STAMP__, &
+        'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
+  ENDIF 
+  sJac=getInv(Jac,sdetJac)
+  
+  ! Iterate Xi using Newton step
+  ! Use FAIL
+  Xi = Xi - MATMUL(sJac,F)
+  IF(ANY(ABS(Xi).GT.1.5)) THEN
+    SWRITE(*,*) ' Particle not inside of element!!!'
+    SWRITE(*,*) ' xi  ', xi(1)
+    SWRITE(*,*) ' eta ', xi(2)
+    SWRITE(*,*) ' zeta', xi(3)
+    EXIT
+  END IF
+  
+  ! Compute function value
+  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  ! F(xi) = x(xi) - x_in
+  F=-x_in ! xRp
+  DO k=0,NGeo
+    DO j=0,NGeo
+      DO i=0,NGeo
+        F=F+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      END DO !l=0,NGeo
+    END DO !i=0,NGeo
+  END DO !j=0,NGeo
+END DO !newton
+
+! check if Newton is successful
+IF(ANY(ABS(Xi).GT.epsOne)) THEN
+  WRITE(*,*) ' Particle outside of parameter range!!!'
+  WRITE(*,*) ' xi  ', xi(1)
+  WRITE(*,*) ' eta ', xi(2)
+  WRITE(*,*) ' zeta', xi(3)
+  !read*
+  PartInElem=.FALSE.
+ELSE
+  PartInElem=.TRUE.
+END IF
+!print*,'eval curved'
+!print*,'xi',xi
+!print*,'iter',nEwtonIter
+!read*
+
+END SUBROUTINE eval_xyz_elemcheck
 
 FUNCTION getDet(Mat)
 !=================================================================================================================================
