@@ -43,7 +43,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,ElemID
-INTEGER                       :: ilocSide,SideID
+INTEGER                       :: ilocSide,SideID!,flip
 INTEGER                       :: iInterSect,nInter
 INTEGER                       :: p,q,QuadID,iQuad,minQuadID,maxQuadID
 LOGICAL                       :: PartisDone,dolocSide(1:6)
@@ -54,15 +54,17 @@ REAL                          :: xNodes(1:3,4),Displacement,xdisplace(1:3)
 REAL                          :: PartTrajectory(1:3)
 !===================================================================================================================================
 
-print*,'ici'
-read*
+!print*,'ici'
+!read*
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
-    !print*,ElemID
-    print*,'lastpos',LastPartPos(iPart,1:3)
+!    print*,'ElemID','new RK',ElemID
+!    print*,'lastpos',LastPartPos(iPart,1:3)
     PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+!    print*,'PartTrajectory',PartTrajectory
+!    read*
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
@@ -70,6 +72,7 @@ DO iPart=1,PDM%ParticleVecLength
         alpha_loc=-1.0
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+        !flip  =ElemToSide(E2S_FLIP,ilocSide,ElemID)
         QuadID=0
         ! supersampling of each side
         DO q=0,NPartCurved-1
@@ -83,9 +86,14 @@ DO iPart=1,PDM%ParticleVecLength
             xdisplace(1:3) = xNodes(:,1)-xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
             Displacement = xdisplace(1)*xdisplace(1)+xdisplace(2)*xdisplace(2)+xdisplace(3)*xdisplace(3)
             IF(Displacement.LT.epsilonbilinear)THEN
+!              print*,'linear'
               CALL ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory &
                                                          ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart)
             ELSE
+!              print*,'bilinear'
+!            CALL abort(__STAMP__,&
+!                ' flip missing!!! ',999,999.)
+
               CALL ComputeBiLinearIntersectionSuperSampled(xNodes,PartTrajectory &
                                                           ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart,SideID)
             END IF
@@ -119,6 +127,7 @@ DO iPart=1,PDM%ParticleVecLength
 !                ' Boundary interaction not implemented for new method.',999,999.)
 !            print*,'newState',PartState(iPart,1:3)
 !            print*,'newTrajectory',PartTrajectory
+!            read*
              EXIT
           ELSE ! no intersection
             alpha=-1.0
@@ -153,7 +162,7 @@ DO iPart=1,PDM%ParticleVecLength
                dolocSide=.TRUE.
                dolocSide(neighborlocSideID(ilocSide,ElemID))=.FALSE.
                ElemID=neighborElemID(ilocSide,ElemID)
-               print*,'new elem id',ElemID
+!               print*,'new elem id',ElemID
                !print*,'new particle positon',ElemID
   !             CALL abort(__STAMP__,&
   !                 ' Particle mapping to neighbor elem not verified!',999,999.)
@@ -366,6 +375,7 @@ END SUBROUTINE ParticleTracking
 
 
 SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,iPart)
+!SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,flip,iPart)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 !===================================================================================================================================
@@ -382,6 +392,7 @@ IMPLICIT NONE
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
 INTEGER,INTENT(IN)                :: iPart!,SideID!,ElemID
+!INTEGER,INTENT(IN)                :: flip
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha,xi,eta
@@ -415,13 +426,18 @@ nVec=CROSS(P1,P2)
 nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2) +nVec(3)*nVec(3) 
 nlength=SQRT(nlength)
 nVec=nVec/nlength
+!print*,'nVec',nVec
  
-! compute distance along trajectory
+!! compute distance along trajectory
 coeffA=DOT_PRODUCT(nVec,PartTrajectory)
-!print*,'coeffA',coeffA
-!read*
-! corresponding to particle starting in plane
-! interaction should be computed in last step
+!IF(flip.EQ.0)THEN ! master side
+!  IF(coeffA.LT.epsilontol)RETURN
+!ELSE ! slave sides
+!  IF(coeffA.GT.-epsilontol)RETURN
+!END IF ! flip
+
+!! corresponding to particle starting in plane
+!! interaction should be computed in last step
 IF(ABS(coeffA).LT.+epsilontol)THEN 
   RETURN
 END IF
@@ -430,9 +446,9 @@ P0=P0-LastPartPos(iPart,1:3)
 coeffB=DOT_PRODUCT(P0,nVec)
 
 alpha=coeffB/coeffA
-!!print*,'coeffB',coeffB
-!!print*,'alpha',alpha
-!!read*
+!print*,'coeffB',coeffB
+!print*,'alpha',alpha
+!read*
 
 IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
   alpha=-1.0
@@ -449,10 +465,53 @@ a2(3)= P2(2)*PartTrajectory(3)-P2(3)*PartTrajectory(2)
 a2(4)= P0(2)*PartTrajectory(3) &
       -P0(3)*PartTrajectory(2)
 
+!print*,'a12',a1(2)
+!print*,'a13',a1(3)
+!print*,'a14',a1(4)
+
+
+!print*,'a22',a2(2)
+!print*,'a23',a2(3)
+!print*,'a24',a2(4)
 !print*,'a23,a13',a2(3),a1(3)
 !print*,'a22,a12',a2(2),a1(2)
 
+! old one               ! working in not all cases
 !! caution with accuracy
+!IF(ABS(a2(3)).LT.epsilontol)THEN ! term c is close to zero ==> eta is zero
+!  eta=0.
+!  IF(ABS(a2(2)).LT.epsilontol)THEN
+!    xi=0.
+!  ELSE
+!    ! compute xi
+!    xi=a1(2)-a2(2)
+!    xi=1.0/xi
+!    xi=(a2(4)-a1(4))*xi
+!  END IF
+!!  IF(ABS(xi).GT.epsilonOne)THEN
+!!    RETURN
+!!  END IF
+!ELSE ! a2(3) not zero
+!  IF(ABS(a2(2)).LT.epsilontol)THEN
+!    xi=0.
+!    eta=a1(3)-a2(3)
+!    eta=1.0/eta
+!    eta=(a2(4)-a1(4))*eta
+!  ELSE
+!    xi = a1(2) - a1(3)*a2(2)/a2(3)
+!    xi = 1.0/xi
+!    xi = (-a1(4)-a1(3)*a2(4)/a2(3))*xi
+!    ! check distance of xi 
+!  !  IF(ABS(xi).GT.epsilonOne)THEN
+!  !    RETURN
+!  !  END IF
+!    ! compute eta
+!    eta=a1(3)-a2(3)
+!    eta=1.0/eta
+!    eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
+!  END IF
+!END IF
+
 IF(ABS(a2(3)).LT.epsilontol)THEN ! term c is close to zero ==> eta is zero
   eta=0.
   IF(ABS(a2(2)).LT.epsilontol)THEN
@@ -470,20 +529,29 @@ ELSE ! a2(3) not zero
   IF(ABS(a2(2)).LT.epsilontol)THEN
     xi=0.
     eta=a1(3)-a2(3)
-    eta=1.0/eta
-    eta=(a2(4)-a1(4))*eta
+    IF(ABS(eta).LT.epsilontol)THEN
+      eta=0.
+    ELSE
+      eta=1.0/eta
+      eta=(a2(4)-a1(4))*eta
+    END IF
   ELSE
     xi = a1(2) - a1(3)*a2(2)/a2(3)
+    xi=0.
     xi = 1.0/xi
     xi = (-a1(4)-a1(3)*a2(4)/a2(3))*xi
-    ! check distance of xi 
+      ! check distance of xi 
   !  IF(ABS(xi).GT.epsilonOne)THEN
   !    RETURN
   !  END IF
     ! compute eta
     eta=a1(3)-a2(3)
-    eta=1.0/eta
-    eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
+    IF(ABS(eta).LT.epsilontol)THEN
+      eta=0.
+    ELSE ! eta not zero
+     eta=1.0/eta
+     eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
+    END IF ! eta .LT.epsilontol
   END IF
 END IF
 
