@@ -44,7 +44,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,ElemID
 INTEGER                       :: ilocSide,SideID
-INTEGER                       :: iInterSect
+INTEGER                       :: iInterSect,nInter
 INTEGER                       :: p,q,QuadID,iQuad,minQuadID,maxQuadID
 LOGICAL                       :: PartisDone,dolocSide(1:6)
 !REAL                          :: alpha(1:6),xietaIntersect(1:2,1:6)
@@ -54,14 +54,14 @@ REAL                          :: xNodes(1:3,4),Displacement,xdisplace(1:3)
 REAL                          :: PartTrajectory(1:3)
 !===================================================================================================================================
 
-!print*,'ici'
-!read*
+print*,'ici'
+read*
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
-   !Element = PEM%lastElement(i)
     !print*,ElemID
+    print*,'lastpos',LastPartPos(iPart,1:3)
     PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
@@ -105,19 +105,20 @@ DO iPart=1,PDM%ParticleVecLength
             END IF ! alpha_loc.GT.espilontol
           END DO ! iQuad
           ! check if interesction is possible and take first intersection
-!          print*,alpha,minQuadID
+          !print*,alpha,minQuadID
 !          read*
           IF(alpha.GT.epsilontol.AND.alpha.LT.epsilonOne)THEN
 !            xi=xi_loc(minQuadID)
 !            eta=eta_loc(minQuadID)
 !            QuadID=minQuadID
-            !print*,'Boundary interaction implemented for new method'
-            !print*,'oldstate',PartState(iPart,1:3)
+!            print*,'Boundary interaction implemented for new method'
+!            print*,'oldstate',PartState(iPart,1:3)
             CALL GetBoundaryInteractionSuperSampled(PartTrajectory,alpha,xi_loc(minQuadID),eta_loc(minQuadID),&
                                                                                             iPart,QuadID,SideID,ElemID)
 !            CALL abort(__STAMP__,&
 !                ' Boundary interaction not implemented for new method.',999,999.)
-             !print*,'newState',PartState(iPart,1:3)
+!            print*,'newState',PartState(iPart,1:3)
+!            print*,'newTrajectory',PartTrajectory
              EXIT
           ELSE ! no intersection
             alpha=-1.0
@@ -126,14 +127,21 @@ DO iPart=1,PDM%ParticleVecLength
           ! search max alpha
           alpha=-10
           maxQuadID=-1
+          nInter=0
           ! get largest possible intersection
           DO iQuad=1,nQuads
             IF(alpha_loc(iQuad).GT.alpha)THEN
               alpha=alpha_loc(iQuad)
               maxQuadID=iQuad
             END IF
+            IF(alpha_loc(iQuad).GT.epsilontol)THEN
+              nInter=nInter+1
+            END IF
           END DO ! iQuad
+          IF(MOD(nInter,2).EQ.0) alpha=-1.0
           IF(alpha.GT.epsilontol)THEN
+!             print*,'next elem'
+!             print*,'alpha',alpha
              xi=xi_loc(maxQuadID) 
              eta=eta_loc(maxQuadID)
              ! check if the found alpha statisfy the selection condition
@@ -145,6 +153,7 @@ DO iPart=1,PDM%ParticleVecLength
                dolocSide=.TRUE.
                dolocSide(neighborlocSideID(ilocSide,ElemID))=.FALSE.
                ElemID=neighborElemID(ilocSide,ElemID)
+               print*,'new elem id',ElemID
                !print*,'new particle positon',ElemID
   !             CALL abort(__STAMP__,&
   !                 ' Particle mapping to neighbor elem not verified!',999,999.)
@@ -399,9 +408,11 @@ P0 = xNodes(:,1)+xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
 P1=0.25*P1
 P2=0.25*P2
 P0=0.25*P0
+! planar plane
+! P1*xi + P2*eta+P0
 
 nVec=CROSS(P1,P2)
-nlength=nVec(1)*nVec(1) +nVec(2)*nVec(2) +nVec(3)*nVec(3) 
+nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2) +nVec(3)*nVec(3) 
 nlength=SQRT(nlength)
 nVec=nVec/nlength
  
