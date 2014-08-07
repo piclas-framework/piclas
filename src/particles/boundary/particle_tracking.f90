@@ -54,8 +54,8 @@ REAL                          :: xNodes(1:3,4),Displacement,xdisplace(1:3)
 REAL                          :: PartTrajectory(1:3)
 !===================================================================================================================================
 
-print*,'ici'
-read*
+!print*,'ici'
+!read*
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     PartisDone=.FALSE.

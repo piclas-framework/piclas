@@ -440,7 +440,6 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
    INTENT(INOUT)                    :: NbrOfParticle                                               
 !----------------------------------------------------------------------------------------------------------------------------------
 
-
    IF (nbrOfParticle .LE. 0) RETURN
 
    DeltaTime = dt

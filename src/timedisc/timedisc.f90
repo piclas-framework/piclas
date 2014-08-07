@@ -471,7 +471,6 @@ REAL                          :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_n
 #endif
 real:: tstart,tend,t1,t2
 !===================================================================================================================================
-
 t1=0.
 t2=0.
 
@@ -564,6 +563,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 !CALL CPU_TIME(tend)
 !t1=tend-tstart
 
+print*,'Calling tracking ...'
 !CALL CPU_TIME(tStart)
 CALL ParticleTracking()
 !jCALL CPU_TIME(tend)

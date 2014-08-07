@@ -695,8 +695,8 @@ REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                :: buff,buff2
 !===================================================================================================================================
 
-!print*,'iElem',iElem
-!print*,'Pos',X_in
+! print*,'iElem',iElem
+! print*,'Pos',X_in
 ! get initial guess by nearest GP search ! simple guess
 ! x_in = PartState(1:3,iPart)
 Winner_Dist=HUGE(1.)
@@ -811,14 +811,15 @@ IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
   WRITE(*,*) ' zeta', xi(3)
   !read*
 END IF
-!print*,'eval curved'
-!print*,'xi',xi
-!print*,'iter',nEwtonIter
-!read*
+!jprint*,'eval curved'
+!jprint*,'xi',xi
+!jprint*,'iter',nEwtonIter
+!jread*
 
 ! 2.1) get "Vandermonde" vectors
 DO i=1,3
   CALL LagrangeInterpolationPolys(xi(i),N_in,xGP,wBary,Lag2(i,:))
+ !CALL LagrangeInterpolationPolys(xi(i),N_in,xGP,wBary,L_xi(i,:))
 END DO
 
 ! 2.2) do the tensor product thing 

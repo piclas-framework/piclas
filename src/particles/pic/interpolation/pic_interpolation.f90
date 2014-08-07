@@ -353,7 +353,6 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         IF (PDM%ParticleInside(iPart)) THEN
           iElem = PEM%Element(iPart)
           Pos = PartState(iPart,1:3)
-          !print*,'Pos,iElem',Pos,iElem
           !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
