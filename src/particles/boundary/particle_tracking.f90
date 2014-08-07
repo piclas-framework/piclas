@@ -25,11 +25,12 @@ SUBROUTINE ParticleTracking()
 ! read required parameters
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                  ONLY:abort
-USE MOD_Mesh_Vars,                ONLY:ElemToSide,nBCSides
-USE MOD_Particle_Vars,            ONLY:PEM,PDM
-USE MOD_Particle_Vars,            ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol,SideIsPlanar,epsilonOne,neighborElemID,neighborlocSideID
+USE MOD_Globals,                     ONLY:abort
+USE MOD_Mesh_Vars,                   ONLY:ElemToSide,nBCSides
+USE MOD_Particle_Vars,               ONLY:PEM,PDM
+USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
+USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideIsPlanar,epsilonOne,neighborElemID,neighborlocSideID
+USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -65,9 +66,9 @@ DO iPart=1,PDM%ParticleVecLength
         IF(SideIsPlanar(SideID))THEN
           !CALL ComputePlanarIntersection(PartTrajectory,iPart,SideID,ElemID,alpha,xietaIntersect(1,ilocSide) &
           !                              ,XiEtaIntersect(2,ilocSide))
-          CALL ComputePlanarIntersection(PartTrajectory,iPart,SideID,alpha,xi,eta)
+          CALL ComputePlanarIntersection(PartTrajectory,alpha,xi,eta,iPart,SideID)
         ELSE
-          CALL ComputeBiLinearIntersection(PartTrajectory,iPart,SideID,alpha,xi,eta)
+          CALL ComputeBiLinearIntersection(PartTrajectory,alpha,xi,eta,iPart,SideID)
           !CALL ComputeBiLinearIntersection(PartTrajectory,iPart,SideID,ElemID,alpha,xietaIntersect(1,ilocSide) &
           !                              ,XiEtaIntersect(2,ilocSide))
         END IF
@@ -78,8 +79,10 @@ DO iPart=1,PDM%ParticleVecLength
         IF(alpha.GT.epsilontol)THEN ! or minus epsilontol
           !IF(alpha+epsilontol.GE.epsilonOne) PartisDone=.TRUE.
           IF(SideID.LE.nBCSides)THEN
-            CALL abort(__STAMP__,&
-                ' Boundary interaction not implemented for new method.',999,999.)
+            print*,'Boundary interaction implemented for new method'
+            CALL GetBoundaryInteraction(PartTrajectory,alpha,xi,eta,iPart,SideID,ElemID)
+            !CALL abort(__STAMP__,&
+                !' Boundary interaction not implemented for new method.',999,999.)
           END IF
           iInterSect=INT((ABS(xi)-epsilontol)/1.0)+INT((ABS(eta)-epsilontol)/1.0)
           IF(iInterSect.GT.0)THEN
@@ -109,7 +112,7 @@ END DO ! iPart
 
 END SUBROUTINE ParticleTracking
 
-!SUBROUTINE ComputePlanarIntersection(PartTrajectory,iPart,SideID,alpha,xi,eta)
+!SUBROUTINE ComputePlanarIntersection(PartTrajectory,alpha,xi,eta,iPart,SideID)
 !!==================================================================================================================================
 !! Compute the Intersection with planar surface
 !!==================================================================================================================================
@@ -205,7 +208,7 @@ END SUBROUTINE ParticleTracking
 !
 !END SUBROUTINE ComputePlanarIntersection
 
-SUBROUTINE ComputePlanarIntersection(PartTrajectory,iPart,SideID,alpha,xi,eta)
+SUBROUTINE ComputePlanarIntersection(PartTrajectory,alpha,xi,eta,iPart,SideID)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 !===================================================================================================================================
@@ -341,7 +344,7 @@ END IF
 
 END SUBROUTINE ComputePlanarIntersection
 
-SUBROUTINE ComputeBiLinearIntersection(PartTrajectory,iPart,SideID,alpha,xitild,etatild)
+SUBROUTINE ComputeBiLinearIntersection(PartTrajectory,alpha,xitild,etatild,iPart,SideID)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 !===================================================================================================================================

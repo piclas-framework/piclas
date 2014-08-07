@@ -1422,7 +1422,7 @@ SUBROUTINE TrackingParticlePosition(time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,          ONLY : PartState, PDM
+USE MOD_Particle_Vars,          ONLY : PartState, PDM, PEM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1474,6 +1474,8 @@ ELSE
         WRITE(iunit,'(A1)',ADVANCE='NO') ','
         WRITE(iunit,104,ADVANCE='NO') PartState(i,iPartState)
       END DO
+      WRITE(iunit,'(A1)',ADVANCE='NO') ','
+      WRITE(iunit,'(I12)',ADVANCE='NO') PEM%Element(i)
       WRITE(iunit,'(A)') ' '
      END IF
   END DO

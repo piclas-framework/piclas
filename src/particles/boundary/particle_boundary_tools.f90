@@ -989,6 +989,7 @@ SUBROUTINE ParticleInsideQuad3D(i,Element,InElementCheck,det)
 
      DO q=0,NPartCurved-1
        DO p=0,NPartCurved-1
+!print*,p,q
          A(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)-PartStateLoc(1:3)
          A(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)-PartStateLoc(1:3)
          A(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)-PartStateLoc(1:3)
