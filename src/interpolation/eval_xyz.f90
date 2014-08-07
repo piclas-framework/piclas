@@ -695,12 +695,12 @@ REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                :: buff,buff2
 !===================================================================================================================================
 
-! print*,'iElem',iElem
-! print*,'Pos',X_in
+print*,'iElem',iElem
+print*,'Pos',X_in
 ! get initial guess by nearest GP search ! simple guess
 ! x_in = PartState(1:3,iPart)
 Winner_Dist=HUGE(1.)
-DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
+DO i=0,N_in; DO j=0,N_in; DO k=0,N_in
   Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
   IF (Dist.LT.Winner_Dist) THEN
     Winner_Dist=Dist
@@ -890,7 +890,7 @@ epsOne=1.0+eps
 ! get initial guess by nearest GP search ! simple guess
 ! x_in = PartState(1:3,iPart)
 Winner_Dist=HUGE(1.)
-DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
+DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
   Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
   IF (Dist.LT.Winner_Dist) THEN
     Winner_Dist=Dist
