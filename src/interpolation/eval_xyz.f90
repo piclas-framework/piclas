@@ -114,6 +114,7 @@ DO WHILE(SUM(ABS(F)).GE.EPS)
 END DO ! i
 !print*, "n-Steps", n_Newton
 !print*,"F", F
+!print*,'eval fast'
 !print*, "xi", xi
 !read*
 
@@ -682,23 +683,47 @@ REAL                :: xi(3)
 INTEGER             :: NewTonIter
 REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
-REAL                :: Winner_Dist2,Dist2
+REAL                :: Winner_Dist,Dist
 REAL, PARAMETER     :: EPS=1E-8
 INTEGER             :: n_Newton
 REAL                :: F(1:3),Lag(1:3,0:NGeo)
 REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
+REAL                :: buff,buff2
 !===================================================================================================================================
 
-! get initial guess by nearest GP search
+!print*,'iElem',iElem
+!print*,'Pos',X_in
+! get initial guess by nearest GP search ! simple guess
 ! x_in = PartState(1:3,iPart)
-Winner_Dist2=HUGE(1.)
+Winner_Dist=HUGE(1.)
 DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
-  Dist2=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
-  IF (Dist2.LT.Winner_Dist2) THEN
-    Winner_Dist2=Dist2 
+  Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
+  IF (Dist.LT.Winner_Dist) THEN
+    Winner_Dist=Dist
     Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
   END IF
 END DO; END DO; END DO
+!print*,'Winnerdist',Winner_Dist
+!print*,'initial guess'
+!print*,'xi',xi
+!
+!print*,'NGeo',NGeo
+!print*,'Xi_CLNGeo',XiCL_NGeo
+!print*,'wbary_CLNGeo',wBaryCL_NGeo
+!read*
+
+!DO k=0,NGeo
+!  DO j=0,NGeo
+!    DO i=0,NGeo
+!     !! Matrix-vector multiplication
+!       print*,'dXCL_NGeo',dXCL_NGeo(:,1,i,j,k,iElem)
+!       print*,'dXCL_NGeo',dXCL_NGeo(:,2,i,j,k,iElem)
+!       print*,'dXCL_NGeo',dXCL_NGeo(:,3,i,j,k,iElem)
+!       read*
+!    END DO !i=0,NGeo
+!  END DO !j=0,NGeo
+!END DO !k=0,NGeo
+
 
 ! initial guess
 CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
@@ -710,30 +735,41 @@ DO k=0,NGeo
   DO j=0,NGeo
     DO i=0,NGeo
       F=F+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      !print*,'XCL',i,j,k,XCL_NGeo(:,i,j,k,iElem)
     END DO !l=0,NGeo
   END DO !i=0,NGeo
 END DO !j=0,NGeo
+!print*,'F',F
+!read*
 
 NewtonIter=0
 DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
   NewtonIter=NewtonIter+1
   ! 
+  ! caution, dXCL_NGeo is transposed of required matrix
+  Jac=0.
   DO k=0,NGeo
     DO j=0,NGeo
+      buff=Lag(2,j)*Lag(3,k)
       DO i=0,NGeo
-        Jac=Jac+dXCL_NGeo(:,:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
-      END DO !l=0,NGeo
-    END DO !i=0,NGeo
-  END DO !j=0,NGeo
+        buff2=Lag(1,i)*buff
+        Jac(1,1:3)=Jac(1,1:3)+dXCL_NGeo(1:3,1,i,j,k,iElem)*buff2
+        Jac(2,1:3)=Jac(2,1:3)+dXCL_NGeo(1:3,2,i,j,k,iElem)*buff2
+        Jac(3,1:3)=Jac(3,1:3)+dXCL_NGeo(1:3,3,i,j,k,iElem)*buff2
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
   
+  !print*,'print',Jac
+
   ! Compute inverse of Jacobian
   sdetJac=getDet(Jac)
-  IF(sdetJac.NE.0.) THEN
+  IF(sdetJac.GT.0.) THEN
    sdetJac=1./sdetJac
   ELSE !shit
    ! Newton has not converged !?!?
    CALL abort(__STAMP__, &
-        'Newton in FindXiForPartPos singular')
+        'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
   ENDIF 
   sJac=getInv(Jac,sdetJac)
   
@@ -741,11 +777,11 @@ DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
   IF(ANY(ABS(Xi).GT.1.5)) THEN
-    !SWRITE(*,*) ' Particle not inside of element!!!'
-    !SWRITE(*,*) ' xi  ', xi(1)
-    !SWRITE(*,*) ' eta ', xi(2)
-    !SWRITE(*,*) ' zeta', xi(3)
-    !EXIT
+    SWRITE(*,*) ' Particle not inside of element!!!'
+    SWRITE(*,*) ' xi  ', xi(1)
+    SWRITE(*,*) ' eta ', xi(2)
+    SWRITE(*,*) ' zeta', xi(3)
+    EXIT
   END IF
   
   ! Compute function value
@@ -769,7 +805,12 @@ IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
   WRITE(*,*) ' xi  ', xi(1)
   WRITE(*,*) ' eta ', xi(2)
   WRITE(*,*) ' zeta', xi(3)
+  !read*
 END IF
+!print*,'eval curved'
+!print*,'xi',xi
+!print*,'iter',nEwtonIter
+!read*
 
 ! 2.1) get "Vandermonde" vectors
 DO i=1,3

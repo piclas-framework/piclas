@@ -73,24 +73,24 @@ INTEGER                   :: iNode, iElem, i, j, k
     ! ==== should not be required any more               ====
     ! ==== only required by eval_xyz_fast and eval_xyz_2 ====
     SWRITE(UNIT_stdOut,'(A)') ' ElemT_inv NOT built...'
-    ! prebuild trafo matrices
-!    ALLOCATE(ElemPT(1:3,1:8,1:nElems),       &
-!             ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
+    ! prebuild trafo matrices ! always out
+    !ALLOCATE(ElemPT(1:3,1:8,1:nElems),       &
+    !         ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
     !ALLOCATE(ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
     !IF (ALLOCSTAT.NE.0) THEN
-      !WRITE(*,*) 'ERROR in InterpolationInit: Cannot allocate ElemPT!'
-      !STOP
+    !  WRITE(*,*) 'ERROR in InterpolationInit: Cannot allocate ElemPT!'
+    !  STOP
     !END IF
-    !! prepare interpolation: calculate trafo matrices
+    !!! prepare interpolation: calculate trafo matrices
     !DO iElem = 1,nElems
-      !DO iNode = 1,8
-        !P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-      !END DO
-      !T(:,1) = 0.5 * (P(:,2)-P(:,1))
-      !T(:,2) = 0.5 * (P(:,4)-P(:,1))
-      !T(:,3) = 0.5 * (P(:,5)-P(:,1))
-      !T_inv = Calc_inv(T)
-      !ElemT_inv(1:3,1:3,iElem) = T_inv
+    !  DO iNode = 1,8
+    !    P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
+    !  END DO
+    !  T(:,1) = 0.5 * (P(:,2)-P(:,1))
+    !  T(:,2) = 0.5 * (P(:,4)-P(:,1))
+    !  T(:,3) = 0.5 * (P(:,5)-P(:,1))
+    !  T_inv = Calc_inv(T)
+    !  ElemT_inv(1:3,1:3,iElem) = T_inv
     !END DO
     ! =======================================================
 
@@ -361,7 +361,8 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
           CALL eval_xyz_fast(Pos,6,PP_N,HelperU,field,iElem)
 #else
-          CALL eval_xyz_fast(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
+      !    CALL eval_xyz_fast  (Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
+          CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
 #endif
 #else
 #ifdef PP_POIS

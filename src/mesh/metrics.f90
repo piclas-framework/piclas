@@ -103,6 +103,8 @@ REAL               :: JaCL_N(3,3,0:PP_N,0:PP_N,0:PP_N)    ! metric terms P\in N
 REAL               :: scaledJac(2)
 !===================================================================================================================================
 ALLOCATE(dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo,1:PP_nElems)) !jacobi matrix of the mapping P\in NGeo
+! null outside!!
+dXCL_NGeo=0.
 ! Prerequisites
 
 Metrics_fTilde=0.
@@ -114,7 +116,6 @@ Cyclic=(/1,2,3,1,2/)
 DO iElem=1,nElems
   XCL_NGeo_loc(:,:,:,:)=XCL_NGeo(:,:,:,:,iElem)
   !1.a) Jacobi Matrix of d/dxi_dd(X_nn): dXCL_NGeo(dd,nn,i,j,k,iElem)) 
-  dXCL_NGeo=0.
   R_CL_N=0.
   dXCL_N=0.
   detJacCL_N=0.
@@ -154,6 +155,7 @@ DO iElem=1,nElems
                               dXCL_N(dd,1,i,j,k) * &
                               ( dXCL_N(ee,2,i,j,k)*dXCL_N(ff,3,i,j,k) - &
                                 dXCL_N(ff,2,i,j,k)*dXCL_N(ee,3,i,j,k)   )
+
         END DO !i=0,N
       END DO !j=0,N
     END DO !k=0,N
@@ -162,7 +164,6 @@ DO iElem=1,nElems
   CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,XCL_NGeo_loc(:,:,:,:),XCL_N(:,:,:,:))
   !interpolate detJac to the GaussPoints
   CALL ChangeBasis3D(1,PP_N,PP_N,Vdm_CLN_GaussN,detJacCL_N(:,:,:,:),DetJacGauss_N(:,:,:,:))
-
   ! check scaled Jacobians
   scaledJac(1)=MINVAL(detJacCL_N(1,:,:,:))/MAXVAL(detJacCL_N(1,:,:,:))
   scaledJac(2)=MINVAL(detJacGauss_N(1,:,:,:))/MAXVAL(detJacGauss_N(1,:,:,:))
@@ -196,6 +197,7 @@ DO iElem=1,nElems
       END DO !iGeo=0,NGeo
     END DO !jGeo=0,NGeo
   END DO !kGeo=0,NGeo
+
 
   IF(crossProductMetrics)THEN
     ! exact (cross-product) form
