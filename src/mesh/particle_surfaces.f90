@@ -311,32 +311,41 @@ REAL                                   :: nlength
 
 q=(QuadID-1)/NPartCurved ! fortran takes floor of integer devision
 p=MOD(QuadID-1,NPartCurved)
+!print*,'p,q',p,q
 
 !xNodes(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)
 !xNodes(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)
 !xNodes(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)
 !xNodes(:,4)=SuperSampledNodes(1:3,p  ,q+1,SideID)
-
+!
+!BiLinearCoeff(:,1) = xNodes(:,1)-xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
+!BiLinearCoeff(:,2) =-xNodes(:,1)+xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
+!BiLinearCoeff(:,3) =-xNodes(:,1)-xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
+!BiLinearCoeff(:,4) = xNodes(:,1)+xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
+!
 !b=xi*0.25*( SuperSampledNodes(:,p  ,q  ,SideID)-SuperSampledNodes(:,p+1,q  ,SideID)   &
 !           +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) ) !&
 !
+!print*,'disp',(SuperSampledNodes(:,p  ,q  ,SideID)-SuperSampledNodes(:,p+1,q  ,SideID)  & 
+!           +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) ) 
+
 
 b=xi*0.25*(SuperSampledNodes(:,p  ,q  ,SideID)-SuperSampledNodes(:,p+1,q  ,SideID)  & 
            +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) ) &
-    +0.25*(-SuperSampledNodes(:,p  ,q  ,SideID)+SuperSampledNodes(:,p+1,q  ,SideID)   &
-           +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) )
+    +0.25*(-SuperSampledNodes(:,p  ,q  ,SideID)-SuperSampledNodes(:,p+1,q  ,SideID)   &
+           +SuperSampledNodes(:,p+1,q+1,SideID)+SuperSampledNodes(:,p  ,q+1,SideID) )
 
 a=eta*0.25*( SuperSampledNodes(:,p  ,q  ,SideID)-SuperSampledNodes(:,p+1,q  ,SideID)   &
             +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) ) &
-     +0.25*(-SuperSampledNodes(:,p  ,q  ,SideID)-SuperSampledNodes(:,p+1,q  ,SideID)   &
+     +0.25*(-SuperSampledNodes(:,p  ,q  ,SideID)+SuperSampledNodes(:,p+1,q  ,SideID)   &
             +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) )
 
 
 nVec=CROSS(a,b)
 nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
 nlength=SQRT(nlength)
+!print*,nVec/nlength
 CalcNormVec=nVec/nlength
-
 END FUNCTION CalcNormVec
 
 SUBROUTINE GetSuperSampledSurface(XCL_NGeo,iElem)
