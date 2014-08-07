@@ -690,7 +690,7 @@ REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results fro
 REAL                :: Winner_Dist,Dist
 REAL, PARAMETER     :: EPS=1E-8
 INTEGER             :: n_Newton
-REAL                :: F(1:3),Lag(1:3,0:NGeo)
+REAL                :: F(1:3),Lag(1:3,0:NGeo),Lag2(1:3,0:N_In)
 REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                :: buff,buff2
 !===================================================================================================================================
@@ -818,7 +818,7 @@ END IF
 
 ! 2.1) get "Vandermonde" vectors
 DO i=1,3
-  CALL LagrangeInterpolationPolys(xi(i),N_in,xGP,wBary,Lag(i,:))
+  CALL LagrangeInterpolationPolys(xi(i),N_in,xGP,wBary,Lag2(i,:))
 END DO
 
 ! 2.2) do the tensor product thing 
@@ -827,7 +827,7 @@ X3D_buf1=0.
 DO k=0,N_In
   DO j=0,N_In
     DO i=0,N_In
-      X3D_Buf1(:,j,k)=X3D_Buf1(:,j,k)+Lag(1,i)*X3D_In(:,i,j,k)
+      X3D_Buf1(:,j,k)=X3D_Buf1(:,j,k)+Lag2(1,i)*X3D_In(:,i,j,k)
     END DO
   END DO
 END DO
@@ -835,13 +835,13 @@ X3D_buf2=0.
 ! second direction jN_In
 DO k=0,N_In
   DO j=0,N_In
-    X3D_Buf2(:,k)=X3D_Buf2(:,k)+Lag(2,j)*X3D_Buf1(:,j,k)
+    X3D_Buf2(:,k)=X3D_Buf2(:,k)+Lag2(2,j)*X3D_Buf1(:,j,k)
   END DO
 END DO
 X3D_Out=0.
 ! last direction kN_In
 DO k=0,N_In
-  X3D_Out(:)=X3D_Out(:)+Lag(3,k)*X3D_Buf2(:,k)
+  X3D_Out(:)=X3D_Out(:)+Lag2(3,k)*X3D_Buf2(:,k)
 END DO
 
 END SUBROUTINE eval_xyz_curved

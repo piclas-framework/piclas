@@ -3,7 +3,7 @@
 # CONFIGURATION                                                                                                                   #
 #=================================================================================================================================#
 INIFILE=$(MAINDIR)ini/particles.ini
-	COMPILER=GNU_DEBUG
+	COMPILER=INTEL_DEBUG
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
 # Cut compiler for use with DEBUG-flags
 ifeq ($(findstring _,$(COMPILER)),_)
@@ -253,8 +253,8 @@ ifeq ($(findstring INTEL,$(ENVIRONMENT)),INTEL)
                  -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,bounds,uninit
       FLFLAGS  +=-g -O0 
     else
-      FCFLAGS  +=-O3 -xhost #-ipo
-      FLFLAGS  +=-O3 -xhost #-ipo
+      FCFLAGS  +=-O2 -xhost #-ipo
+      FLFLAGS  +=-O2 -xhost #-ipo
     endif 
 
   # ia64
@@ -263,8 +263,8 @@ ifeq ($(findstring INTEL,$(ENVIRONMENT)),INTEL)
       FCFLAGS  +=-g -O0 -fpe0 -check noarg_temp_created,noformat,nooutput_conversion,pointer,bounds,uninit #,all
       FLFLAGS  +=-g -O0 
     else
-      FCFLAGS  +=-O3 -xhost #-ipo
-      FLFLAGS  +=-O3 -xhost #-ipo
+      FCFLAGS  +=-O2 -xhost #-ipo
+      FLFLAGS  +=-O2 -xhost #-ipo
     endif
   endif
 
@@ -449,7 +449,7 @@ LIBDIRS       = $(HDF5_LIB) $(SZ_LIB) $(LIBHPC_LIB) $(NR_LIB) $(TECBIN_LIB)
 INCDIRS       = $(HDF5_INC) $(SZ_INC) $(LIBHPC_INC)
  
 BOLTZPLATZ_LIB     = libboltzplatz.a
-#PREPROC_LIB  = libpreproc.a
+
 
 FCFLAGS += $(JUGE1)$(PREPROC)$(JUGE2) -I.
 FLFLAGS += $(JUGE1)$(PREPROC)$(JUGE2)

@@ -55,7 +55,7 @@ REAL                          :: PartTrajectory(1:3)
 !===================================================================================================================================
 
 print*,'ici'
-read*,
+read*
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     PartisDone=.FALSE.
