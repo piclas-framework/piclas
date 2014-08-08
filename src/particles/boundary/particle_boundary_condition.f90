@@ -84,16 +84,18 @@ CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
   n_loc=CalcNormVec(xi,eta,QuadID,SideID)
- ! print*,'normVec',n_loc
- ! read*
+  print*,'normVec',n_loc
+  print*,'ElemId,SideID',ElemID,SideID,QuadID
+  print*,PartTrajectory
   ! intersection point with surface
-  lastPartPos(iPart,1:3) = PartState(iPart,1:3) + PartTrajectory(1:3)*alpha
+  LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
   !print*,'alpha,inter',alpha,lastPartPos(iPart,1:3)
   ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
   !v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
   v_aux                  = -2*((1-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
   !PartState(iPart,1:3)   = PartState(iPart,1:3)+PartTrajectory(1:3)+v_aux
   PartState(iPart,1:3)   = PartState(iPart,1:3)+v_aux
+  !PartState(iPart,1:3)   = LastPartPos(iPart,1:3)+v_aux
   ! new velocity vector 
   v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
 
@@ -104,6 +106,8 @@ CASE(2) !PartBound%ReflectiveBC)
                            PartBound%WallVelo(1:3,BC(SideID))
   !PartState(iPart,4:6)   = 0.
   PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+  print*,PartTrajectory
+  read*
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -125,7 +125,7 @@ DO iPart=1,PDM%ParticleVecLength
             !print*,'Side',SideID
             !print*,'oldstate',PartState(iPart,1:3)
             CALL GetBoundaryInteractionSuperSampled(PartTrajectory,alpha,xi_loc(minQuadID),eta_loc(minQuadID),&
-                                                                                            iPart,QuadID,SideID,ElemID)
+                                                                                            iPart,minQuadID,SideID,ElemID)
 !            CALL abort(__STAMP__,&
 !                ' Boundary interaction not implemented for new method.',999,999.)
             !print*,'newState',PartState(iPart,1:3)

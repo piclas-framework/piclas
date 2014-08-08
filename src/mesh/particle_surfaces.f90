@@ -467,13 +467,13 @@ ELSE ! no master, here has to come the suff with the slave
       END DO ! q
   END SELECT
 END IF
-  !print*,'xi_plus'
-  !DO q=0,NPartCurved
-  !  DO p=0,NPartCurved
-  !    print*,SuperSampledNodes(:,p,q,SideID)
-  !  END DO ! p
-  !END DO ! q
-  !read*
+!  print*,'xi_plus'
+!  DO q=0,NPartCurved
+!    DO p=0,NPartCurved
+!      print*,SuperSampledNodes(:,p,q,SideID)
+!    END DO ! p
+!  END DO ! q
+!  read*
 
 ! interpolate to eta sides
 SideID=ElemToSide(E2S_SIDE_ID,ETA_MINUS,iElem)
@@ -511,13 +511,13 @@ ELSE ! no master, here has to come the suff with the slave
       END DO ! q
   END SELECT
 END IF
-  !print*,'eta_minus'
-  !DO q=0,NPartCurved
-  !  DO p=0,NPartCurved
-  !    print*,SuperSampledNodes(:,p,q,SideID)
-  !  END DO ! p
-  !END DO ! q
-  !read*
+!  print*,'eta_minus'
+!  DO q=0,NPartCurved
+!    DO p=0,NPartCurved
+!      print*,SuperSampledNodes(:,p,q,SideID)
+!    END DO ! p
+!  END DO ! q
+!  read*
 
   
 SideID=ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem)
@@ -561,13 +561,13 @@ ELSE ! no master, here has to come the suff with the slave
       END DO ! q
   END SELECT
 END IF
-  !print*,'eta_plus'
-  !DO q=0,NPartCurved
-  !  DO p=0,NPartCurved
-  !    print*,SuperSampledNodes(:,p,q,SideID)
-  !  END DO ! p
-  !END DO ! q
-  !read*
+!  print*,'eta_plus'
+!  DO q=0,NPartCurved
+!    DO p=0,NPartCurved
+!      print*,SuperSampledNodes(:,p,q,SideID)
+!    END DO ! p
+!  END DO ! q
+!  read*
 
 
 ! interpolate to zeta sides
@@ -612,13 +612,13 @@ ELSE ! no master, here has to come the suff with the slave
       END DO ! q
   END SELECT
 END IF
-  !print*,'zeta_minus'
-  !DO q=0,NPartCurved
-  !  DO p=0,NPartCurved
-  !    print*,SuperSampledNodes(:,p,q,SideID)
-  !  END DO ! p
-  !END DO ! q
-  !read*
+!  print*,'zeta_minus'
+!  DO q=0,NPartCurved
+!    DO p=0,NPartCurved
+!      print*,SuperSampledNodes(:,p,q,SideID)
+!    END DO ! p
+!  END DO ! q
+!  read*
 
 
 SideID=ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
