@@ -537,19 +537,18 @@ IF(ABS(a2(3)).LT.epsilontol)THEN ! term c is close to zero ==> eta is zero
 !  IF(ABS(xi).GT.epsilonOne)THEN
 !    RETURN
 !  END IF
-ELSE ! a2(3) not zero
+ELSE ! a2(3) not zero ==> eta not zero?
   IF(ABS(a2(2)).LT.epsilontol)THEN
     xi=0.
     eta=a1(3)-a2(3)
     IF(ABS(eta).LT.epsilontol)THEN
-      eta=0.
+      eta=0. ! here not 99??
     ELSE
       eta=1.0/eta
       eta=(a2(4)-a1(4))*eta
     END IF
   ELSE
     xi = a1(2) - a1(3)*a2(2)/a2(3)
-    xi=0.
     xi = 1.0/xi
     xi = (-a1(4)-a1(3)*a2(4)/a2(3))*xi
       ! check distance of xi 
@@ -559,7 +558,7 @@ ELSE ! a2(3) not zero
     ! compute eta
     eta=a1(3)-a2(3)
     IF(ABS(eta).LT.epsilontol)THEN
-      eta=0.
+      eta=0. ! here eta 99 ???
     ELSE ! eta not zero
      eta=1.0/eta
      eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
