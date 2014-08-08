@@ -136,6 +136,9 @@ DO iPart=1,PDM%ParticleVecLength
             alpha=-1.0
           END IF
         ELSE ! no BC Side
+!          print*,'alpha_loc',alpha_loc
+!          print*,'xi_loc',xi_loc
+!          print*,'eta_loc',eta_loc
           ! search max alpha
           alpha=-10
           maxQuadID=-1
@@ -143,13 +146,12 @@ DO iPart=1,PDM%ParticleVecLength
           ! get largest possible intersection
           DO iQuad=1,nQuads
             IF(alpha_loc(iQuad).GT.alpha)THEN
+              IF(alpha_loc(iQuad).NE.alpha) nInter=nInter+1
               alpha=alpha_loc(iQuad)
               maxQuadID=iQuad
             END IF
-            IF(alpha_loc(iQuad).GT.epsilontol)THEN
-              nInter=nInter+1
-            END IF
           END DO ! iQuad
+!          print*,'nInter',nInter
           IF(MOD(nInter,2).EQ.0) alpha=-1.0
           IF(alpha.GT.epsilontol)THEN
 !             print*,'next elem'
