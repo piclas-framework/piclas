@@ -84,8 +84,8 @@ CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
   n_loc=CalcNormVec(xi,eta,QuadID,SideID)
-
-  !print*,'normVec',n_loc
+  print*,'normVec',n_loc
+  read*
   ! intersection point with surface
   lastPartPos(iPart,1:3) = PartState(iPart,1:3) + PartTrajectory(1:3)*alpha
   !print*,'alpha,inter',alpha,lastPartPos(iPart,1:3)

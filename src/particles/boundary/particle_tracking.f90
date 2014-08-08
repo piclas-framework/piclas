@@ -60,9 +60,9 @@ DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
+    PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
 !    print*,'ElemID','new RK',ElemID
 !    print*,'lastpos',LastPartPos(iPart,1:3)
-    PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
 !    print*,'PartTrajectory',PartTrajectory
 !    read*
     ! track particle vector until the final particle position is achieved
@@ -121,15 +121,15 @@ DO iPart=1,PDM%ParticleVecLength
 !            xi=xi_loc(minQuadID)
 !            eta=eta_loc(minQuadID)
 !            QuadID=minQuadID
-            print*,'Boundary interaction implemented for new method'
-            print*,'Side',SideID
-            print*,'oldstate',PartState(iPart,1:3)
+            !print*,'Boundary interaction implemented for new method'
+            !print*,'Side',SideID
+            !print*,'oldstate',PartState(iPart,1:3)
             CALL GetBoundaryInteractionSuperSampled(PartTrajectory,alpha,xi_loc(minQuadID),eta_loc(minQuadID),&
                                                                                             iPart,QuadID,SideID,ElemID)
 !            CALL abort(__STAMP__,&
 !                ' Boundary interaction not implemented for new method.',999,999.)
-            print*,'newState',PartState(iPart,1:3)
-            print*,'newTrajectory',PartTrajectory
+            !print*,'newState',PartState(iPart,1:3)
+            !print*,'newTrajectory',PartTrajectory
 !            read*
              EXIT
           ELSE ! no intersection

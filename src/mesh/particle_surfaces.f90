@@ -356,7 +356,6 @@ SUBROUTINE GetSuperSampledSurface(XCL_NGeo,iElem)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide,SideToElem,NGeo
-USE MOD_Particle_Vars,            ONLY:GEO
 USE MOD_Particle_Surfaces_Vars,   ONLY:SuperSampledNodes,nPartCurved,Vdm_CLNGeo_EquiNPartCurved
 USE MOD_Mesh_Vars,                ONLY:nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
 USE MOD_ChangeBasis,        ONLY:ChangeBasis2D
@@ -423,11 +422,20 @@ ELSE ! no master, here has to come the suff with the slave
       END DO ! q
   END SELECT
 END IF
+!  print*,'xi_minus'
+!  DO q=0,NPartCurved
+!      DO p=0,NPartCurved
+!        print*,SuperSampledNodes(:,p,q,SideID)
+!      END DO ! p
+!    END DO ! q
+!    read*
 
 SideID=ElemToSide(E2S_SIDE_ID,XI_PLUS,iElem)
 IF(SideID.LE.lastSideID)THEN
   IF(ElemToSide(E2S_FLIP,XI_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,nPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,NGeo,:,:),SuperSampledNodes(1:3,:,:,sideID))
+    CALL ChangeBasis2D(3,NGeo,nPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,NGeo,:,:),tmp)
+    print*,'ixi'
+    SuperSampledNodes(:,:,:,SideID)=tmp
   END IF !flip=0
 ELSE ! no master, here has to come the suff with the slave
   CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,NGeo,:,:),tmp)
@@ -459,6 +467,13 @@ ELSE ! no master, here has to come the suff with the slave
       END DO ! q
   END SELECT
 END IF
+  !print*,'xi_plus'
+  !DO q=0,NPartCurved
+  !  DO p=0,NPartCurved
+  !    print*,SuperSampledNodes(:,p,q,SideID)
+  !  END DO ! p
+  !END DO ! q
+  !read*
 
 ! interpolate to eta sides
 SideID=ElemToSide(E2S_SIDE_ID,ETA_MINUS,iElem)
@@ -496,6 +511,14 @@ ELSE ! no master, here has to come the suff with the slave
       END DO ! q
   END SELECT
 END IF
+  !print*,'eta_minus'
+  !DO q=0,NPartCurved
+  !  DO p=0,NPartCurved
+  !    print*,SuperSampledNodes(:,p,q,SideID)
+  !  END DO ! p
+  !END DO ! q
+  !read*
+
   
 SideID=ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem)
 IF(SideID.LE.lastSideID)THEN
@@ -538,6 +561,14 @@ ELSE ! no master, here has to come the suff with the slave
       END DO ! q
   END SELECT
 END IF
+  !print*,'eta_plus'
+  !DO q=0,NPartCurved
+  !  DO p=0,NPartCurved
+  !    print*,SuperSampledNodes(:,p,q,SideID)
+  !  END DO ! p
+  !END DO ! q
+  !read*
+
 
 ! interpolate to zeta sides
 SideID=ElemToSide(E2S_SIDE_ID,ZETA_MINUS,iElem)
@@ -580,34 +611,15 @@ ELSE ! no master, here has to come the suff with the slave
         END DO ! p
       END DO ! q
   END SELECT
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
-        END DO ! p
-      END DO ! q
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
-        END DO ! p
-      END DO ! q
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
-        END DO ! p
-      END DO ! q
-  END SELECT
 END IF
+  !print*,'zeta_minus'
+  !DO q=0,NPartCurved
+  !  DO p=0,NPartCurved
+  !    print*,SuperSampledNodes(:,p,q,SideID)
+  !  END DO ! p
+  !END DO ! q
+  !read*
+
 
 SideID=ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
 IF(SideID.LE.lastSideID)THEN
@@ -646,6 +658,13 @@ ELSE ! no master, here has to come the suff with the slave
       END DO ! q
   END SELECT
 END IF
+!  print*,'zeta_plus'
+!  DO q=0,NPartCurved
+!    DO p=0,NPartCurved
+!      print*,SuperSampledNodes(:,p,q,SideID)
+!    END DO ! p
+!  END DO ! q
+!  read*
 
 END SUBROUTINE GetSuperSampledSurface
 
