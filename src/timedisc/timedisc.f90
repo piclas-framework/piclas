@@ -563,7 +563,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 !CALL CPU_TIME(tend)
 !t1=tend-tstart
 
-print*,'Calling tracking ...'
+!print*,'Calling tracking ...'
 !CALL CPU_TIME(tStart)
 CALL ParticleTracking()
 !jCALL CPU_TIME(tend)

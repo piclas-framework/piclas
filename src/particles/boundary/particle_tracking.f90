@@ -43,7 +43,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,ElemID
-INTEGER                       :: ilocSide,SideID!,flip
+INTEGER                       :: ilocSide,SideID,flip
 INTEGER                       :: iInterSect,nInter
 INTEGER                       :: p,q,QuadID,iQuad,minQuadID,maxQuadID
 LOGICAL                       :: PartisDone,dolocSide(1:6)
@@ -72,7 +72,7 @@ DO iPart=1,PDM%ParticleVecLength
         alpha_loc=-1.0
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
-        !flip  =ElemToSide(E2S_FLIP,ilocSide,ElemID)
+        flip  =ElemToSide(E2S_FLIP,ilocSide,ElemID)
         QuadID=0
         ! supersampling of each side
         DO q=0,NPartCurved-1
@@ -85,13 +85,15 @@ DO iPart=1,PDM%ParticleVecLength
             ! compute displacement || decision between planar or bi-linear plane 
             xdisplace(1:3) = xNodes(:,1)-xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
             Displacement = xdisplace(1)*xdisplace(1)+xdisplace(2)*xdisplace(2)+xdisplace(3)*xdisplace(3)
+            !print*,displacement
             IF(Displacement.LT.epsilonbilinear)THEN
-!              print*,'linear'
+!              CALL ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory &
+!                                                         ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart)
+
               CALL ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory &
-                                                         ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart)
+                                                         ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),flip,iPart)
             ELSE
-!              print*,'bilinear'
-!            CALL abort(__STAMP__,&
+!           print*, CALL abort(__STAMP__,&
 !                ' flip missing!!! ',999,999.)
 
               CALL ComputeBiLinearIntersectionSuperSampled(xNodes,PartTrajectory &
@@ -119,14 +121,15 @@ DO iPart=1,PDM%ParticleVecLength
 !            xi=xi_loc(minQuadID)
 !            eta=eta_loc(minQuadID)
 !            QuadID=minQuadID
-!            print*,'Boundary interaction implemented for new method'
-!            print*,'oldstate',PartState(iPart,1:3)
+            print*,'Boundary interaction implemented for new method'
+            print*,'Side',SideID
+            print*,'oldstate',PartState(iPart,1:3)
             CALL GetBoundaryInteractionSuperSampled(PartTrajectory,alpha,xi_loc(minQuadID),eta_loc(minQuadID),&
                                                                                             iPart,QuadID,SideID,ElemID)
 !            CALL abort(__STAMP__,&
 !                ' Boundary interaction not implemented for new method.',999,999.)
-!            print*,'newState',PartState(iPart,1:3)
-!            print*,'newTrajectory',PartTrajectory
+            print*,'newState',PartState(iPart,1:3)
+            print*,'newTrajectory',PartTrajectory
 !            read*
              EXIT
           ELSE ! no intersection
@@ -374,8 +377,8 @@ END SUBROUTINE ParticleTracking
 !END SUBROUTINE ComputePlanarIntersection
 
 
-SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,iPart)
-!SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,flip,iPart)
+!SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,iPart)
+SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,flip,iPart)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 !===================================================================================================================================
@@ -392,7 +395,7 @@ IMPLICIT NONE
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
 INTEGER,INTENT(IN)                :: iPart!,SideID!,ElemID
-!INTEGER,INTENT(IN)                :: flip
+INTEGER,INTENT(IN)                :: flip
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha,xi,eta
@@ -426,11 +429,13 @@ nVec=CROSS(P1,P2)
 nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2) +nVec(3)*nVec(3) 
 nlength=SQRT(nlength)
 nVec=nVec/nlength
-!print*,'nVec',nVec
+IF(flip.NE.0)THEN
+  nVec=-nVec
+END IF
  
 !! compute distance along trajectory
 coeffA=DOT_PRODUCT(nVec,PartTrajectory)
-!IF(flip.EQ.0)THEN ! master side
+!IF(flip.EQ.0)THEN ! master side ! is in flip for normVec
 !  IF(coeffA.LT.epsilontol)RETURN
 !ELSE ! slave sides
 !  IF(coeffA.GT.-epsilontol)RETURN
@@ -438,7 +443,7 @@ coeffA=DOT_PRODUCT(nVec,PartTrajectory)
 
 !! corresponding to particle starting in plane
 !! interaction should be computed in last step
-IF(ABS(coeffA).LT.+epsilontol)THEN 
+IF(coeffA.LT.+epsilontol)THEN 
   RETURN
 END IF
 ! distance of plane fromn origion minus trajectory start point times normal vector of side
@@ -454,7 +459,6 @@ IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
   alpha=-1.0
   RETURN
 END IF
-
 
 a1(2)= P1(1)*PartTrajectory(3)-P1(3)*PartTrajectory(1)
 a1(3)= P2(1)*PartTrajectory(3)-P2(3)*PartTrajectory(1)
