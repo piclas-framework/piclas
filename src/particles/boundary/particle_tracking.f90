@@ -525,51 +525,27 @@ a2(4)= P0(2)*PartTrajectory(3) &
 !END IF
 
 IF(ABS(a2(3)).LT.epsilontol)THEN ! term c is close to zero ==> eta is zero
-  !eta=0.
+  eta=0.
   IF(ABS(a2(2)).LT.epsilontol)THEN
-    ! particle in plane!!!
-    xi=99.
-    eta=99.
+    xi=0.
   ELSE
     ! compute xi
     xi=a1(2)-a2(2)
     xi=1.0/xi
     xi=(a2(4)-a1(4))*xi
-    ! from here, we can compute eta
-    IF(ABS(P2(1)).GT.epsilontol)THEN
-      eta=(P0(1)-P1(1)*xi)/P2(1)
-    ELSE IF(ABS(P2(2)).GT.epsilontol)THEN
-      eta=(P0(2)-P1(2)*xi)/P2(2)
-    ELSE IF(ABS(P2(3)).GT.epsilontol)THEN
-      eta=(P0(3)-P1(3)*xi)/P2(3)
-    ELSE
-      SWRITE(*,*) 'intersection error???'
-      STOP
-    END IF
   END IF
+!  IF(ABS(xi).GT.epsilonOne)THEN
+!    RETURN
+!  END IF
 ELSE ! a2(3) not zero ==> eta not zero?
   IF(ABS(a2(2)).LT.epsilontol)THEN
-    !xi=0.
+    xi=0.
     eta=a1(3)-a2(3)
     IF(ABS(eta).LT.epsilontol)THEN
-      eta=99. ! here not 99??
-      xi=99.
-      !eta=99.
+      eta=0. ! here not 99??
     ELSE
       eta=1.0/eta
       eta=(a2(4)-a1(4))*eta
-      ! try to recompute xi
-      IF(ABS(P1(1)).GT.epsilontol)THEN
-        xi=(P0(1)-P2(1)*eta)/P1(1)
-      ELSE IF(ABS(P2(2)).GT.epsilontol)THEN
-        xi=(P0(2)-P2(2)*eta)/P1(2)
-      ELSE IF(ABS(P2(3)).GT.epsilontol)THEN
-        xi=(P0(3)-P2(3)*eta)/P1(3)
-      ELSE
-        SWRITE(*,*) 'intersection error???'
-        STOP
-        xi=99!
-      END IF
     END IF
   ELSE
     xi = a1(2) - a1(3)*a2(2)/a2(3)
@@ -580,25 +556,13 @@ ELSE ! a2(3) not zero ==> eta not zero?
   !    RETURN
   !  END IF
     ! compute eta
-    ! from here, we can compute eta
-    IF(ABS(P2(1)).GT.epsilontol)THEN
-      eta=(P0(1)-P1(1)*xi)/P2(1)
-    ELSE IF(ABS(P2(2)).GT.epsilontol)THEN
-      eta=(P0(2)-P1(2)*xi)/P2(2)
-    ELSE IF(ABS(P2(3)).GT.epsilontol)THEN
-      eta=(P0(3)-P1(3)*xi)/P2(3)
-    ELSE
-      SWRITE(*,*) 'intersection error???'
-      STOP
-    END IF
-!    eta=a1(3)-a2(3)
-!    IF(ABS(eta).LT.epsilontol)THEN
-!      eta=0. ! here eta 99 ???
-!      !eta=99.!
-!    ELSE ! eta not zero
-!     eta=1.0/eta
-!     eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
-!    END IF ! eta .LT.epsilontol
+    eta=a1(3)-a2(3)
+    IF(ABS(eta).LT.epsilontol)THEN
+      eta=0. ! here eta 99 ???
+    ELSE ! eta not zero
+     eta=1.0/eta
+     eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
+    END IF ! eta .LT.epsilontol
   END IF
 END IF
 
