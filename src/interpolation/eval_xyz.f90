@@ -695,8 +695,8 @@ REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                :: buff,buff2
 !===================================================================================================================================
 
-print*,'iElem',iElem
-print*,'Pos',X_in
+!print*,'iElem',iElem
+!print*,'Pos',X_in
 ! get initial guess by nearest GP search ! simple guess
 ! x_in = PartState(1:3,iPart)
 Winner_Dist=HUGE(1.)
@@ -785,7 +785,7 @@ DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
     SWRITE(*,*) ' xi  ', xi(1)
     SWRITE(*,*) ' eta ', xi(2)
     SWRITE(*,*) ' zeta', xi(3)
-    EXIT
+    STOP
   END IF
   
   ! Compute function value

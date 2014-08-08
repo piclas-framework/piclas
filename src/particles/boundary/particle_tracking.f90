@@ -61,10 +61,10 @@ DO iPart=1,PDM%ParticleVecLength
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
     PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
-!    print*,'ElemID','new RK',ElemID
-!    print*,'lastpos',LastPartPos(iPart,1:3)
-!    print*,'PartTrajectory',PartTrajectory
-!    read*
+    !print*,'ElemID','new RK',ElemID
+    !print*,'lastpos',LastPartPos(iPart,1:3)
+    !print*,'PartTrajectory',PartTrajectory
+    !read*
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
@@ -140,20 +140,24 @@ DO iPart=1,PDM%ParticleVecLength
 !          print*,'xi_loc',xi_loc
 !          print*,'eta_loc',eta_loc
           ! search max alpha
-          alpha=-10
+          alpha=-1.0
           maxQuadID=-1
           nInter=0
           ! get largest possible intersection
           DO iQuad=1,nQuads
+            !print*,'alpha_loc',alpha_loc(iQuad)
             IF(alpha_loc(iQuad).GT.alpha)THEN
-              IF(alpha_loc(iQuad).NE.alpha) nInter=nInter+1
+              IF(alpha_loc(iQuad)*alpha.LT.0) nInter=nInter+1
+              IF(ABS(alpha_loc(iQuad)/alpha).GT.epsilonOne) nInter=nInter+1
               alpha=alpha_loc(iQuad)
               maxQuadID=iQuad
             END IF
           END DO ! iQuad
-!          print*,'nInter',nInter
+          !print*,'nInter',nInter
           IF(MOD(nInter,2).EQ.0) alpha=-1.0
           IF(alpha.GT.epsilontol)THEN
+          !  print*,'alpha',alpha
+          !  read*
 !             print*,'next elem'
 !             print*,'alpha',alpha
              xi=xi_loc(maxQuadID) 
@@ -166,7 +170,9 @@ DO iPart=1,PDM%ParticleVecLength
              ELSE
                dolocSide=.TRUE.
                dolocSide(neighborlocSideID(ilocSide,ElemID))=.FALSE.
+          !     print*,'old elem'
                ElemID=neighborElemID(ilocSide,ElemID)
+          !     print*,'new elem'
 !               print*,'new elem id',ElemID
                !print*,'new particle positon',ElemID
   !             CALL abort(__STAMP__,&
