@@ -118,6 +118,7 @@ DO iPart=1,PDM%ParticleVecLength
           !print*,alpha,minQuadID
 !          read*
           IF(alpha.GT.epsilontol.AND.alpha.LT.epsilonOne)THEN
+            !print*,'alpha',alpha,xi_loc(minQUadID),eta_loc(minQuadID)
 !            xi=xi_loc(minQuadID)
 !            eta=eta_loc(minQuadID)
 !            QuadID=minQuadID
@@ -391,7 +392,7 @@ SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,
 ! Compute the Intersection with planar surface
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                 ONLY:Cross
+USE MOD_Globals,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne
 !USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
@@ -525,46 +526,93 @@ a2(4)= P0(2)*PartTrajectory(3) &
 !END IF
 
 IF(ABS(a2(3)).LT.epsilontol)THEN ! term c is close to zero ==> eta is zero
-  eta=0.
+  ! solution independent of eta
+  !eta=0.
   IF(ABS(a2(2)).LT.epsilontol)THEN
+    ! and independent of xi
+    ! particle in plane
+    !xi=99.
+    !eta=99.
     xi=0.
   ELSE
     ! compute xi
     xi=a1(2)-a2(2)
     xi=1.0/xi
     xi=(a2(4)-a1(4))*xi
+    ! compute eta
+    IF(ABS(P2(1)).GT.epsilontol)THEN
+      eta=(P0(1)-xi*P1(1))/P2(1)
+    ELSE IF(ABS(P2(2)).GT.epsilontol)THEN
+      eta=(P0(2)-xi*P1(3))/P2(2)
+    ELSE IF(ABS(P2(3)).GT.epsilontol)THEN
+      eta=(P0(2)-xi*P1(3))/P2(3)
+    ELSE
+      CALL abort(__STAMP__,&
+                ' error in computation of xi! iPart,eta ',iPart,eta)
+    END IF
   END IF
 !  IF(ABS(xi).GT.epsilonOne)THEN
 !    RETURN
 !  END IF
-ELSE ! a2(3) not zero ==> eta not zero?
-  IF(ABS(a2(2)).LT.epsilontol)THEN
-    xi=0.
-    eta=a1(3)-a2(3)
-    IF(ABS(eta).LT.epsilontol)THEN
-      eta=0. ! here not 99??
-    ELSE
-      eta=1.0/eta
-      eta=(a2(4)-a1(4))*eta
-    END IF
+END IF
+IF(ABS(a2(2)).LT.epsilontol)THEN
+  !xi=0.
+  IF(ABS(a2(3)).LT.epsilontol)THEN
+    ! and independent of xi
+    ! particle in plane
+    !xi=99.
+    !eta=99.
+    eta=0.
   ELSE
-    xi = a1(2) - a1(3)*a2(2)/a2(3)
-    xi = 1.0/xi
-    xi = (-a1(4)-a1(3)*a2(4)/a2(3))*xi
-      ! check distance of xi 
-  !  IF(ABS(xi).GT.epsilonOne)THEN
-  !    RETURN
-  !  END IF
-    ! compute eta
     eta=a1(3)-a2(3)
-    IF(ABS(eta).LT.epsilontol)THEN
-      eta=0. ! here eta 99 ???
-    ELSE ! eta not zero
-     eta=1.0/eta
-     eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
-    END IF ! eta .LT.epsilontol
+    eta=1.0/eta
+    eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
+    ! recompute xi
+    IF(ABS(P1(1)).GT.epsilontol)THEN
+      xi=(P0(1)-eta*P2(1))/P1(1)
+    ELSE IF(ABS(P1(2)).GT.epsilontol)THEN
+      xi=(P0(2)-eta*P2(3))/P1(2)
+    ELSE IF(ABS(P1(3)).GT.epsilontol)THEN
+      xi=(P0(2)-eta*P2(3))/P1(3)
+    ELSE
+      CALL abort(__STAMP__,&
+                ' error in computation of xi! iPart,eta ',iPart,eta)
+    END IF
+   ! ! compute xi
+   ! xi=a1(2)-a2(2)
+   ! xi=1.0/xi
+   ! xi=(a2(4)-a1(4))*xi
   END IF
 END IF
+
+!ELSE ! a2(3) not zero ==> eta not zero?
+!  IF(ABS(a2(2)).LT.epsilontol)THEN
+!    xi=0.
+!    eta=a1(3)-a2(3)
+!    IF(ABS(eta).LT.epsilontol)THEN
+!      eta=0. ! here not 99??
+!    ELSE
+!      eta=1.0/eta
+!      eta=(a2(4)-a1(4))*eta
+!    END IF
+!  ELSE
+!    xi = a1(2) - a1(3)*a2(2)/a2(3)
+!    xi = 1.0/xi
+!    xi = (-a1(4)-a1(3)*a2(4)/a2(3))*xi
+!      ! check distance of xi 
+!  !  IF(ABS(xi).GT.epsilonOne)THEN
+!  !    RETURN
+!  !  END IF
+!    ! compute eta
+!    eta=a1(3)-a2(3)
+!    IF(ABS(eta).LT.epsilontol)THEN
+!      eta=0. ! here eta 99 ???
+!    ELSE ! eta not zero
+!     eta=1.0/eta
+!     eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
+!    END IF ! eta .LT.epsilontol
+!  END IF
+!END IF
 
 !xi = a1(2) - a1(3)*a2(2)/a2(3) !xi = 1.0/xi
 !xi = (-a1(4)-a1(3)*a2(4)/a2(3))*xi
