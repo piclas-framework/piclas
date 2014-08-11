@@ -1389,7 +1389,7 @@ SUBROUTINE SingleParticleToExactElement(i)                                      
 !      read*
       CALL Eval_xyz_elemcheck(PartState(i,1:3),InElementCheck,Element)
       !CALL ParticleInsideQuad3D(i,Element,InElementCheck,det)
- !     print*,inElementCheck
+!     print*,'iElem,in?',Element,inElementCheck
  !     CALL ParticleInsideQuad3Dold(i,Element,InElementCheck,det)
 !      print*,inElementCheck
 !      read*
