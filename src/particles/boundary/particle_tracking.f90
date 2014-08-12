@@ -69,8 +69,8 @@ DO iPart=1,PDM%ParticleVecLength
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
-      !DO ilocSide=1,6
-      ilocSide=6
+      DO ilocSide=1,6
+      !ilocSide=6
         alpha_loc=-1.0
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
@@ -197,7 +197,7 @@ DO iPart=1,PDM%ParticleVecLength
              alpha=-1.0
            END IF ! alpha.GT.epsilontol
         END IF ! SideID.LT.nBCSides
-    !  END DO ! ilocSide
+      END DO ! ilocSide
       ! no intersection found
       IF(alpha.EQ.-1.0)THEN
         PEM%Element(iPart) = ElemID
