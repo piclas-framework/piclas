@@ -33,6 +33,7 @@ REAL              :: tPulse
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff
+REAL              :: epsmach
 CHARACTER(LEN=255),DIMENSION(8),PARAMETER :: StrVarNames(8)=(/ CHARACTER(LEN=255) :: 'ElectricFieldX', &
                                                                                      'ElectricFieldY', &
                                                                                      'ElectricFieldZ', &

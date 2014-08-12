@@ -90,8 +90,12 @@ IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   STOP
 END IF
 
+
 Pi=ACOS(-1.)
 spi = 1./pi
+
+! get machine accuracy
+epsmach=EPSILON(0.0)
 
 c2     = c*c 
 c_inv  = 1./c

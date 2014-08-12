@@ -61,14 +61,16 @@ DO iPart=1,PDM%ParticleVecLength
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
     PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
-!    print*,'ElemID','new RK',ElemID
-!    print*,'lastpos',LastPartPos(iPart,1:3)
-!    print*,'PartTrajectory',PartTrajectory
-!    read*
+    !print*,'ElemID','new RK',ElemID
+    !print*,'partpos',PartState(iPart,1:3)
+    !print*,'lastpos',LastPartPos(iPart,1:3)
+    !print*,'PartTrajectory',PartTrajectory
+    !read*
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
-      DO ilocSide=1,6
+      !DO ilocSide=1,6
+      ilocSide=6
         alpha_loc=-1.0
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
@@ -89,15 +91,26 @@ DO iPart=1,PDM%ParticleVecLength
             IF(Displacement.LT.epsilonbilinear)THEN
 !              CALL ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory &
 !                                                         ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart)
-
               CALL ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory &
                                                          ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),flip,iPart)
             ELSE
 !           print*, CALL abort(__STAMP__,&
 !                ' flip missing!!! ',999,999.)
-
+              !print*,'locSideID,QuadID',ilocSide,QuadID
+              !print*,'p,q',p,q
+              !print*,xNodes(:,1)
+              !print*,xNodes(:,2)
+              !print*,xNodes(:,3)
+              !print*,xNodes(:,4)
+              !read*
+              IF(QuadID.EQ.4)THEN
               CALL ComputeBiLinearIntersectionSuperSampled(xNodes,PartTrajectory &
                                                           ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart,SideID)
+              END IF
+              !print*,'alpha_loc',alpha_loc(QuadID)
+              !print*,'xi_loc',xi_loc(QuadID)
+              !print*,'eta_loc',eta_loc(QuadID)
+              !read*
             END IF
           END DO ! p
         END DO ! q
@@ -116,7 +129,7 @@ DO iPart=1,PDM%ParticleVecLength
           END DO ! iQuad
           ! check if interesction is possible and take first intersection
           !print*,alpha,minQuadID
-!          read*
+          !read*
           IF(alpha.GT.epsilontol.AND.alpha.LT.epsilonOne)THEN
             !print*,'alpha',alpha,xi_loc(minQUadID),eta_loc(minQuadID)
 !            xi=xi_loc(minQuadID)
@@ -184,7 +197,7 @@ DO iPart=1,PDM%ParticleVecLength
              alpha=-1.0
            END IF ! alpha.GT.epsilontol
         END IF ! SideID.LT.nBCSides
-      END DO ! ilocSide
+    !  END DO ! ilocSide
       ! no intersection found
       IF(alpha.EQ.-1.0)THEN
         PEM%Element(iPart) = ElemID
@@ -744,7 +757,6 @@ IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
   RETURN
 END IF
 
-
 a1(2)= BilinearCoeff(1,2,SideID)*PartTrajectory(3) - BilinearCoeff(3,2,SideID)*PartTrajectory(1)
 a1(3)= BilinearCoeff(1,3,SideID)*PartTrajectory(3) - BilinearCoeff(3,3,SideID)*PartTrajectory(1)
 a1(4)= (BilinearCoeff(1,4,SideID)-LastPartPos(iPart,1))*PartTrajectory(3) &
@@ -988,6 +1000,7 @@ USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,epsilonOne
 !USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1038,7 +1051,7 @@ B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
 !print*,'A,B,C', A,B,C
 CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
-!print*,nRoot,Eta
+!read*
 !  IF(iloop.EQ.34)THEN
 !    print*,eta
 !  END IF
@@ -1055,7 +1068,7 @@ IF (nRoot.EQ.1) THEN
     IF(ABS(xi(1)).LT.epsilonOne)THEN
       !q1=xi(1)*eta(1)*BilinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)+eta(1)*BilinearCoeff(:,3)+BilinearCoeff(:,4)-lastPartState
       t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-      IF((t(1).GE.+epsilontol).AND.(t(1).LE.epsilonOne))THEN
+      IF((t(1).GE.-epsilontol).AND.(t(1).LE.epsilonOne))THEN
         alpha=t(1)
         xitild=xi(1)
         etatild=eta(1)
@@ -1071,16 +1084,17 @@ IF (nRoot.EQ.1) THEN
   END IF ! eta .lt. epsilonOne
 ELSE 
   nInter=0
+  t=-2.
   IF(ABS(eta(1)).LT.epsilonOne)THEN
     xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
     xi(1)=1.0/xi(1)
     xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
     IF(ABS(xi(1)).LT.epsilonOne)THEN
-      ! q1=xi(1)*eta(1)*BilinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)+eta(1)*BilinearCoeff(:,3)+BilinearCoeff(:,4)-lastPartState
+     ! q1=xi(1)*eta(1)*BilinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)+eta(1)*BilinearCoeff(:,3)+BilinearCoeff(:,4)-lastPartState
       !  WRITE(*,*) ' t ', t(2)
       !  WRITE(*,*) ' Intersection at ', lastPartState+t(2)*q
       t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-      IF((t(1).LT.epsilontol).OR.(t(1).GT.epsilonOne))THEN
+      IF((t(1).LT.-epsilontol).OR.(t(1).GT.epsilonOne))THEN
         t(1)=-2.0
       ELSE
         nInter=nInter+1
@@ -1097,7 +1111,7 @@ ELSE
     IF(ABS(xi(2)).LT.epsilonOne)THEN
       ! q1=xi(2)*eta(2)*BilinearCoeff(:,1)+xi(2)*BilinearCoeff(:,2)+eta(2)*BilinearCoeff(:,3)+BilinearCoeff(:,4)-lastPartState
       t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
-      IF((t(2).LT.epsilontol).OR.(t(2).GT.epsilonOne))THEN
+      IF((t(2).LT.-epsilontol).OR.(t(2).GT.epsilonOne))THEN
         t(2)=-2.0
       ELSE
         nInter=nInter+1
@@ -1113,6 +1127,9 @@ ELSE
     END IF
   END IF
   ! if no intersection, return
+!  print*,nInter
+!  print*,'xi,eta,t',xi(2),eta(2),t(2)
+!  print*,'t(1),t(2)',t(1),t(2)
   IF(nInter.EQ.0) RETURN
   IF(SideID.LE.nBCSides)THEN
     IF(ABS(t(1)).LT.ABS(t(2)))THEN
@@ -1137,6 +1154,7 @@ ELSE
       etatild=eta(2)
     END IF
   END IF ! SideID.LT.nCBSides
+ !print*,'xi,eta,t',xitild,etatild,t(2)
 END IF ! nRoot
 
 END SUBROUTINE ComputeBiLinearIntersectionSuperSampled
@@ -1145,6 +1163,7 @@ SUBROUTINE QuatricSolver(A,B,C,nRoot,r1,r2)
 !================================================================================================================================
 ! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
 !================================================================================================================================
+USE MOD_Equation_Vars,       ONLY:epsMach
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1154,12 +1173,12 @@ INTEGER,INTENT(OUT)     :: nRoot
 REAL,INTENT(OUT)        :: R1,R2
 !--------------------------------------------------------------------------------------------------------------------------------
 ! local variables
-REAL                    :: eps=1e-12, radicant
+REAL                    :: radicant
 !================================================================================================================================
 
 radicant = B*B-4.0*A*C
-IF(ABS(a).LT.eps)THEN
-  IF(ABS(b).LT.eps)THEN
+IF(ABS(a).LT.epsMach)THEN
+  IF(ABS(b).LT.epsMach)THEN
     nRoot=0
     R1=0.
     R2=0.
@@ -1169,11 +1188,11 @@ IF(ABS(a).LT.eps)THEN
     R2=0.
   END IF
 ELSE
-  IF(radicant.LT.0) THEN
+  IF(radicant.LT.-epsMach) THEN
     nRoot = 0
     R1=0.
     R2=0.
-  ELSE IF (ABS(radicant).LT.eps)THEN
+  ELSE IF (ABS(radicant).LT.epsMach)THEN
     nRoot =1
     R1 = -0.5*B/A
     R2 = 0.
