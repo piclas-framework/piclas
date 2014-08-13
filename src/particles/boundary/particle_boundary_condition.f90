@@ -84,10 +84,12 @@ CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
   n_loc=CalcNormVec(xi,eta,QuadID,SideID)
-  !print*,'reflective BC'
-  !print*,'ElemId,SideID',ElemID,SideID,QuadID
-  !print*,PartTrajectory
-  !print*,'nVec',n_loc
+!  print*,'reflective BC'
+!  print*,'ElemId,SideID',ElemID,SideID,QuadID
+!  print*,'old path',PartTrajectory
+!  print*,'old pos',LastPartPos(iPart,1:3)
+!  print*,'outside state',PartState(iPart,1:3)
+!  print*,'nVec',n_loc
   !read*
   ! intersection point with surface
   LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
@@ -108,7 +110,14 @@ CASE(2) !PartBound%ReflectiveBC)
                            PartBound%WallVelo(1:3,BC(SideID))
   !PartState(iPart,4:6)   = 0.
   PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
-!  print*,PartTrajectory
+!  print*,'pos at BC',LastPartPos(iPart,1:3)
+!  print*,'new pos',PartState(ipart,1:3)
+!  print*,'sanity check'
+!  print*,PartState(iPart,4)/PartTrajectory(1)
+!  print*,PartState(iPart,5)/PartTrajectory(2)
+!  print*,PartState(iPart,6)/PartTrajectory(3)
+  !print*,'new velo1',PartState(iPart,4:6)
+  !print*,'new velo2',PartTrajectory
 !  read*
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
