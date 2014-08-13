@@ -85,12 +85,16 @@ CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
   n_loc=CalcNormVec(xi,eta,QuadID,SideID)
-!  print*,'reflective BC'
-!  print*,'ElemId,SideID',ElemID,SideID,QuadID
-!  print*,'old path',PartTrajectory
-!  print*,'old pos',LastPartPos(iPart,1:3)
-!  print*,'outside state',PartState(iPart,1:3)
-!  print*,'nVec',n_loc
+  ! substract tolerance from length
+  LengthPartTrajectory=LengthPartTrajectory-epsilontol
+  !WRITE(*,'(A)'),'reflective BC'
+  !WRITE(*,'(A,4I,4I,4I)') 'ElemId,SideID,QuadiD',ElemID,SideID,QuadID
+  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'alpha,length,percent',alpha,LengthPartTrajectory,alpha/LengthPartTrajectory
+  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'old path',PartTrajectory
+  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'old pos',LastPartPos(iPart,1:3)
+  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'outside state',PartState(iPart,1:3)
+  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'nVec',n_loc
+  !WRITE(*,'(A,E24.15)') 'nVec o PartTrajectory',DOT_PRODUCT(n_loc,PartTrajectory)
   !read*
   ! intersection point with surface
   LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
@@ -115,15 +119,21 @@ CASE(2) !PartBound%ReflectiveBC)
                            +PartTrajectory(3)*PartTrajectory(3) )
   PartTrajectory=PartTrajectory/lengthPartTrajectory
   lengthPartTrajectory=lengthPartTrajectory+epsilontol
-!  print*,'pos at BC',LastPartPos(iPart,1:3)
-!  print*,'new pos',PartState(ipart,1:3)
-!  print*,'sanity check'
-!  print*,PartState(iPart,4)/PartTrajectory(1)
-!  print*,PartState(iPart,5)/PartTrajectory(2)
-!  print*,PartState(iPart,6)/PartTrajectory(3)
-  !print*,'new velo1',PartState(iPart,4:6)
-  !print*,'new velo2',PartTrajectory
-!  read*
+  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'pos at BC',LastPartPos(iPart,1:3)
+  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'new pos',PartState(ipart,1:3)
+  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'new velo1',PartState(iPart,4:6)
+  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'new velo2',PartTrajectory
+  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'sanity check'
+  !IF(PartTrajectory(1).NE.0)THEN
+  !  print*,PartState(iPart,4)/PartTrajectory(1)
+  !END IF
+  !IF(PartTrajectory(3).NE.0)THEN
+  !  print*,PartState(iPart,5)/PartTrajectory(2)
+  !END IF
+  !IF(PartTrajectory(3).NE.0)THEN
+  !  print*,PartState(iPart,6)/PartTrajectory(3)
+  !END IF
+  !read*
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -67,6 +67,7 @@ DO iPart=1,PDM%ParticleVecLength
     lengthPartTrajectory=lengthPartTrajectory+epsilontol
     !print*,'ElemID','new RK',ElemID
     !print*,'partpos',PartState(iPart,1:3)
+    !print*,'par vel',PartState(iPart,4:6)
     !print*,'lastpos',LastPartPos(iPart,1:3)
     !print*,'PartTrajectory',PartTrajectory
     !read*
