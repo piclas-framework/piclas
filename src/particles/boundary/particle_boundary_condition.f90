@@ -27,7 +27,7 @@ PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionSuperSampled
 
 CONTAINS
 
-SUBROUTINE GetBoundaryInteractionSuperSampled(PartTrajectory,alpha,xi,eta,iPart,QuadID,SideID,ElemID)
+SUBROUTINE GetBoundaryInteractionSuperSampled(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,QuadID,SideID,ElemID)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -44,6 +44,7 @@ USE MOD_Particle_Surfaces,      ONLY:CalcNormVec
 USE MOD_Particle_Vars,          ONLY:PartBound,PDM,PartSpecies,PartState,LastPartPos
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut,PartAnalyzeStep
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC
 ! IMPLICIT VARIABLE HANDLING
@@ -55,7 +56,7 @@ REAL,INTENT(IN)                      :: xi,eta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)                :: ElemID
-REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3)
+REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),LengthPartTrajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3)
@@ -93,23 +94,27 @@ CASE(2) !PartBound%ReflectiveBC)
   !read*
   ! intersection point with surface
   LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
-  !print*,'alpha,inter',alpha,lastPartPos(iPart,1:3)
   ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
   !v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
-  v_aux                  = -2*((1-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
+  v_aux                  = -2*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
   !PartState(iPart,1:3)   = PartState(iPart,1:3)+PartTrajectory(1:3)+v_aux
   PartState(iPart,1:3)   = PartState(iPart,1:3)+v_aux
   !PartState(iPart,1:3)   = LastPartPos(iPart,1:3)+v_aux
   ! new velocity vector 
-  v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
+  v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
 
   !print*,"PartBound%WallVelo(1:3,BC(SideID))",PartBound%WallVelo(1:3,BC(SideID))
-  !read*
   PartState(iPart,4:6)   = SQRT(DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6)))*&
                            (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2                         +&
                            PartBound%WallVelo(1:3,BC(SideID))
   !PartState(iPart,4:6)   = 0.
   PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+  ! new normalization
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
+  lengthPartTrajectory=lengthPartTrajectory+epsilontol
 !  print*,'pos at BC',LastPartPos(iPart,1:3)
 !  print*,'new pos',PartState(ipart,1:3)
 !  print*,'sanity check'

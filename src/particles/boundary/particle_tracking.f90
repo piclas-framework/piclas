@@ -47,11 +47,10 @@ INTEGER                       :: ilocSide,SideID,flip
 INTEGER                       :: iInterSect,nInter
 INTEGER                       :: p,q,QuadID,iQuad,minQuadID,maxQuadID
 LOGICAL                       :: PartisDone,dolocSide(1:6)
-!REAL                          :: alpha(1:6),xietaIntersect(1:2,1:6)
-REAL                          :: alpha,xi,eta!xietaIntersect(1:2,1:6)
+REAL                          :: alpha,xi,eta
 REAL                          :: alpha_loc(1:nQuads),xi_loc(1:nQuads),eta_loc(1:nQuads)
 REAL                          :: xNodes(1:3,4),Displacement,xdisplace(1:3)
-REAL                          :: PartTrajectory(1:3)
+REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 !===================================================================================================================================
 
 !print*,'ici'
@@ -61,6 +60,11 @@ DO iPart=1,PDM%ParticleVecLength
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
     PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                             +PartTrajectory(2)*PartTrajectory(2) &
+                             +PartTrajectory(3)*PartTrajectory(3) )
+    PartTrajectory=PartTrajectory/lengthPartTrajectory
+    lengthPartTrajectory=lengthPartTrajectory+epsilontol
     !print*,'ElemID','new RK',ElemID
     !print*,'partpos',PartState(iPart,1:3)
     !print*,'lastpos',LastPartPos(iPart,1:3)
@@ -70,8 +74,8 @@ DO iPart=1,PDM%ParticleVecLength
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
       ! debugggg
-      !DO ilocSide=1,6
-      ilocSide=6
+      DO ilocSide=1,6
+      !ilocSide=6
         alpha_loc=-1.0
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
@@ -90,9 +94,7 @@ DO iPart=1,PDM%ParticleVecLength
             Displacement = xdisplace(1)*xdisplace(1)+xdisplace(2)*xdisplace(2)+xdisplace(3)*xdisplace(3)
             !print*,displacement
             IF(Displacement.LT.epsilonbilinear)THEN
-!              CALL ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory &
-!                                                         ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart)
-              CALL ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory &
+              CALL ComputePlanarIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory &
                                                          ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),flip,iPart)
             ELSE
 !           print*, CALL abort(__STAMP__,&
@@ -107,7 +109,7 @@ DO iPart=1,PDM%ParticleVecLength
 !              CALL ComputeBiLinearIntersectionSuperSampled(xNodes,PartTrajectory &
 !                                                          ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart,SideID)
 
-              CALL ComputeBiLinearIntersectionSuperSampled2(xNodes,PartTrajectory &
+              CALL ComputeBiLinearIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory &
                                                           ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart,SideID)
               !print*,'alpha_loc',alpha_loc(QuadID)
               !print*,'xi_loc',xi_loc(QuadID)
@@ -118,7 +120,7 @@ DO iPart=1,PDM%ParticleVecLength
         END DO ! q
         ! get correct intersection
         IF(SideID.LE.nBCSides)THEN
-          alpha=10.0
+          alpha=HUGE(0.0)
           minQuadID=99999
           ! get smallest alpha
           DO iQuad=1,nQuads
@@ -132,7 +134,7 @@ DO iPart=1,PDM%ParticleVecLength
           ! check if interesction is possible and take first intersection
           !print*,alpha,minQuadID
           !read*
-          IF(alpha.GT.epsilontol.AND.alpha.LT.epsilonOne)THEN
+          IF(alpha.GT.epsilontol.AND.alpha.LT.lengthPartTrajectory)THEN
             !print*,'alpha',alpha,xi_loc(minQUadID),eta_loc(minQuadID)
 !            xi=xi_loc(minQuadID)
 !            eta=eta_loc(minQuadID)
@@ -140,7 +142,10 @@ DO iPart=1,PDM%ParticleVecLength
             !print*,'Boundary interaction implemented for new method'
             !print*,'Side',SideID
             !print*,'oldstate',PartState(iPart,1:3)
-            CALL GetBoundaryInteractionSuperSampled(PartTrajectory,alpha,xi_loc(minQuadID),eta_loc(minQuadID),&
+            ! scaling alpha and Part Trajectory
+!            alpha=alpha/LengthPartTrajectory
+!            PartTrajectory=PartTrajectory*lengthPartTrajectory
+            CALL GetBoundaryInteractionSuperSampled(PartTrajectory,lengthPartTrajectory,alpha,xi_loc(minQuadID),eta_loc(minQuadID),&
                                                                                             iPart,minQuadID,SideID,ElemID)
 !            CALL abort(__STAMP__,&
 !                ' Boundary interaction not implemented for new method.',999,999.)
@@ -200,7 +205,7 @@ DO iPart=1,PDM%ParticleVecLength
            END IF ! alpha.GT.epsilontol
         END IF ! SideID.LT.nBCSides
       ! debugg 
-      !END DO ! ilocSide
+      END DO ! ilocSide
       ! no intersection found
       IF(alpha.EQ.-1.0)THEN
         PEM%Element(iPart) = ElemID
@@ -401,6 +406,312 @@ END SUBROUTINE ParticleTracking
 !
 !END SUBROUTINE ComputePlanarIntersection
 
+!SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,iPart)
+SUBROUTINE ComputePlanarIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,flip,iPart)
+!===================================================================================================================================
+! Compute the Intersection with planar surface
+! equation of plane: P1*xi + P2*eta+P0
+! equation to solve intersection point with plane
+! P1*xi+P2*eta+P0-LastPartPos-alpha*PartTrajectory
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,                 ONLY:Cross,abort
+USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne
+!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+REAL,INTENT(IN)                   :: lengthPartTrajectory
+REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
+INTEGER,INTENT(IN)                :: iPart!,SideID!,ElemID
+INTEGER,INTENT(IN)                :: flip
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                  :: alpha,xi,eta
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(1:3)               :: P0,P1,P2,nVec
+!REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
+REAL                              :: a1,a2,b1,b2,c1,c2
+REAL                              :: coeffA,coeffB,nlength
+!===================================================================================================================================
+
+! set alpha to minus 1, asume no intersection
+!print*,PartTrajectory
+alpha=-1.0
+xi=-2.
+eta=-2.
+
+! compute basis vectors of plane
+! first vector of plane
+P1 = -xNodes(:,1)+xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
+! second vector
+P2 = -xNodes(:,1)-xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
+! base point
+P0 = xNodes(:,1)+xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
+P1=0.25*P1
+P2=0.25*P2
+! distance of plane fromn origion minus trajectory start point times normal vector of side
+!P0=P0-LastPartPos(iPart,1:3)
+P0=0.25*P0-LastPartPos(iPart,1:3)
+! planar plane
+! P1*xi + P2*eta+P0
+
+nVec=CROSS(P1,P2)
+nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2) +nVec(3)*nVec(3) 
+nlength=SQRT(nlength)
+nVec=nVec/nlength
+!IF(flip.NE.0)THEN
+!  nVec=-nVec
+!END IF
+ 
+!! compute distance along trajectory
+coeffA=DOT_PRODUCT(nVec,PartTrajectory)
+!print*,coeffA
+!IF(flip.EQ.0)THEN ! master side ! is in flip for normVec
+!  IF(coeffA.LT.epsilontol)RETURN
+!ELSE ! slave sides
+!  IF(coeffA.GT.-epsilontol)RETURN
+!END IF ! flip
+
+!! corresponding to particle starting in plane
+!! interaction should be computed in last step
+IF(ABS(coeffA).LT.+epsilontol)THEN 
+  RETURN
+END IF
+coeffB=DOT_PRODUCT(P0,nVec)
+
+alpha=coeffB/coeffA
+!print*,'coeffA',coeffA
+!print*,'coeffB',coeffB print*,'alpha',alpha
+!read*
+!read*
+
+!IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
+IF((alpha.GT.lengthPartTrajectory).OR.(alpha.LT.-epsilontol))THEN
+  alpha=-1.0
+  RETURN
+END IF
+
+! new computation
+! compute xi and eta of intersection
+P0=P0-alpha*PartTrajectory
+
+
+A1=P1(1)+P1(3)
+B1=P2(1)+P2(3)
+C1=P0(1)+P0(3)
+
+A2=P1(2)+P1(3)
+B2=P2(2)+P2(3)
+C2=P0(2)+P0(3)
+
+IF(ABS(B1).GT.epsilontol)THEN
+  xi = A2-B2/B1*A1
+  xi = (B2/B1*C1-C2)/xi
+ELSE
+  xi = A1-B1/B2*A2
+  xi = (B1/B2*C2-C1)/xi
+END IF
+
+IF(ABS(xi).GT.epsilonOne)THEN
+  alpha=-1.0
+  RETURN
+END IF
+
+eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
+IF(ABS(eta).GT.epsilonOne)THEN
+  alpha=-1.0
+  RETURN
+END IF
+
+
+!!  a1(2)= P1(1)*PartTrajectory(3)-P1(3)*PartTrajectory(1)
+!!  a1(3)= P2(1)*PartTrajectory(3)-P2(3)*PartTrajectory(1)
+!!  a1(4)= P0(1)*PartTrajectory(3) -P0(3)*PartTrajectory(1)
+!!  
+!!  a2(2)= P1(2)*PartTrajectory(3)-P1(3)*PartTrajectory(2)
+!!  a2(3)= P2(2)*PartTrajectory(3)-P2(3)*PartTrajectory(2)
+!!  a2(4)= P0(2)*PartTrajectory(3) &
+!!        -P0(3)*PartTrajectory(2)
+!!  
+!!  !print*,'a12',a1(2)
+!!  !print*,'a13',a1(3)
+!!  !print*,'a14',a1(4)
+!!  
+!!  
+!!  !print*,'a22',a2(2)
+!!  !print*,'a23',a2(3)
+!!  !print*,'a24',a2(4)
+!!  !print*,'a23,a13',a2(3),a1(3)
+!!  !print*,'a22,a12',a2(2),a1(2)
+!!  
+!!  ! old one               ! working in not all cases
+!!  !! caution with accuracy
+!!  !IF(ABS(a2(3)).LT.epsilontol)THEN ! term c is close to zero ==> eta is zero
+!!  !  eta=0.
+!!  !  IF(ABS(a2(2)).LT.epsilontol)THEN
+!!  !    xi=0.
+!!  !  ELSE
+!!  !    ! compute xi
+!!  !    xi=a1(2)-a2(2)
+!!  !    xi=1.0/xi
+!!  !    xi=(a2(4)-a1(4))*xi
+!!  !  END IF
+!!  !!  IF(ABS(xi).GT.epsilonOne)THEN
+!!  !!    RETURN
+!!  !!  END IF
+!!  !ELSE ! a2(3) not zero
+!!  !  IF(ABS(a2(2)).LT.epsilontol)THEN
+!!  !    xi=0.
+!!  !    eta=a1(3)-a2(3)
+!!  !    eta=1.0/eta
+!!  !    eta=(a2(4)-a1(4))*eta
+!!  !  ELSE
+!!  !    xi = a1(2) - a1(3)*a2(2)/a2(3)
+!!  !    xi = 1.0/xi
+!!  !    xi = (-a1(4)-a1(3)*a2(4)/a2(3))*xi
+!!  !    ! check distance of xi 
+!!  !  !  IF(ABS(xi).GT.epsilonOne)THEN
+!!  !  !    RETURN
+!!  !  !  END IF
+!!  !    ! compute eta
+!!  !    eta=a1(3)-a2(3)
+!!  !    eta=1.0/eta
+!!  !    eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
+!!  !  END IF
+!!  !END IF
+!!  
+!!  IF(ABS(a2(3)).LT.epsilontol)THEN ! term c is close to zero ==> eta is zero
+!!    ! solution independent of eta
+!!    !eta=0.
+!!    IF(ABS(a2(2)).LT.epsilontol)THEN
+!!      ! and independent of xi
+!!      ! particle in plane
+!!      !xi=99.
+!!      !eta=99.
+!!      print*,'here'
+!!      xi=0.
+!!    ELSE
+!!      ! compute xi
+!!      xi=a1(2)-a2(2)
+!!      xi=1.0/xi
+!!      xi=(a2(4)-a1(4))*xi
+!!      ! compute eta
+!!      IF(ABS(P2(1)).GT.epsilontol)THEN
+!!        eta=(P0(1)-xi*P1(1))/P2(1)
+!!      ELSE IF(ABS(P2(2)).GT.epsilontol)THEN
+!!        eta=(P0(2)-xi*P1(3))/P2(2)
+!!      ELSE IF(ABS(P2(3)).GT.epsilontol)THEN
+!!        eta=(P0(2)-xi*P1(3))/P2(3)
+!!      ELSE
+!!        CALL abort(__STAMP__,&
+!!                  ' error in computation of xi! iPart,eta ',iPart,eta)
+!!      END IF
+!!    END IF
+!!  !  IF(ABS(xi).GT.epsilonOne)THEN
+!!  !    RETURN
+!!  !  END IF
+!!  END IF
+!!  IF(ABS(a2(2)).LT.epsilontol)THEN
+!!    !xi=0.
+!!    IF(ABS(a2(3)).LT.epsilontol)THEN
+!!      ! and independent of xi
+!!      ! particle in plane
+!!      !xi=99.
+!!      !eta=99.
+!!      print*,'here'
+!!      eta=0.
+!!    ELSE
+!!      eta=a1(3)-a2(3)
+!!      eta=1.0/eta
+!!      eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
+!!      ! recompute xi
+!!      IF(ABS(P1(1)).GT.epsilontol)THEN
+!!        xi=(P0(1)-eta*P2(1))/P1(1)
+!!      ELSE IF(ABS(P1(2)).GT.epsilontol)THEN
+!!        xi=(P0(2)-eta*P2(3))/P1(2)
+!!      ELSE IF(ABS(P1(3)).GT.epsilontol)THEN
+!!        xi=(P0(2)-eta*P2(3))/P1(3)
+!!      ELSE
+!!        CALL abort(__STAMP__,&
+!!                  ' error in computation of xi! iPart,eta ',iPart,eta)
+!!      END IF
+!!     ! ! compute xi
+!!     ! xi=a1(2)-a2(2)
+!!     ! xi=1.0/xi
+!!     ! xi=(a2(4)-a1(4))*xi
+!!    END IF
+!!  END IF
+!!  
+!!  !ELSE ! a2(3) not zero ==> eta not zero?
+!!  !  IF(ABS(a2(2)).LT.epsilontol)THEN
+!!  !    xi=0.
+!!  !    eta=a1(3)-a2(3)
+!!  !    IF(ABS(eta).LT.epsilontol)THEN
+!!  !      eta=0. ! here not 99??
+!!  !    ELSE
+!!  !      eta=1.0/eta
+!!  !      eta=(a2(4)-a1(4))*eta
+!!  !    END IF
+!!  !  ELSE
+!!  !    xi = a1(2) - a1(3)*a2(2)/a2(3)
+!!  !    xi = 1.0/xi
+!!  !    xi = (-a1(4)-a1(3)*a2(4)/a2(3))*xi
+!!  !      ! check distance of xi 
+!!  !  !  IF(ABS(xi).GT.epsilonOne)THEN
+!!  !  !    RETURN
+!!  !  !  END IF
+!!  !    ! compute eta
+!!  !    eta=a1(3)-a2(3)
+!!  !    IF(ABS(eta).LT.epsilontol)THEN
+!!  !      eta=0. ! here eta 99 ???
+!!  !    ELSE ! eta not zero
+!!  !     eta=1.0/eta
+!!  !     eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
+!!  !    END IF ! eta .LT.epsilontol
+!!  !  END IF
+!!  !END IF
+!!  
+!!  
+!!  print*,'alpha,xi,eta',alpha,xi,eta
+!!  
+!!  !xi = a1(2) - a1(3)*a2(2)/a2(3) !xi = 1.0/xi
+!!  !xi = (-a1(4)-a1(3)*a2(4)/a2(3))*xi
+!!  !! check distance of xi 
+!!  IF(ABS(xi).GT.epsilonOne)THEN
+!!    alpha=-1.0
+!!    RETURN
+!!  END IF
+!!  !! compute eta
+!!  !eta=a1(3)-a2(3)
+!!  !eta=1.0/eta
+!!  !eta=((a2(2)-a1(2))*xi+a2(4)-a1(4))*eta
+!!  !
+!!  IF(ABS(eta).GT.epsilonOne)THEN
+!!    alpha=-1.0
+!!    RETURN
+!!  END IF
+!!  
+!!  !! compute distance with intersection
+!!  !IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GT.ABS(PartTrajectory(3))))THEN
+!!  !  alpha =xi*BilinearCoeff(1,2,SideID)+eta*BilinearCoeff(1,3,SideID)+BilinearCoeff(1,4,SideID) -lastPartPos(iPart,1)
+!!  !  alpha = alpha/ PartTrajectory(1)
+!!  !ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
+!!  !  alpha =xi*BilinearCoeff(2,2,SideID)+eta*BilinearCoeff(2,3,SideID)+BilinearCoeff(2,4,SideID) -lastPartPos(iPart,2)
+!!  !  alpha = alpha/ PartTrajectory(2)
+!!  !ELSE
+!!  !  alpha =xi*BilinearCoeff(3,2,SideID)+eta*BilinearCoeff(3,3,SideID)+BilinearCoeff(3,4,SideID) -lastPartPos(iPart,3)
+!!  !  alpha = alpha/ PartTrajectory(3)
+!!  !END IF
+!!  !
+!!  !IF((alpha.LT.epsilontol).OR.(alpha.GT.epsilonOne)) alpha=-1.0
+
+END SUBROUTINE ComputePlanarIntersectionSuperSampled2
 
 !SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,iPart)
 SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,flip,iPart)
@@ -421,6 +732,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+!REAL,INTENT(IN)                   :: lengthPartTrajectory
 REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
 INTEGER,INTENT(IN)                :: iPart!,SideID!,ElemID
 INTEGER,INTENT(IN)                :: flip
@@ -995,7 +1307,7 @@ END IF ! nRoot
 END SUBROUTINE ComputeBiLinearIntersection
 
 
-SUBROUTINE ComputeBiLinearIntersectionSuperSampled2(xNodes,PartTrajectory,alpha,xitild,etatild,iPart,SideID)
+SUBROUTINE ComputeBiLinearIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild,iPart,SideID)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 !===================================================================================================================================
@@ -1011,6 +1323,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+REAL,INTENT(IN)                   :: lengthPartTrajectory
 REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
 INTEGER,INTENT(IN)                :: iPart,SideID
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1020,7 +1333,7 @@ REAL,INTENT(OUT)                  :: alpha,xitild,etatild
 ! LOCAL VARIABLES
 REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
-REAL                              :: A,B,C,LengthPartTrajectory,PartNormTrajectory(1:3)
+REAL                              :: A,B,C
 REAL                              :: xi(2),eta(2),t(2), q1(3)
 INTEGER                           :: nInter,nRoot
 !===================================================================================================================================
@@ -1037,23 +1350,18 @@ BiLinearCoeff(:,3) =-xNodes(:,1)-xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
 BiLinearCoeff(:,4) = xNodes(:,1)+xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
 BiLinearCoeff= 0.25*BiLinearCoeff
 
-LengthPartTrajectory=PartTrajectory(1)*PartTrajectory(1)+PartTrajectory(2)*PartTrajectory(2)+PartTrajectory(3)*PartTrajectory(3)
-LengthPartTrajectory=SQRT(LengthPartTrajectory)
-PartNormTrajectory=PartTrajectory/LengthPartTrajectory
-LengthPartTrajectory=LengthPartTrajectory+epsilontol
-
 ! compute product with particle trajectory
-a1(1)= BilinearCoeff(1,1)*PartNormTrajectory(3) - BilinearCoeff(3,1)*PartNormTrajectory(1)
-a1(2)= BilinearCoeff(1,2)*PartNormTrajectory(3) - BilinearCoeff(3,2)*PartNormTrajectory(1)
-a1(3)= BilinearCoeff(1,3)*PartNormTrajectory(3) - BilinearCoeff(3,3)*PartNormTrajectory(1)
-a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartNormTrajectory(3) &
-     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartNormTrajectory(1)
+a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
+a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
+a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
+a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
+     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
 
-a2(1)= BilinearCoeff(2,1)*PartNormTrajectory(3) - BilinearCoeff(3,1)*PartNormTrajectory(2)
-a2(2)= BilinearCoeff(2,2)*PartNormTrajectory(3) - BilinearCoeff(3,2)*PartNormTrajectory(2)
-a2(3)= BilinearCoeff(2,3)*PartNormTrajectory(3) - BilinearCoeff(3,3)*PartNormTrajectory(2)
-a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartNormTrajectory(3) &
-     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartNormTrajectory(2)
+a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
+a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
+a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
+a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
+     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
 
 A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
@@ -1067,7 +1375,7 @@ CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
 !SELECT CASE(iter)
 !CASE(162)
 !  print*,nRoot,eta
-!  print*,'PartNormTrajectory',PartNormTrajectory
+!  print*,'PartTrajectory',PartTrajectory
 !  print*,'length',LengthPartTrajectory
 !  read*
 !END SELECT
@@ -1083,10 +1391,10 @@ IF (nRoot.EQ.1) THEN
     xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
     IF(ABS(xi(1)).LT.epsilonOne)THEN
       !q1=xi(1)*eta(1)*BilinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)+eta(1)*BilinearCoeff(:,3)+BilinearCoeff(:,4)-lastPartState
-      t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartNormTrajectory,iPart)
+      t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
       !IF((t(1).GE.-epsilontol).AND.(t(1).LE.epsilonOne))THEN
       IF((t(1).GE.-epsilontol).AND.(t(1).LE.lengthPartTrajectory))THEN
-        alpha=t(1)/LengthPartTrajectory
+        alpha=t(1)!/LengthPartTrajectory
         xitild=xi(1)
         etatild=eta(1)
         RETURN
@@ -1110,14 +1418,14 @@ ELSE
      ! q1=xi(1)*eta(1)*BilinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)+eta(1)*BilinearCoeff(:,3)+BilinearCoeff(:,4)-lastPartState
       !  WRITE(*,*) ' t ', t(2)
       !  WRITE(*,*) ' Intersection at ', lastPartState+t(2)*q
-      t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartNormTrajectory,iPart)
+      t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
       !t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
       !IF((t(1).LT.-epsilontol).OR.(t(1).GT.epsilonOne))THEN
-      IF((t(1).LT.-epsilontol).AND.(t(1).GE.lengthPartTrajectory))THEN
+      IF((t(1).LT.-epsilontol).AND.(t(1).GT.lengthPartTrajectory))THEN
         t(1)=-2.0
       ELSE
         nInter=nInter+1
-        t(1)=t(1)/lengthPartTrajectory
+        t(1)=t(1)!/lengthPartTrajectory
       END IF
 !      IF((t(1).LT.epsilontol).AND.(t(1).GT.epsilonOne))THEN
 !        t(1)=-1
@@ -1136,17 +1444,17 @@ ELSE
     IF(ABS(xi(2)).LT.epsilonOne)THEN
       ! q1=xi(2)*eta(2)*BilinearCoeff(:,1)+xi(2)*BilinearCoeff(:,2)+eta(2)*BilinearCoeff(:,3)+BilinearCoeff(:,4)-lastPartState
       !t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
-      t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartNormTrajectory,iPart)
+      t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
      ! IF((t(2).LT.-epsilontol).OR.(t(2).GT.epsilonOne))THEN
 !      SELECT CASE(iter)
 !      CASE(162)
 !        print*,'t',t(2)
 !        read*
 !      END SELECT
-      IF((t(2).LT.-epsilontol).AND.(t(2).GE.lengthPartTrajectory))THEN
+      IF((t(2).LT.-epsilontol).AND.(t(2).GT.lengthPartTrajectory))THEN
         t(2)=-2.0
       ELSE
-        t(2)=t(2)/lengthPartTrajectory
+        t(2)=t(2)!/lengthPartTrajectory
         nInter=nInter+1
       END IF
 !      IF((t(2).LT.epsilontol).AND.(t(2).GT.epsilonOne))THEN
