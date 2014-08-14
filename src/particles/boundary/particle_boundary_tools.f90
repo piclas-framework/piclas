@@ -1348,20 +1348,30 @@ END SUBROUTINE ParticleThroughSideLastPosCheck_halocells
 
 SUBROUTINE SingleParticleToExactElement(i)                                                         !
   USE MOD_Particle_Vars
-  USE MOD_Particle_Surfaces_Vars, ONLY: nTriangles
-  USE MOD_Eval_xyz,               ONLY: eval_xyz_elemcheck
+  !USE MOD_Particle_Surfaces_Vars, ONLY: nTriangles
+  USE MOD_TimeDisc_Vars,          ONLY:dt
+  USE MOD_Equation_Vars,          ONLY:c_inv
+  USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,SuperSampledNodes,NPartCurved
+  USE MOD_Mesh_Vars,              ONLY:ElemToSide
+  USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-   INTEGER                          :: i, k, Element, CellX,CellY,CellZ                            !
+   INTEGER                          :: i, k, Element, CellX,CellY,CellZ,iDist                       !
+   INTEGER                          :: ilocSide,SideID
    LOGICAL                          :: InElementCheck,ParticleFound                                !
    !REAL                             :: det(16)    ! caution, size is wrong
-   REAL                             :: det(6,nTriangles)    ! caution, size is wrong
+   !REAL                             :: det(6,nTriangles)    ! caution, size is wrong
+   REAL                             :: xi(1:3)
+   REAL,PARAMETER                   :: eps=1e-8 ! same value as in eval_xyz_elem
+   REAL                             :: epsOne,OneMeps
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 
+   epsOne=1.0+eps
+   OneMeps=1.0-eps
    ParticleFound = .FALSE.
    IF ( (PartState(i,1).LT.GEO%xmin).OR.(PartState(i,1).GT.GEO%xmax).OR. &
         (PartState(i,2).LT.GEO%ymin).OR.(PartState(i,2).GT.GEO%ymax).OR. &
@@ -1387,14 +1397,45 @@ SUBROUTINE SingleParticleToExactElement(i)                                      
 !      print*,'k',k,Element
 !      print*,'Pos',PartState(i,1:3)
 !      read*
-      CALL Eval_xyz_elemcheck(PartState(i,1:3),InElementCheck,Element)
       !CALL ParticleInsideQuad3D(i,Element,InElementCheck,det)
-!     print*,'iElem,in?',Element,inElementCheck
- !     CALL ParticleInsideQuad3Dold(i,Element,InElementCheck,det)
+      CALL Eval_xyz_elemcheck(PartState(i,1:3),xi,Element)
+      !print*,'xi',xi
+      IF(ALL(ABS(Xi).LE.OneMEps)) THEN ! particle inside
+        InElementCheck=.TRUE.
+      ELSE IF(ANY(ABS(Xi).GT.epsOne))THEN ! particle outside
+!        print*,'ici'
+        InElementCheck=.FALSE.
+      ELSE ! particle at face,edge or node, check most possible point
+        ! alter particle position
+        IF(XI(1).GT.0)THEN
+          PartState(i,1)=PartState(i,1)-eps
+        ELSE
+          PartState(i,1)=PartState(i,1)+eps
+        END IF
+        IF(XI(2).GT.0)THEN
+          PartState(i,2)=PartState(i,2)-eps
+        ELSE
+          PartState(i,2)=PartState(i,2)+eps
+        END IF
+        IF(XI(3).GT.0)THEN
+          PartState(i,3)=PartState(i,3)-eps
+        ELSE
+          PartState(i,3)=PartState(i,3)+eps
+        END IF
+        CALL Eval_xyz_elemcheck(PartState(i,1:3),xi,Element)
+        IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
+          InElementCheck=.TRUE.
+        ELSE
+          SWRITE(*,*) ' Particle not located!'
+          SWRITE(*,*) ' PartPos', PartState(i,1:3)
+          InElementCheck=.FALSE.
+        END IF
+      END IF
+!     print*,'iElem,check?',Element,inElementCheck
+!     CALL ParticleInsideQuad3Dold(i,Element,InElementCheck,det)
 !      print*,inElementCheck
-!      read*
-      IF (InElementCheck) THEN
- !       print*,Element
+!     read*
+      IF (InElementCheck) THEN !  !     print*,Element
  !       read*
          PEM%Element(i) = Element
          ParticleFound = .TRUE.

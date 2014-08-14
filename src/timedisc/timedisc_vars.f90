@@ -17,6 +17,7 @@ REAL             :: dt
 REAL             :: CFLScale 
 REAL             :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver
 INTEGER          :: maxIter_LinearSolver
+INTEGER          :: iStage
 INTEGER(KIND=8)  :: iter, IterDisplayStep
 LOGICAL          :: DoDisplayIter
 LOGICAl          :: TimediscInitIsDone = .FALSE.

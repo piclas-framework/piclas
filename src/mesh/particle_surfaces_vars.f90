@@ -26,6 +26,7 @@ INTEGER,ALLOCATABLE,DIMENSION(:)        :: gElemBCSides               ! number o
 INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: neighborElemID,neighborlocSideID
 REAL                                    :: epsilonbilinear            ! bi-linear tolerance for the bi-linear - planar decision
 REAL                                    :: epsilonOne                 ! epsilone for setting the boundary tolerance
+REAL                                    :: OneMepsilon
 REAL                                    :: epsilontol                 ! epsilone for setting the tolerance
 LOGICAL                                 :: ParticleSurfaceInitIsDone=.FALSE.
 !===================================================================================================================================

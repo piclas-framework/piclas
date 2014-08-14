@@ -43,10 +43,17 @@ USE MOD_PreProc
 USE MOD_Particle_Surfaces,      ONLY:CalcNormVec
 USE MOD_Particle_Vars,          ONLY:PartBound,PDM,PartSpecies,PartState,LastPartPos
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
+!USE MOD_Equation_Vars,          ONLY:c2_inv
+USE MOD_Particle_Vars,          ONLY:PartState!, PartSpecies, Species
+!USE MOD_PARTICLE_Vars,          ONLY:PartMPF, usevMPF
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut,PartAnalyzeStep
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol
+USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+USE MOD_TimeDisc_Vars,          ONLY: RK4_a,iStage
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -60,6 +67,10 @@ REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),LengthPartTraj
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3)
+!REAL                                 :: OldP(1:3),NewP(1:3),gamma1,absOldP,absNewP,MPFMass
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+REAL                                 :: absPt_temp
+#endif
 !===================================================================================================================================
 
 IF (.NOT. ASSOCIATED(PartBound%Map)) THEN
@@ -87,15 +98,28 @@ CASE(2) !PartBound%ReflectiveBC)
   n_loc=CalcNormVec(xi,eta,QuadID,SideID)
   ! substract tolerance from length
   LengthPartTrajectory=LengthPartTrajectory-epsilontol
-  !WRITE(*,'(A)'),'reflective BC'
-  !WRITE(*,'(A,4I,4I,4I)') 'ElemId,SideID,QuadiD',ElemID,SideID,QuadID
-  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'alpha,length,percent',alpha,LengthPartTrajectory,alpha/LengthPartTrajectory
-  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'old path',PartTrajectory
-  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'old pos',LastPartPos(iPart,1:3)
-  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'outside state',PartState(iPart,1:3)
-  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'nVec',n_loc
-  !WRITE(*,'(A,E24.15)') 'nVec o PartTrajectory',DOT_PRODUCT(n_loc,PartTrajectory)
-  !read*
+  ! compute old relativistic impulse
+!  gamma1=PartState(iPart,4)*PartState(iPart,4)+PartState(iPart,5)*PartState(iPart,5) &
+!        +PartState(iPart,6)*PartState(iPart,6)
+!  gamma1=gamma1*c2_inv
+!  gamma1=1.0/SQRT(1.-gamma1)
+!  IF(usevMPF)THEN
+!    MPFMass=PartMPF(iPart)*Species(PartSpecies(iPart))%MassIC
+!  ELSE
+!    MPFMass=Species(PartSpecies(iPart))%MassIC*Species(PartSpecies(iPart))%MacroParticleFactor
+!  END IF ! usevMPF
+!  oldP=MPFMass*gamma1*PartState(iPart,4:6)
+!  absOldP=SQRT(DOT_PRODUCT(oldP,oldP))
+
+!  WRITE(*,'(A)'),'reflective BC'
+!  WRITE(*,'(A,4I,4I,4I)') 'ElemId,SideID,QuadiD',ElemID,SideID,QuadID
+!  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'alpha,length,percent',alpha,LengthPartTrajectory,alpha/LengthPartTrajectory
+!  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'old path',PartTrajectory
+!  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'old pos',LastPartPos(iPart,1:3)
+!  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'outside state',PartState(iPart,1:3)
+!  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'nVec',n_loc
+!  WRITE(*,'(A,E24.15)') 'nVec o PartTrajectory',DOT_PRODUCT(n_loc,PartTrajectory)
+!  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'BC velo',PartBound%WallVelo(1:3,BC(SideID))
   ! intersection point with surface
   LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
   ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
@@ -119,21 +143,30 @@ CASE(2) !PartBound%ReflectiveBC)
                            +PartTrajectory(3)*PartTrajectory(3) )
   PartTrajectory=PartTrajectory/lengthPartTrajectory
   lengthPartTrajectory=lengthPartTrajectory+epsilontol
-  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'pos at BC',LastPartPos(iPart,1:3)
-  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'new pos',PartState(ipart,1:3)
-  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'new velo1',PartState(iPart,4:6)
-  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'new velo2',PartTrajectory
-  !WRITE(*,'(A,E24.15,E24.15,E24.15)') 'sanity check'
-  !IF(PartTrajectory(1).NE.0)THEN
-  !  print*,PartState(iPart,4)/PartTrajectory(1)
-  !END IF
-  !IF(PartTrajectory(3).NE.0)THEN
-  !  print*,PartState(iPart,5)/PartTrajectory(2)
-  !END IF
-  !IF(PartTrajectory(3).NE.0)THEN
-  !  print*,PartState(iPart,6)/PartTrajectory(3)
-  !END IF
-  !read*
+!  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'pos at BC',LastPartPos(iPart,1:3)
+!  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'new pos',PartState(iPart,1:3)
+!  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'new velo1',PartState(iPart,4:6)
+!  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'new velo2,n',PartTrajectory
+!  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'sanity check'
+!  read*
+
+!  gamma1=PartState(iPart,4)*PartState(iPart,4)+PartState(iPart,5)*PartState(iPart,5) &
+!        +PartState(iPart,6)*PartState(iPart,6)
+!  gamma1=gamma1*c2_inv
+!  gamma1=1.0/SQRT(1.-gamma1)
+!  newP=MPFMass*gamma1*PartState(iPart,4:6)
+!  absNewP=SQRT(DOT_PRODUCT(newP,newP))
+!  print*,'ratio impulse',absOldP/absNewP
+!  read*
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+  ! correction for Runge-Kutta (correct position!!)
+  !print*,'Pt_temp',Pt_temp(iPart,1:3)
+  ! get length of Pt_temp(iPart,1:3) || equals summed velocity change ! only exact for linear movement
+  absPt_temp=SQRT(Pt_temp(iPart,1)*Pt_temp(iPart,1)+Pt_temp(iPart,2)*Pt_temp(iPart,2)+Pt_temp(iPart,3)*Pt_temp(iPart,3))
+  ! scale PartTrajectory to new Pt_temp
+  Pt_temp(iPart,1:3)=absPt_temp*PartTrajectory(1:3)
+  ! what happens with force term || acceleration?
+#endif 
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------

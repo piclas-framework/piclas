@@ -31,6 +31,7 @@ USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideIsPlanar,epsilonOne,neighborElemID,neighborlocSideID,epsilonbilinear
 USE MOD_Particle_Surfaces_Vars,      ONLY:nPartCurved, SuperSampledNodes,nQuads
+USE MOD_TimeDisc_Vars,               ONLY:iter
 !USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionSuperSampled
 ! IMPLICIT VARIABLE HANDLING
@@ -53,6 +54,8 @@ REAL                          :: xNodes(1:3,4),Displacement,xdisplace(1:3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 !===================================================================================================================================
 
+!IF(iter.EQ.153) read*
+
 !print*,'ici'
 !read*
 DO iPart=1,PDM%ParticleVecLength
@@ -65,12 +68,12 @@ DO iPart=1,PDM%ParticleVecLength
                              +PartTrajectory(3)*PartTrajectory(3) )
     PartTrajectory=PartTrajectory/lengthPartTrajectory
     lengthPartTrajectory=lengthPartTrajectory+epsilontol
-    !print*,'ElemID','new RK',ElemID
-    !print*,'partpos',PartState(iPart,1:3)
-    !print*,'par vel',PartState(iPart,4:6)
-    !print*,'lastpos',LastPartPos(iPart,1:3)
-    !print*,'PartTrajectory',PartTrajectory
-    !read*
+    ! print*,'ElemID','new RK',ElemID
+    ! print*,'partpos',PartState(iPart,1:3)
+    ! print*,'par vel',PartState(iPart,4:6)
+    ! print*,'lastpos',LastPartPos(iPart,1:3)
+    ! print*,'PartTrajectory',PartTrajectory
+    ! read*
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
@@ -1317,7 +1320,7 @@ USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,epsilonOne
 !USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
-USE MOD_Timedisc_vars,           ONLY: iter
+!USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES

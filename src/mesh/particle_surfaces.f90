@@ -73,6 +73,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES ...!'
 epsilonbilinear = GETREAL('eps-bilinear','1e-6')
 epsilontol      = GETREAL('epsOne','1e-12')
 epsilonOne      = 1.0 + epsilontol
+OneMepsilon     = 1.0 - epsilontol
 !NPartCurved     = GETINT('NPartCurved','1')
 !IF(NPartCurved.GT.1) DoPartCurved=.TRUE.
 
@@ -358,7 +359,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide,SideToElem,NGeo
 USE MOD_Particle_Surfaces_Vars,   ONLY:SuperSampledNodes,nPartCurved,Vdm_CLNGeo_EquiNPartCurved
 USE MOD_Mesh_Vars,                ONLY:nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-USE MOD_ChangeBasis,        ONLY:ChangeBasis2D
+USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES

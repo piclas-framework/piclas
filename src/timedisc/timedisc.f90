@@ -420,7 +420,7 @@ SUBROUTINE TimeStepByLSERK(t,iter,tEndDiff)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Analyze,          ONLY: PerformeAnalyze
-USE MOD_TimeDisc_Vars,    ONLY: dt
+USE MOD_TimeDisc_Vars,    ONLY: dt,iStage
 USE MOD_TimeDisc_Vars,    ONLY: RK4_a,RK4_b,RK4_c,nRKStages
 USE MOD_DG_Vars,          ONLY: U,Ut
 USE MOD_PML_Vars,         ONLY: PMLzeta,U2,U2t,nPMLElems,DoPML
@@ -465,7 +465,6 @@ INTEGER(KIND=8),INTENT(INOUT) :: iter
 REAL                          :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
 REAL                          :: U2t_temp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
 REAL                          :: tStage,b_dt(1:nRKStages)
-INTEGER                       :: rk
 #ifdef PP_POIS
 REAL                          :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif
@@ -475,9 +474,10 @@ t1=0.
 t2=0.
 
 ! RK coefficients
-DO rk=1,nRKStages
-  b_dt(rk)=RK4_b(rk)*dt
+DO iStage=1,nRKStages
+  b_dt(iStage)=RK4_b(iStage)*dt
 END DO
+iStage=1
 
 #ifdef PARTICLES
 Time=t
@@ -577,8 +577,8 @@ CALL ParticleTracking()
 END IF
 #endif /*PARTICLES*/
 
-DO rk=2,nRKStages
-  tStage=t+dt*RK4_c(rk)
+DO iStage=2,nRKStages
+  tStage=t+dt*RK4_c(iStage)
 #ifdef PARTICLES
   ! deposition  
   IF (t.GE.DelayTime) THEN 
@@ -610,17 +610,17 @@ DO rk=2,nRKStages
 
   ! performe RK steps
   ! field step
-  Ut_temp = Ut - Ut_temp*RK4_a(rk)
-  U = U + Ut_temp*b_dt(rk)
+  Ut_temp = Ut - Ut_temp*RK4_a(iStage)
+  U = U + Ut_temp*b_dt(iStage)
   !PML auxiliary variables
   IF(DoPML)THEN
-    U2t_temp = U2t - U2t_temp*RK4_a(rk)
-    U2 = U2 + U2t_temp*b_dt(rk)
+    U2t_temp = U2t - U2t_temp*RK4_a(iStage)
+    U2 = U2 + U2t_temp*b_dt(iStage)
   END IF
 
 #ifdef PP_POIS
-  Phit_temp = Phit - Phit_temp*RK4_a(rk)
-  Phi = Phi + Phit_temp*b_dt(rk)
+  Phit_temp = Phit - Phit_temp*RK4_a(iStage)
+  Phi = Phi + Phit_temp*b_dt(iStage)
   CALL EvalGradient()
 #endif
 
@@ -632,32 +632,32 @@ DO rk=2,nRKStages
     LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
     PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
     Pt_temp(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,4) &
-                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,1)
+                             - RK4_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,1)
     Pt_temp(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,5) &
-                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,2)
+                             - RK4_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,2)
     Pt_temp(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,6) &
-                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,3)
+                             - RK4_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,3)
     Pt_temp(1:PDM%ParticleVecLength,4) = Pt(1:PDM%ParticleVecLength,1) &
-                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,4)
+                             - RK4_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,4)
     Pt_temp(1:PDM%ParticleVecLength,5) = Pt(1:PDM%ParticleVecLength,2) &
-                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,5)
+                             - RK4_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,5)
     Pt_temp(1:PDM%ParticleVecLength,6) = Pt(1:PDM%ParticleVecLength,3) &
-                             - RK4_a(rk) * Pt_temp(1:PDM%ParticleVecLength,6)
+                             - RK4_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,6)
     PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) &
-                                       + Pt_temp(1:PDM%ParticleVecLength,1)*b_dt(rk)
+                                       + Pt_temp(1:PDM%ParticleVecLength,1)*b_dt(iStage)
     PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) &
-                                       + Pt_temp(1:PDM%ParticleVecLength,2)*b_dt(rk)
+                                       + Pt_temp(1:PDM%ParticleVecLength,2)*b_dt(iStage)
     PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
-                                       + Pt_temp(1:PDM%ParticleVecLength,3)*b_dt(rk)
+                                       + Pt_temp(1:PDM%ParticleVecLength,3)*b_dt(iStage)
     PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                       + Pt_temp(1:PDM%ParticleVecLength,4)*b_dt(rk)
+                                       + Pt_temp(1:PDM%ParticleVecLength,4)*b_dt(iStage)
     PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                       + Pt_temp(1:PDM%ParticleVecLength,5)*b_dt(rk)
+                                       + Pt_temp(1:PDM%ParticleVecLength,5)*b_dt(iStage)
     PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                       + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(rk)
+                                       + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(iStage)
     ! particle tracking
     !CALL ParticleBoundary()
-    CALL ParticleTracking()
+   CALL ParticleTracking()
 #ifdef MPI
       CALL Communicate_PIC()
 !    CALL UpdateNextFreePosition() ! only required for parallel communication

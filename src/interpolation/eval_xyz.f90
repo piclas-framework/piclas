@@ -848,7 +848,7 @@ END DO
 END SUBROUTINE eval_xyz_curved
 
 
-SUBROUTINE eval_xyz_elemcheck(x_in,PartInElem,iElem)
+SUBROUTINE eval_xyz_elemcheck(x_in,xi,iElem)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
@@ -869,11 +869,12 @@ INTEGER,INTENT(IN)  :: iElem                                 ! elem index
 REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT) :: PartInElem
+REAL,INTENT(OUT) :: xi(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER             :: i,j,k
-REAL                :: xi(3)
+!REAL                :: xi(3)
+REAL                :: epsOne
 INTEGER             :: NewTonIter
 REAL                :: Winner_Dist,Dist
 REAL, PARAMETER     :: EPS=1E-8
@@ -881,7 +882,6 @@ INTEGER             :: n_Newton
 REAL                :: F(1:3),Lag(1:3,0:NGeo)
 REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                :: buff,buff2
-REAL                :: epsOne
 !===================================================================================================================================
 
 epsOne=1.0+eps
@@ -993,17 +993,19 @@ DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
   END DO !j=0,NGeo
 END DO !newton
 
-! check if Newton is successful
-IF(ANY(ABS(Xi).GT.epsOne)) THEN
-  WRITE(*,*) ' Particle outside of parameter range!!!'
-  WRITE(*,*) ' xi  ', xi(1)
-  WRITE(*,*) ' eta ', xi(2)
-  WRITE(*,*) ' zeta', xi(3)
-  !read*
-  PartInElem=.FALSE.
-ELSE
-  PartInElem=.TRUE.
-END IF
+! caution: check is performed outside!
+
+!! check if Newton is successful
+!IF(ANY(ABS(Xi).GT.epsOne)) THEN
+!  WRITE(*,*) ' Particle outside of parameter range!!!'
+!  WRITE(*,*) ' xi  ', xi(1)
+!  WRITE(*,*) ' eta ', xi(2)
+!  WRITE(*,*) ' zeta', xi(3)
+!  !read*
+!  PartInElem=.FALSE.
+!ELSE
+!  PartInElem=.TRUE.
+!END IF
 !print*,'eval curved'
 !print*,'xi',xi
 !print*,'iter',nEwtonIter
