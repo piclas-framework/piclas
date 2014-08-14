@@ -162,9 +162,13 @@ CASE(2) !PartBound%ReflectiveBC)
   ! correction for Runge-Kutta (correct position!!)
   !print*,'Pt_temp',Pt_temp(iPart,1:3)
   ! get length of Pt_temp(iPart,1:3) || equals summed velocity change ! only exact for linear movement
+!  print*,'acceleration_old',Pt_temp(iPart,4:6)
+!  read*
   absPt_temp=SQRT(Pt_temp(iPart,1)*Pt_temp(iPart,1)+Pt_temp(iPart,2)*Pt_temp(iPart,2)+Pt_temp(iPart,3)*Pt_temp(iPart,3))
   ! scale PartTrajectory to new Pt_temp
   Pt_temp(iPart,1:3)=absPt_temp*PartTrajectory(1:3)
+  ! deleate force history
+  Pt_temp(iPart,4:6)=0.
   ! what happens with force term || acceleration?
 #endif 
 !-----------------------------------------------------------------------------------------------------------------------------------
