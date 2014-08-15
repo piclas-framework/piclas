@@ -1346,107 +1346,125 @@ SUBROUTINE ParticleThroughSideLastPosCheck_halocells(i,iLocSide,Element,InElemen
 END SUBROUTINE ParticleThroughSideLastPosCheck_halocells
 #endif
 
-SUBROUTINE SingleParticleToExactElement(i)                                                         !
-  USE MOD_Particle_Vars
-  !USE MOD_Particle_Surfaces_Vars, ONLY: nTriangles
-  USE MOD_TimeDisc_Vars,          ONLY:dt
-  USE MOD_Equation_Vars,          ONLY:c_inv
-  USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,SuperSampledNodes,NPartCurved
-  USE MOD_Mesh_Vars,              ONLY:ElemToSide
-  USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
-!--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-! Local variable declaration                                                                       !
-   INTEGER                          :: i, k, Element, CellX,CellY,CellZ,iDist                       !
-   INTEGER                          :: ilocSide,SideID
-   LOGICAL                          :: InElementCheck,ParticleFound                                !
-   !REAL                             :: det(16)    ! caution, size is wrong
-   !REAL                             :: det(6,nTriangles)    ! caution, size is wrong
-   REAL                             :: xi(1:3)
-   REAL,PARAMETER                   :: eps=1e-8 ! same value as in eval_xyz_elem
-   REAL                             :: epsOne,OneMeps
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
+SUBROUTINE SingleParticleToExactElement(iPart)                                                         
+!===================================================================================================================================
+! this subroutine maps each particle to an element
+! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
+! distance is picked as an initial guess
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars
+USE MOD_TimeDisc_Vars,          ONLY:dt
+USE MOD_Equation_Vars,          ONLY:c_inv
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,SuperSampledNodes,NPartCurved
+USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo,xBaryCL_NGeo
+USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE                                                                                   
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)                :: iPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ,iDist                       
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                           :: ilocSide,SideID
+LOGICAL                           :: InElementCheck,ParticleFound                                
+REAL                              :: xi(1:3),vBary(1:3)
+REAL,ALLOCATABLE                  :: Distance(:)
+INTEGER,ALLOCATABLE               :: ListDistance(:)
+REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
+REAL                              :: epsOne,OneMeps
+!===================================================================================================================================
 
-   epsOne=1.0+eps
-   OneMeps=1.0-eps
-   ParticleFound = .FALSE.
-   IF ( (PartState(i,1).LT.GEO%xmin).OR.(PartState(i,1).GT.GEO%xmax).OR. &
-        (PartState(i,2).LT.GEO%ymin).OR.(PartState(i,2).GT.GEO%ymax).OR. &
-        (PartState(i,3).LT.GEO%zmin).OR.(PartState(i,3).GT.GEO%zmax)) THEN
-      PDM%ParticleInside(i) = .FALSE.
-      RETURN
-   END IF
-   !--- get background mesh cell of particle
-!   print*,PartState(i,:)
-   CellX = CEILING((PartState(i,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-   CellX = MIN(GEO%FIBGMimax,CellX)                             
-   CellY = CEILING((PartState(i,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-   CellY = MIN(GEO%FIBGMkmax,CellY) 
-   CellZ = CEILING((PartState(i,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-   CellZ = MIN(GEO%FIBGMlmax,CellZ)
+epsOne=1.0+eps
+OneMeps=1.0-eps
+ParticleFound = .FALSE.
+IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
+     (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
+     (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
+   PDM%ParticleInside(iPart) = .FALSE.
+   RETURN
+END IF
+
+! --- get background mesh cell of particle
+CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
+CellX = MIN(GEO%FIBGMimax,CellX)                             
+CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+CellY = MIN(GEO%FIBGMkmax,CellY) 
+CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+CellZ = MIN(GEO%FIBGMlmax,CellZ)
 !   print*,'cell indices',CellX,CellY,CellZ
 !   print*,'number of cells in bgm',GEO%FIBGM(CellX,CellY,CellZ)%nElem
 !   read*
-   !--- check all cells associated with this beckground mesh cell
-   DO k = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
-      Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(k)
-      !Element=k
-!      print*,'k',k,Element
-!      print*,'Pos',PartState(i,1:3)
-!      read*
-      !CALL ParticleInsideQuad3D(i,Element,InElementCheck,det)
-      CALL Eval_xyz_elemcheck(PartState(i,1:3),xi,Element)
-      !print*,'xi',xi
-      IF(ALL(ABS(Xi).LE.OneMEps)) THEN ! particle inside
-        InElementCheck=.TRUE.
-      ELSE IF(ANY(ABS(Xi).GT.epsOne))THEN ! particle outside
-!        print*,'ici'
-        InElementCheck=.FALSE.
-      ELSE ! particle at face,edge or node, check most possible point
-        ! alter particle position
-        IF(XI(1).GT.0)THEN
-          PartState(i,1)=PartState(i,1)-eps
-        ELSE
-          PartState(i,1)=PartState(i,1)+eps
-        END IF
-        IF(XI(2).GT.0)THEN
-          PartState(i,2)=PartState(i,2)-eps
-        ELSE
-          PartState(i,2)=PartState(i,2)+eps
-        END IF
-        IF(XI(3).GT.0)THEN
-          PartState(i,3)=PartState(i,3)-eps
-        ELSE
-          PartState(i,3)=PartState(i,3)+eps
-        END IF
-        CALL Eval_xyz_elemcheck(PartState(i,1:3),xi,Element)
-        IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
-          InElementCheck=.TRUE.
-        ELSE
-          SWRITE(*,*) ' Particle not located!'
-          SWRITE(*,*) ' PartPos', PartState(i,1:3)
-          InElementCheck=.FALSE.
-        END IF
-      END IF
-!     print*,'iElem,check?',Element,inElementCheck
-!     CALL ParticleInsideQuad3Dold(i,Element,InElementCheck,det)
-!      print*,inElementCheck
-!     read*
-      IF (InElementCheck) THEN !  !     print*,Element
- !       read*
-         PEM%Element(i) = Element
-         ParticleFound = .TRUE.
-         EXIT
-      END IF
-   END DO
-!   print*,PEM%Element(i)
-   IF (.NOT.ParticleFound) THEN
-      PDM%ParticleInside(i) = .FALSE.
-   END IF
- RETURN
+
+!--- check all cells associated with this beckground mesh cell
+nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+ALLOCATE( Distance(1:nBGMElems) &
+        , ListDistance(1:nBGMElems) )
+
+! get closest element barycenter
+Distance=0.
+ListDistance=0.
+DO iBGMElem = 1, nBGMElems
+  ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+  Distance(iBGMElem)=(PartState(iPart,1)-xBaryCL_NGeo(1,ElemID))*(PartState(iPart,1)-xBaryCL_NGeo(1,ElemID)) &
+                    +(PartState(iPart,2)-xBaryCL_NGeo(2,ElemID))*(PartState(iPart,2)-xBaryCL_NGeo(2,ElemID)) &
+                    +(PartState(iPart,3)-xBaryCL_NGeo(3,ElemID))*(PartState(iPart,3)-xBaryCL_NGeo(3,ElemID)) 
+  Distance(iBGMElem)=SQRT(Distance(iBGMElem))
+  ListDistance(iBGMElem)=ElemID
+END DO ! nBGMElems
+
+!print*,'earlier',Distance,ListDistance
+CALL Bubble_Sort(Distance,ListDistance,nBGMElems)
+!print*,'after',Distance,ListDistance
+!read*
+
+! loop through sorted list and start by closest element  
+DO iBGMElem=1,nBGMElems
+  ElemID=ListDistance(iBGMElem)
+  CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+  !print*,'xi',xi
+  IF(ALL(ABS(Xi).LE.OneMEps)) THEN ! particle inside
+    InElementCheck=.TRUE.
+  ELSE IF(ANY(ABS(Xi).GT.epsOne))THEN ! particle outside
+  !  print*,'ici'
+    InElementCheck=.FALSE.
+  ELSE ! particle at face,edge or node, check most possible point
+    ! alter particle position
+    ! 1) compute vector to cell centre
+    vBary=xBaryCL_NGeo(1:3,ElemID)-PartState(iPart,1:3)
+    ! 2) move particle pos along vector
+    PartState(iPart,1:3) = PartState(iPart,1:3)+eps*VBary(1:3)
+    CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+    !print*,xi
+    IF(ALL(ABS(Xi).LT.1.0)) THEN ! particle inside
+      InElementCheck=.TRUE.
+    ELSE
+      SWRITE(*,*) ' Particle not located!'
+      SWRITE(*,*) ' PartPos', PartState(iPart,1:3)
+      InElementCheck=.FALSE.
+    END IF
+  END IF
+  IF (InElementCheck) THEN !  !     print*,Element
+ ! read*
+    PEM%Element(iPart) = ElemID
+    ParticleFound = .TRUE.
+    EXIT
+  END IF
+END DO ! iBGMElem
+
+! particle not found
+IF (.NOT.ParticleFound) THEN
+  PDM%ParticleInside(iPart) = .FALSE.
+END IF
+! deallocate lists
+DEALLOCATE( Distance,ListDistance)
+!read*
 END SUBROUTINE SingleParticleToExactElement
 
 
@@ -2414,5 +2432,46 @@ SUBROUTINE DiffuseReflection3D_halocells(i,iLocSide,Element,TriNum, &
  RETURN
 END SUBROUTINE DiffuseReflection3D_halocells
 #endif /*MPI*/
+
+
+SUBROUTINE Bubble_Sort(a,id,len)
+!===================================================================================================================================
+! bubble sort, taken from rosetta-wiki and modified for own use
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: len
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)                :: a(len)
+INTEGER,INTENT(INOUT)             :: id(len)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                              :: temp
+INTEGER                           :: iloop,jloop, temp2
+LOGICAL                           :: swapped = .TRUE.
+!===================================================================================================================================
+
+DO jloop=len-1,1,-1
+  swapped = .FALSE.
+  DO iloop=1,jloop
+    IF (a(iloop).GT.a(iloop+1))THEN
+      ! switch entries
+      temp=a(iloop)
+      a(iloop) = a(iloop+1)
+      a(iloop+1) = temp
+      ! switch ids
+      temp2=id(iloop)
+      id(iloop) = id(iloop+1)
+      id(iloop+1) = temp2
+      swapped = .TRUE.
+    END IF
+  END DO ! iloop
+  IF (.NOT. swapped) EXIT
+END DO ! jloop
+END SUBROUTINE Bubble_Sort
 
 END MODULE MOD_BoundaryTools

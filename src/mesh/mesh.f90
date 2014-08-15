@@ -45,9 +45,10 @@ USE MOD_Metrics,            ONLY:CalcMetrics
 USE MOD_DebugMesh,          ONLY:writeDebugMesh
 USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
 #ifdef PARTICLES
-USE MOD_Particle_Vars,            ONLY:GEO
+USE MOD_Particle_Vars,          ONLY:GEO
 USE MOD_ParticleInit,           ONLY:InitParticleGeometry,InitElemVolumes
-USE MOD_Particle_Surfaces_Vars, ONLY: nPartCurved, DoPartCurved, SuperSampledNodes,nTriangles,nQuads
+USE MOD_Particle_Surfaces_Vars, ONLY:nPartCurved, DoPartCurved, SuperSampledNodes,nTriangles,nQuads
+USE MOD_Mesh_Vars,              ONLY:xBaryCL_NGeo
 #endif
 #ifdef MPI
 USE MOD_Prepare_Mesh,       ONLY:exchangeFlip
@@ -126,6 +127,10 @@ CALL setLocalSideIDs()
 
 ALLOCATE(XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems))
 XCL_NGeo = 0.
+#ifdef PARTICLES
+ALLOCATE(xBaryCL_NGeo(1:3,1:nElems))
+xBaryCL_NGeo=0.
+#endif /*PARTICLES*/
 
 ! map pointer structure to XCL_NGeo
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillElemGeo..."

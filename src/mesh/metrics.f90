@@ -68,13 +68,14 @@ SUBROUTINE CalcMetrics()!XCL_NGeo)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars, ONLY:NGeo,dXCL_NGeo,XCL_NGeo
-USE MOD_Mesh_Vars, ONLY:Vdm_CLNGeo_GaussN,Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
-USE MOD_Mesh_Vars, ONLY:DCL_NGeo,DCL_N
-USE MOD_Mesh_Vars, ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
-USE MOD_Mesh_Vars, ONLY:nElems
+USE MOD_Mesh_Vars,          ONLY:NGeo,dXCL_NGeo,XCL_NGeo
+USE MOD_Mesh_Vars,          ONLY:Vdm_CLNGeo_GaussN,Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
+USE MOD_Mesh_Vars,          ONLY:DCL_NGeo,DCL_N
+USE MOD_Mesh_Vars,          ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
+USE MOD_Mesh_Vars,          ONLY:nElems
 #ifdef PARTICLES
 USE MOD_Particle_Surfaces,  ONLY:GetSuperSampledSurface
+USE MOD_Mesh_Vars,          ONLY:xBaryCL_NGeo
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_ChangeBasis,        ONLY:changeBasis3D
@@ -296,7 +297,14 @@ DO iElem=1,nElems
   CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_GaussN,JaCL_N(2,:,:,:,:),Metrics_gTilde(:,:,:,:,iElem))
   CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_GaussN,JaCL_N(3,:,:,:,:),Metrics_hTilde(:,:,:,:,iElem))
   CALL CalcSurfMetrics(JaCL_N,XCL_N,iElem)
+#ifdef PARTICLES
+  ! get supersampled surfaces informations
   CALL GetSuperSampledSurface(XCL_NGeo(:,:,:,:,iElem),iElem)
+  ! compute barycenter of element
+  xBaryCL_NGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))/NGeo
+  xBaryCL_NGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))/NGeo
+  xBaryCL_NGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))/NGeo
+#endif /*PARTICLES*/
 END DO !iElem=1,nElems
 END SUBROUTINE CalcMetrics 
 
