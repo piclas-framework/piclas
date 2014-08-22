@@ -74,7 +74,8 @@ USE MOD_Mesh_Vars,          ONLY:DCL_NGeo,DCL_N
 USE MOD_Mesh_Vars,          ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
 USE MOD_Mesh_Vars,          ONLY:nElems
 #ifdef PARTICLES
-USE MOD_Particle_Surfaces,  ONLY:GetSuperSampledSurface
+USE MOD_Particle_Surfaces,  ONLY:GetSuperSampledSurface,GetBezierControlPoints
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints
 USE MOD_Mesh_Vars,          ONLY:xBaryCL_NGeo
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -88,7 +89,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: i,j,k,q,iElem
+INTEGER            :: i,j,k,q,iElem,p
 INTEGER            :: dd,ee,ff
 INTEGER            :: nn,mm,ll
 INTEGER            :: iGeo,jGeo,kGeo,lGeo
@@ -300,12 +301,27 @@ DO iElem=1,nElems
 #ifdef PARTICLES
   ! get supersampled surfaces informations
   CALL GetSuperSampledSurface(XCL_NGeo(:,:,:,:,iElem),iElem)
+  CALL GetBezierControlPoints(XCL_NGeo(:,:,:,:,iElem),iElem)
   ! compute barycenter of element
   xBaryCL_NGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))/NGeo
   xBaryCL_NGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))/NGeo
   xBaryCL_NGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))/NGeo
 #endif /*PARTICLES*/
 END DO !iElem=1,nElems
+! testing bezier basis (control points are coefficients)
+!OPEN(unit=111,FILE='BezierControlPoints.dat',STATUS='UNKNOWN')
+!DO k=1,SIZE(BezierControlPoints(1,0,0,:))
+  !DO q=0,NGeo
+    !DO p=0,NGeo
+      !write(111,'(ES15.7,A,ES15.7,A,ES15.7)') BezierControlPoints(1,p,q,k),'  ',&
+                                              !BezierControlPoints(2,p,q,k),'  ',&
+                                              !BezierControlPoints(3,p,q,k)
+    !END DO
+  !END DO
+!END DO
+!CLOSE(111)
+!print*,"faces written, STOP"
+!STOP
 END SUBROUTINE CalcMetrics 
 
 

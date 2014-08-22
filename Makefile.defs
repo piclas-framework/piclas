@@ -31,6 +31,7 @@ N              = N
 MPI            = 
 POIS           =
 OPTIMIZED      =
+BLAS_LAPACK    = /usr/lib
 
 # Filter rule
 define PARSE
@@ -443,9 +444,24 @@ ifeq ($(findstring BLUEGENE,$(ENVIRONMENT)),BLUEGENE)
 endif
 
 #---------------------------------------------------------------------------------------------------------------------------------#
+# BLAS / LAPACK 
+#---------------------------------------------------------------------------------------------------------------------------------#
+# all these setup options assume a pre-installed library
+ifneq ($(BLAS_LAPACK),)
+  ifeq ($(findstring MKL,$(BLAS_LAPACK)),MKL)
+    BLAS_LAPACK_INC  = -mkl=sequential
+    BLAS_LAPACK_LIB  = 
+    BLAS_LAPACK_LIBS = -mkl=sequential
+  else
+    BLAS_LAPACK_INC  =
+    BLAS_LAPACK_LIB  = -L$(BLAS_LAPACK)
+    BLAS_LAPACK_LIBS = -llapack -lblas
+  endif
+endif
+#---------------------------------------------------------------------------------------------------------------------------------#
 
-EXTERNAL_LIBS = $(HDF5_LIBS) $(SZ_LIBS) $(LIBHPC_LIBS) $(NR_LIBS) $(TECBIN_LIBS)
-LIBDIRS       = $(HDF5_LIB) $(SZ_LIB) $(LIBHPC_LIB) $(NR_LIB) $(TECBIN_LIB)
+EXTERNAL_LIBS = $(HDF5_LIBS) $(SZ_LIBS) $(LIBHPC_LIBS) $(NR_LIBS) $(TECBIN_LIBS) $(BLAS_LAPACK_LIBS)
+LIBDIRS       = $(HDF5_LIB) $(SZ_LIB) $(LIBHPC_LIB) $(NR_LIB) $(TECBIN_LIB) $(BLAS_LAPACK_LIB)
 INCDIRS       = $(HDF5_INC) $(SZ_INC) $(LIBHPC_INC)
  
 BOLTZPLATZ_LIB     = libboltzplatz.a

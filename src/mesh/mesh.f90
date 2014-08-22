@@ -48,6 +48,7 @@ USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
 USE MOD_Particle_Vars,          ONLY:GEO
 USE MOD_ParticleInit,           ONLY:InitParticleGeometry,InitElemVolumes
 USE MOD_Particle_Surfaces_Vars, ONLY:nPartCurved, DoPartCurved, SuperSampledNodes,nTriangles,nQuads
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints,SlabNormals,SlabIntervalls
 USE MOD_Mesh_Vars,              ONLY:xBaryCL_NGeo
 #endif
 #ifdef MPI
@@ -250,6 +251,11 @@ ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
 #ifdef PARTICLES
 ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,1:nSides)              )! &
         !, SuperSampledBiLinearCoeff(1:3,1:4,1:NPartCurved,1:NPartCurved,1:nSides) )
+!print*,NGeo
+!Print*,NSides
+!read*
+ALLOCATE( BezierControlPoints(1:3,0:NGeo,0:NGeo,1:nSides) ) 
+ALLOCATE( SlabNormals(1:3,1:3,1:nSides),SlabIntervalls(1:6,nSides) )
 #endif /*PARTICLES*/
 
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
@@ -312,7 +318,8 @@ USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobN
 USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
 #ifdef PARTICLES
 USE MOD_Particle_Surfaces_Vars,  ONLY: nPartCurved ! has to be read earlierVdm_CLNGeo_EquiNPart
-USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_CLNGeo_EquiNPartCurved
+USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_CLNGeo_EquiNPartCurved,Vdm_Bezier,sVdm_Bezier
+USE MOD_Basis,                   ONLY: BuildBezierVdm
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -338,8 +345,7 @@ ALLOCATE(DCL_NGeo(0:NGeo_in,0:NGeo_in))
 ALLOCATE(Vdm_CLNGeo_GaussN(0:N_in,0:NGeo_in))
 ALLOCATE(Vdm_CLNGeo_CLN(0:N_in,0:NGeo_in))
 ALLOCATE(Vdm_NGeo_CLNGeo(0:NGeo_in,0:NGeo_in))
-! new for curved particle sides
-ALLOCATE(Vdm_CLNGeo_EquiNPartCurved(0:NGeo_in,0:NPartCurved))
+
 ALLOCATE(wBaryCL_NGeo(0:NGeo_In))
 ALLOCATE(XiCL_NGeo(0:NGeo_In))
 ! Chebyshev-Lobatto N
@@ -362,11 +368,16 @@ CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,xGP      ,Vdm_
 CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,XiCL_N   ,Vdm_CLNGeo_CLN   )
 CALL InitializeVandermonde(NGeo_in,NGeo_in,wBary_NGeo  ,Xi_NGeo  ,XiCL_NGeo,Vdm_NGeo_CLNGeo  )
 #ifdef PARTICLES
+! new for curved particle sides
+ALLOCATE(Vdm_CLNGeo_EquiNPartCurved(0:NGeo_in,0:NPartCurved))
+ALLOCATE(Vdm_Bezier(0:NGeo_in,0:NGeo_in),sVdm_Bezier(0:NGeo_in,0:NGeo_in))
 ! initialize vandermonde for super-sampled surfaces (particle tracking with curved elements)
 DO i=0,NPartCurved
   XiEquiPartCurved(i) = 2./REAL(NPartCurved) * REAL(i) - 1. 
 END DO
 CALL InitializeVandermonde(NGeo_in,NPartCurved ,wBaryCL_NGeo,XiCL_NGeo,XiEquiPartCurved   ,Vdm_CLNGeo_EquiNPartCurved   )
+! initialize vandermonde for bezier basis surface representation (particle tracking with curved elements)
+CALL BuildBezierVdm(NGeo_in,Xi_NGeo,Vdm_Bezier,sVdm_Bezier)
 #endif
 
 END SUBROUTINE InitMeshBasis

@@ -12,22 +12,26 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: BiLinearCoeff              ! contains the bi-linear coefficients for each side
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SuperSampledNodes          !  
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:)   :: SuperSampledBiLinearCoeff  !
-INTEGER                                 :: NPartCurved                !
+REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: BiLinearCoeff                ! contains the bi-linear coefficients for each side
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SuperSampledNodes            !  
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: BezierControlPoints          ! Bezier basis control points of degree equal to NGeo
+REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: SlabNormals                  ! normal vectors of bounding slab box
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: SlabIntervalls               ! intervalls beta1, beta2, beta3
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:)   :: SuperSampledBiLinearCoeff    !
+INTEGER                                 :: NPartCurved                  !
 INTEGER                                 :: nTriangles,nQuads
-LOGICAL                                 :: DoPartCurved=.FALSE.       !
+LOGICAL                                 :: DoPartCurved=.FALSE.         !
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_CLNGeo_EquiNPartCurved
-LOGICAL,ALLOCATABLE,DIMENSION(:)        :: SideIsPlanar               ! logical error if side is planar, instead of bi-linear
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideNormVec                ! normal Vector of planar sides
-REAL,ALLOCATABLE,DIMENSION(:)           :: SideDistance               ! distance of planar base from origin 
-INTEGER,ALLOCATABLE,DIMENSION(:)        :: gElemBCSides               ! number of BC-Sides of element
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_Bezier,sVdm_Bezier       ! 
+LOGICAL,ALLOCATABLE,DIMENSION(:)        :: SideIsPlanar                 ! logical error if side is planar, instead of bi-linear
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideNormVec                  ! normal Vector of planar sides
+REAL,ALLOCATABLE,DIMENSION(:)           :: SideDistance                 ! distance of planar base from origin 
+INTEGER,ALLOCATABLE,DIMENSION(:)        :: gElemBCSides                 ! number of BC-Sides of element
 INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: neighborElemID,neighborlocSideID
-REAL                                    :: epsilonbilinear            ! bi-linear tolerance for the bi-linear - planar decision
-REAL                                    :: epsilonOne                 ! epsilone for setting the boundary tolerance
+REAL                                    :: epsilonbilinear              ! bi-linear tolerance for the bi-linear - planar decision
+REAL                                    :: epsilonOne                   ! epsilone for setting the boundary tolerance
 REAL                                    :: OneMepsilon
-REAL                                    :: epsilontol                 ! epsilone for setting the tolerance
+REAL                                    :: epsilontol                   ! epsilone for setting the tolerance
 LOGICAL                                 :: ParticleSurfaceInitIsDone=.FALSE.
 !===================================================================================================================================
 

@@ -20,6 +20,10 @@ INTERFACE BuildLegendreVdm
    MODULE PROCEDURE BuildLegendreVdm
 END INTERFACE
 
+INTERFACE BuildBezierVdm
+   MODULE PROCEDURE BuildBezierVdm
+END INTERFACE
+
 INTERFACE InitializeVandermonde
    MODULE PROCEDURE InitializeVandermonde
 END INTERFACE
@@ -53,6 +57,7 @@ INTERFACE LagrangeInterpolationPolys
 END INTERFACE
 
 PUBLIC::BuildLegendreVdm
+PUBLIC::BuildBezierVdm
 PUBLIC::InitializeVandermonde
 PUBLIC::LegGaussLobNodesAndWeights
 PUBLIC::LegendreGaussNodesAndWeights
@@ -68,6 +73,83 @@ PUBLIC::LagrangeInterpolationPolys
 
 CONTAINS
 
+SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
+!===================================================================================================================================
+! build a 1D Vandermonde matrix using the Bezier basis functions of degree N_In
+! todo: replace numerical recipes function gaussj() for calculation the inverse of V 
+! by a BLAS routine for better matrix conditioning
+!===================================================================================================================================
+! MODULES
+!USE nr,                        ONLY : gaussj
+USE MOD_Globals, ONLY: abort
+USE MOD_PreProc
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: N_In
+REAL,INTENT(IN)    :: xi_In(0:N_In)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)   :: Vdm_Bezier(0:N_In,0:N_In),sVdm_Bezier(0:N_In,0:N_In)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER            :: i,j,errorflag
+REAL               :: dummy 
+REAL               :: dummy_vec(0:N_In)
+REAL               :: IPIV(0:N_In)
+!REAL               :: Vector(3)
+!REAL               :: Matrix(0:N_In,0:N_In)
+!===================================================================================================================================
+!Vandermonde on xi_In
+DO i=0,N_In
+  DO j=0,N_In
+    CALL BernsteinPolynomial(N_In,j,xi_in(i),Vdm_Bezier(i,j)) 
+  END DO !i
+END DO !j
+
+!Inverse of the Vandermonde
+dummy_vec=0.
+!print*,dummy_vec
+!print*,SIZE(sVdm_Bezier),SIZE(dummy_vec)
+!print*,"CALL gaussj(sVdm_Bezier,dummy_vec)"
+!CALL gaussj(sVdm_Bezier,dummy_vec)
+!CALL gaussj(Matrix,Vector)
+
+!DO i=0,N_In
+  !print*,Vdm_Bezier(i,:)
+!END DO
+! Invert A: Caution!!! From now on A=A^(-1) 
+sVdm_Bezier=Vdm_Bezier
+CALL DGETRF(N_In+1,N_In+1,sVdm_Bezier,N_In+1,IPIV,errorflag)
+IF (errorflag .NE. 0) CALL Abort(__STAMP__, &
+               'LU factorisation of matrix crashed',999,999.)
+CALL DGETRI(N_In+1,sVdm_Bezier,N_In+1,IPIV,dummy_vec,N_In+1,errorflag)
+IF (errorflag .NE. 0) CALL Abort(__STAMP__, &
+               'Solver crashed',999,999.)
+!print*,"Matrix inverted"
+!DO i=0,N_In
+  !print*,sVdm_Bezier(i,:)
+!END DO
+!Matrix=MATMUL(sVdm_Bezier,Vdm_Bezier)
+!print*,"A^-1*A"
+!DO i=0,N_In
+  !print*,Matrix(i,:)
+!END DO
+!print*,"(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier))"
+!print*,ABS(MATMUL(sVdm_Bezier,Vdm_Bezier))
+!print*,"SUM: (ABS(MATMUL(sVdm_Bezier,Vdm_Bezier))"
+!print*,SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))
+!print*,"(N_In+1)"
+!print*,(N_In+1)
+!check (Vdm_Bezier)^(-1)*Vdm_Bezier := I 
+dummy=SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))-REAL(N_In+1)
+!print*,dummy,PP_RealTolerance
+!read*
+IF(ABS(dummy).GT.1.E-13) CALL abort(__STAMP__,&
+'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)
+END SUBROUTINE BuildBezierVdm
 
 SUBROUTINE buildLegendreVdm(N_In,xi_In,Vdm_Leg,sVdm_Leg)
 !===================================================================================================================================
@@ -93,9 +175,9 @@ REAL               :: dummy
 REAL               :: wBary_Loc(0:N_In)
 REAL               :: xGauss(0:N_In),wGauss(0:N_In)
 !===================================================================================================================================
-CALL BarycentricWeights(N_In,xi_in,wBary_loc)
+CALL BarycentricWeights(N_In,xi_in,wBary_loc) 
 ! Compute first the inverse (by projection)
-CALL LegendreGaussNodesAndWeights(N_In,xGauss,wGauss)
+CALL LegendreGaussNodesAndWeights(N_In,xGauss,wGauss) ! create Gauss points xGP and weights
 !Vandermonde on xGauss
 DO i=0,N_In
   DO j=0,N_In
@@ -198,6 +280,26 @@ END SUBROUTINE LegendrePolynomialAndDerivative
 
 
 
+SUBROUTINE BernsteinPolynomial(N_in,j,x,B)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!input parameters
+INTEGER,INTENT(IN)  :: N_in,j ! polynomial degree, (N+1) points and j-th Bernstein polynomial is selected
+REAL,INTENT(IN)     :: x      ! coordinate value in the interval [-1,1]
+!-----------------------------------------------------------------------------------------------------------------------------------
+!output parameters
+REAL,INTENT(OUT)    :: B      ! B_N(xi)
+!-----------------------------------------------------------------------------------------------------------------------------------
+!local variables
+!INTEGER             :: iLegendre
+!REAL                :: L_Nm1,L_Nm2 ! L_{N_in-2},L_{N_in-1}
+!REAL                :: Lder_Nm1,Lder_Nm2 ! Lder_{N_in-2},Lder_{N_in-1}
+!===================================================================================================================================
+B = (1./(2**N_in))*REAL(CHOOSE(N_in,j))*((x+1.)**j)*((1.-x)**(N_in-j))
+END SUBROUTINE BernsteinPolynomial
 
 SUBROUTINE ChebyshevGaussNodesAndWeights(N_in,xGP,wGP)
 !===================================================================================================================================
@@ -538,6 +640,55 @@ END IF ! x,y zero
 END FUNCTION ALMOSTEQUAL
 
 
+FUNCTION CHOOSE(N_in,k)
+!===================================================================================================================================
+! The binomial coefficient ( n  k ) is often read as "n choose k".
+!===================================================================================================================================
+USE MOD_PreProc
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!input parameters
+INTEGER,INTENT(IN) :: N_in,k   
+!-----------------------------------------------------------------------------------------------------------------------------------
+!output parameters
+INTEGER            :: CHOOSE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!local variables
+!===================================================================================================================================
+IF((k.EQ.0).OR.(N_in.EQ.k))THEN
+  CHOOSE = 1
+ELSE
+  CHOOSE = FACTORIAL(N_in) / (FACTORIAL(k) * FACTORIAL(N_in-k))
+END IF
+END FUNCTION CHOOSE
+
+FUNCTION FACTORIAL(N_in)
+!===================================================================================================================================
+! In mathematics, the factorial of a non-negative integer n, denoted by n!, is the product of all positive integers less than or
+! equal to n.
+!===================================================================================================================================
+USE MOD_Globals
+USE MOD_PreProc
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!input parameters
+INTEGER,INTENT(IN) :: N_in 
+!-----------------------------------------------------------------------------------------------------------------------------------
+!output parameters
+INTEGER            :: FACTORIAL
+!-----------------------------------------------------------------------------------------------------------------------------------
+!local variables
+INTEGER            :: I
+!===================================================================================================================================
+
+IF(N_in.LT.0) CALL abort(__STAMP__,&
+                'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
+IF(N_in.EQ.0)THEN
+  FACTORIAL = 0
+ELSE
+  FACTORIAL = PRODUCT((/(I, I = 1, N_in)/))
+END IF
+END FUNCTION FACTORIAL
 
 SUBROUTINE LagrangeInterpolationPolys(x,N_in,xGP,wBary,L)
 !============================================================================================================================
