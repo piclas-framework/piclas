@@ -81,8 +81,9 @@ SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
 !===================================================================================================================================
 ! MODULES
 !USE nr,                        ONLY : gaussj
-USE MOD_Globals, ONLY: abort
+USE MOD_Globals,                ONLY: abort
 USE MOD_PreProc
+USE MOD_Particle_Surfaces_Vars, ONLY: NPartCurved
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -102,6 +103,11 @@ REAL               :: IPIV(0:N_In)
 !REAL               :: Vector(3)
 !REAL               :: Matrix(0:N_In,0:N_In)
 !===================================================================================================================================
+! set NPartCurved to N_In (NGeo)
+IF(NPartCurved.NE.N_In)THEN
+  print*,"NPartCurved is not equal NGeo: Setting NPartCurved=NGeo=",N_In
+  NPartCurved = N_In
+END IF
 !Vandermonde on xi_In
 DO i=0,N_In
   DO j=0,N_In

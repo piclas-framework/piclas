@@ -13,12 +13,298 @@ INTERFACE ParticleTracking
   MODULE PROCEDURE ParticleTracking
 END INTERFACE
 
-PUBLIC::ParticleTracking
+INTERFACE ParticleTrackingCurved
+  MODULE PROCEDURE ParticleTrackingCurved
+END INTERFACE
+
+PUBLIC::ParticleTracking,ParticleTrackingCurved
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE ParticleTrackingCurved()
+!===================================================================================================================================
+! read required parameters
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,                     ONLY:abort
+USE MOD_Mesh_Vars,                   ONLY:ElemToSide,nBCSides
+USE MOD_Particle_Vars,               ONLY:PEM,PDM
+USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
+USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideIsPlanar,epsilonOne,neighborElemID,neighborlocSideID,epsilonbilinear
+USE MOD_Particle_Surfaces_Vars,      ONLY:nPartCurved,BezierControlPoints,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,      ONLY:SuperSampledNodes,nQuads
+USE MOD_TimeDisc_Vars,               ONLY:iter
+!USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
+USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionSuperSampled
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPart,ElemID
+INTEGER                       :: ilocSide,SideID,flip
+INTEGER                       :: iInterSect,nInter
+INTEGER                       :: p,q,QuadID,iQuad,minQuadID,maxQuadID
+LOGICAL                       :: PartisDone,dolocSide(1:6)
+REAL                          :: alpha,xi,eta
+REAL                          :: alpha_loc(1:nQuads),xi_loc(1:nQuads),eta_loc(1:nQuads)
+REAL                          :: xNodes(1:3,4),Displacement,xdisplace(1:3)
+REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
+!===================================================================================================================================
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    PartisDone=.FALSE.
+    ElemID = PEM%lastElement(iPart)
+    PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+    lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                             +PartTrajectory(2)*PartTrajectory(2) &
+                             +PartTrajectory(3)*PartTrajectory(3) )
+    PartTrajectory=PartTrajectory/lengthPartTrajectory
+    lengthPartTrajectory=lengthPartTrajectory+epsilontol
+    ! track particle vector until the final particle position is achieved
+    dolocSide=.TRUE.
+    DO WHILE (.NOT.PartisDone)
+      DO ilocSide=1,6
+        alpha_loc=-1.0
+        IF(.NOT.dolocSide(ilocSide)) CYCLE
+        SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+        flip  =ElemToSide(E2S_FLIP,ilocSide,ElemID)
+        !-----------------------------------------------------------------------------------------------------------------
+        !vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+        QuadID=0
+        ! supersampling of each side
+        DO q=0,NPartCurved-1
+          DO p=0,NPartCurved-1
+            QuadID=QuadID+1
+            xNodes(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)
+            xNodes(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)
+            xNodes(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)
+            xNodes(:,4)=SuperSampledNodes(1:3,p  ,q+1,SideID)
+            ! compute displacement || decision between planar or bi-linear plane 
+            xdisplace(1:3) = xNodes(:,1)-xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
+            Displacement = xdisplace(1)*xdisplace(1)+xdisplace(2)*xdisplace(2)+xdisplace(3)*xdisplace(3)
+            IF(Displacement.LT.epsilonbilinear)THEN
+              CALL ComputePlanarIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory &
+                                                         ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),flip,iPart)
+            ELSE
+
+              CALL ComputeBiLinearIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory &
+                                                          ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart,SideID)
+            END IF
+          END DO ! p
+        END DO ! q
+        !^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        !-----------------------------------------------------------------------------------------------------------------
+        ! find intersection point with surface: use NPartCurved for BezierControlPoints
+        IF(BoundingBoxIsEmpty(SideID))THEN!it is flat, but not necessarily a quadrilateral!
+          ! correct this (only 4 nodes are considered at the moment)
+          IF(SideIsPlanar(SideID))THEN!it is really a planar & quadrilaterl side
+            xNodes(:,1)=BezierControlPoints(1:3,0          ,0          ,SideID)
+            xNodes(:,2)=BezierControlPoints(1:3,NPartCurved,0          ,SideID)
+            xNodes(:,3)=BezierControlPoints(1:3,NPartCurved,NPartCurved,SideID)
+            xNodes(:,4)=BezierControlPoints(1:3,0          ,NPartCurved,SideID)
+            CALL ComputeBiLinearIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+          ELSE
+            CALL ComputeBezierIntersection(BezierControlPoints(1:3,0:NPartCurved,0:NPartCurved,SideID),PartTrajectory,&
+                                                               lengthPartTrajectory,alpha,xi,eta,iPart,iPart,SideID)
+          END IF
+        ELSE ! normal Bezier Surface with finite volume bounding box
+          CALL ComputeBezierIntersection(BezierControlPoints(1:3,0:NPartCurved,0:NPartCurved,SideID),PartTrajectory,&
+                                                             lengthPartTrajectory,alpha,xi,eta,iPart,iPart,SideID)
+        END IF
+
+
+
+
+
+
+        ! get correct intersection
+        IF(SideID.LE.nBCSides)THEN
+        !-----------------------------------------------------------------------------------------------------------------
+        !vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+          alpha=HUGE(0.0)
+          minQuadID=99999
+          ! get smallest alpha
+          DO iQuad=1,nQuads
+            IF(alpha_loc(iQuad).GT.epsilontol)THEN
+              IF(alpha.GT.alpha_loc(iQuad))THEN
+                alpha=alpha_loc(iQuad)
+                minQuadID=iQuad
+              END IF ! alpha.GT.alpha_loc
+            END IF ! alpha_loc.GT.espilontol
+          END DO ! iQuad
+        !^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        !-----------------------------------------------------------------------------------------------------------------
+          ! check if interesction is possible and take first intersection
+          IF(alpha.GT.epsilontol.AND.alpha.LT.lengthPartTrajectory)THEN
+            CALL GetBoundaryInteractionSuperSampled(PartTrajectory,lengthPartTrajectory,alpha,xi_loc(minQuadID),eta_loc(minQuadID),&
+                                                                                            iPart,minQuadID,SideID,ElemID)
+             EXIT
+          ELSE ! no intersection
+            alpha=-1.0
+          END IF
+        ELSE ! no BC Side
+          ! search max alpha
+          alpha=-1.0
+          maxQuadID=-1
+          nInter=0
+          ! get largest possible intersection
+          DO iQuad=1,nQuads
+            !print*,'alpha_loc',alpha_loc(iQuad)
+            IF(alpha_loc(iQuad).GT.alpha)THEN
+              IF(alpha_loc(iQuad)*alpha.LT.0) nInter=nInter+1
+              IF(ABS(alpha_loc(iQuad)/alpha).GT.epsilonOne) nInter=nInter+1
+              alpha=alpha_loc(iQuad)
+              maxQuadID=iQuad
+            END IF
+          END DO ! iQuad
+          !print*,'nInter',nInter
+          IF(MOD(nInter,2).EQ.0) alpha=-1.0
+          IF(alpha.GT.epsilontol)THEN
+             xi=xi_loc(maxQuadID) 
+             eta=eta_loc(maxQuadID)
+             ! check if the found alpha statisfy the selection condition
+             iInterSect=INT((ABS(xi)-2*epsilontol)/1.0)+INT((ABS(eta)-2*epsilontol)/1.0)
+             IF(iInterSect.GT.0)THEN
+               CALL abort(__STAMP__,&
+                   ' Particle went through edge or node. Not implemented yet.',999,999.)
+             ELSE
+               dolocSide=.TRUE.
+               dolocSide(neighborlocSideID(ilocSide,ElemID))=.FALSE.
+               ElemID=neighborElemID(ilocSide,ElemID)
+               EXIT
+             END IF ! possible intersect
+           ELSE
+             alpha=-1.0
+           END IF ! alpha.GT.epsilontol
+        END IF ! SideID.LT.nBCSides
+      END DO ! ilocSide
+      ! no intersection found
+      IF(alpha.EQ.-1.0)THEN
+        PEM%Element(iPart) = ElemID
+        PartisDone=.TRUE.
+      END IF
+    END DO ! PartisDone=.FALSE.
+  END IF ! Part inside
+END DO ! iPart
+
+END SUBROUTINE ParticleTrackingCurved
+
+SUBROUTINE ComputeBezierIntersection(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,flip,iPart,SideID)
+!===================================================================================================================================
+! Compute the intersection with a Bezier surface
+! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,                 ONLY:Cross,abort
+USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne
+!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+REAL,INTENT(IN)                   :: lengthPartTrajectory
+REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
+INTEGER,INTENT(IN)                :: iPart,SideID!,ElemID
+INTEGER,INTENT(IN)                :: flip
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                  :: alpha,xi,eta
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!REAL,DIMENSION(1:3)               :: P0,P1,P2,nVec
+!REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
+!REAL                              :: a1,a2,b1,b2,c1,c2
+!REAL                              :: coeffA,coeffB,nlength
+!===================================================================================================================================
+
+! set alpha to minus 1, asume no intersection
+alpha=-1.0
+xi=-2.
+eta=-2.
+IF((.NOT.InsideBoundingBox(PartTrajectory,iPart,SideID)).AND.& ! the particle is not inside the bounding box, then check box
+   (.NOT.BoundingBoxIntersection(PartTrajectory,iPart,SideID))) RETURN ! particle does not penetrate the bounding box -> miss
+
+!IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
+IF((alpha.GT.lengthPartTrajectory).OR.(alpha.LT.-epsilontol))THEN
+  alpha=-1.0
+  RETURN
+END IF
+IF(ABS(xi).GT.epsilonOne)THEN
+  alpha=-1.0
+  RETURN
+END IF
+IF(ABS(eta).GT.epsilonOne)THEN
+  alpha=-1.0
+  RETURN
+END IF
+END SUBROUTINE ComputeBezierIntersection
+
+FUNCTION InsideBoundingBox(PartTrajectory,iPart,SideID)
+!================================================================================================================================
+! compute the required vector length to intersection
+!================================================================================================================================
+USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol,BiLinearCoeff
+USE MOD_Particle_Vars,            ONLY:PartState,LastPartPos
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,DIMENSION(3),INTENT(IN)         :: PartTrajectory
+!REAL,INTENT(IN)                      :: xi,eta
+INTEGER,INTENT(IN)                   :: iPart,SideID
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL                              :: InsideBoundingBox
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!REAL                                 :: t
+!================================================================================================================================
+
+IF(1.EQ.2)THEN
+  InsideBoundingBox=.TRUE.
+ELSE
+  InsideBoundingBox=.FALSE.
+END IF
+END FUNCTION InsideBoundingBox
+
+FUNCTION BoundingBoxIntersection(PartTrajectory,iPart,SideID)
+!================================================================================================================================
+! compute the required vector length to intersection
+!================================================================================================================================
+USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol,BiLinearCoeff
+USE MOD_Particle_Vars,            ONLY:PartState,LastPartPos
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,DIMENSION(3),INTENT(IN)         :: PartTrajectory
+!REAL,INTENT(IN)                      :: xi,eta
+INTEGER,INTENT(IN)                   :: iPart,SideID
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL                              :: BoundingBoxIntersection
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!REAL                                 :: t
+!================================================================================================================================
+
+IF(1.EQ.2)THEN
+  BoundingBoxIntersection=.TRUE.
+ELSE
+  BoundingBoxIntersection=.FALSE.
+END IF
+END FUNCTION BoundingBoxIntersection
 
 SUBROUTINE ParticleTracking()
 !===================================================================================================================================
@@ -409,6 +695,7 @@ END SUBROUTINE ParticleTracking
 !! here, eta,xi,alpha are computed
 !
 !END SUBROUTINE ComputePlanarIntersection
+
 
 !SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,iPart)
 SUBROUTINE ComputePlanarIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,flip,iPart)

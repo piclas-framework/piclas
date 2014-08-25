@@ -48,7 +48,7 @@ USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
 USE MOD_Particle_Vars,          ONLY:GEO
 USE MOD_ParticleInit,           ONLY:InitParticleGeometry,InitElemVolumes
 USE MOD_Particle_Surfaces_Vars, ONLY:nPartCurved, DoPartCurved, SuperSampledNodes,nTriangles,nQuads
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints,SlabNormals,SlabIntervalls
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints,SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
 USE MOD_Mesh_Vars,              ONLY:xBaryCL_NGeo
 #endif
 #ifdef MPI
@@ -255,7 +255,7 @@ ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,1:nSides)           
 !Print*,NSides
 !read*
 ALLOCATE( BezierControlPoints(1:3,0:NGeo,0:NGeo,1:nSides) ) 
-ALLOCATE( SlabNormals(1:3,1:3,1:nSides),SlabIntervalls(1:6,nSides) )
+ALLOCATE( SlabNormals(1:3,1:3,1:nSides),SlabIntervalls(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
 #endif /*PARTICLES*/
 
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
@@ -317,7 +317,7 @@ USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm
 USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
 #ifdef PARTICLES
-USE MOD_Particle_Surfaces_Vars,  ONLY: nPartCurved ! has to be read earlierVdm_CLNGeo_EquiNPart
+USE MOD_Particle_Surfaces_Vars,  ONLY: NPartCurved ! has to be read earlierVdm_CLNGeo_EquiNPart
 USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_CLNGeo_EquiNPartCurved,Vdm_Bezier,sVdm_Bezier
 USE MOD_Basis,                   ONLY: BuildBezierVdm
 #endif
