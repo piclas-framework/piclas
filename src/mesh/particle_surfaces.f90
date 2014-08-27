@@ -102,7 +102,7 @@ DO iElem=1,PP_nElems
     END IF
   END DO ! ilocSide
 END DO ! Elem
-!IF(.NOT.DoPartCurved)THEN
+IF(.NOT.DoPartCurved)THEN
   ALLOCATE( SideIsPlanar(nSides)            &
           , SideDistance(nSides)            &
           , BiLinearCoeff(1:3,1:4,1:nSides) )
@@ -113,8 +113,7 @@ END DO ! Elem
 !  ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,nSides)               &
 !          , SuperSampledBiLinearCoeff(1:3,1:4,1:NPartCurved,1:NPartCurved,1:nSides) )
   !kCALL GetSuperSampledPlane()
-!END IF
-read*
+END IF
 ParticleSurfaceInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -244,7 +243,6 @@ END DO ! iElem
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar    surfaces: ', nPlanar
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear surfaces: ', nBilinear
-read*
 ALLOCATE(SideNormVec(1:3,nSides))
 SideNormVec=0.
 ! compute normal vector of planar sides
@@ -1128,13 +1126,13 @@ ELSE
   BoundingBoxIsEmpty(SideID)=.FALSE.
 END IF
 print*,"SideIsPlanar(",SideID,")",SideIsPlanar
-!print*,"BezierControlPoints(:,0,0,SideID)",BezierControlPoints(:,0,0,SideID)
-!print*,"SlabNormals(1,:,SideID)",SlabNormals(1,:,SideID),"beta1 ",SlabIntervalls(1, SideID),SlabIntervalls(2,SideID),&
-!"delta",ABS(SlabIntervalls(2, SideID))-ABS(SlabIntervalls(1, SideID))
-!print*,"SlabNormals(2,:,SideID)",SlabNormals(2,:,SideID),"beta2 ",SlabIntervalls(3, SideID),SlabIntervalls(4, SideID),&
-!"delta",ABS(SlabIntervalls(4, SideID))-ABS(SlabIntervalls(3, SideID))
-!print*,"SlabNormals(3,:,SideID)",SlabNormals(3,:,SideID),"beta3 ",SlabIntervalls(5, SideID),SlabIntervalls(6, SideID),&
-!"delta",ABS(SlabIntervalls(6, SideID))-ABS(SlabIntervalls(5, SideID))
+print*,"BezierControlPoints(:,0,0,SideID)",BezierControlPoints(:,0,0,SideID)
+print*,"SlabNormals(1,:,SideID)",SlabNormals(1,:,SideID),"beta1 ",SlabIntervalls(1, SideID),SlabIntervalls(2,SideID),&
+"delta",ABS(SlabIntervalls(2, SideID))-ABS(SlabIntervalls(1, SideID))
+print*,"SlabNormals(2,:,SideID)",SlabNormals(2,:,SideID),"beta2 ",SlabIntervalls(3, SideID),SlabIntervalls(4, SideID),&
+"delta",ABS(SlabIntervalls(4, SideID))-ABS(SlabIntervalls(3, SideID))
+print*,"SlabNormals(3,:,SideID)",SlabNormals(3,:,SideID),"beta3 ",SlabIntervalls(5, SideID),SlabIntervalls(6, SideID),&
+"delta",ABS(SlabIntervalls(6, SideID))-ABS(SlabIntervalls(5, SideID))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 3.) Is Side critical? (particle path parallel to the larger surface, therefore numerous intersections are possilbe)
 !-----------------------------------------------------------------------------------------------------------------------------------

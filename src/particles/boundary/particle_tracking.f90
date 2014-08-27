@@ -112,12 +112,10 @@ DO iPart=1,PDM%ParticleVecLength
             xNodes(:,4)=BezierControlPoints(1:3,0          ,NPartCurved,SideID)
             CALL ComputeBiLinearIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
           ELSE
-            CALL ComputeBezierIntersection(BezierControlPoints(1:3,0:NPartCurved,0:NPartCurved,SideID),PartTrajectory,&
-                                                               lengthPartTrajectory,alpha,xi,eta,iPart,iPart,SideID)
+            CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,iPart,SideID)
           END IF
         ELSE ! normal Bezier Surface with finite volume bounding box
-          CALL ComputeBezierIntersection(BezierControlPoints(1:3,0:NPartCurved,0:NPartCurved,SideID),PartTrajectory,&
-                                                             lengthPartTrajectory,alpha,xi,eta,iPart,iPart,SideID)
+          CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,iPart,SideID)
         END IF
 
 
@@ -197,15 +195,16 @@ END DO ! iPart
 
 END SUBROUTINE ParticleTrackingCurved
 
-SUBROUTINE ComputeBezierIntersection(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,flip,iPart,SideID)
+SUBROUTINE ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,flip,iPart,SideID)
 !===================================================================================================================================
 ! Compute the intersection with a Bezier surface
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,                 ONLY:Cross,abort
-USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints,NPartCurved
 !USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -214,7 +213,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
-REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
+!REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
 INTEGER,INTENT(IN)                :: iPart,SideID!,ElemID
 INTEGER,INTENT(IN)                :: flip
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -232,8 +231,24 @@ REAL,INTENT(OUT)                  :: alpha,xi,eta
 alpha=-1.0
 xi=-2.
 eta=-2.
-IF((.NOT.InsideBoundingBox(PartTrajectory,iPart,SideID)).AND.& ! the particle is not inside the bounding box, then check box
-   (.NOT.BoundingBoxIntersection(PartTrajectory,iPart,SideID))) RETURN ! particle does not penetrate the bounding box -> miss
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
+!-----------------------------------------------------------------------------------------------------------------------------------
+IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
+  IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
+    IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
+                                                                                              ! bounding box
+  END IF
+END IF
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 2.) Bezier intersection: transformation 3D->2D
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 3.) Bezier intersection: solution Newton's method or Bezier clipping
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+
 
 !IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
 IF((alpha.GT.lengthPartTrajectory).OR.(alpha.LT.-epsilontol))THEN
@@ -250,45 +265,58 @@ IF(ABS(eta).GT.epsilonOne)THEN
 END IF
 END SUBROUTINE ComputeBezierIntersection
 
-FUNCTION InsideBoundingBox(PartTrajectory,iPart,SideID)
+FUNCTION InsideBoundingBox(ParticlePosition,SideID)
 !================================================================================================================================
-! compute the required vector length to intersection
+! check is the particles is inside the bounding box, return TRUE/FALSE
 !================================================================================================================================
-USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol,BiLinearCoeff
-USE MOD_Particle_Vars,            ONLY:PartState,LastPartPos
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,BiLinearCoeff
+USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
+USE MOD_Particle_Surfaces_Vars,  ONLY:SlabNormals,SlabIntervalls,BezierControlPoints
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,DIMENSION(3),INTENT(IN)         :: PartTrajectory
-!REAL,INTENT(IN)                      :: xi,eta
-INTEGER,INTENT(IN)                   :: iPart,SideID
+REAL,DIMENSION(3),INTENT(IN)         :: ParticlePosition
+INTEGER,INTENT(IN)                   :: SideID
 !--------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL                              :: InsideBoundingBox
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!REAL                                 :: t
+REAL                                 :: x,y,z,P(3)
 !================================================================================================================================
-
-IF(1.EQ.2)THEN
-  InsideBoundingBox=.TRUE.
-ELSE
+P=ParticlePosition-BezierControlPoints(1:3,0,0,SideID)
+x=DOT_PRODUCT(P,SlabNormals(1,:,SideID))
+y=DOT_PRODUCT(P,SlabNormals(2,:,SideID))
+z=DOT_PRODUCT(P,SlabNormals(3,:,SideID))
+IF((x.LT.SlabIntervalls(1,SideID)-epsilontol).AND.(x.GT.SlabIntervalls(2,SideID)+epsilontol))THEN
   InsideBoundingBox=.FALSE.
+  RETURN
 END IF
+IF((y.LT.SlabIntervalls(3,SideID)-epsilontol).AND.(y.GT.SlabIntervalls(4,SideID)+epsilontol))THEN
+  InsideBoundingBox=.FALSE.
+  RETURN
+END IF
+IF((z.LT.SlabIntervalls(5,SideID)-epsilontol).AND.(z.GT.SlabIntervalls(6,SideID)+epsilontol))THEN
+  InsideBoundingBox=.FALSE.
+  RETURN
+END IF
+InsideBoundingBox=.TRUE.
 END FUNCTION InsideBoundingBox
 
-FUNCTION BoundingBoxIntersection(PartTrajectory,iPart,SideID)
+FUNCTION BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)
 !================================================================================================================================
-! compute the required vector length to intersection
+! check if the particle trajectory penetrates the bounding box, return TRUE/FALSE
 !================================================================================================================================
 USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol,BiLinearCoeff
 USE MOD_Particle_Vars,            ONLY:PartState,LastPartPos
+USE MOD_Particle_Surfaces_Vars,   ONLY:SlabNormals,SlabIntervalls,BezierControlPoints
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,DIMENSION(3),INTENT(IN)         :: PartTrajectory
+REAL,INTENT(IN)                      :: lengthPartTrajectory
 !REAL,INTENT(IN)                      :: xi,eta
 INTEGER,INTENT(IN)                   :: iPart,SideID
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -296,11 +324,39 @@ INTEGER,INTENT(IN)                   :: iPart,SideID
 LOGICAL                              :: BoundingBoxIntersection
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!REAL                                 :: t
+REAL                                 :: dnk,alpha(2,3)
+INTEGER                              :: i
 !================================================================================================================================
-
-IF(1.EQ.2)THEN
-  BoundingBoxIntersection=.TRUE.
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 1.) Calculate the projection of the PartTrajectory onto the SlabNormals and sort accoring to the sign of T*n
+!-----------------------------------------------------------------------------------------------------------------------------------
+DO i=1,3!x,y,z direction
+  dnk=DOT_PRODUCT(PartTrajectory,SlabNormals(i,:,SideID))
+  IF(ABS(dnk).LT.epsilontol)THEN
+    dnk=epsilontol ! ÜBERPRÜFEN OB SIGN sinn macht
+  END IF
+  IF(dnk.LT.0.)THEN
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints(:,0,0,SideID)-LastPartPos(iPart,:),SlabNormals(i,:,SideID))&
+                                                                              +SlabIntervalls(2*i  ,SideID) )/dnk!t_max
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints(:,0,0,SideID)-LastPartPos(iPart,:),SlabNormals(i,:,SideID))&
+                                                                              +SlabIntervalls(2*i-1,SideID) )/dnk!t_min
+  ELSE
+    alpha(1,i)=( DOT_PRODUCT(BezierControlPoints(:,0,0,SideID)-LastPartPos(iPart,:),SlabNormals(i,:,SideID))&
+                                                                              +SlabIntervalls(2*i-1,SideID) )/dnk!t_min
+    alpha(2,i)=( DOT_PRODUCT(BezierControlPoints(:,0,0,SideID)-LastPartPos(iPart,:),SlabNormals(i,:,SideID))&
+                                                                              +SlabIntervalls(2*i  ,SideID) )/dnk!t_max
+  END IF
+END DO!i
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 2.) Get smallest subspace interval
+!-----------------------------------------------------------------------------------------------------------------------------------
+IF(MAXVAL(alpha(1,:)).LE.MINVAL(alpha(2,:)))THEN!smallest interval exists with atleast one point
+  IF((MAXVAL(alpha(1,:)).LT.lengthPartTrajectory+epsilontol).AND.(MAXVAL(alpha(1,:))+epsilontol.GT.0.))THEN
+  !the first intersection is less than lengthPartTrajectory and greater 0
+    BoundingBoxIntersection=.TRUE.
+  ELSE
+    BoundingBoxIntersection=.FALSE.
+  END IF
 ELSE
   BoundingBoxIntersection=.FALSE.
 END IF
