@@ -102,7 +102,7 @@ DO iElem=1,PP_nElems
     END IF
   END DO ! ilocSide
 END DO ! Elem
-IF(.NOT.DoPartCurved)THEN
+!IF(.NOT.DoPartCurved)THEN !CHANGETAG
   ALLOCATE( SideIsPlanar(nSides)            &
           , SideDistance(nSides)            &
           , BiLinearCoeff(1:3,1:4,1:nSides) )
@@ -113,7 +113,7 @@ IF(.NOT.DoPartCurved)THEN
 !  ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,nSides)               &
 !          , SuperSampledBiLinearCoeff(1:3,1:4,1:NPartCurved,1:NPartCurved,1:nSides) )
   !kCALL GetSuperSampledPlane()
-END IF
+!END IF
 ParticleSurfaceInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')

@@ -225,6 +225,9 @@ REAL,INTENT(OUT)                  :: alpha,xi,eta
 !REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
 !REAL                              :: a1,a2,b1,b2,c1,c2
 !REAL                              :: coeffA,coeffB,nlength
+REAL,DIMENSION(2,0:NPartCurved,0:NPartCurved) :: BezierControlPoints2D
+REAL,DIMENSION(3)                             :: n1,n2
+INTEGER                                       :: p,q
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
@@ -241,9 +244,28 @@ IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle
   END IF
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
-! 2.) Bezier intersection: transformation 3D->2D
+! 2.) Bezier intersection: transformation of bezier patch 3D->2D
 !-----------------------------------------------------------------------------------------------------------------------------------
+IF(ABS(PartTrajectory(3)).LT.epsilontol)THEN
+  n1=(/ -PartTrajectory(2)-PartTrajectory(3) , PartTrajectory(1) ,PartTrajectory(1) /)
+ELSE
+  n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /)
+END IF
+n2(1)=PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2)
+n2(2)=PartTrajectory(3)*n1(1)-PartTrajectory(1)*n1(3)
+n2(3)=PartTrajectory(1)*n1(2)-PartTrajectory(2)*n1(1)
 
+print*,'test n1*PartTrajectory',DOT_PRODUCT(PartTrajectory,n1)
+print*,'test n2*PartTrajectory',DOT_PRODUCT(PartTrajectory,n2)
+print*,'test n1*n2',DOT_PRODUCT(n1,n2)
+read*!CHANGETAG
+
+DO q=0,NPartCurved
+  DO p=0,NPartCurved
+    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints(:,p,q,SideID)-LastPartPos(iPart,1:3),n1)
+    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints(:,p,q,SideID)-LastPartPos(iPart,1:3),n2)
+  END DO
+END DO
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 3.) Bezier intersection: solution Newton's method or Bezier clipping
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -106,7 +106,7 @@ REAL               :: IPIV(0:N_In)
 ! set NPartCurved to N_In (NGeo)
 IF(NPartCurved.NE.N_In)THEN
   print*,"NPartCurved is not equal NGeo: Setting NPartCurved=NGeo=",N_In
-  NPartCurved = N_In
+  !NPartCurved = N_In !CHANGETAG creates problems with supersampled intersection calculation
 END IF
 !Vandermonde on xi_In
 DO i=0,N_In
