@@ -28,7 +28,7 @@ for i=1:nSides
 end
 %%
 
-Tolerance=1E-3
+Tolerance=1E-2
 %pvec=[0.4 0.2 0.001];v=[0 1 0];Face=9;
 %pvec=[0.6 0.2 0.001];v=[1 -1 1];Face=9; %miss
 %pvec=[0.6 0.05 0.2];v=[-1 1 -1];Face=9;pvec=pvec+v*0.1 %double
@@ -271,12 +271,17 @@ for K=1:5
         
         umean=0.5*sarray(K,1,1)+0.5*sarray(K,1,2);
         vmean=0.5*sarray(K,2,1)+0.5*sarray(K,2,2);
-        disp([' umean: ',num2str(umean),' vmean: ',num2str(vmean)])
-        for i=K-1:-1:1
+        umean=0.;
+        vmean=0.;
+%         disp([' umean: ',num2str(umean),' vmean: ',num2str(vmean)])
+        for i=K:-1:1
           [umean,vmean]=LinIntPol2D(sarray(i,1,1),sarray(i,1,2),...
                                     sarray(i,2,1),sarray(i,2,2),...
                                     umean,vmean);
         end
+        [umean,vmean]=LinIntPol2D(-1.,1.,...
+                                  -1.,1.,...
+                                  umean,vmean);
         disp([' umean: ',num2str(umean),' vmean: ',num2str(vmean)])
          smean=zeros(2,1);
          for L=1:2
@@ -289,11 +294,14 @@ for K=1:5
            smin=sarray(niter,L,1);
            smax=sarray(niter,L,2);
            smean(L)=0.5*smin+0.5*smax;
+           %smean(L)=0.; % center of deepest patch
            for i=niter-1:-1:1
-            % smin=LinIntPol1D(sarray(i,L,1),sarray(i,L,2),smin);
-             %smax=LinIntPol1D(sarray(i,L,1),sarray(i,L,2),smax);
+              %disp(['i ',num2str(i)]);
+              smin=LinIntPol1D(sarray(i,L,1),sarray(i,L,2),smin);
+              smax=LinIntPol1D(sarray(i,L,1),sarray(i,L,2),smax);
               smean(L)=LinIntPol1D(sarray(i,L,1),sarray(i,L,2),smean(L));
            end
+           %smean(L)=LinIntPol1D(-1,1,smean(L));
            %smean(L)=0.5*smin+0.5*smax;
            %          smean(J)=0.5*smin+0.5*smax;
            %smean(J)=0.5*(smin+smax);
@@ -323,9 +331,10 @@ for K=1:5
         %plotBezierPoint2D(N,BezierControlPoints2Dorg,[0;0])
         plotBezierPoint2D(N,BezierControlPoints2Dorg,[smean(1);smean(2)])
         plotBezierPoint2D(N,BezierControlPoints2Dorg,[umean;vmean])
+        %plotBezierPoint2D(N,BezierControlPoints2Dorg,[vmean;umean])
         %plotBezierPoint3D(N,BezierControlPoints(:,:,:,Face),[0.;0.3])
-        plotBezierPoint3D(N,BezierControlPoints(:,:,:,Face),[smin;smax])
-        %plotBezierPoint3D(N,BezierControlPoints(:,:,:,Face),[smean(2);smean(1)])
+        plotBezierPoint3D(N,BezierControlPoints(:,:,:,Face),[smean(1);smean(2)])
+        plotBezierPoint3D(N,BezierControlPoints(:,:,:,Face),[umean;vmean])
         return
       end
     end
