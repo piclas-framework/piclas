@@ -1,15 +1,13 @@
 function plot_cases
 clc; clear all; close all;
-global Bezier2d;global n_Ls;global n_Ls_inv;global projectedFace;global Face;global BezierSurface
+global Bezier2d;global n_Ls;global n_Ls_inv;global projectedFace;global Face;global BezierSurface;global GeometricRepresentation;
 NGeo=2;
-
 load faces.dat
 %load /home/stephen/PMLalgorithm_cases/Testing_Bezier_domain010_nElems002_order04_PML00_zeta0E+00_polynom_CFL0.5_N10_Parts500_DoPML_False/BezierControlPoints.dat
 load BezierControlPoints.dat
 %factorial(5)
 faces=BezierControlPoints;
 dimension = size(faces);
-
 N=dimension(2)-1;
 N=NGeo;
 nSides=dimension(1)/(N+1)^2;
@@ -19,16 +17,14 @@ for i=1:nSides
   index1=(i-1)*(N+1)^2;
   for q=1:N+1
     for p=1:N+1
-      %disp([(q-1)*(N+1)+p+index1])
-      %faces((q-1)*(N+1)+p,:);
       P(p,q,:,i)=faces((q-1)*(N+1)+p+index1,:);
-      %disp([P(:,p,q)])
     end
   end
 end
 %%
-
-Tolerance=1E-2
+GeometricRepresentation=5;
+MaxIter=7;
+Tolerance=1E-5;
 %pvec=[0.4 0.2 0.001];v=[0 1 0];Face=9;
 %pvec=[0.6 0.2 0.001];v=[1 -1 1];Face=9; %miss
 %pvec=[0.6 0.05 0.2];v=[-1 1 -1];Face=9;pvec=pvec+v*0.1 %double
@@ -36,7 +32,8 @@ Tolerance=1E-2
 pvec=[0.4 0.2 0.001];v=[0.7 0.9 1];Face=9;
 %pvec=[0.4 0.2 0.001];v=[0 0 1];Face=10;
 %pvec=[0.3 0.3 0.001];v=[1 1 0];Face=9;
-%pvec=[0.3 0.3 0.001];v=[0 0 1];Face=10;
+%pvec=[sqrt(9/2)/10 sqrt(9/2)/10 0.001];v=[0 0 1];Face=10;  % center of
+%upper face
 %pvec=[0.3 0.3 0.001];v=[0.2 -1 0.2];Face=8;
 %%
 
@@ -49,12 +46,12 @@ end
 count=0;
 for i=1:nSides
   disp([num2str(i)])
-  %if i==10
-  if i==7||i==9||i==3||i==2
+  if i==Face
+  %if i==7||i==9||i==3||i==2
     index1=(i-1)*(N+1)^2+1;
     index2=i*(N+1)^2;
     %plot3(faces(index1:index2,1),faces(index1:index2,2),faces(index1:index2,3),'ro','MarkerSize',10,'LineWidth',5)
-    g_h(N,P(:,:,:,i),i);
+    plotBezierSurface3D(N,P(:,:,:,i),i);
     count=count+1;
     index=i;
     %return
@@ -73,7 +70,6 @@ if count==111
 end
 
 %% particle
-
 SideID=9;dimensions=size(P);
 BezierControlPoints=P;
 BezierControlPoints(:,:,:,SideID);
@@ -109,22 +105,15 @@ for SideID=1:nSides
   end
 end
 %%
-monitor='small';
-set(0,'Units','pixels')
-scnsize = get(0,'ScreenSize');
-position = get(gcf,'Position');
-outerpos = get(gcf,'OuterPosition');
-borders = outerpos - position;
-edge = -borders(1)/2;
-if strcmp(monitor,'large'),pos1=[outerpos(1)*5.5,scnsize(4),scnsize(3)/3-edge,scnsize(4)/1.25];
+monitor='2';set(0,'Units','pixels');scnsize = get(0,'ScreenSize');position = get(gcf,'Position');outerpos = get(gcf,'OuterPosition');borders = outerpos - position;edge = -borders(1)/2;
+if strcmp(monitor,'1'),pos1=[outerpos(1)*5.5,scnsize(4),scnsize(3)/3-edge,scnsize(4)/1.25];
   pos2=[outerpos(1)*6.7,scnsize(4),scnsize(3)/3-edge,scnsize(4)/1.25];
   pos3=[outerpos(1)*5.5,-outerpos(1)/1.5,scnsize(3)/3-edge,scnsize(4)/2];
   pos4=[outerpos(1)*6.7,-outerpos(1)/1.5,scnsize(3)/3-edge,scnsize(4)/2];end;
-
-if strcmp(monitor,'small'),pos1=[1400,550,scnsize(3)/6,scnsize(4)/2.2];
-  pos2=[1950,550,scnsize(3)/6,scnsize(4)/2.2];
-  pos3=[1400,50,scnsize(3)/7,scnsize(4)/2.2];
-  pos4=[1800,50,scnsize(3)/7,scnsize(4)/2.2];end;
+if strcmp(monitor,'2'),pos1=[1400,550,scnsize(3)/9,scnsize(4)/2.2];
+  pos2=[1770,550,scnsize(3)/6,scnsize(4)/2.2];
+  pos3=[1400,50,scnsize(3)/9,scnsize(4)/2.2];
+  pos4=[1770,50,scnsize(3)/9,scnsize(4)/2.2];end;
 set(gcf,'OuterPosition',pos1)
 axis equal
 addpath(['/home/stephen/MATLAB_Programme/export_fig/']);
@@ -140,9 +129,9 @@ for SideID=1:nSides
   end
 end
 projectedFace = figure;  hold on;set(gcf, 'color', 'white');set(gcf,'OuterPosition',pos2)
-%g_h(N,P(:,:,:,i));
+%plotBezierSurface3D(N,P(:,:,:,i));
 BezierControlPoints2Dorg=BezierControlPoints2D(:,:,:,Face);
-g_h2D(N,BezierControlPoints2D(:,:,:,Face));
+plotProjectedBezierSurface2D(N,BezierControlPoints2D(:,:,:,Face));
 %%
 BezierControlPoints1D=zeros(dimensions(1),dimensions(2),dimensions(4));
 xi=linspace(-1,1,NGeo+1);eta=linspace(-1,1,NGeo+1);
@@ -151,14 +140,16 @@ minmax=zeros(2,NGeo+1)-2;
 
 boundaries=[-1 1; -1 1];
 DoClipping=ones(2,1);
-sarray=zeros(25,2,2);
+sarray=zeros(MaxIter,2,2);
 sarray(:,:,1)=-1.0;
 sarray(:,:,2)=1.0;
 iiter=0;
 jiter=0;
-for K=1:5
+for K=1:MaxIter
   for J=1:2
     if true(DoClipping(J))
+      %% get Line L_s (vector n_Ls and n_Ls_inv)
+      calcLsLines(BezierControlPoints2D(:,:,:,Face)) % get n_Ls and n_Ls_inv vectors, attention: n_Ls_inv is used for Ls and vice versa
       switch J
         case 1
           iiter=iiter+1;
@@ -188,7 +179,7 @@ for K=1:5
           minmax(1,I)=min(BezierControlPoints1D(:,I,Face)); % Lower
         end
       end
-        
+      
       smin= 1.5;
       smax=-1.5;
       %check streckenzug upper/lower
@@ -231,116 +222,120 @@ for K=1:5
       %       sarray(K,J,2)=smax;
       sarray(K,J,1)=smin;
       sarray(K,J,2)=smax;
-      
-      
       % disp([' k= ',num2str(K),' J= ',num2str(J),' smin= ',num2str(smin),' smax= ',num2str(smax)])
       plot([smin smax],[0 0],'r+')
-      
-      %%
       boundaries(J,:)=[smin smax];
       %% CLIP
-      %       if J==2
-      %         smax=0.5
-      %         smin=-0.5
-      %       end
-      x_sol=mean(mean(BezierControlPoints2D(:,:,1,Face)));
-      y_sol=mean(mean(BezierControlPoints2D(:,:,2,Face)));
       switch J
         case 1
           direction='u';
         case 2
           direction='v';
       end
-      disp(['K=' num2str(K) ' J=' num2str(J) ' Clip ' direction '  smin=' sprintf('%1.2e',smin) ', smax=' sprintf('%1.2e',smax) ' smax-smin=' sprintf('%1.2e',smax-smin) ' (' sprintf('%3.2f',(smax-smin)/2*100) '%) delta=' sprintf('%1.2e',sqrt(x_sol^2+y_sol^2))])
       %if (smax-smin)/2*100>40,disp('gebiet muss geteilt werden!');end
       BezierControlPoints2D(:,:,:,Face)=BezierClipping(J,smin,smax,N,BezierControlPoints2D(:,:,:,Face),2); % J={u,v}
-      calcLsLines(BezierControlPoints2D(:,:,:,Face))
+      %calcLsLines(BezierControlPoints2D(:,:,:,Face)) %moved to top
+      x_sol=mean(mean(BezierControlPoints2D(:,:,1,Face)));
+      y_sol=mean(mean(BezierControlPoints2D(:,:,2,Face)));
+      disp(['K=' num2str(K) ' J=' num2str(J) ' Clip ' direction '  smin=' sprintf('%1.2e',smin) ', smax=' sprintf('%1.2e',smax) ' smax-smin=' sprintf('%1.2e',smax-smin) ' (' sprintf('%3.2f',(smax-smin)/2*100) '%) delta=' sprintf('%1.2e',sqrt(x_sol^2+y_sol^2))])
+%       disp(['sarray=' num2str(sarray(K,J,1)),'   ',num2str(sarray(K,J,2))])
       %% check epsilon
-      
       if abs(smax-smin)<1e-4
         DoClipping(J)=0;
       end
       %str=input('Press ENTER to continue or type "y" to exit: ','s');
       %if strcmp(str,'y'),error('You have terminated the program!');end;
-      
       if sqrt(x_sol^2+y_sol^2)<Tolerance
         disp(['sqrt(x_sol^2+y_sol^2)<' num2str(Tolerance) ': origin found!'])
         plot(x_sol,y_sol, 'g+','Parent',get(projectedFace, 'children'),'MarkerSize',20,'LineWidth',2)
         plot(x_sol,y_sol, 'go','Parent',get(projectedFace, 'children'),'MarkerSize',20,'LineWidth',2)
         % compute the correct smin and smax value
-        
         umean=0.5*sarray(K,1,1)+0.5*sarray(K,1,2);
         vmean=0.5*sarray(K,2,1)+0.5*sarray(K,2,2);
-        umean=0.;
-        vmean=0.;
-%         disp([' umean: ',num2str(umean),' vmean: ',num2str(vmean)])
-        for i=K:-1:1
+        %umean=0.;
+        %vmean=0.;
+%         %         disp([' umean: ',num2str(umean),' vmean: ',num2str(vmean)])
+        for i=K-1:-1:1
           [umean,vmean]=LinIntPol2D(sarray(i,1,1),sarray(i,1,2),...
-                                    sarray(i,2,1),sarray(i,2,2),...
-                                    umean,vmean);
+            sarray(i,2,1),sarray(i,2,2),...
+            umean,vmean);
         end
-        [umean,vmean]=LinIntPol2D(-1.,1.,...
-                                  -1.,1.,...
-                                  umean,vmean);
-        disp([' umean: ',num2str(umean),' vmean: ',num2str(vmean)])
-         smean=zeros(2,1);
-         for L=1:2
-           switch L
-             case 1
-               niter=iiter;
-             case 2
-               niter=jiter;
-           end
-           smin=sarray(niter,L,1);
-           smax=sarray(niter,L,2);
-           smean(L)=0.5*smin+0.5*smax;
-           %smean(L)=0.; % center of deepest patch
-           for i=niter-1:-1:1
-              %disp(['i ',num2str(i)]);
-              smin=LinIntPol1D(sarray(i,L,1),sarray(i,L,2),smin);
-              smax=LinIntPol1D(sarray(i,L,1),sarray(i,L,2),smax);
-              smean(L)=LinIntPol1D(sarray(i,L,1),sarray(i,L,2),smean(L));
-           end
-           %smean(L)=LinIntPol1D(-1,1,smean(L));
-           %smean(L)=0.5*smin+0.5*smax;
-           %          smean(J)=0.5*smin+0.5*smax;
-           %smean(J)=0.5*(smin+smax);
-           disp(['L: ',num2str(L),' smin: ',num2str(smin),' smax: ',num2str(smax),' mean: ',num2str(smean(L))])
-         end
-            
-        %           smean(J)=0.5*smin+0.5*smax;
-        %         for J=1:2
-        %           switch J
-        %             case 1
-        %               niter=iiter;
-        %             case 2
-        %               niter=jiter;
-        %           end
-        %           smin=sarray(niter,J,1);
-        %           smax=sarray(niter,J,2);
-        %           smean(J)=0.5*smin+0.5*smax;
-        %           for i=niter-1:-1:1
-        % %             smin=LinIntPol1D(sarray(i,J,1),sarray(i,J,2),smin);
-        % %             smax=LinIntPol1D(sarray(i,J,1),sarray(i,J,2),smax);
-        %              smean(J)=LinIntPol1D(sarray(i,J,1),sarray(i,J,2),smean(J));
-        %           end
-        % %          smean(J)=0.5*smin+0.5*smax;
-        %           %smean(J)=0.5*(smin+smax);
-        %           disp(['J: ',num2str(J),' smin: ',num2str(smin),' smax: ',num2str(smax),' mean: ',num2str(smean(J))])
-        %         end
+%         [umean,vmean]=LinIntPol2D(-1.,1.,...
+%           -1.,1.,...
+%           umean,vmean);
+         disp([' umean: ',num2str(umean),' vmean: ',num2str(vmean)])
+%         % assuming that the center of patch is intersection with ray
+%         %smean=zeros(2,1);
+%         %smean(1)=mean(sarray(iiter,1,:));
+%         s=1;
+%         for K=iiter:-1:1
+%           s=1+sarray(K,1,1)+(sarray(K,1,2)-sarray(K,1,1))*0.5*(s);
+%         end
+%         smean(1)=-1+s;
+%         s=1;
+%         for K=jiter:-1:1
+%           s=1+sarray(K,2,1)+(sarray(K,2,2)-sarray(K,2,1))*0.5*(s);
+%         end
+%         smean(2)=-1+s;
+%
+% %  smean(L)=LinIntPol1D(sarray(i,L,1),sarray(i,L,2),smean(L));
+        s=mean(sarray(iiter,1,:));
+%         disp(['                               s=' num2str(s)  ])
+        for K=iiter-1:-1:1
+         s=sarray(K,1,1)+(sarray(K,1,2)-sarray(K,1,1))*0.5*(s+1);
+%           disp(['smin=' num2str(sarray(K,1,1)) '   smax=' num2str(sarray(K,1,2)) '   s=' num2str(s)  ])
+        end
+        smean(1)=s;
+        s=mean(sarray(jiter,2,:));
+        for K=jiter-1:-1:1
+          s=sarray(K,2,1)+(sarray(K,2,2)-sarray(K,2,1))*0.5*(s+1);
+        end
+        smean(2)=s;
+        disp(['smean ', num2str(smean(1)),' ',num2str(smean(2))])
+        %smean(1:2)=0
+        %%% old and wrong point
+%         smean=zeros(2,1);
+%         for L=1:2
+%           switch L
+%             case 1
+%               niter=iiter;
+%               iRow1=1;
+%               iRow2=2;
+%             case 2
+%               niter=jiter;
+%               iRow1=2;
+%               iRow2=1;
+%           end
+%           smin=sarray(niter,L,1);
+%           smax=sarray(niter,L,2);
+%           smean(L)=0.5*smin+0.5*smax;
+%           %smean(L)=0.; % center of deepest patch
+%           for i=niter-1:-1:1
+%             %disp(['i ',num2str(i)]);
+%             smin=LinIntPol1D(sarray(i,L,iRow1),sarray(i,L,iRow2),smin);
+%             smax=LinIntPol1D(sarray(i,L,iRow2),sarray(i,L,iRow1),smax);
+%             smean(L)=LinIntPol1D(sarray(i,L,1),sarray(i,L,2),smean(L));
+%           end
+%           %smean(L)=LinIntPol1D(-1,1,smean(L));
+%           %smean(L)=0.5*smin+0.5*smax;
+%           %          smean(J)=0.5*smin+0.5*smax;
+%           %smean(J)=0.5*(smin+smax);
+%           disp(['L: ',num2str(L),' smin: ',num2str(smin),' smax: ',num2str(smax),' mean: ',num2str(smean(L))])
+%         end       
+  
         %plotBezierPoint2D(N,BezierControlPoints2Dorg,[0;0])
-        plotBezierPoint2D(N,BezierControlPoints2Dorg,[smean(1);smean(2)])
-        plotBezierPoint2D(N,BezierControlPoints2Dorg,[umean;vmean])
+        plotBezierPoint2D(N,BezierControlPoints2Dorg,[smean(1);smean(2)],'.')
+        plotBezierPoint2D(N,BezierControlPoints2Dorg,[umean;vmean],'x')
         %plotBezierPoint2D(N,BezierControlPoints2Dorg,[vmean;umean])
         %plotBezierPoint3D(N,BezierControlPoints(:,:,:,Face),[0.;0.3])
         plotBezierPoint3D(N,BezierControlPoints(:,:,:,Face),[smean(1);smean(2)])
         plotBezierPoint3D(N,BezierControlPoints(:,:,:,Face),[umean;vmean])
         return
-      end
-    end
-  end
+      end % sqrt(x_sol^2+y_sol^2)<Tolerance
+    end % true(DoClipping(J))
+  end % J=1:2
   disp(' ')
-end
+end % K=1:MaxIter
 plot(x_sol,y_sol, 'r+','Parent',get(projectedFace, 'children'),'MarkerSize',20,'LineWidth',2)
 plot(x_sol,y_sol, 'ro','Parent',get(projectedFace, 'children'),'MarkerSize',20,'LineWidth',2)
 plot_2D_clipped_Bezier(N,BezierControlPoints2D(:,:,:,Face),[-1 1; -1 1])
@@ -368,10 +363,9 @@ end
 
 
 
-function g_h=g_h(N,P,SideID) % 3D
-global ParticleBezierSurface;global Face
-N_plot=5;
-xi=linspace(-1,1,N_plot);eta=linspace(-1,1,N_plot);
+function plotBezierSurface3D(N,P,SideID) % 3D plot using Bezier control points and bernstein polynomials
+global ParticleBezierSurface;global Face;global GeometricRepresentation;
+xi=linspace(-1,1,GeometricRepresentation);eta=linspace(-1,1,GeometricRepresentation);
 Bezier=zeros(length(xi),length(eta),3);
 h1=surf(P(:,:,1),P(:,:,2),P(:,:,3));set(h1,'FaceAlpha',0)
 for I=1:length(xi)
@@ -398,7 +392,7 @@ end
 
 end
 
-function g_h2D=g_h2D(N,P) % 2D
+function plotProjectedBezierSurface2D(N,P) % 2D plot using Bezier control points and bernstein polynomials
 global Bezier2d
 global n_Ls
 global n_Ls_inv
@@ -422,9 +416,7 @@ for I=1:length(xi)
 end
 plot(0,0,'ko','MarkerSize',10,'LineWidth',5)
 plot(Bezier2d(:,:,1),Bezier2d(:,:,2),'b-',Bezier2d(:,:,1)',Bezier2d(:,:,2)','b-');
-%% get Line L_s (vector n_Ls and n_Ls_inv)
 axis equal
-calcLsLines(P)
 end
 
 
@@ -439,10 +431,11 @@ for q=1:N+1
     Bezier3d=Bezier3d+B(N,p-1,boundaries(1))*B(N,q-1,boundaries(2))*P(p,q,:);
   end
 end
-plot3(Bezier3d(1),Bezier3d(2),Bezier3d(3),'ko-','MarkerSize',10,'Parent',get(BezierSurface, 'children'));
+plot3(Bezier3d(1),Bezier3d(2),Bezier3d(3),'ko','LineWidth',5,'MarkerSize',10,'Parent',get(BezierSurface, 'children'));
+plot3(Bezier3d(1),Bezier3d(2),Bezier3d(3),'y.','LineWidth',5,'MarkerSize',10,'Parent',get(BezierSurface, 'children'));
 end
 
-function plotBezierPoint2D(N,P,boundaries)
+function plotBezierPoint2D(N,P,boundaries,symbol)
 global projectedFace
 Bezier2d=0;
 %boundaries(1)
@@ -452,7 +445,8 @@ for q=1:N+1
     Bezier2d=Bezier2d+B(N,p-1,boundaries(1))*B(N,q-1,boundaries(2))*P(p,q,:);
   end
 end
-plot(Bezier2d(1),Bezier2d(2),'bo-','MarkerSize',20,'Parent',get(projectedFace, 'children'));
+plot(Bezier2d(1),Bezier2d(2),'bo','MarkerSize',20,'Parent',get(projectedFace, 'children'));
+plot(Bezier2d(1),Bezier2d(2),['b' symbol],'MarkerSize',20,'Parent',get(projectedFace, 'children'));
 end
 
 
@@ -474,7 +468,6 @@ for I=1:length(xi)
   for J=1:length(eta)
     for q=1:N+1
       for p=1:N+1
-        %plot(P(p,q,1),P(p,q,2),'go','MarkerSize',10,'LineWidth',5)
         Bezier2d(I,J,:)=Bezier2d(I,J,:)+B(N,p-1,xi(I))*B(N,q-1,eta(J))*P(p,q,:);
       end
     end
@@ -560,6 +553,7 @@ global projectedFace;
 switch direction
   case 1 % u direction
     color='k+';
+    color='k.';
     Bezier2d=zeros(N+1,N+1,2);
     Bezier2d_temp=BezierControlPoints2D;
     %plot(BezierControlPoints2D(:,:,1),BezierControlPoints2D(:,:,2),'ro',BezierControlPoints2D(:,:,1)',BezierControlPoints2D(:,:,2)','ro','Parent',get(projectedFace, 'children'));
@@ -586,15 +580,28 @@ switch direction
       for K=1:N+1
         for L=1:K
           %plot(P(p,q,1),P(p,q,2),'go','MarkerSize',10,'LineWidth',5)
-          Bezier2d(K,J,:)=Bezier2d(K,J,:)+Bezier2d_temp(N+2-L,J,:)*B(K-1,L-1,s);
+          Bezier2d(N+2-K,J,:)=Bezier2d(N+2-K,J,:)+Bezier2d_temp(N+2-L,J,:)*B(K-1,L-1,s);
+          %Bezier2d(K,J,:)=Bezier2d(K,J,:)+Bezier2d_temp(L,J,:)*B(K-1,L-1,s);
         end
       end
     end
+    % reorder array
+%     Bezier2d_temp=Bezier2d;
+%     for J=1:N+1
+%       for K=1:N+1
+%         %plot(P(p,q,1),P(p,q,2),'go','MarkerSize',10,'LineWidth',5)
+%         Bezier2d(K,J,:)=Bezier2d_temp(N+2-K,J,:);
+%       end
+%     end
     plot(Bezier2d(:,:,1),Bezier2d(:,:,2),color,Bezier2d(:,:,1)',Bezier2d(:,:,2)',color,'Parent',get(projectedFace, 'children'));
+    for J=1:N+1
+       text(Bezier2d(:,J,1),Bezier2d(:,J,2),'u','FontSize',22,'HorizontalAlignment','center','VerticalAlignment','bottom','Parent',get(projectedFace, 'children'))
+     end
     BezierClipping=Bezier2d;
     %BezierClipping=BezierControlPoints2D
   case 2 % v direction
     color='rs';
+    color='r.';
     %         BezierControlPoints2D(:,:,1)=transpose(BezierControlPoints2D(:,:,1));
     %         BezierControlPoints2D(:,:,2)=transpose(BezierControlPoints2D(:,:,2));
     Bezier2d=zeros(N+1,N+1,2);
@@ -620,14 +627,24 @@ switch direction
     s=(smin+1)/(smax+1); %[-1, +1]
     s=2*(1-s)-1;
     for I=1:N+1
-      for K=1:N+1
+      for K=N+1:-1:1
         for L=1:K
           %plot(P(p,q,1),P(p,q,2),'go','MarkerSize',10,'LineWidth',5)
-          Bezier2d(I,K,:)=Bezier2d(I,K,:)+Bezier2d_temp(I,N+2-L,:)*B(K-1,L-1,s);
+          Bezier2d(I,N+2-K,:)=Bezier2d(I,N+2-K,:)+Bezier2d_temp(I,N+2-L,:)*B(K-1,L-1,s);
         end
       end
     end
+%     Bezier2d_temp=Bezier2d;
+%     for I=1:N+1
+%       for K=1:N+1
+%         %plot(P(p,q,1),P(p,q,2),'go','MarkerSize',10,'LineWidth',5)
+%         Bezier2d(I,K,:)=Bezier2d_temp(I,N+2-K,:);
+%       end
+%     end
     plot(Bezier2d(:,:,1),Bezier2d(:,:,2),color,Bezier2d(:,:,1)',Bezier2d(:,:,2)',color,'Parent',get(projectedFace, 'children'));
+    for J=1:N+1
+      text(Bezier2d(:,J,1),Bezier2d(:,J,2),'v','HorizontalAlignment','center','VerticalAlignment','bottom','Parent',get(projectedFace, 'children'))
+    end
     BezierClipping=Bezier2d;
     
 end
