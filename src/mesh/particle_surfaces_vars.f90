@@ -23,6 +23,8 @@ INTEGER                                 :: nTriangles,nQuads
 LOGICAL                                 :: DoPartCurved=.FALSE.         !
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_CLNGeo_EquiNPartCurved
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_Bezier,sVdm_Bezier       ! 
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: arrayNchooseK                ! array for binomial coefficients
+INTEGER                                 :: ClipTolerance,ClipMaxIter    !
 LOGICAL,ALLOCATABLE,DIMENSION(:)        :: SideIsPlanar                 ! logical error if side is planar, instead of bi-linear
 LOGICAL,ALLOCATABLE,DIMENSION(:)        :: BoundingBoxIsEmpty
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideNormVec                  ! normal Vector of planar sides

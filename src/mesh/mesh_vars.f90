@@ -14,6 +14,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER           :: NGeo                        ! polynomial degree of geometric transformation
 REAL,ALLOCATABLE  :: Xi_NGeo(:)                  ! 1D equidistant point positions for curved elements (during readin)
+REAL              :: DeltaXi_NGeo
 REAL,ALLOCATABLE  :: Vdm_CLN_GaussN(:,:)
 REAL,ALLOCATABLE  :: Vdm_CLNGeo_CLN(:,:)
 REAL,ALLOCATABLE  :: Vdm_CLNGeo_GaussN(:,:)  

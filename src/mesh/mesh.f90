@@ -313,7 +313,7 @@ SUBROUTINE InitMeshBasis(NGeo_in,N_in,xGP)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm_CLNGeo_GaussN,Vdm_NGeo_CLNGeo,DCL_NGeo,DCL_N&
-                                       ,wBaryCL_NGeo,XiCL_NGeo
+                                       ,wBaryCL_NGeo,XiCL_NGeo,DeltaXi_NGeo
 USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
 #ifdef PARTICLES
@@ -357,6 +357,7 @@ CALL InitializeVandermonde(N_in,N_in,wBaryCL_N,XiCL_N,xGP,Vdm_CLN_GaussN)
 DO i=0,NGeo_in
   Xi_NGeo(i) = 2./REAL(NGeo_in) * REAL(i) - 1. 
 END DO
+DeltaXi_NGeo=2./NGeo_in
 CALL BarycentricWeights(NGeo_in,Xi_NGeo,wBary_NGeo)
 
 ! Chebyshev-Lobatto NGeo

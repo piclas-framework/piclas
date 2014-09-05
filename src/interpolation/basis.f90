@@ -83,7 +83,7 @@ SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
 !USE nr,                        ONLY : gaussj
 USE MOD_Globals,                ONLY: abort
 USE MOD_PreProc
-USE MOD_Particle_Surfaces_Vars, ONLY: NPartCurved
+USE MOD_Particle_Surfaces_Vars, ONLY: NPartCurved,arrayNchooseK
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -112,9 +112,15 @@ END IF
 DO i=0,N_In
   DO j=0,N_In
     CALL BernsteinPolynomial(N_In,j,xi_in(i),Vdm_Bezier(i,j)) 
+    ! array with binomial coeffs for bezier clipping
+    IF(i.GE.j)THEN!only calculate LU (for n >= k, else 0)
+      arrayNchooseK(i,j)=REAL(CHOOSE(i,j))
+    ELSE
+      arrayNchooseK(i,j)=0.
+    END IF
   END DO !i
 END DO !j
-
+print*,arrayNchooseK !CHANGETAG
 !Inverse of the Vandermonde
 dummy_vec=0.
 !print*,dummy_vec

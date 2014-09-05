@@ -78,6 +78,8 @@ epsilonbilinear = GETREAL('eps-bilinear','1e-6')
 epsilontol      = GETREAL('epsOne','1e-12')
 epsilonOne      = 1.0 + epsilontol
 OneMepsilon     = 1.0 - epsilontol
+ClipTolerance   = GETINT('ClipTolerance','1e-4')
+ClipMaxIter     = GETINT('ClipMaxIter','10')
 !NPartCurved     = GETINT('NPartCurved','1')
 !IF(NPartCurved.GT.1) DoPartCurved=.TRUE.
 

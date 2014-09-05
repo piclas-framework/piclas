@@ -202,90 +202,333 @@ SUBROUTINE ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,alpha,x
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,                 ONLY:Cross,abort
+USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints,NPartCurved
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints,ClipTolerance,ClipMaxIter
 !USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+USE MOD_Particle_Surfaces_Vars, ONLY: NPartCurved,arrayNchooseK
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
-REAL,INTENT(IN)                   :: lengthPartTrajectory
-!REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
-INTEGER,INTENT(IN)                :: iPart,SideID!,ElemID
-INTEGER,INTENT(IN)                :: flip
+REAL,INTENT(IN),DIMENSION(1:3)           :: PartTrajectory
+REAL,INTENT(IN)                          :: lengthPartTrajectory
+!REAL,INTENT(IN),DIMENSION(1:3,4)        :: xNodes
+INTEGER,INTENT(IN)                       :: iPart,SideID!,ElemID
+INTEGER,INTENT(IN)                       :: flip
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                  :: alpha,xi,eta
+REAL,INTENT(OUT)                         :: alpha,xi,eta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL,DIMENSION(1:3)               :: P0,P1,P2,nVec
 !REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
 !REAL                              :: a1,a2,b1,b2,c1,c2
 !REAL                              :: coeffA,coeffB,nlength
-REAL,DIMENSION(2,0:NPartCurved,0:NPartCurved) :: BezierControlPoints2D
-REAL,DIMENSION(3)                             :: n1,n2
-INTEGER                                       :: p,q
+REAL,DIMENSION(3,0:NGeo,0:NGeo)          :: ReducedBezierControlPoints,ReducedBezierControlPoints_temp
+REAL,DIMENSION(2,0:NGeo,0:NGeo)          :: BezierControlPoints2D,BezierControlPoints2D_temp
+REAL,DIMENSION(0:NGeo,0:NGeo)            :: BezierControlPoints1D
+REAL,DIMENSION(3)                        :: n1,n2,IntersectionVector
+REAL,DIMENSION(2)                        :: LineNormVec
+INTEGER                                  :: p,q,idir,iClipIter,l,iDeCasteljau
+REAL                                     :: Smean(2),Smin,Smax,minmax(1:2,0:NGeo),x,y
+LOGICAL                                  :: DoXiClip,DoEtaClip
+INTEGER                                  :: iClip,nXiClip,nEtaClip
+REAL,DIMENSION(2,ClipMaxIter)            :: sarrayXi,sarrayEta
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
 alpha=-1.0
 xi=-2.
 eta=-2.
-!-----------------------------------------------------------------------------------------------------------------------------------
+
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
-!-----------------------------------------------------------------------------------------------------------------------------------
 IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
   IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
     IF(.NOT.BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideID)) RETURN ! the particle does not intersect the 
                                                                                               ! bounding box
   END IF
 END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
+
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
-!-----------------------------------------------------------------------------------------------------------------------------------
 IF(ABS(PartTrajectory(3)).LT.epsilontol)THEN
-  n1=(/ -PartTrajectory(2)-PartTrajectory(3) , PartTrajectory(1) ,PartTrajectory(1) /)
+  n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /)
 ELSE
   n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /)
 END IF
-n2(1)=PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2)
-n2(2)=PartTrajectory(3)*n1(1)-PartTrajectory(1)*n1(3)
-n2(3)=PartTrajectory(1)*n1(2)-PartTrajectory(2)*n1(1)
-
+n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) ,&
+         PartTrajectory(3)*n1(1)-PartTrajectory(1)*n1(3) ,&
+         PartTrajectory(1)*n1(2)-PartTrajectory(2)*n1(1) /)
 print*,'test n1*PartTrajectory',DOT_PRODUCT(PartTrajectory,n1)
 print*,'test n2*PartTrajectory',DOT_PRODUCT(PartTrajectory,n2)
 print*,'test n1*n2',DOT_PRODUCT(n1,n2)
 read*!CHANGETAG
-
-DO q=0,NPartCurved
-  DO p=0,NPartCurved
+DO q=0,NGeo
+  DO p=0,NGeo
     BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints(:,p,q,SideID)-LastPartPos(iPart,1:3),n1)
     BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints(:,p,q,SideID)-LastPartPos(iPart,1:3),n2)
   END DO
 END DO
-!-----------------------------------------------------------------------------------------------------------------------------------
+
 ! 3.) Bezier intersection: solution Newton's method or Bezier clipping
-!-----------------------------------------------------------------------------------------------------------------------------------
+! outcome: no intersection, single intersection, multiple intersection with patch
+! BEZIER CLIPPING: xi- and eta-direction
+DoXiClip=.TRUE.
+DoEtaClip=.TRUE.
+nXiClip=0
+nEtaClip=0
+DO iClipIter=1,ClipMaxIter
+  ! a) xi-direction
+  IF(DoXiClip)THEN
+    CALL calcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo)
+    DO q=0,NGeo
+      DO p=0,NGeo
+        BezierControlPoints1D(p,q)=DOT_PRODUCT(BezierControlPoints2D(:,p,q),LineNormVec)
+      END DO
+    END DO
+    DO l=0,NGeo
+      minmax(2,l)=MAXVAL(BezierControlPoints1D(l,:)) 
+      minmax(1,l)=MINVAL(BezierControlPoints1D(l,:)) 
+    END DO ! l
+    ! calc Smin and Smax and check boundaries
+    CALL calcSminSmax(minmax,Smin,Smax)
+    IF((Smin.EQ.1.5).OR.(Smax.EQ.-1.5))RETURN
+    sarrayXi(:,iClipIter)=(/Smin,Smin/)
+    ! 1.) CLIPPING xi
+    BezierControlPoints2D_temp=0.
+    ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
+    DO q=0,NGeo
+      DO p=0,NGeo
+        DO l=0,p
+          BezierControlPoints2D_temp(:,p,q)=&
+          BezierControlPoints2D_temp(:,p,q)+&
+          !BezierControlPoints2D(:,l,q)*B(p,l,Smax)
+          BezierControlPoints2D     (:,l,q)*(1./(2.**p))       &
+                                           *arrayNchooseK(p,l) &
+                                           *(1+Smax)**l        &
+                                           *(1-Smax)**(p-l)
+        END DO
+      END DO
+    END DO
+    BezierControlPoints2D=BezierControlPoints2D_temp
+    BezierControlPoints2D_temp=0.
+    ! BOTTOM (mirrored Bernstein Basis evaluation)
+    ! s = (smin+1)/(smax+1) for [-1, +1]
+    ! s = 2*(1-s)-1         for mirror input for bernstein (1-) and trafo [-1, +1] to [0, 1]
+    DO q=0,NGeo
+      DO p=0,NGeo
+        DO l=0,p
+          BezierControlPoints2D_temp(:,NGeo-p,q)=&
+          BezierControlPoints2D_temp(:,NGeo-p,q)+&
+          !BezierControlPoints2D(:,NGeo-l)*B(p-1,l-1,1-2*((Smin+1)/(Smax+1)))
+          BezierControlPoints2D     (:,NGeo-l,q)*(1./(2.**p))                        &
+                                                *arrayNchooseK(p,l)                  &
+                                                *(1.+2*((Smin+1.)/(Smax+1.)))**(l-1) &
+                                                *(1.-2*((Smin+1.)/(Smax+1.)))**(p-l)
+        END DO
+      END DO
+    END DO
+    BezierControlPoints2D=BezierControlPoints2D_temp
+  IF(smax-smin>ClipTolerance)DoXiClip=.FALSE.
+  nXiClip=nXiClip+1
+  END IF!DoXiClip
 
 
+
+
+  ! b) eta-direction
+  IF(DoEtaClip)THEN
+    CALL calcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0)
+    DO q=0,NGeo
+      DO p=0,NGeo
+        BezierControlPoints1D(p,q)=DOT_PRODUCT(BezierControlPoints2D(:,p,q),LineNormVec)
+      END DO
+    END DO
+    DO l=0,NGeo
+      minmax(2,l)=MAXVAL(BezierControlPoints1D(:,l)) 
+      minmax(1,l)=MINVAL(BezierControlPoints1D(:,l)) 
+    END DO ! l
+    ! calc Smin and Smax and check boundaries
+    CALL calcSminSmax(minmax,Smin,Smax)
+    IF((Smin.EQ.1.5).OR.(Smax.EQ.-1.5))RETURN
+    sarrayEta(:,iClipIter)=(/Smin,Smin/)
+    ! 2.) CLIPPING eta
+    BezierControlPoints2D_temp=0.
+    ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
+    DO q=0,NGeo
+      DO p=0,NGeo
+        DO l=0,p
+          BezierControlPoints2D_temp(:,q,p)=&
+          BezierControlPoints2D_temp(:,q,p)+&
+          !BezierControlPoints2D(:,l,q)*B(p,l,Smax)
+          BezierControlPoints2D     (:,q,l)*(1./(2.**p))       &
+                                           *arrayNchooseK(p,l) &
+                                           *(1.+Smax)**l       &
+                                           *(1.-Smax)**(p-l)
+        END DO
+      END DO
+    END DO
+    BezierControlPoints2D=BezierControlPoints2D_temp
+    BezierControlPoints2D_temp=0.
+    ! BOTTOM (mirrored Bernstein Basis evaluation)
+    ! s = (smin+1)/(smax+1) for [-1, +1]
+    ! s = 2*(1-s)-1         for mirror input for bernstein (1-) and trafo [-1, +1] to [0, 1]
+    DO q=0,NGeo
+      DO p=0,NGeo
+        DO l=0,NGeo-p
+          BezierControlPoints2D_temp(:,q,p)=&
+          BezierControlPoints2D_temp(:,q,p)+&
+          !BezierControlPoints2D(:,NGeo-l)*B(p-1,l-1,1-2*((Smin+1)/(Smax+1)))
+          BezierControlPoints2D     (:,q,NGeo-l)*(1./(2.**p))                     &
+                                                *arrayNchooseK(p,l)               &
+                                                *(1+2*((Smin+1)/(Smax+1)))**(l-1) &
+                                                *(1-2*((Smin+1)/(Smax+1)))**(p-l)
+        END DO
+      END DO
+    END DO
+    BezierControlPoints2D=BezierControlPoints2D_temp
+    IF(smax-smin>ClipTolerance)DoEtaClip=.FALSE. 
+    nEtaClip=nEtaClip+1
+  END IF
+  ! c) check Tolerance
+  x=SUM(BezierControlPoints2D(1,:,:))/REAL((NGeo+1)*(NGeo+1))
+  y=SUM(BezierControlPoints2D(2,:,:))/REAL((NGeo+1)*(NGeo+1))
+  IF(SQRT(x*x+y*y).LT.ClipTolerance)EXIT
+END DO
+! back transformation of sub-level clipping values to original bezier surface: ximean, etamean
+!   xi-direction
+Smean(1)=SUM(sarrayXi(:,nXiClip))/2.
+DO iClip=nXiClip-1,1,-1
+  Smean(1)=sarrayXi(1,iClip)+((Smean(1)+1)/2.)*(sarrayXi(2,iClip)-sarrayXi(1,iClip))
+END DO
+!   eta-direction
+Smean(2)=SUM(sarrayEta(:,nEtaClip))/2.
+DO iClip=nEtaClip-1,1,-1
+  Smean(2)=sarrayEta(1,iClip)+((Smean(2)+1)/2.)*(sarrayEta(2,iClip)-sarrayEta(1,iClip))
+END DO
+! Calculate intersection value in 3D (De Casteljau)
+Smean(1)=0.5*(Smean(1)+1) !interval transformation
+Smean(2)=0.5*(Smean(2)+1)
+
+ReducedBezierControlPoints=BezierControlPoints(:,:,:,SideID)
+ReducedBezierControlPoints_temp=0.
+l=NGeo
+DO iDeCasteljau=1,NGeo
+  DO q=0,l
+    DO p=0,l
+      !ReducedBezierControlPoints_temp(:,p,q)=DOT_PRODUCT((/1-.Smean(1), Smean(1)/),MATMUL(
+                                       ![ReducedBezierControlPoints(p,q  ,:),ReducedBezierControlPoints(p  ,q+1,:);
+                                       ! ReducedBezierControlPoints(p,q+1,:),ReducedBezierControlPoints(p+1,q+1,:)]
+                                                        !,(/1-.Smean(2), Smean(2)/))
+      ReducedBezierControlPoints_temp(:,p,q)=((1-Smean(1))*ReducedBezierControlPoints(p,q  ,:)+&
+                                                  Smean(1)*ReducedBezierControlPoints(p,q+1,:))*(1-Smean(2))+&
+                                             ((1-Smean(1))*ReducedBezierControlPoints(p  ,q+1,:)+&
+                                                  Smean(1)*ReducedBezierControlPoints(p+1,q+1,:))*Smean(2)
+    END DO
+  END DO
+  l=l-1
+  ReducedBezierControlPoints=ReducedBezierControlPoints_temp
+  ReducedBezierControlPoints_temp=0.
+END DO
+
+! resulting point is ReducedBezierControlPoints(:,1,1)
+IntersectionVector=ReducedBezierControlPoints(:,1,1)-PartState(iPart,1:3)
+alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
 
 !IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
 IF((alpha.GT.lengthPartTrajectory).OR.(alpha.LT.-epsilontol))THEN
   alpha=-1.0
   RETURN
 END IF
-IF(ABS(xi).GT.epsilonOne)THEN
-  alpha=-1.0
-  RETURN
-END IF
-IF(ABS(eta).GT.epsilonOne)THEN
-  alpha=-1.0
-  RETURN
-END IF
+!IF(ABS(xi).GT.epsilonOne)THEN
+  !alpha=-1.0
+  !RETURN
+!END IF
+!IF(ABS(eta).GT.epsilonOne)THEN
+  !alpha=-1.0
+  !RETURN
+!END IF
 END SUBROUTINE ComputeBezierIntersection
+
+SUBROUTINE calcLineNormVec(BezierControlPoints2D,LineNormVec,a,b)
+!================================================================================================================================
+! Calculate the normal vector for the line Ls (with which the distance of a point to the line Ls is determined)
+!================================================================================================================================
+USE MOD_Mesh_Vars,               ONLY:NGeo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                      :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
+INTEGER,INTENT(IN)                   :: a,b
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                     :: LineNormVec(1:2)
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!================================================================================================================================
+LineNormVec=(BezierControlPoints2D(:,a,b)-BezierControlPoints2D(:,0,0))+&
+            (BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,b,a))
+LineNormVec=LineNormVec/(SQRT(DOT_PRODUCT(LineNormVec,LineNormVec)))
+END SUBROUTINE calcLineNormVec
+
+SUBROUTINE calcSminSmax(minmax,Smin,Smax)
+!================================================================================================================================
+! find upper and lower intersection with convex hull (or no intersection)
+!================================================================================================================================
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
+USE MOD_Mesh_Vars,               ONLY:NGeo,Xi_NGeo,DeltaXi_NGeo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                      :: minmax(1:2,0:NGeo)
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                     :: Smin,Smax
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: tmp,m
+INTEGER                              :: l
+!================================================================================================================================
+  Smin=1.5
+  Smax=-1.5
+  DO l=0,NGeo-1
+    ! 1.) check traverse line UPPER/LOWER
+    IF(minmax(2,l)*minmax(2,l+1).LT.epsilontol)THEN
+      m    = (minmax(2,l+1)-minmax(2,l))/DeltaXi_NGeo
+      tmp  = Xi_NGeo(l)-minmax(2,l)/m
+      Smin = MIN(tmp,Smin)
+    END IF
+    IF(minmax(1,l)*minmax(1,l+1).LT.epsilontol)THEN
+      m    = (minmax(1,l+1)-minmax(1,l))/DeltaXi_NGeo
+      tmp  = Xi_NGeo(l)-minmax(1,l)/m
+      Smax = MAX(tmp,Smax)
+    END IF
+  END DO
+  ! 2.) check BEGINNING/END upper convex hull
+  IF(minmax(2,1)*minmax(2,NGeo) .LT.epsilontol)THEN
+    m    = (minmax(2,NGeo+1)-minmax(2,1))/DeltaXi_NGeo
+    tmp  = -1-minmax(2,1)/m
+    Smin = MIN(tmp,Smin)
+  END IF
+  IF(minmax(1,1)*minmax(1,NGeo) .LT.epsilontol)THEN
+    m    = (minmax(1,NGeo+1)-minmax(1,1))/DeltaXi_NGeo
+    tmp  = -1-minmax(1,1)/m
+    Smax = MAX(tmp,Smax)
+  END IF
+  ! 3.) check vertical line LEFT/RIGHT of convex hull
+  IF(minmax(1,1)*minmax(2,1)    .LT.epsilontol)THEN
+    tmp = -1.0
+    Smin=MIN(tmp,Smin)
+  END IF
+  IF(minmax(1,2)*minmax(2,2)    .LT.epsilontol)THEN
+    tmp =  1.0
+    Smax=MAX(tmp,Smax)
+  END IF
+END SUBROUTINE calcSminSmax
 
 FUNCTION InsideBoundingBox(ParticlePosition,SideID)
 !================================================================================================================================
