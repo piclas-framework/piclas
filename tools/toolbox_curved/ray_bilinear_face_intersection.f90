@@ -17,7 +17,7 @@ INTEGER,INTENT(OUT)     :: nRoot
 REAL,INTENT(OUT)        :: R1,R2
 !--------------------------------------------------------------------------------------------------------------------------------
 ! local variables
-REAL                    :: eps=1e-12, radicant
+REAL                    :: eps=1e-14, radicant
 !================================================================================================================================
 
 radicant = B*B-4.0*A*C
@@ -32,7 +32,7 @@ IF(ABS(a).LT.eps)THEN
     R2=0.
   END IF
 ELSE
-  IF(radicant.LT.0) THEN
+  IF(radicant.LT.-eps) THEN
     nRoot = 0
     R1=0.
     R2=0.
@@ -253,8 +253,11 @@ epsOne =1.0+1e-12
 ! lastPartState = [0.8,0.7,0.5]
 
 ! one intersection | up
-! PartState     = [0.4,0.7,0.4]
-! lastPartState = [0.4,0.7,2.2]
+ lastPartState     = [0.4,0.2,0.0]
+ !PartState=[0.400163322734609,0.200544409115363,1.197700053797636E-003]
+ LastPartState=[0.577076958642377,0.790256528807924,1.29856436337743 ] 
+ PartState = [0.7,1.2,2.2]
+ PartState=[0.577240281376986,0.790800937923287,1.29976206343123]
 
 ! one intersection | abitary
 ! lastPartState = [0.8,0.7,0.4]
@@ -277,8 +280,8 @@ epsOne =1.0+1e-12
 ! lastPartState = [0.0,0.0,0.0]
 
 ! end of vector in edge | planar plane
- PartState     = [1.0,0.5,1.8]
- lastPartState = [0.0,0.0,0.0]
+! PartState     = [1.0,0.5,1.8]
+! lastPartState = [0.0,0.0,0.0]
 
 ! vector through edge | planar plane
 ! PartState     = [2.0,0.5,3.6]
@@ -705,6 +708,7 @@ BiCoeff(:,4) = 0.25*( xNode(:,1) +xNode(:,2) +xNode(:,3) +xNode(:,4))
 
 ! particle vector / not normalized
 q = PartState - lastPartState
+print*,'q',q
 
 ! prepare solver  ! has to be computed for each patch
 a1(1)= BiCoeff(1,1)*q(3) - BiCoeff(3,1)*q(1)
@@ -722,7 +726,7 @@ a2(4)= (BiCoeff(2,4)-lastPartState(2))*q(3) &
 A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
-!print*,'A,B,C', A,B,C
+print*,'A,B,C', A,B,C
 CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
 print*,nRoot,Eta
 !  IF(iloop.EQ.34)THEN
@@ -795,8 +799,9 @@ ELSE
       t(2)=Computet(q1,q)
       IF((t(2).GE.epsZero).AND.(t(2).LE.epsOne))THEN
         WRITE(*,*) ' Second Intersection'
-        WRITE(*,*) ' t ', t(2)
+        WRITE(*,*) ' xi,eta,t ',xi(2),eta(2), t(2)
         WRITE(*,*) ' Intersection at ', lastPartState+t(2)*q
+        WRITE(*,*) ' 0,98 before intersection',lastpartState+t(2)*q*0.98
         xInter=lastPartState+t(2)*q
         nVec=GetBiLinearNormVec(BiCoeff,xInter,xi(2),eta(2))
         WRITE(*,*) ' nVec ',nVec

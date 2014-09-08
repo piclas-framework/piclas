@@ -1359,6 +1359,7 @@ USE MOD_Equation_Vars,          ONLY:c_inv
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,SuperSampledNodes,NPartCurved
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo,xBaryCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Utils,                  ONLY:BubbleSortID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1420,7 +1421,7 @@ DO iBGMElem = 1, nBGMElems
 END DO ! nBGMElems
 
 !print*,'earlier',Distance,ListDistance
-CALL Bubble_Sort(Distance,ListDistance,nBGMElems)
+CALL BubbleSortID(Distance,ListDistance,nBGMElems)
 !print*,'after',Distance,ListDistance
 !read*
 
@@ -2432,46 +2433,5 @@ SUBROUTINE DiffuseReflection3D_halocells(i,iLocSide,Element,TriNum, &
  RETURN
 END SUBROUTINE DiffuseReflection3D_halocells
 #endif /*MPI*/
-
-
-SUBROUTINE Bubble_Sort(a,id,len)
-!===================================================================================================================================
-! bubble sort, taken from rosetta-wiki and modified for own use
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                :: len
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT)                :: a(len)
-INTEGER,INTENT(INOUT)             :: id(len)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                              :: temp
-INTEGER                           :: iloop,jloop, temp2
-LOGICAL                           :: swapped = .TRUE.
-!===================================================================================================================================
-
-DO jloop=len-1,1,-1
-  swapped = .FALSE.
-  DO iloop=1,jloop
-    IF (a(iloop).GT.a(iloop+1))THEN
-      ! switch entries
-      temp=a(iloop)
-      a(iloop) = a(iloop+1)
-      a(iloop+1) = temp
-      ! switch ids
-      temp2=id(iloop)
-      id(iloop) = id(iloop+1)
-      id(iloop+1) = temp2
-      swapped = .TRUE.
-    END IF
-  END DO ! iloop
-  IF (.NOT. swapped) EXIT
-END DO ! jloop
-END SUBROUTINE Bubble_Sort
 
 END MODULE MOD_BoundaryTools

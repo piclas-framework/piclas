@@ -442,7 +442,7 @@ USE MOD_PIC_Vars,         ONLY: PIC
 USE MOD_Particle_Vars,    ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
 USE MOD_part_RHS,         ONLY: CalcPartRHS
 USE MOD_part_boundary,    ONLY: ParticleBoundary
-USE MOD_Particle_Tracking,ONLY: ParticleTracking
+USE MOD_Particle_Tracking,ONLY: ParticleTracking,ParticleTrackingCurved
 USE MOD_part_emission,    ONLY: ParticleInserting
 USE MOD_DSMC,             ONLY: DSMC_main
 USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS, DSMC
@@ -565,7 +565,8 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 
 !print*,'Calling tracking ...'
 !CALL CPU_TIME(tStart)
-CALL ParticleTracking()
+!CALL ParticleTracking()
+CALL ParticleTrackingCurved()
 !jCALL CPU_TIME(tend)
 !jt2=tend-tstart
 
@@ -657,7 +658,8 @@ DO iStage=2,nRKStages
                                        + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(iStage)
     ! particle tracking
     !CALL ParticleBoundary()
-   CALL ParticleTracking()
+   !CALL ParticleTracking()
+   CALL ParticleTrackingCurved()
 #ifdef MPI
       CALL Communicate_PIC()
 !    CALL UpdateNextFreePosition() ! only required for parallel communication

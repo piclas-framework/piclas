@@ -14,7 +14,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: BiLinearCoeff                ! contains the bi-linear coefficients for each side
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SuperSampledNodes            !  
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: BezierControlPoints          ! Bezier basis control points of degree equal to NGeo
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: BezierControlPoints3D        ! Bezier basis control points of degree equal to NGeo
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: SlabNormals                  ! normal vectors of bounding slab box
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: SlabIntervalls               ! intervalls beta1, beta2, beta3
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:)   :: SuperSampledBiLinearCoeff    !
@@ -24,7 +24,6 @@ LOGICAL                                 :: DoPartCurved=.FALSE.         !
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_CLNGeo_EquiNPartCurved
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_Bezier,sVdm_Bezier       ! 
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: arrayNchooseK                ! array for binomial coefficients
-INTEGER                                 :: ClipTolerance,ClipMaxIter    !
 LOGICAL,ALLOCATABLE,DIMENSION(:)        :: SideIsPlanar                 ! logical error if side is planar, instead of bi-linear
 LOGICAL,ALLOCATABLE,DIMENSION(:)        :: BoundingBoxIsEmpty
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideNormVec                  ! normal Vector of planar sides
@@ -35,7 +34,13 @@ REAL                                    :: epsilonbilinear              ! bi-lin
 REAL                                    :: epsilonOne                   ! epsilone for setting the boundary tolerance
 REAL                                    :: OneMepsilon
 REAL                                    :: epsilontol                   ! epsilone for setting the tolerance
+REAL                                    :: Mepsilontol               
 LOGICAL                                 :: ParticleSurfaceInitIsDone=.FALSE.
+! settings for Bezier-Clipping and definition of maximal number of intersections
+INTEGER                                 :: ClipTolerance,ClipMaxIter    
+INTEGER                                 :: ClipMaxInter
+REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Surfaces_Vars

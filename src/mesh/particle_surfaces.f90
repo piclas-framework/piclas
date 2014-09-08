@@ -33,8 +33,8 @@ INTERFACE GetSuperSampledSurface
   MODULE PROCEDURE GetSuperSampledSurface
 END INTERFACE
 
-INTERFACE GetBezierControlPoints
-  MODULE PROCEDURE GetBezierControlPoints
+INTERFACE GetBezierControlPoints3D
+  MODULE PROCEDURE GetBezierControlPoints3D
 END INTERFACE
 
 INTERFACE CalcNormVec
@@ -42,7 +42,7 @@ INTERFACE CalcNormVec
 END INTERFACE
 
 PUBLIC::GetBiLinearPlane, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, GetSuperSampledSurface, &
-        CalcNormVec,GetBezierControlPoints
+        CalcNormVec,GetBezierControlPoints3D
 
 !===================================================================================================================================
 
@@ -56,7 +56,7 @@ SUBROUTINE InitParticleSurfaces()
 USE MOD_Globals
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem
+USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem,NGeo
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -67,7 +67,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iElem,ilocSide,SideID,flip
+INTEGER                         :: iElem,ilocSide,SideID,flip,tmp
+CHARACTER(LEN=2)                :: dummy                         
 !===================================================================================================================================
 
 IF(ParticleSurfaceInitIsDone) RETURN
@@ -76,10 +77,20 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES ...!'
 
 epsilonbilinear = GETREAL('eps-bilinear','1e-6')
 epsilontol      = GETREAL('epsOne','1e-12')
+Mepsilontol     = -epsilontol
 epsilonOne      = 1.0 + epsilontol
 OneMepsilon     = 1.0 - epsilontol
 ClipTolerance   = GETINT('ClipTolerance','1e-4')
 ClipMaxIter     = GETINT('ClipMaxIter','10')
+tmp=2*NGeo
+WRITE(dummy,'(I2.2)') tmp
+ClipMaxInter    = GETINT('ClipMaxInter',dummy)
+
+ALLOCATE( locAlpha(1:ClipMaxInter) &
+        , locXi   (1:ClipMaxInter) &
+        , locEta  (1:ClipMaxInter) )
+ALLOCATE( XiArray (1:2,1:ClipMaxIter) &
+        , EtaArray(1:2,1:ClipMaxIter) )
 !NPartCurved     = GETINT('NPartCurved','1')
 !IF(NPartCurved.GT.1) DoPartCurved=.TRUE.
 
@@ -146,8 +157,13 @@ SDEALLOCATE(BiLinearCoeff)
 SDEALLOCATE(SideNormVec)
 SDEALLOCATE(SideDistance)
 SDEALLOCATE(SuperSampledNodes)
-SDEALLOCATE(BezierControlPoints)
+SDEALLOCATE(BezierControlPoints3D)
 SDEALLOCATE(SuperSampledBiLinearCoeff)
+SDEALLOCATE(locAlpha)
+SDEALLOCATE(locXi)
+SDEALLOCATE(locEta)
+SDEALLOCATE(XiArray)
+SDEALLOCATE(EtaArray)
 ParticleSurfaceInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeParticleSurfaces
@@ -675,7 +691,7 @@ END IF
 
 END SUBROUTINE GetSuperSampledSurface
 
-SUBROUTINE GetBezierControlPoints(XCL_NGeo,iElem)
+SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,iElem)
 !===================================================================================================================================
 ! computes the nodes for Bezier Control Points for [P][I][C] [A]daptive [S]uper [S]ampled Surfaces [O]perations
 !===================================================================================================================================
@@ -683,7 +699,7 @@ SUBROUTINE GetBezierControlPoints(XCL_NGeo,iElem)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide,SideToElem,NGeo
-USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints,nPartCurved,sVdm_Bezier
+USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,nPartCurved,sVdm_Bezier
 USE MOD_Mesh_Vars,                ONLY:nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
 USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
 ! IMPLICIT VARIABLE HANDLING
@@ -718,7 +734,7 @@ IF(SideID.LE.lastSideID)THEN
     ! turn into right hand system of side
     DO q=0,NGeo
       DO p=0,NGeo
-        BezierControlPoints(1:3,p,q,sideID)=tmp(:,q,p)
+        BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
       END DO !p
     END DO !q
     CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
@@ -730,28 +746,28 @@ ELSE ! no master, here has to come the suff with the slave
     CASE(1) ! slave side, SideID=q,jSide=p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,q,p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(2) ! slave side, SideID=N-p,jSide=q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-p,q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(4) ! slave side, SideID=p,jSide=N-q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,p,NGeo-q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
@@ -765,7 +781,7 @@ IF(SideID.LE.lastSideID)THEN
   IF(ElemToSide(E2S_FLIP,XI_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
     CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:),tmp)
     !print*,'ixi'
-    BezierControlPoints(:,:,:,SideID)=tmp
+    BezierControlPoints3D(:,:,:,SideID)=tmp
     CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
   END IF !flip=0
 ELSE ! no master, here has to come the suff with the slave
@@ -775,28 +791,28 @@ ELSE ! no master, here has to come the suff with the slave
     CASE(1) ! slave side, SideID=q,jSide=p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,q,p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(2) ! slave side, SideID=N-p,jSide=q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-p,q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(4) ! slave side, SideID=p,jSide=N-q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,p,NGeo-q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
@@ -808,7 +824,7 @@ END IF
 SideID=ElemToSide(E2S_SIDE_ID,ETA_MINUS,iElem)
 IF(SideID.LE.lastSideID)THEN
   IF(ElemToSide(E2S_FLIP,ETA_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:),BezierControlPoints(1:3,:,:,sideID))
+    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:),BezierControlPoints3D(1:3,:,:,sideID))
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
    END IF !flip=0
 ELSE ! no master, here has to come the suff with the slave
@@ -818,28 +834,28 @@ ELSE ! no master, here has to come the suff with the slave
     CASE(1) ! slave side, SideID=q,jSide=p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,q,p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(2) ! slave side, SideID=N-p,jSide=q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-p,q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(4) ! slave side, SideID=p,jSide=N-q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,p,NGeo-q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
@@ -855,7 +871,7 @@ IF(SideID.LE.lastSideID)THEN
     ! turn into right hand system of side
     DO q=0,NGeo
       DO p=0,NGeo
-        BezierControlPoints(1:3,p,q,sideID)=tmp(:,NGeo-p,q)
+        BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,NGeo-p,q)
       END DO !p
     END DO !q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
@@ -867,28 +883,28 @@ ELSE ! no master, here has to come the suff with the slave
     CASE(1) ! slave side, SideID=q,jSide=p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,q,p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(2) ! slave side, SideID=N-p,jSide=q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-p,q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(4) ! slave side, SideID=p,jSide=N-q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,p,NGeo-q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
@@ -904,7 +920,7 @@ IF(SideID.LE.lastSideID)THEN
     ! turn into right hand system of side
     DO q=0,NGeo
       DO p=0,NGeo
-        BezierControlPoints(1:3,p,q,sideID)=tmp(:,q,p)
+        BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
       END DO !p
     END DO !q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
@@ -916,28 +932,28 @@ ELSE ! no master, here has to come the suff with the slave
     CASE(1) ! slave side, SideID=q,jSide=p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,q,p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(2) ! slave side, SideID=N-p,jSide=q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-p,q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(4) ! slave side, SideID=p,jSide=N-q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,p,NGeo-q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
@@ -950,7 +966,7 @@ SideID=ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
 IF(SideID.LE.lastSideID)THEN
   IF(ElemToSide(E2S_FLIP,ZETA_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
     IF ((sideID.LE.nBCSides))THEN !BC
-      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo),BezierControlPoints(1:3,:,:,sideID))
+      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo),BezierControlPoints3D(1:3,:,:,sideID))
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     END IF !BC
   END IF !flip=0
@@ -961,34 +977,34 @@ ELSE ! no master, here has to come the suff with the slave
     CASE(1) ! slave side, SideID=q,jSide=p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,q,p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(2) ! slave side, SideID=N-p,jSide=q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-p,q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     CASE(4) ! slave side, SideID=p,jSide=N-q
       DO q=0,NGeo
         DO p=0,NGeo
-          BezierControlPoints(:,p,q,SideID)=tmp(:,p,NGeo-q)
+          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
         END DO ! p
       END DO ! q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
   END SELECT
 END IF
-END SUBROUTINE GetBezierControlPoints
+END SUBROUTINE GetBezierControlPoints3D
 
 SUBROUTINE GetSlabNormalsAndIntervalls(NGeo,SideID)
 !===================================================================================================================================
@@ -997,7 +1013,7 @@ SUBROUTINE GetSlabNormalsAndIntervalls(NGeo,SideID)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Surfaces_Vars,   ONLY:SlabNormals,SlabIntervalls,BezierControlPoints,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,   ONLY:SlabNormals,SlabIntervalls,BezierControlPoints3D,BoundingBoxIsEmpty
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1029,34 +1045,34 @@ LOGICAL            :: SideIsCritical
 ! 1.) slab normal vectors
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! n_1=V_1+V_2 (V: corner vectors in xi-direction)
-SlabNormals(1,:,SideID)=BezierControlPoints(:,NGeo,0,SideID)   -BezierControlPoints(:,0,0,SideID)+&
-                        BezierControlPoints(:,NGeo,NGeo,SideID)-BezierControlPoints(:,0,NGeo,SideID)
+SlabNormals(1,:,SideID)=BezierControlPoints3D(:,NGeo,0,SideID)   -BezierControlPoints3D(:,0,0,SideID)+&
+                        BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0,NGeo,SideID)
 SlabNormals(1,:,SideID)=SlabNormals(1,:,SideID)/SQRT(DOT_PRODUCT(SlabNormals(1,:,SideID),SlabNormals(1,:,SideID)))
 ! n_2=n_1 x (U_1+U_2) (U: corner vectors in eta-direction)
-!b                      =BezierControlPoints(:,0,NGeo,SideID)   -BezierControlPoints(:,0,0,SideID)+&
-                        !BezierControlPoints(:,NGeo,NGeo,SideID)-BezierControlPoints(:,NGeo,0,SideID)
+!b                      =BezierControlPoints3D(:,0,NGeo,SideID)   -BezierControlPoints3D(:,0,0,SideID)+&
+                        !BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,NGeo,0,SideID)
 !SlabNormals(2,1,SideID)=SlabNormals(1,2,SideID)*b(3) - SlabNormals(1,3,SideID)*b(2)
 !SlabNormals(2,2,SideID)=SlabNormals(1,3,SideID)*b(1) - SlabNormals(1,1,SideID)*b(3)
 !SlabNormals(2,3,SideID)=SlabNormals(1,1,SideID)*b(2) - SlabNormals(1,2,SideID)*b(1)
 !SlabNormals(2,:,SideID)=SlabNormals(2,:,SideID)/SQRT(DOT_PRODUCT(SlabNormals(2,:,SideID),SlabNormals(2,:,SideID)))
 SlabNormals(2,1,SideID)=SlabNormals(1,2,SideID)*(                                                     &
-                        BezierControlPoints(3,0,NGeo,SideID)   -BezierControlPoints(3,0,0,SideID)+    &
-                        BezierControlPoints(3,NGeo,NGeo,SideID)-BezierControlPoints(3,NGeo,0,SideID)) &
+                        BezierControlPoints3D(3,0,NGeo,SideID)   -BezierControlPoints3D(3,0,0,SideID)+    &
+                        BezierControlPoints3D(3,NGeo,NGeo,SideID)-BezierControlPoints3D(3,NGeo,0,SideID)) &
                        -SlabNormals(1,3,SideID)*(                                                     &
-                        BezierControlPoints(2,0,NGeo,SideID)   -BezierControlPoints(2,0,0,SideID)+    &
-                        BezierControlPoints(2,NGeo,NGeo,SideID)-BezierControlPoints(2,NGeo,0,SideID)) 
+                        BezierControlPoints3D(2,0,NGeo,SideID)   -BezierControlPoints3D(2,0,0,SideID)+    &
+                        BezierControlPoints3D(2,NGeo,NGeo,SideID)-BezierControlPoints3D(2,NGeo,0,SideID)) 
 SlabNormals(2,2,SideID)=SlabNormals(1,3,SideID)*(                                                     &
-                        BezierControlPoints(1,0,NGeo,SideID)   -BezierControlPoints(1,0,0,SideID)+    &
-                        BezierControlPoints(1,NGeo,NGeo,SideID)-BezierControlPoints(1,NGeo,0,SideID)) &
+                        BezierControlPoints3D(1,0,NGeo,SideID)   -BezierControlPoints3D(1,0,0,SideID)+    &
+                        BezierControlPoints3D(1,NGeo,NGeo,SideID)-BezierControlPoints3D(1,NGeo,0,SideID)) &
                        -SlabNormals(1,1,SideID)*(                                                     &
-                        BezierControlPoints(3,0,NGeo,SideID)   -BezierControlPoints(3,0,0,SideID)+    &
-                        BezierControlPoints(3,NGeo,NGeo,SideID)-BezierControlPoints(3,NGeo,0,SideID)) 
+                        BezierControlPoints3D(3,0,NGeo,SideID)   -BezierControlPoints3D(3,0,0,SideID)+    &
+                        BezierControlPoints3D(3,NGeo,NGeo,SideID)-BezierControlPoints3D(3,NGeo,0,SideID)) 
 SlabNormals(2,3,SideID)=SlabNormals(1,1,SideID)*(                                                     &
-                        BezierControlPoints(2,0,NGeo,SideID)   -BezierControlPoints(2,0,0,SideID)+    &
-                        BezierControlPoints(2,NGeo,NGeo,SideID)-BezierControlPoints(2,NGeo,0,SideID)) &
+                        BezierControlPoints3D(2,0,NGeo,SideID)   -BezierControlPoints3D(2,0,0,SideID)+    &
+                        BezierControlPoints3D(2,NGeo,NGeo,SideID)-BezierControlPoints3D(2,NGeo,0,SideID)) &
                        -SlabNormals(1,2,SideID)*(                                                     &
-                        BezierControlPoints(1,0,NGeo,SideID)   -BezierControlPoints(1,0,0,SideID)+    &
-                        BezierControlPoints(1,NGeo,NGeo,SideID)-BezierControlPoints(1,NGeo,0,SideID))
+                        BezierControlPoints3D(1,0,NGeo,SideID)   -BezierControlPoints3D(1,0,0,SideID)+    &
+                        BezierControlPoints3D(1,NGeo,NGeo,SideID)-BezierControlPoints3D(1,NGeo,0,SideID))
 SlabNormals(2,:,SideID)=SlabNormals(2,:,SideID)/SQRT(DOT_PRODUCT(SlabNormals(2,:,SideID),SlabNormals(2,:,SideID)))
 ! n_3=n_1 x n_2
 SlabNormals(3,1,SideID)=SlabNormals(2,2,SideID)*SlabNormals(1,3,SideID) - SlabNormals(2,3,SideID)*SlabNormals(1,2,SideID)
@@ -1078,9 +1094,9 @@ SlabIntervalls(:, SideID)=0.
 DO q=0,NGeo
   DO p=0,NGeo
     IF((p.EQ.0).AND.(q.EQ.0))CYCLE
-    skalprod(1)=DOT_PRODUCT(BezierControlPoints(:,p,q,SideID)-BezierControlPoints(:,0,0,SideID),SlabNormals(1,:,SideID))
-    skalprod(2)=DOT_PRODUCT(BezierControlPoints(:,p,q,SideID)-BezierControlPoints(:,0,0,SideID),SlabNormals(2,:,SideID))
-    skalprod(3)=DOT_PRODUCT(BezierControlPoints(:,p,q,SideID)-BezierControlPoints(:,0,0,SideID),SlabNormals(3,:,SideID))
+    skalprod(1)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-BezierControlPoints3D(:,0,0,SideID),SlabNormals(1,:,SideID))
+    skalprod(2)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-BezierControlPoints3D(:,0,0,SideID),SlabNormals(2,:,SideID))
+    skalprod(3)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-BezierControlPoints3D(:,0,0,SideID),SlabNormals(3,:,SideID))
     IF    (skalprod(1).LT.0.)THEN
       SlabIntervalls(1, SideID)=MIN(SlabIntervalls(1,SideID),skalprod(1))
     ELSEIF(skalprod(1).GT.0.)THEN
@@ -1128,7 +1144,7 @@ ELSE
   BoundingBoxIsEmpty(SideID)=.FALSE.
 END IF
 print*,"SideIsPlanar(",SideID,")",SideIsPlanar
-print*,"BezierControlPoints(:,0,0,SideID)",BezierControlPoints(:,0,0,SideID)
+print*,"BezierControlPoints3D(:,0,0,SideID)",BezierControlPoints3D(:,0,0,SideID)
 print*,"SlabNormals(1,:,SideID)",SlabNormals(1,:,SideID),"beta1 ",SlabIntervalls(1, SideID),SlabIntervalls(2,SideID),&
 "delta",ABS(SlabIntervalls(2, SideID))-ABS(SlabIntervalls(1, SideID))
 print*,"SlabNormals(2,:,SideID)",SlabNormals(2,:,SideID),"beta2 ",SlabIntervalls(3, SideID),SlabIntervalls(4, SideID),&

@@ -108,6 +108,8 @@ IF(NPartCurved.NE.N_In)THEN
   print*,"NPartCurved is not equal NGeo: Setting NPartCurved=NGeo=",N_In
   !NPartCurved = N_In !CHANGETAG creates problems with supersampled intersection calculation
 END IF
+! store the coefficients
+ALLOCATE(arrayNchooseK(0:N_In,0:N_In))
 !Vandermonde on xi_In
 DO i=0,N_In
   DO j=0,N_In
