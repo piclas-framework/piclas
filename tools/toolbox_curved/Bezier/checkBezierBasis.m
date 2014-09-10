@@ -2,6 +2,7 @@ function plot_cases
 clc; clear all; close all;
 global Bezier2d;global n_Ls;global n_Ls_inv;global projectedFace;global Face;global BezierSurface;global GeometricRepresentation;
 NGeo=2;
+setWindows=1;
 load faces.dat
 %load /home/stephen/PMLalgorithm_cases/Testing_Bezier_domain010_nElems002_order04_PML00_zeta0E+00_polynom_CFL0.5_N10_Parts500_DoPML_False/BezierControlPoints.dat
 load BezierControlPoints.dat
@@ -28,13 +29,17 @@ Tolerance=1E-5;
 alpha0=0.5;
 %pvec=[0.4 0.2 0.001];v=[0 1 0];Face=9;
 pvec=[0.6 0.2 0.001];v=[1 -1 1];Face=9; %miss
-%pvec=[0.6 0.05 0.2];v=[-1 1 -1];Face=9;pvec=pvec+v*0.1 %double
+%pvec=[0.6 0.05 0.2];v=[-1 1 -1];Face=9;pvec=pvec+v*0.1 %multiple
+%intersection
 %pvec=[0.6 0.2 0.001];v=[1 -1 0];Face=9; %miss
-pvec=[0.2 0.1 0.001];v=[0.7 0.9 0.3];Face=9;
+%pvec=[0.2 0.1 0.001];v=[0.7 0.9 0.3];Face=9;
 %pvec=[0.4 0.2 0.001];v=[0 0 1];Face=10;
 %pvec=[0.3 0.3 0.001];v=[1 1 0];Face=9; % center of face
 %pvec=[sqrt(9/2)/10 sqrt(9/2)/10 0.001];v=[0 0 1];Face=10;  % center of upper face
 %pvec=[0.3 0.3 0.001];v=[0.2 -1 0.2];Face=8;
+pvec=[0.25 0.25 0.001];v=[0 1 0];Face=6;
+pvec=[0.25 0.25 0.000];v=[0 0 1];Face=9;
+pvec=[ 0.25 0.25 0.000 ];v=[-1 0 0];Face=9; %9 hier ist 4 im code
 %%
 
 BezierSurface=figure;  hold on;set(gcf, 'color', 'white');view(29,60);grid on;xlabel('x');ylabel('y');zlabel('z');
@@ -85,8 +90,8 @@ plot3(pvec(1),pvec(2),pvec(3),'or','LineWidth',4,'MarkerSize',10)
 plot3(p2(1),p2(2),p2(3),'or','LineWidth',4,'MarkerSize',10)
 quiver3(pvec(1),pvec(2),pvec(3),v(1),v(2),v(3),0,'LineWidth',2,'MarkerSize',10)
 view(35,26)
-view(v) % view in direction of the vector
-%return
+%view(v) % view in direction of the vector
+ %return
 %% projection 3D->2D
 %1. create perpendicular vectors
 if abs(v(3))<1E-6
@@ -110,7 +115,11 @@ for SideID=1:nSides
   end
 end
 %%
-monitor='2';set(0,'Units','pixels');scnsize = get(0,'ScreenSize');position = get(gcf,'Position');outerpos = get(gcf,'OuterPosition');borders = outerpos - position;edge = -borders(1)/2;
+monitor='0';set(0,'Units','pixels');scnsize = get(0,'ScreenSize');position = get(gcf,'Position');outerpos = get(gcf,'OuterPosition');borders = outerpos - position;edge = -borders(1)/2;
+if strcmp(monitor,'0'),pos1=[0,1,scnsize(3)/10,scnsize(4)/2];
+                       pos2=[375,1,scnsize(3)/6,scnsize(4)/2];
+                       pos3=[1000,200,scnsize(3)/10,scnsize(4)/3];
+                       pos4=[1000,1000,scnsize(3)/10,scnsize(4)/3];end;
 if strcmp(monitor,'1'),pos1=[outerpos(1)*5.5,scnsize(4),scnsize(3)/3-edge,scnsize(4)/1.25];
   pos2=[outerpos(1)*6.7,scnsize(4),scnsize(3)/3-edge,scnsize(4)/1.25];
   pos3=[outerpos(1)*5.5,-outerpos(1)/1.5,scnsize(3)/3-edge,scnsize(4)/2];
@@ -119,7 +128,7 @@ if strcmp(monitor,'2'),pos1=[1400,550,scnsize(3)/9,scnsize(4)/2.2];
   pos2=[1770,550,scnsize(3)/6,scnsize(4)/2.2];
   pos3=[1400,50,scnsize(3)/9,scnsize(4)/2.2];
   pos4=[1770,50,scnsize(3)/9,scnsize(4)/2.2];end;
-set(gcf,'OuterPosition',pos1)
+if true(setWindows),set(gcf,'OuterPosition',pos1);end;
 axis equal
 addpath(['/home/stephen/MATLAB_Programme/export_fig/']);
 %export_fig([pwd '/3D_plot.pdf']);
@@ -133,7 +142,7 @@ for SideID=1:nSides
     end
   end
 end
-projectedFace = figure;  hold on;set(gcf, 'color', 'white');set(gcf,'OuterPosition',pos2)
+projectedFace = figure;  hold on;set(gcf, 'color', 'white');if true(setWindows),set(gcf,'OuterPosition',pos2);end;
 %plotBezierSurface3D(N,P(:,:,:,i));
 BezierControlPoints2Dorg=BezierControlPoints2D(:,:,:,Face);
 plotProjectedBezierSurface2D(N,BezierControlPoints2D(:,:,:,Face));
@@ -150,6 +159,7 @@ sarray(:,:,1)=-1.0;
 sarray(:,:,2)=1.0;
 iiter=0;
 jiter=0;
+
 for K=1:MaxIter
   for J=1:2
     if true(DoClipping(J))
@@ -163,7 +173,7 @@ for K=1:MaxIter
           jiter=jiter+1;
           vector = [n_Ls(1) n_Ls(2)];posX=pos4;
       end
-      f=figure;hold on;set(gcf, 'color', 'white');grid on;xlabel('x');ylabel('y');plot([-1 1],[0 0],'k-');set(gcf,'OuterPosition',posX)
+      f=figure;hold on;set(gcf, 'color', 'white');grid on;xlabel('x');ylabel('y');plot([-1 1],[0 0],'k-');if true(setWindows),set(gcf,'OuterPosition',posX);end;
       for SideID=1:nSides
         for q=1:NGeo+1
           for p=1:NGeo+1
@@ -219,21 +229,11 @@ for K=1:MaxIter
         smin_proposed=xi(1);
         smin=min(smin_proposed,smin);
       end
-      if  minmax(1,2)*minmax(2,2)<=0 % 2 spalte anfang/ende
-        smax_proposed=xi(NGeo+1);max
+      if  minmax(1,end)*minmax(2,end)<=0 % 2 spalte anfang/ende
+        smax_proposed=xi(NGeo+1);
         smax=max(smax_proposed,smax);
       end
       %%
-      %       if smin== 1.5, smin=-1;end;
-      %       if smax==-1.5, smax= 1;end;
-      if strcmp('check this true','hard code für 50% clip')
-        if K==1 & J==1
-          smin=-1;        smax=0;
-          smin=0;        smax=1;
-        end
-      end
-      %       sarray(K,J,1)=smin;
-      %       sarray(K,J,2)=smax;
       if or(smin==1.5,smax==-1.5)
         disp('Miss!')
         return
@@ -261,8 +261,8 @@ for K=1:MaxIter
       if abs(smax-smin)<1e-4
         DoClipping(J)=0;
       end
-      %str=input('Press ENTER to continue or type "y" to exit: ','s');
-      %if strcmp(str,'y'),error('You have terminated the program!');end;
+      str=input('Press ENTER to continue or type "y" to exit: ','s');
+      if strcmp(str,'y'),error('You have terminated the program!');end;
       if sqrt(x_sol^2+y_sol^2)<Tolerance
         disp(['sqrt(x_sol^2+y_sol^2)<' num2str(Tolerance) ': origin found!'])
         plot(x_sol,y_sol, 'g+','Parent',get(projectedFace, 'children'),'MarkerSize',20,'LineWidth',2)
@@ -352,12 +352,19 @@ for K=1:MaxIter
         a=plotBezierPoint3D(N,BezierControlPoints(:,:,:,Face),[umean;vmean]);
         
         a=plotBezierPoint3D(N,BezierControlPoints(:,:,:,Face),[smean(1);smean(2)]);
-        a=[a(1) a(2) a(3)];
+        a=[a(1) a(2) a(3)]
         v0=a-pvec;
-        alpha=sqrt(v0*v0');
+        %alpha=sqrt(v0*v0');
+        alpha=v0*v';
         disp(['alpha0 = ' num2str(alpha0) '    alpha = ' num2str(alpha)])
-        if alpha <= alpha0
-          disp('Particle Hit !')
+        if alpha<0
+          disp('Particle oposite direction !')
+        else
+          if alpha <= alpha0
+            disp('Particle Hit !')
+          else
+            disp('Particle MISS !')
+          end
         end
         %% calc distance
         return
@@ -451,7 +458,7 @@ end
 
 
 
-function Bezier3d=plotBezierPoint3D(N,P,boundaries)
+function result=plotBezierPoint3D(N,P,boundaries)
 global BezierSurface
 
 % boundaries(1)=0
@@ -469,32 +476,24 @@ switch method
   case 'DeCasteljau'
     u=0.5*(boundaries(1)+1);
     v=0.5*(boundaries(2)+1);
-    Bezier3d=zeros(1,3);
-    sol=zeros(N,N,2);
     N2=N;
     BezierControlPoints3D_temp=P;
     for I=1:N %de casteljau schritti
       for q=1:N2
         for p=1:N2
           A=[BezierControlPoints3D_temp(p  ,q,:) BezierControlPoints3D_temp(p  ,q+1,:);...
-            BezierControlPoints3D_temp(p+1,q,:) BezierControlPoints3D_temp(p+1,q+1,:)];
-          %                   A=[BezierControlPoints3D_temp(p  ,q,:) BezierControlPoints3D_temp(p+1  ,q,:);...
-          %                      BezierControlPoints3D_temp(p,q+1,:) BezierControlPoints3D_temp(p+1,q+1,:)];
+             BezierControlPoints3D_temp(p+1,q,:) BezierControlPoints3D_temp(p+1,q+1,:)];
           for K=1:3
-            sol(p,q,K)=[1-u u]*A(:,:,K)*[1-v;v];
-            %BezierControlPoints3D_temp(p,q,K)=[1-u u]*A(:,:,K)*[1-v;v];
+            BezierControlPoints3D_temp(p,q,K)=[1-u u]*A(:,:,K)*[1-v;v];
           end
         end
       end
       N2=N2-1;
-      BezierControlPoints3D_temp=sol
-      sol=0;
     end
-    Bezier3d=BezierControlPoints3D_temp;
-    % [0.4337   0.2433   0.0492 ]
 end
-plot3(Bezier3d(1),Bezier3d(2),Bezier3d(3),'ko','LineWidth',5,'MarkerSize',10,'Parent',get(BezierSurface, 'children'));
-plot3(Bezier3d(1),Bezier3d(2),Bezier3d(3),'y.','LineWidth',5,'MarkerSize',10,'Parent',get(BezierSurface, 'children'));
+plot3(BezierControlPoints3D_temp(1,1,1),BezierControlPoints3D_temp(1,1,2),BezierControlPoints3D_temp(1,1,3),'ko','LineWidth',5,'MarkerSize',10,'Parent',get(BezierSurface, 'children'));
+plot3(BezierControlPoints3D_temp(1,1,1),BezierControlPoints3D_temp(1,1,2),BezierControlPoints3D_temp(1,1,3),'y.','LineWidth',5,'MarkerSize',10,'Parent',get(BezierSurface, 'children'));
+result=BezierControlPoints3D_temp(1,1,:);
 end
 
 function plotBezierPoint2D(N,P,boundaries,symbol)
@@ -558,24 +557,20 @@ switch direction
   % ===================================================================================================
   case 1 % u direction
     color='k.';
-    Bezier2d_temp=zeros(N+1,N+1,2);
-    %Bezier2d=zeros(N+1,N+1,2);
-    %Bezier2d_temp=BezierControlPoints2D;
+    Bezier2d_temp=zeros(N+1,N+1,2);;
     % 1. top xi
     s=smax;
     for q=1:N+1
       for p=1:N+1
         for l=1:p
           Bezier2d_temp        (p,q,:)=...
-            Bezier2d_temp        (p,q,:)+...
-            BezierControlPoints2D(l,q,:)*B(p-1,l-1,s);
+          Bezier2d_temp        (p,q,:)+...
+          BezierControlPoints2D(l,q,:)*B(p-1,l-1,s);
         end
       end
     end
     % 1. bottom xi
     BezierControlPoints2D=Bezier2d_temp;
-    %Bezier2d_temp=Bezier2d;
-    %Bezier2d=zeros(N+1,N+1,2);
     Bezier2d_temp=zeros(N+1,N+1,2);
     s=(smin+1)/(smax+1); %[-1, +1]
     s=2*(1-s)-1;
@@ -583,29 +578,29 @@ switch direction
       for p=1:N+1
         for l=1:p
           Bezier2d_temp        (N+2-p,q,:)=...
-            Bezier2d_temp        (N+2-p,q,:)+...
-            BezierControlPoints2D(N+2-l,q,:)*B(p-1,l-1,s);
+          Bezier2d_temp        (N+2-p,q,:)+...
+          BezierControlPoints2D(N+2-l,q,:)*B(p-1,l-1,s);
         end
       end
     end
     plot(Bezier2d_temp(:,:,1),Bezier2d_temp(:,:,2),color,Bezier2d_temp(:,:,1)',Bezier2d_temp(:,:,2)',color,'Parent',get(projectedFace, 'children'));
     for J=1:N+1
       text(Bezier2d_temp(:,J,1),Bezier2d_temp(:,J,2),'u','FontSize',22,'HorizontalAlignment','center','VerticalAlignment','bottom','Parent',get(projectedFace, 'children'))
+      text(Bezier2d_temp(:,J,1),Bezier2d_temp(:,J,2),[num2str([Bezier2d_temp(:,J,1) Bezier2d_temp(:,J,2)],'(%1.2e,%1.2e)')],'HorizontalAlignment','center','VerticalAlignment','top','Parent',get(projectedFace, 'children'))
     end
     BezierClipping=Bezier2d_temp;
     % ===================================================================================================
   case 2 % v direction
     color='r.';
     Bezier2d_temp=zeros(N+1,N+1,2);
-    %Bezier2d_temp=BezierControlPoints2D;
     % 2. top eta
     s=smax;
     for q=1:N+1
       for p=1:N+1
         for l=1:p
           Bezier2d_temp        (q,p,:)=...
-            Bezier2d_temp        (q,p,:)+...
-            BezierControlPoints2D(q,l,:)*B(p-1,l-1,s);
+          Bezier2d_temp        (q,p,:)+...
+          BezierControlPoints2D(q,l,:)*B(p-1,l-1,s);
         end
       end
     end
@@ -614,28 +609,25 @@ switch direction
     Bezier2d_temp=zeros(N+1,N+1,2);
     s=(smin+1)/(smax+1); %[-1, +1]
     s=2*(1-s)-1;
-    %     for q=1:N+1
-    %       for p=N+1:-1:1
-    %         for l=1:p
-    %           Bezier2d_temp        (q,N+2-p,:)=...
-    %           Bezier2d_temp        (q,N+2-p,:)+...
-    %           BezierControlPoints2D(q,N+2-l,:)*B(p-1,l-1,s);
-    %         end
-    %       end
-    %     end
     for q=1:N+1
       for p=1:N+1 %N+1:-1:1
         for l=1:N+2-p
           Bezier2d_temp        (q,p,:)=...
-            Bezier2d_temp        (q,p,:)+...
-            BezierControlPoints2D(q,N+2-l,:)*B(N+1-p,l-1,s);
+          Bezier2d_temp        (q,p,:)+...
+          BezierControlPoints2D(q,N+2-l,:)*B(N+1-p,l-1,s);
         end
       end
     end
     plot(Bezier2d_temp(:,:,1),Bezier2d_temp(:,:,2),color,Bezier2d_temp(:,:,1)',Bezier2d_temp(:,:,2)',color,'Parent',get(projectedFace, 'children'));
+    
+    
     for J=1:N+1
       text(Bezier2d_temp(:,J,1),Bezier2d_temp(:,J,2),'v','HorizontalAlignment','center','VerticalAlignment','bottom','Parent',get(projectedFace, 'children'))
+      text(Bezier2d_temp(:,J,1),Bezier2d_temp(:,J,2),[num2str([Bezier2d_temp(:,J,1) Bezier2d_temp(:,J,2)],'(%1.2e,%1.2e)')],'HorizontalAlignment','center','VerticalAlignment','top','Parent',get(projectedFace, 'children'))
     end
+%     sprintf('%1.2e'
+%     strValues = strtrim(cellstr(num2str([X(:) Y(:)],'(%d,%d)')));
+%     text(X,Y,strValues,'VerticalAlignment','bottom');
     BezierClipping=Bezier2d_temp;
     % ===================================================================================================
 end
@@ -682,4 +674,6 @@ n_Ls_inv=(1/sqrt([n_Ls_inv(1) n_Ls_inv(2)]*[n_Ls_inv(1);n_Ls_inv(2)]))*n_Ls_inv;
 %% plot result
 plot([0 n_Ls(1)*0.25], [0 n_Ls(2)*0.25],'k-','LineWidth',2,'MarkerSize',10,'Parent',get(projectedFace, 'children'))
 plot([0 n_Ls_inv(1)*0.25], [0 n_Ls_inv(2)*0.25],'k-','LineWidth',2,'MarkerSize',10,'Parent',get(projectedFace, 'children'))
+%n_Ls
+%n_Ls_inv
 end
