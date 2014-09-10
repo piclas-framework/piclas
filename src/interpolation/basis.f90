@@ -83,7 +83,7 @@ SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
 !USE nr,                        ONLY : gaussj
 USE MOD_Globals,                ONLY: abort
 USE MOD_PreProc
-USE MOD_Particle_Surfaces_Vars, ONLY: NPartCurved,arrayNchooseK
+USE MOD_Particle_Surfaces_Vars, ONLY: NPartCurved,arrayNchooseK,FacNchooseK
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -110,6 +110,8 @@ IF(NPartCurved.NE.N_In)THEN
 END IF
 ! store the coefficients
 ALLOCATE(arrayNchooseK(0:N_In,0:N_In))
+ALLOCATE(FacNchooseK(0:N_In,0:N_In))
+FacNchooseK(:,:) = 0.
 !Vandermonde on xi_In
 DO i=0,N_In
   DO j=0,N_In
@@ -117,12 +119,15 @@ DO i=0,N_In
     ! array with binomial coeffs for bezier clipping
     IF(i.GE.j)THEN!only calculate LU (for n >= k, else 0)
       arrayNchooseK(i,j)=REAL(CHOOSE(i,j))
+      FacNchooseK(i,j) = (1.0/(2.0**REAL(i)))*ArrayNchooseK(i,j)
     ELSE
       arrayNchooseK(i,j)=0.
     END IF
+!    print*,'i,j',i,j,arrayNChooseK(i,j),FacNChooseK(i,j),'komisch',REAL(1.0/(2.0**Real(i)))
+!    read*
   END DO !i
 END DO !j
-print*,arrayNchooseK !CHANGETAG
+!print*,arrayNchooseK !CHANGETAG
 !Inverse of the Vandermonde
 dummy_vec=0.
 !print*,dummy_vec
@@ -698,7 +703,7 @@ INTEGER            :: I
 IF(N_in.LT.0) CALL abort(__STAMP__,&
                 'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 IF(N_in.EQ.0)THEN
-  FACTORIAL = 0
+  FACTORIAL = 1 !! debug, should be one!!!!
 ELSE
   FACTORIAL = PRODUCT((/(I, I = 1, N_in)/))
 END IF

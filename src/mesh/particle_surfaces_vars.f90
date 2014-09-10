@@ -24,6 +24,7 @@ LOGICAL                                 :: DoPartCurved=.FALSE.         !
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_CLNGeo_EquiNPartCurved
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_Bezier,sVdm_Bezier       ! 
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: arrayNchooseK                ! array for binomial coefficients
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: FacNchooseK                  ! array for binomial coefficients times prefactor
 LOGICAL,ALLOCATABLE,DIMENSION(:)        :: SideIsPlanar                 ! logical error if side is planar, instead of bi-linear
 LOGICAL,ALLOCATABLE,DIMENSION(:)        :: BoundingBoxIsEmpty
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideNormVec                  ! normal Vector of planar sides
@@ -37,8 +38,8 @@ REAL                                    :: epsilontol                   ! epsilo
 REAL                                    :: Mepsilontol               
 LOGICAL                                 :: ParticleSurfaceInitIsDone=.FALSE.
 ! settings for Bezier-Clipping and definition of maximal number of intersections
-INTEGER                                 :: ClipTolerance,ClipMaxIter    
-INTEGER                                 :: ClipMaxInter
+REAL                                    :: ClipTolerance
+INTEGER                                 :: ClipMaxInter,ClipMaxIter
 REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray
 !===================================================================================================================================
