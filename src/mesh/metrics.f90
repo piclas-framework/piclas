@@ -74,7 +74,7 @@ USE MOD_Mesh_Vars,          ONLY:DCL_NGeo,DCL_N
 USE MOD_Mesh_Vars,          ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
 USE MOD_Mesh_Vars,          ONLY:nElems
 #ifdef PARTICLES
-USE MOD_Particle_Surfaces,  ONLY:GetSuperSampledSurface,GetBezierControlPoints3D
+USE MOD_Particle_Surfaces,  ONLY:GetSuperSampledSurface,GetBezierControlPoints3D,GetSideType
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,          ONLY:xBaryCL_NGeo
 #endif /*PARTICLES*/
@@ -308,20 +308,8 @@ DO iElem=1,nElems
   xBaryCL_NGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))/NGeo
 #endif /*PARTICLES*/
 END DO !iElem=1,nElems
-! testing bezier basis (control points are coefficients)
-!OPEN(unit=111,FILE='BezierControlPoints.dat',STATUS='UNKNOWN')
-!DO k=1,SIZE(BezierControlPoints(1,0,0,:))
-  !DO q=0,NGeo
-    !DO p=0,NGeo
-      !write(111,'(ES15.7,A,ES15.7,A,ES15.7)') BezierControlPoints(1,p,q,k),'  ',&
-                                              !BezierControlPoints(2,p,q,k),'  ',&
-                                              !BezierControlPoints(3,p,q,k)
-    !END DO
-  !END DO
-!END DO
-!CLOSE(111)
-!print*,"faces written, STOP"
-!STOP
+
+CALL GetSideType()
 END SUBROUTINE CalcMetrics 
 
 

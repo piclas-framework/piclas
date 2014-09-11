@@ -198,7 +198,7 @@ END SELECT !PartBound%Map(BC(SideID)
 
 END SUBROUTINE GetBoundaryInteractionSuperSampled
 
-SUBROUTINE GetBoundaryInteraction(PartTrajectory,alpha,xi,eta,iPart,SideID,ElemID)
+SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -209,15 +209,19 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,alpha,xi,eta,iPart,SideID,ElemI
 !  MPINeighborhoodBC       = 6  
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                ONLY:Abort
 USE MOD_PreProc
-USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVec
+USE MOD_Globals,                ONLY:Abort
+USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
 USE MOD_Particle_Vars,          ONLY:PartBound,PDM,PartSpecies,PartState,LastPartPos
-USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideIsPlanar
+USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut,PartAnalyzeStep
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
+USE MOD_TimeDisc_Vars,          ONLY:RK4_a,iStage
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -227,10 +231,13 @@ REAL,INTENT(IN)                      :: xi,eta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)                :: ElemID
-REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3)
+REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3)
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+REAL                                 :: absPt_temp
+#endif
 !===================================================================================================================================
 
 IF (.NOT. ASSOCIATED(PartBound%Map)) THEN
@@ -254,24 +261,60 @@ CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IF(SideIsPlanar(SideID))THEN
+  SELECT CASE(SideType(SideID))
+  CASE(PLANAR)
     n_loc=SideNormVec(1:3,SideID)
-  ELSE
-    n_loc=CalcBiLinearNormVec(xi,eta,SideID)
-  END IF
+  CASE(BILINEAR)
+    n_loc=CalcBiLinearNormVecBezier(xi,eta,SideID)
+  CASE(CURVED)
+    n_loc=CalcNormVecBezier(xi,eta,SideID)
+!    CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
+  END SELECT 
+  ! substract tolerance from length
+  LengthPartTrajectory=LengthPartTrajectory-epsilontol
   ! intersection point with surface
-  lastPartPos(iPart,1:3) = PartState(iPart,1:3)+PartTrajectory(1:3)*alpha
+ ! lastPartPos(iPart,1:3) = PartState(iPart,1:3)+PartTrajectory(1:3)*alpha
+  LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
+
   ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
   !v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
-  v_aux                  = -2*((1-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
-  PartState(iPart,1:3)   = PartState(iPart,1:3)+PartTrajectory(1:3)+v_aux
+  !v_aux                  = -2*((1-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
+  v_aux                  = -2*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
+  !PartState(iPart,1:3)   = PartState(iPart,1:3)+PartTrajectory(1:3)+v_aux
+  PartState(iPart,1:3)   = PartState(iPart,1:3)+v_aux
   ! new velocity vector 
-  v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
-  PartState(iPart,4:6)   = SQRT(DOT_PRODUCT(PartState(iPart,4:6), PartState(iPart,4:6)))*&
+  !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
+  v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
+  PartState(iPart,4:6)   = SQRT(DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6)))*&
                            (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2                         +&
                            PartBound%WallVelo(1:3,BC(SideID))
+!
+!  PartState(iPart,4:6)   = SQRT(DOT_PRODUCT(PartState(iPart,4:6), PartState(iPart,4:6)))*&
+!                           (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2                         +&
+!                           PartBound%WallVelo(1:3,BC(SideID))
   !PartState(iPart,4:6)   = 0.
-  PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+  !PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
+  lengthPartTrajectory=lengthPartTrajectory+epsilontol
+
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+  ! correction for Runge-Kutta (correct position!!)
+  !print*,'Pt_temp',Pt_temp(iPart,1:3)
+  ! get length of Pt_temp(iPart,1:3) || equals summed velocity change ! only exact for linear movement
+!  print*,'acceleration_old',Pt_temp(iPart,4:6)
+!  read*
+  absPt_temp=SQRT(Pt_temp(iPart,1)*Pt_temp(iPart,1)+Pt_temp(iPart,2)*Pt_temp(iPart,2)+Pt_temp(iPart,3)*Pt_temp(iPart,3))
+  ! scale PartTrajectory to new Pt_temp
+  Pt_temp(iPart,1:3)=absPt_temp*PartTrajectory(1:3)
+  ! deleate force history
+  Pt_temp(iPart,4:6)=0.
+  ! what happens with force term || acceleration?
+#endif 
+
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------

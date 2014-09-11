@@ -30,16 +30,14 @@ SUBROUTINE ParticleTrackingCurved()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,                     ONLY:abort
-USE MOD_Mesh_Vars,                   ONLY:ElemToSide,nBCSides
+USE MOD_Mesh_Vars,                   ONLY:ElemToSide,nBCSides,NGeo
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideIsPlanar,epsilonOne,neighborElemID,neighborlocSideID,epsilonbilinear
+USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne,neighborElemID,neighborlocSideID,epsilonbilinear
 USE MOD_Particle_Surfaces_Vars,      ONLY:nPartCurved,BezierControlPoints3D,BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars,      ONLY:SuperSampledNodes,nQuads
 USE MOD_TimeDisc_Vars,               ONLY:iter
-!USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
-USE MOD_Mesh_vars, only: normvec
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionSuperSampled
+USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -50,13 +48,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,ElemID
-INTEGER                       :: ilocSide,SideID,flip
-INTEGER                       :: iInterSect,nInter
-INTEGER                       :: p,q,QuadID,iQuad,minQuadID,maxQuadID
+INTEGER                       :: ilocSide,SideID,iIntersect
 LOGICAL                       :: PartisDone,dolocSide(1:6)
 REAL                          :: alpha,xi,eta
-REAL                          :: alpha_loc(1:nQuads),xi_loc(1:nQuads),eta_loc(1:nQuads)
-REAL                          :: xNodes(1:3,4),Displacement,xdisplace(1:3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 !===================================================================================================================================
 DO iPart=1,PDM%ParticleVecLength
@@ -77,111 +71,48 @@ DO iPart=1,PDM%ParticleVecLength
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
       DO ilocSide=1,6
-        alpha_loc=-1.0
+        alpha=-1.0
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
-        flip  =ElemToSide(E2S_FLIP,ilocSide,ElemID)
         print*,'SideID',SideID
-        print*,'normvec0,0',normVec(:,0,0,SideID)
-        !read*
-        !-----------------------------------------------------------------------------------------------------------------
-        !vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-        QuadID=0
-        ! supersampling of each side
-        DO q=0,NPartCurved-1
-          DO p=0,NPartCurved-1
-            QuadID=QuadID+1
-            xNodes(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)
-            xNodes(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)
-            xNodes(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)
-            xNodes(:,4)=SuperSampledNodes(1:3,p  ,q+1,SideID)
-            ! compute displacement || decision between planar or bi-linear plane 
-            xdisplace(1:3) = xNodes(:,1)-xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
-            Displacement = xdisplace(1)*xdisplace(1)+xdisplace(2)*xdisplace(2)+xdisplace(3)*xdisplace(3)
-            IF(Displacement.LT.epsilonbilinear)THEN
-              CALL ComputePlanarIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory &
-                                                         ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),flip,iPart)
-            ELSE
-
-              CALL ComputeBiLinearIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory &
-                                                        ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart,SideID)
-            END IF
-          END DO ! p
-        END DO ! q
-        !^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        !-----------------------------------------------------------------------------------------------------------------
         ! find intersection point with surface: use NGeo for BezierControlPoints
-        IF(BoundingBoxIsEmpty(SideID))THEN!it is flat, but not necessarily a quadrilateral!
-          ! correct this (only 4 nodes are considered at the moment)
-          IF(SideIsPlanar(SideID))THEN!it is really a planar & quadrilaterl side ! is again performed ! check with polynomial degree
-            xNodes(:,1)=BezierControlPoints3D(1:3,0          ,0          ,SideID)
-            xNodes(:,2)=BezierControlPoints3D(1:3,NPartCurved,0          ,SideID)
-            xNodes(:,3)=BezierControlPoints3D(1:3,NPartCurved,NPartCurved,SideID)
-            xNodes(:,4)=BezierControlPoints3D(1:3,0          ,NPartCurved,SideID)
-            CALL ComputePlanarIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,flip,iPart)
-          ELSE
-            CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
-          END IF
-        ELSE ! normal Bezier Surface with finite volume bounding box
+        SELECT CASE(SideType(SideID))
+        CASE(PLANAR)
+          !xNodes(:,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
+          !xNodes(:,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
+          !xNodes(:,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
+          !xNodes(:,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
+!          CALL ComputePlanarIntersectionSuperSampled2([BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
+!                                                      ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
+!                                                      ,BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &
+!                                                      ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
+!                                                      ,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart)
+          CALL ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+        CASE(BILINEAR)
+          CALL ComputeBiLinearIntersectionSuperSampled2([BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
+                                                        ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
+                                                        ,BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &
+                                                        ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
+                                                        ,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+        CASE(CURVED)
           CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
-        END IF
+        END SELECT
         print*,'alpha',alpha
         print*,'xi',xi
         print*,'eta',eta
+        if(alpha.gt.0)THEN
         print*,'interpoint-x',LastPartPos(iPart,1)+alpha*PartTrajectory(1)
         print*,'interpoint-y',LastPartPos(iPart,2)+alpha*PartTrajectory(2)
         print*,'interpoint-z',LastPartPos(iPart,3)+alpha*PartTrajectory(3)
+       endif
         !read*
-
-
-
-
 
         ! get correct intersection
         IF(SideID.LE.nBCSides)THEN
-        !-----------------------------------------------------------------------------------------------------------------
-        !vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-          alpha=HUGE(0.0)
-          minQuadID=99999
-          ! get smallest alpha
-          DO iQuad=1,nQuads
-            IF(alpha_loc(iQuad).GT.epsilontol)THEN
-              IF(alpha.GT.alpha_loc(iQuad))THEN
-                alpha=alpha_loc(iQuad)
-                minQuadID=iQuad
-              END IF ! alpha.GT.alpha_loc
-            END IF ! alpha_loc.GT.espilontol
-          END DO ! iQuad
-        !^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        !-----------------------------------------------------------------------------------------------------------------
           ! check if interesction is possible and take first intersection
-          IF(alpha.GT.epsilontol.AND.alpha.LT.lengthPartTrajectory)THEN
-            CALL GetBoundaryInteractionSuperSampled(PartTrajectory,lengthPartTrajectory,alpha,xi_loc(minQuadID),eta_loc(minQuadID),&
-                                                                                            iPart,minQuadID,SideID,ElemID)
-             EXIT
-          ELSE ! no intersection
-            alpha=-1.0
-          END IF
+          IF(alpha.GT.-1.) CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID)
         ELSE ! no BC Side
-          ! search max alpha
-          alpha=-1.0
-          maxQuadID=-1
-          nInter=0
-          ! get largest possible intersection
-          DO iQuad=1,nQuads
-            !print*,'alpha_loc',alpha_loc(iQuad)
-            IF(alpha_loc(iQuad).GT.alpha)THEN
-              IF(alpha_loc(iQuad)*alpha.LT.0) nInter=nInter+1
-              IF(ABS(alpha_loc(iQuad)/alpha).GT.epsilonOne) nInter=nInter+1
-              alpha=alpha_loc(iQuad)
-              maxQuadID=iQuad
-            END IF
-          END DO ! iQuad
-          !print*,'nInter',nInter
-          IF(MOD(nInter,2).EQ.0) alpha=-1.0
-          IF(alpha.GT.epsilontol)THEN
-             xi=xi_loc(maxQuadID) 
-             eta=eta_loc(maxQuadID)
+          IF(alpha.GT.-1.)THEN
              ! check if the found alpha statisfy the selection condition
              iInterSect=INT((ABS(xi)-2*epsilontol)/1.0)+INT((ABS(eta)-2*epsilontol)/1.0)
              IF(iInterSect.GT.0)THEN
@@ -193,8 +124,6 @@ DO iPart=1,PDM%ParticleVecLength
                ElemID=neighborElemID(ilocSide,ElemID)
                EXIT
              END IF ! possible intersect
-           ELSE
-             alpha=-1.0
            END IF ! alpha.GT.epsilontol
         END IF ! SideID.LT.nBCSides
       END DO ! ilocSide
@@ -327,8 +256,8 @@ CASE(0)
   RETURN
 CASE(1)
   alpha=locAlpha(nInterSections)
-  xi =locXi (locID(nInterSections))
-  eta=loceta(locID(nInterSections))
+  xi =locXi (1)
+  eta=loceta(1)
 CASE DEFAULT
   ! more than one intersection
   ALLOCATE(locID(nInterSections))
@@ -1145,7 +1074,7 @@ USE MOD_Globals,                     ONLY:abort
 USE MOD_Mesh_Vars,                   ONLY:ElemToSide,nBCSides
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideIsPlanar,epsilonOne,neighborElemID,neighborlocSideID,epsilonbilinear
+USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne,neighborElemID,neighborlocSideID,epsilonbilinear
 USE MOD_Particle_Surfaces_Vars,      ONLY:nPartCurved, SuperSampledNodes,nQuads
 USE MOD_TimeDisc_Vars,               ONLY:iter
 !USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
@@ -1215,7 +1144,7 @@ DO iPart=1,PDM%ParticleVecLength
             !print*,displacement
             IF(Displacement.LT.epsilonbilinear)THEN
               CALL ComputePlanarIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory &
-                                                         ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),flip,iPart)
+                                                         ,alpha_loc(QuadID),xi_loc(QuadID),eta_loc(QuadID),iPart)
             ELSE
 !           print*, CALL abort(__STAMP__,&
 !                ' flip missing!!! ',999,999.)
@@ -1526,9 +1455,111 @@ END SUBROUTINE ParticleTracking
 !
 !END SUBROUTINE ComputePlanarIntersection
 
+SUBROUTINE ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+!===================================================================================================================================
+! Compute the Intersection with planar surface
+! equation of plane: P1*xi + P2*eta+P0
+! equation to solve intersection point with plane
+! P1*xi+P2*eta+P0-LastPartPos-alpha*PartTrajectory
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,                 ONLY:Cross,abort
+USE MOD_Mesh_Vars,               ONLY:NGeo
+USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+REAL,INTENT(IN)                   :: lengthPartTrajectory
+INTEGER,INTENT(IN)                :: iPart,SideID!,ElemID
+!INTEGER,INTENT(IN)                :: flip
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                  :: alpha,xi,eta
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(1:3)               :: P0,P1,P2
+!REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
+REAL                              :: a1,a2,b1,b2,c1,c2
+REAL                              :: coeffA,nlength
+!===================================================================================================================================
+
+! set alpha to minus 1, asume no intersection
+!print*,PartTrajectory
+alpha=-1.0
+xi=-2.
+eta=-2.
+
+coeffA=DOT_PRODUCT(SideNormVec(:,SideID),PartTrajectory)
+!print*,coeffA
+!IF(flip.EQ.0)THEN ! master side ! is in flip for normVec
+!  IF(coeffA.LT.epsilontol)RETURN
+!ELSE ! slave sides
+!  IF(coeffA.GT.-epsilontol)RETURN
+!END IF ! flip
+
+!! corresponding to particle starting in plane
+!! interaction should be computed in last step
+IF(ABS(coeffA).LT.+epsilontol)THEN 
+  RETURN
+END IF
+
+alpha=SideDistance(SideID)/coeffA
+
+!IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
+IF((alpha.GT.lengthPartTrajectory).OR.(alpha.LT.-epsilontol))THEN
+  alpha=-1.0
+  RETURN
+END IF
+
+P1=-0.25*(-BezierControlPoints3D(:,0,0,SideID)+BezierControlPoints3D(:,NGeo,0,SideID)      &
+         -BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
+
+P2=0.25*(-BezierControlPoints3D(:,0,0,SideID)-BezierControlPoints3D(:,NGeo,0,SideID)        &
+          +BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) )
+
+P0=0.25*(BezierControlPoints3D(:,0,0,SideID)+BezierControlPoints3D(:,NGeo,0,SideID)         &
+        +BezierControlPoints3D(:,0,NGeo,SideID)+BezierControlPoints3D(:,NGeo,NGeo,SideID) ) &
+        -LastPartPos(iPart,1:3)-alpha*PartTrajectory
+
+
+A1=P1(1)+P1(3)
+B1=P2(1)+P2(3)
+C1=P0(1)+P0(3)
+
+A2=P1(2)+P1(3)
+B2=P2(2)+P2(3)
+C2=P0(2)+P0(3)
+
+IF(ABS(B1).GT.epsilontol)THEN
+  xi = A2-B2/B1*A1
+  xi = (B2/B1*C1-C2)/xi
+ELSE
+  xi = A1-B1/B2*A2
+  xi = (B1/B2*C2-C1)/xi
+END IF
+
+IF(ABS(xi).GT.epsilonOne)THEN
+  alpha=-1.0
+  RETURN
+END IF
+
+eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
+IF(ABS(eta).GT.epsilonOne)THEN
+  alpha=-1.0
+  RETURN
+END IF
+
+END SUBROUTINE ComputePlanarIntersectionBezier
+
 
 !SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,iPart)
-SUBROUTINE ComputePlanarIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,flip,iPart)
+SUBROUTINE ComputePlanarIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart)!,SideID)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! equation of plane: P1*xi + P2*eta+P0
@@ -1538,7 +1569,7 @@ SUBROUTINE ComputePlanarIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPa
 ! MODULES
 USE MOD_Globals,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideType
 !USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1549,7 +1580,7 @@ REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
 REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
 INTEGER,INTENT(IN)                :: iPart!,SideID!,ElemID
-INTEGER,INTENT(IN)                :: flip
+!INTEGER,INTENT(IN)                :: flip
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha,xi,eta
@@ -1835,7 +1866,7 @@ END IF
 END SUBROUTINE ComputePlanarIntersectionSuperSampled2
 
 !SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,iPart)
-SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,flip,iPart)
+SUBROUTINE ComputePlanarIntersectionSuperSampled(xNodes,PartTrajectory,alpha,xi,eta,iPart)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! equation of plane: P1*xi + P2*eta+P0
@@ -1856,7 +1887,7 @@ REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 !REAL,INTENT(IN)                   :: lengthPartTrajectory
 REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
 INTEGER,INTENT(IN)                :: iPart!,SideID!,ElemID
-INTEGER,INTENT(IN)                :: flip
+!INTEGER,INTENT(IN)                :: flip
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha,xi,eta

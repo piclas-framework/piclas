@@ -13,8 +13,8 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-INTERFACE GetBiLinearPlane
-  MODULE PROCEDURE GetBiLinearPlane
+INTERFACE GetSideType
+  MODULE PROCEDURE GetSideType
 END INTERFACE
 
 INTERFACE InitParticleSurfaces
@@ -41,8 +41,16 @@ INTERFACE CalcNormVec
   MODULE PROCEDURE CalcNormVec
 END INTERFACE
 
-PUBLIC::GetBiLinearPlane, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, GetSuperSampledSurface, &
-        CalcNormVec,GetBezierControlPoints3D
+INTERFACE CalcNormVecBezier
+  MODULE PROCEDURE CalcNormVecBezier
+END INTERFACE
+
+INTERFACE CalcBiLinearNormVecBezier
+  MODULE PROCEDURE CalcBiLinearNormVecBezier
+END INTERFACE
+
+PUBLIC::GetSideType, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, GetSuperSampledSurface, &
+        CalcNormVec,GetBezierControlPoints3D,CalcBiLinearNormVecBezier,CalcNormVecBezier
 
 !===================================================================================================================================
 
@@ -115,13 +123,13 @@ DO iElem=1,PP_nElems
     END IF
   END DO ! ilocSide
 END DO ! Elem
+
 !IF(.NOT.DoPartCurved)THEN !CHANGETAG
-  ALLOCATE( SideIsPlanar(nSides)            &
-          , SideDistance(nSides)            &
-          , BiLinearCoeff(1:3,1:4,1:nSides) )
-          !, nElemBCSides(PP_nElems)         &
-  SideIsPlanar=.FALSE.
-  CALL GetBiLinearPlane()
+!ALLOCATE( SideType(nSides)                &
+!        , SideDistance(nSides)            &
+!        , BiLinearCoeff(1:3,1:4,1:nSides) )
+!          !, nElemBCSides(PP_nElems)         &
+!  CALL GetBiLinearPlane()
 !ELSE
 !  ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,nSides)               &
 !          , SuperSampledBiLinearCoeff(1:3,1:4,1:NPartCurved,1:NPartCurved,1:nSides) )
@@ -152,7 +160,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-SDEALLOCATE(SideIsPlanar)
+SDEALLOCATE(SideType)
 SDEALLOCATE(BiLinearCoeff)
 SDEALLOCATE(SideNormVec)
 SDEALLOCATE(SideDistance)
@@ -168,116 +176,117 @@ ParticleSurfaceInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeParticleSurfaces
 
-SUBROUTINE GetBilinearPlane()
+! obsolete
+!SUBROUTINE GetBilinearPlane()
 !===================================================================================================================================
 ! computes the required coefficients for a bi-linear plane and performs the decision between planar and bi-linear planes
 !===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide
-USE MOD_Particle_Vars,            ONLY:GEO
-USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear, SideIsPlanar,BiLinearCoeff, SideNormVec, SideDistance
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
+!! MODULES
+!USE MOD_Globals
+!USE MOD_Preproc
+!USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide
+!USE MOD_Particle_Vars,            ONLY:GEO
+!USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear, SideIsPlanar,BiLinearCoeff, SideNormVec, SideDistance
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL,ALLOCATABLE               :: SideIsDone(:)
-REAL                              :: Displacement,nlength
-INTEGER                           :: iElem,ilocSide, SideID,iNode,iSide
-! debug information
-INTEGER                           :: nBilinear,nPlanar
+!LOGICAL,ALLOCATABLE               :: SideIsDone(:)
+!REAL                              :: Displacement,nlength
+!INTEGER                           :: iElem,ilocSide, SideID,iNode,iSide
+!! debug information
+!INTEGER                           :: nBilinear,nPlanar
 !===================================================================================================================================
-
-ALLOCATE( SideIsDone(1:nSides) )
-SideIsDone=.FALSE.
-nBiLinear=0
-nPlanar=0
-
-DO iElem=1,PP_nElems ! caution, if particles are not seeded in the whole domain
-  DO ilocSide=1,6
-    SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem) 
-    IF(.NOT.SideIsDone(SideID))THEN
-
-      ! for ray-bi-linear patch intersection see. ramsay
-      ! compute the bi-linear coefficients for this side
-      ! caution: the parameter space is [-1;1] x [-1;1] instead of [0,1]x[0,2] 
-      ! the numbering of the nodes should be counterclockwise 
-      ! DEBUGGGG!!!!!!!!!!!!!!!!
-      ! check if the nodes are in correct numbering
-      ! for ray-bi-linear patch intersection see. ramsay
-      BiLinearCoeff(:,1,SideID) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
-                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
-                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
-                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
-
-      BiLinearCoeff(:,2,SideID) =-GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
-                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
-                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
-                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
-
-      BiLinearCoeff(:,3,SideID) =-GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
-                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
-                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
-                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
-
-      BiLinearCoeff(:,4,SideID) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
-                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
-                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
-                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
-      BiLinearCoeff(:,:,SideID) = 0.25*BiLinearCoeff(:,:,SideID)
-      ! compute displacement vector (is displacement form planar plane)
-      Displacement = BiLinearCoeff(1,1,SideID)*BiLinearCoeff(1,1,SideID) &
-                   + BiLinearCoeff(2,1,SideID)*BiLinearCoeff(2,1,SideID) &
-                   + BiLinearCoeff(3,1,SideID)*BiLinearCoeff(3,1,SideID) 
-      IF(Displacement.LT.epsilonbilinear)THEN
-        SideIsPlanar(SideID)=.TRUE.
-print*,"SideIsPlanar(",SideID,")=",SideIsPlanar(SideID)
-        nPlanar=nPlanar+1
-      ELSE
-        nBilinear=nBilinear+1
-      END IF
-      SideIsDone(SideID)=.TRUE.
-    ELSE
-      CYCLE  
-    END IF ! SideID
-  END DO ! ilocSide
-END DO ! iElem
-
-! get number of bc-sides of each element
-! nElemBCSides=0
-! DO iElem=1,PP_nelems
-!   DO ilocSide=1,6
-!     SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
-!     IF(SideID.LT.nBCSides) nElemBCSides=nElemBCSides+1
-!   END DO ! ilocSide
-! END DO ! nElemBCSides
-
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar    surfaces: ', nPlanar
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear surfaces: ', nBilinear
-ALLOCATE(SideNormVec(1:3,nSides))
-SideNormVec=0.
-! compute normal vector of planar sides
-DO iSide=1,nSides
-  IF(SideIsPlanar(SideID))THEN
-    SideNormVec(:,iSide)=CROSS(BiLinearCoeff(:,2,iSide),BiLinearCoeff(:,3,iSide))
-    nlength=SideNormVec(1,iSide)*SideNormVec(1,iSide) &
-           +SideNormVec(2,iSide)*SideNormVec(2,iSide) &
-           +SideNormVec(3,iSide)*SideNormVec(3,iSide) 
-    SideNormVec(:,iSide) = SideNormVec(:,iSide)/SQRT(nlength)
-    SideDistance(iSide)  = DOT_PRODUCT(SideNormVec(:,iSide),BiLinearCoeff(:,4,iSide))
-  END IF
-END DO ! iSide
-
-DEALLOCATE( SideIsDone)
-
-END SUBROUTINE GetBilinearPlane
+!
+!ALLOCATE( SideIsDone(1:nSides) )
+!SideIsDone=.FALSE.
+!nBiLinear=0
+!nPlanar=0
+!
+!DO iElem=1,PP_nElems ! caution, if particles are not seeded in the whole domain
+!  DO ilocSide=1,6
+!    SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem) 
+!    IF(.NOT.SideIsDone(SideID))THEN
+!
+!      ! for ray-bi-linear patch intersection see. ramsay
+!      ! compute the bi-linear coefficients for this side
+!      ! caution: the parameter space is [-1;1] x [-1;1] instead of [0,1]x[0,2] 
+!      ! the numbering of the nodes should be counterclockwise 
+!      ! DEBUGGGG!!!!!!!!!!!!!!!!
+!      ! check if the nodes are in correct numbering
+!      ! for ray-bi-linear patch intersection see. ramsay
+!      BiLinearCoeff(:,1,SideID) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
+!                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
+!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
+!                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
+!
+!      BiLinearCoeff(:,2,SideID) =-GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
+!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
+!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
+!                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
+!
+!      BiLinearCoeff(:,3,SideID) =-GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
+!                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
+!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
+!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
+!
+!      BiLinearCoeff(:,4,SideID) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
+!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
+!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
+!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
+!      BiLinearCoeff(:,:,SideID) = 0.25*BiLinearCoeff(:,:,SideID)
+!      ! compute displacement vector (is displacement form planar plane)
+!      Displacement = BiLinearCoeff(1,1,SideID)*BiLinearCoeff(1,1,SideID) &
+!                   + BiLinearCoeff(2,1,SideID)*BiLinearCoeff(2,1,SideID) &
+!                   + BiLinearCoeff(3,1,SideID)*BiLinearCoeff(3,1,SideID) 
+!      IF(Displacement.LT.epsilonbilinear)THEN
+!        SideIsPlanar(SideID)=.TRUE.
+!print*,"SideIsPlanar(",SideID,")=",SideIsPlanar(SideID)
+!        nPlanar=nPlanar+1
+!      ELSE
+!        nBilinear=nBilinear+1
+!      END IF
+!      SideIsDone(SideID)=.TRUE.
+!    ELSE
+!      CYCLE  
+!    END IF ! SideID
+!  END DO ! ilocSide
+!END DO ! iElem
+!
+!! get number of bc-sides of each element
+!! nElemBCSides=0
+!! DO iElem=1,PP_nelems
+!!   DO ilocSide=1,6
+!!     SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+!!     IF(SideID.LT.nBCSides) nElemBCSides=nElemBCSides+1
+!!   END DO ! ilocSide
+!! END DO ! nElemBCSides
+!
+!SWRITE(UNIT_StdOut,'(132("-"))')
+!SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar    surfaces: ', nPlanar
+!SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear surfaces: ', nBilinear
+!ALLOCATE(SideNormVec(1:3,nSides))
+!SideNormVec=0.
+!! compute normal vector of planar sides
+!DO iSide=1,nSides
+!  IF(SideIsPlanar(SideID))THEN
+!    SideNormVec(:,iSide)=CROSS(BiLinearCoeff(:,2,iSide),BiLinearCoeff(:,3,iSide))
+!    nlength=SideNormVec(1,iSide)*SideNormVec(1,iSide) &
+!           +SideNormVec(2,iSide)*SideNormVec(2,iSide) &
+!           +SideNormVec(3,iSide)*SideNormVec(3,iSide) 
+!    SideNormVec(:,iSide) = SideNormVec(:,iSide)/SQRT(nlength)
+!    SideDistance(iSide)  = DOT_PRODUCT(SideNormVec(:,iSide),BiLinearCoeff(:,4,iSide))
+!  END IF
+!END DO ! iSide
+!
+!DEALLOCATE( SideIsDone)
+!
+!END SUBROUTINE GetBilinearPlane
 
 FUNCTION CalcBiLinearNormVec(xi,eta,SideID)
 !================================================================================================================================
@@ -310,11 +319,121 @@ CalcBiLinearNormVec=nVec/nlength
 
 END FUNCTION CalcBiLinearNormVec
 
-FUNCTION CalcNormVec(xi,eta,QuadID,SideID)
+FUNCTION CalcBiLinearNormVecBezier(xi,eta,SideID)
 !================================================================================================================================
 ! function to compute the normal vector of a bi-linear surface
 !================================================================================================================================
 USE MOD_Globals,                              ONLY:CROSS
+USE MOD_Mesh_Vars,                            ONLY:NGeo
+USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                        :: xi,eta
+INTEGER,INTENT(IN)                     :: SideID
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+REAL,DIMENSION(3)                      :: CalcBilinearNormVecBezier
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(3)                      :: a,b,nVec
+REAL                                   :: nlength
+!================================================================================================================================
+
+
+b=xi*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0  ,SideID)  & 
+          +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) ) &
+   +0.25*(-BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0  ,SideID)   &
+          +BezierControlPoints3D(:,NGeo,NGeo,SideID)+BezierControlPoints3D(:,0   ,NGeo,SideID) )
+
+a=eta*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+           +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) ) &
+    +0.25*(-BezierControlPoints3D(:,0   ,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
+           +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) )
+
+
+nVec=CROSS(a,b)
+nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
+nlength=SQRT(nlength)
+CalcBiLinearNormVecBezier=nVec/nlength
+END FUNCTION CalcBiLinearNormVecBezier
+
+FUNCTION CalcNormVecBezier(xi,eta,SideID)
+!================================================================================================================================
+! function to compute the normal vector of a bi-linear surface
+!================================================================================================================================
+USE MOD_Mesh_Vars,                            ONLY:NGeo
+USE MOD_Globals,                              ONLY:CROSSNORM
+USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D,facNchooseK
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                        :: xi,eta
+INTEGER,INTENT(IN)                     :: SideID
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+REAL,DIMENSION(3)                      :: CalcNormVecBezier
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(3)                      :: v,u,nVec
+INTEGER                                :: p,q,m
+!REAL                                   :: nlength
+REAL                                   :: MinusXi,PlusXI,MinusEta,PlusEta
+REAL                                   :: xiup(0:NGeo),etaup(0:NGeo),xidown(0:NGeo),etadown(0:NGeo)
+!================================================================================================================================
+
+M=nGeo-1
+MinusXi=1.0-xi
+PlusXi=1.0+xi
+MinusEta=1.0-eta
+PlusEta=1.0+eta
+
+! compute the required stuff
+xiup(0)=1.0
+etaup(0)=1.0
+! caution, here the indicies are switched from n-j to j 
+xidown(NGeo)=1.0
+etadown(NGeo)=1.0
+DO p=1,NGeo
+  xiup(p)=xiup(p-1)*PlusXi
+  xidown(NGeo-p)=xidown(NGeo-p+1)*MinusXi
+  etaup(p)=etaup(p-1)*PlusEta
+  etadown(NGeo-p)=etadown(NGeo-p+1)*MinusEta
+END DO ! p
+
+! B = (1./(2**N_in))*REAL(CHOOSE(N_in,j))*((x+1.)**j)*((1.-x)**(N_in-j))
+u=0
+v=0
+DO q=0,NGeo
+  DO p=0,M
+    ! derivative in xi
+    u=u+(BezierControlPoints3D(:,p+1,q,SideID)-BezierControlPoints3D(:,p,q,SideID)) &
+        *BezierControlPoints3D(:,p,q,SideID)*facNchooseK(M,p)*xiup(p)*xidown(p)     &
+                                            *facNChooseK(NGeo,q)*etaup(q)*etadown(q)
+    ! derivative in eta ! caution - exchange indicies
+    v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID)) &
+        *BezierControlPoints3D(:,q,p,SideID)*facNchooseK(NGeo,q)*xiup(q)*xidown(q)  &
+                                            *facNChooseK(NGeo,p)*etaup(p)*etadown(p)
+
+  END DO ! p
+END DO ! q
+u=u*M
+v=v*M
+
+CalcNormVecBezier=CROSSNORM(u,v)
+!nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
+!nlength=SQRT(nlength)
+!CalcNormVecBezier=nVec/nlength
+
+END FUNCTION CalcNormVecBezier
+
+FUNCTION CalcNormVec(xi,eta,QuadID,SideID)
+!================================================================================================================================
+! function to compute the normal vector of a bi-linear surface
+!================================================================================================================================
+USE MOD_Globals,                              ONLY:CROSSNORM
 USE MOD_Particle_Surfaces_Vars,               ONLY:SuperSampledNodes,NPartCurved
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -327,9 +446,9 @@ INTEGER,INTENT(IN)                     :: SideID,QuadID
 REAL,DIMENSION(3)                      :: CalcNormVec
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(3)                      :: a,b,nVec
+REAL,DIMENSION(3)                      :: a,b!,nVec
 INTEGER                                :: p,q
-REAL                                   :: nlength
+!REAL                                   :: nlength
 !================================================================================================================================
 
 q=(QuadID-1)/NPartCurved ! fortran takes floor of integer devision
@@ -364,11 +483,11 @@ a=eta*0.25*( SuperSampledNodes(:,p  ,q  ,SideID)-SuperSampledNodes(:,p+1,q  ,Sid
             +SuperSampledNodes(:,p+1,q+1,SideID)-SuperSampledNodes(:,p  ,q+1,SideID) )
 
 
-nVec=CROSS(a,b)
-nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
-nlength=SQRT(nlength)
-!print*,nVec/nlength
-CalcNormVec=nVec/nlength
+CalcNormVec=CROSSNORM(a,b)
+!nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
+!nlength=SQRT(nlength)
+!!print*,nVec/nlength
+!CalcNormVec=nVec/nlength
 END FUNCTION CalcNormVec
 
 SUBROUTINE GetSuperSampledSurface(XCL_NGeo,iElem)
@@ -1231,5 +1350,124 @@ IF(.NOT.SideIsPlanar)THEN
 END IF
 
 END SUBROUTINE GetSlabNormalsAndIntervalls
+
+SUBROUTINE GetSideType()
+!================================================================================================================================
+! select the side type for each side 
+! check if points on edges are linear. if linear, the cross product of the vector between two vertices and a vector between a 
+! vercites and a edge point has to be zero
+! SideType
+! 0 - planar
+! 1 - bilinear
+! 2 - curved
+!================================================================================================================================
+USE MOD_Globals!,                  ONLY:CROSS
+USE MOD_Mesh_Vars,                ONLY:nSides,NGeo,Xi_NGeo,Sideid_minus_upper
+USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,epsilontol,SideType,SideNormVec,SideDistance
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved
+REAL,DIMENSION(1:3)         :: v1,v2
+REAL                        :: length,eps
+LOGICAL                     :: isLinear
+!================================================================================================================================
+
+! allocated here,!!! should be moved?
+ALLOCATE( SideType(nSides)        &
+        , SideDistance(nSides)    &
+        , SideNormVec(1:3,nSides) )
+
+SideDistance=0.
+SideNormVec=0.
+
+eps=1e-8
+nPlanar=0
+nBilinear=0
+nCurved=0
+DO iSide=1,nSides
+  isLinear=.TRUE.
+  ! all four edges
+  q=0
+  v1=BezierControlPoints3D(:,NGeo,q,iSide)-BezierControlPoints3D(:,0,q,iSide)
+  DO p=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,iSide)-BezierControlPoints3D(:,0,q,iSide)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! p
+  q=NGeo
+  v1=BezierControlPoints3D(:,NGeo,q,iSide)-BezierControlPoints3D(:,0,q,iSide)
+  DO p=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,iSide)-BezierControlPoints3D(:,0,q,iSide)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! p
+  p=0
+  v1=BezierControlPoints3D(:,p,NGeo,iSide)-BezierControlPoints3D(:,p,0,iSide)
+  DO q=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,iSide)-BezierControlPoints3D(:,p,0,iSide)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! q
+  p=NGeo
+  v1=BezierControlPoints3D(:,p,NGeo,iSide)-BezierControlPoints3D(:,p,0,iSide)
+  DO q=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,iSide)-BezierControlPoints3D(:,p,0,iSide)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! q
+  IF(isLinear)THEN
+    IF(BoundingBoxIsEmpty(iSide))THEN
+      SideType(iSide)=PLANAR
+      IF(iSide.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+      ! compute the norm vec of side and distance from origin
+      v1=BezierControlPoints3D(:,NGeo,0,iSide)-BezierControlPoints3D(:,0,0,iSide)
+      v2=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,0,0,iSide)
+      SideNormVec(:,iSide) = CROSS(v1,v2)
+!      length=SQRT(v2(1)*v2(1)+v1(2)*v1(2)+v1(3)*v1(3))
+!      SideNormVec(:,iSide) =SideNormVec(:,iSide)/length
+!      v1=BezierControlPoints3D(:,0,0,iSide)     &
+!        +BezierControlPoints3D(:,NGeo,0,iSide)  &
+!        +BezierControlPoints3D(:,0,NGeo,iSide)  &
+!        +BezierControlPoints3D(:,NGeo,NGeo,iSide)
+!      v1=0.25*v1
+!      SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+    ELSE
+      SideType(iSide)=BILINEAR
+      IF(iSide.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
+    END IF ! BoundingBoxIsEmpty
+  ELSE ! non-linear sides
+    SideType(iSide)=CURVED
+    IF(iSide.LE.SideID_Minus_Upper) nCurved=nCurved+1
+  END IF ! isLinear
+END DO ! iSide
+
+#ifdef MPI
+IF(MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,nPlanar  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nBilinear,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nCurved  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+ELSE ! no Root
+  CALL MPI_REDUCE(nPlanar   ,nPlanar  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nBilinear,nBilinear,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nCurved  ,nCurved  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+END IF
+#endif /*MPI*/
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar    faces: ', nPlanar
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear faces: ', nBilinear
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved    faces: ', nCurved
+
+END SUBROUTINE GetSideType
 
 END MODULE MOD_Particle_Surfaces

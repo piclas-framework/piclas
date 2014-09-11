@@ -68,3 +68,7 @@
 #define BC_STATE 2
 
 !#define DEBUGMESH
+
+#define PLANAR   0
+#define BILINEAR 1
+#define CURVED   2
