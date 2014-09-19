@@ -5,15 +5,6 @@
 INIFILE=$(MAINDIR)ini/particles.ini
 	COMPILER=INTEL_DEBUG
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
-# Cut compiler for use with DEBUG-flags
-ifeq ($(findstring _,$(COMPILER)),_)
-  EINS=1
-  INDEX=`expr index "${COMPILER}" _`
-  INDEXM1=$(shell echo ${INDEX}-${EINS} | bc)
-  SHARECOMP_MOD=$(shell echo $(COMPILER) | cut -c 1-$(INDEXM1))
-else
-  SHARECOMP_MOD=$(COMPILER)
-endif
 
 #=================================================================================================================================#
 # INI-FILE PARSING                                                                                                                #
@@ -57,22 +48,31 @@ ifeq ($(EQNSYS),electrostatic_pois)
   POIS = T
 endif
 #=================================================================================================================================#
-# GET MACHINE ENVIRONMENT 
+# GET MACHINE ENVIRONMENT AND SET FILESYSTEM
 #=================================================================================================================================#
 ifeq ($(findstring AUTO,$(MACHINE)),AUTO)
   NODE = $(shell hostname)
+  MACHINE=
   ifeq ($(findstring cl3fr,$(NODE)),cl3fr)
     MACHINE=NEHALEM
   endif
   ifeq ($(findstring eslogin,$(NODE)),eslogin)
     MACHINE=CRAY
   endif
-  ifeq ($(findstring helios,$(NODE)),helios)
-    MACHINE=HELIOS
+  ifeq ($(findstring juqueen,$(NODE)),juqueen)
+    MACHINE=BLUEGENE
   endif
-  ifeq ($(findstring AUTO,$(MACHINE)),AUTO)
-    MACHINE=
-  endif
+endif
+
+FILESYSTEM=
+ifeq ($(findstring NEHALEM,$(MACHINE)),NEHALEM)
+  FILESYSTEM=LUSTRE
+endif
+ifeq ($(findstring CRAY,$(MACHINE)),CRAY)
+  FILESYSTEM=LUSTRE
+endif
+ifeq ($(findstring BLUEGENE,$(MACHINE)),BLUEGENE)
+  FILESYSTEM=GPFS
 endif
 
 #=================================================================================================================================#
@@ -87,6 +87,13 @@ PREPROC +=-DPP_N=$(N)
 ifneq ($(PARTICLES),)
   PREPROC +=-DPARTICLES=$(PARTICLES)
 endif
+ifneq ($(FILESYSTEM),)
+  PREPROC +=-D$(FILESYSTEM)
+endif
+
+# Cut compiler for use with DEBUG-flags
+TMP=$(subst _, ,$(COMPILER))
+SHARECOMP_MOD = $(word 1,$(TMP))
 ifneq ($(MPI),)
   PREPROC +=-DMPI
   FC=$(FCM)
@@ -118,15 +125,25 @@ SHARECOMP=$(subst $(space),$(empty),$(SHARECOMP_MOD))
 #---------------------------------------------------------------------------------------------------------------------------------#
 # Download and compile HDF5 libraries
 ifeq ($(MACHINE),)
-  HDF5_VERSION = 1.8.10-patch1
+  HDF5_VERSION = 1.8.13
   ifneq ($(HDF5_VERSION),)
     HDF5_LIB = -L../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5/lib
     HDF5_INC = -I../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5/include
   endif
   HDF5_LIBS  = -lhdf5_fortran -lhdf5 -lz
 endif
-# HLRB - Use available HDF5 libraries. Don't forget: "module load hdf5/mpi/1.8.3"
-#---------------------------------------------------------------------------------------------------------------------------------#
+
+# BLUEGENE - Use available HDF5 libraries. Don't forget to load HDF5 module!
+ifeq ($(findstring BLUEGENE,$(MACHINE)),BLUEGENE)
+  # HDF5
+  HDF5_INC      = -I/bgsys/local/hdf5/include
+  HDF5_LIB      = -L/bgsys/local/hdf5/lib
+  HDF5_LIBS     = -lhdf5_fortran -lhdf5  -lhdf5_hl -lhdf5hl_fortran
+
+  SZ_INC        = -I/bgsys/local/szip/include -I/bgsys/local/zlib/include
+  SZ_LIB        = -L/bgsys/local/szip/lib -L/bgsys/local/zlib/lib
+  SZ_LIBS       = -lsz -lz
+endif
 
 # HLR_B - Use available HDF5 libraries. Don't forget to load HDF5 module!
 ifeq ($(findstring HLRB,$(MACHINE)),HLRB)
@@ -141,11 +158,12 @@ ifeq ($(findstring NEHALEM,$(MACHINE)),NEHALEM)
   HDF5_INC  = -I/sw/laki/hlrs/tools/hdf5/1.8.6-openmpi-1.5.2-intel-12.0/include
   HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz
 endif
-
+  
 # HLR_S, CRAY - Use available HDF5 libraries. Don't forget to load HDF5 module!
 ifeq ($(findstring CRAY,$(MACHINE)),CRAY)
-  HDF5_LIB  = -L/opt/cray/hdf5-parallel/1.8.8/intel/120/lib/
-  HDF5_INC  = -I/opt/cray/hdf5-parallel/1.8.8/intel/120/include/
+  HDF5_BASE = $(HDF5_DIR)
+  HDF5_LIB  = -L$(HDF5_BASE)/lib/
+  HDF5_INC  = -I$(HDF5_BASE)/include/
   HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz
 endif
 
@@ -156,18 +174,8 @@ ifeq ($(findstring HELIOS,$(MACHINE)),HELIOS)
   HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz
 endif
 
-
-#---------------------------------------------------------------------------------------------------------------------------------#
-# CGNS 
-#---------------------------------------------------------------------------------------------------------------------------------#
-# Directly added in src/Makefile_PostProc
-CGNS_VERSION = 2.5
-CGNS_SUBVERSION = 4
-ifneq ($(CGNS_VERSION),)
-  CGNS_LIB = -L../share/cgnslib_$(CGNS_VERSION)/LINUX64
-  CGNS_INC = -I../share/cgnslib_$(CGNS_VERSION)
-endif
-CGNS_LIBS = -lcgns
+# HDF5 uses libdl
+LIBDL = -ldl
 #---------------------------------------------------------------------------------------------------------------------------------#
 
 #---------------------------------------------------------------------------------------------------------------------------------#
@@ -228,7 +236,7 @@ AR_FLAGS   =clr
 ifeq ($(findstring INTEL,$(ENVIRONMENT)),INTEL)
   FCS=ifort
   FCM=mpif90
-  CCS=cc
+  CCS=icc
   CCM=mpicc
   ifeq ($(findstring CRAY,$(MACHINE)),CRAY)
     FCM=ftn
@@ -243,35 +251,27 @@ ifeq ($(findstring INTEL,$(ENVIRONMENT)),INTEL)
   AR =xiar # required for compilation using -ipo and -fast
   PREPROC +=-DINTEL
 
+  FPRE     =-P
+  PREOUT   =-o
   FCFLAGS  =-fpp -assume bscc -r8 -i4 -traceback -warn all # don't change
   FLFLAGS  =-r8 -i4 -traceback -assume bscc #-static # don't change
   F03STD   =-std03
 
-  # ix86
-  ifneq ($(findstring ia64,$(ENVIRONMENT)),ia64)
-    ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
-      FCFLAGS  +=-g -O0 -fpe0 -traceback \
-                 -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,bounds,uninit
-      FLFLAGS  +=-g -O0 
-    else
-      FCFLAGS  +=-O2 -xhost #-ipo
-      FLFLAGS  +=-O2 -xhost #-ipo
-    endif 
-
-  # ia64
+  ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
+    FCFLAGS  +=-g -O0 -fpe0 -traceback \
+               -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,bounds,uninit
+    FLFLAGS  +=-g -O0 
   else
-    ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
-      FCFLAGS  +=-g -O0 -fpe0 -check noarg_temp_created,noformat,nooutput_conversion,pointer,bounds,uninit #,all
-      FLFLAGS  +=-g -O0 
-    else
-      FCFLAGS  +=-O2 -xhost #-ipo
-      FLFLAGS  +=-O2 -xhost #-ipo
-    endif
-  endif
+    # -fast: -02(=general optlevel) -xhost(adapt to current system) -ipo(=interprocedural optimizations) 
+    #        -static(=static linking) -no-prec-div(= A/B -> A*(1/B))
+    FCFLAGS  +=-O2 -xhost -vec-report0 #-no-prec-div #-ipo -unroll-aggressive -p -pg  #IPO only on intel >12.0
+    FLFLAGS  +=-O2 -xhost -vec-report0 #-no-prec-div #-ipo -unroll-aggressive -p -pg
+  endif 
 
   ifeq ($(findstring OMP,$(ENVIRONMENT)),OMP)
+    PREPROC += -DOMP
     FCFLAGS += -openmp
-    OMP_LIB = -openmp
+    OMP_LIB =  -openmp
   endif
 endif
 
@@ -288,20 +288,29 @@ ifeq ($(findstring GNU,$(ENVIRONMENT)),GNU)
   endif
   PREPROC +=-DGNU
 
-  FCFLAGS    = -xf95-cpp-input -fdefault-real-8 -fdefault-double-8 -fbackslash -DGNU # don't change
-  FLFLAGS    = -fdefault-real-8 -fbackslash # don't change
+  FPRE     = -cpp -E -w
+  PREOUT   = >>
+  FCFLAGS  = -xf95-cpp-input -cpp -fdefault-real-8 -fdefault-double-8 -fbackslash -DGNU # don't change
+  FLFLAGS  = -fdefault-real-8 -fbackslash # don't change
 
   ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
-    FCFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace -ffpe-trap=invalid,zero,overflow
-    FLFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace -ffpe-trap=invalid,zero,overflow
+    FCFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
+    FLFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
   else
-    FCFLAGS  += -O3 -march=native #-flto
-    FLFLAGS  += -O3 -march=native #-flto
+	  # -03(=general optlevel) -march=native(adapt to current system) -flto(=interprocedural optimizations) 
+    FCFLAGS  += -O3 -march=native
+    FLFLAGS  += -O3 -march=native
   endif
 
   ifeq ($(findstring OMP,$(ENVIRONMENT)),OMP)
+    PREPROC += -DOMP
     FCFLAGS += -fopenmp
     FLFLAGS += -fopenmp
+  endif
+
+  ifeq ($(findstring LLVM,$(ENVIRONMENT)),LLVM)
+    FCFLAGS += -fplugin=dragonegg
+    FLFLAGS += -fplugin=dragonegg
   endif
 
   ifeq ($(HOST),frbw)
@@ -316,6 +325,7 @@ ifeq ($(findstring SX,$(ENVIRONMENT)),SX)
   FCS=sxf90
   FCM=sxmpif90
   CCM=sxmpicc
+  PREPROC +=-DSX
 
   AR=sxar
 
@@ -385,15 +395,6 @@ endif
 #---------------------------------------------------------------------------------------------------------------------------------#
 ifeq ($(findstring BLUEGENE,$(ENVIRONMENT)),BLUEGENE)
 
-  # HDF5
-  SZ_INC        = -I/bgsys/local/szip/include -I/bgsys/local/zlib/include
-  SZ_LIBS       = -L/bgsys/local/szip/lib -L/bgsys/local/zlib/lib
-  SZ_LIB        = -lsz -lz
-
-  HDF5_INC      = -I/bgsys/local/hdf5/include
-  HDF5_LIBS     = -L/bgsys/local/hdf5/lib_450d
-  HDF5_LIB      = -lhdf5_fortran -lhdf5  -lhdf5_hl -lhdf5hl_fortran
-
   # HPCT
   ifeq ($(findstring HPCT,$(ENVIRONMENT)),HPCT)
     LIBHPC_INC  = -I/bgsys/local/ihpct/include
@@ -432,8 +433,8 @@ ifeq ($(findstring BLUEGENE,$(ENVIRONMENT)),BLUEGENE)
     FCFLAGS  += -O0 -g -qcheck -pg
     FLFLAGS  += -O0 -g -qcheck -pg
   else
-    FCFLAGS  += -O5 -d -qstrict -qhot -qarch=450d -qtune=450 -qunroll=yes -qessl# -v
-    FLFLAGS  += -O5 -d -qstrict -qhot -qarch=450d -qtune=450 -qunroll=yes -qessl -L/bgsys/local/lib -lesslbg# -v
+    FCFLAGS  += -O3 -d -qhot -qarch=qp -qtune=qp -qunroll=yes -qlibessl -qlist -qreport# -v
+    FLFLAGS  += -O3 -d -qhot -qarch=qp -qtune=qp -qunroll=yes -qlibessl -L/bgsys/local/lib -lesslbg -qlist -qreport # -v
   endif
 
   # GPROF
@@ -460,8 +461,8 @@ ifneq ($(BLAS_LAPACK),)
 endif
 #---------------------------------------------------------------------------------------------------------------------------------#
 
-EXTERNAL_LIBS = $(HDF5_LIBS) $(SZ_LIBS) $(LIBHPC_LIBS) $(NR_LIBS) $(TECBIN_LIBS) $(BLAS_LAPACK_LIBS)
-LIBDIRS       = $(HDF5_LIB) $(SZ_LIB) $(LIBHPC_LIB) $(NR_LIB) $(TECBIN_LIB) $(BLAS_LAPACK_LIB)
+EXTERNAL_LIBS = $(HDF5_LIBS) $(SZ_LIBS) $(LIBHPC_LIBS) $(NR_LIBS) $(TECBIN_LIBS) $(BLAS_LAPACK_LIBS) $(LIBDL)
+LIBDIRS       = $(HDF5_LIB) $(SZ_LIB) $(LIBHPC_LIB) $(NR_LIB) $(TECBIN_LIB) $(BLAS_LAPACK_LIB) $(OMP_LIB)
 INCDIRS       = $(HDF5_INC) $(SZ_INC) $(LIBHPC_INC)
  
 BOLTZPLATZ_LIB     = libboltzplatz.a

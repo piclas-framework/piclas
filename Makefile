@@ -28,6 +28,7 @@ shared_teclib:
 
 clean:
 	cd src   && $(MAKE) clean
+	rm -f lib/$(BOLTZPLATZ_LIB)
 
 veryclean:
 	cd src   && $(MAKE) veryclean

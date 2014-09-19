@@ -398,8 +398,8 @@ xidown(NGeo)=1.0
 etadown(NGeo)=1.0
 DO p=1,NGeo
   xiup(p)=xiup(p-1)*PlusXi
-  xidown(NGeo-p)=xidown(NGeo-p+1)*MinusXi
   etaup(p)=etaup(p-1)*PlusEta
+  xidown(NGeo-p)=xidown(NGeo-p+1)*MinusXi
   etadown(NGeo-p)=etadown(NGeo-p+1)*MinusEta
 END DO ! p
 
@@ -415,14 +415,14 @@ DO q=0,NGeo
     ! derivative in eta ! caution - exchange indicies
     v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID)) &
         *BezierControlPoints3D(:,q,p,SideID)*facNchooseK(NGeo,q)*xiup(q)*xidown(q)  &
-                                            *facNChooseK(NGeo,p)*etaup(p)*etadown(p)
+                                            *facNChooseK(M,p)*etaup(p)*etadown(p)
 
   END DO ! p
 END DO ! q
 u=u*M
 v=v*M
 
-CalcNormVecBezier=CROSSNORM(u,v)
+CalcNormVecBezier=-CROSSNORM(v,u)
 !nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
 !nlength=SQRT(nlength)
 !CalcNormVecBezier=nVec/nlength

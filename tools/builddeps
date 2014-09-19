@@ -97,13 +97,13 @@ def translate_use_statements(use_statements, modnames, filenames):
 def check_use_statements(use_statements, filename, exceptions):
 	# Checks if use_statements list is completely translated, otherwise, there is no consistency with given files
 	# Permanent exceptions can be defined here
-	exceptions.append("HDF5")
-	exceptions.append("nr")
-	exceptions.append("nrtype")
+	# exceptions.append("HDF5")
+	# exceptions.append("nr")
+	# exceptions.append("nrtype")
 	# Additionally, remove unnecessary items, that are not translated
 	clean_use_statements = []
 	for statement in use_statements:
-		error = statement.lower().find(".f90")
+		error = statement.lower().find(".i90")
 		if error == -1 and not any(x in statement for x in exceptions):
 			failure = "ERROR: No given file contains '" + statement + "' source, needed by '" + filename + "'!"
 			print failure
@@ -207,23 +207,15 @@ def add_subs_to_use_statements(use_statements, oldschool_files, all_int_statemen
 	
 	return use_statements
 
-def put_eqnsys(eqnsys, filenames):
-	# Replaces $(EQNSYS) equation systems in given files
-	# Specify possible types
-	pattern = re.compile("\$\(EQNSYS\)", re.IGNORECASE)
-	for i in range(len(filenames)):
-		filenames[i] = pattern.sub(eqnsys, filenames[i])
-        return filenames
-
 def assemble_deplist_output(filename, use_statements):
 	# Builds GNU makefile conform deplist output
 	deplist_output = []
-	pattern = re.compile(".f90", re.IGNORECASE)
+	pattern = re.compile(".i90", re.IGNORECASE)
 	# Start with first line (filename itself)
 	if len(use_statements) >= 1:
-		deplist_output = pattern.sub(".o", filename) + ": " + filename + " \\\n"
+		deplist_output = pattern.sub(".o", filename) + ": " + pattern.sub(".f90", filename) + " \\\n"
 	else:
-		deplist_output = pattern.sub(".o", filename) + ": " + filename + " \n"
+		deplist_output = pattern.sub(".o", filename) + ": " + pattern.sub(".f90", filename) + " \n"
 	# Now write the rest
 	for i in range(len(use_statements)):
 		if i == len(use_statements)-1:
@@ -284,8 +276,6 @@ def usage():
 	print "\t -s, --source"
 	print "\t\t sourcefiles, given as filename of a list containing all files"
 	print ""
-	print "\t -t, --target"
-        print "\t\t target equation system to replace $(EQNSYS) occurances"
 	print ""
 	print "\t -e, --exceptions"
 	print "\t\t names of exceptions that will not appear in the deplist, given as filename of a list"
@@ -293,7 +283,7 @@ def usage():
 # Program
 #########
 
-# Generates a deplist-File out of given .f90 files
+# Generates a deplist-File out of given .i90 files
 
 filenames = []
 exceptions = []
@@ -303,7 +293,6 @@ int_statements = []
 all_int_statements = []
 all_statements = []
 deplist_output = []
-eqnsys = "none"
 
 # Check for Python >= 2.5
 if not sys.version_info[:2] >= (2,5):
@@ -313,7 +302,7 @@ if not sys.version_info[:2] >= (2,5):
 # Check and read input arguments
 # Use getopt
 try:
-	opts, args = getopt.gnu_getopt(sys.argv[1:], "s:t:e:h", ["source=", "target=", "exceptions=", "help"])
+	opts, args = getopt.gnu_getopt(sys.argv[1:], "s:e:h", ["source=", "exceptions=", "help"])
 except getopt.GetoptError, err:
 	print str(err)
 	usage()
@@ -353,9 +342,6 @@ for opt, arg in opts:
 				exceptions.append(line[:-1])
 		finally:
 			file.close()
-	# Target equation system
-	elif opt in ("-t", "--target"):
-		eqnsys = arg
 
 	# Help
 	elif opt in ("-h", "--help"):
@@ -373,14 +359,11 @@ for opt, arg in opts:
 		usage()
 		sys.exit(1)
 
-if not deplist_name or deplist_name.lower().find(".f90") != -1:
+if not deplist_name or deplist_name.lower().find(".i90") != -1:
 	failure = "ERROR: Please specify an (valid) file name for the deplist!\n"
 	print failure
 	usage()
 	sys.exit(1)
-
-# Replace $(EQNSYS) in filenames
-filenames = put_eqnsys(eqnsys, filenames)
 
 # Build mapping first
 modnames = build_mod_mapping(filenames)

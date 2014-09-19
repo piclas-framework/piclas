@@ -19,10 +19,12 @@ ifeq ($(EQNSYS),maxwell_pois)
 endif
 SRC_RAW = $(shell cat $(SRCFILE))
 SRC     = $(subst $$(EQNSYS),$(EQNSYS),$(SRC_RAW))
+DEPEX = $(shell ls `cat depexceptions.mk`)
 
-OBJ = $(SRC:.f90=.o)
+SRCPP = $(SRC:.f90=.i90)
+OBJ   = $(SRC:.f90=.o)
 
-all: builddeps
+all: preproc builddeps
 	$(MAKE) $(BOLTZPLATZ_LIB)
 	$(FC) $(FCFLAGS) $(INCDIRS) -c boltzplatz.f90 -o boltzplatz.o
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -35,8 +37,22 @@ all: builddeps
 	@echo ' BOLTZPLATZ LINKED!'
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 
+preproc:
+	@echo 'MODULE MOD_PreProcFlags' > preprocflags.f90
+	@echo 'IMPLICIT NONE' >> preprocflags.f90
+	@echo 'CHARACTER(LEN=1000) :: PREPROC_FLAGS = &' >> preprocflags.f90
+	@echo \"$(FC) $(FCFLAGS) $(INCDIRS)\" | sed -r 's/(.{80})/\1"\/\/\&\n\"/g' >> preprocflags.f90
+	@echo 'END MODULE MOD_PreProcFlags' >> preprocflags.f90
+
 builddeps:
-	@python ../tools/builddeps --target=$(EQNSYS) --source=$(SRCFILE) deplist.mk
+	$(FC) $(FPRE) $(PREPROC) -I . $(INCDIRS) boltzplatz.f90 $(PREOUT) boltzplatz.i90 ; \
+	for file in $(SRC); \
+	do \
+	  outfile=$$(echo $$file | sed s/f90/i90/) ; \
+	  $(FC) $(FPRE) $(PREPROC) -I . $(INCDIRS) $$file $(PREOUT) $$outfile ; \
+	done
+	@echo $(SRCPP) | sed -e 's/ /\n/g' > srcfiles_pp.mk
+	@python ../tools/builddeps --source=srcfiles_pp.mk deplist.mk --exceptions=depexclude.mk
 
 $(BOLTZPLATZ_LIB): $(OBJ)
 	$(AR) $(AR_FLAGS) ../lib/$(BOLTZPLATZ_LIB) $(OBJ)
@@ -56,7 +72,7 @@ include deplist.mk
 .PHONY: clean veryclean
 
 clean:
-	rm -f $(OBJ) *.mod boltzplatz.o *.i
+	rm -f $(OBJ) $(SRCPP) *.mod boltzplatz.o *.i
 
 veryclean: clean
 	rm -f *~ */*~
