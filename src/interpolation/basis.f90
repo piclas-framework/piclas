@@ -20,9 +20,11 @@ INTERFACE BuildLegendreVdm
    MODULE PROCEDURE BuildLegendreVdm
 END INTERFACE
 
+#ifdef PARTICLES
 INTERFACE BuildBezierVdm
    MODULE PROCEDURE BuildBezierVdm
 END INTERFACE
+#endif /*PARTICLES*/
 
 INTERFACE InitializeVandermonde
    MODULE PROCEDURE InitializeVandermonde
@@ -57,7 +59,9 @@ INTERFACE LagrangeInterpolationPolys
 END INTERFACE
 
 PUBLIC::BuildLegendreVdm
+#ifdef PARTICLES
 PUBLIC::BuildBezierVdm
+#endif /*PARTICLES*/
 PUBLIC::InitializeVandermonde
 PUBLIC::LegGaussLobNodesAndWeights
 PUBLIC::LegendreGaussNodesAndWeights
@@ -73,6 +77,7 @@ PUBLIC::LagrangeInterpolationPolys
 
 CONTAINS
 
+#ifdef PARTICLES
 SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
 !===================================================================================================================================
 ! build a 1D Vandermonde matrix using the Bezier basis functions of degree N_In
@@ -169,6 +174,8 @@ dummy=SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))-REAL(N_In+1)
 IF(ABS(dummy).GT.1.E-13) CALL abort(__STAMP__,&
 'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)
 END SUBROUTINE BuildBezierVdm
+#endif /*PARTICLES*/
+
 
 SUBROUTINE buildLegendreVdm(N_In,xi_In,Vdm_Leg,sVdm_Leg)
 !===================================================================================================================================

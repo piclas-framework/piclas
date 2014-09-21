@@ -38,8 +38,10 @@ USE MOD_Interpolation_Vars, ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
 USE MOD_HDF5_Input,ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute
 USE MOD_ReadInTools,ONLY:GETLOGICAL,GETREALARRAY,ReadInDone 
+#ifdef PARTICLES
 USE MOD_DSMC_Vars,ONLY: UseDSMC
 USE MOD_LD_Vars,ONLY: UseLD
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -60,6 +62,7 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 
+#ifdef PARTICLES
 ! DSMC handling:
 useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
 IF (useDSMC) THEN
@@ -75,6 +78,10 @@ IF (useLD) THEN
   ReadInDone = .FALSE.
   maxNArgs = 3
 END IF
+#else
+maxNArgs=2
+#endif /*PARTICLES*/
+
 
 ! Check if we want to perform a restart
 nArgs=COMMAND_ARGUMENT_COUNT()

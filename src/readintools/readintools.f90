@@ -411,7 +411,9 @@ SUBROUTINE FillStrings(IniFile)
 ! MODULES
 USE MOD_Globals
 USE MOD_ISO_VARYING_STRING
+#ifdef PARTICLES
 USE MOD_DSMC_Vars,ONLY: UseDSMC
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -514,6 +516,7 @@ DO i=1,nLines
   END IF
 END DO
 
+#ifdef PARTICLES
 IF (useDSMC) THEN
   CALL GETARG(2,DSMCFile)
   IF(MPIRoot) THEN  
@@ -589,6 +592,8 @@ IF (useDSMC) THEN
     END IF
   END DO
 END IF
+#endif /*PARTICLES*/
+
 
 END SUBROUTINE FillStrings
 

@@ -364,7 +364,7 @@ FUNCTION CalcNormVecBezier(xi,eta,SideID)
 ! function to compute the normal vector of a bi-linear surface
 !================================================================================================================================
 USE MOD_Mesh_Vars,                            ONLY:NGeo
-USE MOD_Globals,                              ONLY:CROSSNORM
+USE MOD_Globals,                              ONLY:CROSSNORM,CROSS
 USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D,facNchooseK
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -404,6 +404,25 @@ DO p=1,NGeo
 END DO ! p
 
 ! B = (1./(2**N_in))*REAL(CHOOSE(N_in,j))*((x+1.)**j)*((1.-x)**(N_in-j))
+! complete form
+!u=0
+!v=0
+!DO q=0,NGeo
+!  DO p=0,M
+!    ! derivative in xi
+!    u=u+(BezierControlPoints3D(:,p+1,q,SideID)-BezierControlPoints3D(:,p,q,SideID))        &
+!        *BezierControlPoints3D(:,p,q,SideID)*facNchooseK(M,p)*(PlusXi**p)*(MinusXi**(M-p)) &
+!                                            *facNChooseK(NGeo,q)*(PlusEta**q)*(MinusEta**(NGeo-q))
+!
+!    v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID))        &
+!        *BezierControlPoints3D(:,q,p,SideID)*facNchooseK(NGeo,q)*(PlusXi**q)*(MinusXi**(NGeo-q)) &
+!                                            *facNChooseK(M,p)*(PlusEta**p)*(MinusEta**(M-p))
+!
+!  END DO ! p
+!END DO ! q
+!u=u!*NGeo
+!v=v!*NGeo
+
 u=0
 v=0
 DO q=0,NGeo
@@ -419,10 +438,10 @@ DO q=0,NGeo
 
   END DO ! p
 END DO ! q
-u=u*M
-v=v*M
+u=u*NGeo
+v=v*NGeo
 
-CalcNormVecBezier=-CROSSNORM(v,u)
+CalcNormVecBezier=CROSSNORM(u,v)
 !nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
 !nlength=SQRT(nlength)
 !CalcNormVecBezier=nVec/nlength

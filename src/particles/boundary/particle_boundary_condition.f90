@@ -268,6 +268,14 @@ CASE(2) !PartBound%ReflectiveBC)
     n_loc=CalcBiLinearNormVecBezier(xi,eta,SideID)
   CASE(CURVED)
     n_loc=CalcNormVecBezier(xi,eta,SideID)
+    !IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0) n_loc=-n_loc
+    print*,'nloc',n_loc
+    print*,'PartTrajectory',PartTrajectory
+    IF(n_loc(1)*PartTrajectory(1).LT.0) n_loc(1)=-n_loc(1)
+    IF(n_loc(2)*PartTrajectory(2).LT.0) n_loc(2)=-n_loc(2)
+    IF(n_loc(3)*PartTrajectory(3).LT.0) n_loc(3)=-n_loc(3)
+    print*,'nloc_mod',n_loc
+    read*
 !    CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
   END SELECT 
   ! substract tolerance from length

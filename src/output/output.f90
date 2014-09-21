@@ -146,7 +146,9 @@ USE MOD_Output_Vars,ONLY:NVisu,Vdm_GaussN_NVisu
 USE MOD_ChangeBasis,ONLY:ChangeBasis3D
 USE MOD_Tecplot,ONLY:WriteDataToTecplotBinary
 USE MOD_OutPutVTK,ONLY:WriteDataToVTK,WriteDataToVTKBin
+#ifdef PARTICLES
 USE MOD_Particle_Output_Vars, ONLY: WriteFieldsToVTK
+#endif /*PARTICLES*/
 !USE MOD_Eval_xyz,ONLY:eval_xyz
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -196,6 +198,7 @@ VarNames(3)='ElectricFieldZ'
 VarNames(4)='Psi'       
 #endif
 
+#ifdef PARTICLES
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution',OutputTime))
 IF(WriteFieldsToVTK) THEN
   FileString=TRIM(INTSTAMP(TRIM(FileString),myRank))//'.vtk'
@@ -214,7 +217,7 @@ IF(WriteFieldsToVTK) THEN
 ELSE
   CALL WriteDataToTecplotBinary(NVisu,PP_nElems,PP_nVar,0,VarNames,Coords_NVisu(1:3,:,:,:,:),U_NVisu,TRIM(FileString))
 END IF
-
+#endif /*PARTICLES*/
 
 ! test eval_xyz 
 !DO iElem=1,PP_nElems

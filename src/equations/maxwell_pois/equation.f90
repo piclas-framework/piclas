@@ -448,7 +448,9 @@ USE MOD_Globals,       ONLY : abort
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : Ut
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
+#ifdef PARTICLES
 USE MOD_PICDepo_Vars,  ONLY : Source
+#endif /*PARTICLES*/
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 !USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
 ! IMPLICIT VARIABLE HANDLING
@@ -468,6 +470,7 @@ REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/), Q=1, d=1, omega=6.283
 eps0inv = 1./eps0
 SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
+#ifdef PARTICLES
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
@@ -476,6 +479,7 @@ CASE(0) ! Particles
     END DO; END DO; END DO
   END DO
   !CALL CalcDepositedCharge()
+#endif /*PARTICLES*/
 CASE(1) ! Constant          - no sources
 CASE(2) ! Coaxial Waveguide - no sources
 CASE(3) ! Resonator         - no sources

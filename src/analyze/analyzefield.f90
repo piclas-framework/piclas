@@ -1,7 +1,7 @@
 #include "boltzplatz.h"
 
 
-MODULE MOD_PoyntingInt
+MODULE MOD_AnalyzeField
 !===================================================================================================================================
 ! Contains the Poyntinc Vector Integral part for the power analysis of the field vector
 !===================================================================================================================================
@@ -30,10 +30,124 @@ INTERFACE CalcPoyntingIntegral
   MODULE PROCEDURE CalcPoyntingIntegral
 END INTERFACE
 
-PUBLIC:: GetPoyntingIntPlane,FinalizePoyntingInt, CalcPoyntingIntegral
+INTERFACE CalcPotentialEnergy
+  MODULE PROCEDURE CalcPotentialEnergy
+END INTERFACE
+
+PUBLIC:: GetPoyntingIntPlane,FinalizePoyntingInt, CalcPoyntingIntegral, CalcPotentialEnergy
+#ifndef PARTICLES
+PUBLIC:: AnalyzeField
+#endif /*NOT PARTICLES*/
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE AnalyzeField(Time)
+!===================================================================================================================================
+! Initializes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars ,ONLY:ParticleAnalyzeInitIsDone, CalcEpot, DoAnalyze, IsRestart
+USE MOD_Restart_Vars, ONLY: DoRestart
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)     :: Time
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL             :: isOpen, FileExists                                          !
+CHARACTER(LEN=350)  :: outfile ,hilf                                               !
+INTEGER             :: unit_index, unit_index_2, iSpec,  jSpec, iCase,OutputCounter
+REAL                :: WEl, WMag
+!===================================================================================================================================
+IF ( DoRestart ) THEN
+  isRestart = .true.
+END IF
+IF (DoAnalyze) THEN
+!SWRITE(UNIT_StdOut,'(132("-"))')
+!SWRITE(UNIT_stdOut,'(A)') ' PERFORMING PARTICLE ANALYZE...'
+OutputCounter = 2
+unit_index = 535
+#ifdef MPI
+ IF(MPIROOT)THEN
+#endif    /* MPI */
+    INQUIRE(UNIT   = unit_index , OPENED = isOpen)
+    IF (.NOT.isOpen) THEN
+      outfile = 'Database.csv'
+      INQUIRE(file=TRIM(outfile),EXIST=FileExists)
+      IF (isRestart .and. FileExists) THEN
+         OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
+         !CALL FLUSH (unit_index)
+      ELSE
+         OPEN(unit_index,file=TRIM(outfile))
+         !CALL FLUSH (unit_index)
+         !--- insert header
+       
+         WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+         IF (CalcEpot) THEN 
+           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-El      '
+             OutputCounter = OutputCounter + 1
+           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+           WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-Mag    '
+             OutputCounter = OutputCounter + 1
+         END IF
+         WRITE(unit_index,'(A14)') ' ' 
+      END IF
+    END IF
+#ifdef MPI
+ END IF
+#endif    /* MPI */
+
+
+!IF (CalcCharge.AND.(.NOT.ChargeCalcDone)) CALL CalcDepositedCharge()
+IF(CalcEpot) CALL CalcPotentialEnergy(WEl,WMag)
+
+! MPI Communication
+#ifdef MPI
+IF(MPIRoot) THEN
+  IF (CalcEpot) THEN 
+    CALL MPI_REDUCE(MPI_IN_PLACE,WEl , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,WMag, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  END IF
+ELSE ! no Root
+  IF (CalcEpot) THEN 
+    CALL MPI_REDUCE(WEl,WEl  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+    CALL MPI_REDUCE(WMag,WMag,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+  END IF
+END IF
+#endif
+
+#ifdef MPI
+ IF(MPIROOT)THEN
+#endif    /* MPI */
+   WRITE(unit_index,104,ADVANCE='NO') Time
+   IF (CalcEpot) THEN 
+     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+     WRITE(unit_index,104,ADVANCE='NO') WEl
+     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+     WRITE(unit_index,104,ADVANCE='NO') WMag
+   END IF
+   WRITE(unit_index,'(A1)') ' ' 
+#ifdef MPI
+ END IF
+#endif    /* MPI */
+
+104    FORMAT (e25.14)
+
+!SWRITE(UNIT_stdOut,'(A)')' PARTCILE ANALYZE DONE!'
+!SWRITE(UNIT_StdOut,'(132("-"))')
+ELSE
+!SWRITE(UNIT_stdOut,'(A)')' NO PARTCILE ANALYZE TO DO!'
+!SWRITE(UNIT_StdOut,'(132("-"))')
+END IF ! DoAnalyze
+
+END SUBROUTINE AnalyzeField
 
 SUBROUTINE CalcPoyntingIntegral(t,doProlong)
 !===================================================================================================================================
@@ -457,5 +571,91 @@ SDEALLOCATE(STEM)
 
 END SUBROUTINE FinalizePoyntingInt
 
+SUBROUTINE CalcPotentialEnergy(WEl, WMag) 
+!===================================================================================================================================
+! Initializes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Vars,          ONLY : nElems, sJ
+USE MOD_Interpolation_Vars, ONLY : wGP
+USE MOD_Equation_Vars,      ONLY : smu0, eps0 
+USE MOD_DG_Vars,            ONLY : U
+USE MOD_Mesh_Vars,          ONLY : Elem_xGP
+USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax,DoPML
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                :: WEl, WMag 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iElem
+INTEGER           :: i,j,k
+REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL              :: WEl_tmp, WMag_tmp, E_abs, B_abs 
+!===================================================================================================================================
 
-END MODULE MOD_PoyntingInt
+Wel=0.
+WMag=0.
+
+IF(DoPML)THEN
+  DO iElem=1,nElems
+    !--- Calculate and save volume of element iElem
+    WEl_tmp=0. 
+    WMag_tmp=0. 
+    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  ! in electromagnetische felder by henke 2011 - springer
+  ! WMag = 1/(2mu) * int_V B^2 dV 
+      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
+            + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
+            + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
+            + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
+            + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
+      ! if x, y or z is in PML region
+      IF (Elem_xGP(1,i,j,k,iElem) .GE. xyzPhysicalMinMax(1) .AND. Elem_xGP(1,i,j,k,iElem) .LE. xyzPhysicalMinMax(2) .AND. &
+          Elem_xGP(2,i,j,k,iElem) .GE. xyzPhysicalMinMax(3) .AND. Elem_xGP(2,i,j,k,iElem) .LE. xyzPhysicalMinMax(4) .AND. &
+          Elem_xGP(3,i,j,k,iElem) .GE. xyzPhysicalMinMax(5) .AND. Elem_xGP(3,i,j,k,iElem) .LE. xyzPhysicalMinMax(6)) THEN        
+          WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
+          WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+      END IF
+    END DO; END DO; END DO
+    WEl = WEl + WEl_tmp
+    WMag = WMag + WMag_tmp
+  END DO
+ELSE
+  DO iElem=1,nElems
+    !--- Calculate and save volume of element iElem
+    WEl_tmp=0. 
+    WMag_tmp=0. 
+    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  ! in electromagnetische felder by henke 2011 - springer
+  ! WMag = 1/(2mu) * int_V B^2 dV 
+      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
+            + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
+            + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
+            + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
+            + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
+      ! if x, y or z is in PML region
+      WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+    END DO; END DO; END DO
+    WEl = WEl + WEl_tmp
+    WMag = WMag + WMag_tmp
+  END DO
+END IF ! noPML
+
+WEl = WEl * eps0 * 0.5 
+WMag = WMag * smu0 * 0.5
+
+END SUBROUTINE CalcPotentialEnergy
+
+
+END MODULE MOD_AnalyzeField

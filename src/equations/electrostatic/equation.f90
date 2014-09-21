@@ -198,7 +198,9 @@ USE MOD_Globals,       ONLY : abort
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : Ut
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
+#ifdef PARTICLES
 USE MOD_PICDepo_Vars,  ONLY : Source
+#endif /*PARTICLES*/
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -215,6 +217,7 @@ REAL                            :: eps0inv
 eps0inv = 1./eps0
 SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
+#ifdef PARTICLES
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
@@ -227,6 +230,7 @@ CASE(0) ! Particles
       !END IF
     END DO; END DO; END DO
   END DO
+#endif /*PARTICLES*/
 CASE(1) ! Constant          - no sources
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)

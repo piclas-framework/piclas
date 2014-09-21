@@ -17,16 +17,13 @@ INTERFACE FinalizeParticleAnalyze
   MODULE PROCEDURE FinalizeParticleAnalyze
 END INTERFACE
 
+#ifdef PARTICLES
 INTERFACE AnalyzeParticles
   MODULE PROCEDURE AnalyzeParticles
 END INTERFACE
 
 INTERFACE CalcKineticEnergy
   MODULE PROCEDURE CalcKineticEnergy
-END INTERFACE
-
-INTERFACE CalcPotentialEnergy
-  MODULE PROCEDURE CalcPotentialEnergy
 END INTERFACE
 
 INTERFACE CalcShapeEfficiencyR
@@ -36,11 +33,15 @@ END INTERFACE
 INTERFACE CalcEkinPart
   MODULE PROCEDURE CalcEkinPart
 END INTERFACE
+#endif /*PARTICLES*/
 
-PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze, AnalyzeParticles, CalcKineticEnergy, CalcPotentialEnergy, CalcEkinPart
+PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
+#ifdef PARTICLES
+PUBLIC:: CalcKineticEnergy, CalcEkinPart,AnalyzeParticles
 #if (PP_TimeDiscMethod == 42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
+#endif /*PARTICLES*/
 !===================================================================================================================================
 
 CONTAINS
@@ -54,8 +55,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  !,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin, CalcEpot, DoAnalyze
 USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR
+#ifdef PARTICLES
 USE MOD_Particle_Vars           ,ONLY: nSpecies
-
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -74,61 +76,61 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
 IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
 
- DoAnalyze = .FALSE.
- CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
- IF(CalcCharge) DoAnalyze = .TRUE. 
- CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
- IF(CalcEpot) DoAnalyze = .TRUE.
- CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
- CalcTemp = GETLOGICAL('CalcTransTemp','.FALSE.')
- IF (CalcTemp) CalcEkin = .TRUE.
- IF(CalcEkin) THEN
-   DoAnalyze = .TRUE.
-   IF (nSpecies .GT. 1) THEN
-    nEkin = nSpecies + 1
-   ELSE
-    nEkin = 1
-   END IF
- END IF
- CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
- IF (CalcPartBalance) THEN
-   DoAnalyze = .TRUE.
-   ALLOCATE( nPartIn(nSpecies)     &
-           , nPartOut(nSpecies)    &
-           , PartEkinOut(nSpecies) &
-           , PartEkinIn(nSpecies)  )
-  nPartIn=0
-  nPartOut=0
-  PartEkinOut=0.
-  PartEkinIn=0.
+DoAnalyze = .FALSE.
+CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
+IF(CalcEpot) DoAnalyze = .TRUE.
+#ifdef PARTICLES
+  CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
+  IF(CalcCharge) DoAnalyze = .TRUE. 
+  CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
+  CalcTemp = GETLOGICAL('CalcTransTemp','.FALSE.')
+  IF (CalcTemp) CalcEkin = .TRUE.
+  IF(CalcEkin) THEN
+    DoAnalyze = .TRUE.
+    IF (nSpecies .GT. 1) THEN
+     nEkin = nSpecies + 1
+    ELSE
+     nEkin = 1
+    END IF
+  END IF
+  CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
+  IF (CalcPartBalance) THEN
+    DoAnalyze = .TRUE.
+    ALLOCATE( nPartIn(nSpecies)     &
+            , nPartOut(nSpecies)    &
+            , PartEkinOut(nSpecies) &
+            , PartEkinIn(nSpecies)  )
+   nPartIn=0
+   nPartOut=0
+   PartEkinOut=0.
+   PartEkinIn=0.
 #if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-   ALLOCATE( nPartInTemp(nSpecies)     &
-           , PartEkinInTemp(nSpecies)  )
-   PartEkinInTemp=0.
-   nPartInTemp=0
+    ALLOCATE( nPartInTemp(nSpecies)     &
+            , PartEkinInTemp(nSpecies)  )
+    PartEkinInTemp=0.
+    nPartInTemp=0
 #endif
- END IF
- TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
- CalcNumSpec = GETLOGICAL('CalcNumSpec','.FALSE.')
- IF(CalcNumSpec) DoAnalyze = .TRUE.
- CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency','.FALSE.')
- IF (CalcShapeEfficiency) THEN
-   DoAnalyze = .TRUE.
-   CalcShapeEfficiencyMethod = GETSTR('CalcShapeEfficiencyMethod','AllParts')
-   SELECT CASE(CalcShapeEfficiencyMethod)
-   CASE('AllParts')  ! All currently available Particles are used
-   CASE('SomeParts') ! A certain percentage of currently available Particles is used
-     ShapeEfficiencyNumber = GETINT('ShapeEfficiencyNumber','100')  ! in percent
-   CASE DEFAULT
-     SWRITE(*,*) 'ERROR: CalcShapeEfficiencyMethod',CalcShapeEfficiencyMethod,'does not exist!'
-     STOP
-   END SELECT
- END IF
+  END IF
+  TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
+  CalcNumSpec = GETLOGICAL('CalcNumSpec','.FALSE.')
+  IF(CalcNumSpec) DoAnalyze = .TRUE.
+  CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency','.FALSE.')
+  IF (CalcShapeEfficiency) THEN
+    DoAnalyze = .TRUE.
+    CalcShapeEfficiencyMethod = GETSTR('CalcShapeEfficiencyMethod','AllParts')
+    SELECT CASE(CalcShapeEfficiencyMethod)
+    CASE('AllParts')  ! All currently available Particles are used
+    CASE('SomeParts') ! A certain percentage of currently available Particles is used
+      ShapeEfficiencyNumber = GETINT('ShapeEfficiencyNumber','100')  ! in percent
+    CASE DEFAULT
+      SWRITE(*,*) 'ERROR: CalcShapeEfficiencyMethod',CalcShapeEfficiencyMethod,'does not exist!'
+      STOP
+    END SELECT
+  END IF
+#endif /*PARTICLES*/
+
 
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
-
-
-ChargeCalcDone = .FALSE.
 
 ParticleAnalyzeInitIsDone=.TRUE.
 
@@ -137,7 +139,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleAnalyze
 
 
-
+#ifdef PARTICLES
 SUBROUTINE AnalyzeParticles(Time)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -146,14 +148,15 @@ SUBROUTINE AnalyzeParticles(Time)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars!,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin, CalcEpot, DoAnalyze, IsRestart
-USE MOD_PARTICLE_Vars,    ONLY: nSpecies
-USE MOD_DSMC_Vars,        ONLY: DSMC, CollInf, useDSMC, CollisMode, ChemReac, SpecDSMC
-USE MOD_Restart_Vars, ONLY: DoRestart
+USE MOD_PARTICLE_Vars,         ONLY: nSpecies
+USE MOD_DSMC_Vars,             ONLY: DSMC, CollInf, useDSMC, CollisMode, ChemReac, SpecDSMC
+USE MOD_Restart_Vars,          ONLY: DoRestart
+USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 #ifdef MPI
-  USE MOD_part_MPI_Vars,      ONLY : PMPIVAR
+  USE MOD_part_MPI_Vars,       ONLY: PMPIVAR
 #endif
 #if ( PP_TimeDiscMethod ==42)
-USE MOD_Particle_Vars,         ONLY : Species
+USE MOD_Particle_Vars,         ONLY: Species
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -192,11 +195,11 @@ END IF
 OutputCounter = 2
 unit_index = 535
 #ifdef MPI
-#ifdef PARTICLES
+!#ifdef PARTICLES
  IF (PMPIVAR%iProc .EQ. 0) THEN
-#else
- IF(MPIROOT)THEN
-#endif /*PARTICLES*/
+!#else
+! IF(MPIROOT)THEN
+!#endif /*PARTICLES*/
 #endif    /* MPI */
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
@@ -580,6 +583,7 @@ END IF
 #endif
 END SUBROUTINE AnalyzeParticles
 
+! all other analysis with particles
 SUBROUTINE CalcShapeEfficiencyR()
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -798,94 +802,6 @@ PartEkinOut=0.
 #endif
 
 END SUBROUTINE CalcParticleBalance
-
-SUBROUTINE CalcPotentialEnergy(WEl, WMag) 
-!===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Mesh_Vars,          ONLY : nElems, sJ
-USE MOD_Interpolation_Vars, ONLY : wGP
-USE MOD_Equation_Vars,      ONLY : smu0, eps0 
-USE MOD_DG_Vars,            ONLY : U
-USE MOD_Mesh_Vars,          ONLY : Elem_xGP
-USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax,DoPML
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: WEl, WMag 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: iElem
-INTEGER           :: i,j,k
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL              :: WEl_tmp, WMag_tmp, E_abs, B_abs 
-!===================================================================================================================================
-
-Wel=0.
-WMag=0.
-
-IF(DoPML)THEN
-  DO iElem=1,nElems
-    !--- Calculate and save volume of element iElem
-    WEl_tmp=0. 
-    WMag_tmp=0. 
-    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  ! in electromagnetische felder by henke 2011 - springer
-  ! WMag = 1/(2mu) * int_V B^2 dV 
-      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
-            + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
-            + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
-      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
-            + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
-            + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-      ! if x, y or z is in PML region
-      IF (Elem_xGP(1,i,j,k,iElem) .GE. xyzPhysicalMinMax(1) .AND. Elem_xGP(1,i,j,k,iElem) .LE. xyzPhysicalMinMax(2) .AND. &
-          Elem_xGP(2,i,j,k,iElem) .GE. xyzPhysicalMinMax(3) .AND. Elem_xGP(2,i,j,k,iElem) .LE. xyzPhysicalMinMax(4) .AND. &
-          Elem_xGP(3,i,j,k,iElem) .GE. xyzPhysicalMinMax(5) .AND. Elem_xGP(3,i,j,k,iElem) .LE. xyzPhysicalMinMax(6)) THEN        
-          WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
-          WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
-      END IF
-    END DO; END DO; END DO
-    WEl = WEl + WEl_tmp
-    WMag = WMag + WMag_tmp
-  END DO
-ELSE
-  DO iElem=1,nElems
-    !--- Calculate and save volume of element iElem
-    WEl_tmp=0. 
-    WMag_tmp=0. 
-    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  ! in electromagnetische felder by henke 2011 - springer
-  ! WMag = 1/(2mu) * int_V B^2 dV 
-      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
-            + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
-            + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
-      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
-            + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
-            + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-      ! if x, y or z is in PML region
-      WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
-    END DO; END DO; END DO
-    WEl = WEl + WEl_tmp
-    WMag = WMag + WMag_tmp
-  END DO
-END IF ! noPML
-
-WEl = WEl * eps0 * 0.5 
-WMag = WMag * smu0 * 0.5
-
-END SUBROUTINE CalcPotentialEnergy
-
-
 
 SUBROUTINE CalcKineticEnergy(Ekin) 
 !===================================================================================================================================
@@ -1398,23 +1314,7 @@ SUBROUTINE WriteEletronicTransition ( Time )
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SUBROUTINE WriteEletronicTransition
 #endif
-
-SUBROUTINE FinalizeParticleAnalyze()
-!===================================================================================================================================
-! Finalizes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_Particle_Analyze_Vars,ONLY:ParticleAnalyzeInitIsDone
-! IMPLICIT VARIABLE HANDLINGDGInitIsDone
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-ParticleAnalyzeInitIsDone = .FALSE.
-END SUBROUTINE FinalizeParticleAnalyze
-
+  
 SUBROUTINE TrackingParticlePosition(time) 
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -1532,5 +1432,23 @@ ELSE ! novMPF
 END IF ! usevMPF
 CalcEkinPart=Ekin
 END FUNCTION CalcEkinPart
+#endif /*PARTICLES*/
+ 
+SUBROUTINE FinalizeParticleAnalyze()
+!===================================================================================================================================
+! Finalizes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Analyze_Vars,ONLY:ParticleAnalyzeInitIsDone
+! IMPLICIT VARIABLE HANDLINGDGInitIsDone
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+ParticleAnalyzeInitIsDone = .FALSE.
+END SUBROUTINE FinalizeParticleAnalyze
+
 
 END MODULE MOD_Particle_Analyze

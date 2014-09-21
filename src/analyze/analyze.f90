@@ -49,7 +49,7 @@ USE MOD_Interpolation_Vars,   ONLY: xGP,wBary,InterpolationInitIsDone,wGP
 USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt,wGPSurf
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL
 USE MOD_Analyze_Vars,         ONLY:CalcPoyntingInt
-USE MOD_PoyntingInt,          ONLY:GetPoyntingIntPlane
+USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -300,7 +300,7 @@ SUBROUTINE FinalizeAnalyze()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Analyze_Vars
-USE MOD_PoyntingInt,     ONLY:FinalizePoyntingInt
+USE MOD_AnalyzeField,     ONLY:FinalizePoyntingInt
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -324,13 +324,14 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,             ONLY: nGlobalElems, nElems
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt,CalcPoyntingInt
-USE MOD_PoyntingInt,           ONLY: CalcPoyntingIntegral
+USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 USE MOD_RecordPoints,          ONLY: RecordPoints
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze
+USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
+#ifdef PARTICLES
 USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpecies
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
-USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout
 USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues, WriteOutputMeshSamp
 USE MOD_LD_Vars,               ONLY: useLD
@@ -340,7 +341,9 @@ USE MOD_part_boundary,         ONLY : ParticleBoundary, Communicate_PIC
 USE MOD_part_MPI_Vars,         ONLY : ExtPartState, ExtPartSpecies
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 #endif /*MPI*/
-
+#else
+USE MOD_AnalyzeField,          ONLY: AnalyzeField
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -394,6 +397,7 @@ IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.)
 ! PIC & DG-Sovler
 !----------------------------------------------------------------------------------------------------------------------------------
 
+#ifdef PARTICLES
 ! particle analyze
 IF (DoAnalyze)  THEN
   IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL AnalyzeParticles(t) 
@@ -403,11 +407,21 @@ IF(ForceAnalyze)THEN
   CALL AnalyzeParticles(t) 
   !IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
 END IF
+#else /*pure DGSEM */
+IF (DoAnalyze)  THEN
+  IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL AnalyzeField(t) 
+END IF
+
+IF(ForceAnalyze)THEN
+  CALL AnalyzeField(t) 
+  !IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
+END IF
+#endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC & LD 
 !----------------------------------------------------------------------------------------------------------------------------------
-
+#ifdef PARTICLES
 ! write DSMC macroscopic values 
 IF (WriteMacroValues) THEN
 #if (PP_TimeDiscMethod==1000)
@@ -454,7 +468,7 @@ IF(ForceAnalyze)THEN
   END IF
 #endif
 END IF
-
+#endif /*PARTICLES*/
 
 END SUBROUTINE PerformeAnalyze
 

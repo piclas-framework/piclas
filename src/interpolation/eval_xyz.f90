@@ -16,6 +16,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
+#ifdef PARTICLES
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 INTERFACE eval_xyz
   MODULE PROCEDURE eval_xyz 
@@ -34,10 +35,12 @@ INTERFACE eval_xyz_elemcheck
 END INTERFACE
 
 PUBLIC :: eval_xyz, eval_xyz_fast, eval_xyz_part2, Calc_F, Calc_dF_inv, eval_xyz_curved,eval_xyz_elemcheck
+#endif /*PARTICLES*/
 !===================================================================================================================================
 
 CONTAINS
 
+#ifdef PARTICLES
 SUBROUTINE eval_xyz_fast(x_in,NVar,N_in,X3D_In,X3D_Out,iElem)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
@@ -1061,5 +1064,6 @@ getInv(3,1) = ( Mat(2,1) * Mat(3,2) - Mat(2,2) * Mat(3,1) ) * sdet
 getInv(3,2) = ( Mat(1,2) * Mat(3,1) - Mat(1,1) * Mat(3,2) ) * sdet
 getInv(3,3) = ( Mat(1,1) * Mat(2,2) - Mat(1,2) * Mat(2,1) ) * sdet
 END FUNCTION getInv 
+#endif /*PARTICLES*/
 
 END MODULE MOD_Eval_xyz

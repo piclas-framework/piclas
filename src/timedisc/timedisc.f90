@@ -105,8 +105,6 @@ SWRITE(UNIT_stdOut,'(A)')' INIT TIMEDISC DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitTimeDisc
 
-
-
 SUBROUTINE TimeDisc()
 !===================================================================================================================================
 ! GTS Temporal discretization 
@@ -114,13 +112,17 @@ SUBROUTINE TimeDisc()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_PoyntingInt,           ONLY: CalcPoyntingIntegral
+USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
 USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
 USE MOD_Analyze,               ONLY: CalcError,PerformeAnalyze
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt,CalcPoyntingInt
+#ifdef PARTICLES
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
+#else
+USE MOD_AnalyzeField,          ONLY: AnalyzeField
+#endif /*PARTICLES*/
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_Output,                ONLY: Visualize
 USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
@@ -204,7 +206,11 @@ CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
 ! Determine the initial error
 CALL CalcError(t)
 ! first analyze Particles and DG solution (write zero state)
+#ifdef PARTICLES
 CALL AnalyzeParticles(t) 
+#else
+CALL AnalyzeField(t) 
+#endif /*PARTICLES*/
 IF (CalcPoyntingInt) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
 !CALL Visualize_Particles(t)
 

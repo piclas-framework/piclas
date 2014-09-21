@@ -309,7 +309,10 @@ DO iElem=1,nElems
 #endif /*PARTICLES*/
 END DO !iElem=1,nElems
 
-CALL GetSideType()
+#ifdef PARTICLES
+  CALL GetSideType()
+#endif /*PARTICLES*/
+
 END SUBROUTINE CalcMetrics 
 
 

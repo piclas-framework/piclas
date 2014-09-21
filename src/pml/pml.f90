@@ -525,7 +525,9 @@ SUBROUTINE ProbePML(t)
 USE MOD_PreProc
 USE MOD_DG_Vars,            ONLY : U
 USE MOD_PML_Vars,           ONLY : Probes
-USE MOD_Eval_xyz,           ONLY : eval_xyz
+!#ifdef PARTICLES
+!USE MOD_Eval_xyz,           ONLY : eval_xyz
+!#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
