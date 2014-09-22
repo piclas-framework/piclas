@@ -365,7 +365,7 @@ FUNCTION CalcNormVecBezier(xi,eta,SideID)
 !================================================================================================================================
 USE MOD_Mesh_Vars,                            ONLY:NGeo
 USE MOD_Globals,                              ONLY:CROSSNORM,CROSS
-USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D,facNchooseK
+USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D,facNchooseK,ArrayNchooseK
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -377,20 +377,23 @@ INTEGER,INTENT(IN)                     :: SideID
 REAL,DIMENSION(3)                      :: CalcNormVecBezier
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(3)                      :: v,u,nVec
+REAL,DIMENSION(3)                      :: v,u!,nVec
 INTEGER                                :: p,q,m
 !REAL                                   :: nlength
 REAL                                   :: MinusXi,PlusXI,MinusEta,PlusEta
 REAL                                   :: xiup(0:NGeo),etaup(0:NGeo),xidown(0:NGeo),etadown(0:NGeo)
 !================================================================================================================================
 
+! caution we require the formula in [0;1]
 M=nGeo-1
 MinusXi=1.0-xi
 PlusXi=1.0+xi
+!PlusXi=xi
 MinusEta=1.0-eta
 PlusEta=1.0+eta
+!PlusEta=eta
 
-! compute the required stuff
+!! compute the required stuff
 xiup(0)=1.0
 etaup(0)=1.0
 ! caution, here the indicies are switched from n-j to j 
@@ -405,18 +408,34 @@ END DO ! p
 
 ! B = (1./(2**N_in))*REAL(CHOOSE(N_in,j))*((x+1.)**j)*((1.-x)**(N_in-j))
 ! complete form
-!u=0
-!v=0
+!u=0.
+!v=0.
 !DO q=0,NGeo
 !  DO p=0,M
 !    ! derivative in xi
+!!   BezierControlPoints2D_temp(:,q,p)=&
+!!   BezierControlPoints2D_temp(:,q,p)+&
+!!   !BezierControlPoints2D(:,l,q)*B(p,l,Smax)
+!!   BezierControlPoints2D     (:,q,l)*(1./(2.**p))       &
+!!                         *arrayNchooseK(p,l) &
+!!                         *(1.+Etamax)**l       &
+!!                         *(1.-Etamax)**(p-l)
+!
 !    u=u+(BezierControlPoints3D(:,p+1,q,SideID)-BezierControlPoints3D(:,p,q,SideID))        &
-!        *BezierControlPoints3D(:,p,q,SideID)*facNchooseK(M,p)*(PlusXi**p)*(MinusXi**(M-p)) &
-!                                            *facNChooseK(NGeo,q)*(PlusEta**q)*(MinusEta**(NGeo-q))
+!        *facNchooseK(M,p)*(PlusXi**p)*(MinusXi**(M-p)) &
+!        *facNChooseK(NGeo,q)*(PlusEta**q)*(MinusEta**(NGeo-q))
 !
 !    v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID))        &
-!        *BezierControlPoints3D(:,q,p,SideID)*facNchooseK(NGeo,q)*(PlusXi**q)*(MinusXi**(NGeo-q)) &
+!        *facNchooseK(NGeo,q)*(PlusXi**q)*(MinusXi**(NGeo-q)) &
 !                                            *facNChooseK(M,p)*(PlusEta**p)*(MinusEta**(M-p))
+!
+!!    u=u+(BezierControlPoints3D(:,p+1,q,SideID)-BezierControlPoints3D(:,p,q,SideID))        &
+!!        *BezierControlPoints3D(:,p,q,SideID)*facNchooseK(M,p)*(PlusXi**p)*(MinusXi**(M-p)) &
+!!                                            *facNChooseK(NGeo,q)*(PlusEta**q)*(MinusEta**(NGeo-q))
+!!
+!!    v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID))        &
+!!        *BezierControlPoints3D(:,q,p,SideID)*facNchooseK(NGeo,q)*(PlusXi**q)*(MinusXi**(NGeo-q)) &
+!!                                            *facNChooseK(M,p)*(PlusEta**p)*(MinusEta**(M-p))
 !
 !  END DO ! p
 !END DO ! q
@@ -429,19 +448,20 @@ DO q=0,NGeo
   DO p=0,M
     ! derivative in xi
     u=u+(BezierControlPoints3D(:,p+1,q,SideID)-BezierControlPoints3D(:,p,q,SideID)) &
-        *BezierControlPoints3D(:,p,q,SideID)*facNchooseK(M,p)*xiup(p)*xidown(p)     &
-                                            *facNChooseK(NGeo,q)*etaup(q)*etadown(q)
+        *facNchooseK(M,p)*xiup(p)*xidown(p)     &
+        *facNChooseK(NGeo,q)*etaup(q)*etadown(q)
     ! derivative in eta ! caution - exchange indicies
     v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID)) &
-        *BezierControlPoints3D(:,q,p,SideID)*facNchooseK(NGeo,q)*xiup(q)*xidown(q)  &
-                                            *facNChooseK(M,p)*etaup(p)*etadown(p)
+        *facNchooseK(NGeo,q)*xiup(q)*xidown(q)  &
+        *facNChooseK(M,p)*etaup(p)*etadown(p)
 
   END DO ! p
 END DO ! q
-u=u*NGeo
-v=v*NGeo
+!u=u*NGeo
+!v=v*NGeo
 
 CalcNormVecBezier=CROSSNORM(u,v)
+!nVec=CROSS(u,v)
 !nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
 !nlength=SQRT(nlength)
 !CalcNormVecBezier=nVec/nlength

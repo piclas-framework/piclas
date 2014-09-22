@@ -325,7 +325,7 @@ INTEGER                              :: p,q,idir,l,iDeCasteljau
 REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,x,y,alpha
 LOGICAL                              :: DoXiClip,DoEtaClip,DoCheck
 INTEGER                              :: iClip
-REAL                                 :: PlusXi,MinusXi,PlusEta,MinusEta
+REAL                                 :: PlusXi,MinusXi,PlusEta,MinusEta,tmpXi,tmpEta
 INTEGER                              :: tmpnClip,tmpnXi,tmpnEta
 !================================================================================================================================
 
@@ -831,6 +831,8 @@ DO iClip=nEtaClip-1,1,-1
 END DO
 print*,'xi,eta',xi,eta
 ! Calculate intersection value in 3D (De Casteljau)
+tmpXi=XI
+tmpEta=Eta
 Xi=0.5*(Xi+1)
 Eta=0.5*(Eta+1)
 MinusXi =1.0-Xi
@@ -860,8 +862,8 @@ DO iDeCasteljau=1,NGeo
   l=l-1
 END DO
 
-!print*,'FoundPoint',ReducedBezierControlPoints(:,0,0)
-!read*
+
+print*,'FoundPoint',ReducedBezierControlPoints(:,0,0)
 ! resulting point is ReducedBezierControlPoints(:,1,1)
 IntersectionVector=ReducedBezierControlPoints(:,0,0)-LastPartPos(iPart,1:3)
 alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
@@ -873,8 +875,11 @@ IF((alpha.LT.lengthPartTrajectory).AND.(alpha.GT.Mepsilontol))THEN
   ! found additional intersection point
   nInterSections=nIntersections+1
   locAlpha(nInterSections)=alpha
-  locXi (nInterSections)=Xi
-  locEta(nInterSections)=Eta
+  locXi (nInterSections)=tmpXi
+  locEta(nInterSections)=tmpEta
+  ! defined in [0,1]
+  !locXi (nInterSections)=Xi
+  !locEta(nInterSections)=Eta
 END IF
 
 END IF ! docheck
