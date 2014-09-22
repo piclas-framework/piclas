@@ -3,7 +3,7 @@
 # CONFIGURATION                                                                                                                   #
 #=================================================================================================================================#
 INIFILE=$(MAINDIR)ini/particles.ini
-	COMPILER=INTEL_DEBUG
+COMPILER=INTEL_DEBUG
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
 
 #=================================================================================================================================#
@@ -13,7 +13,7 @@ INIVARS = EQNSYS PARTICLES NODETYPE RIEMANN TIMEDISCMETHOD NELEMZ N MPI POIS OPT
 
 # Defaults
 EQNSYS         = maxwell
-PARTICLES      = T
+PARTICLES      =
 NODETYPE       = 1
 TIMEDISCMETHOD = 2
 RIEMANN        = 1
@@ -169,8 +169,9 @@ endif
 
 # JAPAN, HELIOS - Use available HDF5 libraries. Don't forget to load HDF5 module!
 ifeq ($(findstring HELIOS,$(MACHINE)),HELIOS)
-  HDF5_LIB  = -L/csc/softs/hdf/hdf5-1.8.11_parallel/intel-13.1.3.192/bullxmpi-1.2.4.1/default/lib/
-  HDF5_INC  = -I/csc/softs/hdf/hdf5-1.8.11_parallel/intel-13.1.3.192/bullxmpi-1.2.4.1/default/include/
+  HDF5_BASE = $(HDF5_DIR)
+  HDF5_LIB  = -L$(HDF5_BASE)/lib/
+  HDF5_INC  = -I$(HDF5_BASE)/include/
   HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz
 endif
 
