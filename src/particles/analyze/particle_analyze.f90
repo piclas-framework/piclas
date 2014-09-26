@@ -1174,6 +1174,11 @@ INTEGER           :: iReac
                      * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                      * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) &
                      * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,3)) )
+    CASE('x')
+        RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
+                     * GEO%Volume(1) / (dt &
+                     * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
+                     * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) )
     END SELECT
   END DO
   ChemReac%NumReac = 0
@@ -1314,7 +1319,7 @@ SUBROUTINE WriteEletronicTransition ( Time )
 !-----------------------------------------------------------------------------------------------------------------------------------
 END SUBROUTINE WriteEletronicTransition
 #endif
-  
+
 SUBROUTINE TrackingParticlePosition(time) 
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines

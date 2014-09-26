@@ -29,8 +29,9 @@ SUBROUTINE ParticleTrackingCurved()
 ! read required parameters
 !===================================================================================================================================
 ! MODULES
+!USE MOD_Preproc
 USE MOD_Globals,                     ONLY:abort
-USE MOD_Mesh_Vars,                   ONLY:ElemToSide,nBCSides,NGeo
+USE MOD_Mesh_Vars,                   ONLY:ElemToSide,nBCSides,NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne,neighborElemID,neighborlocSideID,epsilonbilinear
@@ -66,7 +67,7 @@ DO iPart=1,PDM%ParticleVecLength
                              +PartTrajectory(3)*PartTrajectory(3) )
     PartTrajectory=PartTrajectory/lengthPartTrajectory
     lengthPartTrajectory=lengthPartTrajectory+epsilontol
-    print*,'partTrajectory',PartTrajectory
+    !print*,'partTrajectory',PartTrajectory
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
@@ -74,7 +75,9 @@ DO iPart=1,PDM%ParticleVecLength
         alpha=-1.0
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
-        print*,'SideID',SideID
+!        print*,'SideID',SideID
+!        print*,'normvec',NormVec(:,0,0,SideID)
+!        print*,'normvec',NormVec(:,PP_N,PP_N,SideID)
         ! find intersection point with surface: use NGeo for BezierControlPoints
         SELECT CASE(SideType(SideID))
         CASE(PLANAR)
@@ -295,7 +298,7 @@ RECURSIVE SUBROUTINE BezierClip(BezierControlPoints2D,PartTrajectory,lengthPartT
 !================================================================================================================================
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
-USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK
+USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,mEpsilontol
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 ! IMPLICIT VARIABLE HANDLING
@@ -339,13 +342,16 @@ DoEtaClip=.TRUE.
 DoCheck=.TRUE.
 !nXiClip=0
 !nEtaClip=0
+!print*,'initer',iClipIter
 DO iClipIter=iClipIter,ClipMaxIter
+  !print*,'iClip',iClipIter
+  !read*
   ! a) xi-direction
   IF(DoXiClip)THEN
     CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck)
     IF(.NOT.DoCheck) EXIT
  !   print*,'LineVec',LineNormVec
-    DO q=0,NGeo
+    DO q=0,NGeo 
       DO p=0,NGeo
         BezierControlPoints1D(p,q)=DOT_PRODUCT(BezierControlPoints2D(:,p,q),LineNormVec)
 !        WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8)') 'Bezier1d',p,q,BezierControlPoints1D(p,q)
@@ -437,7 +443,7 @@ DO iClipIter=iClipIter,ClipMaxIter
 !        ,BezierControlPoints2d_temp2(2,p,q)
 !  END DO
 !END DO
-      tmpnClip=iClipIter
+      tmpnClip=iClipIter+1
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
       CALL BezierClip(BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory,tmpnClip,tmpnXi,tmpnEta &
@@ -497,7 +503,7 @@ DO iClipIter=iClipIter,ClipMaxIter
       ELSE
         BezierControlPoints2D_temp2=BezierControlPoints2D_temp
       END IF
-      tmpnClip=iClipIter
+      tmpnClip=iClipIter+1
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
       CALL BezierClip(BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory,tmpnClip,tmpnXi,tmpnEta &
@@ -666,7 +672,7 @@ DO iClipIter=iClipIter,ClipMaxIter
         END DO
       END DO
       ! new bezier-clip
-      tmpnClip=iClipIter
+      tmpnClip=iClipIter+1
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
       CALL BezierClip(BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory,tmpnClip,tmpnXi,tmpnEta &
@@ -727,7 +733,7 @@ DO iClipIter=iClipIter,ClipMaxIter
         BezierControlPoints2D_temp2=BezierControlPoints2D_temp
       END IF
       ! new bezier-clip
-      tmpnClip=iClipIter
+      tmpnClip=iClipIter+1
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
       CALL BezierClip(BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory,tmpnClip,tmpnXi,tmpnEta &
@@ -878,6 +884,11 @@ alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
 IF((alpha.LT.lengthPartTrajectory).AND.(alpha.GT.Mepsilontol))THEN
   ! found additional intersection point
   nInterSections=nIntersections+1
+  IF(nInterSections.GT.ClipMaxInter)THEN
+    nInterSections=0
+    locAlpha=-1
+    RETURN
+  END IF
   locAlpha(nInterSections)=alpha
   locXi (nInterSections)=tmpXi
   locEta(nInterSections)=tmpEta

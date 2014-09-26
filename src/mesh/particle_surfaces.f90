@@ -99,8 +99,6 @@ ALLOCATE( locAlpha(1:ClipMaxInter) &
         , locEta  (1:ClipMaxInter) )
 ALLOCATE( XiArray (1:2,1:ClipMaxIter) &
         , EtaArray(1:2,1:ClipMaxIter) )
-!    print*,'SIZE',size(locAlpha)
-!    read*
 !NPartCurved     = GETINT('NPartCurved','1')
 !IF(NPartCurved.GT.1) DoPartCurved=.TRUE.
 

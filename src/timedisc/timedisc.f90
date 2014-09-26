@@ -105,6 +105,8 @@ SWRITE(UNIT_stdOut,'(A)')' INIT TIMEDISC DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitTimeDisc
 
+
+
 SUBROUTINE TimeDisc()
 !===================================================================================================================================
 ! GTS Temporal discretization 
@@ -171,14 +173,15 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 iter_macvalout=0
 nOutput = 1
 IF(.NOT.DoRestart)THEN
+  t=0.
   realtime=0.
   time=0.
 ELSE
+  t=RestartTime
   realtime=RestartTime
   Time = RestartTime
 END IF
-#endif /*PARTICLES*/
-
+#else
 IF(.NOT.DoRestart)THEN
   t=0.
   SWRITE(UNIT_StdOut,*)'INITIAL PROJECTION:'
@@ -186,6 +189,7 @@ ELSE
   t=RestartTime
   SWRITE(UNIT_StdOut,*)'REWRITING SOLUTION:'
 END IF
+#endif /*PARTICLES*/
 tAnalyze=MIN(t+Analyze_dt,tEnd)
 
 ! write number of grid cells and dofs only once per computation
