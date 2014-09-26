@@ -90,7 +90,7 @@ epsilonOne      = 1.0 + epsilontol
 OneMepsilon     = 1.0 - epsilontol
 ClipTolerance   = GETREAL('ClipTolerance','1e-4')
 ClipMaxIter     = GETINT('ClipMaxIter','10')
-tmp=2*NGeo
+tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp
 ClipMaxInter    = GETINT('ClipMaxInter',dummy)
 
@@ -99,6 +99,8 @@ ALLOCATE( locAlpha(1:ClipMaxInter) &
         , locEta  (1:ClipMaxInter) )
 ALLOCATE( XiArray (1:2,1:ClipMaxIter) &
         , EtaArray(1:2,1:ClipMaxIter) )
+!    print*,'SIZE',size(locAlpha)
+!    read*
 !NPartCurved     = GETINT('NPartCurved','1')
 !IF(NPartCurved.GT.1) DoPartCurved=.TRUE.
 

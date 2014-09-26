@@ -97,13 +97,13 @@ DO iPart=1,PDM%ParticleVecLength
         CASE(CURVED)
           CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
         END SELECT
-        print*,'alpha',alpha
-        print*,'xi',xi
-        print*,'eta',eta
+    !    print*,'alpha',alpha
+    !    print*,'xi',xi
+    !    print*,'eta',eta
         if(alpha.gt.0)THEN
-        print*,'interpoint-x',LastPartPos(iPart,1)+alpha*PartTrajectory(1)
-        print*,'interpoint-y',LastPartPos(iPart,2)+alpha*PartTrajectory(2)
-        print*,'interpoint-z',LastPartPos(iPart,3)+alpha*PartTrajectory(3)
+    !    print*,'interpoint-x',LastPartPos(iPart,1)+alpha*PartTrajectory(1)
+    !    print*,'interpoint-y',LastPartPos(iPart,2)+alpha*PartTrajectory(2)
+    !    print*,'interpoint-z',LastPartPos(iPart,3)+alpha*PartTrajectory(3)
        endif
         !read*
 
@@ -201,11 +201,11 @@ n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) &
        , PartTrajectory(1)*n1(2)-PartTrajectory(2)*n1(1) /)
 n2=n2/SQRT(DOT_PRODUCT(n2,n2))
 
-WRITE(*,'(A,2x,F12.8,2x,F12.8,2x,F12.8)') 'plane-n1',n1
-WRITE(*,'(A,2x,F12.8,2x,F12.8,2x,F12.8)') 'plane-n2',n2
-print*,'test n1*PartTrajectory',DOT_PRODUCT(PartTrajectory,n1)
-print*,'test n2*PartTrajectory',DOT_PRODUCT(PartTrajectory,n2)
-print*,'test n1*n2',DOT_PRODUCT(n1,n2)
+!WRITE(*,'(A,2x,F12.8,2x,F12.8,2x,F12.8)') 'plane-n1',n1
+!WRITE(*,'(A,2x,F12.8,2x,F12.8,2x,F12.8)') 'plane-n2',n2
+!print*,'test n1*PartTrajectory',DOT_PRODUCT(PartTrajectory,n1)
+!print*,'test n2*PartTrajectory',DOT_PRODUCT(PartTrajectory,n2)
+!print*,'test n1*n2',DOT_PRODUCT(n1,n2)
 !read*!CHANGETAG
 DO q=0,NGeo
   DO p=0,NGeo
@@ -218,20 +218,20 @@ DO q=0,NGeo
   END DO
 END DO
 
-print*,'init 3d patch'
-DO q=0,NGeo
-  DO p=0,NGeo
-    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8,2x,F12.8)') &
-    'Bezier3D',p,q,BezierControlPoints3D(1,p,q,SideID),BezierControlPoints3d(2,p,q,SideID),BezierControlPoints3d(3,p,q,SideID)
-  END DO
-END DO
+!print*,'init 3d patch'
+!DO q=0,NGeo
+!  DO p=0,NGeo
+!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8,2x,F12.8)') &
+!    'Bezier3D',p,q,BezierControlPoints3D(1,p,q,SideID),BezierControlPoints3d(2,p,q,SideID),BezierControlPoints3d(3,p,q,SideID)
+!  END DO
+!END DO
 
-print*,'init 2d patch'
-DO q=0,NGeo
-  DO p=0,NGeo
-    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D(1,p,q),BezierControlPoints2d(2,p,q)
-  END DO
-END DO
+!print*,'init 2d patch'
+!DO q=0,NGeo
+!  DO p=0,NGeo
+!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D(1,p,q),BezierControlPoints2d(2,p,q)
+!  END DO
+!END DO
 
 
 
@@ -344,11 +344,11 @@ DO iClipIter=iClipIter,ClipMaxIter
   IF(DoXiClip)THEN
     CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck)
     IF(.NOT.DoCheck) EXIT
-    print*,'LineVec',LineNormVec
+ !   print*,'LineVec',LineNormVec
     DO q=0,NGeo
       DO p=0,NGeo
         BezierControlPoints1D(p,q)=DOT_PRODUCT(BezierControlPoints2D(:,p,q),LineNormVec)
-        WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8)') 'Bezier1d',p,q,BezierControlPoints1D(p,q)
+!        WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8)') 'Bezier1d',p,q,BezierControlPoints1D(p,q)
       END DO
     END DO
     DO l=0,NGeo
@@ -357,20 +357,20 @@ DO iClipIter=iClipIter,ClipMaxIter
     END DO ! l
     ! calc Smin and Smax and check boundaries
     CALL CalcSminSmax(minmax,XiMin,XiMax)
-    print*,'XiMinm,XiMax',XiMin,XiMax
+ !   print*,'XiMinm,XiMax',XiMin,XiMax
     IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))RETURN
     nXiClip=nXiClip+1
     ! 1.) CLIPPING xi
     IF((XiMax-XiMin).GT.1.2)THEN ! two possible intersections
       XiSplit=0.5*(XiMax+XiMin)
-      print*,'XiSplit',Xisplit
+ !     print*,'XiSplit',Xisplit
       ! first split
       XiArray(:,iClipIter)=(/XiSplit,XiMax/)
-      print*,'xisplit,ximax',xisplit,ximax
+ !     print*,'xisplit,ximax',xisplit,ximax
+      !read*
       BezierControlPoints2D_temp=0.
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
-!      IF(XiMax.NE.1.0)THEN
-        print*,'inottt'
+      IF(XiMax.NE.1.0)THEN
         PlusXi=1.0+XiMax
         MinusXi=1.0-XiMax
         DO q=0,NGeo
@@ -390,17 +390,17 @@ DO iClipIter=iClipIter,ClipMaxIter
             END DO
           END DO
         END DO
-!      ELSE
-!        BezierControlPoints2D_temp=BezierControlPoints2D
-!      END IF ! XiMax
+      ELSE
+        BezierControlPoints2D_temp=BezierControlPoints2D
+      END IF ! XiMax
 
-print*,'upper'
-DO q=0,NGeo
-  DO p=0,NGeo
-    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D_temp(1,p,q)&
-        ,BezierControlPoints2d_temp(2,p,q)
-  END DO
-END DO
+!print*,'upper'
+!DO q=0,NGeo
+!  DO p=0,NGeo
+!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D_temp(1,p,q)&
+!        ,BezierControlPoints2d_temp(2,p,q)
+!  END DO
+!END DO
 
 
       ! BOTTOM (mirrored Bernstein Basis evaluation)
@@ -430,13 +430,13 @@ END DO
         END DO
       END DO
 
-print*,'split'
-DO q=0,NGeo
-  DO p=0,NGeo
-    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D_temp2(1,p,q)&
-        ,BezierControlPoints2d_temp2(2,p,q)
-  END DO
-END DO
+!print*,'split'
+!DO q=0,NGeo
+!  DO p=0,NGeo
+!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D_temp2(1,p,q)&
+!        ,BezierControlPoints2d_temp2(2,p,q)
+!  END DO
+!END DO
       tmpnClip=iClipIter
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
@@ -509,7 +509,7 @@ END DO
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       IF(XiMax.NE.1.0)THEN
-        print*,'do it 1'
+        !print*,'do it 1'
         BezierControlPoints2D_temp=0.
         PlusXi=1.0+XiMax
         MinusXi=1.0-XiMax
@@ -561,22 +561,22 @@ END DO
         BezierControlPoints2D=BezierControlPoints2D_temp
       END IF
 
-print*,'new patch in xi'
-DO q=0,NGeo
-  DO p=0,NGeo
-    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D(1,p,q),BezierControlPoints2d(2,p,q)
-  END DO
-END DO
-
-
-      print*,'check xi-tolereance'  
+!print*,'new patch in xi'
+!DO q=0,NGeo
+!  DO p=0,NGeo
+!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D(1,p,q),BezierControlPoints2d(2,p,q)
+!  END DO
+!END DO
+!
+!
+!      print*,'check xi-tolereance'  
       ! c) check Tolerance
       !IF(DoCheck)THEN
       x=SUM(BezierControlPoints2D(1,:,:))*PatchDOF2D
       y=SUM(BezierControlPoints2D(2,:,:))*PatchDOF2D
       ! DEBUGGG relative clip tolerance is missing, multiply by max bounding box length
-      print*,'res',SQRT(x*x+y*y)
-      print*,''
+!      print*,'res',SQRT(x*x+y*y)
+!      print*,''
       IF(SQRT(x*x+y*y).LT.ClipTolerance)EXIT
       !END IF ! DoCheck
       IF(ABS(XiMax-XiMin).LT.ClipTolerance) DoXiClip=.FALSE.
@@ -602,15 +602,18 @@ END DO
     END DO ! l
     ! calc Smin and Smax and check boundaries
     CALL CalcSminSmax(minmax,Etamin,Etamax)
-    print*,''
-    print*,'EtaMinm,EtaMax',EtaMin,EtaMax
+!    print*,''
+!    print*,'EtaMinm,EtaMax',EtaMin,EtaMax
     IF((EtaMin.EQ.1.5).OR.(EtaMax.EQ.-1.5))RETURN
     nEtaClip=nEtaClip+1
     ! 2.) CLIPPING eta
     IF((EtaMax-EtaMin).GT.1.2)THEN ! two possible intersections
+!      print*,'eta split'
       EtaSplit=0.5*(EtaMax+EtaMin)
       ! first clip
       EtaArray(:,iClipIter)=(/EtaSplit,EtaMax/)
+!      print*,'etasplit,etamax',etasplit,etamax
+      !read*
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       IF(EtaMax.NE.1.0)THEN
         BezierControlPoints2D_temp=0.
@@ -669,6 +672,7 @@ END DO
       CALL BezierClip(BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory,tmpnClip,tmpnXi,tmpnEta &
           ,nInterSections,iPart,SideID)
       ! second split
+!      print*,'etamin,etasplit',etamin,etasplit
       EtaArray(:,iClipIter)=(/EtaMin,EtaSplit/)
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       BezierControlPoints2D_temp=0.
@@ -787,21 +791,21 @@ END DO
         END DO
         BezierControlPoints2D=BezierControlPoints2D_temp
 
-print*,'new patch in eta'
-DO q=0,NGeo
-  DO p=0,NGeo
-    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D(1,p,q),BezierControlPoints2d(2,p,q)
-  END DO
-END DO
+!print*,'new patch in eta'
+!DO q=0,NGeo
+!  DO p=0,NGeo
+!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D(1,p,q),BezierControlPoints2d(2,p,q)
+!  END DO
+!END DO
 
-       print*,'check eta-tolereance'  
+       !print*,'check eta-tolereance'  
        ! c) check Tolerance
        !IF(DoCheck)THEN
        x=SUM(BezierControlPoints2D(1,:,:))*PatchDOF2D
        y=SUM(BezierControlPoints2D(2,:,:))*PatchDOF2D
        ! DEBUGGG relative clip tolerance is missing, multiply by max bounding box length
-       print*,'res',SQRT(x*x+y*y)
-       print*,''
+       !print*,'res',SQRT(x*x+y*y)
+       !print*,''
        IF(SQRT(x*x+y*y).LT.ClipTolerance)EXIT
        !END IF ! DoCheck
        IF(ABS(EtaMax-EtaMin).LT.ClipTolerance) DoEtaClip=.FALSE.
@@ -814,22 +818,22 @@ END DO
 IF(DoCheck)THEN
 ! back transformation of sub-level clipping values to original bezier surface: ximean, etamean
 !   xi-direction
-print*,'nXiClip',nXiClip
-print*,'nEtaClip',nEtaClip
+!print*,'nXiClip',nXiClip
+!print*,'nEtaClip',nEtaClip
 Xi=0.5*SUM(XiArray(:,nXiClip))
-print*,'deepest xi',xi
+!print*,'deepest xi',xi
 DO iClip=nXiClip-1,1,-1
   Xi=XiArray(1,iClip)+0.5*(Xi+1)*(XiArray(2,iClip)-XiArray(1,iClip))
-  print*,'xi',xi
+  !print*,'xi',xi
 END DO
 !   eta-direction
 Eta=0.5*SUM(EtaArray(:,nEtaClip))
-print*,'deepesst eta',eta
+!print*,'deepesst eta',eta
 DO iClip=nEtaClip-1,1,-1
   Eta=EtaArray(1,iClip)+0.5*(Eta+1)*(EtaArray(2,iClip)-EtaArray(1,iClip))
-  print*,eta
+  !print*,eta
 END DO
-print*,'xi,eta',xi,eta
+!print*,'xi,eta',xi,eta
 ! Calculate intersection value in 3D (De Casteljau)
 tmpXi=XI
 tmpEta=Eta
@@ -841,7 +845,7 @@ MinusEta=1.0-Eta
 ReducedBezierControlPoints=BezierControlPoints3D(:,:,:,SideID)
 l=NGeo-1
 DO iDeCasteljau=1,NGeo
-  print*,'l',l
+  !print*,'l',l
   DO q=0,l
     DO p=0,l
       !ReducedBezierControlPoints_temp(:,p,q)=DOT_PRODUCT((/1-.Smean(1), Smean(1)/),MATMUL(
@@ -863,7 +867,7 @@ DO iDeCasteljau=1,NGeo
 END DO
 
 
-print*,'FoundPoint',ReducedBezierControlPoints(:,0,0)
+!print*,'FoundPoint',ReducedBezierControlPoints(:,0,0)
 ! resulting point is ReducedBezierControlPoints(:,1,1)
 IntersectionVector=ReducedBezierControlPoints(:,0,0)-LastPartPos(iPart,1:3)
 alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
