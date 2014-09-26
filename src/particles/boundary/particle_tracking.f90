@@ -182,6 +182,11 @@ Xi   = 2.0
 Eta  = 2.0
 !!!! DEBUGGG fix side ID
 print*,'sideid',sideid
+! If side is flat, than check if particle vector is perpenticular to side. if true, then particle moves parallel to or in side
+IF(BoundingBoxIsEmpty(SideID))THEN
+  IF(ABS(DOT_PRODUCT(PartTrajectory,SideNormVec(SideID))).LT.epsilontol) RETURN
+END IF ! BoundingBoxIsEmpty
+
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
 IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
   IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
