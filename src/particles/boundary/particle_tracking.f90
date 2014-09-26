@@ -153,7 +153,7 @@ USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,ClipTolerance,ClipMaxInter,ClipMaxIter
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
-USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK
+USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
 USE MOD_Utils,                   ONLY:BubbleSortID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -184,7 +184,7 @@ Eta  = 2.0
 print*,'sideid',sideid
 ! If side is flat, than check if particle vector is perpenticular to side. if true, then particle moves parallel to or in side
 IF(BoundingBoxIsEmpty(SideID))THEN
-  IF(ABS(DOT_PRODUCT(PartTrajectory,SideNormVec(SideID))).LT.epsilontol) RETURN
+  IF(ABS(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID))).LT.epsilontol) RETURN
 END IF ! BoundingBoxIsEmpty
 
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
@@ -282,17 +282,22 @@ CASE DEFAULT
         alpha=locAlpha(iInter)
         xi =locXi (locID(iInter))
         eta=loceta(locID(iInter))
+        SDEALLOCATE(locID)
+        RETURN 
       END IF
     END DO ! iInter
   ELSE
-    IF(MOD(nInterSections,2).EQ.0) RETURN ! leave and enter a cell multiple times
+    IF(MOD(nInterSections,2).EQ.0) THEN
+      SDEALLOCATE(locID)
+      RETURN ! leave and enter a cell multiple times
+    END IF
     alpha=locAlpha(nInterSections)
     xi =locXi (locID(nInterSections))
     eta=loceta(locID(nInterSections))
   END IF
+  SDEALLOCATE(locID)
 END SELECT
 
-SDEALLOCATE(locID)
 
 END SUBROUTINE ComputeBezierIntersection
 
@@ -1511,7 +1516,7 @@ REAL,INTENT(OUT)                  :: alpha,xi,eta
 REAL,DIMENSION(1:3)               :: P0,P1,P2
 !REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
 REAL                              :: a1,a2,b1,b2,c1,c2
-REAL                              :: coeffA,nlength
+REAL                              :: coeffA,nlength,locSideDistance
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
@@ -1534,7 +1539,8 @@ IF(ABS(coeffA).LT.+epsilontol)THEN
   RETURN
 END IF
 
-alpha=SideDistance(SideID)/coeffA
+locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(:,sideID))
+alpha=locSideDistance/coeffA
 
 !IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
 IF((alpha.GT.lengthPartTrajectory).OR.(alpha.LT.-epsilontol))THEN

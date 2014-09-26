@@ -363,9 +363,10 @@ FUNCTION CalcNormVecBezier(xi,eta,SideID)
 !================================================================================================================================
 ! function to compute the normal vector of a bi-linear surface
 !================================================================================================================================
-USE MOD_Mesh_Vars,                            ONLY:NGeo,SideNormVec
+USE MOD_Mesh_Vars,                            ONLY:NGeo
 USE MOD_Globals,                              ONLY:CROSSNORM,CROSS
 USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D,facNchooseK,ArrayNchooseK,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1479,6 +1480,10 @@ DO iSide=1,nSides
       SideNormVec(:,iSide) = CROSSNORM(v1,v2)
 !      length=SQRT(v2(1)*v2(1)+v1(2)*v1(2)+v1(3)*v1(3))
 !      SideNormVec(:,iSide) =SideNormVec(:,iSide)/length
+      !      xNodes(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)
+      !      xNodes(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)
+      !      xNodes(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)
+      !      xNodes(:,4)=SuperSampledNodes(1:3,p  ,q+1,SideID)
       v1=BezierControlPoints3D(:,0,0,iSide)     &
         +BezierControlPoints3D(:,NGeo,0,iSide)  &
         +BezierControlPoints3D(:,0,NGeo,iSide)  &
