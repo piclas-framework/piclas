@@ -1213,35 +1213,42 @@ SlabNormals(:,1,SideID)=BezierControlPoints3D(:,NGeo,0,SideID)   -BezierControlP
                         BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0,NGeo,SideID)
 SlabNormals(:,1,SideID)=SlabNormals(:,1,SideID)/SQRT(DOT_PRODUCT(SlabNormals(:,1,SideID),SlabNormals(:,1,SideID)))
 ! n_2=n_1 x (U_1+U_2) (U: corner vectors in eta-direction)
+SlabNormals(:,2,SideID)=BezierControlPoints3D(:,0,NGeo,SideID)   -BezierControlPoints3D(:,0,0,SideID)+&
+                        BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,NGeo,0,SideID)
+SlabNormals(:,2,SideID)=CROSSNORM(SlabNormals(:,1,SideID),SlabNormals(:,2,SideID))
+
+
 !b                      =BezierControlPoints3D(:,0,NGeo,SideID)   -BezierControlPoints3D(:,0,0,SideID)+&
                         !BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,NGeo,0,SideID)
 !SlabNormals(2,1,SideID)=SlabNormals(1,2,SideID)*b(3) - SlabNormals(1,3,SideID)*b(2)
 !SlabNormals(2,2,SideID)=SlabNormals(1,3,SideID)*b(1) - SlabNormals(1,1,SideID)*b(3)
 !SlabNormals(2,3,SideID)=SlabNormals(1,1,SideID)*b(2) - SlabNormals(1,2,SideID)*b(1)
 !SlabNormals(2,:,SideID)=SlabNormals(2,:,SideID)/SQRT(DOT_PRODUCT(SlabNormals(2,:,SideID),SlabNormals(2,:,SideID)))
-SlabNormals(1,2,SideID)=SlabNormals(2,1,SideID)*(                                                     &
-                        BezierControlPoints3D(3,0,NGeo,SideID)   -BezierControlPoints3D(3,0,0,SideID)+    &
-                        BezierControlPoints3D(3,NGeo,NGeo,SideID)-BezierControlPoints3D(3,NGeo,0,SideID)) &
-                       -SlabNormals(3,1,SideID)*(                                                     &
-                        BezierControlPoints3D(2,0,NGeo,SideID)   -BezierControlPoints3D(2,0,0,SideID)+    &
-                        BezierControlPoints3D(2,NGeo,NGeo,SideID)-BezierControlPoints3D(2,NGeo,0,SideID)) 
-SlabNormals(2,2,SideID)=SlabNormals(3,1,SideID)*(                                                     &
-                        BezierControlPoints3D(1,0,NGeo,SideID)   -BezierControlPoints3D(1,0,0,SideID)+    &
-                        BezierControlPoints3D(1,NGeo,NGeo,SideID)-BezierControlPoints3D(1,NGeo,0,SideID)) &
-                       -SlabNormals(1,1,SideID)*(                                                     &
-                        BezierControlPoints3D(3,0,NGeo,SideID)   -BezierControlPoints3D(3,0,0,SideID)+    &
-                        BezierControlPoints3D(3,NGeo,NGeo,SideID)-BezierControlPoints3D(3,NGeo,0,SideID)) 
-SlabNormals(3,2,SideID)=SlabNormals(1,1,SideID)*(                                                     &
-                        BezierControlPoints3D(2,0,NGeo,SideID)   -BezierControlPoints3D(2,0,0,SideID)+    &
-                        BezierControlPoints3D(2,NGeo,NGeo,SideID)-BezierControlPoints3D(2,NGeo,0,SideID)) &
-                       -SlabNormals(2,1,SideID)*(                                                     &
-                        BezierControlPoints3D(1,0,NGeo,SideID)   -BezierControlPoints3D(1,0,0,SideID)+    &
-                        BezierControlPoints3D(1,NGeo,NGeo,SideID)-BezierControlPoints3D(1,NGeo,0,SideID))
-SlabNormals(:,2,SideID)=SlabNormals(:,2,SideID)/SQRT(DOT_PRODUCT(SlabNormals(:,2,SideID),SlabNormals(:,2,SideID)))
+
+!SlabNormals(1,2,SideID)=SlabNormals(2,1,SideID)*(                                                     &
+!                        BezierControlPoints3D(3,0,NGeo,SideID)   -BezierControlPoints3D(3,0,0,SideID)+    &
+!                        BezierControlPoints3D(3,NGeo,NGeo,SideID)-BezierControlPoints3D(3,NGeo,0,SideID)) &
+!                       -SlabNormals(3,1,SideID)*(                                                     &
+!                        BezierControlPoints3D(2,0,NGeo,SideID)   -BezierControlPoints3D(2,0,0,SideID)+    &
+!                        BezierControlPoints3D(2,NGeo,NGeo,SideID)-BezierControlPoints3D(2,NGeo,0,SideID)) 
+!SlabNormals(2,2,SideID)=SlabNormals(3,1,SideID)*(                                                     &
+!                        BezierControlPoints3D(1,0,NGeo,SideID)   -BezierControlPoints3D(1,0,0,SideID)+    &
+!                        BezierControlPoints3D(1,NGeo,NGeo,SideID)-BezierControlPoints3D(1,NGeo,0,SideID)) &
+!                       -SlabNormals(1,1,SideID)*(                                                     &
+!                        BezierControlPoints3D(3,0,NGeo,SideID)   -BezierControlPoints3D(3,0,0,SideID)+    &
+!                        BezierControlPoints3D(3,NGeo,NGeo,SideID)-BezierControlPoints3D(3,NGeo,0,SideID)) 
+!SlabNormals(3,2,SideID)=SlabNormals(1,1,SideID)*(                                                     &
+!                        BezierControlPoints3D(2,0,NGeo,SideID)   -BezierControlPoints3D(2,0,0,SideID)+    &
+!                        BezierControlPoints3D(2,NGeo,NGeo,SideID)-BezierControlPoints3D(2,NGeo,0,SideID)) &
+!                       -SlabNormals(2,1,SideID)*(                                                     &
+!                        BezierControlPoints3D(1,0,NGeo,SideID)   -BezierControlPoints3D(1,0,0,SideID)+    &
+!                        BezierControlPoints3D(1,NGeo,NGeo,SideID)-BezierControlPoints3D(1,NGeo,0,SideID))
+!SlabNormals(:,2,SideID)=SlabNormals(:,2,SideID)/SQRT(DOT_PRODUCT(SlabNormals(:,2,SideID),SlabNormals(:,2,SideID)))
 ! n_3=n_1 x n_2
-SlabNormals(1,3,SideID)=SlabNormals(2,2,SideID)*SlabNormals(3,2,SideID) - SlabNormals(3,2,SideID)*SlabNormals(2,1,SideID)
-SlabNormals(2,3,SideID)=SlabNormals(3,2,SideID)*SlabNormals(1,2,SideID) - SlabNormals(1,2,SideID)*SlabNormals(3,1,SideID)
-SlabNormals(3,3,SideID)=SlabNormals(1,2,SideID)*SlabNormals(2,2,SideID) - SlabNormals(2,2,SideID)*SlabNormals(1,1,SideID)
+SlabNormals(:,3,SideID)=CROSSNORM(SlabNormals(:,2,SideID),SlabNormals(:,1,SideID))
+!SlabNormals(1,3,SideID)=SlabNormals(2,2,SideID)*SlabNormals(3,2,SideID) - SlabNormals(3,2,SideID)*SlabNormals(2,1,SideID)
+!SlabNormals(2,3,SideID)=SlabNormals(3,2,SideID)*SlabNormals(1,2,SideID) - SlabNormals(1,2,SideID)*SlabNormals(3,1,SideID)
+!SlabNormals(3,3,SideID)=SlabNormals(1,2,SideID)*SlabNormals(2,2,SideID) - SlabNormals(2,2,SideID)*SlabNormals(1,1,SideID)
 !SlabNormals(3,:,SideID)=SlabNormals(3,:,SideID)/SQRT(DOT_PRODUCT(SlabNormals(3,:,SideID),SlabNormals(3,:,SideID)))
 !print*,"slab normal vector length: ",SQRT(DOT_PRODUCT(SlabNormals(1,:,SideID),SlabNormals(1,:,SideID))),&
 !                                     SQRT(DOT_PRODUCT(SlabNormals(2,:,SideID),SlabNormals(2,:,SideID))),&
