@@ -2,6 +2,7 @@ function plot_cases
 clc; clear all; close all;
 global Bezier2d;global n_Ls;global n_Ls_inv;global projectedFace;global Face;global BezierSurface;global GeometricRepresentation;
 NGeo=2;
+onlyPlotData=1;
 setWindows=1;
 load faces.dat
 %load /home/stephen/PMLalgorithm_cases/Testing_Bezier_domain010_nElems002_order04_PML00_zeta0E+00_polynom_CFL0.5_N10_Parts500_DoPML_False/BezierControlPoints.dat
@@ -35,11 +36,12 @@ pvec=[0.6 0.2 0.001];v=[1 -1 1];Face=9; %miss
 %pvec=[0.2 0.1 0.001];v=[0.7 0.9 0.3];Face=9;
 %pvec=[0.4 0.2 0.001];v=[0 0 1];Face=10;
 %pvec=[0.3 0.3 0.001];v=[1 1 0];Face=9; % center of face
-%pvec=[sqrt(9/2)/10 sqrt(9/2)/10 0.001];v=[0 0 1];Face=10;  % center of upper face
-%pvec=[0.3 0.3 0.001];v=[0.2 -1 0.2];Face=8;
-pvec=[0.25 0.25 0.001];v=[0 1 0];Face=6;
+% pvec=[sqrt(9/2)/10 sqrt(9/2)/10 0.001];v=[0 0 1];Face=10;  % center of upper face
+pvec=[-0.3519 0.1426 0]; v=[0.87 -0.5 0];Face=5;
+pvec=[0.3 0.3 0.001];v=[0.2 -1 0.2];Face=8;
+% pvec=[0.25 0.25 0.001];v=[0 1 0];Face=6;
 pvec=[0.25 0.25 0.000];v=[0 0 1];Face=9;
-pvec=[ 0.25 0.25 0.000 ];v=[-1 0 0];Face=9; %9 hier ist 4 im code
+% pvec=[ 0.25 0.25 0.000 ];v=[-1 0 0];Face=9; %9 hier ist 4 im code
 %%
 
 BezierSurface=figure;  hold on;set(gcf, 'color', 'white');view(29,60);grid on;xlabel('x');ylabel('y');zlabel('z');
@@ -91,7 +93,7 @@ plot3(p2(1),p2(2),p2(3),'or','LineWidth',4,'MarkerSize',10)
 quiver3(pvec(1),pvec(2),pvec(3),v(1),v(2),v(3),0,'LineWidth',2,'MarkerSize',10)
 view(35,26)
 %view(v) % view in direction of the vector
- %return
+if true(onlyPlotData),return;end;
 %% projection 3D->2D
 %1. create perpendicular vectors
 if abs(v(3))<1E-6
