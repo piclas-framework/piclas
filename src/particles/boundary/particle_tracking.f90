@@ -181,7 +181,7 @@ alpha=-1.0
 Xi   = 2.0
 Eta  = 2.0
 !!!! DEBUGGG fix side ID
-print*,'sideid',sideid
+!print*,'sideid',sideid
 ! If side is flat, than check if particle vector is perpenticular to side. if true, then particle moves parallel to or in side
 IF(BoundingBoxIsEmpty(SideID))THEN
   IF(ABS(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID))).LT.epsilontol) RETURN
@@ -194,7 +194,7 @@ IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle
                                                                                               ! bounding box
   END IF
 END IF
-print*,'boundingbox hit- do clipping'
+!print*,'boundingbox hit- do clipping'
 !read*
 
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
@@ -975,18 +975,20 @@ INTEGER                              :: l
     END IF
   END DO
   ! 2.) check BEGINNING/END upper convex hull
-  IF(minmax(2,0)*minmax(2,NGeo) .LE.0.)THEN
-    ! interval is the whole parameter space
-    m    = 0.5*(minmax(2,NGeo)-minmax(2,0)) 
-    tmp  = -1.0-minmax(2,0)/m
-    Smin = MIN(tmp,Smin)
-  END IF
-  IF(minmax(1,0)*minmax(1,NGeo) .LE.0.)THEN
-    ! interval is the whole parameter space
-    m    = 0.5*(minmax(1,NGeo)-minmax(1,0))
-    tmp  = -1.0-minmax(1,0)/m
-    Smax = MAX(tmp,Smax)
-  END IF
+  DO l=1,NGeo
+    IF(minmax(2,0)*minmax(2,l) .LE.0.)THEN
+      ! interval is the whole parameter space
+      m    = (minmax(2,l)-minmax(2,0))/(DeltaXi_NGeo*l)
+      tmp  = -1.0-minmax(2,0)/m
+      Smin = MIN(tmp,Smin)
+    END IF
+    IF(minmax(1,0)*minmax(1,l) .LE.0.)THEN
+      ! interval is the whole parameter space
+      m    = (minmax(1,l)-minmax(1,0))/(DeltaXi_NGeo*l)
+      tmp  = -1.0-minmax(1,0)/m
+      Smax = MAX(tmp,Smax)
+    END IF
+  END DO ! l
   ! 3.) check vertical line LEFT/RIGHT of convex hull    
   IF(minmax(1,0)*minmax(2,0)    .LE.0.)THEN
     tmp = -1.0

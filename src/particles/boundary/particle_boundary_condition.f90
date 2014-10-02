@@ -271,6 +271,9 @@ CASE(2) !PartBound%ReflectiveBC)
     n_loc=CalcNormVecBezier(xi,eta,SideID)
 !    CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
   END SELECT 
+  print*,'SideID',SideID
+  print*,'nloc',n_loc
+  !read*
   ! substract tolerance from length
   LengthPartTrajectory=LengthPartTrajectory-epsilontol
   ! intersection point with surface

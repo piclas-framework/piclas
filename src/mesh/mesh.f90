@@ -378,7 +378,8 @@ DO i=0,NPartCurved
 END DO
 CALL InitializeVandermonde(NGeo_in,NPartCurved ,wBaryCL_NGeo,XiCL_NGeo,XiEquiPartCurved   ,Vdm_CLNGeo_EquiNPartCurved   )
 ! initialize vandermonde for bezier basis surface representation (particle tracking with curved elements)
-CALL BuildBezierVdm(NGeo_in,Xi_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
+!CALL BuildBezierVdm(NGeo_in,Xi_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
+CALL BuildBezierVdm(NGeo_in,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
 #endif
 
 END SUBROUTINE InitMeshBasis
