@@ -178,6 +178,7 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,ClipTolerance,ClipMa
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
 USE MOD_Utils,                   ONLY:BubbleSortID
+!USE MOD_Particle_Vars,           ONLY:time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -210,6 +211,7 @@ IF(BoundingBoxIsEmpty(SideID))THEN
   IF(ABS(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID))).LT.epsilontol) RETURN
 END IF ! BoundingBoxIsEmpty
 
+
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
 IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
   IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
@@ -217,9 +219,12 @@ IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle
                                                                                               ! bounding box
   END IF
 END IF
-!print*,'boundingbox hit- do clipping'
-!read*
-
+!IF(time.GT.28.07)THEN
+!  print*,'boundingbox hit- do clipping'
+!  print*,'SideID',SideID
+!  read*
+!END IF
+!
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
 IF(ABS(PartTrajectory(3)).LT.epsilontol)THEN
   n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /)
@@ -269,11 +274,20 @@ END DO
 
 
 !  this part in a new function or subroutine
+locAlpha=-1.0
 iClipIter=1
 nXiClip=0
 nEtaClip=0
 nInterSections=0
 CALL BezierClip(BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+
+!IF(time.GT.28.07)THEN
+!  IF(SideID.EQ.8)THEN
+!    print*,'nInterSections',nInterSections
+!    print*,'locAlpha',locAlpha
+!    read*
+!  END IF
+!END IF
 
 IF(nInterSections.GT.1)THEN
   ALLOCATE(locID(nInterSections))
@@ -333,7 +347,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
 USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,mEpsilontol
-USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Vars,           ONLY:LastPartPos,Time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -396,7 +410,14 @@ DO iClipIter=iClipIter,ClipMaxIter
     END DO ! l
     ! calc Smin and Smax and check boundaries
     CALL CalcSminSmax(minmax,XiMin,XiMax)
- !   print*,'XiMinm,XiMax',XiMin,XiMax
+!IF(time.GT.28.07)THEN
+!  IF(SideID.EQ.8)THEN
+!    print*,'XiMinm,XiMax',XiMin,XiMax
+!    read*
+!  END IF
+!END IF
+
+
     IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))RETURN
     nXiClip=nXiClip+1
     ! 1.) CLIPPING xi
@@ -643,6 +664,13 @@ DO iClipIter=iClipIter,ClipMaxIter
     CALL CalcSminSmax(minmax,Etamin,Etamax)
 !    print*,''
 !    print*,'EtaMinm,EtaMax',EtaMin,EtaMax
+!IF(time.GT.28.07)THEN
+!  IF(SideID.EQ.8)THEN
+!    print*,'EtaMinm,EtaMax',EtaMin,EtaMax
+!    read*
+!  END IF
+!END IF
+
     IF((EtaMin.EQ.1.5).OR.(EtaMax.EQ.-1.5))RETURN
     nEtaClip=nEtaClip+1
     ! 2.) CLIPPING eta
@@ -919,6 +947,14 @@ IF(DoCheck)THEN
   IntersectionVector=ReducedBezierControlPoints(:,0,0)-LastPartPos(iPart,1:3)
   alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
   !print*,alpha
+!IF(time.GT.28.07)THEN
+!  print*,'here'
+!  IF(SideID.EQ.8)THEN
+!    print*,'Alpha',alpha
+!    read*
+!  END IF
+!END IF
+
   
   
   !IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
@@ -1017,6 +1053,20 @@ INTEGER                              :: l
       ! interval is the whole parameter space
       m    = (minmax(1,l)-minmax(1,0))/(DeltaXi_NGeo*l)
       tmp  = -1.0-minmax(1,0)/m
+      Smax = MAX(tmp,Smax)
+    END IF
+  END DO ! l
+  DO l=0,NGeo-1
+    IF(minmax(2,l)*minmax(2,NGeo) .LE.0.)THEN
+      ! interval is the whole parameter space
+      m    = (minmax(2,NGeo)-minmax(2,l))/(DeltaXi_NGeo*(NGeo-l))
+      tmp  = Xi_NGeo(l)-minmax(2,l)/m
+      Smin = MIN(tmp,Smin)
+    END IF
+    IF(minmax(1,l)*minmax(1,NGeo) .LE.0.)THEN
+      ! interval is the whole parameter space
+      m    = (minmax(1,NGeo)-minmax(1,l))/(DeltaXi_NGeo*(NGeo-l))
+      tmp  = Xi_NGeo(l)-minmax(1,l)/m
       Smax = MAX(tmp,Smax)
     END IF
   END DO ! l
