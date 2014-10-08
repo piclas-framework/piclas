@@ -48,16 +48,19 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart,ElemID
+INTEGER                       :: iPart,ElemID!,LastElemID
 INTEGER                       :: ilocSide,SideID,iIntersect
 LOGICAL                       :: PartisDone,dolocSide(1:6)
 REAL                          :: alpha,xi,eta
+INTEGER                       :: lastlocSide
+REAL                          :: oldXIntersection(1:3),distance,helpVec(1:3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 !===================================================================================================================================
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
+    !LastElemID=ElemID
     ! DEBUUGGG
     !!!PartState(iPart,3)=LastPartPos(iPart,3)+2.0
     !!! DEBUGG ENDE
@@ -67,6 +70,8 @@ DO iPart=1,PDM%ParticleVecLength
                              +PartTrajectory(3)*PartTrajectory(3) )
     PartTrajectory=PartTrajectory/lengthPartTrajectory
     lengthPartTrajectory=lengthPartTrajectory+epsilontol
+    lastlocSide=-1
+    oldXInterSection=HUGE(1.0)
     !print*,'partTrajectory',PartTrajectory
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
@@ -111,23 +116,41 @@ DO iPart=1,PDM%ParticleVecLength
         !read*
 
         ! get correct intersection
+        IF(alpha.EQ.-1.0) CYCLE
         IF(SideID.LE.nBCSides)THEN
+          IF(SideType(SideID).NE.PLANAR)THEN
+            IF(lastlocSide.EQ.ilocSide)THEN
+              helpVec=oldXInterSection-LastPartPos(iPart,1:3)-alpha*PartTrajectory
+              distance=SQRT(DOT_PRODUCT(helpVec,helpVec))
+              IF(distance.LT.1e-5)THEN
+                alpha=-1.0
+                CYCLE
+              END IF
+            END IF
+          END IF
           ! check if interesction is possible and take first intersection
-          IF(alpha.GT.-1.) CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID)
+          CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID)
+          dolocSide=.TRUE.
+          IF(SideType(SideID).NE.PLANAR) THEN
+            lastlocSide=ilocSide
+            oldXInterSection=LastPartPos(iPart,1:3)
+          END IF
+          dolocSide(ilocSide)=.FALSE.
+          !IF(SideType(SideID).EQ.PLANAR) dolocSide(ilocSide)=.FALSE.
+          EXIT
         ELSE ! no BC Side
-          IF(alpha.GT.-1.)THEN
-             ! check if the found alpha statisfy the selection condition
-             iInterSect=INT((ABS(xi)-2*epsilontol)/1.0)+INT((ABS(eta)-2*epsilontol)/1.0)
-             IF(iInterSect.GT.0)THEN
-               CALL abort(__STAMP__,&
-                   ' Particle went through edge or node. Not implemented yet.',999,999.)
-             ELSE
-               dolocSide=.TRUE.
-               dolocSide(neighborlocSideID(ilocSide,ElemID))=.FALSE.
-               ElemID=neighborElemID(ilocSide,ElemID)
-               EXIT
-             END IF ! possible intersect
-           END IF ! alpha.GT.epsilontol
+          ! check if the found alpha statisfy the selection condition
+          iInterSect=INT((ABS(xi)-2*epsilontol)/1.0)+INT((ABS(eta)-2*epsilontol)/1.0)
+          IF(iInterSect.GT.0)THEN
+            CALL abort(__STAMP__,&
+                ' Particle went through edge or node. Not implemented yet.',999,999.)
+          ELSE
+            dolocSide=.TRUE.
+            dolocSide(neighborlocSideID(ilocSide,ElemID))=.FALSE.
+            ElemID=neighborElemID(ilocSide,ElemID)
+            lastlocSide=-1
+            EXIT
+          END IF ! possible intersect
         END IF ! SideID.LT.nBCSides
       END DO ! ilocSide
       ! no intersection found
@@ -832,80 +855,88 @@ DO iClipIter=iClipIter,ClipMaxIter
 END DO
 
 IF(DoCheck)THEN
-! back transformation of sub-level clipping values to original bezier surface: ximean, etamean
-!   xi-direction
-!print*,'nXiClip',nXiClip
-!print*,'nEtaClip',nEtaClip
-Xi=0.5*SUM(XiArray(:,nXiClip))
-!print*,'deepest xi',xi
-DO iClip=nXiClip-1,1,-1
-  Xi=XiArray(1,iClip)+0.5*(Xi+1)*(XiArray(2,iClip)-XiArray(1,iClip))
-  !print*,'xi',xi
-END DO
-!   eta-direction
-Eta=0.5*SUM(EtaArray(:,nEtaClip))
-!print*,'deepesst eta',eta
-DO iClip=nEtaClip-1,1,-1
-  Eta=EtaArray(1,iClip)+0.5*(Eta+1)*(EtaArray(2,iClip)-EtaArray(1,iClip))
-  !print*,eta
-END DO
-!print*,'xi,eta',xi,eta
-! Calculate intersection value in 3D (De Casteljau)
-tmpXi=XI
-tmpEta=Eta
-Xi=0.5*(Xi+1)
-Eta=0.5*(Eta+1)
-MinusXi =1.0-Xi
-MinusEta=1.0-Eta
-
-ReducedBezierControlPoints=BezierControlPoints3D(:,:,:,SideID)
-l=NGeo-1
-DO iDeCasteljau=1,NGeo
-  !print*,'l',l
-  DO q=0,l
-    DO p=0,l
-      !ReducedBezierControlPoints_temp(:,p,q)=DOT_PRODUCT((/1-.Smean(1), Smean(1)/),MATMUL(
-                                       ![ReducedBezierControlPoints(p,q  ,:),ReducedBezierControlPoints(p  ,q+1,:);
-                                       ! ReducedBezierControlPoints(p,q+1,:),ReducedBezierControlPoints(p+1,q+1,:)]
-                                                        !,(/1-.Smean(2), Smean(2)/))
-      !ReducedBezierControlPoints(:,p,q)=MinusXi*ReducedBezierControlPoints(:,p,q  )          &
-      !                                 +    Xi *ReducedBezierControlPoints(:,p,q+1)*MinusEta &
-      !                                 +MinusXi*ReducedBezierControlPoints(:,p  ,q+1)        &
-      !                                 +    Xi *ReducedBezierControlPoints(:,p+1,q+1)*Eta
-      ReducedBezierControlPoints(:,p,q)=MinusXi*ReducedBezierControlPoints(:,p,q  )  *MinusEta & ! A
-                                       +MinusXi*ReducedBezierControlPoints(:,p,q+1)  *Eta      & ! B
-                                       +     Xi*ReducedBezierControlPoints(:,p+1,q)  *MinusEta & ! C
-                                       +     Xi*ReducedBezierControlPoints(:,p+1,q+1)*Eta        ! D
-
+  ! back transformation of sub-level clipping values to original bezier surface: ximean, etamean
+  !   xi-direction
+  !print*,'nXiClip',nXiClip
+  !print*,'nEtaClip',nEtaClip
+  IF(nXiClip.EQ.0)THEN
+    Xi=0.
+  ELSE
+    Xi=0.5*SUM(XiArray(:,nXiClip))
+    !print*,'deepest xi',xi
+    DO iClip=nXiClip-1,1,-1
+      Xi=XiArray(1,iClip)+0.5*(Xi+1)*(XiArray(2,iClip)-XiArray(1,iClip))
+      !print*,'xi',xi
     END DO
+  END IF ! nXIClip
+  !   eta-direction
+  IF(nEtaClip.EQ.0)THEN
+    Eta=0.
+  ELSE
+    Eta=0.5*SUM(EtaArray(:,nEtaClip))
+    !print*,'deepesst eta',eta
+    DO iClip=nEtaClip-1,1,-1
+      Eta=EtaArray(1,iClip)+0.5*(Eta+1)*(EtaArray(2,iClip)-EtaArray(1,iClip))
+      !print*,eta
+    END DO
+  END IF ! nEtaclip
+  !print*,'xi,eta',xi,eta
+  ! Calculate intersection value in 3D (De Casteljau)
+  tmpXi=XI
+  tmpEta=Eta
+  Xi=0.5*(Xi+1)
+  Eta=0.5*(Eta+1)
+  MinusXi =1.0-Xi
+  MinusEta=1.0-Eta
+  
+  ReducedBezierControlPoints=BezierControlPoints3D(:,:,:,SideID)
+  l=NGeo-1
+  DO iDeCasteljau=1,NGeo
+    !print*,'l',l
+    DO q=0,l
+      DO p=0,l
+        !ReducedBezierControlPoints_temp(:,p,q)=DOT_PRODUCT((/1-.Smean(1), Smean(1)/),MATMUL(
+                                         ![ReducedBezierControlPoints(p,q  ,:),ReducedBezierControlPoints(p  ,q+1,:);
+                                         ! ReducedBezierControlPoints(p,q+1,:),ReducedBezierControlPoints(p+1,q+1,:)]
+                                                          !,(/1-.Smean(2), Smean(2)/))
+        !ReducedBezierControlPoints(:,p,q)=MinusXi*ReducedBezierControlPoints(:,p,q  )          &
+        !                                 +    Xi *ReducedBezierControlPoints(:,p,q+1)*MinusEta &
+        !                                 +MinusXi*ReducedBezierControlPoints(:,p  ,q+1)        &
+        !                                 +    Xi *ReducedBezierControlPoints(:,p+1,q+1)*Eta
+        ReducedBezierControlPoints(:,p,q)=MinusXi*ReducedBezierControlPoints(:,p,q  )  *MinusEta & ! A
+                                         +MinusXi*ReducedBezierControlPoints(:,p,q+1)  *Eta      & ! B
+                                         +     Xi*ReducedBezierControlPoints(:,p+1,q)  *MinusEta & ! C
+                                         +     Xi*ReducedBezierControlPoints(:,p+1,q+1)*Eta        ! D
+  
+      END DO
+    END DO
+    l=l-1
   END DO
-  l=l-1
-END DO
-
-
-!print*,'FoundPoint',ReducedBezierControlPoints(:,0,0)
-! resulting point is ReducedBezierControlPoints(:,1,1)
-IntersectionVector=ReducedBezierControlPoints(:,0,0)-LastPartPos(iPart,1:3)
-alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
-!print*,alpha
-
-
-!IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
-IF((alpha.LT.lengthPartTrajectory).AND.(alpha.GT.Mepsilontol))THEN
-  ! found additional intersection point
-  nInterSections=nIntersections+1
-  IF(nInterSections.GT.ClipMaxInter)THEN
-    nInterSections=0
-    locAlpha=-1
-    RETURN
+  
+  
+  !print*,'FoundPoint',ReducedBezierControlPoints(:,0,0)
+  ! resulting point is ReducedBezierControlPoints(:,1,1)
+  IntersectionVector=ReducedBezierControlPoints(:,0,0)-LastPartPos(iPart,1:3)
+  alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
+  !print*,alpha
+  
+  
+  !IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
+  IF((alpha.LT.lengthPartTrajectory).AND.(alpha.GT.Mepsilontol))THEN
+    ! found additional intersection point
+    nInterSections=nIntersections+1
+    IF(nInterSections.GT.ClipMaxInter)THEN
+      nInterSections=0
+      locAlpha=-1
+      RETURN
+    END IF
+    locAlpha(nInterSections)=alpha
+    locXi (nInterSections)=tmpXi
+    locEta(nInterSections)=tmpEta
+    ! defined in [0,1]
+    !locXi (nInterSections)=Xi
+    !locEta(nInterSections)=Eta
   END IF
-  locAlpha(nInterSections)=alpha
-  locXi (nInterSections)=tmpXi
-  locEta(nInterSections)=tmpEta
-  ! defined in [0,1]
-  !locXi (nInterSections)=Xi
-  !locEta(nInterSections)=Eta
-END IF
 
 END IF ! docheck
 

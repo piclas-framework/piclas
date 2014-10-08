@@ -1352,14 +1352,14 @@ IF(dx*dy*dz.EQ.0.)THEN
 ELSE
   BoundingBoxIsEmpty(SideID)=.FALSE.
 END IF
-print*,"SideIsPlanar(",SideID,")",SideIsPlanar
-print*,"BezierControlPoints3D(:,0,0,SideID)",BezierControlPoints3D(:,0,0,SideID)
-print*,"SlabNormals(:,1,SideID)",SlabNormals(:,1,SideID),"beta1 ",SlabIntervalls(1, SideID),SlabIntervalls(2,SideID),&
-"delta",ABS(SlabIntervalls(2, SideID))-ABS(SlabIntervalls(1, SideID))
-print*,"SlabNormals(:,2,SideID)",SlabNormals(:,2,SideID),"beta2 ",SlabIntervalls(3, SideID),SlabIntervalls(4, SideID),&
-"delta",ABS(SlabIntervalls(4, SideID))-ABS(SlabIntervalls(3, SideID))
-print*,"SlabNormals(:,3,SideID)",SlabNormals(:,3,SideID),"beta3 ",SlabIntervalls(5, SideID),SlabIntervalls(6, SideID),&
-"delta",ABS(SlabIntervalls(6, SideID))-ABS(SlabIntervalls(5, SideID))
+! print*,"SideIsPlanar(",SideID,")",SideIsPlanar
+! print*,"BezierControlPoints3D(:,0,0,SideID)",BezierControlPoints3D(:,0,0,SideID)
+! print*,"SlabNormals(:,1,SideID)",SlabNormals(:,1,SideID),"beta1 ",SlabIntervalls(1, SideID),SlabIntervalls(2,SideID),&
+! "delta",ABS(SlabIntervalls(2, SideID))-ABS(SlabIntervalls(1, SideID))
+! print*,"SlabNormals(:,2,SideID)",SlabNormals(:,2,SideID),"beta2 ",SlabIntervalls(3, SideID),SlabIntervalls(4, SideID),&
+! "delta",ABS(SlabIntervalls(4, SideID))-ABS(SlabIntervalls(3, SideID))
+! print*,"SlabNormals(:,3,SideID)",SlabNormals(:,3,SideID),"beta3 ",SlabIntervalls(5, SideID),SlabIntervalls(6, SideID),&
+! "delta",ABS(SlabIntervalls(6, SideID))-ABS(SlabIntervalls(5, SideID))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 3.) Is Side critical? (particle path parallel to the larger surface, therefore numerous intersections are possilbe)
 !-----------------------------------------------------------------------------------------------------------------------------------

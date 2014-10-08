@@ -862,6 +862,7 @@ USE MOD_PIC_Vars,         ONLY : PIC
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF, doParticleMerge
 USE MOD_part_RHS,         ONLY : CalcPartRHS
 USE MOD_part_boundary,    ONLY : ParticleBoundary
+USE MOD_Particle_Tracking,ONLY: ParticleTracking,ParticleTrackingCurved
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
@@ -923,7 +924,8 @@ IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3) 
 END IF
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-  CALL ParticleBoundary()
+  !CALL ParticleBoundary()
+  CALL ParticleTrackingCurved()
 #ifdef MPI
   CALL Communicate_PIC()
 !CALL UpdateNextFreePosition() ! only required for parallel communication

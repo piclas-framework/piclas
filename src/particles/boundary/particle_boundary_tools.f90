@@ -1459,6 +1459,8 @@ DO iBGMElem=1,nBGMElems
   END IF
 END DO ! iBGMElem
 
+
+
 ! particle not found
 IF (.NOT.ParticleFound) THEN
   PDM%ParticleInside(iPart) = .FALSE.

@@ -212,13 +212,14 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
-USE MOD_Particle_Vars,          ONLY:PartBound,PDM,PartSpecies,PartState,LastPartPos
+USE MOD_Particle_Vars,          ONLY:PartBound,PDM,PartSpecies,PartState,LastPartPos,PEM
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 !USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut,PartAnalyzeStep
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC
+USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
 USE MOD_TimeDisc_Vars,          ONLY:RK4_a,iStage
@@ -271,13 +272,9 @@ CASE(2) !PartBound%ReflectiveBC)
     n_loc=CalcNormVecBezier(xi,eta,SideID)
 !    CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
   END SELECT 
-  print*,'SideID',SideID
-  print*,'nloc',n_loc
-  !read*
   ! substract tolerance from length
   LengthPartTrajectory=LengthPartTrajectory-epsilontol
   ! intersection point with surface
- ! lastPartPos(iPart,1:3) = PartState(iPart,1:3)+PartTrajectory(1:3)*alpha
   LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
 
   ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
@@ -292,17 +289,18 @@ CASE(2) !PartBound%ReflectiveBC)
   PartState(iPart,4:6)   = SQRT(DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6)))*&
                            (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2                         +&
                            PartBound%WallVelo(1:3,BC(SideID))
-!
-!  PartState(iPart,4:6)   = SQRT(DOT_PRODUCT(PartState(iPart,4:6), PartState(iPart,4:6)))*&
-!                           (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2                         +&
-!                           PartBound%WallVelo(1:3,BC(SideID))
-  !PartState(iPart,4:6)   = 0.
-  !PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+  PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
   lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                            +PartTrajectory(2)*PartTrajectory(2) &
                            +PartTrajectory(3)*PartTrajectory(3) )
   PartTrajectory=PartTrajectory/lengthPartTrajectory
   lengthPartTrajectory=lengthPartTrajectory+epsilontol
+!  print*, ' oldElemID', ElemID
+  ! get new element ID
+!  CALL SingleParticleToExactElement(iPart)
+!  ElemID=PEM%Element(iPart)
+!  PEM%lastElement(iPart) = ElemID
+!  print*,' newElemID', ElemID
 
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
   ! correction for Runge-Kutta (correct position!!)
