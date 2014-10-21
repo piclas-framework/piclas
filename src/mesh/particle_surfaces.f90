@@ -1491,12 +1491,16 @@ DO iSide=1,nSides
       !      xNodes(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)
       !      xNodes(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)
       !      xNodes(:,4)=SuperSampledNodes(1:3,p  ,q+1,SideID)
-      v1=BezierControlPoints3D(:,0,0,iSide)     &
-        +BezierControlPoints3D(:,NGeo,0,iSide)  &
-        +BezierControlPoints3D(:,0,NGeo,iSide)  &
-        +BezierControlPoints3D(:,NGeo,NGeo,iSide)
-      v1=0.25*v1
+      v1=0.25*(BezierControlPoints3D(:,0,0,iSide)     &
+              +BezierControlPoints3D(:,NGeo,0,iSide)  &
+              +BezierControlPoints3D(:,0,NGeo,iSide)  &
+              +BezierControlPoints3D(:,NGeo,NGeo,iSide))
       SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+!      IF(iSide.EQ.8)THEN
+!        print*,'v1',v1
+!        print*,'SideDistance',SideDistance(iSide)
+!        read*
+!      END IF
     ELSE
       SideType(iSide)=BILINEAR
       IF(iSide.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1

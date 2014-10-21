@@ -575,8 +575,8 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 
 !print*,'Calling tracking ...'
 !CALL CPU_TIME(tStart)
-!CALL ParticleTracking()
-CALL ParticleTrackingCurved()
+CALL ParticleTracking()
+!CALL ParticleTrackingCurved()
 !jCALL CPU_TIME(tend)
 !jt2=tend-tstart
 
@@ -668,8 +668,8 @@ DO iStage=2,nRKStages
                                        + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(iStage)
     ! particle tracking
     !CALL ParticleBoundary()
-   !CALL ParticleTracking()
-   CALL ParticleTrackingCurved()
+   CALL ParticleTracking()
+   !CALL ParticleTrackingCurved()
 #ifdef MPI
       CALL Communicate_PIC()
 !    CALL UpdateNextFreePosition() ! only required for parallel communication
@@ -925,6 +925,7 @@ IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
 END IF
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   !CALL ParticleBoundary()
+  !CALL ParticleTracking()
   CALL ParticleTrackingCurved()
 #ifdef MPI
   CALL Communicate_PIC()
