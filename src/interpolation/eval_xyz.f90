@@ -670,6 +670,7 @@ USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:wBary,xGP
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,MappingGuess
+USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -692,20 +693,36 @@ REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate resu
 REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
 REAL                :: Winner_Dist,Dist
 REAL, PARAMETER     :: EPS=1E-8
-INTEGER             :: n_Newton
+INTEGER             :: n_Newton,iDir
 REAL                :: F(1:3),Lag(1:3,0:NGeo),Lag2(1:3,0:N_In)
 REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                :: buff,buff2
+REAL                :: Ptild(1:3),XiLinear(1:6)
 !===================================================================================================================================
 
 !print*,'iElem',iElem
 !print*,'Pos',X_in
 
 ! get initial guess by nearest GP search ! simple guess
-SELECT CASE(MappingGuess)
-CASE(1)
+!SELECT CASE(MappingGuess)
+!CASE(1)
+  !Ptild=X_in - ElemBaryNGeo(:,iElem)
+  Ptild(1)=0.15 - ElemBaryNGeo(1,iElem)
+  Ptild(2)=0.15 - ElemBaryNGeo(2,iElem)
+  Ptild(3)=0.00 - ElemBaryNGeo(3,iElem)
+  ! plus coord system (1-3) and minus coord system (4-6)
+  DO iDir=1,6
+    XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,iElem))                       &
+                  /DOT_PRODUCT(XiEtaZetaBasis(:,iDir,iElem),XiEtaZetaBasis(:,iDir,iElem))
+  END DO
+  ! compute guess as average value
+  DO iDir=1,3
+    Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
+  END DO 
+  print*,'xi guess lin1', XiLinear(1:3)
+  print*,'xi guess lin2', XiLinear(4:6)
 
-CASE(2)
+!CASE(2)
   Winner_Dist=HUGE(1.)
   DO i=0,N_in; DO j=0,N_in; DO k=0,N_in
     Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
@@ -714,7 +731,10 @@ CASE(2)
       Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
     END IF
   END DO; END DO; END DO
-END SELECT
+  print*,'xi guess', xi
+  read*
+
+!END SELECT
 !print*,'Winnerdist',Winner_Dist
 !print*,'initial guess'
 !print*,'xi',xi
@@ -819,10 +839,10 @@ IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
   WRITE(*,*) ' zeta', xi(3)
   !read*
 END IF
-!jprint*,'eval curved'
-!jprint*,'xi',xi
-!jprint*,'iter',nEwtonIter
-!jread*
+print*,'eval curved'
+print*,'xi',xi
+print*,'iter',nEwtonIter
+read*
 
 ! 2.1) get "Vandermonde" vectors
 DO i=1,3

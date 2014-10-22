@@ -96,13 +96,13 @@ ClipMaxInter    = GETINT('ClipMaxInter',dummy)
 
 ! method from xPhysic to parameter space
 MappingGuess     = GETINT('MappingGuess','1')
-IF(MappingGuess.NE.1).OR.(MappingGuess.NE.2) THEN
+IF((MappingGuess.NE.1).AND.(MappingGuess.NE.2))THEN
    CALL abort(__STAMP__, &
         'Wrong guessing method for mapping from physical space in reference space.',MappingGuess,999.)
 END IF
 IF(MappingGuess.EQ.1)THEN
-  ALLOCATE(XiEtaZeta(1:3,1:6,1:PP_nElems) &
-           ElemBaryNGeo(1:3,1:PP_nElems)  )
+  ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:PP_nElems) &
+          ,ElemBaryNGeo(1:3,1:PP_nElems)       )
   CALL BuildElementBasis()
 END IF
 
@@ -449,7 +449,7 @@ ELSE ! no flat side
   !!    u=u+(BezierControlPoints3D(:,p+1,q,SideID)-BezierControlPoints3D(:,p,q,SideID))        &
   !!        *BezierControlPoints3D(:,p,q,SideID)*facNchooseK(M,p)*(PlusXi**p)*(MinusXi**(M-p)) &
   !!                                            *facNChooseK(NGeo,q)*(PlusEta**q)*(MinusEta**(NGeo-q))
-  !!
+  !
   !!    v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID))        &
   !!        *BezierControlPoints3D(:,q,p,SideID)*facNchooseK(NGeo,q)*(PlusXi**q)*(MinusXi**(NGeo-q)) &
   !!                                            *facNChooseK(M,p)*(PlusEta**p)*(MinusEta**(M-p))
@@ -1562,7 +1562,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,ElemToSide
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D
 USE MOD_Basis,                    ONLY:DeCasteljauInterpolation
-USE MOD_Particle_Surfaces_Vars,   ONLY:XiEtaZetaBais,ElemBaryNGeo
+USE MOD_Particle_Surfaces_Vars,   ONLY:XiEtaZetaBasis,ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1571,7 +1571,8 @@ IMPLICIT NONE
 !OUTPUT VARIABLES
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem,SideID,Xi(2)
+INTEGER                 :: iElem,SideID
+REAL                    :: Xi(2)
 !================================================================================================================================
 
 Xi=0.
@@ -1579,19 +1580,28 @@ DO iElem=1,PP_nElems
   ElemBaryNGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))/REAL((NGeo+1)**3)
   ElemBaryNGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))/REAL((NGeo+1)**3)
   ElemBaryNGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))/REAL((NGeo+1)**3)
-  ! vector from origin to side-center
+  print*,'ElemBaryNGeo',ElemBaryNGeo(:,iElem)
+  read*
+  ! get point on each side 
   SideID = ElemToSide(1,XI_PLUS,iElem)
   CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,1,iElem))
   SideID = ElemToSide(1,ETA_PLUS,iElem)
   CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,2,iElem))
   SideID = ElemToSide(1,ZETA_PLUS,iElem)
   CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,3,iElem))
-  SideID = ElemToSide(1,XI_MINUX,iElem)
+  SideID = ElemToSide(1,XI_MINUS,iElem)
   CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,4,iElem))
-  SideID = ElemToSide(1,ETA_MINUX,iElem)
+  SideID = ElemToSide(1,ETA_MINUS,iElem)
   CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,5,iElem))
-  SideID = ElemToSide(1,ZETA_MINUX,iElem)
+  SideID = ElemToSide(1,ZETA_MINUS,iElem)
   CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,6,iElem))
+  ! compute vector from each barycenter to sidecenter
+  XiEtaZetaBasis(:,1,iElem)=XiEtaZetaBasis(:,1,iElem)-ElemBaryNGeo(:,iElem)
+  XiEtaZetaBasis(:,2,iElem)=XiEtaZetaBasis(:,2,iElem)-ElemBaryNGeo(:,iElem)
+  XiEtaZetaBasis(:,3,iElem)=XiEtaZetaBasis(:,3,iElem)-ElemBaryNGeo(:,iElem)
+  XiEtaZetaBasis(:,4,iElem)=XiEtaZetaBasis(:,4,iElem)-ElemBaryNGeo(:,iElem)
+  XiEtaZetaBasis(:,5,iElem)=XiEtaZetaBasis(:,5,iElem)-ElemBaryNGeo(:,iElem)
+  XiEtaZetaBasis(:,6,iElem)=XiEtaZetaBasis(:,6,iElem)-ElemBaryNGeo(:,iElem)
 END DO ! iElem
 
 END SUBROUTINE BuildElementBasis
