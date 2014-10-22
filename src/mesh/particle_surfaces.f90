@@ -1575,13 +1575,11 @@ INTEGER                 :: iElem,SideID
 REAL                    :: Xi(2)
 !================================================================================================================================
 
-Xi=0.
+Xi=(/0.0,0.0/)
 DO iElem=1,PP_nElems
   ElemBaryNGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))/REAL((NGeo+1)**3)
   ElemBaryNGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))/REAL((NGeo+1)**3)
   ElemBaryNGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))/REAL((NGeo+1)**3)
-  print*,'ElemBaryNGeo',ElemBaryNGeo(:,iElem)
-  read*
   ! get point on each side 
   SideID = ElemToSide(1,XI_PLUS,iElem)
   CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,1,iElem))

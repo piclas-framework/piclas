@@ -704,12 +704,9 @@ REAL                :: Ptild(1:3),XiLinear(1:6)
 !print*,'Pos',X_in
 
 ! get initial guess by nearest GP search ! simple guess
-!SELECT CASE(MappingGuess)
-!CASE(1)
-  !Ptild=X_in - ElemBaryNGeo(:,iElem)
-  Ptild(1)=0.15 - ElemBaryNGeo(1,iElem)
-  Ptild(2)=0.15 - ElemBaryNGeo(2,iElem)
-  Ptild(3)=0.00 - ElemBaryNGeo(3,iElem)
+SELECT CASE(MappingGuess)
+CASE(1)
+  Ptild=X_in - ElemBaryNGeo(:,iElem)
   ! plus coord system (1-3) and minus coord system (4-6)
   DO iDir=1,6
     XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,iElem))                       &
@@ -719,10 +716,10 @@ REAL                :: Ptild(1:3),XiLinear(1:6)
   DO iDir=1,3
     Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
   END DO 
-  print*,'xi guess lin1', XiLinear(1:3)
-  print*,'xi guess lin2', XiLinear(4:6)
-
-!CASE(2)
+  !print*,'xi guess lin1', XiLinear(1:3)
+  !print*,'xi guess lin2', XiLinear(4:6)
+!  print*,'xi guess lin',xi
+CASE(2)
   Winner_Dist=HUGE(1.)
   DO i=0,N_in; DO j=0,N_in; DO k=0,N_in
     Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
@@ -731,10 +728,8 @@ REAL                :: Ptild(1:3),XiLinear(1:6)
       Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
     END IF
   END DO; END DO; END DO
-  print*,'xi guess', xi
-  read*
-
-!END SELECT
+!  print*,'xi guess', xi
+END SELECT
 !print*,'Winnerdist',Winner_Dist
 !print*,'initial guess'
 !print*,'xi',xi
@@ -839,10 +834,11 @@ IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
   WRITE(*,*) ' zeta', xi(3)
   !read*
 END IF
-print*,'eval curved'
-print*,'xi',xi
-print*,'iter',nEwtonIter
-read*
+!print*,'eval curved'
+!print*,'xi',xi
+!print*,'iter',nEwtonIter
+!!read*
+!STOP
 
 ! 2.1) get "Vandermonde" vectors
 DO i=1,3
@@ -887,6 +883,8 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:wBary,xGP
+USE MOD_Particle_Surfaces_Vars,  ONLY:MappingGuess
+USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo,NGeo
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
@@ -906,10 +904,11 @@ REAL                :: epsOne
 INTEGER             :: NewTonIter
 REAL                :: Winner_Dist,Dist
 REAL, PARAMETER     :: EPS=1E-8
-INTEGER             :: n_Newton
+INTEGER             :: n_Newton,idir
 REAL                :: F(1:3),Lag(1:3,0:NGeo)
 REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                :: buff,buff2
+REAL                :: Ptild(1:3),XiLinear(1:6)
 !===================================================================================================================================
 
 epsOne=1.0+eps
@@ -917,14 +916,33 @@ epsOne=1.0+eps
 !print*,'Pos',X_in
 ! get initial guess by nearest GP search ! simple guess
 ! x_in = PartState(1:3,iPart)
-Winner_Dist=HUGE(1.)
-DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
-  Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
-  IF (Dist.LT.Winner_Dist) THEN
-    Winner_Dist=Dist
-    Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
-  END IF
-END DO; END DO; END DO
+SELECT CASE(MappingGuess)
+CASE(1)
+  Ptild=X_in - ElemBaryNGeo(:,iElem)
+  ! plus coord system (1-3) and minus coord system (4-6)
+  DO iDir=1,6
+    XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,iElem))                       &
+                  /DOT_PRODUCT(XiEtaZetaBasis(:,iDir,iElem),XiEtaZetaBasis(:,iDir,iElem))
+  END DO
+  ! compute guess as average value
+  DO iDir=1,3
+    Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
+  END DO 
+  !print*,'xi guess lin1', XiLinear(1:3)
+  !print*,'xi guess lin2', XiLinear(4:6)
+!  print*,'xi guess lin',xi
+CASE(2)
+  Winner_Dist=HUGE(1.)
+  DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
+    Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
+    IF (Dist.LT.Winner_Dist) THEN
+      Winner_Dist=Dist
+      Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
+    END IF
+  END DO; END DO; END DO
+!  print*,'xi guess', xi
+END SELECT
+
 !print*,'Winnerdist',Winner_Dist
 !print*,'initial guess'
 !print*,'xi',xi

@@ -211,8 +211,8 @@ INTEGER                            :: l,p,q,iDeCasteljau
 
 Xi=0.5*(Xi_In(1)+1.)
 Eta=0.5*(Xi_in(2)+1.)
-MinusXi =1.0-Xi_In(1)
-MinusEta=1.0-Xi_in(2)
+MinusXi =1.0-Xi
+MinusEta=1.0-Eta
 
 ReducedBezierControlPoints=BezierControlPoints3D(:,:,:,SideID)
 l=N_In-1
@@ -228,8 +228,6 @@ DO iDeCasteljau=1,N_In
   END DO
   l=l-1
 END DO
-
-
 xPoint=ReducedBezierControlPoints(:,0,0)
 
 END SUBROUTINE DeCasteljauInterpolation
