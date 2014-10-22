@@ -24,6 +24,10 @@ END INTERFACE
 INTERFACE BuildBezierVdm
    MODULE PROCEDURE BuildBezierVdm
 END INTERFACE
+
+INTERFACE DeCasteljauInterpolation
+   MODULE PROCEDURE DeCasteljauInterpolation
+END INTERFACE
 #endif /*PARTICLES*/
 
 INTERFACE InitializeVandermonde
@@ -58,9 +62,11 @@ INTERFACE LagrangeInterpolationPolys
    MODULE PROCEDURE LagrangeInterpolationPolys
 END INTERFACE
 
+
 PUBLIC::BuildLegendreVdm
 #ifdef PARTICLES
 PUBLIC::BuildBezierVdm
+PUBLIC::DeCasteljauInterpolation
 #endif /*PARTICLES*/
 PUBLIC::InitializeVandermonde
 PUBLIC::LegGaussLobNodesAndWeights
@@ -174,6 +180,59 @@ dummy=SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))-REAL(N_In+1)
 IF(ABS(dummy).GT.1.E-13) CALL abort(__STAMP__,&
 'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)
 END SUBROUTINE BuildBezierVdm
+
+
+SUBROUTINE DeCasteljauInterpolation(N_In,xi_In,SideID,xPoint)
+!===================================================================================================================================
+! Computes a point in a Bezier-Surface by using the DeCasteljau alogrithm
+!===================================================================================================================================
+! MODULES
+!USE nr,                        ONLY : gaussj
+USE MOD_Globals,                ONLY: abort
+USE MOD_PreProc
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,mEpsilontol
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                 :: N_In
+INTEGER,INTENT(IN)                 :: SideID
+REAL,INTENT(IN)                    :: xi_In(1:2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                   :: xPoint(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+REAL,DIMENSION(3,0:N_In,0:N_In)    :: ReducedBezierControlPoints
+REAL                               :: MinusXi,Xi,MinusEta,Eta
+INTEGER                            :: l,p,q,iDeCasteljau
+!===================================================================================================================================
+
+
+Xi=0.5*(Xi_In(1)+1.)
+Eta=0.5*(Xi_in(2)+1.)
+MinusXi =1.0-Xi_In(1)
+MinusEta=1.0-Xi_in(2)
+
+ReducedBezierControlPoints=BezierControlPoints3D(:,:,:,SideID)
+l=N_In-1
+DO iDeCasteljau=1,N_In
+  DO q=0,l
+    DO p=0,l
+      ReducedBezierControlPoints(:,p,q)=MinusXi*ReducedBezierControlPoints(:,p,q  )  *MinusEta & ! A
+                                       +MinusXi*ReducedBezierControlPoints(:,p,q+1)  *Eta      & ! B
+                                       +     Xi*ReducedBezierControlPoints(:,p+1,q)  *MinusEta & ! C
+                                       +     Xi*ReducedBezierControlPoints(:,p+1,q+1)*Eta        ! D
+
+    END DO
+  END DO
+  l=l-1
+END DO
+
+
+xPoint=ReducedBezierControlPoints(:,0,0)
+
+END SUBROUTINE DeCasteljauInterpolation
 #endif /*PARTICLES*/
 
 

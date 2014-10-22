@@ -94,6 +94,18 @@ tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp
 ClipMaxInter    = GETINT('ClipMaxInter',dummy)
 
+! method from xPhysic to parameter space
+MappingGuess     = GETINT('MappingGuess','1')
+IF(MappingGuess.NE.1).OR.(MappingGuess.NE.2) THEN
+   CALL abort(__STAMP__, &
+        'Wrong guessing method for mapping from physical space in reference space.',MappingGuess,999.)
+END IF
+IF(MappingGuess.EQ.1)THEN
+  ALLOCATE(XiEtaZeta(1:3,1:6,1:PP_nElems) &
+           ElemBaryNGeo(1:3,1:PP_nElems)  )
+  CALL BuildElementBasis()
+END IF
+
 ALLOCATE( locAlpha(1:ClipMaxInter) &
         , locXi   (1:ClipMaxInter) &
         , locEta  (1:ClipMaxInter) )
@@ -1534,5 +1546,54 @@ SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear faces: ', nBilinear
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved    faces: ', nCurved
 
 END SUBROUTINE GetSideType
+
+SUBROUTINE BuildElementBasis()
+!================================================================================================================================
+! select the side type for each side 
+! check if points on edges are linear. if linear, the cross product of the vector between two vertices and a vector between a 
+! vercites and a edge point has to be zero
+! SideType
+! 0 - planar
+! 1 - bilinear
+! 2 - curved
+!================================================================================================================================
+USE MOD_Globals!,                  ONLY:CROSS
+USE MOD_Preproc
+USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,ElemToSide
+USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D
+USE MOD_Basis,                    ONLY:DeCasteljauInterpolation
+USE MOD_Particle_Surfaces_Vars,   ONLY:XiEtaZetaBais,ElemBaryNGeo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iElem,SideID,Xi(2)
+!================================================================================================================================
+
+Xi=0.
+DO iElem=1,PP_nElems
+  ElemBaryNGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))/REAL((NGeo+1)**3)
+  ElemBaryNGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))/REAL((NGeo+1)**3)
+  ElemBaryNGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))/REAL((NGeo+1)**3)
+  ! vector from origin to side-center
+  SideID = ElemToSide(1,XI_PLUS,iElem)
+  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,1,iElem))
+  SideID = ElemToSide(1,ETA_PLUS,iElem)
+  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,2,iElem))
+  SideID = ElemToSide(1,ZETA_PLUS,iElem)
+  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,3,iElem))
+  SideID = ElemToSide(1,XI_MINUX,iElem)
+  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,4,iElem))
+  SideID = ElemToSide(1,ETA_MINUX,iElem)
+  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,5,iElem))
+  SideID = ElemToSide(1,ZETA_MINUX,iElem)
+  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,6,iElem))
+END DO ! iElem
+
+END SUBROUTINE BuildElementBasis
 
 END MODULE MOD_Particle_Surfaces

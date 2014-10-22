@@ -669,7 +669,7 @@ USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:wBary,xGP
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,MappingGuess
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -700,16 +700,21 @@ REAL                :: buff,buff2
 
 !print*,'iElem',iElem
 !print*,'Pos',X_in
+
 ! get initial guess by nearest GP search ! simple guess
-! x_in = PartState(1:3,iPart)
-Winner_Dist=HUGE(1.)
-DO i=0,N_in; DO j=0,N_in; DO k=0,N_in
-  Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
-  IF (Dist.LT.Winner_Dist) THEN
-    Winner_Dist=Dist
-    Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
-  END IF
-END DO; END DO; END DO
+SELECT CASE(MappingGuess)
+CASE(1)
+
+CASE(2)
+  Winner_Dist=HUGE(1.)
+  DO i=0,N_in; DO j=0,N_in; DO k=0,N_in
+    Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
+    IF (Dist.LT.Winner_Dist) THEN
+      Winner_Dist=Dist
+      Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
+    END IF
+  END DO; END DO; END DO
+END SELECT
 !print*,'Winnerdist',Winner_Dist
 !print*,'initial guess'
 !print*,'xi',xi

@@ -98,6 +98,7 @@ CASE(2) !PartBound%ReflectiveBC)
   n_loc=CalcNormVec(xi,eta,QuadID,SideID)
   ! substract tolerance from length
   LengthPartTrajectory=LengthPartTrajectory-epsilontol
+  print*,'n_loc',n_loc
   ! compute old relativistic impulse
 !  gamma1=PartState(iPart,4)*PartState(iPart,4)+PartState(iPart,5)*PartState(iPart,5) &
 !        +PartState(iPart,6)*PartState(iPart,6)
@@ -272,6 +273,9 @@ CASE(2) !PartBound%ReflectiveBC)
     n_loc=CalcNormVecBezier(xi,eta,SideID)
 !    CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
   END SELECT 
+!  print*,'n_loc',n_loc
+!  print*,'n_loc,partt',DOT_PRODUCT(n_loc,PartTrajectory)
+!  read*
   ! substract tolerance from length
   LengthPartTrajectory=LengthPartTrajectory-epsilontol
   ! intersection point with surface

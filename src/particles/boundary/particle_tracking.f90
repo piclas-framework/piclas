@@ -39,6 +39,7 @@ USE MOD_Particle_Surfaces_Vars,      ONLY:nPartCurved,BezierControlPoints3D,Boun
 USE MOD_Particle_Surfaces_Vars,      ONLY:SuperSampledNodes,nQuads
 USE MOD_TimeDisc_Vars,               ONLY:iter
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
+USE MOD_Particle_Vars,           ONLY:time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -67,6 +68,15 @@ DO iPart=1,PDM%ParticleVecLength
       print*,'wuuumm'
       STOP
     END IF
+!    IF(iter.EQ.1)THEN
+!      print*,'ElemID',ElemID
+!      print*,'pos',LastPartPos(iPart,1:3)
+!      print*,'Trajectory',PartTrajectory
+!      read*
+!    END IF
+!    IF(time.GT.104.0)THEN
+!      print*,'ElemID',ElemID
+!    END IF
     !!! DEBUGG ENDE
     PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
     lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
@@ -182,7 +192,7 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,ClipTolerance,ClipMa
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
 USE MOD_Utils,                   ONLY:BubbleSortID
-!USE MOD_Particle_Vars,           ONLY:time
+USE MOD_Particle_Vars,           ONLY:time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -208,6 +218,7 @@ LOGICAL                                  :: foundInter
 alpha=-1.0
 Xi   = 2.0
 Eta  = 2.0
+
 !!!! DEBUGGG fix side ID
 !print*,'sideid',sideid
 ! If side is flat, than check if particle vector is perpenticular to side. if true, then particle moves parallel to or in side
@@ -285,7 +296,24 @@ nEtaClip=0
 nInterSections=0
 CALL BezierClip(BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
-!IF(time.GT.28.07)THEN
+!IF(SideID.EQ.2)THEN
+!  print*,'nInterSections',nInterSections
+!  print*,'locAlpha',locAlpha
+!  print*,'lengthPartTrajectory',lengthPartTrajectory
+!  read*
+!END IF
+!
+!
+!IF(time.GT.103.0)THEN
+!  print*, 'SideID',SideID
+!  print*,'nInterSections',nInterSections
+!  IF(SideID.EQ.2)THEN
+!   print*,'LastPartPos',LastPartPos(iPart,1:3)
+!   print*,'PartTrajectory',PartTrajectory
+!   stop
+!  END IF
+!  IF(nInterSections.GE.1) read*
+!  print*,'locAlpha',locAlpha
 !  IF(SideID.EQ.8)THEN
 !    print*,'nInterSections',nInterSections
 !    print*,'locAlpha',locAlpha
@@ -379,6 +407,7 @@ REAL                                 :: BezierControlPoints2D_temp(2,0:NGeo,0:NG
 REAL                                 :: BezierControlPoints2D_temp2(2,0:NGeo,0:NGeo)
 INTEGER                              :: p,q,idir,l,iDeCasteljau
 REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,x,y,alpha
+REAL                                 :: ZeroDistance,ClipTolerance2
 LOGICAL                              :: DoXiClip,DoEtaClip,DoCheck
 INTEGER                              :: iClip
 REAL                                 :: PlusXi,MinusXi,PlusEta,MinusEta,tmpXi,tmpEta
@@ -386,6 +415,7 @@ INTEGER                              :: tmpnClip,tmpnXi,tmpnEta
 !================================================================================================================================
 
 PatchDOF2D=1.0/REAL((NGeo+1)*(NGeo+1))
+ClipTolerance2=ClipTolerance*ClipTolerance
 
 ! 3.) Bezier intersection: solution Newton's method or Bezier clipping
 ! outcome: no intersection, single intersection, multiple intersection with patch
@@ -638,12 +668,21 @@ DO iClipIter=iClipIter,ClipMaxIter
 !      print*,'check xi-tolereance'  
       ! c) check Tolerance
       !IF(DoCheck)THEN
-      x=SUM(BezierControlPoints2D(1,:,:))*PatchDOF2D
-      y=SUM(BezierControlPoints2D(2,:,:))*PatchDOF2D
-      ! DEBUGGG relative clip tolerance is missing, multiply by max bounding box length
-!      print*,'res',SQRT(x*x+y*y)
-!      print*,''
-      IF(SQRT(x*x+y*y).LT.ClipTolerance)EXIT
+       ! check via mean value
+      !x=SUM(BezierControlPoints2D(1,:,:))*PatchDOF2D
+      !y=SUM(BezierControlPoints2D(2,:,:))*PatchDOF2D
+      !IF(SQRT(x*x+y*y).LT.ClipTolerance)EXIT
+      ! check via distance
+      ZeroDistance=0.
+      DO q=0,NGeo                                                                                   
+        DO p=0,NGeo
+          ZeroDistance=ZeroDistance+BezierControlPoints2D(1,p,q)*BezierControlPoints2d(1,p,q) &
+                                   +BezierControlPoints2D(2,p,q)*BezierControlPoints2d(2,p,q)
+        END DO
+      END DO
+      ZeroDistance=ZeroDistance*PatchDOF2D
+      IF(ZeroDistance.LT.ClipTolerance2) EXIT
+
       !END IF ! DoCheck
       IF(ABS(XiMax-XiMin).LT.ClipTolerance) DoXiClip=.FALSE.
 
@@ -874,12 +913,24 @@ DO iClipIter=iClipIter,ClipMaxIter
        !print*,'check eta-tolereance'  
        ! c) check Tolerance
        !IF(DoCheck)THEN
-       x=SUM(BezierControlPoints2D(1,:,:))*PatchDOF2D
-       y=SUM(BezierControlPoints2D(2,:,:))*PatchDOF2D
-       ! DEBUGGG relative clip tolerance is missing, multiply by max bounding box length
-       !print*,'res',SQRT(x*x+y*y)
-       !print*,''
-       IF(SQRT(x*x+y*y).LT.ClipTolerance)EXIT
+
+       ! check via mean value
+       !x=SUM(BezierControlPoints2D(1,:,:))*PatchDOF2D
+       !y=SUM(BezierControlPoints2D(2,:,:))*PatchDOF2D
+       !IF(SQRT(x*x+y*y).LT.ClipTolerance)EXIT
+       ! check via distance
+       ZeroDistance=0.
+       DO q=0,NGeo
+         DO p=0,NGeo
+           ZeroDistance=ZeroDistance+BezierControlPoints2D(1,p,q)*BezierControlPoints2d(1,p,q) &
+                                    +BezierControlPoints2D(2,p,q)*BezierControlPoints2d(2,p,q)
+         END DO
+       END DO
+       ZeroDistance=ZeroDistance*PatchDOF2D
+       IF(ZeroDistance.LT.ClipTolerance2) EXIT
+
+
+       
        !END IF ! DoCheck
        IF(ABS(EtaMax-EtaMin).LT.ClipTolerance) DoEtaClip=.FALSE.
 

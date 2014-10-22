@@ -42,6 +42,9 @@ REAL                                    :: ClipTolerance
 INTEGER                                 :: ClipMaxInter,ClipMaxIter
 REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray
+REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo
+INTEGER                                 :: MappingGuess
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Surfaces_Vars
