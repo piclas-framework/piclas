@@ -1,6 +1,6 @@
 #include "boltzplatz.h"
 
-MODULE MOD_io_HDF5
+MODULE MOD_IO_HDF5
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
@@ -15,6 +15,11 @@ IMPLICIT NONE
 INTEGER(HID_T)           :: File_ID
 INTEGER(HSIZE_T),POINTER :: HSize(:)
 INTEGER                  :: nDims
+INTEGER                  :: MPIInfo !for lustre file system
+
+INTERFACE InitIO
+  MODULE PROCEDURE InitIO_HDF5
+END INTERFACE
 
 INTERFACE OpenDataFile
   MODULE PROCEDURE OpenHDF5File
@@ -28,6 +33,45 @@ END INTERFACE
 
 CONTAINS
 
+SUBROUTINE InitIO_HDF5()
+!===================================================================================================================================
+! Initialize HDF5 IO
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools,        ONLY:GETLOGICAL,CNTSTR
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+#ifdef MPI
+  CALL MPI_Info_Create(MPIInfo, iError)
+
+  !normal case:
+  MPIInfo=MPI_INFO_NULL
+
+  ! Large block IO extremely slow on Juqeen cluster (only available on IBM clusters)
+  !CALL MPI_Info_set(MPIInfo, "IBM_largeblock_io", "true", ierror)
+#ifdef LUSTRE
+  CALL MPI_Info_Create(MPIInfo, iError)
+  ! For lustre file system:
+  ! Disables ROMIO's data-sieving 
+  CALL MPI_Info_set(MPIInfo, "romio_ds_read", "disable",iError)
+  CALL MPI_Info_set(MPIInfo, "romio_ds_write","disable",iError)
+  ! Enable ROMIO's collective buffering 
+  CALL MPI_Info_set(MPIInfo, "romio_cb_read", "enable", iError)
+  CALL MPI_Info_set(MPIInfo, "romio_cb_write","enable", iError)
+#endif
+#endif /* MPI */
+END SUBROUTINE InitIO_HDF5
+
+
+
 SUBROUTINE OpenHDF5File(FileString,create,single,communicatorOpt)
 !===================================================================================================================================
 ! Open HDF5 file and groups
@@ -39,8 +83,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)   :: FileString
-LOGICAL,INTENT(IN)            :: create 
-LOGICAL,INTENT(IN),OPTIONAL   :: single
+LOGICAL,INTENT(IN)            :: create
+LOGICAL,INTENT(IN)            :: single
 INTEGER,INTENT(IN),OPTIONAL   :: communicatorOpt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -48,13 +92,12 @@ INTEGER,INTENT(IN),OPTIONAL   :: communicatorOpt
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: Plist_ID
 INTEGER                        :: comm
-#ifdef MPI
-INTEGER                        :: info !for lustre file system
-#endif /* MPI */
 !===================================================================================================================================
 LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "',TRIM(FileString),'" ...'
+
 ! Initialize FORTRAN predefined datatypes
 CALL H5OPEN_F(iError)
+
 ! Setup file access property list with parallel I/O access (MPI) or with default property list.
 CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
 #ifdef MPI
@@ -63,41 +106,7 @@ IF(PRESENT(communicatorOpt))THEN
 ELSE
   comm=MPI_COMM_WORLD
 END IF
-IF (PRESENT(single)) THEN
-  IF (.NOT. single) THEN
-    !normal case:
-    !info=MPI_INFO_NULL
-    
-    !for lustre file system:
-    ! Create info to be attached to HDF5 file 
-    CALL MPI_info_create(info,iError)
-    ! Disables ROMIO's data-sieving 
-    CALL MPI_Info_set(info, "romio_ds_read", "disable",iError)
-    CALL MPI_Info_set(info, "romio_ds_write", "disable",iError)
-    ! Enable ROMIO's collective buffering 
-    CALL MPI_Info_set(info, "romio_cb_read", "enable",iError)
-    CALL MPI_Info_set(info, "romio_cb_write", "enable",iError)
-    ! end lustre stuff
-    
-    CALL H5PSET_FAPL_MPIO_F(Plist_ID,comm, info, iError)
-  END IF
-ELSE
-!normal case:
-!info=MPI_INFO_NULL
-
-!for lustre file system:
-! Create info to be attached to HDF5 file 
-CALL MPI_info_create(info,iError)
-! Disables ROMIO's data-sieving 
-CALL MPI_Info_set(info, "romio_ds_read", "disable",iError)
-CALL MPI_Info_set(info, "romio_ds_write", "disable",iError)
-! Enable ROMIO's collective buffering 
-CALL MPI_Info_set(info, "romio_cb_read", "enable",iError)
-CALL MPI_Info_set(info, "romio_cb_write", "enable",iError)
-! end lustre stuff
-
-CALL H5PSET_FAPL_MPIO_F(Plist_ID,comm, info, iError)
-END IF
+IF(.NOT.single)  CALL H5PSET_FAPL_MPIO_F(Plist_ID, comm, MPIInfo, iError)
 #endif /* MPI */
 
 ! Open the file collectively.

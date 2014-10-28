@@ -19,7 +19,10 @@ PUBLIC::GETREAL
 PUBLIC::GETLOGICAL
 PUBLIC::GETINTARRAY
 PUBLIC::GETREALARRAY
+PUBLIC::DeleteStrings
 PUBLIC::IgnoredStrings
+PUBLIC::GetParameters
+
 !===================================================================================================================================
 
 INTERFACE GETSTR
@@ -50,6 +53,10 @@ INTERFACE GETREALARRAY
   MODULE PROCEDURE GETREALARRAY
 END INTERFACE
 
+INTERFACE DeleteStrings
+  MODULE PROCEDURE DeleteStrings
+END INTERFACE
+
 INTERFACE IgnoredStrings
   MODULE PROCEDURE IgnoredStrings
 END INTERFACE
@@ -74,13 +81,18 @@ INTERFACE DeleteString
   MODULE PROCEDURE DeleteString
 END INTERFACE
 
+INTERFACE GetParameters
+  MODULE PROCEDURE GetParameters
+END INTERFACE
+
 TYPE tString
   TYPE(Varying_String)::Str
   TYPE(tString),POINTER::NextStr,PrevStr
 END TYPE tString
 
 LOGICAL,PUBLIC::ReadInDone=.FALSE.
-TYPE(tString),POINTER::FirstString
+TYPE(tString),POINTER,PUBLIC::FirstString
+TYPE(tString),POINTER,PUBLIC::parameters
 
 CONTAINS
 
@@ -648,6 +660,121 @@ END SUBROUTINE DeleteString
 
 
 
+SUBROUTINE DeleteStrings(first)
+!===================================================================================================================================
+! Remove string "Str" from list of strings witFirstString,h first element "DirstString" and delete string.
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+TYPE(tString),POINTER :: first       ! String to delete
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+TYPE(tString),POINTER :: Str         ! String to delete
+!===================================================================================================================================
+DO WHILE(ASSOCIATED(first))
+  Str=>first%NextStr
+  DEALLOCATE(first)
+  first=>Str
+END DO
+NULLIFY(first)
+ReadInDone=.FALSE.
+END SUBROUTINE DeleteStrings
+
+
+
+SUBROUTINE AppendString(Str, text)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+TYPE(tString),POINTER,INTENT(INOUT) :: Str         ! String to delete
+TYPE(Varying_String),INTENT(IN)     :: text
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+TYPE(tString),POINTER :: tmp,new
+!===================================================================================================================================
+IF (.NOT.ASSOCIATED(Str)) THEN
+  CALL GetNewString(Str)
+  Str%Str = text
+ELSE
+  tmp=>Str
+  DO WHILE(ASSOCIATED(tmp%NextStr))
+    tmp=>tmp%NextStr
+  END DO
+  CALL GetNewString(new)
+  new%Str = text
+  tmp%NextStr => new
+  new%PrevStr => tmp
+END IF
+END SUBROUTINE AppendString
+
+
+
+FUNCTION GetLen(Str)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+TYPE(tString),POINTER,INTENT(IN) :: Str         ! String to delete
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER                          :: GetLen
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+TYPE(tString),POINTER :: tmp
+!===================================================================================================================================
+GetLen = 0
+tmp => Str
+DO WHILE(ASSOCIATED(tmp))
+  GetLen = GetLen + 1
+  tmp => tmp%NextStr
+END DO
+END FUNCTION GetLen 
+
+
+
+SUBROUTINE GetParameters(params)
+!===================================================================================================================================
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(OUT),ALLOCATABLE :: params(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+TYPE(tString),POINTER :: tmp
+INTEGER               :: length,i
+!===================================================================================================================================
+tmp => parameters
+length = GetLen(parameters)
+i = 0
+ALLOCATE(params(length))
+DO WHILE(ASSOCIATED(tmp))
+  i = i + 1
+  params(i) = CHAR(tmp%Str)
+  tmp=>tmp%NextStr
+END DO
+END SUBROUTINE GetParameters
+
+
+
 SUBROUTINE FindStr(Key,Str,DefMsg,Proposal)
 !===================================================================================================================================
 ! Find parameter string containing keyword "Key" in list of strings starting with "FirstString" and return string "Str" without
@@ -694,6 +821,7 @@ DO WHILE(.NOT.Found)
 
   IF (INDEX(CHAR(Str1%Str),TRIM(TmpKey)//'=').EQ.1) THEN
     Found=.TRUE.
+    CALL AppendString(parameters, Str1%Str)
     Str1%Str=replace(Str1%Str,TRIM(TmpKey)//'=',"",Every=.TRUE.)
     Str=TRIM(CHAR(Str1%Str))
     ! Remove string from list

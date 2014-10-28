@@ -17,5 +17,11 @@ REAL,PARAMETER        :: PP_RealTolerance = 1.E-15
 #if PP_nElems == NELEMZ
   INTEGER             :: PP_nElems = 0
 #endif
+#if (PP_NodeType==1)
+  CHARACTER(LEN=255),PARAMETER :: NodeType = 'GAUSS'
+#elif (PP_NodeType==2)
+  CHARACTER(LEN=255),PARAMETER :: NodeType = 'GAUSS-LOBATTO'
+#endif
 !===================================================================================================================================
+
 END MODULE MOD_PreProc

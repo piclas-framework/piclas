@@ -133,7 +133,7 @@ USE MOD_DG_Vars,               ONLY: U
 USE MOD_PML,                   ONLY: TransformPMLVars,BacktransformPMLVars
 USE MOD_PML_Vars,              ONLY: DoPML
 USE MOD_Filter,                ONLY: Filter
-USE MOD_RecordPoints_Vars,     ONLY: RP_inUse,RP_onProc
+USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 #ifdef PARTICLES
 USE MOD_PICDepo,               ONLY: Deposition, DepositionMPF
@@ -284,7 +284,7 @@ iter=0
 iter_loc=0
 
 ! fill recordpoints buffer (first iteration)
-IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
+IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.) 
 
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -406,7 +406,7 @@ END IF
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
     IF(DoPML) CALL TransformPMLVars()
     ! Write recordpoints data to hdf5
-    IF(RP_inUse) CALL WriteRPtoHDF5(iter,t)
+    IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
     iter_loc=0
     CalcTimeStart=BOLTZPLATZTIME()
     tAnalyze=tAnalyze+Analyze_dt

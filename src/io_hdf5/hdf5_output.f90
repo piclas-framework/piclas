@@ -25,17 +25,16 @@ INTERFACE WriteHDF5Header
   MODULE PROCEDURE WriteHDF5Header
 END INTERFACE
 
-INTERFACE WriteArray
-  MODULE PROCEDURE WriteArrayToHDF5
-END INTERFACE
+!INTERFACE WriteArrayToHDF5
+!  MODULE PROCEDURE WriteArrayToHDF5
+!END INTERFACE
 
-INTERFACE WriteAttribute
+INTERFACE WriteAttributeToHDF5
   MODULE PROCEDURE WriteAttributeToHDF5
 END INTERFACE
 
 PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header
-PUBLIC :: WriteArray,WriteAttribute,WriteArrayToHDF5,WriteAttributeToHDF5
-PUBLIC :: WriteToHDF5_multiD
+PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5
 !===================================================================================================================================
 
 CONTAINS
@@ -52,7 +51,6 @@ USE MOD_DG_Vars,              ONLY:U
 USE MOD_Output_Vars,          ONLY:ProjectName
 USE MOD_Interpolation_Vars,   ONLY:StrNodeType
 USE MOD_Mesh_Vars,            ONLY:offsetElem,nGlobalElems
-USE MOD_PML_Vars,             ONLY:DoPML,PMLToElem,U2,nPMLElems
 #ifdef PP_POIS
 USE MOD_Equation_Vars,        ONLY:E,Phi
 USE MOD_Mesh_Vars,            ONLY:nElems, sJ, Elem_xGP
@@ -68,19 +66,15 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(HID_T)                 :: Dset_ID
+CHARACTER(LEN=255)             :: FileName
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal
-CHARACTER(LEN=255)             :: FileName,FileString,MeshFile255,StrVarNames(PP_nVar),Statedummy
 #ifdef MPI
 REAL                           :: StartT,EndT
+INTEGER                        :: sendbuf(2),recvbuf(2)
 #endif
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-#endif
-REAL,ALLOCATABLE               :: Upml(:,:,:,:,:)
-INTEGER                        :: iPML
-#ifdef MPI 
-INTEGER                        :: sendbuf(2),recvbuf(2)
 #endif
 !===================================================================================================================================
 IF(MPIROOT)THEN
@@ -91,6 +85,7 @@ IF(MPIROOT)THEN
 END IF
 
 ! Create dataset attribute "VarNames"
+ALLOCATE(StrVarNames(1:PP_nVar))
 #if PP_nVar==8
 #ifndef PP_POIS
 StrVarNames(1)='ElectricFieldX'
@@ -128,7 +123,9 @@ StrVarNames(4)='Ez'
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
+! PO:
+! excahnge PP_N through Nout
+IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,PP_N,StrVarNames,MeshFileName,OutputTime,FutureTime)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
@@ -137,6 +134,7 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
 
 ! Write DG solution ----------------------------------------------------------------------------------------------------------------
 nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+! Store the Solution of the Maxwell-Poisson System
 #ifdef PP_POIS
 #if (PP_nVar==8)
 Utemp(8,:,:,:,:)=Phi(1,:,:,:,:)
@@ -149,45 +147,58 @@ CALL WriteArrayToHDF5('DG_SolutionE',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nE
 CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
 ,offsetElem,5,existing=.FALSE.,RealArray=Phi)
 #endif
+! Store the solution of the electrostatic-poisson system
 #if (PP_nVar==4)
 Utemp(1,:,:,:,:)=Phi(1,:,:,:,:)
 Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
-CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
-,offsetElem,5,existing=.TRUE.,RealArray=Utemp)
-CALL WriteArrayToHDF5('DG_SolutionE',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
-,offsetElem,5,existing=.FALSE.,RealArray=U)
-CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
-,offsetElem,5,existing=.FALSE.,RealArray=Phi)
+!CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+!,offsetElem,5,existing=.TRUE.,RealArray=Utemp)
+CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
+                      nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                      nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+                      offset=    (/0,      0,     0,     0,     offsetElem/),&
+                      collective=.TRUE., existing=.TRUE., RealArray=Utemp)
+! missing additional attributes to file                  
+!CALL WriteArrayToHDF5('DG_SolutionE',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+!,offsetElem,5,existing=.FALSE.,RealArray=U)
+CALL WriteArrayToHDF5(DataSetName='DG_SolutionE', rank=5,&
+                      nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                      nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+                      offset=    (/0,      0,     0,     0,     offsetElem/),&
+                      collective=.TRUE., existing=.FALSE., RealArray=U)
+!CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+!,offsetElem,5,existing=.FALSE.,RealArray=Phi)
+! missing addiontal attributes and data preparation
+CALL WriteArrayToHDF5(DataSetName='DG_SolutionPhi', rank=5,&
+                      nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                      nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+                      offset=    (/0,      0,     0,     0,     offsetElem/),&
+                      collective=.TRUE., existing=.FALSE., RealArray=Phi)
 #endif
 #else
-CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
-,offsetElem,5,existing=.TRUE.,RealArray=U)
+! Store the solution of the purely hyberbolic maxwell system
+! PO: old version
+!CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
+! ,offsetElem,5,existing=.TRUE.,RealArray=U)
+CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
+                      nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                      nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+                      offset=    (/0,      0,     0,     0,     offsetElem/),&
+                      collective=.TRUE., existing=.TRUE., RealArray=U)
 #endif
 
-
-#ifdef PARTICLES
-CALL WriteParticleToHDF5()
-#endif /*Particles*/
-
-#if (PP_nVar==8)
-IF(DoPML)THEN
-  ALLOCATE(UPML(6,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-  UPML=0.0
-  DO iPML=1,nPMLElems
-    Upml(:,:,:,:,PMLToElem(iPML)) = U2(:,:,:,:,iPML)
-  END DO ! iPML
-  CALL WriteArrayToHDF5('PML_Solution',nVal,5,(/6,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
-    ,offsetElem,5,existing=.FALSE.,RealArray=UPML)
-  DEALLOCATE(UPML)
-END IF ! DoPML
-#endif
-
-! Close the dataset and property list.
-CALL H5DCLOSE_F(Dset_id, iError)
-
-! Close the file.
 CALL CloseDataFile()
 
+#ifdef PARTICLES
+CALL WriteParticleToHDF5(FileName)
+#endif /*Particles*/
+
+CALL WriteAdditionalDataToHDF5(FileName)
+
+!! Close the file.
+!CALL CloseDataFile()
+
+DEALLOCATE(StrVarNames)
 #ifdef MPI
 IF(MPIROOT)THEN
   EndT=MPI_WTIME()
@@ -198,8 +209,66 @@ WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 #endif
 END SUBROUTINE WriteStateToHDF5
 
+SUBROUTINE WriteAdditionalDataToHDF5(FileName)
+!===================================================================================================================================
+! Write additional (elementwise scalar) data to HDF5
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems
+USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,U2,nPMLElems
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+INTEGER                        :: nVar
+REAL,ALLOCATABLE               :: Upml(:,:,:,:,:)
+INTEGER                        :: iPML
+!===================================================================================================================================
+
+nVar=0
+#if (PP_nVar==8)
+IF(DoPML)THEN
+  nVar=6
+  ALLOCATE(StrVarNames(nVar))
+  StrVarNames(1)='PMLElectricFieldX'
+  StrVarNames(2)='PMLElectricFieldY'
+  StrVarNames(3)='PMLElectricFieldZ'
+  StrVarNames(4)='PMLMagneticFieldX'
+  StrVarNames(5)='PMLMagneticFieldY'
+  StrVarNames(6)='PMLMagneticFieldZ'
+
+  ALLOCATE(UPML(6,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+  UPML=0.0
+  DO iPML=1,nPMLElems
+    Upml(:,:,:,:,PMLToElem(iPML)) = U2(:,:,:,:,iPML)
+  END DO ! iPML
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',nVar,StrArray=StrVarNames)
+
+  CALL WriteArrayToHDF5(DataSetName='PML_Solution', rank=5,&
+                      nValGlobal=(/5,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                      nVal=      (/5,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+                      offset=    (/0,      0,     0,     0,     offsetElem/),&
+                      collective=.FALSE., existing=.FALSE., RealArray=UPML)
+
+  CALL CloseDataFile()
+  DEALLOCATE(UPML)
+  DEALLOCATE(StrVarNames)
+END IF ! DoPML
+#endif
+
+END SUBROUTINE WriteAdditionalDataToHDF5
+
 #ifdef PARTICLES
-SUBROUTINE WriteParticleToHDF5()
+SUBROUTINE WriteParticleToHDF5(FileName)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -217,12 +286,14 @@ USE MOD_LD_Vars,            ONLY:UseLD, PartStateBulkValues
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER(HID_T)                 :: Dset_ID
-INTEGER                        :: nVal
+INTEGER                        :: nVal,nVar
 #ifdef MPI
 REAL                           :: StartT,EndT
 #endif
@@ -341,8 +412,8 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)    
-            PartData(iPart,10)=PartMPF(pcount)
-            PartData(iPart,11)=PartStateIntEn(pcount,3)    
+            PartData(iPart,10)=PartStateIntEn(pcount,3)    
+            PartData(iPart,11)=PartMPF(pcount)
           ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)    
@@ -423,11 +494,99 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
     PartInt(iElem_glob,2)=iPart
   END DO 
 
-  CALL WriteArrayToHDF5('PartInt',nGlobalElems,2,(/PP_nElems,PartIntSize/),offsetElem,1,existing=.FALSE.,IntegerArray=PartInt)
-  CALL WriteArrayToHDF5('PartData',nPart_glob,2,(/locnPart,PartDataSize/),offsetnPart,1,existing=.FALSE.,RealArray=PartData)!,&
-                        !xfer_mode_independent=.TRUE.)  ! könnte bei Procs die keine Teilchen schreiben 
+  nVar=2
+  ALLOCATE(StrVarNames(nVar))
+  StrVarNames(1)='FirstPartID'
+  StrVarNames(2)='LastPartID'
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesPartInt',2,StrArray=StrVarNames)
+  ! old
+  !CALL WriteArrayToHDF5('PartInt',nGlobalElems,2,(/PP_nElems,PartIntSize/),offsetElem,1,existing=.FALSE.,IntegerArray=PartInt)
+  CALL WriteArrayToHDF5(DataSetName='PartInt', rank=2,&
+                        nValGlobal=(/nVar,nGlobalElems/),&
+                        nVal=      (/nVar,PP_nElems   /),&
+                        offset=    (/0,   offsetElem  /),&
+                        collective=.FALSE., existing=.FALSE., IntegerArray=PartInt)
+  DEALLOCATE(StrVarNames)
+  CALL CloseDataFile()
+
+!  IF (withDSMC.AND.(.NOT.(useLD))) THEN
+!    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
+!      PartDataSize=11
+!    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
+!                                                                              ! or int energ +3 but no vmpf +1
+!      PartDataSize=10
+!    ELSE IF (CollisMode.GT.1) THEN
+!      PartDataSize=9 !int ener + 2
+!    ELSE IF (usevMPF) THEN
+!      PartDataSize=8 !+ 1 vmpf
+!    ELSE
+!      PartDataSize=7 !+ 0
+!    END IF
+!  ELSE IF (useLD) THEN
+!    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
+!      PartDataSize=16
+!    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
+!                                                                             ! or int energ +3 but no vmpf +1
+!      PartDataSize=15
+!    ELSE IF (CollisMode.GT.1) THEN
+!      PartDataSize=14!int ener + 2
+!    ELSE IF (usevMPF) THEN
+!      PartDataSize=13!+ 1 vmpf
+!    ELSE
+!      PartDataSize=12 !+ 0
+!    END IF
+!  ELSE IF (usevMPF) THEN
+!    PartDataSize=8 !vmpf +1
+!  ELSE
+!    PartDataSize=7
+!  END IF  
+  ALLOCATE(StrVarNames(PartDataSize))
+  StrVarNames(1)='ParticlePositionX'
+  StrVarNames(2)='ParticlePositionY'
+  StrVarNames(3)='ParticlePositionZ'
+  StrVarNames(4)='VelocityX'
+  StrVarNames(5)='VelocityY'
+  StrVarNames(6)='VelocityZ'
+  StrVarNames(7)='Species'
+  IF(withDSMC.AND.(.NOT.(useLD)))THEN
+    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicState))THEN
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+      StrVarNames(10)='Electronic'
+      StrVarNames(11)='MPF'
+    ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+      StrVarNames(10)='MPF'
+    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicState) ) THEN
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+      StrVarNames(10)='Electronic'
+    ELSE IF (CollisMode.GT.1) THEN
+      StrVarNames( 8)='Vibrational'
+      StrVarNames( 9)='Rotational'
+    ELSE IF (usevMPF) THEN
+      StrVarNames( 8)='MPF'
+    END IF
+  ELSE IF (useLD) THEN
+   CALL abort(__STAMP__,'Attributes for LD are not implemented! Add Attributes!',999,999.)
+  END IF
+
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',PartDataSize,StrArray=StrVarNames)
+  CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
+                        nValGlobal=(/nPart_glob,PartDataSize/),&
+                        nVal=      (/locnPart,PartDataSize   /),&
+                        offset=    (/0,   offsetnPart  /),&
+                        collective=.FALSE., existing=.FALSE., RealArray=PartData)
+  CALL CloseDataFile()
+
+!  CALL WriteArrayToHDF5('PartData',nPart_glob,2,(/locnPart,PartDataSize/),offsetnPart,1,existing=.FALSE.,RealArray=PartData)!,&
+!                        !xfer_mode_independent=.TRUE.)  ! könnte bei Procs die keine Teilchen schreiben 
                                                         ! problematisch werden
 
+  DEALLOCATE(StrVarNames)
   DEALLOCATE(PartInt,PartData)
 
 !!! Kleiner Hack von JN (Teil 2/2):
@@ -445,22 +604,27 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
 END SUBROUTINE WriteParticleToHDF5
 #endif /*PARTICLES*/
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
+
+! PO: old
+!SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,NData,StrVarNames,MeshFileName,OutputTime,FutureTime)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Output_Vars,ONLY:ProjectName
-USE MOD_Interpolation_Vars,ONLY:StrNodeType
-USE MOD_Mesh_Vars,ONLY:nGlobalElems
+USE MOD_Output_Vars,ONLY: ProjectName
+USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
+USE MOD_ReadInTools,ONLY: GetParameters
+USE MOD_PreProcFlags
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: TypeString
-INTEGER                        :: nVar
+INTEGER,INTENT(IN)             :: nVar
+INTEGER,INTENT(IN)             :: NData
 CHARACTER(LEN=255)             :: StrVarNames(nVar)
 CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
 REAL,INTENT(IN)                :: OutputTime
@@ -472,6 +636,7 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 INTEGER(HID_T)                 :: DSet_ID,FileSpace,HDF5DataType
 INTEGER(HSIZE_T)               :: Dimsf(5)
 CHARACTER(LEN=255)             :: FileName,MeshFile255
+CHARACTER(LEN=255),ALLOCATABLE :: params(:)
 !===================================================================================================================================
 ! Create file
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
@@ -491,18 +656,27 @@ CALL H5DCLOSE_F(Dset_id, iError)
 CALL H5SCLOSE_F(FileSpace, iError)
 
 ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
+CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=N)
 CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
-MeshFile255=TRIM(MeshFileName)
-CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=MeshFile255)
+CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
 IF(PRESENT(FutureTime))THEN
   MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),FutureTime))//'.h5'
-  CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=MeshFile255)
+  CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/))
 END IF
-CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=StrNodeType)
+CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
 CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
+
+CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
+
+! Write ini file parameters and compile flags
+CALL GetParameters(params)
+CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
+CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
+DEALLOCATE(params)
 
 CALL CloseDataFile()
 END SUBROUTINE GenerateFileSkeleton
+
 
 SUBROUTINE FlushHDF5(FlushTime_In)
 !===================================================================================================================================
@@ -589,121 +763,140 @@ INTEGER(HID_T),INTENT(IN)                :: File_ID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)                       :: tmp255
 !===================================================================================================================================
 ! Write a small file header to identify a Flexi HDF5 files
-
-! First write program name
-tmp255=TRIM(ProgramName)
-CALL WriteAttributeToHDF5(File_ID,'Program',1,StrScalar=tmp255)
-
-! Second, write file type identifier
-tmp255=TRIM(FileType_in)
-CALL WriteAttributeToHDF5(File_ID,'File_Type',1,StrScalar=tmp255)
-
-! Third, write project name
-tmp255=TRIM(ProjectName)
-CALL WriteAttributeToHDF5(File_ID,'Project_Name',1,StrScalar=tmp255)
-
-! Last, file version number
+! Attributes are program name, file type identifier, project name and version number
+CALL WriteAttributeToHDF5(File_ID,'Program'     ,1,StrScalar=(/TRIM(ProgramName)/))
+CALL WriteAttributeToHDF5(File_ID,'File_Type'   ,1,StrScalar=(/TRIM(FileType_in)/))
+CALL WriteAttributeToHDF5(File_ID,'Project_Name',1,StrScalar=(/TRIM(ProjectName)/))
 CALL WriteAttributeToHDF5(File_ID,'File_Version',1,RealScalar=FileVersion)
 END SUBROUTINE WriteHDF5Header
 
 
-
-
-SUBROUTINE WriteArrayToHDF5(DataSetName,nValglobal,Rank,nVal,offset_in,offset_dim,RealArray,IntegerArray,StrArray,existing)
+SUBROUTINE WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,offset,&
+                            existing,collective,resizeDim,chunkSize,&
+                            RealArray,IntegerArray,StrArray)
 !===================================================================================================================================
 ! Subroutine to write Data to HDF5 format
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE,INTRINSIC :: ISO_C_BINDING
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER                        :: Rank                  ! number of dimensions of the array
-INTEGER,INTENT(IN)             :: offset_in             ! offset =0, start at beginning of the array
-INTEGER,INTENT(IN)             :: offset_dim            ! which dimension is the offset (only one dimension possible here)
-INTEGER,INTENT(IN)             :: nValglobal            ! max size of array in offset dimension
-INTEGER,INTENT(IN)             :: nVal(Rank)            ! size of complete (local) array to write
-CHARACTER(LEN=*),INTENT(IN)    :: DataSetName
-LOGICAL,INTENT(IN)             :: existing
-REAL              ,DIMENSION(Rank),OPTIONAL,INTENT(IN) :: RealArray
-INTEGER           ,DIMENSION(Rank),OPTIONAL,INTENT(IN) :: IntegerArray
-CHARACTER(LEN=255),DIMENSION(Rank),OPTIONAL,INTENT(IN) :: StrArray
-!TYPE(IO_elem),OPTIONAL,INTENT(IN) :: IO_elemArray(nVal(1))
+CHARACTER(LEN=*),INTENT(IN)   :: DataSetName
+INTEGER,INTENT(IN)            :: rank             ! number of dimensions of the array
+INTEGER,INTENT(IN)            :: nValGlobal(rank) ! max size of array in offset dimension
+INTEGER,INTENT(IN)            :: nVal(rank)       ! size of complete (local) array to write
+INTEGER,INTENT(IN)            :: offset(rank)     ! offset =0, start at beginning of the array
+LOGICAL,INTENT(IN)            :: existing
+LOGICAL,INTENT(IN)            :: collective       ! use collective writes from all procs
+LOGICAL,INTENT(IN),OPTIONAL   :: resizeDim(rank)  ! specify dimensions which can be resized (enlarged)
+INTEGER,INTENT(IN),OPTIONAL   :: chunkSize(rank)  ! specify chunksize
+REAL              ,INTENT(IN),OPTIONAL,TARGET :: RealArray(rank)
+INTEGER           ,INTENT(IN),OPTIONAL,TARGET :: IntegerArray(rank)
+CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray(rank)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!INTEGER(SIZE_T)                :: tmp1,tmp2,typeoffset,typesize
-INTEGER(HID_T)                 :: PList_ID,DSet_ID,MemSpace,FileSpace,HDF5DataType
-INTEGER(HSIZE_T)               :: Dimsf(Rank),Offset(Rank)
+INTEGER(HID_T)                 :: PList_ID,DSet_ID,MemSpace,FileSpace,Type_ID,dsetparams
+INTEGER(HSIZE_T)               :: Dimsf(Rank),OffsetHDF(Rank),nValMax(Rank)
 INTEGER(SIZE_T)                :: SizeSet
+LOGICAL                        :: chunky
+TYPE(C_PTR)                    :: buf
 !===================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')' WRITE ',Rank,'D ARRAY "',TRIM(DataSetName),'" TO HDF5 FILE...'
 
-! Get global array size, always last dimension!!
-Dimsf=nVal
-Dimsf(offset_dim)=nValGlobal 
-
-! Create the dataset with default properties.
-IF(PRESENT(RealArray))     HDF5DataType=H5T_NATIVE_DOUBLE
-IF(PRESENT(IntegerArray))  HDF5DataType=H5T_NATIVE_INTEGER
-IF(PRESENT(StrArray))THEN
-  ! Create HDF5 datatype for the character array.
-  CALL H5TCOPY_F(H5T_NATIVE_CHARACTER, HDF5DataType, iError)
-  SizeSet=255
-  CALL H5TSET_SIZE_F(HDF5DataType, SizeSet, iError)
+! specify chunk size if desired 
+nValMax=nValGlobal
+chunky=.FALSE.
+CALL H5PCREATE_F(H5P_DATASET_CREATE_F,dsetparams,iError)
+IF(PRESENT(chunkSize))THEN
+  chunky=.TRUE.
+  Dimsf=chunkSize
+  CALL H5PSET_CHUNK_F(dsetparams,rank,dimsf,iError)
+END IF
+! make array extendable in case you want to append something
+IF(PRESENT(resizeDim))THEN
+  IF(.NOT.PRESENT(chunkSize))&
+    CALL abort(__STAMP__,'Chunk size has to be specified when using resizable arrays.')
+  nValMax = MERGE(H5S_UNLIMITED_F,nValMax,resizeDim)
 END IF
 
+! Create the dataset with default properties.
+IF(PRESENT(RealArray))     Type_ID=H5T_NATIVE_DOUBLE
+IF(PRESENT(IntegerArray))  Type_ID=H5T_NATIVE_INTEGER
+IF(PRESENT(StrArray))THEN
+  ! Create HDF5 datatype for the character array.
+  CALL H5TCOPY_F(H5T_NATIVE_CHARACTER, Type_ID, iError)
+  SizeSet=255
+  CALL H5TSET_SIZE_F(Type_ID, SizeSet, iError)
+END IF
+
+Dimsf = nValGlobal ! we need the global array size
 IF(existing)THEN
   CALL H5DOPEN_F(File_ID, TRIM(DatasetName),DSet_ID, iError)
 ELSE
   ! Create the data space for the  dataset.
-  CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, FileSpace, iError)
-  CALL H5DCREATE_F(File_ID, TRIM(DataSetName), HDF5DataType, FileSpace, DSet_ID, iError)
+  CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, FileSpace, iError, nValMax)
+  CALL H5DCREATE_F(File_ID, TRIM(DataSetName), Type_ID, FileSpace, DSet_ID,iError,dsetparams)
   CALL H5SCLOSE_F(FileSpace, iError)
+END IF
+IF(chunky)THEN
+  CALL H5DSET_EXTENT_F(DSet_ID,Dimsf,iError) ! if resizable then dataset may need to be extended
 END IF
 
 ! Each process defines dataset in memory and writes it to the hyperslab in the file.
 Dimsf=nVal  ! Now we need the local array size
-Offset(:)    = 0
-Offset(offset_dim) = Offset_in
+OffsetHDF = Offset
 ! Create the data space in the memory
-IF(Dimsf(offset_dim) .NE. 0)THEN
-  CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, MemSpace, iError)
-ELSE
+IF(ANY(Dimsf.EQ.0))THEN
   CALL H5SCREATE_F(H5S_NULL_F,MemSpace,iError)
+ELSE
+  CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, MemSpace, iError)
 END IF
 ! Select hyperslab in the file.
 CALL H5DGET_SPACE_F(DSet_id, FileSpace, iError)
-IF(Dimsf(offset_dim) .NE. 0)THEN
-  CALL H5SSELECT_HYPERSLAB_F(FileSpace, H5S_SELECT_SET_F, Offset, Dimsf, iError)
-ELSE
+IF(ANY(Dimsf.EQ.0))THEN
   CALL H5SSELECT_NONE_F(FileSpace,iError)
+ELSE
+  CALL H5SSELECT_HYPERSLAB_F(FileSpace, H5S_SELECT_SET_F, OffsetHDF, Dimsf, iError)
 END IF
 
 ! Create property list for collective dataset write
 CALL H5PCREATE_F(H5P_DATASET_XFER_F, PList_ID, iError)
 #ifdef MPI
-!  CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F, iError)
-  CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_INDEPENDENT_F, iError) ! könnte relevant sein für den
-                                                                     ! xfer_mode
+IF(collective)THEN
+  CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F,  iError)
+ELSE
+  CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_INDEPENDENT_F, iError)
+END IF
 #endif
+
 !Write the dataset collectively.
+#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
 IF(PRESENT(IntegerArray))THEN
-  CALL H5DWRITE_F(DSet_ID,HDF5DataType,IntegerArray,Dimsf,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
+  CALL H5DWRITE_F(DSet_ID,Type_ID,IntegerArray,Dimsf,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
 END IF
 IF(PRESENT(RealArray))THEN
-  CALL H5DWRITE_F(DSet_ID,HDF5DataType,RealArray   ,Dimsf,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
+  CALL H5DWRITE_F(DSet_ID,Type_ID,RealArray   ,Dimsf,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
 END IF
 IF(PRESENT(StrArray))THEN
-  CALL H5DWRITE_F(DSet_ID,HDF5DataType,StrArray    ,Dimsf,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
+  CALL H5DWRITE_F(DSet_ID,Type_ID,StrArray    ,Dimsf,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
 END IF
+#else
+IF(PRESENT(IntegerArray)) buf=C_LOC(IntegerArray)
+IF(PRESENT(RealArray))    buf=C_LOC(RealArray)
+IF(PRESENT(StrArray))     buf=C_LOC(StrArray(1))
+CALL H5DWRITE_F(DSet_ID,Type_ID,buf,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
+#endif /* HDF5_F90 */
 
-! Close the property list.
+IF(PRESENT(StrArray)) CALL H5TCLOSE_F(Type_ID, iError)
+! Close the property list, dataspaces and dataset.
+CALL H5PCLOSE_F(dsetparams, iError)
 CALL H5PCLOSE_F(PList_ID, iError)
 ! Close dataspaces.
 CALL H5SCLOSE_F(FileSpace, iError)
@@ -715,39 +908,41 @@ LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE WriteArrayToHDF5
 
 
-
-SUBROUTINE WriteAttributeToHDF5(Loc_ID_in,AttribName,nVal,DataSetname,RealScalar,IntegerScalar,StrScalar,LogicalScalar, &
-                                                                      RealArray,IntegerArray,StrArray)
+SUBROUTINE WriteAttributeToHDF5(Loc_ID_in,AttribName,nVal,DataSetname,&
+                                RealScalar,IntegerScalar,StrScalar,LogicalScalar, &
+                                RealArray,IntegerArray,StrArray)
 !===================================================================================================================================
 ! Subroutine to write Attributes to HDF5 format of a given Loc_ID, which can be the File_ID,datasetID,groupID. This must be opened
 ! outside of the routine. If you directly want to write an attribute to a dataset, just provide the name of the dataset
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE,INTRINSIC :: ISO_C_BINDING
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER(HID_T),INTENT(IN)              :: Loc_ID_in
-CHARACTER(LEN=*), INTENT(IN)           :: AttribName
-INTEGER,INTENT(IN)                     :: nVal
-CHARACTER(LEN=*),OPTIONAL,INTENT(IN)   :: DatasetName
-REAL,OPTIONAL,INTENT(IN)               :: RealArray(nVal)
-INTEGER,OPTIONAL,INTENT(IN)            :: IntegerArray(nVal)
-CHARACTER(LEN=255),OPTIONAL,INTENT(IN) :: StrArray(nVal)
-REAL,OPTIONAL,INTENT(IN)               :: RealScalar
-INTEGER,OPTIONAL,INTENT(IN)            :: IntegerScalar
-CHARACTER(LEN=255),OPTIONAL,INTENT(IN) :: StrScalar
-LOGICAL,OPTIONAL,INTENT(IN)            :: LogicalScalar
+INTEGER(HID_T)    ,INTENT(IN)           :: Loc_ID_in
+CHARACTER(LEN=*)  ,INTENT(IN)           :: AttribName
+INTEGER           ,INTENT(IN)           :: nVal
+CHARACTER(LEN=*)  ,INTENT(IN),OPTIONAL  :: DatasetName
+REAL              ,INTENT(IN),OPTIONAL,TARGET :: RealScalar
+INTEGER           ,INTENT(IN),OPTIONAL,TARGET :: IntegerScalar
+CHARACTER(LEN=*)  ,INTENT(IN),OPTIONAL,TARGET :: StrScalar(1)
+REAL              ,INTENT(IN),OPTIONAL,TARGET :: RealArray(nVal)
+INTEGER           ,INTENT(IN),OPTIONAL,TARGET :: IntegerArray(nVal)
+CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray(nVal)
+LOGICAL           ,INTENT(IN),OPTIONAL        :: LogicalScalar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: Rank
-INTEGER(HID_T)                 :: DataSpace,Attr_ID,Loc_ID,aType_ID
+INTEGER(HID_T)                 :: DataSpace,Attr_ID,Loc_ID,Type_ID
 INTEGER(HSIZE_T), DIMENSION(1) :: Dimsf
 INTEGER(SIZE_T)                :: AttrLen
-INTEGER                        :: logtoint
+INTEGER,TARGET                 :: logtoint
+TYPE(C_PTR)                    :: buf
 !===================================================================================================================================
 LOGWRITE(*,*)' WRITE ATTRIBUTE "',TRIM(AttribName),'" TO HDF5 FILE...'
 IF(PRESENT(DataSetName))THEN
@@ -762,50 +957,49 @@ Dimsf(:)=0 !???
 Dimsf(1)=nVal
 CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, DataSpace, iError)
 ! Create the attribute for group Loc_ID.
-! Write the attribute data.
-IF(PRESENT(RealArray))THEN
-  CALL H5ACREATE_F(Loc_ID, TRIM(AttribName), H5T_NATIVE_DOUBLE, DataSpace, Attr_ID, iError)
-  CALL H5AWRITE_F(Attr_ID, H5T_NATIVE_DOUBLE, RealArray, Dimsf, iError)
-END IF
-IF(PRESENT(RealScalar))THEN
-  CALL H5ACREATE_F(Loc_ID, TRIM(AttribName), H5T_NATIVE_DOUBLE, DataSpace, Attr_ID, iError)
-  CALL H5AWRITE_F(Attr_ID, H5T_NATIVE_DOUBLE, RealScalar, Dimsf, iError)
-END IF
-IF(PRESENT(IntegerArray))THEN
-  CALL H5ACREATE_F(Loc_ID, TRIM(AttribName), H5T_NATIVE_INTEGER, DataSpace, Attr_ID, iError)
-  CALL H5AWRITE_F(Attr_ID, H5T_NATIVE_INTEGER, IntegerArray, Dimsf, iError)
-END IF
-IF(PRESENT(IntegerScalar))THEN
-  CALL H5ACREATE_F(Loc_ID, TRIM(AttribName), H5T_NATIVE_INTEGER, DataSpace, Attr_ID, iError)
-  CALL H5AWRITE_F(Attr_ID, H5T_NATIVE_INTEGER, IntegerScalar, Dimsf, iError)
-END IF
+IF(PRESENT(RealScalar))    Type_ID=H5T_NATIVE_DOUBLE
+IF(PRESENT(RealArray))     Type_ID=H5T_NATIVE_DOUBLE
+IF(PRESENT(IntegerScalar)) Type_ID=H5T_NATIVE_INTEGER
+IF(PRESENT(IntegerArray))  Type_ID=H5T_NATIVE_INTEGER
 IF(PRESENT(LogicalScalar))THEN
-  IF(logicalScalar)THEN
-    logtoint=1
-  ELSE
-    logtoint=0
-  END IF
-  CALL H5ACREATE_F(Loc_ID, TRIM(AttribName), H5T_NATIVE_INTEGER, DataSpace, Attr_ID, iError)
-  CALL H5AWRITE_F(Attr_ID, H5T_NATIVE_INTEGER, logtoint, Dimsf, iError)
+  LogToInt=MERGE(1,0,LogicalScalar)
+  Type_ID=H5T_NATIVE_INTEGER
 END IF
-IF(PRESENT(StrScalar))THEN
+IF(PRESENT(StrScalar).OR.PRESENT(StrArray))THEN
   ! Create character string datatype for the attribute.
   ! For a attribute character, we have to build our own type with corresponding attribute length
-  CALL H5TCOPY_F(H5T_NATIVE_CHARACTER, atype_id, iError)
-  AttrLen=255
-  CALL H5TSET_SIZE_F(aType_ID, AttrLen, iError)
-  CALL H5ACREATE_F(Loc_ID, TRIM(AttribName), aType_ID, DataSpace, Attr_ID, iError)
-  CALL H5AWRITE_F(Attr_ID, aType_ID, StrScalar, Dimsf, iError)
-END IF
-IF(PRESENT(StrArray))THEN
-  ! Create character string array datatype for the attribute.
-  ! For a attribute character, we have to build our own type with corresponding attribute length
-  CALL H5TCOPY_F(H5T_NATIVE_CHARACTER, atype_id, iError)
-  AttrLen=255
-  CALL H5TSET_SIZE_F(aType_ID, AttrLen, iError)
-  CALL H5ACREATE_F(Loc_ID, TRIM(AttribName), aType_ID, DataSpace, Attr_ID, iError)
-  CALL H5AWRITE_F(Attr_ID, aType_ID, StrArray, Dimsf, iError)
-END IF
+  IF(PRESENT(StrScalar))THEN
+    AttrLen=LEN(StrScalar(1))
+  ELSE
+    AttrLen=255
+  END IF
+  CALL H5TCOPY_F(H5T_NATIVE_CHARACTER, Type_ID, iError)
+  CALL H5TSET_SIZE_F(Type_ID, AttrLen, iError)
+ENDIF
+
+CALL H5ACREATE_F(Loc_ID, TRIM(AttribName), Type_ID, DataSpace, Attr_ID, iError)
+! Write the attribute data.
+#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
+IF(PRESENT(RealArray))     CALL H5AWRITE_F(Attr_ID, Type_ID, RealArray,     Dimsf, iError)
+IF(PRESENT(RealScalar))    CALL H5AWRITE_F(Attr_ID, Type_ID, RealScalar,    Dimsf, iError)
+IF(PRESENT(IntegerArray))  CALL H5AWRITE_F(Attr_ID, Type_ID, IntegerArray,  Dimsf, iError)
+IF(PRESENT(IntegerScalar)) CALL H5AWRITE_F(Attr_ID, Type_ID, IntegerScalar, Dimsf, iError)
+IF(PRESENT(LogicalScalar)) CALL H5AWRITE_F(Attr_ID, Type_ID, LogToInt,      Dimsf, iError)
+IF(PRESENT(StrScalar))     CALL H5AWRITE_F(Attr_ID, Type_ID, StrScalar,     Dimsf, iError)
+IF(PRESENT(StrArray))      CALL H5AWRITE_F(Attr_ID, Type_ID, StrArray,      Dimsf, iError)
+#else /* HDF5_F90 */
+IF(PRESENT(RealArray))     buf=C_LOC(RealArray)
+IF(PRESENT(RealScalar))    buf=C_LOC(RealScalar)
+IF(PRESENT(IntegerArray))  buf=C_LOC(IntegerArray)
+IF(PRESENT(IntegerScalar)) buf=C_LOC(IntegerScalar)
+IF(PRESENT(LogicalScalar)) buf=C_LOC(LogToInt)
+IF(PRESENT(StrScalar))     buf=C_LOC(StrScalar(1))
+IF(PRESENT(StrArray))      buf=C_LOC(StrArray(1))
+CALL H5AWRITE_F(Attr_ID, Type_ID, buf, iError)
+#endif /* HDF5_F90 */
+
+! Close datatype
+IF(PRESENT(StrScalar).OR.PRESENT(StrArray)) CALL H5TCLOSE_F(Type_ID, iError)
 ! Close dataspace
 CALL H5SCLOSE_F(DataSpace, iError)
 ! Close the attribute.
@@ -816,87 +1010,5 @@ IF(Loc_ID.NE.Loc_ID_in)THEN
 END IF
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE WriteAttributeToHDF5
-
-SUBROUTINE WriteToHDF5_multiD(DataSetName,rank,dimsf,counter,offset,RealArray,existing,WriteData_in)
-!===================================================================================================================================
-! Subroutine to read data from HDF5 format
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)            :: DataSetName
-INTEGER,INTENT(IN)                     :: rank
-INTEGER(HSIZE_T), INTENT(IN)           :: dimsf(rank)
-INTEGER(HSIZE_T), INTENT(IN)           :: counter(rank)
-INTEGER(HSIZE_T),INTENT(IN)            :: offset(rank)
-REAL,INTENT(IN)                        :: RealArray(1:*)!counter(1),counter(2),counter(3),counter(4),counter(5),counter(6))
-LOGICAL,INTENT(IN)                     :: existing
-LOGICAL,OPTIONAL,INTENT(IN)            :: WriteData_in
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER(HID_T)                         :: plist_id,dset_id,HDF5DataType
-INTEGER(HID_T)                         :: memspace,filespace
-LOGICAL                                :: WriteData
-!===================================================================================================================================
-LOGWRITE(*,'(A,I1.1,A,A,A)')' WRITE ',Rank,'D ARRAY "',TRIM(DataSetName),'" TO HDF5 FILE...'
-
-! Create the dataset with default properties.
-HDF5DataType=H5T_NATIVE_DOUBLE
-
-IF(existing)THEN
-  CALL H5DOPEN_F(File_ID, TRIM(DatasetName),DSet_ID, iError)
-ELSE
-  ! Create the data space for the dataset. 
-  CALL H5SCREATE_SIMPLE_F(rank,dimsf,filespace,iError)
-  ! Create the dataset with default properties.
-  CALL H5DCREATE_F(file_id,TRIM(DataSetName),HDF5DataType,filespace,dset_id,iError)
-  CALL H5SCLOSE_F(filespace,iError)
-END IF
-! In the MPI case there may be processors that do not need to write to the data set (e.g. BCFace_xGP). Therefor we have the optional
-! argument "WriteData_in".
-#ifdef MPI
-IF(PRESENT(WriteData_in))THEN
-  WriteData=WriteData_in
-ELSE
-  WriteData=.TRUE.
-END IF
-#else
-WriteData=.TRUE.
-#endif
-! Each process defines dataset in memory and writes it to the hyperslab in the file.
-CALL H5SCREATE_SIMPLE_F(rank,counter,memspace,iError)
-! Select hyperslab in the file. If no data has to be written, select empty space in file and memory
-CALL h5dget_space_f(dset_id,filespace,iError)
-IF(WriteData)THEN 
-  CALL h5sselect_hyperslab_f(filespace,H5S_SELECT_SET_F,offset,counter,iError)
-ELSE
-  CALL h5sselect_none_f(memspace,iError)
-  CALL h5sselect_none_f(filespace,iError)
-END IF
-! Create property list for collective dataset write
-CALL h5pcreate_f(H5P_DATASET_XFER_F,plist_id,iError)
-#ifdef MPI
-! Set property list to collective dataset read
-CALL H5PSET_DXPL_MPIO_F(plist_id, H5FD_MPIO_COLLECTIVE_F, iError)
-#endif
-! Write the dataset collectively.
-!IF(WriteData)THEN
-  CALL h5dwrite_f(dset_id,HDF5DataType,RealArray,dimsf,iError,                   &
-                  file_space_id=filespace,mem_space_id=memspace,xfer_prp=plist_id)
-!END IF
-! Close dataspaces.
-CALL h5sclose_f(filespace,iError)
-CALL h5sclose_f(memspace,iError)
-! Close the dataset and property list.
-CALL h5dclose_f(dset_id, iError)
-CALL h5pclose_f(plist_id, iError)
-
-LOGWRITE(*,*)'...DONE!'
-END SUBROUTINE WriteToHDF5_multiD 
 
 END MODULE MOD_HDF5_output

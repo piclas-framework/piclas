@@ -45,6 +45,14 @@ INTERFACE GETFREEUNIT
   MODULE PROCEDURE GETFREEUNIT
 END INTERFACE GETFREEUNIT
 
+INTERFACE CreateErrFile
+  MODULE PROCEDURE CreateErrFile
+END INTERFACE CreateErrFile
+
+INTERFACE CROSS
+  MODULE PROCEDURE CROSS
+END INTERFACE CROSS
+
 !===================================================================================================================================
 CONTAINS
 
@@ -69,6 +77,7 @@ REAL,OPTIONAL                     :: RealInfoOpt     ! Error info (real)
 !   There is no way back!
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                           :: errOut          ! Output of MPI_ABORT
 INTEGER                           :: IntInfo         ! Error info (integer)
 REAL                              :: RealInfo        ! Error info (real)
 !===================================================================================================================================
@@ -86,11 +95,37 @@ WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
 !CALL delete()
 #ifdef MPI
-CALL MPI_ABORT(MPI_COMM_WORLD,iError)
+CALL MPI_ABORT(MPI_COMM_WORLD,iError,errOut)
 #endif
 STOP 0001
 END SUBROUTINE Abort
 
+
+SUBROUTINE CreateErrFile()
+!===================================================================================================================================
+! Open file for error output
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: OpenStat
+LOGICAL                        :: isOpen
+!===================================================================================================================================
+INQUIRE(UNIT=UNIT_errOut,OPENED=isOpen)
+IF(.NOT.isOpen)THEN
+  OPEN(UNIT=UNIT_errOut,  &
+       FILE=ErrorFileName,&
+       STATUS='REPLACE',  &
+       ACTION='WRITE',    &
+       IOSTAT=OpenStat)
+END IF
+END SUBROUTINE CreateErrFile
 
 
 FUNCTION INTSTAMP(Nam,Num)
@@ -209,18 +244,18 @@ PURE FUNCTION CROSS(v1,v2)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
-    IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-    REAL,INTENT(IN) :: v1(3)    ! 
-    REAL,INTENT(IN) :: v2(3)    ! 
+REAL,INTENT(IN) :: v1(3)    ! 
+REAL,INTENT(IN) :: v2(3)    ! 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-    REAL            :: CROSS(3) !
+REAL            :: CROSS(3) !
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 !===================================================================================================================================
-  CROSS=(/v1(2)*v2(3)-v1(3)*v2(2),v1(3)*v2(1)-v1(1)*v2(3),v1(1)*v2(2)-v1(2)*v2(1)/)
+CROSS=(/v1(2)*v2(3)-v1(3)*v2(2),v1(3)*v2(1)-v1(1)*v2(3),v1(1)*v2(2)-v1(2)*v2(1)/)
 END FUNCTION CROSS
 
 FUNCTION CROSSNORM(v1,v2)

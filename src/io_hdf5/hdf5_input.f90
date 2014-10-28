@@ -220,6 +220,7 @@ SUBROUTINE ReadCoordsFromHDF5(Loc_ID,ArrayName,nVal,ElementList,CoordArray)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE,INTRINSIC :: ISO_C_BINDING
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -230,13 +231,14 @@ INTEGER(HID_T), INTENT(IN)         :: Loc_ID
 CHARACTER(LEN=*),INTENT(IN)        :: ArrayName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                   :: CoordArray(nVal(1),nVal(2))
+REAL,INTENT(OUT),TARGET            :: CoordArray(nVal(1),nVal(2))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: rank,i,j
 INTEGER(HID_T)                 :: DSet_ID, MemSpace, FileSpace, PList_ID
 INTEGER(SIZE_T)                :: num_elements
 INTEGER(HSIZE_T)               :: Coords(2,nVal(1)*nVal(2)),Dimsf(2)
+TYPE(C_PTR)                    :: buf
 !===================================================================================================================================
 rank=2
 LOGWRITE(*,'(A,I1.1,A,A,A)')'    READ ',Rank,'D ARRAY "',TRIM(ArrayName),'"'
@@ -263,9 +265,16 @@ CALL H5PCREATE_F(H5P_DATASET_XFER_F, PList_ID, iError)
 ! Set property list to collective dataset read
 CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F, iError)
 #endif
+
 ! Read the data
+#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
 CALL H5DREAD_F(DSet_ID,H5T_NATIVE_DOUBLE,CoordArray,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-! Close the property list
+#else
+buf=C_LOC(CoordArray)
+CALL H5DREAD_F(DSet_ID,H5T_NATIVE_DOUBLE,buf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
+#endif /* HDF5_F90 */
+
+! Close the property list, dataspaces and dataset.
 CALL H5PCLOSE_F(PList_ID,iError)
 ! Close the file dataspace
 CALL H5SCLOSE_F(FileSpace,iError)
@@ -284,6 +293,7 @@ SUBROUTINE ReadArray(ArrayName,Rank,nVal,Offset_in,Offset_dim,RealArray,IntegerA
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE,INTRINSIC :: ISO_C_BINDING
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -295,13 +305,14 @@ INTEGER                        :: nVal(Rank)            ! size of complete (loca
 CHARACTER(LEN=*),INTENT(IN)    :: ArrayName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL              ,DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT) :: RealArray
-INTEGER           ,DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT) :: IntegerArray
-CHARACTER(LEN=255),DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT) :: StrArray
+REAL              ,DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET :: RealArray
+INTEGER           ,DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET :: IntegerArray
+CHARACTER(LEN=255),DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET :: StrArray
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                                                   :: DSet_ID,Type_ID,MemSpace,FileSpace,PList_ID
 INTEGER(HSIZE_T)                                                 :: Offset(Rank),Dimsf(Rank)
+TYPE(C_PTR)                                                      :: buf
 !===================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')'    READ ',Rank,'D ARRAY "',TRIM(ArrayName),'"'
 Dimsf=nVal
@@ -319,24 +330,31 @@ CALL H5PCREATE_F(H5P_DATASET_XFER_F, PList_ID, iError)
 ! Set property list to collective dataset read
 CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F, iError)
 #endif
+CALL H5DGET_TYPE_F(DSet_ID, Type_ID, iError)
+
 ! Read the data
+#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
 IF(PRESENT(RealArray))THEN
-  CALL H5DREAD_F(DSet_ID,H5T_NATIVE_DOUBLE,&
-                     RealArray,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
+  CALL H5DREAD_F(DSet_ID,Type_ID,RealArray,Dimsf,&
+                 iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
 END IF
 IF(PRESENT(IntegerArray))THEN
-  CALL H5DREAD_F(DSet_ID,H5T_NATIVE_INTEGER,&
-                  IntegerArray,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
+  CALL H5DREAD_F(DSet_ID,Type_ID,IntegerArray,Dimsf,&
+                 iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
 END IF
 IF(PRESENT(StrArray))THEN
-  ! Get datatype for the character string array
-  CALL H5DGET_TYPE_F(DSet_ID, Type_ID, iError)
-  CALL H5DREAD_F(DSet_ID,Type_ID,&
-                      StrArray,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-  CALL H5TCLOSE_F(Type_ID, iError)
+  CALL H5DREAD_F(DSet_ID,Type_ID,StrArray,Dimsf,&
+                 iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
 END IF
+#else /*HDF5_F90*/
+IF(PRESENT(RealArray))    buf=C_LOC(RealArray)
+IF(PRESENT(IntegerArray)) buf=C_LOC(IntegerArray)
+IF(PRESENT(StrArray))     buf=C_LOC(StrArray(1))
+CALL H5DREAD_F(DSet_ID,Type_ID,buf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
+#endif /*HDF5_F90*/
 
-! Close the property list
+! Close the datatype, property list, dataspaces and dataset.
+CALL H5TCLOSE_F(Type_ID, iError)
 CALL H5PCLOSE_F(PList_ID,iError)
 ! Close the file dataspace
 CALL H5SCLOSE_F(FileSpace,iError)
@@ -350,13 +368,14 @@ END SUBROUTINE ReadArray
 
 
 
-SUBROUTINE ReadAttributeFromHDF5(Loc_ID_in,AttribName,nVal,DatasetName,RealScalar,IntegerScalar,StrScalar,LogicalScalar,&
-                                                                       RealArray,IntegerArray,StrArray)
+SUBROUTINE ReadAttributeFromHDF5(Loc_ID_in,AttribName,nVal,DatasetName,RealScalar,IntegerScalar,&
+                                 StrScalar,LogicalScalar,RealArray,IntegerArray,StrArray)
 !===================================================================================================================================
 ! Subroutine to read attributes from HDF5 file.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE,INTRINSIC :: ISO_C_BINDING
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -367,18 +386,21 @@ CHARACTER(LEN=*), INTENT(IN)         :: AttribName
 CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: DatasetName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL              ,OPTIONAL :: RealArray(nVal)
-INTEGER           ,OPTIONAL :: IntegerArray(nVal)
-REAL              ,OPTIONAL :: RealScalar
-INTEGER           ,OPTIONAL :: IntegerScalar
-LOGICAL           ,OPTIONAL :: LogicalScalar
-CHARACTER(LEN=255),OPTIONAL :: StrScalar
-CHARACTER(LEN=255),OPTIONAL :: StrArray(nVal)
+REAL              ,OPTIONAL,TARGET :: RealArray(nVal)
+INTEGER           ,OPTIONAL,TARGET :: IntegerArray(nVal)
+REAL              ,OPTIONAL,TARGET :: RealScalar
+INTEGER           ,OPTIONAL,TARGET :: IntegerScalar
+CHARACTER(LEN=255),OPTIONAL,TARGET :: StrScalar
+CHARACTER(LEN=255),OPTIONAL,TARGET :: StrArray(nVal)
+LOGICAL           ,OPTIONAL        :: LogicalScalar
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID
 INTEGER(HSIZE_T), DIMENSION(1) :: Dimsf
-INTEGER                        :: IntToLog,i
+INTEGER                        :: i
+INTEGER,TARGET                 :: IntToLog
+CHARACTER(LEN=255),TARGET      :: StrTmp(1)
+TYPE(C_PTR)                    :: buf
 !===================================================================================================================================
 LOGWRITE(*,*)' READ ATTRIBUTE "',TRIM(AttribName),'" FROM HDF5 FILE...'
 Dimsf(1)=nVal
@@ -390,46 +412,44 @@ END IF
 ! Create scalar data space for the attribute.
 ! Create the attribute for group Loc_ID.
 CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
-! Write the attribute data.
-IF(PRESENT(RealArray))THEN
-  RealArray=0.
-  CALL H5AREAD_F(Attr_ID, H5T_NATIVE_DOUBLE, RealArray, Dimsf, iError)
-END IF
-IF(PRESENT(RealScalar))THEN
-  RealScalar=0.
-  CALL H5AREAD_F(Attr_ID, H5T_NATIVE_DOUBLE, RealScalar, Dimsf, iError)
-END IF
-IF(PRESENT(IntegerArray))THEN
-  IntegerArray=0
-  CALL H5AREAD_F(Attr_ID, H5T_NATIVE_INTEGER, IntegerArray, Dimsf, iError)
-END IF
-IF(PRESENT(IntegerScalar))THEN
-  IntegerScalar=0
-  CALL H5AREAD_F(Attr_ID, H5T_NATIVE_INTEGER, IntegerScalar, Dimsf, iError)
-END IF
-IF(PRESENT(LogicalScalar))THEN
-  LogicalScalar=.FALSE.
-  CALL H5AREAD_F(Attr_ID, H5T_NATIVE_INTEGER, IntToLog, Dimsf, iError)
-  LogicalScalar=(inttolog.EQ.1)
-END IF
-IF(PRESENT(StrScalar))THEN
-  StrScalar=''
-  CALL H5AGET_TYPE_F(Attr_ID, Type_ID, iError)  ! Get HDF5 data type for character string
-  CALL H5AREAD_F(Attr_ID, Type_ID, StrScalar, Dimsf, iError)
-  CALL H5TCLOSE_F(Type_ID, iError)
-  LOGWRITE(*,*)' SCALAR STRING READ "',TRIM(StrScalar)
-END IF
+CALL H5AGET_TYPE_F(Attr_ID, Type_ID, iError)
+
+! Nullify
+IF(PRESENT(RealArray))     RealArray=0.
+IF(PRESENT(RealScalar))    RealScalar=0.
+IF(PRESENT(IntegerArray))  IntegerArray=0
+IF(PRESENT(IntegerScalar)) IntegerScalar=0
+IF(PRESENT(LogicalScalar)) LogicalScalar=.FALSE.
+IF(PRESENT(StrScalar))     StrScalar=''
 IF(PRESENT(StrArray))THEN
   DO i=1,nVal
     StrArray(i)=''
   END DO
-  CALL H5AGET_TYPE_F(Attr_ID, Type_ID, iError)  ! Get HDF5 data type for character string
-  CALL H5AREAD_F(Attr_ID, Type_ID, StrArray, Dimsf, iError)
-  CALL H5TCLOSE_F(Type_ID, iError)
-  DO i=1,nVal
-    LOGWRITE(*,*)' ARRAY STRING READ "',TRIM(StrArray(i))
-  END DO
 END IF
+
+! Read the attribute data.
+#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
+IF(PRESENT(RealArray))      CALL H5AREAD_F(Attr_ID, Type_ID, RealArray,     Dimsf, iError)
+IF(PRESENT(RealScalar))     CALL H5AREAD_F(Attr_ID, Type_ID, RealScalar,    Dimsf, iError)
+IF(PRESENT(IntegerArray))   CALL H5AREAD_F(Attr_ID, Type_ID, IntegerArray,  Dimsf, iError)
+IF(PRESENT(IntegerScalar))  CALL H5AREAD_F(Attr_ID, Type_ID, IntegerScalar, Dimsf, iError)
+IF(PRESENT(LogicalScalar))  CALL H5AREAD_F(Attr_ID, Type_ID, IntToLog,      Dimsf, iError)
+IF(PRESENT(StrScalar))      CALL H5AREAD_F(Attr_ID, Type_ID, StrScalar,     Dimsf, iError)
+IF(PRESENT(StrArray))       CALL H5AREAD_F(Attr_ID, Type_ID, StrArray,      Dimsf, iError)
+#else /* HDF5_F90 */
+IF(PRESENT(RealArray))      buf=C_LOC(RealArray)
+IF(PRESENT(RealScalar))     buf=C_LOC(RealScalar)
+IF(PRESENT(IntegerArray))   buf=C_LOC(IntegerArray)
+IF(PRESENT(IntegerScalar))  buf=C_LOC(IntegerScalar)
+IF(PRESENT(LogicalScalar))  buf=C_LOC(IntToLog)
+IF(PRESENT(StrScalar))      buf=C_LOC(StrTmp(1))
+IF(PRESENT(StrArray))       buf=C_LOC(StrArray(1))
+CALL H5AREAD_F(Attr_ID, Type_ID, buf, iError)
+IF(PRESENT(StrScalar))      StrScalar=StrTmp(1)
+#endif /* HDF5_F90 */
+IF(PRESENT(LogicalScalar)) LogicalScalar=(IntToLog.EQ.1)
+
+CALL H5TCLOSE_F(Type_ID, iError)
 ! Close the attribute.
 CALL H5ACLOSE_F(Attr_ID, iError)
 IF(Loc_ID.NE.Loc_ID_in)THEN

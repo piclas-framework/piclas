@@ -391,7 +391,7 @@ IF (CalcPoyntingInt) THEN
 END IF
 
 ! fill recordpoints buffer
-IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.FALSE.) 
+IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.) 
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC & DG-Sovler
