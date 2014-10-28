@@ -22,6 +22,7 @@ LOGICAl            :: WriteNewMesh        = .TRUE.
 LOGICAL            :: InterpolateSolution =.FALSE.
 LOGICAL            :: PrimScaling
 CHARACTER(LEN=300) :: RestartFile
+CHARACTER(LEN=255) :: NodeType_Restart
 REAL               :: RestartTime
 !===================================================================================================================================
 END MODULE MOD_Restart_Vars

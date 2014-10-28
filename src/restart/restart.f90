@@ -36,7 +36,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars, ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
-USE MOD_HDF5_Input,ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute
+USE MOD_HDF5_Input,ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
 USE MOD_ReadInTools,ONLY:GETLOGICAL,GETREALARRAY,ReadInDone 
 #ifdef PARTICLES
 USE MOD_DSMC_Vars,ONLY: UseDSMC
@@ -90,8 +90,10 @@ IF (nArgs .EQ. maxNArgs) THEN
   CALL GETARG(maxNArgs,RestartFile)
   SWRITE(UNIT_StdOut,'(A,A,A)')' | Restarting from file "',TRIM(RestartFile),'":'
   DoRestart = .TRUE.
-  CALL OpenDataFile(RestartFile,.FALSE.)
-  CALL GetDataProps(nVar_Restart,N_Restart,nElems_Restart)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+  CALL GetDataProps(nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+  ! Read in time from restart file
+  CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
   CALL CloseDataFile() 
   PrimScaling=GETLOGICAL('PrimScaling','.FALSE.')
   IF(PrimScaling) PrimScale=GETREALARRAY('PrimScale',PP_nVar)
@@ -211,9 +213,9 @@ INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PMPI
 !===================================================================================================================================
 IF(DoRestart)THEN
 SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
-  CALL OpenDataFile(RestartFile,.FALSE.)
+   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
   ! Read in time from restart file
-  CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
+  !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
   ! Read in state
   IF(.NOT. InterpolateSolution)THEN
     ! No interpolation needed, read solution directly from file
@@ -348,8 +350,8 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
       IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
         PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
         PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-        PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-        PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
+        PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
+        PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
       ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
         PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
         PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)

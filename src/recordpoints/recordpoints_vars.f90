@@ -1,6 +1,6 @@
 MODULE MOD_RecordPoints_Vars
 !===================================================================================================================================
-! Contains the parameters needed for the Navier Stokes calculation
+! Variables needed for the evaluation of the record points
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -10,66 +10,31 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
-CHARACTER(LEN=255) :: RPDefFile
+CHARACTER(LEN=255) :: RPDefFile               ! file with elementlocal parametric RP coords
 LOGICAL            :: RecordPointsInitIsDone = .FALSE.
-INTEGER            :: RP_OutputInterval
-INTEGER            :: RP_SamplingOffset
 LOGICAL            :: RP_inUse  = .FALSE.
 LOGICAL            :: RP_onProc = .FALSE.
-INTEGER            :: nRP_loc
-INTEGER            :: nRP_global
-INTEGER            :: offsetRP_loc
-INTEGER(KIND=8)    :: iSample,iSample_lastWrite
-INTEGER,ALLOCATABLE:: OffsetRP(:,:)
-INTEGER,ALLOCATABLE:: RP_ElemID(:)
-REAL,ALLOCATABLE   :: xi_RP(:,:)
-REAL,ALLOCATABLE   :: L_xi_RP(:,:)
-REAL,ALLOCATABLE   :: L_eta_RP(:,:)
-REAL,ALLOCATABLE   :: L_zeta_RP(:,:)
-REAL,ALLOCATABLE   :: u_RP(:,:,:)
+LOGICAL            :: RP_fileExists = .FALSE. ! flag if RP file for analyze level has been created
+INTEGER            :: RP_Buffersize           ! no. of time samples (size of RP_Data)
+INTEGER            :: RP_MaxBuffersize        ! max. allowed no. of time samples
+INTEGER            :: RP_SamplingOffset       ! sampling rate (each .. iterations)
+INTEGER            :: nRP                     ! no. of RP on proc
+INTEGER            :: nGlobalRP               ! total no. of RP
+INTEGER            :: offsetRP                ! offset for each proc in global RP list
+INTEGER            :: iSample=0               ! no of samples in array
+INTEGER            :: nSamples=0              ! total no. samples in case of multiple io steps
+INTEGER,ALLOCATABLE:: RP_ElemID(:)            ! mapping from RP->Elem (nRP)
+REAL,ALLOCATABLE   :: L_xi_RP(:,:)            ! lagrange basis evaluated at RPs coords
+REAL,ALLOCATABLE   :: L_eta_RP(:,:)            
+REAL,ALLOCATABLE   :: L_zeta_RP(:,:)          
+REAL,ALLOCATABLE   :: RP_Data(:,:,:)          ! solution evaluated at RPs (nvar,nRP,nSamples)
+REAL,ALLOCATABLE   :: lastSample(:,:)         ! solution evaluated at RPs (nvar,nRP,nSamples)
+CHARACTER(LEN=255) :: StrVarNames(PP_nVar)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! MPI Communicator for RPs
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER            :: myRPrank
 INTEGER            :: RP_COMM
 INTEGER            :: nRP_Procs
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Output Buffer
-!-----------------------------------------------------------------------------------------------------------------------------------
-TYPE tRPset
-  REAL,ALLOCATABLE     :: data(:,:,:)
-  INTEGER(KIND=8)      :: Offset 
-  TYPE(tRPset),POINTER :: nextset
-END TYPE tRPset
-
-TYPE(tRPset),POINTER   :: firstset, actualset
-!===================================================================================================================================
-
-INTERFACE getNewRPset
-  MODULE PROCEDURE getNewRPset
-END INTERFACE getNewRPset
-
-PUBLIC :: getNewRPset
-
-CONTAINS 
-
-SUBROUTINE getNewRPset(RPset,Offset)
-!===================================================================================================================================
-! Read RP parameters from ini file and RP definitions from HDF5 
-!===================================================================================================================================
-! MODULES
-USE MOD_Preproc
-IMPLICIT NONE
-! INPUT VARIABLES
-INTEGER(KIND=8),INTENT(IN)    :: Offset
-! OUTPUT VARIABLES
-TYPE(tRPset),POINTER          :: RPset
-!===================================================================================================================================
-ALLOCATE(RPset)
-ALLOCATE(RPset%data(0:PP_nVar,1:nRP_loc,1:RP_OutputInterval))
-RPset%data=0.
-NULLIFY(RPset%nextset)
-RPset%Offset=Offset
-END SUBROUTINE getNewRPset
 
 END MODULE MOD_recordPoints_Vars
