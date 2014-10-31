@@ -1,4 +1,5 @@
 #include "boltzplatz.h"
+#ifdef PARTICLES
 
 MODULE MOD_OutPutVTK
 !===================================================================================================================================
@@ -220,3 +221,4 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."
 END SUBROUTINE WriteDataToVTKBin
 
 END MODULE MOD_OutPutVTK
+#endif /*PARTICLES*/

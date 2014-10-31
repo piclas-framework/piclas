@@ -1204,8 +1204,7 @@ INTEGER,INTENT(IN) :: SideID,NGeo
 !INTEGER                           :: lastSideID,flip,SideID
 INTEGER            :: p,q
 !REAL                              :: tmp(3,0:NGeo,0:NGeo)  
-REAL               :: dummy,skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
-REAL               :: a(3),b(3)
+REAL               :: skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
 LOGICAL            :: SideIsPlanar
 LOGICAL            :: SideIsCritical
 !===================================================================================================================================
@@ -1524,6 +1523,11 @@ DO iSide=1,nSides
       v1=BezierControlPoints3D(:,NGeo,0,iSide)-BezierControlPoints3D(:,0,0,iSide)
       v2=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,0,0,iSide)
       SideNormVec(:,iSide) = CROSSNORM(v1,v2)
+      v1=0.25*(BezierControlPoints3D(:,0,0,iSide)     &
+              +BezierControlPoints3D(:,NGeo,0,iSide)  &
+              +BezierControlPoints3D(:,0,NGeo,iSide)  &
+              +BezierControlPoints3D(:,NGeo,NGeo,iSide))
+      SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
     END IF ! BoundingBoxIsEmpty
   END IF ! isLinear
 END DO ! iSide

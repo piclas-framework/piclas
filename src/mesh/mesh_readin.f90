@@ -195,11 +195,11 @@ DEALLOCATE(HSize)
 #ifdef MPI
 IF (DoRestart) THEN 
   CALL CloseDataFile() 
-  CALL OpenDataFile(RestartFile,.FALSE.)
+  CALL OpenDataFile(RestartFile,.FALSE.,single=.FALSE.)
   ALLOCATE(PartInt(1:nGlobalElems,2))
   CALL ReadArray('PartInt',2,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
   CALL CloseDataFile() 
-  CALL OpenDataFile(FileString,create=.FALSE.)
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
 END IF
 
 !simple partition: nGlobalelems/nprocs, do this on proc 0

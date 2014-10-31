@@ -77,8 +77,8 @@ CALL InitDG()
 CALL InitFilter()
 CALL InitTimeDisc()
 #ifdef PARTICLES
-CALL InitParticles()
 CALL InitParticleSurfaces()
+CALL InitParticles()
 #endif
 CALL InitParticleAnalyze()
 CALL InitAnalyze()

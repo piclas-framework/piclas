@@ -28,7 +28,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-INTEGER                       :: nPair, iPart, iLoop, nPart, iNode
+INTEGER                       :: iPart, iLoop, nPart, iNode
 ! input variable declaration                                                                       !
 INTEGER, INTENT(IN)           :: iElem
 REAL                          :: ApproxElemMid(1:3)
@@ -57,7 +57,6 @@ TYPE(tTreeNode), POINTER      :: TreeNode
     END DO
     TreeNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) / 8.0
     TreeNode%PNum_Node = nPart
-    !TreeNode%PairNum_Node = nPair  
     CALL AddOctreeNode(TreeNode, iElem)
   ELSE  IF (nPart.GT.1) THEN
     CALL FindNearestNeigh(TreeNode%iPartIndx_Node, nPart &
@@ -83,7 +82,7 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem)
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-INTEGER                       :: nPair, iPart, iLoop, iLoop2, iNode, iPartIndx
+INTEGER                       :: iPart, iLoop, iPartIndx
 ! input variable declaration                                                                       !
 INTEGER, INTENT(IN)                     :: iElem
 TYPE(tTreeNode),INTENT(IN), POINTER     :: TreeNode
@@ -220,7 +219,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-INTEGER                       :: iPair, nPair, iPart1, iPart2, iLoop, iPart, nPart, iSpec
+INTEGER                       :: iPair, iPart1, iPart2, iLoop, iPart, nPart
 INTEGER                       :: cSpec1, cSpec2, iCase , PairNum_Node, ProbMeanCellCount
 REAL                          :: Dist1, Dist2, iRan, CollMeanCell, ProbMeanCell
 REAL                          :: TempMPFFac, MPFFac

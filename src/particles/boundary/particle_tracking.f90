@@ -64,16 +64,15 @@ DO iPart=1,PDM%ParticleVecLength
     !LastElemID=ElemID
     ! DEBUUGGG
     !!!PartState(iPart,3)=LastPartPos(iPart,3)+2.0
-    IF(DOT_PRODUCT(PartState(iPart,1:3),PartState(iPart,1:3)).GT.0.52)THEN
+    IF(DOT_PRODUCT(LastPartPos(iPart,1:2),LastPartPos(iPart,1:2)).GT.0.52)THEN
       print*,'wuuumm'
       STOP
     END IF
-!    IF(iter.EQ.1)THEN
-!      print*,'ElemID',ElemID
-!      print*,'pos',LastPartPos(iPart,1:3)
-!      print*,'Trajectory',PartTrajectory
-!      read*
-!    END IF
+    IF(ABS(LastPartPos(ipart,3)).GT.0.2501)THEN
+      print*,'out of space'
+      STOP
+    END IF
+
 !    IF(time.GT.104.0)THEN
 !      print*,'ElemID',ElemID
 !    END IF
@@ -87,6 +86,22 @@ DO iPart=1,PDM%ParticleVecLength
     lastlocSide=-1
     oldXInterSection=HUGE(1.0)
     !print*,'partTrajectory',PartTrajectory
+
+
+!    IF(iter.EQ.326)THEN
+!      print*,'ElemID',ElemID
+!      print*,'pos',LastPartPos(iPart,1:3)
+!      print*,'Trajectory',PartTrajectory
+!      read*
+!    END IF
+!    IF(iter.GE.420)THEN
+!      print*,'ElemID',ElemID
+!      print*,'pos',LastPartPos(iPart,1:3)
+!      print*,'Trajectory',PartTrajectory
+!      read*
+!    END IF
+
+
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
@@ -187,7 +202,7 @@ SUBROUTINE ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,alpha,x
 USE MOD_Globals,                 ONLY:Cross,abort
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,ClipTolerance,ClipMaxInter,ClipMaxIter
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
@@ -210,8 +225,9 @@ REAL                                     :: n1(3),n2(3)
 INTEGER                                  :: nInterSections,iInter,p,q
 INTEGER                                  :: iClipIter,nXiClip,nEtaClip
 REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
+REAL                                     :: coeffA,locSideDistance
 INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID
-LOGICAL                                  :: foundInter
+LOGICAL                                  :: foundInter,firstClip
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
@@ -224,9 +240,19 @@ Eta  = 2.0
 ! If side is flat, than check if particle vector is perpenticular to side. if true, then particle moves parallel to or in side
 IF(BoundingBoxIsEmpty(SideID))THEN
   IF(ABS(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID))).LT.epsilontol) RETURN
+!  coeffA=DOT_PRODUCT(SideNormVec(:,SideID),PartTrajectory)
+!  IF(ABS(coeffA).LT.epsilontol) RETURN
+!  !! interaction should be computed in last step
+!  locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(:,SideID))
+!  alpha=locSideDistance/coeffA
+!  IF((alpha.GT.lengthPartTrajectory).OR.(alpha.LT.-epsilontol))THEN
+!    alpha=-1.0
+!    RETURN
+!  END IF
+!
+!ELSE 
 END IF ! BoundingBoxIsEmpty
-
-
+  
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
 IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
   IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
@@ -234,6 +260,7 @@ IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle
                                                                                               ! bounding box
   END IF
 END IF
+
 !IF(time.GT.28.07)THEN
 !  print*,'boundingbox hit- do clipping'
 !  print*,'SideID',SideID
@@ -294,7 +321,9 @@ iClipIter=1
 nXiClip=0
 nEtaClip=0
 nInterSections=0
-CALL BezierClip(BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+firstClip=.TRUE.
+CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
+               ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
 !IF(SideID.EQ.2)THEN
 !  print*,'nInterSections',nInterSections
@@ -372,7 +401,7 @@ END SELECT
 
 END SUBROUTINE ComputeBezierIntersection
 
-RECURSIVE SUBROUTINE BezierClip(BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iClipIter,nXiClip,nEtaClip&
+RECURSIVE SUBROUTINE BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iClipIter,nXiClip,nEtaClip&
                                ,nInterSections,iPart,SideID)
 !================================================================================================================================
 ! Performes the de-Casteljau alogrithm with Clipping to find the intersection between trajectory and surface
@@ -395,6 +424,7 @@ REAL,INTENT(IN),DIMENSION(1:3)       :: PartTrajectory
 ! REAL,INTENT(INOUT),DIMENSION(:)      :: locAlpha
 ! INTEGER,INTENT(INOUT),DIMENSION(:)   :: locXi,locEta,locID
 INTEGER,INTENT(INOUT)                :: iClipIter,nXiClip,nEtaClip,nInterSections
+LOGICAL,INTENT(INOUT)                :: firstClip
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(3,0:NGeo,0:NGeo)      :: ReducedBezierControlPoints
@@ -420,7 +450,11 @@ ClipTolerance2=ClipTolerance*ClipTolerance
 ! 3.) Bezier intersection: solution Newton's method or Bezier clipping
 ! outcome: no intersection, single intersection, multiple intersection with patch
 ! BEZIER CLIPPING: xi- and eta-direction
-DoXiClip=.TRUE.
+IF(.NOT.FirstClip)THEN
+  DoXiClip=.FALSE.
+ELSE
+  DoXiClip=.TRUE.
+END IF
 DoEtaClip=.TRUE.
 DoCheck=.TRUE.
 !nXiClip=0
@@ -536,8 +570,9 @@ DO iClipIter=iClipIter,ClipMaxIter
       tmpnClip=iClipIter+1
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
-      CALL BezierClip(BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory,tmpnClip,tmpnXi,tmpnEta &
-          ,nInterSections,iPart,SideID)
+      firstClip=.FALSE.
+      CALL BezierClip(firstClip,BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory &
+                     ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
 
       ! second split
       XiArray(:,iClipIter)=(/XiMin,XiSplit/)
@@ -596,8 +631,9 @@ DO iClipIter=iClipIter,ClipMaxIter
       tmpnClip=iClipIter+1
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
-      CALL BezierClip(BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory,tmpnClip,tmpnXi,tmpnEta &
-          ,nInterSections,iPart,SideID)
+      firstClip=.FALSE.
+      CALL BezierClip(firstClip,BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory&
+                     ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
       DoCheck=.FALSE.
       EXIT
     ELSE ! only one possible intersection
@@ -694,6 +730,10 @@ DO iClipIter=iClipIter,ClipMaxIter
 
   ! b) eta-direction
   IF(DoEtaClip)THEN
+    IF(.NOT.FirstClip)THEN
+      DoXiClip=.TRUE.
+      FirstClip=.TRUE.
+    END IF
     CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo,DoCheck)
     IF(.NOT.DoCheck) EXIT
     DO q=0,NGeo
@@ -781,8 +821,9 @@ DO iClipIter=iClipIter,ClipMaxIter
       tmpnClip=iClipIter+1
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
-      CALL BezierClip(BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory,tmpnClip,tmpnXi,tmpnEta &
-          ,nInterSections,iPart,SideID)
+      firstClip=.TRUE.
+      CALL BezierClip(firstClip,BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory &
+                     ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
       ! second split
 !      print*,'etamin,etasplit',etamin,etasplit
       EtaArray(:,iClipIter)=(/EtaMin,EtaSplit/)
@@ -842,8 +883,9 @@ DO iClipIter=iClipIter,ClipMaxIter
       tmpnClip=iClipIter+1
       tmpnXi   =nXiClip
       tmpnEta  =nEtaClip
-      CALL BezierClip(BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory,tmpnClip,tmpnXi,tmpnEta &
-          ,nInterSections,iPart,SideID)
+      firstClip=.TRUE.
+      CALL BezierClip(firstClip,BezierControlPoints2D_temp2,PartTrajectory,lengthPartTrajectory &
+                     ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
       DoCheck=.FALSE.
       EXIT
     ELSE ! only one possible clip in eta direction
@@ -1184,6 +1226,7 @@ FUNCTION BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideI
 USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol,BiLinearCoeff
 USE MOD_Particle_Vars,            ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,   ONLY:SlabNormals,SlabIntervalls,BezierControlPoints3D
+USE MOD_TimeDisc_Vars,               ONLY:iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1198,13 +1241,15 @@ LOGICAL                              :: BoundingBoxIntersection
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: dnk,alpha(2,3)
+REAL                                 :: maxvalue,minvalue
 INTEGER                              :: i
 !================================================================================================================================
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) Calculate the projection of the PartTrajectory onto the SlabNormals and sort accoring to the sign of T*n
 !-----------------------------------------------------------------------------------------------------------------------------------
 DO i=1,3!x,y,z direction
-  dnk=DOT_PRODUCT(PartTrajectory,SlabNormals(i,:,SideID))
+  !dnk=DOT_PRODUCT(PartTrajectory,SlabNormals(i,:,SideID))
+  dnk=DOT_PRODUCT(PartTrajectory,SlabNormals(:,i,SideID))
   IF(ABS(dnk).LT.epsilontol)THEN
     dnk=epsilontol ! ÜBERPRÜFEN OB SIGN sinn macht
   END IF
@@ -1223,8 +1268,32 @@ END DO!i
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 2.) Get smallest subspace interval
 !-----------------------------------------------------------------------------------------------------------------------------------
-IF(MAXVAL(alpha(1,:)).LE.MINVAL(alpha(2,:)))THEN!smallest interval exists with atleast one point
-  IF((MAXVAL(alpha(1,:)).LT.lengthPartTrajectory+epsilontol).AND.(MAXVAL(alpha(1,:))+epsilontol.GT.0.))THEN
+
+maxvalue=MAXVAL(alpha(1,:))
+minvalue=MINVAL(alpha(2,:))
+
+
+!IF(iter.GT.430)THEN
+!  !print*,'SideID',SideID
+!  IF(SideID.eq.6)THEN
+!    print*,'sideid',sideid
+!    print*,'max',maxvalue
+!    print*,'min',minvalue
+!!    print*,'SlabNormals(:,1,SideID)',SlabNormals(:,1,SideID)
+!!    print*,'SlabNormals(:,2,SideID)',SlabNormals(:,2,SideID)
+!!    print*,'SlabNormals(:,3,SideID)',SlabNormals(:,3,SideID)
+!!    print*,'SlabInt1',SlabIntervalls(1:2,SideID)
+!!    print*,'SlabInt2',SlabIntervalls(3:4,SideID)
+!!    print*,'SlabInt3',SlabIntervalls(5:6,SideID)
+!    print*,'length', LengthPartTrajectory
+!    print*,'Lastpartpos',LastPartPos(iPart,:)
+!    print*,'traj',Parttrajectory
+!    read*
+!  END IF
+!END IF
+
+IF(maxvalue.LE.minvalue)THEN!smallest interval exists with atleast one point
+  IF((maxvalue.LT.lengthPartTrajectory+epsilontol).AND.(maxvalue+epsilontol.GT.0.))THEN
   !the first intersection is less than lengthPartTrajectory and greater 0
     BoundingBoxIntersection=.TRUE.
   ELSE

@@ -145,8 +145,8 @@ USE MOD_Mesh_Vars,ONLY:Elem_xGP
 USE MOD_Output_Vars,ONLY:NVisu,Vdm_GaussN_NVisu
 USE MOD_ChangeBasis,ONLY:ChangeBasis3D
 USE MOD_Tecplot,ONLY:WriteDataToTecplotBinary
-USE MOD_OutPutVTK,ONLY:WriteDataToVTK,WriteDataToVTKBin
 #ifdef PARTICLES
+USE MOD_OutPutVTK,ONLY:WriteDataToVTK,WriteDataToVTKBin
 USE MOD_Particle_Output_Vars, ONLY: WriteFieldsToVTK
 #endif /*PARTICLES*/
 !USE MOD_Eval_xyz,ONLY:eval_xyz

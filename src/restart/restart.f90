@@ -177,10 +177,10 @@ USE MOD_part_tools,      ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars,       ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
 USE MOD_LD_Vars,         ONLY: UseLD, PartStateBulkValues
 USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
-#endif /*PARTICLES*/
 #ifdef MPI
 USE MOD_part_MPI_Vars,   ONLY : PMPIVAR
 #endif
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -206,8 +206,10 @@ REAL                     :: det(16)
 INTEGER                  :: COUNTER, COUNTER2
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
+#ifdef PARTICLES
 INTEGER                  :: LostParts(0:PMPIVAR%nProcs-1), Displace(0:PMPIVAR%nProcs-1),CurrentPartNum
 INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PMPIVAR%nProcs-1)
+#endif /*PARTICLES*/
 #endif
 #endif /*PARTICLES*/
 !===================================================================================================================================
@@ -436,7 +438,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   SWRITE(UNIT_stdOut,*)'DONE!' 
   DO i=1,nSpecies
     DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-      Species(i)%Init(iInit)%InsertedParticle = INT(Species(i)%Init(iInit)%ParticleEmission * RestartTime)
+      Species(i)%Init(iInit)%InsertedParticle = INT(Species(i)%Init(iInit)%ParticleEmission * RestartTime,8)
     END DO
   END DO
   ! if ParticleVecLength GT maxParticleNumber: Stop

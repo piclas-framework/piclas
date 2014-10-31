@@ -1350,6 +1350,7 @@ INQUIRE(FILE = TrackingFilename, EXIST=fexist)
 IF(.NOT.fexist) THEN 
  iunit=GETFREEUNIT()
  OPEN(UNIT=iunit,FILE=TrackingFilename,FORM='FORMATTED',STATUS='UNKNOWN')
+ !CALL FLUSH (iunit)
   ! writing header
   WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'TIME', ' '
   WRITE(iunit,'(A1)',ADVANCE='NO') ','
@@ -1370,6 +1371,7 @@ IF(.NOT.fexist) THEN
 ELSE
   iunit=GETFREEUNIT()
   OPEN(unit=iunit,FILE=TrackingFileName,FORM='Formatted',POSITION='APPEND',STATUS='old')
+  !CALL FLUSH (iunit)
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       WRITE(iunit,104,ADVANCE='NO') TIME

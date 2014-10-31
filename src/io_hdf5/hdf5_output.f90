@@ -570,7 +570,8 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
       StrVarNames( 8)='MPF'
     END IF
   ELSE IF (useLD) THEN
-   CALL abort(__STAMP__,'Attributes for LD are not implemented! Add Attributes!',999,999.)
+   CALL abort(__STAMP__,&
+       'Attributes for LD are not implemented! Add Attributes!',999,999.)
   END IF
 
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
