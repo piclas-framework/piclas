@@ -89,6 +89,8 @@ Mepsilontol     = -epsilontol
 epsilonOne      = 1.0 + epsilontol
 OneMepsilon     = 1.0 - epsilontol
 ClipTolerance   = GETREAL('ClipTolerance','1e-4')
+ClipForce       = GETREAL('ClipForce','0.9')
+ClipForce       =2*ClipForce
 ClipMaxIter     = GETINT('ClipMaxIter','10')
 tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp

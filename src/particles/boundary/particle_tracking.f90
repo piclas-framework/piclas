@@ -203,7 +203,7 @@ USE MOD_Globals,                 ONLY:Cross,abort
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,ClipTolerance,ClipMaxInter,ClipMaxIter
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,ClipTolerance,ClipMaxInter,ClipMaxIter!,ClipForce
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
 USE MOD_Utils,                   ONLY:BubbleSortID
@@ -408,7 +408,7 @@ RECURSIVE SUBROUTINE BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,l
 !================================================================================================================================
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
-USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter
+USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter,ClipForce
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,mEpsilontol
 USE MOD_Particle_Vars,           ONLY:LastPartPos,Time
 ! IMPLICIT VARIABLE HANDLING
@@ -491,7 +491,8 @@ DO iClipIter=iClipIter,ClipMaxIter
     IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))RETURN
     nXiClip=nXiClip+1
     ! 1.) CLIPPING xi
-    IF((XiMax-XiMin).GT.1.2)THEN ! two possible intersections
+    !IF((XiMax-XiMin).GT.1.8)THEN ! two possible intersections
+    IF((XiMax-XiMin).GT.ClipForce)THEN ! two possible intersections
       XiSplit=0.5*(XiMax+XiMin)
  !     print*,'XiSplit',Xisplit
       ! first split
@@ -759,7 +760,8 @@ DO iClipIter=iClipIter,ClipMaxIter
     IF((EtaMin.EQ.1.5).OR.(EtaMax.EQ.-1.5))RETURN
     nEtaClip=nEtaClip+1
     ! 2.) CLIPPING eta
-    IF((EtaMax-EtaMin).GT.1.2)THEN ! two possible intersections
+    !IF((EtaMax-EtaMin).GT.1.8)THEN ! two possible intersections
+    IF((XiMax-XiMin).GT.ClipForce)THEN ! two possible intersections
 !      print*,'eta split'
       EtaSplit=0.5*(EtaMax+EtaMin)
       ! first clip
