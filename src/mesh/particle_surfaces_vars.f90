@@ -39,7 +39,7 @@ REAL                                    :: Mepsilontol
 LOGICAL                                 :: ParticleSurfaceInitIsDone=.FALSE.
 ! settings for Bezier-Clipping and definition of maximal number of intersections
 REAL                                    :: ClipTolerance
-REAL                                    :: ClipForce                    ! clip if remaining area after clip is > clipforce %
+REAL                                    :: SplitLimit                    ! clip if remaining area after clip is > clipforce %
 INTEGER                                 :: ClipMaxInter,ClipMaxIter
 REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray

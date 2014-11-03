@@ -94,7 +94,7 @@ DO iPart=1,PDM%ParticleVecLength
 !      print*,'Trajectory',PartTrajectory
 !      read*
 !    END IF
-!    IF(iter.GE.420)THEN
+!    IF(iter.GE.2190)THEN
 !      print*,'ElemID',ElemID
 !      print*,'pos',LastPartPos(iPart,1:3)
 !      print*,'Trajectory',PartTrajectory
@@ -203,11 +203,12 @@ USE MOD_Globals,                 ONLY:Cross,abort
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,ClipTolerance,ClipMaxInter,ClipMaxIter!,ClipForce
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,ClipTolerance,ClipMaxInter,ClipMaxIter
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
 USE MOD_Utils,                   ONLY:BubbleSortID
 USE MOD_Particle_Vars,           ONLY:time
+USE MOD_TimeDisc_Vars,           ONLY:iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -344,10 +345,12 @@ CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTraject
 !  IF(nInterSections.GE.1) read*
 !  print*,'locAlpha',locAlpha
 !  IF(SideID.EQ.8)THEN
-!    print*,'nInterSections',nInterSections
-!    print*,'locAlpha',locAlpha
 !    read*
 !  END IF
+!END IF
+!IF(iter.GE.2190)THEN
+!  print*,'nInterSections',nInterSections
+!  print*,'locAlpha',locAlpha
 !END IF
 
 ! old and oobsolet
@@ -408,9 +411,10 @@ RECURSIVE SUBROUTINE BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,l
 !================================================================================================================================
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
-USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter,ClipForce
+USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter,SplitLimit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,mEpsilontol
 USE MOD_Particle_Vars,           ONLY:LastPartPos,Time
+USE MOD_TimeDisc_Vars,               ONLY:iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -492,11 +496,11 @@ DO iClipIter=iClipIter,ClipMaxIter
     nXiClip=nXiClip+1
     ! 1.) CLIPPING xi
     !IF((XiMax-XiMin).GT.1.8)THEN ! two possible intersections
-    IF((XiMax-XiMin).GT.ClipForce)THEN ! two possible intersections
+    IF((XiMax-XiMin).GT.SplitLimit)THEN ! two possible intersections
       XiSplit=0.5*(XiMax+XiMin)
  !     print*,'XiSplit',Xisplit
       ! first split
-      XiArray(:,iClipIter)=(/XiSplit,XiMax/)
+      XiArray(:,nXiClip)=(/XiSplit,XiMax/)
  !     print*,'xisplit,ximax',xisplit,ximax
       !read*
       BezierControlPoints2D_temp=0.
@@ -576,7 +580,7 @@ DO iClipIter=iClipIter,ClipMaxIter
                      ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
 
       ! second split
-      XiArray(:,iClipIter)=(/XiMin,XiSplit/)
+      XiArray(:,nXiClip)=(/XiMin,XiSplit/)
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       BezierControlPoints2D_temp=0.
       PlusXi=1.0+XiSplit
@@ -638,7 +642,7 @@ DO iClipIter=iClipIter,ClipMaxIter
       DoCheck=.FALSE.
       EXIT
     ELSE ! only one possible intersection
-      XiArray(:,iClipIter)=(/XiMin,XiMax/)
+      XiArray(:,nXiClip)=(/XiMin,XiMax/)
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       IF(XiMax.NE.1.0)THEN
@@ -761,11 +765,11 @@ DO iClipIter=iClipIter,ClipMaxIter
     nEtaClip=nEtaClip+1
     ! 2.) CLIPPING eta
     !IF((EtaMax-EtaMin).GT.1.8)THEN ! two possible intersections
-    IF((XiMax-XiMin).GT.ClipForce)THEN ! two possible intersections
+    IF((XiMax-XiMin).GT.SplitLimit)THEN ! two possible intersections
 !      print*,'eta split'
       EtaSplit=0.5*(EtaMax+EtaMin)
       ! first clip
-      EtaArray(:,iClipIter)=(/EtaSplit,EtaMax/)
+      EtaArray(:,nEtaClip)=(/EtaSplit,EtaMax/)
 !      print*,'etasplit,etamax',etasplit,etamax
       !read*
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
@@ -828,7 +832,7 @@ DO iClipIter=iClipIter,ClipMaxIter
                      ,tmpnClip,tmpnXi,tmpnEta,nInterSections,iPart,SideID)
       ! second split
 !      print*,'etamin,etasplit',etamin,etasplit
-      EtaArray(:,iClipIter)=(/EtaMin,EtaSplit/)
+      EtaArray(:,nEtaClip)=(/EtaMin,EtaSplit/)
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       BezierControlPoints2D_temp=0.
       PlusEta=1.0+EtaSplit
@@ -891,7 +895,7 @@ DO iClipIter=iClipIter,ClipMaxIter
       DoCheck=.FALSE.
       EXIT
     ELSE ! only one possible clip in eta direction
-      EtaArray(:,iClipIter)=(/EtaMin,EtaMax/)
+      EtaArray(:,nEtaClip)=(/EtaMin,EtaMax/)
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       IF(EtaMax.NE.1.0)THEN
         BezierControlPoints2D_temp=0.
@@ -986,8 +990,6 @@ END DO
 IF(DoCheck)THEN
   ! back transformation of sub-level clipping values to original bezier surface: ximean, etamean
   !   xi-direction
-  !print*,'nXiClip',nXiClip
-  !print*,'nEtaClip',nEtaClip
   IF(nXiClip.EQ.0)THEN
     Xi=0.
   ELSE
@@ -1055,8 +1057,12 @@ IF(DoCheck)THEN
 !    read*
 !  END IF
 !END IF
+!  IF(iter.GE.2190)THEN
+!    print*,'alpha',alpha
+!    print*,'ll',lengthPartTrajectory
+!    read*
+!  END IF
 
-  
   
   !IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
   IF((alpha.LT.lengthPartTrajectory).AND.(alpha.GT.Mepsilontol))THEN
@@ -1275,9 +1281,9 @@ maxvalue=MAXVAL(alpha(1,:))
 minvalue=MINVAL(alpha(2,:))
 
 
-!IF(iter.GT.430)THEN
+!IF(iter.GT.2188)THEN
 !  !print*,'SideID',SideID
-!  IF(SideID.eq.6)THEN
+!!  IF(SideID.eq.6)THEN
 !    print*,'sideid',sideid
 !    print*,'max',maxvalue
 !    print*,'min',minvalue
@@ -1291,7 +1297,7 @@ minvalue=MINVAL(alpha(2,:))
 !    print*,'Lastpartpos',LastPartPos(iPart,:)
 !    print*,'traj',Parttrajectory
 !    read*
-!  END IF
+!!  END IF
 !END IF
 
 IF(maxvalue.LE.minvalue)THEN!smallest interval exists with atleast one point
