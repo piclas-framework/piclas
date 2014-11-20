@@ -32,7 +32,8 @@ INTERFACE FinalizeDG
 END INTERFACE
 
 
-PUBLIC::InitDG,DGTimeDerivative_weakForm,FinalizeDG,DGTimeDerivative_WoSource_weakForm
+PUBLIC::InitDG,DGTimeDerivative_weakForm,FinalizeDG
+PUBLIC::DGTimeDerivative_WoSource_weakForm
 #ifdef PP_POIS
 PUBLIC::DGTimeDerivative_weakForm_Pois
 #endif
@@ -56,6 +57,9 @@ USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
 USE MOD_Mesh_Vars,          ONLY: MeshInitIsDone
 USE MOD_PML,                ONLY: TransformPMLVars 
 USE MOD_PML_Vars,           ONLY: DoPML
+#ifdef OPTIMIZED
+USE MOD_Riemann,            ONLY: GetRiemannMatrix
+#endif /*OPTIMIZED*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -72,25 +76,29 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT DG...'
 
 CALL initDGbasis(PP_N,xGP,wGP,wBary)
-! the local DG solution
-ALLOCATE(U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+! the local DG solution in physical and reference space
+ALLOCATE( U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 ! the time derivative computed with the DG scheme
 ALLOCATE(Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-nTotalU=PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*PP_nElems
-
-IF(.NOT.DoRestart)THEN
-  ! U is filled with the ini solution
-  CALL FillIni()
-  IF(DoPML) CALL TransformPMLVars()
-END IF
-! Ut is set to zero because it is successively updated with DG contributions
+U=0.
 Ut=0.
+
+nTotal_face=(PP_N+1)*(PP_N+1)
+nTotal_vol=nTotal_face*(PP_N+1)
+nTotalU=PP_nVar*nTotal_vol*PP_nElems
+
+! U is filled with the ini solution
+IF(.NOT.DoRestart) CALL FillIni()
 
 ! We store the interior data at the each element face
 ALLOCATE(U_Minus(PP_nVar,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
 ALLOCATE(U_Plus(PP_nVar,0:PP_N,0:PP_N,sideID_plus_lower:sideID_plus_upper))
 U_Minus=0.
 U_Plus=0.
+
+#ifdef OPTIMIZED
+  CALL GetRiemannMatrix()
+#endif /*OPTIMIZED*/
 
 ! unique flux per side
 ALLOCATE(Flux(PP_nVar,0:PP_N,0:PP_N,1:nSides))
@@ -109,7 +117,7 @@ SUBROUTINE InitDGbasis(N_in,xGP,wGP,wBary)
 ! MODULES
 USE MOD_Basis,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
-USE MOD_DG_Vars,ONLY:D,D_Hat,L_HatMinus,L_HatPlus
+USE MOD_DG_Vars,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -124,10 +132,12 @@ REAL,DIMENSION(0:N_in,0:N_in)              :: M,Minv
 REAL,DIMENSION(0:N_in)                     :: L_minus,L_plus        
 INTEGER                                    :: iMass         
 !===================================================================================================================================
-ALLOCATE(D_Hat(0:N_in,0:N_in), L_HatMinus(0:N_in), L_HatPlus(0:N_in))
-ALLOCATE(D(0:N_in,0:N_in))
+ALLOCATE(L_HatMinus(0:N_in), L_HatPlus(0:N_in))
+ALLOCATE(D(0:N_in,0:N_in), D_T(0:N_in,0:N_in))
+ALLOCATE(D_Hat(0:N_in,0:N_in), D_Hat_T(0:N_in,0:N_in))
 ! Compute Differentiation matrix D for given Gausspoints
 CALL PolynomialDerivativeMatrix(N_in,xGP,D)
+D_T=TRANSPOSE(D)
 
 ! Build D_Hat matrix. (D^ = M^(-1) * D^T * M
 M(:,:)=0.
@@ -137,6 +147,7 @@ DO iMass=0,N_in
   Minv(iMass,iMass)=1./wGP(iMass)
 END DO
 D_Hat(:,:) = -MATMUL(Minv,MATMUL(TRANSPOSE(D),M))
+D_Hat_T=TRANSPOSE(D_hat)
 
 ! interpolate to left and right face (1 and -1) and pre-divide by mass matrix
 CALL LagrangeInterpolationPolys(1.,N_in,xGP,wBary,L_Plus)
@@ -153,6 +164,7 @@ SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Vector
 USE MOD_DG_Vars,       ONLY: U,Ut,nTotalU,U_Plus,U_Minus,Flux
 USE MOD_SurfInt,       ONLY: SurfInt
 USE MOD_VolInt,        ONLY: VolInt
@@ -161,6 +173,7 @@ USE MOD_FillFlux,      ONLY: FillFlux,FillFlux_BC
 USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nBCSides,nInnerSides
 USE MOD_Equation,      ONLY: CalcSource
 USE MOD_Equation_Vars, ONLY: IniExactFunc
+USE MOD_Interpolation, ONLY: ApplyJacobian
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartExchangeMPIData,FinishExchangeMPIData
@@ -182,16 +195,20 @@ INTEGER :: iElem,i,j,k,iVar
 ! prolong the solution to the face integration points for flux computation
 #ifdef MPI
 ! Prolong to face for MPI sides - send direction
-CALL ProlongToFace(U,U_Minus,U_Plus,doMPiSides=.TRUE.)
+CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.TRUE.)
 CALL StartExchangeMPIData(U_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
 #endif /*MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.FALSE.)
 
-! null here to increase time for communication
-Ut=0.
-CALL VolInt(Ut,dofirstElems=.TRUE.)
+! Nullify arrays
+! NOTE: IF NEW DG_VOLINT AND LIFTING_VOLINT ARE USED AND CALLED FIRST,
+!       ARRAYS DO NOT NEED TO BE NULLIFIED, OTHERWISE THEY HAVE TO!
+!CALL VNullify(nTotalU,Ut    )
+
+! compute volume integral contribution and add to ut, first half of all elements
+CALL VolInt(Ut)
 
 #ifdef MPI
 ! Complete send / receive
@@ -213,7 +230,7 @@ CALL FillFlux(Flux,doMPISides=.FALSE.)
 CALL SurfInt(Flux,Ut,doMPISides=.FALSE.)
 
 ! compute volume integral contribution and add to ut
-CALL VolInt(Ut,dofirstElems=.FALSE.)
+!CALL VolInt(Ut)!,dofirstElems=.FALSE.)
 
 #ifdef MPI
 ! Complete send / receive
@@ -222,18 +239,8 @@ CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE
 CALL SurfInt(Flux,Ut,doMPISides=.TRUE.)
 #endif
 
-! We have to take the inverse of the Jacobians into account
-DO iElem=1,PP_nElems
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
-        DO iVar=1,PP_nVar
-          Ut(iVar,i,j,k,iElem) = - Ut(iVar,i,j,k,iElem) * sJ(i,j,k,iElem)
-        END DO ! iVar
-      END DO !i
-    END DO !j
-  END DO !k
-END DO ! iElem=1,nElems
+! swap and map to physical space
+CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
 
 ! Add Source Terms
 CALL CalcSource(tStage)
@@ -250,11 +257,13 @@ SUBROUTINE DGTimeDerivative_weakForm_Pois(t,tStage,tDeriv)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Vector
 USE MOD_Equation,      ONLY: VolInt_Pois,FillFlux_Pois,ProlongToFace_Pois, SurfInt_Pois
 USE MOD_GetBoundaryFlux, ONLY: FillFlux_BC_Pois
 USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nBCSides,nInnerSides
 USE MOD_Equation,      ONLY: CalcSource_Pois
 USE MOD_Equation_Vars, ONLY: IniExactFunc,Phi,Phit,Phi_Minus,Phi_Plus,FluxPhi,nTotalPhi
+USE MOD_Interpolation, ONLY: ApplyJacobian
 #ifdef MPI
 USE MOD_Equation,      ONLY:StartExchangeMPIData_Pois
 USE MOD_MPI_Vars
@@ -356,6 +365,7 @@ SUBROUTINE DGTimeDerivative_WoSource_weakForm(t,tStage,tDeriv)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Vector
 USE MOD_DG_Vars,       ONLY: U,Ut,nTotalU,U_Plus,U_Minus,Flux
 USE MOD_SurfInt,       ONLY: SurfInt
 USE MOD_VolInt,        ONLY: VolInt
@@ -363,6 +373,7 @@ USE MOD_ProlongToFace, ONLY: ProlongToFace
 USE MOD_FillFlux,      ONLY: FillFlux,FillFlux_BC
 USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nBCSides,nInnerSides
 !USE MOD_Equation,      ONLY: CalcSource
+USE MOD_Interpolation, ONLY: ApplyJacobian
 USE MOD_Equation_Vars, ONLY: IniExactFunc
 #ifdef MPI
 USE MOD_MPI_Vars
@@ -392,8 +403,9 @@ CALL StartExchangeMPIData(U_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.FALSE.)
 
-Ut=0.
-CALL VolInt(Ut,dofirstElems=.TRUE.)
+!Ut=0.
+!CALL VNullify(nTotalU,Ut)
+CALL VolInt(Ut)!,dofirstElems=.TRUE.)
 
 #ifdef MPI
 ! Complete send / receive
@@ -416,7 +428,7 @@ CALL FillFlux(Flux,doMPISides=.FALSE.)
 CALL SurfInt(Flux,Ut,doMPISides=.FALSE.)
 !! compute volume integral contribution and add to ut
 !CALL VolInt(Ut)
-CALL VolInt(Ut,dofirstElems=.FALSE.)
+!CALL VolInt(Ut,dofirstElems=.FALSE.)
 
 #ifdef MPI
 ! Complete send / receive
@@ -425,23 +437,10 @@ CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE
 CALL SurfInt(Flux,Ut,doMPISides=.TRUE.)
 #endif
 
-! We have to take the inverse of the Jacobians into account
-DO iElem=1,PP_nElems
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
-        DO iVar=1,PP_nVar
-          Ut(iVar,i,j,k,iElem) = - Ut(iVar,i,j,k,iElem) * sJ(i,j,k,iElem)
-        END DO ! iVar
-      END DO !i
-    END DO !j
-  END DO !k
-END DO ! iElem=1,nElems
-
+! swap and map to physical space
+CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
 
 END SUBROUTINE DGTimeDerivative_WoSource_weakForm
-
-
 
 SUBROUTINE FillIni()
 !===================================================================================================================================
@@ -483,8 +482,7 @@ SUBROUTINE FinalizeDG()
 ! Deallocate global variable U (solution) and Ut (dg time derivative).
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,ONLY:D_Hat,L_HatMinus,L_HatPlus,U,Ut, U_Minus,U_Plus
-USE MOD_DG_Vars,ONLY:Flux,DGInitIsDone
+USE MOD_DG_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -494,7 +492,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 !===================================================================================================================================
-
+SDEALLOCATE(D)
+SDEALLOCATE(D_T)
 SDEALLOCATE(D_Hat)
 SDEALLOCATE(L_HatMinus)
 SDEALLOCATE(L_HatPlus)

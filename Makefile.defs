@@ -1,9 +1,25 @@
-
 #=================================================================================================================================#
 # CONFIGURATION                                                                                                                   #
+# USAGE:
+# COMPILER=MYCOMPILER_OPTION1_OPTION2...
+# AVAILABLE COMPILERS: INTEL     (Intel Fortran Compiler)
+#                      GNU       (GNU Compiler Collection)
+#                      GNU_LLVM  (LLVM with GCC as a frontend, requires Dragonegg)
+#                      CRAY      (CRAY compiler / CRAY PGI compiler)
+#                      BLUEGENE  (IBM XL compiler)
+# COMPILER OPTIONS:    DEBUG     (Compile with debug options (e.g. 00))
+#                      OMP       (Compile with OpenMP support, working for INTEL,GNU,IBMXL )
+#                      SCALASCA  (Parallel performanec measuring tool on Bluegene)
+#                      GPROF     (Measuring of single/multicore performance, generally available currently only on Bluegene)
+#
+# MACHINE=MYMACHINE
+# AVAILABLE OPTIONS:   AUTO      (Try to automatically get right machine from name)
+#                      NEHALEM   (HLRS Nehalem cluster)
+#                      CRAY      (HLRS Cray cluster)
+#                      BLUEGENE  (Juelich Juqueen cluster)
 #=================================================================================================================================#
 INIFILE=$(MAINDIR)ini/particles.ini
-COMPILER=GNU_DEBUG
+COMPILER=INTEL
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
 
 #=================================================================================================================================#
@@ -13,7 +29,7 @@ INIVARS = EQNSYS PARTICLES NODETYPE RIEMANN TIMEDISCMETHOD NELEMZ N MPI POIS OPT
 
 # Defaults
 EQNSYS         = maxwell
-PARTICLES      =
+PARTICLES      = 
 NODETYPE       = 1
 TIMEDISCMETHOD = 2
 RIEMANN        = 1
@@ -23,6 +39,7 @@ MPI            =
 POIS           =
 OPTIMIZED      =
 BLAS_LAPACK    = T
+HDF5_F90       =
 
 # Filter rule
 define PARSE
@@ -90,7 +107,9 @@ endif
 ifneq ($(FILESYSTEM),)
   PREPROC +=-D$(FILESYSTEM)
 endif
-
+ifneq ($(HDF5_F90),)
+  PREPROC +=-DHDF5_F90=$(HDF5_F90)
+endif
 # Cut compiler for use with DEBUG-flags
 TMP=$(subst _, ,$(COMPILER))
 SHARECOMP_MOD = $(word 1,$(TMP))
@@ -125,58 +144,37 @@ SHARECOMP=$(subst $(space),$(empty),$(SHARECOMP_MOD))
 #---------------------------------------------------------------------------------------------------------------------------------#
 # Download and compile HDF5 libraries
 ifeq ($(MACHINE),)
-  HDF5_VERSION = 1.8.13
-  ifneq ($(HDF5_VERSION),)
-    HDF5_LIB = -L../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5/lib
-    HDF5_INC = -I../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5/include
+  ifeq ($(HDF5_DIR),)
+    HDF5_VERSION = 1.8.14
+    HDF5_BASE = ../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5
+  else
+    HDF5_BASE = $(HDF5_DIR)
   endif
-  HDF5_LIBS  = -lhdf5_fortran -lhdf5 -lz
 endif
 
-# BLUEGENE - Use available HDF5 libraries. Don't forget to load HDF5 module!
-ifeq ($(findstring BLUEGENE,$(MACHINE)),BLUEGENE)
-  # HDF5
-  HDF5_INC      = -I/bgsys/local/hdf5/include
-  HDF5_LIB      = -L/bgsys/local/hdf5/lib
-  HDF5_LIBS     = -lhdf5_fortran -lhdf5  -lhdf5_hl -lhdf5hl_fortran
-
-  SZ_INC        = -I/bgsys/local/szip/include -I/bgsys/local/zlib/include
-  SZ_LIB        = -L/bgsys/local/szip/lib -L/bgsys/local/zlib/lib
-  SZ_LIBS       = -lsz -lz
-endif
-
-# HLR_B - Use available HDF5 libraries. Don't forget to load HDF5 module!
-ifeq ($(findstring HLRB,$(MACHINE)),HLRB)
-  HDF5_LIB = -L$(HDF5_BASE)/lib
-  #HDF5_INC is already available as environment variable!
-  HDF5_LIBS    = -lhdf5_fortran -lhdf5 $(SZIP_LIB) -lz
-endif
-
-# HLR_S, Nehalem - Use available HDF5 libraries. Don't forget to load HDF5 module!
-ifeq ($(findstring NEHALEM,$(MACHINE)),NEHALEM)
-  HDF5_LIB  = -L/sw/laki/hlrs/tools/hdf5/1.8.6-openmpi-1.5.2-intel-12.0/lib
-  HDF5_INC  = -I/sw/laki/hlrs/tools/hdf5/1.8.6-openmpi-1.5.2-intel-12.0/include
-  HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz
-endif
-  
-# HLR_S, CRAY - Use available HDF5 libraries. Don't forget to load HDF5 module!
+# HLRS, CRAY - Use available HDF5 libraries. Don't forget to load HDF5 module!
 ifeq ($(findstring CRAY,$(MACHINE)),CRAY)
   HDF5_BASE = $(HDF5_DIR)
-  HDF5_LIB  = -L$(HDF5_BASE)/lib/
-  HDF5_INC  = -I$(HDF5_BASE)/include/
-  HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz
 endif
 
 # JAPAN, HELIOS - Use available HDF5 libraries. Don't forget to load HDF5 module!
 ifeq ($(findstring HELIOS,$(MACHINE)),HELIOS)
   HDF5_BASE = $(HDF5_DIR)
-  HDF5_LIB  = -L$(HDF5_BASE)/lib/
-  HDF5_INC  = -I$(HDF5_BASE)/include/
-  HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz
 endif
 
-# HDF5 uses libdl
-LIBDL = -ldl
+# BLUEGENE - Use available HDF5 libraries. Don't forget to load HDF5 module!
+ifeq ($(findstring BLUEGENE,$(MACHINE)),BLUEGENE)
+  HDF5_BASE = /bgsys/local/hdf5
+  SZ_INC    = -I/bgsys/local/szip/include -I/bgsys/local/zlib/include
+  SZ_LIB    = -L/bgsys/local/szip/lib -L/bgsys/local/zlib/lib
+  SZ_LIBS   = -lsz
+endif
+
+HDF5_LIB  = -L$(HDF5_BASE)/lib/
+HDF5_INC  = -I$(HDF5_BASE)/include/
+HDF5_LIBS = -lhdf5_fortran -lhdf5
+# HDF5 requires DL lib and Zlib
+HDF5_LIBS += -ldl -lz
 #---------------------------------------------------------------------------------------------------------------------------------#
 
 #---------------------------------------------------------------------------------------------------------------------------------#
@@ -232,6 +230,10 @@ ifeq ($(findstring INTEL,$(ENVIRONMENT)),INTEL)
   ifeq ($(findstring CRAY,$(MACHINE)),CRAY)
     FCM=ftn
     CCM=cc
+    INSTRUCTION=-xCORE-AVX2   # on HORNET (wont work on HORNET)
+    #INSTRUCTION=-msse4.2     # on HERMIT
+  else
+    INSTRUCTION=-xHost
   endif
   ifeq ($(findstring HELIOS,$(MACHINE)),HELIOS)
 		# intel mpi
@@ -255,8 +257,8 @@ ifeq ($(findstring INTEL,$(ENVIRONMENT)),INTEL)
   else
     # -fast: -02(=general optlevel) -xhost(adapt to current system) -ipo(=interprocedural optimizations) 
     #        -static(=static linking) -no-prec-div(= A/B -> A*(1/B))
-    FCFLAGS  +=-O2 -xhost -vec-report0 #-no-prec-div #-ipo -unroll-aggressive -p -pg  #IPO only on intel >12.0
-    FLFLAGS  +=-O2 -xhost -vec-report0 #-no-prec-div #-ipo -unroll-aggressive -p -pg
+    FCFLAGS  +=-O2 $(INSTRUCTION) -vec-report0 #-no-prec-div #-ipo -unroll-aggressive -p -pg  #IPO only on intel >12.0
+    FLFLAGS  +=-O2 $(INSTRUCTION) -vec-report0 #-no-prec-div #-ipo -unroll-aggressive -p -pg
   endif 
 
   ifeq ($(findstring OMP,$(ENVIRONMENT)),OMP)
@@ -276,6 +278,9 @@ ifeq ($(findstring GNU,$(ENVIRONMENT)),GNU)
   ifeq ($(findstring CRAY,$(MACHINE)),CRAY)
     FCM=ftn
     CCM=cc
+    INSTRUCTION=-march=core-avx2
+  else
+    INSTRUCTION=-march=native
   endif
   PREPROC +=-DGNU
 
@@ -289,8 +294,8 @@ ifeq ($(findstring GNU,$(ENVIRONMENT)),GNU)
     FLFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
   else
 	  # -03(=general optlevel) -march=native(adapt to current system) -flto(=interprocedural optimizations) 
-    FCFLAGS  += -O3 -march=native
-    FLFLAGS  += -O3 -march=native
+    FCFLAGS  += -O3 $(INSTRUCTION) -march=native
+    FLFLAGS  += -O3 $(INSTRUCTION) -march=native
   endif
 
   ifeq ($(findstring OMP,$(ENVIRONMENT)),OMP)
@@ -351,14 +356,18 @@ ifeq ($(findstring CRAY,$(ENVIRONMENT)),CRAY)
   endif
   CCS=cc
   CCM=cc
+  FPRE     = -eP
+  PREOUT   =
 
   ifeq ($(findstring PGI,$(ENVIRONMENT)),PGI)
     FCFLAGS    =-r8 -i4 -byteswapio -Mextend -Mpreprocess -DPGI # don't change
     FLFLAGS    =-r8 -i4 -byteswapio -Mextend # don't change
     F03STD     =-std=f2003
   else # Cray CCE
-   FCFLAGS    =-eZ -F -f free -s real64 -hbyteswapio -em -J .# don't change
-   FLFLAGS    =-f free -s real64 -hbyteswapio -em -J .# don't change
+   FCFLAGS    =-F -f free -s real64 -em -J .# don't change
+   FLFLAGS    =   -f free -s real64 -em -J .# don't change
+  # FCFLAGS    =-eZ -F -f free -s real64 -hbyteswapio -em -J .# don't change
+  # FLFLAGS    =-f free -s real64 -hbyteswapio -em -J .# don't change
    F03STD     =
   endif
 
@@ -367,16 +376,16 @@ ifeq ($(findstring CRAY,$(ENVIRONMENT)),CRAY)
       FCFLAGS  +=-O0 -g -Minform=inform
       FLFLAGS  +=-O0 -g -Minform=inform
     else # Cray CCE
-      FCFLAGS  +=-O0 -eD
-      FLFLAGS  +=-O0 -eD
+      FCFLAGS  +=-O0 -eD -rm
+      FLFLAGS  +=-O0 -eD -rm
     endif
   else
     ifeq ($(findstring PGI,$(ENVIRONMENT)),PGI)
       FCFLAGS  +=-fast #-Mipa=fast,inline #-O2 #-fastsse #-Munroll=n:4 -Mipa=fast,inline
       FLFLAGS  +=-fast #-Mipa=fast,inline #-O2 #-fastsse #-Munroll=n:4 -Mipa=fast,inline
     else # Cray CCE
-      FCFLAGS  +=-O2 -p . -rm#-O ipa5 # -O3
-      FLFLAGS  +=-O2 -p . -rm#-O ipa5 # -O3
+      FCFLAGS  +=-O3 -hfp3 -p . -rm
+      FLFLAGS  +=-O3 -hfp3 -p . -rm  #-O ipa5 # -O3
     endif
   endif
 endif
@@ -439,7 +448,7 @@ endif
 
 EXTERNAL_LIBS = $(HDF5_LIBS) $(SZ_LIBS) $(LIBHPC_LIBS) $(NR_LIBS) $(TECBIN_LIBS) $(BLAS_LAPACK_LIBS) $(LIBDL)
 LIBDIRS       = $(HDF5_LIB) $(SZ_LIB) $(LIBHPC_LIB) $(NR_LIB) $(TECBIN_LIB) $(BLAS_LAPACK_LIB) $(OMP_LIB)
-INCDIRS       = $(HDF5_INC) $(SZ_INC) $(LIBHPC_INC)
+INCDIRS       = $(HDF5_INC) $(SZ_INC) $(LIBHPC_INC) $(BLAS_LAPACK_INC)
  
 BOLTZPLATZ_LIB     = libboltzplatz.a
 

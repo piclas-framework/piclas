@@ -16,6 +16,7 @@ REAL,ALLOCATABLE                      :: PMLzeta(:,:,:,:,:)   ! damping factor i
 INTEGER                               :: nPMLElems
 INTEGER,ALLOCATABLE                   :: PMLtoElem(:)    
 INTEGER,ALLOCATABLE                   :: ElemtoPML(:)    
+INTEGER                               :: nTotalPML
 ! PML auxiliary variables P_t=E & Q_t=B
 REAL,ALLOCATABLE                      :: U2(:,:,:,:,:)     ! P=U2(1:3) and Q=U2(4:6)
 REAL,ALLOCATABLE                      :: U2t(:,:,:,:,:)    ! P=U2(1:3) and Q=U2(4:6)

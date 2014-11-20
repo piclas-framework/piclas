@@ -162,7 +162,6 @@ USE MOD_DG_Vars               ,ONLY:U,U_Minus
 USE MOD_Equation_Vars         ,ONLY:mu0,eps0,smu0
 #ifdef MPI
   USE MOD_Globals
-  USE MOD_part_MPI_Vars       ,ONLY:PMPIVAR
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -372,7 +371,6 @@ USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes,PosPoyntingInt
 USE MOD_Restart_Vars          ,ONLY:DoRestart
 #ifdef MPI
   USE MOD_Globals
-  USE MOD_part_MPI_Vars       ,ONLY:PMPIVAR
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -396,7 +394,7 @@ filename_PI  = 'Power.csv'
 unit_index_PI=273
 
 #ifdef MPI
- IF (PMPIVAR%iProc .EQ. 0) THEN
+ IF (MPIRoot) THEN
 #endif    /* MPI */
 
 INQUIRE(UNIT   = unit_index_PI , OPENED = isOpen)
@@ -440,7 +438,7 @@ USE MOD_Analyze_Vars      ,ONLY:PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoynti
 USE MOD_ReadInTools       ,ONLY:GETINT,GETREAL
 #ifdef MPI
   USE MOD_Globals
-  USE MOD_part_MPI_Vars   ,ONLY:PMPIVAR
+  !USE MOD_part_MPI_Vars   ,ONLY:PMPIVAR
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -524,9 +522,9 @@ ALLOCATE(sumFaces(nPoyntingIntPlanes))
 #ifdef MPI
 sumFaces=0
 sumAllFaces=0
-  CALL MPI_REDUCE(nFaces , sumFaces , nPoyntingIntPlanes , MPI_INTEGER, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  CALL MPI_REDUCE(nFaces , sumFaces , nPoyntingIntPlanes , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   !nFaces(:) = sumFaces(:)
-  CALL MPI_REDUCE(nPoyntingIntSides , sumAllFaces , 1 , MPI_INTEGER, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+  CALL MPI_REDUCE(nPoyntingIntSides , sumAllFaces , 1 , MPI_INTEGER, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   !nPoyntingIntSides = sumAllFaces
 #else
 sumFaces=nFaces

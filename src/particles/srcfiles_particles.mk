@@ -16,6 +16,7 @@ equations/$(EQNSYS)/calctimestep.f90
 filter/filter_vars.f90
 filter/filter.f90
 globals/globals.f90
+globals/vector.f90
 globals/preprocessing.f90
 interpolation/interpolation_vars.f90
 interpolation/basis.f90

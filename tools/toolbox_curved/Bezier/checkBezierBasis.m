@@ -6,7 +6,7 @@ onlyPlotData=1;
 setWindows=1;
 load faces.dat
 %load /home/stephen/PMLalgorithm_cases/Testing_Bezier_domain010_nElems002_order04_PML00_zeta0E+00_polynom_CFL0.5_N10_Parts500_DoPML_False/BezierControlPoints.dat
-load BezierControlPoints.dat
+load /scratch/iagortwe/Testcases/semicircle/BezierControlPoints.dat
 %factorial(5)
 faces=BezierControlPoints;
 dimension = size(faces);

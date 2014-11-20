@@ -1,8 +1,7 @@
 MODULE MOD_PreProcFlags
 IMPLICIT NONE
 CHARACTER(LEN=1000) :: PREPROC_FLAGS = &
-"gfortran -xf95-cpp-input -cpp -fdefault-real-8 -fdefault-double-8 -fbackslash -"//&
-"DGNU -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace -DPP_TimeDiscMetho"//&
-"d=5 -DPP_NodeType=1 -DPP_Riemann=1 -DPP_nVar=8 -DPP_nElems=NELEMZ -DPP_N=N -DPAR"//&
-"TICLES=T -DGNU -I. -I../share/GNU-SINGLE/hdf5-1.8.13/hdf5/include "
+"mpif90 -fpp -assume bscc -r8 -i4 -traceback -warn all -O2 -xHost -vec-report0 -DPP_TimeDiscMethod=2 -DPP_NodeType=1 -DP"//&
+"P_Riemann=1 -DPP_nVar=8 -DPP_nElems=NELEMZ -DPP_N=N -DMPI -DOPTIMIZED=T -DINTEL -I. -I/opt/hdf5/hdf5-1.8.14/intel14/incl"//&
+"ude/ "
 END MODULE MOD_PreProcFlags

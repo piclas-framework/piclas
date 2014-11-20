@@ -25,12 +25,16 @@ INTERFACE FinalizeInterpolation
    MODULE PROCEDURE FinalizeInterpolation
 END INTERFACE
 
+INTERFACE ApplyJacobian
+   MODULE PROCEDURE ApplyJacobian
+END INTERFACE
+
 PUBLIC::InitInterpolation
+PUBLIC::ApplyJacobian
 PUBLIC::FinalizeInterpolation
 
 
 !===================================================================================================================================
-
 
 CONTAINS
 
@@ -127,6 +131,54 @@ CALL LagrangeInterpolationPolys(1.,N_in,xGP,wBary,L_Plus)
 CALL LagrangeInterpolationPolys(-1.,N_in,xGP,wBary,L_Minus)
 END SUBROUTINE InitInterpolationBasis
 
+SUBROUTINE ApplyJacobian(U,toPhysical,toSwap)
+!===================================================================================================================================
+! Convert solution between physical <-> reference space
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Mesh_Vars,ONLY:sJ
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(INOUT) :: U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
+LOGICAL,INTENT(IN) :: toPhysical
+LOGICAL,INTENT(IN) :: toSwap
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: i,j,k,iElem,iVar
+!===================================================================================================================================
+IF(toPhysical)THEN
+  IF(toSwap)THEN
+    DO iElem=1,PP_nElems
+      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N; DO iVar=1,PP_nVar
+          U(iVar,i,j,k,iElem)=-U(iVar,i,j,k,iElem)*sJ(i,j,k,iElem)
+      END DO; END DO; END DO; END DO 
+    END DO
+  ELSE
+    DO iElem=1,PP_nElems
+      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N; DO iVar=1,PP_nVar
+        U(iVar,i,j,k,iElem)=U(iVar,i,j,k,iElem)*sJ(i,j,k,iElem)
+      END DO; END DO; END DO; END DO
+    END DO
+  END IF
+ELSE
+  IF(toSwap)THEN
+    DO iElem=1,PP_nElems
+      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N; DO iVar=1,PP_nVar
+        U(iVar,i,j,k,iElem)=-U(iVar,i,j,k,iElem)/sJ(i,j,k,iElem)
+      END DO; END DO; END DO; END DO
+    END DO
+  ELSE
+    DO iElem=1,PP_nElems
+      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N; DO iVar=1,PP_nVar
+        U(iVar,i,j,k,iElem)=U(iVar,i,j,k,iElem)/sJ(i,j,k,iElem)
+      END DO; END DO; END DO; END DO
+    END DO
+  END IF
+END IF
+END SUBROUTINE ApplyJacobian
 
 SUBROUTINE FinalizeInterpolation()
 !============================================================================================================================

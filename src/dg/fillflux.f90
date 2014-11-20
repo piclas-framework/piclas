@@ -26,7 +26,57 @@ PUBLIC::FillFlux,FillFlux_BC
 
 CONTAINS
 
+#ifdef OPTIMIZED
+SUBROUTINE FillFlux(Flux,doMPISides)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Riemann,         ONLY: Aplus,Aminus
+USE MOD_DG_Vars,         ONLY: U_Minus,U_Plus
+USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides  
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)   :: Flux(1:PP_nVar,0:PP_N,0:PP_N,nSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: SideID,p,q,firstSideID,lastSideID,iVar,iVar2
+!===================================================================================================================================
+! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
+IF(doMPISides)THEN 
+  ! fill only flux for MINE MPISides
+  firstSideID = nBCSides+nInnerSides+1
+  lastSideID  = firstSideID-1+nMPISides_MINE 
+ELSE
+  ! fill only InnerSides
+  firstSideID = nBCSides+1
+  lastSideID  = firstSideID-1+nInnerSides 
+END IF
+!firstSideID=nBCSides+1
+!lastSideID  =nBCSides+nInnerSides+nMPISides_MINE
+DO SideID=firstSideID,lastSideID
+  DO q=0,PP_N
+    DO p=0,PP_N
+      Flux(:,p,q,SideID) = MATMUL(Aplus(:,:,p,q,SideID),U_minus(:,p,q,SideID))+MATMUL(Aminus(:,:,p,q,SideID),U_plus(:,p,q,SideID))
+      !DO iVar=1,PP_nVar
+      !  Flux(iVar,p,q,SideID) = Aplus(iVar,1,p,q,SideID)*U_minus(1,p,q,SideID) + Aminus(iVar,1,p,q,SideID)*U_plus(1,p,q,SideID)
+      !  DO iVar2=2,PP_nVar
+      !    Flux(iVar,p,q,SideID) = Flux(iVar,p,q,SideID) + Aplus (iVar,iVar2,p,q,SideID)*U_minus(iVar2,p,q,SideID) &
+      !                                                  + Aminus(iVar,iVar2,p,q,SideID)*U_plus(iVar2,p,q,SideID)
+      !  END DO ! iVar2
+      !END DO ! iVar
+    END DO ! p
+  END DO ! q
+END DO ! SideID
 
+END SUBROUTINE FillFlux
+#else
 SUBROUTINE FillFlux(Flux,doMPISides)
 !===================================================================================================================================
 !
@@ -72,6 +122,7 @@ DO SideID=firstSideID,lastSideID
 END DO ! SideID
 
 END SUBROUTINE FillFlux
+#endif
 
 
 SUBROUTINE FillFlux_BC(t,tDeriv,Flux)

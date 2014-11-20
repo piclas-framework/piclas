@@ -49,8 +49,10 @@ INTERFACE CalcBiLinearNormVecBezier
   MODULE PROCEDURE CalcBiLinearNormVecBezier
 END INTERFACE
 
+
 PUBLIC::GetSideType, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, GetSuperSampledSurface, &
         CalcNormVec,GetBezierControlPoints3D,CalcBiLinearNormVecBezier,CalcNormVecBezier
+
 
 !===================================================================================================================================
 

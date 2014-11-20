@@ -324,5 +324,8 @@ LOGICAL                                  :: PartPressRemParts                 ! 
 INTEGER                                  :: NumRanVec      ! Number of predefined random vectors
 REAL  , ALLOCATABLE                      :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
 
+INTEGER(8)                               :: nTotalPart
+INTEGER(8)                               :: nTotalHalfPart
+
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

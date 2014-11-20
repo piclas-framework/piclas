@@ -47,7 +47,7 @@ SUBROUTINE InitPML()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
-USE MOD_PML_Vars,            ONLY: PMLzeta,U2,U2t,Probes,DoPML
+USE MOD_PML_Vars,            ONLY: PMLzeta,U2,U2t,Probes,DoPML,ntotalPML
 USE MOD_PML_Vars,            ONLY: nPMLElems,ElemtoPML,PMLtoElem
 USE MOD_PML_Vars,            ONLY: PMLzeta0,xyzPhysicalMinMax,PMLzetaShape,PMLspread,PMLwritezeta, PMLzetaNorm
 USE MOD_Mesh_Vars,           ONLY: Elem_xGP,BCFace_xGP  ! for PML region: xyz position of the Gauss points and Face Gauss points
@@ -171,7 +171,7 @@ DEALLOCATE(isPMLElem)
 ALLOCATE(PMLzeta(1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 ALLOCATE(U2     (1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))        
 ALLOCATE(U2t    (1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
-
+nTotalPML=6*(PP_N+1)**3
 ! zero
 PMLzeta=0.
 U2 =0.0

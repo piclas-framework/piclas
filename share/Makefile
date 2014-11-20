@@ -47,7 +47,7 @@ hdf5: dir
 		if [ ! -d $(SHARECOMP)/hdf5-$(HDF5_VERSION) ] ; then \
 			cd $(SHARECOMP)/ && tar -xvjf ../hdf5-$(HDF5_VERSION).tar.bz2 1>/dev/null && cd .. ; \
 		fi ; \
-		cd $(SHARECOMP)/hdf5-$(HDF5_VERSION) && CC='$(CC)' FC='$(FC)' ./configure --enable-fortran --disable-shared && $(MAKE) && $(MAKE) install ; \
+		cd $(SHARECOMP)/hdf5-$(HDF5_VERSION) && CC='$(CC)' FC='$(FC)' ./configure --enable-fortran --enable-fortran2003 --disable-shared && $(MAKE) && $(MAKE) install ; \
 		echo "===============================================================";\
 		echo "= H D F 5   D O N E                                           =";\
 		echo "===============================================================";\
