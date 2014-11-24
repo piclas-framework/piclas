@@ -15,6 +15,7 @@ USE MOD_DG,               ONLY:InitDG,FinalizeDG
 USE MOD_PML,              ONLY:InitPML,FinalizePML
 USE MOD_Filter,           ONLY:InitFilter,FinalizeFilter
 USE MOD_Output,           ONLY:InitOutput,FinalizeOutput
+USE MOD_IO_HDF5,          ONLY:InitIO
 USE MOD_Analyze,          ONLY:InitAnalyze,FinalizeAnalyze
 USE MOD_Particle_Analyze, ONLY:InitParticleAnalyze,FinalizeParticleAnalyze
 USE MOD_RecordPoints,     ONLY:InitRecordPoints,FinalizeRecordPoints
@@ -35,6 +36,7 @@ IMPLICIT NONE
 REAL :: Time
 !===================================================================================================================================
 CALL InitMPI()
+CALL InitIO()
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')&
  "           ____            ___    __                    ___              __              "

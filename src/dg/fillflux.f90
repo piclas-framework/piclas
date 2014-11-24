@@ -63,7 +63,7 @@ END IF
 DO SideID=firstSideID,lastSideID
   DO q=0,PP_N
     DO p=0,PP_N
-      Flux(:,p,q,SideID) = MATMUL(Aplus(:,:,p,q,SideID),U_minus(:,p,q,SideID))+MATMUL(Aminus(:,:,p,q,SideID),U_plus(:,p,q,SideID))
+     ! Flux(:,p,q,SideID) = MATMUL(Aplus(:,:,p,q,SideID),U_minus(:,p,q,SideID))+MATMUL(Aminus(:,:,p,q,SideID),U_plus(:,p,q,SideID))
       !DO iVar=1,PP_nVar
       !  Flux(iVar,p,q,SideID) = Aplus(iVar,1,p,q,SideID)*U_minus(1,p,q,SideID) + Aminus(iVar,1,p,q,SideID)*U_plus(1,p,q,SideID)
       !  DO iVar2=2,PP_nVar
