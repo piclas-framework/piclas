@@ -257,7 +257,7 @@ IF(DoPML)THEN
                       nValGlobal=(/5,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
                       nVal=      (/5,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
                       offset=    (/0,      0,     0,     0,     offsetElem/),&
-                      collective=.FALSE., existing=.FALSE., RealArray=UPML)
+                      collective=.TRUE., existing=.FALSE., RealArray=UPML)
 
   CALL CloseDataFile()
   DEALLOCATE(UPML)
@@ -503,10 +503,10 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
   ! old
   !CALL WriteArrayToHDF5('PartInt',nGlobalElems,2,(/PP_nElems,PartIntSize/),offsetElem,1,existing=.FALSE.,IntegerArray=PartInt)
   CALL WriteArrayToHDF5(DataSetName='PartInt', rank=2,&
-                        nValGlobal=(/nVar,nGlobalElems/),&
-                        nVal=      (/nVar,PP_nElems   /),&
-                        offset=    (/0,   offsetElem  /),&
-                        collective=.FALSE., existing=.FALSE., IntegerArray=PartInt)
+                        nValGlobal=(/nGlobalElems, nVar/),&
+                        nVal=      (/PP_nElems, nVar   /),&
+                        offset=    (/offsetElem, 0  /),&
+                        collective=.TRUE., existing=.FALSE., IntegerArray=PartInt)
   DEALLOCATE(StrVarNames)
   CALL CloseDataFile()
 
@@ -579,8 +579,8 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
   CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
                         nValGlobal=(/nPart_glob,PartDataSize/),&
                         nVal=      (/locnPart,PartDataSize   /),&
-                        offset=    (/0,   offsetnPart  /),&
-                        collective=.FALSE., existing=.FALSE., RealArray=PartData)
+                        offset=    (/offsetnPart , 0  /),&
+                        collective=.TRUE., existing=.FALSE., RealArray=PartData)
   CALL CloseDataFile()
 
 !  CALL WriteArrayToHDF5('PartData',nPart_glob,2,(/locnPart,PartDataSize/),offsetnPart,1,existing=.FALSE.,RealArray=PartData)!,&
