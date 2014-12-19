@@ -1,6 +1,7 @@
 analyze/analyze_vars.f90
 analyze/analyze.f90
 analyze/poyntingint.f90
+preprocflags.f90
 dg/dg_vars.f90
 dg/dg.f90
 dg/volint.f90

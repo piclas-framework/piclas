@@ -138,8 +138,50 @@ DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
 END DO !iProc=1,nNBProcs
 
-
 ! check somehow BGMesh or look in BGMesh, some check to compute the right stoff
+DO iProc=0,PMPIVAR%nProcs-1
+  IF(iProc.EQ.PMPIVAR%iProc) CYCLE
+    LOGWRITE(*,*)'  - Identify non-immediate MPI-Neighborhood...'
+    !--- AS: identifies which of my node have to be sent to iProc w.r.t. to 
+    !        eps vicinity region.
+    CALL IdentityMPINeighborhood(iProc)
+    LOGWRITE(*,*)'    ...Done'
+
+    LOGWRITE(*,*)'  - Exchange Geometry of MPI-Neighborhood...'
+    CALL ExchangeMPINeighborhoodGeometry(iProc)
+    LOGWRITE(*,*)'    ...Done'
+    NodeIndex(:)=0
+  END DO
+END DO 
+
+
+  ! Make sure PMPIVAR%MPINeighbor is consistent
+  DO iProc=0,PMPIVAR%nProcs-1
+    IF (PMPIVAR%iProc.EQ.iProc) CYCLE
+    IF (PMPIVAR%iProc.LT.iProc) THEN
+      CALL MPI_SEND(PMPIVAR%MPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,IERROR)
+      CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
+    ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
+      CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
+      CALL MPI_SEND(PMPIVAR%MPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,IERROR)
+    END IF
+    IF (TmpNeigh.NEQV.PMPIVAR%MPINeighbor(iProc)) THEN
+      WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PMPIVAR%iProc,iProc
+      PMPIVAR%MPINeighbor(iProc) = .TRUE.
+    END IF
+  END DO
+  IF(DepositionType.EQ.'shape_function') THEN
+    PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .TRUE.
+  ELSE
+    PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .FALSE.
+  END IF
+
+
+
+
+
+
+
 
 ! possibility to use space-filling curve to locate all nearest elements
 
