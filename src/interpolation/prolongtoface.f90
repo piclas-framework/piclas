@@ -34,7 +34,7 @@ USE MOD_Globals
 USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: SideToElem
-USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+USE MOD_Mesh_Vars,          ONLY: nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
 USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
 USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
 ! IMPLICIT VARIABLE HANDLING
@@ -616,7 +616,7 @@ DO SideID=firstSideID,lastSideID
   END DO !i=1,2, masterside & slave side 
 END DO !SideID
 END SUBROUTINE ProlongToFace_SideBased4
-#endif dontcompilethis
+#endif /*dontcompilethis*/
 
 
 END MODULE MOD_ProlongToFace

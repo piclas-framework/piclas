@@ -1,0 +1,174 @@
+<ServerManagerConfiguration>
+  <ProxyGroup name="filters">
+    <SourceProxy name="PDF" class="vtkPythonProgrammableFilter" label="Propability Distribution Function">
+
+      <Documentation
+        long_help="Computes the propability distribution function."
+        short_help="Computes the propability distribution function.">
+      </Documentation>
+
+
+      <InputProperty
+        name="Input"
+        command="SetInputConnection">
+          <ProxyGroupDomain name="groups">
+            <Group name="sources"/>
+            <Group name="filters"/>
+          </ProxyGroupDomain>
+
+          <DataTypeDomain name="input_type">
+            <DataType value="vtkDataObject"/>
+          </DataTypeDomain>
+      </InputProperty>
+
+
+      <IntVectorProperty
+        name="NumberOfSpaceBins"
+        label="NumberOfSpaceBins"
+        initial_string="NumberOfSpaceBins"
+        command="SetParameter"
+        animateable="1"
+        default_values="250"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </IntVectorProperty>
+
+
+      <IntVectorProperty
+        name="NumberOfVeloBins"
+        label="NumberOfVeloBins"
+        initial_string="NumberOfVeloBins"
+        command="SetParameter"
+        animateable="1"
+        default_values="250"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+        name="iDirect"
+        label="SelectCoordinate"
+        initial_string="iDirect"
+        command="SetParameter"
+        animateable="1"
+        default_values="0"
+        number_of_elements="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="coord_X"/>
+          <Entry value="1" text="coord_Y"/>
+          <Entry value="2" text="coord_Z"/>
+        </EnumerationDomain>
+        <Documentation></Documentation>
+      </IntVectorProperty>
+
+
+      <IntVectorProperty
+        name="iVelocity"
+        label="Velocity"
+        initial_string="iVelocity"
+        command="SetParameter"
+        animateable="1"
+        default_values="0"
+        number_of_elements="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Velocity_X"/>
+          <Entry value="1" text="Velocity_Y"/>
+          <Entry value="2" text="Velocity_Z"/>
+        </EnumerationDomain>
+        <Documentation></Documentation>
+      </IntVectorProperty>
+
+
+      <DoubleVectorProperty
+        name="maxVelo"
+        label="maxVelo"
+        initial_string="maxVelo"
+        command="SetParameter"
+        animateable="1"
+        default_values="300000000.0"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty
+        name="minVelo"
+        label="minVelo"
+        initial_string="minVelo"
+        command="SetParameter"
+        animateable="1"
+        default_values="-300000000.0"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </DoubleVectorProperty>
+
+
+
+      <DoubleVectorProperty
+        name="xMax"
+        label="xMax"
+        initial_string="xMax"
+        command="SetParameter"
+        animateable="1"
+        default_values="12.57"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </DoubleVectorProperty>
+
+
+      <DoubleVectorProperty
+        name="xMin"
+        label="xMin"
+        initial_string="xMin"
+        command="SetParameter"
+        animateable="1"
+        default_values="0.0"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </DoubleVectorProperty>
+
+
+
+
+      <!-- Output data type: "vtkImageData" -->
+      <IntVectorProperty command="SetOutputDataSetType"
+                         default_values="6"
+                         name="OutputDataSetType"
+                         number_of_elements="1"
+                         panel_visibility="never">
+        <Documentation>The value of this property determines the dataset type
+        for the output of the programmable filter.</Documentation>
+      </IntVectorProperty>
+
+
+      <StringVectorProperty
+        name="Script"
+        command="SetScript"
+        number_of_elements="1"
+        default_values="import math&#xA;import numpy&#xA;from paraview.vtk.dataset_adapter import numpyTovtkDataArray&#xA;# This script computes the particle distribution function. Missing: Selection of &#xA;# spacial coordinate and velocity&#xA;deltaX=(xMax-xMin)/float(NumberOfSpaceBins)&#xA;deltaV=(maxVelo-minVelo)/float(NumberOfVeloBins)&#xA;# input&#xA;pdi = self.GetInput()&#xA;nParts = pdi.GetNumberOfPoints()&#xA;# output&#xA;pdo = self.GetOutputDataObject(0)&#xA;pdo = self.GetOutput()&#xA;# generate 2d grid&#xA;pdo.SetDimensions(NumberOfSpaceBins+1,NumberOfVeloBins+1,0)&#xA;deltaXplot=1./float(NumberOfSpaceBins)&#xA;deltaVplot=1./float(NumberOfVeloBins)&#xA;if(maxVelo==-minVelo):&#xA;   pdo.SetOrigin(0,-0.5,0.)&#xA;else:&#xA;   pdo.SetOrigin(0,0.0,0.)&#xA;pdo.SetSpacing(deltaXplot,deltaVplot,1.)&#xA;&#xA;# On ParaView 3.98, 4.0 and 4.1&#xA;pdo.SetExtent(0,NumberOfSpaceBins,0,NumberOfVeloBins,0,1)&#xA;&#xA;PDF = numpy.zeros((NumberOfSpaceBins, NumberOfVeloBins), dtype='float')&#xA;# generate array&#xA;# loop over all particles &#xA;for i in range(0, nParts):&#xA;  coord = pdi.GetPoint(i)&#xA;  pos   = coord[iDirect]&#xA;  velo  = pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i + iVelocity)&#xA;  # check max value&#xA;  if(xMin&gt;pos):&#xA;    print &quot; Position &lt; xmin. iPart &quot;, i&#xA;  if(xMax&lt;pos):&#xA;    print &quot; Position &gt; xmax. iPart  &quot;, i&#xA;  if(minVelo&gt;velo):&#xA;    print &quot; Velocity &lt; minVelo. iPart &quot;, i&#xA;  if(maxVelo&lt;velo):&#xA;    print &quot; Velocity &gt; maxVelo. iPart &quot;, i&#xA;  # compute position in 2d-space pos-velo array&#xA;  ipos = int((pos-xMin)/deltaX)#+1&#xA;  ivelo= int((velo-minVelo)/deltaV)#+1&#xA;  PDF[ipos,ivelo]=PDF[ipos,ivelo]+1.#/float(nParts)&#xA;array=vtk.vtkFloatArray()&#xA;array.SetName(&quot;PDF&quot;)&#xA;array.SetNumberOfComponents(1)&#xA;ncells  = NumberOfSpaceBins*NumberOfVeloBins&#xA;array.SetNumberOfTuples(ncells)&#xA;pdo.GetCellData().AddArray(array)&#xA;ipos=0&#xA;for j in range(0,NumberOfVeloBins):&#xA;   for i in range(0,NumberOfSpaceBins):&#xA;    # caution: transpoesed index because of storage&#xA;    array.SetValue(ipos,PDF[i,j]/float(nParts))&#xA;    ipos=ipos+1&#xA;"
+        panel_visibility="advanced">
+        <Hints>
+         <Widget type="multi_line"/>
+       </Hints>
+      <Documentation>This property contains the text of a python program that
+      the programmable source runs.</Documentation>
+      </StringVectorProperty>
+
+      <StringVectorProperty
+        name="InformationScript"
+        label="RequestInformation Script"
+        command="SetInformationScript"
+        number_of_elements="1"
+        default_values="from paraview import util&#xA;pdi = self.GetInput()&#xA;util.SetOutputWholeExtent(self, [0,NumberOfSpaceBins,0,NumberOfVeloBins,0,0])&#xA;"
+        panel_visibility="advanced">
+        <Hints>
+          <Widget type="multi_line" />
+        </Hints>
+        <Documentation>This property is a python script that is executed during
+        the RequestInformation pipeline pass. Use this to provide information
+        such as WHOLE_EXTENT to the pipeline downstream.</Documentation>
+      </StringVectorProperty>
+
+
+    </SourceProxy>
+ </ProxyGroup>
+</ServerManagerConfiguration>

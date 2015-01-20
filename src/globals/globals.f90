@@ -25,8 +25,16 @@ LOGICAL           ::MPIRoot
 INTEGER           :: MPIStatus(MPI_STATUS_SIZE)
 #endif
 
+INTERFACE InitGlobals
+  MODULE PROCEDURE InitGlobals
+END INTERFACE
+
+INTERFACE AlmostEqual
+  MODULE PROCEDURE AlmostEqual
+END INTERFACE
+
 INTERFACE Abort
-  MODULE PROCEDURE Abort
+  MODULE PROCEDURE AbortProg
 END INTERFACE Abort
 
 INTERFACE INTSTAMP
@@ -56,7 +64,62 @@ END INTERFACE CROSS
 !===================================================================================================================================
 CONTAINS
 
-SUBROUTINE Abort(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt)
+SUBROUTINE InitGlobals()
+!===================================================================================================================================
+! Pre-compute required constants
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars
+USE MOD_PreProc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
+
+Pi=ACOS(-1.)
+spi = 1./pi
+
+! get machine accuracy
+epsMach=EPSILON(0.0)
+TwoEpsMach=2.0d0*epsMach
+
+SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE InitGlobals
+
+
+FUNCTION AlmostEqual(Num1,Num2)
+!===================================================================================================================================
+! Performe an almost equal check
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars,    ONLY:TwoEpsMach
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL            :: Num1,Num2      ! Number
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL         :: ALMOSTEQUAL
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+ALMOSTEQUAL=.FALSE.
+IF(ABS(Num1-Num2).LE.MAX(ABS(Num1),ABS(Num2))*TwoEpsMach) ALMOSTEQUAL=.TRUE.
+
+END FUNCTION AlmostEqual
+
+
+SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt,SingleOpt)
 !===================================================================================================================================
 ! Terminate program correctly if an error has occurred (important in MPI mode!).
 !===================================================================================================================================
@@ -72,15 +135,23 @@ CHARACTER(LEN=*)                  :: CompTime        ! Compilation time
 CHARACTER(LEN=*)                  :: ErrorMessage    ! Error message
 INTEGER,OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
 REAL,OPTIONAL                     :: RealInfoOpt     ! Error info (real)
+LOGICAL,OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs check
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !   There is no way back!
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: errOut          ! Output of MPI_ABORT
 INTEGER                           :: IntInfo         ! Error info (integer)
 REAL                              :: RealInfo        ! Error info (real)
+#ifdef MPI
+INTEGER                           :: errOut          ! Output of MPI_ABORT
+#endif
 !===================================================================================================================================
+#ifdef MPI
+IF(PRESENT(SingleOpt))THEN
+  IF(SingleOpt.AND.(.NOT.MPIRoot)) RETURN
+END IF
+#endif
 IntInfo  = MERGE(IntInfoOpt ,999 ,PRESENT(IntInfoOpt) )
 RealInfo = MERGE(RealInfoOpt,999.,PRESENT(RealInfoOpt))
 WRITE(UNIT_stdOut,*)
@@ -88,8 +159,8 @@ WRITE(UNIT_stdOut,*)'___________________________________________________________
 WRITE(UNIT_stdOut,*)'Program abort caused on Proc ',myRank,' in File : ',TRIM(SourceFile),' Line ',SourceLine
 WRITE(UNIT_stdOut,*)'This file was compiled at ',TRIM(CompDate),'  ',TRIM(CompTime)
 WRITE(UNIT_stdOut,'(A10,A)',ADVANCE='NO')'Message: ',TRIM(ErrorMessage)
-IF(IntInfo  .NE. 999 ) WRITE(UNIT_stdOut,'(I8)',ADVANCE='NO')IntInfo
-IF(RealInfo .NE. 999.) WRITE(UNIT_stdOut,'(E16.8)')RealInfo
+IF(PRESENT(IntInfoOpt)) WRITE(UNIT_stdOut,'(I8)',ADVANCE='NO')IntInfo
+IF(PRESENT(RealInfoOpt)) WRITE(UNIT_stdOut,'(E16.8)')RealInfo
 WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
@@ -98,7 +169,7 @@ WRITE(UNIT_stdOut,*)
 CALL MPI_ABORT(MPI_COMM_WORLD,iError,errOut)
 #endif
 STOP 0001
-END SUBROUTINE Abort
+END SUBROUTINE AbortProg
 
 
 SUBROUTINE CreateErrFile()
@@ -182,8 +253,11 @@ TimeStamp=TRIM(Filename)//'_'//TRIM(TimeStamp)
 END FUNCTION TIMESTAMP
 
 
-
+#ifdef MPI
 FUNCTION BOLTZPLATZTIME(Comm)
+#else
+FUNCTION BOLTZPLATZTIME()
+#endif
 !===================================================================================================================================
 ! Calculates current time (own function because of a laterMPI implementation)
 !===================================================================================================================================
@@ -192,7 +266,9 @@ FUNCTION BOLTZPLATZTIME(Comm)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#ifdef MPI
 INTEGER, INTENT(IN),OPTIONAL    :: Comm
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL                            :: BoltzplatzTime

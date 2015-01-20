@@ -1,3 +1,5 @@
+#include "boltzplatz.h"
+
 MODULE MOD_vmpf_collision
 !===================================================================================================================================
 ! module including collisions with different particle weighting factors
@@ -7,40 +9,51 @@ MODULE MOD_vmpf_collision
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Private Part ---------------------------------------------------------------------------------------------------------------------
-! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE DSMC_vmpf_prob
+  MODULE PROCEDURE DSMC_vmpf_prob
+END INTERFACE
+INTERFACE vMPF_PostVelo
+  MODULE PROCEDURE vMPF_PostVelo
+END INTERFACE
+INTERFACE vMPF_AfterSplitting
+  MODULE PROCEDURE vMPF_AfterSplitting
+END INTERFACE
+INTERFACE AtomRecomb_vMPF
+  MODULE PROCEDURE AtomRecomb_vMPF
+END INTERFACE
 
 PUBLIC :: DSMC_vmpf_prob, vMPF_PostVelo, vMPF_AfterSplitting, AtomRecomb_vMPF
 !===================================================================================================================================
 
 CONTAINS
 
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE DSMC_vmpf_prob(iElem, iPair, NodeVolume)
-
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, GEO, PartState, PartMPF
-  USE MOD_TimeDisc_Vars,          ONLY : dt
-  USE MOD_Equation_Vars,          ONLY : c2
-  USE MOD_DSMC_SpecXSec
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
 ! collision probability calculation with different particle weighting factors
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+  USE MOD_Globals
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, GEO, PartMPF
+  USE MOD_TimeDisc_Vars,          ONLY : dt
+  USE MOD_DSMC_SpecXSec
+
 !--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                   !
+! IMPLICIT VARIABLE HANDLING
+   IMPLICIT NONE                                                                                 !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
-! Local variable declaration                                                                     !
-INTEGER                             :: iPType, iPart, SpecToExec
-INTEGER(KIND=8)                     :: SpecNum1, SpecNum2
+! Local variable declaration                                                                       !
+INTEGER                             :: iPType, SpecToExec
+INTEGER                             :: SpecNum1, SpecNum2
+REAL                                :: Volume
+REAL                                :: MaxMPF, BGGasDensity_new
+!--------------------------------------------------------------------------------------------------!
 ! input variable declaration                                                                       !
-INTEGER, INTENT(IN)                 :: iElem, iPair
-REAL(KIND=8), INTENT(IN), OPTIONAL  :: NodeVolume
-REAL(KIND=8)                        :: partV2, GammaRel, Ec, Volume
-REAL                                :: MaxMPF
+INTEGER, INTENT(IN)                :: iElem, iPair
+REAL,INTENT(IN), OPTIONAL         :: NodeVolume
 !--------------------------------------------------------------------------------------------------!
   iPType = SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID &
          + SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%InterID !definition of col case
@@ -58,8 +71,9 @@ REAL                                :: MaxMPF
     CASE(2,3,4,11) !Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic Ion
       SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
       SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
-      IF (BGGas%BGGasSpecies.NE.0) THEN       
-        Coll_pData(iPair)%Prob = BGGas%BGGasDensity/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType)) & 
+      IF (BGGas%BGGasSpecies.NE.0) THEN
+        BGGasDensity_new=BGGas%BGGasDensity
+        Coll_pData(iPair)%Prob = BGGasDensity_new/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType)) & 
                 * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
                 * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) &
                 * dt 
@@ -87,15 +101,16 @@ REAL                                :: MaxMPF
         CASE (18)                                      ! Argon
           CALL XSec_Argon_DravinLotz(SpecToExec, iPair)
         CASE DEFAULT
-          PRINT*, 'Error: spec proton not defined!'
-          STOP
+          CALL abort(__STAMP__,&
+               'ERROR: spec proton not defined!')
       END SELECT
 
       SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
       SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
       ! generally this is only a HS calculation of the prob
       IF (BGGas%BGGasSpecies.NE.0) THEN
-        Coll_pData(iPair)%Prob = BGGas%BGGasDensity  &   
+        BGGasDensity_new=BGGas%BGGasDensity
+        Coll_pData(iPair)%Prob = BGGasDensity_new  &   
                 * SQRT(Coll_pData(iPair)%CRela2)*Coll_pData(iPair)%Sigma(0) &
                 * dt                     ! timestep (should be sclaed in time disc)
       ELSE
@@ -113,8 +128,8 @@ REAL                                :: MaxMPF
     CASE(20) !Atomic Ion - Atomic Ion
       Coll_pData(iPair)%Prob = 0
     CASE DEFAULT
-      PRINT*, 'ERROR in DSMC_collis: Wrong iPType case! = ', iPType
-      STOP 
+      CALL abort(__STAMP__,&
+           'ERROR in DSMC_collis: Wrong iPType case! =', iPType)
   END SELECT
   DSMC%CollProbMax = MAX(Coll_pData(iPair)%Prob, DSMC%CollProbMax)
   DSMC%CollMean = DSMC%CollMean + Coll_pData(iPair)%Prob
@@ -125,18 +140,20 @@ END SUBROUTINE DSMC_vmpf_prob
 !--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE vMPF_PostVelo(iPair, iElem)
-
+!===================================================================================================================================
+! determination of velocities after collision
+!===================================================================================================================================
+! MODULES
   USE MOD_DSMC_Vars,              ONLY : DSMC_RHS, Coll_pData
-  USE MOD_Particle_Vars,          ONLY : PartMPF, GEO, PartSpecies, Species, PartState
+  USE MOD_Particle_Vars,          ONLY : PartMPF, GEO, PartSpecies, Species
 !--------------------------------------------------------------------------------------------------!
-! collision probability calculation 
+  IMPLICIT NONE                                                                                 !
 !--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                   !
+! Local variable declaration                 
+  REAL                                ::  Phi
 !--------------------------------------------------------------------------------------------------!
 ! input variable declaration                                                                       !
-INTEGER, INTENT(IN)                 :: iPair, iElem                                                !
-! Local variable declaration                 
-REAL                                ::  Phi
+  INTEGER, INTENT(IN)                 :: iPair, iElem                                            !
 !--------------------------------------------------------------------------------------------------!
   IF(PartMPF(Coll_pData(iPair)%iPart_p1).gt.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
     Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
@@ -168,34 +185,34 @@ END SUBROUTINE vMPF_PostVelo
 !--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE vMPF_AfterSplitting(OrgPartIndex, W_Part, W_Spec)
-
-  USE MOD_DSMC_Vars,              ONLY : DSMC_RHS, Coll_pData, DSMCSumOfFormedParticles, PartStateIntEn, DSMC
-  USE MOD_Particle_Vars,          ONLY : PartMPF, GEO, PartSpecies, Species, PartState, PDM, PEM
+!===================================================================================================================================
+! Optional splitting of particle after collision arcording its new MPF
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+  USE MOD_DSMC_Vars,              ONLY : DSMC_RHS, DSMCSumOfFormedParticles, PartStateIntEn, DSMC
+  USE MOD_Particle_Vars,          ONLY : PartMPF, PartSpecies, PartState, PDM, PEM
 !--------------------------------------------------------------------------------------------------!
-! collision probability calculation 
+  IMPLICIT NONE                                                                                  !
 !--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                   !
+! Local variable declaration
+  INTEGER                             :: NumOfPart, iPart, PositionNbr
 !--------------------------------------------------------------------------------------------------!
 ! input variable declaration                                                                       !
-REAL, INTENT(IN)                    :: W_Part, W_Spec                                              !
-INTEGER, INTENT(IN)                 :: OrgPartIndex                               
-! Local variable declaration                 
-REAL                                :: NewMPF
-INTEGER                             :: NumOfPart, iPart, PositionNbr
+  REAL, INTENT(IN)                    :: W_Part, W_Spec                                          !
+  INTEGER, INTENT(IN)                 :: OrgPartIndex                               
 !--------------------------------------------------------------------------------------------------!
 
   NumOfPart = INT(W_Part / W_Spec)
   PartMPF(OrgPartIndex) = W_Part + (1 - NumOfPart) * W_Spec
   NumOfPart = NumOfPart - 1 ! first Part already exist (OrgPartIndex)
-!  print*,NumOfPart,W_Part, W_Spec
-!  read*
   DO iPart = 1, NumOfPart
   !.... Get free particle index for new part
     DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
     PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
     IF (PositionNbr.EQ.0) THEN
-      PRINT*, 'New Particle Number greater max Part Num'
-      STOP
+      CALL abort(__STAMP__,&
+           'New Particle Number greater max Part Num')
     END IF
   ! Copy molecule data for non-reacting particle part
     PDM%ParticleInside(PositionNbr) = .true.
@@ -220,41 +237,36 @@ END SUBROUTINE vMPF_AfterSplitting
 !--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
-
-USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars,             ONLY : ChemReac, CollisMode, PartStateIntEn
-USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
-USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, GEO, Species
-USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
-! USE MOD_vmpf_collision,        ONLY : vMPF_AfterSplitting
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
 ! atom recombination routine           A + B + X -> AB + X
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
+  USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
+  USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
+  USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, GEO, Species
+  USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE                                                                                      !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
-!! Local variable declaration                                                                      !
+! Local variable declaration                                                                      !
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
   INTEGER                       :: iVec
-  REAL                          :: JToEv, FakXi, Xi, iRan
+  REAL                          :: FakXi, Xi, iRan
   INTEGER                       :: iQuaMax, iQua, React1Inx, React2Inx, NonReacPart, NonReacPart2
   REAL                          :: MaxColQua, Phi
   REAL                          :: ReacMPF, PartStateIntEnTemp, DeltaPartStateIntEn
   REAL                          :: MPartStateVibEnOrg, MPartStateElecEnOrg ! inner energy of M molec before Reaction
   REAL                          :: DSMC_RHS_M_Temp(3)
-
-  INTEGER, INTENT(IN)           :: iPair, iReac, iPart_p3
-  INTEGER, INTENT(IN)        :: iElem
 !--------------------------------------------------------------------------------------------------!
-
-  DSMC_RHS(React1Inx,1) = 0.0
-  DSMC_RHS(React1Inx,2) = 0.0
-  DSMC_RHS(React1Inx,3) = 0.0
-  DSMC_RHS(iPart_p3,1) = 0.0
-  DSMC_RHS(iPart_p3,2) = 0.0
-  DSMC_RHS(iPart_p3,3) = 0.0
+! input variable declaration
+  INTEGER, INTENT(IN)           :: iPair, iReac, iPart_p3
+  INTEGER, INTENT(IN)           :: iElem
+!--------------------------------------------------------------------------------------------------!
 
   IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
     React1Inx = Coll_pData(iPair)%iPart_p1
@@ -263,6 +275,13 @@ IMPLICIT NONE                                                                   
     React2Inx = Coll_pData(iPair)%iPart_p1
     React1Inx = Coll_pData(iPair)%iPart_p2
   END IF
+
+  DSMC_RHS(React1Inx,1) = 0.0
+  DSMC_RHS(React1Inx,2) = 0.0
+  DSMC_RHS(React1Inx,3) = 0.0
+  DSMC_RHS(iPart_p3,1) = 0.0
+  DSMC_RHS(iPart_p3,2) = 0.0
+  DSMC_RHS(iPart_p3,3) = 0.0
 
   ReacMPF = MIN(PartMPF(React1Inx), PartMPF(React2Inx), PartMPF(iPart_p3))
   MPartStateVibEnOrg = PartStateIntEn(iPart_p3,1)
@@ -273,8 +292,8 @@ IMPLICIT NONE                                                                   
     DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
     NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
     IF (NonReacPart.EQ.0) THEN
-      PRINT*, 'New Particle Number greater max Part Num'
-      STOP
+      CALL abort(__STAMP__,&
+           'New Particle Number greater max Part Num')
     END IF
   ! Copy molecule data for non-reacting particle part
     PDM%ParticleInside(NonReacPart) = .true.
@@ -293,8 +312,8 @@ IMPLICIT NONE                                                                   
       DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
       NonReacPart2 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       IF (NonReacPart2.EQ.0) THEN
-        PRINT*, 'New Particle Number greater max Part Num'
-        STOP
+        CALL abort(__STAMP__,&
+             'New Particle Number greater max Part Num')
       END IF
     ! Copy molecule data for non-reacting particle part
       PDM%ParticleInside(NonReacPart2) = .true.
@@ -317,8 +336,8 @@ IMPLICIT NONE                                                                   
     DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
     NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
     IF (NonReacPart.EQ.0) THEN
-      PRINT*, 'New Particle Number greater max Part Num'
-      STOP
+      CALL abort(__STAMP__,&
+           'New Particle Number greater max Part Num')
     END IF
   ! Copy molecule data for non-reacting particle part
     PDM%ParticleInside(NonReacPart) = .true.
@@ -501,40 +520,39 @@ END SUBROUTINE AtomRecomb_vMPF
 !--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
-  
-  USE MOD_DSMC_Vars,              ONLY : CollInf, DSMC_RHS, DSMC, &
-                                         SpecDSMC, PartStateIntEn, DSMC
-  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, RandomVec, NumRanVec, &
-                                         PartState, BoltzmannConst, usevMPF, GEO, PartMPF
+!===================================================================================================================================
+! perform collision for non reactive particles
+!===================================================================================================================================
+! MODULES
+  USE MOD_DSMC_Vars,              ONLY : CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, DSMC
+  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, RandomVec, NumRanVec, PartState, &
+                                          BoltzmannConst, GEO, PartMPF
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange
-
-!--------------------------------------------------------------------------------------------------!
-! perform collision
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                        !
-REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
-REAL                          :: CRela2
-REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
-REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
-REAL                          :: CollisionEnergy
-INTEGER                       :: iVec, PartSpec1, PartSpec2, iCase
-REAL (KIND=8)                 :: iRan
-REAL                          :: Epre, Epost                      ! Energy check
-LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2, DoElec1, DoElec2  ! Check whether rot or vib relax is performed
-REAL (KIND=8)                 :: Xi_rel, Xi, FakXi                ! Factors of DOF
-INTEGER                       :: iQuaMax, iQua                    ! Quantum Numbers
-REAL                          :: MaxColQua                        ! Max. Quantum Number
-REAL                          :: PartStateIntEnTemp, Phi, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
+  REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
+  REAL                          :: CRela2
+  REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
+  REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
+  REAL                          :: CollisionEnergy
+  INTEGER                       :: iVec, PartSpec1, PartSpec2, iCase
+  REAL                          :: iRan
+  LOGICAL                       :: DoRot2, DoVib2, DoElec1, DoElec2  ! Check whether rot or vib relax is performed
+  REAL                          :: Xi_rel, Xi, FakXi                ! Factors of DOF
+  INTEGER                       :: iQuaMax, iQua                    ! Quantum Numbers
+  REAL                          :: MaxColQua                        ! Max. Quantum Number
+  REAL                          :: PartStateIntEnTemp, Phi, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
+!--------------------------------------------------------------------------------------------------!
 ! input variable declaration                                                                       !
-INTEGER, INTENT(IN)           :: Part_1, Part_2
-INTEGER, INTENT(IN)        :: iElem
+  INTEGER, INTENT(IN)           :: Part_1, Part_2
+!--------------------------------------------------------------------------------------------------!
+! output variable declaration    
+  INTEGER, INTENT(IN)           :: iElem
 !--------------------------------------------------------------------------------------------------! 
 
-!  DoRot1 = .FALSE.  Part_1 is allways a atom
-!  DoVib1 = .FALSE.
   DoRot2 = .FALSE.
   DoVib2 = .FALSE.
   DoElec1 = .FALSE.
@@ -728,7 +746,6 @@ INTEGER, INTENT(IN)        :: iElem
   END IF
 
 END SUBROUTINE DSMC_RelaxForNonReacPart
-
 
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!

@@ -51,9 +51,6 @@ USE MOD_PML_Vars,            ONLY: PMLzeta,U2,U2t,Probes,DoPML,ntotalPML
 USE MOD_PML_Vars,            ONLY: nPMLElems,ElemtoPML,PMLtoElem
 USE MOD_PML_Vars,            ONLY: PMLzeta0,xyzPhysicalMinMax,PMLzetaShape,PMLspread,PMLwritezeta, PMLzetaNorm
 USE MOD_Mesh_Vars,           ONLY: Elem_xGP,BCFace_xGP  ! for PML region: xyz position of the Gauss points and Face Gauss points
-#ifdef PARTICLES
-USE MOD_Interpolation_Vars,  ONLY:InterpolationInitIsDone
-#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -65,11 +62,8 @@ USE MOD_Interpolation_Vars,  ONLY:InterpolationInitIsDone
 INTEGER             :: i,j,k,iElem,iProbe,iPMLElem
 REAL                :: xyzMinMax(6),xi,L,XiN
 REAL                :: zetaVec,zetaVecABS
-INTEGER             :: multVec
 LOGICAL,ALLOCATABLE :: isPMLElem(:)
 INTEGER             :: PMLID,nGlobalPMLElems
-#ifdef MPI
-#endif
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -102,7 +96,7 @@ IF(.NOT.DoPML) THEN
 #if PP_nVar == 4
   SWRITE(UNIT_stdOut,'(A)') ' Equation system electrostatic does not support a PML '
 #endif
-  nPMLElems=0.
+  nPMLElems=0
   RETURN
 END IF
 
@@ -136,7 +130,7 @@ DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 END DO; END DO; END DO; END DO !iElem,k,i,j
 
 ! Get number of PML Elems
-nPMLElems = 0.
+nPMLElems = 0
 
 DO iElem=1,PP_nElems
   IF(isPMLElem(iElem))THEN
@@ -381,7 +375,7 @@ SUBROUTINE CalcPMLSource()
 USE MOD_PreProc
 USE MOD_Globals,       ONLY: abort
 USE MOD_DG_Vars,       ONLY: Ut,U
-USE MOD_PML_Vars,      ONLY: nPMLElems,ElemtoPML,PMLtoElem
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLtoElem
 USE MOD_PML_Vars,      ONLY: PMLzeta,U2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -431,7 +425,7 @@ USE MOD_Globals,       ONLY : abort
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : U
 USE MOD_PML_Vars,      ONLY : PMLzeta,U2,U2t
-USE MOD_PML_Vars,      ONLY: nPMLElems,ElemtoPML,PMLtoElem
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLtoElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -440,7 +434,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iPMLElem
+INTEGER                         :: iPMLElem
 !===================================================================================================================================
 ! Add Source Terms
 DO iPMLElem=1,nPMLElems; 
@@ -463,7 +457,7 @@ SUBROUTINE TransformPMLVars()
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY: U
 USE MOD_PML_Vars,      ONLY: PMLzeta,U2
-USE MOD_PML_Vars,      ONLY: nPMLElems,ElemtoPML,PMLtoElem
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLtoElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -493,7 +487,7 @@ SUBROUTINE BacktransformPMLVars()
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY: U
 USE MOD_PML_Vars,      ONLY: PMLzeta,U2
-USE MOD_PML_Vars,      ONLY: nPMLElems,ElemtoPML,PMLtoElem
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLtoElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -537,7 +531,7 @@ REAL,INTENT(IN)                 :: t
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: field(6),field2(3,6)
+REAL                            :: field2(3,6)
 INTEGER                         :: iProbe
 !===================================================================================================================================
 ! calc Probe interpolation field
@@ -551,9 +545,10 @@ DO iProbe=1,3;
 END DO !iProbe
 OPEN(unit=111,FILE='probes.dat', ACCESS = 'APPEND',STATUS='UNKNOWN')
 write(111,'(ES15.7,A,&
-            ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,&
-            ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,&
-            ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7)') t,'  ',&
+           & ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A, &
+           & ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A, &
+           & ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7,A,ES15.7)') &
+t,'  ',&
 field2(1,1),'  ',field2(1,2),'  ',field2(1,3),'  ',field2(1,4),'  ',field2(1,5),'  ',field2(1,6),'  ',&
 field2(2,1),'  ',field2(2,2),'  ',field2(2,3),'  ',field2(2,4),'  ',field2(2,5),'  ',field2(2,6),'  ',&
 field2(3,1),'  ',field2(3,2),'  ',field2(3,3),'  ',field2(3,4),'  ',field2(3,5),'  ',field2(3,6)

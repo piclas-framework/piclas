@@ -3,7 +3,7 @@
 
 MODULE MOD_AnalyzeField
 !===================================================================================================================================
-! Contains the Poyntinc Vector Integral part for the power analysis of the field vector
+! Contains the Poynting Vector Integral part for the power analysis of the field vector
 !===================================================================================================================================
 USE MOD_Globals, ONLY:UNIT_stdout
 USE MOD_PreProc
@@ -42,6 +42,7 @@ PUBLIC:: AnalyzeField
 
 CONTAINS
 
+#ifndef PARTICLES
 SUBROUTINE AnalyzeField(Time)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -49,8 +50,8 @@ SUBROUTINE AnalyzeField(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY:ParticleAnalyzeInitIsDone, CalcEpot, DoAnalyze, IsRestart
-USE MOD_Restart_Vars, ONLY: DoRestart
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEpot, DoAnalyze, IsRestart
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -61,8 +62,8 @@ REAL,INTENT(IN)     :: Time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen, FileExists                                          !
-CHARACTER(LEN=350)  :: outfile ,hilf                                               !
-INTEGER             :: unit_index, unit_index_2, iSpec,  jSpec, iCase,OutputCounter
+CHARACTER(LEN=350)  :: outfile                                                      !
+INTEGER             :: unit_index, OutputCounter
 REAL                :: WEl, WMag
 !===================================================================================================================================
 IF ( DoRestart ) THEN
@@ -148,18 +149,19 @@ ELSE
 END IF ! DoAnalyze
 
 END SUBROUTINE AnalyzeField
+#endif /*NOT PARTICLES*/
 
 SUBROUTINE CalcPoyntingIntegral(t,doProlong)
 !===================================================================================================================================
 ! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Labatto or Gaus Points is used is missing ... ups
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars             ,ONLY:nPoyntingIntSides, isPoyntingIntSide,nElems, SurfElem, NormVec,whichPoyntingPlane
-USE MOD_Mesh_Vars             ,ONLY:ElemToSide,SideToElem,Face_xGP
-USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes,PoyntingIntPlaneFactor,wGPSurf, S!, STEM
+USE MOD_Mesh_Vars             ,ONLY:isPoyntingIntSide,nElems, SurfElem, NormVec,whichPoyntingPlane
+USE MOD_Mesh_Vars             ,ONLY:ElemToSide
+USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes,wGPSurf, S!, STEM
 USE MOD_Interpolation_Vars    ,ONLY:L_Minus,L_Plus
 USE MOD_DG_Vars               ,ONLY:U,U_Minus
-USE MOD_Equation_Vars         ,ONLY:mu0,eps0,smu0
+USE MOD_Equation_Vars         ,ONLY:smu0
 #ifdef MPI
   USE MOD_Globals
 #endif
@@ -322,8 +324,6 @@ END DO ! iElems
 
 #ifdef MPI
   CALL MPI_REDUCE   (Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION ,MPI_SUM, 0, MPI_COMM_WORLD,IERROR)
-  !CALL MPI_REDUCE   (WEl     , sumWEl     , 1                  , MPI_DOUBLE_PRECISION, MPI_SUM, 0, PMPIVAR%COMM,IERROR)
-  !CALL MPI_ALLREDUCE(Sabs(:) , sumSabs(:) , nPoyntingIntPlanes , MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
   Sabs(:) = sumSabs(:)
 #endif /* MPI */
 
@@ -432,8 +432,8 @@ SUBROUTINE GetPoyntingIntPlane()
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars         ,ONLY:nPoyntingIntSides, isPoyntingIntSide,nSides,nElems,Face_xGP,whichPoyntingPlane,BCFace_xGP
-USE MOD_Mesh_Vars         ,ONLY:ElemToSide,normvec,SideToElem
+USE MOD_Mesh_Vars         ,ONLY:nPoyntingIntSides, isPoyntingIntSide,nSides,nElems,Face_xGP,whichPoyntingPlane
+USE MOD_Mesh_Vars         ,ONLY:ElemToSide,normvec
 USE MOD_Analyze_Vars      ,ONLY:PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,PoyntingIntPlaneFactor , S, STEM
 USE MOD_ReadInTools       ,ONLY:GETINT,GETREAL
 #ifdef MPI
@@ -448,10 +448,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem, iSide, iPlane, SideID, iLocsideID,iLocSide
+INTEGER             :: iElem, iSide, iPlane, SideID
 INTEGER,ALLOCATABLE :: nFaces(:)
 REAL                :: diff
-REAL                :: testvec ! only in z
 INTEGER             :: p,q
 CHARACTER(LEN=32)   :: index_plane
 INTEGER,ALLOCATABLE :: sumFaces(:)

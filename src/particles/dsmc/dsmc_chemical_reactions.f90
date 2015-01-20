@@ -1,3 +1,5 @@
+#include "boltzplatz.h"
+
 MODULE MOD_DSMC_ChemReact
 !===================================================================================================================================
 ! module including collisions
@@ -6,39 +8,69 @@ MODULE MOD_DSMC_ChemReact
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+
+INTERFACE ElecImpactIoni
+  MODULE PROCEDURE ElecImpactIoni
+END INTERFACE
+
+INTERFACE SetMeanVibQua
+  MODULE PROCEDURE SetMeanVibQua
+END INTERFACE
+
+INTERFACE MolecDissoc
+  MODULE PROCEDURE MolecDissoc
+END INTERFACE
+
+INTERFACE MolecExch
+  MODULE PROCEDURE MolecExch
+END INTERFACE
+
+INTERFACE AtomRecomb
+  MODULE PROCEDURE AtomRecomb
+END INTERFACE
+
+INTERFACE simpleCEX
+  MODULE PROCEDURE simpleCEX
+END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-PUBLIC :: ElecImpactIoni, SetMeanVibQua, MolecDissoc, MolecExch, AtomRecomb
+PUBLIC :: ElecImpactIoni, SetMeanVibQua, MolecDissoc, MolecExch, AtomRecomb, simpleCEX
 !===================================================================================================================================
 
 CONTAINS
 
 SUBROUTINE ElecImpactIoni(iReac, iPair)
-
-USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars,             ONLY : ChemReac, CollisMode, PartStateIntEn
+!===================================================================================================================================
+! Perfoms the electron impact ionization
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, CollInf, SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
-!--------------------------------------------------------------------------------------------------!
-! main DSMC routine
-!--------------------------------------------------------------------------------------------------!
-IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-! Local variable declaration                                                                       !  
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+  INTEGER, INTENT(IN)           :: iPair, iReac
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
   INTEGER                       :: iVec
-  REAL                          :: JToEv, FakXi, Xi_rel, iRan, FacEtraDistri
+  REAL                          :: JToEv, iRan, FacEtraDistri
   REAL                          :: ERel_React1_React2, ERel_React2_Elec
-  INTEGER                       :: iQuaMax, iQua, MaxColQua, PositionNbr, React1Inx, ElecInx
-  INTEGER, INTENT(IN)           :: iPair, iReac
+  INTEGER                       :: PositionNbr, React1Inx, ElecInx
   REAL                          :: VxPseuAtom, VyPseuAtom, VzPseuAtom
-!--------------------------------------------------------------------------------------------------!
+!  REAL                           :: FakXi, Xi_rel
+!  INTEGER                        :: iQuaMax, iQua, MaxColQua
+!===================================================================================================================================
+
 JToEv = 1.602176565E-19
 
 !..Get the index of react1 and the electron
@@ -97,7 +129,7 @@ Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SpecDSMC(PartSpecies(React1Inx))%E
   ERel_React1_React2 = Coll_pData(iPair)%Ec * FacEtraDistri
   ERel_React2_Elec = Coll_pData(iPair)%Ec - ERel_React1_React2
 
-!.... Get free particle index for the 3rd particle produced
+  !.... Get free particle index for the 3rd particle produced
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
   IF (PositionNbr.EQ.0) THEN
@@ -105,7 +137,7 @@ Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SpecDSMC(PartSpecies(React1Inx))%E
     STOP
   END IF
 
-!Set new Species of electron
+  !Set new Species of electron
   PDM%ParticleInside(PositionNbr) = .true.
   PartSpecies(PositionNbr) = ChemReac%DefinedReact(iReac,2,2)
   PartState(PositionNbr,1:3) = PartState(React1Inx,1:3)
@@ -113,7 +145,7 @@ Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SpecDSMC(PartSpecies(React1Inx))%E
   PartStateIntEn(PositionNbr, 2) = 0
   PEM%Element(PositionNbr) = PEM%Element(React1Inx)
 
-!Scattering of pseudo atom (e-i) and collision partner e (scattering of e)
+  !Scattering of pseudo atom (e-i) and collision partner e (scattering of e)
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(React1Inx), Coll_pData(iPair)%PairType)
   FracMassCent2 = CollInf%FracMassCent(PartSpecies(ElecInx), Coll_pData(iPair)%PairType)
 
@@ -143,10 +175,10 @@ Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SpecDSMC(PartSpecies(React1Inx))%E
   VyPseuAtom = VeloMy + FracMassCent2*RanVeloy 
   VzPseuAtom = VeloMz + FracMassCent2*RanVeloz 
 
-!Set new Species of formed ion
+  !Set new Species of formed ion
   PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,1)
 
-!Scattering of i + e
+  !Scattering of i + e
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(React1Inx), &
                 &  CollInf%Coll_Case(PartSpecies(React1Inx),PartSpecies(PositionNbr)))
   FracMassCent2 = CollInf%FracMassCent(PartSpecies(PositionNbr), & 
@@ -174,25 +206,28 @@ Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SpecDSMC(PartSpecies(React1Inx))%E
 
 END SUBROUTINE ElecImpactIoni
 
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
-
 
 SUBROUTINE MolecDissoc(iReac, iPair)
-
+!===================================================================================================================================
+! Perfom the molecular dissociation
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,               ONLY : abort
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars,             ONLY : ChemReac, CollisMode, PartStateIntEn
+USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec
 USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, GEO, Species
 USE MOD_vmpf_collision,        ONLY : vMPF_AfterSplitting
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
-!--------------------------------------------------------------------------------------------------!
-! main DSMC routine
-!--------------------------------------------------------------------------------------------------!
-IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-!! Local variable declaration                                                                       !  
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+  INTEGER, INTENT(IN)           :: iPair, iReac
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
@@ -201,13 +236,13 @@ IMPLICIT NONE                                                                   
   REAL                          :: ERel_React1_React2, ERel_React1_React3
   INTEGER                       :: iQuaMax, iQua, PositionNbr, React1Inx, React2Inx, NonReacPart
   REAL                          :: MaxColQua
-  INTEGER, INTENT(IN)           :: iPair, iReac
   REAL                          :: VxPseuMolec, VyPseuMolec, VzPseuMolec
   REAL                          :: DeltaPartStateIntEn, PartStateIntEnTemp, Phi, ReacMPF
   REAL                          :: ElecTransfer
+!===================================================================================================================================
 
-!--------------------------------------------------------------------------------------------------!
 JToEv = 1.602176565E-19
+ElecTransfer = 0.
 
 !..Get the index of react1 and the react2
   IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
@@ -224,8 +259,9 @@ JToEv = 1.602176565E-19
       DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
       NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       IF (NonReacPart.EQ.0) THEN
-        PRINT*, 'New Particle Number greater max Part Num'
-        STOP
+        CALL abort(&
+       __STAMP__&
+        ,'New Particle Number greater max Part Num in MolecDiss. Reaction: ',iReac)
       END IF
     ! Copy molecule data for non-reacting particle part
       PDM%ParticleInside(NonReacPart) = .true.
@@ -345,15 +381,15 @@ JToEv = 1.602176565E-19
   ERel_React1_React2 = Coll_pData(iPair)%Ec * FacEtraDistri
   ERel_React1_React3 = Coll_pData(iPair)%Ec - ERel_React1_React2
 
-!.... Get free particle index for the 3rd particle produced
+  !.... Get free particle index for the 3rd particle produced
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
   IF (PositionNbr.EQ.0) THEN
-    PRINT*, 'New Particle Number greater max Part Num'
-    STOP
+    CALL abort(__STAMP__,&
+    'New Particle Number greater max Part Num in MolecDiss. Reaction: ',iReac)
   END IF
 
-!Set new Species of new atom
+  !Set new Species of new atom
   PDM%ParticleInside(PositionNbr) = .true.
   PartSpecies(PositionNbr) = ChemReac%DefinedReact(iReac,2,2)
   PartState(PositionNbr,1:3) = PartState(React1Inx,1:3)
@@ -362,7 +398,7 @@ JToEv = 1.602176565E-19
   PEM%Element(PositionNbr) = PEM%Element(React1Inx)
   IF(usevMPF) PartMPF(PositionNbr) = ReacMPF
 
-!Scattering of pseudo molecule (a-b) and collision partner e (scattering of e)
+  !Scattering of pseudo molecule (a-b) and collision partner e (scattering of e)
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(React1Inx), Coll_pData(iPair)%PairType)
   FracMassCent2 = CollInf%FracMassCent(PartSpecies(React2Inx), Coll_pData(iPair)%PairType)
 
@@ -401,12 +437,16 @@ JToEv = 1.602176565E-19
     END IF
   END IF
 
-  !Set velocity of pseudo molec (a+b)
-  VxPseuMolec = VeloMx + FracMassCent2*RanVelox  
-  VyPseuMolec = VeloMy + FracMassCent2*RanVeloy 
-  VzPseuMolec = VeloMz + FracMassCent2*RanVeloz 
+  !Set velocity of pseudo molec (a+b) and calculate the centre of mass frame velocity: m_pseu / (m_3 + m_4) * v_pseu
+  !(Velocity of pseudo molecule is NOT equal to the COM frame velocity)
+  VxPseuMolec = (VeloMx + FracMassCent2*RanVelox) * Species(PartSpecies(React1Inx))%MassIC &
+                  / (Species(ChemReac%DefinedReact(iReac,2,1))%MassIC+Species(ChemReac%DefinedReact(iReac,2,2))%MassIC)
+  VyPseuMolec = (VeloMy + FracMassCent2*RanVeloy) * Species(PartSpecies(React1Inx))%MassIC &
+                  / (Species(ChemReac%DefinedReact(iReac,2,1))%MassIC+Species(ChemReac%DefinedReact(iReac,2,2))%MassIC)
+  VzPseuMolec = (VeloMz + FracMassCent2*RanVeloz) * Species(PartSpecies(React1Inx))%MassIC &
+                  / (Species(ChemReac%DefinedReact(iReac,2,1))%MassIC+Species(ChemReac%DefinedReact(iReac,2,2))%MassIC)
 
-!Set new Species of dissoc atom
+  !Set new Species of dissoc atom
   PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,1)
 
   ! here set the electronic level of the 2 atoms
@@ -417,7 +457,7 @@ JToEv = 1.602176565E-19
     ERel_React1_React3 = Coll_pData(iPair)%Ec
   END IF
 
-!Scattering of i + e
+  !Scattering of a + b
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(React1Inx), &
                   CollInf%Coll_Case(PartSpecies(React1Inx),PartSpecies(PositionNbr)))
   FracMassCent2 = CollInf%FracMassCent(PartSpecies(PositionNbr), & 
@@ -446,7 +486,6 @@ JToEv = 1.602176565E-19
   DSMC_RHS(PositionNbr,1) = VxPseuMolec - FracMassCent1*RanVelox 
   DSMC_RHS(PositionNbr,2) = VyPseuMolec - FracMassCent1*RanVeloy 
   DSMC_RHS(PositionNbr,3) = VzPseuMolec - FracMassCent1*RanVeloz 
-  !print*,'positinbr',DSMC_RHS(PositionNbr,:)
 
   IF(usevMPF) THEN
     IF (ReacMPF.GT.(Species(PartSpecies(React1Inx))%MacroParticleFactor)) THEN
@@ -461,24 +500,28 @@ JToEv = 1.602176565E-19
 
 END SUBROUTINE MolecDissoc
 
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE MolecExch(iReac, iPair)
-
+!===================================================================================================================================
+! Perform molecular exchange reaction
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,               ONLY : abort
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars,             ONLY : ChemReac, CollisMode, PartStateIntEn
+USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
 USE MOD_vmpf_collision,        ONLY : vMPF_AfterSplitting
-USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, GEO, Species
+USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
-!--------------------------------------------------------------------------------------------------!
-! main DSMC routine
-!--------------------------------------------------------------------------------------------------!
-IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-!! Local variable declaration                                                                       !  
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+  INTEGER, INTENT(IN)           :: iPair, iReac
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
@@ -486,9 +529,9 @@ IMPLICIT NONE                                                                   
   REAL                          :: JToEv, FakXi, Xi_rel, iRan
   INTEGER                       :: iQuaMax, iQua, React1Inx, React2Inx, NonReacPart
   REAL                          :: MaxColQua
-  INTEGER, INTENT(IN)           :: iPair, iReac
   REAL                          :: ReacMPF
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
+
 JToEv = 1.602176565E-19
 
 !..Get the index of react1 and the react2
@@ -507,8 +550,8 @@ JToEv = 1.602176565E-19
       DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
       NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       IF (NonReacPart.EQ.0) THEN
-        PRINT*, 'New Particle Number greater max Part Num'
-        STOP
+        CALL abort(__STAMP__,&
+        'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
       END IF
     ! Copy molecule data for non-reacting particle part
       PDM%ParticleInside(NonReacPart) = .true.
@@ -527,8 +570,8 @@ JToEv = 1.602176565E-19
       DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
       NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       IF (NonReacPart.EQ.0) THEN
-        PRINT*, 'New Particle Number greater max Part Num'
-        STOP
+        CALL abort(__STAMP__,&
+        'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
       END IF
     ! Copy molecule data for non-reacting particle part
       PDM%ParticleInside(NonReacPart) = .true.
@@ -548,7 +591,7 @@ JToEv = 1.602176565E-19
   ! Add heat of formation to collision energy
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + ChemReac%EForm(iReac)
 
-!Set new Species of molec and atom
+  !Set new Species of molec and atom
   PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,1)
   PartSpecies(React2Inx) = ChemReac%DefinedReact(iReac,2,2)
 
@@ -566,44 +609,47 @@ JToEv = 1.602176565E-19
     CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,React2Inx,FakXi,React1Inx,PEM%Element(React2Inx) )
   END IF
 
-!Vibrational Relaxation of React1Inx
-    MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*SpecDSMC(PartSpecies(React1Inx))%CharaTVib)  &
-              - DSMC%GammaQuant
-    iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(React1Inx))%MaxVibQuant)
-    CALL RANDOM_NUMBER(iRan)
-    iQua = INT(iRan * iQuaMax)
-    CALL RANDOM_NUMBER(iRan)
-    DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi) 
-     !laux diss page 31
-     CALL RANDOM_NUMBER(iRan)
-     iQua = INT(iRan * iQuaMax)    
-     CALL RANDOM_NUMBER(iRan)
-    END DO
-    PartStateIntEn(React1Inx,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                  * SpecDSMC(PartSpecies(React1Inx))%CharaTVib 
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React1Inx,1) 
+  !Vibrational Relaxation of React1Inx
+  MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*SpecDSMC(PartSpecies(React1Inx))%CharaTVib)  &
+            - DSMC%GammaQuant
+  iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(React1Inx))%MaxVibQuant)
+  CALL RANDOM_NUMBER(iRan)
+  iQua = INT(iRan * iQuaMax)
+  CALL RANDOM_NUMBER(iRan)
+  DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi) 
+   !laux diss page 31
+   CALL RANDOM_NUMBER(iRan)
+   iQua = INT(iRan * iQuaMax)    
+   CALL RANDOM_NUMBER(iRan)
+  END DO
+  PartStateIntEn(React1Inx,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
+                * SpecDSMC(PartSpecies(React1Inx))%CharaTVib 
+  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React1Inx,1) 
 
-!Rotational Relaxation of React1Inx
-    CALL RANDOM_NUMBER(iRan)
-    PartStateIntEn(React1Inx,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React1Inx,2) 
+  !Rotational Relaxation of React1Inx
+  CALL RANDOM_NUMBER(iRan)
+  PartStateIntEn(React1Inx,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React1Inx,2) 
 
 !--------------------------------------------------------------------------------------------------! 
 ! Calculation of new particle velocities
 !--------------------------------------------------------------------------------------------------! 
+  FracMassCent1 = CollInf%FracMassCent(ChemReac%DefinedReact(iReac,1,1), &
+                CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)))
+  FracMassCent2 = CollInf%FracMassCent(ChemReac%DefinedReact(iReac,1,2), & 
+                CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)))
 
-  FracMassCent1 = CollInf%FracMassCent(PartSpecies(React1Inx), &
-                  CollInf%Coll_Case(PartSpecies(React1Inx),PartSpecies(React2Inx)))
-  FracMassCent2 = CollInf%FracMassCent(PartSpecies(React2Inx), & 
-                  CollInf%Coll_Case(PartSpecies(React1Inx),PartSpecies(React2Inx)))
-
-  !Calculation of velo from center of mass
+  !Calculation of velo from center of mass from old particle pair
   VeloMx = FracMassCent1 * PartState(React1Inx, 4) &
          + FracMassCent2 * PartState(React2Inx, 4)
   VeloMy = FracMassCent1 * PartState(React1Inx, 5) &
          + FracMassCent2 * PartState(React2Inx, 5)
   VeloMz = FracMassCent1 * PartState(React1Inx, 6) &
          + FracMassCent2 * PartState(React2Inx, 6)
+
+  ! FracMassCent with the masses of products for calc of CRela2 and velo distribution
+  FracMassCent1 = CollInf%FracMassCent(PartSpecies(React1Inx), CollInf%Coll_Case(PartSpecies(React1Inx),PartSpecies(React2Inx)))
+  FracMassCent2 = CollInf%FracMassCent(PartSpecies(React2Inx), CollInf%Coll_Case(PartSpecies(React1Inx),PartSpecies(React2Inx)))
 
   !calculate random vec and new squared velocities
   Coll_pData(iPair)%CRela2 = 2 * Coll_pData(iPair)%Ec/ &
@@ -619,7 +665,7 @@ JToEv = 1.602176565E-19
   DSMC_RHS(React1Inx,2) = VeloMy + FracMassCent2*RanVeloy - PartState(React1Inx, 5)
   DSMC_RHS(React1Inx,3) = VeloMz + FracMassCent2*RanVeloz - PartState(React1Inx, 6)
 
- ! deltaV particle 2
+  ! deltaV particle 2
   DSMC_RHS(React2Inx,1) = VeloMx - FracMassCent1*RanVelox - PartState(React2Inx, 4)
   DSMC_RHS(React2Inx,2) = VeloMy - FracMassCent1*RanVeloy - PartState(React2Inx, 5)
   DSMC_RHS(React2Inx,3) = VeloMz - FracMassCent1*RanVeloz - PartState(React2Inx, 6)
@@ -634,40 +680,41 @@ JToEv = 1.602176565E-19
       CALL vMPF_AfterSplitting(React2Inx, ReacMPF, Species(PartSpecies(React2Inx))%MacroParticleFactor)
     END IF
   END IF
-   
 
 END SUBROUTINE MolecExch
 
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE AtomRecomb(iReac, iPair, iPart_p3)
-
-USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars,             ONLY : ChemReac, CollisMode, PartStateIntEn
-USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
-USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
-
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
+! Performs recombination between two atoms to one molecule
 ! atom recombination routine           A + B + X -> AB + X
-!--------------------------------------------------------------------------------------------------!
-IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-!! Local variable declaration                                                                       !  
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals,               ONLY : abort
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC
+  USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
+  USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, NumRanVec, RandomVec
+  USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+  INTEGER, INTENT(IN)           :: iPair, iReac, iPart_p3
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
   INTEGER                       :: iVec
-  REAL                          :: JToEv, FakXi, Xi, iRan
+  REAL                          :: FakXi, Xi, iRan
   INTEGER                       :: iQuaMax, iQua, React1Inx, React2Inx
   REAL                          :: MaxColQua
-
-  INTEGER, INTENT(IN)           :: iPair, iReac, iPart_p3
 ! additional for Q-K theory
   REAL                          :: ksum, Tcoll
   INTEGER                       :: ii
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
 
   IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
     React1Inx = Coll_pData(iPair)%iPart_p1
@@ -677,8 +724,8 @@ IMPLICIT NONE                                                                   
     React1Inx = Coll_pData(iPair)%iPart_p2
   END IF
 
-! The input particle 1 is replaced by the product molecule, the
-!     second input particle is deleted
+  ! The input particle 1 is replaced by the product molecule, the
+  !     second input particle is deleted
   PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,1)
   PDM%ParticleInside(React2Inx) = .FALSE.
   ! has to be calculated earlier because of setting of electronic energy
@@ -714,14 +761,14 @@ IMPLICIT NONE                                                                   
     Tcoll = CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2  &
           / ( 2 * BoltzmannConst * ( 2 - SpecDSMC(PartSpecies(React1Inx))%omegaVHS ) )
     DO ii = 0, iQuaMax -1
-      ksum = ksum + gammainc( [2 - SpecDSMC(PartSpecies(React1Inx))%omegaVHS,                          &
+      ksum = ksum + gammainc( [2. - SpecDSMC(PartSpecies(React1Inx))%omegaVHS,                          &
                                (iQuaMax - ii)*SpecDSMC(PartSpecies(React1Inx))%CharaTVib / Tcoll ] ) * &
              exp( - ii * SpecDSMC(PartSpecies(React1Inx))%CharaTVib / Tcoll )
     END DO
     CALL RANDOM_NUMBER(iRan)
     iQua = INT(iRan * iQuaMax)
     CALL RANDOM_NUMBER(iRan)
-    DO WHILE (iRan.GT. ( gammainc([2 - SpecDSMC(PartSpecies(React1Inx))%omegaVHS,                          &
+    DO WHILE (iRan.GT. ( gammainc([2. - SpecDSMC(PartSpecies(React1Inx))%omegaVHS,                          &
                                (iQuaMax - iQua)*SpecDSMC(PartSpecies(React1Inx))%CharaTVib / Tcoll ] ) *   &
                           exp( - iQua * SpecDSMC(PartSpecies(React1Inx))%CharaTVib/ Tcoll ) / ksum ) )
       ! diss page 31
@@ -817,101 +864,158 @@ IMPLICIT NONE                                                                   
 
 END SUBROUTINE AtomRecomb
 
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
+
+SUBROUTINE simpleCEX(iReac, iPair)
+!===================================================================================================================================
+! simple charge exchange interaction     
+! ION(v1) + ATOM(v2) -> ATOM(v1) + ION(v2)
+!===================================================================================================================================
+! MODULES
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS
+  USE MOD_DSMC_Vars,             ONLY : ChemReac
+  USE MOD_Particle_Vars,         ONLY : PartSpecies
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+  INTEGER, INTENT(IN)           :: iPair, iReac
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                       :: React1Inx, React2Inx
+!===================================================================================================================================
+
+  IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
+    React1Inx = Coll_pData(iPair)%iPart_p1
+    React2Inx = Coll_pData(iPair)%iPart_p2
+  ELSE
+    React2Inx = Coll_pData(iPair)%iPart_p1
+    React1Inx = Coll_pData(iPair)%iPart_p2
+  END IF
+  ! change species
+  PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,1)
+  PartSpecies(React2Inx) = ChemReac%DefinedReact(iReac,2,2)
+  ! deltaV particle 1
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,1) = 0.
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,2) = 0.
+  DSMC_RHS(Coll_pData(iPair)%iPart_p1,3) = 0.
+  ! deltaV particle 2
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,1) = 0.
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,2) = 0.
+  DSMC_RHS(Coll_pData(iPair)%iPart_p2,3) = 0.
+
+END SUBROUTINE simpleCEX
 
 SUBROUTINE SetMeanVibQua()
+!===================================================================================================================================
+! Computes the vibrational quant of species
+!===================================================================================================================================
+! MODULES
+  USE MOD_DSMC_Vars,             ONLY : DSMC, CollInf, SpecDSMC, ChemReac, BGGas
+  USE MOD_Particle_Vars,         ONLY : BoltzmannConst, nSpecies
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER         :: iSpec
+  REAL            :: iRan, VibQuaTemp
+!===================================================================================================================================
 
-USE MOD_DSMC_Vars,             ONLY : DSMC, CollInf, SpecDSMC, ChemReac, BGGas
-USE MOD_Particle_Vars,         ONLY : BoltzmannConst, nSpecies
-!--------------------------------------------------------------------------------------------------!
-! main DSMC routine
-!--------------------------------------------------------------------------------------------------!
-IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-INTEGER         :: iSpec
-REAL            :: iRan
-! Local variable declaration                                                                       !  
-DO iSpec =1, nSpecies
-  ! describe evib as quantum number
-  IF (iSpec.EQ.BGGas%BGGasSpecies) THEN
-    ChemReac%MeanEVibQua_PerIter(iSpec) = BGGas%BGMeanEVibQua
-  ELSE
-    IF ((CollInf%Coll_SpecPartNum(iSpec).NE.0).AND.(SpecDSMC(iSpec)%CharaTVib.NE.0)) THEN
-      ChemReac%MeanEVibQua_PerIter(iSpec) = ChemReac%MeanEVibQua_PerIter(iSpec) / (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib & 
-                *  CollInf%Coll_SpecPartNum(iSpec)) - DSMC%GammaQuant
-      CALL RANDOM_NUMBER(iRan)
-      IF((ChemReac%MeanEVibQua_PerIter(iSpec)-INT(ChemReac%MeanEVibQua_PerIter(iSpec))).GT.iRan) THEN
-        ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(ChemReac%MeanEVibQua_PerIter(iSpec)) + 2, SpecDSMC(iSpec)%MaxVibQuant-1)
-      ELSE
-        ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(ChemReac%MeanEVibQua_PerIter(iSpec)) + 1, SpecDSMC(iSpec)%MaxVibQuant-1)
-      END IF
+  DO iSpec =1, nSpecies
+    ! describe evib as quantum number
+    IF (iSpec.EQ.BGGas%BGGasSpecies) THEN
+      ChemReac%MeanEVibQua_PerIter(iSpec) = BGGas%BGMeanEVibQua
     ELSE
-      ChemReac%MeanEVibQua_PerIter(iSpec) = 0
+      IF(SpecDSMC(iSpec)%PolyatomicMol.AND.(CollInf%Coll_SpecPartNum(iSpec).NE.0)) THEN
+        ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
+      ELSEIF ((CollInf%Coll_SpecPartNum(iSpec).NE.0).AND.(SpecDSMC(iSpec)%CharaTVib.NE.0)) THEN
+        ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
+        VibQuaTemp = ChemReac%MeanEVib_PerIter(iSpec) / (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
+        CALL RANDOM_NUMBER(iRan)
+        IF((VibQuaTemp-INT(VibQuaTemp)).GT.iRan) THEN
+          ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(VibQuaTemp) + 2, SpecDSMC(iSpec)%MaxVibQuant-1)
+        ELSE
+          ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(VibQuaTemp) + 1, SpecDSMC(iSpec)%MaxVibQuant-1)
+        END IF
+      ELSE
+        ChemReac%MeanEVibQua_PerIter(iSpec) = 0
+      END IF
     END IF
-  END IF
-END DO
-!--------------------------------------------------------------------------------------------------!
+  END DO
 END SUBROUTINE SetMeanVibQua
 
 
-!--------------------------------------------------------------------------------------------------!
-  RECURSIVE FUNCTION lacz_gamma(a) result(g)
-!--------------------------------------------------------------------------------------------------!
+RECURSIVE FUNCTION lacz_gamma(a) RESULT(g)
+!===================================================================================================================================
 ! gamma function taken from
 ! http://rosettacode.org/wiki/Gamma_function#Fortran
 ! variefied against build in and compiled with double precision
-!--------------------------------------------------------------------------------------------------!
-    REAL(KIND=8), INTENT(IN) :: a
-    REAL(KIND=8) :: g
-
-    REAL(KIND=8), PARAMETER :: pi = 3.14159265358979324
-    INTEGER, PARAMETER :: cg = 7
-
-    ! these precomputed values are taken by the sample code in Wikipedia,
-    ! and the sample itself takes them from the GNU Scientific Library
-    REAL(KIND=8), DIMENSION(0:8), PARAMETER :: p = &
-         (/ 0.99999999999980993, 676.5203681218851, -1259.1392167224028, &
-         771.32342877765313, -176.61502916214059, 12.507343278686905, &
-         -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7 /)
-
-    REAL(KIND=8) :: t, w, x
-    INTEGER :: i
-
-    x = a
-
-    if ( x < 0.5 ) then
-       g = pi / ( sin(pi*x) * lacz_gamma(1.0-x) )
-    else
-       x = x - 1.0
-       t = p(0)
-       do i=1, cg+2
-          t = t + p(i)/(x+real(i))
-       end do
-       w = x + real(cg) + 0.5
-       g = sqrt(2.0*pi) * w**(x+0.5) * exp(-w) * t
-    end if
-  end function lacz_gamma
-!--------------------------------------------------------------------------------------------------!
-
-!--------------------------------------------------------------------------------------------------!
-  FUNCTION gammainc( arg )
-!--------------------------------------------------------------------------------------------------!
-  ! Program to test the incomplete gamma function
-  ! the following gamma function is the one of Birds Q-K rate code
-  ! ev. take another gamma function implementation
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
-  ! local variables
-  INTEGER                        :: n, ii
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+  REAL(KIND=8), INTENT(IN) :: a
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+  REAL(KIND=8) :: g
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  REAL(KIND=8), PARAMETER :: pi = 3.14159265358979324
+  INTEGER, PARAMETER :: cg = 7
+  ! these precomputed values are taken by the sample code in Wikipedia,
+  ! and the sample itself takes them from the GNU Scientific Library
+  REAL(KIND=8), DIMENSION(0:8), PARAMETER :: p = &
+       (/ 0.99999999999980993, 676.5203681218851, -1259.1392167224028, &
+       771.32342877765313, -176.61502916214059, 12.507343278686905, &
+       -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7 /)
+  REAL(KIND=8) :: t, w, x
+  INTEGER :: i
+!===================================================================================================================================
+
+  x = a
+
+  IF ( x < 0.5 ) THEN
+     g = pi / ( sin(pi*x) * lacz_gamma(1.0-x) )
+  ELSE
+     x = x - 1.0
+     t = p(0)
+     DO i=1, cg+2
+        t = t + p(i)/(x+real(i))
+     END DO
+     w = x + real(cg) + 0.5
+     g = sqrt(2.0*pi) * w**(x+0.5) * exp(-w) * t
+  END IF
+END FUNCTION lacz_gamma
+
+
+FUNCTION gammainc( arg )
+!===================================================================================================================================
+! Program to test the incomplete gamma function
+! the following gamma function is the one of Birds Q-K rate code
+! ev. take another gamma function implementation
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
   INTEGER,PARAMETER              :: real_kind=8
-  REAL(KIND=real_kind)           :: gamser, gln, ap, del, summ, an, &
-                                    ser, tmp, x,y, b,c,d,h
   REAL(KIND=real_kind),DIMENSION(1:2), INTENT(IN) :: arg
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                        :: n
+  REAL(KIND=real_kind)           :: gamser, gln, ap, del, summ, an, ser, tmp, x,y, b,c,d,h
   REAL(KIND=real_kind)           :: gammainc
-!--------------------------------------------------------------------------------------------------!
-  ! paramters
+  ! parameters
   REAL(KIND=real_kind),PARAMETER,DIMENSION(6) :: &
                                       cof= [ 76.18009172947146      , &
                                             -86.50532032941677     , &
@@ -919,10 +1023,10 @@ END SUBROUTINE SetMeanVibQua
                                              -1.231739572450155     , &
                                               0.1208650973866179e-2  , &
                                             -0.5395239384953e-5 ]
-  REAL(KIND=real_kind),PARAMETER :: &
-                                      stp=2.5066282746310005        , &
+  REAL(KIND=real_kind),PARAMETER :: stp=2.5066282746310005        , &
                                     fpmin=1.e-30
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
+
   x=arg(1)
   y=x
   tmp=x+5.5
@@ -933,48 +1037,46 @@ END SUBROUTINE SetMeanVibQua
     ser=ser+cof(n)/y
   END DO
   gln=tmp+log(stp*ser/x)
-  IF (arg(2) < arg(1)+1.) then
-    if (arg(2) <= 0.) then
+  IF (arg(2) < arg(1)+1.) THEN
+    IF (arg(2) <= 0.) THEN
       gamser=0.
-    else
+    ELSE
       ap=arg(1)
       summ=1./arg(1)
       del=summ
-      do while (abs(del) > abs(summ)*1.e-8 )
+      DO WHILE (abs(del) > abs(summ)*1.e-8 )
         ap=ap+1.
         del=del*arg(2)/ap
         summ=summ+del
-      end do
+      END DO
       gamser=summ*exp(-arg(2)+arg(1)*log(arg(2))-gln)
-    end if
+    END IF
     gammainc=1.-gamser
-  else
+  ELSE
     b =arg(2)+1.-arg(1)
     c=1./fpmin
     d=1./b
     h=d
     del=d*c
     n=0
-    do while ( abs(del-1.) >= 1.e-8 )
+    DO WHILE ( abs(del-1.) >= 1.e-8 )
       n=n+1
       an=-n*(n-arg(1))
       b=b+2.
       d=an*d+b
-      if ( abs(d) < fpmin ) then
+      IF ( abs(d) < fpmin ) THEN
         d=fpmin
-      end if
+      END IF
       c=b+an/c
-      if ( abs(c) < fpmin ) then
+      IF ( abs(c) < fpmin ) THEN
         c=fpmin
-      end if
+      END IF
       d=1./d
       del=d*c
       h=h*del
-    end do
+    END DO
     gammainc=exp(-arg(2)+arg(1)*log(arg(2))-gln) * h
-  end if
-!--------------------------------------------------------------------------------------------------!
-  END FUNCTION gammainc
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
+  END IF
+END FUNCTION gammainc
+
 END MODULE MOD_DSMC_ChemReact

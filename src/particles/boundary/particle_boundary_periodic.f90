@@ -95,7 +95,7 @@ SUBROUTINE MapPeriodicVectorsToSides()
 ! MODULES
   USE MOD_ReadInTools
   USE MOD_Particle_Vars,      ONLY : GEO 
-  USE MOD_Mesh_Vars,          ONLY : nElems, ElemToSide, SideToElem, nNodes, nSides, nBCSides, nInnerSides 
+  USE MOD_Mesh_Vars,          ONLY : nElems 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -106,9 +106,7 @@ SUBROUTINE MapPeriodicVectorsToSides()
   INTEGER                :: iElem, iLocSide, iPV, maxindex
   REAL, ALLOCATABLE      :: PVNorm(:,:)
   REAL                   :: PVabs, v1(1:3), v2(1:3), normal(1:3), normalAbs, dotprod, maxvalue
-  CHARACTER              :: hilf
   LOGICAL                :: neg
-INTEGER :: count1, count2
 !===================================================================================================================================
 
   !--- normalize periodic vectors
@@ -117,8 +115,6 @@ INTEGER :: count1, count2
     PVabs=SQRT(GEO%PeriodicVectors(1,iPV)**2+GEO%PeriodicVectors(2,iPV)**2+GEO%PeriodicVectors(3,iPV)**2)
     PVNorm(1:3,iPV) = GEO%PeriodicVectors(1:3,iPV)/PVabs
   END DO
-count1 = 0
-count2 = 0
   !--- go through all elements and all local sides
   DO iElem = 1, nElems
     DO iLocSide = 1,6

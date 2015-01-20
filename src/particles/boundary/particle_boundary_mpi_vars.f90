@@ -122,7 +122,7 @@ REAL, ALLOCATABLE                        :: ExtPartState(:,:)
 INTEGER, ALLOCATABLE                        :: ExtPartSpecies(:)
 
 INTEGER                                  :: FIBGMCellPadding(1:3)
-REAL, PARAMETER                          :: SafetyFactor = 1.0   
+REAL                                     :: SafetyFactor != 1.0   
 REAL                                     :: halo_eps               ! halo region radius
 !===================================================================================================================================
 END MODULE MOD_part_MPI_Vars

@@ -72,7 +72,7 @@ INTEGER                        :: Offset=0 ! Every process reads all BCs
 !===================================================================================================================================
 ! Read boundary names from data file
 CALL GetDataSize(File_ID,'BCNames',nDims,HSize)
-nBCs=HSize(1)
+nBCs=INT(HSize(1),4)
 DEALLOCATE(HSize)
 ALLOCATE(BCNames(nBCs))
 ALLOCATE(BCMapping(nBCs))
@@ -129,8 +129,8 @@ SUBROUTINE ReadMesh(FileString)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,          ONLY:NGeo,ParticleMPIWeight
-USE MOD_Mesh_Vars,          ONLY:offsetElem,nElems,nGlobalElems,nNodes,nBCs
+USE MOD_Mesh_Vars,          ONLY:NGeo
+USE MOD_Mesh_Vars,          ONLY:offsetElem,nElems,nGlobalElems,nNodes
 USE MOD_Mesh_Vars,          ONLY:nSides,nInnerSides,nBCSides,nMPISides
 USE MOD_Mesh_Vars,          ONLY:useCurveds
 USE MOD_Mesh_Vars,          ONLY:BoundaryType
@@ -139,6 +139,7 @@ USE MOD_Mesh_Vars,          ONLY:Elems,Nodes
 USE MOD_Mesh_Vars,          ONLY:aElem,aSide,bSide
 USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE,createSides
 #ifdef MPI
+USE MOD_Mesh_Vars,          ONLY:ParticleMPIWeight
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_PreProc
 USE MOD_ReadInTools
@@ -187,26 +188,29 @@ SWRITE(UNIT_stdOut,'(A)')'READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 ! Open data file
+#ifdef MPI
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
+#else
+CALL OpenDataFile(FileString,create=.FALSE.)
+#endif
 
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
-nGlobalElems=HSize(1) !global number of elements
+nGlobalElems=INT(HSize(1),4) !global number of elements
 DEALLOCATE(HSize)
 #ifdef MPI
-IF (DoRestart) THEN 
-  CALL CloseDataFile() 
-  CALL OpenDataFile(RestartFile,.FALSE.,single=.FALSE.)
-  ALLOCATE(PartInt(1:nGlobalElems,2))
-  CALL ReadArray('PartInt',2,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
-  CALL CloseDataFile() 
-  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
-END IF
-
 !simple partition: nGlobalelems/nprocs, do this on proc 0
 IF(ALLOCATED(offsetElemMPI))DEALLOCATE(offsetElemMPI)
 ALLOCATE(offsetElemMPI(0:nProcessors))
 offsetElemMPI=0
+
 IF (DoRestart) THEN 
+  CALL CloseDataFile() 
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+  ALLOCATE(PartInt(1:nGlobalElems,2))
+  PartInt(:,:)=0
+  CALL ReadArray('PartInt',2,(/nGlobalElems,2/),0,1,IntegerArray=PartInt)
+  CALL CloseDataFile() 
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
   
   SumWeight = 0.0
   CurWeight = 0.0

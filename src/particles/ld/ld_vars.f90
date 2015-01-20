@@ -1,3 +1,5 @@
+#include "boltzplatz.h"
+
 MODULE MOD_LD_Vars
 !===================================================================================================================================
 ! Contains the LD variables
@@ -12,7 +14,9 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
   LOGICAL                           :: UseLD
   REAL  , ALLOCATABLE               :: LD_RHS(:,:)  ! RHS of the LD Method/ deltaV (npartmax, direction)
+  REAL  , ALLOCATABLE               :: LD_DSMC_RHS(:,:)  ! RHS of the LD-DSMC Method/ deltaV (npartmax, direction)
   REAL                              :: LD_RepositionFak
+  REAL                              :: LD_DSMC_RelaxationFak_BufferA
   REAL                              :: LD_RelaxationFak
   LOGICAL  , ALLOCATABLE           :: IsDoneLagVelo(:)  ! (nSides) 
   REAL  , ALLOCATABLE              :: TempDens(:)
@@ -39,7 +43,10 @@ TYPE tBulkValues                                                  ! LD bulk valu
   REAL                              :: Beta                       ! Thermal speed scale
   REAL                              :: MassDens                   ! Mass Density
   REAL                              :: BulkTemperature            ! BulkTemperature
-!  INTEGER                           :: CellType                   ! CellType (1:DSMC, 2: Bufferzone_A, 3: Bufferzone_B, 4: LD
+  REAL                              :: DynamicVisc                ! dynamic viscousity
+  REAL                              :: ThermalCond                ! thermal conuctivity
+  REAL                              :: SpezGasConst               ! specific gas constant
+  INTEGER                           :: CellType                   ! CellType (1:DSMC, 2: Bufferzone_A, 3: Bufferzone_B, 4: LD
 END TYPE
 TYPE(tBulkValues), ALLOCATABLE      :: BulkValues(:)              ! LD bulk values array (number of Elements)
 
@@ -48,6 +55,8 @@ TYPE tBulkValuesOpenBC                                                  ! LD bul
   REAL                              :: DegreeOfFreedom            ! Average number of internal degree of freedom
   REAL                              :: Beta                       ! Thermal speed scale
   REAL                              :: MassDens                   ! Mass Density
+  REAL                              :: DynamicVisc                ! dynamic viscousity
+  REAL                              :: ThermalCond                ! thermal conuctivity
 END TYPE
 TYPE(tBulkValuesOpenBC), ALLOCATABLE :: BulkValuesOpenBC(:)       ! LD bulk values array for open BCs (number of Elements)
 
@@ -57,6 +66,7 @@ TYPE tSurfLagValues                                               ! LD Lagrangia
   REAL                              :: DeltaM(3)                  ! momentumflux (Mx,My,Mz)
   REAL                              :: DeltaE                     ! energyflux
   REAL                              :: LagNormVec(3)              ! corresponding face normal vector, [-]
+  REAL                              :: LagTangVec(2,3)            ! cor. face tangential vectors t_1 & t_2, pos=second_indx
 END TYPE
 TYPE(tSurfLagValues), ALLOCATABLE  :: SurfLagValues(:,:,:)        ! LD Lagrangian cellsurface array (iLocSide, iElem, TriNum)
 
@@ -65,6 +75,12 @@ TYPE tMeanSurfValues                                              ! LD Lagrangia
   REAL                              :: MeanBaseD2                 ! Mean Base for periodoc walls
   REAL                              :: MeanNormVec(3)             ! corresponding face normal vector, [-]
   REAL                              :: MeanLagVelo                ! Lagrangian Velocity for MeanSurf
+  REAL                              :: DynamicVisc                ! dynamic viscousity
+  REAL                              :: ThermalCond                ! thermal conuctivity
+  REAL                              :: MeanBulkVelo(3)            ! mean bulk velocity for viscousity term
+  REAL                              :: BulkVeloDiff(3)            ! difference in bulk velocity for viscousity term
+  REAL                              :: BulkTempDiff               ! difference in temperature for viscousity term
+  REAL                              :: CellCentDist(3)            ! vector difference between cell center for viscousity term
 END TYPE
 TYPE(tMeanSurfValues), ALLOCATABLE  :: MeanSurfValues(:,:)          ! Mean Surface for LD-Particle push (iLocSide, iElem)
  
@@ -79,8 +95,11 @@ REAL    , ALLOCATABLE               :: PartStateBulkValues(:,:)   ! LD particle 
                                                                                                   ! 1.Velocity ux
                                                                                                   ! 2.Velocity uy
                                                                                                   ! 3.Velocity uz
-                                                                                                  ! 4.Temperature
+                                                                                                  ! 4.Beta
                                                                                                   ! 5.Density
+                                                                                                  ! 6.Dynamic Viscousity
+                                                                                                  ! 7.Thermal Conuctivity
+                                                                                                  ! 8.BulkTemperature
 #endif
 
 !===================================================================================================================================

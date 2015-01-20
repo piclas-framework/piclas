@@ -124,8 +124,8 @@ IniExactFunc = GETINT('IniExactFunc')
 alpha_shape = GETINT('AlphaShape','2')
 rCutoff     = GETREAL('r_cutoff','1.')
 ! Compute factor for shape function
-ShapeFuncPrefix = 1/(2 * beta(1.5, alpha_shape + 1.) * alpha_shape + 2 * beta(1.5, alpha_shape + 1.)) &
-                * (alpha_shape + 1.)/(PI*(rCutoff**3))
+ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
+                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
             
 EquationInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL DONE!'
@@ -143,7 +143,9 @@ USE nr,only:bessj
 USE nrtype,only:SP
 USE MOD_Globals
 USE MOD_Equation_Vars,ONLY:Pi,c,c2,eps0
+# if (PP_TimeDiscMethod==1)
 USE MOD_TimeDisc_vars,ONLY:dt
+# endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -357,6 +359,8 @@ CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
       c1  = -omegaG**tDeriv * sin(a-omegaG*t)
       s1  =  omegaG**tDeriv * cos(a-omegaG*t)
     CASE DEFAULT
+      c1  = 0.0
+      s1  = 0.0
       CALL abort(__STAMP__,'What is that weired tDeriv you gave me?',999,999.)
   END SELECT
 

@@ -40,7 +40,6 @@ USE MOD_HDF5_Input,ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,Fi
 USE MOD_ReadInTools,ONLY:GETLOGICAL,GETREALARRAY,ReadInDone 
 #ifdef PARTICLES
 USE MOD_DSMC_Vars,ONLY: UseDSMC
-USE MOD_LD_Vars,ONLY: UseLD
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -71,13 +70,6 @@ IF (useDSMC) THEN
 ELSE
   maxNArgs = 2
 END IF
-! LD handling:
-useLD=GETLOGICAL('UseLD','.FALSE.')
-IF (useLD) THEN
-  useDSMC=.TRUE.
-  ReadInDone = .FALSE.
-  maxNArgs = 3
-END IF
 #else
 maxNArgs=2
 #endif /*PARTICLES*/
@@ -90,7 +82,11 @@ IF (nArgs .EQ. maxNArgs) THEN
   CALL GETARG(maxNArgs,RestartFile)
   SWRITE(UNIT_StdOut,'(A,A,A)')' | Restarting from file "',TRIM(RestartFile),'":'
   DoRestart = .TRUE.
+#ifdef MPI
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+#else
+  CALL OpenDataFile(RestartFile,create=.FALSE.)
+#endif
   CALL GetDataProps(nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
   ! Read in time from restart file
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
@@ -163,9 +159,8 @@ USE MOD_DG_Vars,         ONLY:U
 USE MOD_Mesh_Vars,       ONLY:offsetElem
 USE MOD_Restart_Vars,    ONLY:Vdm_GaussNRestart_GaussN
 USE MOD_Restart_Vars,    ONLY:DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution
-USE MOD_Output_Vars,     ONLY:ProjectName
 USE MOD_ChangeBasis,     ONLY:ChangeBasis3D
-USE MOD_HDF5_input ,     ONLY:OpenDataFile,CloseDataFile,File_ID,ReadArray,ReadAttribute
+USE MOD_HDF5_input ,     ONLY:OpenDataFile,CloseDataFile,ReadArray,ReadAttribute
 USE MOD_HDF5_Output,     ONLY:FlushHDF5
 USE MOD_PML_Vars,        ONLY:DoPML,PMLToElem,U2,nPMLElems
 #ifdef PP_POIS
@@ -175,7 +170,6 @@ USE MOD_Equation_Vars,   ONLY:Phi
 USE MOD_Particle_Vars,   ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF
 USE MOD_part_tools,      ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars,       ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
-USE MOD_LD_Vars,         ONLY: UseLD, PartStateBulkValues
 USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
 #ifdef MPI
 USE MOD_part_MPI_Vars,   ONLY : PMPIVAR
@@ -193,7 +187,7 @@ REAL,ALLOCATABLE         :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE         :: U_local2(:,:,:,:,:)
 INTEGER                  :: iElem,iPML
 #ifdef PARTICLES
-INTEGER                  :: FirstElemInd,LastelemInd,iVar,i,iInit
+INTEGER                  :: FirstElemInd,LastelemInd,i,iInit
 INTEGER,ALLOCATABLE      :: PartInt(:,:)
 INTEGER,PARAMETER        :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                  :: PartDataSize         !number of entries in each line of PartData
@@ -206,16 +200,18 @@ REAL                     :: det(16)
 INTEGER                  :: COUNTER, COUNTER2
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
-#ifdef PARTICLES
 INTEGER                  :: LostParts(0:PMPIVAR%nProcs-1), Displace(0:PMPIVAR%nProcs-1),CurrentPartNum
 INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PMPIVAR%nProcs-1)
-#endif /*PARTICLES*/
-#endif
+#endif /*MPI*/
 #endif /*PARTICLES*/
 !===================================================================================================================================
 IF(DoRestart)THEN
 SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
+#ifdef MPI
    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
+#else
+   CALL OpenDataFile(RestartFile,create=.FALSE.)
+#endif
   ! Read in time from restart file
   !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
   ! Read in state
@@ -295,7 +291,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   END IF
 
 #ifdef PARTICLES
-  IF (useDSMC.AND.(.NOT.(useLD))) THEN
+  IF (useDSMC) THEN
     IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN !int ener + 3, vmpf +1
       PartDataSize=11
     ELSE IF ((CollisMode.GT.1).AND.((usevMPF) .OR. (DSMC%ElectronicState)) ) THEN ! int ener + 2 and vmpf +1
@@ -307,19 +303,6 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
       PartDataSize=8 ! vMPF + 1
     ELSE 
       PartDataSize=7 !+ 0
-    END IF
-  ELSE IF (useLD) THEN
-    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
-      PartDataSize=16
-    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
-                                                                             ! or int energ +3 but no vmpf +1
-      PartDataSize=15
-    ELSE IF (CollisMode.GT.1) THEN
-      PartDataSize=14!int ener + 2
-    ELSE IF (usevMPF) THEN
-      PartDataSize=13!+ 1 vmpf
-    ELSE
-      PartDataSize=12 !+ 0
     END IF
   ELSE IF (usevMPF) THEN
     PartDataSize=8 !vmpf +1
@@ -348,7 +331,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     PartState(1:locnPart,5)   = PartData(offsetnPart+1:offsetnPart+locnPart,5)
     PartState(1:locnPart,6)   = PartData(offsetnPart+1:offsetnPart+locnPart,6)
     PartSpecies(1:locnPart)= INT(PartData(offsetnPart+1:offsetnPart+locnPart,7))
-    IF (useDSMC.AND.(.NOT.(useLD))) THEN
+    IF (useDSMC) THEN
       IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
         PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
         PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
@@ -367,57 +350,6 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
         PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
       ELSE IF (usevMPF) THEN
         PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)        
-      END IF
-    ELSE IF (useLD) THEN
-      IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
-        PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-        PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-        PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-        PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
-        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
-        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
-        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,15)
-        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,16)
-      ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-        PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-        PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-        PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
-        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
-        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
-        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,15)
-      ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicState)) THEN
-        PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-        PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-        PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
-        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
-        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
-        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,15)
-      ELSE IF (CollisMode.GT.1) THEN
-        PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-        PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
-        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
-        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,14)
-      ELSE IF (usevMPF) THEN
-        PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,12)
-        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,13)
-      ELSE
-        PartStateBulkValues(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
-        PartStateBulkValues(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
-        PartStateBulkValues(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-        PartStateBulkValues(1:locnPart,4)=PartData(offsetnPart+1:offsetnPart+locnPart,11)
-        PartStateBulkValues(1:locnPart,5)=PartData(offsetnPart+1:offsetnPart+locnPart,12)  
       END IF
     ELSE IF (usevMPF) THEN
       PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
@@ -477,7 +409,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
       IF (.NOT.PDM%ParticleInside(i)) THEN
         SendBuff(COUNTER+1:COUNTER+6) = PartState(i,1:6)
         SendBuff(COUNTER+7)           = REAL(PartSpecies(i))
-        IF (useDSMC.AND.(.NOT.(useLD))) THEN
+        IF (useDSMC) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
             SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
             SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
@@ -496,30 +428,6 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
             SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
           ELSE IF (usevMPF) THEN
             SendBuff(COUNTER+8) = PartMPF(i)
-          END IF
-        ELSE IF (useLD) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
-            SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-            SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
-            SendBuff(COUNTER+10) = PartMPF(i)
-            SendBuff(COUNTER+11) = PartStateIntEn(i,3)
-            SendBuff(COUNTER+12:COUNTER+16) = PartStateBulkValues(i,1:5)
-          ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-            SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
-            SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
-            SendBuff(COUNTER+10) = PartMPF(i)
-            SendBuff(COUNTER+11:COUNTER+15) = PartStateBulkValues(i,1:5)
-          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicState)) THEN
-            SendBuff(COUNTER+8:COUNTER+10)  = PartStateIntEn(i,1:3)
-            SendBuff(COUNTER+11:COUNTER+15) = PartStateBulkValues(i,1:5)
-          ELSE IF (CollisMode.GT.1) THEN
-            SendBuff(COUNTER+8:COUNTER+9)  = PartStateIntEn(i,1:2)
-            SendBuff(COUNTER+10:COUNTER+14) = PartStateBulkValues(i,1:5)
-          ELSE IF (usevMPF) THEN
-            SendBuff(COUNTER+8) = PartMPF(i)
-            SendBuff(COUNTER+9:COUNTER+13) = PartStateBulkValues(i,1:5)
-          ELSE
-            SendBuff(COUNTER+8:COUNTER+12) = PartStateBulkValues(i,1:5)
           END IF
         ELSE IF (usevMPF) THEN
           SendBuff(COUNTER+8) = PartMPF(i)
@@ -548,7 +456,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
         PEM%LastElement(CurrentPartNum) = PEM%Element(CurrentPartNum)
         NbrOfFoundParts = NbrOfFoundParts + 1
         PartSpecies(CurrentPartNum) = INT(RecBuff(COUNTER+7))
-        IF (useDSMC.AND.(.NOT.(useLD))) THEN
+        IF (useDSMC) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
             PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
             PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
@@ -567,33 +475,6 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
             PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
           ELSE IF (usevMPF) THEN
             PartMPF(CurrentPartNum)          = RecBuff(COUNTER+8)
-          END IF
-        ELSE IF (useLD) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
-            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
-            PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+11)
-            PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
-            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+12:COUNTER+16)
-          ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
-            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
-            PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
-            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+11:COUNTER+15)
-          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicState)) THEN
-            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
-            PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+10)
-            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+11:COUNTER+15)
-          ELSE IF (CollisMode.GT.1) THEN
-            PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
-            PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
-            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+10:COUNTER+14)
-          ELSE IF (usevMPF) THEN
-            PartMPF(CurrentPartNum)          = RecBuff(COUNTER+8)
-            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+9:COUNTER+13)
-          ELSE
-            PartStateBulkValues(CurrentPartNum,1:5) = SendBuff(COUNTER+8:COUNTER+12)
           END IF
         ELSE IF (usevMPF) THEN
           PartMPF(CurrentPartNum)          = RecBuff(COUNTER+8)

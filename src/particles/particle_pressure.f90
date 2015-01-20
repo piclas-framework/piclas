@@ -1,35 +1,76 @@
 #include "boltzplatz.h"
 
 MODULE MOD_part_pressure
-!--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE
-   
-   PRIVATE
-   PUBLIC       :: ParticlePressureIni, ParticlePressure, ParticleInsideCheck,ParticlePressureCellIni,ParticlePressureRem
+!===================================================================================================================================
+! Module for constant pressure emission types
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+PRIVATE
+  
+INTERFACE ParticlePressureIni
+  MODULE PROCEDURE ParticlePressureIni
+END INTERFACE
+
+INTERFACE ParticlePressure
+  MODULE PROCEDURE ParticlePressure
+END INTERFACE
+
+INTERFACE ParticleInsideCheck
+  MODULE PROCEDURE ParticleInsideCheck
+END INTERFACE
+
+INTERFACE ParticlePressureCellIni
+  MODULE PROCEDURE ParticlePressureCellIni
+END INTERFACE
+
+INTERFACE ParticlePressureRem
+  MODULE PROCEDURE ParticlePressureRem
+END INTERFACE
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! GLOBAL VARIABLES 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Private Part ---------------------------------------------------------------------------------------------------------------------
+! Public Part ----------------------------------------------------------------------------------------------------------------------
+PUBLIC       :: ParticlePressureIni, ParticlePressure, ParticleInsideCheck,ParticlePressureCellIni,ParticlePressureRem
+!===================================================================================================================================
 
 CONTAINS   
    
 SUBROUTINE ParticlePressureIni()
-
+!===================================================================================================================================
+! Initialization of constant pressure emission types
+!===================================================================================================================================
+! MODULES
   USE MOD_Particle_Vars
   USE MOD_Globals
-  USE MOD_Mesh_Vars,      ONLY : nElems,ElemToSide,SideToElem, nSides, nInnerSides, nBCSides
-
+  USE MOD_Globals_Vars
+  USE MOD_Mesh_Vars,      ONLY : nElems,ElemToSide,SideToElem
+#ifdef MPI
+  USE MOD_Mesh_Vars,      ONLY : nSides, nInnerSides, nBCSides
+#endif
+! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
- 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
   REAL                 :: BN(3), BV1(3), BV2(3), BV3(3), SV1(3), SV2(3), OV(3), epsi
   REAL                 :: det1, det2, det3, RandVal(2), dist1, dist2, dete(6,2)
   INTEGER, ALLOCATABLE :: TempElemTotalInside(:), TempElemPartlyInside(:)
   INTEGER              :: nNodesInside, nBoundNodes, nInterest, nInterOld, Element, Side, ExamElem
-  INTEGER              :: iShot, iElem, iNode, iSpec, iInit, iSide, i, n
-  LOGICAL              :: ElementFound, InElementCheck
-  
+  INTEGER              :: iShot, iElem, iNode, iSpec, iInit, iSide
+  LOGICAL              :: InElementCheck
+!===================================================================================================================================
   
   epsi = 100.*epsilon(epsi)
   DO iSpec = 1,nSpecies
     DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
       Species(iSpec)%Init(iInit)%ConstPress%InitialTemp = Species(iSpec)%Init(iInit)%MWTemperatureIC
-      !Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1) = 0
       IF ((Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ.3).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.5)) THEN
         ALLOCATE (TempElemTotalInside(nElems))
         ALLOCATE (TempElemPartlyInside(nElems))
@@ -50,8 +91,9 @@ SUBROUTINE ParticlePressureIni()
           OV = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
           
           IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
-            WRITE(*,*) 'Error in InitializeVariables: Cannot calculate Normal Vector of InitVolume in EmissionCase(3 or 4)!'
-            STOP
+            CALL Abort(&
+               __STAMP__,&
+              'Error in InitializeVariables: Cannot calculate Normal Vector of InitVolume in EmissionCase(3 or 4)!')
           END IF
           
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector &
@@ -59,9 +101,6 @@ SUBROUTINE ParticlePressureIni()
           OV   = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
           Species(iSpec)%Init(iInit)%ConstPress%Determinant = ABS(BV1(1)*BV2(2)*OV(3) + BV1(2)*BV2(3)*OV(1) + BV1(3)*BV2(1)*OV(2) &
                - BV1(3)*BV2(2)*OV(1) - BV1(1)*BV2(3)*OV(2) - BV1(2)*BV2(1)*OV(3))
-          !WRITE (*,*) 'ConstPress', Species(iSpec)%ConstantPressure , 'Deter', Species(iSpec)%ConstPress%Determinant, 'ispec', &
-          !iSpec &
-          !,'MPF',Species(iSpec)%MacroParticleFactor
           Species(iSpec)%Init(iInit)%ParticleEmission &
                = Species(iSpec)%Init(iInit)%ConstantPressure * Species(iSpec)%Init(iInit)%ConstPress%Determinant / &
                (BoltzmannConst * Species(iSpec)%Init(iInit)%MWTemperatureIC * Species(iSpec)%MacroParticleFactor)
@@ -70,7 +109,7 @@ SUBROUTINE ParticlePressureIni()
                INT(Species(iSpec)%Init(iInit)%ParticleEmission)*0.5*Species(iSpec)%MassIC*Species(iSpec)%Init(iInit)%VeloIC**2* &
                Species(iSpec)%MacroParticleFactor
           
-          WRITE (*,'(A49,I3.3,A2,g0)') 'Number of Particles inside ConstPressArea ',iInit, ': ', &
+          IPWRITE (*,'(A49,I3.3,A2,g0)') 'Number of Particles inside ConstPressArea ',iInit, ': ', &
                Species(iSpec)%Init(iInit)%ParticleEmission
           
           DO iElem = 1,nElems
@@ -202,7 +241,6 @@ SUBROUTINE ParticlePressureIni()
           END DO
 
 #ifdef MPI
-
           DO Side=1, nSides
             IF (Side.GT.nInnerSides+nBCSides) THEN
               IF (SideToElem(S2E_ELEM_ID,Side).NE.-1) THEN
@@ -259,13 +297,11 @@ SUBROUTINE ParticlePressureIni()
             END IF
           END DO
 #endif
-
           ! Shoot on Sides of Neighbour-Elements of partly inside Elements ==========================================
           nInterest = Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside
           nInterOld = 1
           DO WHILE (nInterest .GE. nInterOld)
             DO iElem = nInterOld, nInterest
-              
               Element = TempElemPartlyInside(iElem)
               DO iSide = 1, 6
                 Side = ElemToSide(E2S_SIDE_ID, iSide, Element)
@@ -325,10 +361,7 @@ SUBROUTINE ParticlePressureIni()
             nInterest = Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside
           END DO
           
-          
         CASE ('cylinder')
-          !       Species(iSpec)%ConstPress%BV1 = Species(iSpec)%CylinderHeightIC * Species(iSpec)%NormalIC
-          
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1) = &
                Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
                Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
@@ -339,14 +372,10 @@ SUBROUTINE ParticlePressureIni()
                Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
                Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
           OV(1:3) = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1:3)
-          !       WRITE(*,*) 'iSpec', iSpec
-          !       WRITE(*,*) 'BaseVec1', Species(iSpec)%BaseVector1IC
-          !       WRITE(*,*) 'BaseVec2', Species(iSpec)%BaseVector2IC
-          !       WRITE(*,*) 'BV1', Species(iSpec)%ConstPress%OrthoVector
-          !
           IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
-            WRITE(*,*) 'Error in InitializeVariables: Cannot calculate NormalVector(Cyl) of InitVolume in EmissionCase(3 or 4)!'
-            STOP
+            CALL Abort(&
+               __STAMP__,&
+              'Error in InitializeVariables: Cannot calculate NormalVector(Cyl) of InitVolume in EmissionCase(3 or 4)!')
           END IF
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector &
                   = OV*(Species(iSpec)%Init(iInit)%CylinderHeightIC/SQRT(OV(1)**2 + OV(2)**2 + OV(3)**2))
@@ -354,14 +383,14 @@ SUBROUTINE ParticlePressureIni()
           
           Species(iSpec)%Init(iInit)%ParticleEmission = &
                Species(iSpec)%Init(iInit)%ConstantPressure * Species(iSpec)%Init(iInit)%RadiusIC**2 * &
-               3.1415926535 * Species(iSpec)%Init(iInit)%CylinderHeightIC / (BoltzmannConst * &
+               Pi * Species(iSpec)%Init(iInit)%CylinderHeightIC / (BoltzmannConst * &
                Species(iSpec)%Init(iInit)%MWTemperatureIC * Species(iSpec)%MacroParticleFactor)
           Species(iSpec)%Init(iInit)%ConstPress%EkinInside = &
                1.5*Species(iSpec)%Init(iInit)%ConstantPressure*Species(iSpec)%Init(iInit)%RadiusIC**2 * &
-               3.1415926535 * Species(iSpec)%Init(iInit)%CylinderHeightIC + &
+               Pi * Species(iSpec)%Init(iInit)%CylinderHeightIC + &
                INT(Species(iSpec)%Init(iInit)%ParticleEmission)*0.5*Species(iSpec)%MassIC*Species(iSpec)%Init(iInit)%VeloIC**2 &
                * Species(iSpec)%MacroParticleFactor
-          WRITE (*,'(A49,I3.3,A2,g0)') 'Number of Particles inside ConstPressArea ',iInit, ': ', &
+          IPWRITE (*,'(A49,I3.3,A2,g0)') 'Number of Particles inside ConstPressArea ',iInit, ': ', &
                Species(iSpec)%Init(iInit)%ParticleEmission
           
           DO iElem = 1,nElems
@@ -646,8 +675,6 @@ SUBROUTINE ParticlePressureIni()
             nInterest = Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside
           END DO
           
-          
-          
         END SELECT
         
         ALLOCATE (Species(iSpec)%Init(iInit)%ConstPress%ElemTotalInside(Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside))
@@ -659,9 +686,9 @@ SUBROUTINE ParticlePressureIni()
         DEALLOCATE (TempElemTotalInside)
         DEALLOCATE (TempElemPartlyInside)
         
-        WRITE (*,'(A49,I3.3,A2,I0)') 'Number of Elements inside ConstPressArea ',iInit, ': ', &
+        IPWRITE (*,'(A49,I3.3,A2,I0)') 'Number of Elements inside ConstPressArea ',iInit, ': ', &
              Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
-        WRITE (*,'(A49,I3.3,A2,I0)') 'Number of Elements partly inside ConstPressArea ',iInit, ': ', &
+        IPWRITE (*,'(A49,I3.3,A2,I0)') 'Number of Elements partly inside ConstPressArea ',iInit, ': ', &
              Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside
         
       END IF
@@ -671,32 +698,40 @@ SUBROUTINE ParticlePressureIni()
 END SUBROUTINE ParticlePressureIni
 
 
-
-
 SUBROUTINE ParticlePressureCellIni()
-
+!===================================================================================================================================
+! Initialization of constant pressure in a cell
+!===================================================================================================================================
+! MODULES
   USE MOD_Particle_Vars
   USE MOD_Globals
-  USE MOD_Mesh_Vars,      ONLY : nElems,ElemToSide,SideToElem, nSides, nInnerSides, nBCSides
+  USE MOD_Globals_Vars
+  USE MOD_Mesh_Vars,      ONLY : nElems,ElemToSide,SideToElem
 #ifdef MPI
-  USE MOD_part_MPI_Vars, ONLY : PMPIVAR
+  USE MOD_Mesh_Vars,      ONLY : nSides, nInnerSides, nBCSides
 #endif
-
+! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
- 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
   REAL                 :: BN(3), BV1(3), BV2(3), BV3(3), SV1(3), SV2(3), OV(3), epsi
   REAL                 :: det1, det2, det3, RandVal(2), dist1, dist2, dete(6,2)
   INTEGER, ALLOCATABLE :: TempElemTotalInside(:), TempElemPartlyInside(:)
   INTEGER              :: nNodesInside, nBoundNodes, nInterest, nInterOld, Element, Side, ExamElem
-  INTEGER              :: iShot, iElem, iNode, iSpec, iInit, iSide, i, n
-  LOGICAL              :: ElementFound, InElementCheck
-  
-  
+  INTEGER              :: iShot, iElem, iNode, iSpec, iInit, iSide
+  LOGICAL              :: InElementCheck
+!===================================================================================================================================
+
   epsi = 100.*epsilon(epsi)
   DO iSpec = 1,nSpecies
     DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
       Species(iSpec)%Init(iInit)%ConstPress%InitialTemp = Species(iSpec)%Init(iInit)%MWTemperatureIC
-      IF ((Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 6)) THEN
+      IF ((Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 4) &
+        .OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 6)) THEN
         ALLOCATE (TempElemTotalInside(nElems))
         ALLOCATE (TempElemPartlyInside(nElems))
         ALLOCATE (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(nElems))
@@ -715,8 +750,9 @@ SUBROUTINE ParticlePressureCellIni()
           OV = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
           
           IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
-            WRITE(*,*) 'Error in InitializeVariables: Cannot calculate Normal Vector of InitVolume in EmissionCase(3 or 4)!'
-            STOP
+            CALL Abort(&
+               __STAMP__,&
+              'Error in InitializeVariables: Cannot calculate Normal Vector of InitVolume in EmissionCase(3 or 4)!')
           END IF
           
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector &
@@ -724,18 +760,10 @@ SUBROUTINE ParticlePressureCellIni()
           OV = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
           Species(iSpec)%Init(iInit)%ConstPress%Determinant = ABS(BV1(1)*BV2(2)*OV(3) + BV1(2)*BV2(3)*OV(1) + BV1(3)*BV2(1)*OV(2) &
                - BV1(3)*BV2(2)*OV(1) - BV1(1)*BV2(3)*OV(2) - BV1(2)*BV2(1)*OV(3))
-          !WRITE (*,*) 'ConstPress', Species(iSpec)%ConstantPressure , 'Deter', Species(iSpec)%ConstPress%Determinant, 'ispec', &
-          !iSpec &
-          !,'MPF',Species(iSpec)%MacroParticleFactor
-          
+
           ! ParticleEmission multiplied by cell volume equals particles to be in cells
           Species(iSpec)%Init(iInit)%ParticleEmission = Species(iSpec)%Init(iInit)%ConstantPressure/ &
                (BoltzmannConst * Species(iSpec)%Init(iInit)%MWTemperatureIC * Species(iSpec)%MacroParticleFactor)
-          !        Species(iSpec)%ConstPress%EkinInside =1.5*Species(iSpec)%ConstantPressure*Species(iSpec)%ConstPress%Determinant+&
-          !                            INT(Species(iSpec)%ParticleEmission)*0.5*Species(iSpec)%MassIC*Species(iSpec)%VeloIC**2* &
-          !        Species(iSpec)%MacroParticleFactor
-          
-          !        WRITE(*,*) 'Number of Particles in Constant-Pressure-Area:', Species(iSpec)%ParticleEmission
           
           DO iElem = 1,nElems
             nNodesInside = 0
@@ -808,7 +836,6 @@ SUBROUTINE ParticlePressureCellIni()
           END IF
           
           ! Shoot on Sides of Neighbour-Elements of totally inside Elements ===========================
-          
           DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
             Element = TempElemTotalInside(iElem)
             DO iSide = 1,6
@@ -866,7 +893,6 @@ SUBROUTINE ParticlePressureCellIni()
           END DO
           
 #ifdef MPI
-
           DO Side=1, nSides
             IF (Side.GT.nInnerSides+nBCSides) THEN
               IF (SideToElem(S2E_ELEM_ID,Side).NE.-1) THEN
@@ -929,7 +955,6 @@ SUBROUTINE ParticlePressureCellIni()
           nInterOld = 1
           DO WHILE (nInterest .GE. nInterOld)
             DO iElem = nInterOld, nInterest
-              
               Element = TempElemPartlyInside(iElem)
               DO iSide = 1, 6
                 Side = ElemToSide(E2S_SIDE_ID, iSide, Element)
@@ -989,10 +1014,7 @@ SUBROUTINE ParticlePressureCellIni()
             nInterest = Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside
           END DO
           
-          
         CASE ('cylinder')
-          !       Species(iSpec)%ConstPress%BV1 = Species(iSpec)%CylinderHeightIC * Species(iSpec)%NormalIC
-          
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1) = &
                Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
                Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
@@ -1003,14 +1025,11 @@ SUBROUTINE ParticlePressureCellIni()
                Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
                Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
           OV(1:3) = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1:3)
-          !       WRITE(*,*) 'iSpec', iSpec
-          !       WRITE(*,*) 'BaseVec1', Species(iSpec)%BaseVector1IC
-          !       WRITE(*,*) 'BaseVec2', Species(iSpec)%BaseVector2IC
-          !       WRITE(*,*) 'BV1', Species(iSpec)%ConstPress%OrthoVector
-          !
+
           IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
-            WRITE(*,*) 'Error in InitializeVariables: Cannot calculate NormalVector(Cyl) of InitVolume in EmissionCase(3 or 4)!'
-            STOP
+            CALL Abort(&
+               __STAMP__,&
+              'Error in InitializeVariables: Cannot calculate NormalVector(Cyl) of InitVolume in EmissionCase(3 or 4)!')
           END IF
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector = &
                OV*(Species(iSpec)%Init(iInit)%CylinderHeightIC/SQRT(OV(1)**2 + OV(2)**2 + OV(3)**2))
@@ -1018,14 +1037,13 @@ SUBROUTINE ParticlePressureCellIni()
           
           Species(iSpec)%Init(iInit)%ParticleEmission = &
                Species(iSpec)%Init(iInit)%ConstantPressure * Species(iSpec)%Init(iInit)%RadiusIC**2 * &
-               3.1415926535 * Species(iSpec)%Init(iInit)%CylinderHeightIC / (BoltzmannConst * &
+               Pi * Species(iSpec)%Init(iInit)%CylinderHeightIC / (BoltzmannConst * &
                Species(iSpec)%Init(iInit)%MWTemperatureIC * Species(iSpec)%MacroParticleFactor)
           Species(iSpec)%Init(iInit)%ConstPress%EkinInside = &
                1.5*Species(iSpec)%Init(iInit)%ConstantPressure*Species(iSpec)%Init(iInit)%RadiusIC**2 * &
-               3.1415926535 * Species(iSpec)%Init(iInit)%CylinderHeightIC + &
+               Pi * Species(iSpec)%Init(iInit)%CylinderHeightIC + &
                INT(Species(iSpec)%Init(iInit)%ParticleEmission)*0.5*Species(iSpec)%MassIC*Species(iSpec)%Init(iInit)%VeloIC**2 &
                * Species(iSpec)%MacroParticleFactor
-          !        WRITE(*,*) 'Number of Particles in Constant-Pressure-Area:', Species(iSpec)%ParticleEmission
           
           DO iElem = 1,nElems
             nNodesInside = 0
@@ -1308,8 +1326,6 @@ SUBROUTINE ParticlePressureCellIni()
             nInterOld = nInterest + 1
             nInterest = Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside
           END DO
-          
-          
           
         END SELECT
         
@@ -1330,8 +1346,8 @@ SUBROUTINE ParticlePressureCellIni()
         DEALLOCATE (TempElemPartlyInside)
 #ifdef MPI
         IF(Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside.NE.0)THEN
-          WRITE (*,'(A49,I3.3,A2,I0,A3,I0)') 'Proc | Number of Elements inside ConstPressArea ',iInit,': ', &
-               PMPIVAR%iProc,' | ',Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
+          IPWRITE (*,'(A49,I3.3,A2,I0)') 'Number of Elements inside ConstPressArea ',iInit,': ', &
+                              Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
         END IF
 #else
         WRITE (*,'(A49,I3.3,A2,I0)') 'Number of Elements inside ConstPressArea ',iInit,': ', &
@@ -1342,57 +1358,39 @@ SUBROUTINE ParticlePressureCellIni()
   END DO
 END SUBROUTINE ParticlePressureCellIni
 
-   
-! SUBROUTINE ParticlePressureiniInsert(i)
-!   
-!   USE MOD_Particle_Vars
-!   USE MOD_part_emission
-! !--------------------------------------------------------------------------------------------------!
-!   IMPLICIT NONE
-! !--------------------------------------------------------------------------------------------------!
-!   INTEGER, INTENT(IN)       :: i
-! !--------------------------------------------------------------------------------------------------!
-!   INTEGER          :: nPartInside, NbrOfParticle
-!   REAL             :: TempInside, EkinInside, EInside
-! !--------------------------------------------------------------------------------------------------!  
-!        CALL ParticleInsideCheck(i, nPartInside, TempInside, EInside)
-!        IF (Species(i)%ParticleEmission .GT. nPartInside) THEN
-!         NbrOfParticle = Species(i)%ParticleEmission - nPartInside
-!         WRITE(*,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
-!         CALL SetParticlePosition(i,NbrOfParticle)
-!         CALL SetParticleVelocity(i,NbrOfParticle)
-!         CALL SetParticleChargeAndMass(i,NbrOfParticle)
-!         IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-!         !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-!         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-!         CALL UpdateNextFreePosition()
-!        END IF
-!    
-! END SUBROUTINE ParticlePressureiniInsert
-
   
-SUBROUTINE ParticlePressure (i, iInit, NbrOfParticle)
+SUBROUTINE ParticlePressure (iSpec, iInit, NbrOfParticle)
+!===================================================================================================================================
+! Performs constant pressure calculations
+!===================================================================================================================================
+! MODULES
   USE MOD_Particle_Vars
 #ifdef MPI
   USE MOD_part_MPI_Vars,      ONLY : PMPIVAR
 #endif
-!--------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
-
-#ifdef MPI
-    INCLUDE 'mpif.h'                                                                               
-#endif
-  
-  INTEGER, INTENT(IN)    :: i, iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)    :: iSpec, iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
   INTEGER, INTENT(OUT)   :: NbrOfParticle
-!--------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
   INTEGER          :: nPartInside
-  REAL             :: TempInside, EkinInside, EInside
+  REAL             :: TempInside, EInside
+#ifdef MPI
   REAL             :: TempComSend(2)
   REAL             :: TempComRec(2)
   INTEGER          :: IERROR
+#endif
+!===================================================================================================================================
+#ifdef MPI
+    INCLUDE 'mpif.h'                                                                               
+#endif
 
-    CALL ParticleInsideCheck(i, iInit, nPartInside, TempInside, EInside)
+    CALL ParticleInsideCheck(iSpec, iInit, nPartInside, TempInside, EInside)
 #ifdef MPI
     TempComSend(1) = REAL(nPartInside)
     TempComSend(2) = EInside
@@ -1400,51 +1398,55 @@ SUBROUTINE ParticlePressure (i, iInit, NbrOfParticle)
     nPartInside = INT(TempComRec(1))
     EInside = TempComRec(2)
 #endif    
-    IF (nPartInside .LT. Species(i)%Init(iInit)%ParticleEmission) THEN
-      NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
-      IF ((Species(i)%Init(iInit)%ConstPress%EkinInside - EInside).GT. 0.) THEN   !Both Factors should be bigger than 0
-        Species(i)%Init(iInit)%MWTemperatureIC=2./3.*(Species(i)%Init(iInit)%ConstPress%EkinInside-EInside - &
-                      NbrOfParticle*0.5*Species(i)%MassIC*Species(i)%Init(iInit)%VeloIC**2*Species(i)%MacroParticleFactor)/ &
-                      (NbrOfParticle*Species(i)%MacroParticleFactor*BoltzmannConst)
-      Species(i)%Init(iInit)%MWTemperatureIC=MAX(0.0, Species(i)%Init(iInit)%MWTemperatureIC)
+    IF (nPartInside .LT. Species(iSpec)%Init(iInit)%ParticleEmission) THEN
+      NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleEmission) - nPartInside
+      IF ((Species(iSpec)%Init(iInit)%ConstPress%EkinInside - EInside).GT. 0.) THEN   !Both Factors should be bigger than 0
+        Species(iSpec)%Init(iInit)%MWTemperatureIC=2./3.*(Species(iSpec)%Init(iInit)%ConstPress%EkinInside-EInside &
+          - NbrOfParticle*0.5*Species(iSpec)%MassIC*Species(iSpec)%Init(iInit)%VeloIC**2*Species(iSpec)%MacroParticleFactor) &
+          / (NbrOfParticle*Species(iSpec)%MacroParticleFactor*BoltzmannConst)
+      Species(iSpec)%Init(iInit)%MWTemperatureIC=MAX(0.0, Species(iSpec)%Init(iInit)%MWTemperatureIC)
       ELSE
-        Species(i)%Init(iInit)%MWTemperatureIC = Species(i)%Init(iInit)%ConstPress%InitialTemp
+        Species(iSpec)%Init(iInit)%MWTemperatureIC = Species(iSpec)%Init(iInit)%ConstPress%InitialTemp
       END IF
     ELSE
       NbrOfParticle = 0
     END IF
-    
-!    WRITE(*,*) 'Temperature  inside ConstPress:', TempInside
-!    WRITE(*,*) 'EmissionTemperature:', Species(i)%MWTemperatureIC, 'nPartInside:', nPartInside
 END SUBROUTINE ParticlePressure
 
 
-SUBROUTINE ParticlePressureRem (i, iInit, NbrOfParticle)
-! Removes all Particles in Pressure Area and sets NbrOfParticles to be inserted
+SUBROUTINE ParticlePressureRem (iSpec, iInit, NbrOfParticle)
+!===================================================================================================================================
+! Removes all particles in Pressure Area and sets NbrOfParticles to be inserted
+!===================================================================================================================================
+! MODULES
   USE MOD_Particle_Vars
-!--------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
-!--------------------------------------------------------------------------------------------------! 
-  INTEGER, INTENT(IN)    :: i, iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)    :: iSpec, iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
   INTEGER, INTENT(OUT)   :: NbrOfParticle
-!--------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
   INTEGER          :: Particle
-  REAL             :: BV1(3), BV2(3), BV3(3), OV(3), BN(3), vau(3), vauquad(3), TempVec(3)
+  REAL             :: BV1(3), BV2(3), BV3(3), OV(3), BN(3)
   REAL             :: det1, det2, det3, dist1, dist2
-!--------------------------------------------------------------------------------------------------
+!===================================================================================================================================
 
-  SELECT CASE (TRIM(Species(i)%Init(iInit)%SpaceIC))
+  SELECT CASE (TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
   CASE ('cuboid')
-    BV1 = Species(i)%Init(iInit)%BaseVector1IC
-    BV2 = Species(i)%Init(iInit)%BaseVector2IC
-    OV  = Species(i)%Init(iInit)%ConstPress%OrthoVector
+    BV1 = Species(iSpec)%Init(iInit)%BaseVector1IC
+    BV2 = Species(iSpec)%Init(iInit)%BaseVector2IC
+    OV  = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
     DO Particle = 1,PDM%ParticleVecLength
-      IF ((PartSpecies(Particle) .EQ. i) .AND. (PDM%ParticleInside(Particle))) THEN
-        SELECT CASE (Species(i)%Init(iInit)%ConstPress%ElemStat(PEM%Element(Particle)))
+      IF ((PartSpecies(Particle) .EQ. iSpec) .AND. (PDM%ParticleInside(Particle))) THEN
+        SELECT CASE (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(PEM%Element(Particle)))
         CASE (1)
           PDM%ParticleInside(Particle)=.false.
         CASE (2)
-          BN(1:3) = PartState(Particle,1:3) - Species(i)%Init(iInit)%BasePointIC
+          BN(1:3) = PartState(Particle,1:3) - Species(iSpec)%Init(iInit)%BasePointIC
           det1 = BN(1)*BV2(2)*OV(3) + BN(2)*BV2(3)*OV(1) + BN(3)*BV2(1)*OV(2) - &
                  BN(3)*BV2(2)*OV(1) - BN(1)*BV2(3)*OV(2) - BN(2)*BV2(1)*OV(3)
           det2 = BV1(1)*BN(2)*OV(3) + BV1(2)*BN(3)*OV(1) + BV1(3)*BN(1)*OV(2) - &
@@ -1452,9 +1454,9 @@ SUBROUTINE ParticlePressureRem (i, iInit, NbrOfParticle)
           det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + BV1(3)*BV2(1)*BN(2) - &
                  BV1(3)*BV2(2)*BN(1) - BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
       
-          det1 = det1/Species(i)%Init(iInit)%ConstPress%Determinant
-          det2 = det2/Species(i)%Init(iInit)%ConstPress%Determinant
-          det3 = det3/Species(i)%Init(iInit)%ConstPress%Determinant
+          det1 = det1/Species(iSpec)%Init(iInit)%ConstPress%Determinant
+          det2 = det2/Species(iSpec)%Init(iInit)%ConstPress%Determinant
+          det3 = det3/Species(iSpec)%Init(iInit)%ConstPress%Determinant
           
           IF (((det1-0.5)**2 .LE. 0.25).AND.((det2-0.5)**2 .LE. 0.25).AND.((det3-0.5)**2 .LE. 0.25)) THEN
             PDM%ParticleInside(Particle)=.false.
@@ -1463,20 +1465,20 @@ SUBROUTINE ParticlePressureRem (i, iInit, NbrOfParticle)
       END IF
     END DO
   CASE ('cylinder')
-    OV  = Species(i)%Init(iInit)%ConstPress%OrthoVector
+    OV  = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
     DO Particle = 1,PDM%ParticleVecLength
-      IF ((PartSpecies(Particle) .EQ. i) .AND. (PDM%ParticleInside(Particle))) THEN
-        SELECT CASE (Species(i)%Init(iInit)%ConstPress%ElemStat(PEM%Element(Particle)))
+      IF ((PartSpecies(Particle) .EQ. iSpec) .AND. (PDM%ParticleInside(Particle))) THEN
+        SELECT CASE (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(PEM%Element(Particle)))
         CASE (1)
           PDM%ParticleInside(Particle)=.false.
         CASE (2)
-          BN(1:3) = PartState(Particle,1:3) - Species(i)%Init(iInit)%BasePointIC
+          BN(1:3) = PartState(Particle,1:3) - Species(iSpec)%Init(iInit)%BasePointIC
           BV2(1) = BN(2) * OV(3) - BN(3) * OV(2)                   !Vector orthogonal on BN and OrthoVector
           BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
           BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
           dist1  = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/(OV(1)**2 + OV(2)**2 + OV(3)**2))
       
-          IF (dist1 .LE. Species(i)%Init(iInit)%RadiusIC) THEN
+          IF (dist1 .LE. Species(iSpec)%Init(iInit)%RadiusIC) THEN
             BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
             BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
             BV3(3) = OV(1) * BV2(2) - OV(2) * BV2(1)
@@ -1503,31 +1505,40 @@ SUBROUTINE ParticlePressureRem (i, iInit, NbrOfParticle)
       END IF
     END DO
   END SELECT
-  NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission)
+  NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleEmission)
 END SUBROUTINE ParticlePressureRem
 
 
-SUBROUTINE ParticleInsideCheck(i, iInit, nPartInside, TempInside, EkinInside)
+SUBROUTINE ParticleInsideCheck(iSpec, iInit, nPartInside, TempInside, EkinInside)
+!===================================================================================================================================
+! Checks how many particles are inside including their temperature/energy
+!===================================================================================================================================
+! MODULES
   USE MOD_Particle_Vars
-!--------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
-!--------------------------------------------------------------------------------------------------!
-  INTEGER          :: nPartInside, Particle, i, iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER          :: nPartInside, Particle, iSpec, iInit
   REAL             :: BV1(3), BV2(3), BV3(3), OV(3), BN(3), vau(3), vauquad(3), TempVec(3)
   REAL             :: det1, det2, det3, dist1, dist2, TempInside, EkinInside
-!--------------------------------------------------------------------------------------------------!  
+!===================================================================================================================================
   
   nPartInside = 0
   vau(:) = 0
   vauquad(:) = 0
-  SELECT CASE (TRIM(Species(i)%Init(iInit)%SpaceIC))
+  SELECT CASE (TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
   CASE ('cuboid')
-    BV1 = Species(i)%Init(iInit)%BaseVector1IC
-    BV2 = Species(i)%Init(iInit)%BaseVector2IC
-    OV  = Species(i)%Init(iInit)%ConstPress%OrthoVector
+    BV1 = Species(iSpec)%Init(iInit)%BaseVector1IC
+    BV2 = Species(iSpec)%Init(iInit)%BaseVector2IC
+    OV  = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
     DO Particle = 1,PDM%ParticleVecLength
-      IF ((PartSpecies(Particle) .EQ. i) .AND. (PDM%ParticleInside(Particle))) THEN
-        SELECT CASE (Species(i)%Init(iInit)%ConstPress%ElemStat(PEM%Element(Particle)))
+      IF ((PartSpecies(Particle) .EQ. iSpec) .AND. (PDM%ParticleInside(Particle))) THEN
+        SELECT CASE (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(PEM%Element(Particle)))
         CASE (1)
           nPartInside = nPartInside + 1
           vau(1) = vau(1) + PartState(Particle,4)
@@ -1537,7 +1548,7 @@ SUBROUTINE ParticleInsideCheck(i, iInit, nPartInside, TempInside, EkinInside)
           vauquad(2) = vauquad(2) + PartState(Particle,5)**2
           vauquad(3) = vauquad(3) + PartState(Particle,6)**2
         CASE (2)
-          BN(1:3) = PartState(Particle,1:3) - Species(i)%Init(iInit)%BasePointIC
+          BN(1:3) = PartState(Particle,1:3) - Species(iSpec)%Init(iInit)%BasePointIC
           det1 = BN(1)*BV2(2)*OV(3) + BN(2)*BV2(3)*OV(1) + BN(3)*BV2(1)*OV(2) - &
                  BN(3)*BV2(2)*OV(1) - BN(1)*BV2(3)*OV(2) - BN(2)*BV2(1)*OV(3)
           det2 = BV1(1)*BN(2)*OV(3) + BV1(2)*BN(3)*OV(1) + BV1(3)*BN(1)*OV(2) - &
@@ -1545,9 +1556,9 @@ SUBROUTINE ParticleInsideCheck(i, iInit, nPartInside, TempInside, EkinInside)
           det3 = BV1(1)*BV2(2)*BN(3) + BV1(2)*BV2(3)*BN(1) + BV1(3)*BV2(1)*BN(2) - &
                  BV1(3)*BV2(2)*BN(1) - BV1(1)*BV2(3)*BN(2) - BV1(2)*BV2(1)*BN(3)
       
-          det1 = det1/Species(i)%Init(iInit)%ConstPress%Determinant
-          det2 = det2/Species(i)%Init(iInit)%ConstPress%Determinant
-          det3 = det3/Species(i)%Init(iInit)%ConstPress%Determinant
+          det1 = det1/Species(iSpec)%Init(iInit)%ConstPress%Determinant
+          det2 = det2/Species(iSpec)%Init(iInit)%ConstPress%Determinant
+          det3 = det3/Species(iSpec)%Init(iInit)%ConstPress%Determinant
           
           IF (((det1-0.5)**2 .LE. 0.25).AND.((det2-0.5)**2 .LE. 0.25).AND.((det3-0.5)**2 .LE. 0.25)) THEN
             nPartInside = nPartInside + 1
@@ -1564,22 +1575,22 @@ SUBROUTINE ParticleInsideCheck(i, iInit, nPartInside, TempInside, EkinInside)
     END DO
   
   CASE ('cylinder')
-    OV  = Species(i)%Init(iInit)%ConstPress%OrthoVector
+    OV  = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector
     DO Particle = 1,PDM%ParticleVecLength
-      IF ((PartSpecies(Particle) .EQ. i) .AND. (PDM%ParticleInside(Particle))) THEN
-        SELECT CASE (Species(i)%Init(iInit)%ConstPress%ElemStat(PEM%Element(Particle)))
+      IF ((PartSpecies(Particle) .EQ. iSpec) .AND. (PDM%ParticleInside(Particle))) THEN
+        SELECT CASE (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(PEM%Element(Particle)))
         CASE (1)
           nPartInside = nPartInside + 1
           vau = vau + PartState(Particle,4:6)
           vauquad = vauquad + PartState(Particle,4:6)**2
         CASE (2)
-          BN(1:3) = PartState(Particle,1:3) - Species(i)%Init(iInit)%BasePointIC
+          BN(1:3) = PartState(Particle,1:3) - Species(iSpec)%Init(iInit)%BasePointIC
           BV2(1) = BN(2) * OV(3) - BN(3) * OV(2)                   !Vector orthogonal on BN and OrthoVector
           BV2(2) = BN(3) * OV(1) - BN(1) * OV(3)
           BV2(3) = BN(1) * OV(2) - BN(2) * OV(1)
           dist1  = SQRT((BV2(1)**2 + BV2(2)**2 + BV2(3)**2)/(OV(1)**2 + OV(2)**2 + OV(3)**2))
       
-          IF (dist1 .LE. Species(i)%Init(iInit)%RadiusIC) THEN
+          IF (dist1 .LE. Species(iSpec)%Init(iInit)%RadiusIC) THEN
             BV3(1) = OV(2) * BV2(3) - OV(3) * BV2(2)
             BV3(2) = OV(3) * BV2(1) - OV(1) * BV2(3)
             BV3(3) = OV(1) * BV2(2) - OV(2) * BV2(1)
@@ -1608,35 +1619,42 @@ SUBROUTINE ParticleInsideCheck(i, iInit, nPartInside, TempInside, EkinInside)
       END IF
     END DO
   END SELECT
-  vau = vau/nPartInside
-  EkinInside = 0.5*Species(i)%MassIC*(vauquad(1) + vauquad(2) +vauquad(3))*Species(i)%MacroParticleFactor
-  vauquad = vauquad/nPartInside
-  TempVec(1) = Species(i)%MassIC/BoltzmannConst*(vauquad(1) - vau(1)**2)
-  TempVec(2) = Species(i)%MassIC/BoltzmannConst*(vauquad(2) - vau(2)**2)
-  TempVec(3) = Species(i)%MassIC/BoltzmannConst*(vauquad(3) - vau(3)**2)
-  TempInside = (TempVec(1) + TempVec(2) + TempVec(3))/3
+  IF (nPartInside.eq.0) THEN
+    EkinInside = 0.
+    TempInside = 0.
+  ELSE
+    vau = vau/nPartInside
+    EkinInside = 0.5*Species(iSpec)%MassIC*(vauquad(1) + vauquad(2) +vauquad(3))*Species(iSpec)%MacroParticleFactor
+    vauquad = vauquad/nPartInside
+    TempVec(1) = Species(iSpec)%MassIC/BoltzmannConst*(vauquad(1) - vau(1)**2)
+    TempVec(2) = Species(iSpec)%MassIC/BoltzmannConst*(vauquad(2) - vau(2)**2)
+    TempVec(3) = Species(iSpec)%MassIC/BoltzmannConst*(vauquad(3) - vau(3)**2)
+    TempInside = (TempVec(1) + TempVec(2) + TempVec(3))/3
+  END IF
 
 END SUBROUTINE ParticleInsideCheck
 
-SUBROUTINE PointInsideQuad3D(iSpec,iInit,Element,InElementCheck,dete)                                      !
-  !DEC$ ATTRIBUTES FORCEINLINE :: ParticleInsideQuad3D
-    USE MOD_Particle_Vars
-    USE MOD_Mesh_Vars,     ONLY : ElemToSide
-  !--------------------------------------------------------------------------------------------------!
-    IMPLICIT NONE                                                                                    !
-  !--------------------------------------------------------------------------------------------------!
-  ! argument list declaration                                                                        !
-    INTEGER                          :: iSpec, iInit, Element, kk, CellX, CellY, CellZ                      !
-    LOGICAL                          :: InElementCheck                                               !
-    REAL                             :: dete(6,2)                                                       !
-  ! Local variable declaration                                                                       !
-    INTEGER                          :: iLocSide, NodeNum
-    LOGICAL                          :: PosCheck, NegCheck                                           !
-    REAL                             :: A(1:3,1:4), cross(3)
-  !--------------------------------------------------------------------------------------------------!
-                                        !
-  !--------------------------------------------------------------------------------------------------!
-
+SUBROUTINE PointInsideQuad3D(iSpec,iInit,Element,InElementCheck,dete)
+!===================================================================================================================================
+! Searches for basepoint to check if point is in element
+!===================================================================================================================================
+! MODULES
+  USE MOD_Particle_Vars
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                          :: iSpec, iInit, Element, kk, CellX, CellY, CellZ
+  LOGICAL                          :: InElementCheck
+  REAL                             :: dete(6,2)
+  INTEGER                          :: iLocSide, NodeNum
+  LOGICAL                          :: PosCheck, NegCheck
+  REAL                             :: A(1:3,1:4), cross(3)
+!===================================================================================================================================
 
   InElementCheck = .FALSE.
 
@@ -1654,7 +1672,7 @@ SUBROUTINE PointInsideQuad3D(iSpec,iInit,Element,InElementCheck,dete)           
   CellZ = INT((Species(iSpec)%Init(iInit)%BasePointIC(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
   CellZ = MIN(GEO%FIBGMlmax,CellZ)
 
-  !--- check all cells associated with this beckground mesh cell
+  !--- check all cells associated with this background mesh cell
   DO kk = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
     Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(kk)
     InElementCheck = .TRUE.

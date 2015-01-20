@@ -10,23 +10,31 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
-!===================================================================================================================================
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
-LOGICAL                       :: CalcNumSpec
-LOGICAL                       :: CalcCharge
-LOGICAL                       :: CalcEpot
-LOGICAL                       :: CalcEkin
-LOGICAL                       :: CalcTemp
-LOGICAL                       :: CalcPartBalance
-LOGICAL                       :: TrackParticlePosition
-INTEGER                       :: nEkin
-LOGICAL                       :: DoAnalyze
-LOGICAL                       :: IsRestart
-LOGICAL                       :: ChargeCalcDone
-LOGICAL                       :: CalcShapeEfficiency
-CHARACTER(LEN=256)            :: CalcShapeEfficiencyMethod      ! Explanations in particle_analyze.f90
-INTEGER                       :: ShapeEfficiencyNumber          ! Explanations in particle_analyze.f90
-INTEGER                       :: PartAnalyzeStep
-INTEGER,ALLOCATABLE           :: nPartIn(:),nPartOut(:),nPartInTemp(:)
-REAL,ALLOCATABLE              :: PartEkinIn(:),PartEkinOut(:),PartEKinInTemp(:)
+LOGICAL                       :: CalcNumSpec                           ! Calculate the number of particles per species
+LOGICAL                       :: CalcCharge                            ! Compute the whole deposited charge
+LOGICAL                       :: CalcEpot                              ! Computation of the energy stored in the electric and
+                                                                       ! magnetic field
+LOGICAL                       :: CalcEkin                              ! Compute the kinetic energy of each species
+LOGICAL                       :: CalcTemp                              ! Computation of the temperature based on the kinetic energy
+LOGICAL                       :: CalcPartBalance                       ! Particle Power Balance - input and outflow energy of all
+                                                                       ! particles
+LOGICAL                       :: CalcVelos                             ! Computes the drift and thermal velocity of each species
+LOGICAL                       :: TrackParticlePosition                 ! track the particle movement
+                                                                       ! stored in .csv format, debug only, no MPI 
+INTEGER                       :: nEkin                                 ! number of kinetic energies 
+LOGICAL                       :: DoAnalyze                             ! perform analyze
+LOGICAL                       :: IsRestart                             ! check if restart, add data to Database
+LOGICAL                       :: ChargeCalcDone                        ! check flag
+LOGICAL                       :: CalcShapeEfficiency                   ! efficiency of shape function
+CHARACTER(LEN=256)            :: CalcShapeEfficiencyMethod             ! Explanations in particle_analyze.f90
+INTEGER                       :: ShapeEfficiencyNumber                 ! Explanations in particle_analyze.f90
+INTEGER                       :: PartAnalyzeStep                       ! Analyze is performed each Nth time step
+INTEGER,ALLOCATABLE           :: nPartIn(:)                            ! Number of entry and leaving particles
+INTEGER,ALLOCATABLE           :: nPartOut(:)                           ! Number of entry and leaving particles
+INTEGER,ALLOCATABLE           :: nPartInTmp(:)                         ! Number of entry and leaving particles
+REAL,ALLOCATABLE              :: PartEkinIn(:)                         ! energy and temperatur of input particle
+REAL,ALLOCATABLE              :: PartEkinOut(:)                        ! energy and temperatur of input particle
+REAL,ALLOCATABLE              :: PartEKinInTmp(:)                      ! energy and temperatur of input particle
+!===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars

@@ -46,7 +46,10 @@ USE MOD_ReadInTools         ,ONLY: GETSTR,GETINT,GETLOGICAL,GETREAL
 USE MOD_Interpolation_Vars  ,ONLY: InterpolationInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RPDefFile,RP_inUse,RP_onProc,RecordpointsInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RP_MaxBuffersize,RP_SamplingOffset
-USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,RP_COMM,lastSample
+USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,lastSample
+#ifdef MPI
+USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -55,7 +58,8 @@ USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,RP_COMM,lastSample
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: RP_maxMemory,maxRP 
+REAL                  :: RP_maxMemory
+INTEGER               :: maxRP 
 !===================================================================================================================================
 ! check if recordpoints are activated 
 RP_inUse=GETLOGICAL('RP_inUse','.FALSE.')
@@ -81,7 +85,7 @@ IF(RP_onProc)THEN
 # ifdef MPI
   CALL MPI_ALLREDUCE(nRP,maxRP,1,MPI_INTEGER,MPI_MAX,RP_COMM,iError)
 # endif /*MPI*/
-  RP_MaxBufferSize = RP_MaxMemory*131072/(maxRP*(PP_nVar+1)) != size in bytes/(real*maxRP*nVar)
+  RP_MaxBufferSize = CEILING(RP_MaxMemory)*131072/(maxRP*(PP_nVar+1)) != size in bytes/(real*maxRP*nVar)
   ALLOCATE(lastSample(0:PP_nVar,nRP))
 END IF
 
@@ -171,7 +175,7 @@ CHARACTER(LEN=255),INTENT(IN) :: FileString
 ! LOCAL VARIABLES
 LOGICAL                       :: fileExists
 CHARACTER(LEN=255)            :: MeshFile_RPList
-INTEGER                       :: nGlobalElems_RPList
+INTEGER(8)                    :: nGlobalElems_RPList
 INTEGER                       :: iElem,iRP1,iRP_glob
 INTEGER                       :: OffsetRPArray(2,PP_nElems)
 REAL,ALLOCATABLE              :: xi_RP(:,:)
@@ -184,7 +188,11 @@ END IF
 
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' Read recordpoint definitions from data file "'//TRIM(FileString)//'" ...'
 ! Open data file
+#ifdef MPI
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
+#else
+CALL OpenDataFile(FileString,create=.FALSE.)
+#endif
 
 ! compare mesh file names
 CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile_RPList)
@@ -209,7 +217,12 @@ nRP=OffsetRPArray(2,PP_nElems)-OffsetRPArray(1,1)
 offsetRP = OffsetRPArray(1,1)
 ! Read in RP reference coordinates
 CALL GetDataSize(File_ID,'xi_RP',nDims,HSize)
-nGlobalRP=HSize(2) !global number of RecordPoints
+IF(HUGE(0).LT.HSize(2)) THEN
+  CALL abort(__STAMP__, &
+  'Global number of record points exceeds INTEGER TYPE 4!',999,999.)
+ELSE
+  nGlobalRP=INT(HSize(2),4) !global number of RecordPoints
+END IF
 DEALLOCATE(HSize)
 ALLOCATE(xi_RP(3,nRP)) 
 CALL ReadArray('xi_RP',2,(/3,nRP/),offsetRP,2,RealArray=xi_RP)
@@ -341,11 +354,13 @@ USE MOD_Equation_Vars     ,ONLY: StrVarNames
 USE MOD_HDF5_Output       ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5
 USE MOD_Output_Vars       ,ONLY: ProjectName
 USE MOD_Mesh_Vars         ,ONLY: MeshFile
-USE MOD_Recordpoints_Vars ,ONLY: RP_onProc,RP_COMM,myRPrank,lastSample
+USE MOD_Recordpoints_Vars ,ONLY: myRPrank,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RPDefFile,RP_Data,iSample,nSamples
 USE MOD_Recordpoints_Vars ,ONLY: offsetRP,nRP,nGlobalRP,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RP_Buffersize,RP_Maxbuffersize,RP_fileExists
-USE MOD_Analyze_Vars     ,ONLY:Analyze_dt
+#ifdef MPI
+USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,   INTENT(IN)             :: OutputTime
@@ -368,7 +383,7 @@ FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_RP',OutputTime))//'.h5'
 #ifdef MPI
 CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,single=.FALSE.,communicatorOpt=RP_COMM)
 #else
-CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists,single=.FALSE.)
+CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists)
 #endif
 
 IF(iSample.GT.0)THEN

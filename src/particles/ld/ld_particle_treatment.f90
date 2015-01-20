@@ -1,17 +1,16 @@
 MODULE MOD_LD_part_treat
 
 !===================================================================================================================================
-! module for determination of Lagrangian cell velocity
+! module for determination of particle push velocity
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Private Part ---------------------------------------------------------------------------------------------------------------------
-! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE LDPartTreament
+  MODULE PROCEDURE LDPartTreament
+END INTERFACE
 
 PUBLIC :: LDPartTreament
 !===================================================================================================================================
@@ -21,30 +20,32 @@ CONTAINS
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 SUBROUTINE LDPartTreament(iElem)
-
+!===================================================================================================================================
+! determination of particle push velocity
+!===================================================================================================================================
+! MODULES
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,             ONLY : SideToElem
 USE MOD_TimeDisc_Vars,         ONLY : dt
-USE MOD_Mesh_Vars,             ONLY : ElemToSide
-USE MOD_Particle_Vars,         ONLY : PEM, PartState,GEO
+USE MOD_Particle_Vars,         ONLY : PEM, PartState
 USE nr,                        ONLY : gaussj 
 USE MOD_part_MPFtools,         ONLY : MapToGeo, GeoCoordToMap
-
 !--------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-  INTEGER                       :: iNode, iLocSide1, iLocSide2, iLocSide3, iRow, iColumn
-  INTEGER                       :: nPart, iPart, iPartIndx, SideID
+  INTEGER                       :: iNode, iLocSide1, iLocSide2, iLocSide3
+  INTEGER                       :: nPart, iPart, iPartIndx
   REAL                          :: PartNewPos(3)
   REAL                          :: Matrix(3,3)
   REAL                          :: Vector(3,1)
-  REAL                          :: NewNodePos(3,8), PloyCoef(8,3)
+  REAL                          :: NewNodePos(3,8)
   REAL                          :: ChosenMeanBaseD1, ChosenMeanBaseD2, ChosenMeanBaseD3
-  REAL                          :: vLAG1, vLAG2, vLAG3, test
+  REAL                          :: vLAG1, vLAG2, vLAG3
   REAL                          :: NVec1(3),NVec2(3),NVec3(3), xi_Out(3)
-  
+!--------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES  
   INTEGER, INTENT(IN)           :: iElem
 !--------------------------------------------------------------------------------------------------!
 
@@ -138,6 +139,7 @@ USE MOD_part_MPFtools,         ONLY : MapToGeo, GeoCoordToMap
       LD_RHS(iPartIndx,3) = 0.0
     END IF
 
+
 !    IF ((ABS(PartNewPos(1) - PartState(iPartIndx,1)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
 !      LD_RHS(iPartIndx,1) = 0.0
 !    ELSE
@@ -153,7 +155,11 @@ USE MOD_part_MPFtools,         ONLY : MapToGeo, GeoCoordToMap
 !    ELSE
 !      LD_RHS(iPartIndx,3) = (PartNewPos(3) - PartState(iPartIndx,3)) / dt - PartState(iPartIndx,6)
 !    END IF
-
+#if (PP_TimeDiscMethod==1001)
+    LD_DSMC_RHS(iPartIndx,1) = LD_RHS(iPartIndx,1)
+    LD_DSMC_RHS(iPartIndx,2) = LD_RHS(iPartIndx,2)
+    LD_DSMC_RHS(iPartIndx,3) = LD_RHS(iPartIndx,3)
+#endif
 
     iPartIndx = PEM%pNext(iPartIndx)
   END DO

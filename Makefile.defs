@@ -5,8 +5,7 @@
 # AVAILABLE COMPILERS: INTEL     (Intel Fortran Compiler)
 #                      GNU       (GNU Compiler Collection)
 #                      GNU_LLVM  (LLVM with GCC as a frontend, requires Dragonegg)
-#                      CRAY      (CRAY compiler / CRAY PGI compiler)
-#                      BLUEGENE  (IBM XL compiler)
+#                      CRAY      (CRAY compiler / CRAY PGI compiler) #                      BLUEGENE  (IBM XL compiler)
 # COMPILER OPTIONS:    DEBUG     (Compile with debug options (e.g. 00))
 #                      OMP       (Compile with OpenMP support, working for INTEL,GNU,IBMXL )
 #                      SCALASCA  (Parallel performanec measuring tool on Bluegene)
@@ -19,13 +18,23 @@
 #                      BLUEGENE  (Juelich Juqueen cluster)
 #=================================================================================================================================#
 INIFILE=$(MAINDIR)ini/particles.ini
-COMPILER=INTEL
+COMPILER=INTEL_DEBUG
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
 
 #=================================================================================================================================#
 # INI-FILE PARSING                                                                                                                #
 #=================================================================================================================================#
-INIVARS = EQNSYS PARTICLES NODETYPE RIEMANN TIMEDISCMETHOD NELEMZ N MPI POIS OPTIMIZED
+INIVARS  = EQNSYS
+INIVARS += PARTICLES
+INIVARS += NODETYPE
+INIVARS += RIEMANN
+INIVARS += TIMEDISCMETHOD
+INIVARS += NELEMZ 
+INIVARS += N 
+INIVARS += MPI 
+INIVARS += POIS 
+INIVARS += OPTIMIZED
+INIVARS += HDF5_F90
 
 # Defaults
 EQNSYS         = maxwell
@@ -110,6 +119,7 @@ endif
 ifneq ($(HDF5_F90),)
   PREPROC +=-DHDF5_F90=$(HDF5_F90)
 endif
+
 # Cut compiler for use with DEBUG-flags
 TMP=$(subst _, ,$(COMPILER))
 SHARECOMP_MOD = $(word 1,$(TMP))
@@ -286,16 +296,16 @@ ifeq ($(findstring GNU,$(ENVIRONMENT)),GNU)
 
   FPRE     = -cpp -E -w
   PREOUT   = >>
-  FCFLAGS  = -xf95-cpp-input -cpp -fdefault-real-8 -fdefault-double-8 -fbackslash -DGNU # don't change
-  FLFLAGS  = -fdefault-real-8 -fbackslash # don't change
+  FCFLAGS  = -xf95-cpp-input -cpp -fdefault-real-8 -fdefault-double-8 -fbackslash -DGNU -Wall# don't change
+  FLFLAGS  = -fdefault-real-8 -fbackslash  -Wall # don't change
 
   ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
     FCFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
     FLFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
   else
 	  # -03(=general optlevel) -march=native(adapt to current system) -flto(=interprocedural optimizations) 
-    FCFLAGS  += -O3 $(INSTRUCTION) -march=native
-    FLFLAGS  += -O3 $(INSTRUCTION) -march=native
+    FCFLAGS  += -O3 $(INSTRUCTION) 
+    FLFLAGS  += -O3 $(INSTRUCTION) 
   endif
 
   ifeq ($(findstring OMP,$(ENVIRONMENT)),OMP)

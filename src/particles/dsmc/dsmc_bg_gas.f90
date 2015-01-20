@@ -1,37 +1,57 @@
+#include "boltzplatz.h"
+
 MODULE MOD_DSMC_BGGas
 !===================================================================================================================================
-! module including collisions
+! Module for use of a background gas for the simulation of trace species (if number density of bg gas is multiple orders of
+! magnitude larger than the trace species)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+
+INTERFACE DSMC_InitBGGas
+  MODULE PROCEDURE DSMC_InitBGGas
+END INTERFACE
+
+INTERFACE DSMC_pairing_bggas
+  MODULE PROCEDURE DSMC_pairing_bggas
+END INTERFACE
+
+INTERFACE DSMC_FinalizeBGGas
+  MODULE PROCEDURE DSMC_FinalizeBGGas
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
 PUBLIC :: DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
-!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
 
 CONTAINS
 
 SUBROUTINE DSMC_InitBGGas()
-
-USE MOD_DSMC_Vars,          ONLY : BGGas
-USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies, PartState, PEM, usevMPF
-USE MOD_part_emission,      ONLY : SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF
-USE MOD_part_tools,         ONLY : UpdateNextFreePosition
-!--------------------------------------------------------------------------------------------------!
-! init BG Gas and Build Pairs
-!--------------------------------------------------------------------------------------------------!
-IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-! Local variable declaration                                                                       !  
-INTEGER           :: iNewPart, iPart, PositionNbr
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
+! Initialization of background gas
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals,            ONLY : Abort
+  USE MOD_DSMC_Vars,          ONLY : BGGas
+  USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies, PartState, PEM
+  USE MOD_part_emission,      ONLY : SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF
+  USE MOD_part_tools,         ONLY : UpdateNextFreePosition
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER           :: iNewPart, iPart, PositionNbr
+!===================================================================================================================================
   iNewPart=0
   PositionNbr = 0
   DO iPart = 1, PDM%ParticleVecLength
@@ -39,49 +59,49 @@ INTEGER           :: iNewPart, iPart, PositionNbr
       iNewPart = iNewPart + 1
       PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
       IF (PositionNbr.EQ.0) THEN
-        WRITE(*,*) 'ERROR in BGGas: too many Particles'
-        STOP
+        CALL Abort(&
+           __STAMP__,&
+          'ERROR in BGGas: Too many Particles!')
       END IF
       PartState(PositionNbr,1:3) = PartState(iPart,1:3)
       PartSpecies(PositionNbr) = BGGas%BGGasSpecies
       PEM%Element(PositionNbr) = PEM%Element(iPart)
       PDM%ParticleInside(PositionNbr) = .true.
-      PEM%pNext(PEM%pEnd(PEM%Element(PositionNbr))) = PositionNbr ! Next Particle of same Elem (Linked List)
+      PEM%pNext(PEM%pEnd(PEM%Element(PositionNbr))) = PositionNbr     ! Next Particle of same Elem (Linked List)
       PEM%pEnd(PEM%Element(PositionNbr)) = PositionNbr
-      PEM%pNumber(PEM%Element(PositionNbr)) = &                      ! Number of Particles in Element
+      PEM%pNumber(PEM%Element(PositionNbr)) = &                       ! Number of Particles in Element
       PEM%pNumber(PEM%Element(PositionNbr)) + 1
     END IF
   END DO
-  CALL SetParticleVelocity(BGGas%BGGasSpecies,0,iNewPart) !!!!!iInit uebergegen! -> welches? 0?
-  !IF (usevMPF) CALL SetParticleMPF(BGGas%BGGasSpecies, iNewPart)
+  CALL SetParticleVelocity(BGGas%BGGasSpecies,0,iNewPart,.TRUE.) ! Properties of BG gas are stored in iInit=0
   PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart 
 
-  !CALL UpdateNextFreePosition()
 END SUBROUTINE DSMC_InitBGGas
 
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE DSMC_pairing_bggas(iElem)
-
+!===================================================================================================================================
+! Building of pairs for the background gas
+!===================================================================================================================================
+! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn
-  USE MOD_Particle_Vars,          ONLY : PEM, PartSpecies, nSpecies, PartState, GEO, Species, usevMPF, PartMPF    
-!--------------------------------------------------------------------------------------------------!
-! statistical pairing method
-!--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-! Local variable declaration                                                                       !
-INTEGER                       :: nPair, iPair, iPart, iLoop, cPart1, cPart2, nPart
-INTEGER                       :: cSpec1, cSpec2, iCase
-INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
-REAL                          :: iRan
-! input variable declaration                                                                       !
-INTEGER, INTENT(IN)           :: iElem
-
-!--------------------------------------------------------------------------------------------------!
+  USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,GEO,Species,usevMPF,PartMPF!,useVTKFileBGG,BGGdataAtElem
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)           :: iElem          
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES                                                                       !
+  INTEGER                       :: nPair, iPair, iPart, iLoop, cPart1, cPart2, nPart
+  INTEGER                       :: cSpec1, cSpec2, iCase
+  INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
+!===================================================================================================================================
   nPart = PEM%pNumber(iElem)
   nPair = INT(nPart/2)
   
@@ -92,23 +112,27 @@ INTEGER, INTENT(IN)           :: iElem
   ALLOCATE(iPartIndx(nPart))
   Coll_pData%Ec=0
   iPartIndx = 0
-  IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) ChemReac%MeanEVibQua_PerIter(1:nSpecies) = 0.0
+  IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
   DO iLoop = 1, nPart
     iPartIndx(iLoop) = iPart
     CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + 1 
           ! counter for part num of spec per cell   
-    IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) ChemReac%MeanEVibQua_PerIter(PartSpecies(iPart)) = &
-                        ChemReac%MeanEVibQua_PerIter(PartSpecies(iPart)) &
+    IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = &
+                        ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
                         + PartStateIntEn(iPart,1) !Calulation of mean evib per cell and iter, necessary for disso prob 
     iPart = PEM%pNext(iPart)    
   END DO
   
-  ! Setting NUmber of BGGas Particles per Cell
-  BGGas%BGColl_SpecPartNum = BGGas%BGGasDensity * GEO%Volume(iElem)      &
+  ! Setting Number of BGGas Particles per Cell
+!  IF (useVTKFileBGG) THEN
+!    BGGas%BGColl_SpecPartNum = BGGdataAtElem(7,iElem) * GEO%Volume(iElem)      &
+!                                               / Species(BGGas%BGGasSpecies)%MacroParticleFactor
+!  ELSE
+    BGGas%BGColl_SpecPartNum = BGGas%BGGasDensity * GEO%Volume(iElem)      &
                                                / Species(BGGas%BGGasSpecies)%MacroParticleFactor
-  
+!  END IF
 
   DO iPair = 1, nPair 
     DO cPart1 = 1, nPart ! Searching the first non BG particle
@@ -146,27 +170,28 @@ INTEGER, INTENT(IN)           :: iElem
   DEALLOCATE(iPartIndx)
 END SUBROUTINE DSMC_pairing_bggas
 
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE DSMC_FinalizeBGGas()
-
+!===================================================================================================================================
+! Kills all BG Particles
+!===================================================================================================================================
+! MODULES
 USE MOD_DSMC_Vars,          ONLY : BGGas
 USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies
 USE MOD_part_tools,         ONLY : UpdateNextFreePosition
-!--------------------------------------------------------------------------------------------------!
-! kills all BG Particles
-!--------------------------------------------------------------------------------------------------!
-IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-! Local variable declaration                                                                       !  
-!--------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
   WHERE (PartSpecies(1:PDM%ParticleVecLength).EQ.BGGas%BGGasSpecies) &
          PDM%ParticleInside(1:PDM%ParticleVecLength) = .FALSE.
   CALL UpdateNextFreePosition()
 
 END SUBROUTINE DSMC_FinalizeBGGas
 
-!--------------------------------------------------------------------------------------------------!
 END MODULE MOD_DSMC_BGGas

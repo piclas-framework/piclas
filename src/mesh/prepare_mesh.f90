@@ -49,10 +49,11 @@ SUBROUTINE setLocalSideIDs()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,  ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
+USE MOD_Mesh_Vars,  ONLY: nElems,nInnerSides,nBCSides,offsetElem
 USE MOD_Mesh_Vars,  ONLY: aElem,aSide
 USE MOD_Mesh_Vars,  ONLY: Elems,nMPISides_MINE,nMPISides_YOUR
 #ifdef MPI
+USE MOD_Mesh_Vars,  ONLY: nSides
 USE MOD_MPI_Vars,   ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
 USE MOD_MPI_Vars,   ONLY: offsetElemMPI,offsetMPISides_MINE,offsetMPISides_YOUR
 USE MOD_Mesh_ReadIn,ONLY: Qsort1Int,INVMAP
@@ -251,8 +252,8 @@ IF(MPIroot)THEN
   ALLOCATE(tmparray(7,0:3),tmpreal(7,2))
   tmparray(:,0)=0      !tmp
   tmparray(:,1)=0      !mean
-  tmparray(:,2)=-1E08  !max
-  tmparray(:,3)=1E08   !min
+  tmparray(:,2)=HUGE(-1)  !max
+  tmparray(:,3)=HUGE(1)   !min
   DO i=0,nProcessors-1
     !actual proc
     tmparray(1,0)=Procinfo_glob(1,i)
@@ -330,12 +331,13 @@ SUBROUTINE fillMeshInfo()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,ONLY:nElems,offsetElem,nSides,nInnerSides,nBCSides,nMPISides
+USE MOD_Mesh_Vars,ONLY:nElems,offsetElem,nInnerSides,nBCSides
 USE MOD_Mesh_Vars,ONLY:nMPISides_MINE
 USE MOD_Mesh_Vars,ONLY:ElemToSide,BC,SideToElem,SideToElem2
 USE MOD_Mesh_Vars,ONLY:aElem,aSide
 USE MOD_Mesh_Vars,ONLY:Elems
 #ifdef MPI
+USE MOD_Mesh_Vars,ONLY:nMPISides
 USE MOD_MPI_vars
 #endif
 IMPLICIT NONE
@@ -346,7 +348,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem,iSide,LocSideID,nSides_flip(0:4),nSides_flip2(0:4),dummy(0:4)
+INTEGER             :: iElem,iSide,LocSideID,nSides_flip(0:4)
+#ifdef MPI
+INTEGER             :: dummy(0:4)
+#endif
 !===================================================================================================================================
 !  LOGWRITE(*,'(4A8)')'SideID', 'globID','NbProc','Flip'
 !  DO iElem=1,nElems
@@ -525,8 +530,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars,ONLY:nElems,offsetElem
 USE MOD_Mesh_Vars,ONLY:Elems
 USE MOD_Mesh_Vars,ONLY:aElem
-USE MOD_Mesh_Vars,ONLY:aSide
-USE MOD_Mesh_Vars,ONLY:NGeo,Xi_NGeo,Vdm_NGeo_CLNGeo
+USE MOD_Mesh_Vars,ONLY:NGeo,Vdm_NGeo_CLNGeo
 USE MOD_ChangeBasis,ONLY:changeBasis3D
 IMPLICIT NONE
 ! INPUT VARIABLES

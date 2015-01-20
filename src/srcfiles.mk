@@ -1,4 +1,5 @@
 preprocflags.f90
+globals/globals_vars.f90
 analyze/analyze_vars.f90
 analyze/analyze.f90
 analyze/analyzefield.f90

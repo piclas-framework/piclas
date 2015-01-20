@@ -1,31 +1,40 @@
+#include "boltzplatz.h"
+
+
 MODULE MOD_LD_Analyze
-!==================================================================================================
-! module for LD Sampling and Output
-!==================================================================================================
+!===================================================================================================================================
+! module for LD Sampling and Output Calculation
+!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
-!--------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
-!--------------------------------------------------------------------------------------------------
-! Private Part ------------------------------------------------------------------------------------
-! Public Part -------------------------------------------------------------------------------------
-PUBLIC :: LD_data_sampling, LD_output_calc
-!===================================================================================================
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTERFACE LD_data_sampling
+  MODULE PROCEDURE LD_data_sampling
+END INTERFACE
+INTERFACE LD_output_calc
+  MODULE PROCEDURE LD_output_calc
+END INTERFACE
 
+PUBLIC :: LD_data_sampling, LD_output_calc
+!===================================================================================================================================
 CONTAINS
 
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE LD_data_sampling()
-
+!===================================================================================================================================
+! Sample celldata for output
+!===================================================================================================================================
+! MODULES
   USE MOD_LD_Vars
   USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, PartStateIntEn, CollisMode, SpecDSMC
   USE MOD_Particle_Vars,          ONLY : PEM, PDM, PartSpecies, PartState, PartMPF, usevMPF
 !--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                 !
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
@@ -40,6 +49,13 @@ INTEGER                       :: iPart, iElem
                                                        + PartStateBulkValues(iPart,1:3) * PartMPF(iPart)
         SampDSMC(iElem,PartSpecies(iPart))%PartV2(1)   = SampDSMC(iElem,PartSpecies(iPart))%PartV2(1) &  ! V2 stands for BulkTemp
                                                        + PartStateBulkValues(iPart,4) * PartMPF(iPart)
+        IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
+            (SpecDSMC(PartSpecies(iPart))%InterID.EQ.2)) THEN
+          SampDSMC(iElem,PartSpecies(iPart))%EVib      = SampDSMC(iElem,PartSpecies(iPart))%EVib &
+                                                       + PartStateIntEn(iPart,1) * PartMPF(iPart)
+          SampDSMC(iElem,PartSpecies(iPart))%ERot      = SampDSMC(iElem,PartSpecies(iPart))%ERot &
+                                                       + PartStateIntEn(iPart,2) * PartMPF(iPart)
+        END IF
         SampDSMC(iElem,PartSpecies(iPart))%PartNum     = SampDSMC(iElem,PartSpecies(iPart))%PartNum + PartMPF(iPart)
         SampDSMC(iElem,PartSpecies(iPart))%SimPartNum  = SampDSMC(iElem,PartSpecies(iPart))%SimPartNum + 1
       ELSE ! normal sampling without weighting
@@ -47,6 +63,13 @@ INTEGER                       :: iPart, iElem
                                                        + PartStateBulkValues(iPart,1:3)
         SampDSMC(iElem,PartSpecies(iPart))%PartV2(1)   = SampDSMC(iElem,PartSpecies(iPart))%PartV2(1) & ! V2 stands for BulkTemp
                                                        + PartStateBulkValues(iPart,4)
+        IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
+            (SpecDSMC(PartSpecies(iPart))%InterID.EQ.2)) THEN
+          SampDSMC(iElem,PartSpecies(iPart))%EVib      = SampDSMC(iElem,PartSpecies(iPart))%EVib &
+                                                       + PartStateIntEn(iPart,1)
+          SampDSMC(iElem,PartSpecies(iPart))%ERot      = SampDSMC(iElem,PartSpecies(iPart))%ERot &
+                                                       + PartStateIntEn(iPart,2)
+        END IF
         SampDSMC(iElem,PartSpecies(iPart))%PartNum     = SampDSMC(iElem,PartSpecies(iPart))%PartNum + 1
       END IF
     END IF
@@ -57,24 +80,24 @@ END SUBROUTINE LD_data_sampling
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 
-SUBROUTINE LD_output_calc(nOutput)
-
+SUBROUTINE LD_output_calc()
+!===================================================================================================================================
+! Calculation of outputdata on the basis of sampled values
+!===================================================================================================================================
+! MODULES
   USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, MacroDSMC, CollisMode, SpecDSMC, realtime
   USE MOD_Mesh_Vars,              ONLY : nElems,MeshFile
   USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species, GEO, PartSpecies, usevMPF
-  USE MOD_DSMC_Analyze,           ONLY : WriteDSMCToHDF5
+  USE MOD_DSMC_Analyze,           ONLY : WriteDSMCToHDF5, CalcTVib
   USE MOD_LD_Vars,                ONLY : LD_Residual, LD_CalcResidual
 !--------------------------------------------------------------------------------------------------!
-! statistical pairing method                                                                       !
-!--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                   !
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-INTEGER                       :: iPart, iElem, iSpec, MolecPartNum, HeavyPartNum                   !
+INTEGER                       :: iElem, iSpec, MolecPartNum, HeavyPartNum                   !
 REAL                          :: TVib_TempFac
-! input variable declaration                                                                       !
-INTEGER, INTENT(IN)           :: nOutput                                                           !
 !--------------------------------------------------------------------------------------------------!
 
   ALLOCATE(MacroDSMC(nElems,nSpecies + 1))
@@ -119,20 +142,31 @@ INTEGER, INTENT(IN)           :: nOutput                                        
 ! compute internal energies / has to be changed for vfd 
         IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
           (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
-          IF (DSMC%VibEnergyModel.EQ.0) THEN
+          IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
+            TVib_TempFac=SampDSMC(iElem,iSpec)%EVib &
+                      /(SampDSMC(iElem,iSpec)%PartNum*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
             IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-              MacroDSMC(iElem,iSpec)%TVib =  MacroDSMC(iElem,iSpec)%Temp(4)          
+              MacroDSMC(iElem,iSpec)%TVib = 0.0           
             ELSE
-              MacroDSMC(iElem,iSpec)%TVib = MacroDSMC(iElem,iSpec)%Temp(4)
+              MacroDSMC(iElem,iSpec)%TVib = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
             END IF
           ELSE                                            ! TSHO-model
-              MacroDSMC(iElem,iSpec)%TVib = MacroDSMC(iElem,iSpec)%Temp(4)
+            MacroDSMC(iElem,iSpec)%TVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
+                , SampDSMC(iElem,iSpec)%EVib/SampDSMC(iElem,iSpec)%PartNum, SpecDSMC(iSpec)%MaxVibQuant) 
           END IF       
-          MacroDSMC(iElem,iSpec)%TRot = MacroDSMC(iElem,iSpec)%Temp(4)
-        IF (DSMC%ElectronicState) THEN
-          MacroDSMC(iElem,iSpec)%TElec= MacroDSMC(iElem,iSpec)%Temp(4)
+          MacroDSMC(iElem,iSpec)%TRot = SampDSMC(iElem, iSpec)%ERot/(BoltzmannConst*SampDSMC(iElem,iSpec)%PartNum)
         END IF
-        END IF
+
+!!!!!!!!!!!!! compute internal energies / has to be changed for vfd 
+!!!!!!!!!!!!        IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
+!!!!!!!!!!!!          (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
+!!!!!!!!!!!!          MacroDSMC(iElem,iSpec)%TVib = MacroDSMC(iElem,iSpec)%Temp(4)
+!!!!!!!!!!!!          MacroDSMC(iElem,iSpec)%TRot = MacroDSMC(iElem,iSpec)%Temp(4)
+!!!!!!!!!!!!          IF (DSMC%ElectronicState) THEN
+!!!!!!!!!!!!            MacroDSMC(iElem,iSpec)%TElec= MacroDSMC(iElem,iSpec)%Temp(4)
+!!!!!!!!!!!!          END IF
+!!!!!!!!!!!!        END IF
+
       END IF
     END DO
   END DO
@@ -243,28 +277,32 @@ INTEGER, INTENT(IN)           :: nOutput                                        
   END IF
 
   CALL WriteDSMCToHDF5(TRIM(MeshFile),realtime)
-!  CALL WriteOutputDSMC(nOutput)
   DEALLOCATE(MacroDSMC)
   
 END SUBROUTINE LD_output_calc
 !--------------------------------------------------------------------------------------------------!
-
 !--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE LD_ResidualOutout
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
+! Calculation of LD residuum values
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
   USE MOD_Particle_Vars,         ONLY : Time
   USE MOD_LD_Vars,               ONLY : LD_Residual
   USE MOD_Mesh_Vars,             ONLY : nElems
+!--------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!
 ! Local variable declaration                                                                       !
 !--------------------------------------------------------------------------------------------------!
-  LOGICAL             :: isOpen
-  CHARACTER(LEN=350)  :: outfile ,hilf
-  INTEGER             :: unit_index, iElem
-  REAL                 :: LD_ResidualTemp_Linf(6)
-  REAL                 :: LD_ResidualTemp_L1(6)
+  LOGICAL                     :: isOpen
+  CHARACTER(LEN=350)          :: outfile
+  INTEGER                     :: unit_index
+  REAL                        :: LD_ResidualTemp_Linf(6)
+  REAL                        :: LD_ResidualTemp_L1(6)
 !--------------------------------------------------------------------------------------------------!
 
     unit_index = 12345
@@ -305,7 +343,8 @@ SUBROUTINE LD_ResidualOutout
       WRITE(unit_index,'(A14)') ' ' 
     END IF
 
-    PRINT*,'Write LD_Residual....'
+    SWRITE(UNIT_StdOut,'(132("-"))')
+    SWRITE(UNIT_stdOut,'(A)') 'Write LD_Residual....'
     LD_ResidualTemp_Linf = MAXVAL(LD_Residual,1) 
     LD_ResidualTemp_L1  = SUM(LD_Residual,1) / nElems
 

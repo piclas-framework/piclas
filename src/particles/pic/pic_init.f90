@@ -2,7 +2,7 @@
 
 MODULE MOD_PICInit
 !===================================================================================================================================
-! Add comments please!
+! Includes PIC Init
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -23,13 +23,12 @@ CONTAINS
 
 SUBROUTINE InitPIC()
 !===================================================================================================================================
-! Get the constant advection velocity vector from the ini file 
+! PIC Init
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals, ONLY: MPIRoot,UNIT_STDOUT
-USE MOD_ReadInTools
-USE MOD_PICInterpolation_Vars, ONLY:externalField
-USE MOD_PIC_Vars!, ONLY: 
+USE MOD_Globals
+USE MOD_PICInterpolation_Vars,  ONLY: externalField
+USE MOD_PIC_Vars ,              ONLY: PICInitIsDone, PIC
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -38,10 +37,6 @@ USE MOD_PIC_Vars!, ONLY:
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  CHARACTER(32)         :: hilf 
-  CHARACTER(200)        :: tmpString
-#ifdef MPI
-#endif
 !===================================================================================================================================
 IF(PICInitIsDone)THEN
    SWRITE(*,*) "InitPIC already called."

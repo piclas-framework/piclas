@@ -52,7 +52,7 @@ USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-USE MOD_TimeDisc_Vars,          ONLY: RK4_a,iStage
+USE MOD_TimeDisc_Vars,          ONLY: RK_a,iStage
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -223,7 +223,7 @@ USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
-USE MOD_TimeDisc_Vars,          ONLY:RK4_a,iStage
+USE MOD_TimeDisc_Vars,          ONLY:RK_a,iStage
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

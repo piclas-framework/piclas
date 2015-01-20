@@ -1,5 +1,6 @@
-MODULE MOD_LD_mean_cell
+#include "boltzplatz.h"
 
+MODULE MOD_LD_mean_cell
 !===================================================================================================================================
 ! module for determination of cell quantities
 !===================================================================================================================================
@@ -8,10 +9,9 @@ MODULE MOD_LD_mean_cell
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Private Part ---------------------------------------------------------------------------------------------------------------------
-! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE CalcMacCellLDValues
+  MODULE PROCEDURE CalcMacCellLDValues
+END INTERFACE
 
 PUBLIC :: CalcMacCellLDValues
 !===================================================================================================================================
@@ -21,25 +21,43 @@ CONTAINS
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 SUBROUTINE CalcMacCellLDValues()
-
-USE MOD_LD_Vars
-USE MOD_Mesh_Vars,              ONLY : nElems, ElemToSide, SideToElem
-USE MOD_Particle_Vars,          ONLY : GEO, PEM, usevMPF, PartMPF, BoltzmannConst, Species, PartSpecies, PDM
-
+!===================================================================================================================================
+! module for determination of cell quantities
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+  USE MOD_LD_Vars
+  USE MOD_Mesh_Vars,              ONLY : nElems
+  USE MOD_Particle_Vars,          ONLY : GEO, PEM, usevMPF, PartMPF, BoltzmannConst, Species, PartSpecies
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC
+#if (PP_TimeDiscMethod==1001)
+  USE MOD_LD_DSMC_TOOLS,          ONLY : LD_DSMC_Mean_Bufferzone_A_Val
+#endif
+#if (PP_TimeDiscMethod!=1001)
+  USE MOD_Mesh_Vars,              ONLY : ElemToSide, SideToElem
+#endif
 !--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                  !
+! IMPLICIT VARIABLE HANDLING
+   IMPLICIT NONE                                                                                      !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
   INTEGER             :: iElem, iPart, nPart, iPartIndx, LowPartCount
   REAL                :: MPFSum, WeightFak
-  REAL                :: CellMass, CellTemp, CellTempMean, CellVelo2, StanVol
+  REAL                :: CellMass, CellTemp, CellTempMean, CellVelo2
+  REAL                :: MeanRefTemp, MeanRefDiameter, MeanOmega
+  REAL, PARAMETER     :: PI=3.14159265358979323846_8
+#if (PP_TimeDiscMethod!=1001)
   INTEGER             :: NeiElem, nNei
   INTEGER             :: iLocSide, SideID
+#endif
 !--------------------------------------------------------------------------------------------------!
 
 LowPartCount = 0
 DO iElem = 1, nElems ! element=cell main loop
+#if (PP_TimeDiscMethod==1001)
+IF((BulkValues(iElem)%CellType.EQ.3).OR.(BulkValues(iElem)%CellType.EQ.4)) THEN  ! --- LD Cell ?
+#endif
   nPart = PEM%pNumber(iElem)
   IF (nPart.GT. 1) THEN ! Are there more than one particle
     BulkValues(iElem)%CellV           = 0.0
@@ -49,6 +67,9 @@ DO iElem = 1, nElems ! element=cell main loop
     CellMass                          = 0.0
     MPFSum                            = 0.0
     CellVelo2                         = 0.0
+    MeanRefTemp                       = 0.0
+    MeanRefDiameter                   = 0.0
+    MeanOmega                         = 0.0
     iPartIndx = PEM%pStart(iElem)
     DO ipart = 1, nPart
       IF (usevMPF) THEN
@@ -68,11 +89,17 @@ DO iElem = 1, nElems ! element=cell main loop
                                                       * WeightFak * Species(PartSpecies(iPartIndx))%MassIC
       CellTempMean                      = CellTempMean + PartStateBulkValues(iPartIndx,4) * WeightFak
       IF (CellTempMean.lt. 0) THEN
-        PRINT*,iElem, iPartIndx, PDM%ParticleVecLength, PartStateBulkValues(iPartIndx,4)
-        read*
+          SWRITE(UNIT_stdOut,'(A)') 'Element, Temperatur:',iElem, CellTempMean
+          CALL abort(__STAMP__,&
+               'ERROR: Temperature is lt zero')
       END IF
       BulkValues(iElem)%DegreeOfFreedom = BulkValues(iElem)%DegreeOfFreedom + PartStateBulkValues(iPartIndx,5) * WeightFak
       CellMass                          = CellMass + WeightFak * Species(PartSpecies(iPartIndx))%MassIC
+!--- for viscousity terms...
+      MeanRefTemp = MeanRefTemp + SpecDSMC(PartSpecies(iPartIndx))%TrefVHS * WeightFak
+      MeanRefDiameter = MeanRefDiameter + SpecDSMC(PartSpecies(iPartIndx))%DrefVHS * WeightFak
+      MeanOmega = MeanOmega + SpecDSMC(PartSpecies(iPartIndx))%omegaVHS * WeightFak
+!--- end for viscousity terms
       MPFSum = MPFSum + WeightFak
       iPartIndx = PEM%pNext(iPartIndx)
     END DO
@@ -92,12 +119,31 @@ DO iElem = 1, nElems ! element=cell main loop
                             + BulkValues(iElem)%CellV(3)**2 ))
     BulkValues(iElem)%BulkTemperature = CellTemp
     BulkValues(iElem)%Beta = SQRT(CellMass / MPFSum / (2 * CellTemp * BoltzmannConst))
+!--- for viscousity terms...
+    MeanRefTemp = MeanRefTemp / MPFSum
+    MeanRefDiameter = MeanRefDiameter / MPFSum
+    MeanOmega = MeanOmega / MPFSum
+    BulkValues(iElem)%DynamicVisc = 15 * SQRT(PI * (CellMass / MPFSum) * BoltzmannConst * MeanRefTemp) &
+                                  / ( 8 * PI * MeanRefDiameter**2 * (2 - MeanOmega) * (3 - MeanOmega) ) &
+                                  * ( CellTemp / MeanRefTemp)**(MeanOmega + 0.5)
+    BulkValues(iElem)%ThermalCond = 0.25 * (9 + 2 * BulkValues(iElem)%DegreeOfFreedom) &
+                                  * BulkValues(iElem)%DynamicVisc &
+                                  * BoltzmannConst / (CellMass / MPFSum)
+    BulkValues(iElem)%SpezGasConst = BoltzmannConst / (CellMass / MPFSum)
+!--- end for viscousity terms
   ELSE ! if there is no particle => keep old LD-state
     LowPartCount = LowPartCount + 1
   END IF
+#if (PP_TimeDiscMethod==1001)
+ELSE IF(BulkValues(iElem)%CellType.EQ.2) THEN  ! --- Bufferzone_A Cell ?
+  CALL LD_DSMC_Mean_Bufferzone_A_Val(iElem)
+END IF  ! --- END LD Cell or Bufferzone_A?
+#endif
 END DO
+#if (PP_TimeDiscMethod!=1001)
 ! Abfangen von Nulldivisionen
 IF (LowPartCount.GE. 1) THEN
+    SWRITE(UNIT_StdOut,'(A)') 'ATTENTION: YOU NEED MORE PARTCLES FOR LD!!!'
   DO iElem = 1, nElems
     nPart = PEM%pNumber(iElem)
     IF (nPart.LE. 1) THEN
@@ -137,9 +183,8 @@ IF (LowPartCount.GE. 1) THEN
         END IF
       END DO
       IF (nNei.EQ.0) THEN
-        PRINT*,'YOU NEED MORE PARTCLES FOR LD!!!'
-        PRINT*,iElem, nNei, BulkValues(iElem)%Beta
-        STOP
+          CALL abort(__STAMP__,&
+               'ERROR: YOU NEED MORE PARTCLES FOR LD!!!')
       END IF
       BulkValues(iElem)%CellV(1:3) = BulkValues(iElem)%CellV(1:3) / nNei
       BulkValues(iElem)%DegreeOfFreedom = BulkValues(iElem)%DegreeOfFreedom / nNei
@@ -147,6 +192,7 @@ IF (LowPartCount.GE. 1) THEN
     END IF     
   END DO
 END IF
+#endif
 
 #ifdef MPI
   CALL LD_MPI_Communication
@@ -159,15 +205,19 @@ END SUBROUTINE CalcMacCellLDValues
 !-----------------------------------------------------------------------------------------------------------------------------------
 #ifdef MPI
 SUBROUTINE LD_MPI_Communication
-
+!===================================================================================================================================
+! MPI communication of LD values
+!===================================================================================================================================
+! MODULES
 USE MOD_LD_Vars
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_part_MPI_Vars, ONLY : PMPIVAR
-USE MOD_Mesh_Vars,             ONLY : SideToElem
-
-IMPLICIT NONE
+  USE MOD_part_MPI_Vars,          ONLY : PMPIVAR
+  USE MOD_Mesh_Vars,              ONLY : SideToElem
+!--------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE    
 !-----------------------------------------------------------------------------------------------------------------------------------
   REAL  , ALLOCATABLE :: MPI_LDSendBuffer(:)  ! Buffer for MIPSend (nMPISide*5)
   REAL  , ALLOCATABLE :: MPI_LDRecvBuffer(:)  ! Buffer for MIPRecv (nMPISide*5)
@@ -176,7 +226,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 
   DO iProc=1,nNbProcs
-    NbrOfSendLDVal = 5*(nMPISides_MINE_Proc(iProc) + nMPISides_YOUR_Proc(iProc))
+    NbrOfSendLDVal = 8*(nMPISides_MINE_Proc(iProc) + nMPISides_YOUR_Proc(iProc))
     ALLOCATE(MPI_LDSendBuffer(NbrOfSendLDVal))
     ALLOCATE(MPI_LDRecvBuffer(NbrOfSendLDVal))
     SendBufferCount = 0
@@ -189,11 +239,14 @@ IMPLICIT NONE
         ELSE
           SideToElem_ID = 1
         END IF
-        MPI_LDSendBuffer(5*SendBufferCount + 1) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(1)
-        MPI_LDSendBuffer(5*SendBufferCount + 2) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(2)
-        MPI_LDSendBuffer(5*SendBufferCount + 3) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(3)
-        MPI_LDSendBuffer(5*SendBufferCount + 4) = BulkValues(SideToElem(SideToElem_ID,iSideID))%Beta
-        MPI_LDSendBuffer(5*SendBufferCount + 5) = BulkValues(SideToElem(SideToElem_ID,iSideID))%MassDens
+        MPI_LDSendBuffer(8*SendBufferCount + 1) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(1)
+        MPI_LDSendBuffer(8*SendBufferCount + 2) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(2)
+        MPI_LDSendBuffer(8*SendBufferCount + 3) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(3)
+        MPI_LDSendBuffer(8*SendBufferCount + 4) = BulkValues(SideToElem(SideToElem_ID,iSideID))%Beta
+        MPI_LDSendBuffer(8*SendBufferCount + 5) = BulkValues(SideToElem(SideToElem_ID,iSideID))%MassDens
+        MPI_LDSendBuffer(8*SendBufferCount + 6) = BulkValues(SideToElem(SideToElem_ID,iSideID))%DynamicVisc
+        MPI_LDSendBuffer(8*SendBufferCount + 7) = BulkValues(SideToElem(SideToElem_ID,iSideID))%ThermalCond
+        MPI_LDSendBuffer(8*SendBufferCount + 8) = BulkValues(SideToElem(SideToElem_ID,iSideID))%BulkTemperature
         SendBufferCount = SendBufferCount + 1
       END DO
     END IF
@@ -206,11 +259,14 @@ IMPLICIT NONE
         ELSE
           SideToElem_ID = 1
         END IF
-        MPI_LDSendBuffer(5*SendBufferCount + 1) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(1)
-        MPI_LDSendBuffer(5*SendBufferCount + 2) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(2)
-        MPI_LDSendBuffer(5*SendBufferCount + 3) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(3)
-        MPI_LDSendBuffer(5*SendBufferCount + 4) = BulkValues(SideToElem(SideToElem_ID,iSideID))%Beta
-        MPI_LDSendBuffer(5*SendBufferCount + 5) = BulkValues(SideToElem(SideToElem_ID,iSideID))%MassDens
+        MPI_LDSendBuffer(8*SendBufferCount + 1) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(1)
+        MPI_LDSendBuffer(8*SendBufferCount + 2) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(2)
+        MPI_LDSendBuffer(8*SendBufferCount + 3) = BulkValues(SideToElem(SideToElem_ID,iSideID))%CellV(3)
+        MPI_LDSendBuffer(8*SendBufferCount + 4) = BulkValues(SideToElem(SideToElem_ID,iSideID))%Beta
+        MPI_LDSendBuffer(8*SendBufferCount + 5) = BulkValues(SideToElem(SideToElem_ID,iSideID))%MassDens
+        MPI_LDSendBuffer(8*SendBufferCount + 6) = BulkValues(SideToElem(SideToElem_ID,iSideID))%DynamicVisc
+        MPI_LDSendBuffer(8*SendBufferCount + 7) = BulkValues(SideToElem(SideToElem_ID,iSideID))%ThermalCond
+        MPI_LDSendBuffer(8*SendBufferCount + 8) = BulkValues(SideToElem(SideToElem_ID,iSideID))%BulkTemperature
         SendBufferCount = SendBufferCount + 1
       END DO
     END IF
@@ -227,11 +283,14 @@ IMPLICIT NONE
       LD_MPISideID_start = OffsetMPISides_YOUR(iProc-1) + 1 !- OffsetMPISides_MINE(0) ! OffsetMPISides_MINE(0) == inner + BC sides
       LD_MPISideID_end   = OffsetMPISides_YOUR(iProc) !- OffsetMPISides_MINE(0)
       DO iSideID = LD_MPISideID_start, LD_MPISideID_end
-        MPINeighborBulkVal(iSideID,1) = MPI_LDRecvBuffer(5*RecvBufferCount + 1)
-        MPINeighborBulkVal(iSideID,2) = MPI_LDRecvBuffer(5*RecvBufferCount + 2)
-        MPINeighborBulkVal(iSideID,3) = MPI_LDRecvBuffer(5*RecvBufferCount + 3)
-        MPINeighborBulkVal(iSideID,4) = MPI_LDRecvBuffer(5*RecvBufferCount + 4)
-        MPINeighborBulkVal(iSideID,5) = MPI_LDRecvBuffer(5*RecvBufferCount + 5)
+        MPINeighborBulkVal(iSideID,1) = MPI_LDRecvBuffer(8*RecvBufferCount + 1)
+        MPINeighborBulkVal(iSideID,2) = MPI_LDRecvBuffer(8*RecvBufferCount + 2)
+        MPINeighborBulkVal(iSideID,3) = MPI_LDRecvBuffer(8*RecvBufferCount + 3)
+        MPINeighborBulkVal(iSideID,4) = MPI_LDRecvBuffer(8*RecvBufferCount + 4)
+        MPINeighborBulkVal(iSideID,5) = MPI_LDRecvBuffer(8*RecvBufferCount + 5)
+        MPINeighborBulkVal(iSideID,6) = MPI_LDRecvBuffer(8*RecvBufferCount + 6)
+        MPINeighborBulkVal(iSideID,7) = MPI_LDRecvBuffer(8*RecvBufferCount + 7)
+        MPINeighborBulkVal(iSideID,8) = MPI_LDRecvBuffer(8*RecvBufferCount + 8)
         RecvBufferCount = RecvBufferCount + 1
       END DO
     END IF
@@ -239,11 +298,14 @@ IMPLICIT NONE
       LD_MPISideID_start = OffsetMPISides_MINE(iProc-1) + 1 !- OffsetMPISides_MINE(0) ! OffsetMPISides_MINE(0) == inner + BC sides
       LD_MPISideID_end   = OffsetMPISides_MINE(iProc) !- OffsetMPISides_MINE(0)
       DO iSideID = LD_MPISideID_start, LD_MPISideID_end
-        MPINeighborBulkVal(iSideID,1) = MPI_LDRecvBuffer(5*RecvBufferCount + 1)
-        MPINeighborBulkVal(iSideID,2) = MPI_LDRecvBuffer(5*RecvBufferCount + 2)
-        MPINeighborBulkVal(iSideID,3) = MPI_LDRecvBuffer(5*RecvBufferCount + 3)
-        MPINeighborBulkVal(iSideID,4) = MPI_LDRecvBuffer(5*RecvBufferCount + 4)
-        MPINeighborBulkVal(iSideID,5) = MPI_LDRecvBuffer(5*RecvBufferCount + 5)
+        MPINeighborBulkVal(iSideID,1) = MPI_LDRecvBuffer(8*RecvBufferCount + 1)
+        MPINeighborBulkVal(iSideID,2) = MPI_LDRecvBuffer(8*RecvBufferCount + 2)
+        MPINeighborBulkVal(iSideID,3) = MPI_LDRecvBuffer(8*RecvBufferCount + 3)
+        MPINeighborBulkVal(iSideID,4) = MPI_LDRecvBuffer(8*RecvBufferCount + 4)
+        MPINeighborBulkVal(iSideID,5) = MPI_LDRecvBuffer(8*RecvBufferCount + 5)
+        MPINeighborBulkVal(iSideID,6) = MPI_LDRecvBuffer(8*RecvBufferCount + 6)
+        MPINeighborBulkVal(iSideID,7) = MPI_LDRecvBuffer(8*RecvBufferCount + 7)
+        MPINeighborBulkVal(iSideID,8) = MPI_LDRecvBuffer(8*RecvBufferCount + 8)
         RecvBufferCount = RecvBufferCount + 1 
       END DO
     END IF
@@ -252,8 +314,6 @@ IMPLICIT NONE
     DEALLOCATE(MPI_LDRecvBuffer)
 
   END DO !iProc=1,nNBProcs
-
-
 
 END SUBROUTINE LD_MPI_Communication
 #endif

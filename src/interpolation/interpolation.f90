@@ -49,7 +49,6 @@ SUBROUTINE InitInterpolation()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars
-USE MOD_Restart_Vars,ONLY:DoRestart,N_Restart,BuildNewMesh,WriteNewMesh,InterpolateSolution
 USE MOD_ReadInTools,ONLY:GETINT,GETREAL
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -39,7 +39,7 @@ USE MOD_Interpolation_Vars, ONLY:xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_Mesh_ReadIn,        ONLY:readMesh
 USE MOD_Prepare_Mesh,       ONLY:setLocalSideIDs,fillMeshInfo,fillElemGeo,getVolumeMapping
-USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETINT,GETINTARRAY,CNTSTR,GETSTR
+USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETINT,GETINTARRAY,CNTSTR,GETSTR,GETREALARRAY
 USE MOD_ChangeBasis,        ONLY:ChangeBasis3D
 USE MOD_Metrics,            ONLY:CalcMetrics
 USE MOD_DebugMesh,          ONLY:writeDebugMesh
@@ -65,17 +65,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: iBC
 LOGICAL           :: debugmesh
-!REAL,ALLOCATABLE  :: XCL_NGeo(:,:,:,:,:)
 REAL              :: x(3),PI
 INTEGER           :: iElem,i,j,k,iSide,countSurfElem,iProc
 INTEGER,ALLOCATABLE :: countSurfElemMPI(:)
-
-
 REAL              :: A(3,3),detcon
 INTEGER           :: iLocSide,p,q,SideID
-!LOGICAL,ALLOCATABLE  :: isConcaveTriangle(:)
 INTEGER              :: iConcaveTriangle
-
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.',999,999.)
@@ -212,7 +207,8 @@ offsetSurfElem=0          ! offset is the index of first entry, hdf5 array start
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
 CALL deleteMeshPointer()
 
-! IF(NGeo.GT.1) CALL getVolumeMapping(XCL_NGeo)
+! PO: not required with new format
+!! IF(NGeo.GT.1) CALL getVolumeMapping(XCL_NGeo)
 
 IF(GETLOGICAL('deform','.FALSE.'))THEN
   Pi = ACOS(-1.) 
@@ -251,9 +247,7 @@ ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
 #ifdef PARTICLES
 ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,1:nSides)              )! &
         !, SuperSampledBiLinearCoeff(1:3,1:4,1:NPartCurved,1:NPartCurved,1:nSides) )
-!print*,NGeo
-!Print*,NSides
-!read*
+
 ALLOCATE( BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) ) 
 ALLOCATE( SlabNormals(1:3,1:3,1:nSides),SlabIntervalls(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
 #endif /*PARTICLES*/
@@ -510,7 +504,6 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------

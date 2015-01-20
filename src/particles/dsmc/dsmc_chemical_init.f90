@@ -1,44 +1,60 @@
+#include "boltzplatz.h"
+
 MODULE MOD_DSMC_ChemInit
 !===================================================================================================================================
-! Add comments please!
+! Initialization of chemical module
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+
+INTERFACE DSMC_chemical_init
+  MODULE PROCEDURE DSMC_chemical_init
+END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
 PUBLIC :: DSMC_chemical_init
 !===================================================================================================================================
 
 CONTAINS
 
 SUBROUTINE DSMC_chemical_init()
-
-  USE MOD_DSMC_Vars,          ONLY : ChemReac
+!===================================================================================================================================
+! Readin of variables and definition of reaction cases
+!===================================================================================================================================
+! MODULES
+  USE MOD_DSMC_Vars,          ONLY : ChemReac,CollisMode
   USE MOD_ReadInTools
-  USE MOD_Globals,            ONLY : UNIT_StdOut
+  USE MOD_Globals
   USE MOD_PARTICLE_Vars,      ONLY : nSpecies, BoltzmannConst
-!--------------------------------------------------------------------------------------------------!
-! perform chemical init
-!--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE 
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  CHARACTER(32)         :: hilf 
+  CHARACTER(LEN=3)         :: hilf 
   INTEGER               :: iReac, iReac2
   INTEGER, ALLOCATABLE  :: PairCombID(:,:)
   LOGICAL, ALLOCATABLE  :: YetDefined_Help(:)
   INTEGER               :: Reactant1, Reactant2, Reactant3
-!#ifdef MPI
-!#endif
 !===================================================================================================================================
   
 ! reading reaction values   
   ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions','0')
+  IF(CollisMode.EQ.3)THEN
+    IF(ChemReac%NumOfReact.EQ.0)THEN
+      CALL Abort(__STAMP__,&
+          ' Collisions with chemical reactions require chemical reaction database! ',CollisMode,REAL(ChemReac%NumOfReact))
+    END IF
+  END IF
+
   IF (ChemReac%NumOfReact.GT.0) THEN    
     ALLOCATE(ChemReac%NumReac(ChemReac%NumOfReact))
     ChemReac%NumReac = 0
@@ -60,9 +76,14 @@ SUBROUTINE DSMC_chemical_init()
              ChemReac%EActiv(ChemReac%NumOfReact),&
              ChemReac%EForm(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%MeanEVibQua_PerIter(nSpecies))
+    ALLOCATE(ChemReac%MeanEVib_PerIter(nSpecies))
+    ALLOCATE(ChemReac%CEXa(ChemReac%NumOfReact))
+    ALLOCATE(ChemReac%CEXb(ChemReac%NumOfReact))
+    ALLOCATE(ChemReac%MEXa(ChemReac%NumOfReact))
+    ALLOCATE(ChemReac%MEXb(ChemReac%NumOfReact))
 
     DO iReac = 1, ChemReac%NumOfReact
-      WRITE(UNIT=hilf,FMT='(I2)') iReac
+      WRITE(UNIT=hilf,FMT='(I3)') iReac
       ChemReac%ReactType(iReac)             = GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionType','0')
       ChemReac%QKProcedure(iReac)           = GETLOGICAL('DSMC-Reaction'//TRIM(hilf)//'-QKProcedure','.FALSE.')
       CHemReac%QKMethod(iReac)       = GETINT('DSMC-Reaction'//TRIM(hilf)//'-QK-Method','0') 
@@ -74,28 +95,32 @@ SUBROUTINE DSMC_chemical_init()
       ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor','0')
       ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K','0')*BoltzmannConst
       ChemReac%EForm(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-HeatOfFormation_K','0')*BoltzmannConst
-      !proof of reactant definition
+      ChemReac%CEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXa','0')
+      ChemReac%CEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CEXb','0')
+      ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','0')
+      ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
+      ! Proof of reactant definition
       IF (ChemReac%ReactType(iReac).EQ.'R') THEN
         IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)*ChemReac%DefinedReact(iReac,1,3)).EQ.0) THEN
-          WRITE(*,*) 'Error in Definition Reactants of Chemical Reaction: ', iReac
-          STOP
+          CALL abort(__STAMP__,&
+          'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       ELSE 
         IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)).EQ.0) THEN
-          WRITE(*,*) 'Error in Definition Reactants of Chemical Reaction: ', iReac
-          STOP
+          CALL abort(__STAMP__,&
+          'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       END IF
-      !proof of product definition
+      ! Proof of product definition
       IF ((ChemReac%ReactType(iReac).EQ.'i').OR.(ChemReac%ReactType(iReac).EQ.'D')) THEN
         IF ((ChemReac%DefinedReact(iReac,2,1)*ChemReac%DefinedReact(iReac,2,2)*ChemReac%DefinedReact(iReac,2,3)).EQ.0) THEN
-          WRITE(*,*) 'Error in Definition Products of Chemical Reaction: ', iReac
-          STOP
+          CALL abort(__STAMP__,&
+          'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       ELSE 
         IF ((ChemReac%DefinedReact(iReac,2,1)*ChemReac%DefinedReact(iReac,2,2)).EQ.0) THEN
-          WRITE(*,*) 'Error in Definition Products of Chemical Reaction: ', iReac
-          STOP
+          CALL abort(__STAMP__,&
+          'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       END IF
     END DO
@@ -103,7 +128,19 @@ SUBROUTINE DSMC_chemical_init()
     ALLOCATE(PairCombID(nSpecies, nSpecies))
     PairCombID = 0
     CALL DSMC_BuildChem_IDArray(PairCombID)
-  
+
+    ! Case 7: only simple CEX/MEX possible
+    DO iReac = 1, ChemReac%NumOfReact
+      IF ((ChemReac%ReactType(iReac).EQ.'x').AND.(.NOT.YetDefined_Help(iReac))) THEN
+          Reactant1 = ChemReac%DefinedReact(iReac,1,1)
+          Reactant2 = ChemReac%DefinedReact(iReac,1,2)
+          ChemReac%ReactCase(Reactant1, Reactant2) = 7
+          ChemReac%ReactCase(Reactant2, Reactant1) = 7
+          ChemReac%ReactNum(Reactant1, Reactant2, 1) = iReac
+          ChemReac%ReactNum(Reactant2, Reactant1, 1) = iReac
+          YetDefined_Help(iReac) = .TRUE.
+      END IF
+    END DO  
     ! Case 6: only ionization possible
     DO iReac = 1, ChemReac%NumOfReact
       IF ((ChemReac%ReactType(iReac).EQ.'i').AND.(.NOT.YetDefined_Help(iReac))) THEN
@@ -203,28 +240,29 @@ SUBROUTINE DSMC_chemical_init()
     DEALLOCATE(PairCombID)
     CALL Calc_Arrhenius_Factors()
   ELSE
-    WRITE(*,'(A)') 'NO REACTIONS DEFINED!'
+    SWRITE(*,'(A)') 'NO REACTIONS DEFINED!'
   END IF
 
 END SUBROUTINE DSMC_chemical_init
 
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE DSMC_BuildChem_IDArray(PairCombID)
-
-  USE MOD_DSMC_Vars,          ONLY : ChemReac
+!===================================================================================================================================
+! Builds array for the identification of different species combinations
+!===================================================================================================================================
+! MODULES
   USE MOD_PARTICLE_Vars,      ONLY : nSpecies
-!--------------------------------------------------------------------------------------------------!
-! perform chemical init
-!--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE 
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(INOUT)  :: PairCombID(:,:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                 :: iSpec, jSpec, iComb
-  INTEGER, INTENT(INOUT)  :: PairCombID(:,:)
-!#ifdef MPI
-!#endif
-!===============================================================================================
+!===================================================================================================================================
   iComb = 1
   DO iSpec = 1, nSpecies
     DO jSpec = iSpec,  nSpecies
@@ -236,36 +274,38 @@ SUBROUTINE DSMC_BuildChem_IDArray(PairCombID)
 
 END SUBROUTINE DSMC_BuildChem_IDArray
 
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE Calc_Arrhenius_Factors()
-
-  USE MOD_DSMC_Vars,          ONLY : ChemReac, DSMC, SpecDSMC, CollInf
-  USE MOD_PARTICLE_Vars,      ONLY : nSpecies, BoltzmannConst
+!===================================================================================================================================
+! Calculates variables for Arrhenius calculation (H_ab, Beta) for diatomic chemical reactions 
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals,            ONLY : Abort
+  USE MOD_DSMC_Vars,          ONLY : ChemReac, SpecDSMC, CollInf
+  USE MOD_PARTICLE_Vars,      ONLY : BoltzmannConst
   USE MOD_Equation_Vars,      ONLY : Pi
   USE MOD_DSMC_Analyze,       ONLY : CalcTVib
   USE nr,                     ONLY : gammln
-!--------------------------------------------------------------------------------------------------!
-! perform chemical init
-!--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE 
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES                                                                                
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                 :: iQuaMax1, iQuaMax2, iQua1, iQua2, iReac, iQuaMax1_temp, iQuaMax2_temp
   INTEGER                 :: iQuaMax3, iQuaMax3_temp, iQua3
-  REAL                    :: EVib1, EVib2, TVib1, TVib2, Xi_vib1, Xi_vib2, H_ab, Xi_vib3
-!#ifdef MPI
-!#endif
-!===============================================================================================
+  REAL                    :: Xi_vib1, Xi_vib2, H_ab, Xi_vib3
+!  REAL                    :: EVib1, TVib1, EVib2, TVib2              ! needed for TSHO
+!===================================================================================================================================
 
-ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
+  ALLOCATE(ChemReac%ReactInfo(ChemReac%NumOfReact))
 
-DO iReac = 1, ChemReac%NumOfReact
-  ! calculate the Arrhenius Arrays only if the reaction is not a QK reaction
-  IF ( ChemReac%QKProcedure(iReac) .EQV. .false. ) THEN
-
-    ! Compute VHS Factor H_ab necessary for reaction probs (laux diss page 24)
-    ! only defined for one omega for al species
+  DO iReac = 1, ChemReac%NumOfReact
+  ! Calculate the Arrhenius arrays only if the reaction is not a QK reaction
+  IF (.NOT.ChemReac%QKProcedure(iReac)) THEN
+    ! Compute VHS Factor H_ab necessary for reaction probs, only defined for one omega for all species (laux diss page 24)
     H_ab = exp(gammln(2-SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)) * 2 &
           * CollInf%Cab(CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2))) &
           / ((1 + CollInf%KronDelta(CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1),ChemReac%DefinedReact(iReac,1,2)))) &
@@ -273,7 +313,7 @@ DO iReac = 1, ChemReac%NumOfReact
           * (2 * BoltzmannConst &
           / CollInf%MassRed(CollInf%Coll_Case(ChemReac%DefinedReact(iReac,1,1), ChemReac%DefinedReact(iReac,1,2)))) &
           ** (0.5 - SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%omegaVHS)
-    !Recombination
+    ! Recombination
     IF (ChemReac%ReactType(iReac).EQ.'R') THEN
       ChemReac%MeanEVib_Necc = .TRUE.
       iQuaMax3 = SpecDSMC(ChemReac%DefinedReact(iReac,1,3))%MaxVibQuant
@@ -310,7 +350,7 @@ DO iReac = 1, ChemReac%NumOfReact
         END DO
       END IF 
     END IF
-    !Dissociation
+    ! Dissociation
     IF (ChemReac%ReactType(iReac).EQ.'D') THEN
       ChemReac%MeanEVib_Necc = .TRUE.
       iQuaMax1 = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxVibQuant
@@ -329,7 +369,7 @@ DO iReac = 1, ChemReac%NumOfReact
         ALLOCATE(ChemReac%ReactInfo(iReac)%Beta_Diss_Arrhenius(0:iQuaMax1-1,0:iQuaMax2-1))
       END IF
       DO iQua1 = 0 , iQuaMax1_temp      
-        !Calculation of the vibrational DOF in TSHO Model
+        ! Calculation of the vibrational DOF in TSHO Model
         IF (iQua1.NE.0) THEN     
           Xi_vib1 = 2 * iQua1 * LOG(1.0/ iQua1 + 1.0 )
           !!!!!!would be needed in TSHO Case!!!!!
@@ -373,7 +413,7 @@ DO iReac = 1, ChemReac%NumOfReact
           END IF
         ELSE
           DO iQua2 = 0, iQuaMax2_temp
-            !Calculation of the vibrational DOF in TSHO Model
+            ! Calculation of the vibrational DOF in TSHO Model
             IF (iQua2.NE.0) THEN
               Xi_vib2 = 2 * iQua2 * LOG(1.0/ iQua2 + 1.0 )
               !!!!!!would be needed in TSHO Case!!!!!
@@ -388,7 +428,7 @@ DO iReac = 1, ChemReac%NumOfReact
             ELSE
               Xi_vib2 = 0
             END IF
-            !also only defined for one omega VHS for each species
+            ! also only defined for one omega VHS for each species
             ChemReac%ReactInfo(iReac)%Xi_Total(iQua1,iQua2) = Xi_vib1 + Xi_vib2  &
                     + SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%Xi_Rot &
                     + SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%Xi_Rot &
@@ -433,8 +473,8 @@ DO iReac = 1, ChemReac%NumOfReact
       iQuaMax1 = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxVibQuant
       iQuaMax2 = SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%MaxVibQuant
       IF (iQuaMax2.NE.0) THEN
-        WRITE(*,*) 'ERROR: The second Partner of an exchange reactions must be an atom! ReactNum:', iReac
-        STOP
+        CALL abort(__STAMP__,&
+        'ERROR: The second partner of an exchange reaction must be an atom! ReactNum:',iReac)
       END IF
       iQuaMax1_temp = 100
       !!!!!!would be needed in TSHO Case!!!!!
@@ -495,7 +535,5 @@ END DO
 
 END SUBROUTINE Calc_Arrhenius_Factors
 
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
 
 END MODULE MOD_DSMC_ChemInit

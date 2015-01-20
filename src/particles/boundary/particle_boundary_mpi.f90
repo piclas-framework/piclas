@@ -35,16 +35,11 @@ SUBROUTINE Initialize()
 ! crossed by the particle.
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals!,                ONLY : Logging,UNIT_logout
-  USE MOD_Mesh_Vars,              ONLY : nNodes, nSides, nBCSides, nInnerSides, nElems
-  USE MOD_MPI_Vars,               ONLY : nNbProcs, offsetMPISides_MINE, offsetMPISides_YOUR
-  USE MOD_Particle_Vars,          ONLY : GEO
-  USE MOD_part_MPI_Vars,          ONLY : MPIGEO, PMPIVAR, PMPIExchange, FIBGMCellPadding, &
-                                         SafetyFactor, halo_eps
+  USE MOD_Globals
+  USE MOD_Mesh_Vars,              ONLY : nNodes, nSides, nBCSides, nInnerSides
+  USE MOD_part_MPI_Vars,          ONLY : MPIGEO, PMPIVAR, PMPIExchange, SafetyFactor
   USE MOD_CalcTimeStep,           ONLY:CalcTimeStep
   USE MOD_PICDepo_Vars,           ONLY : DepositionType
-  !USE MOD_TimeDisc_Vars,          ONLY : dt
-  USE MOD_Equation_Vars,          ONLY : c
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -54,13 +49,7 @@ SUBROUTINE Initialize()
 ! LOCAL VARIABLE DECLARATION
   LOGICAL                :: TmpNeigh
   INTEGER                :: iProc
-  INTEGER                :: MPIProcPIC
   INTEGER                :: ALLOCSTAT
-  INTEGER                :: MPIGROUPMAP
-  INTEGER                :: nConnectedInnerSides(0:PMPIVAR%nProcs-1,1:2)
-  INTEGER                :: nConnectedMPISides(0:PMPIVAR%nProcs-1,1:2)
-  INTEGER                :: nBoundarySides(0:PMPIVAR%nProcs-1,1:2)
-  INTEGER                :: nGhostElements(0:PMPIVAR%nProcs-1,1:2)
   INTEGER,ALLOCATABLE    :: NodeIndex(:)
 !===================================================================================================================================
 
@@ -303,8 +292,8 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
   USE MOD_part_MPI_Vars, ONLY : MPIGEO, PMPIVAR
   USE MOD_Mesh_Vars    , ONLY : nElems, nNodes, nSides, nBCSides, nInnerSides, ElemToSide, &
                                 SideToElem, BC
-  USE MOD_Particle_Vars, ONLY : GEO, PartBound
-  USE MOD_MPI_Vars     , ONLY : offsetElemMPI, nNbProcs, NbProc, &
+  USE MOD_Particle_Vars, ONLY : GEO
+  USE MOD_MPI_Vars     , ONLY : nNbProcs, NbProc, &
                                 offsetMPISides_MINE, offsetMPISides_YOUR
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -329,12 +318,9 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
   END TYPE
   TYPE(tMPISideMessage)       :: SendMsg
   TYPE(tMPISideMessage)       :: RecvMsg
-  INTEGER                     :: iElem,iSide,iLocSide,jSide,SideID,iNode,jNode,jProc,iBC
+  INTEGER                     :: iElem,iSide,iLocSide,jSide,iNode
   INTEGER                     :: nNeighborhoodNodes, iIndex, iNbProc, CurrentNbProc
-  INTEGER                     :: BCalphaInd
-  INTEGER                     :: connectionInd
   INTEGER                     :: ALLOCSTAT
-  REAL                        :: t1(1:3),t2(1:3)
   LOGICAL                     :: MPINeighborhood
   INTEGER, ALLOCATABLE        :: TEMPARRAY0(:), TEMPARRAY(:,:), TEMPARRAY2(:,:,:)
   REAL   , ALLOCATABLE        :: TEMPARRAY_R(:,:)
@@ -342,14 +328,18 @@ SUBROUTINE ExchangeMPINeighborhoodGeometry(iProc,NodeIndex)
   INTEGER, ALLOCATABLE        :: ElemIndex(:)
   INTEGER, ALLOCATABLE        :: SideIndex(:)
   INTEGER                     :: HALOoffsetNode, HALOoffsetSide, HALOoffsetElem
-  INTEGER                     :: countDoku
 !===================================================================================================================================
+  CurrentNbProc = 0
 
-  ALLOCATE(ElemIndex(1:nElems), SideIndex(1:nSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
-    'Could not allocate Elem- or SideIndex',999,999.)
-  SideIndex = 0
-  ElemIndex = 0
+  ALLOCATE(ElemIndex(1:nElems))
+  IF (.NOT.ALLOCATED(ElemIndex)) CALL abort(__STAMP__,& !wunderschoen!!!
+    'Could not allocate ElemIndex')
+  ElemIndex(:) = 0
+
+  ALLOCATE(SideIndex(1:nSides))
+  IF (.NOT.ALLOCATED(SideIndex)) CALL abort(__STAMP__,& !wunderschoen!!!
+    'Could not allocate SideIndex')
+  SideIndex(:) = 0
 
   !--- First, count marker node indices (nNeighborhoodNodes are within eps distance of at least one MPI-neighbor's node)
   nNeighborhoodNodes=MAXVAL(NodeIndex)
@@ -1135,10 +1125,8 @@ SUBROUTINE IdentifyNonImmediateMPINeighborhood(iProc,NodeIndex)
 ! MODULES
   USE MOD_Globals
   USE MOD_Particle_Vars,          ONLY : GEO
-  USE MOD_part_MPI_Vars,          ONLY : PMPIVAR, halo_eps, FIBGMCellPadding
-  USE MOD_mesh_vars,              ONLY : nNodes, nInnerSides, nBCSides, nElems, &
-                                         ElemToSide, nSides
-!  USE MOD_part_boundary_periodic, ONLY : periodicMove,getPeriodicVectorIndex,getNPVIndices
+  USE MOD_part_MPI_Vars,          ONLY : PMPIVAR
+  USE MOD_mesh_vars,              ONLY : nInnerSides, nBCSides, nElems, ElemToSide
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1156,9 +1144,6 @@ SUBROUTINE IdentifyNonImmediateMPINeighborhood(iProc,NodeIndex)
   INTEGER              :: i
   INTEGER              :: iElem, jElem, iNode, iLocSide
   INTEGER              :: CellX ,CellY ,CellZ
-  INTEGER              :: CellX2,CellY2,CellZ2
-  INTEGER              :: PVindex
-  INTEGER              :: nMoves
   INTEGER              :: ALLOCSTAT
   REAL                 :: xNode(1:3)
 !===================================================================================================================================
@@ -1295,9 +1280,7 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(NodeData,nExternalNodes,NodeIndex)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Particle_Vars,          ONLY : GEO
-  USE MOD_part_MPI_Vars,          ONLY : PMPIVAR, PMPIExchange, halo_eps, FIBGMCellPadding,&
-                                         NbrOfCases,casematrix
-  USE MOD_mesh_vars,              ONLY : nNodes
+  USE MOD_part_MPI_Vars,          ONLY : halo_eps, FIBGMCellPadding, NbrOfCases,casematrix
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1312,7 +1295,7 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(NodeData,nExternalNodes,NodeIndex)
   INTEGER                  :: CellX, CellY, CellZ
   INTEGER                  :: CellX2,CellY2,CellZ2
   INTEGER                  :: iElem, iNode, jNode
-  INTEGER                  :: nNbNodes, jElem, ind, ind2 , iCase
+  INTEGER                  :: nNbNodes, jElem, iCase
   REAL                     :: NodeX(1:3), Vec1(1:3), Vec2(1:3), Vec3(1:3)
 !===================================================================================================================================
 

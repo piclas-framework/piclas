@@ -68,15 +68,15 @@ SUBROUTINE CalcMetrics()!XCL_NGeo)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,          ONLY:NGeo,dXCL_NGeo,XCL_NGeo
-USE MOD_Mesh_Vars,          ONLY:Vdm_CLNGeo_GaussN,Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
-USE MOD_Mesh_Vars,          ONLY:DCL_NGeo,DCL_N
-USE MOD_Mesh_Vars,          ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
-USE MOD_Mesh_Vars,          ONLY:nElems
+USE MOD_Mesh_Vars,               ONLY:NGeo,dXCL_NGeo,XCL_NGeo
+USE MOD_Mesh_Vars,               ONLY:Vdm_CLNGeo_GaussN,Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
+USE MOD_Mesh_Vars,               ONLY:DCL_NGeo,DCL_N
+USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
+USE MOD_Mesh_Vars,               ONLY:nElems
 #ifdef PARTICLES
-USE MOD_Particle_Surfaces,  ONLY:GetSuperSampledSurface,GetBezierControlPoints3D,GetSideType
+USE MOD_Particle_Surfaces,       ONLY:GetSuperSampledSurface,GetBezierControlPoints3D,GetSideType
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
-USE MOD_Mesh_Vars,          ONLY:xBaryCL_NGeo
+USE MOD_Mesh_Vars,               ONLY:xBaryCL_NGeo
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_ChangeBasis,        ONLY:changeBasis3D
@@ -84,18 +84,16 @@ USE MOD_ChangeBasis,        ONLY:changeBasis3D
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-!REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: i,j,k,q,iElem,p
+INTEGER            :: i,j,k,q,iElem
 INTEGER            :: dd,ee,ff
 INTEGER            :: nn,mm,ll
 INTEGER            :: iGeo,jGeo,kGeo,lGeo
 INTEGER            :: Cyclic(5),CycIJK(3),Cyc(3)
 REAL               :: XCL_NGeo_loc(3,0:NGeo,0:NGeo,0:NGeo)    !mapping X(xi) P\in NGeo
-!REAL               :: dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo) !jacobi matrix of the mapping P\in NGeo
 REAL               :: DetJacCL_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL               :: DetJacGauss_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL               :: XCL_N(3,0:PP_N,0:PP_N,0:PP_N)       ! mapping X(xi) P\in N
@@ -326,7 +324,7 @@ USE MOD_PreProc
 USE MOD_Globals,     ONLY:CROSS
 USE MOD_Mesh_Vars,   ONLY:NGeo
 USE MOD_Mesh_Vars,   ONLY:Vdm_CLN_GaussN
-USE MOD_Mesh_Vars,   ONLY:ElemToSide,BCFace_xGP,nInnerSides,nBCSides,Face_xGP
+USE MOD_Mesh_Vars,   ONLY:ElemToSide,BCFace_xGP,nBCSides,Face_xGP
 USE MOD_Mesh_Vars,   ONLY:NormVec,TangVec1,TangVec2,SurfElem
 USE MOD_Analyze_Vars,ONLY:CalcPoyntingInt
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -336,6 +336,8 @@ INTEGER :: iLegendre
 REAL    :: L_Nm1,L_Nm2 ! L_{N_in-2},L_{N_in-1}
 REAL    :: Lder_Nm1,Lder_Nm2 ! Lder_{N_in-2},Lder_{N_in-1}
 !===================================================================================================================================
+L = 0.
+Lder = 0.
 IF(N_in .EQ. 0)THEN
   L=1.
   Lder=0.
@@ -587,6 +589,7 @@ REAL                      :: pi,cont1,cont2   !temporary variable for evaluation
 !===================================================================================================================================
 xGP(0)=-1.
 xGP(N_in)= 1.
+L = 0.0
 IF(PRESENT(wGP))THEN
   wGP(0)= 2./REAL(N_in*(N_in+1))
   wGP(N_in)=wGP(0)
@@ -696,7 +699,7 @@ END SUBROUTINE PolynomialDerivativeMatrix
 
 
 
-FUNCTION ALMOSTEQUAL(x,y)
+FUNCTION ALMOSTEQUAL_UNITY(x,y)
 !===================================================================================================================================
 ! Based on Algorithm 139, Kopriva
 ! Compares two real numbers
@@ -710,17 +713,17 @@ IMPLICIT NONE
 REAL,INTENT(IN) :: x,y         ! 2 scalar real numbers
 !-----------------------------------------------------------------------------------------------------------------------------------
 !output parameters
-LOGICAL         :: AlmostEqual ! TRUE if |x-y| < 2*PP_RealTolerance
+LOGICAL         :: AlmostEqual_UNITY ! TRUE if |x-y| < 2*PP_RealTolerance
 !-----------------------------------------------------------------------------------------------------------------------------------
 !local variables
 !===================================================================================================================================
-AlmostEqual=.FALSE.
+AlmostEqual_UNITY=.FALSE.
 IF((x.EQ.0.).OR.(y.EQ.0.)) THEN
-  IF(ABS(x-y).LE.2.*PP_RealTolerance) AlmostEqual=.TRUE.
+  IF(ABS(x-y).LE.2.*PP_RealTolerance) AlmostEqual_UNITY=.TRUE.
 ELSE ! x, y not zero
-  IF((ABS(x-y).LE.PP_RealTolerance*ABS(x)).AND.((ABS(x-y).LE.PP_RealTolerance*ABS(y)))) AlmostEqual=.TRUE.
+  IF((ABS(x-y).LE.PP_RealTolerance*ABS(x)).AND.((ABS(x-y).LE.PP_RealTolerance*ABS(y)))) AlmostEqual_UNITY=.TRUE.
 END IF ! x,y zero
-END FUNCTION ALMOSTEQUAL
+END FUNCTION ALMOSTEQUAL_UNITY
 
 
 FUNCTION CHOOSE(N_in,k)
@@ -798,10 +801,10 @@ REAL                      :: DummySum
 xEqualGP=.FALSE.
 DO iGP=0,N_in
   L(iGP)=0.
-  IF(ALMOSTEQUAL(x,xGP(iGP))) THEN
+  IF(ALMOSTEQUAL_UNITY(x,xGP(iGP))) THEN
     L(iGP)=1.
     xEqualGP=.TRUE.
-  END IF ! (ALMOSTEQUAL(x,xGP(iGP)))
+  END IF ! (ALMOSTEQUAL_UNITY(x,xGP(iGP)))
 END DO ! iGP
 ! if x is equal to a Gauss point, L=(0,....,1,....0)
 IF(xEqualGP) RETURN

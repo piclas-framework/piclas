@@ -1,33 +1,40 @@
 MODULE MOD_DSMC_SpecXSec
 !===================================================================================================================================
-! Contains the DSMC variables
+! Contains the Argon Ionization
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-PUBLIC
 
+INTERFACE XSec_Argon_DravinLotz
+  MODULE PROCEDURE XSec_Argon_DravinLotz
+END INTERFACE
+
+PUBLIC :: XSec_Argon_DravinLotz
 !===================================================================================================================================
 
 CONTAINS
 
 SUBROUTINE XSec_Argon_DravinLotz(SpecToExec, iPair)
-
+!===================================================================================================================================
+! Subroutine computing the collision probability o the Argion ionization
+!===================================================================================================================================
+! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, SpecDSMC
   USE MOD_Equation_Vars,          ONLY : Pi, eps0
-
-!--------------------------------------------------------------------------------------------------!
-! collision probability calculation 
-!--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-! Local variable declaration                                                                     !
-
-! input variable declaration                                                                       !
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: SpecToExec, iPair
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
 REAL                          :: JToEv, BohrRad, ElemCharge, Rydberg
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
+
+! local constants
 JToEv = 1.602176565E-19 
 BohrRad = 0.5291772109E-10
 ElemCharge = 1.602176565E-19
@@ -48,6 +55,7 @@ ELSE
   Coll_pData(iPair)%Sigma(2) = 0.0
 ENDIF
 Coll_pData(iPair)%Sigma(0)=Coll_pData(iPair)%Sigma(1)+Coll_pData(iPair)%Sigma(2) ! Calc of Sigma total
+
 END SUBROUTINE XSec_Argon_DravinLotz
 
 END MODULE MOD_DSMC_SpecXSec

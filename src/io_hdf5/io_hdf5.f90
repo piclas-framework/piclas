@@ -71,8 +71,11 @@ IMPLICIT NONE
 END SUBROUTINE InitIO_HDF5
 
 
-
+#ifdef MPI
 SUBROUTINE OpenHDF5File(FileString,create,single,communicatorOpt)
+#else
+SUBROUTINE OpenHDF5File(FileString,create)
+#endif
 !===================================================================================================================================
 ! Open HDF5 file and groups
 !===================================================================================================================================
@@ -84,14 +87,18 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)   :: FileString
 LOGICAL,INTENT(IN)            :: create
+#ifdef MPI
 LOGICAL,INTENT(IN)            :: single
 INTEGER,INTENT(IN),OPTIONAL   :: communicatorOpt
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: Plist_ID
+#ifdef MPI
 INTEGER                        :: comm
+#endif
 !===================================================================================================================================
 LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "',TRIM(FileString),'" ...'
 

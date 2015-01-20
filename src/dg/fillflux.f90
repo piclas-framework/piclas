@@ -84,7 +84,7 @@ SUBROUTINE FillFlux(Flux,doMPISides)
 ! MODULES
 USE MOD_PreProc
 USE MOD_DG_Vars,         ONLY: U_Minus,U_Plus
-USE MOD_Mesh_Vars,       ONLY: NormVec,TangVec1,TangVec2,SurfElem
+USE MOD_Mesh_Vars,       ONLY: NormVec,SurfElem
 USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE
 USE MOD_Riemann,         ONLY: Riemann
 ! IMPLICIT VARIABLE HANDLING
@@ -112,8 +112,7 @@ END IF
 !firstSideID=nBCSides+1
 !lastSideID  =nBCSides+nInnerSides+nMPISides_MINE
 DO SideID=firstSideID,lastSideID
-  CALL Riemann(Flux(:,:,:,SideID),     U_Minus(:,:,:,SideID),     U_Plus(:,:,:,SideID), &
-               NormVec(:,:,:,SideID),TangVec1(:,:,:,SideID),TangVec2(:,:,:,SideID))
+  CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Plus(:,:,:,SideID),NormVec(:,:,:,SideID))
   DO q=0,PP_N
     DO p=0,PP_N
       Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)
@@ -132,7 +131,7 @@ SUBROUTINE FillFlux_BC(t,tDeriv,Flux)
 ! MODULES
 USE MOD_PreProc
 USE MOD_DG_Vars,         ONLY: U_Minus
-USE MOD_Mesh_Vars,       ONLY: NormVec,TangVec1,TangVec2,SurfElem,BCFace_xGP,BC,BoundaryType
+USE MOD_Mesh_Vars,       ONLY: NormVec,SurfElem,BCFace_xGP,BC,BoundaryType
 USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides
 USE MOD_GetBoundaryFlux, ONLY: GetBoundaryFlux
 USE MOD_Equation_Vars,   ONLY: IniExactFunc
@@ -154,8 +153,8 @@ DO SideID=1,nBCSides
   BCType=Boundarytype(BC(SideID),BC_TYPE)
   BCState=Boundarytype(BC(SideID),BC_STATE)
   IF (BCState.EQ.0)BCState=IniExactFunc
-  CALL GetBoundaryFlux(Flux(:,:,:,SideID),BCType,BCState,BCFace_xGP(:,:,:,SideID),NormVec(:,:,:,SideID),TangVec1(:,:,:,SideID),  &
-                       TangVec2(:,:,:,SideID),t,tDeriv,U_Minus(:,:,:,SideID))
+  CALL GetBoundaryFlux(Flux(:,:,:,SideID),BCType,BCState,BCFace_xGP(:,:,:,SideID),NormVec(:,:,:,SideID),  &
+                       t,tDeriv,U_Minus(:,:,:,SideID))
   DO q=0,PP_N
     DO p=0,PP_N
       Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)

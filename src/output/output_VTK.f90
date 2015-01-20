@@ -18,7 +18,10 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-PUBLIC::WriteDataToVTK, WriteDataToVTKBin
+PUBLIC::WriteDataToVTK
+#ifdef dontcompilethis
+PUBLIC::WriteDataToVTKBin
+#endif
 !===================================================================================================================================
 
 CONTAINS
@@ -30,9 +33,6 @@ SUBROUTINE WriteDataToVTK(NPlot,nElems,nVal,VarNames,Coord,Value,FileString)
 ! MODULES
 !USE MOD_PreProc
 USE MOD_Globals
-#ifdef MPI
-   USE MOD_part_MPI_Vars, ONLY : PMPIVAR
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -48,13 +48,9 @@ CHARACTER(LEN=*),INTENT(IN)   :: FileString              ! Output file name
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: i,j,k,iVal,Offset
-CHARACTER(LEN=255) :: Format_nVal
-CHARACTER(LEN=255) :: Format_Title
-CHARACTER(LEN=35)  :: VarString
+INTEGER            :: i,j,k,iVal
 INTEGER            :: iElem
 INTEGER            :: NodeIDElem,nPlot_p1_2,nPlot_p1_3
-CHARACTER(LEN=255)            :: myOutputFile
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."  
@@ -123,6 +119,7 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."
 
 END SUBROUTINE WriteDataToVTK
 
+#ifdef dontcompilethis
 SUBROUTINE WriteDataToVTKBin(NPlot,nElems,nVal,VarNames,Coord,Value,FileString)
 !===================================================================================================================================
 ! Subroutine to write point data to Tecplot format
@@ -130,9 +127,6 @@ SUBROUTINE WriteDataToVTKBin(NPlot,nElems,nVal,VarNames,Coord,Value,FileString)
 ! MODULES
 !USE MOD_PreProc
 USE MOD_Globals
-#ifdef MPI
-   USE MOD_part_MPI_Vars, ONLY : PMPIVAR
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -148,13 +142,9 @@ CHARACTER(LEN=*),INTENT(IN)   :: FileString              ! Output file name
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: i,j,k,iVal,Offset
-CHARACTER(LEN=255) :: Format_nVal
-CHARACTER(LEN=255) :: Format_Title
-CHARACTER(LEN=35)  :: VarString
+INTEGER            :: i,j,k
 INTEGER            :: iElem
 INTEGER            :: NodeIDElem,nPlot_p1_2,nPlot_p1_3
-CHARACTER(LEN=255)            :: myOutputFile
 CHARACTER(LEN=255) :: cbuffer
 CHARACTER(LEN=3)   :: dbuffer
 !===================================================================================================================================
@@ -219,6 +209,6 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO VTK FILE..."
   WRITE(1112)''//char(10)
   CLOSE(1112)
 END SUBROUTINE WriteDataToVTKBin
-
+#endif /*DONTCOMPILETHIS,NOOOW*/
 END MODULE MOD_OutPutVTK
 #endif /*PARTICLES*/

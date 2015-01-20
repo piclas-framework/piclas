@@ -89,15 +89,19 @@ TYPE tInit                                                                   ! P
   REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
   REAL                                   :: Amplitude                        ! Amplitude for sin-deviation initiation.
   REAL                                   :: WaveNumber                       ! WaveNumber for sin-deviation initiation.
-  INTEGER(8)                             :: maxParticleNumberX               ! Maximum Number of all Particles in x direction
-  INTEGER(8)                             :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
-  INTEGER(8)                             :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction 
+  INTEGER                                :: maxParticleNumberX               ! Maximum Number of all Particles in x direction
+  INTEGER                                :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
+  INTEGER                                :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction 
+  REAL                                   :: WeibelVeloPar                    ! Parrallel velocity component for Weibel
+  REAL                                   :: WeibelVeloPer                    ! Perpendicular velocity component for Weibel
+  REAL                                   :: OneDTwoStreamVelo                ! Stream Velocity for the Two Stream Instability
+  REAL                                   :: OneDTwoStreamTransRatio          ! Ratio between perpendicular and parallel velocity
   REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
   REAL                                   :: ConstPressureRelaxFac            ! RelaxFac. for ConstPressureSamp
-  REAL                                   :: PartDensity                      ! PartDensity for an Area
-                                                                             ! in EmissioType 3  [Pa] !?!
+  REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3) for LD_insert or
+                                                                             ! (vpi_)cub./cyl. as alternative to Part.Emis. in Type1
   INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
                                                                              !               2 = emission rate 1/iteration
                                                                              !               3 = user def. emission rate
@@ -105,67 +109,24 @@ TYPE tInit                                                                   ! P
                                                                              !               5 = cell pres. w. complete part removal
                                                                              !               6 = outflow BC (characteristics method)
   REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
-  INTEGER(8)                             :: InsertedParticle                 ! Number of all already inserted Particles
+  INTEGER(KIND=8)                       :: InsertedParticle                 ! Number of all already inserted Particles
+  REAL                                   :: Nsigma                           ! sigma multiple of maxwell for virtual insert length
+  LOGICAL                                :: VirtPreInsert                    ! virtual Pre-Inserting region (adapeted SetPos/Velo)?
   TYPE (tConstPressure)                  :: ConstPress!(:)           =>NULL() !
 END TYPE tInit
 
 TYPE tSpecies                                                                ! Particle Data for each Species
   !General Species Values
-  TYPE(tInit), POINTER                   :: Init(:)                =>NULL()  ! Particle Data for each Initialisation
+  TYPE(tInit), ALLOCATABLE               :: Init(:)  !     =>NULL()          ! Particle Data for each Initialisation
   REAL                                   :: ChargeIC                         ! Particle Charge (without MPF)
   REAL                                   :: MassIC                           ! Particle Mass (without MPF)
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
   INTEGER                                :: StartnumberOfInits               ! 0 if old emit defined (array is copied into 0. entry)
-  !Specific Emission/Init values
-  LOGICAL                                :: UseForInit                       ! Use Init/Emission for init.?
-  LOGICAL                                :: UseForEmission                   ! Use Init/Emission for emission?
-  CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
-  CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
-  INTEGER(8)                             :: initialParticleNumber            ! Number of Particles at time 0.0
-  REAL                                   :: RadiusIC                         ! Radius for IC circle
-  REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
-  REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
-  REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
-  REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
-  REAL                                   :: BaseVector1IC(3)                 ! first base vector for IC cuboid
-  REAL                                   :: BaseVector2IC(3)                 ! second base vector for IC cuboid
-  REAL                                   :: CuboidHeightIC                   ! third measure of cuboid
-                                                                             ! (set 0 for flat rectangle),
-                                                                             ! negative value = opposite direction
-  REAL                                   :: CylinderHeightIC                 ! third measure of cylinder
-                                                                             ! (set 0 for flat rectangle),
-                                                                             ! negative value = opposite direction
-  REAL                                   :: VeloIC                           ! velocity for inital Data
-  REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
-  REAL                                   :: Amplitude                        ! Amplitude for sin-deviation initiation.
-  REAL                                   :: WaveNumber                       ! WaveNumber for sin-deviation initiation.
-  INTEGER(8)                             :: maxParticleNumberX               ! Maximum Number of all Particles in x direction
-  INTEGER(8)                             :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
-  INTEGER(8)                             :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction 
-  REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
-  REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
-  REAL                                   :: ConstantPressure                 ! Pressure for an Area with a Constant Pressure
-  REAL                                   :: ConstPressureRelaxFac            ! RelaxFac. for ConstPressureSamp
-  REAL                                   :: PartDensity                      ! PartDensity for an Area
-                                                                             ! in EmissioType 3  [Pa] !?!
-  INTEGER                                :: ParticleEmissionType             ! Emission Type 1 = emission rate in 1/s,
-                                                                             !               2 = emission rate 1/iteration
-                                                                             !               3 = user def. emission rate
-                                                                             !               4 = const. cell pressure
-                                                                             !               5 = cell pres. w. complete part removal
-                                                                             !               6 = outflow BC (characteristics method)
-  REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
-  INTEGER(8)                             :: InsertedParticle                 ! Number of all already inserted Particles
-  TYPE (tConstPressure)                  :: ConstPress!(:)           =>NULL() !
-  !!!Variablen-Leichen!?!
-  !CHARACTER(40)                          :: TypeIC                           ! specifying Keyword for initial condition
-  !REAL                                   :: vmax                             ! Maximum velocity for probability distr. funct.
-  !REAL                                   :: NumberDensity                    ! Numberdensity for each species.
-END TYPE                                                                     !
+END TYPE
 
 INTEGER                                  :: nSpecies                         ! number of species
-TYPE(tSpecies), POINTER                  :: Species(:)             => NULL() ! Species Data Vector
+TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
 TYPE tPartBoundary
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
@@ -174,9 +135,9 @@ TYPE tPartBoundary
   INTEGER                                :: SimpleAnodeBC           = 4      ! = 4 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SimpleCathodeBC         = 5      ! = 5 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: MPINeighborhoodBC       = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
-  CHARACTER(LEN=200)           , POINTER :: SourceBoundName(:)      =>NULL() ! Link part 1 for mapping Boltzplatz BCs to Particle BC
-  INTEGER                      , POINTER :: TargetBoundCond(:)      =>NULL() ! Link part 2 for mapping Boltzplatz BCs to Particle BC
-  INTEGER                      , POINTER :: Map(:)                  =>NULL() ! Map from Boltzplatz BCindex to Particle BC
+  CHARACTER(LEN=200)           , POINTER :: SourceBoundName(:) =>NULL() ! Link part 1 for mapping Boltzplatz BCs to Particle BC
+  INTEGER                      , POINTER :: TargetBoundCond(:) =>NULL() ! Link part 2 for mapping Boltzplatz BCs to Particle BC
+  INTEGER                      , POINTER :: Map(:)             =>NULL() ! Map from Boltzplatz BCindex to Particle BC
   REAL    , ALLOCATABLE                  :: MomentumACC(:)      
   REAL    , ALLOCATABLE                  :: WallTemp(:)     
   REAL    , ALLOCATABLE                  :: TransACC(:)     
@@ -184,17 +145,22 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: RotACC(:) 
   REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
   REAL    , ALLOCATABLE                  :: Voltage(:)
+  INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
+  REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
+  INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
   LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
   REAL    , ALLOCATABLE                  :: AmbientTemp(:)
   REAL    , ALLOCATABLE                  :: AmbientMeanPartMass(:)
   REAL    , ALLOCATABLE                  :: AmbientBeta(:)
   REAL    , ALLOCATABLE                  :: AmbientVelo(:,:)
   REAL    , ALLOCATABLE                  :: AmbientDens(:)
+  REAL    , ALLOCATABLE                  :: AmbientDynamicVisc(:)               ! dynamic viscousity
+  REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
+
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
-TYPE(tPartBoundary)                      :: PartBound
-                                                                             ! Boundary Data for Particles
+TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
 
 TYPE tParticleElementMapping
   INTEGER                      , POINTER :: Element(:)             =>NULL()  ! Element number allocated to each Particle
@@ -217,15 +183,14 @@ END TYPE
 TYPE(tParticleElementMapping)            :: PEM
 
 TYPE tParticleDataManagement
-  INTEGER(8)                             :: CurrentNextFreePosition           ! Index of nextfree index in nextFreePosition-Array
-  INTEGER(8)                             :: maxParticleNumber                 ! Maximum Number of all Particles
-  INTEGER(8)                             :: ParticleVecLength                 ! Vector Length for Particle Push Calculation
-  INTEGER(8)                             :: insideParticleNumber              ! Number of all recent Particles inside
+  INTEGER                                :: CurrentNextFreePosition           ! Index of nextfree index in nextFreePosition-Array
+  INTEGER                                :: maxParticleNumber                 ! Maximum Number of all Particles
+  INTEGER                                :: ParticleVecLength                 ! Vector Length for Particle Push Calculation
+  INTEGER                                :: insideParticleNumber              ! Number of all recent Particles inside
   INTEGER , ALLOCATABLE                  :: PartInit(:)                       ! (1:NParts), initial emission condition number
                                                                               ! the calculation area
-  INTEGER(8)                   , POINTER :: nextFreePosition(:)    =>NULL()   ! next_free_Position(1:max_Particle_Number)
+  INTEGER                      , POINTER :: nextFreePosition(:)    =>NULL()   ! next_free_Position(1:max_Particle_Number)
                                                                               ! List of free Positon
-!  INTEGER(8)                   , POINTER :: nextUsedPosition(:)    =>NULL()   ! next_used-Position(1:max_Particle_Number)  
   LOGICAL                      , POINTER :: ParticleInside(:)      =>NULL()   ! Particle_inside(1:Particle_Number)
 END TYPE
 
@@ -242,7 +207,6 @@ TYPE tFastInitBGM
   INTEGER, ALLOCATABLE                   :: SharedProcs(:)                    ! first Entry: Number of Sharedprocs, 
                                                                               ! following: SharedProcs
   INTEGER                                :: nBCSides                          ! number BC sides in BGM cell
-!  INTEGER, ALLOCATABLE                   :: BCSides(:,:)                      ! (1:2,nBCSides) 1:Elem, 2:iLocSide
 #endif                     
 END TYPE
 
@@ -320,7 +284,6 @@ CHARACTER(30)                            :: vMPF_velocityDistribution         ! 
 LOGICAL                                  :: PartPressureCell                  ! Flag: constant pressure in cells emission (type4)
 LOGICAL                                  :: PartPressAddParts                 ! Should Parts be added to reach wanted pressure?
 LOGICAL                                  :: PartPressRemParts                 ! Should Parts be removed to reach wanted pressure?
-
 INTEGER                                  :: NumRanVec      ! Number of predefined random vectors
 REAL  , ALLOCATABLE                      :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
 

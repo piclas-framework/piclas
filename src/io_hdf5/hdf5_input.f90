@@ -196,16 +196,16 @@ END IF
 
 ! Display data
 ! nVar = first array index
-nVar_HDF5 = Dims(1)
+nVar_HDF5 = INT(Dims(1),4)
 SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','Number of variables nVar',' | ',nVar_HDF5,' | HDF5    | '
 ! N = index 2-4 of array, is expected to have the same value for each direction
-N_HDF5 = Dims(2)-1
+N_HDF5 = INT(Dims(2)-1,4)
 SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','Polynomial degree N',' | ',N_HDF5,' | HDF5    | '
 IF(PRESENT(NodeType_HDF5)) THEN
   SWRITE(UNIT_stdOut,'(A3,A30,A3,A33,A13)')' | ','          Node type',' | ',TRIM(NodeType_HDF5),' | HDF5    | '
 END IF
 ! nElems = index 5 of array
-nElems_HDF5 = Dims(5)
+nElems_HDF5 = INT(Dims(5),4)
 SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','GeometricnElems',' | ',nElems_HDF5,' | HDF5    | '
 
 SWRITE(UNIT_stdOut,'(A)')' DONE!'
@@ -234,15 +234,17 @@ CHARACTER(LEN=*),INTENT(IN)        :: ArrayName
 REAL,INTENT(OUT),TARGET            :: CoordArray(nVal(1),nVal(2))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: rank,i,j
+INTEGER                        :: rank
 INTEGER(HID_T)                 :: DSet_ID, MemSpace, FileSpace, PList_ID
 INTEGER(SIZE_T)                :: num_elements
-INTEGER(HSIZE_T)               :: Coords(2,nVal(1)*nVal(2)),Dimsf(2)
+INTEGER(HSIZE_T)               :: Coords(2,nVal(1)*nVal(2)),Dimsf(2),i,j
+#ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
 TYPE(C_PTR)                    :: buf
+#endif
 !===================================================================================================================================
 rank=2
 LOGWRITE(*,'(A,I1.1,A,A,A)')'    READ ',Rank,'D ARRAY "',TRIM(ArrayName),'"'
-Dimsf=nVal
+Dimsf=INT(nVal,8)
 CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, MemSpace, iError)
 CALL H5DOPEN_F(Loc_ID, TRIM(ArrayName) , DSet_ID, iError)
 ! Define and select the hyperslab to use for reading.
@@ -312,7 +314,9 @@ CHARACTER(LEN=255),DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET :: StrAr
 ! LOCAL VARIABLES
 INTEGER(HID_T)                                                   :: DSet_ID,Type_ID,MemSpace,FileSpace,PList_ID
 INTEGER(HSIZE_T)                                                 :: Offset(Rank),Dimsf(Rank)
+#ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
 TYPE(C_PTR)                                                      :: buf
+#endif
 !===================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')'    READ ',Rank,'D ARRAY "',TRIM(ArrayName),'"'
 Dimsf=nVal
@@ -399,8 +403,10 @@ INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID
 INTEGER(HSIZE_T), DIMENSION(1) :: Dimsf
 INTEGER                        :: i
 INTEGER,TARGET                 :: IntToLog
+#ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
 CHARACTER(LEN=255),TARGET      :: StrTmp(1)
 TYPE(C_PTR)                    :: buf
+#endif
 !===================================================================================================================================
 LOGWRITE(*,*)' READ ATTRIBUTE "',TRIM(AttribName),'" FROM HDF5 FILE...'
 Dimsf(1)=nVal
@@ -460,8 +466,11 @@ LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE ReadAttributeFromHDF5
 
 
-
+#ifdef MPI
 SUBROUTINE GetHDF5NextFileName(FileName,NextFileName_HDF5,single)
+#else
+SUBROUTINE GetHDF5NextFileName(FileName,NextFileName_HDF5)
+#endif
 !===================================================================================================================================
 ! Subroutine to determine filename of next HDF5 file for FlushHDF5
 !===================================================================================================================================
@@ -472,7 +481,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: FileName
+#ifdef MPI
 LOGICAL,INTENT(IN)             :: single
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 CHARACTER(LEN=255),INTENT(OUT) :: NextFileName_HDF5

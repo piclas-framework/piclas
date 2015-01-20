@@ -37,3 +37,7 @@ veryclean:
 
 cleanshare:
 	cd share && $(MAKE) clean
+
+new: 
+	make veryclean
+	make

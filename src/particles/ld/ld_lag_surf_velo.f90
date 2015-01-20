@@ -1,5 +1,6 @@
-MODULE MOD_LD_lag_velo
+#include "boltzplatz.h"
 
+MODULE MOD_LD_lag_velo
 !===================================================================================================================================
 ! module for determination of Lagrangian cell velocity
 !===================================================================================================================================
@@ -8,28 +9,30 @@ MODULE MOD_LD_lag_velo
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Private Part ---------------------------------------------------------------------------------------------------------------------
-! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE CalcSurfLagVelo
+  MODULE PROCEDURE CalcSurfLagVelo
+END INTERFACE
 
 PUBLIC :: CalcSurfLagVelo
 !===================================================================================================================================
 
 CONTAINS
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 SUBROUTINE CalcSurfLagVelo
-
+!===================================================================================================================================
+! Calculation of Lagrangian cell velocity
+!===================================================================================================================================
+! MODULES
+USE Mod_Globals
+USE Mod_Globals_vars,          ONLY : PI
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,             ONLY : nElems, SideToElem, BC, ElemToSide
-USE MOD_Particle_Vars,         ONLY : PartBound
+USE MOD_Mesh_Vars,             ONLY : nElems, SideToElem, BC, ElemToSide,nBCSides
+USE MOD_Particle_Vars,         ONLY : PartBound, GEO
 USE MOD_TimeDisc_Vars,         ONLY : iter
 #ifdef MPI
-USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
+USE MOD_Mesh_Vars,             ONLY : nInnerSides
 #endif
-
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -42,13 +45,27 @@ USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
   REAL              :: NVec(3)
   REAL              :: kon1, kon2, vLAG_old, vLAG_new, vLAG, VeloDir1, VeloDir2
   REAL              :: G_old, G_new
-  REAL, PARAMETER   :: PI=3.14159265358979323846_8
+  REAL              :: DynamicVisc1, ThermalCond1, DynamicVisc2, ThermalCond2, LocalBulkTemp1, LocalBulkTemp2
   LOGICAL           :: IsStationary
 !--------------------------------------------------------------------------------------------------!
+  Velo2           = 0.0
+  vLAG            = 0.0
+  iLocSide2       = 0
+  Beta2           = 0.0
+  Dens2           = 0.0
+  DynamicVisc2    = 0.0
+  ThermalCond2    = 0.0
+  LocalBulkTemp2  = 0.0
   DO iElem = 1, nElems
+#if (PP_TimeDiscMethod==1001)
+  IF((BulkValues(iElem)%CellType.EQ.3).OR.(BulkValues(iElem)%CellType.EQ.4)) THEN  ! --- LD Cell ?
+#endif
     Velo1 = BulkValues(iElem)%CellV
     Beta1 = BulkValues(iElem)%Beta
     Dens1 = BulkValues(iElem)%MassDens
+    DynamicVisc1 = BulkValues(iElem)%DynamicVisc
+    ThermalCond1 = BulkValues(iElem)%ThermalCond
+    LocalBulkTemp1 = BulkValues(iElem)%BulkTemperature
     DO iLocSide = 1, 6
       Elem2 = 0
       SideID = ElemToSide(1,iLocSide,iElem)
@@ -63,6 +80,9 @@ USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
           Velo2(3) = MPINeighborBulkVal(SideID,3)
           Beta2 = MPINeighborBulkVal(SideID,4)
           Dens2 = MPINeighborBulkVal(SideID,5)
+          DynamicVisc2 = MPINeighborBulkVal(SideID,6)
+          ThermalCond2 = MPINeighborBulkVal(SideID,7)
+          LocalBulkTemp2 = MPINeighborBulkVal(SideID,8)
         ELSE
 #endif
         IF (SideToElem(1,SideID) .EQ. iElem) THEN
@@ -76,6 +96,9 @@ USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
                   Velo2(3) = PartBound%AmbientVelo(3,BC(SideID))
                   Beta2 = PartBound%AmbientBeta(BC(SideID))
                   Dens2 = PartBound%AmbientDens(BC(SideID))
+!                  DynamicVisc2 = PartBound%AmbientDynamicVisc(BC(SideID))
+!                  ThermalCond2 = PartBound%AmbientThermalCond(BC(SideID))
+!                  LocalBulkTemp2 = PartBound%AmbientTemp(BC(SideID))
                 ELSE  
                   BulkValuesOpenBC(iElem)%CellV = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%CellV &
                                                 + LD_RelaxationFak * BulkValues(iElem)%CellV
@@ -83,9 +106,15 @@ USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
                                                + LD_RelaxationFak * BulkValues(iElem)%Beta
                   BulkValuesOpenBC(iElem)%MassDens = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%MassDens & 
                                                    + LD_RelaxationFak * BulkValues(iElem)%MassDens
+!                  BulkValuesOpenBC(iElem)%DynamicVisc = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%DynamicVisc & 
+!                                                   + LD_RelaxationFak * BulkValues(iElem)%DynamicVisc
+!                  BulkValuesOpenBC(iElem)%ThermalCond = (1 - LD_RelaxationFak) * BulkValuesOpenBC(iElem)%ThermalCond & 
+!                                                   + LD_RelaxationFak * BulkValues(iElem)%ThermalCond
                   Velo2 = BulkValuesOpenBC(iElem)%CellV
                   Beta2 = BulkValuesOpenBC(iElem)%Beta
                   Dens2 = BulkValuesOpenBC(iElem)%MassDens
+!                  DynamicVisc2 = BulkValuesOpenBC(iElem)%DynamicVisc
+!                  ThermalCond2 = BulkValuesOpenBC(iElem)%ThermalCond
                 END IF
               ELSE
                 IF (PartBound%AmbientCondition(BC(SideID))) THEN  
@@ -94,21 +123,26 @@ USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
                   Velo2(3) = PartBound%AmbientVelo(3,BC(SideID))
                   Beta2 = PartBound%AmbientBeta(BC(SideID))
                   Dens2 = PartBound%AmbientDens(BC(SideID))
+!                  DynamicVisc2 = PartBound%AmbientDynamicVisc(BC(SideID))
+!                  ThermalCond2 = PartBound%AmbientThermalCond(BC(SideID))
                 ELSE  
                   BulkValuesOpenBC(iElem)%CellV    = BulkValues(iElem)%CellV
                   BulkValuesOpenBC(iElem)%Beta     = BulkValues(iElem)%Beta
                   BulkValuesOpenBC(iElem)%MassDens = BulkValues(iElem)%MassDens
+                  BulkValuesOpenBC(iElem)%DynamicVisc = BulkValues(iElem)%DynamicVisc
+                  BulkValuesOpenBC(iElem)%ThermalCond = BulkValues(iElem)%ThermalCond
                   Velo2 = BulkValuesOpenBC(iElem)%CellV
                   Beta2 = BulkValuesOpenBC(iElem)%Beta
                   Dens2 = BulkValuesOpenBC(iElem)%MassDens
+!                  DynamicVisc2 = BulkValuesOpenBC(iElem)%DynamicVisc
+!                  ThermalCond2 = BulkValuesOpenBC(iElem)%ThermalCond
                 END IF
               END IF
             ELSE IF (PartBound%Map(BC(SideID)).EQ.PartBound%ReflectiveBC) THEN
               IsStationary = .TRUE.
             ELSE
-              WRITE(*,*)'=============================================='
-              WRITE(*,*)' ERROR in PartBound%Map(BC(SideID))'
-              STOP
+              CALL abort(__STAMP__,&
+                   'ERROR in PartBound%Map(BC(SideID))')
             END IF
           ELSE
             IF (SideToElem(1,SideID).EQ.SideToElem(2,SideID)) THEN ! one periodic cell
@@ -121,19 +155,24 @@ USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
                 CASE (3)
                   iLocSide2 = 5
                 CASE DEFAULT
-                  WRITE(*,*)'=============================================='
-                  WRITE(*,*)' ERROR in LocSides for periodic Element'
-                  STOP
+                  CALL abort(__STAMP__,&
+                       'ERROR in LocSides for periodic Element')
               END SELECT
               Velo2 = BulkValues(iElem)%CellV
               Beta2 = BulkValues(iElem)%Beta
-              Dens2 = BulkValues(iElem)%MassDens            
+              Dens2 = BulkValues(iElem)%MassDens
+!              DynamicVisc2 = BulkValues(iElem)%DynamicVisc
+!              ThermalCond2 = BulkValues(iElem)%ThermalCond
+!              LocalBulkTemp2 = BulkValues(iElem)%BulkTemperature
             ELSE
               Elem2 = SideToElem(2,SideID)
               iLocSide2 = SideToElem(4,SideID)
               Velo2 = BulkValues(Elem2)%CellV
               Beta2 = BulkValues(Elem2)%Beta
               Dens2 = BulkValues(Elem2)%MassDens
+              DynamicVisc2 = BulkValues(Elem2)%DynamicVisc
+              ThermalCond2 = BulkValues(Elem2)%ThermalCond
+              LocalBulkTemp2 = BulkValues(Elem2)%BulkTemperature
             END IF
           END IF
         ELSE         
@@ -146,17 +185,20 @@ USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
                 Velo2(3) = PartBound%AmbientVelo(3,BC(SideID))
                 Beta2 = PartBound%AmbientBeta(BC(SideID))
                 Dens2 = PartBound%AmbientDens(BC(SideID))
+!                DynamicVisc2 = PartBound%AmbientDynamicVisc(BC(SideID))
+!                ThermalCond2 = PartBound%AmbientThermalCond(BC(SideID))
               ELSE 
                 Velo2 = BulkValues(iElem)%CellV
                 Beta2 = BulkValues(iElem)%Beta
                 Dens2 = BulkValues(iElem)%MassDens
+!                DynamicVisc2 = BulkValues(iElem)%DynamicVisc
+!                ThermalCond2 = BulkValues(iElem)%ThermalCond 
               END IF
             ELSE IF (PartBound%Map(BC(SideID)).EQ.PartBound%ReflectiveBC) THEN
               IsStationary = .TRUE.
             ELSE
-              WRITE(*,*)'=============================================='
-              WRITE(*,*)' ERROR in PartBound%Map(BC(SideID))'
-              STOP
+              CALL abort(__STAMP__,&
+                   'ERROR in PartBound%Map(BC(SideID))')
             END IF
           ELSE
             Elem2 = SideToElem(1,SideID)
@@ -164,6 +206,9 @@ USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
             Velo2 = BulkValues(Elem2)%CellV
             Beta2 = BulkValues(Elem2)%Beta
             Dens2 = BulkValues(Elem2)%MassDens
+            DynamicVisc2 = BulkValues(Elem2)%DynamicVisc
+            ThermalCond2 = BulkValues(Elem2)%ThermalCond
+            LocalBulkTemp2 = BulkValues(Elem2)%BulkTemperature 
           END IF
         END IF
 #ifdef MPI
@@ -199,14 +244,10 @@ USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
       !
             DO WHILE (ABS(vLAG_old - vLAG_new) .GT. LD_SecantMeth%Accuracy)  ! iteration loop
               IF (IterForSecant .GT. LD_SecantMeth%MaxIter) THEN
-                WRITE(*,*)'=============================================='
-                WRITE(*,*)' Max. number of iterations for LAGRANGian cell'
-                WRITE(*,*)' exceeded. Change something and restart run...'              
-                PRINT*,iLocSide, iElem
-                PRINT*,Velo1, Velo2
-                PRINT*,Beta1, Beta2
-                PRINT*,Dens1, Dens2
-                STOP
+                SWRITE(UNIT_StdOut,'(132("-"))')
+                SWRITE(UNIT_StdOut,'(A)') 'Max. number of iterations for LAGRANGian cell'
+                CALL abort(__STAMP__,&
+                     'exceeded. Change something and restart run...')
               END IF
               IterForSecant = IterForSecant + 1                                   ! increase local iteration counter
               VeloDiff1_new =  Beta1 * ( VeloDir1 - vLAG_new )
@@ -230,15 +271,36 @@ USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
               vLAG_new = vLAG
             END DO                                                      ! end of iteration loop
             IF (trinum.EQ.3) THEN
-                MeanSurfValues(iLocSide, iElem)%MeanLagVelo = vLAG
-                IF (Elem2.GT. 0) THEN
-                  MeanSurfValues(iLocSide2, Elem2)%MeanLagVelo =  (-1.) * vLAG
-                END IF
+              MeanSurfValues(iLocSide, iElem)%MeanLagVelo = vLAG
+              IF (Elem2.GT. 0) MeanSurfValues(iLocSide2, Elem2)%MeanLagVelo =  (-1.) * vLAG
             ELSE
-                SurfLagValues(iLocSide, iElem,trinum)%LagVelo = vLAG
-                IF (Elem2.GT. 0) SurfLagValues(iLocSide2, Elem2,trinum)%LagVelo =  (-1.) * vLAG
+              SurfLagValues(iLocSide, iElem,trinum)%LagVelo = vLAG
+              IF (Elem2.GT. 0) SurfLagValues(iLocSide2, Elem2,trinum)%LagVelo =  (-1.) * vLAG
             END IF
           END DO  ! end of trinum
+! check if side is an interior face for viscousity calculation
+          IF ((SideID.GT.nBCSides).AND.(GEO%PeriodicElemSide(iLocSide,iElem).EQ.0)) THEN
+            MeanSurfValues(iLocSide, iElem)%DynamicVisc = (DynamicVisc1 + DynamicVisc2) / 2
+            MeanSurfValues(iLocSide, iElem)%ThermalCond = (ThermalCond1 + ThermalCond2) / 2
+            MeanSurfValues(iLocSide, iElem)%MeanBulkVelo(1) = (Velo1(1) + Velo2(1) ) / 2
+            MeanSurfValues(iLocSide, iElem)%MeanBulkVelo(2) = (Velo1(2) + Velo2(2) ) / 2
+            MeanSurfValues(iLocSide, iElem)%MeanBulkVelo(3) = (Velo1(3) + Velo2(3) ) / 2
+            MeanSurfValues(iLocSide, iElem)%BulkVeloDiff(1) =  Velo1(1) - Velo2(1)
+            MeanSurfValues(iLocSide, iElem)%BulkVeloDiff(2) =  Velo1(2) - Velo2(2)
+            MeanSurfValues(iLocSide, iElem)%BulkVeloDiff(3) =  Velo1(3) - Velo2(3)
+            MeanSurfValues(iLocSide, iElem)%BulkTempDiff = LocalBulkTemp1 - LocalBulkTemp2
+            IF (Elem2 .GT. 0) THEN
+              MeanSurfValues(iLocSide2, Elem2)%DynamicVisc = (DynamicVisc1 + DynamicVisc2) / 2
+              MeanSurfValues(iLocSide2, Elem2)%ThermalCond = (ThermalCond1 + ThermalCond2) / 2
+              MeanSurfValues(iLocSide2, Elem2)%MeanBulkVelo(1) = (Velo1(1) + Velo2(1) ) / 2
+              MeanSurfValues(iLocSide2, Elem2)%MeanBulkVelo(2) = (Velo1(2) + Velo2(2) ) / 2
+              MeanSurfValues(iLocSide2, Elem2)%MeanBulkVelo(3) = (Velo1(3) + Velo2(3) ) / 2
+              MeanSurfValues(iLocSide2, Elem2)%BulkVeloDiff(1) =  Velo2(1) - Velo1(1)
+              MeanSurfValues(iLocSide2, Elem2)%BulkVeloDiff(2) =  Velo2(2) - Velo1(2)
+              MeanSurfValues(iLocSide2, Elem2)%BulkVeloDiff(3) =  Velo2(3) - Velo1(3)
+              MeanSurfValues(iLocSide2, Elem2)%BulkTempDiff = LocalBulkTemp2 - LocalBulkTemp1
+            END IF
+          END IF
         ELSE ! Side is stationary
           MeanSurfValues(iLocSide, iElem)%MeanLagVelo = 0.0
           SurfLagValues(iLocSide, iElem,1)%LagVelo = 0.0
@@ -246,6 +308,9 @@ USE MOD_Mesh_Vars,             ONLY : nBCSides, nInnerSides
         END IF
       END IF ! end if done
     END DO ! end loop over ilocsides
+#if (PP_TimeDiscMethod==1001)
+  END IF  ! --- END LD Cell?
+#endif
   END DO ! end loop over elements
 
 END SUBROUTINE CalcSurfLagVelo

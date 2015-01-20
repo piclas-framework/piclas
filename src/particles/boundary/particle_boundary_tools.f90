@@ -1512,8 +1512,8 @@ SUBROUTINE PerfectReflection3D (i,iLocSide,Element,TriNum, WallVelo)            
   USE MOD_Particle_Vars
   USE MOD_Particle_Surfaces_Vars, ONLY: nPartCurved, SuperSampledNodes,nTriangles
   USE MOD_Mesh_Vars,     ONLY : ElemToSide
-  USE MOD_LD_Vars,    ONLY : UseLD
-  USE MOD_LD,         ONLY : LD_PerfectReflection
+!  USE MOD_LD_Vars,    ONLY : UseLD
+!  USE MOD_LD,         ONLY : LD_PerfectReflection
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -1688,7 +1688,7 @@ SUBROUTINE PerfectReflection3D (i,iLocSide,Element,TriNum, WallVelo)            
    PartState(i,5)   = VelY + WallVelo(2)
    PartState(i,6)   = VelZ + WallVelo(3)
 
-   IF(UseLD) CALL LD_PerfectReflection(nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,PoldStarZ,i)
+   !IF(UseLD) CALL LD_PerfectReflection(nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,PoldStarZ,i)
 
  RETURN
 END SUBROUTINE PerfectReflection3D
@@ -1696,8 +1696,8 @@ END SUBROUTINE PerfectReflection3D
 SUBROUTINE PerfectReflection3Dold (i,iLocSide,Element,TriNum, WallVelo)                                         !
   USE MOD_Particle_Vars
   USE MOD_Particle_Surfaces_Vars, ONLY: nPartCurved, SuperSampledNodes,nTriangles
-  USE MOD_LD_Vars,    ONLY : UseLD
-  USE MOD_LD,         ONLY : LD_PerfectReflection
+!  USE MOD_LD_Vars,    ONLY : UseLD
+!  USE MOD_LD,         ONLY : LD_PerfectReflection
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -1831,7 +1831,7 @@ SUBROUTINE PerfectReflection3Dold (i,iLocSide,Element,TriNum, WallVelo)         
    PartState(i,5)   = VelY + WallVelo(2)
    PartState(i,6)   = VelZ + WallVelo(3)
 
-   IF(UseLD) CALL LD_PerfectReflection(nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,PoldStarZ,i)
+   !IF(UseLD) CALL LD_PerfectReflection(nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,PoldStarZ,i)
 
  RETURN
 END SUBROUTINE PerfectReflection3Dold

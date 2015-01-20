@@ -21,6 +21,8 @@ REAL,PARAMETER        :: PP_RealTolerance = 1.E-15
   CHARACTER(LEN=255),PARAMETER :: NodeType = 'GAUSS'
 #elif (PP_NodeType==2)
   CHARACTER(LEN=255),PARAMETER :: NodeType = 'GAUSS-LOBATTO'
+#elif (PP_NodeType==3)
+  CHARACTER(LEN=255),PARAMETER :: NodeType = 'CHEBYSHEV-GAUSS-LOBATTO'
 #endif
 !===================================================================================================================================
 

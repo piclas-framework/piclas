@@ -133,10 +133,10 @@ CALL VAX(nDOF,Aminus,const)
 END SUBROUTINE GetRiemannMatrix
 #endif /*OPTIMIZED*/
 
-SUBROUTINE Riemann(F,U_L,U_R,nv,t1,t2)
+SUBROUTINE Riemann(F,U_L,U_R,nv)
 !===================================================================================================================================
 ! Computes the numerical flux
-! Conservative States are rotated into normal direction in this routine and are NOT backrotatet: don't use it after this routine!!
+! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N
@@ -146,7 +146,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
-REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N),t1(3,0:PP_N,0:PP_N),t2(3,0:PP_N,0:PP_N)
+REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)

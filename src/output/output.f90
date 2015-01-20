@@ -146,7 +146,7 @@ USE MOD_Output_Vars,ONLY:NVisu,Vdm_GaussN_NVisu
 USE MOD_ChangeBasis,ONLY:ChangeBasis3D
 USE MOD_Tecplot,ONLY:WriteDataToTecplotBinary
 #ifdef PARTICLES
-USE MOD_OutPutVTK,ONLY:WriteDataToVTK,WriteDataToVTKBin
+USE MOD_OutPutVTK,ONLY:WriteDataToVTK
 USE MOD_Particle_Output_Vars, ONLY: WriteFieldsToVTK
 #endif /*PARTICLES*/
 !USE MOD_Eval_xyz,ONLY:eval_xyz
@@ -162,8 +162,6 @@ REAL                          :: Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,1:PP_nEl
 REAL                          :: U_NVisu(PP_nVar,0:NVisu,0:NVisu,0:NVisu,1:PP_nElems)
 CHARACTER(LEN=255)            :: FileString
 CHARACTER(LEN=32),ALLOCATABLE :: VarNames(:) ! Output variable names
-REAL                          :: eval_vec(3)
-REAL                          :: U_eval(6) ! only E and B not phi and psi
 !===================================================================================================================================
 IF(outputFormat.LE.0) RETURN
 ! Specify output names

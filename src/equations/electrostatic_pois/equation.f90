@@ -133,8 +133,8 @@ IniExactFunc = GETINT('IniExactFunc')
 alpha_shape = GETINT('AlphaShape','2')
 rCutoff     = GETREAL('r_cutoff','1.')
 ! Compute factor for shape function
-ShapeFuncPrefix = 1/(2 * beta(1.5, alpha_shape + 1.) * alpha_shape + 2 * beta(1.5, alpha_shape + 1.)) &
-                * (alpha_shape + 1.)/(PI*(rCutoff**3))
+ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
+                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
 
 !Init PHI
 ALLOCATE(Phi(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
@@ -255,11 +255,12 @@ SUBROUTINE CalcSource(t)
 USE MOD_Globals,       ONLY : abort
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : Ut
-USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
+USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc,Phi
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,  ONLY : Source
+USE MOD_Particle_Vars, ONLY : GEO, RegionElectronRef
 #endif /*PARTICLES*/
-USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
+USE MOD_Mesh_Vars,     ONLY : Elem_xGP, NbrOfRegions ! Elem_xGP: xyz of Gauss points for shape func., NbrOfRegions: for boltzm. rel.
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -269,8 +270,8 @@ REAL,INTENT(IN)                 :: t
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                         :: i,j,k,iElem
-REAL                            :: eps0inv
+INTEGER                         :: i,j,k,iElem,RegionID
+REAL                            :: eps0inv, source_e
 !===================================================================================================================================
 eps0inv = 1./eps0
 SELECT CASE (IniExactFunc)
@@ -279,7 +280,15 @@ CASE(0) ! Particles
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
-      Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + eps0inv * source(  4,i,j,k,iElem) * c_corr 
+      source_e=0.
+#ifdef PARTICLES
+      RegionID=0
+      IF (NbrOfRegions .GT. 0) RegionID=GEO%ElemToRegion(iElem)
+      IF (RegionID .NE. 0) &
+        source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
+                 * EXP( (Phi(  1,i,j,k,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
+#endif /*PARTICLES*/
+      Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + eps0inv * ( source(  4,i,j,k,iElem) - source_e ) * c_corr 
       !IF((t.GT.0).AND.(ABS(source(4,i,j,k,iElem)*c_corr).EQ.0))THEN
       !print*, t
      ! print*, eps0inv * source(4,i,j,k,iElem)*c_corr
@@ -579,7 +588,7 @@ SUBROUTINE FillFlux(Flux,doMPISides)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Equation_Vars,         ONLY: Phi_Minus,Phi_Plus
-USE MOD_Mesh_Vars,       ONLY: NormVec,TangVec1,TangVec2,SurfElem
+USE MOD_Mesh_Vars,       ONLY: NormVec,SurfElem
 USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE
 USE MOD_Riemann_Pois,         ONLY: Riemann_Pois
 ! IMPLICIT VARIABLE HANDLING
@@ -607,8 +616,7 @@ END IF
 !firstSideID=nBCSides+1
 !lastSideID  =nBCSides+nInnerSides+nMPISides_MINE
 DO SideID=firstSideID,lastSideID
-  CALL Riemann_Pois(Flux(:,:,:,SideID),     Phi_Minus(:,:,:,SideID),     Phi_Plus(:,:,:,SideID), &
-               NormVec(:,:,:,SideID),TangVec1(:,:,:,SideID),TangVec2(:,:,:,SideID))
+  CALL Riemann_Pois(Flux(:,:,:,SideID),Phi_Minus(:,:,:,SideID),Phi_Plus(:,:,:,SideID),NormVec(:,:,:,SideID))
   DO q=0,PP_N
     DO p=0,PP_N
       Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)

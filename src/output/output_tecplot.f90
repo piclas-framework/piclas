@@ -167,6 +167,7 @@ INTEGER            :: iStat,NodeID
 INTEGER            :: iElem
 INTEGER            :: NodeIDElem,nPlot_p1_2,nPlot_p1_3
 REAL,ALLOCATABLE   :: MeanValueExtended(:,:,:,:,:)
+LOGICAL            :: nValCheck
 CHARACTER(LEN=255) :: Format_Title
 CHARACTER(LEN=35)  :: VarString
 !===================================================================================================================================
@@ -187,9 +188,12 @@ END DO
 !connected 3D FEM data
 NPlot_p1_2=(NPlot+1)**2
 NPlot_p1_3=(NPlot+1)**3
-
-IF(nValMean.NE.0)THEN
+IF(nValMean.GT.0)THEN
+  nValCheck = .true.
+END IF
+IF(nValCheck) THEN
   ALLOCATE(MeanValueExtended(1:nValMean,0:NPlot,0:NPlot,0:NPlot,1:nElems))
+  MeanValueExtended = 0.
   DO iElem=1,nElems
     DO iVar=1,nValMean
       MeanValueExtended(iVar,:,:,:,iElem) = MeanValue(iVar,iElem)
@@ -246,7 +250,7 @@ DO iVar=1,nVal
           1                           )       ! IsDouble
 END DO       ! iVar
 
-IF(nValMean.GT.0)THEN
+IF(nValCheck)THEN
   DO iVar=1,nValMean
     iStat = TECDAT112(                              &
             nElems*NPlot_p1_3,                      &       ! N

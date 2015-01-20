@@ -439,12 +439,13 @@ TYPE(tString),POINTER                       :: Str1=>NULL(),Str2=>NULL()
 CHARACTER(LEN=255)                          :: HelpStr,Str
 CHARACTER(LEN=300)                          :: File, DSMCFile
 TYPE(Varying_String)                        :: aStr,bStr,Separator
-INTEGER                                     :: EOF
-INTEGER                                     :: stat,iniUnit,nLines,i,iniUnit2,nLines2
+INTEGER                                     :: stat,iniUnit,nLines,i
 CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent,FileContent2
 CHARACTER(LEN=1)                            :: tmpChar=''
 !===================================================================================================================================
 ! Check if we have read in ini file already
+nLines=0
+iniUnit=0
 IF (ReadInDone) RETURN
 ! Get name of ini file
 IF (PRESENT(IniFile)) THEN
@@ -466,7 +467,6 @@ IF(MPIRoot)THEN
   IF(stat.NE.0) THEN
     CALL abort(__STAMP__,"Could not open ini file.")
   ELSE
-    nLines=0
     stat=0
     DO
       READ(iniunit,"(A)",IOSTAT=stat)tmpChar

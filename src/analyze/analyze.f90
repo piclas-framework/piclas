@@ -28,12 +28,12 @@ INTERFACE FinalizeAnalyze
   MODULE PROCEDURE FinalizeAnalyze
 END INTERFACE
 
-INTERFACE PerformeAnalyze
-  MODULE PROCEDURE PerformeAnalyze
+INTERFACE PerformAnalyze
+  MODULE PROCEDURE PerformAnalyze
 END INTERFACE
 
 !===================================================================================================================================
-PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformeAnalyze 
+PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze 
 !===================================================================================================================================
 
 CONTAINS
@@ -141,7 +141,10 @@ REAL                          :: U_NAnalyze(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NA
 REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL                          :: Volume,IntegrationWeight,Volume2
+REAL                          :: Volume,IntegrationWeight
+#ifdef MPI
+REAL                          :: Volume2
+#endif
 CHARACTER(LEN=40)             :: formatStr
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
@@ -212,7 +215,6 @@ SUBROUTINE AnalyzeToFile(Time,CalcTime,iter,L_2_Error)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars
-USE MOD_Restart_Vars ,ONLY:RestartTime
 USE MOD_Output_Vars  ,ONLY:ProjectName
 USE MOD_Mesh_Vars    ,ONLY:nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
@@ -227,8 +229,7 @@ REAL,INTENT(IN)                :: L_2_Error(PP_nVar)           ! L2 error norms
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-REAL                           :: Dummyreal(PP_nVar+1),Dummytime  ! Dummy values for file handling
-INTEGER                        :: openStat,stat                ! File IO status
+INTEGER                        :: openStat! File IO status
 CHARACTER(LEN=50)              :: formatStr                    ! format string for the output and Tecplot header
 CHARACTER(LEN=30)              :: L2name(PP_nVar)              ! variable name for the Tecplot header
 CHARACTER(LEN=300)             :: Filename                     ! Output filename,
@@ -315,31 +316,32 @@ IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
 AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze
 
-SUBROUTINE PerformeAnalyze(t,iter,tenddiff,force)
+SUBROUTINE PerformAnalyze(t,iter,tenddiff,force)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,             ONLY: nGlobalElems, nElems
-USE MOD_Analyze_Vars,          ONLY: Analyze_dt,CalcPoyntingInt
+USE MOD_Mesh_Vars,             ONLY: nElems
+USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 USE MOD_RecordPoints,          ONLY: RecordPoints
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
-USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
+#if (PP_TimeDiscMethod==42)
+USE MOD_TimeDisc_Vars,         ONLY: dt
+#else
+USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt
+#endif
 #ifdef PARTICLES
-USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpecies
+USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpecies, Time
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
+USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout
 USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues, WriteOutputMeshSamp
-USE MOD_LD_Vars,               ONLY: useLD
-USE MOD_LD_Analyze,            ONLY: LD_data_sampling, LD_output_calc
 #ifdef MPI
-USE MOD_part_boundary,         ONLY : ParticleBoundary, Communicate_PIC
-USE MOD_part_MPI_Vars,         ONLY : ExtPartState, ExtPartSpecies
-USE MOD_PICDepo_Vars,          ONLY: DepositionType
+USE MOD_part_boundary,         ONLY: ParticleBoundary, Communicate_PIC
 #endif /*MPI*/
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
@@ -421,22 +423,17 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC & LD 
 !----------------------------------------------------------------------------------------------------------------------------------
+! update of time here
 #ifdef PARTICLES
+Time = t
 ! write DSMC macroscopic values 
 IF (WriteMacroValues) THEN
-#if (PP_TimeDiscMethod==1000)
-  CALL LD_data_sampling()  ! Data sampling for output
-#else
   CALL DSMC_data_sampling()
-#endif
+
   iter_macvalout = iter_macvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
-#if (PP_TimeDiscMethod==1000)
-    CALL LD_output_calc(nOutput)  ! Data sampling for output
-#else
-    CALL DSMC_output_calc(nOutput)
+    CALL DSMC_output_calc()
     IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
-#endif
     nOutput = nOutput + 1
     iter_macvalout = 0
     DSMC%SampNum = 0
@@ -455,22 +452,19 @@ END IF
 IF(ForceAnalyze)THEN
 #if (PP_TimeDiscMethod==42)
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
-    CALL DSMC_output_calc(DSMC%NumOutput)
+    CALL DSMC_output_calc
   END IF
 #else
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
     nOutput = INT((DSMC%TimeFracSamp * TEnd) / DSMC%DeltaTimeOutput)
-    IF (.NOT. useLD) THEN
-      CALL DSMC_output_calc(nOutput)
-      IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
-    END IF
-    IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues(nOutput)
+    CALL DSMC_output_calc
+    IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
+    IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
   END IF
 #endif
 END IF
 #endif /*PARTICLES*/
 
-END SUBROUTINE PerformeAnalyze
+END SUBROUTINE PerformAnalyze
 
 END MODULE MOD_Analyze
-

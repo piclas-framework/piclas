@@ -4,12 +4,23 @@ MODULE  MOD_PICDepo
 !===================================================================================================================================
 ! MOD PIC Depo
 !===================================================================================================================================
-   IMPLICIT NONE                                                                                   
-   PRIVATE                                                                                         
+ IMPLICIT NONE                                                                                   
+ PRIVATE                                                                                         
 !===================================================================================================================================
-   PUBLIC :: Deposition,InitializeDeposition, DepositionMPF                                        
+ PUBLIC :: Deposition,InitializeDeposition, DepositionMPF                                        
 !===================================================================================================================================
-                                                                                                   
+!===================================================================================================================================
+INTERFACE Deposition
+  MODULE PROCEDURE Deposition
+END INTERFACE
+
+INTERFACE InitializeDeposition
+  MODULE PROCEDURE InitializeDeposition
+END INTERFACE
+
+INTERFACE DepositionMPF
+  MODULE PROCEDURE DepositionMPF
+END INTERFACE
 !===================================================================================================================================
 
 CONTAINS                                                                                           
@@ -19,13 +30,13 @@ SUBROUTINE InitializeDeposition
 ! Initialize the deposition variables first
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,       ONLY : UNIT_errOut
-USE MOD_Mesh_Vars,     ONLY : nElems, sJ, Elem_xGP
+USE MOD_Globals
+USE MOD_Globals_Vars,  ONLY : PI
+USE MOD_Mesh_Vars,     ONLY : nElems, Elem_xGP
 USE MOD_PreProc,       ONLY : PP_N
 USE MOD_ReadInTools
 USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_inv
 USE MOD_PICInterpolation_Vars, ONLY : InterpolationType
-USE MOD_Equation_Vars, ONLY : PI
 USE MOD_Particle_Vars
 USE MOD_part_MPFtools, ONLY: GeoCoordToMap
 ! IMPLICIT VARIABLE HANDLING
@@ -36,9 +47,9 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t
-  REAL                      :: BetaFac, Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax
-  REAL                      :: auxiliary(0:3),weight(1:3,0:3)
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t
+REAL                      :: BetaFac, Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax
+REAL                      :: auxiliary(0:3),weight(1:3,0:3)
 !===================================================================================================================================
 
   DepositionType = GETSTR('PIC-Deposition-Type','nearest_blurrycenter')
@@ -46,15 +57,15 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
   ! because DepositionType is not known yet)
   IF((TRIM(InterpolationType).EQ.'nearest_gausspoint').AND. &
      (TRIM(DepositionType).NE.'nearest_gausspoint')) THEN
-    WRITE(*,*) 'ERROR in pic_depo.f90: Interpolation type nearest_gausspoint only allowed with same deposition type!'
-    STOP
+    CALL abort(__STAMP__, &
+      'ERROR in pic_depo.f90: Interpolation type nearest_gausspoint only allowed with same deposition type!')
   END IF
   !--- Allocate arrays for charge density collection and initialize
   SDEALLOCATE(source)
   ALLOCATE(source(1:4,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    WRITE(*,*)'ERROR in pic_depo.f90: Cannot allocate source!'
-    STOP
+    CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate source!')
   END IF
   SELECT CASE(TRIM(DepositionType))
   CASE('nearest_blurrycenter')
@@ -64,14 +75,14 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
     ALLOCATE(PartPosMapped(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
-      WRITE(*,*)'ERROR in pic_depo.f90: Cannot allocate mapped particle pos!'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate mapped particle pos!')
     END IF
     ! compute the borders of the virtual volumes around the gauss points in -1|1 space
     ALLOCATE(GaussBorder(1:PP_N),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
-      WRITE(*,*)'ERROR in pic_depo.f90: Cannot allocate Mapped Gauss Border Coords!'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate Mapped Gauss Border Coords!')
     END IF
     DO i=0,PP_N
       CALL GeoCoordToMap(Elem_xGP(:,i,1,1,1),Temp(:),1)
@@ -84,8 +95,8 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     IF(TRIM(InterpolationType).EQ.'nearest_gausspoint')THEN
       ALLOCATE(PartPosGauss(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
       IF (ALLOCSTAT.NE.0) THEN
-        WRITE(*,*)'ERROR in pic_depo.f90: Cannot allocate Part Pos Gauss!'
-        STOP
+        CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate Part Pos Gauss!')
       END IF
     END IF
   CASE('shape_function')
@@ -100,8 +111,8 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
     ALLOCATE(PartPosMapped(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
-      WRITE(*,*)'ERROR in pic_depo.f90: Cannot allocate mapped particle pos!'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate mapped particle pos!')
     END IF
   CASE('cartmesh_volumeweighting')
     ! read in background mesh size
@@ -109,8 +120,8 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     FactorBGM(1:3) = GETREALARRAY('PIC-FactorBGM',3,'1. , 1. , 1.')
     BGMdeltas(1:3) = 1./FactorBGM(1:3)*BGMdeltas(1:3)
     IF (ANY(BGMdeltas.EQ.0.0)) THEN
-      WRITE(*,*)'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.')
     END IF
     ! calc min and max coordinates for local mesh
     xmin = 1.0E200
@@ -140,13 +151,13 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     ! mapping from gausspoints to BGM
     ALLOCATE(GaussBGMIndex(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
-      WRITE(*,*)'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!') 
     END IF
     ALLOCATE(GaussBGMFactor(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
-      WRITE(*,*)'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
     END IF
     DO iElem = 1, nElems
       DO j = 0, PP_N
@@ -169,25 +180,24 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
       ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
       ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
       IF (allocStat .NE. 0) THEN
-        WRITE(*,*)'ERROR in MPIBackgroundMeshInit:'
-        WRITE(*,'(A,I2.2,A,I5,A)')'cannot allocate GEO%PeriodicBGMVectors!'
-        STOP
+        CALL abort(__STAMP__, &
+        'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
       END IF
       DO i = 1, GEO%nPeriodicVectors
         GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
         IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-          WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
-          STOP
+          CALL abort(__STAMP__, &
+        'ERROR: Periodic Vector ist not multiple of background mesh delta')
         END IF
         GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
         IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-          WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
-          STOP
+          CALL abort(__STAMP__, &
+        'ERROR: Periodic Vector ist not multiple of background mesh delta')
         END IF
         GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
         IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-          WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
-          STOP
+          CALL abort(__STAMP__, &
+        'ERROR: Periodic Vector ist not multiple of background mesh delta')
         END IF
       END DO
     END IF
@@ -197,8 +207,8 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     FactorBGM(1:3) = GETREALARRAY('PIC-FactorBGM',3,'1. , 1. , 1.')
     BGMdeltas(1:3) = 1./FactorBGM(1:3)*BGMdeltas(1:3)
     IF (ANY(BGMdeltas.EQ.0)) THEN
-      WRITE(*,*)'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.')
     END IF
     ! calc min and max coordinates for local mesh
     xmin = 1.0E200
@@ -228,13 +238,13 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     ! mapping from gausspoints to BGM
     ALLOCATE(GaussBGMIndex(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
-      WRITE(*,*)'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!')
     END IF
     ALLOCATE(GaussBGMFactor(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
-      WRITE(*,*)'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
     END IF
     DO iElem = 1, nElems
       DO j = 0, PP_N
@@ -250,8 +260,8 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
     ! pre-build weights for BGM to gausspoint interpolation
     ALLOCATE(GPWeight(1:nElems,0:PP_N,0:PP_N,0:PP_N,1:4,1:4,1:4),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
-      WRITE(*,*)'ERROR in pic_depo.f90: Cannot allocate GPWeight!'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate GPWeight!')
     END IF
     DO iElem = 1, nElems
       DO j = 0, PP_N
@@ -287,32 +297,31 @@ USE MOD_part_MPFtools, ONLY: GeoCoordToMap
       ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
       ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
       IF (allocStat .NE. 0) THEN
-        WRITE(*,*)'ERROR in MPIBackgroundMeshInit:'
-        WRITE(*,'(A,I2.2,A,I5,A)')'cannot allocate GEO%PeriodicBGMVectors!'
-        STOP
+        CALL abort(__STAMP__, &
+        'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
       END IF
       DO i = 1, GEO%nPeriodicVectors
         GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
         IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-          WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
-          STOP
+          CALL abort(__STAMP__,  &
+        'ERROR: Periodic Vector ist not multiple of background mesh delta')
         END IF
         GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
         IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-          WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
-          STOP
+          CALL abort(__STAMP__, &
+        'ERROR: Periodic Vector ist not multiple of background mesh delta')
         END IF
         GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
         IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-          WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
-          STOP
+          CALL abort(__STAMP__, &
+        'ERROR: Periodic Vector ist not multiple of background mesh delta')
         END IF
       END DO
     END IF
 #endif
   CASE DEFAULT
-    ERRWRITE(*,*) 'Unknown DepositionType in pic_depo.f90'
-    STOP
+    CALL abort(__STAMP__, &
+        'Unknown DepositionType in pic_depo.f90')
   END SELECT
 END SUBROUTINE InitializeDeposition
 
@@ -326,11 +335,11 @@ SUBROUTINE Deposition()                                                         
 ! - delta distributio
 !============================================================================================================================
 ! use MODULES
-USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_inv
+USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
 USE MOD_Mesh_Vars,             ONLY: nElems, Elem_xGP, sJ
-USE MOD_Globals,               ONLY: UNIT_errOut, MPIRoot
+USE MOD_Globals
 USE MOD_part_MPI_Vars,         ONLY: casematrix, NbrOfCases
 USE MOD_Interpolation_Vars,    ONLY: wGP
 USE MOD_PICInterpolation_Vars, ONLY: InterpolationType
@@ -350,13 +359,12 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration                                                                       
 !-----------------------------------------------------------------------------------------------------------------------------------
-  INTEGER                          :: i, k, l, m, Element, iPart, iElem                            !
-  LOGICAL                          :: chargedone(1:nElems), bound_check(6), SAVE_GAUSS             !
-  INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           !
-  INTEGER                          :: kk, ll, mm, ppp                                              !
+  INTEGER                          :: i, k, l, m, Element, iElem, iPart
+  LOGICAL                          :: chargedone(1:nElems), SAVE_GAUSS             
+  INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
+  INTEGER                          :: kk, ll, mm, ppp                                              
   INTEGER                          :: ElemID, iCase, ind
   REAL                             :: radius, S, S1, Fac(4)
-  REAL                             :: New_Pos(3), perVec(3), SearchPos(3)
   REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
   INTEGER                          :: a,b, ii, expo
   REAL                             :: ElemSource(nElems,1:4)
@@ -396,11 +404,6 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
 #else
       source(4,:,:,:,Element) = source(4,:,:,:,Element) / GEO%Volume(Element)
 #endif
-!      IF (source(4,0,0,0,Element).GT.1E-30) THEN
-!        WRITE(*,'(A,I0,A,I0,A,E15.7)')'Volume(',Element,'/',nElems,')=',GEO%Volume(Element)
-!        WRITE(*,'(A,I0,A,8(E15.7,1X))')'Source(4,1:2,1:2,1:2,',Element,')=',source(4,1:2,1:2,1:2,Element)
-!        READ(*,*)
-!      END IF
     END DO
   CASE('shape_function')
     Vec1(1:3) = 0.
@@ -420,11 +423,11 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
     END IF
     DO i=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(i)) THEN
-        chargedone(:) = .FALSE.
         Fac(4) = Species(PartSpecies(i))%ChargeIC * Species(PartSpecies(i))%MacroParticleFactor*w_sf
         Fac(1:3) = PartState(i,4:6)*Fac(4)
         !-- determine which background mesh cells (and interpolation points within) need to be considered
         DO iCase = 1, NbrOfCases
+          chargedone(:) = .FALSE.
           DO ind = 1,3
             ShiftedPart(ind) = PartState(i,ind) + casematrix(iCase,1)*Vec1(ind) + &
                  casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
@@ -560,34 +563,37 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
     SDEALLOCATE(ExtPartSpecies)
 #endif
   CASE('delta_distri')
-    DO i=1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(i)) THEN
-        Element = PEM%Element(i)
-        ! Map Particle to -1|1 space (re-used in interpolation)
-        CALL GeoCoordToMap(PartState(i,1:3),PartPosMapped(i,1:3),Element)
-        ! get value of test function at particle position
-        ! xi   -direction
-        CALL LagrangeInterpolationPolys(PartPosMapped(i,1),PP_N,xGP,wBary,L_xi(1,:))
-        ! eta  -direction
-        CALL LagrangeInterpolationPolys(PartPosMapped(i,2),PP_N,xGP,wBary,L_xi(2,:))
-        ! zeta -direction
-        CALL LagrangeInterpolationPolys(PartPosMapped(i,3),PP_N,xGP,wBary,L_xi(3,:))
-        DO m=0,PP_N
-          DO l=0,PP_N
-            DO k=0,PP_N
-              DeltaIntCoeff = L_xi(1,k)* L_xi(2,l)* L_xi(3,m)*sJ(k,l,m,Element)/(wGP(k)*wGP(l)*wGP(m)) &
-                              * Species(PartSpecies(i))%ChargeIC &
-                              * Species(PartSpecies(i))%MacroParticleFactor 
+    DO iElem=1,PP_nElems
+      DO iPart=1,PDM%ParticleVecLength
+        IF (PDM%ParticleInside(iPart)) THEN
+          IF(PEM%Element(iPart).EQ.iElem)THEN
+            ! Map Particle to -1|1 space (re-used in interpolation)
+            CALL GeoCoordToMap(PartState(iPart,1:3),PartPosMapped(iPart,1:3),iElem)
+            ! get value of test function at particle position
+            ! xi   -direction
+            CALL LagrangeInterpolationPolys(PartPosMapped(iPart,1),PP_N,xGP,wBary,L_xi(1,:))
+            ! eta  -direction
+            CALL LagrangeInterpolationPolys(PartPosMapped(iPart,2),PP_N,xGP,wBary,L_xi(2,:))
+            ! zeta -direction
+            CALL LagrangeInterpolationPolys(PartPosMapped(iPart,3),PP_N,xGP,wBary,L_xi(3,:))
+            DO m=0,PP_N
+              DO l=0,PP_N
+                DO k=0,PP_N
+                  DeltaIntCoeff = L_xi(1,k)* L_xi(2,l)* L_xi(3,m)*sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m)) &
+                                  * Species(PartSpecies(iPart))%ChargeIC &
+                                  * Species(PartSpecies(iPart))%MacroParticleFactor 
 #if (PP_nVar==8)
-              source(1:3,k,l,m,Element) = source(1:3,k,l,m,Element) &
-                                        + PartState(i,4:6) * DeltaIntCoeff
+                  source(1:3,k,l,m,iElem) = source(1:3,k,l,m,iElem) &
+                                          + PartState(iPart,4:6) * DeltaIntCoeff
 #endif
-              source( 4 ,k,l,m,Element) = source( 4 ,k,l,m,Element) + DeltaIntCoeff
-            END DO ! k
-          END DO ! l
-        END DO ! m
-      END IF ! ParticleInside
-    END DO ! ParticleVecLength
+                  source( 4 ,k,l,m,iElem) = source( 4 ,k,l,m,iElem) + DeltaIntCoeff
+                END DO ! k
+              END DO ! l
+            END DO ! m
+          END IF ! Particle in Element
+        END IF ! ParticleInside of domain
+      END DO ! ParticleVecLength
+    END DO ! loop over all elems
 
   CASE('nearest_gausspoint')
     SAVE_GAUSS = .FALSE.
@@ -809,70 +815,90 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
     END DO !iElem
    DEALLOCATE(BGMSource)
  CASE DEFAULT
-   ERRWRITE(*,*) 'Unknown DepositionType in pic_depo.f90'
-   SWRITE(*,*) 'Unknown DepositionType in pic_depo.f90'
-   STOP
+   CALL abort(__STAMP__, &
+        'Unknown DepositionType in pic_depo.f90')
  END SELECT
 
  RETURN
 END SUBROUTINE Deposition
 
-SUBROUTINE DepositionMPF()                                                                            !
-USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_inv
+
+SUBROUTINE DepositionMPF()  
+!============================================================================================================================
+! This subroutine performes the deposition of the particle charge and current density to the grid in the MPF case
+! following list of distribution methods are implemted
+! - nearest blurrycenter (barycenter of hexahedra)
+! - nearest Gauss Point  (only volome of IP - higher resolution than nearest blurrycenter )
+! - shape function       (only one type implemented)
+!============================================================================================================================
+! use MODULES                                                                          
+USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
 USE MOD_Mesh_Vars,     ONLY : nElems, Elem_xGP, sJ
-USE MOD_Globals,       ONLY : UNIT_errOut, MPIRoot
+USE MOD_Globals
 USE MOD_part_MPI_Vars, ONLY : casematrix, NbrOfCases
 USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_PICInterpolation_Vars, ONLY : InterpolationType
 USE MOD_part_MPFtools, ONLY: GeoCoordToMap
 #ifdef MPI
-USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
+USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles, PMPIVAR
 #endif 
 !--------------------------------------------------------------------------------------------------!
-  IMPLICIT NONE                                                                                    !
-!--------------------------------------------------------------------------------------------------!
-! Local variable declaration                                                                       !
-  INTEGER                          :: i, k, l, m, Element, iPart                                   !
-  LOGICAL                          :: chargedone(1:nElems), bound_check(6),SAVE_GAUSS                         !
-  INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           !
-  INTEGER                          :: kk, ll, mm, ppp                                              !
+  IMPLICIT NONE                                                                                  
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                          :: i, k, l, m, Element, iElem                            
+  LOGICAL                          :: chargedone(1:nElems), SAVE_GAUSS             
+  INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
+  INTEGER                          :: kk, ll, mm, ppp                                              
   INTEGER                          :: ElemID, iCase, ind
-  REAL                             :: radius, deltax, deltay, deltaz, S
-  REAL                             :: New_Pos(3), perVec(3), SearchPos(3)
+  REAL                             :: radius, S, S1, Fac(4)
   REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
-  INTEGER                          :: a,b, ii
-  REAL                             :: source_current(1:3), source_charge
+  INTEGER                          :: a,b, ii, expo
+  REAL                             :: ElemSource(nElems,1:4)
+  REAL, ALLOCATABLE                :: BGMSource(:,:,:,:)
+  REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
+  REAL                             :: alpha1, alpha2, alpha3
+  INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
+#ifdef MPI
+  INTEGER                           ::iPart
+#endif
 !--------------------------------------------------------------------------------------------------!
   source=0.0
 
   SELECT CASE(TRIM(DepositionType))
   CASE('nearest_blurrycenter')
+    ElemSource=0.0
     DO i=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(i)) THEN
         Element = PEM%Element(i)
-        source_current(1:3) = PartState(i,4:6)* Species(PartSpecies(i))%ChargeIC *PartMPF(i)
-        source_charge=Species(PartSpecies(i))%ChargeIC*PartMPF(i)
-        DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
 #if (PP_nVar==8)
-          source(1:3,k,l,m,Element) = source(1:3,k,l,m,Element) + source_current(1:3)
+        ElemSource(Element,1:3) = ElemSource(Element,1:3)+ &
+             PartState(i,4:6)* Species(PartSpecies(i))%ChargeIC * PartMPF(i)
 #endif
-          source( 4 ,k,l,m,Element) = source( 4 ,k,l,m,Element) + source_charge
-        END DO; END DO; END DO
+        ElemSource(Element,4) = ElemSource(Element,4) + & 
+             Species(PartSpecies(i))%ChargeIC* PartMPF(i)
       END IF
     END DO
-
     DO Element=1,nElems
 #if (PP_nVar==8)
-      source(1:3,:,:,:,Element) = source(1:3,:,:,:,Element) / GEO%Volume(Element)
+      source(1,:,:,:,Element) = ElemSource(Element,1)
+      source(2,:,:,:,Element) = ElemSource(Element,2)
+      source(3,:,:,:,Element) = ElemSource(Element,3)
 #endif
+      source(4,:,:,:,Element) = ElemSource(Element,4)
+    END DO
+    DO Element=1,nElems
+#if (PP_nVar==8)
+      source(1:4,:,:,:,Element) = source(1:4,:,:,:,Element) / GEO%Volume(Element)
+#else
       source(4,:,:,:,Element) = source(4,:,:,:,Element) / GEO%Volume(Element)
-!      IF (source(4,0,0,0,Element).GT.1E-30) THEN
-!        WRITE(*,'(A,I0,A,I0,A,E15.7)')'Volume(',Element,'/',nElems,')=',GEO%Volume(Element)
-!        WRITE(*,'(A,I0,A,8(E15.7,1X))')'Source(4,1:2,1:2,1:2,',Element,')=',source(4,1:2,1:2,1:2,Element)
-!        READ(*,*)
-!      END IF
+#endif
     END DO
   CASE('shape_function')
     Vec1(1:3) = 0.
@@ -892,24 +918,26 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
     END IF
     DO i=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(i)) THEN
-        chargedone(:) = .FALSE.
+        Fac(4) = Species(PartSpecies(i))%ChargeIC *PartMPF(i)*w_sf
+        Fac(1:3) = PartState(i,4:6)*Fac(4)
         !-- determine which background mesh cells (and interpolation points within) need to be considered
         DO iCase = 1, NbrOfCases
+          chargedone(:) = .FALSE.
           DO ind = 1,3
             ShiftedPart(ind) = PartState(i,ind) + casematrix(iCase,1)*Vec1(ind) + &
                  casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
           END DO
-          kmax = INT((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+          kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
           kmax = MIN(kmax,GEO%FIBGMimax)
-          kmin = INT((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+          kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
           kmin = MAX(kmin,GEO%FIBGMimin)
-          lmax = INT((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+          lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
           lmax = MIN(lmax,GEO%FIBGMkmax)
-          lmin = INT((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+          lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
           lmin = MAX(lmin,GEO%FIBGMkmin)
-          mmax = INT((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+          mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
           mmax = MIN(mmax,GEO%FIBGMlmax)
-          mmin = INT((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+          mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
           mmin = MAX(mmin,GEO%FIBGMlmin)
           !-- go through all these cells
           DO kk = kmin,kmax
@@ -922,25 +950,21 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
                     !--- go through all gauss points
                     DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                       !-- calculate distance between gauss and particle
-                      deltax = ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID) 
-                      deltay = ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID) 
-                      deltaz = ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID) 
-                      radius = deltax * deltax + deltay * deltay + deltaz * deltaz
+                      radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
+                             + (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
+                             + (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
                       !-- calculate charge and current density at ip point using a shape function
                       !-- currently only one shapefunction available, more to follow (including structure change)
                       IF (radius .LT. r2_sf) THEN
                         S = 1 - r2_sf_inv * radius
-                        S = S**alpha_sf 
-                        S = w_sf * S
+                        S1 = S*S
+                        DO expo = 3, alpha_sf
+                          S1 = S*S1
+                        END DO
 #if (PP_nVar==8)
-                        source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) &
-                                                 + PartState(i,4:6) &
-                                                 * Species(PartSpecies(i))%ChargeIC &
-                                                 * PartMPF(i) * S
+                        source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
 #endif
-                        source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) &
-                                                 + Species(PartSpecies(i))%ChargeIC &
-                                                 * PartMPF(i) * S
+                        source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
                       END IF
                     END DO; END DO; END DO
                     chargedone(ElemID) = .TRUE.
@@ -954,6 +978,13 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
     END DO ! i
 
 #ifdef MPI           
+IF (PMPIVAR%nProcs.GT.1) THEN
+  SWRITE(*,*) 'Shape Function MPI does not work with vMPF with more than one proc!'
+  SWRITE(*,*) 'Reason: MPF of particles outside of proc domain'
+  SWRITE(*,*) '(but still in shape function range) is not communicated yet.'
+  CALL abort(__STAMP__, &
+        'Shape Function MPI does not work with vMPF with more than one proc!')
+END IF
     Vec1(1:3) = 0.
     Vec2(1:3) = 0.
     Vec3(1:3) = 0.
@@ -974,23 +1005,25 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
     
     DO iPart=1,NbrOfextParticles  !external Particles
       chargedone(:) = .FALSE.
+      Fac(4) = Species(ExtPartSpecies(iPart))%ChargeIC*PartMPF(i)*w_sf
+      Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
         DO ind = 1,3
           ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
-        kmax = INT((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
+        kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
         kmax = MIN(kmax,GEO%FIBGMimax)
-        kmin = INT((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
+        kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
         kmin = MAX(kmin,GEO%FIBGMimin)
-        lmax = INT((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
+        lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
         lmax = MIN(lmax,GEO%FIBGMkmax)
-        lmin = INT((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
+        lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
         lmin = MAX(lmin,GEO%FIBGMkmin)
-        mmax = INT((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
+        mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
         mmax = MIN(mmax,GEO%FIBGMlmax)
-        mmin = INT((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
+        mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
         mmin = MAX(mmin,GEO%FIBGMlmin)
         !-- go through all these cells (should go through non if periodic and shiftedpart not in my domain
         DO kk = kmin,kmax
@@ -1003,26 +1036,22 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
                   !--- go through all gauss points
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                     !-- calculate distance between gauss and particle
-                    deltax = ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)
-                    deltay = ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)
-                    deltaz = ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)
-                    radius = deltax * deltax + deltay * deltay + deltaz * deltaz
-                    !-- calculate charge and current density at ip point using a shape function
-                    !-- currently only one shapefunction available, more to follow (including structure change)
-                    IF (radius .LT. r2_sf) THEN
-                      S = 1 - r2_sf_inv * radius
-                      S = S**alpha_sf
-                      S = w_sf * S
+                      radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
+                             + (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
+                             + (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
+                      !-- calculate charge and current density at ip point using a shape function
+                      !-- currently only one shapefunction available, more to follow (including structure change)
+                      IF (radius .LT. r2_sf) THEN
+                        S = 1 - r2_sf_inv * radius
+                        S1 = S*S
+                        DO expo = 3, alpha_sf
+                          S1 = S*S1
+                        END DO
 #if (PP_nVar==8)
-                      source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) &
-                           + ExtPartState(iPart,4:6) &
-                           * Species(ExtPartSpecies(iPart))%ChargeIC &
-                           * PartMPF(i) * S
+                        source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
 #endif
-                      source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) &
-                           + Species(ExtPartSpecies(iPart))%ChargeIC &
-                           * PartMPF(i) * S
-                    END IF
+                        source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
+                      END IF
                   END DO; END DO; END DO
                   chargedone(ElemID) = .TRUE.
                 END IF
@@ -1103,27 +1132,184 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
 #endif
       END DO; END DO; END DO
     END DO
-  CASE DEFAULT
-    ERRWRITE(*,*) 'Unknown DepositionType in pic_depo.f90'
-    SWRITE(*,*) 'Unknown DepositionType in pic_depo.f90'
-    STOP
-  END SELECT
+  CASE('cartmesh_volumeweighting')
+    ! Step 1: Deposition of all particles onto background mesh -> densities
+    ALLOCATE(BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4))
+    BGMSource(:,:,:,:) = 0.0
+    DO i = 1, PDM%ParticleVecLength
+      IF (PDM%ParticleInside(i)) THEN
+        Charge = Species(PartSpecies(i))%ChargeIC * PartMPF(i)
+        k = FLOOR(PartState(i,1)/BGMdeltas(1))
+        l = FLOOR(PartState(i,2)/BGMdeltas(2))
+        m = FLOOR(PartState(i,3)/BGMdeltas(3))
+        alpha1 = (PartState(i,1) / BGMdeltas(1)) - k
+        alpha2 = (PartState(i,2) / BGMdeltas(2)) - l
+        alpha3 = (PartState(i,3) / BGMdeltas(3)) - m
+        TSource(:) = 0.0
+#if (PP_nVar==8)
+        TSource(1) = PartState(i,4)*Charge
+        TSource(2) = PartState(i,5)*Charge
+        TSource(3) = PartState(i,6)*Charge
+#endif
+        TSource(4) = Charge
 
+        BGMSource(k,l,m,1:4)       = BGMSource(k,l,m,1:4) + (TSource * (1-alpha1)*(1-alpha2)*(1-alpha3))
+        BGMSource(k,l,m+1,1:4)     = BGMSource(k,l,m+1,1:4) + (TSource * (1-alpha1)*(1-alpha2)*(alpha3))
+        BGMSource(k,l+1,m,1:4)     = BGMSource(k,l+1,m,1:4) + (TSource * (1-alpha1)*(alpha2)*(1-alpha3))
+        BGMSource(k,l+1,m+1,1:4)   = BGMSource(k,l+1,m+1,1:4) + (TSource * (1-alpha1)*(alpha2)*(alpha3))
+        BGMSource(k+1,l,m,1:4)     = BGMSource(k+1,l,m,1:4) + (TSource * (alpha1)*(1-alpha2)*(1-alpha3))
+        BGMSource(k+1,l,m+1,1:4)   = BGMSource(k+1,l,m+1,1:4) + (TSource * (alpha1)*(1-alpha2)*(alpha3))
+        BGMSource(k+1,l+1,m,1:4)   = BGMSource(k+1,l+1,m,1:4) + (TSource * (alpha1)*(alpha2)*(1-alpha3))
+        BGMSource(k+1,l+1,m+1,1:4) = BGMSource(k+1,l+1,m+1,1:4) + (TSource * (alpha1)*(alpha2)*(alpha3))
+      END IF
+    END DO
+    BGMSource(:,:,:,:) = BGMSource(:,:,:,:) / BGMVolume
+
+#ifdef MPI
+    CALL MPISourceExchangeBGM(BGMSource)
+#else
+    IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange(BGMSource)
+#endif
+
+    ! Step 2: Interpolation of densities onto grid
+    DO iElem = 1, nElems
+      DO kk = 0, PP_N
+        DO ll = 0, PP_N
+          DO mm = 0, PP_N
+           k = GaussBGMIndex(1,kk,ll,mm,iElem)
+           l = GaussBGMIndex(2,kk,ll,mm,iElem)
+           m = GaussBGMIndex(3,kk,ll,mm,iElem)
+           alpha1 = GaussBGMFactor(1,kk,ll,mm,iElem)
+           alpha2 = GaussBGMFactor(2,kk,ll,mm,iElem)
+           alpha3 = GaussBGMFactor(3,kk,ll,mm,iElem)
+#if (PP_nVar==8)
+           DO i = 1,3
+             source(i,kk,ll,mm,iElem) = BGMSource(k,l,m,i) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+                  BGMSource(k,l,m+1,i) * (1-alpha1) * (1-alpha2) * (alpha3) + &
+                  BGMSource(k,l+1,m,i) * (1-alpha1) * (alpha2) * (1-alpha3) + &
+                  BGMSource(k,l+1,m+1,i) * (1-alpha1) * (alpha2) * (alpha3) + &
+                  BGMSource(k+1,l,m,i) * (alpha1) * (1-alpha2) * (1-alpha3) + &
+                  BGMSource(k+1,l,m+1,i) * (alpha1) * (1-alpha2) * (alpha3) + &
+                  BGMSource(k+1,l+1,m,i) * (alpha1) * (alpha2) * (1-alpha3) + &
+                  BGMSource(k+1,l+1,m+1,i) * (alpha1) * (alpha2) * (alpha3)
+           END DO
+#endif
+           source(4,kk,ll,mm,iElem) = BGMSource(k,l,m,4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+                BGMSource(k,l,m+1,4) * (1-alpha1) * (1-alpha2) * (alpha3) + &
+                BGMSource(k,l+1,m,4) * (1-alpha1) * (alpha2) * (1-alpha3) + &
+                BGMSource(k,l+1,m+1,4) * (1-alpha1) * (alpha2) * (alpha3) + &
+                BGMSource(k+1,l,m,4) * (alpha1) * (1-alpha2) * (1-alpha3) + &
+                BGMSource(k+1,l,m+1,4) * (alpha1) * (1-alpha2) * (alpha3) + &
+                BGMSource(k+1,l+1,m,4) * (alpha1) * (alpha2) * (1-alpha3) + &
+                BGMSource(k+1,l+1,m+1,4) * (alpha1) * (alpha2) * (alpha3)
+         END DO !mm
+       END DO !ll
+     END DO !kk
+   END DO !iElem
+   DEALLOCATE(BGMSource)
+  CASE('cartmesh_splines')
+    ! Step 1: Deposition of all particles onto background mesh -> densities
+    ALLOCATE(BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4))
+    BGMSource(:,:,:,:) = 0.0
+    DO i = 1, PDM%ParticleVecLength
+      IF (PDM%ParticleInside(i)) THEN
+        Charge = Species(PartSpecies(i))%ChargeIC * PartMPF(i)
+        PosInd(1) = FLOOR(PartState(i,1)/BGMdeltas(1))
+        PosInd(2) = FLOOR(PartState(i,2)/BGMdeltas(2))
+        PosInd(3) = FLOOR(PartState(i,3)/BGMdeltas(3))
+        DO dir = 1,3               ! x,y,z direction
+          DO weightrun = 0,3
+            DO mm = 0, 3
+              IF (mm.EQ.weightrun) then
+                auxiliary(mm) = 1.0
+              ELSE
+                auxiliary(mm) = 0.0
+              END IF
+            END DO
+            CALL DeBoor(PosInd(dir),auxiliary,PartState(i,dir),weight(dir,weightrun),dir)
+          END DO
+        END DO
+        DO k = PosInd(1)-1, PosInd(1)+2
+          kk = abs(k - PosInd(1) - 2)
+          DO l = PosInd(2)-1, PosInd(2)+2
+            ll = abs(l - PosInd(2) - 2)
+            DO m = PosInd(3)-1, PosInd(3)+2
+              mm = abs(m - PosInd(3) - 2)
+              locweight = weight(1,kk)*weight(2,ll)*weight(3,mm)
+#if (PP_nVar==8)
+              BGMSource(k,l,m,1) = BGMSource(k,l,m,1) + PartState(i,4)*Charge * locweight
+              BGMSource(k,l,m,2) = BGMSource(k,l,m,2) + PartState(i,5)*Charge * locweight
+              BGMSource(k,l,m,3) = BGMSource(k,l,m,3) + PartState(i,6)*Charge * locweight
+#endif
+              BGMSource(k,l,m,4) = BGMSource(k,l,m,4) + Charge * locweight
+            END DO
+          END DO
+        END DO
+      END IF
+    END DO
+    BGMSource(:,:,:,:) = BGMSource(:,:,:,:) / BGMVolume
+
+#ifdef MPI
+    CALL MPISourceExchangeBGM(BGMSource)
+#else
+    IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange(BGMSource)
+#endif
+
+    ! Step 2: Interpolation of densities onto grid
+    DO iElem = 1, nElems
+      DO kk = 0, PP_N
+        DO ll = 0, PP_N
+          DO mm = 0, PP_N
+            k = GaussBGMIndex(1,kk,ll,mm,iElem)
+            l = GaussBGMIndex(2,kk,ll,mm,iElem)
+            m = GaussBGMIndex(3,kk,ll,mm,iElem)
+            DO r = k-1,k+2
+              u = r-k+2
+              DO ss = l-1,l+2
+                v = ss-l+2
+                DO t = m-1,m+2
+                  w = t-m+2
+#if (PP_nVar==8)                  
+                  DO i = 1,3
+                    source(i,kk,ll,mm,iElem) = source(i,kk,ll,mm,iElem) + BGMSource(r,ss,t,i) * GPWeight(iElem,kk,ll,mm,u,v,w)
+                  END DO
+#endif
+                  source(4,kk,ll,mm,iElem) = source(4,kk,ll,mm,iElem) + BGMSource(r,ss,t,4) * GPWeight(iElem,kk,ll,mm,u,v,w)
+                END DO !t
+              END DO !s
+            END DO !r
+          END DO !mm
+        END DO !ll
+      END DO !kk
+    END DO !iElem
+   DEALLOCATE(BGMSource)
+  CASE DEFAULT
+    CALL abort(__STAMP__, &
+        'Unknown DepositionType in pic_depo.f90')
+  END SELECT
  RETURN
 END SUBROUTINE DepositionMPF
 
-SUBROUTINE PeriodicSourceExchange(BGMSource)                                                       !
+#ifndef MPI
+SUBROUTINE PeriodicSourceExchange(BGMSource)    
+!============================================================================================================================
+! Exchange sources in periodic case
+!============================================================================================================================
+! use MODULES                                                    
   USE MOD_part_MPI_Vars
   USE MOD_PICDepo_Vars
   USE MOD_Particle_Vars
-!--------------------------------------------------------------------------------------------------!
-    IMPLICIT NONE                                                                                  !
-!--------------------------------------------------------------------------------------------------!
-! Argument list declaration                                                                        !
-    REAL                        :: BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4)
-! local variables                                                                                  !
+!-----------------------------------------------------------------------------------------------------------------------------------
+    IMPLICIT NONE                                                                                  
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+    REAL,INTENT(INOUT)         :: BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES                                                                           
     INTEGER                     :: i,k,l,m,k2,l2,m2
-!--------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
 
 DO i = 1,GEO%nPeriodicVectors
   DO k = BGMminX, BGMmaxX
@@ -1146,33 +1332,39 @@ DO i = 1,GEO%nPeriodicVectors
 END DO
 RETURN
 END SUBROUTINE PeriodicSourceExchange
-
-#ifdef MPI
-SUBROUTINE MPISourceExchangeBGM(BGMSource)                                                                  !
+#else /*MPI*/
+SUBROUTINE MPISourceExchangeBGM(BGMSource)            
+!============================================================================================================================
+! Exchange sources in periodic case for MPI
+!============================================================================================================================
+! use MODULES                                                         
   USE MOD_part_MPI_Vars
   USE MOD_PICDepo_Vars
   USE MOD_Globals
   USE MOD_Particle_Vars
-!--------------------------------------------------------------------------------------------------!
-    IMPLICIT NONE                                                                                  !
-!--------------------------------------------------------------------------------------------------!
-! Argument list declaration                                                                        !
-    REAL                        :: BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4)
-! local variables                                                                                  !
-    TYPE(tMPIMessage)           :: send_message(0:PMPIVAR%nProcs-1)                              !
-    TYPE(tMPIMessage)           :: recv_message(0:PMPIVAR%nProcs-1)                              !
-    INTEGER                     :: send_request(0:PMPIVAR%nProcs-1)                              !
-    INTEGER                     :: recv_request(0:PMPIVAR%nProcs-1)                              !
-    INTEGER                     :: send_status_list(1:MPI_STATUS_SIZE,0:PMPIVAR%nProcs-1)        !
-    INTEGER                     :: recv_status_list(1:MPI_STATUS_SIZE,0:PMPIVAR%nProcs-1)        !
-    INTEGER                     :: i,k,l,m,n, ppp, Counter, MsgLength(0:PMPIVAR%nProcs-1)        !
-    INTEGER                     :: SourceLength(0:PMPIVAR%nProcs-1)                              !
-    INTEGER                     :: RecvLength(0:PMPIVAR%nProcs-1)                                !
-    INTEGER                     :: allocStat, Counter2                                     !
-    INTEGER                     :: messageCounterS, messageCounterR                                !
-    INTEGER                     :: myRealKind, k2,l2,m2                                            !
-    REAL                        :: myRealTestValue                                                 !
-!--------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
+    IMPLICIT NONE                                                                                  
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+    REAL,INTENT(INOUT)        :: BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+    TYPE(tMPIMessage)           :: send_message(0:PMPIVAR%nProcs-1)                              
+    TYPE(tMPIMessage)           :: recv_message(0:PMPIVAR%nProcs-1)                              
+    INTEGER                     :: send_request(0:PMPIVAR%nProcs-1)                              
+    INTEGER                     :: recv_request(0:PMPIVAR%nProcs-1)                              
+    INTEGER                     :: send_status_list(1:MPI_STATUS_SIZE,0:PMPIVAR%nProcs-1)        
+    INTEGER                     :: recv_status_list(1:MPI_STATUS_SIZE,0:PMPIVAR%nProcs-1)        
+    INTEGER                     :: i,k,l,m,n, ppp, Counter, MsgLength(0:PMPIVAR%nProcs-1)        
+    INTEGER                     :: SourceLength(0:PMPIVAR%nProcs-1)                              
+    INTEGER                     :: RecvLength(0:PMPIVAR%nProcs-1)                                
+    INTEGER                     :: allocStat, Counter2                                     
+    INTEGER                     :: messageCounterS, messageCounterR                                
+    INTEGER                     :: myRealKind, k2,l2,m2                                          
+    REAL                        :: myRealTestValue                                                
+!-----------------------------------------------------------------------------------------------------------------------------------
 
      myRealKind = KIND(myRealTestValue)
      IF (myRealKind.EQ.4) THEN
@@ -1206,15 +1398,13 @@ SUBROUTINE MPISourceExchangeBGM(BGMSource)                                      
        IF((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor))THEN
           ALLOCATE(send_message(i)%content_log(1:MsgLength(i)), STAT=allocStat)
           IF (allocStat .NE. 0) THEN
-             WRITE(*,*)'ERROR in MPISourceExchangeBGM:'
-             WRITE(*,'(A,I2.2,A,I10,A)')'cannot allocate send_message(',i,')%content_log(1:',MsgLength(i),')!'
-             STOP
+             CALL abort(__STAMP__, &
+                'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
           END IF
           ALLOCATE(recv_message(i)%content_log(1:MsgLength(i)), STAT=allocStat)
           IF (allocStat .NE. 0) THEN
-             WRITE(*,*)'ERROR in MPISourceExchangeBGM:'
-             WRITE(*,'(A,I2.2,A,I10,A)')'cannot allocate recv_message(',i,')%content_log(1:',MsgLength(i),')!'
-             STOP
+             CALL abort(__STAMP__, &
+                'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
           END IF
        END IF
        !--- check which sources are <> 0
@@ -1290,9 +1480,8 @@ SUBROUTINE MPISourceExchangeBGM(BGMSource)                                      
             (PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)).AND.(SourceLength(i).GT.0)) THEN
           ALLOCATE(send_message(i)%content(1:SourceLength(i)*4), STAT=allocStat)
           IF (allocStat .NE. 0) THEN
-             WRITE(*,*)'ERROR in MPISourceExchangeBGM:'
-             WRITE(*,'(A,I2.2,A,I5,A)')'cannot allocate send_message(',i,')%content(1:',MsgLength,')!'
-             STOP
+             CALL abort(__STAMP__, &
+                'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
           END IF
        END IF
        Counter = 0
@@ -1347,9 +1536,8 @@ SUBROUTINE MPISourceExchangeBGM(BGMSource)                                      
           IF (RecvLength(i).GT.0) THEN
              ALLOCATE(recv_message(i)%content(1:Counter*4), STAT=allocStat)
              IF (allocStat .NE. 0) THEN
-                WRITE(*,*)'ERROR in MPISourceExchangeBGM:'
-                WRITE(*,'(A,I2.2,A,I5,A)')'cannot allocate recv_message(',i,')%content(1:',MsgLength,')!'
-                STOP
+                CALL abort(__STAMP__, &
+                  'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
              END IF
           END IF
        END IF
@@ -1387,16 +1575,14 @@ SUBROUTINE MPISourceExchangeBGM(BGMSource)                                      
        IF ((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
           DEALLOCATE(send_message(i)%content_log, STAT=allocStat)
           IF (allocStat .NE. 0) THEN
-             WRITE(*,*)'ERROR in MPISourceExchangeBGM:'
-             WRITE(*,'(A,I2.2,A)')'cannot deallocate send_message(', i, ')%content_log!'
-             STOP
+             CALL abort(__STAMP__, &
+                'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
           END IF
           IF (SourceLength(i).GT.0) THEN
              DEALLOCATE(send_message(i)%content, STAT=allocStat)
              IF (allocStat .NE. 0) THEN
-                WRITE(*,*)'ERROR in MPISourceExchangeBGM:'
-                WRITE(*,'(A,I2.2,A)')'cannot deallocate send_message(', i, ')%content!'
-                STOP
+                CALL abort(__STAMP__, &
+                  'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
              END IF
           END IF
        END IF
@@ -1469,82 +1655,70 @@ SUBROUTINE MPISourceExchangeBGM(BGMSource)                                      
           IF ((PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMNeighbor)) THEN
              DEALLOCATE(recv_message(i)%content, STAT=allocStat)
              IF (allocStat .NE. 0) THEN
-                WRITE(*,*)'ERROR in MPISourceExchangeBGM:'
-                WRITE(*,'(A,I2.2,A)')'cannot deallocate recv_message(', i, ')%content!'
-                STOP
+                CALL abort(__STAMP__, &
+                  'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
              END IF
           END IF
        END IF
        IF ((PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMNeighbor)) THEN
           DEALLOCATE(recv_message(i)%content_log, STAT=allocStat)
           IF (allocStat .NE. 0) THEN
-             WRITE(*,*)'ERROR in MPISourceExchangeBGM:'
-             WRITE(*,'(A,I2.2,A)')'cannot deallocate recv_message(', i, ')%content_log!'
-             STOP
+             CALL abort(__STAMP__, &
+              'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
           END IF
        END IF
     END DO
 END SUBROUTINE MPISourceExchangeBGM
-#endif
 
-
-#ifdef MPI
-SUBROUTINE MPIBackgroundMeshInit()                                                                 !
+SUBROUTINE MPIBackgroundMeshInit()  
+!============================================================================================================================
+! initialize MPI background mesh
+!============================================================================================================================
+! use MODULES                                                                   
   USE MOD_PICDepo_Vars
-  USE MOD_Particle_Vars
-!USE MOD_PreProc
-!USE MOD_Mesh_Vars,     
+  USE MOD_Particle_Vars    
   USE MOD_Globals
   USE MOD_part_MPI_Vars
-!USE MOD_Interpolation_Vars, ONLY : wGP
-!USE MOD_PICInterpolation_Vars, ONLY : InterpolationType
-!USE MOD_part_MPFtools, ONLY: GeoCoordToMap
-!--------------------------------------------------------------------------------------------------!
-    IMPLICIT NONE                                                                                  !
-!--------------------------------------------------------------------------------------------------!
-! Argument list declaration                                                                        !
-! local variables                                                                                  !
-!    TYPE(tMPIMessage)           :: send_message(0:PMPIVAR%nProcs-1)                              !
-!    TYPE(tMPIMessage)           :: recv_message(0:PMPIVAR%nProcs-1)                              !
-    INTEGER                     :: send_request(0:PMPIVAR%nProcs-1)                              !
-    INTEGER                     :: recv_request(0:PMPIVAR%nProcs-1)                              !
-    INTEGER                     :: send_status_list(1:MPI_STATUS_SIZE,0:PMPIVAR%nProcs-1)        !
-    INTEGER                     :: recv_status_list(1:MPI_STATUS_SIZE,0:PMPIVAR%nProcs-1)        !
-    INTEGER                     :: i,k,l,m, Counter, Counter2                                      !
-    INTEGER                     :: localminmax(6), maxofmin, minofmax                              !
-    INTEGER                     :: completeminmax(6*PMPIVAR%nProcs)                              !
-    INTEGER                     :: allocStat, NeighCount                                   ! 
-    INTEGER                     :: messageCounterS, messageCounterR                                !
-    INTEGER                     :: MsgLength(0:PMPIVAR%nProcs-1), TempBorder(1:2,1:3)            !
-    INTEGER                     :: Periodicminmax(6), n, coord, PeriodicVec(1:3)                   !
-    INTEGER                     :: TempPeriBord(1:26,1:2,1:3)                                      !
-    LOGICAL                     :: CHECKNEIGHBOR, CHECK        
-!--------------------------------------------------------------------------------------------------!
-
+!-----------------------------------------------------------------------------------------------------------------------------------
+    IMPLICIT NONE                                                                                  
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+    INTEGER                     :: i,k,m,n                                    
+    INTEGER                     :: localminmax(6), maxofmin, minofmax                              
+    INTEGER                     :: completeminmax(6*PMPIVAR%nProcs)                              
+    INTEGER                     :: allocStat, NeighCount                                                                 
+    INTEGER                     :: TempBorder(1:2,1:3)            
+    INTEGER                     :: Periodicminmax(6), coord, PeriodicVec(1:3)                   
+    INTEGER                     :: TempPeriBord(1:26,1:2,1:3)                                      
+    LOGICAL                     :: CHECKNEIGHBOR     
+!-----------------------------------------------------------------------------------------------------------------------------------
  ! Periodic Init stuff
  IF(GEO%nPeriodicVectors.GT.0)THEN
    ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
    IF (allocStat .NE. 0) THEN
-     WRITE(*,*)'ERROR in MPIBackgroundMeshInit:'
-     WRITE(*,'(A,I2.2,A,I5,A)')'cannot allocate GEO%PeriodicBGMVectors!'
-     STOP
+     CALL abort(__STAMP__, &
+        'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
    END IF
    DO i = 1, GEO%nPeriodicVectors
      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-       WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
-       STOP
+       CALL abort(__STAMP__, &
+        'ERROR: Periodic Vector ist not multiple of background mesh delta')
      END IF
      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-       WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
-       STOP
+       CALL abort(__STAMP__, &
+        'ERROR: Periodic Vector ist not multiple of background mesh delta')
      END IF
      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-       WRITE(*,*) 'ERROR: Periodic Vector ist not multiple of background mesh delta'
-       STOP
+       CALL abort(__STAMP__, &
+        'ERROR: Periodic Vector ist not multiple of background mesh delta')
      END IF
    END DO
    ! Check whether process is periodic with itself
@@ -1594,9 +1768,8 @@ SUBROUTINE MPIBackgroundMeshInit()                                              
     SDEALLOCATE(PMPIVAR%MPIConnect)
     ALLOCATE(PMPIVAR%MPIConnect(0:PMPIVAR%nProcs-1),STAT=allocStat)
     IF (allocStat .NE. 0) THEN
-      WRITE(*,*)'ERROR in MPIBackgroundMeshInit:'
-      WRITE(*,'(A,I2.2,A,I5,A)')'cannot allocate PMPIVAR%MPIConnect(',i,')!'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
     END IF
 
     !--- determine borders indices (=overlapping BGM mesh points) with each process
@@ -1619,12 +1792,11 @@ SUBROUTINE MPIBackgroundMeshInit()                                              
           END DO          
        END IF
        IF(PMPIVAR%MPIConnect(i)%isBGMNeighbor)THEN
-SDEALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder)
+          SDEALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder)
           ALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder(1:2,1:3),STAT=allocStat)
           IF (allocStat .NE. 0) THEN
-             WRITE(*,*)'ERROR in MPIBackgroundMeshInit:'
-             WRITE(*,'(A,I2.2,A,I5,A)')'cannot allocate PMPIVAR%MPIConnect(',i,')%BGMBorder!'
-             STOP
+             CALL abort(__STAMP__, &
+              'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
           END IF
           PMPIVAR%MPIConnect(i)%BGMBorder(1:2,1:3) = TempBorder(1:2,1:3)
        END IF
@@ -1693,17 +1865,14 @@ SDEALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder)
           PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = NeighCount
           ALLOCATE(PMPIVAR%MPIConnect(i)%Periodic(1:PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount),STAT=allocStat)
           IF (allocStat .NE. 0) THEN
-            WRITE(*,*)'ERROR in MPIBackgroundMeshInit:'
-            WRITE(*,'(A,I2.2,A,I5,A)')'cannot allocate PMPIVAR%MPIConnect(',i,')%Periodic(',&
-                 PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount,')!'
-            STOP
+            CALL abort(__STAMP__,  &
+              'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
           END IF
           DO k = 1,NeighCount
             ALLOCATE(PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3),STAT=allocStat)
             IF (allocStat .NE. 0) THEN
-              WRITE(*,*)'ERROR in MPIBackgroundMeshInit:'
-              WRITE(*,'(A,I2.2,A,I5,A)')'cannot allocate PMPIVAR%MPIConnect(',i,')%Periodic....'
-              STOP
+              CALL abort(__STAMP__, &
+                'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
             END IF
             PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3) = TempPeriBord(k,1:2,1:3)
           END DO
@@ -1717,23 +1886,29 @@ SDEALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder)
     END IF
   RETURN
 END SUBROUTINE MPIBackgroundMeshInit
-#endif
+#endif /*MPI*/
 
-SUBROUTINE DeBoor(PosInd, aux, coord, results, dir)                                                !
-   USE MOD_PICDepo_Vars                                                          !
-!--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-   INTEGER                          :: PosInd, dir                                                 !
-   REAL                             :: aux(0:3),coord,results                                      !
-! Local variable declaration                                                                       !
-   INTEGER                          :: i,k,jL,jR                                                   !
-   REAL                             :: hlp1,hlp2                                                   !
-!--------------------------------------------------------------------------------------------------!
-   INTENT(IN)                       :: PosInd, coord, dir                                          !
-   INTENT(INOUT)                    :: results, aux                                                !
-!--------------------------------------------------------------------------------------------------!
+SUBROUTINE DeBoor(PosInd, aux, coord, results, dir)       
+!============================================================================================================================
+! recursive function for evaluating a b-spline basis function
+!============================================================================================================================
+! use MODULES 
+   USE MOD_PICDepo_Vars                                                          
+!-----------------------------------------------------------------------------------------------------------------------------------
+   IMPLICIT NONE                                                                                   
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+   INTEGER, INTENT(IN)                          :: PosInd, dir  
+   REAL, INTENT(IN)                             :: coord                                              
+   REAL, INTENT(INOUT)                          :: aux(0:3), results                     
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES  
+   INTEGER                          :: i,k,jL,jR                                                  
+   REAL                              :: hlp1,hlp2                                                   
+!-----------------------------------------------------------------------------------------------------------------------------------
     DO i = 0, 2
        DO k = 0, 2-i
           jL = PosInd - k
@@ -1750,321 +1925,26 @@ SUBROUTINE DeBoor(PosInd, aux, coord, results, dir)                             
     RETURN
 END SUBROUTINE DeBoor
 
-FUNCTION beta(z,w)                                                                                                
+
+FUNCTION beta(z,w)  
+!============================================================================================================================
+! calculates the beta function
+!============================================================================================================================
+! use MODULES                                                                                               
    USE nr
+!-----------------------------------------------------------------------------------------------------------------------------------
    IMPLICIT NONE
-   REAL beta, w, z                                                                                                  
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+   REAL, INTENT(IN)                             :: w, z                                             
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+   REAL                                          :: beta
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES                                                    
+!----------------------------------------------------------------------------------------------------------------------------------
    beta = exp(gammln(z)+gammln(w)-gammln(z+w))                                                                    
 END FUNCTION beta 
 
 END MODULE MOD_PICDepo
-
-!    Vec1(1:3) = 0.
-!    Vec2(1:3) = 0.
-!    Vec3(1:3) = 0.
-!    IF (GEO%nPeriodicVectors.EQ.1) THEN
-!      Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!    END IF
-!    IF (GEO%nPeriodicVectors.EQ.2) THEN
-!      Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!      Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-!    END IF
-!    IF (GEO%nPeriodicVectors.EQ.3) THEN
-!      Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!      Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-!      Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
-!    END IF
-!    DO i=1,PDM%ParticleVecLength
-!      IF (PDM%ParticleInside(i)) THEN
-!        chargedone(:) = .FALSE.
-!        !-- determine which background mesh cells (and interpolation points within) need to be considered
-!        DO iCase = 1, NbrOfCases
-!          DO ind = 1,3
-!            ShiftedPart(ind) = PartState(i,ind) + casematrix(iCase,1)*Vec1(ind) + &
-!                 casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-!          END DO
-!          kmax = INT((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
-!          kmax = MIN(kmax,GEO%FIBGMimax)
-!          kmin = INT((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
-!          kmin = MAX(kmin,GEO%FIBGMimin)
-!          lmax = INT((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
-!          lmax = MIN(lmax,GEO%FIBGMkmax)
-!          lmin = INT((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
-!          lmin = MAX(lmin,GEO%FIBGMkmin)
-!          mmax = INT((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
-!          mmax = MIN(mmax,GEO%FIBGMlmax)
-!          mmin = INT((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
-!          mmin = MAX(mmin,GEO%FIBGMlmin)
-!          !-- go through all these cells
-!          DO kk = kmin,kmax
-!            DO ll = lmin, lmax
-!              DO mm = mmin, mmax
-!                !--- go through all mapped elements not done yet
-!                DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-!                  ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-!                  IF (.NOT.chargedone(ElemID)) THEN
-!                    !--- go through all gauss points
-!                    DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-!                      !-- calculate distance between gauss and particle
-!                      deltax = ShiftedPart(i) - Elem_xGP(1,k,l,m,ElemID) 
-!                      deltay = ShiftedPart(i) - Elem_xGP(2,k,l,m,ElemID) 
-!                      deltaz = ShiftedPart(i) - Elem_xGP(3,k,l,m,ElemID) 
-!                      radius = deltax * deltax + deltay * deltay + deltaz * deltaz
-!                      !-- calculate charge and current density at ip point using a shape function
-!                      !-- currently only one shapefunction available, more to follow (including structure change)
-!                      IF (radius .LT. r2_sf) THEN
-!                        S = 1 - r2_sf_inv * radius
-!                        S = S**alpha_sf 
-!                        S = w_sf * S
-!                        source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) &
-!                                                 + PartState(i,4:6) &
-!                                                 * Species(PartSpecies(i))%ChargeIC &
-!                                                 * Species(PartSpecies(i))%MacroParticleFactor * S
-!                        source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) &
-!                                                 + Species(PartSpecies(i))%ChargeIC &
-!                                                 * Species(PartSpecies(i))%MacroParticleFactor * S
-!                      END IF
-!                    END DO; END DO; END DO
-!                    chargedone(ElemID) = .TRUE.
-!                  END IF
-!                END DO ! ppp
-!              END DO ! mm
-!            END DO ! ll
-!          END DO ! kk
-!        END DO ! iCase (periodicity)
-!      END IF ! inside
-!    END DO ! i
-
-
-
-!    DO i=1,PDM%ParticleVecLength
-!      IF (PDM%ParticleInside(i)) THEN
-!        chargedone(:) = .FALSE.
-!        !-- determine which background mesh cells (and interpolation points within) need to be considered
-!        kmax = INT((PartState(i,1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
-!        kmax = MIN(kmax,GEO%FIBGMimax)
-!        kmin = INT((PartState(i,1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
-!        kmin = MAX(kmin,GEO%FIBGMimin)
-!        lmax = INT((PartState(i,2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
-!        lmax = MIN(lmax,GEO%FIBGMkmax)
-!        lmin = INT((PartState(i,2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
-!        lmin = MAX(lmin,GEO%FIBGMkmin)
-!        mmax = INT((PartState(i,3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
-!        mmax = MIN(mmax,GEO%FIBGMlmax)
-!        mmin = INT((PartState(i,3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
-!        mmin = MAX(mmin,GEO%FIBGMlmin)
-!        !-- go through all these cells
-!        DO kk = kmin,kmax
-!          DO ll = lmin, lmax
-!            DO mm = mmin, mmax
-!              !--- go through all mapped elements not done yet
-!              DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-!                ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-!                IF (.NOT.chargedone(ElemID)) THEN
-!                  !--- go through all gauss points
-!                  DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-!                    !-- calculate distance between gauss and particle
-!                    deltax = PartState(i,1) - Elem_xGP(1,k,l,m,ElemID) 
-!                    deltay = PartState(i,2) - Elem_xGP(2,k,l,m,ElemID) 
-!                    deltaz = PartState(i,3) - Elem_xGP(3,k,l,m,ElemID) 
-!                    radius = deltax * deltax + deltay * deltay + deltaz * deltaz
-!                    !-- calculate charge and current density at ip point using a shape function
-!                    !-- currently only one shapefunction available, more to follow (including structure change)
-!                    IF (radius .LT. r2_sf) THEN
-!                      S = 1 - r2_sf_inv * radius
-!                      S = S**alpha_sf 
-!                      S = w_sf * S
-!                      source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) &
-!                                               + PartState(i,4:6) &
-!                                               * Species(PartSpecies(i))%ChargeIC &
-!                                               * Species(PartSpecies(i))%MacroParticleFactor * S
-!                      source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) &
-!                                               + Species(PartSpecies(i))%ChargeIC &
-!                                               * Species(PartSpecies(i))%MacroParticleFactor * S
-!                    END IF
-!                  END DO; END DO; END DO
-!                  chargedone(ElemID) = .TRUE.
-!                END IF
-!              END DO ! ppp
-!            END DO ! mm
-!          END DO ! ll
-!        END DO ! kk
-!        ! Deal with periodicity:   !covers singleproc as well as MPI in cases where periodicity with myself happens
-!        IF (GEO%nPeriodicVectors.GT.0) THEN
-!          chargedone(:) = .FALSE.
-!          ! Check if cloud reaches bounds of domain
-!          bound_check(1) = PartState(i,1)+r_sf > GEO%xmax
-!          bound_check(2) = PartState(i,1)-r_sf < GEO%xmin
-!          bound_check(3) = PartState(i,2)+r_sf > GEO%ymax
-!          bound_check(4) = PartState(i,2)-r_sf < GEO%ymin
-!          bound_check(5) = PartState(i,3)+r_sf > GEO%zmax
-!          bound_check(6) = PartState(i,3)-r_sf < GEO%zmin
-!          IF (ANY(bound_check)) THEN
-!            ! Get cover periodities in all directions
-!            DO iCase = 1,7
-!              perVec = 0.
-!              SearchPos = 0.
-!              SELECT CASE(iCase)
-!                CASE(1) ! x-periodicity
-!                  IF (bound_check(1)) THEN 
-!                    perVec = perVec - GEO%nnx
-!                    SearchPos(1) = SearchPos(1) + abs(PartState(i,1) - GEO%xmax) !+ 1e-6
-!                  END IF 
-!                  IF (bound_check(2)) THEN 
-!                    perVec = perVec + GEO%nnx
-!                    SearchPos(1) = SearchPos(1) - abs(PartState(i,1) - GEO%xmin) !- 1e-6  
-!                  END IF
-!                CASE(2) ! y-periodicity
-!                  IF (bound_check(3)) THEN
-!                    perVec = perVec - GEO%nny
-!                    SearchPos(2) = SearchPos(2) + abs(PartState(i,2) - GEO%ymax) !+ 1e-6
-!                  END IF                                                       
-!                  IF (bound_check(4)) THEN                                     
-!                    perVec = perVec + GEO%nny                                  
-!                    SearchPos(2) = SearchPos(2) - abs(PartState(i,2) - GEO%ymin) !- 1e-6  
-!                  END IF
-!                CASE(3) ! z-periodicity
-!                  IF (bound_check(5)) THEN 
-!                    perVec = perVec - GEO%nnz
-!                    SearchPos(3) = SearchPos(3) + abs(PartState(i,3) - GEO%zmax) !+ 1e-6
-!                  END IF                                                       
-!                  IF (bound_check(6)) THEN                                     
-!                    perVec = perVec + GEO%nnz                                  
-!                    SearchPos(3) = SearchPos(3) - abs(PartState(i,3) - GEO%zmin) !- 1e-6
-!                  END IF
-!                CASE(4) ! xy-periodicity
-!                  IF (bound_check(1)) THEN 
-!                    perVec = perVec - GEO%nnx
-!                    SearchPos(1) = SearchPos(1) + abs(PartState(i,1) - GEO%xmax) !+ 1e-6
-!                  END IF                                                       
-!                  IF (bound_check(2)) THEN                                     
-!                    perVec = perVec + GEO%nnx                                  
-!                    SearchPos(1) = SearchPos(1) - abs(PartState(i,1) - GEO%xmin) !- 1e-6  
-!                  END IF
-!                  IF (bound_check(3)) THEN
-!                    perVec = perVec - GEO%nny
-!                    SearchPos(2) = SearchPos(2) + abs(PartState(i,2) - GEO%ymax) !+ 1e-6
-!                  END IF                                                       
-!                  IF (bound_check(4)) THEN                                     
-!                    perVec = perVec + GEO%nny                                  
-!                    SearchPos(2) = SearchPos(2) - abs(PartState(i,2) - GEO%ymin) !- 1e-6  
-!                  END IF
-!                CASE(5) ! xz-periodicity
-!                  IF (bound_check(1)) THEN 
-!                    perVec = perVec - GEO%nnx
-!                    SearchPos(1) = SearchPos(1) + abs(PartState(i,1) - GEO%xmax) !+ 1e-6
-!                  END IF                                                          
-!                  IF (bound_check(2)) THEN                                        
-!                    perVec = perVec + GEO%nnx                                     
-!                    SearchPos(1) = SearchPos(1) - abs(PartState(i,1) - GEO%xmin) !- 1e-6  
-!                  END IF                                                          
-!                  IF (bound_check(5)) THEN                                        
-!                    perVec = perVec - GEO%nnz                                     
-!                    SearchPos(3) = SearchPos(3) + abs(PartState(i,3) - GEO%zmax) !+ 1e-6
-!                  END IF                                                          
-!                  IF (bound_check(6)) THEN                                        
-!                    perVec = perVec + GEO%nnz                                     
-!                    SearchPos(3) = SearchPos(3) - abs(PartState(i,3) - GEO%zmin) !- 1e-6
-!                  END IF
-!                CASE(6) ! yz-periodicity
-!                  IF (bound_check(3)) THEN
-!                    perVec = perVec - GEO%nny
-!                    SearchPos(2) = SearchPos(2) + abs(PartState(i,2) - GEO%ymax) !+ 1e-6
-!                  END IF                                                          
-!                  IF (bound_check(4)) THEN                                        
-!                    perVec = perVec + GEO%nny                                     
-!                    SearchPos(2) = SearchPos(2) - abs(PartState(i,2) - GEO%ymin) !- 1e-6  
-!                  END IF                                                          
-!                  IF (bound_check(5)) THEN                                        
-!                    perVec = perVec - GEO%nnz                                     
-!                    SearchPos(3) = SearchPos(3) + abs(PartState(i,3) - GEO%zmax) !+ 1e-6
-!                  END IF                                                          
-!                  IF (bound_check(6)) THEN                                        
-!                    perVec = perVec + GEO%nnz                                     
-!                    SearchPos(3) = SearchPos(3) - abs(PartState(i,3) - GEO%zmin) !- 1e-6
-!                  END IF
-!                CASE(7) ! xyz-periodicity
-!                  IF (bound_check(1)) THEN 
-!                    perVec = perVec - GEO%nnx
-!                    SearchPos(1) = SearchPos(1) + abs(PartState(i,1) - GEO%xmax) !+ 1e-6
-!                  END IF                                                          
-!                  IF (bound_check(2)) THEN                                        
-!                    perVec = perVec + GEO%nnx                                     
-!                    SearchPos(1) = SearchPos(1) - abs(PartState(i,1) - GEO%xmin) !- 1e-6  
-!                  END IF
-!                  IF (bound_check(3)) THEN
-!                    perVec = perVec - GEO%nny
-!                    SearchPos(2) = SearchPos(2) + abs(PartState(i,2) - GEO%ymax) !+ 1e-6
-!                  END IF                                                          
-!                  IF (bound_check(4)) THEN                                        
-!                    perVec = perVec + GEO%nny                                     
-!                    SearchPos(2) = SearchPos(2) - abs(PartState(i,2) - GEO%ymin) !- 1e-6  
-!                  END IF
-!                  IF (bound_check(5)) THEN 
-!                    perVec = perVec - GEO%nnz
-!                    SearchPos(3) = SearchPos(3) + abs(PartState(i,3) - GEO%zmax) !+ 1e-6
-!                  END IF                                                          
-!                  IF (bound_check(6)) THEN                                        
-!                    perVec = perVec + GEO%nnz                                     
-!                    SearchPos(3) = SearchPos(3) - abs(PartState(i,3) - GEO%zmin) !- 1e-6
-!                  END IF
-!              END SELECT
-!              ! Check if pervec is empty. If so, do nothing! 
-!              IF (sum(abs(perVec)) .NE. 0) THEN
-!                New_Pos(:) = PartState(i,:) + perVec(:)  
-!                SearchPos = SearchPos + New_Pos
-!                !-- determine which background mesh cells (and interpolation points within) need to be considered      
-!                kmax = INT((SearchPos(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
-!                kmax = MIN(kmax,GEO%FIBGMimax)                                           
-!                kmin = INT((SearchPos(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
-!                kmin = MAX(kmin,GEO%FIBGMimin)                                           
-!                lmax = INT((SearchPos(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
-!                lmax = MIN(lmax,GEO%FIBGMkmax)                                           
-!                lmin = INT((SearchPos(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
-!                lmin = MAX(lmin,GEO%FIBGMkmin)                                           
-!                mmax = INT((SearchPos(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
-!                mmax = MIN(mmax,GEO%FIBGMlmax)                                           
-!                mmin = INT((SearchPos(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
-!                mmin = MAX(mmin,GEO%FIBGMlmin)
-!                !-- go through all these cells
-!                DO kk = kmin,kmax
-!                  DO ll = lmin, lmax
-!                     DO mm = mmin, mmax
-!                       !--- go through all mapped elements not done yet
-!                       DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-!                         ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-!                         IF (.NOT.chargedone(ElemID)) THEN
-!                           !--- go through all gauss points
-!                           DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-!                             !-- calculate distance between ip and particle
-!                             deltax = New_Pos(1) - Elem_xGP(1,k,l,m,ElemID)
-!                             deltay = New_Pos(2) - Elem_xGP(2,k,l,m,ElemID)
-!                             deltaz = New_Pos(3) - Elem_xGP(3,k,l,m,ElemID)
-!                             radius = deltax * deltax + deltay * deltay + deltaz * deltaz
-!                             !-- calculate charge and current density at ip point using a shape function
-!                             !-- currently only one shapefunction available, more to follow (including structurge)
-!                             IF (radius .LT. r2_sf) THEN
-!                               S = 1 - r2_sf_inv * radius
-!                               S = S**alpha_sf 
-!                               S = w_sf * S
-!                               source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) &
-!                                                        + PartState(i,4:6) &
-!                                                        * Species(PartSpecies(i))%ChargeIC &
-!                                                        * Species(PartSpecies(i))%MacroParticleFactor * S
-!                               source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) &
-!                                                        + Species(PartSpecies(i))%ChargeIC &
-!                                                        * Species(PartSpecies(i))%MacroParticleFactor * S
-!                             END IF
-!                           END DO; END DO; END DO
-!                           chargedone(ElemID) = .TRUE.
-!                         END IF ! chargedone
-!                       END DO !ppp
-!                     END DO !m
-!                  END DO ! l
-!                END DO ! k
-!              END IF ! pervec is empty
-!            END DO ! iCase (periodicity)
-!          END IF ! any bound check 
-!        END IF ! periodicity treatment 
-!      END IF ! inside
-!    END DO ! i

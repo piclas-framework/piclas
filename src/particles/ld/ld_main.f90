@@ -7,10 +7,18 @@ MODULE MOD_LD
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Private Part ---------------------------------------------------------------------------------------------------------------------
-! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE LD_main
+  MODULE PROCEDURE LD_main
+END INTERFACE
+INTERFACE LD_reposition
+  MODULE PROCEDURE LD_reposition
+END INTERFACE
+INTERFACE LD_PerfectReflection
+  MODULE PROCEDURE LD_PerfectReflection
+END INTERFACE
+INTERFACE LD_SetParticlePosition
+  MODULE PROCEDURE LD_SetParticlePosition
+END INTERFACE
 
 PUBLIC :: LD_main, LD_reposition, LD_PerfectReflection, LD_SetParticlePosition
 !===================================================================================================================================
@@ -19,27 +27,33 @@ CONTAINS
 
 
 SUBROUTINE LD_main()
-
+!===================================================================================================================================
+! Main LD routine
+!===================================================================================================================================
+! MODULES
 USE MOD_LD_Vars
 USE MOD_Mesh_Vars,             ONLY : nElems, nSides
-USE MOD_Particle_Vars,         ONLY : PDM, Time, WriteMacroValues, PEM, PartState
+USE MOD_Particle_Vars,         ONLY : PDM, PEM
 USE MOD_LD_mean_cell,          ONLY : CalcMacCellLDValues
 USE MOD_LD_lag_velo,           ONLY : CalcSurfLagVelo
 USE MOD_LD_reassign_part_prop, ONLY : LD_reassign_prop
 USE MOD_LD_part_treat,         ONLY : LDPartTreament
+#if (PP_TimeDiscMethod!=1001)
+USE MOD_Particle_Vars,         ONLY : Time, WriteMacroValues
 USE MOD_TimeDisc_Vars,         ONLY : TEnd
 USE MOD_DSMC_Vars,             ONLY : DSMC
+#endif
 USE MOD_LD_Analyze
-
 !--------------------------------------------------------------------------------------------------!
-! main DSMC routine
-!--------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
   INTEGER           :: iElem
+#if (PP_TimeDiscMethod!=1001)
   INTEGER           :: nOutput
+#endif
 !--------------------------------------------------------------------------------------------------!
   LD_RHS(1:PDM%ParticleVecLength,1) = 0.0
   LD_RHS(1:PDM%ParticleVecLength,2) = 0.0
@@ -51,26 +65,32 @@ USE MOD_LD_Analyze
     CALL LD_reposition()
   END IF
   DO iElem = 1, nElems
+#if (PP_TimeDiscMethod==1001)
+  IF((BulkValues(iElem)%CellType.EQ.3).OR.(BulkValues(iElem)%CellType.EQ.4)) THEN  ! --- LD Cell ?
+#endif
     IF (PEM%pNumber(iElem).GT. 1) THEN
       CALL LD_reassign_prop(iElem)
       CALL LDPartTreament(iElem)
     END IF
+#if (PP_TimeDiscMethod==1001)
+  END IF  ! --- END LD Cell?
+#endif
   END DO
+#if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
   IF (.NOT.WriteMacroValues) THEN
     IF(Time.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN
       CALL LD_data_sampling()  ! Data sampling for output
       IF(DSMC%NumOutput.NE.0) THEN
-        nOutput = (DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput-DSMC%NumOutput + 1
+        nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput-DSMC%NumOutput) + 1
         IF(Time.ge.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
           DSMC%NumOutput = DSMC%NumOutput - 1
-          CALL LD_output_calc(nOutput)
+          CALL LD_output_calc()
         END IF
       END IF
     END IF
   END IF
-
   IF (LD_CalcDelta_t) CALL CALCTIMESTEP_LD
-
+#endif
 END SUBROUTINE LD_main
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
@@ -82,10 +102,10 @@ END SUBROUTINE LD_main
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
-!                          _   _     _   _   _   _   _
-!                         / \ / \   / \ / \ / \ / \ / \ 
-!                        ( L | D ) ( T | O | O | L | S )
-!                         \_/ \_/   \_/ \_/ \_/ \_/ \_/ 
+!                          _   _     _   _   _   _   _                                             !
+!                         / \ / \   / \ / \ / \ / \ / \                                            !
+!                        ( L | D ) ( T | O | O | L | S )                                           !
+!                         \_/ \_/   \_/ \_/ \_/ \_/ \_/                                            !
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
@@ -97,19 +117,32 @@ END SUBROUTINE LD_main
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 SUBROUTINE LD_reposition
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
+! reposition calculation for LD
+!===================================================================================================================================
+! MODULES
   USE MOD_Particle_Vars,         ONLY : PartState, PEM, GEO
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_part_MPFtools,         ONLY : MapToGeo
   USE MOD_LD_Vars,               ONLY : LD_RepositionFak
-  IMPLICIT NONE                                                                                  !
+#if (PP_TimeDiscMethod==1001)
+  USE MOD_LD_Vars,               ONLY : BulkValues
+#endif
 !--------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE                                                                                    !
+!--------------------------------------------------------------------------------------------------!
+! argument list declaration                                                                        !
+! Local variable declaration  
 INTEGER               :: iElem
 INTEGER               :: iPart, iNode,iPartIndx,nPart
-REAL                  :: RandVac(3), iRan, P(3,8)
+REAL                  :: RandVec(3), iRan, P(3,8)
 !--------------------------------------------------------------------------------------------------!
 
   DO iElem = 1, nElems
+#if (PP_TimeDiscMethod==1001)
+  IF((BulkValues(iElem)%CellType.EQ.3).OR.(BulkValues(iElem)%CellType.EQ.4)) THEN  ! --- LD Cell ?
+#endif
     nPart     = PEM%pNumber(iElem)
     iPartIndx = PEM%pStart(iElem)
     DO iNode = 1,8
@@ -118,12 +151,15 @@ REAL                  :: RandVac(3), iRan, P(3,8)
     DO iPart = 1, nPart
       CALL RANDOM_NUMBER(iRan)
       IF (iRan.LT. LD_RepositionFak) THEN     
-        CALL RANDOM_NUMBER(RandVac)
-        RandVac = RandVac * 2.0 - 1.0
-        PartState(iPartIndx, 1:3) = MapToGeo(RandVac, P)
+        CALL RANDOM_NUMBER(RandVec)
+        RandVec = RandVec * 2.0 - 1.0
+        PartState(iPartIndx, 1:3) = MapToGeo(RandVec, P)
         iPartIndx = PEM%pNext(iPartIndx)
       END IF
     END DO
+#if (PP_TimeDiscMethod==1001)
+  END IF  ! --- END LD Cell?
+#endif
   END DO
 
 END SUBROUTINE LD_reposition
@@ -133,22 +169,26 @@ END SUBROUTINE LD_reposition
 !--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE LD_PerfectReflection(nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,PoldStarZ,i)
-!--------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
+! reflection at wall for LD case
+!===================================================================================================================================
+! MODULES
   USE MOD_LD_Vars
   USE MOD_Particle_Vars,         ONLY : lastPartPos
   USE MOD_TimeDisc_Vars,         ONLY : dt
-  IMPLICIT NONE                                                                                    !
+!--------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------!
 ! Local variable declaration                                                                       !
-   REAL                             :: PnewX, PnewY, PnewZ, nVal                                   !
+   REAL                             :: PnewX, PnewY, PnewZ                                  !
    REAL                             :: bx,by,bz, ax,ay,az, dist                                    !
    REAL                             :: PnewStarX, PnewStarY, PnewStarZ, Velo                       !
    REAL                             :: VelX, VelY, VelZ, NewVelocity                               !
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-!--------------------------------------------------------------------------------------------------!
-  INTEGER, INTENT(IN)           :: i
-  REAL, INTENT(IN)             :: nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,PoldStarZ
+  INTEGER, INTENT(IN)               :: i
+  REAL, INTENT(IN)                  :: nx,ny,nz,xNod,yNod,zNod,PoldStarX,PoldStarY,PoldStarZ
 !--------------------------------------------------------------------------------------------------!
 
    PnewX = lastPartPos(i,1) + PartStateBulkValues(i,1) * dt
@@ -204,43 +244,54 @@ END SUBROUTINE LD_PerfectReflection
 
 !--------------------------------------------------------------------------------------------------!
 
-SUBROUTINE LD_SetParticlePosition(chunkSize,particle_positions_Temp,iSpec)
-!--------------------------------------------------------------------------------------------------!
+SUBROUTINE LD_SetParticlePosition(chunkSize,particle_positions_Temp,iSpec,iInit)
+!===================================================================================================================================
+! modified particle emmission for LD case
+!===================================================================================================================================
+! MODULES
   USE MOD_Particle_Vars,         ONLY : GEO, Species
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_part_MPFtools,         ONLY : MapToGeo
-  IMPLICIT NONE                                                                                  !
 !--------------------------------------------------------------------------------------------------!
-INTEGER, INTENT(IN)               :: iSpec
-INTEGER, INTENT(INOUT)           :: chunkSize
-REAL,ALLOCATABLE, INTENT(OUT)    :: particle_positions_Temp(:)
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
 ! Local variable declaration                                                                       !
 !--------------------------------------------------------------------------------------------------!
 INTEGER               :: iElem, ichunkSize
 INTEGER               :: iPart, iNode, nPart
-REAL                  :: RandVac(3), iRan, P(3,8),RandomPos(3)
-REAL                  :: PartDens, GlobalVol, FractNbr
+REAL                  :: RandVec(3), iRan, P(3,8),RandomPos(3)
+REAL                  :: PartDens, FractNbr
+!--------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+INTEGER, INTENT(IN)               :: iSpec
+INTEGER, INTENT(IN)               :: iInit
+!--------------------------------------------------------------------------------------------------!
+! INOUTPUT VARIABLES
+INTEGER, INTENT(INOUT)           :: chunkSize
+!--------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,ALLOCATABLE, INTENT(OUT)    :: particle_positions_Temp(:)
 !--------------------------------------------------------------------------------------------------!
 
   ALLOCATE(particle_positions_Temp(6*chunkSize))
-  PartDens = Species(iSpec)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
+  PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
   ichunkSize = 1
   DO iElem = 1, nElems
     FractNbr = PartDens * GEO%Volume(iElem) - AINT(PartDens * GEO%Volume(iElem))
     CALL RANDOM_NUMBER(iRan)
     IF (iRan .GT. FractNbr) THEN
-      nPart = AINT(PartDens * GEO%Volume(iElem))
+      nPart = INT(AINT(PartDens * GEO%Volume(iElem)))
     ELSE
-      nPart = AINT(PartDens * GEO%Volume(iElem)) + 1
+      nPart = INT(AINT(PartDens * GEO%Volume(iElem))) + 1
     END IF
     DO iNode = 1,8
       P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
     END DO
     DO iPart = 1, nPart   
-      CALL RANDOM_NUMBER(RandVac)
-      RandVac = RandVac * 2.0 - 1.0
-      RandomPos(1:3) = MapToGeo(RandVac, P)
+      CALL RANDOM_NUMBER(RandVec)
+      RandVec = RandVec * 2.0 - 1.0
+      RandomPos(1:3) = MapToGeo(RandVec, P)
       particle_positions_Temp(ichunkSize*3-2) = RandomPos(1)
       particle_positions_Temp(ichunkSize*3-1) = RandomPos(2)
       particle_positions_Temp(ichunkSize*3)   = RandomPos(3)
@@ -250,9 +301,9 @@ REAL                  :: PartDens, GlobalVol, FractNbr
   chunkSize = ichunkSize - 1
 
 END SUBROUTINE LD_SetParticlePosition
-!--------------------------------------------------------------------------------------------------!
 
-!--------------------------------------------------------------------------------------------------!
+
+#if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */
 SUBROUTINE CALCTIMESTEP_LD
 !===================================================================================================================================
 ! Calculate the time step for the current update of U for the Euler-Equations
@@ -261,16 +312,13 @@ SUBROUTINE CALCTIMESTEP_LD
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-USE MOD_Equation_Vars,ONLY:c,c_corr
 USE MOD_TimeDisc_Vars,ONLY:CFLScale
 USE MOD_LD_Vars
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL                         :: CalcTimeStep
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                      :: i,j,k,iElem
@@ -304,10 +352,9 @@ END DO ! iElem
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
 #endif /*MPI*/
 
-PRINT*,'delta_t for given CFL-number:',TimeStepConv
+!PRINT*,'delta_t for given CFL-number:',TimeStepConv
 
 END SUBROUTINE CALCTIMESTEP_LD
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
+#endif /*(PP_TimeDiscMethod!=1001) --- LD-DSMC Output in timedisc */
+
 END MODULE MOD_LD

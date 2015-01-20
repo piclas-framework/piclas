@@ -106,8 +106,8 @@ IniExactFunc = GETINT('IniExactFunc')
 alpha_shape = GETINT('AlphaShape','2')
 rCutoff     = GETREAL('r_cutoff','1.')
 ! Compute factor for shape function
-ShapeFuncPrefix = 1/(2 * beta(1.5, alpha_shape + 1.) * alpha_shape + 2 * beta(1.5, alpha_shape + 1.)) &
-                * (alpha_shape + 1.)/(PI*(rCutoff**3))
+ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
+                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
             
 EquationInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ELECTROSTATIC DONE!'

@@ -12,9 +12,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 TYPE tParticleInCell
-!  REAL                                   :: GyrationFrequency
   REAL                                   :: GyroVecDirSIGN
-!  REAL                                   :: externalField(6)                  ! external applied field 
 END TYPE tParticleInCell
 
 TYPE(tParticleInCell)                    :: PIC

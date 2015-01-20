@@ -2,12 +2,10 @@
 
 MODULE  MOD_Particle_Debug
 !===================================================================================================================================
-!
+! Module containing routines for debug
 !===================================================================================================================================
    IMPLICIT NONE                                                                                   !
    PRIVATE                                                                                         !
-                                                                                                   !
-!----------------------------------------------------------------------------------------------------------------------------------
 
    INTERFACE            WriteDebugMesh                                                             !
       MODULE PROCEDURE  WriteDebugMesh                                                             !
@@ -18,7 +16,6 @@ MODULE  MOD_Particle_Debug
 
 CONTAINS                                                                                           !
                                                                                                    !
-
 SUBROUTINE WriteDebugMesh(n,iFIBG,kFIBG,lFIBG)                                                             !
 !===================================================================================================================================
 !===================================================================================================================================
@@ -33,10 +30,7 @@ SUBROUTINE WriteDebugMesh(n,iFIBG,kFIBG,lFIBG)                                  
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLE DECLARATION                                                                       !
   CHARACTER(LEN=26)                  :: myFileName
-  INTEGER                            :: cellType,i,j, iElem                                        !
-  INTEGER                            :: nNodes,globSideID,iLocSide, iCorner                        !
-  REAL                               :: xNode(1:3,1:8)                                             !
-  INTEGER                            :: iFIBG, kFIBG, lFIBG, iNode
+  INTEGER                            :: j, iElem, nNodes,iCorner, iFIBG, kFIBG, lFIBG
 !===================================================================================================================================
 
   nNodes=nElems*8
@@ -76,9 +70,9 @@ SUBROUTINE WriteDebugMesh(n,iFIBG,kFIBG,lFIBG)                                  
   WRITE(1112,'(A)')'LOOKUP_TABLE default'
   DO iElem=1,nElems
     IF (ANY(GEO%FIBGM(iFIBG,kFIBG,lFIBG)%Element(:).EQ.iElem)) THEN
-      WRITE(1112,'(ES21.15)')1.0
+      WRITE(1112,'(ES21.14)')1.0
     ELSE
-      WRITE(1112,'(ES21.15)')0.0
+      WRITE(1112,'(ES21.14)')0.0
     END IF
   END DO
   WRITE(1112,*)''

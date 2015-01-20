@@ -393,6 +393,8 @@ epsmch = EPSILON(zero)
 info = 0
 iflag = 0
 nfev = 0
+xnorm = zero
+temp = zero
 
 !     check the input parameters for errors.
 
@@ -1012,7 +1014,8 @@ info = 0
 iflag = 0
 nfev = 0
 njev = 0
-
+xnorm = zero
+temp = zero
 
 !     check the input parameters for errors.
 
@@ -1884,6 +1887,7 @@ x1max = zero
 x3max = zero
 floatn = n
 agiant = rgiant/floatn
+fn_val = zero
 
 DO  i = 1, n
   xabs = ABS(x(i))

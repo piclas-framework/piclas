@@ -48,10 +48,12 @@ SUBROUTINE eval_xyz_fast(x_in,NVar,N_in,X3D_In,X3D_Out,iElem)
 ! xi is defined in the 1DrefElem xi=[-1,1]
 !===================================================================================================================================
 ! MODULES
-USE MOD_Basis,ONLY: LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,ONLY: wBary,xGP
-USE MOD_Particle_Vars,ONLY:GEO
-USE MOD_PICInterpolation_Vars, ONLY: ElemT_inv
+USE MOD_Globals
+USE MOD_Basis,                 ONLY:LagrangeInterpolationPolys
+USE MOD_Interpolation_Vars,    ONLY:wBary,xGP
+USE MOD_Particle_Vars,         ONLY:GEO
+USE MOD_PICInterpolation_Vars, ONLY:ElemT_inv
+USE MOD_PICInterpolation_Vars, ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -67,15 +69,16 @@ REAL,INTENT(IN)     :: x_in(3)                                  ! physical posit
 REAL,INTENT(OUT)    :: X3D_Out(1:NVar)  ! Interpolated state
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER             :: iN_In,jN_In,kN_In,iN_Out,jN_Out,kN_Out,i,j,k, iNode
+INTEGER             :: iN_In,jN_In,kN_In,i,j,k, iNode
 REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
 REAL                :: xi(3)
 REAL,DIMENSION(3,0:N_in)  :: L_xi        
 REAL              :: P(3,8), F(3), dF_inv(3,3), s(3) 
 REAL, PARAMETER   :: EPS=1E-8
-REAL              :: PT(3,8), T_inv(3,3), DP(3)
-INTEGER           :: n_Newton, iPoint
+REAL              :: T_inv(3,3), DP(3)
+INTEGER           :: n_Newton
+REAL,ALLOCATABLE  :: L_xi_BGField(:,:), X3D_tmp1(:,:,:), X3D_tmp2(:,:), X3D_tmp3(:)
 !===================================================================================================================================
 errorflag = 0
 ! --------------------------------------------------
@@ -106,7 +109,7 @@ xi = xi - (/1.,1.,1./)
 !       Newton step is required.
 
 F = Calc_F(xi,x_in,P)
-n_Newton = 0.
+n_Newton = 0
 DO WHILE(SUM(ABS(F)).GE.EPS) 
   dF_inv = Calc_dF_inv(xi,P)
   s=0.
@@ -124,6 +127,15 @@ END DO ! i
 !print*,'eval fast'
 !print*, "xi", xi
 !read*
+! check if Newton is successful
+!IF((ANY(xi).GT.epsilonOne).OR.(ANY(xi).LT.-epsilonOne))THEN
+IF(ANY(ABS(xi).GT.1.00000001))THEN
+  IPWRITE(*,'(A30)') ' Warning: Particle not in cell'
+  IPWRITE(*,'(A6,F12.8)') ' xi   ', xi(1)
+  IPWRITE(*,'(A6,F12.8)') ' eta  ', xi(2)
+  IPWRITE(*,'(A6,F12.8)') ' zeta ', xi(3)
+END IF
+
 
 ! --------------------------------------------------
 ! 2.) Interpolation
@@ -155,6 +167,50 @@ X3D_Out=0.
 DO kN_In=0,N_In
   X3D_Out(:)=X3D_Out(:)+L_xi(3,kN_In)*X3D_Buf2(:,kN_In)
 END DO
+
+IF(useBGField)THEN
+  ! use of BG-Field with possible different polynomial order and nodetype
+  ALLOCATE( L_xi_BGField(3,0:NBG)            &
+          , X3D_tmp1(BGDataSize,0:NBG,0:NBG) &
+          , X3D_tmp2(BGDataSize,0:NBG)       &
+          , X3D_tmp3(BGDataSize)             )
+  DO i=1,3
+    CALL LagrangeInterpolationPolys(xi(i),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(i,:))
+  END DO
+  
+  ! 2.2) do the tensor product thing 
+  X3D_tmp1=0.
+  ! first direction iN_In
+  DO kN_In=0,NBG
+    DO jN_In=0,NBG
+      DO iN_In=0,NBG
+        X3D_tmp1(:,jN_In,kN_In)=X3D_tmp1(:,jN_In,kN_In)+L_xi_BGField(1,iN_In)*BGField(:,iN_In,jN_In,kN_In,iElem)
+      END DO
+    END DO
+  END DO
+  X3D_tmp2=0.
+  ! second direction jN_In
+  DO kN_In=0,NBG
+    DO jN_In=0,NBG
+      X3D_tmp2(:,kN_In)=X3D_tmp2(:,kN_In)+L_xi_BGField(2,jN_In)*X3D_tmp1(:,jN_In,kN_In)
+    END DO
+  END DO
+  X3D_tmp3=0.
+  ! last direction kN_In
+  DO kN_In=0,NBG
+    X3D_tmp3(:)=X3D_tmp3(:)+L_xi_BGField(3,kN_In)*X3D_tmp2(:,kN_In)
+  END DO
+  SELECT CASE(BGType)
+  CASE(1)
+    X3d_Out(1:3)=x3d_Out(1:3)+X3d_tmp3
+  CASE(2)
+    X3d_Out(4:6)=x3d_Out(4:6)+X3d_tmp3
+  CASE(3)
+    X3d_Out=x3d_Out+X3d_tmp3
+  END SELECT
+  DEALLOCATE( L_xi_BGField, X3d_tmp1, x3d_tmp2, x3d_tmp3)
+END IF ! useBGField
+
 END SUBROUTINE eval_xyz_fast
 
 SUBROUTINE eval_xyz_part2(xi,NVar,N_in,X3D_In,X3D_Out,iElem)
@@ -162,11 +218,9 @@ SUBROUTINE eval_xyz_part2(xi,NVar,N_in,X3D_In,X3D_Out,iElem)
 ! Same as eval_xyz_fast, with the position already mapped to -1|1 space (xi instead of x_in)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Basis,ONLY: LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,ONLY: wBary,xGP
-USE MOD_Particle_Vars,ONLY:GEO
-USE MOD_PICInterpolation_Vars, ONLY: ElemT_inv
-!USE MOD_Mesh_Vars,ONLY: X_CP
+USE MOD_Basis,                 ONLY: LagrangeInterpolationPolys
+USE MOD_Interpolation_Vars,    ONLY: wBary,xGP
+USE MOD_PICInterpolation_Vars, ONLY:NBG,BGField,useBGField,BGDataSize,BGField_xGP,BGField_wBary,BGType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -181,14 +235,12 @@ REAL,INTENT(IN)     :: xi(3)                                  ! physical positio
 REAL,INTENT(OUT)    :: X3D_Out(1:NVar)  ! Interpolated state
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER             :: iN_In,jN_In,kN_In,iN_Out,jN_Out,kN_Out,i,j,k, iNode
+INTEGER             :: iN_In,jN_In,kN_In,i
 REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
 REAL,DIMENSION(3,0:N_in)  :: L_xi        
-REAL              :: P(3,8), F(3), dF_inv(3,3), s(3) 
 REAL, PARAMETER   :: EPS=1E-8
-REAL              :: PT(3,8), T_inv(3,3), DP(3)
-INTEGER           :: n_Newton, iPoint
+REAL,ALLOCATABLE  :: L_xi_BGField(:,:), X3D_tmp1(:,:,:), X3D_tmp2(:,:), X3D_tmp3(:)
 !===================================================================================================================================
 errorflag = 0
 
@@ -222,6 +274,50 @@ X3D_Out=0.
 DO kN_In=0,N_In
   X3D_Out(:)=X3D_Out(:)+L_xi(3,kN_In)*X3D_Buf2(:,kN_In)
 END DO
+
+IF(useBGField)THEN
+  ! use of BG-Field with possible different polynomial order and nodetype
+  ALLOCATE( L_xi_BGField(3,0:NBG)            &
+          , X3D_tmp1(BGDataSize,0:NBG,0:NBG) &
+          , X3D_tmp2(BGDataSize,0:NBG)       &
+          , X3D_tmp3(BGDataSize)             )
+  DO i=1,3
+    CALL LagrangeInterpolationPolys(xi(i),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(i,:))
+  END DO
+  
+  ! 2.2) do the tensor product thing 
+  X3D_tmp1=0.
+  ! first direction iN_In
+  DO kN_In=0,NBG
+    DO jN_In=0,NBG
+      DO iN_In=0,NBG
+        X3D_tmp1(:,jN_In,kN_In)=X3D_tmp1(:,jN_In,kN_In)+L_xi_BGField(1,iN_In)*BGField(:,iN_In,jN_In,kN_In,iElem)
+      END DO
+    END DO
+  END DO
+  X3D_tmp2=0.
+  ! second direction jN_In
+  DO kN_In=0,NBG
+    DO jN_In=0,NBG
+      X3D_tmp2(:,kN_In)=X3D_tmp2(:,kN_In)+L_xi_BGField(2,jN_In)*X3D_tmp1(:,jN_In,kN_In)
+    END DO
+  END DO
+  X3D_tmp3=0.
+  ! last direction kN_In
+  DO kN_In=0,NBG
+    X3D_tmp3(:)=X3D_tmp3(:)+L_xi_BGField(3,kN_In)*X3D_tmp2(:,kN_In)
+  END DO
+  SELECT CASE(BGType)
+  CASE(1)
+    X3d_Out(1:3)=x3d_Out(1:3)+X3d_tmp3
+  CASE(2)
+    X3d_Out(4:6)=x3d_Out(4:6)+X3d_tmp3
+  CASE(3)
+    X3d_Out=x3d_Out+X3d_tmp3
+  END SELECT
+
+  DEALLOCATE( L_xi_BGField, X3d_tmp1, x3d_tmp2, x3d_tmp3)
+END IF ! useBGField
 END SUBROUTINE eval_xyz_part2
 
 
@@ -250,19 +346,17 @@ REAL,INTENT(IN)     :: x_in(3)                                  ! physical posit
 REAL,INTENT(OUT)    :: X3D_Out(1:NVar)  ! Interpolated state
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER             :: iN_In,jN_In,kN_In,iN_Out,jN_Out,kN_Out,i,j,k, iNode
+INTEGER             :: iN_In,jN_In,kN_In,i,j,k, iNode
 REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
 REAL                :: xi(3)
 REAL,DIMENSION(3,0:N_in)  :: L_xi        
-REAL              :: detjb
 REAL              :: K1(3)
 REAL              :: KM_inv(3,3)
 REAL              :: P(3,8), F(3), dF_inv(3,3), s(3) 
 REAL, PARAMETER   :: EPS=1E-8
-REAL              :: m, x(3)
+REAL              :: x(3)
 REAL              :: PT(3,8), T(3,3), T_inv(3,3), DP(3), xT(3)
-INTEGER           :: n_Newton
 !===================================================================================================================================
 ! --------------------------------------------------
 ! 1.) Mapping: get xi,eta,zeta value from x,y,z
@@ -471,7 +565,6 @@ REAL                     :: Calc_dF_inv(3,3)  !
 REAL                     :: dF(3,3)  !  
 REAL                     :: dF_inv(3,3)  !  
 REAL                     :: detjb
-INTEGER                  :: i
 !===================================================================================================================================
 dF = 0.
 dF(:,1)=0.125 * ((P(:,2)-P(:,1))*(1-xi(2))*(1-xi(3)) &

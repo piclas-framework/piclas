@@ -1,28 +1,48 @@
 #include "boltzplatz.h"
 
-MODULE  MOD_PICInterpolation                                                                       !
+MODULE  MOD_PICInterpolation
 !===================================================================================================================================
 ! 
 !===================================================================================================================================
-   IMPLICIT NONE                                                                                   !
-   PRIVATE                                                                                         !
+IMPLICIT NONE
+PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
-   PUBLIC :: InterpolateFieldToParticle, InitializeInterpolation , Calc_inv, &
-             InterpolateCurvedExternalField                                  !
+PUBLIC :: InterpolateFieldToParticle, InitializeInterpolation , Calc_inv, &
+         InterpolateCurvedExternalField                                  
+!===================================================================================================================================
+INTERFACE InitializeInterpolation
+  MODULE PROCEDURE InitializeInterpolation
+END INTERFACE
+
+INTERFACE InterpolateFieldToParticle
+  MODULE PROCEDURE InterpolateFieldToParticle
+END INTERFACE
+
+INTERFACE Calc_inv
+  MODULE PROCEDURE Calc_inv
+END INTERFACE
+
+INTERFACE read_curved_external_Field
+  MODULE PROCEDURE read_curved_external_Field
+END INTERFACE
+
+INTERFACE InterpolateCurvedExternalField
+  MODULE PROCEDURE InterpolateCurvedExternalField
+END INTERFACE
 !===================================================================================================================================
 
-CONTAINS                                                                                           !
-                                                                                                   !
+CONTAINS
+
 SUBROUTINE InitializeInterpolation
 !===================================================================================================================================
 ! Initialize the interpolation variables first
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals!,                ONLY : UNIT_errOut, UNIT_StdOut
+USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars,          ONLY : PDM, GEO
 USE MOD_PICInterpolation_Vars
-USE MOD_Mesh_Vars,              ONLY : nElems,dXCL_NGeo,XCL_NGeo
+USE MOD_Mesh_Vars,              ONLY : nElems
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -32,14 +52,14 @@ USE MOD_Mesh_Vars,              ONLY : nElems,dXCL_NGeo,XCL_NGeo
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                   :: ALLOCSTAT
-REAL                      :: P(3,8), PT(3,8), T(3,3), T_inv(3,3), DP(3)
-INTEGER                   :: iNode, iElem, i, j, k
+REAL                      :: P(3,8), T(3,3), T_inv(3,3)
+INTEGER                   :: iNode, iElem
 !===================================================================================================================================
   InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
   externalField(1:6)= GETREALARRAY('PIC-externalField',6,'0.,0.,0.,0.,0.,0.')
   DoInterpolation   = GETLOGICAL('PIC-DoInterpolation','.TRUE.')
-  useVTKFileEField  = GETLOGICAL('BGEField-UseVTKFile','.FALSE.')
-  useVTKFileBField  = GETLOGICAL('BGBField-UseVTKFile','.FALSE.')
+  useBGField        = GETLOGICAL('PIC-BG-Field','.FALSE.')
+  Interpolation_p_IDW= GETINT('PIC-Interpolation_p_IDW','1')
   
   ! curved external field 
   usecurvedExternalField = .FALSE.
@@ -52,13 +72,8 @@ INTEGER                   :: iNode, iElem, i, j, k
   !--- Allocate arrays for interpolation of fields to particles
   ALLOCATE(FieldAtParticle(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT) 
   IF (ALLOCSTAT.NE.0) THEN
-    WRITE(*,*)'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT
-    STOP
-  END IF
-
-  IF (TRIM(InterpolationType).NE.'particle_position') THEN
-    DEALLOCATE(dXCL_NGeo)
-    DEALLOCATE(XCL_NGeo)
+    CALL abort(__STAMP__, &
+        'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
   END IF
 
   SELECT CASE(TRIM(InterpolationType))
@@ -69,30 +84,23 @@ INTEGER                   :: iNode, iElem, i, j, k
   CASE('particle_position')
     SWRITE(UNIT_StdOut,'(132("-"))')
     SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
-    ! ========================================================
-    ! ==== should not be required any more               ====
-    ! ==== only required by eval_xyz_fast and eval_xyz_2 ====
-    SWRITE(UNIT_stdOut,'(A)') ' ElemT_inv NOT built...'
-    ! prebuild trafo matrices ! always out
-    !ALLOCATE(ElemPT(1:3,1:8,1:nElems),       &
-    !         ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
-    !ALLOCATE(ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
-    !IF (ALLOCSTAT.NE.0) THEN
-    !  WRITE(*,*) 'ERROR in InterpolationInit: Cannot allocate ElemPT!'
-    !  STOP
-    !END IF
-    !!! prepare interpolation: calculate trafo matrices
-    !DO iElem = 1,nElems
-    !  DO iNode = 1,8
-    !    P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-    !  END DO
-    !  T(:,1) = 0.5 * (P(:,2)-P(:,1))
-    !  T(:,2) = 0.5 * (P(:,4)-P(:,1))
-    !  T(:,3) = 0.5 * (P(:,5)-P(:,1))
-    !  T_inv = Calc_inv(T)
-    !  ElemT_inv(1:3,1:3,iElem) = T_inv
-    !END DO
-    ! =======================================================
+    ! prebuild trafo matrices
+    ALLOCATE(ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in InterpolationInit: Cannot allocate ElemT_inv!')
+    END IF
+    ! prepare interpolation: calculate trafo matrices
+    DO iElem = 1,nElems
+      DO iNode = 1,8
+        P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
+      END DO
+      T(:,1) = 0.5 * (P(:,2)-P(:,1))
+      T(:,2) = 0.5 * (P(:,4)-P(:,1))
+      T(:,3) = 0.5 * (P(:,5)-P(:,1))
+      T_inv = Calc_inv(T)
+      ElemT_inv(1:3,1:3,iElem) = T_inv
+    END DO
 
     SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
     SWRITE(UNIT_StdOut,'(132("-"))')
@@ -100,12 +108,10 @@ INTEGER                   :: iNode, iElem, i, j, k
     SWRITE(UNIT_StdOut,'(132("-"))')
     SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
     ! prebuild trafo matrices
-!    ALLOCATE(ElemPT(1:3,1:8,1:nElems),       &
-!             ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
     ALLOCATE(ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
-      WRITE(*,*) 'ERROR in InterpolationInit: Cannot allocate ElemPT!'
-      STOP
+      CALL abort(__STAMP__, &
+        'ERROR in InterpolationInit: Cannot allocate ElemT_inv!')
     END IF
     ! prepare interpolation: calculate trafo matrices
     DO iElem = 1,nElems
@@ -122,18 +128,17 @@ INTEGER                   :: iNode, iElem, i, j, k
     SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
     SWRITE(UNIT_StdOut,'(132("-"))')
   CASE DEFAULT
-    !ERRWRITE(*,*) 'Unknown InterpolationType in pic_init.f90'
-    WRITE(*,*) 'Unknown InterpolationType in pic_init.f90'
-    STOP
+    CALL abort(__STAMP__, &
+        'Unknown InterpolationType in pic_init.f90')
   END SELECT
 END SUBROUTINE InitializeInterpolation
 
-SUBROUTINE InterpolateFieldToParticle()                                                            !
+SUBROUTINE InterpolateFieldToParticle()                                                            
 !===================================================================================================================================
-!
+! interpolates field to particles
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,       ONLY : UNIT_errOut
+USE MOD_Globals
 USE MOD_DG_Vars,       ONLY : U
 USE MOD_Particle_Vars!, ONLY: 
 USE MOD_PIC_Vars!,      ONLY: 
@@ -144,17 +149,21 @@ USE MOD_Eval_xyz
 #ifdef PP_POIS
 USE MOD_Equation_Vars,ONLY: E
 #endif
-!--------------------------------------------------------------------------------------------------!
-  IMPLICIT NONE                                                                                    !
 !----------------------------------------------------------------------------------------------------------------------------------
-! ARGUMENT LIST DECLARATION                                                                        !
+  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLE DECLARATION                                                                       !
-  REAL                             :: Pos(3)                                                       !
-  REAL                             :: field(6)                                                     !
-  INTEGER                          :: i,j,k,m,iPart,iElem, iNode                                   !
-  REAL                             :: dist_node(8), sum_dist
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES                                                                    
+  REAL                             :: Pos(3)                                                      
+  REAL                             :: field(6)                                                    
+  INTEGER                          :: m,iPart,iElem
+#ifdef PP_POIS
   REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
+#endif
 !===================================================================================================================================
 
 IF(usecurvedExternalField) THEN ! used curved external Bz
@@ -182,99 +191,6 @@ ELSE ! usecurvedExternalField
 #endif
 END IF ! use constant external field
 
-!temp: fake Efield of a particle at 000
-!FieldAtParticle(1:PDM%ParticleVecLength,1)=0.218602365*PartState(1,1)/ &
-!(SQRT(PartState(1,1)**2+PartState(1,2)**2+PartState(1,3)**2))**3
-!FieldAtParticle(1:PDM%ParticleVecLength,2)=0.218602365*PartState(1,2)/ &
-!(SQRT(PartState(1,1)**2+PartState(1,2)**2+PartState(1,3)**2))**3
-!FieldAtParticle(1:PDM%ParticleVecLength,3)=0.218602365*PartState(1,3)/ &
-!(SQRT(PartState(1,1)**2+PartState(1,2)**2+PartState(1,3)**2))**3
-
-
-#if (PP_nVar==8)
-IF (useVTKFileEField.AND.useVTKFileBField) THEN
-  DO iPart=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
-      iElem = PEM%Element(iPart)
-      DO iNode = 1,8
-        dist_node(iNode) = (GEO%NodeCoords(1,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,1))**2 + &
-                           (GEO%NodeCoords(2,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,2))**2 + &
-                           (GEO%NodeCoords(3,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,3))**2
-      END DO
-      dist_node = SQRT(dist_node)
-      sum_dist  = SUM(dist_node)
-      dist_node = 1.0-dist_node/sum_dist
-      DO iNode = 1,8
-        FieldAtParticle(iPart,1) = FieldAtParticle(iPart,1) + dist_node(iNode) * BGEfieldAtNode(1,GEO%ElemToNodeID(iNode,iElem))
-        FieldAtParticle(iPart,2) = FieldAtParticle(iPart,2) + dist_node(iNode) * BGEfieldAtNode(2,GEO%ElemToNodeID(iNode,iElem))
-        FieldAtParticle(iPart,3) = FieldAtParticle(iPart,3) + dist_node(iNode) * BGEfieldAtNode(3,GEO%ElemToNodeID(iNode,iElem))
-        FieldAtParticle(iPart,4) = FieldAtParticle(iPart,4) + dist_node(iNode) * BGBfieldAtNode(1,GEO%ElemToNodeID(iNode,iElem))
-        FieldAtParticle(iPart,5) = FieldAtParticle(iPart,5) + dist_node(iNode) * BGBfieldAtNode(2,GEO%ElemToNodeID(iNode,iElem))
-        FieldAtParticle(iPart,6) = FieldAtParticle(iPart,6) + dist_node(iNode) * BGBfieldAtNode(3,GEO%ElemToNodeID(iNode,iElem))
-      END DO
-    END IF
-  END DO
-ELSE IF (useVTKFileEField) THEN
-  DO iPart=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
-      iElem = PEM%Element(iPart)
-      DO iNode = 1,8
-        dist_node(iNode) = (GEO%NodeCoords(1,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,1))**2 + &
-                           (GEO%NodeCoords(2,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,2))**2 + &
-                           (GEO%NodeCoords(3,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,3))**2
-      END DO
-      dist_node = SQRT(dist_node)
-      sum_dist  = SUM(dist_node)
-      dist_node = 1.0-dist_node/sum_dist
-      DO iNode = 1,8
-        FieldAtParticle(iPart,1) = FieldAtParticle(iPart,1) + dist_node(iNode) * BGEfieldAtNode(1,GEO%ElemToNodeID(iNode,iElem))
-        FieldAtParticle(iPart,2) = FieldAtParticle(iPart,2) + dist_node(iNode) * BGEfieldAtNode(2,GEO%ElemToNodeID(iNode,iElem))
-        FieldAtParticle(iPart,3) = FieldAtParticle(iPart,3) + dist_node(iNode) * BGEfieldAtNode(3,GEO%ElemToNodeID(iNode,iElem))
-      END DO
-    END IF
-  END DO
-ELSE IF (useVTKFileBField) THEN
-  DO iPart=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
-      iElem = PEM%Element(iPart)
-      DO iNode = 1,8
-        dist_node(iNode) = (GEO%NodeCoords(1,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,1))**2 + &
-                           (GEO%NodeCoords(2,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,2))**2 + &
-                           (GEO%NodeCoords(3,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,3))**2
-      END DO
-      dist_node = SQRT(dist_node)
-      sum_dist  = SUM(dist_node)
-      dist_node = 1.0 - dist_node/sum_dist
-      DO iNode = 1,8
-        FieldAtParticle(iPart,4) = FieldAtParticle(iPart,4) + dist_node(iNode) * BGBfieldAtNode(1,GEO%ElemToNodeID(iNode,iElem))
-        FieldAtParticle(iPart,5) = FieldAtParticle(iPart,5) + dist_node(iNode) * BGBfieldAtNode(2,GEO%ElemToNodeID(iNode,iElem))
-        FieldAtParticle(iPart,6) = FieldAtParticle(iPart,6) + dist_node(iNode) * BGBfieldAtNode(3,GEO%ElemToNodeID(iNode,iElem))
-      END DO
-    END IF
-  END DO
-END IF
-#else
-IF (useVTKFileEField) THEN
-  DO iPart=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
-      iElem = PEM%Element(iPart)
-      DO iNode = 1,8
-        dist_node(iNode) = (GEO%NodeCoords(1,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,1))**2 + &
-                           (GEO%NodeCoords(2,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,2))**2 + &
-                           (GEO%NodeCoords(3,GEO%ElemToNodeID(iNode,iElem))-PartState(iPart,3))**2
-      END DO
-      dist_node = SQRT(dist_node)
-      sum_dist  = SUM(dist_node)
-      dist_node = 1.0-dist_node/sum_dist
-      DO iNode = 1,8
-        FieldAtParticle(iPart,1) = FieldAtParticle(iPart,1) + dist_node(iNode) * BGEfieldAtNode(1,GEO%ElemToNodeID(iNode,iElem))
-        FieldAtParticle(iPart,2) = FieldAtParticle(iPart,2) + dist_node(iNode) * BGEfieldAtNode(2,GEO%ElemToNodeID(iNode,iElem))
-        FieldAtParticle(iPart,3) = FieldAtParticle(iPart,3) + dist_node(iNode) * BGEfieldAtNode(3,GEO%ElemToNodeID(iNode,iElem))
-      END DO
-    END IF
-  END DO
-END IF
-#endif
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
   SELECT CASE(TRIM(InterpolationType))
   CASE('nearest_blurrycenter')
@@ -334,9 +250,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
           HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
           HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,HelperU,field,iElem)
+          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,HelperU,field,ielem)
 #else
-          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
+          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,U(1:6,:,:,:,iElem),field,ielem)
 #endif
 #else
 #ifdef PP_POIS
@@ -360,8 +276,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
           CALL eval_xyz_fast(Pos,6,PP_N,HelperU,field,iElem)
 #else
-      !    CALL eval_xyz_fast  (Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
-          CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
+          CALL eval_xyz_fast(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
 #endif
 #else
 #ifdef PP_POIS
@@ -401,20 +316,10 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         END IF
       END DO
   CASE DEFAULT
-    ERRWRITE(*,*) 'ERROR: Unknown InterpolationType!'
-    STOP
+    CALL abort(__STAMP__, &
+        'ERROR: Unknown InterpolationType!')
   END SELECT
 END IF
-
-!! Temp stuff for pseudo recordlines
-!IF(MOD(iter,1000).EQ.0) THEN
-!  DO iPart = 1,PDM%ParticleVecLength
-!    IF (PDM%ParticleInside(iPart)) THEN
-!      WRITE(*,'(I4,6(X,E14.6))') ipart, PartState(iPart,1),PartState(iPart,2),PartState(iPart,3), &
-!         FieldAtParticle(iPart,4),FieldAtParticle(iPart,5),FieldAtParticle(iPart,6)
-!    END IF
-!  END DO
-!END IF
     
 RETURN
 END SUBROUTINE InterpolateFieldToParticle
@@ -422,8 +327,10 @@ END SUBROUTINE InterpolateFieldToParticle
 
 FUNCTION Calc_inv(M)
 !===================================================================================================================================
+! calc inverse of M
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -448,10 +355,10 @@ detjb = M (1, 1) * M (2, 2) * M (3, 3) &
       - M (1, 2) * M (2, 1) * M (3, 3) &
       - M (1, 1) * M (2, 3) * M (3, 2)
 IF ( detjb <= 0.d0 ) then
-  WRITE(*,*)"Negative determinant of Jacobian in M_inv"
-  WRITE(*,*)"Determinant is:",detjb
-  WRITE(*,*)"KM:",M_inv
-  STOP 
+  IPWRITE(*,*)"Determinant is:",detjb
+  IPWRITE(*,*)"KM:",M_inv
+  CALL abort(__STAMP__, &
+        "Negative determinant of Jacobian in M_inv")
 END IF
 !
 ! Determines the inverse of xj
@@ -534,8 +441,8 @@ USE MOD_PICInterpolation_Vars    ,ONLY:FileNameCurvedExternalField,CurvedExterna
   CLOSE (unit_index_CEF)
 
   IF (CurvedExternalField(1,1) .NE.0) THEN
-    SWRITE(UNIT_stdOut,'(A)') "ERROR: Points have to start at 0." 
-    STOP
+    CALL abort(__STAMP__,  &
+        "ERROR: Points have to start at 0.")
   END IF
   IF(ncounts.GT.1) THEN
     DeltaExternalField = CurvedExternalField(1,2)  - CurvedExternalField(1,1)
@@ -544,14 +451,16 @@ USE MOD_PICInterpolation_Vars    ,ONLY:FileNameCurvedExternalField,CurvedExterna
       SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
     END IF
   ELSE 
-    SWRITE(*,'(A)') " ERROR: not enough data points in curved external field file!"
-    STOP
+    CALL abort(__STAMP__, &
+        " ERROR: not enough data points in curved external field file!")
   END IF
   SWRITE(UNIT_stdOut,'(A,I4.0,A)')'Found', ncounts,' data points.'
   SWRITE(UNIT_stdOut,'(A)')'...CURVED EXTERNAL FIELD INITIALIZATION DONE'
 END SUBROUTINE read_curved_external_Field
 
 FUNCTION InterpolateCurvedExternalField(Pos)
+!===================================================================================================================================
+! interpolates curved external field to z position
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -566,15 +475,15 @@ REAL,INTENT(IN)          :: Pos ! partilce z position
 REAL                     :: InterpolateCurvedExternalField  ! Bz
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                  :: intPolPoint, iPos
+INTEGER                  :: iPos
 !===================================================================================================================================
 
 iPos = 0
 iPos = INT(POS/DeltaExternalField) + 1
 IF (iPos.GE.nIntPoints) THEN
-  SWRITE(*,'(A)')"ERROR: particle out of data point region for external field interpolation!"
-  SWRITE(*,'(A,F8.5,I10.2)')"Position and Position index, ",POS,iPos
-  STOP
+  IPWRITE(*,'(A,F8.5,I10.2)')"Position and Position index, ",POS,iPos
+  CALL abort(__STAMP__, &
+        "ERROR: particle out of data point region for external curved field interpolation!")
 END IF
 !  Linear Interpolation between iPos and iPos+1 B point
 InterpolateCurvedExternalField = (CurvedExternalField(2,iPos+1) - CurvedExternalField(2,iPos)) &
@@ -582,8 +491,5 @@ InterpolateCurvedExternalField = (CurvedExternalField(2,iPos+1) - CurvedExternal
                                * (Pos - CurvedExternalField(1,iPos) ) + CurvedExternalField(2,iPos)
 
 END FUNCTION InterpolateCurvedExternalField 
-
-
-
 
 END MODULE MOD_PICInterpolation

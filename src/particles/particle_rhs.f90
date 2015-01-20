@@ -2,7 +2,8 @@
 
 MODULE MOD_part_RHS                                                                                
 !===================================================================================================================================
-! 
+! Subroutine to compute the particle right hand side, therefore the acceleration due to the Lorentz-force with 
+! respect to the Lorentz factor
 !===================================================================================================================================
 IMPLICIT NONE                                                                                    
 PRIVATE                                                                                          
@@ -14,7 +15,7 @@ CONTAINS
                                                                                                    
 SUBROUTINE CalcPartRHS()                                                                           
 !===================================================================================================================================
-!
+! Computes the acceleration from the Lorentz force with respect to the species data and velocity
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -22,17 +23,16 @@ USE MOD_Particle_Vars,          ONLY : PDM, PartState, Pt, Species, PartSpecies,
 USE MOD_Equation_Vars,          ONLY : c2_inv, c ,c2
 USE MOD_TimeDisc_Vars,          ONLY : dt
 USE MOD_PICInterpolation_Vars,  ONLY : FieldAtParticle                                           
-USE MOD_part_MPI_Vars,          ONLY :  PMPIVAR
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                    
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLE 
-INTEGER                          :: counter1,i,n                                                 
+INTEGER                          :: iPart                                               
 REAL                             :: E(1:3),B(1:3)                                                
-REAL                             :: qmt, gamma, velosq, v_norm_x, v_norm_y, v_norm_z,v_abs, Pt_sq
+REAL                             :: qmt, LorentzFac, velosq
 REAL                             :: ax, ay, az, bx, by, bz, dx, dy, snx, sny, snz
-REAL                             :: gamma2,gamma3, v1s,v2s,v3s, Vinv(3,3), v1,v2,v3, normfac
+REAL                             :: LorentzFac2,LorentzFac3, v1s,v2s,v3s, Vinv(3,3), v1,v2,v3, normfac
 !===================================================================================================================================
 
 ! Lorentzforce
@@ -40,77 +40,77 @@ Pt(1:PDM%ParticleVecLength,:)=0.
 SELECT CASE(PartLorentzType)
   CASE(1) ! default
     ! constant Lorentz factor over time step
-    DO i = 1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(i)) THEN
+    DO iPart = 1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
       ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
 
-        velosq = PartState(i,4) * PartState(i,4) &
-                 + PartState(i,5) * PartState(i,5) &
-                 + PartState(i,6) * PartState(i,6)  
+        velosq = PartState(iPart,4) * PartState(iPart,4) &
+               + PartState(iPart,5) * PartState(iPart,5) &
+               + PartState(iPart,6) * PartState(iPart,6)  
 
         IF(velosq.GT.c2) CALL abort(__STAMP__,&
-          'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',i,velosq/c2)
+          'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',iPart,velosq/c2)
 
       ! MPF in ChargeIC and MassIC cancels out.
         ! old method
-        gamma = (SQRT(1.0 - velosq * c2_inv))
-        qmt = Species(PartSpecies(i))%ChargeIC/Species(PartSpecies(i))%MassIC * gamma
-        E(1:3) = FieldAtParticle(i,1:3) * qmt
+        LorentzFac = (SQRT(1.0 - velosq * c2_inv))
+        qmt = Species(PartSpecies(iPart))%ChargeIC/Species(PartSpecies(iPart))%MassIC * LorentzFac
+        E(1:3) = FieldAtParticle(iPart,1:3) * qmt
 #if (PP_nVar==8)
-        B(1:3) = FieldAtParticle(i,4:6) * qmt
+        B(1:3) = FieldAtParticle(iPart,4:6) * qmt
 #endif
       ! Calc Lorentz forces in x, y, z direction:
 #if (PP_nVar==8)
-        Pt(i,1) = E(1) + PartState(i,5) * B(3) - PartState(i,6) * B(2)
-        Pt(i,2) = E(2) + PartState(i,6) * B(1) - PartState(i,4) * B(3)
-        Pt(i,3) = E(3) + PartState(i,4) * B(2) - PartState(i,5) * B(1)
+        Pt(iPart,1) = E(1) + PartState(iPart,5) * B(3) - PartState(iPart,6) * B(2)
+        Pt(iPart,2) = E(2) + PartState(iPart,6) * B(1) - PartState(iPart,4) * B(3)
+        Pt(iPart,3) = E(3) + PartState(iPart,4) * B(2) - PartState(iPart,5) * B(1)
 #else
-        Pt(i,1) = E(1) 
-        Pt(i,2) = E(2) 
-        Pt(i,3) = E(3) 
+        Pt(iPart,1) = E(1) 
+        Pt(iPart,2) = E(2) 
+        Pt(iPart,3) = E(3) 
 #endif
       END IF
     END DO
   CASE(2)
   ! exact Lorentz-Pusher
   ! prevent particles from acceleration above speed of light
-    DO i = 1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(i)) THEN
+    DO iPart = 1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
     ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
-        velosq = PartState(i,4) * PartState(i,4) &
-               + PartState(i,5) * PartState(i,5) &
-               + PartState(i,6) * PartState(i,6)  
+        velosq = PartState(iPart,4) * PartState(iPart,4) &
+               + PartState(iPart,5) * PartState(iPart,5) &
+               + PartState(iPart,6) * PartState(iPart,6)  
         IF(velosq.GT.c2) CALL abort(__STAMP__,&
-          'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',i,velosq/c2)
+          'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',iPart,velosq/c2)
           ! MPF in ChargeIC and MassIC cancels out.
-        qmt = Species(PartSpecies(i))%ChargeIC/Species(PartSpecies(i))%MassIC
-        E(1:3) = FieldAtParticle(i,1:3) * qmt
+        qmt = Species(PartSpecies(iPart))%ChargeIC/Species(PartSpecies(iPart))%MassIC
+        E(1:3) = FieldAtParticle(iPart,1:3) * qmt
 #if (PP_nVar==8)
-        B(1:3) = FieldAtParticle(i,4:6) * qmt
+        B(1:3) = FieldAtParticle(iPart,4:6) * qmt
 #endif
       ! Calc Lorentz forces in x, y, z direction:
 #if (PP_nVar==8)
-        Pt(i,1) = E(1) + PartState(i,5) * B(3) - PartState(i,6) * B(2)
-        Pt(i,2) = E(2) + PartState(i,6) * B(1) - PartState(i,4) * B(3)
-        Pt(i,3) = E(3) + PartState(i,4) * B(2) - PartState(i,5) * B(1)
+        Pt(iPart,1) = E(1) + PartState(iPart,5) * B(3) - PartState(iPart,6) * B(2)
+        Pt(iPart,2) = E(2) + PartState(iPart,6) * B(1) - PartState(iPart,4) * B(3)
+        Pt(iPart,3) = E(3) + PartState(iPart,4) * B(2) - PartState(iPart,5) * B(1)
 #else
-        Pt(i,1) = E(1) 
-        Pt(i,2) = E(2) 
-        Pt(i,3) = E(3) 
+        Pt(iPart,1) = E(1) 
+        Pt(iPart,2) = E(2) 
+        Pt(iPart,3) = E(3) 
 #endif
 
-        gamma = 1/sqrt(1.0 - velosq * c2_inv)
-        bx = Pt(i,1) *dt + gamma * PartState(i,4)
+        LorentzFac = 1/sqrt(1.0 - velosq * c2_inv)
+        bx = Pt(iPart,1) *dt + LorentzFac * PartState(iPart,4)
         snx = sign(1.0,bx)
         bx = bx*bx*c2_inv
         bx = bx/(1+bx)
 
-        by = Pt(i,2) *dt + gamma * PartState(i,5)
+        by = Pt(iPart,2) *dt + LorentzFac * PartState(iPart,5)
         sny = sign(1.0,by)
         by = by*by*c2_inv
         by = by/(1+by)
 
-        bz = Pt(i,3) *dt + gamma * PartState(i,6)
+        bz = Pt(iPart,3) *dt + LorentzFac * PartState(iPart,6)
         snz = sign(1.0,bz)
         bz = bz*bz*c2_inv
         bz = bz/(1+bz)
@@ -122,9 +122,9 @@ SELECT CASE(PartLorentzType)
         ay = (dy-dy*ax)
         az = (bz*(1-ax-ay))
 
-        Pt(i,1) = (snx * sqrt(ax)*c - PartState(i,4)) / dt
-        Pt(i,2) = (sny * sqrt(ay)*c - PartState(i,5)) / dt
-        Pt(i,3) = (snz * sqrt(az)*c - PartState(i,6)) / dt
+        Pt(iPart,1) = (snx * sqrt(ax)*c - PartState(iPart,4)) / dt
+        Pt(iPart,2) = (sny * sqrt(ay)*c - PartState(iPart,5)) / dt
+        Pt(iPart,3) = (snz * sqrt(az)*c - PartState(iPart,6)) / dt
 
 !       Pt_sq = Pt(i,1)*Pt(i,1)+Pt(i,2)*Pt(i,2)+Pt(i,3)*Pt(i,3)
 !       IF(Pt_sq.EQ.0.0) THEN
@@ -150,68 +150,68 @@ SELECT CASE(PartLorentzType)
 
   CASE(3)
     ! derivation of relativistic equation of motion
-    DO i = 1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(i)) THEN
+    DO iPart = 1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
         ! Calculation of relativistic Factor: m_rel = m0 * 1/sqrt(1-|v^2/c^2|)
 
         ! required helps
-        v1  = PartState(i,4)
-        v2  = PartState(i,5)
-        v3  = PartState(i,6)
+        v1  = PartState(iPart,4)
+        v2  = PartState(iPart,5)
+        v3  = PartState(iPart,6)
 
-        v1s = PartState(i,4) * PartState(i,4)
-        v2s = PartState(i,5) * PartState(i,5)
-        v3s = PartState(i,6) * PartState(i,6)
+        v1s = PartState(iPart,4) * PartState(iPart,4)
+        v2s = PartState(iPart,5) * PartState(iPart,5)
+        v3s = PartState(iPart,6) * PartState(iPart,6)
         velosq = v1s+v2s+v3s
         IF(velosq.GT.c2) CALL abort(__STAMP__,&
-          'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',i,velosq/c2)
+          'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',iPart,velosq/c2)
 
-        gamma=SQRT(1.0 - velosq*c2_inv)
-        gamma2=gamma*gamma
-        gamma3=gamma2*gamma
-        normfac=1.0/(c2*gamma2 + velosq)
+        LorentzFac=SQRT(1.0 - velosq*c2_inv)
+        LorentzFac2=LorentzFac*LorentzFac
+        LorentzFac3=LorentzFac2*LorentzFac
+        normfac=1.0/(c2*LorentzFac2 + velosq)
         ! define inverted matrix
-        Vinv(1,1) = (c2*gamma3 + (v2s+v3s)*gamma)*normfac
-        Vinv(1,2) =-(v1*v2*gamma)*normfac
-        Vinv(1,3) =-(v1*v3*gamma)*normfac
+        Vinv(1,1) = (c2*LorentzFac3 + (v2s+v3s)*LorentzFac)*normfac
+        Vinv(1,2) =-(v1*v2*LorentzFac)*normfac
+        Vinv(1,3) =-(v1*v3*LorentzFac)*normfac
         Vinv(2,1) = Vinv(1,2)
-        Vinv(2,2) = (c2*gamma3 + (v1s+v3s)*gamma)*normfac
-        Vinv(2,3) =-(v2*v3*gamma)*normfac
+        Vinv(2,2) = (c2*LorentzFac3 + (v1s+v3s)*LorentzFac)*normfac
+        Vinv(2,3) =-(v2*v3*LorentzFac)*normfac
         Vinv(3,1) = Vinv(1,3)
         Vinv(3,2) = Vinv(2,3)
-        Vinv(3,3) = (c2*gamma3 + (v1s+v2s)*gamma)*normfac
+        Vinv(3,3) = (c2*LorentzFac3 + (v1s+v2s)*LorentzFac)*normfac
 
-!        gamma1= 1./SQRT(1.0 - velosq * c2_inv)
-!        gamma2=gamma1*gamma1
-!        gamma3=gamma2*gamma1
+!        LorentzFac1= 1./SQRT(1.0 - velosq * c2_inv)
+!        LorentzFac2=LorentzFac1*LorentzFac1
+!        LorentzFac3=LorentzFac2*LorentzFac1
 !        ! define inverted matrix
-!        Vinv(1,1) = ((v3s+v2s)*gamma2+c2)/(velosq*gamma3+c2*gamma1)
-!        Vinv(1,2) =-v1*v2*gamma1/(velosq*gamma2+c2)
-!        Vinv(1,2) =-v1*v3*gamma1/(velosq*gamma2+c2)
+!        Vinv(1,1) = ((v3s+v2s)*LorentzFac2+c2)/(velosq*LorentzFac3+c2*LorentzFac1)
+!        Vinv(1,2) =-v1*v2*LorentzFac1/(velosq*LorentzFac2+c2)
+!        Vinv(1,2) =-v1*v3*LorentzFac1/(velosq*LorentzFac2+c2)
 !        Vinv(2,1) = Vinv(1,2)
-!        Vinv(2,2) = ((v3s+v1s)*gamma2+c2)/(velosq*gamma3+c2*gamma1)
-!        Vinv(2,3) =-v2*v3*gamma1/(velosq*gamma2+c2)
+!        Vinv(2,2) = ((v3s+v1s)*LorentzFac2+c2)/(velosq*LorentzFac3+c2*LorentzFac1)
+!        Vinv(2,3) =-v2*v3*LorentzFac1/(velosq*LorentzFac2+c2)
 !        Vinv(3,1) = Vinv(1,3)
 !        Vinv(3,2) = Vinv(2,3)
-!        Vinv(3,3) =((v1s+v2s)*gamma2+c2)/(velosq*gamma3+c2*gamma1)
+!        Vinv(3,3) =((v1s+v2s)*LorentzFac2+c2)/(velosq*LorentzFac3+c2*LorentzFac1)
 
-        qmt = Species(PartSpecies(i))%ChargeIC/Species(PartSpecies(i))%MassIC
+        qmt = Species(PartSpecies(iPart))%ChargeIC/Species(PartSpecies(iPart))%MassIC
 
-        E(1:3) = FieldAtParticle(i,1:3) * qmt
+        E(1:3) = FieldAtParticle(iPart,1:3) * qmt
 #if (PP_nVar==8)
-        B(1:3) = FieldAtParticle(i,4:6) * qmt
+        B(1:3) = FieldAtParticle(iPart,4:6) * qmt
 #endif
       ! Calc Lorentz forces in x, y, z direction:
 #if (PP_nVar==8)
-        Pt(i,1) = E(1) + PartState(i,5) * B(3) - PartState(i,6) * B(2)
-        Pt(i,2) = E(2) + PartState(i,6) * B(1) - PartState(i,4) * B(3)
-        Pt(i,3) = E(3) + PartState(i,4) * B(2) - PartState(i,5) * B(1)
+        Pt(iPart,1) = E(1) + PartState(iPart,5) * B(3) - PartState(iPart,6) * B(2)
+        Pt(iPart,2) = E(2) + PartState(iPart,6) * B(1) - PartState(iPart,4) * B(3)
+        Pt(iPart,3) = E(3) + PartState(iPart,4) * B(2) - PartState(iPart,5) * B(1)
 #else
-        Pt(i,1) = E(1) 
-        Pt(i,2) = E(2) 
-        Pt(i,3) = E(3) 
+        Pt(iPart,1) = E(1) 
+        Pt(iPart,2) = E(2) 
+        Pt(iPart,3) = E(3) 
 #endif
-        Pt(i,1:3) = MATMUL(Vinv,Pt(i,1:3))
+        Pt(iPart,1:3) = MATMUL(Vinv,Pt(iPart,1:3))
 
       END IF
     END DO

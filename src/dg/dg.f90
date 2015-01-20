@@ -31,6 +31,9 @@ INTERFACE FinalizeDG
   MODULE PROCEDURE FinalizeDG
 END INTERFACE
 
+INTERFACE DGTimeDerivative_WoSource_weakForm
+  MODULE PROCEDURE DGTimeDerivative_WoSource_weakForm
+END INTERFACE
 
 PUBLIC::InitDG,DGTimeDerivative_weakForm,FinalizeDG
 PUBLIC::DGTimeDerivative_WoSource_weakForm
@@ -51,7 +54,7 @@ USE MOD_PreProc
 USE MOD_DG_Vars
 USE MOD_Restart_Vars,       ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars, ONLY: xGP,wGP,wBary,InterpolationInitIsDone
-USE MOD_Mesh_Vars,          ONLY: nSides,nInnerSides,nBCSides
+USE MOD_Mesh_Vars,          ONLY: nSides
 USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
 USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
 USE MOD_Mesh_Vars,          ONLY: MeshInitIsDone
@@ -115,9 +118,9 @@ SUBROUTINE InitDGbasis(N_in,xGP,wGP,wBary)
 ! Allocate global variable U (solution) and Ut (dg time derivative).
 !===================================================================================================================================
 ! MODULES
-USE MOD_Basis,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
-USE MOD_Basis,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
-USE MOD_DG_Vars,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
+USE MOD_Basis     ,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
+USE MOD_Basis     ,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
+USE MOD_DG_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

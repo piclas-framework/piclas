@@ -1,17 +1,20 @@
-MODULE MOD_LD_reassign_part_prop
+#include "boltzplatz.h"
 
+MODULE MOD_LD_reassign_part_prop
 !===================================================================================================================================
-! module for determination of Lagrangian cell velocity
+! module for determination of new ld particle bulk values
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Private Part ---------------------------------------------------------------------------------------------------------------------
-! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE LD_reassign_prop
+  MODULE PROCEDURE LD_reassign_prop
+END INTERFACE
+INTERFACE UpdateMacLDValues
+  MODULE PROCEDURE UpdateMacLDValues
+END INTERFACE
 
 PUBLIC :: LD_reassign_prop, UpdateMacLDValues
 !===================================================================================================================================
@@ -21,30 +24,31 @@ CONTAINS
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 SUBROUTINE LD_reassign_prop(iElem)
-
+!===================================================================================================================================
+! determination of new ld particle bulk values
+!===================================================================================================================================
+! MODULES
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,             ONLY : nElems, nSides, SideToElem, ElemToSide
 USE MOD_TimeDisc_Vars,         ONLY : dt
-USE MOD_Mesh_Vars,             ONLY : ElemToSide
-USE MOD_Particle_Vars,         ONLY : GEO, PEM
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                     !
+! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-  INTEGER           :: iLocSide, trinum, SideID
-  REAL              :: Velo(3)
-  REAL              :: Beta, Dens, vLAG
-  REAL              :: VeloDiff
-  REAL              :: NVec(3)
-  REAL              :: kon, VeloDir
-  REAL              :: Phi
-  REAL, PARAMETER   :: PI=3.14159265358979323846_8
-  REAL              :: DeltaM(3) 
-  REAL              :: DeltaE
-  REAL              :: Area
-
-  INTEGER, INTENT(IN)           :: iElem
+  INTEGER           :: iLocSide, trinum                                                            !
+  REAL              :: Velo(3)                                                                     !
+  REAL              :: Beta, Dens, vLAG                                                            !
+  REAL              :: VeloDiff                                                                    !
+  REAL              :: NVec(3)                                                                     !
+  REAL              :: kon, VeloDir                                                                !
+  REAL              :: Phi                                                                         !
+  REAL, PARAMETER   :: PI=3.14159265358979323846_8                                                 !
+  REAL              :: DeltaM(3)                                                                   !
+  REAL              :: DeltaE                                                                      !
+  REAL              :: Area                                                                        !
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)           :: iElem                                                           !
 !--------------------------------------------------------------------------------------------------!
 
   Velo = BulkValues(iElem)%CellV
@@ -69,24 +73,27 @@ USE MOD_Particle_Vars,         ONLY : GEO, PEM
       DeltaM(2) = DeltaM(2) + (-2.*Area*dt*Phi*NVec(2))
       DeltaM(3) = DeltaM(3) + (-2.*Area*dt*Phi*NVec(3))
       DeltaE    = DeltaE + (-2.*Area*vLAG*dt*Phi)
+      CALL CalcViscousTerms(iElem,iLocSide,trinum,DeltaM,DeltaE)
     END DO      ! END loop over trinum
   END DO        ! END loop over iLocSides
-
   CALL UpdateMacLDValues(iElem, DeltaM, DeltaE)
 
 END SUBROUTINE LD_reassign_prop
 
-
+!--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 
-
 SUBROUTINE UpdateMacLDValues(iElem, DeltaM, DeltaE)
-
+!===================================================================================================================================
+! update new ld particle bulk values
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,             ONLY : nElems, nSides, SideToElem
 USE MOD_Particle_Vars,         ONLY : GEO, BoltzmannConst, PEM
 USE MOD_LD_Init,               ONLY : CalcDegreeOfFreedom
-
+USE MOD_LD_internal_Temp
+USE MOD_DSMC_Vars,             ONLY : CollisMode, LD_MultiTemperaturMod
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -96,7 +103,8 @@ USE MOD_LD_Init,               ONLY : CalcDegreeOfFreedom
   REAL                          :: CellV_2, CellV_old_2
   REAL                          :: VX_New, VY_New, VZ_New
   INTEGER                       :: iPartIndx, nPart, iPart
-
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iElem
   REAL, INTENT(IN)              :: DeltaE
   REAL, INTENT(IN)              :: DeltaM(3)
@@ -105,7 +113,6 @@ USE MOD_LD_Init,               ONLY : CalcDegreeOfFreedom
   CellV_old_2 = BulkValues(iElem)%CellV(1)**2 &
               + BulkValues(iElem)%CellV(2)**2 &
               + BulkValues(iElem)%CellV(3)**2
-
   VX_New = BulkValues(iElem)%CellV(1) + DeltaM(1) &
                              / (BulkValues(iElem)%MassDens * GEO%Volume(iElem))
   VY_New = BulkValues(iElem)%CellV(2) + DeltaM(2) &
@@ -131,24 +138,37 @@ USE MOD_LD_Init,               ONLY : CalcDegreeOfFreedom
               * (CellV_2 - CellV_old_2) )
   BulkValues(iElem)%BulkTemperature = CellTempNew
   IF (CellTempNew.lt. 0) then
-    PRINT*,'ERROR in Elem, Temperature is lt zero:', iElem
-    PRINT*,CellTempNew,CellTemp,CellPartDens,DeltaE,BulkValues(iElem)%MassDens,(CellV_2 - CellV_old_2)
-    PRINT*,'...........'
-    PRINT*,CellV_2
-    PRINT*,CellV_old_2
-    PRINT*,GEO%Volume(iElem)
-    STOP
+    SWRITE(UNIT_StdOut,'(132("-"))')
+    SWRITE(UNIT_stdOut,'(A)') 'Element, Temperatur:',iElem, CellTempNew
+    CALL abort(__STAMP__,&
+         'ERROR LD-DSMC: Temperature is lt zero')
   END IF
   !
   ! reassign particle properties
   !
+  IF (CollisMode.NE.1) THEN
+    SELECT CASE(LD_MultiTemperaturMod)
+      CASE(0)
+        ! Do Nothing
+      CASE(1)
+!       CALL CalcInternalTemp_LD_first(iElem)
+      CASE(2)
+        CALL CalcInternalTemp_LD_second(iElem)
+      CASE(3)
+        CALL CalcInternalTemp_LD_third(iElem)
+      CASE DEFAULT
+        PRINT*, 'ERROR in Wrong MultiTemperature Model! = ', LD_MultiTemperaturMod
+        STOP 
+    END SELECT
+  END IF
+
   nPart     = PEM%pNumber(iElem)
   iPartIndx = PEM%pStart(iElem)
   DO ipart = 1, nPart
     PartStateBulkValues(iPartIndx,1) = VX_New
     PartStateBulkValues(iPartIndx,2) = VY_New
     PartStateBulkValues(iPartIndx,3) = VZ_New
-    PartStateBulkValues(iPartIndx,4) = CellTempNew
+    PartStateBulkValues(iPartIndx,4) = BulkValues(iElem)%BulkTemperature
     PartStateBulkValues(iPartIndx,5) = CalcDegreeOfFreedom(iPartIndx)
     iPartIndx = PEM%pNext(iPartIndx)
   END DO
@@ -158,7 +178,10 @@ END SUBROUTINE UpdateMacLDValues
 !--------------------------------------------------------------------------------------------------!
 
 SUBROUTINE CalcCellTemp_PartDens(iElem, CellTemp, CellPartDens)
-
+!===================================================================================================================================
+! calculation of cell temperature and density
+!===================================================================================================================================
+! MODULES
   USE MOD_LD_Vars
   USE MOD_Particle_Vars,      ONLY : Species, PartSpecies, BoltzmannConst, usevMPF, PartMPF, PEM, GEO
 !--------------------------------------------------------------------------------------------------!
@@ -169,14 +192,12 @@ SUBROUTINE CalcCellTemp_PartDens(iElem, CellTemp, CellPartDens)
 !--------------------------------------------------------------------------------------------------!
   REAL                          :: CellMass, WeightFak, MPFSum
   INTEGER                       :: nPart, iPartIndx, iPart
-  CHARACTER(LEN=26)             :: myFileName
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-!--------------------------------------------------------------------------------------------------!
   INTEGER, INTENT(IN)           :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
   REAL, INTENT(OUT)             :: CellTemp, CellPartDens
-!#ifdef MPI
-!#endif
 !===================================================================================================
 
   nPart     = PEM%pNumber(iElem)
@@ -201,4 +222,126 @@ END SUBROUTINE CalcCellTemp_PartDens
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 
+SUBROUTINE CalcViscousTerms(iElem,iLocSide,trinum,DeltaM,DeltaE)
+!===================================================================================================================================
+! calculation viscous transport terms
+!===================================================================================================================================
+! MODULES
+USE MOD_LD_Vars
+USE MOD_TimeDisc_Vars,         ONLY : dt
+USE MOD_Mesh_Vars,             ONLY : ElemToSide, nBCSides, BC
+USE MOD_Particle_Vars,         ONLY : PartBound, GEO
+!--------------------------------------------------------------------------------------------------!
+! calculation of LD-cell temperatur
+!--------------------------------------------------------------------------------------------------!
+   IMPLICIT NONE 
+! LOCAL VARIABLES
+!--------------------------------------------------------------------------------------------------!
+  REAL              :: Area
+  REAL              :: BulkVeloDiff(3),MeanBulkVelo(3)
+  REAL              :: NVec(3), T1Vec(3), T2Vec(3), CellCenterDiff(3)
+  REAL              :: BulkTempDiff, DynamicVisc, ThermalCond, CellCenterDiffDir
+  REAL              :: BulkVeloDiffDirN, BulkVeloDiffDirT1, BulkVeloDiffDirT2
+  REAL              :: MeanBulkVeloDirN, MeanBulkVeloDirT1, MeanBulkVeloDirT2
+  REAL              :: BulkVeloCellT1, BulkVeloCellT2
+  REAL              :: TempCell, TempWall, SpecR
+  REAL              :: MomentumACC, TransACC
+  REAL              :: WallVelo(3)
+  INTEGER           :: SideID
+  REAL, PARAMETER   :: PI=3.14159265358979323846_8
+!--------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)           :: iElem,iLocSide,trinum
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+  REAL, INTENT(OUT)             :: DeltaM(3),DeltaE
+!===================================================================================================
+
+  Area = SurfLagValues(iLocSide,iElem,trinum)%Area
+  NVec = SurfLagValues(iLocSide,iElem,trinum)%LagNormVec
+  T1Vec(1)       = SurfLagValues(iLocSide, iElem,trinum)%LagTangVec(1,1)
+  T1Vec(2)       = SurfLagValues(iLocSide, iElem,trinum)%LagTangVec(1,2)
+  T1Vec(3)       = SurfLagValues(iLocSide, iElem,trinum)%LagTangVec(1,3)
+  T2Vec(1)       = SurfLagValues(iLocSide, iElem,trinum)%LagTangVec(2,1)
+  T2Vec(2)       = SurfLagValues(iLocSide, iElem,trinum)%LagTangVec(2,2)
+  T2Vec(3)       = SurfLagValues(iLocSide, iElem,trinum)%LagTangVec(2,3)
+
+  SideID = ElemToSide(1,iLocSide,iElem)
+  IF (SideID.GT.nBCSides) THEN
+    IF(GEO%PeriodicElemSide(iLocSide,iElem).EQ.0) THEN ! only inner side without periodic sides
+      MeanBulkVelo   = MeanSurfValues(iLocSide, iElem)%MeanBulkVelo
+      BulkVeloDiff   = MeanSurfValues(iLocSide, iElem)%BulkVeloDiff
+      BulkTempDiff   = MeanSurfValues(iLocSide, iElem)%BulkTempDiff
+      CellCenterDiff = MeanSurfValues(iLocSide, iElem)%CellCentDist
+      DynamicVisc    = MeanSurfValues(iLocSide, iElem)%DynamicVisc
+      ThermalCond    = MeanSurfValues(iLocSide, iElem)%ThermalCond
+
+      BulkVeloDiffDirN = BulkVeloDiff(1) * NVec(1) &
+                       + BulkVeloDiff(2) * NVec(2) &
+                       + BulkVeloDiff(3) * NVec(3)
+      BulkVeloDiffDirT1 = BulkVeloDiff(1) * T1Vec(1) &
+                        + BulkVeloDiff(2) * T1Vec(2) &
+                        + BulkVeloDiff(3) * T1Vec(3)
+      BulkVeloDiffDirT2 = BulkVeloDiff(1) * T2Vec(1) &
+                        + BulkVeloDiff(2) * T2Vec(2) &
+                        + BulkVeloDiff(3) * T2Vec(3)
+      CellCenterDiffDir = CellCenterDiff(1) * NVec(1) &
+                        + CellCenterDiff(2) * NVec(2) &
+                        + CellCenterDiff(3) * NVec(3)
+      MeanBulkVeloDirN = MeanBulkVelo(1) * NVec(1) &
+                       + MeanBulkVelo(2) * NVec(2) &
+                       + MeanBulkVelo(3) * NVec(3)
+      MeanBulkVeloDirT1 = MeanBulkVelo(1) * T1Vec(1) &
+                        + MeanBulkVelo(2) * T1Vec(2) &
+                        + MeanBulkVelo(3) * T1Vec(3)
+      MeanBulkVeloDirT2 = MeanBulkVelo(1) * T2Vec(1) &
+                        + MeanBulkVelo(2) * T2Vec(2) &
+                        + MeanBulkVelo(3) * T2Vec(3)
+      DeltaM(1) = DeltaM(1) + dt * Area * ( &
+                  4 / 3 * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * NVec(1) &
+                + DynamicVisc * BulkVeloDiffDirT1 / CellCenterDiffDir * T1Vec(1) &
+                + DynamicVisc * BulkVeloDiffDirT2 / CellCenterDiffDir * T2Vec(1) )
+      DeltaM(2) = DeltaM(2) + dt * Area * ( &
+                  4 / 3 * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * NVec(2) &
+                + DynamicVisc * BulkVeloDiffDirT1 / CellCenterDiffDir * T1Vec(2) &
+                + DynamicVisc * BulkVeloDiffDirT2 / CellCenterDiffDir * T2Vec(2) ) 
+      DeltaM(3) = DeltaM(3) + dt * Area * ( &
+                  4 / 3 * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * NVec(3) &
+                + DynamicVisc * BulkVeloDiffDirT1 / CellCenterDiffDir * T1Vec(3) &
+                + DynamicVisc * BulkVeloDiffDirT2 / CellCenterDiffDir * T2Vec(3) )
+      DeltaE = DeltaE + dt * Area * ( &
+               ThermalCond * BulkTempDiff / CellCenterDiffDir &
+             + 4 / 3 * DynamicVisc * BulkVeloDiffDirN / CellCenterDiffDir * MeanBulkVeloDirN &
+                + DynamicVisc * BulkVeloDiffDirT1 / CellCenterDiffDir * MeanBulkVeloDirT1 &
+                + DynamicVisc * BulkVeloDiffDirT2 / CellCenterDiffDir * MeanBulkVeloDirT2 )
+    END IF
+  ELSE IF (PartBound%Map(BC(SideID)).EQ.PartBound%ReflectiveBC) THEN
+    MomentumACC = PartBound%MomentumACC(BC(SideID))
+    TransACC = PartBound%TransACC(BC(SideID))
+    TempWall = PartBound%WallTemp(BC(SideID))
+    TempCell = BulkValues(iElem)%BulkTemperature
+    WallVelo(1) = PartBound%WallVelo(1,BC(SideID))
+    WallVelo(2) = PartBound%WallVelo(2,BC(SideID))
+    WallVelo(3) = PartBound%WallVelo(3,BC(SideID))
+    SpecR = BulkValues(iElem)%SpezGasConst
+    BulkVeloCellT1 = (BulkValues(iElem)%CellV(1)-WallVelo(1)) * T1Vec(1) &
+                   + (BulkValues(iElem)%CellV(2)-WallVelo(2)) * T1Vec(2) &
+                   + (BulkValues(iElem)%CellV(3)-WallVelo(3)) * T1Vec(3) 
+    BulkVeloCellT2 = (BulkValues(iElem)%CellV(1)-WallVelo(1)) * T2Vec(1) &
+                   + (BulkValues(iElem)%CellV(2)-WallVelo(2)) * T2Vec(2) &
+                   + (BulkValues(iElem)%CellV(3)-WallVelo(3)) * T2Vec(3) 
+
+    DeltaM(1) = DeltaM(1) - MomentumACC * dt * Area * (BulkVeloCellT1 * T1Vec(1) + BulkVeloCellT2 * T2Vec(1)) &
+              * BulkValues(iElem)%MassDens * SQRT(SpecR * TempCell /(2 * PI))
+    DeltaM(2) = DeltaM(2) - MomentumACC * dt * Area * (BulkVeloCellT1 * T1Vec(2) + BulkVeloCellT2 * T2Vec(2)) &
+              * BulkValues(iElem)%MassDens * SQRT(SpecR * TempCell /(2 * PI))
+    DeltaM(3) = DeltaM(3) - MomentumACC * dt * Area * (BulkVeloCellT1 * T1Vec(3) + BulkVeloCellT2 * T2Vec(3)) &
+              * BulkValues(iElem)%MassDens * SQRT(SpecR * TempCell /(2 * PI))
+    DeltaE = DeltaE - TransACC * 0.5 * dt * Area * (BulkValues(iElem)%DegreeOfFreedom + 1.0) &
+           * BulkValues(iElem)%MassDens * SpecR * (TempCell - TempWall) * SQRT(SpecR * TempCell /(2 * PI))
+  END IF
+END SUBROUTINE CalcViscousTerms
+
+!--------------------------------------------------------------------------------------------------!
+!--------------------------------------------------------------------------------------------------!
 END MODULE MOD_LD_reassign_part_prop

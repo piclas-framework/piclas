@@ -112,14 +112,6 @@ INTEGER                 :: BezierSideSize,SendID
 SendID=1
 BezierSideSize=3*(NGeo+1)*(NGeo+1)
 DO iNbProc=1,nNbProcs
-  ! Start send face data
-  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
-    nSendVal    =BezierSideSize*nMPISides_send(iNbProc,SendID)
-    SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
-    SideID_end  =OffsetMPISides_send(iNbProc,SendID)
-    CALL MPI_ISEND(BezierControlPoints3D(:,:,:,SideID_start:SideID_end),nSendVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
-  END IF
   ! Start receive face data
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
     nRecVal     =BezierSideSize*nMPISides_rec(iNbProc,SendID)
@@ -127,6 +119,14 @@ DO iNbProc=1,nNbProcs
     SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
     CALL MPI_IRECV(BezierControlPoints3D(:,:,:,SideID_start:SideID_end),nRecVal,MPI_DOUBLE_PRECISION,  &
                     nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+  END IF
+  ! Start send face data
+  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+    nSendVal    =BezierSideSize*nMPISides_send(iNbProc,SendID)
+    SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
+    SideID_end  =OffsetMPISides_send(iNbProc,SendID)
+    CALL MPI_ISEND(BezierControlPoints3D(:,:,:,SideID_start:SideID_end),nSendVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
   END IF
 END DO !iProc=1,nNBProcs
 

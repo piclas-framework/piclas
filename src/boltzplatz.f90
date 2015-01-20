@@ -27,6 +27,7 @@ USE MOD_MPI,              ONLY:InitMPIvars
 #ifdef PARTICLES
 USE MOD_ParticleInit,     ONLY:InitParticles
 USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces
+USE MOD_InitializeBackgroundField, ONLY: FinalizeBackGroundField
 #endif
 
 ! IMPLICIT VARIABLE HANDLING
@@ -37,6 +38,7 @@ REAL :: Time
 !===================================================================================================================================
 CALL InitMPI()
 CALL InitIO()
+CALL InitGlobals()
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')&
  "           ____            ___    __                    ___              __              "
@@ -81,8 +83,8 @@ CALL InitTimeDisc()
 #ifdef PARTICLES
 CALL InitParticleSurfaces()
 CALL InitParticles()
-#endif
 CALL InitParticleAnalyze()
+#endif
 CALL InitAnalyze()
 CALL InitRecordPoints()
 CALL IgnoredStrings()
@@ -111,6 +113,7 @@ CALL FinalizeMesh()
 CALL FinalizeFilter()
 #ifdef PARTICLES
 CALL FinalizeParticleSurfaces()
+CALL FinalizeBackGroundField()
 #endif
 ! Measure simulation duration
 Time=BOLTZPLATZTIME()

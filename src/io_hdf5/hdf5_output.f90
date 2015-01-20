@@ -49,7 +49,6 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_Output_Vars,          ONLY:ProjectName
-USE MOD_Interpolation_Vars,   ONLY:StrNodeType
 USE MOD_Mesh_Vars,            ONLY:offsetElem,nGlobalElems
 #ifdef PP_POIS
 USE MOD_Equation_Vars,        ONLY:E,Phi
@@ -71,18 +70,16 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal
 #ifdef MPI
 REAL                           :: StartT,EndT
-INTEGER                        :: sendbuf(2),recvbuf(2)
 #endif
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #endif
 !===================================================================================================================================
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
 #ifdef MPI
   StartT=MPI_WTIME()
 #endif
-END IF
+
 
 ! Create dataset attribute "VarNames"
 ALLOCATE(StrVarNames(1:PP_nVar))
@@ -130,7 +127,11 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,PP_N,StrVarNames,MeshFileN
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
+#ifdef MPI
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
 
 ! Write DG solution ----------------------------------------------------------------------------------------------------------------
 nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
@@ -202,10 +203,10 @@ DEALLOCATE(StrVarNames)
 #ifdef MPI
 IF(MPIROOT)THEN
   EndT=MPI_WTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 END IF
 #else
-WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 #endif
 END SUBROUTINE WriteStateToHDF5
 
@@ -250,7 +251,12 @@ IF(DoPML)THEN
   DO iPML=1,nPMLElems
     Upml(:,:,:,:,PMLToElem(iPML)) = U2(:,:,:,:,iPML)
   END DO ! iPML
+#ifdef MPI
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
+
   CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',nVar,StrArray=StrVarNames)
 
   CALL WriteArrayToHDF5(DataSetName='PML_Solution', rank=5,&
@@ -275,13 +281,10 @@ SUBROUTINE WriteParticleToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Output_Vars,        ONLY:ProjectName
-USE MOD_Interpolation_Vars, ONLY:StrNodeType
 USE MOD_Mesh_Vars,          ONLY:nGlobalElems, offsetElem
 USE MOD_Particle_Vars,      ONLY:PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,enableParticleMerge,PartPressureCell
 USE MOD_part_tools,         ONLY:UpdateNextFreePosition
 USE MOD_DSMC_Vars,          ONLY:UseDSMC, CollisMode,PartStateIntEn, DSMC
-USE MOD_LD_Vars,            ONLY:UseLD, PartStateBulkValues
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -292,23 +295,20 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER(HID_T)                 :: Dset_ID
-INTEGER                        :: nVal,nVar
+INTEGER                        :: nVar
 #ifdef MPI
-REAL                           :: StartT,EndT
+INTEGER                        :: sendbuf(2),recvbuf(2)
+INTEGER                        :: nParticles(0:nProcessors-1)
 #endif
-INTEGER(KIND=8)                :: pcount
-INTEGER(KIND=4)                :: nParticles(0:nProcessors-1)
+INTEGER                        :: pcount
 LOGICAL                        :: withDSMC=.FALSE.
 INTEGER                        :: locnPart,offsetnPart
-INTEGER                        :: iPart,nPart_glob, iElem, iElem_glob, iElem_loc
+INTEGER                        :: iPart,nPart_glob, iElem_glob, iElem_loc
 INTEGER,ALLOCATABLE            :: PartInt(:,:)
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-#ifdef MPI 
-INTEGER                        :: sendbuf(2),recvbuf(2)
-#endif
+INTEGER                        :: minnParts
 !=============================================
 ! Write properties -----------------------------------------------------------------------------------------------------------------
 ! Open dataset
@@ -316,7 +316,7 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
  
   !!added for Evib, Erot writeout
   withDSMC=useDSMC
-  IF (withDSMC.AND.(.NOT.(useLD))) THEN
+  IF (withDSMC) THEN
     IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
       PartDataSize=11
     ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
@@ -328,19 +328,6 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
       PartDataSize=8 !+ 1 vmpf
     ELSE
       PartDataSize=7 !+ 0
-    END IF
-  ELSE IF (useLD) THEN
-    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
-      PartDataSize=16
-    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
-                                                                             ! or int energ +3 but no vmpf +1
-      PartDataSize=15
-    ELSE IF (CollisMode.GT.1) THEN
-      PartDataSize=14!int ener + 2
-    ELSE IF (usevMPF) THEN
-      PartDataSize=13!+ 1 vmpf
-    ELSE
-      PartDataSize=12 !+ 0
     END IF
   ELSE IF (usevMPF) THEN
     PartDataSize=8 !vmpf +1
@@ -374,9 +361,11 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
   !  END DO
   !END IF
   LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
+  CALL MPI_ALLREDUCE(locnPart, minnParts, 1, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, IERROR)
 #else
   offsetnPart=0
   nPart_glob=locnPart
+  minnParts=locnPart
 #endif
   ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
   ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
@@ -408,7 +397,7 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
         PartData(iPart,5)=PartState(pcount,5)
         PartData(iPart,6)=PartState(pcount,6)
         PartData(iPart,7)=REAL(PartSpecies(pcount))
-        IF (withDSMC.AND.(.NOT.(useLD))) THEN
+        IF (withDSMC) THEN
           IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)    
@@ -427,57 +416,6 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
             PartData(iPart,9)=PartStateIntEn(pcount,2) 
           ELSE IF (usevMPF) THEN
             PartData(iPart,8)=PartMPF(pcount)    
-          END IF
-        ELSE IF (useLD) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState) ) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2)    
-            PartData(iPart,10)=PartMPF(pcount)
-            PartData(iPart,11)=PartStateIntEn(pcount,3)  
-            PartData(iPart,12)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,13)=PartStateBulkValues(pcount,2)
-            PartData(iPart,14)=PartStateBulkValues(pcount,3)
-            PartData(iPart,15)=PartStateBulkValues(pcount,4)
-            PartData(iPart,16)=PartStateBulkValues(pcount,5)
-          ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2)    
-            PartData(iPart,10)=PartMPF(pcount)
-            PartData(iPart,11)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,12)=PartStateBulkValues(pcount,2)
-            PartData(iPart,13)=PartStateBulkValues(pcount,3)
-            PartData(iPart,14)=PartStateBulkValues(pcount,4)
-            PartData(iPart,15)=PartStateBulkValues(pcount,5)
-          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicState) ) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2)
-            PartData(iPart,10)=PartStateIntEn(pcount,3)
-            PartData(iPart,11)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,12)=PartStateBulkValues(pcount,2)
-            PartData(iPart,13)=PartStateBulkValues(pcount,3)
-            PartData(iPart,14)=PartStateBulkValues(pcount,4)
-            PartData(iPart,15)=PartStateBulkValues(pcount,5)
-          ELSE IF (CollisMode.GT.1) THEN
-            PartData(iPart,8)=PartStateIntEn(pcount,1)
-            PartData(iPart,9)=PartStateIntEn(pcount,2) 
-            PartData(iPart,10)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,11)=PartStateBulkValues(pcount,2)
-            PartData(iPart,12)=PartStateBulkValues(pcount,3)
-            PartData(iPart,13)=PartStateBulkValues(pcount,4)
-            PartData(iPart,14)=PartStateBulkValues(pcount,5)
-          ELSE IF (usevMPF) THEN
-            PartData(iPart,8)=PartMPF(pcount)    
-            PartData(iPart,9)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,10)=PartStateBulkValues(pcount,2)
-            PartData(iPart,11)=PartStateBulkValues(pcount,3)
-            PartData(iPart,12)=PartStateBulkValues(pcount,4)
-            PartData(iPart,13)=PartStateBulkValues(pcount,5)
-          ELSE
-            PartData(iPart,8)=PartStateBulkValues(pcount,1)    
-            PartData(iPart,9)=PartStateBulkValues(pcount,2)
-            PartData(iPart,10)=PartStateBulkValues(pcount,3)
-            PartData(iPart,11)=PartStateBulkValues(pcount,4)
-            PartData(iPart,12)=PartStateBulkValues(pcount,5)
           END IF
         ELSE IF (usevMPF) THEN
             PartData(iPart,8)=PartMPF(pcount)
@@ -498,7 +436,12 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
   ALLOCATE(StrVarNames(nVar))
   StrVarNames(1)='FirstPartID'
   StrVarNames(2)='LastPartID'
+#ifdef MPI
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
+
   CALL WriteAttributeToHDF5(File_ID,'VarNamesPartInt',2,StrArray=StrVarNames)
   ! old
   !CALL WriteArrayToHDF5('PartInt',nGlobalElems,2,(/PP_nElems,PartIntSize/),offsetElem,1,existing=.FALSE.,IntegerArray=PartInt)
@@ -506,41 +449,11 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
                         nValGlobal=(/nGlobalElems, nVar/),&
                         nVal=      (/PP_nElems, nVar   /),&
                         offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., existing=.FALSE., IntegerArray=PartInt)
+                        collective=.FALSE., existing=.FALSE., IntegerArray=PartInt)
+
   DEALLOCATE(StrVarNames)
   CALL CloseDataFile()
 
-!  IF (withDSMC.AND.(.NOT.(useLD))) THEN
-!    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
-!      PartDataSize=11
-!    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
-!                                                                              ! or int energ +3 but no vmpf +1
-!      PartDataSize=10
-!    ELSE IF (CollisMode.GT.1) THEN
-!      PartDataSize=9 !int ener + 2
-!    ELSE IF (usevMPF) THEN
-!      PartDataSize=8 !+ 1 vmpf
-!    ELSE
-!      PartDataSize=7 !+ 0
-!    END IF
-!  ELSE IF (useLD) THEN
-!    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
-!      PartDataSize=16
-!    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
-!                                                                             ! or int energ +3 but no vmpf +1
-!      PartDataSize=15
-!    ELSE IF (CollisMode.GT.1) THEN
-!      PartDataSize=14!int ener + 2
-!    ELSE IF (usevMPF) THEN
-!      PartDataSize=13!+ 1 vmpf
-!    ELSE
-!      PartDataSize=12 !+ 0
-!    END IF
-!  ELSE IF (usevMPF) THEN
-!    PartDataSize=8 !vmpf +1
-!  ELSE
-!    PartDataSize=7
-!  END IF  
   ALLOCATE(StrVarNames(PartDataSize))
   StrVarNames(1)='ParticlePositionX'
   StrVarNames(2)='ParticlePositionY'
@@ -549,7 +462,7 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
   StrVarNames(5)='VelocityY'
   StrVarNames(6)='VelocityZ'
   StrVarNames(7)='Species'
-  IF(withDSMC.AND.(.NOT.(useLD)))THEN
+  IF(withDSMC)THEN
     IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicState))THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
@@ -569,18 +482,28 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
     ELSE IF (usevMPF) THEN
       StrVarNames( 8)='MPF'
     END IF
-  ELSE IF (useLD) THEN
-   CALL abort(__STAMP__,&
-       'Attributes for LD are not implemented! Add Attributes!',999,999.)
   END IF
 
+#ifdef MPI
   CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
   CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',PartDataSize,StrArray=StrVarNames)
-  CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
-                        nValGlobal=(/nPart_glob,PartDataSize/),&
-                        nVal=      (/locnPart,PartDataSize   /),&
-                        offset=    (/offsetnPart , 0  /),&
-                        collective=.TRUE., existing=.FALSE., RealArray=PartData)
+  IF(minnParts.EQ.0)THEN
+    CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
+                          nValGlobal=(/nPart_glob,PartDataSize/),&
+                          nVal=      (/locnPart,PartDataSize  /),&
+                          offset=    (/offsetnPart , 0  /),&
+                          collective=.FALSE., existing=.FALSE., RealArray=PartData)
+  ELSE
+    CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
+                            nValGlobal=(/nPart_glob,PartDataSize/),&
+                            nVal=      (/locnPart,PartDataSize  /),&
+                            offset=    (/offsetnPart , 0  /),&
+                            collective=.TRUE., existing=.FALSE., RealArray=PartData)
+  END IF
+
   CALL CloseDataFile()
 
 !  CALL WriteArrayToHDF5('PartData',nPart_glob,2,(/locnPart,PartDataSize/),offsetnPart,1,existing=.FALSE.,RealArray=PartData)!,&
@@ -588,7 +511,8 @@ INTEGER                        :: sendbuf(2),recvbuf(2)
                                                         ! problematisch werden
 
   DEALLOCATE(StrVarNames)
-  DEALLOCATE(PartInt,PartData)
+  DEALLOCATE(PartInt)
+  DEALLOCATE(PartData)
 
 !!! Kleiner Hack von JN (Teil 2/2):
   useDSMC=withDSMC
@@ -606,8 +530,6 @@ END SUBROUTINE WriteParticleToHDF5
 #endif /*PARTICLES*/
 
 
-! PO: old
-!SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
 SUBROUTINE GenerateFileSkeleton(TypeString,nVar,NData,StrVarNames,MeshFileName,OutputTime,FutureTime)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
@@ -641,7 +563,11 @@ CHARACTER(LEN=255),ALLOCATABLE :: params(:)
 !===================================================================================================================================
 ! Create file
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+#ifdef MPI
 CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.)
+#else
+CALL OpenDataFile(TRIM(FileName),create=.TRUE.)
+#endif
 
 ! Write file header
 CALL WriteHDF5Header(TRIM(TypeString),File_ID)
@@ -714,7 +640,11 @@ FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',FlushTime))//'.h5'
 ! Delete state files
 InputFile=TRIM(FileName)
 ! Read calculation time from file
+#ifdef MPI
 CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
+#else
+CALL GetHDF5NextFileName(Inputfile,NextFile)
+#endif
 ! Delete File - only root
 stat=0
 ioUnit=GETFREEUNIT()
@@ -728,7 +658,11 @@ IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
 DO
   InputFile=TRIM(NextFile)
   ! Read calculation time from file
+#ifdef MPI
   CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
+#else
+  CALL GetHDF5NextFileName(Inputfile,NextFile)
+#endif
   ! Delete File - only root
   stat=0
   ioUnit=GETFREEUNIT()
@@ -764,12 +698,21 @@ INTEGER(HID_T),INTENT(IN)                :: File_ID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+CHARACTER(LEN=255)                       :: tmp255
 !===================================================================================================================================
 ! Write a small file header to identify a Flexi HDF5 files
 ! Attributes are program name, file type identifier, project name and version number
-CALL WriteAttributeToHDF5(File_ID,'Program'     ,1,StrScalar=(/TRIM(ProgramName)/))
-CALL WriteAttributeToHDF5(File_ID,'File_Type'   ,1,StrScalar=(/TRIM(FileType_in)/))
-CALL WriteAttributeToHDF5(File_ID,'Project_Name',1,StrScalar=(/TRIM(ProjectName)/))
+
+!===================================================================================================================================
+! Write a small file header to identify a Flexi HDF5 files
+
+! First write program name
+tmp255=TRIM(ProgramName)
+CALL WriteAttributeToHDF5(File_ID,'Program'     ,1,StrScalar=(/tmp255/))
+tmp255=TRIM(FileType_in)
+CALL WriteAttributeToHDF5(File_ID,'File_Type'   ,1,StrScalar=(/tmp255/))
+tmp255=TRIM(ProjectName)
+CALL WriteAttributeToHDF5(File_ID,'Project_Name',1,StrScalar=(/tmp255/))
 CALL WriteAttributeToHDF5(File_ID,'File_Version',1,RealScalar=FileVersion)
 END SUBROUTINE WriteHDF5Header
 
@@ -807,7 +750,9 @@ INTEGER(HID_T)                 :: PList_ID,DSet_ID,MemSpace,FileSpace,Type_ID,ds
 INTEGER(HSIZE_T)               :: Dimsf(Rank),OffsetHDF(Rank),nValMax(Rank)
 INTEGER(SIZE_T)                :: SizeSet
 LOGICAL                        :: chunky
+#ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
 TYPE(C_PTR)                    :: buf
+#endif
 !===================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')' WRITE ',Rank,'D ARRAY "',TRIM(DataSetName),'" TO HDF5 FILE...'
 
@@ -892,6 +837,7 @@ END IF
 IF(PRESENT(IntegerArray)) buf=C_LOC(IntegerArray)
 IF(PRESENT(RealArray))    buf=C_LOC(RealArray)
 IF(PRESENT(StrArray))     buf=C_LOC(StrArray(1))
+!IF(ANY(Dimsf.EQ.0)) buf =NULL()
 CALL H5DWRITE_F(DSet_ID,Type_ID,buf,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
 #endif /* HDF5_F90 */
 
@@ -943,7 +889,9 @@ INTEGER(HID_T)                 :: DataSpace,Attr_ID,Loc_ID,Type_ID
 INTEGER(HSIZE_T), DIMENSION(1) :: Dimsf
 INTEGER(SIZE_T)                :: AttrLen
 INTEGER,TARGET                 :: logtoint
+#ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
 TYPE(C_PTR)                    :: buf
+#endif
 !===================================================================================================================================
 LOGWRITE(*,*)' WRITE ATTRIBUTE "',TRIM(AttribName),'" TO HDF5 FILE...'
 IF(PRESENT(DataSetName))THEN

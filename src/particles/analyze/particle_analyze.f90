@@ -105,12 +105,13 @@ IF(CalcEpot) DoAnalyze = .TRUE.
    PartEkinOut=0.
    PartEkinIn=0.
 #if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-    ALLOCATE( nPartInTemp(nSpecies)     &
-            , PartEkinInTemp(nSpecies)  )
-    PartEkinInTemp=0.
-    nPartInTemp=0
+    ALLOCATE( nPartInTmp(nSpecies)     &
+            , PartEkinInTmp(nSpecies)  )
+    PartEkinInTmp=0.
+    nPartInTmp=0
 #endif
   END IF
+  CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
   TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
   CalcNumSpec = GETLOGICAL('CalcNumSpec','.FALSE.')
   IF(CalcNumSpec) DoAnalyze = .TRUE.
@@ -123,8 +124,10 @@ IF(CalcEpot) DoAnalyze = .TRUE.
     CASE('SomeParts') ! A certain percentage of currently available Particles is used
       ShapeEfficiencyNumber = GETINT('ShapeEfficiencyNumber','100')  ! in percent
     CASE DEFAULT
-      SWRITE(*,*) 'ERROR: CalcShapeEfficiencyMethod',CalcShapeEfficiencyMethod,'does not exist!'
-      STOP
+      CALL abort(&
+          __STAMP__&
+          , ' CalcShapeEfficiencyMethod not implemented: ')
+
     END SELECT
   END IF
 #endif /*PARTICLES*/
@@ -149,13 +152,14 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars!,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin, CalcEpot, DoAnalyze, IsRestart
 USE MOD_PARTICLE_Vars,         ONLY: nSpecies
-USE MOD_DSMC_Vars,             ONLY: DSMC, CollInf, useDSMC, CollisMode, ChemReac, SpecDSMC
+USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 #ifdef MPI
   USE MOD_part_MPI_Vars,       ONLY: PMPIVAR
 #endif
 #if ( PP_TimeDiscMethod ==42)
+USE MOD_DSMC_Vars,             ONLY: DSMC, SpecDSMC
 USE MOD_Particle_Vars,         ONLY: Species
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -167,20 +171,27 @@ REAL,INTENT(IN)                 :: Time
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL             :: isOpen, FileExists                                          !
-CHARACTER(LEN=350)  :: outfile ,hilf                                               !
-INTEGER             :: unit_index, unit_index_2, iSpec,  jSpec, iCase
-REAL                :: WEl, WMag
-REAL                :: Ekin(nSpecies + 1), Temp(nSpecies), IntTemp(nSpecies,3), IntEn(nSpecies,3)
-INTEGER             :: NumSpec(nSpecies), OutputCounter, iTvib
+LOGICAL             :: isOpen, FileExists
+CHARACTER(LEN=350)  :: outfile
+INTEGER             :: unit_index, iSpec
+REAL                :: WEl, WMag 
+REAL                :: Ekin(nSpecies + 1), Temp(nSpecies)
+INTEGER             :: NumSpec(nSpecies), OutputCounter
 #ifdef MPI
-REAL                :: sumIntTemp(nSpecies),sumIntEn(nSpecies)
+REAL                :: RECBR(nSpecies),RECBR2(nEkin),RECBR1
+INTEGER             :: RECBIM(nSpecies)
 #endif
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
-INTEGER           :: ii, iunit
-CHARACTER(LEN=64) :: DebugElectronicStateFilename
+INTEGER             :: ii, iunit, iCase, iTvib,jSpec
+CHARACTER(LEN=64)   :: DebugElectronicStateFilename
+CHARACTER(LEN=350)  :: hilf
+REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3)
+#ifdef MPI 
+REAL                :: sumIntTemp(nSpecies),sumIntEn(nSpecies)
+#endif /*MPI*/
 #endif 
+REAL                :: PartVtrans(nSpecies), PartVtherm(nSpecies)
 !===================================================================================================================================
 IF ( DoRestart ) THEN
   isRestart = .true.
@@ -206,14 +217,14 @@ unit_index = 535
 #if (PP_TimeDiscMethod==42)
       ! if only the reaction rate is desired (resevoir) the initial temperature
       ! of the second species is added to the filename
-       IF ( DSMC%ReservoirSimuRate .EQV. .true. ) THEN
+       IF (DSMC%ReservoirSimuRate) THEN
         IF ( SpecDSMC(1)%InterID .eq. 2 .or. SpecDSMC(1)%InterID .eq. 20 ) THEN
-          iTvib = INT(SpecDSMC(1)%Tvib)
+          iTvib = INT(SpecDSMC(1)%Init(0)%Tvib)
           WRITE( hilf, '(I5.5)') iTvib
           outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
         ELSE
           !iTvib = INT(SpecDSMC(1)%Telec )
-          iTvib = INT(Species(1)%MWTemperatureIC) !wrong name, if MWTemp is defined in %Init!!!
+          iTvib = INT(Species(1)%Init(0)%MWTemperatureIC) !wrong name, if MWTemp is defined in %Init!!!
           WRITE( hilf, '(I5.5)') iTvib
           outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
         END IF
@@ -275,6 +286,16 @@ unit_index = 535
               END DO
             END IF
           END IF
+            IF (CalcVelos) THEN
+              DO iSpec=1, nSpecies
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' VeloXtrans',iSpec,' '
+                OutputCounter = OutputCounter + 1
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' VeloXtherm',iSpec,' '
+                OutputCounter = OutputCounter + 1
+              END DO
+            END IF
           IF (CalcPartBalance) THEN
             DO iSpec=1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -364,6 +385,7 @@ IF(CalcEkin) CALL CalcKineticEnergy(Ekin)
 IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
 IF(CalcTemp) CALL CalcTemperature(Temp, NumSpec)
 IF(CalcNumSpec.AND..NOT.CalcTemp) CALL GetNumSpec(NumSpec)
+IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm)
 
 ! MPI Communication
 #ifdef MPI
@@ -410,7 +432,6 @@ END IF
 CALL CollRates(CRate)
 IF (CollisMode.EQ.3) CALL ReacRates(RRate, NumSpec)
 IF (CollisMode.NE.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
-CALL GetNumSpec(NumSpec)
 ! currently, calculation of internal electronic energy not implemented !
 #ifdef MPI
 ! average over all cells
@@ -430,8 +451,6 @@ CALL GetNumSpec(NumSpec)
       IntEn(:,3) = sumIntEn
     END IF
   END IF 
-  CALL MPI_REDUCE(NumSpec, sumNumSpec, nSpecies, MPI_INTEGER, MPI_SUM,0, PMPIVAR%COMM, IERROR)
-  NumSpec = sumNumSpec
 #endif /*MPI*/
 #endif /*PP_TimeDiscMethod==42*/
 
@@ -479,6 +498,14 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
        END DO
      END IF
    END IF
+   IF (CalcVelos) THEN
+     DO iSpec=1, nSpecies
+       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+       WRITE(unit_index,104,ADVANCE='NO') PartVtrans(iSpec)
+       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+       WRITE(unit_index,104,ADVANCE='NO') PartVtherm(iSpec)
+     END DO
+   END IF
    IF (CalcPartBalance) THEN
      DO iSpec=1, nSpecies
        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -523,7 +550,7 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
         END IF
       END IF
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') DSMC%CollProbMax
+      WRITE(unit_index,104,ADVANCE='NO') DSMC%CollProbOut(1,1)
       DO iCase=1, CollInf%NumCase +1 
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,104,ADVANCE='NO') CRate(iCase)
@@ -573,7 +600,8 @@ IF ( DSMC%ElectronicState ) THEN
         DebugElectronicStateFilename = 'End_Electronic_State_Species_'//trim(DebugElectronicStateFilename)//'.dat'
         OPEN(unit=iunit,file=DebugElectronicStateFilename,form='formatted',status='unknown')
         DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant - 1                         !has to be changed when using %Init definitions!!!
-          WRITE(iunit,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / REAL( Species(iSpec)%initialParticleNumber)
+          WRITE(iunit,'(I3.1,3x,F12.7)') ii, REAL( SpecDSMC(iSpec)%levelcounter(ii) ) / &
+                                             REAL( Species(iSpec)%Init(0)%initialParticleNumber)
         END DO
         close(iunit)
       END IF
@@ -594,7 +622,9 @@ USE MOD_Mesh_Vars,               ONLY : nElems, Elem_xGP
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
+#ifdef MPI
 USE MOD_part_MPI_Vars,            ONLY : PMPIVAR
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -604,8 +634,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                     :: NbrOfComps, NbrWithinRadius, NbrOfElems, NbrOfElemsWithinRadius
-REAL                     :: RandVal1, RandVal3(1:3)
-REAL, ALLOCATABLE        :: RandomParts(:,:)
+REAL                     :: RandVal1
 LOGICAL                  :: chargedone(1:nElems), WITHIN
 INTEGER                  :: kmin, kmax, lmin, lmax, mmin, mmax                           !
 INTEGER                  :: kk, ll, mm, ppp,m,l,k, i                                             !
@@ -747,8 +776,7 @@ SUBROUTINE GetNumSpec(NumSpec)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Equation_Vars,      ONLY : c2 
-USE MOD_Particle_Vars,      ONLY : PartSpecies, Species, PDM, nSpecies
+USE MOD_Particle_Vars,      ONLY : PartSpecies, PDM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -758,7 +786,7 @@ IMPLICIT NONE
 INTEGER, INTENT(OUT)            :: NumSpec(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i, iSpec
+INTEGER           :: i
 !===================================================================================================================================
   NumSpec = 0
 ! Sum up velocity 
@@ -776,7 +804,10 @@ SUBROUTINE CalcParticleBalance()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars,      ONLY : nPartIn,nPartOut,nPartInTemp,PartEkinIn,PartEkinOut,PartEkinInTemp
+USE MOD_Particle_Analyze_Vars,      ONLY : nPartIn,nPartOut,PartEkinIn,PartEkinOut
+#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+USE MOD_Particle_Analyze_Vars,      ONLY : nPartInTmp,PartEkinInTmp
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -788,12 +819,12 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 #if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-nPartIn=nPartInTemp
+nPartIn=nPartInTmp
 nPartOut=0
-PartEkinIn=PartEkinInTemp
+PartEkinIn=PartEkinInTmp
 PartEkinOut=0.
-nPartInTemp=0
-PartEkinInTemp=0.
+nPartInTmp=0
+PartEkinInTmp=0.
 #else
 nPartIn=0
 nPartOut=0
@@ -825,7 +856,7 @@ REAL,INTENT(OUT)                :: Ekin(nEkin)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i
-REAL(KIND=8)              :: partV2, Gamma, VelocityFactor, ParticleValues
+REAL(KIND=8)              :: partV2, Gamma
 !===================================================================================================================================
 
 Ekin = 0.!d0
@@ -858,7 +889,7 @@ IF (nEkin .GT. 1 ) THEN
         END IF != usevMPF
       ELSE ! partV2 > 1e6
   !       Ekin = Ekin + (gamma - 1) * mass * MPF *c^2
-        Gamma = partV2/c2      
+        Gamma = partV2*c2_inv
         Gamma = 1./SQRT(1.-Gamma)
         IF(usevMPF) THEN
           Ekin(nSpecies+1) = Ekin(nSpecies+1) + PartMPF(i) * (Gamma-1.) &
@@ -898,7 +929,7 @@ ELSE ! nEkin = 1 : only 1 species
                                             *  Species(PartSpecies(i))%MacroParticleFactor
         END IF ! usevMPF
       ELSE ! partV2 > 1e6
-        Gamma = partV2/c2      
+        Gamma = partV2*c2_inv
         Gamma = 1./SQRT(1.-Gamma)
         IF(usevMPF)THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + PartMPF(i) * (Gamma-1.) &
@@ -917,7 +948,6 @@ END IF
 END SUBROUTINE CalcKineticEnergy
 
 
-
 SUBROUTINE CalcTemperature(Temp, NumSpec)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -925,7 +955,6 @@ SUBROUTINE CalcTemperature(Temp, NumSpec)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Equation_Vars,      ONLY : c2 
 USE MOD_Particle_Vars,      ONLY : PartState, PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -938,15 +967,16 @@ INTEGER, INTENT(OUT)            :: NumSpec(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i, iSpec
-REAL              :: Mean_PartV2(nSpecies, 3), MeanPartV_2(nSpecies,3) , TempDirec(nSpecies,3), RealNumSpec(nSpecies) 
-REAL              :: PartV(nSpecies, 3), PartV2(nSpecies,3) !PartVx, PartVY, PartVZ, PartVx2, PartVY2, PartVZ2
+REAL              ::  TempDirec(nSpecies,3), RealNumSpec(nSpecies)
+REAL              :: PartV(nSpecies, 3), PartV2(nSpecies,3),Mean_PartV2(nSpecies, 3), MeanPartV_2(nSpecies,3)
 !===================================================================================================================================
+
 ! Compute velocity averages
-  PartV = 0
-  PartV2 = 0
   NumSpec = 0
   RealNumSpec = 0
-! Sum up velocity 
+! Sum up velocity
+  PartV = 0
+  PartV2 = 0
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       IF (usevMPF) THEN 
@@ -982,6 +1012,92 @@ REAL              :: PartV(nSpecies, 3), PartV2(nSpecies,3) !PartVx, PartVY, Par
   END DO
 END SUBROUTINE CalcTemperature
 
+
+SUBROUTINE CalcVelocities(PartVloc, PartVthermloc)
+!===================================================================================================================================
+! Initializes variables necessary for analyse subroutines
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars,        ONLY : PartState, PartSpecies, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
+! IMPLICIT VARIABLE HANDLING
+#ifdef MPI
+  USE MOD_part_MPI_Vars,      ONLY : PMPIVAR
+#endif
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                :: PartVloc(:), PartVthermloc(:) 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: i, NumSpecloc(nSpecies), NumSpecglob(nSpecies)
+REAL                           :: RealNumSpecloc(nSpecies), RealNumSpecglob(nSpecies)
+REAL                           :: PartVglob(nSpecies), PartVthermglob(nSpecies)
+!===================================================================================================================================
+! Compute velocity averages
+  PartVloc = 0.
+  PartVglob = 0.
+  PartVthermglob = 0.
+  PartVthermloc = 0.
+  NumSpecloc = 0
+  NumSpecglob = 0
+  RealNumSpecloc = 0.
+  RealNumSpecglob = 0.
+
+  DO i=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(i)) THEN
+      IF (usevMPF) THEN 
+        PartVloc(PartSpecies(i)) = PartVloc(PartSpecies(i)) + PartState(i,4) * PartMPF(i)
+        RealNumSpecloc(PartSpecies(i)) = RealNumSpecloc(PartSpecies(i)) + PartMPF(i)
+        NumSpecloc(PartSpecies(i)) = NumSpecloc(PartSpecies(i)) + 1
+      ELSE
+        PartVloc(PartSpecies(i)) = PartVloc(PartSpecies(i)) + PartState(i,4)
+        NumSpecloc(PartSpecies(i)) = NumSpecloc(PartSpecies(i)) + 1
+      END IF
+    END IF
+  END DO
+#ifdef MPI
+  CALL MPI_ALLREDUCE(PartVloc, PartVglob, nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+  PartVloc = PartVglob
+#endif
+  IF (usevMPF) THEN
+#ifdef MPI
+    CALL MPI_ALLREDUCE(RealNumSpecloc, RealNumSpecglob, nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+    RealNumSpecloc = RealNumSpecglob
+#endif
+    PartVloc(:) = PartVloc(:)/RealNumSpecloc(:)
+  ELSE
+#ifdef MPI
+    CALL MPI_ALLREDUCE(NumSpecloc, NumSpecglob, nSpecies, MPI_INTEGER, MPI_SUM, PMPIVAR%COMM, IERROR)
+    NumSpecloc = NumSpecglob
+#endif
+    PartVloc(:) = PartVloc(:)/NumSpecloc(:)
+  END IF
+  
+  DO i=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(i)) THEN
+      IF (usevMPF) THEN 
+        PartVthermloc(PartSpecies(i)) = PartVthermloc(PartSpecies(i)) + abs(PartState(i,4) - PartVloc(PartSpecies(i))) &
+                                                  * PartMPF(i)
+      ELSE
+        PartVthermloc(PartSpecies(i)) = PartVthermloc(PartSpecies(i)) + abs(PartState(i,4) - PartVloc(PartSpecies(i)))
+      END IF
+    END IF
+  END DO
+#ifdef MPI
+  CALL MPI_ALLREDUCE(PartVthermloc, PartVthermglob, nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+  PartVthermloc = PartVthermglob
+#endif
+  IF (usevMPF) THEN
+    PartVthermloc(:)=PartVthermloc(:)/RealNumSpecloc(:)
+  ELSE
+    PartVthermloc(:)=PartVthermloc(:)/NumSpecloc(:)
+  END IF
+
+END SUBROUTINE CalcVelocities
 
 
 SUBROUTINE CalcIntTempsAndEn(IntTemp, IntEn)
@@ -1097,7 +1213,6 @@ RealNumSpec  = 0
 END SUBROUTINE CalcIntTempsAndEn
 
 
-
 SUBROUTINE CollRates(CRate) 
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -1124,13 +1239,12 @@ INTEGER           :: iCase
 END SUBROUTINE CollRates
 
 
-
 SUBROUTINE ReacRates(RRate, NumSpec) 
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,          ONLY: CollInf, DSMC, ChemReac
+USE MOD_DSMC_Vars,          ONLY: ChemReac
 USE MOD_TimeDisc_Vars,      ONLY: dt
 USE MOD_Particle_Vars,      ONLY: GEO, Species
 ! IMPLICIT VARIABLE HANDLING
@@ -1140,10 +1254,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: RRate(:) 
-INTEGER, INTENT(IN)            :: NumSpec(:)
+INTEGER, INTENT(IN)             :: NumSpec(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iReac
+INTEGER                         :: iReac
 !===================================================================================================================================
   DO iReac=1, ChemReac%NumOfReact
     SELECT CASE(ChemReac%ReactType(iReac))
@@ -1201,9 +1315,7 @@ SUBROUTINE ElectronicTransition (  Time, NumSpec )
   ! OUTPUT VARIABLES
   REAL,INTENT(IN)                :: Time
   INTEGER, INTENT(IN)            :: NumSpec(:)
-  INTEGER                        :: iSpec, iSpec2, iunit, iQua1, iQua2, MaxElecQua, ii
-  CHARACTER(LEN=128)             :: FileNameTransition
-  LOGICAL                        :: bExist
+  INTEGER                        :: iSpec, iSpec2, iQua1, iQua2, MaxElecQua
 ! accary of kf
 !===================================================================================================================================
 

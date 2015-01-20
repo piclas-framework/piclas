@@ -27,7 +27,7 @@ SUBROUTINE LinearSolver_CGS(t,Coeff)
 USE MOD_DG_Vars,ONLY:U,Ut
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_TimeDisc_Vars,ONLY:eps_LinearSolver,maxIter_LinearSolver,epsTilde_LinearSolver
+USE MOD_TimeDisc_Vars,ONLY:eps_LinearSolver,maxIter_LinearSolver
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -126,9 +126,8 @@ SUBROUTINE LinearSolver(t,Coeff)
 USE MOD_DG_Vars,ONLY:U,Ut
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,  ONLY : Source
-USE MOD_TimeDisc_Vars,ONLY:eps_LinearSolver,maxIter_LinearSolver,epsTilde_LinearSolver
-USE MOD_Equation_Vars, ONLY : eps0,c_corr
+USE MOD_TimeDisc_Vars,ONLY:eps_LinearSolver,maxIter_LinearSolver
+USE MOD_Equation_Vars, ONLY : eps0
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -228,9 +227,8 @@ SUBROUTINE LinearSolver_StabBiCGSTAB(t,Coeff)
 USE MOD_DG_Vars,ONLY:U,Ut
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,  ONLY : Source
-USE MOD_TimeDisc_Vars,ONLY:eps_LinearSolver,maxIter_LinearSolver,epsTilde_LinearSolver
-USE MOD_Equation_Vars, ONLY : eps0,c_corr
+USE MOD_TimeDisc_Vars,ONLY:eps_LinearSolver,maxIter_LinearSolver
+USE MOD_Equation_Vars, ONLY : eps0
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

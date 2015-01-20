@@ -22,17 +22,19 @@ CONTAINS
 
 SUBROUTINE CalcDepositedCharge() 
 !===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
+! calcs the deposited chrages
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,          ONLY : nElems, sJ
 USE MOD_Particle_Vars,      ONLY : PDM, Species, PartSpecies 
-USE MOD_part_MPI_Vars,      ONLY : PMPIVAR
 USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_PICDepo_Vars,  ONLY : Source
 USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
+#ifdef MPI
+USE MOD_part_MPI_Vars,      ONLY : PMPIVAR
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -68,7 +70,7 @@ DO i=1,PDM%ParticleVecLength
     PartCharge = PartCharge + Species(PartSpecies(i))%ChargeIC * Species(PartSpecies(i))%MacroParticleFactor
   END IF
 END DO
-!print*, "iProc", PMPIVAR%iProc,"charge", charge
+
 #ifdef MPI
    CALL MPI_ALLREDUCE(PartCharge, PartCharge_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
    CALL MPI_ALLREDUCE(Charge, Charge_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)

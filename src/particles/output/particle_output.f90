@@ -64,7 +64,7 @@ SUBROUTINE Visualize_Particles(OutputTime)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Output_Vars,ONLY:ProjectName,OutputFormat
+USE MOD_Output_Vars,ONLY:ProjectName
 USE MOD_Particle_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

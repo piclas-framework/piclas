@@ -26,7 +26,7 @@ CONTAINS
 
 
 
-SUBROUTINE GetBoundaryFlux(F_Face,BCType,BCState,xGP_Face,normal,tangent1,tangent2,t,tDeriv,U_Face)
+SUBROUTINE GetBoundaryFlux(F_Face,BCType,BCState,xGP_Face,normal,t,tDeriv,U_Face)
 !===================================================================================================================================
 ! Computes the boundary values for a given Cartesian mesh face (defined by FaceID)
 ! BCType: 1...periodic, 2...exact BC
@@ -47,8 +47,6 @@ INTEGER, INTENT(IN)                  :: BCType,BCState
 REAL,INTENT(INOUT)                   :: U_Face(PP_nVar,0:PP_N,0:PP_N)
 REAL,INTENT(IN)                      :: xGP_Face(3,0:PP_N,0:PP_N)
 REAL,INTENT(IN)                      :: normal(3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)                      :: tangent1(3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)                      :: tangent2(3,0:PP_N,0:PP_N)
 REAL,INTENT(IN)                      :: t
 INTEGER,INTENT(IN)                   :: tDeriv
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -70,13 +68,11 @@ CASE(2) ! exact BC = Dirichlet BC !!
     END DO ! p
   END DO ! q
   ! Dirichlet means that we use the gradients from inside the grid cell
-  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
-               normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
+  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
 
 CASE(3) ! 1st order absorbing BC
   U_Face_loc=0.
-  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
-               normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
+  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
   
 CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
   ! Determine the exact BC state
@@ -89,12 +85,11 @@ CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
     END DO ! p
   END DO ! q
   ! Dirichlet means that we use the gradients from inside the grid cell
-  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
-               normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
+  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
 
 CASE DEFAULT ! unknown BCType
   CALL abort(__STAMP__,&
-       'no BC defined in maxwell/getboundaryflux.f90!',999,999.)
+       'no BC defined in maxwell/getboundaryflux.f90!')
 END SELECT ! BCType
 END SUBROUTINE GetBoundaryFlux
 
