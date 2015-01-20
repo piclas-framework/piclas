@@ -34,6 +34,15 @@ mesh/debugmesh.f90
 mesh/metrics.f90
 mesh/mesh_readin.f90
 mesh/prepare_mesh.f90
+mesh/particle_surfaces_vars.f90
+mesh/particle_surfaces.f90
+particles/tracking/particle_tracking.f90
+particles/boundary/particle_boundary_condition.f90
+particles/particle_mesh/particle_mesh.f90
+particles/particle_mesh/particle_mesh_vars.f90
+particles/particle_mesh/particle_periodic_bc.f90
+particles/particle_mpi/particle_mpi_vars.f90
+particles/particle_mpi/particle_mpi.f90
 mpi/mpi_vars.f90
 mpi/mpi.f90
 output/output_vars.f90
@@ -94,7 +103,3 @@ particles/dsmc/dsmc_vmpf_collision.f90
 particles/particle_MPFtools.f90
 particles/num_tools/leven_marq.f90
 particles/particle_pressure.f90
-mesh/particle_surfaces_vars.f90
-mesh/particle_surfaces.f90
-particles/tracking/particle_tracking.f90
-particles/boundary/particle_boundary_condition.f90

@@ -39,7 +39,9 @@ USE MOD_Particle_Surfaces_Vars,      ONLY:nPartCurved,BezierControlPoints3D,Boun
 USE MOD_Particle_Surfaces_Vars,      ONLY:SuperSampledNodes,nQuads
 USE MOD_TimeDisc_Vars,               ONLY:iter
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
-USE MOD_Particle_Vars,           ONLY:time
+USE MOD_Particle_Vars,               ONLY:time
+USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacmement
+USE MOD_Utils,                       ONLY:BubbleSortID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -52,7 +54,7 @@ IMPLICIT NONE
 INTEGER                       :: iPart,ElemID!,LastElemID
 INTEGER                       :: ilocSide,SideID,iIntersect
 LOGICAL                       :: PartisDone,dolocSide(1:6)
-REAL                          :: alpha,xi,eta
+REAL                          :: localpha(1:6),xi,eta, hitSide(1:6)
 INTEGER                       :: lastlocSide
 REAL                          :: oldXIntersection(1:3),distance,helpVec(1:3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
@@ -105,47 +107,38 @@ DO iPart=1,PDM%ParticleVecLength
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
+      locAlpha=-1.
       DO ilocSide=1,6
-        alpha=-1.0
+        hitSide(ilocSide)=ilocSide
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
-!        print*,'SideID',SideID
-!        print*,'normvec',NormVec(:,0,0,SideID)
-!        print*,'normvec',NormVec(:,PP_N,PP_N,SideID)
-        ! find intersection point with surface: use NGeo for BezierControlPoints
         SELECT CASE(SideType(SideID))
         CASE(PLANAR)
-          !xNodes(:,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
-          !xNodes(:,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
-          !xNodes(:,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
-          !xNodes(:,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
-!          CALL ComputePlanarIntersectionSuperSampled2([BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
-!                                                      ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
-!                                                      ,BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &
-!                                                      ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
-!                                                      ,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart)
-          CALL ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+          CALL ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide),xi,eta,iPart,SideID)
         CASE(BILINEAR)
           CALL ComputeBiLinearIntersectionSuperSampled2([BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
                                                         ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
                                                         ,BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &
                                                         ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
-                                                        ,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+                                                        ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide),xi,eta,iPart,SideID)
         CASE(CURVED)
-          CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+          CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide),xi,eta,iPart,SideID)
         END SELECT
-    !    print*,'alpha',alpha
-    !    print*,'xi',xi
-    !    print*,'eta',eta
-        if(alpha.gt.0)THEN
-    !    print*,'interpoint-x',LastPartPos(iPart,1)+alpha*PartTrajectory(1)
-    !    print*,'interpoint-y',LastPartPos(iPart,2)+alpha*PartTrajectory(2)
-    !    print*,'interpoint-z',LastPartPos(iPart,3)+alpha*PartTrajectory(3)
-       endif
-        !read*
+      END DO ! ilocSide
+      IF(ANY(.NOT.ALMOSTEQUAL(locAlpha,-1.0)))THEN
+        CALL BubbleSortID(locAlpha,hitSide,6)
+        DO ilocSide=1,6
+          IF(locAlpha(ilocSide).GT.-1.0)THEN
+I!  were weiter
+          END IF
+      ELSE 
+        ! no intersection found and particle is in final element
+        PEM%Element(iPart) = ElemID
+        PartisDone=.TRUE.
+      END IF
 
-        ! get correct intersection
-        IF(alpha.EQ.-1.0) CYCLE
+USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacmement
+
         IF(SideID.LE.nBCSides)THEN
           IF(SideType(SideID).NE.PLANAR)THEN
             IF(lastlocSide.EQ.ilocSide)THEN
@@ -174,6 +167,9 @@ DO iPart=1,PDM%ParticleVecLength
             CALL abort(__STAMP__,&
                 ' Particle went through edge or node. Not implemented yet.',999,999.)
           ELSE
+  
+ 
+
             dolocSide=.TRUE.
             dolocSide(neighborlocSideID(ilocSide,ElemID))=.FALSE.
             ElemID=neighborElemID(ilocSide,ElemID)
@@ -184,8 +180,6 @@ DO iPart=1,PDM%ParticleVecLength
       END DO ! ilocSide
       ! no intersection found
       IF(alpha.EQ.-1.0)THEN
-        PEM%Element(iPart) = ElemID
-        PartisDone=.TRUE.
       END IF
     END DO ! PartisDone=.FALSE.
   END IF ! Part inside

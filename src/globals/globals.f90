@@ -33,6 +33,10 @@ INTERFACE AlmostEqual
   MODULE PROCEDURE AlmostEqual
 END INTERFACE
 
+INTERFACE AlmostZero
+  MODULE PROCEDURE AlmostZero
+END INTERFACE
+
 INTERFACE Abort
   MODULE PROCEDURE AbortProg
 END INTERFACE Abort
@@ -117,6 +121,30 @@ ALMOSTEQUAL=.FALSE.
 IF(ABS(Num1-Num2).LE.MAX(ABS(Num1),ABS(Num2))*TwoEpsMach) ALMOSTEQUAL=.TRUE.
 
 END FUNCTION AlmostEqual
+
+
+FUNCTION AlmostZero(Num)
+!===================================================================================================================================
+! Performe an almost zero check
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars,    ONLY:EpsMach
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL            :: Num ! Number
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL         :: AlmostZero
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+AlmostZero=.FALSE.
+IF(ABS(Num).LE.EpsMach) AlmostZero=.TRUE.
+
+END FUNCTION AlmostZero
 
 
 SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt,SingleOpt)
