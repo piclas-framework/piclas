@@ -21,8 +21,8 @@ SUBROUTINE InitPeriodicBC()
 ! Both periodic sides have to be planer and parallel!
 !===================================================================================================================================
 ! MODULES
-USE MOD_Gloabals
-USE MOD_ReadInTools,        ONLY:GETINT,GETREAL
+USE MOD_Globals
+USE MOD_ReadInTools,        ONLY:GETINT,GETREALARRAY
 USE MOD_Particle_Mesh_Vars, ONLY:GEO
 USE MOD_Particle_Vars,      ONLY:PartBound, PDM 
 USE MOD_Particle_MPI_Vars,  ONLY:NbrOfCases, casematrix!, partShiftVector
@@ -97,7 +97,7 @@ END IF
 !  partShiftVector = 0.
 !END IF
 
-END SUBROUTINE InitPeriodic
+END SUBROUTINE InitPeriodicBC
 
 SUBROUTINE MapPeriodicVectorsToSides()
 !===================================================================================================================================
@@ -109,9 +109,10 @@ SUBROUTINE MapPeriodicVectorsToSides()
 ! ...
 !===================================================================================================================================
 ! MODULES
+USE MOD_Preproc
 USE MOD_Globals,                 ONLY:AlmostZero,AlmostEqual
-USE MOD_Mesh_Vars,               ONLY:Elems,offsetElem,nSides
-USE MOD_Particle_Mesh_Vars,      ONLY:GEO, SidePeriodicType, SidePeriodicDisplacmement
+USE MOD_Mesh_Vars,               ONLY:Elems,offsetElem,nSides, ElemToSide
+USE MOD_Particle_Mesh_Vars,      ONLY:GEO, SidePeriodicType, SidePeriodicDisplacement
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -123,19 +124,24 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER             :: iElem,ilocSide,SideID
+INTEGER             :: iElem,ilocSide,SideID,flip
 INTEGER             :: iPV,iDisplace,nDisplacement
+REAL,ALLOCATABLE    :: normDisplaceVec(:,:)
 !===================================================================================================================================
 
 nDisplacement=2*GEO%nPeriodicVectors
-ALLOCATE(SidePeriodicType(1:nSides) &
+ALLOCATE(SidePeriodicType(1:nSides)                 &
+        ,normDisplaceVec(1:3,nDisplacement)         &
         ,SidePeriodicDisplacement(1:3,nDisplacement))
 
 SidePeriodicType=0
 iDisplace=1
 DO iPV=1,GEO%nPeriodicVectors
-  SidePeriodicDiscplacement(:,iDiplace)  = GEO%PeriodicVectors(:,iPC)
-  SidePeriodicDiscplacement(:,iDiplace+1)=-GEO%PeriodicVectors(:,iPC)
+  SidePeriodicDisplacement(:,iDisplace)  = GEO%PeriodicVectors(:,iPV)
+  normDisplaceVec(:,iDisplace  ) = SidePeriodicDisplacement(:,iDisplace) &
+                                 / SQRT(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),SidePeriodicDisplacement(:,iDisplace)))
+  SidePeriodicDisplacement(:,iDisplace+1)=-GEO%PeriodicVectors(:,iPV)
+  normDisplaceVec(:,iDisplace+1) =-normDisplaceVec(:,iDisplace+1)
   iDisplace=iDisplace+2
 END DO ! iPV
 
@@ -143,55 +149,83 @@ END DO ! iPV
 DO iElem=1,PP_nElems
   DO ilocSide=1,6
     SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    flip   = ElemToSide(E2S_FLIP,ilocSide,iElem)
     ! check if periodic side
     IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)&
       .AND.(ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
-      ! find which periodic side, remember, this is a cartesian grid
-      IF(ALMOSTEQUAL(ABS(DOT_PRODUCT(SideNormVec(:,SideID),(/1.0,0.0,0.0/))),1.0))THEN
-        IF(ALMOSTEQUAL(BezierControlPoints3D(1,0,0,SideID),GEO%xminglob))THEN
-          ! requires positive mapping
-          DO iDisplace=1,nDisplacement
-            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/1.0,0.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-          END DO ! iDisplace
-        ELSE ! has to be xmax side
-          DO iDisplace=1,nDisplacement
-            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/-1.0,0.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-          END DO ! iDisplace
-        END IF ! AlmostEqual in x
-      END IF
-      !  y-direction
-      IF(ALMOSTEQUAL(ABS(DOT_PRODUCT(SideNormVec(:,SideID),(/0.0,1.0,0.0/))),1.0))THEN
-        IF(ALMOSTEQUAL(BezierControlPoints3D(2,0,0,SideID),GEO%yminglob))THEN
-          ! requires positive mapping
-          DO iDisplace=1,nDisplacement
-            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,1.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-          END DO ! iDisplace
-        ELSE ! has to be ymax side
-          DO iDisplace=1,nDisplacement
-            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,-1.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-          END DO ! iDisplace
-        END IF ! AlmostEqual in y
-      END IF
-      !  z-direction
-      IF(ALMOSTEQUAL(ABS(DOT_PRODUCT(SideNormVec(:,SideID),(/0.0,0.0,1.0/))),1.0))THEN
-        IF(ALMOSTEQUAL(BezierControlPoints3D(3,0,0,SideID),GEO%zminglob))THEN
-          ! requires positive mapping
-          DO iDisplace=1,nDisplacement
-            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,0.0,1.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-          END DO ! iDisplace
-        ELSE ! has to be ymax side
-          DO iDisplace=1,nDisplacement
-            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,0.0,-1.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
-          END DO ! iDisplace
-        END IF ! AlmostEqual in x
-      END IF
-      IF(SidePeriodicType(SideID).EQ.0)THEN
-         CALL abort(__STAMP__,&
-           ' Error with periodic sides for particles. Found no displacement vector for side:', SideID)
-      END IF
+      ! method with flip
+      IF(flip.EQ.0)THEN ! master side
+        DO iDisplace=1,nDisplacement
+          IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),-1.0)) &
+              SidePeriodicType(SideID)=iDisplace
+        END DO ! iDisplace
+      ELSE ! slave side
+        DO iDisplace=1,nDisplacement
+          IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),1.0)) &
+              SidePeriodicType(SideID)=iDisplace
+        END DO ! iDisplace
+      END IF ! flip
     END IF
   END DO
 END DO
+
+!!--- Initialize Periodic Side Info
+!DO iElem=1,PP_nElems
+!  DO ilocSide=1,6
+!    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!    flip   = ElemToSide(E2S_FLIP,ilocSide,iElem)
+!    ! check if periodic side
+!    IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)&
+!      .AND.(ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
+! method with geometry data
+!      ! find which periodic side, remember, this is a cartesian grid
+!      IF(ALMOSTEQUAL(ABS(DOT_PRODUCT(SideNormVec(:,SideID),(/1.0,0.0,0.0/))),1.0))THEN
+!        IF(ALMOSTEQUAL(BezierControlPoints3D(1,0,0,SideID),GEO%xminglob))THEN
+!          ! requires positive mapping
+!          DO iDisplace=1,nDisplacement
+!            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/1.0,0.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
+!          END DO ! iDisplace
+!        ELSE ! has to be xmax side
+!          DO iDisplace=1,nDisplacement
+!            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/-1.0,0.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
+!          END DO ! iDisplace
+!        END IF ! AlmostEqual in x
+!      END IF
+!      !  y-direction
+!      IF(ALMOSTEQUAL(ABS(DOT_PRODUCT(SideNormVec(:,SideID),(/0.0,1.0,0.0/))),1.0))THEN
+!        IF(ALMOSTEQUAL(BezierControlPoints3D(2,0,0,SideID),GEO%yminglob))THEN
+!          ! requires positive mapping
+!          DO iDisplace=1,nDisplacement
+!            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,1.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
+!          END DO ! iDisplace
+!        ELSE ! has to be ymax side
+!          DO iDisplace=1,nDisplacement
+!            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,-1.0,0.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
+!          END DO ! iDisplace
+!        END IF ! AlmostEqual in y
+!      END IF
+!      !  z-direction
+!      IF(ALMOSTEQUAL(ABS(DOT_PRODUCT(SideNormVec(:,SideID),(/0.0,0.0,1.0/))),1.0))THEN
+!        IF(ALMOSTEQUAL(BezierControlPoints3D(3,0,0,SideID),GEO%zminglob))THEN
+!          ! requires positive mapping
+!          DO iDisplace=1,nDisplacement
+!            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,0.0,1.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
+!          END DO ! iDisplace
+!        ELSE ! has to be ymax side
+!          DO iDisplace=1,nDisplacement
+!            IF(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),(/0.0,0.0,-1.0/)).GT.0.) SidePeriodicType(SideID)=iDisplace
+!          END DO ! iDisplace
+!        END IF ! AlmostEqual in x
+!      END IF
+!      IF(SidePeriodicType(SideID).EQ.0)THEN
+!         CALL abort(__STAMP__,&
+!           ' Error with periodic sides for particles. Found no displacement vector for side:', SideID)
+!      END IF
+!    END IF
+!  END DO
+!END DO
+
+DEALLOCATE(normDisplaceVec)
 
 END SUBROUTINE MapPeriodicVectorsToSides
 
@@ -344,4 +378,4 @@ IF((DepositionType.EQ.'cartmesh_volumeweighting').OR.(DepositionType.EQ.'cartmes
 END IF
 END SUBROUTINE GetPeriodicVectors
 
-END MODULE MOD_part_boundary_periodic
+END MODULE MOD_Partilce_Periodic_BC

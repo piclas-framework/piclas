@@ -18,4 +18,4 @@ INTEGER                                  :: NbrOfCases                        ! 
 
 !===================================================================================================================================
 
-END MODULE Particle_MPI_Vars
+END MODULE MOD_Particle_MPI_Vars

@@ -29,8 +29,8 @@ SUBROUTINE ParticleTrackingCurved()
 ! read required parameters
 !===================================================================================================================================
 ! MODULES
-!USE MOD_Preproc
-USE MOD_Globals,                     ONLY:abort
+USE MOD_Preproc
+USE MOD_Globals
 USE MOD_Mesh_Vars,                   ONLY:ElemToSide,nBCSides,NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
@@ -40,7 +40,7 @@ USE MOD_Particle_Surfaces_Vars,      ONLY:SuperSampledNodes,nQuads
 USE MOD_TimeDisc_Vars,               ONLY:iter
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Vars,               ONLY:time
-USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacmement
+USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacement
 USE MOD_Utils,                       ONLY:BubbleSortID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -52,9 +52,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,ElemID!,LastElemID
-INTEGER                       :: ilocSide,SideID,iIntersect
+INTEGER                       :: ilocSide,SideID,iIntersect, locSideList(1:6), hitlocSide
 LOGICAL                       :: PartisDone,dolocSide(1:6)
-REAL                          :: localpha(1:6),xi,eta, hitSide(1:6)
+REAL                          :: localpha(1:6),xi(1:6),eta(1:6)
 INTEGER                       :: lastlocSide
 REAL                          :: oldXIntersection(1:3),distance,helpVec(1:3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
@@ -86,7 +86,7 @@ DO iPart=1,PDM%ParticleVecLength
     PartTrajectory=PartTrajectory/lengthPartTrajectory
     lengthPartTrajectory=lengthPartTrajectory+epsilontol
     lastlocSide=-1
-    oldXInterSection=HUGE(1.0)
+    !oldXInterSection=HUGE(1.0)
     !print*,'partTrajectory',PartTrajectory
 
 
@@ -109,78 +109,90 @@ DO iPart=1,PDM%ParticleVecLength
     DO WHILE (.NOT.PartisDone)
       locAlpha=-1.
       DO ilocSide=1,6
-        hitSide(ilocSide)=ilocSide
+        locSideList(ilocSide)=ilocSide
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
         SELECT CASE(SideType(SideID))
         CASE(PLANAR)
-          CALL ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide),xi,eta,iPart,SideID)
+          CALL ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                  ,xi (ilocSide)      &
+                                                                                  ,eta(ilocSide)      ,iPart,SideID)
         CASE(BILINEAR)
           CALL ComputeBiLinearIntersectionSuperSampled2([BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
                                                         ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
                                                         ,BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &
                                                         ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
-                                                        ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide),xi,eta,iPart,SideID)
+                                                        ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                            ,xi (ilocSide)      &
+                                                                                            ,eta(ilocSide)      ,iPart,SideID)
         CASE(CURVED)
-          CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide),xi,eta,iPart,SideID)
+          CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                            ,xi (ilocSide)      &
+                                                                            ,eta(ilocSide)      ,iPart,SideID)
         END SELECT
-      END DO ! ilocSide
-      IF(ANY(.NOT.ALMOSTEQUAL(locAlpha,-1.0)))THEN
-        CALL BubbleSortID(locAlpha,hitSide,6)
-        DO ilocSide=1,6
-          IF(locAlpha(ilocSide).GT.-1.0)THEN
-I!  were weiter
+        IF(locAlpha(ilocSide).GT.-1.0)THEN
+          iInterSect=INT((ABS(xi(ilocSide))-2*epsilontol)/1.0)+INT((ABS(eta(ilocSide))-2*epsilontol)/1.0)
+          IF(iInterSect.GT.0)THEN
+            CALL abort(__STAMP__,&
+             ' Particle went through edge or node. Not implemented yet.')
           END IF
-      ELSE 
+        END IF
+      END DO ! ilocSide
+      IF(ALMOSTEQUAL(MAXVAL(locAlpha(:)),-1.0))THEN
         ! no intersection found and particle is in final element
         PEM%Element(iPart) = ElemID
         PartisDone=.TRUE.
-      END IF
-
-USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacmement
-
-        IF(SideID.LE.nBCSides)THEN
-          IF(SideType(SideID).NE.PLANAR)THEN
-            IF(lastlocSide.EQ.ilocSide)THEN
-              helpVec=oldXInterSection-LastPartPos(iPart,1:3)-alpha*PartTrajectory
-              distance=SQRT(DOT_PRODUCT(helpVec,helpVec))
-              IF(distance.LT.1e-5)THEN
-                alpha=-1.0
-                CYCLE
-              END IF
-            END IF
-          END IF
-          ! check if interesction is possible and take first intersection
-          CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID)
-          dolocSide=.TRUE.
-          IF(SideType(SideID).NE.PLANAR) THEN
-            lastlocSide=ilocSide
-            oldXInterSection=LastPartPos(iPart,1:3)
-          END IF
-          dolocSide(ilocSide)=.FALSE.
-          !IF(SideType(SideID).EQ.PLANAR) dolocSide(ilocSide)=.FALSE.
-          EXIT
-        ELSE ! no BC Side
-          ! check if the found alpha statisfy the selection condition
-          iInterSect=INT((ABS(xi)-2*epsilontol)/1.0)+INT((ABS(eta)-2*epsilontol)/1.0)
-          IF(iInterSect.GT.0)THEN
-            CALL abort(__STAMP__,&
-                ' Particle went through edge or node. Not implemented yet.',999,999.)
-          ELSE
-  
- 
-
-            dolocSide=.TRUE.
-            dolocSide(neighborlocSideID(ilocSide,ElemID))=.FALSE.
-            ElemID=neighborElemID(ilocSide,ElemID)
-            lastlocSide=-1
+      ELSE
+        ! take first possible intersection
+        CALL BubbleSortID(locAlpha,locSideList,6)
+        DO ilocSide=1,6
+          IF(locAlpha(ilocSide).GT.-1.0)THEN
+            hitlocSide=locSideList(ilocSide)
+            SideID=ElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
+            ! noch nicht drin
+            !IF(SidePeriodicType(SideID).EQ.0)THEN
+              IF(SideID.LE.nBCSides)THEN
+                ! check if interesction is possible and take first intersection
+                CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                               ,xi (hitlocSide)    &
+                                                                               ,eta(hitlocSide)    ,iPart,SideID,ElemID)
+                dolocSide=.TRUE.
+                IF(SideType(SideID).NE.PLANAR) THEN
+                  lastlocSide=hitlocSide
+                  !oldXInterSection=LastPartPos(iPart,1:3)
+                END IF
+                dolocSide(hitlocSide)=.FALSE.
+                !IF(SideType(SideID).EQ.PLANAR) dolocSide(ilocSide)=.FALSE.+Side
+              ELSE ! no BC Side
+                ! check if the found alpha statisfy the selection condition
+                dolocSide=.TRUE.
+                dolocSide(neighborlocSideID(hitlocSide,ElemID))=.FALSE.
+                ElemID=neighborElemID(hitlocSide,ElemID)
+                lastlocSide=-1
+                EXIT
+              END IF ! selection of side
+           ! ELSE ! periodic side
+           !   ! update particle position of intersection
+           !   LastPartPos(iPart,1:3)=LastPartPos(iPart,1:3)+SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+           !   PartState(iPart,1:3)  =PartState(iPart,1:3)+SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+           !   ! recompute particle trajectory
+           !   PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+           !   lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+           !                            +PartTrajectory(2)*PartTrajectory(2) &
+           !                            +PartTrajectory(3)*PartTrajectory(3) )
+           !   PartTrajectory=PartTrajectory/lengthPartTrajectory
+           !   lengthPartTrajectory=lengthPartTrajectory+epsilontol
+           !   ! update particle element
+           !   dolocSide=.TRUE.
+           !   dolocSide(neighborlocSideID(ilocSide,ElemID))=.FALSE.
+           !   ElemID=neighborElemID(ilocSide,ElemID)
+           !   lastlocSide=-1
+           !   EXIT
+           ! END IF ! SidePeriodicType
             EXIT
-          END IF ! possible intersect
-        END IF ! SideID.LT.nBCSides
-      END DO ! ilocSide
-      ! no intersection found
-      IF(alpha.EQ.-1.0)THEN
-      END IF
+          END IF ! alpha>-1
+        END DO ! ilocSide
+      END IF ! one or more possible intersections
     END DO ! PartisDone=.FALSE.
   END IF ! Part inside
 END DO ! iPart

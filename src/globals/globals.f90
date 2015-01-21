@@ -173,13 +173,11 @@ INTEGER                           :: IntInfo         ! Error info (integer)
 REAL                              :: RealInfo        ! Error info (real)
 #ifdef MPI
 INTEGER                           :: errOut          ! Output of MPI_ABORT
-#endif
+#endif /*MPI*/
 !===================================================================================================================================
-#ifdef MPI
 IF(PRESENT(SingleOpt))THEN
   IF(SingleOpt.AND.(.NOT.MPIRoot)) RETURN
 END IF
-#endif
 IntInfo  = MERGE(IntInfoOpt ,999 ,PRESENT(IntInfoOpt) )
 RealInfo = MERGE(RealInfoOpt,999.,PRESENT(RealInfoOpt))
 WRITE(UNIT_stdOut,*)

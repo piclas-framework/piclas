@@ -20,7 +20,7 @@ INTERFACE IdentifyHaloMPINeighborhood
 END INTERFACE
 
 
-PUBLIC :: IdentifyHaloMPINeighborhood, InitFIBGM
+PUBLIC :: IdentifyHaloMPINeighborhood
 
 !===================================================================================================================================
 

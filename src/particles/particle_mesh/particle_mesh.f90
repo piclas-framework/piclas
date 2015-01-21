@@ -39,6 +39,7 @@ SUBROUTINE InitParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Particle_Mesh_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -66,7 +67,7 @@ SUBROUTINE FinalizeParticleMesh()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Mesh
+USE MOD_Particle_Mesh_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -94,6 +95,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo!,ElemToSide,SideToElem,NGeo
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
 #ifdef MPI
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -140,6 +142,13 @@ DO iSide=1,nSides
   zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,iSide)))
   zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,iSide)))
 END DO ! iSide
+GEO%xmin=xmin
+GEO%xmax=xmax
+GEO%ymin=ymin
+GEO%ymax=ymax
+GEO%zmin=zmin
+GEO%zmax=zmax
+
 
 ! get global min, max
 #ifdef MPI
@@ -158,14 +167,13 @@ END DO ! iSide
   GEO%zmaxglob=GEO%zmax
 #endif   
 
-CALL InitPeriodic()
-CALL InitializeInterpolation()
-CALL InitializeDeposition()
-CALL InitPIC()
-
+!CALL InitPeriodic()
+!CALL InitializeInterpolation()
+!CALL InitializeDeposition()
+!CALL InitPIC()
 
 
 END SUBROUTINE InitFIBGM
 
 
-END MODULE Particle_Mesh
+END MODULE MOD_Particle_Mesh

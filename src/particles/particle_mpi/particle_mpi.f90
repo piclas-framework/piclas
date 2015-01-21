@@ -188,4 +188,4 @@ END DO
 END SUBROUTINE InitHaloMesh
 
 #endif /*MPI*/
-END MODULE Particle_MPI
+END MODULE MOD_Particle_MPI
