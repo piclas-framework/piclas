@@ -17,10 +17,6 @@ INTERFACE MergeParticles
   MODULE PROCEDURE MergeParticles
 END INTERFACE
 
-INTERFACE DefineElemT_inv
-  MODULE PROCEDURE DefineElemT_inv
-END INTERFACE
-
 INTERFACE DefinePolyVec
   MODULE PROCEDURE DefinePolyVec
 END INTERFACE
@@ -33,10 +29,6 @@ INTERFACE StartParticleMerge
   MODULE PROCEDURE StartParticleMerge
 END INTERFACE
 
-INTERFACE GeoCoordToMap
-  MODULE PROCEDURE GeoCoordToMap
-END INTERFACE
-
 INTERFACE MapToGeo
   MODULE PROCEDURE MapToGeo
 END INTERFACE
@@ -46,7 +38,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SplitParticle, MergeParticles, DefineElemT_inv, DefinePolyVec, DefineSplitVec, StartParticleMerge, GeoCoordToMap, &
+PUBLIC :: SplitParticle, MergeParticles, DefinePolyVec, DefineSplitVec, StartParticleMerge, &
             MapToGeo
 !===================================================================================================================================
 
@@ -152,6 +144,7 @@ SUBROUTINE MergeParticles(iElem, NumFinPart, SpecNum, SpecID)
   USE MOD_Globals
   USE MOD_Particle_Vars
   USE Levenberg_Marquardt
+  USE MOD_Eval_xyz,            ONLY:eval_xyz_elemcheck
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                      
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -178,7 +171,7 @@ SUBROUTINE MergeParticles(iElem, NumFinPart, SpecNum, SpecID)
   iPart = PEM%pStart(iElem)                        
   DO iLoop = 1, PEM%pNumber(iElem)
     IF(PartSpecies(iPart).EQ.SpecID) THEN
-      CALL GeoCoordToMap(PartState(iPart,1:3), PartStateMap(iLoop2,1:3), iElem)
+      CALL Eval_XYZ_ElemCheck(PartState(iPart,1:3), PartStateMap(iLoop2,1:3), iElem)
       PartStatevMPFSpec(iLoop2) = iPart
       iLoop2 = iLoop2 + 1
     END IF
@@ -379,109 +372,6 @@ SUBROUTINE DefineSplitVec(SplitOrder)                                           
 
 END SUBROUTINE DefineSplitVec
 
-SUBROUTINE GeoCoordToMap(x_in,xi_Out,iElem)
-!===================================================================================================================================
-! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
-! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
-! xi is defined in the 1DrefElem xi=[-1,1]
-!===================================================================================================================================
-! MODULES
-  USE MOD_Basis,ONLY: LagrangeInterpolationPolys
-  USE MOD_Particle_Vars,ONLY:GEO
-  USE MOD_PICInterpolation_Vars, ONLY: ElemT_inv
-  USE MOD_Eval_xyz, ONLY: Calc_F, Calc_dF_inv 
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER,INTENT(IN)  :: iElem                                 ! elem index
-  REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-  REAL,INTENT(INOUT)    :: xi_Out(3)  ! Interpolated Pos
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-  INTEGER             :: i,j,k, iNode
-  REAL                :: xi(3)     
-  REAL              :: P(3,8), F(3), dF_inv(3,3), s(3) 
-  REAL, PARAMETER   :: EPS=1E-14
-  REAL              :: T_inv(3,3), DP(3)
-!===================================================================================================================================
-  ! --------------------------------------------------
-  ! 1.) Mapping: get xi,eta,zeta value from x,y,z
-  ! --------------------------------------------------
-  ! 1.1.) initial guess from linear part:
-  DO iNode = 1,8
-    P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-  END DO
-  T_inv(1:3,1:3) = ElemT_inv(1:3,1:3,iElem)
-
-  ! transform also the physical coordinate of the point 
-  ! into the unit element (this is the solution of the 
-  ! linear problem already 
-  xi = 0.
-  DP = x_in - P(:,1)
-  DO i=1,3
-    DO j=1,3
-      xi(i)= xi(i) + T_inv(i,j) * DP(j) 
-    END DO
-  END DO
-  xi = xi - (/1.,1.,1./)
-  ! 1.2.) Newton-Method to solve non-linear part
-  !       If linear elements then F should becom 0 and no 
-  !       Newton step is required.
-
-  F = Calc_F(xi,x_in,P)
-  DO WHILE(SUM(ABS(F)).GE.EPS) 
-    dF_inv = Calc_dF_inv(xi,P)
-    s=0.
-    DO j = 1,3
-      DO k = 1,3
-        s(j) = s(j) + dF_inv(j,k) * F(k) 
-      END DO ! k
-    END DO ! j
-    xi = xi - s
-    F = Calc_F(xi,x_in,P)
-  END DO ! i
-  xi_Out = xi
-
-END SUBROUTINE GeoCoordToMap
-
-
-SUBROUTINE DefineElemT_inv()
-!===================================================================================================================================
-! 
-!===================================================================================================================================
-! MODULES
-  USE MOD_Particle_Vars, ONLY : GEO
-  USE MOD_PICInterpolation_Vars, ONLY :ElemT_inv,  InterpolationType 
-  USE MOD_Mesh_Vars,              ONLY : nElems
-  USE MOD_PICInterpolation, ONLY : Calc_inv
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! ARGUMENT LIST DECLARATION
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLE DECLARATION
-  INTEGER                         :: iElem, iNode
-  REAL                      :: P(3,8), T(3,3), T_inv(3,3)
-!===================================================================================================================================
-  
-  IF(TRIM(InterpolationType).NE.'particle_position') THEN
-    ALLOCATE(ElemT_inv(1:3,1:3,1:nElems))
-    
-    DO iElem = 1,nElems
-      DO iNode = 1,8
-        P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-      END DO
-      T(:,1) = 0.5 * (P(:,2)-P(:,1))
-      T(:,2) = 0.5 * (P(:,4)-P(:,1))
-      T(:,3) = 0.5 * (P(:,5)-P(:,1))
-      T_inv = Calc_inv(T)
-      ElemT_inv(1:3,1:3,iElem) = T_inv
-    END DO
-  END IF
-  END SUBROUTINE DefineElemT_inv
 
 SUBROUTINE SplitRegion(SpecNum)
 !===================================================================================================================================

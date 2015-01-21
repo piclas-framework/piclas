@@ -96,6 +96,7 @@ USE MOD_Preproc
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo!,ElemToSide,SideToElem,NGeo
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
+USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 #ifdef MPI
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -167,7 +168,7 @@ GEO%zmax=zmax
   GEO%zmaxglob=GEO%zmax
 #endif   
 
-!CALL InitPeriodic()
+CALL InitPeriodicBC()
 !CALL InitializeInterpolation()
 !CALL InitializeDeposition()
 !CALL InitPIC()

@@ -1,6 +1,8 @@
-MODULE MOD_Partilce_Periodic_BC
 #include "boltzplatz.h"
+
+MODULE MOD_Partilce_Periodic_BC
 !===================================================================================================================================
+! Module initialization of periodic vectors for particle treatment
 !===================================================================================================================================
 IMPLICIT NONE
 PRIVATE

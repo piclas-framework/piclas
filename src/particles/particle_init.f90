@@ -405,7 +405,8 @@ USE MOD_Mesh_Vars,             ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_DSMC_Vars,             ONLY: useDSMC
 USE MOD_Particle_Output_Vars,  ONLY: WriteFieldsToVTK, OutputMesh
-USE MOD_part_MPFtools,         ONLY: DefineElemT_inv, DefinePolyVec, DefineSplitVec
+!USE MOD_part_MPFtools,         ONLY: DefineElemT_inv, DefinePolyVec, DefineSplitVec
+USE MOD_part_MPFtools,         ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation_Vars, ONLY: InterpolationType
 #ifdef MPI
 USE MOD_part_MPI_Vars,         ONLY: PMPIVAR
@@ -935,7 +936,7 @@ DelayTime = GETREAL('Part-DelayTime','0.')
 !-- Finalizing InitializeVariables
 CALL DomainUpdate()
 IF(enableParticleMerge) THEN
- IF (TRIM(InterpolationType).NE.'particle_position') CALL DefineElemT_inv()
+ !IF (TRIM(InterpolationType).NE.'particle_position') CALL DefineElemT_inv()
  CALL DefinePolyVec(vMPFMergePolyOrder) 
  CALL DefineSplitVec(vMPFMergeCellSplitOrder)
 END IF

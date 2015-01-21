@@ -44,6 +44,7 @@ INTEGER                                 :: ClipMaxInter,ClipMaxIter
 REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo
 INTEGER                                 :: MappingGuess
 !===================================================================================================================================

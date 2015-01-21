@@ -33,12 +33,14 @@ SUBROUTINE InitializeDeposition
 USE MOD_Globals
 USE MOD_Globals_Vars,  ONLY : PI
 USE MOD_Mesh_Vars,     ONLY : nElems, Elem_xGP
+USE MOD_Interpolation_Vars, ONLY: xGP
 USE MOD_PreProc,       ONLY : PP_N
 USE MOD_ReadInTools
 USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_inv
 USE MOD_PICInterpolation_Vars, ONLY : InterpolationType
 USE MOD_Particle_Vars
-USE MOD_part_MPFtools, ONLY: GeoCoordToMap
+USE MOD_Eval_xyz,            ONLY:eval_xyz_elemcheck
+!USE MOD_part_MPFtools, ONLY: GeoCoordToMap
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -72,6 +74,8 @@ REAL                      :: auxiliary(0:3),weight(1:3,0:3)
   CASE('nearest_blurycenter')
     DepositionType = 'nearest_blurrycenter'
   CASE('nearest_gausspoint')
+    CALL abort(__STAMP__, &
+        ' Not implemented for curved!!')
     ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
     ALLOCATE(PartPosMapped(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
@@ -85,8 +89,10 @@ REAL                      :: auxiliary(0:3),weight(1:3,0:3)
         'ERROR in pic_depo.f90: Cannot allocate Mapped Gauss Border Coords!')
     END IF
     DO i=0,PP_N
-      CALL GeoCoordToMap(Elem_xGP(:,i,1,1,1),Temp(:),1)
-      MappedGauss(i+1) = Temp(1)
+      ! bullshit here, use xGP
+      !CALL Eval_XYZ_ElemCheck(Elem_xGP(:,i,1,1,1),Temp(:),1)
+      !MappedGauss(i+1) = Temp(1)
+      MappedGauss(i+1) = xGP(i)
     END DO
     DO i = 1,PP_N
       GaussBorder(i) = (MappedGauss(i+1) + MappedGauss(i))/2
@@ -343,7 +349,7 @@ USE MOD_Globals
 USE MOD_part_MPI_Vars,         ONLY: casematrix, NbrOfCases
 USE MOD_Interpolation_Vars,    ONLY: wGP
 USE MOD_PICInterpolation_Vars, ONLY: InterpolationType
-USE MOD_part_MPFtools,         ONLY: GeoCoordToMap
+USE MOD_Eval_xyz,              ONLY:eval_xyz_elemcheck
 USE MOD_Basis,                 ONLY: LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,    ONLY: wBary,xGP
 #ifdef MPI
@@ -568,7 +574,7 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
         IF (PDM%ParticleInside(iPart)) THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
             ! Map Particle to -1|1 space (re-used in interpolation)
-            CALL GeoCoordToMap(PartState(iPart,1:3),PartPosMapped(iPart,1:3),iElem)
+            CALL Eval_XYZ_ElemCheck(PartState(iPart,1:3),PartPosMapped(iPart,1:3),iElem)
             ! get value of test function at particle position
             ! xi   -direction
             CALL LagrangeInterpolationPolys(PartPosMapped(iPart,1),PP_N,xGP,wBary,L_xi(1,:))
@@ -609,7 +615,7 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
       IF (PDM%ParticleInside(i)) THEN
         Element = PEM%Element(i)
         ! Map Particle to -1|1 space (re-used in interpolation)
-        CALL GeoCoordToMap(PartState(i,1:3),PartPosMapped(i,1:3),Element)
+        CALL Eval_XYZ_ElemCheck(PartState(i,1:3),PartPosMapped(i,1:3),Element)
         ! Find out which gausspoint is closest and add up charges and currents
         !! x-direction
         k = a
@@ -840,7 +846,7 @@ USE MOD_Globals
 USE MOD_part_MPI_Vars, ONLY : casematrix, NbrOfCases
 USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_PICInterpolation_Vars, ONLY : InterpolationType
-USE MOD_part_MPFtools, ONLY: GeoCoordToMap
+USE MOD_Eval_xyz,            ONLY:Eval_XYZ_ElemCheck
 #ifdef MPI
 USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles, PMPIVAR
 #endif 
@@ -1078,7 +1084,7 @@ END IF
       IF (PDM%ParticleInside(i)) THEN
         Element = PEM%Element(i)
         ! Map Particle to -1|1 space (re-used in interpolation)
-        CALL GeoCoordToMap(PartState(i,1:3),PartPosMapped(i,1:3),Element)
+        CALL Eval_XYZ_ElemCheck(PartState(i,1:3),PartPosMapped(i,1:3),Element)
         ! Find out which gausspoint is closest and add up charges and currents
         !! x-direction
         k = a

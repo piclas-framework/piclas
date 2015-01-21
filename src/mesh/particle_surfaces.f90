@@ -106,6 +106,7 @@ IF((MappingGuess.NE.1).AND.(MappingGuess.NE.2))THEN
 END IF
 IF(MappingGuess.EQ.1)THEN
   ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:PP_nElems) &
+          ,slenXiEtaZetaBasis(1:6,1:PP_nElems) &
           ,ElemBaryNGeo(1:3,1:PP_nElems)       )
   CALL BuildElementBasis()
 END IF
@@ -1570,7 +1571,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,ElemToSide
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D
 USE MOD_Basis,                    ONLY:DeCasteljauInterpolation
-USE MOD_Particle_Surfaces_Vars,   ONLY:XiEtaZetaBasis,ElemBaryNGeo
+USE MOD_Particle_Surfaces_Vars,   ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1608,6 +1609,13 @@ DO iElem=1,PP_nElems
   XiEtaZetaBasis(:,4,iElem)=XiEtaZetaBasis(:,4,iElem)-ElemBaryNGeo(:,iElem)
   XiEtaZetaBasis(:,5,iElem)=XiEtaZetaBasis(:,5,iElem)-ElemBaryNGeo(:,iElem)
   XiEtaZetaBasis(:,6,iElem)=XiEtaZetaBasis(:,6,iElem)-ElemBaryNGeo(:,iElem)
+  ! compute length
+  slenXiEtaZetaBasis(1,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,1,iElem),XiEtaZetaBasis(:,1,iElem))
+  slenXiEtaZetaBasis(2,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,2,iElem),XiEtaZetaBasis(:,2,iElem))
+  slenXiEtaZetaBasis(3,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,3,iElem),XiEtaZetaBasis(:,3,iElem))
+  slenXiEtaZetaBasis(4,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,4,iElem),XiEtaZetaBasis(:,4,iElem))
+  slenXiEtaZetaBasis(5,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,5,iElem),XiEtaZetaBasis(:,5,iElem))
+  slenXiEtaZetaBasis(6,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,6,iElem),XiEtaZetaBasis(:,6,iElem))
 END DO ! iElem
 
 END SUBROUTINE BuildElementBasis
