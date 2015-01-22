@@ -52,7 +52,7 @@ USE MOD_part_tools,     ONLY : UpdateNextFreePosition
 USE MOD_Restart_Vars,   ONLY : DoRestart 
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,      ONLY : useDSMC, DSMC
-USE MOD_part_pressure,  ONLY : ParticleInsideCheck
+!USE MOD_part_pressure,  ONLY : ParticleInsideCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -152,25 +152,25 @@ IF (.NOT.DoRestart) THEN
         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
         CALL UpdateNextFreePosition()
         ! constant pressure condition
-        IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
-          CALL ParticleInsideCheck(i, iInit, nPartInside, TempInside, EInside)
-          IF (Species(i)%Init(iInit)%ParticleEmission .GT. nPartInside) THEN
-            NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
-            IPWRITE(*,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
-#ifdef MPI
-            CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
-            CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
-#else
-            CALL SetParticlePosition(i,iInit,NbrOfParticle)
-#endif
-            CALL SetParticleVelocity(i,iInit,NbrOfParticle)
-            CALL SetParticleChargeAndMass(i,NbrOfParticle)
-            IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
-            !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
-            PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-            CALL UpdateNextFreePosition()
-          END IF
-        END IF
+!        IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
+!          CALL ParticleInsideCheck(i, iInit, nPartInside, TempInside, EInside)
+!          IF (Species(i)%Init(iInit)%ParticleEmission .GT. nPartInside) THEN
+!            NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
+!            IPWRITE(*,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
+!#ifdef MPI
+!            CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
+!            CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
+!#else
+!            CALL SetParticlePosition(i,iInit,NbrOfParticle)
+!#endif
+!            CALL SetParticleVelocity(i,iInit,NbrOfParticle)
+!            CALL SetParticleChargeAndMass(i,NbrOfParticle)
+!            IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+!            !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
+!            PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+!            CALL UpdateNextFreePosition()
+!          END IF
+!        END IF
       END IF ! not Emissiontype 4
     END DO !inits
   END DO ! species
@@ -210,7 +210,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
 #endif
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
-USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
+!USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -272,14 +272,14 @@ DO i=1,nSpecies
           END IF
         CASE(2)    ! Emission Type: Particles per Iteration
           NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission)
-        CASE(3)
-          CALL ParticlePressure (i, iInit, NbrOfParticle)
-          ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
-          IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
-            IF (NbrOfParticle.LT.5) NbrOfParticle=0
-          END IF
-        CASE(5) ! removal of all parts in pressure area and re-insertion
-          CALL ParticlePressureRem (i, iInit, NbrOfParticle)
+        !CASE(3)
+        !  CALL ParticlePressure (i, iInit, NbrOfParticle)
+        !  ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
+        !  IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
+        !    IF (NbrOfParticle.LT.5) NbrOfParticle=0
+        !  END IF
+        !CASE(5) ! removal of all parts in pressure area and re-insertion
+        !  CALL ParticlePressureRem (i, iInit, NbrOfParticle)
         CASE DEFAULT
           NbrOfParticle = 0
         END SELECT

@@ -55,7 +55,6 @@ InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
 externalField(1:6)= GETREALARRAY('PIC-externalField',6,'0.,0.,0.,0.,0.,0.')
 DoInterpolation   = GETLOGICAL('PIC-DoInterpolation','.TRUE.')
 useBGField        = GETLOGICAL('PIC-BG-Field','.FALSE.')
-Interpolation_p_IDW= GETINT('PIC-Interpolation_p_IDW','1')
 
 ! curved external field 
 usecurvedExternalField = .FALSE.
@@ -78,55 +77,7 @@ CASE('nearest_blurycenter')
 CASE('nearest_blurrycenter')
 CASE('particle_position_slow')
 CASE('particle_position')
-  SWRITE(UNIT_StdOut,'(132("-"))')
-  SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
-  ! nothing to do, curved blabla
-  ! prebuild trafo matrices
-  !ALLOCATE(ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
-  !IF (ALLOCSTAT.NE.0) THEN
-  !  CALL abort(__STAMP__, &
-  !    'ERROR in InterpolationInit: Cannot allocate ElemT_inv!')
-  !END IF
-  ! prepare interpolation: calculate trafo matrices
-  !DO iElem = 1,nElems
-  !  DO iNode = 1,8
-  !    P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-  !  END DO
-  !  T(:,1) = 0.5 * (P(:,2)-P(:,1))
-  !  T(:,2) = 0.5 * (P(:,4)-P(:,1))
-  !  T(:,3) = 0.5 * (P(:,5)-P(:,1))
-  !  T_inv = Calc_inv(T)
-  !  ElemT_inv(1:3,1:3,iElem) = T_inv
-  !END DO
-
-  SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
-  SWRITE(UNIT_StdOut,'(132("-"))')
 CASE('nearest_gausspoint')
-  SWRITE(UNIT_StdOut,'(132("-"))')
-  SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
-  ! prebuild trafo matrices
-  !ALLOCATE(ElemT_inv(1:3,1:3,1:nElems),     STAT=ALLOCSTAT)
-  !IF (ALLOCSTAT.NE.0) THEN
-  !  CALL abort(__STAMP__, &
-  !    'ERROR in InterpolationInit: Cannot allocate ElemT_inv!')
-  !END IF
-
-   CALL abort(__STAMP__, &
-     ' Not modifierd for curved!')
-  !! prepare interpolation: calculate trafo matrices
-  !DO iElem = 1,nElems
-  !  DO iNode = 1,8
-  !    P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-  !  END DO
-  !  T(:,1) = 0.5 * (P(:,2)-P(:,1))
-  !  T(:,2) = 0.5 * (P(:,4)-P(:,1))
-  !  T(:,3) = 0.5 * (P(:,5)-P(:,1))
-  !  T_inv = Calc_inv(T)
-  !  ElemT_inv(1:3,1:3,iElem) = T_inv
-  !END DO
-
-  SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
-  SWRITE(UNIT_StdOut,'(132("-"))')
 CASE DEFAULT
   CALL abort(__STAMP__, &
       'Unknown InterpolationType in pic_init.f90')
@@ -242,31 +193,29 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     END DO
   CASE('particle_position')
     IF(TRIM(DepositionType).EQ.'nearest_gausspoint')THEN
-      ! dirty 
-      STOP
       ! particles have already been mapped in deposition, other eval routine used
-!      DO iPart = 1,PDM%ParticleVecLength
-!        IF (PDM%ParticleInside(iPart)) THEN
-!          iElem = PEM%Element(iPart)
-!          !--- evaluate at Particle position
-!#if (PP_nVar==8)
-!#ifdef PP_POIS
-!          HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
-!          HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-!          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,HelperU,field,ielem)
-!#else
-!          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,U(1:6,:,:,:,iElem),field,ielem)
-!#endif
-!#else
-!#ifdef PP_POIS
-!          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),3,PP_N,E(1:3,:,:,:,iElem),field,iElem)     
-!#else
-!          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
-!#endif
-!#endif
-!          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
-!        END IF
-!      END DO
+      DO iPart = 1,PDM%ParticleVecLength
+        IF (PDM%ParticleInside(iPart)) THEN
+          iElem = PEM%Element(iPart)
+          !--- evaluate at Particle position
+#if (PP_nVar==8)
+#ifdef PP_POIS
+          HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+          HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
+          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,HelperU,field,ielem)
+#else
+          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,U(1:6,:,:,:,iElem),field,ielem)
+#endif
+#else
+#ifdef PP_POIS
+          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),3,PP_N,E(1:3,:,:,:,iElem),field,iElem)     
+#else
+          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
+#endif
+#endif
+          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+        END IF
+      END DO
     ELSE ! particles are not yet mapped
       DO iPart = 1,PDM%ParticleVecLength
         IF (PDM%ParticleInside(iPart)) THEN

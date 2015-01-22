@@ -41,6 +41,7 @@ SUBROUTINE InitParticleMPI()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Particle_MPI_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -53,10 +54,22 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES DONE!'
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
+IF(ParticleMPIInitIsDone) &
+  CALL abort(__STAMP__&
+  ,' Particle MPI already initialized!')
+
+PartMPI%COMM   = MPI_COMM_WORLD
+PartMPI%myrank = myRank
+PartMPI%nProcs = nProcessors
+IF(PartMPI%MyRank.EQ.0) THEN
+  PartMPI%MPIRoot=.TRUE.
+ELSE
+  PartMPI%MPIRoot=.FALSE.
+END IF
 
 ParticleMPIInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES DONE!'
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleMPI

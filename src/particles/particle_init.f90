@@ -405,12 +405,14 @@ USE MOD_Mesh_Vars,             ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_DSMC_Vars,             ONLY: useDSMC
 USE MOD_Particle_Output_Vars,  ONLY: WriteFieldsToVTK, OutputMesh
-!USE MOD_part_MPFtools,         ONLY: DefineElemT_inv, DefinePolyVec, DefineSplitVec
 USE MOD_part_MPFtools,         ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation_Vars, ONLY: InterpolationType
+USE MOD_PICInterpolation,      ONLY: InitializeInterpolation
+USE MOD_PICInit,               ONLY: InitPIC
 #ifdef MPI
 USE MOD_part_MPI_Vars,         ONLY: PMPIVAR
-#endif
+USE MOD_Particle_MPI_Vars,     ONLY: SafetyFactor,halo_eps_velo
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -432,14 +434,14 @@ USE MOD_part_MPI_Vars,         ONLY: PMPIVAR
 #ifdef MPI
 #endif
 !===================================================================================================================================
-#ifdef MPI
-   PMPIVAR%COMM   = MPI_COMM_WORLD
-   PMPIVAR%iProc  = myRank
-   PMPIVAR%nProcs = nProcessors
-   CALL MPI_COMM_GROUP(PMPIVAR%COMM,PMPIVAR%GROUP,IERROR)
-   PMPIVAR%GROUPWORLD=PMPIVAR%GROUP
-!IPWRITE(*,*)'INIT: GROUPWORLD',PMPIVAR%GROUPWORLD
-#endif
+!#ifdef MPI
+!   PMPIVAR%COMM   = MPI_COMM_WORLD
+!   PMPIVAR%iProc  = myRank
+!   PMPIVAR%nProcs = nProcessors
+!   CALL MPI_COMM_GROUP(PMPIVAR%COMM,PMPIVAR%GROUP,IERROR)
+!   PMPIVAR%GROUPWORLD=PMPIVAR%GROUP
+!!IPWRITE(*,*)'INIT: GROUPWORLD',PMPIVAR%GROUPWORLD
+!#endif
 
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
@@ -931,8 +933,13 @@ END DO
 DEALLOCATE(iseeds)
 
 DelayTime = GETREAL('Part-DelayTime','0.')
-
-
+! init interpolation
+CALL InitializeInterpolation() ! not any more required ! has to be called earliear
+CALL InitPIC()
+#ifdef MPI
+SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
+halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
+#endif /*MPI*/
 !-- Finalizing InitializeVariables
 CALL DomainUpdate()
 IF(enableParticleMerge) THEN
@@ -952,13 +959,13 @@ USE MOD_Globals!,               ONLY : UNIT_errOut,nProcessors
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars,              ONLY : nElems, nNodes
 USE MOD_PICDepo,                ONLY : InitializeDeposition
-USE MOD_PICInterpolation,       ONLY : InitializeInterpolation
 USE MOD_PreProc
 USE MOD_part_boundary_periodic, ONLY : InitPeriodic
 USE MOD_DSMC_Analyze,           ONLY : WriteOutputMesh
 USE MOD_PICInit,                ONLY : InitPIC
 USE MOD_ReadInTools
-USE MOD_part_pressure,          ONLY : ParticlePressureIni,ParticlePressureCellIni
+USE MOD_PICInterpolation,      ONLY: InitializeInterpolation
+!USE MOD_part_pressure,          ONLY : ParticlePressureIni,ParticlePressureCellIni
 USE MOD_Particle_Output_Vars,   ONLY : OutputMesh
 #ifdef MPI
 USE MOD_Equation_Vars,          ONLY : c
@@ -1118,7 +1125,6 @@ BGMlmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
      , 'Halo Eps Velocity for MPI not defined')
   END IF
 #endif
-  SafetyFactor=GETREAL('Part-SafetyFactor','1.0')
 #if (PP_TimeDiscMethod==201)
   deltaT=CALCTIMESTEP()
   halo_eps = c*deltaT*SafetyFactor*3.8
@@ -1664,29 +1670,29 @@ DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, Ce
 CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 #endif
 
-exitTrue=.false.
-DO i = 1,nSpecies
-  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-    IF((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
-      CALL ParticlePressureIni()
-      exitTrue=.true.
-      EXIT
-    END IF
-  END DO
-  IF (exitTrue) EXIT
-END DO
-
-exitTrue=.false.
-DO i = 1,nSpecies
-  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
-    IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 6)) THEN
-      CALL ParticlePressureCellIni()
-      exitTrue=.true.
-      EXIT
-    END IF
-  END DO
-  IF (exitTrue) EXIT
-END DO
+!exitTrue=.false.
+!DO i = 1,nSpecies
+!  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+!    IF((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
+!      CALL ParticlePressureIni()
+!      exitTrue=.true.
+!      EXIT
+!    END IF
+!  END DO
+!  IF (exitTrue) EXIT
+!END DO
+!
+!exitTrue=.false.
+!DO i = 1,nSpecies
+!  DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
+!    IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 6)) THEN
+!      CALL ParticlePressureCellIni()
+!      exitTrue=.true.
+!      EXIT
+!    END IF
+!  END DO
+!  IF (exitTrue) EXIT
+!END DO
 
 IF (OutputMesh) CALL WriteOutputMesh()
 

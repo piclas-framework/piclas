@@ -26,6 +26,21 @@ REAL,ALLOCATABLE    :: SidePeriodicDisplacement(:,:)                            
                                                                                           
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
+TYPE tFastInitBGM
+  INTEGER                                :: nElem                             ! Number of elements in background mesh cell
+  INTEGER, ALLOCATABLE                   :: Element(:)                        ! List of elements in BGM cell
+#ifdef MPI     
+  INTEGER, ALLOCATABLE                   :: ShapeProcs(:)                     ! first Entry: Number of Shapeprocs, 
+                                                                              ! following: ShapeProcs
+  INTEGER, ALLOCATABLE                   :: PaddingProcs(:)                   ! first Entry: Number of Paddingprocs, 
+                                                                              ! following: PaddingProcs
+  INTEGER, ALLOCATABLE                   :: SharedProcs(:)                    ! first Entry: Number of Sharedprocs, 
+                                                                              ! following: SharedProcs
+  INTEGER                                :: nBCSides                          ! number BC sides in BGM cell
+#endif                     
+END TYPE
+
+
 TYPE tGeometry
   REAL                                   :: xminglob                          ! global minimum x coord of all nodes
   REAL                                   :: yminglob                          ! global minimum y coord of all nodes
@@ -44,6 +59,16 @@ TYPE tGeometry
   REAL, ALLOCATABLE                      :: PeriodicVectors(:,:)              ! PeriodicVectors(1:3,1:nPeriodicVectors), 1:3=x,y,z
   ! FIBGM
   REAL                                   :: FIBGMdeltas(3)                    ! size of background mesh cell for particle init
+  
+  ! caution, possible pointer
+  TYPE (tFastInitBGM),ALLOCATABLE        :: FIBGM(:,:,:)  !        =>NULL()   ! FastInitBackgroundMesh
+  INTEGER                                :: FIBGMimin                         ! smallest index of FastInitBGM (x)
+  INTEGER                                :: FIBGMimax                         ! biggest index of FastInitBGM (x)
+  INTEGER                                :: FIBGMjmin                         ! smallest index of FastInitBGM (y)
+  INTEGER                                :: FIBGMjmax                         ! biggest index of FastInitBGM (y)
+  INTEGER                                :: FIBGMkmin                         ! smallest index of FastInitBGM (z)
+  INTEGER                                :: FIBGMkmax                         ! biggest index of FastInitBGM (z)
+
 !  INTEGER, ALLOCATABLE                   :: ElemToNodeID(:,:)                 ! ElemToNodeID(1:nElemNodes,1:nElems)
 !  INTEGER, ALLOCATABLE                   :: ElemSideNodeID(:,:,:)             ! ElemSideNodeID(1:nSideNodes,1:nLocSides,1:nElems)
 !                                                                              ! From element sides to node IDs
@@ -53,13 +78,6 @@ TYPE tGeometry
 !  REAL, ALLOCATABLE                      :: NodeCoords(:,:)                   ! Node Coordinates (1:nDim,1:nNodes)
 !  REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
 !  REAL, ALLOCATABLE                      :: DeltaEvMPF(:)                     ! Energy difference due to particle merge
-!  TYPE (tFastInitBGM)          , POINTER :: FIBGM(:,:,:)           =>NULL()   ! FastInitBackgroundMesh
-!  INTEGER                                :: FIBGMimin                         ! smallest index of FastInitBGM (x)
-!  INTEGER                                :: FIBGMimax                         ! biggest index of FastInitBGM (x)
-!  INTEGER                                :: FIBGMkmin                         ! smallest index of FastInitBGM (y)
-!  INTEGER                                :: FIBGMkmax                         ! biggest index of FastInitBGM (y)
-!  INTEGER                                :: FIBGMlmin                         ! smallest index of FastInitBGM (z)
-!  INTEGER                                :: FIBGMlmax                         ! biggest index of FastInitBGM (z)
 !  REAL                                   :: FactorFIBGM(3)                    ! scaling factor for FIBGM
 !  REAL                                   :: xminglob                          ! global minimum x coord of all nodes
 !  REAL                                   :: yminglob                          ! global minimum y coord of all nodes

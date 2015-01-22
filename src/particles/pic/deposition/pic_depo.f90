@@ -74,9 +74,8 @@ REAL                      :: auxiliary(0:3),weight(1:3,0:3)
   CASE('nearest_blurycenter')
     DepositionType = 'nearest_blurrycenter'
   CASE('nearest_gausspoint')
-    CALL abort(__STAMP__, &
-        ' Not implemented for curved!!')
     ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
+    SDEALLOCATE(PartPosMapped)
     ALLOCATE(PartPosMapped(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
       CALL abort(__STAMP__, &
@@ -99,6 +98,7 @@ REAL                      :: auxiliary(0:3),weight(1:3,0:3)
     END DO
     ! allocate array for saving the gauss points of particles for nearest_gausspoint interpolation
     IF(TRIM(InterpolationType).EQ.'nearest_gausspoint')THEN
+      SDEALLOCATE(PartPosGauss)
       ALLOCATE(PartPosGauss(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
       IF (ALLOCSTAT.NE.0) THEN
         CALL abort(__STAMP__, &
@@ -115,6 +115,7 @@ REAL                      :: auxiliary(0:3),weight(1:3,0:3)
     r2_sf_inv = 1./r2_sf
   CASE('delta_distri')
     ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
+    SDEALLOCATE(PartPosMapped)
     ALLOCATE(PartPosMapped(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
       CALL abort(__STAMP__, &
