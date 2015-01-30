@@ -74,7 +74,7 @@ USE MOD_Mesh_Vars,               ONLY:DCL_NGeo,DCL_N
 USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:nElems
 #ifdef PARTICLES
-USE MOD_Particle_Surfaces,       ONLY:GetSuperSampledSurface,GetBezierControlPoints3D,GetSideType
+USE MOD_Particle_Surfaces,       ONLY:GetSuperSampledSurface,GetBezierControlPoints3D!,GetSideType
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,               ONLY:xBaryCL_NGeo
 #endif /*PARTICLES*/
@@ -307,9 +307,9 @@ DO iElem=1,nElems
 #endif /*PARTICLES*/
 END DO !iElem=1,nElems
 
-#ifdef PARTICLES
-  CALL GetSideType()
-#endif /*PARTICLES*/
+!#ifdef PARTICLES
+!  CALL GetSideType()
+!#endif /*PARTICLES*/
 
 END SUBROUTINE CalcMetrics 
 

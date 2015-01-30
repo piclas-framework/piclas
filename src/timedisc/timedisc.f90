@@ -457,7 +457,7 @@ USE MOD_Particle_Vars,    ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, 
 USE MOD_Particle_Vars,    ONLY: nTotalPart,nTotalHalfPart
 USE MOD_part_RHS,         ONLY: CalcPartRHS
 USE MOD_part_boundary,    ONLY: ParticleBoundary
-USE MOD_Particle_Tracking,ONLY: ParticleTracking,ParticleTrackingCurved
+USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved
 USE MOD_part_emission,    ONLY: ParticleInserting
 USE MOD_DSMC,             ONLY: DSMC_main
 USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS, DSMC
@@ -818,7 +818,7 @@ USE MOD_PIC_Vars,         ONLY : PIC
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF, doParticleMerge
 USE MOD_part_RHS,         ONLY : CalcPartRHS
 USE MOD_part_boundary,    ONLY : ParticleBoundary
-USE MOD_Particle_Tracking,ONLY: ParticleTracking,ParticleTrackingCurved
+USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC

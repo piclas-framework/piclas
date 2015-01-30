@@ -1,6 +1,5 @@
 #include "boltzplatz.h"
 
-
 MODULE                              MOD_BoundaryTools                                              !
 !===================================================================================================================================
 !
@@ -1353,6 +1352,8 @@ SUBROUTINE SingleParticleToExactElement(iPart)
 ! distance is picked as an initial guess
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
+USE MOD_Preproc
 USE MOD_Particle_Vars
 USE MOD_TimeDisc_Vars,          ONLY:dt
 USE MOD_Equation_Vars,          ONLY:c_inv

@@ -1,6 +1,6 @@
-!#include "boltzplatz.h"
-!
-!MODULE MOD_part_pressure
+#include "boltzplatz.h"
+
+MODULE MOD_part_pressure
 !===================================================================================================================================
 ! Module for constant pressure emission types
 !===================================================================================================================================
@@ -37,7 +37,7 @@
 !PUBLIC       :: ParticlePressureIni, ParticlePressure, ParticleInsideCheck,ParticlePressureCellIni,ParticlePressureRem
 !===================================================================================================================================
 !
-!CONTAINS   
+CONTAINS   
 !   
 !SUBROUTINE ParticlePressureIni()
 !===================================================================================================================================
@@ -1722,4 +1722,4 @@
 !RETURN
 !END SUBROUTINE PointInsideQuad3D
 !
-!END MODULE MOD_part_pressure
+END MODULE MOD_part_pressure

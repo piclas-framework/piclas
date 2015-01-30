@@ -13,17 +13,19 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
+INTEGER,ALLOCATABLE :: PartHaloToProc(:,:)                                   ! containing native elemid and native proc id
 LOGICAL                                  :: ParticleMPIInitIsDone=.FALSE.
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)                   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfCases                        ! Number of periodic cases
 #ifdef MPI
 REAL                                     :: SafetyFactor                      ! Factor to scale the halo region with MPI
 REAL                                     :: halo_eps_velo                     ! halo_eps_velo
-REAL                                     :: halo_eps                          ! size of halo-region
+REAL                                     :: halo_eps                          ! length of halo-region
+REAL                                     :: halo_eps2                         ! length of halo-region^2
 
 TYPE tPartMPIConnect
 !  TYPE(tSidePtr)               , POINTER :: tagToSide(:)           =>NULL()   ! gives side pointer for each MPI tag
-  TYPE(tPeriodicPtr)       , ALLOCATABLE :: Periodic(:)                       ! data for different periodic borders for process
+  !TYPE(tPeriodicPtr)       , ALLOCATABLE :: Periodic(:)                       ! data for different periodic borders for process
   LOGICAL                                :: isBGMNeighbor                     ! Flag: which process is neighber wrt. bckgrnd mesh
   LOGICAL                                :: isBGMPeriodicNeighbor             ! Flag: which process is neighber wrt. bckgrnd mesh
 !  LOGICAL                      , POINTER :: myBGMPoint(:,:,:)      =>NULL()   ! Flag: does BGM point(i,j,k) belong to me?

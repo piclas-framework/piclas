@@ -74,7 +74,7 @@ INTEGER             :: NewTonIter
 REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
 REAL                :: Winner_Dist,Dist
-REAL, PARAMETER     :: EPS=1E-8
+REAL, PARAMETER     :: EPS=1E-8,EPSONE=1.00000001
 INTEGER             :: iDir
 REAL                :: F(1:3),Lag(1:3,0:NGeo),Lag2(1:3,0:N_In)
 REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
@@ -99,9 +99,12 @@ CASE(1)
   DO iDir=1,3
     Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
   END DO 
-  !print*,'xi guess lin1', XiLinear(1:3)
-  !print*,'xi guess lin2', XiLinear(4:6)
-!  print*,'xi guess lin',xi
+  IF(ANY(ABS(Xi).GT.epsOne)) THEN
+    DO iDir=1,3
+      IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
+      IF(Xi(iDir).LT.-epsOne) Xi(iDir)=-1.0
+    END DO ! iDir
+  END IF
 CASE(2) 
   ! compute distance on Gauss Points
   Winner_Dist=HUGE(1.)
@@ -122,8 +125,9 @@ CASE(3)
       Xi(:)=(/XiCL_NGeo(i),XiCL_NGeo(j),XiCL_NGeo(k)/) ! start value
     END IF
   END DO; END DO; END DO
-
-!  print*,'xi guess', xi
+CASE(4)
+  ! trival guess 
+  xi=0.
 END SELECT
 !print*,'Winnerdist',Winner_Dist
 !print*,'initial guess'
@@ -357,6 +361,12 @@ CASE(1)
   DO iDir=1,3
     Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
   END DO 
+  IF(ANY(ABS(Xi).GT.epsOne)) THEN
+    DO iDir=1,3
+      IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
+      IF(Xi(iDir).LT.-epsOne) Xi(iDir)=-1.0
+    END DO ! iDir
+  END IF
 CASE(2)
   Winner_Dist=HUGE(1.)
   DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
@@ -376,6 +386,9 @@ CASE(3)
       Xi(:)=(/XiCL_NGeo(i),XiCL_NGeo(j),XiCL_NGeo(k)/) ! start value
     END IF
   END DO; END DO; END DO
+CASE(4)
+  ! trival guess, cell mean point
+  xi=0.
 END SELECT
 
 !print*,'Winnerdist',Winner_Dist

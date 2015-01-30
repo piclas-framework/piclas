@@ -100,7 +100,7 @@ ClipMaxInter    = GETINT('ClipMaxInter',dummy)
 
 ! method from xPhysic to parameter space
 MappingGuess     = GETINT('MappingGuess','1')
-IF((MappingGuess.NE.1).AND.(MappingGuess.NE.2))THEN
+IF((MappingGuess.LT.1).OR.(MappingGuess.GT.4))THEN
    CALL abort(__STAMP__, &
         'Wrong guessing method for mapping from physical space in reference space.',MappingGuess,999.)
 END IF
@@ -1432,6 +1432,7 @@ SUBROUTINE GetSideType()
 USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Mesh_Vars,                ONLY:nSides,NGeo,Xi_NGeo,Sideid_minus_upper
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,epsilontol,SideType,SideNormVec,SideDistance
+USE MOD_Particle_Mesh_Vars,       ONLY:nTotalSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1447,9 +1448,13 @@ LOGICAL                     :: isLinear
 !================================================================================================================================
 
 ! allocated here,!!! should be moved?
-ALLOCATE( SideType(nSides)        &
-        , SideDistance(nSides)    &
-        , SideNormVec(1:3,nSides) )
+!ALLOCATE( SideType(nSides)        &
+!        , SideDistance(nSides)    &
+!        , SideNormVec(1:3,nSides) )
+
+ALLOCATE( SideType(nTotalSides)        &
+        , SideDistance(nTotalSides)    &
+        , SideNormVec(1:3,nTotalSides) )
 
 SideDistance=0.
 SideNormVec=0.
@@ -1458,7 +1463,7 @@ eps=1e-8
 nPlanar=0
 nBilinear=0
 nCurved=0
-DO iSide=1,nSides
+DO iSide=1,nTotalSides
   isLinear=.TRUE.
   ! all four edges
   q=0
@@ -1582,26 +1587,61 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                 :: iElem,SideID
 REAL                    :: Xi(2)
+REAL                    :: RNGeo3
 !================================================================================================================================
 
 Xi=(/0.0,0.0/)
+RNGeo3=1.0/REAL((NGeo+1)**3)
 DO iElem=1,PP_nElems
-  ElemBaryNGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))/REAL((NGeo+1)**3)
-  ElemBaryNGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))/REAL((NGeo+1)**3)
-  ElemBaryNGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))/REAL((NGeo+1)**3)
+  ElemBaryNGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))*RNGeo3
+  ElemBaryNGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))*RNGeo3
+  ElemBaryNGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))*RNGeo3
   ! get point on each side 
-  SideID = ElemToSide(1,XI_PLUS,iElem)
-  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,1,iElem))
-  SideID = ElemToSide(1,ETA_PLUS,iElem)
-  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,2,iElem))
-  SideID = ElemToSide(1,ZETA_PLUS,iElem)
-  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,3,iElem))
-  SideID = ElemToSide(1,XI_MINUS,iElem)
-  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,4,iElem))
-  SideID = ElemToSide(1,ETA_MINUS,iElem)
-  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,5,iElem))
-  SideID = ElemToSide(1,ZETA_MINUS,iElem)
-  CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,6,iElem))
+  ! xi plus
+  IF(NGeo.EQ.1)THEN
+    XiEtaZetaBasis(1:3,1,iElem)=0.25*(XCL_NGeo(:,NGeo,0,0,iElem)       &
+                                     +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
+                                     +XCL_NGeo(:,NGeo,0,NGeo,iElem)    &
+                                     +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
+    ! eta plus
+    XiEtaZetaBasis(1:3,2,iElem)=0.25*(XCL_NGeo(:,0,   NGeo,0,iElem)    &
+                                     +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
+                                     +XCL_NGeo(:,0,   NGeo,NGeo,iElem) &
+                                     +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
+    ! zeta plus
+    XiEtaZetaBasis(1:3,3,iElem)=0.25*(XCL_NGeo(:,0,0,      NGeo,iElem) &
+                                     +XCL_NGeo(:,NGeo,0,   NGeo,iElem) &
+                                     +XCL_NGeo(:,0,NGeo,   NGeo,iElem) &
+                                     +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
+    ! xi minus
+    XiEtaZetaBasis(1:3,4,iElem)=0.25*(XCL_NGeo(:,0,0,0,iElem)       &
+                                     +XCL_NGeo(:,0,NGeo,0,iElem)    &
+                                     +XCL_NGeo(:,0,0,NGeo,iElem)    &
+                                     +XCL_NGeo(:,0,NGeo,NGeo,iElem) )
+    ! eta minus
+    XiEtaZetaBasis(1:3,5,iElem)=0.25*(XCL_NGeo(:,0,   0,0,iElem)    &
+                                     +XCL_NGeo(:,NGeo,0,0,iElem)    &
+                                     +XCL_NGeo(:,0,   0,NGeo,iElem) &
+                                     +XCL_NGeo(:,NGeo,0,NGeo,iElem) )
+    ! zeta plus
+    XiEtaZetaBasis(1:3,6,iElem)=0.25*(XCL_NGeo(:,0,0,      0,iElem) &
+                                     +XCL_NGeo(:,NGeo,0,   0,iElem) &
+                                     +XCL_NGeo(:,0,NGeo,   0,iElem) &
+                                     +XCL_NGeo(:,NGeo,NGeo,0,iElem) )
+  ELSE
+    SideID = ElemToSide(1,XI_PLUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,1,iElem))
+    SideID = ElemToSide(1,ETA_PLUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,2,iElem))
+    SideID = ElemToSide(1,ZETA_PLUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,3,iElem))
+    SideID = ElemToSide(1,XI_MINUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,4,iElem))
+    SideID = ElemToSide(1,ETA_MINUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,5,iElem))
+    SideID = ElemToSide(1,ZETA_MINUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,6,iElem))
+  END IF
   ! compute vector from each barycenter to sidecenter
   XiEtaZetaBasis(:,1,iElem)=XiEtaZetaBasis(:,1,iElem)-ElemBaryNGeo(:,iElem)
   XiEtaZetaBasis(:,2,iElem)=XiEtaZetaBasis(:,2,iElem)-ElemBaryNGeo(:,iElem)

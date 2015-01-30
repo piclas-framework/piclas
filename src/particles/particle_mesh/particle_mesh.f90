@@ -26,8 +26,11 @@ INTERFACE InitFIBGM
   MODULE PROCEDURE InitFIBGM
 END INTERFACE
 
+INTERFACE SingleParticleToExactElement
+  MODULE PROCEDURE SingleParticleToExactElement
+END INTERFACE
 
-PUBLIC:: InitParticleMesh,FinalizeParticleMesh, InitFIBGM
+PUBLIC:: InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement
 !===================================================================================================================================
 
 CONTAINS
@@ -40,6 +43,8 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
+USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide
+USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -49,10 +54,26 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: ALLOCSTAT
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
+IF(ParticleMeshInitIsDone) CALL abort(__STAMP__&
+     , ' Particle-Mesh is already initialized.')
+! allocate and duplicate partElemToside
+ALLOCATE(PartElemToSide(1:2,1:6,1:nElems)    &
+        ,PartSideToElem(1:5,1:nSides)        &
+        ,PartNeighborElemID(1:6,1:nElems)    &
+        ,PartNeighborLocSideID(1:6,1:nElems) &
+        ,STAT=ALLOCSTAT                      )
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+ ,'  Cannot allocate particle mesh vars!')
+
+PartElemToSide=ElemToSide
+PartSideToelem=SideToElem
+PartNeighborElemID=NeighborElemID
+PartNeighborLocSideID=NeighborLocSideID
 
 ParticleMeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH DONE!'
@@ -80,9 +101,142 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
+SDEALLOCATE(PartElemToSide)
+SDEALLOCATE(PartSideToElem)
+SDEALLOCATE(PartNeighborElemID)
+SDEALLOCATE(PartNeighborLocSideID)
 ParticleMeshInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeParticleMesh
+
+
+SUBROUTINE SingleParticleToExactElement(iPart)                                                         
+!===================================================================================================================================
+! this subroutine maps each particle to an element
+! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
+! distance is picked as an initial guess
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM
+USE MOD_TimeDisc_Vars,          ONLY:dt
+USE MOD_Equation_Vars,          ONLY:c_inv,c
+USE MOD_Particle_Mesh_Vars,     ONLY:Geo
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,SuperSampledNodes,NPartCurved
+USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo,xBaryCL_NGeo
+USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Utils,                  ONLY:BubbleSortID
+USE MOD_PICDepo_Vars,           ONLY:DepositionType
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE                                                                                   
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)                :: iPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                           :: ilocSide,SideID,i
+LOGICAL                           :: InElementCheck,ParticleFound                                
+REAL                              :: xi(1:3),vBary(1:3)
+REAL,ALLOCATABLE                  :: Distance(:)
+INTEGER,ALLOCATABLE               :: ListDistance(:)
+REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
+REAL                              :: epsOne,OneMeps
+!===================================================================================================================================
+
+epsOne=1.0+eps
+OneMeps=1.0-eps
+ParticleFound = .FALSE.
+IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
+     (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
+     (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
+   PDM%ParticleInside(iPart) = .FALSE.
+   RETURN
+END IF
+
+! --- get background mesh cell of particle
+CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
+CellX = MIN(GEO%FIBGMimax,CellX)                             
+CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+CellY = MIN(GEO%FIBGMjmax,CellY) 
+CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+CellZ = MIN(GEO%FIBGMkmax,CellZ)
+!   print*,'cell indices',CellX,CellY,CellZ
+!   print*,'number of cells in bgm',GEO%FIBGM(CellX,CellY,CellZ)%nElem
+!   read*
+
+!--- check all cells associated with this beckground mesh cell
+nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+ALLOCATE( Distance(1:nBGMElems) &
+        , ListDistance(1:nBGMElems) )
+
+! get closest element barycenter
+Distance=0.
+ListDistance=0.
+DO iBGMElem = 1, nBGMElems
+  ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+  Distance(iBGMElem)=(PartState(iPart,1)-xBaryCL_NGeo(1,ElemID))*(PartState(iPart,1)-xBaryCL_NGeo(1,ElemID)) &
+                    +(PartState(iPart,2)-xBaryCL_NGeo(2,ElemID))*(PartState(iPart,2)-xBaryCL_NGeo(2,ElemID)) &
+                    +(PartState(iPart,3)-xBaryCL_NGeo(3,ElemID))*(PartState(iPart,3)-xBaryCL_NGeo(3,ElemID)) 
+  Distance(iBGMElem)=SQRT(Distance(iBGMElem))
+  ListDistance(iBGMElem)=ElemID
+END DO ! nBGMElems
+
+!print*,'earlier',Distance,ListDistance
+CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+!print*,'after',Distance,ListDistance
+!read*
+
+! loop through sorted list and start by closest element  
+DO iBGMElem=1,nBGMElems
+  ElemID=ListDistance(iBGMElem)
+  CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+  !print*,'xi',xi
+  IF(ALL(ABS(Xi).LE.OneMEps)) THEN ! particle inside
+    InElementCheck=.TRUE.
+  ELSE IF(ANY(ABS(Xi).GT.epsOne))THEN ! particle outside
+  !  print*,'ici'
+    InElementCheck=.FALSE.
+  ELSE ! particle at face,edge or node, check most possible point
+    ! alter particle position
+    ! 1) compute vector to cell centre
+    vBary=xBaryCL_NGeo(1:3,ElemID)-PartState(iPart,1:3)
+    ! 2) move particle pos along vector
+    PartState(iPart,1:3) = PartState(iPart,1:3)+eps*VBary(1:3)
+    CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+    !print*,xi
+    IF(ALL(ABS(Xi).LT.1.0)) THEN ! particle inside
+      InElementCheck=.TRUE.
+    ELSE
+      SWRITE(*,*) ' Particle not located!'
+      SWRITE(*,*) ' PartPos', PartState(iPart,1:3)
+      InElementCheck=.FALSE.
+    END IF
+  END IF
+  IF (InElementCheck) THEN !  !     print*,Element
+ ! read*
+    PEM%Element(iPart) = ElemID
+    ParticleFound = .TRUE.
+    EXIT
+  END IF
+END DO ! iBGMElem
+
+
+
+! particle not found
+IF (.NOT.ParticleFound) THEN
+  PDM%ParticleInside(iPart) = .FALSE.
+END IF
+! deallocate lists
+DEALLOCATE( Distance,ListDistance)
+!read*
+END SUBROUTINE SingleParticleToExactElement
 
 
 SUBROUTINE InitFIBGM()
@@ -95,10 +249,15 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo,ElemToSide,SideToElem
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
 #ifdef MPI
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI,SafetyFactor,halo_eps_velo
+USE MOD_Equation_Vars,                      ONLY:c
+USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding
+USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI,SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
+USE MOD_Particle_MPI_Vars,                  ONLY:NbrOfCases,casematrix
+USE MOD_Particle_Vars,                      ONLY:manualtimestep
 USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -120,10 +279,9 @@ INTEGER                          :: ALLOCSTAT
 INTEGER                          :: iSpec,iProc
 #ifdef MPI
 REAL                             :: deltaT
-REAL                             :: halo_eps
-INTEGER                          :: ii,jj,kk
-INTEGER                          :: BGMCells, j, m, CurrentProc, Cell, Procs
-INTEGER                          :: imin, imax, kmin, kmax, lmin, lmax
+INTEGER                          :: ii,jj,kk,i,j,k
+INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
+INTEGER                          :: imin, imax, kmin, kmax, jmin, jmax
 INTEGER                          :: nPaddingCellsX, nPaddingCellsY, nPaddingCellsZ
 INTEGER                          :: nShapePaddingX, nShapePaddingY, nShapePaddingZ
 INTEGER                          :: NbrOfBGMCells(0:PartMPI%nProcs-1)
@@ -135,6 +293,7 @@ INTEGER, ALLOCATABLE             :: CellProcList(:,:,:,:)
 INTEGER                          :: tempproclist(0:PartMPI%nProcs-1)
 INTEGER                          :: Vec1(1:3), Vec2(1:3), Vec3(1:3)
 INTEGER                          :: ind, Shift(1:3), iCase
+INTEGER                          :: j_offset
 #endif /*MPI*/
 !=================================================================================================================================
 
@@ -176,8 +335,8 @@ GEO%zmax=zmax
 #ifdef MPI
   ! allocate and initialize MPINeighbor
   ALLOCATE(PartMPI%isMPINeighbor(0:PartMPI%nProcs-1))
-  PartMPI%sMPINeighbor(:) = .FALSE.
-  PartMPI%nNeighbors=0
+  PartMPI%isMPINeighbor(:) = .FALSE.
+  PartMPI%nMPINeighbors=0
 #endif
 
 ! get global min, max
@@ -254,6 +413,7 @@ BGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
 #else
   halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
+  halo_eps2=halo_eps*halo_eps
   IF (DepositionType.EQ.'shape_function') THEN
     BGMimax = INT((GEO%xmax+halo_eps-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
     BGMimin = INT((GEO%xmin-halo_eps-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
@@ -442,7 +602,7 @@ nPaddingCellsZ = MAX(nShapePaddingZ,FIBGMCellPadding(3))
 j=0
 CurrentProc=0
 DO i=1, SUM(NbrOfBGMCells)*3, 3
-  IF  (i .GT. SUM(NbrOfBGMCells(0: CurrentProc))*3 .AND. CurrentProc .LT. PMPIVAR%nProcs-1) THEN
+  IF  (i .GT. SUM(NbrOfBGMCells(0: CurrentProc))*3 .AND. CurrentProc .LT. PartMPI%nProcs-1) THEN
     CurrentProc=CurrentProc+1
   END IF
   IF  (.NOT.(GlobalBGMCellsArray(i) .LT. BGMimin-nPaddingCellsX .OR. GlobalBGMCellsArray(i).GT. BGMimax+nPaddingCellsX &
@@ -517,7 +677,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN  !Periodic (can't be done below because Redu
       Shift(1:3) = casematrix(iCase,1)*Vec1(1:3) + &
                    casematrix(iCase,2)*Vec2(1:3) + &
                    casematrix(iCase,3)*Vec3(1:3)
-      IF  (i .GT. SUM(NbrOfBGMCells(0: CurrentProc))*3 .AND. CurrentProc .LT. PMPIVAR%nProcs-1) THEN
+      IF  (i .GT. SUM(NbrOfBGMCells(0: CurrentProc))*3 .AND. CurrentProc .LT. PartMPI%nProcs-1) THEN
         CurrentProc=CurrentProc+1
       END IF
       IF  (.NOT.(GlobalBGMCellsArray(i)   +Shift(1) .LT. BGMimin-nPaddingCellsX &
@@ -588,8 +748,8 @@ END DO !kBGM
 
 ! first count the maximum number of procs that exist within each BGM cell (inkl. Shape Padding region)
 ALLOCATE(CellProcNum(BGMimin-nShapePaddingX:BGMimax+nShapePaddingX, &
-                     BGMjmin-nShapePaddingY:BGMkmax+nShapePaddingY, &
-                     BGMkmin-nShapePaddingZ:BGMlmax+nShapePaddingZ))
+                     BGMjmin-nShapePaddingY:BGMjmax+nShapePaddingY, &
+                     BGMkmin-nShapePaddingZ:BGMkmax+nShapePaddingZ))
 CellProcNum = 0
 Procs = 0 ! = maximum number of procs in one BGM cell
 DO j=1, SUM(ReducedNbrOfBGMCells)*3-2, 3
@@ -636,7 +796,7 @@ DO Cell=0, BGMCells-1
     DO jBGM = BGMCellsArray(Cell*3+2)-nShapePaddingY, BGMCellsArray(Cell*3+2)+nShapePaddingY
       DO kBGM = BGMCellsArray(Cell*3+3)-nShapePaddingZ, BGMCellsArray(Cell*3+3)+nShapePaddingZ
         DO m = 1,CellProcNum(iBGM,jBGM,kBGM)
-          TempProcList(CellProcList(iBGM,jBGM,kBGM))=1       ! every proc that is within the stencil gets a 1
+          TempProcList(CellProcList(iBGM,jBGM,kBGM,m))=1       ! every proc that is within the stencil gets a 1
         END DO ! m
         kk = kBGM
       END DO !kBGM
@@ -651,7 +811,7 @@ DO Cell=0, BGMCells-1
     j=2
     DO m=0,PartMPI%nProcs-1
       IF (TempProcList(m) .EQ. 1) THEN
-        PMPIVAR%MPINeighbor(m) = .true.
+        PartMPI%isMPINeighbor(m) = .true.
         GEO%FIBGM(ii-nShapePaddingX,jj-nShapePaddingY,kk-nShapePaddingZ)%ShapeProcs(j)=m
         j=j+1
       END IF
@@ -716,9 +876,9 @@ DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside or adjacent and s
   DO jBGM=BGMjmin, BGMjmax
     DO kBGM=BGMkmin, BGMkmax
       iMin=MAX(iBGM-nPaddingCellsX,BGMimin); iMax=MIN(iBGM+nPaddingCellsX,BGMimax)
-      kMin=MAX(jBGM-nPaddingCellsY,BGMjmin); kMax=MIN(jBGM+nPaddingCellsY,BGMjmax)
-      lMin=MAX(kBGM-nPaddingCellsZ,BGMkmin); lMax=MIN(kBGM+nPaddingCellsZ,BGMkmax)
-      IF (SUM(GEO%FIBGM(iMin:iMax,kMin:kMax,lMin:lMax)%nElem) .GT. 0) THEN
+      jMin=MAX(jBGM-nPaddingCellsY,BGMjmin); jMax=MIN(jBGM+nPaddingCellsY,BGMjmax)
+      kMin=MAX(kBGM-nPaddingCellsZ,BGMkmin); kMax=MIN(kBGM+nPaddingCellsZ,BGMkmax)
+      IF (SUM(GEO%FIBGM(iMin:iMax,jMin:jMax,kMin:kMax)%nElem) .GT. 0) THEN
         BGMCellsArray(BGMCells*3+1)= iBGM
         BGMCellsArray(BGMCells*3+2)= jBGM
         BGMCellsArray(BGMCells*3+3)= kBGM
@@ -759,7 +919,7 @@ CellProcList = -1
 
 CellProcNum = 0
 j_offset = 0
-DO CurrentProc = 0,PMPIVAR%nProcs-1
+DO CurrentProc = 0,PartMPI%nProcs-1
   DO j = 1+j_offset, j_offset+ReducedNbrOfBGMCells(CurrentProc)*3-2,3
     CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)) = &
              CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)) + 1

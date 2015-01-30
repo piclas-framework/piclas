@@ -1045,7 +1045,7 @@ GEO%zmin = zmin
 GEO%zmax = zmax
 
 CALL InitPeriodic()
-CALL InitializeInterpolation()
+!CALL InitializeInterpolation()
 CALL InitializeDeposition()
 CALL InitPIC()
 

@@ -801,7 +801,7 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
                                   partShiftVector
     USE MOD_PICDepo_Vars,  ONLY : DepositionType
     USE MOD_Globals,       ONLY : myRank
-    USE MOD_LD_Vars,       ONLY: UseLD, PartStateBulkValues
+    !USE MOD_LD_Vars,       ONLY: UseLD, PartStateBulkValues
     !----------------------------------------------------------------------------------------------!
     IMPLICIT NONE                                                                                  !
     !----------------------------------------------------------------------------------------------!
@@ -865,7 +865,7 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
       END IF
     END IF
     !--- 5 more PartValues for LD
-    IF(UseLD) nbrOfVariablesPerParticle = nbrOfVariablesPerParticle + 5
+    !IF(UseLD) nbrOfVariablesPerParticle = nbrOfVariablesPerParticle + 5
 #if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
     nbrOfVariablesPerParticle = nbrOfVariablesPerParticle - 6
 #endif
@@ -1099,7 +1099,7 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
             PMPIExchange%send_message(iProc)%content(pos+8:pos+13) = Pt_temp(i,1:6)
             PMPIExchange%send_message(iProc)%content(pos+14) = MPIGEO%NativeElemID(PEM%Element(i))
-            IF(.NOT.UseLD) THEN   
+            !IF(.NOT.UseLD) THEN   
               IF (useDSMC.AND.(CollisMode.NE.1)) THEN
                 IF (usevMPF .AND. DSMC%ElectronicState) THEN
                   PMPIExchange%send_message(iProc)%content(pos+15) = PartStateIntEn(i, 1)
@@ -1121,41 +1121,41 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
               ELSE
                 IF (usevMPF) PMPIExchange%send_message(iProc)%content(pos+15) = PartMPF(i)
               END IF
-            ELSE ! UseLD == true      =>      useDSMC == true
-              IF (CollisMode.NE.1) THEN
-                IF (usevMPF .AND. DSMC%ElectronicState) THEN
-                  PMPIExchange%send_message(iProc)%content(pos+15) = PartStateIntEn(i, 1)
-                  PMPIExchange%send_message(iProc)%content(pos+16) = PartStateIntEn(i, 2)    
-                  PMPIExchange%send_message(iProc)%content(pos+17) = PartMPF(i)
-                  PMPIExchange%send_message(iProc)%content(pos+18) = PartStateIntEn(i, 3)
-                  PMPIExchange%send_message(iProc)%content(pos+19:pos+23) = PartStateBulkValues(i,1:5)
-                ELSE IF (usevMPF) THEN
-                  PMPIExchange%send_message(iProc)%content(pos+15) = PartStateIntEn(i, 1)
-                  PMPIExchange%send_message(iProc)%content(pos+16) = PartStateIntEn(i, 2)    
-                  PMPIExchange%send_message(iProc)%content(pos+17) = PartMPF(i)
-                  PMPIExchange%send_message(iProc)%content(pos+18:pos+22) = PartStateBulkValues(i,1:5)
-                ELSE IF ( DSMC%ElectronicState ) THEN
-                  PMPIExchange%send_message(iProc)%content(pos+15) = PartStateIntEn(i, 1)
-                  PMPIExchange%send_message(iProc)%content(pos+16) = PartStateIntEn(i, 2)    
-                  PMPIExchange%send_message(iProc)%content(pos+17) = PartStateIntEn(i, 3)
-                  PMPIExchange%send_message(iProc)%content(pos+18:pos+22) = PartStateBulkValues(i,1:5)
-                ELSE
-                  PMPIExchange%send_message(iProc)%content(pos+15) = PartStateIntEn(i, 1)
-                  PMPIExchange%send_message(iProc)%content(pos+16) = PartStateIntEn(i, 2)
-                  PMPIExchange%send_message(iProc)%content(pos+17:pos+21) = PartStateBulkValues(i,1:5)
-                END IF
-              ELSE
-                IF (usevMPF) THEN
-                  PMPIExchange%send_message(iProc)%content(pos+15) = PartMPF(i)
-                  PMPIExchange%send_message(iProc)%content(pos+16:pos+20) = PartStateBulkValues(i,1:5)
-                ELSE
-                  PMPIExchange%send_message(iProc)%content(pos+15:pos+19) = PartStateBulkValues(i,1:5)
-                END IF
-              END IF
-            END IF
+            !ELSE ! UseLD == true      =>      useDSMC == true
+            !  IF (CollisMode.NE.1) THEN
+            !    IF (usevMPF .AND. DSMC%ElectronicState) THEN
+            !      PMPIExchange%send_message(iProc)%content(pos+15) = PartStateIntEn(i, 1)
+            !      PMPIExchange%send_message(iProc)%content(pos+16) = PartStateIntEn(i, 2)    
+            !      PMPIExchange%send_message(iProc)%content(pos+17) = PartMPF(i)
+            !      PMPIExchange%send_message(iProc)%content(pos+18) = PartStateIntEn(i, 3)
+            !      PMPIExchange%send_message(iProc)%content(pos+19:pos+23) = PartStateBulkValues(i,1:5)
+            !    ELSE IF (usevMPF) THEN
+            !      PMPIExchange%send_message(iProc)%content(pos+15) = PartStateIntEn(i, 1)
+            !      PMPIExchange%send_message(iProc)%content(pos+16) = PartStateIntEn(i, 2)    
+            !      PMPIExchange%send_message(iProc)%content(pos+17) = PartMPF(i)
+            !      PMPIExchange%send_message(iProc)%content(pos+18:pos+22) = PartStateBulkValues(i,1:5)
+            !    ELSE IF ( DSMC%ElectronicState ) THEN
+            !      PMPIExchange%send_message(iProc)%content(pos+15) = PartStateIntEn(i, 1)
+            !      PMPIExchange%send_message(iProc)%content(pos+16) = PartStateIntEn(i, 2)    
+            !      PMPIExchange%send_message(iProc)%content(pos+17) = PartStateIntEn(i, 3)
+            !      PMPIExchange%send_message(iProc)%content(pos+18:pos+22) = PartStateBulkValues(i,1:5)
+            !    ELSE
+            !      PMPIExchange%send_message(iProc)%content(pos+15) = PartStateIntEn(i, 1)
+            !      PMPIExchange%send_message(iProc)%content(pos+16) = PartStateIntEn(i, 2)
+            !      PMPIExchange%send_message(iProc)%content(pos+17:pos+21) = PartStateBulkValues(i,1:5)
+            !    END IF
+            !  ELSE
+            !    IF (usevMPF) THEN
+            !      PMPIExchange%send_message(iProc)%content(pos+15) = PartMPF(i)
+            !      PMPIExchange%send_message(iProc)%content(pos+16:pos+20) = PartStateBulkValues(i,1:5)
+            !    ELSE
+            !      PMPIExchange%send_message(iProc)%content(pos+15:pos+19) = PartStateBulkValues(i,1:5)
+            !    END IF
+            !  END IF
+            !END IF
 #else 
             PMPIExchange%send_message(iProc)%content(pos+8) = MPIGEO%NativeElemID(PEM%Element(i))
-            IF(.NOT.UseLD) THEN      
+            !IF(.NOT.UseLD) THEN      
               IF (useDSMC.AND.(CollisMode.NE.1)) THEN
                 IF (usevMPF .AND. DSMC%ElectronicState) THEN
                   PMPIExchange%send_message(iProc)%content(pos+ 9) = PartStateIntEn(i, 1)
@@ -1177,38 +1177,38 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
               ELSE
                 IF (usevMPF) PMPIExchange%send_message(iProc)%content(pos+9) = PartMPF(i)
               END IF
-            ELSE ! UseLD == true      =>      useDSMC == true
-              IF (CollisMode.NE.1) THEN
-                IF (usevMPF .AND. DSMC%ElectronicState) THEN
-                  PMPIExchange%send_message(iProc)%content(pos+9) = PartStateIntEn(i, 1)
-                  PMPIExchange%send_message(iProc)%content(pos+10) = PartStateIntEn(i, 2)    
-                  PMPIExchange%send_message(iProc)%content(pos+11) = PartMPF(i)
-                  PMPIExchange%send_message(iProc)%content(pos+12) = PartStateIntEn(i, 3)
-                  PMPIExchange%send_message(iProc)%content(pos+13:pos+17) = PartStateBulkValues(i,1:5)
-                ELSE IF (usevMPF) THEN
-                  PMPIExchange%send_message(iProc)%content(pos+9) = PartStateIntEn(i, 1)
-                  PMPIExchange%send_message(iProc)%content(pos+10) = PartStateIntEn(i, 2)    
-                  PMPIExchange%send_message(iProc)%content(pos+11) = PartMPF(i)
-                  PMPIExchange%send_message(iProc)%content(pos+12:pos+16) = PartStateBulkValues(i,1:5)
-                ELSE IF ( DSMC%ElectronicState ) THEN
-                  PMPIExchange%send_message(iProc)%content(pos+9) = PartStateIntEn(i, 1)
-                  PMPIExchange%send_message(iProc)%content(pos+10) = PartStateIntEn(i, 2)    
-                  PMPIExchange%send_message(iProc)%content(pos+11) = PartStateIntEn(i, 3)
-                  PMPIExchange%send_message(iProc)%content(pos+12:pos+16) = PartStateBulkValues(i,1:5)
-                ELSE
-                  PMPIExchange%send_message(iProc)%content(pos+9) = PartStateIntEn(i, 1)
-                  PMPIExchange%send_message(iProc)%content(pos+10) = PartStateIntEn(i, 2)
-                  PMPIExchange%send_message(iProc)%content(pos+11:pos+15) = PartStateBulkValues(i,1:5)
-                END IF
-              ELSE
-                IF (usevMPF) THEN
-                  PMPIExchange%send_message(iProc)%content(pos+9) = PartMPF(i)
-                  PMPIExchange%send_message(iProc)%content(pos+10:pos+14) = PartStateBulkValues(i,1:5)
-                ELSE
-                  PMPIExchange%send_message(iProc)%content(pos+9:pos+13) = PartStateBulkValues(i,1:5)
-                END IF
-              END IF
-            END IF
+            !ELSE ! UseLD == true      =>      useDSMC == true
+            !  IF (CollisMode.NE.1) THEN
+            !    IF (usevMPF .AND. DSMC%ElectronicState) THEN
+            !      PMPIExchange%send_message(iProc)%content(pos+9) = PartStateIntEn(i, 1)
+            !      PMPIExchange%send_message(iProc)%content(pos+10) = PartStateIntEn(i, 2)    
+            !      PMPIExchange%send_message(iProc)%content(pos+11) = PartMPF(i)
+            !      PMPIExchange%send_message(iProc)%content(pos+12) = PartStateIntEn(i, 3)
+            !      PMPIExchange%send_message(iProc)%content(pos+13:pos+17) = PartStateBulkValues(i,1:5)
+            !    ELSE IF (usevMPF) THEN
+            !      PMPIExchange%send_message(iProc)%content(pos+9) = PartStateIntEn(i, 1)
+            !      PMPIExchange%send_message(iProc)%content(pos+10) = PartStateIntEn(i, 2)    
+            !      PMPIExchange%send_message(iProc)%content(pos+11) = PartMPF(i)
+            !      PMPIExchange%send_message(iProc)%content(pos+12:pos+16) = PartStateBulkValues(i,1:5)
+            !    ELSE IF ( DSMC%ElectronicState ) THEN
+            !      PMPIExchange%send_message(iProc)%content(pos+9) = PartStateIntEn(i, 1)
+            !      PMPIExchange%send_message(iProc)%content(pos+10) = PartStateIntEn(i, 2)    
+            !      PMPIExchange%send_message(iProc)%content(pos+11) = PartStateIntEn(i, 3)
+            !      PMPIExchange%send_message(iProc)%content(pos+12:pos+16) = PartStateBulkValues(i,1:5)
+            !    ELSE
+            !      PMPIExchange%send_message(iProc)%content(pos+9) = PartStateIntEn(i, 1)
+            !      PMPIExchange%send_message(iProc)%content(pos+10) = PartStateIntEn(i, 2)
+            !      PMPIExchange%send_message(iProc)%content(pos+11:pos+15) = PartStateBulkValues(i,1:5)
+            !    END IF
+            !  ELSE
+            !    IF (usevMPF) THEN
+            !      PMPIExchange%send_message(iProc)%content(pos+9) = PartMPF(i)
+            !      PMPIExchange%send_message(iProc)%content(pos+10:pos+14) = PartStateBulkValues(i,1:5)
+            !    ELSE
+            !      PMPIExchange%send_message(iProc)%content(pos+9:pos+13) = PartStateBulkValues(i,1:5)
+            !    END IF
+            !  END IF
+            !END IF
 #endif 
             counter_phys(iProc) = counter_phys(iProc) + nbrOfVariablesPerParticle   
           ELSE             ! shape part (here also the particles are sent back to myproc)
@@ -1247,7 +1247,7 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
     USE MOD_part_MPI_Vars, ONLY : tMPIMessage,PMPIVAR
     USE MOD_part_MPI_Vars, ONLY : extPartState,extPartSpecies,extPartsAllocated,NbrOfAllocatedExtParts,NbrOfextParticles
     USE MOD_PICDepo_Vars,  ONLY : DepositionType
-    USE MOD_LD_Vars,       ONLY: UseLD, PartStateBulkValues
+    !USE MOD_LD_Vars,       ONLY: UseLD, PartStateBulkValues
     !----------------------------------------------------------------------------------------------!
     IMPLICIT NONE                                                                                  !
     !----------------------------------------------------------------------------------------------!
@@ -1296,7 +1296,7 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
       END IF
     END IF
     !--- 5 more PartValues for LD
-    IF(UseLD) nbrOfVariablesPerParticle = nbrOfVariablesPerParticle + 5
+    !IF(UseLD) nbrOfVariablesPerParticle = nbrOfVariablesPerParticle + 5
 #if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
     nbrOfVariablesPerParticle = nbrOfVariablesPerParticle - 6
 #endif
@@ -1374,7 +1374,7 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
               Pt_temp(ParticleIndexNbr,1:6)     = recv_message(iProc)%content(pos+8:pos+13)
               PEM%Element(ParticleIndexNbr)     = recv_message(iProc)%content(pos+14)
-              IF(.NOT.UseLD) THEN
+              !IF(.NOT.UseLD) THEN
                 IF (useDSMC.AND.(CollisMode.NE.1)) THEN
                   IF (usevMPF .AND. DSMC%ElectronicState) THEN
                     PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+15)
@@ -1396,41 +1396,41 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
                 ELSE
                   IF (usevMPF) PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+15)
                 END IF
-              ELSE ! UseLD == true      =>      useDSMC == true
-                IF (CollisMode.NE.1) THEN
-                  IF (usevMPF .AND. DSMC%ElectronicState) THEN
-                    PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+15)
-                    PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+16)
-                    PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+17)
-                    PartStateIntEn(ParticleIndexNbr, 3) = recv_message(iProc)%content(pos+18)
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+19:pos+23)
-                  ELSE IF ( usevMPF) THEN
-                    PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+15)
-                    PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+16)
-                    PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+17)
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+18:pos+22)
-                  ELSE IF ( DSMC%ElectronicState ) THEN
-                    PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+15)
-                    PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+16)
-                    PartStateIntEn(ParticleIndexNbr, 3) = recv_message(iProc)%content(pos+17)
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+18:pos+22)
-                  ELSE
-                    PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+15)
-                    PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+16)
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+17:pos+21)
-                  END IF
-                ELSE
-                  IF (usevMPF) THEN
-                    PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+15)
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+16:pos+20)
-                  ELSE
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+15:pos+19)                    
-                  END IF
-                END IF
-              END IF
+              !ELSE ! UseLD == true      =>      useDSMC == true
+                !IF (CollisMode.NE.1) THEN
+                  !IF (usevMPF .AND. DSMC%ElectronicState) THEN
+                    !PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+15)
+                    !PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+16)
+                    !PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+17)
+                    !PartStateIntEn(ParticleIndexNbr, 3) = recv_message(iProc)%content(pos+18)
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+19:pos+23)
+                  !ELSE IF ( usevMPF) THEN
+                    !PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+15)
+                    !PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+16)
+                    !PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+17)
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+18:pos+22)
+                  !ELSE IF ( DSMC%ElectronicState ) THEN
+                    !PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+15)
+                    !PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+16)
+                    !PartStateIntEn(ParticleIndexNbr, 3) = recv_message(iProc)%content(pos+17)
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+18:pos+22)
+                  !ELSE
+                    !PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+15)
+                    !PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+16)
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+17:pos+21)
+                  !END IF
+                !ELSE
+                  !IF (usevMPF) THEN
+                    !PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+15)
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+16:pos+20)
+                  !ELSE
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+15:pos+19)                    
+                  !END IF
+                !END IF
+              !END IF
 #else 
               PEM%Element(ParticleIndexNbr)     = recv_message(iProc)%content(pos+8)
-              IF(.NOT.UseLD) THEN
+              !IF(.NOT.UseLD) THEN
                 IF (useDSMC.AND.(CollisMode.NE.1)) THEN
                   IF (usevMPF .AND. DSMC%ElectronicState) THEN
                     PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+9)
@@ -1452,38 +1452,38 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
                 ELSE
                   IF (usevMPF) PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+9)
                 END IF
-              ELSE ! UseLD == true      =>      useDSMC == true
-                IF (CollisMode.NE.1) THEN
-                  IF (usevMPF .AND. DSMC%ElectronicState) THEN
-                    PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+9)
-                    PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+10)
-                    PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+11)
-                    PartStateIntEn(ParticleIndexNbr, 3) = recv_message(iProc)%content(pos+12)
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+13:pos+17)
-                  ELSE IF ( usevMPF) THEN
-                    PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+9)
-                    PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+10)
-                    PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+11)
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+12:pos+16)
-                  ELSE IF ( DSMC%ElectronicState ) THEN
-                    PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+9)
-                    PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+10)
-                    PartStateIntEn(ParticleIndexNbr, 3) = recv_message(iProc)%content(pos+11)
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+12:pos+16)
-                  ELSE
-                    PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+9)
-                    PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+10)
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+11:pos+15)
-                  END IF
-                ELSE
-                  IF (usevMPF) THEN
-                    PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+9)
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+10:pos+14)
-                  ELSE
-                    PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+9:pos+13)                    
-                  END IF
-                END IF
-              END IF
+              !ELSE ! UseLD == true      =>      useDSMC == true
+                !IF (CollisMode.NE.1) THEN
+                  !IF (usevMPF .AND. DSMC%ElectronicState) THEN
+                    !PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+9)
+                    !PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+10)
+                    !PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+11)
+                    !PartStateIntEn(ParticleIndexNbr, 3) = recv_message(iProc)%content(pos+12)
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+13:pos+17)
+                  !ELSE IF ( usevMPF) THEN
+                    !PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+9)
+                    !PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+10)
+                    !PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+11)
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+12:pos+16)
+                  !ELSE IF ( DSMC%ElectronicState ) THEN
+                    !PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+9)
+                    !PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+10)
+                    !PartStateIntEn(ParticleIndexNbr, 3) = recv_message(iProc)%content(pos+11)
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+12:pos+16)
+                  !ELSE
+                    !PartStateIntEn(ParticleIndexNbr, 1) = recv_message(iProc)%content(pos+9)
+                    !PartStateIntEn(ParticleIndexNbr, 2) = recv_message(iProc)%content(pos+10)
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+11:pos+15)
+                  !END IF
+                !ELSE
+                  !IF (usevMPF) THEN
+                    !PartMPF(ParticleIndexNbr) = recv_message(iProc)%content(pos+9)
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+10:pos+14)
+                  !ELSE
+                    !PartStateBulkValues(ParticleIndexNbr,1:5) = recv_message(iProc)%content(pos+9:pos+13)                    
+                  !END IF
+                !END IF
+              !END IF
 #endif
               ! Set Flag for received parts in order to localize them later
               PEM%lastElement(ParticleIndexNbr) = -888 

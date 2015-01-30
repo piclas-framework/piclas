@@ -24,7 +24,18 @@ INTEGER,ALLOCATABLE :: SidePeriodicType(:)                                      
                                                                                           ! >0 type of periodic displacement
 REAL,ALLOCATABLE    :: SidePeriodicDisplacement(:,:)                                      ! dispacement vector
                                                                                           
+INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                                              ! containing the ElemToSide of my
+                                                                                          ! geometry + halo information
+
+INTEGER,ALLOCATABLE :: PartSideToElem(:,:)
+INTEGER,ALLOCATABLE :: PartNeighborElemID(:,:)
+INTEGER,ALLOCATABLE :: PartNeighborlocSideID(:,:)
+INTEGER             :: nTotalSides
+INTEGER             :: nTotalElems
 !-----------------------------------------------------------------------------------------------------------------------------------
+
+
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tFastInitBGM
   INTEGER                                :: nElem                             ! Number of elements in background mesh cell
@@ -40,6 +51,7 @@ TYPE tFastInitBGM
 #endif                     
 END TYPE
 
+INTEGER                                  :: FIBGMCellPadding(1:3)
 
 TYPE tGeometry
   REAL                                   :: xminglob                          ! global minimum x coord of all nodes

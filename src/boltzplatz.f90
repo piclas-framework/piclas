@@ -72,6 +72,14 @@ CALL InitMesh()
 #ifdef MPI
 CALL InitMPIvars()
 #endif
+#ifdef PARTICLES
+! missing
+! CALL InitParticleMPI
+CALL InitParticleSurfaces()
+! CALL InitParticleMesh
+! CALL GetSideType
+#endif /*PARTICLES*/
+
 CALL InitEquation()
 !1#ifdef PARTICLES
 !CALL InitParticles()
@@ -81,7 +89,6 @@ CALL InitDG()
 CALL InitFilter()
 CALL InitTimeDisc()
 #ifdef PARTICLES
-CALL InitParticleSurfaces()
 CALL InitParticles()
 CALL InitParticleAnalyze()
 #endif

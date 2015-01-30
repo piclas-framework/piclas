@@ -72,3 +72,7 @@
 #define PLANAR   0
 #define BILINEAR 1
 #define CURVED   2
+
+! entries for PartHaloToProc
+#define NATIVE_ELEM_ID  1
+#define NATIVE_PROC     2
