@@ -113,6 +113,8 @@ REAL                      :: auxiliary(0:3),weight(1:3,0:3)
                           * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
     r2_sf = r_sf * r_sf 
     r2_sf_inv = 1./r2_sf
+    CALL abort(__STAMP__,&
+        ' Shape function parallelization unter production. ')
   CASE('delta_distri')
     ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
     SDEALLOCATE(PartPosMapped)
@@ -122,6 +124,9 @@ REAL                      :: auxiliary(0:3),weight(1:3,0:3)
         'ERROR in pic_depo.f90: Cannot allocate mapped particle pos!')
     END IF
   CASE('cartmesh_volumeweighting')
+
+    CALL abort(__STAMP__,&
+        ' cartmesh parallelization unter production. ')
     ! read in background mesh size
     BGMdeltas(1:3) = GETREALARRAY('PIC-BGMdeltas',3,'0. , 0. , 0.')
     FactorBGM(1:3) = GETREALARRAY('PIC-FactorBGM',3,'1. , 1. , 1.')
@@ -210,6 +215,8 @@ REAL                      :: auxiliary(0:3),weight(1:3,0:3)
     END IF
 #endif
   CASE('cartmesh_splines')
+    CALL abort(__STAMP__,&
+        ' cartmesh parallelization unter production. ')
     BGMdeltas(1:3) = GETREALARRAY('PIC-BGMdeltas',3,'0. , 0. , 0.')
     FactorBGM(1:3) = GETREALARRAY('PIC-FactorBGM',3,'1. , 1. , 1.')
     BGMdeltas(1:3) = 1./FactorBGM(1:3)*BGMdeltas(1:3)

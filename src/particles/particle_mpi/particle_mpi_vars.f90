@@ -14,10 +14,16 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 INTEGER,ALLOCATABLE :: PartHaloToProc(:,:)                                   ! containing native elemid and native proc id
+                                                                             ! 1 - Native_Elem_ID
+                                                                             ! 2 - Rank of Proc
+                                                                             ! 3 - local neighbor id
+INTEGER             :: myRealKind
 LOGICAL                                  :: ParticleMPIInitIsDone=.FALSE.
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)                   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfCases                        ! Number of periodic cases
 #ifdef MPI
+INTEGER                                  :: PartCommSize                      ! Number of REAL entries for particle communication
+                                                                              ! should think about own MPI-Data-Type
 REAL                                     :: SafetyFactor                      ! Factor to scale the halo region with MPI
 REAL                                     :: halo_eps_velo                     ! halo_eps_velo
 REAL                                     :: halo_eps                          ! length of halo-region
@@ -48,6 +54,32 @@ TYPE tPartMPIVAR
 END TYPE
 
 TYPE (tPartMPIVAR)                       :: PartMPI
+
+TYPE tMPIMessage
+  REAL,ALLOCATABLE                      :: content(:,:)                   ! message buffer real
+END TYPE
+
+TYPE(tMPIMessage),ALLOCATABLE  :: PartRecvBuf(:)
+
+TYPE tParticleMPIExchange
+  INTEGER,ALLOCATABLE            :: nPartsSend(:)    ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: nPartsRecv(:)    ! only mpi neighbors
+  INTEGER                        :: nMPIParticles    ! number of all received particles
+  INTEGER,ALLOCATABLE            :: SendRequest(:,:) ! send requirest message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:,:) ! recv request message handle,  1 - Number, 2-Message
+
+!  INTEGER                       ,POINTER :: MPINbrOfParticles(:)
+!  INTEGER                       ,POINTER :: MPIProcNbr(:)
+!  INTEGER                       ,POINTER :: MPITags(:)
+!  TYPE(tMPIMessage)             ,POINTER :: send_message(:)
+!  INTEGER                       ,POINTER :: nbrOfSendParticles(:,:)  ! (1:nProcs,1:2) 1: pure MPI part, 2: shape part
+!  INTEGER                       ,POINTER :: NbrArray(:)  ! (1:nProcs*2)
+!  INTEGER                       ,POINTER :: nbrOfSendParticlesEmission(:)  ! (1:nProcs)
+END TYPE
+ 
+!TYPE (tPartMPIExchange)                  :: PMPIInsert
+TYPE (tParticleMPIExchange)                :: PartMPIExchange
+
 
 #endif /*MPI*/
 !===================================================================================================================================

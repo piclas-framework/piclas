@@ -796,7 +796,7 @@ IF (RecvMsg%nSides.GT.0) THEN
 
   ! reallocate shapes
   ! PartElemToSide
-  ALLOCATE(DummyElemToSide(1:2,1:6,1:nTotalElems))
+  ALLOCATE(DummyElemToSide(1:2,1:6,1:tmpnElems))
   IF (.NOT.ALLOCATED(DummyElemToSide)) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummyElemToSide=PartElemToSide
@@ -808,21 +808,24 @@ IF (RecvMsg%nSides.GT.0) THEN
   PartElemToSide(:,:,1:tmpnElems) =DummyElemToSide(:,:,1:tmpnElems)
   DEALLOCATE(DummyElemToSide)
   ! HaloToProc
-  IF(tmpnElems.GT.PP_nElems) THEN
-    ALLOCATE(DummyHaloToProc(1:2,PP_nElems:nTotalElems))                                 
+  IF(.NOT.ALLOCATED(PartHaloToProc))THEN
+    ALLOCATE(PartHaloToProc(1:3,PP_nElems+1:nTotalElems))
+    PartHaloToProc=0
+  ELSE
+    ALLOCATE(DummyHaloToProc(1:3,PP_nElems+1:tmpnElems))                                 
     IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(__STAMP__,& !wunderschoen!!!
       'Could not allocate ElemIndex')
     DummyHaloToProc=PartHaloToProc
     DEALLOCATE(PartHaloToProc)
-    ALLOCATE(PartHaloToProc(1:2,PP_nElems:nTotalElems),STAT=ALLOCSTAT)                                 
+    ALLOCATE(PartHaloToProc(1:3,PP_nElems+1:nTotalElems),STAT=ALLOCSTAT)                                 
     IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
       'Could not allocate ElemIndex')
     ! copy array to new
-    PartHaloToProc(1:2,PP_nElems:nTotalElems)    =DummyHaloToProc(1:2,PP_nElems:nTotalElems)
+    PartHaloToProc(1:2,PP_nElems+1:tmpnElems)    =DummyHaloToProc(1:2,PP_nElems+1:tmpnElems)
     DEALLOCATE(DummyHaloToProc)
   END IF
   ! PartSideToElem
-  ALLOCATE(DummySideToElem(1:5,1:nTotalSides))
+  ALLOCATE(DummySideToElem(1:5,1:tmpnSides))
   IF (.NOT.ALLOCATED(DummySideToElem)) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummySideToElem=PartSideToElem
@@ -833,7 +836,7 @@ IF (RecvMsg%nSides.GT.0) THEN
   PartSideToElem(:,1:tmpnSides  )              =DummySideToElem(:,1:tmpnSides)
   DEALLOCATE(DummySideToElem)
   ! PartNeighborElemID
-  ALLOCATE(DummyNeighborElemID(1:6,1:nTotalElems))
+  ALLOCATE(DummyNeighborElemID(1:6,1:tmpnElems))
   IF (.NOT.ALLOCATED(DummyNeighborElemID)) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummyNeighborElemID=PartNeighborElemID
@@ -845,7 +848,7 @@ IF (RecvMsg%nSides.GT.0) THEN
   PartNeighborElemID(:,1:tmpnElems)            =DummyNeighborElemID(:,1:tmpnElems)
   DEALLOCATE(DummyNeighborElemID)
   ! PartNeighborlocSideID
-  ALLOCATE(DummyNeighborlocSideID(1:6,1:nTotalElems))
+  ALLOCATE(DummyNeighborlocSideID(1:6,1:tmpnElems))
   IF (.NOT.ALLOCATED(DummyNeighborLocSideID)) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummyNeighborlocSideID=PartNeighborlocSideID
@@ -857,7 +860,7 @@ IF (RecvMsg%nSides.GT.0) THEN
   PartNeighborlocSideID(:,1:tmpnElems)         =DummyNeighborlocSideID(:,1:tmpnElems)
   DEALLOCATE(DummyNeighborlocSideID)
  ! BezierControlPoints3D
-  ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
+  ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides))
   IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummyBezierControlPoints3d=BezierControlPoints3d
@@ -868,7 +871,7 @@ IF (RecvMsg%nSides.GT.0) THEN
   BezierControlPoints3d(:,:,:,1:tmpnSides) =DummyBezierControlPoints3D(:,:,:,1:tmpnSides)
   DEALLOCATE(DummyBezierControlPoints3D)
   ! SideBCType
-  ALLOCATE(DummySideBCType(1:nTotalSides))
+  ALLOCATE(DummySideBCType(1:tmpnSides))
   IF (.NOT.ALLOCATED(DummySideBCType)) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummySideBCType(1:tmpnSides)=SidePeriodicType(1:tmpnSides)
@@ -880,7 +883,7 @@ IF (RecvMsg%nSides.GT.0) THEN
   SidePeriodicType(1:tmpnSides) =DummySideBCType(1:tmpnSides)
   DEALLOCATE(DummySideBCType)
   ! BC
-  ALLOCATE(DummyBC(1:nTotalSides))
+  ALLOCATE(DummyBC(1:tmpnSides))
   IF (.NOT.ALLOCATED(DummyBC)) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummyBC(1:tmpnSides)=BC(1:tmpnSides)

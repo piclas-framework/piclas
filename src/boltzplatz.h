@@ -75,4 +75,5 @@
 
 ! entries for PartHaloToProc
 #define NATIVE_ELEM_ID  1
-#define NATIVE_PROC     2
+#define NATIVE_PROC_ID  2
+#define LOCAL_PROC_ID   3

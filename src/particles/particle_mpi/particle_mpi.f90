@@ -19,16 +19,32 @@ INTERFACE InitParticleMPI
   MODULE PROCEDURE InitParticleMPI
 END INTERFACE
 
+INTERFACE IRecvNbOfParticles
+  MODULE PROCEDURE IRecvNbOfParticles
+END INTERFACE
+
 INTERFACE FinalizeParticleMPI
   MODULE PROCEDURE FinalizeParticleMPI
+END INTERFACE
+
+INTERFACE MPIParticleSend
+  MODULE PROCEDURE MPIParticleSend
+END INTERFACE
+
+INTERFACE MPIParticleRecv
+  MODULE PROCEDURE MPIParticleRecv
 END INTERFACE
 
 INTERFACE InitHaloMesh
   MODULE PROCEDURE InitHaloMesh
 END INTERFACE
 
+INTERFACE InitParticleCommSize
+  MODULE PROCEDURE InitParticleCommSize
+END INTERFACE
 
-PUBLIC :: InitParticleMPI,FinalizeParticleMPI,InitHaloMesh
+PUBLIC :: InitParticleMPI,FinalizeParticleMPI,InitHaloMesh, InitParticleCommSize, IRecvNbOfParticles, MPIParticleSend
+PUBLIC :: MPIParticleRecv
 
 !===================================================================================================================================
 
@@ -51,6 +67,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+!REAL                             :: myRealTestValue
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -62,17 +79,533 @@ IF(ParticleMPIInitIsDone) &
 PartMPI%COMM   = MPI_COMM_WORLD
 PartMPI%myrank = myRank
 PartMPI%nProcs = nProcessors
+PartCommSize   = 0  
 IF(PartMPI%MyRank.EQ.0) THEN
   PartMPI%MPIRoot=.TRUE.
 ELSE
   PartMPI%MPIRoot=.FALSE.
 END IF
 
+!! determine datatype length for variables to be sent
+!myRealKind = KIND(myRealTestValue)
+!IF (myRealKind.EQ.4) THEN
+!  myRealKind = MPI_REAL
+!ELSE IF (myRealKind.EQ.8) THEN
+!  myRealKind = MPI_DOUBLE_PRECISION
+!ELSE
+!  myRealKind = MPI_REAL
+!END IF
+
 ParticleMPIInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleMPI
+
+
+SUBROUTINE InitParticleCommSize()
+!===================================================================================================================================
+! get size of Particle-MPI-Message. Unfortunately, this subroutine have to be called after particle_init because
+! all required features have to be read from the ini-File
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_MPI_Vars
+USE MOD_DSMC_Vars,           ONLY:useDSMC, CollisMode, DSMC
+USE MOD_Particle_Vars,       ONLY:usevMPF
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+PartCommSize   = 0  
+IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+  IF (usevMPF .AND. DSMC%ElectronicState) THEN
+    PartCommSize = 18
+  ELSE IF (usevMPF ) THEN
+    PartCommSize = 17
+  ELSE IF ( DSMC%ElectronicState ) THEN
+    PartCommSize = 17
+  ELSE
+    PartCommSize = 16
+  END IF
+ELSE
+  IF (usevMPF) THEN
+    PartCommSize = 15
+  ELSE
+    PartCommSize = 14
+  END IF
+END IF
+
+#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
+  PartCommSize = PartCommSize - 6
+#endif
+
+ALLOCATE( PartMPIExchange%nPartsSend(PartMPI%nMPINeighbors)    & 
+        , PartMPIExchange%nPartsRecv(PartMPI%nMPINeighbors)    &
+        , PartRecvBuf(1:PartMPI%nMPINeighbors)                 &
+        , PartMPIExchange%SendRequest(2,PartMPI%nMPINeighbors) &
+        , PartMPIExchange%RecvRequest(2,PartMPI%nMPINeighbors) )
+END SUBROUTINE InitParticleCommSize
+
+
+SUBROUTINE IRecvNbOfParticles()
+!===================================================================================================================================
+! Open Recv-Buffer for number of received particles
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartMPIExchange
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iProc
+!===================================================================================================================================
+
+PartMPIExchange%nPartsRecv=0
+DO iProc=0,PartMPI%nMPINeighbors
+  CALL MPI_IRECV( PartMPIExchange%nPartsRecv(iProc)                          &
+                , 1                                                          &
+                , MPI_INTEGER                                                &
+                , PartMPI%MPINeighbor(iProc)                                 &
+                , 1001                                                       &
+                , PartMPI%COMM                                               &
+                , PartMPIExchange%RecvRequest(1,PartMPI%MPINeighbor(iProc))  &
+                , IERROR )
+END DO ! iProc
+
+END SUBROUTINE IRecvNbOfParticles
+
+
+SUBROUTINE MPIParticleSend()
+!===================================================================================================================================
+! this routine sends the particles. Following steps are performed
+! 1) Compute number of Send Particles
+! 2) Performe MPI_ISEND with number of particles
+! 3) Build Message 
+! 4) MPI_WAIT for number of received particles
+! 5) Open Receive-Buffer for particle message -> MPI_IRECV
+! 6) Send Particles -> MPI_ISEND
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize,tMPIMessage, PartRecvBuf
+USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp
+USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPart,ElemID,iPos,iProc
+INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
+INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
+TYPE(tMPIMessage)             :: SendBuf(0:PartMPI%nMPINeighbors)                          
+!===================================================================================================================================
+
+! 1) get number of send particles
+PartMPIExchange%nPartsSend=0
+DO iPart=1,PDM%ParticleVecLength
+  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+  ElemID=PEM%Element(iPart)
+  IF(ElemID.GT.PP_nElems)  PartMPIExchange%nPartsSend(PartHaloToProc(LOCAL_PROC_ID,ElemID))=             &
+                                        PartMPIExchange%nPartsSend(PartHaloToProc(LOCAL_PROC_ID,ElemID))+1
+END DO ! iPart
+
+! 2) send number of send particles
+DO iProc=0,PartMPI%nMPINeighbors
+  CALL MPI_ISEND( PartMPIExchange%nPartsSend(iProc)                          &
+                , 1                                                          &
+                , MPI_INTEGER                                                &
+                , PartMPI%MPINeighbor(iProc)                                 &
+                , 1001                                                       &
+                , PartMPI%COMM                                               &
+                , PartMPIExchange%SendRequest(1,PartMPI%MPINeighbor(iProc))  &
+                , IERROR )
+END DO ! iProc
+
+! 3) Build Message
+DO iProc=0, PartMPI%nMPINeighbors
+  ! allocate SendBuf
+  nSendParticles=PartMPIExchange%nPartsSend(iProc)
+  iPos=0
+  IF(nSendParticles.EQ.0) CYCLE
+  ALLOCATE(SendBuf(iProc)%content(PartCommSize,nSendParticles))
+  ! fill message
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    ElemID=PEM%Element(iPart)
+    IF(ElemID.GT.PP_nElems) THEN
+      IF(.NOT.(PartHaloToProc(LOCAL_PROC_ID,ElemID)).EQ.iPos) CYCLE
+      iPos=iPos+1
+      ! fill content
+      SendBuf(iProc)%content( 1: 6,iPos) = PartState(iPart,1:6)
+      SendBuf(iProc)%content(    7,iPos) = REAL(PartSpecies(iPart))
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+      SendBuf(iProc)%content( 8:13,iPos) = Pt_temp(iPart,1:6)
+      SendBuf(iProc)%content(   14,iPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID))
+      !IF(.NOT.UseLD) THEN   
+        IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+          IF (usevMPF .AND. DSMC%ElectronicState) THEN
+            SendBuf(iProc)%content(15,iPos) = PartStateIntEn(iPart, 1)
+            SendBuf(iProc)%content(16,iPos) = PartStateIntEn(iPart, 2)    
+            SendBuf(iProc)%content(17,iPos) = PartMPF(iPart)
+            SendBuf(iProc)%content(18,iPos) = PartStateIntEn(iPart, 3)
+          ELSE IF (usevMPF) THEN
+            SendBuf(iProc)%content(15,iPos) = PartStateIntEn(iPart, 1)
+            SendBuf(iProc)%content(16,iPos) = PartStateIntEn(iPart, 2)    
+            SendBuf(iProc)%content(17,iPos) = PartMPF(iPart)
+          ELSE IF ( DSMC%ElectronicState ) THEN
+            SendBuf(iProc)%content(15,iPos) = PartStateIntEn(iPart, 1)
+            SendBuf(iProc)%content(16,iPos) = PartStateIntEn(iPart, 2)    
+            SendBuf(iProc)%content(17,iPos) = PartStateIntEn(iPart, 3)
+          ELSE
+            SendBuf(iProc)%content(15,iPos) = PartStateIntEn(iPart, 1)
+            SendBuf(iProc)%content(16,iPos) = PartStateIntEn(iPart, 2)
+          END IF
+        ELSE
+          IF (usevMPF) THEN
+            SendBuf(iProc)%content(15,iPos) = PartMPF(iPart)
+          END IF
+        END IF
+      !ELSE ! UseLD == true      =>      useDSMC == true
+      !  IF (CollisMode.NE.1) THEN
+      !    IF (usevMPF .AND. DSMC%ElectronicState) THEN
+      !      SendBuf(iProc)%content(15,iPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(16,iPos) = PartStateIntEn(iPart, 2)    
+      !      SendBuf(iProc)%content(17,iPos) = PartMPF(iPart)
+      !      SendBuf(iProc)%content(18,iPos) = PartStateIntEn(iPart, 3)
+      !      SendBuf(iProc)%content(19:23,iPos) = PartStateBulkValues(iPart,1:5)
+      !    ELSE IF (usevMPF) THEN
+      !      SendBuf(iProc)%content(15,iPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(16,iPos) = PartStateIntEn(iPart, 2)    
+      !      SendBuf(iProc)%content(17,iPos) = PartMPF(iPart)
+      !      SendBuf(iProc)%content(18:22,iPos) = PartStateBulkValues(iPart,1:5)
+      !    ELSE IF ( DSMC%ElectronicState ) THEN
+      !      SendBuf(iProc)%content(15,iPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(16,iPos) = PartStateIntEn(iPart, 2)    
+      !      SendBuf(iProc)%content(17,iPos) = PartStateIntEn(iPart, 3)
+      !      SendBuf(iProc)%content(18:22,iPos) = PartStateBulkValues(iPart,1:5)
+      !    ELSE
+      !      SendBuf(iProc)%content(15,iPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(16,iPos) = PartStateIntEn(iPart, 2)
+      !      SendBuf(iProc)%content(17:21,iPos) = PartStateBulkValues(iPart,1:5)
+      !    END IF
+      !  ELSE
+      !    IF (usevMPF) THEN
+      !      SendBuf(iProc)%content(15,iPos) = PartMPF(iPart)
+      !      SendBuf(iProc)%content(16:20,iPos) = PartStateBulkValues(iPart,1:5)
+      !    ELSE
+      !      SendBuf(iProc)%content(15:19,iPos) = PartStateBulkValues(iPart,1:5)
+      !    END IF
+      !  END IF
+      !END IF
+#else 
+      SendBuf(iProc)%content(    8,iPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID))
+      !IF(.NOT.UseLD) THEN   
+        IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+          IF (usevMPF .AND. DSMC%ElectronicState) THEN
+            SendBuf(iProc)%content( 9,iPos) = PartStateIntEn(iPart, 1)
+            SendBuf(iProc)%content(10,iPos) = PartStateIntEn(iPart, 2)    
+            SendBuf(iProc)%content(11,iPos) = PartMPF(iPart)
+            SendBuf(iProc)%content(12,iPos) = PartStateIntEn(iPart, 3)
+          ELSE IF (usevMPF) THEN
+            SendBuf(iProc)%content( 9,iPos) = PartStateIntEn(iPart, 1)
+            SendBuf(iProc)%content(10,iPos) = PartStateIntEn(iPart, 2)    
+            SendBuf(iProc)%content(11,iPos) = PartMPF(iPart)
+          ELSE IF ( DSMC%ElectronicState ) THEN
+            SendBuf(iProc)%content( 9,iPos) = PartStateIntEn(iPart, 1)
+            SendBuf(iProc)%content(10,iPos) = PartStateIntEn(iPart, 2)    
+            SendBuf(iProc)%content(11,iPos) = PartStateIntEn(iPart, 3)
+          ELSE
+            SendBuf(iProc)%content( 9,iPos) = PartStateIntEn(iPart, 1)
+            SendBuf(iProc)%content(10,iPos) = PartStateIntEn(iPart, 2)
+          END IF
+        ELSE
+          IF (usevMPF) THEN
+            SendBuf(iProc)%content( 9,iPos) = PartMPF(iPart)
+          END IF
+        END IF
+      !ELSE ! UseLD == true      =>      useDSMC == true
+      !  IF (CollisMode.NE.1) THEN
+      !    IF (usevMPF .AND. DSMC%ElectronicState) THEN
+      !      SendBuf(iProc)%content( 9,iPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(10,iPos) = PartStateIntEn(iPart, 2)    
+      !      SendBuf(iProc)%content(11,iPos) = PartMPF(iPart)
+      !      SendBuf(iProc)%content(12,iPos) = PartStateIntEn(iPart, 3)
+      !      SendBuf(iProc)%content(13:17,iPos) = PartStateBulkValues(iPart,1:5)
+      !    ELSE IF (usevMPF) THEN
+      !      SendBuf(iProc)%content( 9,iPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(10,iPos) = PartStateIntEn(iPart, 2)    
+      !      SendBuf(iProc)%content(11,iPos) = PartMPF(iPart)
+      !      SendBuf(iProc)%content(12:16,iPos) = PartStateBulkValues(iPart,1:5)
+      !    ELSE IF ( DSMC%ElectronicState ) THEN
+      !      SendBuf(iProc)%content( 9,iPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(10,iPos) = PartStateIntEn(iPart, 2)    
+      !      SendBuf(iProc)%content(11,iPos) = PartStateIntEn(iPart, 3)
+      !      SendBuf(iProc)%content(12:15,iPos) = PartStateBulkValues(iPart,1:5)
+      !    ELSE
+      !      SendBuf(iProc)%content( 9,iPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(10,iPos) = PartStateIntEn(iPart, 2)
+      !      SendBuf(iProc)%content(11:15,iPos) = PartStateBulkValues(iPart,1:5)
+      !    END IF
+      !  ELSE
+      !    IF (usevMPF) THEN
+      !      SendBuf(iProc)%content( 9,iPos) = PartMPF(iPart)
+      !      SendBuf(iProc)%content(10:14,iPos) = PartStateBulkValues(iPart,1:5)
+      !    ELSE
+      !      SendBuf(iProc)%content( 9:13,iPos) = PartStateBulkValues(iPart,1:5)
+      !    END IF
+      !  END IF
+      !END IF
+#endif 
+      ! particle is ready for send, now it can deleted
+      PDM%ParticleInside(iPart) = .FALSE.  
+    END IF ! ElemID is HaloElement
+  END DO  ! iPart
+END DO ! iProc
+
+! 4) Finish Received number of particles
+DO iProc=0,PartMPI%nMPINeighbors
+  CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
+END DO ! iProc
+! total number of received particles
+PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(:))
+
+! 5) Allocate received buffer and open MPI_IRECV
+DO iProc=0,PartMPI%nMPINeighbors
+  nRecvParticles=PartMPIExchange%nPartsRecv(iProc)
+  IF(nRecvParticles.EQ.0) CYCLE
+  ALLOCATE(PartRecvBuf(iProc)%content(PartCommSize,nRecvParticles))
+  MessageSize=nRecvParticles*PartCommSize
+  CALL MPI_IRECV( PartRecvBuf(iProc)%content                                 &
+                , MessageSize                                                &
+                , MPI_DOUBLE_PRECISION                                       &
+                , PartMPI%MPINeighbor(iProc)                                 &
+                , 1002                                                       &
+                , PartMPI%COMM                                               &
+                , PartMPIExchange%RecvRequest(2,PartMPI%MPINeighbor(iProc))  &
+                , IERROR )
+END DO ! iProc
+
+! 6) Send Particles
+DO iProc=0,PartMPI%nMPINeighbors
+  nSendParticles=PartMPIExchange%nPartsSend(iProc)
+  IF(nSendParticles.EQ.0) CYCLE
+  ALLOCATE(SendBuf(iProc)%content(PartCommSize,nSendParticles))
+  MessageSize=nRecvParticles*PartCommSize
+  CALL MPI_ISEND( SendBuf(iProc)%content                                     &
+                , MessageSize                                                &
+                , MPI_DOUBLE_PRECISION                                       &
+                , PartMPI%MPINeighbor(iProc)                                 &
+                , 1002                                                       &
+                , PartMPI%COMM                                               &
+                , PartMPIExchange%SendRequest(2,PartMPI%MPINeighbor(iProc))  &
+                , IERROR )
+END DO ! iProc
+
+! deallocate send buffer
+DO iProc=0,PartMPI%nMPINeighbors
+  SDEALLOCATE(SendBuf(iProc)%content)
+END DO ! iProc
+
+END SUBROUTINE MPIParticleSend
+
+
+SUBROUTINE MPIParticleRecv()
+!===================================================================================================================================
+! this routine sends the particles. Following steps are performed
+! 1) Compute number of Send Particles
+! 2) Performe MPI_ISEND with number of particles
+! 3) Build Message 
+! 4) MPI_WAIT for number of received particles
+! 5) Open Receive-Buffer for particle message -> MPI_IRECV
+! 6) Send Particles -> MPI_ISEND
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize, PartRecvBuf
+USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp
+USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iProc, iPos, nRecv, PartID
+INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
+!INTEGER                       :: MessageSize
+INTEGER                       :: nRecvParticles
+!===================================================================================================================================
+
+nRecv=0
+DO iProc=0,PartMPI%nMPINeighbors
+  nRecvParticles=PartMPIExchange%nPartsRecv(iProc)
+  IF(nRecvParticles.EQ.0) CYCLE
+  !MessageSize=nRecvParticles*PartCommSize
+  ! finish communication with iproc
+  CALL MPI_WAIT(PartMPIExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
+  DO iPos=1,nRecvParticles
+    nRecv=nRecv+1
+    PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
+    IF(PartID.EQ.0)  CALL abort(__STAMP__&
+          ,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
+    PartState(PartID,1:6)   = PartRecvBuf(iProc)%content( 1: 6,iPos)
+    PartSpecies(PartID)     = INT(PartRecvBuf(iProc)%content( 7,IPos))
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
+    Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 8:13,iPos)
+    PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(14,IPos))
+    !IF(.NOT.UseLD) THEN
+      IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+        IF (usevMPF .AND. DSMC%ElectronicState) THEN
+          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(15,iPos)
+          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(16,iPos)
+          PartMPF(PartID)           = PartRecvBuf(iProc)%content(17,iPos)
+          PartStateIntEn(PartID, 3) = PartRecvBuf(iProc)%content(18,iPos)
+        ELSE IF ( usevMPF) THEN
+          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(15,iPos)
+          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(16,iPos)
+          PartMPF(PartID)           = PartRecvBuf(iProc)%content(17,iPos)
+        ELSE IF ( DSMC%ElectronicState ) THEN
+          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(15,iPos)
+          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(16,iPos)
+          PartStateIntEn(PartID, 3) = PartRecvBuf(iProc)%content(17,iPos)
+        ELSE
+          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(15,iPos)
+          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(16,iPos)
+        END IF
+      ELSE
+        IF (usevMPF) PartMPF(PartID) = PartRecvBuf(iProc)%content(15,iPos)
+      END IF
+    !ELSE ! UseLD == true      =>      useDSMC == true
+      !IF (CollisMode.NE.1) THEN
+        !IF (usevMPF .AND. DSMC%ElectronicState) THEN
+          !PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(15,iPos)
+          !PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(16,iPos)
+          !PartMPF(PartID)                 = PartRecvBuf(iProc)%content(17,iPos)
+          !PartStateIntEn(PartID, 3)       = PartRecvBuf(iProc)%content(18,iPos)
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(19:23,iPos)
+        !ELSE IF ( usevMPF) THEN
+          !PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(15,iPos)
+          !PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(16,iPos)
+          !PartMPF(PartID)                 = PartRecvBuf(iProc)%content(17,iPos)
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(18:22,iPos)
+        !ELSE IF ( DSMC%ElectronicState ) THEN
+          !PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(15,iPos)
+          !PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(16,iPos)
+          !PartStateIntEn(PartID, 3)       = PartRecvBuf(iProc)%content(17,iPos)
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(18:22,iPos)
+        !ELSE
+          !PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(15,iPos)
+          !PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(16,iPos)
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(17:21,iPOs)
+        !END IF
+      !ELSE
+        !IF (usevMPF) THEN
+          !PartMPF(PartID)                 = PartRecvBuf(iProc)%content(15,iPos)
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(16:20,iPos)
+        !ELSE
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(15:19,iPos)                    
+        !END IF
+      !END IF
+    !END IF
+#else 
+    PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8,iPos))
+    !IF(.NOT.UseLD) THEN
+      IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+        IF (usevMPF .AND. DSMC%ElectronicState) THEN
+          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(9,iPos)
+          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(10,iPos)
+          PartMPF(PartID)           = PartRecvBuf(iProc)%content(11,iPos)
+          PartStateIntEn(PartID, 3) = PartRecvBuf(iProc)%content(12,iPos)
+        ELSE IF ( usevMPF ) THEN
+          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(9,iPos)
+          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(10,iPos)
+          PartMPF(PartID)           = PartRecvBuf(iProc)%content(11,iPos)
+        ELSE IF ( DSMC%ElectronicState) THEN
+          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(9,iPos)
+          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(10,iPos)
+          PartStateIntEn(PartID, 3) = PartRecvBuf(iProc)%content(11,iPos)
+        ELSE
+          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(9,iPos)
+          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(10,iPos)
+        END IF
+      ELSE
+        IF (usevMPF) PartMPF(PartID) = PartRecvBuf(iProc)%content(9,iPos)
+      END IF
+    !ELSE ! UseLD == true      =>      useDSMC == true
+      !IF (CollisMode.NE.1) THEN
+        !IF (usevMPF .AND. DSMC%ElectronicState) THEN
+          !PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(9,iPos)
+          !PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(10,iPos)
+          !PartMPF(PartID)                 = PartRecvBuf(iProc)%content(11,iPos)
+          !PartStateIntEn(PartID, 3)       = PartRecvBuf(iProc)%content(12,iPos)
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(13:17,iPos)
+        !ELSE IF ( usevMPF) THEN
+          !PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(9,iPos)
+          !PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(10,iPos)
+          !PartMPF(PartID)                 = PartRecvBuf(iProc)%content(11,iPos)
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(12:16,iPos)
+        !ELSE IF ( DSMC%ElectronicState ) THEN
+          !PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(9,iPos)
+          !PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(10,iPos)
+          !PartStateIntEn(PartID, 3)       = PartRecvBuf(iProc)%content(11,iPos)
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(12:16,iPos)
+        !ELSE
+          !PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(9,iPos)
+          !PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(10,iPos)
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(11:15,iPos)
+        !END IF
+      !ELSE
+        !IF (usevMPF) THEN
+          !PartMPF(PartID)                 = PartRecvBuf(iProc)%content(9,iPos)
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(10:14,iPos)
+        !ELSE
+          !PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(9:13,iPos)
+        !END IF
+      !END IF
+    !END IF
+#endif
+    ! Set Flag for received parts in order to localize them later
+    PEM%lastElement(PartID) = -888 
+    PDM%ParticleInside(PartID) = .TRUE.
+  END DO
+  ! be nice: deallocate the receive buffer
+  ! deallocate non used array
+  DEALLOCATE(PartRecvBuf(iProc)%Content)
+END DO ! iProc
+
+PDM%ParticleVecLength       = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
+
+
+
+END SUBROUTINE MPIParticleRecv
+
 
 SUBROUTINE FinalizeParticleMPI()
 !===================================================================================================================================
@@ -94,7 +627,12 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 ParticleMPIInitIsDone=.FALSE.
-
+SDEALLOCATE( PartMPI%isMPINeighbor)
+SDEALLOCATE( PartMPI%MPINeighbor )
+SDEALLOCATE( PartMPIExchange%nPartsSend)
+SDEALLOCATE( PartMPIExchange%nPartsRecv)
+SDEALLOCATE( PartMPIExchange%RecvRequest)
+SDEALLOCATE( PartMPIExchange%SendRequest)
 END SUBROUTINE FinalizeParticleMPI
 
 SUBROUTINE InitHaloMesh()
@@ -109,8 +647,9 @@ USE MOD_MPI_Vars
 USE MOD_PreProc
 USE MOD_Particle_Surfaces_vars
 USE MOD_Mesh_Vars,                  ONLY:NGeo,nSides
-USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
+USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloToProc
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry
+USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -121,8 +660,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 ::BezierSideSize,SendID
-INTEGER                 ::iProc,ALLOCSTAT
+INTEGER                 ::BezierSideSize,SendID, iElem
+INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
+LOGICAL                 :: TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:)
 !===================================================================================================================================
 
@@ -176,26 +716,45 @@ DO iProc=0,PartMPI%nProcs-1
   SideIndex(:)=0
 END DO 
 
-!  ! Make sure PMPIVAR%MPINeighbor is consistent
-!  DO iProc=0,PartMPI%nProcs-1
-!    IF (PartMPI%MyRank.EQ.iProc) CYCLE
-!    IF (PartMPI%MyRank.LT.iProc) THEN
-!      CALL MPI_SEND(PMPIVAR%MPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,IERROR)
-!      CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
-!    ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
-!      CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
-!      CALL MPI_SEND(PMPIVAR%MPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PMPIVAR%COMM,IERROR)
-!    END IF
-!    IF (TmpNeigh.NEQV.PMPIVAR%MPINeighbor(iProc)) THEN
-!      WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PMPIVAR%iProc,iProc
-!      PMPIVAR%MPINeighbor(iProc) = .TRUE.
-!    END IF
-!  END DO
-!  IF(DepositionType.EQ.'shape_function') THEN
-!    PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .TRUE.
-!  ELSE
-!    PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .FALSE.
-!  END IF
+! Make sure PMPIVAR%MPINeighbor is consistent
+DO iProc=0,PartMPI%nProcs-1
+  IF (PartMPI%MyRank.EQ.iProc) CYCLE
+  IF (PartMPI%MyRank.LT.iProc) THEN
+    CALL MPI_SEND(PartMPI%isMPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,IERROR)
+    CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
+  ELSE IF (PartMPI%MyRank.GT.iProc) THEN
+     CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
+     CALL MPI_SEND(PartMPI%isMPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,IERROR)
+  END IF
+  IF (TmpNeigh.NEQV.PartMPI%isMPINeighbor(iProc)) THEN
+   WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
+   PartMPI%isMPINeighbor(iProc) = .TRUE.
+   PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
+  END IF
+END DO
+
+! fill list with neighbor proc id and add local neighbor id to PartHaloToProc
+ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors))
+iMPINeighbor=0
+DO iProc=0,PartMPI%nProcs-1
+  IF(PartMPI%isMPINeighbor(iProc))THEN
+    iMPINeighbor=iMPINeighbor+1
+    PartMPI%MPINeighbor(iMPINeighbor)=iProc
+    DO iElem=PP_nElems+1,nTotalElems
+      IF(iProc.EQ.PartHaloToProc(NATIVE_PROC_ID,iElem)) PartHaloToProc(LOCAL_PROC_ID,iElem)=iMPINeighbor
+    END DO ! iElem
+  END IF
+END DO
+
+IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
+  __STAMP__&
+  , ' Found number of mpi neighbors does not match! ', iMPINeighbor,REAL(PartMPI%nMPINeighbors))
+
+!IF(DepositionType.EQ.'shape_function') THEN
+!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .TRUE.
+!ELSE
+!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .FALSE.
+!END IF
 
 END SUBROUTINE InitHaloMesh
 
