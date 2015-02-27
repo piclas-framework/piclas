@@ -71,7 +71,8 @@ TYPE tGeometry
   REAL, ALLOCATABLE                      :: PeriodicVectors(:,:)              ! PeriodicVectors(1:3,1:nPeriodicVectors), 1:3=x,y,z
   ! FIBGM
   REAL                                   :: FIBGMdeltas(3)                    ! size of background mesh cell for particle init
-  
+  REAL                                   :: FactorFIBGM(3)                    ! scaling factor for FIBGM
+
   ! caution, possible pointer
   TYPE (tFastInitBGM),ALLOCATABLE        :: FIBGM(:,:,:)  !        =>NULL()   ! FastInitBackgroundMesh
   INTEGER                                :: FIBGMimin                         ! smallest index of FastInitBGM (x)
@@ -90,7 +91,6 @@ TYPE tGeometry
 !  REAL, ALLOCATABLE                      :: NodeCoords(:,:)                   ! Node Coordinates (1:nDim,1:nNodes)
 !  REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
 !  REAL, ALLOCATABLE                      :: DeltaEvMPF(:)                     ! Energy difference due to particle merge
-!  REAL                                   :: FactorFIBGM(3)                    ! scaling factor for FIBGM
 !  REAL                                   :: xminglob                          ! global minimum x coord of all nodes
 !  REAL                                   :: yminglob                          ! global minimum y coord of all nodes
 !  REAL                                   :: zminglob                          ! global minimum z coord of all nodes

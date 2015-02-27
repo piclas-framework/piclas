@@ -320,7 +320,7 @@ DO iProc=0, PartMPI%nMPINeighbors
       !  END IF
       !END IF
 #else 
-      SendBuf(iProc)%content(    8,iPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID))
+      SendBuf(iProc)%content(    8,iPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID))
       !IF(.NOT.UseLD) THEN   
         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
           IF (usevMPF .AND. DSMC%ElectronicState) THEN

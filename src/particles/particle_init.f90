@@ -409,6 +409,8 @@ USE MOD_part_MPFtools,         ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation_Vars, ONLY: InterpolationType
 USE MOD_PICInterpolation,      ONLY: InitializeInterpolation
 USE MOD_PICInit,               ONLY: InitPIC
+USE MOD_Particle_Mesh,         ONLY: InitFIBGM
+!USE MOD_Particle_Mesh_Vars,    ONLY:Geo
 #ifdef MPI
 USE MOD_part_MPI_Vars,         ONLY: PMPIVAR
 USE MOD_Particle_MPI_Vars,     ONLY: SafetyFactor,halo_eps_velo
@@ -733,10 +735,10 @@ END DO ! iSpec
 ! Which Lorentz boost method should be used?
 PartLorentzType = GETINT('Part-LorentzType','3')
 
-! Read parameter for FastInitBackgroundMesh (FIBGM)
-GEO%FIBGMdeltas(1:3)              = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
-GEO%FactorFIBGM(1:3)              = GETREALARRAy('Part-FactorFIBGM',3,'1. , 1. , 1.')
-GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
+!! Read parameter for FastInitBackgroundMesh (FIBGM)
+!GEO%FIBGMdeltas(1:3)              = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
+!GEO%FactorFIBGM(1:3)              = GETREALARRAy('Part-FactorFIBGM',3,'1. , 1. , 1.')
+!GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 ! Read in boundary parameters
 nPartBound = GETINT('Part-nBounds','1.')
@@ -941,7 +943,8 @@ SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 #endif /*MPI*/
 !-- Finalizing InitializeVariables
-CALL DomainUpdate()
+CALL InitFIBGM()
+!CALL DomainUpdate()
 IF(enableParticleMerge) THEN
  !IF (TRIM(InterpolationType).NE.'particle_position') CALL DefineElemT_inv()
  CALL DefinePolyVec(vMPFMergePolyOrder) 
@@ -965,6 +968,7 @@ USE MOD_DSMC_Analyze,           ONLY : WriteOutputMesh
 USE MOD_PICInit,                ONLY : InitPIC
 USE MOD_ReadInTools
 USE MOD_PICInterpolation,      ONLY: InitializeInterpolation
+USE MOD_ReadInTools,                        ONLY:GetRealArray
 !USE MOD_part_pressure,          ONLY : ParticlePressureIni,ParticlePressureCellIni
 USE MOD_Particle_Output_Vars,   ONLY : OutputMesh
 #ifdef MPI
@@ -1091,6 +1095,14 @@ IF (ASSOCIATED(GEO%FIBGM)) THEN
   END DO
   DEALLOCATE(GEO%FIBGM)
 END IF
+
+!! Read parameter for FastInitBackgroundMesh (FIBGM)
+GEO%FIBGMdeltas(1:3)              = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
+GEO%FactorFIBGM(1:3)              = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
+GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
+
+
+
 !--- compute number of background cells in each direction
 BGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
 BGMimin = INT((GEO%xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
@@ -1098,6 +1110,9 @@ BGMkmax = INT((GEO%ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
 BGMkmin = INT((GEO%ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
 BGMlmax = INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
 BGMlmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
+
+
+
 !   IF(PMPIVAR%iProc.EQ.1) THEN
 !     print*, "INT",INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
 !     print*,"zmaxminglob", GEO%zminglob, GEO%zmax, GEO%zmin
@@ -1265,12 +1280,22 @@ END DO
 
 #ifdef MPI
 !--- MPI stuff for background mesh (FastinitBGM)
+print*,(BGMimax-BGMimin+1)*(BGMkmax-BGMkmin+1)*(BGMlmax-BGMlmin+1)*3
+print*,BGMimax
+print*,BGMimin
+print*,BGMkmax
+print*,BGMkmin
+print*,BGMlmax
+print*,BGMlmin
 BGMCells=0 
 ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMkmax-BGMkmin+1)*(BGMlmax-BGMlmin+1)*3))
 DO i=BGMimin, BGMimax  !Count BGMCells with Elements inside and save their indices in BGMCellsArray
   DO k=BGMkmin, BGMkmax
     DO l=BGMlmin, BGMlmax
       IF (GEO%FIBGM(i,k,l)%nElem .GT. 0) THEN
+        print*,"1",BGMCells*3+1,i
+        print*,"2",BGMCells*3+2,k
+        print*,"3",BGMCells*3+3,l
         BGMCellsArray(BGMCells*3+1)= i
         BGMCellsArray(BGMCells*3+2)= k
         BGMCellsArray(BGMCells*3+3)= l
@@ -1287,9 +1312,12 @@ Displacement(1)=0
 DO i=2, PMPIVAR%nProcs
   Displacement(i) = SUM(NbrOfBGMCells(0:i-2))*3
 END DO
+print*,'displacement',displacement
 !Gather indices of every Procs' Cells
 CALL MPI_ALLGATHERV(BGMCellsArray(1:BGMCells*3), BGMCells*3, MPI_INTEGER, GlobalBGMCellsArray, &    
                    & NbrOfBGMCells(0:PMPIVAR%nProcs-1)*3, Displacement, MPI_INTEGER, PMPIVAR%COMM, IERROR)
+print*,'BGMCellsArray',BGMCellsArray
+stop
 
 !--- JN: first: count required array size for ReducedBGMArray
 !--- TS: Define padding stencil (max of halo and shape padding)

@@ -251,7 +251,10 @@ USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo,ElemToSide,SideToElem
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
+USE MOD_PICDepo,                            ONLY:InitializeDeposition
+USE MOD_ReadInTools,                        ONLY:GetRealArray
 #ifdef MPI
+USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Equation_Vars,                      ONLY:c
 USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding
 USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
@@ -377,6 +380,11 @@ IF (ALLOCATED(GEO%FIBGM)) THEN
   END DO
   DEALLOCATE(GEO%FIBGM)
 END IF
+
+!! Read parameter for FastInitBackgroundMesh (FIBGM)
+GEO%FIBGMdeltas(1:3)              = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
+GEO%FactorFIBGM(1:3)              = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
+GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 !--- compute number of background cells in each direction
 BGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
@@ -554,12 +562,22 @@ END DO ! iElem
 
 #ifdef MPI
 !--- MPI stuff for background mesh (FastinitBGM)
+print*,(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3
+print*,BGMimax
+print*,BGMimin
+print*,BGMjmax
+print*,BGMjmin
+print*,BGMkmax
+print*,BGMkmin
 BGMCells=0 
 ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3))
 DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside and save their indices in BGMCellsArray
   DO jBGM=BGMjmin, BGMjmax
     DO kBGM=BGMkmin, BGMkmax
       IF (GEO%FIBGM(iBGM,jBGM,kBGM)%nElem .GT. 0) THEN
+        print*,"1",BGMCells*3+1,iBGM
+        print*,"2",BGMCells*3+2,jBGM
+        print*,"3",BGMCells*3+3,kBGM
         BGMCellsArray(BGMCells*3+1)= iBGM
         BGMCellsArray(BGMCells*3+2)= jBGM
         BGMCellsArray(BGMCells*3+3)= kBGM
@@ -576,10 +594,13 @@ Displacement(1)=0
 DO i=2, PartMPI%nProcs
   Displacement(i) = SUM(NbrOfBGMCells(0:i-2))*3
 END DO
+!print*,'displacement',displacement
 !Gather indices of every Procs' Cells
 CALL MPI_ALLGATHERV(BGMCellsArray(1:BGMCells*3), BGMCells*3, MPI_INTEGER, GlobalBGMCellsArray, &    
                    & NbrOfBGMCells(0:PartMPI%nProcs-1)*3, Displacement, MPI_INTEGER, PartMPI%COMM, IERROR)
 
+!print*,'BGMCellsArray',BGMCellsArray
+!stop
 !--- JN: first: count required array size for ReducedBGMArray
 !--- TS: Define padding stencil (max of halo and shape padding)
 !        Reason: This padding is used to build the ReducedBGM, so any information 
@@ -734,19 +755,29 @@ DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside or adjacent and s
       jMin=MAX(jBGM-nShapePaddingY,BGMjmin); jMax=MIN(jBGM+nShapePaddingY,BGMjmax)
       kMin=MAX(kBGM-nShapePaddingZ,BGMkmin); kMax=MIN(kBGM+nShapePaddingZ,BGMkmax)
       IF (SUM(GEO%FIBGM(iMin:iMax,jMin:jMax,kMin:kMax)%nElem) .GT. 0) THEN
-        BGMCellsArray(BGMCells*3+1)= i
-        BGMCellsArray(BGMCells*3+2)= j
-        BGMCellsArray(BGMCells*3+3)= k
+        ! debug here changed i,j,k to ibgm,jbgm,kbgm
+        BGMCellsArray(BGMCells*3+1)= iBGM
+        BGMCellsArray(BGMCells*3+2)= jBGM
+        BGMCellsArray(BGMCells*3+3)= kBGM
         BGMCells=BGMCells+1
       END IF
     END DO !iBGM
   END DO !jBGM
 END DO !kBGM
+print*,'BGMCellsArray',BGMCellsArray
 
 ! now create a temporary array in which for all BGM Cells + ShapePadding the processes are saved 
 ! reason: this way, the ReducedBGM List only needs to be searched once and not once for each BGM Cell+Stencil
 
 ! first count the maximum number of procs that exist within each BGM cell (inkl. Shape Padding region)
+print*,'BGMimin',BGMimin,BGMimax
+print*,'nShapePaddingz',nShapePaddingx
+
+print*,'BGMjmin',BGMjmin,BGMjmax
+print*,'nShapePaddingy',nShapePaddingy
+
+print*,'BGMkmin',BGMkmin,BGMkmax
+print*,'nShapePaddingZ',nShapePaddingz
 ALLOCATE(CellProcNum(BGMimin-nShapePaddingX:BGMimax+nShapePaddingX, &
                      BGMjmin-nShapePaddingY:BGMjmax+nShapePaddingY, &
                      BGMkmin-nShapePaddingZ:BGMkmax+nShapePaddingZ))
@@ -792,9 +823,11 @@ END DO
 ! fill real array
 DO Cell=0, BGMCells-1
   TempProcList=0
+  print*,'Cell',Cell
   DO iBGM = BGMCellsArray(Cell*3+1)-nShapePaddingX, BGMCellsArray(Cell*3+1)+nShapePaddingX
     DO jBGM = BGMCellsArray(Cell*3+2)-nShapePaddingY, BGMCellsArray(Cell*3+2)+nShapePaddingY
       DO kBGM = BGMCellsArray(Cell*3+3)-nShapePaddingZ, BGMCellsArray(Cell*3+3)+nShapePaddingZ
+        print*,'i,j,k',iBGM,jBGM,kBGM
         DO m = 1,CellProcNum(iBGM,jBGM,kBGM)
           TempProcList(CellProcList(iBGM,jBGM,kBGM,m))=1       ! every proc that is within the stencil gets a 1
         END DO ! m
@@ -958,7 +991,8 @@ DO Cell=0, BGMCells-1
   END IF
 END DO !Cell
 DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, CellProcNum)
-CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
+!CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
+CALL InitHaloMesh()
 #endif
 
 !exitTrue=.false.

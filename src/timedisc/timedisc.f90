@@ -823,10 +823,13 @@ USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
 USE MOD_part_MPFtools,    ONLY : StartParticleMerge
+!#ifdef MPI
+!USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
+!#else
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
+!#endif
 #ifdef MPI
-USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
-#else
-USE MOD_part_boundary,    ONLY : ParticleBoundary
+USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv
 #endif
 USE MOD_PIC_Analyze,ONLY: CalcDepositedCharge
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
@@ -879,13 +882,20 @@ IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2) 
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3) 
 END IF
+
+
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   !CALL ParticleBoundary()
   !CALL ParticleTracking()
+#ifdef MPI
+  CALL IRecvNbofParticles()
+#endif
   CALL ParticleTrackingCurved()
 #ifdef MPI
-  CALL Communicate_PIC()
-!CALL UpdateNextFreePosition() ! only required for parallel communication
+  CALL MPIParticleSend()
+  ! buffer routine
+  CALL MPIParticleRecv()
+  ! second buffer
 #endif
 END IF
 

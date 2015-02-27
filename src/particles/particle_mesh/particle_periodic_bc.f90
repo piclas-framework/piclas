@@ -54,7 +54,7 @@ DO iVec = 1, GEO%nPeriodicVectors
   WRITE(UNIT=hilf,FMT='(I2)') iVec
   GEO%PeriodicVectors(1:3,iVec) = GETREALARRAY('Part-PeriodicVector'//TRIM(hilf),3,'1.,0.,0.')
 END DO
-IF(GEO%nPeriodicVectors.GE.0)THEN
+IF(GEO%nPeriodicVectors.GT.0)THEN
   CALL GetPeriodicVectors()
   CALL MapPeriodicVectorsToSides()
 END IF

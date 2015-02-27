@@ -849,7 +849,8 @@ IF (RecvMsg%nSides.GT.0) THEN
   DEALLOCATE(DummyNeighborElemID)
   ! PartNeighborlocSideID
   ALLOCATE(DummyNeighborlocSideID(1:6,1:tmpnElems))
-  IF (.NOT.ALLOCATED(DummyNeighborLocSideID)) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (.NOT.ALLOCATED(DummyNeighborLocSideID)) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummyNeighborlocSideID=PartNeighborlocSideID
   DEALLOCATE(PartNeighborlocSideID)
@@ -861,7 +862,8 @@ IF (RecvMsg%nSides.GT.0) THEN
   DEALLOCATE(DummyNeighborlocSideID)
  ! BezierControlPoints3D
   ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides))
-  IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummyBezierControlPoints3d=BezierControlPoints3d
   DEALLOCATE(BezierControlPoints3D)
