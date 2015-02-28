@@ -26,7 +26,7 @@ USE MOD_MPI,              ONLY:InitMPIvars
 #endif
 #ifdef PARTICLES
 USE MOD_ParticleInit,     ONLY:InitParticles
-USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces
+USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces, GetSideType
 USE MOD_InitializeBackgroundField, ONLY: FinalizeBackGroundField
 USE MOD_Particle_Mesh,    ONLY:InitParticleMesh
 #ifdef MPI
@@ -83,7 +83,7 @@ CALL InitParticleMPI
 #endif
 CALL InitParticleSurfaces()
 CALL InitParticleMesh()
-! CALL GetSideType
+CALL GetSideType
 #endif /*PARTICLES*/
 
 CALL InitEquation()

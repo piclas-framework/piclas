@@ -1452,6 +1452,7 @@ LOGICAL                     :: isLinear
 !        , SideDistance(nSides)    &
 !        , SideNormVec(1:3,nSides) )
 
+
 ALLOCATE( SideType(nTotalSides)        &
         , SideDistance(nTotalSides)    &
         , SideNormVec(1:3,nTotalSides) )

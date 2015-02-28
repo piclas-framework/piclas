@@ -383,6 +383,7 @@ USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, nInnerSides, Elem
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO,nTotalSides,nTotalElems,SidePeriodicType
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartNeighborElemID,PartNeighborLocSideID
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
 ! should not be needed annymore
 !USE MOD_Particle_MPI_Vars,      ONLY:nNbProcs,offsetMPISides_MINE, offsetMPISides_YOUR
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -400,6 +401,9 @@ TYPE tMPISideMessage
   INTEGER,ALLOCATABLE       :: SideBCType(:)
   INTEGER,ALLOCATABLE       :: BC(:)
   INTEGER,ALLOCATABLE       :: NativeElemID(:)
+  REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: SlabNormals                  ! normal vectors of bounding slab box
+  REAL,ALLOCATABLE,DIMENSION(:,:)    :: SlabIntervalls               ! intervalls beta1, beta2, beta3
+  LOGICAL,ALLOCATABLE,DIMENSION(:)   :: BoundingBoxIsEmpty
   !INTEGER,ALLOCATABLE       :: PeriodicElemSide(:,:)
   INTEGER                   :: nSides                 ! number of sides to send
   INTEGER                   :: nElems                 ! number of elems to send
@@ -422,6 +426,9 @@ INTEGER,ALLOCATABLE         :: DummySideToElem(:,:)
 INTEGER,ALLOCATABLE         :: DummySideBCType(:)
 INTEGER,ALLOCATABLE         :: DummyNeighborElemID(:,:)
 INTEGER,ALLOCATABLE         :: DummyNeighborlocSideID(:,:)
+REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummySlabNormals                  ! normal vectors of bounding slab box
+REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummySlabIntervalls               ! intervalls beta1, beta2, beta3
+LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 !===================================================================================================================================
 
 ALLOCATE(isElem(1:nElems))
@@ -514,13 +521,13 @@ IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides)
   ALLOCATE(SendMsg%BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
     'Could not allocate SendMsg%SideToElem',SendMsg%nSides)
-  SendMsg%SideToElem(:,:)=0
+  SendMsg%BezierControlPoints3D=0.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
     'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides)
-  RecvMsg%SideToElem(:,:)=0
+  RecvMsg%BezierControlPoints3D=0.
 END IF
 
 ! SideToElem Mapping
@@ -569,7 +576,45 @@ IF (RecvMsg%nElems.GT.0) THEN
     'Could not allocate RecvMsg%NativeElemID',RecvMsg%nElems,999.)
   RecvMsg%NativeElemID(:)=0
 END IF
-
+! SlabNormals Mapping
+IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides) 
+  ALLOCATE(SendMsg%SlabNormals(1:3,1:3,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    'Could not allocate SendMsg%SideToElem',SendMsg%nSides)
+  SendMsg%SlabNormals(:,:,:)=0
+END IF
+IF (RecvMsg%nSides.GT.0) THEN
+  ALLOCATE(RecvMsg%SlabNormals(1:3,1:3,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides)
+  RecvMsg%SlabNormals(:,:,:)=0
+END IF
+! SlabIntervalls Mapping
+IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides) 
+  ALLOCATE(SendMsg%SlabIntervalls(1:6,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    'Could not allocate SendMsg%SideToElem',SendMsg%nSides)
+  SendMsg%SlabIntervalls(:,:)=0
+END IF
+IF (RecvMsg%nSides.GT.0) THEN
+  ALLOCATE(RecvMsg%SlabIntervalls(1:6,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides)
+  RecvMsg%SlabIntervalls(:,:)=0
+END IF
+! BoundingBoxIsEmpty Mapping
+IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides) 
+  ALLOCATE(SendMsg%BoundingBoxIsEmpty(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    'Could not allocate SendMsg%SideToElem',SendMsg%nSides)
+  !SendMsg%BoundingBoxIsEmpty(:,:)=.FALSE.
+END IF
+IF (RecvMsg%nSides.GT.0) THEN
+  ALLOCATE(RecvMsg%BoundingBoxIsEmpty(1:RecvMsg%nSides),STAT=ALLOCSTAT)  
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides)
+  !RecvMsg%BoundingBoxIsEmpty(:,:)=
+END IF
 !! PeriodicElemSide Mapping 
 !IF (SendMsg%nElems.GT.0) THEN       ! PeriodicElemSide(1:iLocSide,1:nElems)
 !  ALLOCATE(SendMsg%PeriodicElemSide(1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)
@@ -614,6 +659,15 @@ DO iSide = 1,nSides
         SideToElem(3:5,iSide)
     SendMsg%BezierControlPoints3D(:,:,:,SideIndex(iSide)) = &
         BezierControlPoints3D(:,:,:,iSide)
+    ! slabnormals
+    SendMsg%SlabNormals(:,:,SideIndex(iSide)) = &
+        SlabNormals(:,:,iSide)
+    ! slabintervalls
+    SendMsg%SlabIntervalls(:,SideIndex(iSide)) = &
+        SlabIntervalls(:,iSide)
+    ! BoundingBoxIsEmpty
+    SendMsg%BoundingBoxIsEmpty(SideIndex(iSide)) = &
+        BoundingBoxIsEmpty(iSide)
   END IF
 END DO
 !--- BC Mapping ------------------------------------------------------!
@@ -689,12 +743,18 @@ IF (PartMPI%MyRank.LT.iProc) THEN
 !    IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%PeriodicElemSide,SendMsg%nElems*6,MPI_INTEGER ,iProc,1109,PartMPI%COMM,IERROR)
 !  END IF
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%SideBCType,SendMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%SlabNormals,SendMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%SlabIntervalls,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%BoundingBoxIsEmpty,SendMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
     CALL MPI_RECV(RecvMsg%ElemToSide,RecvMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
     CALL MPI_RECV(RecvMsg%SideToElem,RecvMsg%nSides*5,MPI_INTEGER         ,iProc,1105,PartMPI%COMM,MPISTATUS,IERROR)
-IF (RecvMsg%nSides.GT.0) &
+  IF (RecvMsg%nSides.GT.0) &
   CALL MPI_RECV(RecvMsg%BezierControlPoints3D,RecvMsg%nSides*datasize,MPI_DOUBLE_PRECISION,iProc,1106,PartMPI%COMM,MPISTATUS,IERROR)
 
   IF (RecvMsg%nSides.GT.0) &
@@ -706,13 +766,19 @@ IF (RecvMsg%nSides.GT.0) &
   !       CALL MPI_RECV(RecvMsg%PeriodicElemSide,RecvMsg%nElems*6,MPI_INTEGER,iProc,1109,PartMPI%COMM,MPISTATUS,IERROR)
   !END IF
   IF (RecvMsg%nSides.GT.0) CALL MPI_SEND(RecvMsg%SideBCType,SendMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,IERROR)
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%SlabNormals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,IERROR)
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%SlabIntervalls,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
     CALL MPI_RECV(RecvMsg%ElemToSide,RecvMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
     CALL MPI_RECV(RecvMsg%SideToElem,RecvMsg%nSides*5,MPI_INTEGER         ,iProc,1105,PartMPI%COMM,MPISTATUS,IERROR)
-IF (RecvMsg%nSides.GT.0) &
+  IF (RecvMsg%nSides.GT.0) &
   CALL MPI_RECV(RecvMsg%BezierControlPoints3D,RecvMsg%nSides*datasize,MPI_DOUBLE_PRECISION,iProc,1106,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
     CALL MPI_RECV(RecvMsg%BC,RecvMsg%nSides*4,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,MPISTATUS,IERROR)
@@ -723,6 +789,12 @@ IF (RecvMsg%nSides.GT.0) &
   !       CALL MPI_RECV(RecvMsg%PeriodicElemSide,RecvMsg%nElems*6,MPI_INTEGER,iProc,1109,PartMPI%COMM,MPISTATUS,IERROR)
   !END IF
   IF (RecvMsg%nSides.GT.0) CALL MPI_SEND(RecvMsg%SideBCType,SendMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,IERROR)
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%SlabNormals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,IERROR)
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%SlabIntervalls,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
+  IF (RecvMsg%nSides.GT.0) &
+      CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
   ! Send:
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%ElemToSide,SendMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%SideToElem,SendMsg%nSides*5,MPI_INTEGER         ,iProc,1105,PartMPI%COMM,IERROR)
@@ -734,6 +806,12 @@ IF (RecvMsg%nSides.GT.0) &
   !  IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%PeriodicElemSide,SendMsg%nElems*6,MPI_INTEGER ,iProc,1109,PartMPI%COMM,IERROR)
   !END IF
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%SideBCType,SendMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%SlabNormals,SendMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%SlabIntervalls,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) &
+      CALL MPI_SEND(SendMsg%BoundingBoxIsEmpty,SendMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
 END IF
 
 IF ((RecvMsg%nElems.EQ.0) .AND. (RecvMsg%nSides.GT.0))THEN
@@ -896,6 +974,42 @@ IF (RecvMsg%nSides.GT.0) THEN
   BC=0
   BC(1:tmpnSides) =DummyBC(1:tmpnSides)
   DEALLOCATE(DummyBC)
+  ! SlabNormals
+  ALLOCATE(DummySlabNormals(1:3,1:3,1:tmpnSides))
+  IF (.NOT.ALLOCATED(DummySlabNormals)) CALL abort(__STAMP__,& !wunderschoen!!!
+    'Could not allocate ElemIndex')
+  DummySlabNormals=SlabNormals
+  DEALLOCATE(SlabNormals)
+  ALLOCATE(SlabNormals(1:3,1:3,1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+    'Could not allocate ElemIndex')
+  SlabNormals=0
+  SlabNormals(1:3,1:3,1:tmpnSides) =DummySlabNormals(1:3,1:3,1:tmpnSides)
+  DEALLOCATE(DummySlabNormals)
+  ! SlabIntervalls
+  ALLOCATE(DummySlabIntervalls(1:6,1:tmpnSides))
+  IF (.NOT.ALLOCATED(DummySlabIntervalls)) CALL abort(__STAMP__,& !wunderschoen!!!
+    'Could not allocate ElemIndex')
+  DummySlabIntervalls=SlabIntervalls
+  DEALLOCATE(SlabIntervalls)
+  ALLOCATE(SlabIntervalls(1:6,1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+    'Could not allocate ElemIndex')
+  SlabIntervalls=0
+  SlabIntervalls(1:6,1:tmpnSides) =DummySlabIntervalls(1:6,1:tmpnSides)
+  DEALLOCATE(DummySlabIntervalls)
+  ! BoundingBoxIsEmpty
+  ALLOCATE(DummyBoundingBoxIsEmpty(1:tmpnSides))
+  IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
+    'Could not allocate ElemIndex')
+  DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
+  DEALLOCATE(BoundingBoxIsEmpty)
+  ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+    'Could not allocate ElemIndex')
+  BoundingBoxIsEmpty(1:tmpnSides) =DummyBoundingBoxIsEmpty(1:tmpnSides)
+  DEALLOCATE(DummyBoundingBoxIsEmpty)
   ! finished copying
 
   haloElemID=0
@@ -985,8 +1099,12 @@ IF (RecvMsg%nSides.GT.0) THEN
         SidePeriodicType(newSideID)=RecvMsg%SideBCType(haloSideID)
       END IF ! isDoubleSide
       ! copy Bezier to new side id
-      IF(.NOT.isDoubleSide) &
+      IF(.NOT.isDoubleSide) THEN
         BezierControlPoints3D(1:3,0:NGeo,0:NGeo,newSideID)=RecvMsg%BezierControlpoints3D(1:3,0:NGeo,0:NGeo,haloSideID)
+        SlabNormals(1:3,1:3,newSideID)=RecvMsg%SlabNormals(1:3,1:3,haloSideID)
+        SlabIntervalls(1:6,newSideID) =RecvMsg%SlabIntervalls(1:6 ,haloSideID) 
+        BoundingBoxIsEmpty(newSideID) =RecvMsg%BoundingBoxIsEmpty( haloSideID) 
+      END IF
       ! build entry to PartElemToSide
       PartElemToSide(1,iLocSide,iElem)=newSideID
       PartElemToSide(2,ilocSide,iElem)=RecvMsg%ElemToSide(2,ilocSide,haloElemID)
