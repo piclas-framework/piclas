@@ -403,17 +403,18 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 #ifdef MPI
-USE MOD_part_MPI_Vars,         ONLY : PMPIVAR,PMPIInsert
+!USE MOD_part_MPI_Vars,         ONLY : PMPIVAR,PMPIInsert
+USE MOD_Particle_MPI_Vars,     ONLY:PartMPI,PartMPIInsert
 #endif /* MPI*/
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_Globals_Vars,          ONLY : PI
-USE MOD_Timedisc_Vars,         ONLY : dt, iter, IterDisplayStep, DoDisplayIter
-USE MOD_BoundaryTools,         ONLY : SingleParticleToExactElement                                  
-USE MOD_PICInterpolation,      ONLY : InterpolateCurvedExternalField
-USE MOD_PICInterpolation_vars, ONLY : useCurvedExternalField
-USE MOD_Equation_vars,         ONLY : c_inv
+USE MOD_Globals_Vars,          ONLY:PI
+USE MOD_Timedisc_Vars,         ONLY:dt, iter, IterDisplayStep, DoDisplayIter
+USE MOD_BoundaryTools,         ONLY:SingleParticleToExactElement                                  
+USE MOD_PICInterpolation,      ONLY:InterpolateCurvedExternalField
+USE MOD_PICInterpolation_vars, ONLY:useCurvedExternalField
+USE MOD_Equation_vars,         ONLY:c_inv
 !USE MOD_LD,                    ONLY : LD_SetParticlePosition
 !#ifdef MPI
 !! PilleO: to change into use MPi_2003 or so
@@ -431,9 +432,10 @@ INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef MPI
-INTEGER                                  :: mode                                                      
+INTEGER                                  :: mode
 INTEGER                                  :: iProc, CellX, CellY, CellZ                                  
 INTEGER                                  :: msg_status(1:MPI_STATUS_SIZE)                               
+INTEGER                                  :: MessageSize
 LOGICAL                                  :: InsideMyBGM                                                 
 #endif
 REAL,POINTER                             :: particle_positions(:)=>NULL()
@@ -517,18 +519,19 @@ mySumOfMatchedParticles = 0
 chunkSize = nbrOfParticle
 ! process myRank=0 generates the complete list of random positions for all emitted particles
 #ifdef MPI
-IF ( (nbrOfParticle.GT.10*PMPIVAR%nProcs                                      ) .AND. &
+!IF ( (nbrOfParticle.GT.10*PMPIVAR%nProcs                                      ) .AND. &
+IF ( (nbrOfParticle.GT.10*PartMPI%nProcs                                      ) .AND. &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'circle_equidistant'                 ) .AND. &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'sin_deviation'                      ) .AND. &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'cuboid_with_equidistant_distribution') .AND. &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'line_with_equidistant_distribution' )) THEN
-   nChunks = PMPIVAR%nProcs
+   nChunks = PartMPI%nProcs
 ELSE
    nChunks = 1
 END IF
 IF (mode.EQ.1) THEN
   chunkSize = INT(nbrOfParticle/nChunks)
-  IF (PMPIVAR%iProc .EQ. 0) THEN
+  IF (PartMPI%MPIRoot) THEN
     IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
       ! statistical handling of exact REAL-INT-conversion -> values in send(1)- and receive(2)-mode might differ for VPI+PartDens
       ! (NbrOf Particle can differ from root to other procs and, thus, need to be communicated of calculated later again)
@@ -539,7 +542,7 @@ IF (mode.EQ.1) THEN
     END IF
     chunkSize = chunkSize + ( nbrOfParticle - (nChunks*chunkSize) )
   END IF
-  IF (PMPIVAR%iProc .EQ. 0 .OR. nChunks.GT.1) THEN
+  IF (PartMPI%MPIRoot .OR. nChunks.GT.1) THEN
 #endif
     ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
     IF (allocStat .NE. 0) THEN
@@ -986,7 +989,7 @@ IF (mode.EQ.1) THEN
 !      END IF
     CASE('cuboid_equal')
 #ifdef MPI
-      IF (PMPIVAR%nProcs .GT. 1) THEN
+      IF (PartMPI%nProcs .GT. 1) THEN
         SWRITE(UNIT_stdOut,*)'WARNING in SetParticlePosition:'
         SWRITE(UNIT_stdOut,*)'cannot fully handle Particle Initial Condition \"cuboid equal\"'
         SWRITE(UNIT_stdOut,*)'in parallel mode (with more than one CPU)!'
@@ -1011,7 +1014,7 @@ IF (mode.EQ.1) THEN
                 'ERROR in SetParticlePosition: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
          END IF
       END DO
-      CALL MPI_ALLREDUCE(mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM, PMPIVAR%COMM, IERROR)
+      CALL MPI_ALLREDUCE(mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM, PartMPI%COMM, IERROR)
       nbrOfParticle = NbrOfParticle - sumOfMatchedParticles
       IF (nbrOfParticle .NE. 0) THEN
         IPWRITE(*,*)'ERROR in ParticleEmission_parallel:'
@@ -1113,12 +1116,12 @@ chunkSize=chunkSize2 !particles reaching comp. domain from VPI
  END IF
 
  IF(nChunks.GT.1) THEN
-   ALLOCATE( PMPIInsert%nbrOfSendParticlesEmission(0:PMPIVAR%nProcs-1), STAT=allocStat )
-   ALLOCATE( PMPIInsert%nbrOfRecvParticlesEmission(0:PMPIVAR%nProcs-1), STAT=allocStat )
-   ALLOCATE( PMPIInsert%send_request(0:PMPIVAR%nProcs-1,1:2), STAT=allocStat )
-   ALLOCATE( PMPIInsert%recv_request(0:PMPIVAR%nProcs-1,1:2), STAT=allocStat )
-   ALLOCATE( PMPIInsert%send_message(0:PMPIVAR%nProcs-1), STAT=allocStat )
-   PMPIInsert%nbrOfSendParticlesEmission(:)=0
+   ALLOCATE( PartMPIInsert%nPartsSend  (0:PartMPI%nProcs-1), STAT=allocStat )
+   ALLOCATE( PartMPIInsert%nPartsRecv  (0:PartMPI%nProcs-1), STAT=allocStat )
+   ALLOCATE( PartMPIInsert%SendRequest (0:PartMPI%nProcs-1,1:2), STAT=allocStat )
+   ALLOCATE( PartMPIInsert%RecvRequest (0:PartMPI%nProcs-1,1:2), STAT=allocStat )
+   ALLOCATE( PartMPIInsert%send_message(0:PartMPI%nProcs-1), STAT=allocStat )
+   PartMPIInsert%nPartsSend(:)=0
    DO i=1,chunkSize
      CellX = INT((particle_positions(DimSend*(i-1)+1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
      CellY = INT((particle_positions(DimSend*(i-1)+2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
@@ -1135,37 +1138,38 @@ chunkSize=chunkSize2 !particles reaching comp. domain from VPI
      IF (InsideMyBGM) THEN
        DO j=2,GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1)+1
          iProc=GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(j)
-         PMPIInsert%nbrOfSendParticlesEmission(iProc)=PMPIInsert%nbrOfSendParticlesEmission(iProc)+1
+         PartMPIInsert%nPartsSend(iProc)=PartMPIInsert%nPartsSend(iProc)+1
        END DO
-       PMPIInsert%nbrOfSendParticlesEmission(PMPIVAR%iProc)=PMPIInsert%nbrOfSendParticlesEmission(PMPIVAR%iProc)+1
+       PartMPIInsert%nPartsSend(PartMPI%MyRank)=PartMPIInsert%nPartsSend(PartMPI%MyRank)+1
      ELSE
-       DO iProc=0,PMPIVAR%nProcs-1
+       DO iProc=0,PartMPI%nProcs-1
 !         IF (iProc.EQ.PMPIVAR%iProc) CYCLE
-         PMPIInsert%nbrOfSendParticlesEmission(iProc)=PMPIInsert%nbrOfSendParticlesEmission(iProc)+1
+         PartMPIInsert%nPartsSend(iProc)=PartMPIInsert%nPartsSend(iProc)+1
        END DO
      END IF
    END DO   
  ELSE
-    IF(PMPIVAR%iProc .EQ. 0) THEN
-      ALLOCATE( PMPIInsert%send_message(0:0), STAT=allocStat )
-      ALLOCATE( PMPIInsert%send_message(0)%content(1:DimSend*chunkSize), STAT=allocStat )
-      PMPIInsert%send_message(0)%content(:)=particle_positions(1:DimSend*chunkSize)
+    IF(PartMPI%MPIRoot) THEN
+      ALLOCATE( PartMPIInsert%send_message(0:0), STAT=allocStat )
+      MessageSize=DimSend*chunkSize
+      ALLOCATE( PartMPIInsert%send_message(0)%content(1:MessageSize), STAT=allocStat )
+      PartMPIInsert%send_message(0)%content(:)=particle_positions(1:DimSend*chunkSize)
       DEALLOCATE(particle_positions, STAT=allocStat)
     END IF
  END IF
  IF (nChunks.GT.1) THEN
-    DO iProc=0,PMPIVAR%nProcs-1
+    DO iProc=0,PartMPI%nProcs-1
       !--- MPI_ISEND lengths of lists of particles leaving local mesh
-      CALL MPI_ISEND(PMPIInsert%nbrOfSendParticlesEmission(iProc), 1, MPI_INTEGER, iProc, 1011+FractNbr, PMPIVAR%COMM, &
-                     PMPIInsert%send_request(iProc,1), IERROR)
+      CALL MPI_ISEND(PartMPIInsert%nPartsSend(iProc), 1, MPI_INTEGER, iProc, 1011+FractNbr, PartMPI%COMM, &
+                     PartMPIInsert%SendRequest(iProc,1), IERROR)
       !--- MPI_IRECV lengths of lists of particles entering local mesh
-      CALL MPI_IRECV(PMPIInsert%nbrOfRecvParticlesEmission(iProc), 1, MPI_INTEGER, iProc, 1011+FractNbr, PMPIVAR%COMM, &
-                     PMPIInsert%recv_request(iProc,1), IERROR)
-      IF (PMPIInsert%nbrOfSendParticlesEmission(iProc).GT.0) THEN
-        ALLOCATE( PMPIInsert%send_message(iProc)%content(1:DimSend*PMPIInsert%nbrOfSendParticlesEmission(iProc)), STAT=allocStat )
+      CALL MPI_IRECV(PartMPIInsert%nPartsRecv(iProc), 1, MPI_INTEGER, iProc, 1011+FractNbr, PartMPI%COMM, &
+                     PartMPIInsert%RecvRequest(iProc,1), IERROR)
+      IF (PartMPIInsert%nPartsSend(iProc).GT.0) THEN
+        ALLOCATE( PartMPIInsert%send_message(iProc)%content(1:DimSend*PartMPIInsert%nPartsSend(iProc)), STAT=allocStat )
       END IF
     END DO
-    PMPIInsert%nbrOfSendParticlesEmission(:)=0
+    PartMPIInsert%nPartsSend(:)=0
     DO i=1,chunkSize
       CellX = INT((particle_positions(DimSend*(i-1)+1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
       CellY = INT((particle_positions(DimSend*(i-1)+2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
@@ -1182,78 +1186,78 @@ chunkSize=chunkSize2 !particles reaching comp. domain from VPI
       IF (InsideMyBGM) THEN
         DO j=2,GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1)+1
           iProc=GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(j)
-          PMPIInsert%nbrOfSendParticlesEmission(iProc)=PMPIInsert%nbrOfSendParticlesEmission(iProc)+1
-          k=PMPIInsert%nbrOfSendParticlesEmission(iProc)
-          PMPIInsert%send_message(iProc)%content(DimSend*(k-1)+1:DimSend*k)=particle_positions(DimSend*(i-1)+1:DimSend*i)
+          PartMPIInsert%nPartsSend(iProc)=PartMPIInsert%nPartsSend(iProc)+1
+          k=PartMPIInsert%nPartsSend(iProc)
+          PartMPIInsert%send_message(iProc)%content(DimSend*(k-1)+1:DimSend*k)=particle_positions(DimSend*(i-1)+1:DimSend*i)
         END DO
-        PMPIInsert%nbrOfSendParticlesEmission(PMPIVAR%iProc)=PMPIInsert%nbrOfSendParticlesEmission(PMPIVAR%iProc)+1
-        k=PMPIInsert%nbrOfSendParticlesEmission(PMPIVAR%iProc)
-        PMPIInsert%send_message(PMPIVAR%iProc)%content(DimSend*(k-1)+1:DimSend*k)=particle_positions(DimSend*(i-1)+1:DimSend*i)
+        PartMPIInsert%nPartsSend(PartMPI%MyRank)=PartMPIInsert%nPartsSend(PartMPI%MyRank)+1
+        k=PartMPIInsert%nPartsSend(PartMPI%MyRank)
+        PartMPIInsert%send_message(PartMPI%MyRank)%content(DimSend*(k-1)+1:DimSend*k)=particle_positions(DimSend*(i-1)+1:DimSend*i)
       ELSE
-        DO iProc=0,PMPIVAR%nProcs-1
+        DO iProc=0,PartMPI%nProcs-1
  !         IF (iProc.EQ.PMPIVAR%iProc) CYCLE
-          PMPIInsert%nbrOfSendParticlesEmission(iProc)=PMPIInsert%nbrOfSendParticlesEmission(iProc)+1
-          k=PMPIInsert%nbrOfSendParticlesEmission(iProc)
-          PMPIInsert%send_message(iProc)%content(DimSend*(k-1)+1:DimSend*k)=particle_positions(DimSend*(i-1)+1:DimSend*i)
+          PartMPIInsert%nPartsSend(iProc)=PartMPIInsert%nPartsSend(iProc)+1
+          k=PartMPIInsert%nPartsSend(iProc)
+          PartMPIInsert%send_message(iProc)%content(DimSend*(k-1)+1:DimSend*k)=particle_positions(DimSend*(i-1)+1:DimSend*i)
         END DO
       END IF
     END DO
     DEALLOCATE(particle_positions, STAT=allocStat)
-    DO iProc=0,PMPIVAR%nProcs-1
+    DO iProc=0,PartMPI%nProcs-1
       !--- (non-blocking:) send messages to all procs receiving particles from myself
-      IF (PMPIInsert%nbrOfSendParticlesEmission(iProc).GT.0) THEN
-        CALL MPI_ISEND(PMPIInsert%send_message(iProc)%content, DimSend*PMPIInsert%nbrOfSendParticlesEmission(iProc),& 
-          MPI_DOUBLE_PRECISION, iProc, 1022+FractNbr, PMPIVAR%COMM, PMPIInsert%send_request(iProc,2), IERROR)
+      IF (PartMPIInsert%nPartsSend(iProc).GT.0) THEN
+        CALL MPI_ISEND(PartMPIInsert%send_message(iProc)%content, DimSend*PartMPIInsert%nPartsSend(iProc),& 
+          MPI_DOUBLE_PRECISION, iProc, 1022+FractNbr, PartMPI%COMM, PartMPIInsert%SendRequest(iProc,2), IERROR)
       END IF
     END DO
   END IF
 ELSE ! mode.NE.1:
 !--- RECEIVE:
   IF(nChunks.EQ.1) THEN
-    IF(PMPIVAR%iProc .EQ. 0) THEN !chunkSize can be 1 higher than NbrOfParticle for VPI+PartDens
-       chunkSize=INT( REAL(SIZE(PMPIInsert%send_message(0)%content)) / REAL(DimSend) )
+    IF(PartMPI%MPIRoot) THEN !chunkSize can be 1 higher than NbrOfParticle for VPI+PartDens
+       chunkSize=INT( REAL(SIZE(PartMPIInsert%send_message(0)%content)) / REAL(DimSend) )
        ALLOCATE(particle_positions(1:chunkSize*DimSend), STAT=allocStat)
-       particle_positions(:)=PMPIInsert%send_message(0)%content(:)
-       DEALLOCATE( PMPIInsert%send_message(0)%content )      
-       DEALLOCATE( PMPIInsert%send_message )
+       particle_positions(:)=PartMPIInsert%send_message(0)%content(:)
+       DEALLOCATE( PartMPIInsert%send_message(0)%content )      
+       DEALLOCATE( PartMPIInsert%send_message )
     END IF
     IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
-      CALL MPI_BCAST(chunkSize, 1, MPI_INTEGER,0,PMPIVAR%COMM,IERROR)
+      CALL MPI_BCAST(chunkSize, 1, MPI_INTEGER,0,PartMPI%COMM,IERROR)
     ELSE
       chunkSize=NbrOfParticle
     END IF
-    IF(PMPIVAR%iProc .NE. 0) THEN
+    IF(.NOT.PartMPI%MPIROOT) THEN
       ALLOCATE(particle_positions(1:chunkSize*DimSend), STAT=allocStat)
     END IF
-    CALL MPI_BCAST(particle_positions, chunkSize*DimSend, MPI_DOUBLE_PRECISION,0,PMPIVAR%COMM,IERROR)
+    CALL MPI_BCAST(particle_positions, chunkSize*DimSend, MPI_DOUBLE_PRECISION,0,PartMPI%COMM,IERROR)
   ELSE   
-    DO iProc=0,PMPIVAR%nProcs-1
-      CALL MPI_WAIT(PMPIInsert%recv_request(iProc,1),msg_status(:),IERROR)
+    DO iProc=0,PartMPI%nProcs-1
+      CALL MPI_WAIT(PartMPIInsert%RecvRequest(iProc,1),msg_status(:),IERROR)
     END DO
-    k=SUM(PMPIInsert%nbrOfRecvParticlesEmission)
+    k=SUM(PartMPIInsert%nPartsRecv)
     ALLOCATE(particle_positions(1:k*DimSend), STAT=allocStat)
     k=0
-    DO iProc=0,PMPIVAR%nProcs-1
-      IF (PMPIInsert%nbrOfRecvParticlesEmission(iProc).GT.0) THEN
+    DO iProc=0,PartMPI%nProcs-1
+      IF (PartMPIInsert%nPartsRecv(iProc).GT.0) THEN
       !--- MPI_IRECV lengths of lists of particles entering local mesh
-        CALL MPI_IRECV(particle_positions(k*DimSend+1), DimSend*PMPIInsert%nbrOfRecvParticlesEmission(iProc),&
-                       MPI_DOUBLE_PRECISION, iProc, 1022+FractNbr, PMPIVAR%COMM, PMPIInsert%recv_request(iProc,2), IERROR)
-        CALL MPI_WAIT(PMPIInsert%recv_request(iProc,2),msg_status(:),IERROR)
-        k=k+PMPIInsert%nbrOfRecvParticlesEmission(iProc)
+        CALL MPI_IRECV(particle_positions(k*DimSend+1), DimSend*PartMPIInsert%nPartsRecv(iProc),&
+                       MPI_DOUBLE_PRECISION, iProc, 1022+FractNbr, PartMPI%COMM, PartMPIInsert%RecvRequest(iProc,2), IERROR)
+        CALL MPI_WAIT(PartMPIInsert%RecvRequest(iProc,2),msg_status(:),IERROR)
+        k=k+PartMPIInsert%nPartsRecv(iProc)
       END IF
     END DO
-    DEALLOCATE( PMPIInsert%nbrOfRecvParticlesEmission )
-    DEALLOCATE( PMPIInsert%recv_request )
-    DO iProc=0,PMPIVAR%nProcs-1
-      CALL MPI_WAIT(PMPIInsert%send_request(iProc,1),msg_status(:),IERROR)
-      IF (PMPIInsert%nbrOfSendParticlesEmission(iProc).GT.0) THEN
-        CALL MPI_WAIT(PMPIInsert%send_request(iProc,2),msg_status(:),IERROR)
-        DEALLOCATE( PMPIInsert%send_message(iProc)%content )
+    DEALLOCATE( PartMPIInsert%nPartsRecv )
+    DEALLOCATE( PartMPIInsert%RecvRequest )
+    DO iProc=0,PartMPI%nProcs-1
+      CALL MPI_WAIT(PartMPIInsert%SendRequest(iProc,1),msg_status(:),IERROR)
+      IF (PartMPIInsert%nPartsSend(iProc).GT.0) THEN
+        CALL MPI_WAIT(PartMPIInsert%SendRequest(iProc,2),msg_status(:),IERROR)
+        DEALLOCATE( PartMPIInsert%send_message(iProc)%content )
       END IF
     END DO
-    DEALLOCATE( PMPIInsert%nbrOfSendParticlesEmission )
-    DEALLOCATE( PMPIInsert%send_message )
-    DEALLOCATE( PMPIInsert%send_request )
+    DEALLOCATE( PartMPIInsert%nPartsSend )
+    DEALLOCATE( PartMPIInsert%send_message )
+    DEALLOCATE( PartMPIInsert%SendRequest )
     chunkSize=k
     nChunks=1
   END IF
@@ -1293,7 +1297,7 @@ ELSE ! mode.NE.1:
 #ifdef MPI
   !   WRITE(*,*)'mySumOfMatchedParticles=',mySumOfMatchedParticles
      ! check the sum of the matched particles: did each particle find its "home"-CPU?
-      CALL MPI_ALLREDUCE(mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM, PMPIVAR%COMM, IERROR)
+      CALL MPI_ALLREDUCE(mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM, PartMPI%COMM, IERROR)
 #else
       ! im seriellen Fall kommen alle Partikel auf einen CPU,
       ! daher ist PIC%maxParticleNumber die harte Grenze
@@ -1301,7 +1305,7 @@ ELSE ! mode.NE.1:
 #endif
 
 #ifdef MPI
-      IF(PMPIVAR%iProc.EQ.0) THEN
+      IF(PartMPI%MPIRoot) THEN
 #endif
         IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
           IF ((nbrOfParticle .NE. sumOfMatchedParticles))THEN!.AND.OutputVpiWarnings) THEN

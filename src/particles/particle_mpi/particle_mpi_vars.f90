@@ -56,7 +56,7 @@ END TYPE
 TYPE (tPartMPIVAR)                       :: PartMPI
 
 TYPE tMPIMessage
-  REAL,ALLOCATABLE                      :: content(:,:)                   ! message buffer real
+  REAL,ALLOCATABLE                      :: content(:)                   ! message buffer real
 END TYPE
 
 TYPE(tMPIMessage),ALLOCATABLE  :: PartRecvBuf(:)
@@ -67,18 +67,17 @@ TYPE tParticleMPIExchange
   INTEGER                        :: nMPIParticles    ! number of all received particles
   INTEGER,ALLOCATABLE            :: SendRequest(:,:) ! send requirest message handle 1 - Number, 2-Message
   INTEGER,ALLOCATABLE            :: RecvRequest(:,:) ! recv request message handle,  1 - Number, 2-Message
-
+  TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)  ! message, required for particle emission
 !  INTEGER                       ,POINTER :: MPINbrOfParticles(:)
 !  INTEGER                       ,POINTER :: MPIProcNbr(:)
 !  INTEGER                       ,POINTER :: MPITags(:)
-!  TYPE(tMPIMessage)             ,POINTER :: send_message(:)
 !  INTEGER                       ,POINTER :: nbrOfSendParticles(:,:)  ! (1:nProcs,1:2) 1: pure MPI part, 2: shape part
 !  INTEGER                       ,POINTER :: NbrArray(:)  ! (1:nProcs*2)
 !  INTEGER                       ,POINTER :: nbrOfSendParticlesEmission(:)  ! (1:nProcs)
 END TYPE
  
-!TYPE (tPartMPIExchange)                  :: PMPIInsert
-TYPE (tParticleMPIExchange)                :: PartMPIExchange
+TYPE (tParticleMPIExchange)              :: PartMPIInsert
+TYPE (tParticleMPIExchange)              :: PartMPIExchange
 
 
 #endif /*MPI*/
