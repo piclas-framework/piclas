@@ -1034,7 +1034,7 @@ SUBROUTINE WriteOutputMeshSamp()
   USE MOD_Globals
 #ifdef MPI
   !USE MOD_part_MPI_Vars, ONLY : PMPIVAR
-  USE MOD_Particle_Mesh_Vars, ONLY: PartMPI
+  USE MOD_Particle_MPI_Vars, ONLY: PartMPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
