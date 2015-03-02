@@ -45,8 +45,9 @@ USE MOD_Metrics,            ONLY:CalcMetrics
 USE MOD_DebugMesh,          ONLY:writeDebugMesh
 USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
 #ifdef PARTICLES
-USE MOD_Particle_Vars,          ONLY:GEO
-USE MOD_ParticleInit,           ONLY:InitParticleGeometry,InitElemVolumes
+USE MOD_Particle_Mesh,          ONLY:InitParticleMesh ! new
+USE MOD_Particle_Vars,          ONLY:GEO ! old
+USE MOD_ParticleInit,           ONLY:InitParticleGeometry,InitElemVolumes ! old!
 USE MOD_Particle_Surfaces_Vars, ONLY:nPartCurved, DoPartCurved, SuperSampledNodes,nTriangles,nQuads
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
 USE MOD_Mesh_Vars,              ONLY:xBaryCL_NGeo
@@ -142,7 +143,9 @@ CALL exchangeFlip()
 ALLOCATE(ElemToSide(2,6,nElems))
 ALLOCATE(SideToElem(5,nSides))
 ALLOCATE(SideToElem2(4,2*nInnerSides+nBCSides+nMPISides))
-ALLOCATE(BC(1:nBCSides))
+!ALLOCATE(BC(1:nBCSides))
+! modification simplifies the pic sides treatment in parallel
+ALLOCATE(BC(1:nSides))
 ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
 SideToElem2 = -1   !mapping side to elem, sorted by elem ID (for ProlongToFace) 
@@ -160,7 +163,8 @@ CALL fillMeshInfo()
 
 #ifdef PARTICLES
 ! save geometry information for particle tracking
-CALL InitParticleGeometry()
+!CALL InitParticleGeometry() old
+CALL InitParticleMesh()
 #endif
 
 ! calculating offset of surface elements for DSMC surface output
@@ -260,30 +264,31 @@ CALL CalcMetrics()!XCL_NGeo)
 CALL InitElemVolumes()
 
 
+! obsolet, old procedures
 ! new stuff with supersempled surfaces
-nTriangles=2*NPartCurved*NPartCurved
-nQuads=NPartCurved*NPartCurved
-!ALLOCATE(isConcaveTriangle(1:nTriangles))
-DO iElem=1,PP_nElems
-  GEO%ConcaveElemSide(:,iElem)=.FALSE.
-  DO iLocSide = 1,6
-    !isConcaveTriangle=.FALSE.
-    iConcaveTriangle=0
-    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    DO q=0,NPartCurved-1
-      DO p=0,NPartCurved-1
-        A(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)-SuperSampledNodes(1:3,p,q+1,SideID)
-        A(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)-SuperSampledNodes(1:3,p,q+1,SideID)
-        A(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)-SuperSampledNodes(1:3,p,q+1,SideID)
-        detcon = ((A(2,1) * A(3,2) - A(3,1) * A(2,2)) * A(1,3) +     &
-                  (A(3,1) * A(1,2) - A(1,1) * A(3,2)) * A(2,3) +     &
-                  (A(1,1) * A(2,2) - A(2,1) * A(1,2)) * A(3,3))
-        IF (detcon.LT.0) iConcaveTriangle=iConcaveTriangle+1
-      END DO !p
-    END DO !q
-    IF(iConcaveTriangle.EQ.nTriangles) GEO%ConcaveElemSide(iLocSide,iElem)=.TRUE.
-  END DO ! ilocSide
-END DO ! iElem
+!nTriangles=2*NPartCurved*NPartCurved
+!nQuads=NPartCurved*NPartCurved
+!!ALLOCATE(isConcaveTriangle(1:nTriangles))
+!DO iElem=1,PP_nElems
+!  GEO%ConcaveElemSide(:,iElem)=.FALSE.
+!  DO iLocSide = 1,6
+!    !isConcaveTriangle=.FALSE.
+!    iConcaveTriangle=0
+!    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+!    DO q=0,NPartCurved-1
+!      DO p=0,NPartCurved-1
+!        A(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)-SuperSampledNodes(1:3,p,q+1,SideID)
+!        A(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)-SuperSampledNodes(1:3,p,q+1,SideID)
+!        A(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)-SuperSampledNodes(1:3,p,q+1,SideID)
+!        detcon = ((A(2,1) * A(3,2) - A(3,1) * A(2,2)) * A(1,3) +     &
+!                  (A(3,1) * A(1,2) - A(1,1) * A(3,2)) * A(2,3) +     &
+!                  (A(1,1) * A(2,2) - A(2,1) * A(1,2)) * A(3,3))
+!        IF (detcon.LT.0) iConcaveTriangle=iConcaveTriangle+1
+!      END DO !p
+!    END DO !q
+!    IF(iConcaveTriangle.EQ.nTriangles) GEO%ConcaveElemSide(iLocSide,iElem)=.TRUE.
+!  END DO ! ilocSide
+!END DO ! iElem
 #endif
 
 debugmesh=GETLOGICAL('debugmesh','.FALSE.')

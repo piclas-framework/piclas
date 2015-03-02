@@ -411,7 +411,8 @@ USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_Globals_Vars,          ONLY:PI
 USE MOD_Timedisc_Vars,         ONLY:dt, iter, IterDisplayStep, DoDisplayIter
-USE MOD_BoundaryTools,         ONLY:SingleParticleToExactElement                                  
+!USE MOD_BoundaryTools,         ONLY:SingleParticleToExactElement old method for LINEAR elements, only
+USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement
 USE MOD_PICInterpolation,      ONLY:InterpolateCurvedExternalField
 USE MOD_PICInterpolation_vars, ONLY:useCurvedExternalField
 USE MOD_Equation_vars,         ONLY:c_inv

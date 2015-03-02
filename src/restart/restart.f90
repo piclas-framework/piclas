@@ -170,7 +170,9 @@ USE MOD_Equation_Vars,   ONLY:Phi
 USE MOD_Particle_Vars,   ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF
 USE MOD_part_tools,      ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars,       ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
-USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
+!USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
+USE MOD_BoundaryTools,   ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh,   ONLY:SingleParticleToExactElement
 #ifdef MPI
 USE MOD_part_MPI_Vars,   ONLY : PMPIVAR
 #endif

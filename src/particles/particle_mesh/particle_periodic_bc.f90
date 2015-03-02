@@ -41,6 +41,7 @@ INTEGER                :: iVec, ind, ind2
 CHARACTER(32)          :: hilf
 !===================================================================================================================================
 
+
 GEO%nPeriodicVectors       = GETINT('Part-nPeriodicVectors','0')
 DO iVec = 1, SIZE(PartBound%TargetBoundCond)
   IF((PartBound%TargetBoundCond(iVec).EQ.PartBound%PeriodicBC).AND.(GEO%nPeriodicVectors.EQ.0))THEN
@@ -54,10 +55,9 @@ DO iVec = 1, GEO%nPeriodicVectors
   WRITE(UNIT=hilf,FMT='(I2)') iVec
   GEO%PeriodicVectors(1:3,iVec) = GETREALARRAY('Part-PeriodicVector'//TRIM(hilf),3,'1.,0.,0.')
 END DO
-IF(GEO%nPeriodicVectors.GT.0)THEN
-  CALL GetPeriodicVectors()
-  CALL MapPeriodicVectorsToSides()
-END IF
+
+CALL GetPeriodicVectors()
+CALL MapPeriodicVectorsToSides()
 
 ! build periodic case matrix
 IF (GEO%nPeriodicVectors.GT.0) THEN
@@ -113,7 +113,8 @@ SUBROUTINE MapPeriodicVectorsToSides()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals,                 ONLY:AlmostZero,AlmostEqual
-USE MOD_Mesh_Vars,               ONLY:Elems,offsetElem,nSides, ElemToSide
+!USE MOD_Mesh_Vars,               ONLY:Elems,offsetElem,nSides, ElemToSide
+USE MOD_Mesh_Vars,               ONLY:nSides, ElemToSide
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO, SidePeriodicType, SidePeriodicDisplacement
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
@@ -132,11 +133,16 @@ REAL,ALLOCATABLE    :: normDisplaceVec(:,:)
 !===================================================================================================================================
 
 nDisplacement=2*GEO%nPeriodicVectors
-ALLOCATE(SidePeriodicType(1:nSides)                 &
-        ,normDisplaceVec(1:3,nDisplacement)         &
+!ALLOCATE(SidePeriodicType(1:nSides)                 &
+!        ,normDisplaceVec(1:3,nDisplacement)         &
+!        ,SidePeriodicDisplacement(1:3,nDisplacement))
+!    k
+
+ALLOCATE(normDisplaceVec(1:3,nDisplacement)         &
         ,SidePeriodicDisplacement(1:3,nDisplacement))
 
-SidePeriodicType=0
+!SidePeriodicType=0
+
 iDisplace=1
 DO iPV=1,GEO%nPeriodicVectors
   SidePeriodicDisplacement(:,iDisplace)  = GEO%PeriodicVectors(:,iPV)
@@ -153,8 +159,9 @@ DO iElem=1,PP_nElems
     SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
     flip   = ElemToSide(E2S_FLIP,ilocSide,iElem)
     ! check if periodic side
-    IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)&
-      .AND.(ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
+!    IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)&
+!      .AND.(ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
+    IF(SideperiodicType(SideID).EQ.-1)THEN
       ! method with flip
       IF(flip.EQ.0)THEN ! master side
         DO iDisplace=1,nDisplacement
@@ -227,7 +234,7 @@ END DO
 !  END DO
 !END DO
 
-DEALLOCATE(normDisplaceVec)
+SDEALLOCATE(normDisplaceVec)
 
 END SUBROUTINE MapPeriodicVectorsToSides
 
@@ -263,6 +270,8 @@ IF ((GEO%nPeriodicVectors.GT.3).OR.(GEO%nPeriodicVectors.LT.0)) THEN
   CALL abort(__STAMP__,&
                       'nPeriodicVectors must be >= 0 and <= 3!',GEO%nPeriodicVectors,999.)
 END IF
+
+IF(GEO%nPeriodicVectors.EQ.0) RETURN
 
 ! check if all periodic vectors are cartesian
 directions(1:3)=.FALSE.

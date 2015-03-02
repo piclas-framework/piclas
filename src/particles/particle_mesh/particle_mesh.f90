@@ -43,8 +43,8 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide
-USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
+USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem
+!USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -55,6 +55,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT
+INTEGER           :: iElem, ilocSide,SideID,flip
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -62,18 +63,51 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
 IF(ParticleMeshInitIsDone) CALL abort(__STAMP__&
      , ' Particle-Mesh is already initialized.')
 ! allocate and duplicate partElemToside
-ALLOCATE(PartElemToSide(1:2,1:6,1:nElems)    &
-        ,PartSideToElem(1:5,1:nSides)        &
-        ,PartNeighborElemID(1:6,1:nElems)    &
-        ,PartNeighborLocSideID(1:6,1:nElems) &
+nTotalSides=nSides
+nTotalElems=nElems
+ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalSides)    &
+        ,PartSideToElem(1:5,1:nTotalSides)        &
+        ,PartNeighborElemID(1:6,1:nTotalElems)    &
+        ,PartNeighborLocSideID(1:6,1:nTotalElems) &
         ,STAT=ALLOCSTAT                      )
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
  ,'  Cannot allocate particle mesh vars!')
 
+!--- Initialize Periodic Side Info
+ALLOCATE(SidePeriodicType(1:nSides)) 
+SidePeriodicType=0
+DO iElem=1,nElems
+  DO iLocSide=1,6
+    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)           .AND. &
+        (ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
+      SidePeriodicType(SideID) = -1
+    END IF
+  END DO
+END DO
+
+! copy
 PartElemToSide=ElemToSide
 PartSideToelem=SideToElem
-PartNeighborElemID=NeighborElemID
-PartNeighborLocSideID=NeighborLocSideID
+
+! get conection
+DO iElem=1,PP_nElems
+  DO ilocSide=1,6
+    flip = ElemToSide(E2S_FLIP,ilocSide,iElem)
+    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF(flip.EQ.0)THEN
+      ! SideID of slave
+      PartneighborlocSideID(ilocSide,iElem)=SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+      PartneighborElemID   (ilocSide,iElem)=SideToElem(S2E_NB_ELEM_ID,SideID)
+    ELSE
+      ! SideID of master
+      PartneighborlocSideID(ilocSide,iElem)=SideToElem(S2E_LOC_SIDE_ID,SideID)
+      PartneighborElemID   (ilocSide,iElem)=SideToElem(S2E_ELEM_ID,SideID)
+    END IF
+  END DO ! ilocSide
+END DO ! Elem
+!PartNeighborElemID=NeighborElemID
+!PartNeighborLocSideID=NeighborLocSideID
 
 ParticleMeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH DONE!'
@@ -299,6 +333,7 @@ INTEGER                          :: ind, Shift(1:3), iCase
 INTEGER                          :: j_offset
 #endif /*MPI*/
 !=================================================================================================================================
+
 
 ! zeros
 #ifdef MPI
@@ -562,22 +597,22 @@ END DO ! iElem
 
 #ifdef MPI
 !--- MPI stuff for background mesh (FastinitBGM)
-print*,(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3
-print*,BGMimax
-print*,BGMimin
-print*,BGMjmax
-print*,BGMjmin
-print*,BGMkmax
-print*,BGMkmin
+!print*,(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3
+!print*,BGMimax
+!print*,BGMimin
+!print*,BGMjmax
+!print*,BGMjmin
+!print*,BGMkmax
+!print*,BGMkmin
 BGMCells=0 
 ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3))
 DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside and save their indices in BGMCellsArray
   DO jBGM=BGMjmin, BGMjmax
     DO kBGM=BGMkmin, BGMkmax
       IF (GEO%FIBGM(iBGM,jBGM,kBGM)%nElem .GT. 0) THEN
-        print*,"1",BGMCells*3+1,iBGM
-        print*,"2",BGMCells*3+2,jBGM
-        print*,"3",BGMCells*3+3,kBGM
+        !print*,"1",BGMCells*3+1,iBGM
+        !print*,"2",BGMCells*3+2,jBGM
+        !print*,"3",BGMCells*3+3,kBGM
         BGMCellsArray(BGMCells*3+1)= iBGM
         BGMCellsArray(BGMCells*3+2)= jBGM
         BGMCellsArray(BGMCells*3+3)= kBGM
@@ -764,20 +799,20 @@ DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside or adjacent and s
     END DO !iBGM
   END DO !jBGM
 END DO !kBGM
-print*,'BGMCellsArray',BGMCellsArray
+!print*,'BGMCellsArray',BGMCellsArray
 
 ! now create a temporary array in which for all BGM Cells + ShapePadding the processes are saved 
 ! reason: this way, the ReducedBGM List only needs to be searched once and not once for each BGM Cell+Stencil
 
 ! first count the maximum number of procs that exist within each BGM cell (inkl. Shape Padding region)
-print*,'BGMimin',BGMimin,BGMimax
-print*,'nShapePaddingz',nShapePaddingx
-
-print*,'BGMjmin',BGMjmin,BGMjmax
-print*,'nShapePaddingy',nShapePaddingy
-
-print*,'BGMkmin',BGMkmin,BGMkmax
-print*,'nShapePaddingZ',nShapePaddingz
+!print*,'BGMimin',BGMimin,BGMimax
+!print*,'nShapePaddingz',nShapePaddingx
+!
+!print*,'BGMjmin',BGMjmin,BGMjmax
+!print*,'nShapePaddingy',nShapePaddingy
+!
+!print*,'BGMkmin',BGMkmin,BGMkmax
+!print*,'nShapePaddingZ',nShapePaddingz
 ALLOCATE(CellProcNum(BGMimin-nShapePaddingX:BGMimax+nShapePaddingX, &
                      BGMjmin-nShapePaddingY:BGMjmax+nShapePaddingY, &
                      BGMkmin-nShapePaddingZ:BGMkmax+nShapePaddingZ))
@@ -823,11 +858,11 @@ END DO
 ! fill real array
 DO Cell=0, BGMCells-1
   TempProcList=0
-  print*,'Cell',Cell
+  !print*,'Cell',Cell
   DO iBGM = BGMCellsArray(Cell*3+1)-nShapePaddingX, BGMCellsArray(Cell*3+1)+nShapePaddingX
     DO jBGM = BGMCellsArray(Cell*3+2)-nShapePaddingY, BGMCellsArray(Cell*3+2)+nShapePaddingY
       DO kBGM = BGMCellsArray(Cell*3+3)-nShapePaddingZ, BGMCellsArray(Cell*3+3)+nShapePaddingZ
-        print*,'i,j,k',iBGM,jBGM,kBGM
+        !print*,'i,j,k',iBGM,jBGM,kBGM
         DO m = 1,CellProcNum(iBGM,jBGM,kBGM)
           TempProcList(CellProcList(iBGM,jBGM,kBGM,m))=1       ! every proc that is within the stencil gets a 1
         END DO ! m

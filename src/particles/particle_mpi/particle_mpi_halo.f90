@@ -411,24 +411,13 @@ END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
 INTEGER                     :: ALLOCSTAT
-INTEGER                     :: newSideID,haloSideID,ioldSide,haloElemID,oldElemID
+INTEGER                     :: newSideID,haloSideID,ioldSide,haloElemID,oldElemID,newElemID
 LOGICAL                     :: isDoubleSide
 LOGICAL,ALLOCATABLE         :: isElem(:),isSide(:),isDone(:)
 INTEGER, ALLOCATABLE        :: ElemIndex(:), SideIndex(:),HaloInc(:)
 INTEGER                     :: iElem, ilocSide,NbOfMarkedSides,SideID,iSide,p,q,iIndex,iHaloSide,flip
 INTEGER                     :: nDoubleSides,nDoubleBezier,tmpnSides,tmpnElems
 INTEGER                     :: datasize
-INTEGER,ALLOCATABLE         :: DummyElemToSide(:,:,:)                                
-INTEGER,ALLOCATABLE         :: DummyBC(:)                                
-REAL,ALLOCATABLE            :: DummyBezierControlPoints3D(:,:,:,:)                                
-INTEGER,ALLOCATABLE         :: DummyHaloToProc(:,:)                                 
-INTEGER,ALLOCATABLE         :: DummySideToElem(:,:)
-INTEGER,ALLOCATABLE         :: DummySideBCType(:)
-INTEGER,ALLOCATABLE         :: DummyNeighborElemID(:,:)
-INTEGER,ALLOCATABLE         :: DummyNeighborlocSideID(:,:)
-REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummySlabNormals                  ! normal vectors of bounding slab box
-REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummySlabIntervalls               ! intervalls beta1, beta2, beta3
-LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 !===================================================================================================================================
 
 ALLOCATE(isElem(1:nElems))
@@ -465,10 +454,11 @@ DO iElem=1,nElems
     ! correct list end????
     DO iSide=1,nSides
       IF(SideList(iSide).EQ.SideID) THEN
-        isElem(iElem)=.TRUE.
-        ElemIndex(iElem) = SendMsg%nElems
-        SendMsg%nElems=SendMsg%nElems+1
-        EXIT
+        IF(.NOT.isElem(iElem)) THEN
+          SendMsg%nElems=SendMsg%nElems+1
+          ElemIndex(iElem) = SendMsg%nElems
+          isElem(iElem)=.TRUE.
+        END IF
       END IF 
     END DO ! iSide
   END DO ! ilocSide
@@ -479,12 +469,16 @@ DO iElem=1,nElems
     SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
     IF(.NOT.isSide(SideID)) THEN
       SendMsg%nSides=SendMsg%nSides+1
-      SideIndex(iElem) = SendMsg%nSides
+      SideIndex(SideID) = SendMsg%nSides
       isSide(SideID)=.TRUE.
     END IF ! not isSide
   END DO ! ilocSide
 END DO ! iElem
 
+!IF(PartMPI%MPIROOT) print*,'SideIndex',SideIndex(:)
+!IF(PartMPI%MPIROOT) print*,'isElem',isElem(:)
+!IF(PartMPI%MPIROOT) print*,'sendnelems',SendMsg%nElems
+!IF(PartMPI%MPIROOT) print*,'isSide',isSide
 
 !WRITE(*,*) "Nodes:", SendMsg%nNodes,"Sides:",SendMsg%nSides,"elems:",SendMsg%nElems,"iProc",PMPIVAR%iProc
 !--- Communicate number of sides (trias,quads), elems (tets,hexas) and nodes to each MPI proc
@@ -562,7 +556,19 @@ IF (RecvMsg%nSides.GT.0) THEN
     'Could not allocate RecvMsg%BC',RecvMsg%nSides,999.)
   RecvMsg%BC(:)=0
 END IF
-
+! SideBCType
+IF (SendMsg%nSides.GT.0) THEN       
+  ALLOCATE(SendMsg%SideBCType(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    'Could not allocate SendMsg%BC',SendMsg%nSides,999.)
+  SendMsg%SideBCType(:)=0
+END IF
+IF (RecvMsg%nSides.GT.0) THEN
+  ALLOCATE(RecvMsg%SideBCType(1:RecvMsg%nSides),STAT=ALLOCSTAT)  
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    'Could not allocate RecvMsg%BC',RecvMsg%nSides,999.)
+  RecvMsg%SideBCType(:)=0
+END IF
 ! NativeElemID 
 IF (SendMsg%nElems.GT.0) THEN 
   ALLOCATE(SendMsg%NativeElemID(1:SendMsg%nElems),STAT=ALLOCSTAT)  
@@ -577,42 +583,42 @@ IF (RecvMsg%nElems.GT.0) THEN
   RecvMsg%NativeElemID(:)=0
 END IF
 ! SlabNormals Mapping
-IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides) 
+IF (SendMsg%nSides.GT.0) THEN       
   ALLOCATE(SendMsg%SlabNormals(1:3,1:3,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
-    'Could not allocate SendMsg%SideToElem',SendMsg%nSides)
+    'Could not allocate SendMsg%SlabNormals',SendMsg%nSides)
   SendMsg%SlabNormals(:,:,:)=0
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SlabNormals(1:3,1:3,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
-    'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides)
+    'Could not allocate RecvMsg%SlabNormals',RecvMsg%nSides)
   RecvMsg%SlabNormals(:,:,:)=0
 END IF
 ! SlabIntervalls Mapping
-IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides) 
+IF (SendMsg%nSides.GT.0) THEN       ! SlabIntervalls(1:2,1:nSides) 
   ALLOCATE(SendMsg%SlabIntervalls(1:6,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
-    'Could not allocate SendMsg%SideToElem',SendMsg%nSides)
+    'Could not allocate SendMsg%SlabIntervalls',SendMsg%nSides)
   SendMsg%SlabIntervalls(:,:)=0
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SlabIntervalls(1:6,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
-    'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides)
+    'Could not allocate RecvMsg%SlabIntervalls',RecvMsg%nSides)
   RecvMsg%SlabIntervalls(:,:)=0
 END IF
 ! BoundingBoxIsEmpty Mapping
-IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides) 
+IF (SendMsg%nSides.GT.0) THEN       ! BoundingBoxIsEmpty(1:2,1:nSides) 
   ALLOCATE(SendMsg%BoundingBoxIsEmpty(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
-    'Could not allocate SendMsg%SideToElem',SendMsg%nSides)
+    'Could not allocate SendMsg%BoundingBoxIsEmpty',SendMsg%nSides)
   !SendMsg%BoundingBoxIsEmpty(:,:)=.FALSE.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%BoundingBoxIsEmpty(1:RecvMsg%nSides),STAT=ALLOCSTAT)  
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
-    'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides)
+    'Could not allocate RecvMsg%BoundingBoxIsEmpty',RecvMsg%nSides)
   !RecvMsg%BoundingBoxIsEmpty(:,:)=
 END IF
 !! PeriodicElemSide Mapping 
@@ -632,20 +638,25 @@ END IF
 
 ! fill send buffers with node, side and element data (including connectivity!)
 ! ElemtoSide 
+
 DO iElem = 1,nElems
   IF (ElemIndex(iElem).NE.0) THEN
     DO iLocSide = 1,6
-      SendMsg%ElemToSide(1,iLocSide,ElemIndex(iElem)) = &
-               SideIndex(ElemToSide(E2S_SIDE_ID,iLocSide,iElem))
-           ! CAUTION DEBUG correct sideid????
-      SendMsg%ElemToSide(2,iLocSide,ElemIndex(iElem)) = &
-              ElemToSide(2,iLocSide,iElem)
+      SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+      IF(isSide(SideID))THEN
+        SendMsg%ElemToSide(1,iLocSide,ElemIndex(iElem)) = &
+                 SideIndex(ElemToSide(E2S_SIDE_ID,iLocSide,iElem))
+             ! CAUTION DEBUG correct sideid????
+        SendMsg%ElemToSide(2,iLocSide,ElemIndex(iElem)) = &
+                ElemToSide(2,iLocSide,iElem)
+      END IF
     END DO
   END IF
 END DO
 ! SideToElem Mapping & BezierControlPoints3D
 DO iSide = 1,nSides
-  IF (SideIndex(iSide).NE.0) THEN
+  !IF (SideIndex(iSide).NE.0) THEN
+  IF(isSide(iSide))THEN
     DO iIndex = 1,2   ! S2E_ELEM_ID, S2E_NB_ELEM_ID
       IF (SideToElem(iIndex,iSide).GT.0) THEN
          SendMsg%SideToElem(iIndex,SideIndex(iSide)) = &
@@ -655,6 +666,7 @@ DO iSide = 1,nSides
          SendMsg%SideBCType(SideIndex(iSide)) = SidePeriodicType(iSide)
       END IF
     END DO ! S2E_LOC_SIDE_ID, S2E_NB_LOC_SIDE_ID, S2E_FLIP
+   ! IF(PartMPI%MPIROOT) print*,'iSide,SideIndex',iSide,SideIndex(iSide)
     SendMsg%SideToElem(3:5,SideIndex(iSide)) = &
         SideToElem(3:5,iSide)
     SendMsg%BezierControlPoints3D(:,:,:,SideIndex(iSide)) = &
@@ -823,6 +835,12 @@ END IF
 
 DEALLOCATE(isElem,isSide,ElemIndex,SideIndex)
 
+!print*,'Rank,sendsides',PartMPI%MyRank,SendMsg%nSides
+!print*,'Rank,recvsides',PartMPI%MyRank,RecvMsg%nSides
+!print*,'Rank,recvelemtoside',PartMPI%MyRank,RecvMsg%ElemToSide
+!print*,'iproc',iproc
+
+
 IF (RecvMsg%nSides.GT.0) THEN
   ! now, the famous reconstruction of geometry
   ! add the halo region to the existing geometry
@@ -856,6 +874,7 @@ IF (RecvMsg%nSides.GT.0) THEN
   END DO ! iSide
   ! get increament for each halo side
   ! 1) get increment of halo side id
+  ! HaloSideID is increment of new side
   ALLOCATE(HaloInc(1:RecvMsg%nSides))
   HaloInc=0
   HaloSideID=0
@@ -867,163 +886,28 @@ IF (RecvMsg%nSides.GT.0) THEN
   END DO ! iHaloSide
   
   ! new number of sides
+  !print*,'MyRank,nSides,nnewSides,nDoubleSides', PartMPI%MyRank,nSides,SendMsg%nSides,nDoubleSides
   tmpnSides =nTotalSides
   tmpnElems=nTotalElems
   nTotalSides=nTotalSides+SendMsg%nSides-nDoubleSides
   nTotalElems=nTotalElems+RecvMsg%nElems
+  CALL ResizeParticleMeshData(tmpnSides,tmpnElems,nTotalSides,nTotalElems)
 
-  ! reallocate shapes
-  ! PartElemToSide
-  ALLOCATE(DummyElemToSide(1:2,1:6,1:tmpnElems))
-  IF (.NOT.ALLOCATED(DummyElemToSide)) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  DummyElemToSide=PartElemToSide
-  DEALLOCATE(PartElemToSide)
-  ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate PartElemToSide')
-  PartElemToSide=-1
-  PartElemToSide(:,:,1:tmpnElems) =DummyElemToSide(:,:,1:tmpnElems)
-  DEALLOCATE(DummyElemToSide)
-  ! HaloToProc
-  IF(.NOT.ALLOCATED(PartHaloToProc))THEN
-    ALLOCATE(PartHaloToProc(1:3,PP_nElems+1:nTotalElems))
-    PartHaloToProc=0
-  ELSE
-    ALLOCATE(DummyHaloToProc(1:3,PP_nElems+1:tmpnElems))                                 
-    IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(__STAMP__,& !wunderschoen!!!
-      'Could not allocate ElemIndex')
-    DummyHaloToProc=PartHaloToProc
-    DEALLOCATE(PartHaloToProc)
-    ALLOCATE(PartHaloToProc(1:3,PP_nElems+1:nTotalElems),STAT=ALLOCSTAT)                                 
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-      'Could not allocate ElemIndex')
-    ! copy array to new
-    PartHaloToProc(1:2,PP_nElems+1:tmpnElems)    =DummyHaloToProc(1:2,PP_nElems+1:tmpnElems)
-    DEALLOCATE(DummyHaloToProc)
-  END IF
-  ! PartSideToElem
-  ALLOCATE(DummySideToElem(1:5,1:tmpnSides))
-  IF (.NOT.ALLOCATED(DummySideToElem)) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  DummySideToElem=PartSideToElem
-  DEALLOCATE(PartSideToElem)
-  ALLOCATE(PartSideToElem(1:5,1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate PartSideToElem')
-  PartSideToElem(:,1:tmpnSides  )              =DummySideToElem(:,1:tmpnSides)
-  DEALLOCATE(DummySideToElem)
-  ! PartNeighborElemID
-  ALLOCATE(DummyNeighborElemID(1:6,1:tmpnElems))
-  IF (.NOT.ALLOCATED(DummyNeighborElemID)) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  DummyNeighborElemID=PartNeighborElemID
-  DEALLOCATE(PartNeighborElemID)
-  ALLOCATE(PartNeighborElemID(1:6,1:nTotalElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  PartNeighborElemID=-1
-  PartNeighborElemID(:,1:tmpnElems)            =DummyNeighborElemID(:,1:tmpnElems)
-  DEALLOCATE(DummyNeighborElemID)
-  ! PartNeighborlocSideID
-  ALLOCATE(DummyNeighborlocSideID(1:6,1:tmpnElems))
-  IF (.NOT.ALLOCATED(DummyNeighborLocSideID)) CALL abort(&
-      __STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  DummyNeighborlocSideID=PartNeighborlocSideID
-  DEALLOCATE(PartNeighborlocSideID)
-  ALLOCATE(PartNeighborlocSideID(1:6,1:nTotalElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  PartNeighborlocSideID=-1
-  PartNeighborlocSideID(:,1:tmpnElems)         =DummyNeighborlocSideID(:,1:tmpnElems)
-  DEALLOCATE(DummyNeighborlocSideID)
- ! BezierControlPoints3D
-  ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides))
-  IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
-      __STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  DummyBezierControlPoints3d=BezierControlPoints3d
-  DEALLOCATE(BezierControlPoints3D)
-  ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  BezierControlPoints3d(:,:,:,1:tmpnSides) =DummyBezierControlPoints3D(:,:,:,1:tmpnSides)
-  DEALLOCATE(DummyBezierControlPoints3D)
-  ! SideBCType
-  ALLOCATE(DummySideBCType(1:tmpnSides))
-  IF (.NOT.ALLOCATED(DummySideBCType)) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  DummySideBCType(1:tmpnSides)=SidePeriodicType(1:tmpnSides)
-  DEALLOCATE(SidePeriodicType)
-  ALLOCATE(SidePeriodicType(1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  SidePeriodicType=-1
-  SidePeriodicType(1:tmpnSides) =DummySideBCType(1:tmpnSides)
-  DEALLOCATE(DummySideBCType)
-  ! BC
-  ALLOCATE(DummyBC(1:tmpnSides))
-  IF (.NOT.ALLOCATED(DummyBC)) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  DummyBC(1:tmpnSides)=BC(1:tmpnSides)
-  DEALLOCATE(BC)
-  ALLOCATE(BC(1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  BC=0
-  BC(1:tmpnSides) =DummyBC(1:tmpnSides)
-  DEALLOCATE(DummyBC)
-  ! SlabNormals
-  ALLOCATE(DummySlabNormals(1:3,1:3,1:tmpnSides))
-  IF (.NOT.ALLOCATED(DummySlabNormals)) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  DummySlabNormals=SlabNormals
-  DEALLOCATE(SlabNormals)
-  ALLOCATE(SlabNormals(1:3,1:3,1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  SlabNormals=0
-  SlabNormals(1:3,1:3,1:tmpnSides) =DummySlabNormals(1:3,1:3,1:tmpnSides)
-  DEALLOCATE(DummySlabNormals)
-  ! SlabIntervalls
-  ALLOCATE(DummySlabIntervalls(1:6,1:tmpnSides))
-  IF (.NOT.ALLOCATED(DummySlabIntervalls)) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  DummySlabIntervalls=SlabIntervalls
-  DEALLOCATE(SlabIntervalls)
-  ALLOCATE(SlabIntervalls(1:6,1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  SlabIntervalls=0
-  SlabIntervalls(1:6,1:tmpnSides) =DummySlabIntervalls(1:6,1:tmpnSides)
-  DEALLOCATE(DummySlabIntervalls)
-  ! BoundingBoxIsEmpty
-  ALLOCATE(DummyBoundingBoxIsEmpty(1:tmpnSides))
-  IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
-      __STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
-  DEALLOCATE(BoundingBoxIsEmpty)
-  ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate ElemIndex')
-  BoundingBoxIsEmpty(1:tmpnSides) =DummyBoundingBoxIsEmpty(1:tmpnSides)
-  DEALLOCATE(DummyBoundingBoxIsEmpty)
-  ! finished copying
-
-  haloElemID=0
-  DO iElem=tmpnElems,nTotalElems
+  ! loop over all new elements
+  !DO iElem=tmpnElems+1,nTotalElems
+  DO iElem=1,RecvMsg%nElems
+    !print*,'iElem',iElem
     ! first, new SideID=entry of RecvMsg+tmpnSides
-    haloElemID=haloElemID+1
+    newElemID=tmpnElems+iElem
     DO ilocSide=1,6
       haloSideID=RecvMsg%ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
       ! first, set new sideid
+    !  print*,'haloSideId',haloSideID
+      isDoubleSide=.FALSE.
       IF(isSide(haloSideID)) THEN
         newSideID=tmpnSides+haloinc(haloSideID)
       ELSE ! find correct side id
         ! check if side is consistent with older side 
-        isDoubleSide=.FALSE.
         DO iOldSide=nBCSides+1,tmpnSides
           nDoubleBezier=0
           IF(  ALMOSTEQUAL(BezierControlPoints3D(1,0,0,iOldSide),RecvMsg%BezierControlPoints3D(1,0,0,haloSideID))   &
@@ -1051,43 +935,43 @@ IF (RecvMsg%nSides.GT.0) THEN
           IF(PartSideToElem(S2E_ELEM_ID,newSideID).EQ.-1) &
             CALL abort(__STAMP__,&
             'Critical error in domain reconstrution.')
-            PartSideToElem(S2E_NB_ELEM_ID,newSideID)     = iElem
+            PartSideToElem(S2E_NB_ELEM_ID,newSideID)     = newElemID
             PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) = ilocSide
             ! nothing to do, is already filled
             !PartSideToElem(S2E_ELEM_ID       ,newSideID) = 
             !PartSideToElem(S2E_LOC_SIDE_ID   ,newSideID) = 
             !PartSideToElem(S2E_FLIP          ,newSideID) = 
             ! NeighboreElemID
-            PartneighborElemID(PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))=iElem
+            PartneighborElemID(PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))=newElemID
             PartNeighborlocSideID(PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))=ilocSide
-            PartNeighborElemID(ilocSide,iElem)    = PartSideToElem(S2E_ELEM_ID,newSideID)
-            PartNeighborlocSideID(ilocSide,iElem) = PartSideToElem(S2E_LOC_SIDE_ID,newSideID)
+            PartNeighborElemID(ilocSide,newElemID)    = PartSideToElem(S2E_ELEM_ID,newSideID)
+            PartNeighborlocSideID(ilocSide,newElemID) = PartSideToElem(S2E_LOC_SIDE_ID,newSideID)
         ELSE ! SE2_NB_ELEM_ID=DEFINED
           IF(PartSideToElem(S2E_ELEM_ID,newSideID).NE.-1) &
             CALL abort(__STAMP__,&
             'Critical error in domain reconstrution.')
-          PartSideToElem(S2E_ELEM_ID       ,newSideID) = iElem !root Element
+          PartSideToElem(S2E_ELEM_ID       ,newSideID) = newElemID !root Element
           PartSideToElem(S2E_LOC_SIDE_ID   ,newSideID) = iLocSide
           PartSideToElem(S2E_FLIP          ,newSideID) = 0
           ! already filled
           !PartSideToElem(S2E_NB_ELEM_ID,newSide)       = 
           !PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) = 
-          PartNeighborElemID(PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,SideID))=iElem
-          PartNeighborlocSideID(PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,SideID))=ilocSide
-          PartNeighborElemID(ilocSide,iElem)    = PartSideToElem(S2E_NB_ELEM_ID,newSideID)
-          PartNeighborlocSideID(ilocSide,iElem) = PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID)
+          PartNeighborElemID(PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))=newElemID
+          PartNeighborlocSideID(PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))=ilocSide
+          PartNeighborElemID(ilocSide,newElemID)    = PartSideToElem(S2E_NB_ELEM_ID,newSideID)
+          PartNeighborlocSideID(ilocSide,newElemID) = PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID)
         END IF
         isDone(haloSideID)=.TRUE.
       ELSE ! non-double side || new side
         ! cannnot build PartNeighborElemID and PartNeighborlocSideID yet
         ! build PartSideToElem, so much as possible
         ! get correct side out of RecvMsg%SideToElem
-        IF(HaloElemID.EQ.RecvMsg%SideToElem(S2E_ELEM_ID,haloSideID))THEN
-          PartSideToElem(S2E_ELEM_ID,newSideID)    =iElem
+        IF(iElem.EQ.RecvMsg%SideToElem(S2E_ELEM_ID,haloSideID))THEN
+          PartSideToElem(S2E_ELEM_ID,newSideID)    =newElemID
           PartSideToElem(S2E_LOC_SIDE_ID,newSideID)=ilocSide
           PartSideToElem(S2E_FLIP       ,newSideID)=RecvMsg%SideToElem(S2E_FLIP,haloSideID)
-        ELSE IF(HaloElemID.EQ.RecvMsg%SideToElem(S2E_NB_ELEM_ID,haloSideID))THEN
-          PartSideToElem(S2E_NB_ELEM_ID,newSideID) =iElem
+        ELSE IF(iElem.EQ.RecvMsg%SideToElem(S2E_NB_ELEM_ID,haloSideID))THEN
+          PartSideToElem(S2E_NB_ELEM_ID,newSideID) =newElemID
           PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) =ilocSide
           PartSideToElem(S2E_FLIP      ,newSideID) =RecvMsg%SideToElem(S2E_FLIP,haloSideID)
         ELSE ! should be found, because there should be halo sides without any connection
@@ -1106,15 +990,15 @@ IF (RecvMsg%nSides.GT.0) THEN
         BoundingBoxIsEmpty(newSideID) =RecvMsg%BoundingBoxIsEmpty( haloSideID) 
       END IF
       ! build entry to PartElemToSide
-      PartElemToSide(1,iLocSide,iElem)=newSideID
-      PartElemToSide(2,ilocSide,iElem)=RecvMsg%ElemToSide(2,ilocSide,haloElemID)
+      PartElemToSide(1,iLocSide,newElemId)=newSideID
+      PartElemToSide(2,ilocSide,newElemId)=RecvMsg%ElemToSide(2,ilocSide,iElem)
     END DO ! ilocSide
     ! set native elemID
-    PartHaloToProc(1,iElem)=RecvMsg%NativeElemID(haloElemID)
-    PartHaloToProc(2,iElem)=iProc
+    PartHaloToProc(1,newElemId)=RecvMsg%NativeElemID(iElem)
+    PartHaloToProc(2,newElemId)=iProc
   END DO ! iElem
   ! build rest: PartNeighborElemID, PartLocSideID
-  DO iElem=PP_nElems,nTotalElems
+  DO iElem=PP_nElems+1,nTotalElems
     DO ilocSide=1,6
       flip   = PartElemToSide(E2S_FLIP,ilocSide,iElem)
       SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
@@ -1140,5 +1024,192 @@ IF (RecvMsg%nSides.GT.0) THEN
 END IF ! RecvMsg%nSides>0
 
 END SUBROUTINE ExchangeHaloGeometry
+
+
+SUBROUTINE ResizeParticleMeshData(nOldSides,nOldElems,nTotalSides,nTotalElems)
+!===================================================================================================================================
+! resize the partilce mesh data
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_MPI_Vars,      ONLY:PartHaloToProc
+USE MOD_Mesh_Vars,              ONLY:BC,nGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartNeighborElemID,PartNeighborLocSideID
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                 :: nOldSides,nOldElems,nTotalSides,nTotalElems
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                            :: ALLOCSTAT
+INTEGER,ALLOCATABLE                :: DummyElemToSide(:,:,:)                                
+INTEGER,ALLOCATABLE                :: DummyBC(:)                                
+REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)                                
+INTEGER,ALLOCATABLE                :: DummyHaloToProc(:,:)                                 
+INTEGER,ALLOCATABLE                :: DummySideToElem(:,:)
+INTEGER,ALLOCATABLE                :: DummySideBCType(:)
+INTEGER,ALLOCATABLE                :: DummyNeighborElemID(:,:)
+INTEGER,ALLOCATABLE                :: DummyNeighborlocSideID(:,:)
+REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummySlabNormals                  ! normal vectors of bounding slab box
+REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummySlabIntervalls               ! intervalls beta1, beta2, beta3
+LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
+!===================================================================================================================================
+
+! reallocate shapes
+! PartElemToSide
+ALLOCATE(DummyElemToSide(1:2,1:6,1:nOldElems))
+IF (.NOT.ALLOCATED(DummyElemToSide)) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummyElemToSide=PartElemToSide
+DEALLOCATE(PartElemToSide)
+ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate PartElemToSide')
+PartElemToSide=-1
+PartElemToSide(:,:,1:nOldElems) =DummyElemToSide(:,:,1:nOldElems)
+DEALLOCATE(DummyElemToSide)
+! HaloToProc
+IF(.NOT.ALLOCATED(PartHaloToProc))THEN
+  ALLOCATE(PartHaloToProc(1:3,PP_nElems+1:nTotalElems))
+  PartHaloToProc=-1
+  !print*,'lower,upper',PP_nElems+1,nTotalElems
+ELSE
+  ALLOCATE(DummyHaloToProc(1:3,PP_nElems+1:nOldElems))                                 
+  IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(__STAMP__,& !wunderschoen!!!
+    'Could not allocate ElemIndex')
+  DummyHaloToProc=PartHaloToProc
+  DEALLOCATE(PartHaloToProc)
+  ALLOCATE(PartHaloToProc(1:3,PP_nElems+1:nTotalElems),STAT=ALLOCSTAT)                                 
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+    'Could not allocate ElemIndex')
+  ! copy array to new
+  PartHaloToProc=-1
+  PartHaloToProc(1:2,PP_nElems+1:nOldElems)    =DummyHaloToProc(1:2,PP_nElems+1:nOldElems)
+  DEALLOCATE(DummyHaloToProc)
+END IF
+! PartSideToElem
+ALLOCATE(DummySideToElem(1:5,1:nOldSides))
+IF (.NOT.ALLOCATED(DummySideToElem)) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummySideToElem=PartSideToElem
+DEALLOCATE(PartSideToElem)
+ALLOCATE(PartSideToElem(1:5,1:nTotalSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate PartSideToElem')
+PartSideToElem=-1
+PartSideToElem(:,1:nOldSides  )              =DummySideToElem(:,1:nOldSides)
+DEALLOCATE(DummySideToElem)
+! PartNeighborElemID
+ALLOCATE(DummyNeighborElemID(1:6,1:nOldElems))
+IF (.NOT.ALLOCATED(DummyNeighborElemID)) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummyNeighborElemID=PartNeighborElemID
+DEALLOCATE(PartNeighborElemID)
+ALLOCATE(PartNeighborElemID(1:6,1:nTotalElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+PartNeighborElemID=-1
+PartNeighborElemID(:,1:nOldElems)            =DummyNeighborElemID(:,1:nOldElems)
+DEALLOCATE(DummyNeighborElemID)
+! PartNeighborlocSideID
+ALLOCATE(DummyNeighborlocSideID(1:6,1:nOldElems))
+IF (.NOT.ALLOCATED(DummyNeighborLocSideID)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummyNeighborlocSideID=PartNeighborlocSideID
+DEALLOCATE(PartNeighborlocSideID)
+ALLOCATE(PartNeighborlocSideID(1:6,1:nTotalElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+PartNeighborlocSideID=-1
+PartNeighborlocSideID(:,1:nOldElems)         =DummyNeighborlocSideID(:,1:nOldElems)
+DEALLOCATE(DummyNeighborlocSideID)
+! BezierControlPoints3D
+ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldSides))
+IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummyBezierControlPoints3d=BezierControlPoints3d
+DEALLOCATE(BezierControlPoints3D)
+ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+BezierControlPoints3d(:,:,:,1:nOldSides) =DummyBezierControlPoints3D(:,:,:,1:nOldSides)
+DEALLOCATE(DummyBezierControlPoints3D)
+! SideBCType
+ALLOCATE(DummySideBCType(1:nOldSides))
+IF (.NOT.ALLOCATED(DummySideBCType)) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummySideBCType(1:nOldSides)=SidePeriodicType(1:nOldSides)
+DEALLOCATE(SidePeriodicType)
+ALLOCATE(SidePeriodicType(1:nTotalSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+SidePeriodicType=-1
+SidePeriodicType(1:nOldSides) =DummySideBCType(1:nOldSides)
+DEALLOCATE(DummySideBCType)
+! BC
+ALLOCATE(DummyBC(1:nOldSides))
+IF (.NOT.ALLOCATED(DummyBC)) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+! check
+!IF(ALLOCATED(BC)) print*,'yes it is'
+!print*,'size',size(BC)
+!print*, BC
+DummyBC(1:nOldSides)=BC(1:nOldSides)
+DEALLOCATE(BC)
+ALLOCATE(BC(1:nTotalSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+BC=0
+BC(1:nOldSides) =DummyBC(1:nOldSides)
+DEALLOCATE(DummyBC)
+! SlabNormals
+ALLOCATE(DummySlabNormals(1:3,1:3,1:nOldSides))
+IF (.NOT.ALLOCATED(DummySlabNormals)) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummySlabNormals=SlabNormals
+DEALLOCATE(SlabNormals)
+ALLOCATE(SlabNormals(1:3,1:3,1:nTotalSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+SlabNormals=0
+SlabNormals(1:3,1:3,1:nOldSides) =DummySlabNormals(1:3,1:3,1:nOldSides)
+DEALLOCATE(DummySlabNormals)
+! SlabIntervalls
+ALLOCATE(DummySlabIntervalls(1:6,1:nOldSides))
+IF (.NOT.ALLOCATED(DummySlabIntervalls)) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummySlabIntervalls=SlabIntervalls
+DEALLOCATE(SlabIntervalls)
+ALLOCATE(SlabIntervalls(1:6,1:nTotalSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+SlabIntervalls=0
+SlabIntervalls(1:6,1:nOldSides) =DummySlabIntervalls(1:6,1:nOldSides)
+DEALLOCATE(DummySlabIntervalls)
+! BoundingBoxIsEmpty
+ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldSides))
+IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
+DEALLOCATE(BoundingBoxIsEmpty)
+ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+BoundingBoxIsEmpty(1:nOldSides) =DummyBoundingBoxIsEmpty(1:nOldSides)
+DEALLOCATE(DummyBoundingBoxIsEmpty)
+! finished copying
+
+END SUBROUTINE ResizeParticleMeshData
+
 #endif /*MPI*/
 END MODULE MOD_Particle_MPI_Halo

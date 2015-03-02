@@ -42,6 +42,7 @@ USE MOD_Globals!,            ONLY : UNIT_StdOut
 USE MOD_Mesh_Vars,          ONLY : nElems,nNodes
 USE MOD_Mesh_Vars,          ONLY : Elems,offsetElem,ElemToSide
 USE MOD_Particle_Vars,      ONLY : GEO
+USE MOD_Particle_Mesh_Vars, ONLY:SidePeriodicType
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

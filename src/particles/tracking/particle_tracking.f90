@@ -35,7 +35,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars,                   ONLY:nBCSides,NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne,neighborElemID,neighborlocSideID,epsilonbilinear
+USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne,epsilonbilinear
 USE MOD_Particle_Surfaces_Vars,      ONLY:nPartCurved,BezierControlPoints3D,BoundingBoxIsEmpty
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems
 USE MOD_Particle_Mesh_Vars,          ONLY:PartNeighborElemID,PartNeighborLocSideID
@@ -200,8 +200,8 @@ DO iPart=1,PDM%ParticleVecLength
                 lengthPartTrajectory=lengthPartTrajectory+epsilontol
                 ! update particle element
                 dolocSide=.TRUE.
-                dolocSide(neighborlocSideID(ilocSide,ElemID))=.FALSE.
-                ElemID=neighborElemID(ilocSide,ElemID)
+                dolocSide(PartneighborlocSideID(ilocSide,ElemID))=.FALSE.
+                ElemID=PartNeighborElemID(ilocSide,ElemID)
                 lastlocSide=-1
                 EXIT
               END IF ! SidePeriodicType
@@ -217,18 +217,24 @@ DO iPart=1,PDM%ParticleVecLength
                   ! inner side
                   dolocSide=.TRUE.
                   dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
-                  ElemID=PartneighborElemID(hitlocSide,ElemID)
+                  ElemID=PartNeighborElemID(hitlocSide,ElemID)
                   lastlocSide=-1
                   IF(ElemID.EQ.-1) CALL abort(&
                       __STAMP__,&
                      ' HaloRegion too small or critical error during halo region reconstruction!')
                   EXIT
                 END IF ! BC?
+              ELSE
+                dolocSide=.TRUE.
+                dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
+                ElemID=PartNeighborElemID(hitlocSide,ElemID)
+                lastlocSide=-1
+                EXIT
               END IF ! SideID.GT.nSides
 #else
               dolocSide=.TRUE.
               dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
-              ElemID=PartneighborElemID(hitlocSide,ElemID)
+              ElemID=PartNeighborElemID(hitlocSide,ElemID)
               lastlocSide=-1
               EXIT
 #endif /* MP!!I */

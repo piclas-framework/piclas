@@ -184,8 +184,16 @@ DO iProc=1,PartMPI%nMPINeighbors
                 , PartMPI%MPINeighbor(iProc)                                 &
                 , 1001                                                       &
                 , PartMPI%COMM                                               &
-                , PartMPIExchange%RecvRequest(1,PartMPI%MPINeighbor(iProc))  &
+                , PartMPIExchange%RecvRequest(1,iProc)                       &
                 , IERROR )
+!  CALL MPI_IRECV( PartMPIExchange%nPartsRecv(iProc)                          &
+!                , 1                                                          &
+!                , MPI_INTEGER                                                &
+!                , PartMPI%MPINeighbor(iProc)                                 &
+!                , 1001                                                       &
+!                , PartMPI%COMM                                               &
+!                , PartMPIExchange%RecvRequest(1,PartMPI%MPINeighbor(iProc))  &
+!                , IERROR )
 END DO ! iProc
 
 END SUBROUTINE IRecvNbOfParticles
@@ -239,8 +247,17 @@ DO iProc=1,PartMPI%nMPINeighbors
                 , PartMPI%MPINeighbor(iProc)                                 &
                 , 1001                                                       &
                 , PartMPI%COMM                                               &
-                , PartMPIExchange%SendRequest(1,PartMPI%MPINeighbor(iProc))  &
+                , PartMPIExchange%SendRequest(1,iProc)                       &
                 , IERROR )
+
+!  CALL MPI_ISEND( PartMPIExchange%nPartsSend(iProc)                          &
+!                , 1                                                          &
+!                , MPI_INTEGER                                                &
+!                , PartMPI%MPINeighbor(iProc)                                 &
+!                , 1001                                                       &
+!                , PartMPI%COMM                                               &
+!                , PartMPIExchange%SendRequest(1,PartMPI%MPINeighbor(iProc))  &
+!                , IERROR )
 END DO ! iProc
 
 ! 3) Build Message
@@ -249,14 +266,17 @@ DO iProc=1, PartMPI%nMPINeighbors
   nSendParticles=PartMPIExchange%nPartsSend(iProc)
   iPos=0
   IF(nSendParticles.EQ.0) CYCLE
-  MessageSize=nRecvParticles*PartCommSize
+  MessageSize=nSendParticles*PartCommSize
   ALLOCATE(SendBuf(iProc)%content(MessageSize))
   ! fill message
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
     ElemID=PEM%Element(iPart)
     IF(ElemID.GT.PP_nElems) THEN
-      IF(.NOT.(PartHaloToProc(LOCAL_PROC_ID,ElemID)).EQ.iPos) CYCLE
+      !IF(PartHaloToProc(NATIVE_PROC_ID,ElemID).NE.PartMPI%MPINeighbor(iProc))THEN
+      IF(PartHaloToProc(LOCAL_PROC_ID,ElemID).NE.iProc)THEN
+        WRITE(*,*) " Warning: Target Rank and rank of cell mismatch!!!"
+      END IF
       !iPos=iPos+1
       ! fill content
       SendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
@@ -405,15 +425,24 @@ DO iProc=1,PartMPI%nMPINeighbors
                 , PartMPI%MPINeighbor(iProc)                                 &
                 , 1002                                                       &
                 , PartMPI%COMM                                               &
-                , PartMPIExchange%RecvRequest(2,PartMPI%MPINeighbor(iProc))  &
+                , PartMPIExchange%RecvRequest(2,iProc)                       &
                 , IERROR )
+
+!  CALL MPI_IRECV( PartRecvBuf(iProc)%content                                 &
+!                , MessageSize                                                &
+!                , MPI_DOUBLE_PRECISION                                       &
+!                , PartMPI%MPINeighbor(iProc)                                 &
+!                , 1002                                                       &
+!                , PartMPI%COMM                                               &
+!                , PartMPIExchange%RecvRequest(2,PartMPI%MPINeighbor(iProc))  &
+!                , IERROR )
 END DO ! iProc
 
 ! 6) Send Particles
 DO iProc=1,PartMPI%nMPINeighbors
   nSendParticles=PartMPIExchange%nPartsSend(iProc)
   IF(nSendParticles.EQ.0) CYCLE
-  MessageSize=nRecvParticles*PartCommSize
+  MessageSize=nSendParticles*PartCommSize
   !ALLOCATE(SendBuf(iProc)%content(PartCommSize,nSendParticles))
   CALL MPI_ISEND( SendBuf(iProc)%content                                     &
                 , MessageSize                                                &
@@ -421,8 +450,16 @@ DO iProc=1,PartMPI%nMPINeighbors
                 , PartMPI%MPINeighbor(iProc)                                 &
                 , 1002                                                       &
                 , PartMPI%COMM                                               &
-                , PartMPIExchange%SendRequest(2,PartMPI%MPINeighbor(iProc))  &
+                , PartMPIExchange%SendRequest(2,iProc)                       &
                 , IERROR )
+!  CALL MPI_ISEND( SendBuf(iProc)%content                                     &
+!                , MessageSize                                                &
+!                , MPI_DOUBLE_PRECISION                                       &
+!                , PartMPI%MPINeighbor(iProc)                                 &
+!                , 1002                                                       &
+!                , PartMPI%COMM                                               &
+!                , PartMPIExchange%SendRequest(2,PartMPI%MPINeighbor(iProc))  &
+!                , IERROR )
 END DO ! iProc
 
 ! deallocate send buffer
@@ -669,36 +706,37 @@ LOGICAL                 :: TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:)
 !===================================================================================================================================
 
+! funny: should not be required, as sides are build for master and slave sides??
 ! communicate the MPI Master Sides to Slaves
 ! all processes have now filled sides and can compute the particles inside the proc region
-SendID=1
-BezierSideSize=3*(NGeo+1)*(NGeo+1)
-DO iNbProc=1,nNbProcs
-  ! Start receive face data
-  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
-    nRecVal     =BezierSideSize*nMPISides_rec(iNbProc,SendID)
-    SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
-    SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
-    CALL MPI_IRECV(BezierControlPoints3D(:,:,:,SideID_start:SideID_end),nRecVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest_Flux(iNbProc),iError)
-  END IF
-  ! Start send face data
-  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
-    nSendVal    =BezierSideSize*nMPISides_send(iNbProc,SendID)
-    SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
-    SideID_end  =OffsetMPISides_send(iNbProc,SendID)
-    CALL MPI_ISEND(BezierControlPoints3D(:,:,:,SideID_start:SideID_end),nSendVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest_Flux(iNbProc),iError)
-  END IF
-END DO !iProc=1,nNBProcs
-
-DO iNbProc=1,nNbProcs
-  IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest_Flux(iNbProc) ,MPIStatus,iError)
-END DO !iProc=1,nNBProcs
-! Check send operations
-DO iNbProc=1,nNbProcs
-  IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest_Flux(iNbProc),MPIStatus,iError)
-END DO !iProc=1,nNBProcs
+!SendID=1
+!BezierSideSize=3*(NGeo+1)*(NGeo+1)
+!DO iNbProc=1,nNbProcs
+!  ! Start receive face data
+!  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+!    nRecVal     =BezierSideSize*nMPISides_rec(iNbProc,SendID)
+!    SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
+!    SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
+!    CALL MPI_IRECV(BezierControlPoints3D(:,:,:,SideID_start:SideID_end),nRecVal,MPI_DOUBLE_PRECISION,  &
+!                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest_Flux(iNbProc),iError)
+!  END IF
+!  ! Start send face data
+!  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+!    nSendVal    =BezierSideSize*nMPISides_send(iNbProc,SendID)
+!    SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
+!    SideID_end  =OffsetMPISides_send(iNbProc,SendID)
+!    CALL MPI_ISEND(BezierControlPoints3D(:,:,:,SideID_start:SideID_end),nSendVal,MPI_DOUBLE_PRECISION,  &
+!                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest_Flux(iNbProc),iError)
+!  END IF
+!END DO !iProc=1,nNBProcs
+!
+!DO iNbProc=1,nNbProcs
+!  IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest_Flux(iNbProc) ,MPIStatus,iError)
+!END DO !iProc=1,nNBProcs
+!! Check send operations
+!DO iNbProc=1,nNbProcs
+!  IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest_Flux(iNbProc),MPIStatus,iError)
+!END DO !iProc=1,nNBProcs
 
 ALLOCATE(SideIndex(1:nSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
@@ -736,6 +774,7 @@ DO iProc=0,PartMPI%nProcs-1
   END IF
 END DO
 
+
 ! fill list with neighbor proc id and add local neighbor id to PartHaloToProc
 ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors))
 iMPINeighbor=0
@@ -748,6 +787,7 @@ DO iProc=0,PartMPI%nProcs-1
     END DO ! iElem
   END IF
 END DO
+WRITE(*,*) ' MyRank, List Of Neighbor Procs', PartMPI%MyRank, PartMPI%nMPINeighbors,PartMPI%MPINeighbor
 
 IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
   __STAMP__&

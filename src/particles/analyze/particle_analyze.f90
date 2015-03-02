@@ -1439,7 +1439,8 @@ SUBROUTINE TrackingParticlePosition(time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,          ONLY : PartState, PDM, PEM
+USE MOD_Particle_Vars,          ONLY:PartState, PDM, PEM
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1455,31 +1456,34 @@ LOGICAL            :: fexist
 !===================================================================================================================================
 
 iunit=GETFREEUNIT()
-WRITE(UNIT=hilf,FMT='(I6.6)') MyRank
-TrackingFilename = ('MyRank'//TRIM(hilf)//'_ParticlePosition.csv')
+!WRITE(UNIT=hilf,FMT='(I6.6)') MyRank
+!TrackingFilename = ('MyRank'//TRIM(hilf)//'_ParticlePosition.csv')
+TrackingFilename = ('ParticlePosition.csv')
 
 INQUIRE(FILE = TrackingFilename, EXIST=fexist)
 IF(.NOT.fexist) THEN 
- iunit=GETFREEUNIT()
- OPEN(UNIT=iunit,FILE=TrackingFilename,FORM='FORMATTED',STATUS='UNKNOWN')
- !CALL FLUSH (iunit)
-  ! writing header
-  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'TIME', ' '
-  WRITE(iunit,'(A1)',ADVANCE='NO') ','
-  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartNum', ' '
-  WRITE(iunit,'(A1)',ADVANCE='NO') ','
-  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosX', ' '
-  WRITE(iunit,'(A1)',ADVANCE='NO') ','
-  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosY', ' '
-  WRITE(iunit,'(A1)',ADVANCE='NO') ','
-  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosZ', ' '
-  WRITE(iunit,'(A1)',ADVANCE='NO') ','
-  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelX', ' '
-  WRITE(iunit,'(A1)',ADVANCE='NO') ','
-  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelY', ' '
-  WRITE(iunit,'(A1)',ADVANCE='NO') ','
-  WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelZ', ' '
-  CLOSE(iunit)
+ IF(PartMPI%MPIRoot)THEN
+   iunit=GETFREEUNIT()
+   OPEN(UNIT=iunit,FILE=TrackingFilename,FORM='FORMATTED',STATUS='UNKNOWN')
+   !CALL FLUSH (iunit)
+    ! writing header
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'TIME', ' '
+    WRITE(iunit,'(A1)',ADVANCE='NO') ','
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartNum', ' '
+    WRITE(iunit,'(A1)',ADVANCE='NO') ','
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosX', ' '
+    WRITE(iunit,'(A1)',ADVANCE='NO') ','
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosY', ' '
+    WRITE(iunit,'(A1)',ADVANCE='NO') ','
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartPosZ', ' '
+    WRITE(iunit,'(A1)',ADVANCE='NO') ','
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelX', ' '
+    WRITE(iunit,'(A1)',ADVANCE='NO') ','
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelY', ' '
+    WRITE(iunit,'(A1)',ADVANCE='NO') ','
+    WRITE(iunit,'(A8,A5)',ADVANCE='NO') 'PartVelZ', ' '
+    CLOSE(iunit)
+  END IF
 ELSE
   iunit=GETFREEUNIT()
   OPEN(unit=iunit,FILE=TrackingFileName,FORM='Formatted',POSITION='APPEND',STATUS='old')

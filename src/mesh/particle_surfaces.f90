@@ -119,27 +119,29 @@ ALLOCATE( XiArray (1:2,1:ClipMaxIter) &
 !NPartCurved     = GETINT('NPartCurved','1')
 !IF(NPartCurved.GT.1) DoPartCurved=.TRUE.
 
-! construct connections to neighbor elems
-ALLOCATE( neighborElemID    (1:6,1:PP_nElems) &
-        , neighborlocSideID (1:6,1:PP_nElems) )
-neighborElemID=-1
-neighborlocSideID=-1
 
-DO iElem=1,PP_nElems
-  DO ilocSide=1,6
-    flip = ElemToSide(E2S_FLIP,ilocSide,iElem)
-    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(flip.EQ.0)THEN
-      ! SideID of slave
-      neighborlocSideID(ilocSide,iElem)=SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-      neighborElemID   (ilocSide,iElem)=SideToElem(S2E_NB_ELEM_ID,SideID)
-    ELSE
-      ! SideID of master
-      neighborlocSideID(ilocSide,iElem)=SideToElem(S2E_LOC_SIDE_ID,SideID)
-      neighborElemID   (ilocSide,iElem)=SideToElem(S2E_ELEM_ID,SideID)
-    END IF
-  END DO ! ilocSide
-END DO ! Elem
+! moved into mesh init
+! construct connections to neighbor elems
+!ALLOCATE( neighborElemID    (1:6,1:PP_nElems) &
+!        , neighborlocSideID (1:6,1:PP_nElems) )
+!neighborElemID=-1
+!neighborlocSideID=-1
+
+!DO iElem=1,PP_nElems
+!  DO ilocSide=1,6
+!    flip = ElemToSide(E2S_FLIP,ilocSide,iElem)
+!    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!    IF(flip.EQ.0)THEN
+!      ! SideID of slave
+!      neighborlocSideID(ilocSide,iElem)=SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+!      neighborElemID   (ilocSide,iElem)=SideToElem(S2E_NB_ELEM_ID,SideID)
+!    ELSE
+!      ! SideID of master
+!      neighborlocSideID(ilocSide,iElem)=SideToElem(S2E_LOC_SIDE_ID,SideID)
+!      neighborElemID   (ilocSide,iElem)=SideToElem(S2E_ELEM_ID,SideID)
+!    END IF
+!  END DO ! ilocSide
+!END DO ! Elem
 
 !IF(.NOT.DoPartCurved)THEN !CHANGETAG
 !ALLOCATE( SideType(nSides)                &
@@ -1452,6 +1454,8 @@ LOGICAL                     :: isLinear
 !        , SideDistance(nSides)    &
 !        , SideNormVec(1:3,nSides) )
 
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(A)') ' Get Side Type incl. HALO-Sides...'
 
 ALLOCATE( SideType(nTotalSides)        &
         , SideDistance(nTotalSides)    &
@@ -1555,10 +1559,10 @@ ELSE ! no Root
 END IF
 #endif /*MPI*/
 
-SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar    faces: ', nPlanar
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear faces: ', nBilinear
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved    faces: ', nCurved
+SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE GetSideType
 
