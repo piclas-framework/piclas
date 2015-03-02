@@ -33,9 +33,9 @@ INTERFACE CalcTVib
   MODULE PROCEDURE CalcTVib
 END INTERFACE
 
-INTERFACE CalcSurfaceValues
-  MODULE PROCEDURE CalcSurfaceValues
-END INTERFACE
+!INTERFACE CalcSurfaceValues
+!  MODULE PROCEDURE CalcSurfaceValues
+!END INTERFACE
 
 INTERFACE CalcTelec
   MODULE PROCEDURE CalcTelec
@@ -51,7 +51,8 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_data_sampling, WriteOutputMesh, WriteDSMCToHDF5, WriteOutputMeshSamp
-PUBLIC :: DSMC_output_calc, CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly
+PUBLIC :: DSMC_output_calc, CalcTVib!, CalcSurfaceValues, CalcTelec, CalcTVibPoly
+PUBLIC :: CalcTelec, CalcTVibPoly
 !===================================================================================================================================
 
 CONTAINS
@@ -291,7 +292,7 @@ SUBROUTINE WriteOutputMesh()
    USE MOD_DSMC_Vars,      ONLY : CollisMode, useDSMC  
    USE MOD_Mesh_Vars,     ONLY : nElems, nNodes
 #ifdef MPI
-   USE MOD_part_MPI_Vars, ONLY : PMPIVAR
+   USE MOD_Particle_MPI_Vars, ONLY: PartMPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -317,7 +318,7 @@ SUBROUTINE WriteOutputMesh()
   END IF
 
 #ifdef MPI
-  WRITE(myFileName,'(A8,I5.5,A4)')'DSMCMesh',PMPIVAR%iProc,'.vtk'
+  WRITE(myFileName,'(A8,I5.5,A4)')'DSMCMesh',PartMPI%MyRank,'.vtk'
 #else
   WRITE(myFileName,'(A12)')'DSMCMesh.vtk'
 #endif  
@@ -519,335 +520,335 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
 END SUBROUTINE WriteDSMCToHDF5
 
 
-SUBROUTINE WriteDSMCSurfToHDF5(MeshFileName,OutputTime)
+!SUBROUTINE WriteDSMCSurfToHDF5(MeshFileName,OutputTime)
 !===================================================================================================================================
 ! Writes DSMC surface values to HDF5
 !===================================================================================================================================
 ! MODULES
-   USE MOD_Globals
-   USE MOD_PreProc
-   USE MOD_io_HDF5
-   USE MOD_HDF5_output,   ONLY:WriteArrayToHDF5,WriteAttributeToHDF5,WriteHDF5Header
-   USE MOD_PARTICLE_Vars, ONLY:nSpecies
-   USE MOD_Mesh_Vars,     ONLY:nGlobalElems,offsetSurfElem
-   USE MOD_DSMC_Vars,     ONLY:SurfMesh, MacroSurfaceVal , CollisMode
-   USE MOD_Output_Vars,   ONLY:ProjectName
-#ifdef MPI
-   USE MOD_MPI_Vars,      ONLY:offsetSurfElemMPI
-#endif
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+!   USE MOD_Globals
+!   USE MOD_PreProc
+!   USE MOD_io_HDF5
+!   USE MOD_HDF5_output,   ONLY:WriteArrayToHDF5,WriteAttributeToHDF5,WriteHDF5Header
+!   USE MOD_PARTICLE_Vars, ONLY:nSpecies
+!   USE MOD_Mesh_Vars,     ONLY:nGlobalElems,offsetSurfElem
+!   USE MOD_DSMC_Vars,     ONLY:SurfMesh, MacroSurfaceVal , CollisMode
+!   USE MOD_Output_Vars,   ONLY:ProjectName
+!#ifdef MPI
+!   USE MOD_MPI_Vars,      ONLY:offsetSurfElemMPI
+!#endif
+!! IMPLICIT VARIABLE HANDLING
+!  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
-  REAL,INTENT(IN)                       :: OutputTime
+!  CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
+!  REAL,INTENT(IN)                       :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CHARACTER(LEN=255)                 :: FileName,FileString,Statedummy
-  INTEGER                             :: nVal
+!  CHARACTER(LEN=255)                 :: FileName,FileString,Statedummy
+!  INTEGER                             :: nVal
 !===================================================================================================================================
-  SWRITE(*,*) ' WRITE DSMCSurfSTATE TO HDF5 FILE...'
-  FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
-  FileString=TRIM(FileName)//'.h5'
-#ifdef MPI
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.)
-#else
-  CALL OpenDataFile(FileString,create=.TRUE.)
-#endif
+!  SWRITE(*,*) ' WRITE DSMCSurfSTATE TO HDF5 FILE...'
+!  FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
+!  FileString=TRIM(FileName)//'.h5'
+!#ifdef MPI
+!  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.)
+!#else
+!  CALL OpenDataFile(FileString,create=.TRUE.)
+!#endif
+!
+!  Statedummy = 'DSMCSurfState'
+!  CALL WriteHDF5Header(Statedummy,File_ID)
+!
+!  nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+!#ifdef MPI
+!  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceX', rank=1,&
+!                        nValGlobal=(/offsetSurfElemMPI(nProcessors)/),&
+!                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
+!                        offset=    (/ offsetSurfElem  /),&
+!                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(1))
+!
+!  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceY', rank=1,&
+!                        nValGlobal=(/offsetSurfElemMPI(nProcessors)/),&
+!                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
+!                        offset=    (/ offsetSurfElem  /),&
+!                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(2))
+!
+!  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceZ', rank=1,&
+!                        nValGlobal=(/offsetSurfElemMPI(nProcessors)/),&
+!                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
+!                        offset=    (/ offsetSurfElem  /),&
+!                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(3))
+!
+!  CALL WriteArrayToHDF5(DataSetName='DSMC_Heatflux', rank=1,&
+!                        nValGlobal=(/offsetSurfElemMPI(nProcessors)/),&
+!                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
+!                        offset=    (/ offsetSurfElem  /),&
+!                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Heatflux)
+!
+!  CALL WriteArrayToHDF5(DataSetName='DSMC_Counter', rank=1,&
+!                        nValGlobal=(/offsetSurfElemMPI(nProcessors)/),&
+!                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
+!                        offset=    (/ offsetSurfElem  /),&
+!                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Counter(1))
+!#else
+!  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceX', rank=1,&
+!                        nValGlobal=(/SurfMesh%nSurfaceBCSides/),&
+!                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
+!                        offset=    (/ offsetSurfElem /),&
+!                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(1))
+!
+!  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceY', rank=1,&
+!                        nValGlobal=(/SurfMesh%nSurfaceBCSides/),&
+!                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
+!                        offset=    (/ offsetSurfElem /),&
+!                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(2))
+!
+!  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceZ', rank=1,&
+!                        nValGlobal=(/SurfMesh%nSurfaceBCSides/),&
+!                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
+!                        offset=    (/ offsetSurfElem /),&
+!                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(3))
+!
+!  CALL WriteArrayToHDF5(DataSetName='DSMC_Heatflux', rank=1,&
+!                        nValGlobal=(/SurfMesh%nSurfaceBCSides/),&
+!                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
+!                        offset=    (/ offsetSurfElem /),&
+!                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Heatflux)
+!
+!  CALL WriteArrayToHDF5(DataSetName='DSMC_Counter', rank=1,&
+!                        nValGlobal=(/SurfMesh%nSurfaceBCSides/),&
+!                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
+!                        offset=    (/ offsetSurfElem /),&
+!                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Counter(1))
+!#endif
+!  CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
+!  CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
+!  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
+!  CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
+!
+!  CALL CloseDataFile()
+!
+!END SUBROUTINE WriteDSMCSurfToHDF5
 
-  Statedummy = 'DSMCSurfState'
-  CALL WriteHDF5Header(Statedummy,File_ID)
 
-  nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
-#ifdef MPI
-  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceX', rank=1,&
-                        nValGlobal=(/offsetSurfElemMPI(nProcessors)/),&
-                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
-                        offset=    (/ offsetSurfElem  /),&
-                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(1))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceY', rank=1,&
-                        nValGlobal=(/offsetSurfElemMPI(nProcessors)/),&
-                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
-                        offset=    (/ offsetSurfElem  /),&
-                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(2))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceZ', rank=1,&
-                        nValGlobal=(/offsetSurfElemMPI(nProcessors)/),&
-                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
-                        offset=    (/ offsetSurfElem  /),&
-                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(3))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_Heatflux', rank=1,&
-                        nValGlobal=(/offsetSurfElemMPI(nProcessors)/),&
-                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
-                        offset=    (/ offsetSurfElem  /),&
-                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Heatflux)
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_Counter', rank=1,&
-                        nValGlobal=(/offsetSurfElemMPI(nProcessors)/),&
-                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
-                        offset=    (/ offsetSurfElem  /),&
-                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Counter(1))
-#else
-  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceX', rank=1,&
-                        nValGlobal=(/SurfMesh%nSurfaceBCSides/),&
-                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
-                        offset=    (/ offsetSurfElem /),&
-                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(1))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceY', rank=1,&
-                        nValGlobal=(/SurfMesh%nSurfaceBCSides/),&
-                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
-                        offset=    (/ offsetSurfElem /),&
-                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(2))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_ForceZ', rank=1,&
-                        nValGlobal=(/SurfMesh%nSurfaceBCSides/),&
-                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
-                        offset=    (/ offsetSurfElem /),&
-                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Force(3))
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_Heatflux', rank=1,&
-                        nValGlobal=(/SurfMesh%nSurfaceBCSides/),&
-                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
-                        offset=    (/ offsetSurfElem /),&
-                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Heatflux)
-
-  CALL WriteArrayToHDF5(DataSetName='DSMC_Counter', rank=1,&
-                        nValGlobal=(/SurfMesh%nSurfaceBCSides/),&
-                        nVal=      (/SurfMesh%nSurfaceBCSides/),&
-                        offset=    (/ offsetSurfElem /),&
-                        collective=.FALSE., existing=.FALSE., RealArray=MacroSurfaceVal(:)%Counter(1))
-#endif
-  CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
-  CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
-  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
-  CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
-
-  CALL CloseDataFile()
-
-END SUBROUTINE WriteDSMCSurfToHDF5
-
-
-SUBROUTINE CalcSurfaceValues
+!SUBROUTINE CalcSurfaceValues
 !===================================================================================================================================
-! Calculates macroscopic surface values from samples
+!! Calculates macroscopic surface values from samples
 !===================================================================================================================================
-! MODULES
-  USE MOD_DSMC_Vars,       ONLY:SurfMesh, SampWall, MacroSurfaceVal, DSMC, realtime
-  USE MOD_Particle_Vars,   ONLY:Time
-  USE MOD_TimeDisc_Vars,   ONLY:TEnd
-  USE MOD_Mesh_Vars,       ONLY:MeshFile
-  USE MOD_Restart_Vars,    ONLY:RestartTime  
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+!! MODULES
+!  USE MOD_DSMC_Vars,       ONLY:SurfMesh, SampWall, MacroSurfaceVal, DSMC, realtime
+!  USE MOD_Particle_Vars,   ONLY:Time
+!  USE MOD_TimeDisc_Vars,   ONLY:TEnd
+!  USE MOD_Mesh_Vars,       ONLY:MeshFile
+!  USE MOD_Restart_Vars,    ONLY:RestartTime  
+!! IMPLICIT VARIABLE HANDLING
+!  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES            
+!! INPUT VARIABLES            
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
+!! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER                            :: iElem
+!! LOCAL VARIABLES
+!  INTEGER                            :: iElem
 !===================================================================================================================================
-#ifdef MPI
-  CALL MPISurfaceValuesSend()  
-#endif
+!#ifdef MPI
+!  CALL MPISurfaceValuesSend()  
+!#endif
+!
+!  ALLOCATE(MacroSurfaceVal(SurfMesh%nSurfaceBCSides))
+!
+!  IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
+!    DO iElem=1,SurfMesh%nSurfaceBCSides
+!      MacroSurfaceVal(iElem)%Heatflux = (SampWall(iElem)%Energy(1)+SampWall(iElem)%Energy(4)+SampWall(iElem)%Energy(7) &
+!                                        -SampWall(iElem)%Energy(3)-SampWall(iElem)%Energy(6)-SampWall(iElem)%Energy(9))&
+!                                       /(SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
+!      MacroSurfaceVal(iElem)%Force(1) = SampWall(iElem)%Force(1) /(SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
+!      MacroSurfaceVal(iElem)%Force(2) = SampWall(iElem)%Force(2) /(SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
+!      MacroSurfaceVal(iElem)%Force(3) = SampWall(iElem)%Force(3) / (SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
+!      MacroSurfaceVal(iElem)%Counter(1) = SampWall(iElem)%Counter(1) / (Time-RestartTime)
+!    END DO
+!  ELSE
+!    DO iElem=1,SurfMesh%nSurfaceBCSides
+!      MacroSurfaceVal(iElem)%Heatflux = (SampWall(iElem)%Energy(1)+SampWall(iElem)%Energy(4)+SampWall(iElem)%Energy(7) &
+!                                        -SampWall(iElem)%Energy(3)-SampWall(iElem)%Energy(6)-SampWall(iElem)%Energy(9))&
+!                                       /(SurfMesh%SurfaceArea(iElem) * (Time-(1-DSMC%TimeFracSamp)*TEnd))
+!      MacroSurfaceVal(iElem)%Force(1) = SampWall(iElem)%Force(1) /(SurfMesh%SurfaceArea(iElem) * (Time-(1-DSMC%TimeFracSamp)*TEnd))
+!    MacroSurfaceVal(iElem)%Force(2) = SampWall(iElem)%Force(2) /(SurfMesh%SurfaceArea(iElem) * (Time-(1-DSMC%TimeFracSamp)*TEnd))
+!    MacroSurfaceVal(iElem)%Force(3) = SampWall(iElem)%Force(3) / (SurfMesh%SurfaceArea(iElem) * (Time-(1-DSMC%TimeFracSamp)*TEnd))
+!      MacroSurfaceVal(iElem)%Counter(1) = SampWall(iElem)%Counter(1) / (Time-(1-DSMC%TimeFracSamp)*TEnd)
+!    END DO
+!  END IF
+!
+!  CALL WriteDSMCSurfToHDF5(TRIM(MeshFile),realtime)
+!  DEALLOCATE(MacroSurfaceVal)
+!
+!END SUBROUTINE CalcSurfaceValues
 
-  ALLOCATE(MacroSurfaceVal(SurfMesh%nSurfaceBCSides))
 
-  IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
-    DO iElem=1,SurfMesh%nSurfaceBCSides
-      MacroSurfaceVal(iElem)%Heatflux = (SampWall(iElem)%Energy(1)+SampWall(iElem)%Energy(4)+SampWall(iElem)%Energy(7) &
-                                        -SampWall(iElem)%Energy(3)-SampWall(iElem)%Energy(6)-SampWall(iElem)%Energy(9))&
-                                       /(SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
-      MacroSurfaceVal(iElem)%Force(1) = SampWall(iElem)%Force(1) /(SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
-      MacroSurfaceVal(iElem)%Force(2) = SampWall(iElem)%Force(2) /(SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
-      MacroSurfaceVal(iElem)%Force(3) = SampWall(iElem)%Force(3) / (SurfMesh%SurfaceArea(iElem) * (Time-RestartTime))
-      MacroSurfaceVal(iElem)%Counter(1) = SampWall(iElem)%Counter(1) / (Time-RestartTime)
-    END DO
-  ELSE
-    DO iElem=1,SurfMesh%nSurfaceBCSides
-      MacroSurfaceVal(iElem)%Heatflux = (SampWall(iElem)%Energy(1)+SampWall(iElem)%Energy(4)+SampWall(iElem)%Energy(7) &
-                                        -SampWall(iElem)%Energy(3)-SampWall(iElem)%Energy(6)-SampWall(iElem)%Energy(9))&
-                                       /(SurfMesh%SurfaceArea(iElem) * (Time-(1-DSMC%TimeFracSamp)*TEnd))
-      MacroSurfaceVal(iElem)%Force(1) = SampWall(iElem)%Force(1) /(SurfMesh%SurfaceArea(iElem) * (Time-(1-DSMC%TimeFracSamp)*TEnd))
-      MacroSurfaceVal(iElem)%Force(2) = SampWall(iElem)%Force(2) /(SurfMesh%SurfaceArea(iElem) * (Time-(1-DSMC%TimeFracSamp)*TEnd))
-      MacroSurfaceVal(iElem)%Force(3) = SampWall(iElem)%Force(3) / (SurfMesh%SurfaceArea(iElem) * (Time-(1-DSMC%TimeFracSamp)*TEnd))
-      MacroSurfaceVal(iElem)%Counter(1) = SampWall(iElem)%Counter(1) / (Time-(1-DSMC%TimeFracSamp)*TEnd)
-    END DO
-  END IF
-
-  CALL WriteDSMCSurfToHDF5(TRIM(MeshFile),realtime)
-  DEALLOCATE(MacroSurfaceVal)
-
-END SUBROUTINE CalcSurfaceValues
-
-
-#ifdef MPI
-SUBROUTINE MPISurfaceValuesSend()
+!#ifdef MPI
+!SUBROUTINE MPISurfaceValuesSend()
 !===================================================================================================================================
 ! Sends surface values of the halo cells to the respective processor
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,       ONLY : IERROR, MPISTATUS
-  USE MOD_part_MPI_Vars, ONLY : PMPIVAR, MPIGEO
-  USE MOD_DSMC_Vars,     ONLY : SurfMesh, SampWall, SampWallHaloCell
-  USE MOD_Mesh_Vars,     ONLY : ElemToSide
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-  INCLUDE 'mpif.h' 
+!  USE MOD_Globals,       ONLY : IERROR, MPISTATUS
+!  USE MOD_part_MPI_Vars, ONLY : PMPIVAR, MPIGEO
+!  USE MOD_DSMC_Vars,     ONLY : SurfMesh, SampWall, SampWallHaloCell
+!  USE MOD_Mesh_Vars,     ONLY : ElemToSide
+!! IMPLICIT VARIABLE HANDLING
+!  IMPLICIT NONE
+!  INCLUDE 'mpif.h' 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES            
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  TYPE tMPISurfContent
-    REAL, POINTER                    :: content(:) =>NULL()
-  END TYPE
-  INTEGER                            :: iSide, iProc, Element, iLocSide, iCount  
-  INTEGER                            :: SurfSideID    
-  INTEGER, ALLOCATABLE               :: RecvMsgSurfs(:), SendMsgSurfs(:), PosCount(:)
-  TYPE(tMPISurfContent), POINTER     :: SendContent(:) => NULL()
-  TYPE(tMPISurfContent), POINTER     :: RecvContent(:) => NULL()
+!  TYPE tMPISurfContent
+!    REAL, POINTER                    :: content(:) =>NULL()
+!  END TYPE
+!  INTEGER                            :: iSide, iProc, Element, iLocSide, iCount  
+!  INTEGER                            :: SurfSideID    
+!  INTEGER, ALLOCATABLE               :: RecvMsgSurfs(:), SendMsgSurfs(:), PosCount(:)
+!  TYPE(tMPISurfContent), POINTER     :: SendContent(:) => NULL()
+!  TYPE(tMPISurfContent), POINTER     :: RecvContent(:) => NULL()
 !===================================================================================================================================
-
-  ALLOCATE(SendMsgSurfs(0:PMPIVAR%nProcs-1))
-  ALLOCATE(RecvMsgSurfs(0:PMPIVAR%nProcs-1))
-  ALLOCATE(SendContent(0:PMPIVAR%nProcs-1))
-  ALLOCATE(RecvContent(0:PMPIVAR%nProcs-1))
-  ALLOCATE(PosCount(0:PMPIVAR%nProcs-1))
-  PosCount(0:PMPIVAR%nProcs-1) = 0
-  SendMsgSurfs(0:PMPIVAR%nProcs-1) = 0
-  RecvMsgSurfs(0:PMPIVAR%nProcs-1) = 0
-
-!---- calculation of send-massages number for each proc
-  DO iSide = 1, SIZE(MPIGEO%BC,2)  !---- loop over all halosides that are defined as BC
-    IF(SurfMesh%HaloSideIDToSurfSideMap(iSide).NE.0) THEN  !---- only surfaces (=wall-sides)   
-      ! get halo cells ElemID. Not quite sure if ELEM_ID or NB_ELEM_ID. 
-      ! maybe check this later and delete IF-query here to save cpu time
-      IF (MPIGEO%SideToElem(1,iSide).NE.-1) THEN
-       Element = MPIGEO%SideToElem(1,iSide)
-      ELSE
-       Element = MPIGEO%SideToElem(2,iSide)
-      END IF
-      iProc = MPIGEO%ElemMPIID(Element)
-      SendMsgSurfs(iProc) = SendMsgSurfs(iProc) + 1
-    END IF
-  END DO
-!---- comunicate send-massages number (=number of surfaces) for each proc
-  DO iProc=0, PMPIVAR%nProcs-1 
-    IF (PMPIVAR%iProc.LT.iProc) THEN
-      CALL MPI_SEND(SendMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,IERROR)    
-      CALL MPI_RECV(RecvMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)      
-    ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
-      CALL MPI_RECV(RecvMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
-      CALL MPI_SEND(SendMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,IERROR)
-    END IF
-  END DO
-!---- allocate (send and recv) massages size (15 * send-massages number)
-!---- 1=iLocSide; 2=target element; 3-11=Energy(1-9); 12-14=Force(1-3); 15=Counter(1)  per surface  
-  DO iProc=0, PMPIVAR%nProcs-1
-    IF (SendMsgSurfs(iProc).NE.0) THEN
-      ALLOCATE(SendContent(iProc)%content(15*SendMsgSurfs(iProc)))
-    END IF
-    IF (RecvMsgSurfs(iProc).NE.0) THEN
-      ALLOCATE(RecvContent(iProc)%content(15*RecvMsgSurfs(iProc)))
-    END IF
-  END DO
-!---- build massage
-  DO iSide = 1, SIZE(MPIGEO%BC,2)
-    IF(SurfMesh%HaloSideIDToSurfSideMap(iSide).NE.0) THEN     
-      ! get halo cells ElemID. Not quite sure if ELEM_ID or NB_ELEM_ID. 
-      ! maybe check this later and delete IF-query here to save cpu time
-      IF (MPIGEO%SideToElem(1,iSide).NE.-1) THEN
-        Element = MPIGEO%SideToElem(1,iSide)
-      ELSE
-        Element = MPIGEO%SideToElem(2,iSide)
-      END IF
-      iProc = MPIGEO%ElemMPIID(Element)
-      PosCount(iProc) = PosCount(iProc) + 1
-      DO iLocSide=1,6  !---- search for iLocSide
-        IF (MPIGEO%ElemToSide(1,iLocSide,Element).EQ.iSide) THEN
-          SendContent(iProc)%content(PosCount(iProc))= REAL(iLocSide)  !---- 1=iLocSide
-          EXIT
-        END IF
-      END DO
-      PosCount(iProc) = PosCount(iProc) + 1
-      SendContent(iProc)%content(PosCount(iProc))= REAL(MPIGEO%NativeElemID(Element))  !---- 2=target element
-      PosCount(iProc) = PosCount(iProc) + 1
-      SendContent(iProc)%content(PosCount(iProc):PosCount(iProc)+8)= &  !---- 3-11=Energy(1-9)
-                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Energy(1:9)
-      SendContent(iProc)%content(PosCount(iProc)+9:PosCount(iProc)+11)= &  !---- 12-14=Force(1-3)
-                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Force(1:3)
-      SendContent(iProc)%content(PosCount(iProc)+12)= &  !---- 15=Counter(1)
-                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Counter(1)
-      PosCount(iProc) = PosCount(iProc)+12
-    END IF
-  END DO
-!---- comunication
-  DO iProc=0, PMPIVAR%nProcs-1          
-    IF (PMPIVAR%iProc.LT.iProc) THEN
-      IF (SendMsgSurfs(iProc).NE.0) CALL MPI_SEND(SendContent(iProc)%content, &
-          15*SendMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)    
-      IF (RecvMsgSurfs(iProc).NE.0) CALL MPI_RECV(RecvContent(iProc)%content, &
-          15*RecvMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR) 
-    ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
-      IF (RecvMsgSurfs(iProc).NE.0) CALL MPI_RECV(RecvContent(iProc)%content, & 
-          15*RecvMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)  
-      IF (SendMsgSurfs(iProc).NE.0) CALL MPI_SEND(SendContent(iProc)%content, &
-          15*SendMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)    
-    END IF
-  END DO
-
-!---- sum up surface values  
-  DO iProc=0, PMPIVAR%nProcs-1
-!    IF (RecvMsgSurfs(iProc).ne.0) print*,RecvMsgSurfs(iProc)
-    IF ((iProc.NE.PMPIVAR%iProc).AND.(RecvMsgSurfs(iProc).NE.0)) THEN
-      DO iCount = 1, RecvMsgSurfs(iProc)
-        SurfSideID = SurfMesh%GlobSideToSurfSideMap( &  !---- get local surfaceID (iLocSide(target) = iLocSide(local))
-        ElemToSide(1,INT(RecvContent(iProc)%content(iCount*15-14)), &
-        INT(RecvContent(iProc)%content(iCount*15-13)))) 
-        SampWall(SurfSideID)%Energy(1:9) = SampWall(SurfSideID)%Energy(1:9) &
-        + RecvContent(iProc)%content(iCount*15-12:iCount*15-4)
-        SampWall(SurfSideID)%Force(1:3) = SampWall(SurfSideID)%Force(1:3) &
-        + RecvContent(iProc)%content(iCount*15-3:iCount*15-1)
-        SampWall(SurfSideID)%Counter(1) = SampWall(SurfSideID)%Counter(1) &
-        + RecvContent(iProc)%content(iCount*15)
-      END DO
-    END IF
-  END DO  
-
-  DO iProc=0, PMPIVAR%nProcs-1
-    IF (ASSOCIATED(SendContent(iProc)%content)) DEALLOCATE(SendContent(iProc)%content)
-    IF (ASSOCIATED(RecvContent(iProc)%content)) DEALLOCATE(RecvContent(iProc)%content)
-  END DO
-  DEALLOCATE(SendMsgSurfs)
-  DEALLOCATE(RecvMsgSurfs)
-  DEALLOCATE(SendContent)
-  DEALLOCATE(RecvContent)
-  DEALLOCATE(PosCount)
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(1) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(2) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(3) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(4) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(5) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(6) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(7) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(8) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(9) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(1) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(2) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(3) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Counter(1) = 0.0
-
-END SUBROUTINE MPISurfaceValuesSend
-
-#endif
+!
+!  ALLOCATE(SendMsgSurfs(0:PMPIVAR%nProcs-1))
+!  ALLOCATE(RecvMsgSurfs(0:PMPIVAR%nProcs-1))
+!  ALLOCATE(SendContent(0:PMPIVAR%nProcs-1))
+!  ALLOCATE(RecvContent(0:PMPIVAR%nProcs-1))
+!  ALLOCATE(PosCount(0:PMPIVAR%nProcs-1))
+!  PosCount(0:PMPIVAR%nProcs-1) = 0
+!  SendMsgSurfs(0:PMPIVAR%nProcs-1) = 0
+!  RecvMsgSurfs(0:PMPIVAR%nProcs-1) = 0
+!
+!!---- calculation of send-massages number for each proc
+!  DO iSide = 1, SIZE(MPIGEO%BC,2)  !---- loop over all halosides that are defined as BC
+!    IF(SurfMesh%HaloSideIDToSurfSideMap(iSide).NE.0) THEN  !---- only surfaces (=wall-sides)   
+!      ! get halo cells ElemID. Not quite sure if ELEM_ID or NB_ELEM_ID. 
+!      ! maybe check this later and delete IF-query here to save cpu time
+!      IF (MPIGEO%SideToElem(1,iSide).NE.-1) THEN
+!       Element = MPIGEO%SideToElem(1,iSide)
+!      ELSE
+!       Element = MPIGEO%SideToElem(2,iSide)
+!      END IF
+!      iProc = MPIGEO%ElemMPIID(Element)
+!      SendMsgSurfs(iProc) = SendMsgSurfs(iProc) + 1
+!    END IF
+!  END DO
+!!---- comunicate send-massages number (=number of surfaces) for each proc
+!  DO iProc=0, PMPIVAR%nProcs-1 
+!    IF (PMPIVAR%iProc.LT.iProc) THEN
+!      CALL MPI_SEND(SendMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,IERROR)    
+!      CALL MPI_RECV(RecvMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)      
+!    ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
+!      CALL MPI_RECV(RecvMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
+!      CALL MPI_SEND(SendMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,IERROR)
+!    END IF
+!  END DO
+!!---- allocate (send and recv) massages size (15 * send-massages number)
+!!---- 1=iLocSide; 2=target element; 3-11=Energy(1-9); 12-14=Force(1-3); 15=Counter(1)  per surface  
+!  DO iProc=0, PMPIVAR%nProcs-1
+!    IF (SendMsgSurfs(iProc).NE.0) THEN
+!      ALLOCATE(SendContent(iProc)%content(15*SendMsgSurfs(iProc)))
+!    END IF
+!    IF (RecvMsgSurfs(iProc).NE.0) THEN
+!      ALLOCATE(RecvContent(iProc)%content(15*RecvMsgSurfs(iProc)))
+!    END IF
+!  END DO
+!!---- build massage
+!  DO iSide = 1, SIZE(MPIGEO%BC,2)
+!    IF(SurfMesh%HaloSideIDToSurfSideMap(iSide).NE.0) THEN     
+!      ! get halo cells ElemID. Not quite sure if ELEM_ID or NB_ELEM_ID. 
+!      ! maybe check this later and delete IF-query here to save cpu time
+!      IF (MPIGEO%SideToElem(1,iSide).NE.-1) THEN
+!        Element = MPIGEO%SideToElem(1,iSide)
+!      ELSE
+!        Element = MPIGEO%SideToElem(2,iSide)
+!      END IF
+!      iProc = MPIGEO%ElemMPIID(Element)
+!      PosCount(iProc) = PosCount(iProc) + 1
+!      DO iLocSide=1,6  !---- search for iLocSide
+!        IF (MPIGEO%ElemToSide(1,iLocSide,Element).EQ.iSide) THEN
+!          SendContent(iProc)%content(PosCount(iProc))= REAL(iLocSide)  !---- 1=iLocSide
+!          EXIT
+!        END IF
+!      END DO
+!      PosCount(iProc) = PosCount(iProc) + 1
+!      SendContent(iProc)%content(PosCount(iProc))= REAL(MPIGEO%NativeElemID(Element))  !---- 2=target element
+!      PosCount(iProc) = PosCount(iProc) + 1
+!      SendContent(iProc)%content(PosCount(iProc):PosCount(iProc)+8)= &  !---- 3-11=Energy(1-9)
+!                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Energy(1:9)
+!      SendContent(iProc)%content(PosCount(iProc)+9:PosCount(iProc)+11)= &  !---- 12-14=Force(1-3)
+!                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Force(1:3)
+!      SendContent(iProc)%content(PosCount(iProc)+12)= &  !---- 15=Counter(1)
+!                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Counter(1)
+!      PosCount(iProc) = PosCount(iProc)+12
+!    END IF
+!  END DO
+!!---- comunication
+!  DO iProc=0, PMPIVAR%nProcs-1          
+!    IF (PMPIVAR%iProc.LT.iProc) THEN
+!      IF (SendMsgSurfs(iProc).NE.0) CALL MPI_SEND(SendContent(iProc)%content, &
+!          15*SendMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)    
+!      IF (RecvMsgSurfs(iProc).NE.0) CALL MPI_RECV(RecvContent(iProc)%content, &
+!          15*RecvMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR) 
+!    ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
+!      IF (RecvMsgSurfs(iProc).NE.0) CALL MPI_RECV(RecvContent(iProc)%content, & 
+!          15*RecvMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)  
+!      IF (SendMsgSurfs(iProc).NE.0) CALL MPI_SEND(SendContent(iProc)%content, &
+!          15*SendMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)    
+!    END IF
+!  END DO
+!
+!!---- sum up surface values  
+!  DO iProc=0, PMPIVAR%nProcs-1
+!!    IF (RecvMsgSurfs(iProc).ne.0) print*,RecvMsgSurfs(iProc)
+!    IF ((iProc.NE.PMPIVAR%iProc).AND.(RecvMsgSurfs(iProc).NE.0)) THEN
+!      DO iCount = 1, RecvMsgSurfs(iProc)
+!        SurfSideID = SurfMesh%GlobSideToSurfSideMap( &  !---- get local surfaceID (iLocSide(target) = iLocSide(local))
+!        ElemToSide(1,INT(RecvContent(iProc)%content(iCount*15-14)), &
+!        INT(RecvContent(iProc)%content(iCount*15-13)))) 
+!        SampWall(SurfSideID)%Energy(1:9) = SampWall(SurfSideID)%Energy(1:9) &
+!        + RecvContent(iProc)%content(iCount*15-12:iCount*15-4)
+!        SampWall(SurfSideID)%Force(1:3) = SampWall(SurfSideID)%Force(1:3) &
+!        + RecvContent(iProc)%content(iCount*15-3:iCount*15-1)
+!        SampWall(SurfSideID)%Counter(1) = SampWall(SurfSideID)%Counter(1) &
+!        + RecvContent(iProc)%content(iCount*15)
+!      END DO
+!    END IF
+!  END DO  
+!
+!  DO iProc=0, PMPIVAR%nProcs-1
+!    IF (ASSOCIATED(SendContent(iProc)%content)) DEALLOCATE(SendContent(iProc)%content)
+!    IF (ASSOCIATED(RecvContent(iProc)%content)) DEALLOCATE(RecvContent(iProc)%content)
+!  END DO
+!  DEALLOCATE(SendMsgSurfs)
+!  DEALLOCATE(RecvMsgSurfs)
+!  DEALLOCATE(SendContent)
+!  DEALLOCATE(RecvContent)
+!  DEALLOCATE(PosCount)
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(1) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(2) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(3) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(4) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(5) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(6) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(7) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(8) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(9) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(1) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(2) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(3) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Counter(1) = 0.0
+!
+!END SUBROUTINE MPISurfaceValuesSend
+!
+!#endif
 
 
 REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax)
@@ -1032,7 +1033,8 @@ SUBROUTINE WriteOutputMeshSamp()
   USE MOD_Mesh_Vars,     ONLY : nElems, nNodes
   USE MOD_Globals
 #ifdef MPI
-  USE MOD_part_MPI_Vars, ONLY : PMPIVAR
+  !USE MOD_part_MPI_Vars, ONLY : PMPIVAR
+  USE MOD_Particle_Mesh_Vars, ONLY: PartMPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -1051,7 +1053,7 @@ SUBROUTINE WriteOutputMeshSamp()
 
   ALLOCATE (ElemSampOutput(nElems,0:6))
 #ifdef MPI
-  WRITE(myFileName,'(A13,I5.5)')'DSMCMesh_Samp',PMPIVAR%iProc
+  WRITE(myFileName,'(A13,I5.5)')'DSMCMesh_Samp',PartMPI%MyRank
   myFileName=TRIM(TIMESTAMP(myFileName,Time))//'.vtk'
 #else
   myFileName=TRIM(TIMESTAMP('DSMCMesh_Samp',Time))//'.vtk'

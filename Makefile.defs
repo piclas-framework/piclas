@@ -18,6 +18,7 @@
 #                      BLUEGENE  (Juelich Juqueen cluster)
 #=================================================================================================================================#
 INIFILE=$(MAINDIR)ini/particles.ini
+#COMPILER=INTEL_DEBUG
 COMPILER=INTEL_DEBUG
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
 

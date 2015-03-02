@@ -33,7 +33,7 @@ USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_PICDepo_Vars,  ONLY : Source
 USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
 #ifdef MPI
-USE MOD_part_MPI_Vars,      ONLY : PMPIVAR
+USE MOD_Particle_MPI_Vars,      ONLY : PartMPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -72,8 +72,8 @@ DO i=1,PDM%ParticleVecLength
 END DO
 
 #ifdef MPI
-   CALL MPI_ALLREDUCE(PartCharge, PartCharge_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
-   CALL MPI_ALLREDUCE(Charge, Charge_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+   CALL MPI_ALLREDUCE(PartCharge, PartCharge_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
+   CALL MPI_ALLREDUCE(Charge, Charge_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
    PartCharge = PartCharge_sum
    Charge = Charge_sum
 #endif

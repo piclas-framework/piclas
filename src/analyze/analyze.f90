@@ -339,10 +339,8 @@ USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpec
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout
-USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues, WriteOutputMeshSamp
-#ifdef MPI
-USE MOD_part_boundary,         ONLY: ParticleBoundary, Communicate_PIC
-#endif /*MPI*/
+!USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues
+USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, WriteOutputMeshSamp
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
@@ -459,7 +457,7 @@ IF(ForceAnalyze)THEN
     nOutput = INT((DSMC%TimeFracSamp * TEnd) / DSMC%DeltaTimeOutput)
     CALL DSMC_output_calc
     IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
-    IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
+    !IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
   END IF
 #endif
 END IF

@@ -126,25 +126,6 @@ SELECT CASE(PartLorentzType)
         Pt(iPart,2) = (sny * sqrt(ay)*c - PartState(iPart,5)) / dt
         Pt(iPart,3) = (snz * sqrt(az)*c - PartState(iPart,6)) / dt
 
-!       Pt_sq = Pt(i,1)*Pt(i,1)+Pt(i,2)*Pt(i,2)+Pt(i,3)*Pt(i,3)
-!       IF(Pt_sq.EQ.0.0) THEN
-!         v_norm_x = 0
-!         v_norm_y = 0
-!         v_norm_z = 0
-!       ELSE
-!         v_norm_x = Pt(i,1) / SQRT(Pt_sq)
-!         v_norm_y = Pt(i,2) / SQRT(Pt_sq)
-!         v_norm_z = Pt(i,3) / SQRT(Pt_sq)
-!       END IF
-!
-!        v_abs = (SQRT(Pt_sq) * dt + SQRT(velosq)/SQRT(1.0-velosq * c2_inv)) &
-!                / SQRT(1.0 + (SQRT(Pt_sq) * dt + SQRT(velosq)/SQRT(1.0-velosq * c2_inv))**2 * c2_inv)
-!
-!       if (IsNAN(v_abs))print*, "Geschw: ", v_abs, i, PMPIVAR%iProc, SQRT(velosq), ASIN(SQRT(velosq)/c), c, SQRT(velosq)/c
-!
-!        Pt(i,1) = (v_abs - SQRT(velosq)) / dt * v_norm_x
-!        Pt(i,2) = (v_abs - SQRT(velosq)) / dt * v_norm_y
-!        Pt(i,3) = (v_abs - SQRT(velosq)) / dt * v_norm_z
       END IF
     END DO
 
@@ -180,20 +161,6 @@ SELECT CASE(PartLorentzType)
         Vinv(3,1) = Vinv(1,3)
         Vinv(3,2) = Vinv(2,3)
         Vinv(3,3) = (c2*LorentzFac3 + (v1s+v2s)*LorentzFac)*normfac
-
-!        LorentzFac1= 1./SQRT(1.0 - velosq * c2_inv)
-!        LorentzFac2=LorentzFac1*LorentzFac1
-!        LorentzFac3=LorentzFac2*LorentzFac1
-!        ! define inverted matrix
-!        Vinv(1,1) = ((v3s+v2s)*LorentzFac2+c2)/(velosq*LorentzFac3+c2*LorentzFac1)
-!        Vinv(1,2) =-v1*v2*LorentzFac1/(velosq*LorentzFac2+c2)
-!        Vinv(1,2) =-v1*v3*LorentzFac1/(velosq*LorentzFac2+c2)
-!        Vinv(2,1) = Vinv(1,2)
-!        Vinv(2,2) = ((v3s+v1s)*LorentzFac2+c2)/(velosq*LorentzFac3+c2*LorentzFac1)
-!        Vinv(2,3) =-v2*v3*LorentzFac1/(velosq*LorentzFac2+c2)
-!        Vinv(3,1) = Vinv(1,3)
-!        Vinv(3,2) = Vinv(2,3)
-!        Vinv(3,3) =((v1s+v2s)*LorentzFac2+c2)/(velosq*LorentzFac3+c2*LorentzFac1)
 
         qmt = Species(PartSpecies(iPart))%ChargeIC/Species(PartSpecies(iPart))%MassIC
 
