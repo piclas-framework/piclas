@@ -30,7 +30,13 @@ INTERFACE SingleParticleToExactElement
   MODULE PROCEDURE SingleParticleToExactElement
 END INTERFACE
 
-PUBLIC:: InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement
+INTERFACE InitElemVolumes
+  MODULE PROCEDURE InitElemVolumes
+END INTERFACE
+
+
+PUBLIC::InitElemVolumes
+PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement
 !===================================================================================================================================
 
 CONTAINS
@@ -1057,6 +1063,60 @@ CALL InitHaloMesh()
 !IF (OutputMesh) CALL WriteOutputMesh()
 
 END SUBROUTINE InitFIBGM
+
+
+SUBROUTINE InitElemVolumes()
+!===================================================================================================================================
+! Calculate Element volumes for later use in particle routines
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals!,            ONLY : UNIT_StdOut
+USE MOD_Mesh_Vars,          ONLY:nElems,NGeo,sJ
+USE MOD_Particle_Mesh_Vars, ONLY:GEO
+USE MOD_Interpolation_Vars, ONLY:wGP
+USE MOD_Particle_Vars,      ONLY:usevMPF
+USE MOD_ReadInTools
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iElem
+INTEGER           :: i,j,k
+INTEGER           :: ALLOCSTAT
+REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+!===================================================================================================================================
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes)...'
+ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+  ,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
+END IF
+usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
+IF(usevMPF) THEN
+  ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(__STAMP__&
+    ,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
+  END IF
+  GEO%DeltaEvMPF(:) = 0.0
+END IF
+DO iElem=1,nElems
+  !--- Calculate and save volume of element iElem
+  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+  GEO%Volume(iElem) = 0.
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    GEO%Volume(iElem) = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
+  END DO; END DO; END DO
+END DO
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes) DONE!'
+SWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE InitElemVolumes
 
 
 END MODULE MOD_Particle_Mesh

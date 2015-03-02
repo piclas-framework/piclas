@@ -856,14 +856,14 @@ DO rk=1,5
 END DO
 
 !IF(t.EQ.0) CALL Deposition()
-IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-  IF (usevMPF) THEN 
-    CALL DepositionMPF()
-  ELSE 
-    CALL Deposition()
-  END IF
-  !CALL CalcDepositedCharge()
-END IF
+!IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+!  IF (usevMPF) THEN 
+!    CALL DepositionMPF()
+!  ELSE 
+!    CALL Deposition()
+!  END IF
+!  !CALL CalcDepositedCharge()
+!END IF
 
 IF (t.GE.DelayTime) THEN
   CALL InterpolateFieldToParticle()
@@ -894,8 +894,10 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 #ifdef MPI
   CALL MPIParticleSend()
   ! buffer routine
+  CALL Deposition(doInnerParts=.TRUE.)
   CALL MPIParticleRecv()
   ! second buffer
+  CALL Deposition(doInnerParts=.FALSE.)
 #endif
 END IF
 

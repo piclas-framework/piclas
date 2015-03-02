@@ -156,7 +156,7 @@ USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 #ifdef MPI
-  USE MOD_part_MPI_Vars,       ONLY: PMPIVAR
+USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif
 #if ( PP_TimeDiscMethod ==42)
 USE MOD_DSMC_Vars,             ONLY: DSMC, SpecDSMC
@@ -207,7 +207,7 @@ OutputCounter = 2
 unit_index = 535
 #ifdef MPI
 !#ifdef PARTICLES
- IF (PMPIVAR%iProc .EQ. 0) THEN
+ IF (PartMPI%MPIRoot) THEN
 !#else
 ! IF(MPIROOT)THEN
 !#endif /*PARTICLES*/
@@ -391,39 +391,39 @@ IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm)
 #ifdef MPI
 IF(MPIRoot) THEN
   IF(CalcNumSpec) &
-    CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec,nSpecies,MPI_INTEGER,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
   IF (CalcEpot) THEN 
     CALL MPI_REDUCE(MPI_IN_PLACE,WEl , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,WMag, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
   END IF
   IF (CalcEkin) &
-    CALL MPI_REDUCE(MPI_IN_PLACE,Ekin(:) , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,Ekin(:) , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   IF (CalcTemp) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,Temp   , nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
-    Temp = Temp / PMPIVAR%nProcs
+    CALL MPI_REDUCE(MPI_IN_PLACE,Temp   , nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+    Temp = Temp / PartMPI%nProcs
   END IF
   IF (CalcPartBalance)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(:)    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PMPIVAR%COMM,IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,nPartOUt(:)   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PMPIVAR%COMM,IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(:) ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PMPIVAR%COMM,IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(:)    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,nPartOUt(:)   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(:) ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
 ELSE ! no Root
   IF(CalcNumSpec) &
-    CALL MPI_REDUCE(NumSpec,NumSpec,nSpecies,MPI_INTEGER,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+    CALL MPI_REDUCE(NumSpec,NumSpec,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
   IF (CalcEpot) THEN 
     CALL MPI_REDUCE(WEl,WEl  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
     CALL MPI_REDUCE(WMag,WMag,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
   END IF
   IF (CalcEkin) &
-    CALL MPI_REDUCE(Ekin,Ekin(:) , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(Ekin,Ekin(:) , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   IF (CalcTemp) &
-    CALL MPI_REDUCE(Temp,Temp   , nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(Temp,Temp   , nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   IF (CalcPartBalance)THEN
-    CALL MPI_REDUCE(nPartIn,nPartIn(:)    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PMPIVAR%COMM,IERROR)
-    CALL MPI_REDUCE(nPartOut,nPartOUt(:)   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PMPIVAR%COMM,IERROR)
-    CALL MPI_REDUCE(PartEkinIn,PartEkinIn(:) ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PMPIVAR%COMM,IERROR)
-    CALL MPI_REDUCE(PartEkinOut,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PMPIVAR%COMM,IERROR)
+    CALL MPI_REDUCE(nPartIn,nPartIn(:)    ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+    CALL MPI_REDUCE(nPartOut,nPartOUt(:)   ,nSpecies,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
+    CALL MPI_REDUCE(PartEkinIn,PartEkinIn(:) ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+    CALL MPI_REDUCE(PartEkinOut,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
 END IF
 #endif
@@ -436,18 +436,18 @@ IF (CollisMode.NE.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 #ifdef MPI
 ! average over all cells
   IF (CollisMode.NE.1) THEN
-    CALL MPI_REDUCE(IntTemp(:,1), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
-    IntTemp(:,1) = sumIntTemp / PMPIVAR%nProcs
-    CALL MPI_REDUCE(IntTemp(:,2), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0,PMPIVAR%COMM, IERROR)
-    IntTemp(:,2) = sumIntTemp / PMPIVAR%nProcs
-    CALL MPI_REDUCE(IntEn(:,1) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(IntTemp(:,1), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+    IntTemp(:,1) = sumIntTemp / PartMPI%nProcs
+    CALL MPI_REDUCE(IntTemp(:,2), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0,PartMPI%COMM, IERROR)
+    IntTemp(:,2) = sumIntTemp / PartMPI%nProcs
+    CALL MPI_REDUCE(IntEn(:,1) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
     IntEn(:,1) = sumIntEn 
-    CALL MPI_REDUCE(IntEn(:,2) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(IntEn(:,2) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
     IntEn(:,2) = sumIntEn 
     IF ( DSMC%ElectronicState ) THEN
-      CALL MPI_REDUCE(IntTemp(:,3), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
-      IntTemp(:,3) = sumIntTemp / PMPIVAR%nProcs
-      CALL MPI_REDUCE(IntEN(:,3), sumIntEn , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+      CALL MPI_REDUCE(IntTemp(:,3), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+      IntTemp(:,3) = sumIntTemp / PartMPI%nProcs
+      CALL MPI_REDUCE(IntEN(:,3), sumIntEn , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
       IntEn(:,3) = sumIntEn
     END IF
   END IF 
@@ -458,7 +458,7 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
 
 #ifdef MPI
 #ifdef PARTICLES
- IF (PMPIVAR%iProc .EQ. 0) THEN
+ IF (PartMPI%MPIROOT) THEN
 #else
  IF(MPIROOT)THEN
 #endif /*PARTICLES*/
@@ -623,7 +623,7 @@ USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
 #ifdef MPI
-USE MOD_part_MPI_Vars,            ONLY : PMPIVAR
+USE MOD_Particle_MPI_Vars,       ONLY : PartMPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -698,8 +698,8 @@ CASE('AllParts')
   END DO ! i
 IF(NbrOfComps.GT.0.0)THEN
 #ifdef MPI
-  WRITE(*,*) 'ShapeEfficiency (Proc,%,%Elems)',PMPIVAR%iProc,100*NbrWithinRadius/NbrOfComps,100*NbrOfElemsWithinRadius/NbrOfElems
-  WRITE(*,*) 'ShapeEfficiency (Elems) for Proc',PMPIVAR%iProc,'is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
+  WRITE(*,*) 'ShapeEfficiency (Proc,%,%Elems)',PartMPI%MyRank,100*NbrWithinRadius/NbrOfComps,100*NbrOfElemsWithinRadius/NbrOfElems
+  WRITE(*,*) 'ShapeEfficiency (Elems) for Proc',PartMPI%MyRank,'is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
 #else
   WRITE(*,*) 'ShapeEfficiency (%,%Elems)',100*NbrWithinRadius/NbrOfComps, 100*NbrOfElemsWithinRadius/NbrOfElems
   WRITE(*,*) 'ShapeEfficiency (Elems) is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
@@ -759,8 +759,8 @@ CASE('SomeParts')
   END DO ! i
 IF(NbrOfComps.GT.0)THEN
 #ifdef MPI
-  WRITE(*,*) 'ShapeEfficiency (Proc,%,%Elems)',PMPIVAR%iProc,100*NbrWithinRadius/NbrOfComps,100*NbrOfElemsWithinRadius/NbrOfElems
-  WRITE(*,*) 'ShapeEfficiency (Elems) for Proc',PMPIVAR%iProc,'is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
+  WRITE(*,*) 'ShapeEfficiency (Proc,%,%Elems)',PartMPI%MyRank,100*NbrWithinRadius/NbrOfComps,100*NbrOfElemsWithinRadius/NbrOfElems
+  WRITE(*,*) 'ShapeEfficiency (Elems) for Proc',PartMPI%MyRank,'is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
 #else
   WRITE(*,*) 'ShapeEfficiency (%,%Elems)',100*NbrWithinRadius/NbrOfComps,100*NbrOfElemsWithinRadius/NbrOfElems
   WRITE(*,*) 'ShapeEfficiency (Elems) is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
@@ -1023,7 +1023,7 @@ USE MOD_Preproc
 USE MOD_Particle_Vars,        ONLY : PartState, PartSpecies, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
 ! IMPLICIT VARIABLE HANDLING
 #ifdef MPI
-  USE MOD_part_MPI_Vars,      ONLY : PMPIVAR
+USE MOD_Particle_MPI_Vars,    ONLY: PartMPI
 #endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1060,18 +1060,18 @@ REAL                           :: PartVglob(nSpecies), PartVthermglob(nSpecies)
     END IF
   END DO
 #ifdef MPI
-  CALL MPI_ALLREDUCE(PartVloc, PartVglob, nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+  CALL MPI_ALLREDUCE(PartVloc, PartVglob, nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
   PartVloc = PartVglob
 #endif
   IF (usevMPF) THEN
 #ifdef MPI
-    CALL MPI_ALLREDUCE(RealNumSpecloc, RealNumSpecglob, nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+    CALL MPI_ALLREDUCE(RealNumSpecloc, RealNumSpecglob, nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
     RealNumSpecloc = RealNumSpecglob
 #endif
     PartVloc(:) = PartVloc(:)/RealNumSpecloc(:)
   ELSE
 #ifdef MPI
-    CALL MPI_ALLREDUCE(NumSpecloc, NumSpecglob, nSpecies, MPI_INTEGER, MPI_SUM, PMPIVAR%COMM, IERROR)
+    CALL MPI_ALLREDUCE(NumSpecloc, NumSpecglob, nSpecies, MPI_INTEGER, MPI_SUM, PartMPI%COMM, IERROR)
     NumSpecloc = NumSpecglob
 #endif
     PartVloc(:) = PartVloc(:)/NumSpecloc(:)
@@ -1088,7 +1088,7 @@ REAL                           :: PartVglob(nSpecies), PartVthermglob(nSpecies)
     END IF
   END DO
 #ifdef MPI
-  CALL MPI_ALLREDUCE(PartVthermloc, PartVthermglob, nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, PMPIVAR%COMM, IERROR)
+  CALL MPI_ALLREDUCE(PartVthermloc, PartVthermglob, nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, PartMPI%COMM, IERROR)
   PartVthermloc = PartVthermglob
 #endif
   IF (usevMPF) THEN

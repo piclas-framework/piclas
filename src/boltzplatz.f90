@@ -74,13 +74,13 @@ CALL InitRestart()
 CALL InitOutput()
 CALL InitMesh()
 #ifdef MPI
-CALL InitMPIvars()
-#endif
+CALL InitMPIVars()
+#endif /*MPI*/
+!#ifdef PARTICLES
+!CALL InitParticleMPI
+!#endif
 #ifdef PARTICLES
-! missing
-#ifdef MPI
 CALL InitParticleMPI
-#endif
 CALL InitParticleSurfaces()
 !CALL InitParticleMesh()
 #endif /*PARTICLES*/

@@ -76,6 +76,7 @@ IF(ParticleMPIInitIsDone) &
   CALL abort(__STAMP__&
   ,' Particle MPI already initialized!')
 
+#ifdef MPI
 PartMPI%COMM   = MPI_COMM_WORLD
 PartMPI%myrank = myRank
 PartMPI%nProcs = nProcessors
@@ -85,7 +86,11 @@ IF(PartMPI%MyRank.EQ.0) THEN
 ELSE
   PartMPI%MPIRoot=.FALSE.
 END IF
-
+#else
+PartMPI%myRank = 0 
+PartMPI%nProcs = 1 
+PartMPI%MPIRoot=.TRUE.
+#endif  /*MPI*/
 !! determine datatype length for variables to be sent
 !myRealKind = KIND(myRealTestValue)
 !IF (myRealKind.EQ.4) THEN

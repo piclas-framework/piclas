@@ -45,10 +45,9 @@ USE MOD_Metrics,            ONLY:CalcMetrics
 USE MOD_DebugMesh,          ONLY:writeDebugMesh
 USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
 #ifdef PARTICLES
-USE MOD_Particle_Mesh,          ONLY:InitParticleMesh ! new
-USE MOD_Particle_Vars,          ONLY:GEO ! old
-USE MOD_ParticleInit,           ONLY:InitParticleGeometry,InitElemVolumes ! old!
-USE MOD_Particle_Surfaces_Vars, ONLY:nPartCurved, DoPartCurved, SuperSampledNodes,nTriangles,nQuads
+USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes ! new
+!USE MOD_ParticleInit,           ONLY:InitParticleGeometry,InitElemVolumes ! old!
+!USE MOD_Particle_Surfaces_Vars, ONLY:nPartCurved, DoPartCurved, SuperSampledNodes,nTriangles,nQuads
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
 USE MOD_Mesh_Vars,              ONLY:xBaryCL_NGeo
 #endif
@@ -80,10 +79,10 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
 
 NGeo=GETINT('GeometricNGeo','1') 
-#ifdef PARTICLES
-NPartCurved     = GETINT('NPartCurved','1')
-IF(NPartCurved.GT.1) DoPartCurved=.TRUE.
-#endif
+!#ifdef PARTICLES
+!!NPartCurved     = GETINT('NPartCurved','1')
+!!IF(NPartCurved.GT.1) DoPartCurved=.TRUE.
+!#endif
 CALL initMeshBasis(NGeo,PP_N,xGP)
 MeshType=GETINT('MeshType','1')
 
@@ -249,7 +248,7 @@ ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
 ! assign 1/detJ (sJ)
 ! assign normal and tangential vectors and surfElems on faces
 #ifdef PARTICLES
-ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,1:nSides)              )! &
+!ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,1:nSides)              )! &
         !, SuperSampledBiLinearCoeff(1:3,1:4,1:NPartCurved,1:NPartCurved,1:nSides) )
 
 ALLOCATE( BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) ) 
@@ -262,33 +261,6 @@ CALL CalcMetrics()!XCL_NGeo)
 #ifdef PARTICLES
 ! save geometry information for particle tracking
 CALL InitElemVolumes()
-
-
-! obsolet, old procedures
-! new stuff with supersempled surfaces
-!nTriangles=2*NPartCurved*NPartCurved
-!nQuads=NPartCurved*NPartCurved
-!!ALLOCATE(isConcaveTriangle(1:nTriangles))
-!DO iElem=1,PP_nElems
-!  GEO%ConcaveElemSide(:,iElem)=.FALSE.
-!  DO iLocSide = 1,6
-!    !isConcaveTriangle=.FALSE.
-!    iConcaveTriangle=0
-!    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-!    DO q=0,NPartCurved-1
-!      DO p=0,NPartCurved-1
-!        A(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)-SuperSampledNodes(1:3,p,q+1,SideID)
-!        A(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)-SuperSampledNodes(1:3,p,q+1,SideID)
-!        A(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)-SuperSampledNodes(1:3,p,q+1,SideID)
-!        detcon = ((A(2,1) * A(3,2) - A(3,1) * A(2,2)) * A(1,3) +     &
-!                  (A(3,1) * A(1,2) - A(1,1) * A(3,2)) * A(2,3) +     &
-!                  (A(1,1) * A(2,2) - A(2,1) * A(1,2)) * A(3,3))
-!        IF (detcon.LT.0) iConcaveTriangle=iConcaveTriangle+1
-!      END DO !p
-!    END DO !q
-!    IF(iConcaveTriangle.EQ.nTriangles) GEO%ConcaveElemSide(iLocSide,iElem)=.TRUE.
-!  END DO ! ilocSide
-!END DO ! iElem
 #endif
 
 debugmesh=GETLOGICAL('debugmesh','.FALSE.')
@@ -316,7 +288,7 @@ USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm
 USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
 #ifdef PARTICLES
-USE MOD_Particle_Surfaces_Vars,  ONLY: NPartCurved ! has to be read earlierVdm_CLNGeo_EquiNPart
+!USE MOD_Particle_Surfaces_Vars,  ONLY: NPartCurved ! has to be read earlierVdm_CLNGeo_EquiNPart
 USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_CLNGeo_EquiNPartCurved,Vdm_Bezier,sVdm_Bezier
 USE MOD_Basis,                   ONLY: BuildBezierVdm
 #endif
@@ -334,7 +306,7 @@ REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP
 REAL,DIMENSION(0:N_in)                     :: XiCL_N,wBaryCL_N
 REAL,DIMENSION(0:NGeo_in)                  :: wBary_NGeo!: XiCL_NGeo,!,wBaryCL_NGeo,wBary_NGeo
 #ifdef PARTICLES
-REAL,DIMENSION(0:NPartCurved)              :: XiEquiPartCurved
+REAL,DIMENSION(0:NGeo_in)                  :: XiEquiPartCurved
 #endif
 INTEGER                                    :: i
 !===================================================================================================================================
@@ -369,13 +341,13 @@ CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,XiCL_N   ,Vdm_
 CALL InitializeVandermonde(NGeo_in,NGeo_in,wBary_NGeo  ,Xi_NGeo  ,XiCL_NGeo,Vdm_NGeo_CLNGeo  )
 #ifdef PARTICLES
 ! new for curved particle sides
-ALLOCATE(Vdm_CLNGeo_EquiNPartCurved(0:NGeo_in,0:NPartCurved))
+ALLOCATE(Vdm_CLNGeo_EquiNPartCurved(0:NGeo_in,0:NGeo_in))
 ALLOCATE(Vdm_Bezier(0:NGeo_in,0:NGeo_in),sVdm_Bezier(0:NGeo_in,0:NGeo_in))
 ! initialize vandermonde for super-sampled surfaces (particle tracking with curved elements)
-DO i=0,NPartCurved
-  XiEquiPartCurved(i) = 2./REAL(NPartCurved) * REAL(i) - 1. 
+DO i=0,NGeo_in
+  XiEquiPartCurved(i) = 2./REAL(NGeo_in) * REAL(i) - 1. 
 END DO
-CALL InitializeVandermonde(NGeo_in,NPartCurved ,wBaryCL_NGeo,XiCL_NGeo,XiEquiPartCurved   ,Vdm_CLNGeo_EquiNPartCurved   )
+!CALL InitializeVandermonde(NGeo_in,NGeo_in ,wBaryCL_NGeo,XiCL_NGeo,XiEquiPartCurved   ,Vdm_CLNGeo_EquiNPartCurved   )
 ! initialize vandermonde for bezier basis surface representation (particle tracking with curved elements)
 !CALL BuildBezierVdm(NGeo_in,Xi_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
 CALL BuildBezierVdm(NGeo_in,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG

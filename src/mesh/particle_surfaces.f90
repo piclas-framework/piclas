@@ -29,9 +29,9 @@ INTERFACE CalcBiLinearNormVec
   MODULE PROCEDURE CalcBiLinearNormVec
 END INTERFACE
 
-INTERFACE GetSuperSampledSurface
-  MODULE PROCEDURE GetSuperSampledSurface
-END INTERFACE
+!INTERFACE GetSuperSampledSurface
+!  MODULE PROCEDURE GetSuperSampledSurface
+!END INTERFACE
 
 INTERFACE GetBezierControlPoints3D
   MODULE PROCEDURE GetBezierControlPoints3D
@@ -50,7 +50,7 @@ INTERFACE CalcBiLinearNormVecBezier
 END INTERFACE
 
 
-PUBLIC::GetSideType, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, GetSuperSampledSurface, &
+PUBLIC::GetSideType, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, &!GetSuperSampledSurface, &
         CalcNormVec,GetBezierControlPoints3D,CalcBiLinearNormVecBezier,CalcNormVecBezier
 
 
@@ -554,325 +554,325 @@ CalcNormVec=CROSSNORM(a,b)
 !CalcNormVec=nVec/nlength
 END FUNCTION CalcNormVec
 
-SUBROUTINE GetSuperSampledSurface(XCL_NGeo,iElem)
+!SUBROUTINE GetSuperSampledSurface(XCL_NGeo,iElem)
 !===================================================================================================================================
 ! computes the nodes and coeffs for [P][I][C] [A]daptive [S]uper [S]ampled Surfaces [O]perations
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide,SideToElem,NGeo
-USE MOD_Particle_Surfaces_Vars,   ONLY:SuperSampledNodes,nPartCurved,Vdm_CLNGeo_EquiNPartCurved
-USE MOD_Mesh_Vars,                ONLY:nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
+!USE MOD_Globals
+!USE MOD_Preproc
+!USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide,SideToElem,NGeo
+!USE MOD_Particle_Surfaces_Vars,   ONLY:SuperSampledNodes,nPartCurved,Vdm_CLNGeo_EquiNPartCurved
+!USE MOD_Mesh_Vars,                ONLY:nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+!USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: iElem
-REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
+!INTEGER,INTENT(IN) :: iElem
+!REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: lastSideID,flip,SideID
-INTEGER                           :: p,q
-REAL                              :: tmp(3,0:NPartCurved,0:NPartCurved)  
+!INTEGER                           :: lastSideID,flip,SideID
+!INTEGER                           :: p,q
+!REAL                              :: tmp(3,0:NPartCurved,0:NPartCurved)  
 
 !===================================================================================================================================
 
-! BCSides, InnerSides and MINE MPISides are filled
-lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
-
-! interpolate to xi sides
-! xi_minus
-SideID=ElemToSide(E2S_SIDE_ID,XI_MINUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,XI_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,0,:,:),tmp)
-    ! turn into right hand system of side
-    DO q=0,NPartCurved
-      DO p=0,NPartCurved
-        SuperSampledNodes(1:3,p,q,sideID)=tmp(:,q,p)
-      END DO !p
-    END DO !q
-  END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,0,:,:),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
-        END DO ! p
-      END DO ! q
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
-        END DO ! p
-      END DO ! q
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
-        END DO ! p
-      END DO ! q
-  END SELECT
-END IF
-!  print*,'xi_minus'
-!  DO q=0,NPartCurved
+!! BCSides, InnerSides and MINE MPISides are filled
+!lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
+!
+!! interpolate to xi sides
+!! xi_minus
+!SideID=ElemToSide(E2S_SIDE_ID,XI_MINUS,iElem)
+!IF(SideID.LE.lastSideID)THEN
+!  IF(ElemToSide(E2S_FLIP,XI_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
+!    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,0,:,:),tmp)
+!    ! turn into right hand system of side
+!    DO q=0,NPartCurved
 !      DO p=0,NPartCurved
-!        print*,SuperSampledNodes(:,p,q,SideID)
-!      END DO ! p
-!    END DO ! q
-!    read*
-
-SideID=ElemToSide(E2S_SIDE_ID,XI_PLUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,XI_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,nPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,NGeo,:,:),tmp)
-    !print*,'ixi'
-    SuperSampledNodes(:,:,:,SideID)=tmp
-  END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,NGeo,:,:),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
-        END DO ! p
-      END DO ! q
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
-        END DO ! p
-      END DO ! q
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
-        END DO ! p
-      END DO ! q
-  END SELECT
-END IF
-!  print*,'xi_plus'
-!  DO q=0,NPartCurved
-!    DO p=0,NPartCurved
-!      print*,SuperSampledNodes(:,p,q,SideID)
-!    END DO ! p
-!  END DO ! q
-!  read*
-
-! interpolate to eta sides
-SideID=ElemToSide(E2S_SIDE_ID,ETA_MINUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,ETA_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,0,:),SuperSampledNodes(1:3,:,:,sideID))
-   END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,0,:),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
-        END DO ! p
-      END DO ! q
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
-        END DO ! p
-      END DO ! q
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
-        END DO ! p
-      END DO ! q
-  END SELECT
-END IF
-!  print*,'eta_minus'
-!  DO q=0,NPartCurved
-!    DO p=0,NPartCurved
-!      print*,SuperSampledNodes(:,p,q,SideID)
-!    END DO ! p
-!  END DO ! q
-!  read*
-
-  
-SideID=ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,ETA_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,NGeo,:),tmp)
-    ! turn into right hand system of side
-    DO q=0,NPartCurved
-      DO p=0,NPartCurved
-        SuperSampledNodes(1:3,p,q,sideID)=tmp(:,NPartCurved-p,q)
-      END DO !p
-    END DO !q
-  END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,NGeo,:),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
-        END DO ! p
-      END DO ! q
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
-        END DO ! p
-      END DO ! q
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
-        END DO ! p
-      END DO ! q
-  END SELECT
-END IF
-!  print*,'eta_plus'
-!  DO q=0,NPartCurved
-!    DO p=0,NPartCurved
-!      print*,SuperSampledNodes(:,p,q,SideID)
-!    END DO ! p
-!  END DO ! q
-!  read*
-
-
-! interpolate to zeta sides
-SideID=ElemToSide(E2S_SIDE_ID,ZETA_MINUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,ZETA_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,0),tmp)
-    ! turn into right hand system of side
-    DO q=0,NPartCurved
-      DO p=0,NPartCurved
-        SuperSampledNodes(1:3,p,q,sideID)=tmp(:,q,p)
-      END DO !p
-    END DO !q
-  END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,0),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
-        END DO ! p
-      END DO ! q
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
-        END DO ! p
-      END DO ! q
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
-        END DO ! p
-      END DO ! q
-  END SELECT
-END IF
-!  print*,'zeta_minus'
-!  DO q=0,NPartCurved
-!    DO p=0,NPartCurved
-!      print*,SuperSampledNodes(:,p,q,SideID)
-!    END DO ! p
-!  END DO ! q
-!  read*
-
-
-SideID=ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
-IF(SideID.LE.lastSideID)THEN
-  IF(ElemToSide(E2S_FLIP,ZETA_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    IF ((sideID.LE.nBCSides))THEN !BC
-      CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,NGeo),SuperSampledNodes(1:3,:,:,sideID))
-    END IF !BC
-  END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,NGeo),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
-        END DO ! p
-      END DO ! q
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
-        END DO ! p
-      END DO ! q
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NPartCurved
-        DO p=0,NPartCurved
-          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
-        END DO ! p
-      END DO ! q
-  END SELECT
-END IF
-!  print*,'zeta_plus'
-!  DO q=0,NPartCurved
-!    DO p=0,NPartCurved
-!      print*,SuperSampledNodes(:,p,q,SideID)
-!    END DO ! p
-!  END DO ! q
-!  read*
-
-END SUBROUTINE GetSuperSampledSurface
+!        SuperSampledNodes(1:3,p,q,sideID)=tmp(:,q,p)
+!      END DO !p
+!    END DO !q
+!  END IF !flip=0
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,0,:,:),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+!        END DO ! p
+!      END DO ! q
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+!        END DO ! p
+!      END DO ! q
+!  END SELECT
+!END IF
+!!  print*,'xi_minus'
+!!  DO q=0,NPartCurved
+!!      DO p=0,NPartCurved
+!!        print*,SuperSampledNodes(:,p,q,SideID)
+!!      END DO ! p
+!!    END DO ! q
+!!    read*
+!
+!SideID=ElemToSide(E2S_SIDE_ID,XI_PLUS,iElem)
+!IF(SideID.LE.lastSideID)THEN
+!  IF(ElemToSide(E2S_FLIP,XI_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
+!    CALL ChangeBasis2D(3,NGeo,nPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,NGeo,:,:),tmp)
+!    !print*,'ixi'
+!    SuperSampledNodes(:,:,:,SideID)=tmp
+!  END IF !flip=0
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,NGeo,:,:),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+!        END DO ! p
+!      END DO ! q
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+!        END DO ! p
+!      END DO ! q
+!  END SELECT
+!END IF
+!!  print*,'xi_plus'
+!!  DO q=0,NPartCurved
+!!    DO p=0,NPartCurved
+!!      print*,SuperSampledNodes(:,p,q,SideID)
+!!    END DO ! p
+!!  END DO ! q
+!!  read*
+!
+!! interpolate to eta sides
+!SideID=ElemToSide(E2S_SIDE_ID,ETA_MINUS,iElem)
+!IF(SideID.LE.lastSideID)THEN
+!  IF(ElemToSide(E2S_FLIP,ETA_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
+!    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,0,:),SuperSampledNodes(1:3,:,:,sideID))
+!   END IF !flip=0
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,0,:),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+!        END DO ! p
+!      END DO ! q
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+!        END DO ! p
+!      END DO ! q
+!  END SELECT
+!END IF
+!!  print*,'eta_minus'
+!!  DO q=0,NPartCurved
+!!    DO p=0,NPartCurved
+!!      print*,SuperSampledNodes(:,p,q,SideID)
+!!    END DO ! p
+!!  END DO ! q
+!!  read*
+!
+!  
+!SideID=ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem)
+!IF(SideID.LE.lastSideID)THEN
+!  IF(ElemToSide(E2S_FLIP,ETA_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
+!    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,NGeo,:),tmp)
+!    ! turn into right hand system of side
+!    DO q=0,NPartCurved
+!      DO p=0,NPartCurved
+!        SuperSampledNodes(1:3,p,q,sideID)=tmp(:,NPartCurved-p,q)
+!      END DO !p
+!    END DO !q
+!  END IF !flip=0
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,NGeo,:),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+!        END DO ! p
+!      END DO ! q
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+!        END DO ! p
+!      END DO ! q
+!  END SELECT
+!END IF
+!!  print*,'eta_plus'
+!!  DO q=0,NPartCurved
+!!    DO p=0,NPartCurved
+!!      print*,SuperSampledNodes(:,p,q,SideID)
+!!    END DO ! p
+!!  END DO ! q
+!!  read*
+!
+!
+!! interpolate to zeta sides
+!SideID=ElemToSide(E2S_SIDE_ID,ZETA_MINUS,iElem)
+!IF(SideID.LE.lastSideID)THEN
+!  IF(ElemToSide(E2S_FLIP,ZETA_MINUS,iElem).EQ.0) THEN !if flip=0, master side!!
+!    CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,0),tmp)
+!    ! turn into right hand system of side
+!    DO q=0,NPartCurved
+!      DO p=0,NPartCurved
+!        SuperSampledNodes(1:3,p,q,sideID)=tmp(:,q,p)
+!      END DO !p
+!    END DO !q
+!  END IF !flip=0
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,0),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+!        END DO ! p
+!      END DO ! q
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+!        END DO ! p
+!      END DO ! q
+!  END SELECT
+!END IF
+!!  print*,'zeta_minus'
+!!  DO q=0,NPartCurved
+!!    DO p=0,NPartCurved
+!!      print*,SuperSampledNodes(:,p,q,SideID)
+!!    END DO ! p
+!!  END DO ! q
+!!  read*
+!
+!
+!SideID=ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
+!IF(SideID.LE.lastSideID)THEN
+!  IF(ElemToSide(E2S_FLIP,ZETA_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
+!    IF ((sideID.LE.nBCSides))THEN !BC
+!      CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,NGeo),SuperSampledNodes(1:3,:,:,sideID))
+!    END IF !BC
+!  END IF !flip=0
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NPartCurved,Vdm_CLNGeo_EquiNPartCurved,XCL_NGeo(1:3,:,:,NGeo),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-p,q)
+!        END DO ! p
+!      END DO ! q
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,NPartCurved-q,NPartCurved-p)
+!        END DO ! p
+!      END DO ! q
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NPartCurved
+!        DO p=0,NPartCurved
+!          SuperSampledNodes(:,p,q,SideID)=tmp(:,p,NPartCurved-q)
+!        END DO ! p
+!      END DO ! q
+!  END SELECT
+!END IF
+!!  print*,'zeta_plus'
+!!  DO q=0,NPartCurved
+!!    DO p=0,NPartCurved
+!!      print*,SuperSampledNodes(:,p,q,SideID)
+!!    END DO ! p
+!!  END DO ! q
+!!  read*
+!
+!END SUBROUTINE GetSuperSampledSurface
 
 SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,iElem)
 !===================================================================================================================================

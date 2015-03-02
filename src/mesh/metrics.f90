@@ -74,7 +74,8 @@ USE MOD_Mesh_Vars,               ONLY:DCL_NGeo,DCL_N
 USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:nElems
 #ifdef PARTICLES
-USE MOD_Particle_Surfaces,       ONLY:GetSuperSampledSurface,GetBezierControlPoints3D!,GetSideType
+!USE MOD_Particle_Surfaces,       ONLY:GetSuperSampledSurface,GetBezierControlPoints3D!,GetSideType
+USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D!,GetSideType
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,               ONLY:xBaryCL_NGeo
 #endif /*PARTICLES*/
@@ -298,7 +299,7 @@ DO iElem=1,nElems
   CALL CalcSurfMetrics(JaCL_N,XCL_N,iElem)
 #ifdef PARTICLES
   ! get supersampled surfaces informations
-  CALL GetSuperSampledSurface  (XCL_NGeo(:,:,:,:,iElem),iElem)
+!  CALL GetSuperSampledSurface  (XCL_NGeo(:,:,:,:,iElem),iElem)
   CALL GetBezierControlPoints3D(XCL_NGeo(:,:,:,:,iElem),iElem)
   ! compute barycenter of element
   xBaryCL_NGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))/NGeo
