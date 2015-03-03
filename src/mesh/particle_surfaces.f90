@@ -922,40 +922,41 @@ IF(SideID.LE.lastSideID)THEN
     END DO !q
     CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
   END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-  END SELECT
 END IF
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!  END SELECT
+!END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 2.) XI_PLUS
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -967,40 +968,41 @@ IF(SideID.LE.lastSideID)THEN
     BezierControlPoints3D(:,:,:,SideID)=tmp
     CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
   END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-  END SELECT
 END IF
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!  END SELECT
+!END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 3.) ETA_MINUS
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1010,40 +1012,41 @@ IF(SideID.LE.lastSideID)THEN
     CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:),BezierControlPoints3D(1:3,:,:,sideID))
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
    END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-  END SELECT
 END IF
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!  END SELECT
+!END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 4.) ETA_PLUS
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1059,40 +1062,41 @@ IF(SideID.LE.lastSideID)THEN
     END DO !q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
   END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-  END SELECT
 END IF
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!  END SELECT
+!END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 5.) ZETA_MINUS
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1108,40 +1112,41 @@ IF(SideID.LE.lastSideID)THEN
     END DO !q
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
   END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-  END SELECT
 END IF
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!  END SELECT
+!END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 6.) ZETA_PLUS
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1153,40 +1158,41 @@ IF(SideID.LE.lastSideID)THEN
       CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
     END IF !BC
   END IF !flip=0
-ELSE ! no master, here has to come the suff with the slave
-  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo),tmp)
-  flip= SideToElem(S2E_FLIP,SideID)
-  SELECT CASE(flip)
-    CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,NGeo
-        DO p=0,NGeo
-          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
-        END DO ! p
-      END DO ! q
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-  END SELECT
 END IF
+!ELSE ! no master, here has to come the suff with the slave
+!  CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo),tmp)
+!  flip= SideToElem(S2E_FLIP,SideID)
+!  SELECT CASE(flip)
+!    CASE(1) ! slave side, SideID=q,jSide=p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,q,p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(2) ! slave side, SideID=N-p,jSide=q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-p,q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(3) ! slave side, SideID=N-q,jSide=N-p
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,NGeo-q,NGeo-p)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!    CASE(4) ! slave side, SideID=p,jSide=N-q
+!      DO q=0,NGeo
+!        DO p=0,NGeo
+!          BezierControlPoints3D(:,p,q,SideID)=tmp(:,p,NGeo-q)
+!        END DO ! p
+!      END DO ! q
+!      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
+!  END SELECT
+!END IF
 END SUBROUTINE GetBezierControlPoints3D
 
 SUBROUTINE GetSlabNormalsAndIntervalls(NGeo,SideID)

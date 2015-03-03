@@ -835,8 +835,8 @@ END IF
 
 DEALLOCATE(isElem,isSide,ElemIndex,SideIndex)
 
-!print*,'Rank,sendsides',PartMPI%MyRank,SendMsg%nSides
-!print*,'Rank,recvsides',PartMPI%MyRank,RecvMsg%nSides
+print*,'Rank,sendsides',PartMPI%MyRank,SendMsg%nSides
+print*,'Rank,recvsides',PartMPI%MyRank,RecvMsg%nSides
 !print*,'Rank,recvelemtoside',PartMPI%MyRank,RecvMsg%ElemToSide
 !print*,'iproc',iproc
 
@@ -886,7 +886,7 @@ IF (RecvMsg%nSides.GT.0) THEN
   END DO ! iHaloSide
   
   ! new number of sides
-  !print*,'MyRank,nSides,nnewSides,nDoubleSides', PartMPI%MyRank,nSides,SendMsg%nSides,nDoubleSides
+  print*,'MyRank,nSides,nnewSides,nDoubleSides', PartMPI%MyRank,nSides,SendMsg%nSides,nDoubleSides
   tmpnSides =nTotalSides
   tmpnElems=nTotalElems
   nTotalSides=nTotalSides+SendMsg%nSides-nDoubleSides
@@ -985,9 +985,16 @@ IF (RecvMsg%nSides.GT.0) THEN
       ! copy Bezier to new side id
       IF(.NOT.isDoubleSide) THEN
         BezierControlPoints3D(1:3,0:NGeo,0:NGeo,newSideID)=RecvMsg%BezierControlpoints3D(1:3,0:NGeo,0:NGeo,haloSideID)
+        ! SlabBoundingBox has to be sent because only BezierPoints of Slave-Sides are received
         SlabNormals(1:3,1:3,newSideID)=RecvMsg%SlabNormals(1:3,1:3,haloSideID)
         SlabIntervalls(1:6,newSideID) =RecvMsg%SlabIntervalls(1:6 ,haloSideID) 
         BoundingBoxIsEmpty(newSideID) =RecvMsg%BoundingBoxIsEmpty( haloSideID) 
+      ELSE
+        IF(RecvMsg%ElemToSide(2,ilocSide,iElem).EQ.0)THEN
+          SlabNormals(1:3,1:3,newSideID)=RecvMsg%SlabNormals(1:3,1:3,haloSideID)
+          SlabIntervalls(1:6,newSideID) =RecvMsg%SlabIntervalls(1:6 ,haloSideID) 
+          BoundingBoxIsEmpty(newSideID) =RecvMsg%BoundingBoxIsEmpty( haloSideID) 
+        END IF
       END IF
       ! build entry to PartElemToSide
       PartElemToSide(1,iLocSide,newElemId)=newSideID
