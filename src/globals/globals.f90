@@ -5,6 +5,9 @@ MODULE MOD_Globals
 ! Provides parameters, used globally (please use EXTREMLY carefully!) 
 !===================================================================================================================================
 ! MODULES
+#ifdef MPI
+USE mpi
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -21,7 +24,7 @@ INTEGER           ::myRank
 INTEGER           ::nProcessors
 LOGICAL           ::MPIRoot
 #ifdef MPI
-#include "mpif.h"
+!#include "mpif.h"
 INTEGER           :: MPIStatus(MPI_STATUS_SIZE)
 #endif
 

@@ -72,14 +72,14 @@ DO iPart=1,PDM%ParticleVecLength
     !LastElemID=ElemID
     ! DEBUUGGG
     !!!PartState(iPart,3)=LastPartPos(iPart,3)+2.0
-    IF(DOT_PRODUCT(LastPartPos(iPart,1:2),LastPartPos(iPart,1:2)).GT.0.52)THEN
-      print*,'wuuumm'
-      STOP
-    END IF
-    IF(ABS(LastPartPos(ipart,3)).GT.0.2501)THEN
-      print*,'out of space'
-      STOP
-    END IF
+!    IF(DOT_PRODUCT(LastPartPos(iPart,1:2),LastPartPos(iPart,1:2)).GT.0.52)THEN
+!      print*,'wuuumm'
+!      STOP
+!    END IF
+!    IF(ABS(LastPartPos(ipart,3)).GT.0.2501)THEN
+!      print*,'out of space'
+!      STOP
+!    END IF
 
 !    IF(time.GT.104.0)THEN
 !      print*,'ElemID',ElemID

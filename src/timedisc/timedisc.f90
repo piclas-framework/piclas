@@ -410,6 +410,7 @@ END IF
     IF(DoPML) CALL TransformPMLVars()
     ! Write recordpoints data to hdf5
     IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
+    WRITE(UNIT_StdOut,'(132("-"))')
     iter_loc=0
     CalcTimeStart=BOLTZPLATZTIME()
     tAnalyze=tAnalyze+Analyze_dt

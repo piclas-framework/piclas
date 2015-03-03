@@ -180,12 +180,15 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 SDEALLOCATE(SideType)
-SDEALLOCATE(BiLinearCoeff)
+!SDEALLOCATE(BiLinearCoeff)
 SDEALLOCATE(SideNormVec)
 SDEALLOCATE(SideDistance)
-SDEALLOCATE(SuperSampledNodes)
+!SDEALLOCATE(SuperSampledNodes)
 SDEALLOCATE(BezierControlPoints3D)
-SDEALLOCATE(SuperSampledBiLinearCoeff)
+!SDEALLOCATE(SuperSampledBiLinearCoeff)
+SDEALLOCATE(SlabNormals)
+SDEALLOCATE(SlabIntervalls)
+SDEALLOCATE(BoundingBoxIsEmpty)
 SDEALLOCATE(locAlpha)
 SDEALLOCATE(locXi)
 SDEALLOCATE(locEta)
@@ -1447,7 +1450,7 @@ IMPLICIT NONE
 !OUTPUT VARIABLES
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved
+INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy
 REAL,DIMENSION(1:3)         :: v1,v2
 REAL                        :: length,eps
 LOGICAL                     :: isLinear
@@ -1557,9 +1560,9 @@ IF(MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,nBilinear,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,nCurved  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
 ELSE ! no Root
-  CALL MPI_REDUCE(nPlanar   ,nPlanar  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  CALL MPI_REDUCE(nBilinear,nBilinear,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  CALL MPI_REDUCE(nCurved  ,nCurved  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nPlanar  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nBilinear,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nCurved  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
 END IF
 #endif /*MPI*/
 

@@ -20,6 +20,7 @@ LOGICAL                       :: CalcTemp                              ! Computa
 LOGICAL                       :: CalcPartBalance                       ! Particle Power Balance - input and outflow energy of all
                                                                        ! particles
 LOGICAL                       :: CalcVelos                             ! Computes the drift and thermal velocity of each species
+LOGICAL                       :: VeloDirs(4)                           ! select the direction for velo computation
 LOGICAL                       :: TrackParticlePosition                 ! track the particle movement
                                                                        ! stored in .csv format, debug only, no MPI 
 INTEGER                       :: nEkin                                 ! number of kinetic energies 

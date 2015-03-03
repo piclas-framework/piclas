@@ -18,6 +18,7 @@ SUBROUTINE ParticleBoundary()                                                   
 #ifdef MPI
   USE MOD_Globals,        ONLY : myRank
   USE MOD_PICDepo_Vars,   ONLY : DepositionType
+  use mpi
 #endif
   USE MOD_Particle_Vars !,  ONLY : PDM
   USE MOD_part_MPI_Vars,  ONLY : PMPIVAR,PMPIExchange,ExtPartsAllocated,NbrOfextParticles
@@ -25,9 +26,9 @@ SUBROUTINE ParticleBoundary()                                                   
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                    !
 !--------------------------------------------------------------------------------------------------!
-#ifdef MPI
-  INCLUDE 'mpif.h'                                                                                 !
-#endif
+!#ifdef MPI
+!  INCLUDE 'mpif.h'                                                                                 !
+!#endif
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
@@ -144,10 +145,11 @@ SUBROUTINE Communicate_PIC()                                                    
    USE MOD_PICDepo_Vars          ,ONLY : DepositionType
    USE MOD_part_tools            ,ONLY : UpdateNextFreePosition                                    !
    USE MOD_part_MPI_Vars         ,ONLY : PMPIVAR,PMPIExchange
+   use mpi
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
-   INCLUDE 'mpif.h'                                                                                !
+   !INCLUDE 'mpif.h'                                                                                !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
@@ -801,11 +803,12 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
                                   partShiftVector
     USE MOD_PICDepo_Vars,  ONLY : DepositionType
     USE MOD_Globals,       ONLY : myRank
+    use mpi
     !USE MOD_LD_Vars,       ONLY: UseLD, PartStateBulkValues
     !----------------------------------------------------------------------------------------------!
     IMPLICIT NONE                                                                                  !
     !----------------------------------------------------------------------------------------------!
-    INCLUDE 'mpif.h'                                                                               !
+    !INCLUDE 'mpif.h'                                                                               !
     !----------------------------------------------------------------------------------------------!
     ! Argument list declaration                                                                    !
     INTEGER, INTENT(IN)              :: n, nshape                                                  !
@@ -1247,11 +1250,12 @@ USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
     USE MOD_part_MPI_Vars, ONLY : tMPIMessage,PMPIVAR
     USE MOD_part_MPI_Vars, ONLY : extPartState,extPartSpecies,extPartsAllocated,NbrOfAllocatedExtParts,NbrOfextParticles
     USE MOD_PICDepo_Vars,  ONLY : DepositionType
+    use mpi
     !USE MOD_LD_Vars,       ONLY: UseLD, PartStateBulkValues
     !----------------------------------------------------------------------------------------------!
     IMPLICIT NONE                                                                                  !
     !----------------------------------------------------------------------------------------------!
-    INCLUDE 'mpif.h'                                                                               !
+    !INCLUDE 'mpif.h'                                                                               !
     !----------------------------------------------------------------------------------------------!
     ! Argument list declaration                                                                    !
     INTEGER, INTENT(OUT)             :: nRecv                                                      !

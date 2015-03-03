@@ -21,6 +21,20 @@ INTEGER             :: myRealKind
 LOGICAL                                  :: ParticleMPIInitIsDone=.FALSE.
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)                   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfCases                        ! Number of periodic cases
+
+TYPE tPartMPIVAR
+!  TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)             ! MPI connect for each process
+  INTEGER                                :: COMM                          ! MPI communicator for PIC GTS region
+  INTEGER                                :: nProcs                        ! number of MPI processes for particles
+  INTEGER                                :: MyRank                        ! MyRank of PartMPIVAR%COMM
+  LOGICAL                                :: MPIRoot                       ! Root, MPIRank=0
+  INTEGER                                :: nMPINeighbors                 ! number of MPI-Neighbors with HALO
+  LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)              ! list of possible neighbors
+  INTEGER,ALLOCATABLE                    :: MPINeighbor(:)                ! list containing the rank of MPI-neighbors
+END TYPE
+
+TYPE (tPartMPIVAR)                       :: PartMPI
+
 #ifdef MPI
 INTEGER                                  :: PartCommSize                      ! Number of REAL entries for particle communication
                                                                               ! should think about own MPI-Data-Type
@@ -42,18 +56,6 @@ TYPE tPartMPIConnect
   INTEGER                                :: BGMPeriodicBorderCount            ! Number(#) of overlapping areas due to periodic bc
 END TYPE
 
-TYPE tPartMPIVAR
-  TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)             ! MPI connect for each process
-  INTEGER                                :: COMM                          ! MPI communicator for PIC GTS region
-  INTEGER                                :: nProcs                        ! number of MPI processes for particles
-  INTEGER                                :: MyRank                        ! MyRank of PartMPIVAR%COMM
-  LOGICAL                                :: MPIRoot                       ! Root, MPIRank=0
-  INTEGER                                :: nMPINeighbors                 ! number of MPI-Neighbors with HALO
-  LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)              ! list of possible neighbors
-  INTEGER,ALLOCATABLE                    :: MPINeighbor(:)                ! list containing the rank of MPI-neighbors
-END TYPE
-
-TYPE (tPartMPIVAR)                       :: PartMPI
 
 TYPE tMPIMessage
   REAL,ALLOCATABLE                      :: content(:)                   ! message buffer real
