@@ -1153,10 +1153,8 @@ END IF
 SideID=ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
 IF(SideID.LE.lastSideID)THEN
   IF(ElemToSide(E2S_FLIP,ZETA_PLUS,iElem).EQ.0) THEN !if flip=0, master side!!
-    IF ((sideID.LE.nBCSides))THEN !BC
-      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo),BezierControlPoints3D(1:3,:,:,sideID))
-      CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
-    END IF !BC
+    CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo),BezierControlPoints3D(1:3,:,:,sideID))
+    CALL GetSlabNormalsAndIntervalls(NGeo,SideID)
   END IF !flip=0
 END IF
 !ELSE ! no master, here has to come the suff with the slave

@@ -835,8 +835,8 @@ END IF
 
 DEALLOCATE(isElem,isSide,ElemIndex,SideIndex)
 
-print*,'Rank,sendsides',PartMPI%MyRank,SendMsg%nSides
-print*,'Rank,recvsides',PartMPI%MyRank,RecvMsg%nSides
+!print*,'Rank,sendsides',PartMPI%MyRank,SendMsg%nSides
+!print*,'Rank,recvsides',PartMPI%MyRank,RecvMsg%nSides
 !print*,'Rank,recvelemtoside',PartMPI%MyRank,RecvMsg%ElemToSide
 !print*,'iproc',iproc
 
@@ -886,7 +886,7 @@ IF (RecvMsg%nSides.GT.0) THEN
   END DO ! iHaloSide
   
   ! new number of sides
-  print*,'MyRank,nSides,nnewSides,nDoubleSides', PartMPI%MyRank,nSides,SendMsg%nSides,nDoubleSides
+  !print*,'MyRank,nSides,nnewSides,nDoubleSides', PartMPI%MyRank,nSides,SendMsg%nSides,nDoubleSides
   tmpnSides =nTotalSides
   tmpnElems=nTotalElems
   nTotalSides=nTotalSides+SendMsg%nSides-nDoubleSides

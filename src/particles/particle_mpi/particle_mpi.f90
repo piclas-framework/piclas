@@ -792,7 +792,7 @@ DO iProc=0,PartMPI%nProcs-1
     END DO ! iElem
   END IF
 END DO
-WRITE(*,*) ' MyRank, List Of Neighbor Procs', PartMPI%MyRank, PartMPI%nMPINeighbors,PartMPI%MPINeighbor
+!WRITE(*,*) ' MyRank, List Of Neighbor Procs', PartMPI%MyRank, PartMPI%nMPINeighbors,PartMPI%MPINeighbor
 
 IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
   __STAMP__&
