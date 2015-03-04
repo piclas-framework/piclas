@@ -171,7 +171,8 @@ USE MOD_Particle_Vars,   ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecie
 USE MOD_part_tools,      ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars,       ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
 !USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
-USE MOD_BoundaryTools,   ONLY: ParticleInsideQuad3D
+!USE MOD_BoundaryTools,   ONLY: ParticleInsideQuad3D
+USE MOD_Eval_XYZ,        ONLY: EVal_xyz_ElemCheck
 USE MOD_Particle_Mesh,   ONLY:SingleParticleToExactElement
 #ifdef MPI
 USE MOD_part_MPI_Vars,   ONLY : PMPIVAR
@@ -197,6 +198,7 @@ INTEGER                  :: locnPart,offsetnPart
 INTEGER,PARAMETER        :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER        :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE         :: PartData(:,:)
+REAL                     :: xi(3)
 LOGICAL                  :: InElementCheck
 REAL                     :: det(16)
 INTEGER                  :: COUNTER, COUNTER2
@@ -204,6 +206,8 @@ INTEGER                  :: COUNTER, COUNTER2
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
 INTEGER                  :: LostParts(0:PMPIVAR%nProcs-1), Displace(0:PMPIVAR%nProcs-1),CurrentPartNum
 INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PMPIVAR%nProcs-1)
+REAL,PARAMETER           :: eps=1e-8 ! same value as in eval_xyz_elem
+REAL                     :: epsOne
 #endif /*MPI*/
 #endif /*PARTICLES*/
 !===================================================================================================================================
@@ -293,6 +297,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   END IF
 
 #ifdef PARTICLES
+  epsOne=1.0+eps
   IF (useDSMC) THEN
     IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN !int ener + 3, vmpf +1
       PartDataSize=11
@@ -387,7 +392,12 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   COUNTER = 0
   COUNTER2 = 0
   DO i = 1,PDM%ParticleVecLength
-    CALL ParticleInsideQuad3D(i,PEM%Element(i),InElementCheck,det)
+    CALL Eval_xyz_ElemCheck(PartState(i,1:3),Xi,PEM%Element(i))
+    IF(ALL(ABS(Xi).LE.EpsOne)) THEN ! particle inside
+      InElementCheck=.TRUE.
+    ELSE
+      InElementCheck=.FALSE.
+    END IF
     IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
       COUNTER = COUNTER + 1
       CALL SingleParticleToExactElement(i)

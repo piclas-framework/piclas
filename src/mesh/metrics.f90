@@ -310,6 +310,7 @@ END DO !iElem=1,nElems
 
 
 
+#ifdef PARTICLES
 SWRITE(UNIT_stdOut,'(A)') ' '
 SWRITE(UNIT_stdOut,'(A)') ' VALIDATION OF BEZIERCONTROLPOINTS ...'
 
@@ -321,6 +322,7 @@ DO iSide=1,sideID_minus_upper
 END DO 
 
 SWRITE(UNIT_stdOut,'(A)') ' '
+#endif /*PARTICLES*/
 
 
 !#ifdef PARTICLES

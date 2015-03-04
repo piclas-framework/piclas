@@ -410,7 +410,7 @@ END IF
     IF(DoPML) CALL TransformPMLVars()
     ! Write recordpoints data to hdf5
     IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
-    WRITE(UNIT_StdOut,'(132("-"))')
+    SWRITE(UNIT_StdOut,'(132("-"))')
     iter_loc=0
     CalcTimeStart=BOLTZPLATZTIME()
     tAnalyze=tAnalyze+Analyze_dt
@@ -496,7 +496,9 @@ iStage=1
 #ifdef PARTICLES
 Time=t
 IF (t.GE.DelayTime) THEN
+  SWRITE(*,*) 'emission'
   CALL ParticleInserting()
+  SWRITE(*,*) 'emission done'
   nTotalHalfPart=PDM%ParticleVecLength*3
   nTotalPart    =PDM%ParticleVecLength*6
 ! forces on particle
@@ -800,6 +802,7 @@ SUBROUTINE TimeStepByRK4EulerExpl(t)
 ! the current time U(t) and returns the solution at the next time level.
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_DG_Vars,ONLY: U,Ut,nTotalU
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,ONLY: dt
@@ -849,8 +852,14 @@ REAL                  :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL                  :: tStage,b_dt(1:5)
 INTEGER               :: i,rk
 !===================================================================================================================================
+
+#ifdef PARTICLES
 Time = t
+SWRITE(*,*) 'emission'
 IF (t.GE.DelayTime) CALL ParticleInserting()
+SWRITE(*,*) 'emission done'
+#endif /*PARTICLES*/
+
 !CALL UpdateNextFreePosition()
 DO rk=1,5
   b_dt(rk)=RK_b(rk)*dt   ! TBD: put in initiation (with maxwell we are linear!!!)
@@ -866,6 +875,7 @@ END DO
 !  !CALL CalcDepositedCharge()
 !END IF
 
+#ifdef PARTICLES
 IF (t.GE.DelayTime) THEN
   CALL InterpolateFieldToParticle()
   CALL CalcPartRHS()
@@ -883,8 +893,10 @@ IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2) 
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3) 
 END IF
+#endif /*PARTICLES*/
 
 
+#ifdef PARTICLES
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   !CALL ParticleBoundary()
   !CALL ParticleTracking()
@@ -901,6 +913,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   CALL Deposition(doInnerParts=.FALSE.)
 #endif
 END IF
+#endif /*PARTICLES*/
 
 ! EM field
 CALL DGTimeDerivative_weakForm(t,t,0)
@@ -938,6 +951,9 @@ END DO
 
   CALL EvalGradient()
 #endif
+
+
+#ifdef PARTICLES
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   CALL UpdateNextFreePosition()
 END IF
@@ -957,6 +973,8 @@ IF (useDSMC) THEN
                                            + DSMC_RHS(1:PDM%ParticleVecLength,3)
   END IF
 END IF
+#endif /*PARTICLES*/
+
 END SUBROUTINE TimeStepByRK4EulerExpl
 #endif
 

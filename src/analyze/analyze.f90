@@ -359,6 +359,10 @@ LOGICAL,INTENT(IN),OPTIONAL   :: force
 LOGICAL                       :: ForceAnalyze
 !===================================================================================================================================
 
+#ifndef PARTICLES
+PartAnalyzeStep=1
+#endif /* NOT PARTICLES*/
+
 ! not for first iteration
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 IF(iter.EQ.0) RETURN

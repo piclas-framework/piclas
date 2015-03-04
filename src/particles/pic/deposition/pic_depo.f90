@@ -404,6 +404,7 @@ ELSE
   lastPart=PDM%ParticleVecLength
 #endif /*MPI*/
 END IF
+IF(firstPart.GT.lastPart) RETURN
 
 SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
