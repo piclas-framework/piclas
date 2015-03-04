@@ -765,6 +765,11 @@ DO iProc=0,PartMPI%nProcs-1
   LOGWRITE(*,*)'    ...Done'
   SideIndex(:)=0
 END DO 
+DEALLOCATE(SideIndex,STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__,&
+                       'Could not deallocate SideIndex')
+END IF
 
 ! Make sure PMPIVAR%MPINeighbor is consistent
 DO iProc=0,PartMPI%nProcs-1

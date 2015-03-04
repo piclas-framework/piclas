@@ -42,14 +42,14 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,         ONLY:GEO
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
 USE MOD_Particle_Surfaces_Vars,     ONLY:BezierControlPoints3D
-USE MOD_Mesh_Vars,                  ONLY:NGeo,ElemToSide,nElems,nInnerSides,nBCSides
+USE MOD_Mesh_Vars,                  ONLY:NGeo,ElemToSide,nElems,nInnerSides,nBCSides,nSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER, INTENT(IN)   :: iProc  ! MPI proc with which the local proc has to exchange boundary information
-INTEGER, INTENT(INOUT):: SideIndex(:)
+INTEGER, INTENT(INOUT):: SideIndex(nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -129,7 +129,7 @@ IF (SendMsg%nMPISides.GT.0) THEN
   ALLOCATE(SendMsg%BezierSides3D(1:3,0:NGeo,0:nGEO,1:SendMsg%nMPISides), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(__STAMP__,&
-                         'Could not allocate SendMessage%Nodes ',SendMsg%nMPISides)
+                         'Could not allocate SendMessage%BezierSides3D ',SendMsg%nMPISides)
   END IF
   SendMsg%BezierSides3D=0.
 END IF
@@ -137,7 +137,7 @@ IF (RecvMsg%nMPISides.GT.0) THEN
   ALLOCATE(RecvMsg%BezierSides3D(1:3,0:NGeo,0:NGeo,1:RecvMsg%nMPISides), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(__STAMP__,&
-                         'Could not allocate RecvMessage%Nodes ',RecvMsg%nMPISides)
+                         'Could not allocate RecvMessage%BezierSides3D ',RecvMsg%nMPISides)
   END IF
   RecvMsg%BezierSides3D=0.
 END IF
@@ -195,6 +195,8 @@ ELSE IF(PartMPI%MyRank.GT.iProc)THEN
                                            ,IERROR                      )
 END IF
 
+
+
 ! PO
 ! For each side, identifz the FIBGM cell(s) in which the side resides and
 ! search the surrounding nPaddingCells for neighboring elements
@@ -235,7 +237,7 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,SideToElem
+USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,SideToElem,nSides
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding
 USE MOD_Particle_MPI_Vars,         ONLY:halo_eps, NbrOfCases,casematrix, halo_eps2
 USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D
@@ -247,7 +249,7 @@ REAL,    INTENT(IN)      :: BezierSides3D(1:3,0:NGeo,0:NGeo,1:nExternalSides)
 INTEGER, INTENT(IN)      :: nExternalSides
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER, INTENT(INOUT)   :: SideIndex(:)
+INTEGER, INTENT(INOUT)   :: SideIndex(nSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                  :: iSide, NbOfSides,p,q,ElemID,ilocSide,SideID,r,s,iElem,iCase
@@ -408,7 +410,7 @@ USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmp
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iProc       ! MPI proc with which the local proc is to exchange boundary information
-INTEGER, INTENT(INOUT)          :: SideList(:)
+INTEGER, INTENT(INOUT)          :: SideList(nSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE tMPISideMessage
@@ -530,16 +532,16 @@ IF (RecvMsg%nElems.GT.0) THEN
 END IF
 
 ! BezierControlPoints3D for exchange
-IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides) 
+IF (SendMsg%nSides.GT.0) THEN       ! Beziercontrolpoints3d
   ALLOCATE(SendMsg%BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
-    'Could not allocate SendMsg%SideToElem',SendMsg%nSides)
+    'Could not allocate SendMsg%BezierControlPoints3D',SendMsg%nSides)
   SendMsg%BezierControlPoints3D=0.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
-    'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides)
+    'Could not allocate RecvMsg%BezierControlPoints3D',RecvMsg%nSides)
   RecvMsg%BezierControlPoints3D=0.
 END IF
 
@@ -579,13 +581,13 @@ END IF
 IF (SendMsg%nSides.GT.0) THEN       
   ALLOCATE(SendMsg%SideBCType(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
-    'Could not allocate SendMsg%BC',SendMsg%nSides,999.)
+    'Could not allocate SendMsg%SideBCType',SendMsg%nSides,999.)
   SendMsg%SideBCType(:)=0
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SideBCType(1:RecvMsg%nSides),STAT=ALLOCSTAT)  
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
-    'Could not allocate RecvMsg%BC',RecvMsg%nSides,999.)
+    'Could not allocate RecvMsg%SideBCType',RecvMsg%nSides,999.)
   RecvMsg%SideBCType(:)=0
 END IF
 ! NativeElemID 
@@ -606,39 +608,39 @@ IF (SendMsg%nSides.GT.0) THEN
   ALLOCATE(SendMsg%SlabNormals(1:3,1:3,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
     'Could not allocate SendMsg%SlabNormals',SendMsg%nSides)
-  SendMsg%SlabNormals(:,:,:)=0
+  SendMsg%SlabNormals(:,:,:)=0.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SlabNormals(1:3,1:3,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
     'Could not allocate RecvMsg%SlabNormals',RecvMsg%nSides)
-  RecvMsg%SlabNormals(:,:,:)=0
+  RecvMsg%SlabNormals(:,:,:)=0.
 END IF
 ! SlabIntervalls Mapping
 IF (SendMsg%nSides.GT.0) THEN       ! SlabIntervalls(1:2,1:nSides) 
   ALLOCATE(SendMsg%SlabIntervalls(1:6,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
     'Could not allocate SendMsg%SlabIntervalls',SendMsg%nSides)
-  SendMsg%SlabIntervalls(:,:)=0
+  SendMsg%SlabIntervalls(:,:)=0.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SlabIntervalls(1:6,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
     'Could not allocate RecvMsg%SlabIntervalls',RecvMsg%nSides)
-  RecvMsg%SlabIntervalls(:,:)=0
+  RecvMsg%SlabIntervalls(:,:)=0.
 END IF
 ! BoundingBoxIsEmpty Mapping
 IF (SendMsg%nSides.GT.0) THEN       ! BoundingBoxIsEmpty(1:2,1:nSides) 
   ALLOCATE(SendMsg%BoundingBoxIsEmpty(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
     'Could not allocate SendMsg%BoundingBoxIsEmpty',SendMsg%nSides)
-  !SendMsg%BoundingBoxIsEmpty(:,:)=.FALSE.
+  SendMsg%BoundingBoxIsEmpty(:)=.FALSE.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%BoundingBoxIsEmpty(1:RecvMsg%nSides),STAT=ALLOCSTAT)  
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
     'Could not allocate RecvMsg%BoundingBoxIsEmpty',RecvMsg%nSides)
-  !RecvMsg%BoundingBoxIsEmpty(:,:)=
+  RecvMsg%BoundingBoxIsEmpty(:)=.FALSE.
 END IF
 !! PeriodicElemSide Mapping 
 !IF (SendMsg%nElems.GT.0) THEN       ! PeriodicElemSide(1:iLocSide,1:nElems)
@@ -771,7 +773,7 @@ IF (PartMPI%MyRank.LT.iProc) THEN
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%SideToElem,SendMsg%nSides*5,MPI_INTEGER         ,iProc,1105,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BezierControlPoints3D,SendMsg%nSides*datasize,MPI_DOUBLE_PRECISION,iProc,1106,PartMPI%COMM,IERROR)
-  IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%BC,SendMsg%nSides*4,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%BC,SendMsg%nSides,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,IERROR)
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%NativeElemID,SendMsg%nElems,MPI_INTEGER         ,iProc,1108,PartMPI%COMM,IERROR)
 !  IF(GEO%nPeriodicVectors.GT.0)THEN
 !    IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%PeriodicElemSide,SendMsg%nElems*6,MPI_INTEGER ,iProc,1109,PartMPI%COMM,IERROR)
@@ -793,7 +795,7 @@ IF (PartMPI%MyRank.LT.iProc) THEN
   CALL MPI_RECV(RecvMsg%BezierControlPoints3D,RecvMsg%nSides*datasize,MPI_DOUBLE_PRECISION,iProc,1106,PartMPI%COMM,MPISTATUS,IERROR)
 
   IF (RecvMsg%nSides.GT.0) &
-    CALL MPI_RECV(RecvMsg%BC,RecvMsg%nSides*4,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,MPISTATUS,IERROR)
+    CALL MPI_RECV(RecvMsg%BC,RecvMsg%nSides,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nElems.GT.0) &
     CALL MPI_RECV(RecvMsg%NativeElemID,RecvMsg%nElems,MPI_INTEGER         ,iProc,1108,PartMPI%COMM,MPISTATUS,IERROR)
   !IF(GEO%nPeriodicVectors.GT.0)THEN
@@ -816,7 +818,7 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   IF (RecvMsg%nSides.GT.0) &
   CALL MPI_RECV(RecvMsg%BezierControlPoints3D,RecvMsg%nSides*datasize,MPI_DOUBLE_PRECISION,iProc,1106,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
-    CALL MPI_RECV(RecvMsg%BC,RecvMsg%nSides*4,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,MPISTATUS,IERROR)
+    CALL MPI_RECV(RecvMsg%BC,RecvMsg%nSides,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nElems.GT.0) &
     CALL MPI_RECV(RecvMsg%NativeElemID,RecvMsg%nElems,MPI_INTEGER         ,iProc,1108,PartMPI%COMM,MPISTATUS,IERROR)
   !IF(GEO%nPeriodicVectors.GT.0)THEN
@@ -836,7 +838,7 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%SideToElem,SendMsg%nSides*5,MPI_INTEGER         ,iProc,1105,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BezierControlPoints3D,SendMsg%nSides*datasize,MPI_DOUBLE_PRECISION,iProc,1106,PartMPI%COMM,IERROR)
-  IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%BC,SendMsg%nSides*4,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,IERROR)
+  IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%BC,SendMsg%nSides,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,IERROR)
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%NativeElemID,SendMsg%nElems,MPI_INTEGER         ,iProc,1108,PartMPI%COMM,IERROR)
   !IF(GEO%nPeriodicVectors.GT.0)THEN
   !  IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%PeriodicElemSide,SendMsg%nElems*6,MPI_INTEGER ,iProc,1109,PartMPI%COMM,IERROR)
@@ -1058,6 +1060,9 @@ IF (RecvMsg%nSides.GT.0) THEN
   END DO ! Elem
   PartMPI%isMPINeighbor(iProc)=.TRUE.
   PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
+  DEALLOCATE(isSide)
+  DEALLOCATE(isDone)
+  DEALLOCATE(HaloInc)
 END IF ! RecvMsg%nSides>0
 
 END SUBROUTINE ExchangeHaloGeometry

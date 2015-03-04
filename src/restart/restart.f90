@@ -175,7 +175,7 @@ USE MOD_DSMC_Vars,       ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
 USE MOD_Eval_XYZ,        ONLY: EVal_xyz_ElemCheck
 USE MOD_Particle_Mesh,   ONLY:SingleParticleToExactElement
 #ifdef MPI
-USE MOD_part_MPI_Vars,   ONLY : PMPIVAR
+USE MOD_Particle_MPI_Vars,ONLY:PartMPI
 #endif
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
@@ -204,8 +204,8 @@ REAL                     :: det(16)
 INTEGER                  :: COUNTER, COUNTER2
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
-INTEGER                  :: LostParts(0:PMPIVAR%nProcs-1), Displace(0:PMPIVAR%nProcs-1),CurrentPartNum
-INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PMPIVAR%nProcs-1)
+INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
+INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
 REAL,PARAMETER           :: eps=1e-8 ! same value as in eval_xyz_elem
 REAL                     :: epsOne
 #endif /*MPI*/
@@ -411,7 +411,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
 #ifdef MPI
   ! Step 2: All particles that are not found withing MyProc need to be communicated to the others and located there
   ! Combine number of lost particles of all processes and allocate variables
-  CALL MPI_ALLGATHER(COUNTER2, 1, MPI_INTEGER, LostParts, 1, MPI_INTEGER, PMPIVAR%COMM, IERROR)
+  CALL MPI_ALLGATHER(COUNTER2, 1, MPI_INTEGER, LostParts, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
   IF (SUM(LostParts).GT.0) THEN
     ALLOCATE(SendBuff(1:COUNTER2*PartDataSize))
     ALLOCATE(RecBuff(1:SUM(LostParts)*PartDataSize))
@@ -449,13 +449,13 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     END DO
     ! Distribute lost particles to all procs
     COUNTER = 0
-    DO i = 0, PMPIVAR%nProcs-1
+    DO i = 0, PartMPI%nProcs-1
       RecCount(i) = LostParts(i) * PartDataSize
       Displace(i) = COUNTER
       COUNTER = COUNTER + LostParts(i)*PartDataSize
     END DO
-    CALL MPI_ALLGATHERV(SendBuff, PartDataSize*LostParts(PMPIVAR%iProc), MPI_DOUBLE_PRECISION, &
-         RecBuff, RecCount, Displace, MPI_DOUBLE_PRECISION, PMPIVAR%COMM, IERROR)
+    CALL MPI_ALLGATHERV(SendBuff, PartDataSize*LostParts(PartMPI%MyRank), MPI_DOUBLE_PRECISION, &
+         RecBuff, RecCount, Displace, MPI_DOUBLE_PRECISION, PartMPI%COMM, IERROR)
     ! Add them to particle list and check if they are in MyProcs domain
     NbrOfFoundParts = 0
     CurrentPartNum = PDM%ParticleVecLength+1
@@ -497,7 +497,7 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     END DO
     PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfFoundParts
     ! Combine number of found particles to make sure none are lost completely
-    CALL MPI_ALLREDUCE(NbrOfFoundParts, CompleteNbrOfFound, 1, MPI_INTEGER, MPI_SUM, PMPIVAR%COMM, IERROR)
+    CALL MPI_ALLREDUCE(NbrOfFoundParts, CompleteNbrOfFound, 1, MPI_INTEGER, MPI_SUM, PartMPI%COMM, IERROR)
     SWRITE(UNIT_stdOut,*) SUM(LostParts),'were not in the correct proc after restart.'
     SWRITE(UNIT_stdOut,*) CompleteNbrOfFound,'of these were found in other procs.'
     SWRITE(UNIT_stdOut,*) SUM(LostParts)-CompleteNbrOfFound,'were not found and have been removed.'

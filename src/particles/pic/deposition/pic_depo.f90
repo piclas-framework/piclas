@@ -872,7 +872,8 @@ USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_PICInterpolation_Vars, ONLY : InterpolationType
 USE MOD_Eval_xyz,            ONLY:Eval_XYZ_ElemCheck
 #ifdef MPI
-USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles, PMPIVAR
+USE MOD_Particle_MPI_Vars, ONLY: PartMPI
+!USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles, PMPIVAR
 #endif 
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                  
@@ -931,169 +932,169 @@ USE MOD_part_MPI_Vars, ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles, P
 #endif
     END DO
   CASE('shape_function')
-    Vec1(1:3) = 0.
-    Vec2(1:3) = 0.
-    Vec3(1:3) = 0.
-    IF (GEO%nPeriodicVectors.EQ.1) THEN
-      Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-    END IF
-    IF (GEO%nPeriodicVectors.EQ.2) THEN
-      Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-      Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-    END IF
-    IF (GEO%nPeriodicVectors.EQ.3) THEN
-      Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-      Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-      Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
-    END IF
-    DO i=1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(i)) THEN
-        Fac(4) = Species(PartSpecies(i))%ChargeIC *PartMPF(i)*w_sf
-        Fac(1:3) = PartState(i,4:6)*Fac(4)
-        !-- determine which background mesh cells (and interpolation points within) need to be considered
-        DO iCase = 1, NbrOfCases
-          chargedone(:) = .FALSE.
-          DO ind = 1,3
-            ShiftedPart(ind) = PartState(i,ind) + casematrix(iCase,1)*Vec1(ind) + &
-                 casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-          END DO
-          kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-          kmax = MIN(kmax,GEO%FIBGMimax)
-          kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-          kmin = MAX(kmin,GEO%FIBGMimin)
-          lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-          lmax = MIN(lmax,GEO%FIBGMkmax)
-          lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-          lmin = MAX(lmin,GEO%FIBGMkmin)
-          mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-          mmax = MIN(mmax,GEO%FIBGMlmax)
-          mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-          mmin = MAX(mmin,GEO%FIBGMlmin)
-          !-- go through all these cells
-          DO kk = kmin,kmax
-            DO ll = lmin, lmax
-              DO mm = mmin, mmax
-                !--- go through all mapped elements not done yet
-                DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-                  ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-                  IF (.NOT.chargedone(ElemID)) THEN
-                    !--- go through all gauss points
-                    DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-                      !-- calculate distance between gauss and particle
-                      radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
-                             + (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
-                             + (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
-                      !-- calculate charge and current density at ip point using a shape function
-                      !-- currently only one shapefunction available, more to follow (including structure change)
-                      IF (radius .LT. r2_sf) THEN
-                        S = 1 - r2_sf_inv * radius
-                        S1 = S*S
-                        DO expo = 3, alpha_sf
-                          S1 = S*S1
-                        END DO
-#if (PP_nVar==8)
-                        source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
-#endif
-                        source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
-                      END IF
-                    END DO; END DO; END DO
-                    chargedone(ElemID) = .TRUE.
-                  END IF
-                END DO ! ppp
-              END DO ! mm
-            END DO ! ll
-          END DO ! kk
-        END DO ! iCase (periodicity)
-      END IF ! inside
-    END DO ! i
+    !Vec1(1:3) = 0.
+    !Vec2(1:3) = 0.
+    !Vec3(1:3) = 0.
+    !IF (GEO%nPeriodicVectors.EQ.1) THEN
+      !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+    !END IF
+    !IF (GEO%nPeriodicVectors.EQ.2) THEN
+      !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+      !Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+    !END IF
+    !IF (GEO%nPeriodicVectors.EQ.3) THEN
+      !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+      !Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+      !Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
+    !END IF
+    !DO i=1,PDM%ParticleVecLength
+      !IF (PDM%ParticleInside(i)) THEN
+        !Fac(4) = Species(PartSpecies(i))%ChargeIC *PartMPF(i)*w_sf
+        !Fac(1:3) = PartState(i,4:6)*Fac(4)
+        !!-- determine which background mesh cells (and interpolation points within) need to be considered
+        !DO iCase = 1, NbrOfCases
+          !chargedone(:) = .FALSE.
+          !DO ind = 1,3
+            !ShiftedPart(ind) = PartState(i,ind) + casematrix(iCase,1)*Vec1(ind) + &
+                 !casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+          !END DO
+          !kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
+          !kmax = MIN(kmax,GEO%FIBGMimax)
+          !kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+          !kmin = MAX(kmin,GEO%FIBGMimin)
+          !lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
+          !lmax = MIN(lmax,GEO%FIBGMkmax)
+          !lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+          !lmin = MAX(lmin,GEO%FIBGMkmin)
+          !mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
+          !mmax = MIN(mmax,GEO%FIBGMlmax)
+          !mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+          !mmin = MAX(mmin,GEO%FIBGMlmin)
+          !!-- go through all these cells
+          !DO kk = kmin,kmax
+            !DO ll = lmin, lmax
+              !DO mm = mmin, mmax
+                !!--- go through all mapped elements not done yet
+                !DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
+                  !ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
+                  !IF (.NOT.chargedone(ElemID)) THEN
+                    !!--- go through all gauss points
+                    !DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+                      !!-- calculate distance between gauss and particle
+                      !radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
+                             !+ (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
+                             !+ (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
+                      !!-- calculate charge and current density at ip point using a shape function
+                      !!-- currently only one shapefunction available, more to follow (including structure change)
+                      !IF (radius .LT. r2_sf) THEN
+                        !S = 1 - r2_sf_inv * radius
+                        !S1 = S*S
+                        !DO expo = 3, alpha_sf
+                          !S1 = S*S1
+                        !END DO
+!#if (PP_nVar==8)
+                        !source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
+!#endif
+                        !source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
+                      !END IF
+                    !END DO; END DO; END DO
+                    !chargedone(ElemID) = .TRUE.
+                  !END IF
+                !END DO ! ppp
+              !END DO ! mm
+            !END DO ! ll
+          !END DO ! kk
+        !END DO ! iCase (periodicity)
+      !END IF ! inside
+    !END DO ! i
 
-#ifdef MPI           
-IF (PMPIVAR%nProcs.GT.1) THEN
-  SWRITE(*,*) 'Shape Function MPI does not work with vMPF with more than one proc!'
-  SWRITE(*,*) 'Reason: MPF of particles outside of proc domain'
-  SWRITE(*,*) '(but still in shape function range) is not communicated yet.'
-  CALL abort(__STAMP__, &
-        'Shape Function MPI does not work with vMPF with more than one proc!')
-END IF
-    Vec1(1:3) = 0.
-    Vec2(1:3) = 0.
-    Vec3(1:3) = 0.
-    IF (NbrOfextParticles .GT. 0) THEN
-      IF (GEO%nPeriodicVectors.EQ.1) THEN
-        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-      END IF
-      IF (GEO%nPeriodicVectors.EQ.2) THEN
-        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-        Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-      END IF
-      IF (GEO%nPeriodicVectors.EQ.3) THEN
-        Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-        Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-        Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
-      END IF
-    END IF
+!#ifdef MPI           
+!IF (PMPIVAR%nProcs.GT.1) THEN
+  !SWRITE(*,*) 'Shape Function MPI does not work with vMPF with more than one proc!'
+  !SWRITE(*,*) 'Reason: MPF of particles outside of proc domain'
+  !SWRITE(*,*) '(but still in shape function range) is not communicated yet.'
+  !CALL abort(__STAMP__, &
+        !'Shape Function MPI does not work with vMPF with more than one proc!')
+!END IF
+    !Vec1(1:3) = 0.
+    !Vec2(1:3) = 0.
+    !Vec3(1:3) = 0.
+    !IF (NbrOfextParticles .GT. 0) THEN
+      !IF (GEO%nPeriodicVectors.EQ.1) THEN
+        !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+      !END IF
+      !IF (GEO%nPeriodicVectors.EQ.2) THEN
+        !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+        !Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+      !END IF
+      !IF (GEO%nPeriodicVectors.EQ.3) THEN
+        !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+        !Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+        !Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
+      !END IF
+    !END IF
     
-    DO iPart=1,NbrOfextParticles  !external Particles
-      chargedone(:) = .FALSE.
-      Fac(4) = Species(ExtPartSpecies(iPart))%ChargeIC*PartMPF(i)*w_sf
-      Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
-      !-- determine which background mesh cells (and interpolation points within) need to be considered
-      DO iCase = 1, NbrOfCases
-        DO ind = 1,3
-          ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
-               casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-        END DO
-        kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-        kmax = MIN(kmax,GEO%FIBGMimax)
-        kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-        kmin = MAX(kmin,GEO%FIBGMimin)
-        lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-        lmax = MIN(lmax,GEO%FIBGMkmax)
-        lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-        lmin = MAX(lmin,GEO%FIBGMkmin)
-        mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-        mmax = MIN(mmax,GEO%FIBGMlmax)
-        mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-        mmin = MAX(mmin,GEO%FIBGMlmin)
-        !-- go through all these cells (should go through non if periodic and shiftedpart not in my domain
-        DO kk = kmin,kmax
-          DO ll = lmin, lmax
-            DO mm = mmin, mmax
-              !--- go through all mapped elements not done yet
-              DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-                ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-                IF (.NOT.chargedone(ElemID)) THEN
-                  !--- go through all gauss points
-                  DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-                    !-- calculate distance between gauss and particle
-                      radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
-                             + (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
-                             + (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
-                      !-- calculate charge and current density at ip point using a shape function
-                      !-- currently only one shapefunction available, more to follow (including structure change)
-                      IF (radius .LT. r2_sf) THEN
-                        S = 1 - r2_sf_inv * radius
-                        S1 = S*S
-                        DO expo = 3, alpha_sf
-                          S1 = S*S1
-                        END DO
-#if (PP_nVar==8)
-                        source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
-#endif
-                        source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
-                      END IF
-                  END DO; END DO; END DO
-                  chargedone(ElemID) = .TRUE.
-                END IF
-              END DO ! ppp
-            END DO ! mm
-          END DO ! ll
-        END DO ! kk
-      END DO
-    END DO
-    SDEALLOCATE(ExtPartState)
-    SDEALLOCATE(ExtPartSpecies)
-#endif
+    !DO iPart=1,NbrOfextParticles  !external Particles
+      !chargedone(:) = .FALSE.
+      !Fac(4) = Species(ExtPartSpecies(iPart))%ChargeIC*PartMPF(i)*w_sf
+      !Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
+      !!-- determine which background mesh cells (and interpolation points within) need to be considered
+      !DO iCase = 1, NbrOfCases
+        !DO ind = 1,3
+          !ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+               !casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+        !END DO
+        !kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
+        !kmax = MIN(kmax,GEO%FIBGMimax)
+        !kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+        !kmin = MAX(kmin,GEO%FIBGMimin)
+        !lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
+        !lmax = MIN(lmax,GEO%FIBGMkmax)
+        !lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+        !lmin = MAX(lmin,GEO%FIBGMkmin)
+        !mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
+        !mmax = MIN(mmax,GEO%FIBGMlmax)
+        !mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+        !mmin = MAX(mmin,GEO%FIBGMlmin)
+        !!-- go through all these cells (should go through non if periodic and shiftedpart not in my domain
+        !DO kk = kmin,kmax
+          !DO ll = lmin, lmax
+            !DO mm = mmin, mmax
+              !!--- go through all mapped elements not done yet
+              !DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
+                !ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
+                !IF (.NOT.chargedone(ElemID)) THEN
+                  !!--- go through all gauss points
+                  !DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
+                    !!-- calculate distance between gauss and particle
+                      !radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
+                             !+ (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
+                             !+ (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
+                      !!-- calculate charge and current density at ip point using a shape function
+                      !!-- currently only one shapefunction available, more to follow (including structure change)
+                      !IF (radius .LT. r2_sf) THEN
+                        !S = 1 - r2_sf_inv * radius
+                        !S1 = S*S
+                        !DO expo = 3, alpha_sf
+                          !S1 = S*S1
+                        !END DO
+!#if (PP_nVar==8)
+                        !source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
+!#endif
+                        !source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
+                      !END IF
+                  !END DO; END DO; END DO
+                  !chargedone(ElemID) = .TRUE.
+                !END IF
+              !END DO ! ppp
+            !END DO ! mm
+          !END DO ! ll
+        !END DO ! kk
+      !END DO
+    !END DO
+    !SDEALLOCATE(ExtPartState)
+    !SDEALLOCATE(ExtPartSpecies)
+!#endif
   CASE('nearest_gausspoint')
     SAVE_GAUSS = .FALSE.
     IF(TRIM(InterpolationType).EQ.'nearest_gausspoint') SAVE_GAUSS = .TRUE.
@@ -1368,7 +1369,7 @@ SUBROUTINE MPISourceExchangeBGM(BGMSource)
 ! Exchange sources in periodic case for MPI
 !============================================================================================================================
 ! use MODULES                                                         
-  USE MOD_part_MPI_Vars
+  USE MOD_Particle_MPI_Vars, ONLY: PartMPI
   USE MOD_PICDepo_Vars
   USE MOD_Globals
   USE MOD_Particle_Vars
@@ -1381,323 +1382,323 @@ SUBROUTINE MPISourceExchangeBGM(BGMSource)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-    TYPE(tMPIMessage)           :: send_message(0:PMPIVAR%nProcs-1)                              
-    TYPE(tMPIMessage)           :: recv_message(0:PMPIVAR%nProcs-1)                              
-    INTEGER                     :: send_request(0:PMPIVAR%nProcs-1)                              
-    INTEGER                     :: recv_request(0:PMPIVAR%nProcs-1)                              
-    INTEGER                     :: send_status_list(1:MPI_STATUS_SIZE,0:PMPIVAR%nProcs-1)        
-    INTEGER                     :: recv_status_list(1:MPI_STATUS_SIZE,0:PMPIVAR%nProcs-1)        
-    INTEGER                     :: i,k,l,m,n, ppp, Counter, MsgLength(0:PMPIVAR%nProcs-1)        
-    INTEGER                     :: SourceLength(0:PMPIVAR%nProcs-1)                              
-    INTEGER                     :: RecvLength(0:PMPIVAR%nProcs-1)                                
-    INTEGER                     :: allocStat, Counter2                                     
-    INTEGER                     :: messageCounterS, messageCounterR                                
-    INTEGER                     :: myRealKind, k2,l2,m2                                          
-    REAL                        :: myRealTestValue                                                
+    !TYPE(tMPIMessage)           :: send_message(0:PartMPI%nProcs-1)                              
+    !TYPE(tMPIMessage)           :: recv_message(0:PartMPI%nProcs-1)                              
+    !INTEGER                     :: send_request(0:PartMPI%nProcs-1)                              
+    !INTEGER                     :: recv_request(0:PartMPI%nProcs-1)                              
+    !INTEGER                     :: send_status_list(1:MPI_STATUS_SIZE,0:PartMPI%nProcs-1)        
+    !INTEGER                     :: recv_status_list(1:MPI_STATUS_SIZE,0:PartMPI%nProcs-1)        
+    !INTEGER                     :: i,k,l,m,n, ppp, Counter, MsgLength(0:PartMPI%nProcs-1)        
+    !INTEGER                     :: SourceLength(0:PartMPI%nProcs-1)                              
+    !INTEGER                     :: RecvLength(0:PartMPI%nProcs-1)                                
+    !INTEGER                     :: allocStat, Counter2                                     
+    !INTEGER                     :: messageCounterS, messageCounterR                                
+    !INTEGER                     :: myRealKind, k2,l2,m2                                          
+    !REAL                        :: myRealTestValue                                                
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-     myRealKind = KIND(myRealTestValue)
-     IF (myRealKind.EQ.4) THEN
-       myRealKind = MPI_REAL
-     ELSE IF (myRealKind.EQ.8) THEN
-       myRealKind = MPI_DOUBLE_PRECISION
-     ELSE
-       myRealKind = MPI_REAL
-     END IF
+     !myRealKind = KIND(myRealTestValue)
+     !IF (myRealKind.EQ.4) THEN
+       !myRealKind = MPI_REAL
+     !ELSE IF (myRealKind.EQ.8) THEN
+       !myRealKind = MPI_DOUBLE_PRECISION
+     !ELSE
+       !myRealKind = MPI_REAL
+     !END IF
      
-   !--- Determine which Sources actually need to be sent (<> 0) and build corresponding true/false list
-   !    One list per process
-    DO i = 0,PMPIVAR%nProcs-1
-       MsgLength(i) = 0
-       IF (PMPIVAR%MPIConnect(i)%isBGMNeighbor) THEN
-          MsgLength(i) = (PMPIVAR%MPIConnect(i)%BGMBorder(2,1) - PMPIVAR%MPIConnect(i)%BGMBorder(1,1) + 1) * &
-                         (PMPIVAR%MPIConnect(i)%BGMBorder(2,2) - PMPIVAR%MPIConnect(i)%BGMBorder(1,2) + 1) * &
-                         (PMPIVAR%MPIConnect(i)%BGMBorder(2,3) - PMPIVAR%MPIConnect(i)%BGMBorder(1,3) + 1)
-       END IF
-       IF(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-          DO k = 1, PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount
-             MsgLength(i) = MsgLength(i) + &
-                  (PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,1) -&
-                   PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,1) + 1) * &
-                  (PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,2) -&
-                   PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,2) + 1) * &
-                  (PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,3) -&
-                   PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,3) + 1)
-          END DO
-       END IF
-       IF((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor))THEN
-          ALLOCATE(send_message(i)%content_log(1:MsgLength(i)), STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-             CALL abort(__STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
-          END IF
-          ALLOCATE(recv_message(i)%content_log(1:MsgLength(i)), STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-             CALL abort(__STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
-          END IF
-       END IF
-       !--- check which sources are <> 0
-       Counter = 0
-       SourceLength(i) = 0
-       IF (PMPIVAR%MPIConnect(i)%isBGMNeighbor) THEN
-          DO k = PMPIVAR%MPIConnect(i)%BGMBorder(1,1), PMPIVAR%MPIConnect(i)%BGMBorder(2,1)
-          DO l = PMPIVAR%MPIConnect(i)%BGMBorder(1,2), PMPIVAR%MPIConnect(i)%BGMBorder(2,2)
-          DO m = PMPIVAR%MPIConnect(i)%BGMBorder(1,3), PMPIVAR%MPIConnect(i)%BGMBorder(2,3)
-             Counter = Counter + 1
-             IF (ANY(BGMSource(k,l,m,:).NE.0.0)) THEN
-                send_message(i)%content_log(Counter) = .TRUE.
-                SourceLength(i) = SourceLength(i) + 1
-             ELSE
-                send_message(i)%content_log(Counter) = .FALSE.
-             END IF
-          END DO
-          END DO
-          END DO
-       END IF
-       !--- same for periodic
-       IF(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-          DO n = 1, PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount
-             DO k = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
-                    PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
-             DO l = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
-                    PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
-             DO m = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
-                    PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
-                Counter = Counter + 1
-                IF (ANY(BGMSource(k,l,m,:).NE.0.0)) THEN
-                   send_message(i)%content_log(Counter) = .TRUE.
-                   SourceLength(i) = SourceLength(i) + 1
-                ELSE
-                   send_message(i)%content_log(Counter) = .FALSE.
-                END IF
-             END DO
-             END DO
-             END DO
-          END DO
-       END IF
-    END DO
-    !--- communicate
-    messageCounterS = 0
-    DO i = 0,PMPIVAR%nProcs-1
-       IF ((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-          ! MPI_ISEND true/false list for all border BGM points
-          messageCounterS = messageCounterS + 1
-          CALL MPI_ISEND(send_message(i)%content_log,MsgLength(i),MPI_LOGICAL,i,1,PMPIVAR%COMM, &
-                         send_request(messageCounterS), IERROR)
-       END IF
-    END DO
-    messageCounterR = 0
-    DO i = 0,PMPIVAR%nProcs-1
-       IF ((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-          ! MPI_IRECV true/false list for all border BGM points from neighbor CPUs
-          messageCounterR = messageCounterR + 1
-          CALL MPI_IRECV(recv_message(i)%Content_log,MsgLength(i),MPI_LOGICAL,i,1,PMPIVAR%COMM, &
-                         recv_request(messageCounterR), IERROR)
-       END IF
-    END DO
-    ! MPI_WAITALL for the non-blocking MPI-communication to be finished
-    IF (messageCounterS .GE. 1) THEN
-       CALL MPI_WAITALL(messageCounterS,send_request(1:messageCounterS),send_status_list(:,1:messageCounterS),IERROR)
-    END IF
-    IF (messageCounterR .GE. 1) THEN
-       CALL MPI_WAITALL(messageCounterR,recv_request(1:messageCounterR),recv_status_list(:,1:messageCounterR),IERROR)
-    END IF
+   !!--- Determine which Sources actually need to be sent (<> 0) and build corresponding true/false list
+   !!    One list per process
+    !DO i = 0,PartMPI%nProcs-1
+       !MsgLength(i) = 0
+       !IF (PartMPI%MPIConnect(i)%isBGMNeighbor) THEN
+          !MsgLength(i) = (PMPIVAR%MPIConnect(i)%BGMBorder(2,1) - PMPIVAR%MPIConnect(i)%BGMBorder(1,1) + 1) * &
+                         !(PMPIVAR%MPIConnect(i)%BGMBorder(2,2) - PMPIVAR%MPIConnect(i)%BGMBorder(1,2) + 1) * &
+                         !(PMPIVAR%MPIConnect(i)%BGMBorder(2,3) - PMPIVAR%MPIConnect(i)%BGMBorder(1,3) + 1)
+       !END IF
+       !IF(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+          !DO k = 1, PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount
+             !MsgLength(i) = MsgLength(i) + &
+                  !(PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,1) -&
+                   !PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,1) + 1) * &
+                  !(PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,2) -&
+                   !PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,2) + 1) * &
+                  !(PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(2,3) -&
+                   !PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1,3) + 1)
+          !END DO
+       !END IF
+       !IF((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor))THEN
+          !ALLOCATE(send_message(i)%content_log(1:MsgLength(i)), STAT=allocStat)
+          !IF (allocStat .NE. 0) THEN
+             !CALL abort(__STAMP__, &
+                !'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
+          !END IF
+          !ALLOCATE(recv_message(i)%content_log(1:MsgLength(i)), STAT=allocStat)
+          !IF (allocStat .NE. 0) THEN
+             !CALL abort(__STAMP__, &
+                !'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
+          !END IF
+       !END IF
+       !!--- check which sources are <> 0
+       !Counter = 0
+       !SourceLength(i) = 0
+       !IF (PMPIVAR%MPIConnect(i)%isBGMNeighbor) THEN
+          !DO k = PMPIVAR%MPIConnect(i)%BGMBorder(1,1), PMPIVAR%MPIConnect(i)%BGMBorder(2,1)
+          !DO l = PMPIVAR%MPIConnect(i)%BGMBorder(1,2), PMPIVAR%MPIConnect(i)%BGMBorder(2,2)
+          !DO m = PMPIVAR%MPIConnect(i)%BGMBorder(1,3), PMPIVAR%MPIConnect(i)%BGMBorder(2,3)
+             !Counter = Counter + 1
+             !IF (ANY(BGMSource(k,l,m,:).NE.0.0)) THEN
+                !send_message(i)%content_log(Counter) = .TRUE.
+                !SourceLength(i) = SourceLength(i) + 1
+             !ELSE
+                !send_message(i)%content_log(Counter) = .FALSE.
+             !END IF
+          !END DO
+          !END DO
+          !END DO
+       !END IF
+       !!--- same for periodic
+       !IF(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+          !DO n = 1, PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount
+             !DO k = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
+                    !PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
+             !DO l = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
+                    !PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
+             !DO m = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
+                    !PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
+                !Counter = Counter + 1
+                !IF (ANY(BGMSource(k,l,m,:).NE.0.0)) THEN
+                   !send_message(i)%content_log(Counter) = .TRUE.
+                   !SourceLength(i) = SourceLength(i) + 1
+                !ELSE
+                   !send_message(i)%content_log(Counter) = .FALSE.
+                !END IF
+             !END DO
+             !END DO
+             !END DO
+          !END DO
+       !END IF
+    !END DO
+    !!--- communicate
+    !messageCounterS = 0
+    !DO i = 0,PMPIVAR%nProcs-1
+       !IF ((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+          !! MPI_ISEND true/false list for all border BGM points
+          !messageCounterS = messageCounterS + 1
+          !CALL MPI_ISEND(send_message(i)%content_log,MsgLength(i),MPI_LOGICAL,i,1,PMPIVAR%COMM, &
+                         !send_request(messageCounterS), IERROR)
+       !END IF
+    !END DO
+    !messageCounterR = 0
+    !DO i = 0,PMPIVAR%nProcs-1
+       !IF ((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+          !! MPI_IRECV true/false list for all border BGM points from neighbor CPUs
+          !messageCounterR = messageCounterR + 1
+          !CALL MPI_IRECV(recv_message(i)%Content_log,MsgLength(i),MPI_LOGICAL,i,1,PMPIVAR%COMM, &
+                         !recv_request(messageCounterR), IERROR)
+       !END IF
+    !END DO
+    !! MPI_WAITALL for the non-blocking MPI-communication to be finished
+    !IF (messageCounterS .GE. 1) THEN
+       !CALL MPI_WAITALL(messageCounterS,send_request(1:messageCounterS),send_status_list(:,1:messageCounterS),IERROR)
+    !END IF
+    !IF (messageCounterR .GE. 1) THEN
+       !CALL MPI_WAITALL(messageCounterR,recv_request(1:messageCounterR),recv_status_list(:,1:messageCounterR),IERROR)
+    !END IF
    
-    !--- Assemble actual sources to send
-     DO i = 0,PMPIVAR%nProcs-1
-       IF (((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.&
-            (PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)).AND.(SourceLength(i).GT.0)) THEN
-          ALLOCATE(send_message(i)%content(1:SourceLength(i)*4), STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-             CALL abort(__STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
-          END IF
-       END IF
-       Counter = 0
-       Counter2 = 0
-       IF (PMPIVAR%MPIConnect(i)%isBGMNeighbor) THEN
-          DO k = PMPIVAR%MPIConnect(i)%BGMBorder(1,1), PMPIVAR%MPIConnect(i)%BGMBorder(2,1)
-          DO l = PMPIVAR%MPIConnect(i)%BGMBorder(1,2), PMPIVAR%MPIConnect(i)%BGMBorder(2,2)
-          DO m = PMPIVAR%MPIConnect(i)%BGMBorder(1,3), PMPIVAR%MPIConnect(i)%BGMBorder(2,3)
-             Counter = Counter + 1
-             IF (send_message(i)%content_log(Counter)) THEN
-                Counter2 = Counter2 + 1
-                DO n = 1,4
-                   send_message(i)%content((Counter2-1)*4 +n) = BGMSource(k,l,m,n)
-                END DO
-             END IF
-          END DO
-          END DO
-          END DO
-       END IF
-       IF (PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-          DO n = 1, PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount
-             DO k = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
-                    PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
-             DO l = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
-                    PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
-             DO m = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
-                    PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
-                Counter = Counter + 1
-                IF (send_message(i)%content_log(Counter)) THEN
-                   Counter2 = Counter2 + 1
-                   DO ppp = 1,4
-                      send_message(i)%content((Counter2-1)*4 +ppp) = BGMSource(k,l,m,ppp)
-                   END DO
-                END IF
-             END DO
-             END DO
-             END DO
-          END DO
-       END IF
-    END DO
+    !!--- Assemble actual sources to send
+     !DO i = 0,PMPIVAR%nProcs-1
+       !IF (((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.&
+            !(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)).AND.(SourceLength(i).GT.0)) THEN
+          !ALLOCATE(send_message(i)%content(1:SourceLength(i)*4), STAT=allocStat)
+          !IF (allocStat .NE. 0) THEN
+             !CALL abort(__STAMP__, &
+                !'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
+          !END IF
+       !END IF
+       !Counter = 0
+       !Counter2 = 0
+       !IF (PMPIVAR%MPIConnect(i)%isBGMNeighbor) THEN
+          !DO k = PMPIVAR%MPIConnect(i)%BGMBorder(1,1), PMPIVAR%MPIConnect(i)%BGMBorder(2,1)
+          !DO l = PMPIVAR%MPIConnect(i)%BGMBorder(1,2), PMPIVAR%MPIConnect(i)%BGMBorder(2,2)
+          !DO m = PMPIVAR%MPIConnect(i)%BGMBorder(1,3), PMPIVAR%MPIConnect(i)%BGMBorder(2,3)
+             !Counter = Counter + 1
+             !IF (send_message(i)%content_log(Counter)) THEN
+                !Counter2 = Counter2 + 1
+                !DO n = 1,4
+                   !send_message(i)%content((Counter2-1)*4 +n) = BGMSource(k,l,m,n)
+                !END DO
+             !END IF
+          !END DO
+          !END DO
+          !END DO
+       !END IF
+       !IF (PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+          !DO n = 1, PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount
+             !DO k = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
+                    !PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
+             !DO l = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
+                    !PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
+             !DO m = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
+                    !PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
+                !Counter = Counter + 1
+                !IF (send_message(i)%content_log(Counter)) THEN
+                   !Counter2 = Counter2 + 1
+                   !DO ppp = 1,4
+                      !send_message(i)%content((Counter2-1)*4 +ppp) = BGMSource(k,l,m,ppp)
+                   !END DO
+                !END IF
+             !END DO
+             !END DO
+             !END DO
+          !END DO
+       !END IF
+    !END DO
 
-    !--- allocate actual source receive buffer
-    DO i = 0,PMPIVAR%nProcs-1
-       IF ((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-          Counter = 0
-          DO k = 1, MsgLength(i)
-             IF (recv_message(i)%Content_log(k)) THEN
-                Counter = Counter + 1
-             END IF
-          END DO
-          RecvLength(i) = Counter
-          IF (RecvLength(i).GT.0) THEN
-             ALLOCATE(recv_message(i)%content(1:Counter*4), STAT=allocStat)
-             IF (allocStat .NE. 0) THEN
-                CALL abort(__STAMP__, &
-                  'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
-             END IF
-          END IF
-       END IF
-    END DO
-    !--- communicate
-    messageCounterS = 0
-    DO i = 0,PMPIVAR%nProcs-1
-       IF (((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.&
-            (PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)).AND.(SourceLength(i).GT.0)) THEN
-          ! MPI_ISEND true/false list for all border BGM points
-          messageCounterS = messageCounterS + 1
-          CALL MPI_ISEND(send_message(i)%content,SourceLength(i)*4,myRealKind,i,1,PMPIVAR%COMM, &
-                         send_request(messageCounterS), IERROR)
-       END IF
-    END DO
-    messageCounterR = 0
-    DO i = 0,PMPIVAR%nProcs-1
-       IF (((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.&
-            (PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)).AND.(RecvLength(i).GT.0)) THEN
-          ! MPI_IRECV true/false list for all border BGM points from neighbor CPUs
-          messageCounterR = messageCounterR + 1
-          CALL MPI_IRECV(recv_message(i)%content,RecvLength(i)*4,myRealKind,i,1,PMPIVAR%COMM, &
-                         recv_request(messageCounterR), IERROR)
-       END IF
-    END DO
-    ! MPI_WAITALL for the non-blocking MPI-communication to be finished
-    IF (messageCounterS .GE. 1) THEN
-       CALL MPI_WAITALL(messageCounterS,send_request(1:messageCounterS),send_status_list(:,1:messageCounterS),IERROR)
-    END IF
-    IF (messageCounterR .GE. 1) THEN
-       CALL MPI_WAITALL(messageCounterR,recv_request(1:messageCounterR),recv_status_list(:,1:messageCounterR),IERROR)
-    END IF
-    !--- Deallocate Send Message Buffers
-    DO i = 0,PMPIVAR%nProcs-1
-       IF ((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
-          DEALLOCATE(send_message(i)%content_log, STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-             CALL abort(__STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
-          END IF
-          IF (SourceLength(i).GT.0) THEN
-             DEALLOCATE(send_message(i)%content, STAT=allocStat)
-             IF (allocStat .NE. 0) THEN
-                CALL abort(__STAMP__, &
-                  'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
-             END IF
-          END IF
-       END IF
-    END DO
+    !!--- allocate actual source receive buffer
+    !DO i = 0,PMPIVAR%nProcs-1
+       !IF ((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+          !Counter = 0
+          !DO k = 1, MsgLength(i)
+             !IF (recv_message(i)%Content_log(k)) THEN
+                !Counter = Counter + 1
+             !END IF
+          !END DO
+          !RecvLength(i) = Counter
+          !IF (RecvLength(i).GT.0) THEN
+             !ALLOCATE(recv_message(i)%content(1:Counter*4), STAT=allocStat)
+             !IF (allocStat .NE. 0) THEN
+                !CALL abort(__STAMP__, &
+                  !'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
+             !END IF
+          !END IF
+       !END IF
+    !END DO
+    !!--- communicate
+    !messageCounterS = 0
+    !DO i = 0,PMPIVAR%nProcs-1
+       !IF (((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.&
+            !(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)).AND.(SourceLength(i).GT.0)) THEN
+          !! MPI_ISEND true/false list for all border BGM points
+          !messageCounterS = messageCounterS + 1
+          !CALL MPI_ISEND(send_message(i)%content,SourceLength(i)*4,myRealKind,i,1,PMPIVAR%COMM, &
+                         !send_request(messageCounterS), IERROR)
+       !END IF
+    !END DO
+    !messageCounterR = 0
+    !DO i = 0,PMPIVAR%nProcs-1
+       !IF (((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.&
+            !(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)).AND.(RecvLength(i).GT.0)) THEN
+          !! MPI_IRECV true/false list for all border BGM points from neighbor CPUs
+          !messageCounterR = messageCounterR + 1
+          !CALL MPI_IRECV(recv_message(i)%content,RecvLength(i)*4,myRealKind,i,1,PMPIVAR%COMM, &
+                         !recv_request(messageCounterR), IERROR)
+       !END IF
+    !END DO
+    !! MPI_WAITALL for the non-blocking MPI-communication to be finished
+    !IF (messageCounterS .GE. 1) THEN
+       !CALL MPI_WAITALL(messageCounterS,send_request(1:messageCounterS),send_status_list(:,1:messageCounterS),IERROR)
+    !END IF
+    !IF (messageCounterR .GE. 1) THEN
+       !CALL MPI_WAITALL(messageCounterR,recv_request(1:messageCounterR),recv_status_list(:,1:messageCounterR),IERROR)
+    !END IF
+    !!--- Deallocate Send Message Buffers
+    !DO i = 0,PMPIVAR%nProcs-1
+       !IF ((PMPIVAR%MPIConnect(i)%isBGMNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor)) THEN
+          !DEALLOCATE(send_message(i)%content_log, STAT=allocStat)
+          !IF (allocStat .NE. 0) THEN
+             !CALL abort(__STAMP__, &
+                !'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
+          !END IF
+          !IF (SourceLength(i).GT.0) THEN
+             !DEALLOCATE(send_message(i)%content, STAT=allocStat)
+             !IF (allocStat .NE. 0) THEN
+                !CALL abort(__STAMP__, &
+                  !'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
+             !END IF
+          !END IF
+       !END IF
+    !END DO
 
-    !--- add selfperiodic sources, if any (needs to be done after send message is compiled and before
-    !---           received sources have been added!
-    IF ((GEO%nPeriodicVectors.GT.0).AND.(GEO%SelfPeriodic)) THEN
-       DO i = 1, GEO%nPeriodicVectors
-          DO k = BGMminX, BGMmaxX
-             k2 = k + GEO%PeriodicBGMVectors(1,i)
-          DO l = BGMminY, BGMmaxY
-             l2 = l + GEO%PeriodicBGMVectors(2,i)
-          DO m = BGMminZ, BGMmaxZ
-             m2 = m + GEO%PeriodicBGMVectors(3,i)
-             IF ((k2.GE.BGMminX).AND.(k2.LE.BGMmaxX)) THEN
-             IF ((l2.GE.BGMminY).AND.(l2.LE.BGMmaxY)) THEN
-             IF ((m2.GE.BGMminZ).AND.(m2.LE.BGMmaxZ)) THEN
-                BGMSource(k,l,m,:) = BGMSource(k,l,m,:) + BGMSource(k2,l2,m2,:)
-                BGMSource(k2,l2,m2,:) = BGMSource(k,l,m,:)
-             END IF
-             END IF
-             END IF
-          END DO
-          END DO
-          END DO
-       END DO
-    END IF
+    !!--- add selfperiodic sources, if any (needs to be done after send message is compiled and before
+    !!---           received sources have been added!
+    !IF ((GEO%nPeriodicVectors.GT.0).AND.(GEO%SelfPeriodic)) THEN
+       !DO i = 1, GEO%nPeriodicVectors
+          !DO k = BGMminX, BGMmaxX
+             !k2 = k + GEO%PeriodicBGMVectors(1,i)
+          !DO l = BGMminY, BGMmaxY
+             !l2 = l + GEO%PeriodicBGMVectors(2,i)
+          !DO m = BGMminZ, BGMmaxZ
+             !m2 = m + GEO%PeriodicBGMVectors(3,i)
+             !IF ((k2.GE.BGMminX).AND.(k2.LE.BGMmaxX)) THEN
+             !IF ((l2.GE.BGMminY).AND.(l2.LE.BGMmaxY)) THEN
+             !IF ((m2.GE.BGMminZ).AND.(m2.LE.BGMmaxZ)) THEN
+                !BGMSource(k,l,m,:) = BGMSource(k,l,m,:) + BGMSource(k2,l2,m2,:)
+                !BGMSource(k2,l2,m2,:) = BGMSource(k,l,m,:)
+             !END IF
+             !END IF
+             !END IF
+          !END DO
+          !END DO
+          !END DO
+       !END DO
+    !END IF
 
-    !--- Add Sources and Deallocate Receive Message Buffers
-    DO i = 0,PMPIVAR%nProcs-1
-       IF (RecvLength(i).GT.0) THEN
-          Counter = 0
-          Counter2 = 0
-          IF (PMPIVAR%MPIConnect(i)%isBGMNeighbor) THEN
-             DO k = PMPIVAR%MPIConnect(i)%BGMBorder(1,1), PMPIVAR%MPIConnect(i)%BGMBorder(2,1)
-             DO l = PMPIVAR%MPIConnect(i)%BGMBorder(1,2), PMPIVAR%MPIConnect(i)%BGMBorder(2,2)
-             DO m = PMPIVAR%MPIConnect(i)%BGMBorder(1,3), PMPIVAR%MPIConnect(i)%BGMBorder(2,3)
-                Counter = Counter + 1
-                IF(recv_message(i)%content_log(Counter))THEN
-                   Counter2 = Counter2 + 1
-                   DO n = 1,4
-                     BGMSource(k,l,m,n) = BGMSource(k,l,m,n) + recv_message(i)%content((Counter2-1)*4+n)
-                   END DO
-                END IF
-             END DO
-             END DO
-             END DO
-          END IF
-          IF (PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
-             DO n = 1, PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount
-                DO k = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
-                       PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
-                DO l = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
-                       PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
-                DO m = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
-                       PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
-                   Counter = Counter + 1
-                   IF(recv_message(i)%content_log(Counter))THEN
-                      Counter2 = Counter2 + 1
-                      DO ppp = 1,4
-                         BGMSource(k,l,m,ppp) = BGMSource(k,l,m,ppp) + recv_message(i)%content((Counter2-1)*4+ppp)
-                      END DO
-                   END IF
-                END DO
-                END DO
-                END DO
-             END DO
-          END IF
-          IF ((PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMNeighbor)) THEN
-             DEALLOCATE(recv_message(i)%content, STAT=allocStat)
-             IF (allocStat .NE. 0) THEN
-                CALL abort(__STAMP__, &
-                  'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
-             END IF
-          END IF
-       END IF
-       IF ((PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMNeighbor)) THEN
-          DEALLOCATE(recv_message(i)%content_log, STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-             CALL abort(__STAMP__, &
-              'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
-          END IF
-       END IF
-    END DO
+    !!--- Add Sources and Deallocate Receive Message Buffers
+    !DO i = 0,PMPIVAR%nProcs-1
+       !IF (RecvLength(i).GT.0) THEN
+          !Counter = 0
+          !Counter2 = 0
+          !IF (PMPIVAR%MPIConnect(i)%isBGMNeighbor) THEN
+             !DO k = PMPIVAR%MPIConnect(i)%BGMBorder(1,1), PMPIVAR%MPIConnect(i)%BGMBorder(2,1)
+             !DO l = PMPIVAR%MPIConnect(i)%BGMBorder(1,2), PMPIVAR%MPIConnect(i)%BGMBorder(2,2)
+             !DO m = PMPIVAR%MPIConnect(i)%BGMBorder(1,3), PMPIVAR%MPIConnect(i)%BGMBorder(2,3)
+                !Counter = Counter + 1
+                !IF(recv_message(i)%content_log(Counter))THEN
+                   !Counter2 = Counter2 + 1
+                   !DO n = 1,4
+                     !BGMSource(k,l,m,n) = BGMSource(k,l,m,n) + recv_message(i)%content((Counter2-1)*4+n)
+                   !END DO
+                !END IF
+             !END DO
+             !END DO
+             !END DO
+          !END IF
+          !IF (PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor) THEN
+             !DO n = 1, PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount
+                !DO k = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,1),&
+                       !PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,1)
+                !DO l = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,2),&
+                       !PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,2)
+                !DO m = PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(1,3),&
+                       !PMPIVAR%MPIConnect(i)%Periodic(n)%BGMPeriodicBorder(2,3)
+                   !Counter = Counter + 1
+                   !IF(recv_message(i)%content_log(Counter))THEN
+                      !Counter2 = Counter2 + 1
+                      !DO ppp = 1,4
+                         !BGMSource(k,l,m,ppp) = BGMSource(k,l,m,ppp) + recv_message(i)%content((Counter2-1)*4+ppp)
+                      !END DO
+                   !END IF
+                !END DO
+                !END DO
+                !END DO
+             !END DO
+          !END IF
+          !IF ((PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMNeighbor)) THEN
+             !DEALLOCATE(recv_message(i)%content, STAT=allocStat)
+             !IF (allocStat .NE. 0) THEN
+                !CALL abort(__STAMP__, &
+                  !'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
+             !END IF
+          !END IF
+       !END IF
+       !IF ((PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor).OR.(PMPIVAR%MPIConnect(i)%isBGMNeighbor)) THEN
+          !DEALLOCATE(recv_message(i)%content_log, STAT=allocStat)
+          !IF (allocStat .NE. 0) THEN
+             !CALL abort(__STAMP__, &
+              !'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
+          !END IF
+       !END IF
+    !END DO
 END SUBROUTINE MPISourceExchangeBGM
 
 SUBROUTINE MPIBackgroundMeshInit()  
@@ -1705,10 +1706,10 @@ SUBROUTINE MPIBackgroundMeshInit()
 ! initialize MPI background mesh
 !============================================================================================================================
 ! use MODULES                                                                   
-  USE MOD_PICDepo_Vars
-  USE MOD_Particle_Vars    
-  USE MOD_Globals
-  USE MOD_part_MPI_Vars
+  !USE MOD_PICDepo_Vars
+  !USE MOD_Particle_Vars    
+  !USE MOD_Globals
+  !USE MOD_part_MPI_Vars
 !-----------------------------------------------------------------------------------------------------------------------------------
     IMPLICIT NONE                                                                                  
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1717,129 +1718,129 @@ SUBROUTINE MPIBackgroundMeshInit()
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-    INTEGER                     :: i,k,m,n                                    
-    INTEGER                     :: localminmax(6), maxofmin, minofmax                              
-    INTEGER                     :: completeminmax(6*PMPIVAR%nProcs)                              
-    INTEGER                     :: allocStat, NeighCount                                                                 
-    INTEGER                     :: TempBorder(1:2,1:3)            
-    INTEGER                     :: Periodicminmax(6), coord, PeriodicVec(1:3)                   
-    INTEGER                     :: TempPeriBord(1:26,1:2,1:3)                                      
-    LOGICAL                     :: CHECKNEIGHBOR     
+    !INTEGER                     :: i,k,m,n                                    
+    !INTEGER                     :: localminmax(6), maxofmin, minofmax                              
+    !INTEGER                     :: completeminmax(6*PMPIVAR%nProcs)                              
+    !INTEGER                     :: allocStat, NeighCount                                                                 
+    !INTEGER                     :: TempBorder(1:2,1:3)            
+    !INTEGER                     :: Periodicminmax(6), coord, PeriodicVec(1:3)                   
+    !INTEGER                     :: TempPeriBord(1:26,1:2,1:3)                                      
+    !LOGICAL                     :: CHECKNEIGHBOR     
 !-----------------------------------------------------------------------------------------------------------------------------------
- ! Periodic Init stuff
- IF(GEO%nPeriodicVectors.GT.0)THEN
-   ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
-   ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
-   IF (allocStat .NE. 0) THEN
-     CALL abort(__STAMP__, &
-        'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
-   END IF
-   DO i = 1, GEO%nPeriodicVectors
-     GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
-     IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-       CALL abort(__STAMP__, &
-        'ERROR: Periodic Vector ist not multiple of background mesh delta')
-     END IF
-     GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
-     IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-       CALL abort(__STAMP__, &
-        'ERROR: Periodic Vector ist not multiple of background mesh delta')
-     END IF
-     GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
-     IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-       CALL abort(__STAMP__, &
-        'ERROR: Periodic Vector ist not multiple of background mesh delta')
-     END IF
-   END DO
-   ! Check whether process is periodic with itself
-   GEO%SelfPeriodic = .FALSE.
+  !Periodic Init stuff
+ !IF(GEO%nPeriodicVectors.GT.0)THEN
+    !Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
+   !ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
+   !IF (allocStat .NE. 0) THEN
+     !CALL abort(__STAMP__, &
+        !'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
+   !END IF
+   !DO i = 1, GEO%nPeriodicVectors
+     !GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
+     !IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
+       !CALL abort(__STAMP__, &
+        !'ERROR: Periodic Vector ist not multiple of background mesh delta')
+     !END IF
+     !GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
+     !IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
+       !CALL abort(__STAMP__, &
+        !'ERROR: Periodic Vector ist not multiple of background mesh delta')
+     !END IF
+     !GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
+     !IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
+       !CALL abort(__STAMP__, &
+        !'ERROR: Periodic Vector ist not multiple of background mesh delta')
+     !END IF
+   !END DO
+    !Check whether process is periodic with itself
+   !GEO%SelfPeriodic = .FALSE.
    !--- virtually move myself according to periodic vectors in order to find overlapping areas
    !--- 26 possibilities,
-   localminmax(1) = BGMminX
-   localminmax(2) = BGMminY
-   localminmax(3) = BGMminZ
-   localminmax(4) = BGMmaxX
-   localminmax(5) = BGMmaxY
-   localminmax(6) = BGMmaxZ
-   DO k = -1,1
-     DO m = -1,1
-       DO n = -1,1
-         PeriodicVec = k*GEO%PeriodicBGMVectors(:,1) + m*GEO%PeriodicBGMVectors(:,1) + n*GEO%PeriodicBGMVectors(:,1)
-         IF (ALL(PeriodicVec(:).EQ.0)) CYCLE
-         periodicminmax(1) = localminmax(1) + PeriodicVec(1)
-         periodicminmax(2) = localminmax(2) + PeriodicVec(2)
-         periodicminmax(3) = localminmax(3) + PeriodicVec(3)
-         periodicminmax(4) = localminmax(4) + PeriodicVec(1)
-         periodicminmax(5) = localminmax(5) + PeriodicVec(2)
-         periodicminmax(6) = localminmax(6) + PeriodicVec(3)
+   !localminmax(1) = BGMminX
+   !localminmax(2) = BGMminY
+   !localminmax(3) = BGMminZ
+   !localminmax(4) = BGMmaxX
+   !localminmax(5) = BGMmaxY
+   !localminmax(6) = BGMmaxZ
+   !DO k = -1,1
+     !DO m = -1,1
+       !DO n = -1,1
+         !PeriodicVec = k*GEO%PeriodicBGMVectors(:,1) + m*GEO%PeriodicBGMVectors(:,1) + n*GEO%PeriodicBGMVectors(:,1)
+         !IF (ALL(PeriodicVec(:).EQ.0)) CYCLE
+         !periodicminmax(1) = localminmax(1) + PeriodicVec(1)
+         !periodicminmax(2) = localminmax(2) + PeriodicVec(2)
+         !periodicminmax(3) = localminmax(3) + PeriodicVec(3)
+         !periodicminmax(4) = localminmax(4) + PeriodicVec(1)
+         !periodicminmax(5) = localminmax(5) + PeriodicVec(2)
+         !periodicminmax(6) = localminmax(6) + PeriodicVec(3)
          !--- find overlap
-         DO coord = 1,3           ! x y z direction
-           maxofmin = MAX(periodicminmax(coord),localminmax(coord))
-           minofmax = MIN(periodicminmax(3+coord),localminmax(3+coord))
-           IF (maxofmin.LE.minofmax) GEO%SelfPeriodic = .TRUE.      ! overlapping
-         END DO
-       END DO
-     END DO
-   END DO
- END IF
+         !DO coord = 1,3            x y z direction
+           !maxofmin = MAX(periodicminmax(coord),localminmax(coord))
+           !minofmax = MIN(periodicminmax(3+coord),localminmax(3+coord))
+           !IF (maxofmin.LE.minofmax) GEO%SelfPeriodic = .TRUE.       overlapping
+         !END DO
+       !END DO
+     !END DO
+   !END DO
+ !END IF
 
  !--- send and receive min max indices to and from all processes
 
     !--- enter local min max vector (xmin, ymin, zmin, xmax, ymax, zmax)
-    localminmax(1) = BGMminX
-    localminmax(2) = BGMminY
-    localminmax(3) = BGMminZ
-    localminmax(4) = BGMmaxX
-    localminmax(5) = BGMmaxY
-    localminmax(6) = BGMmaxZ
+    !localminmax(1) = BGMminX
+    !localminmax(2) = BGMminY
+    !localminmax(3) = BGMminZ
+    !localminmax(4) = BGMmaxX
+    !localminmax(5) = BGMmaxY
+    !localminmax(6) = BGMmaxZ
     !--- do allgather into complete min max vector
-    CALL MPI_ALLGATHER(localminmax,6,MPI_INTEGER,completeminmax,6,MPI_INTEGER,PMPIVAR%COMM,IERROR)
-    ! Allocate MPIConnect
-    SDEALLOCATE(PMPIVAR%MPIConnect)
-    ALLOCATE(PMPIVAR%MPIConnect(0:PMPIVAR%nProcs-1),STAT=allocStat)
-    IF (allocStat .NE. 0) THEN
-      CALL abort(__STAMP__, &
-        'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
-    END IF
+    !CALL MPI_ALLGATHER(localminmax,6,MPI_INTEGER,completeminmax,6,MPI_INTEGER,PMPIVAR%COMM,IERROR)
+     !Allocate MPIConnect
+    !SDEALLOCATE(PMPIVAR%MPIConnect)
+    !ALLOCATE(PMPIVAR%MPIConnect(0:PMPIVAR%nProcs-1),STAT=allocStat)
+    !IF (allocStat .NE. 0) THEN
+      !CALL abort(__STAMP__, &
+        !'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
+    !END IF
 
     !--- determine borders indices (=overlapping BGM mesh points) with each process
-    DO i = 0,PMPIVAR%nProcs-1
-      PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
-      PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = 0
-       IF (i.EQ.PMPIVAR%iProc) THEN
-          PMPIVAR%MPIConnect(i)%isBGMNeighbor = .FALSE.
-       ELSE
-          PMPIVAR%MPIConnect(i)%isBGMNeighbor = .TRUE.
-          DO k = 1,3           ! x y z direction
-             maxofmin = MAX(localminmax(k),completeminmax((i*6)+k))
-             minofmax = MIN(localminmax(3+k),completeminmax((i*6)+3+k))
-             IF (maxofmin.LE.minofmax) THEN           ! overlapping
-                TempBorder(1,k) = maxofmin
-                TempBorder(2,k) = minofmax
-             ELSE
-                PMPIVAR%MPIConnect(i)%isBGMNeighbor = .FALSE.
-             END IF
-          END DO          
-       END IF
-       IF(PMPIVAR%MPIConnect(i)%isBGMNeighbor)THEN
-          SDEALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder)
-          ALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder(1:2,1:3),STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-             CALL abort(__STAMP__, &
-              'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
-          END IF
-          PMPIVAR%MPIConnect(i)%BGMBorder(1:2,1:3) = TempBorder(1:2,1:3)
-       END IF
-    END DO
+    !DO i = 0,PMPIVAR%nProcs-1
+      !PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+      !PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = 0
+       !IF (i.EQ.PMPIVAR%iProc) THEN
+          !PMPIVAR%MPIConnect(i)%isBGMNeighbor = .FALSE.
+       !ELSE
+          !PMPIVAR%MPIConnect(i)%isBGMNeighbor = .TRUE.
+          !DO k = 1,3            x y z direction
+             !maxofmin = MAX(localminmax(k),completeminmax((i*6)+k))
+             !minofmax = MIN(localminmax(3+k),completeminmax((i*6)+3+k))
+             !IF (maxofmin.LE.minofmax) THEN            overlapping
+                !TempBorder(1,k) = maxofmin
+                !TempBorder(2,k) = minofmax
+             !ELSE
+                !PMPIVAR%MPIConnect(i)%isBGMNeighbor = .FALSE.
+             !END IF
+          !END DO          
+       !END IF
+       !IF(PMPIVAR%MPIConnect(i)%isBGMNeighbor)THEN
+          !SDEALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder)
+          !ALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder(1:2,1:3),STAT=allocStat)
+          !IF (allocStat .NE. 0) THEN
+             !CALL abort(__STAMP__, &
+              !'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
+          !END IF
+          !PMPIVAR%MPIConnect(i)%BGMBorder(1:2,1:3) = TempBorder(1:2,1:3)
+       !END IF
+    !END DO
 
     
     !--- determine border indices for periodic meshes  
-    IF (GEO%nPeriodicVectors.GT.0) THEN   
-      DO i = 0,PMPIVAR%nProcs-1
-        IF (i.EQ.PMPIVAR%iProc) THEN
-          PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
-          PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = 0
-        ELSE
+    !IF (GEO%nPeriodicVectors.GT.0) THEN   
+      !DO i = 0,PMPIVAR%nProcs-1
+        !IF (i.EQ.PMPIVAR%iProc) THEN
+          !PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+          !PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = 0
+        !ELSE
           !--- virtually move myself according to periodic vectors in order to find overlapping areas
           !--- 26 possibilities, processes need to work through them in opposite direction in order
           !--- to get matching areas.
@@ -1850,71 +1851,71 @@ SUBROUTINE MPIBackgroundMeshInit()
           !--- This is done by doing 3 loops from -1 to 1 (for the higher process number)
           !--- or 1 to -1 (for the lower process number) and multiplying
           !--- these numbers to the periodic vectors
-          NeighCount = 0   !-- counter: how often is the process my periodic neighbor?
-          PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
-          DO k = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
-            DO m = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
-              DO n = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
-                IF ((k.EQ.0).AND.(m.EQ.0).AND.(n.EQ.0)) CYCLE !this is not periodic and already done above
-                CHECKNEIGHBOR = .TRUE.
-                PeriodicVec = k*GEO%PeriodicBGMVectors(:,1)
-                IF (GEO%nPeriodicVectors.GT.1) THEN
-                  PeriodicVec = PeriodicVec + m*GEO%PeriodicBGMVectors(:,2)
-                END IF
-                IF (GEO%nPeriodicVectors.GT.2) THEN
-                  PeriodicVec = PeriodicVec + n*GEO%PeriodicBGMVectors(:,3)
-                END IF
-                periodicminmax(1) = localminmax(1) + PeriodicVec(1)
-                periodicminmax(2) = localminmax(2) + PeriodicVec(2)
-                periodicminmax(3) = localminmax(3) + PeriodicVec(3)
-                periodicminmax(4) = localminmax(4) + PeriodicVec(1)
-                periodicminmax(5) = localminmax(5) + PeriodicVec(2)
-                periodicminmax(6) = localminmax(6) + PeriodicVec(3)
+          !NeighCount = 0   -- counter: how often is the process my periodic neighbor?
+          !PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+          !DO k = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
+            !DO m = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
+              !DO n = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
+                !IF ((k.EQ.0).AND.(m.EQ.0).AND.(n.EQ.0)) CYCLE this is not periodic and already done above
+                !CHECKNEIGHBOR = .TRUE.
+                !PeriodicVec = k*GEO%PeriodicBGMVectors(:,1)
+                !IF (GEO%nPeriodicVectors.GT.1) THEN
+                  !PeriodicVec = PeriodicVec + m*GEO%PeriodicBGMVectors(:,2)
+                !END IF
+                !IF (GEO%nPeriodicVectors.GT.2) THEN
+                  !PeriodicVec = PeriodicVec + n*GEO%PeriodicBGMVectors(:,3)
+                !END IF
+                !periodicminmax(1) = localminmax(1) + PeriodicVec(1)
+                !periodicminmax(2) = localminmax(2) + PeriodicVec(2)
+                !periodicminmax(3) = localminmax(3) + PeriodicVec(3)
+                !periodicminmax(4) = localminmax(4) + PeriodicVec(1)
+                !periodicminmax(5) = localminmax(5) + PeriodicVec(2)
+                !periodicminmax(6) = localminmax(6) + PeriodicVec(3)
                 !--- find overlap
-                DO coord = 1,3           ! x y z direction
-                  maxofmin = MAX(periodicminmax(coord),completeminmax((i*6)+coord))
-                  minofmax = MIN(periodicminmax(3+coord),completeminmax((i*6)+3+coord))
-                  IF (maxofmin.LE.minofmax) THEN           ! overlapping
-                    TempBorder(1,coord) = maxofmin
-                    TempBorder(2,coord) = minofmax
-                  ELSE
-                    CHECKNEIGHBOR = .FALSE.
-                  END IF
-                END DO
-                IF(CHECKNEIGHBOR)THEN
-                  NeighCount = NeighCount + 1
-                  TempBorder(:,1) = TempBorder(:,1) - PeriodicVec(1)
-                  TempBorder(:,2) = TempBorder(:,2) - PeriodicVec(2)
-                  TempBorder(:,3) = TempBorder(:,3) - PeriodicVec(3)
-                  TempPeriBord(NeighCount,1:2,1:3) = TempBorder(1:2,1:3)
-                  PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .TRUE.
-                END IF
-              END DO
-            END DO
-          END DO
-          PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = NeighCount
-          ALLOCATE(PMPIVAR%MPIConnect(i)%Periodic(1:PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount),STAT=allocStat)
-          IF (allocStat .NE. 0) THEN
-            CALL abort(__STAMP__,  &
-              'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
-          END IF
-          DO k = 1,NeighCount
-            ALLOCATE(PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3),STAT=allocStat)
-            IF (allocStat .NE. 0) THEN
-              CALL abort(__STAMP__, &
-                'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
-            END IF
-            PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3) = TempPeriBord(k,1:2,1:3)
-          END DO
-        END IF
-      END DO
-    ELSE
+                !DO coord = 1,3            x y z direction
+                  !maxofmin = MAX(periodicminmax(coord),completeminmax((i*6)+coord))
+                  !minofmax = MIN(periodicminmax(3+coord),completeminmax((i*6)+3+coord))
+                  !IF (maxofmin.LE.minofmax) THEN            overlapping
+                    !TempBorder(1,coord) = maxofmin
+                    !TempBorder(2,coord) = minofmax
+                  !ELSE
+                    !CHECKNEIGHBOR = .FALSE.
+                  !END IF
+                !END DO
+                !IF(CHECKNEIGHBOR)THEN
+                  !NeighCount = NeighCount + 1
+                  !TempBorder(:,1) = TempBorder(:,1) - PeriodicVec(1)
+                  !TempBorder(:,2) = TempBorder(:,2) - PeriodicVec(2)
+                  !TempBorder(:,3) = TempBorder(:,3) - PeriodicVec(3)
+                  !TempPeriBord(NeighCount,1:2,1:3) = TempBorder(1:2,1:3)
+                  !PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .TRUE.
+                !END IF
+              !END DO
+            !END DO
+          !END DO
+          !PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = NeighCount
+          !ALLOCATE(PMPIVAR%MPIConnect(i)%Periodic(1:PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount),STAT=allocStat)
+          !IF (allocStat .NE. 0) THEN
+            !CALL abort(__STAMP__,  &
+              !'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
+          !END IF
+          !DO k = 1,NeighCount
+            !ALLOCATE(PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3),STAT=allocStat)
+            !IF (allocStat .NE. 0) THEN
+              !CALL abort(__STAMP__, &
+                !'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
+            !END IF
+            !PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3) = TempPeriBord(k,1:2,1:3)
+          !END DO
+        !END IF
+      !END DO
+    !ELSE
       !--- initialize to FALSE for completely non-periodic cases
-      DO i = 0,PMPIVAR%nProcs-1
-        PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
-      END DO
-    END IF
-  RETURN
+      !DO i = 0,PMPIVAR%nProcs-1
+        !PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+      !END DO
+    !END IF
+  !RETURN
 END SUBROUTINE MPIBackgroundMeshInit
 #endif /*MPI*/
 
