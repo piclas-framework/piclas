@@ -145,6 +145,8 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
         END IF
       END DO ! ilocSide
+!      print*,'locAlpha',locAlpha
+!      read*
       IF(ALMOSTEQUAL(MAXVAL(locAlpha(:)),-1.0))THEN
         ! no intersection found and particle is in final element
         PEM%Element(iPart) = ElemID
@@ -2900,6 +2902,8 @@ CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
 !  read*
 !END SELECT
 
+!print*,'number of roots', nRoot
+!read*
 IF(nRoot.EQ.0)THEN
   RETURN
 END IF
@@ -2929,7 +2933,7 @@ IF (nRoot.EQ.1) THEN
   END IF ! eta .lt. epsilonOne
 ELSE 
   nInter=0
-  t=-2.
+  t=-1.
   IF(ABS(eta(1)).LT.epsilonOne)THEN
     xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
     xi(1)=1.0/xi(1)
@@ -2941,8 +2945,8 @@ ELSE
       t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
       !t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
       !IF((t(1).LT.-epsilontol).OR.(t(1).GT.epsilonOne))THEN
-      IF((t(1).LT.-epsilontol).AND.(t(1).GT.lengthPartTrajectory))THEN
-        t(1)=-2.0
+      IF((t(1).LT.-epsilontol).OR.(t(1).GT.lengthPartTrajectory))THEN
+        t(1)=-1.0
       ELSE
         nInter=nInter+1
         t(1)=t(1)!/lengthPartTrajectory
@@ -2971,9 +2975,11 @@ ELSE
 !        print*,'t',t(2)
 !        read*
 !      END SELECT
-      IF((t(2).LT.-epsilontol).AND.(t(2).GT.lengthPartTrajectory))THEN
-        t(2)=-2.0
+      IF((t(2).LT.-epsilontol).OR.(t(2).GT.lengthPartTrajectory))THEN
+        !print*,'here'
+        t(2)=-1.0
       ELSE
+        !print*,'why'
         t(2)=t(2)!/lengthPartTrajectory
         nInter=nInter+1
       END IF
@@ -2987,6 +2993,7 @@ ELSE
       !END IF 
     END IF
   END IF
+  !print*,'t1,t2,veclength',t(1),t(2),lengthPartTrajectory
   ! if no intersection, return
 !  print*,nInter
 !  print*,'xi,eta,t',xi(2),eta(2),t(2)
@@ -2998,7 +3005,7 @@ ELSE
       xitild=xi(1)
       etatild=eta(1)
     ELSE
-      alpha=t(2)
+      alpha=t(3)
       xitild=xi(2)
       etatild=eta(2)
     END IF

@@ -208,7 +208,7 @@ tFuture=MIN(t+Analyze_dt,tEnd)
 !Evaluate Gradients to get Potential in case of Restart and Poisson Calc
 #ifdef PP_POIS
 IF(DoRestart) CALL EvalGradient()
-#endif
+#endif /*PP_POIS*/
 ! Write the state at time=0, i.e. the initial condition
 CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
 
@@ -236,8 +236,7 @@ END IF
 #endif /*MPI*/
 #endif /*PARTICLES*/
 
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-#ifdef MPI
+!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 !  CALL IRecvNbofParticles()
 !  CALL MPIParticleSend()
 !#endif /*MPI*/
@@ -247,8 +246,8 @@ END IF
 !  ! second buffer
 !  CALL Deposition(doInnerParts=.FALSE.)
 !#endif /*MPI*/
-#endif
-
+!#endif
+#ifdef PARTICLES
 ! For tEnd != tStart we have to advance the solution in time
 IF(useManualTimeStep)THEN
   ! particle time step is given externally and not calculated through the solver
@@ -267,7 +266,7 @@ IF(useManualTimeStep)THEN
     print*, 'Particle TimeStep: ', dt_max_particles  
     print*, 'Maxwell TimeStep: ', dt_maxwell
   END IF
-#endif
+#endif /*PP_TimeDiscMethod==200)*/
 ELSE ! .NO. ManualTimeStep
 #endif /*PARTICLES*/
   ! time step is calculated by the solver
@@ -508,6 +507,7 @@ END DO
 iStage=1
 
 #ifdef PARTICLES
+!SWRITE(*,*) 'iStage', iStage
 Time=t
 IF (t.GE.DelayTime) THEN
   CALL ParticleInserting()
@@ -606,6 +606,7 @@ END IF
 #endif /*PARTICLES*/
 
 DO iStage=2,nRKStages
+  !SWRITE(*,*) 'iStage', iStage
   tStage=t+dt*RK_c(iStage)
 #ifdef PARTICLES
   ! deposition  

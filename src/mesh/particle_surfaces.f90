@@ -104,12 +104,11 @@ IF((MappingGuess.LT.1).OR.(MappingGuess.GT.4))THEN
    CALL abort(__STAMP__, &
         'Wrong guessing method for mapping from physical space in reference space.',MappingGuess,999.)
 END IF
-IF(MappingGuess.EQ.1)THEN
-  ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:PP_nElems) &
-          ,slenXiEtaZetaBasis(1:6,1:PP_nElems) &
-          ,ElemBaryNGeo(1:3,1:PP_nElems)       )
-  CALL BuildElementBasis()
-END IF
+! ElemBaryNGeo are required for particle mapping| SingleParticleToExactElem
+ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:PP_nElems) &
+        ,slenXiEtaZetaBasis(1:6,1:PP_nElems) &
+        ,ElemBaryNGeo(1:3,1:PP_nElems)       )
+CALL BuildElementBasis()
 
 ALLOCATE( locAlpha(1:ClipMaxInter) &
         , locXi   (1:ClipMaxInter) &
@@ -1370,8 +1369,12 @@ IF(dz/dMax.LT.1.E-3)THEN
   dz=0.
 END IF
 
+IF(dx*dy*dz.LT.0) THEN
+  IPWRITE(*,*) ' Warning, no bounding box'
+END IF
 
-IF(dx*dy*dz.EQ.0.)THEN
+!IF(dx*dy*dz.EQ.0.)THEN
+IF(ALMOSTZERO(dx*dy*dz))THEN
   SideIsPlanar=.TRUE.
   BoundingBoxIsEmpty(SideID)=.TRUE.
 ELSE

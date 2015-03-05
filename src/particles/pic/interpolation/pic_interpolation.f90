@@ -228,7 +228,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
           CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field,iElem)
 #else
-          CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
+          CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem,iPart)
 #endif
 #else
 #ifdef PP_POIS

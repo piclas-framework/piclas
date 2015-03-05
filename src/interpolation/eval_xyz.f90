@@ -38,7 +38,7 @@ PUBLIC :: eval_xyz_curved,eval_xyz_elemcheck, eval_xyz_part2
 CONTAINS
 
 #ifdef PARTICLES
-SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,X3D_In,X3D_Out,iElem)
+SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,X3D_In,X3D_Out,iElem,PartID)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
@@ -53,6 +53,7 @@ USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_N
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,MappingGuess
 USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
+USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -63,6 +64,7 @@ INTEGER,INTENT(IN)  :: N_In                                  ! usually PP_N
 INTEGER,INTENT(IN)  :: iElem                                 ! elem index
 REAL,INTENT(IN)     :: X3D_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
 REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
+INTEGER,INTENT(IN),OPTIONAL :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)    :: X3D_Out(1:NVar)  ! Interpolated state
@@ -207,7 +209,9 @@ DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
     SWRITE(*,*) ' xi  ', xi(1)
     SWRITE(*,*) ' eta ', xi(2)
     SWRITE(*,*) ' zeta', xi(3)
-    STOP
+    SWRITE(*,*) ' PartPos', X_in
+    CALL abort(__STAMP__, &
+        'Particle Not inSide of Element, iProc, iElem',PartMPI%MyRank,REAL(iElem))
   END IF
   
   ! Compute function value
@@ -233,6 +237,7 @@ IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
   WRITE(*,*) ' xi  ', xi(1)
   WRITE(*,*) ' eta ', xi(2)
   WRITE(*,*) ' zeta', xi(3)
+  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
 END IF
 
 ! 2.1) get "Vandermonde" vectors

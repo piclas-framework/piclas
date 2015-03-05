@@ -67,6 +67,8 @@ REAL                  :: EInside,TempInside
 LOGICAL               :: EmType6
 !===================================================================================================================================
 
+SWRITE(UNIT_stdOut,'(A)') ' Initial particle inserting... '
+
 CALL UpdateNextFreePosition()
 EmType6=.false.
 DO i=1, nSpecies
@@ -180,6 +182,8 @@ END IF ! not restart
 DO i = 1,PDM%ParticleVecLength
   PEM%lastElement(i) = PEM%Element(i)
 END DO
+
+SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
 
 END SUBROUTINE InitializeParticleEmission
 
