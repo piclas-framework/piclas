@@ -202,12 +202,12 @@ REAL                     :: xi(3)
 LOGICAL                  :: InElementCheck
 REAL                     :: det(16)
 INTEGER                  :: COUNTER, COUNTER2
+REAL,PARAMETER           :: eps=1e-8 ! same value as in eval_xyz_elem
+REAL                     :: epsOne
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
 INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
 INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
-REAL,PARAMETER           :: eps=1e-8 ! same value as in eval_xyz_elem
-REAL                     :: epsOne
 #endif /*MPI*/
 #endif /*PARTICLES*/
 !===================================================================================================================================

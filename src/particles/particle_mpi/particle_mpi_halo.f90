@@ -122,7 +122,7 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   CALL MPI_SEND(SendMsg%nMPISides,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,IERROR)
 END IF
 
-IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Receive:', RecvMsg%nMPISides
+!IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Receive:', RecvMsg%nMPISides
 
 !--- Allocate Message
 IF (SendMsg%nMPISides.GT.0) THEN
@@ -1114,7 +1114,7 @@ ALLOCATE(DummyElemToSide(1:2,1:6,1:nOldElems))
 IF (.NOT.ALLOCATED(DummyElemToSide)) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 DummyElemToSide=PartElemToSide
-IPWRITE(*,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
+!IPWRITE(*,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
 DEALLOCATE(PartElemToSide)
 ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!

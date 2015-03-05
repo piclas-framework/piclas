@@ -1442,6 +1442,9 @@ USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Mesh_Vars,                ONLY:nSides,NGeo,Xi_NGeo,Sideid_minus_upper
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,epsilontol,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalSides
+#ifdef MPI
+USE MOD_Particle_MPI,             ONLY:WriteParticlePartitionInformation
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1454,6 +1457,9 @@ INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy
 REAL,DIMENSION(1:3)         :: v1,v2
 REAL                        :: length,eps
 LOGICAL                     :: isLinear
+#ifdef MPI  
+INTEGER                     :: nPlanarTot,nBilinearTot,nCurvedTot
+#endif /*MPI*/
 !================================================================================================================================
 
 ! allocated here,!!! should be moved?
@@ -1475,9 +1481,16 @@ eps=1e-8
 nPlanar=0
 nBilinear=0
 nCurved=0
+#ifdef MPI
+nPlanarTot=0
+nBilinearTot=0
+nCurvedTot=0
+#endif /*MPI*/
 DO iSide=1,nTotalSides
   isLinear=.TRUE.
   ! all four edges
+  !IF(iSide.GT.nSides) IPWRITE(*,*) BezierControlPOints3D(:,:,:,iSide)
+  IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10) IPWRITE(*,*) 'missing side'
   q=0
   v1=BezierControlPoints3D(:,NGeo,q,iSide)-BezierControlPoints3D(:,0,q,iSide)
   DO p=1,NGeo-1
@@ -1514,6 +1527,9 @@ DO iSide=1,nTotalSides
     IF(BoundingBoxIsEmpty(iSide))THEN
       SideType(iSide)=PLANAR
       IF(iSide.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+      IF(iSide.GT.SideID_Minus_Upper) nPlanartot=nPlanartot+1
+#endif /*MPI*/
       ! compute the norm vec of side and distance from origin
       v1=BezierControlPoints3D(:,NGeo,0,iSide)-BezierControlPoints3D(:,0,0,iSide)
       v2=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,0,0,iSide)
@@ -1537,10 +1553,16 @@ DO iSide=1,nTotalSides
     ELSE
       SideType(iSide)=BILINEAR
       IF(iSide.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
+#ifdef MPI
+      IF(iSide.GT.SideID_Minus_Upper) nBilinearTot=nBilinearTot+1
+#endif /*MPI*/
     END IF ! BoundingBoxIsEmpty
   ELSE ! non-linear sides
     SideType(iSide)=CURVED
     IF(iSide.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+    IF(iSide.GT.SideID_Minus_Upper) nCurvedTot=nCurvedTot+1
+#endif /*MPI*/
     IF(BoundingBoxIsEmpty(iSide))THEN
       v1=BezierControlPoints3D(:,NGeo,0,iSide)-BezierControlPoints3D(:,0,0,iSide)
       v2=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,0,0,iSide)
@@ -1555,6 +1577,9 @@ DO iSide=1,nTotalSides
 END DO ! iSide
 
 #ifdef MPI
+nPlanarTot=nPlanar+nPlanarTot
+nBilinearTot=nBilinear+nBilinearTot
+nCurvedTot=nCurved+nCurvedTot
 IF(MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,nPlanar  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,nBilinear,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
@@ -1570,6 +1595,11 @@ SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar    faces: ', nPlanar
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear faces: ', nBilinear
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved    faces: ', nCurved
 SWRITE(UNIT_StdOut,'(132("-"))')
+
+
+#ifdef MPI
+CALL  WriteParticlePartitionInformation(nPlanarTot,nBilinearTot,nCurvedTot)
+#endif
 
 END SUBROUTINE GetSideType
 

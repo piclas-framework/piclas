@@ -147,6 +147,7 @@ USE MOD_PARTICLE_Vars,         ONLY : doParticleMerge, enableParticleMerge, vMPF
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,             ONLY: realtime,nOutput, Iter_macvalout
 #ifdef MPI
+USE MOD_Particle_MPI,          ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv
 !USE MOD_part_boundary,         ONLY: ParticleBoundary, Communicate_PIC
 !USE MOD_PICDepo_Vars,          ONLY: DepositionType
 #endif /*MPI*/
@@ -233,6 +234,20 @@ IF (DepositionType.EQ."shape_function") THEN
 !  CALL Communicate_PIC()
 END IF
 #endif /*MPI*/
+#endif /*PARTICLES*/
+
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#ifdef MPI
+!  CALL IRecvNbofParticles()
+!  CALL MPIParticleSend()
+!#endif /*MPI*/
+!  CALL Deposition(doInnerParts=.TRUE.)
+!#ifdef MPI
+!  CALL MPIParticleRecv()
+!  ! second buffer
+!  CALL Deposition(doInnerParts=.FALSE.)
+!#endif /*MPI*/
+#endif
 
 ! For tEnd != tStart we have to advance the solution in time
 IF(useManualTimeStep)THEN
@@ -432,6 +447,7 @@ SUBROUTINE TimeStepByLSERK(t,iter,tEndDiff)
 ! the current time U(t) and returns the solution at the next time level.
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Vector
 USE MOD_Analyze,          ONLY: PerformAnalyze
@@ -457,15 +473,13 @@ USE MOD_PIC_Vars,         ONLY: PIC
 USE MOD_Particle_Vars,    ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
 USE MOD_Particle_Vars,    ONLY: nTotalPart,nTotalHalfPart
 USE MOD_part_RHS,         ONLY: CalcPartRHS
-!USE MOD_part_boundary,    ONLY: ParticleBoundary
 USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved
 USE MOD_part_emission,    ONLY: ParticleInserting
 USE MOD_DSMC,             ONLY: DSMC_main
 USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS, DSMC
 #ifdef MPI
-!USE MOD_part_boundary,    ONLY: ParticleBoundary, Communicate_PIC
+USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv
 #else /*No MPI*/
-!USE MOD_part_boundary,    ONLY: ParticleBoundary
 #endif /*MPI*/
 USE MOD_part_tools,       ONLY: UpdateNextFreePosition
 #endif /*PARTICLES*/
@@ -496,23 +510,27 @@ iStage=1
 #ifdef PARTICLES
 Time=t
 IF (t.GE.DelayTime) THEN
-  SWRITE(*,*) 'emission'
   CALL ParticleInserting()
-  SWRITE(*,*) 'emission done'
-  nTotalHalfPart=PDM%ParticleVecLength*3
-  nTotalPart    =PDM%ParticleVecLength*6
 ! forces on particle
   CALL InterpolateFieldToParticle()
   CALL CalcPartRHS()
 END IF
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-  IF (usevMPF) THEN 
-    CALL DepositionMPF()
-  ELSE 
-    CALL Deposition()
-  END IF
-  !CALL CalcDepositedCharge()
+  ! because of emmision and UpdateParticlePosition
+  CALL Deposition(doInnerParts=.TRUE.)
+!#ifdef MPI
+!  CALL MPIParticleRecv()
+!  ! second buffer
+!  CALL Deposition(doInnerParts=.FALSE.)
+!#endif /*MPI*/
+!  IF (usevMPF) THEN 
+!    CALL DepositionMPF()
+!  ELSE 
+!    CALL Deposition()
+!  END IF
+!  CALL CalcDepositedCharge()
+!  STOP
 END IF
 #endif /*PARTICLES*/
 
@@ -535,43 +553,53 @@ CALL PerformAnalyze(t,iter,tendDiff,force=.FALSE.)
 
 ! first RK step
 ! EM field
-!Ut_temp = Ut 
-!U = U + Ut*b_dt(1)
-CALL VCOPY(nTotalU,Ut,Ut_temp)
-CALL VAXPBY(nTotalU,Ut,U,ConstIn=b_dt(1))
-
+Ut_temp = Ut 
+U = U + Ut*b_dt(1)
 !PML auxiliary variables
 IF(DoPML) THEN
-  CALL VCOPY(nTotalPML,U2t,U2t_temp)
-  CALL VAXPBY(nTotalPML,U2t,U2,ConstIn=b_dt(1))
+  U2t_temp = U2t
+  U2 = U2 + U2t*b_dt(1)
 END IF
 
 #ifdef PP_POIS
-  CALL VCOPY(nTotalU,Phit,Phit_temp)
-  CALL VAXPBY(nTotalU,Phit,Phi,ConstIn=b_dt(1))
-  CALL EvalGradient()
+Phit_temp = Phit 
+Phi = Phi + Phit*b_dt(1)
+CALL EvalGradient()
 #endif
 
 #ifdef PARTICLES
 ! particles
-CALL LVCOPY(nTotalHalfPart,PartState(1:PDM%ParticleVecLength,1:3),LastPartPos(1:PDM%ParticleVecLength,1:3))
-DO iPart=1,PDM%ParticleVecLength
-  PEM%LastElement(iPart)=PEM%Element(iPart)
-END DO
+LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
 IF (t.GE.DelayTime) THEN
-  CALL LVCOPY(nTotalHalfPart,PartState(1:PDM%ParticleVecLength,4:6),Pt_temp(1:PDM%ParticleVecLength,1:3))
-  CALL LVCOPY(nTotalHalfPart,Pt(1:PDM%ParticleVecLength,:),Pt_temp(1:PDM%ParticleVecLength,4:6))
-  CALL LVAXPBY(nTotalHalfPart,PartState(1:PDM%ParticleVecLength,4:6),PartState(1:PDM%ParticleVecLength,1:3),ConstIn=b_dt(1))
-  CALL LVAXPBY(nTotalHalfPart,Pt(1:PDM%ParticleVecLength,:),PartState(1:PDM%ParticleVecLength,4:6),ConstIn=b_dt(1))
+  Pt_temp(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,4) 
+  Pt_temp(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,5) 
+  Pt_temp(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,6) 
+  Pt_temp(1:PDM%ParticleVecLength,4) = Pt(1:PDM%ParticleVecLength,1) 
+  Pt_temp(1:PDM%ParticleVecLength,5) = Pt(1:PDM%ParticleVecLength,2) 
+  Pt_temp(1:PDM%ParticleVecLength,6) = Pt(1:PDM%ParticleVecLength,3)
+  PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) &
+                                       + PartState(1:PDM%ParticleVecLength,4)*b_dt(1)
+  PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) &
+                                       + PartState(1:PDM%ParticleVecLength,5)*b_dt(1)
+  PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
+                                       + PartState(1:PDM%ParticleVecLength,6)*b_dt(1)
+  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                       + Pt(1:PDM%ParticleVecLength,1)*b_dt(1)
+  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                       + Pt(1:PDM%ParticleVecLength,2)*b_dt(1)
+  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                       + Pt(1:PDM%ParticleVecLength,3)*b_dt(1)
 END IF
-
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-!CALL ParticleTracking()
-CALL ParticleTrackingCurved()
-
 #ifdef MPI
-  CALL Communicate_PIC()
-  !CALL UpdateNextFreePosition() ! only required for parallel communication
+  CALL IRecvNbofParticles()
+#endif /*MPI*/
+  CALL ParticleTrackingCurved()
+#ifdef MPI
+  CALL MPIParticleSend()
 #endif
   !CALL Filter(U)
 END IF
@@ -582,11 +610,18 @@ DO iStage=2,nRKStages
 #ifdef PARTICLES
   ! deposition  
   IF (t.GE.DelayTime) THEN 
-    IF (usevMPF) THEN 
-      CALL DepositionMPF()
-    ELSE 
-      CALL Deposition()
-    END IF
+!    ! deposition  
+     CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+     CALL MPIParticleRecv()
+     ! second buffer
+     CALL Deposition(doInnerParts=.FALSE.)
+#endif /*MPI*/
+!    IF (usevMPF) THEN 
+!      CALL DepositionMPF()
+!    ELSE 
+!      CALL Deposition()
+!    END IF
   END IF
   ! particle RHS
   IF (t.GE.DelayTime) THEN
@@ -610,41 +645,60 @@ DO iStage=2,nRKStages
 
   ! performe RK steps
   ! field step
-
-  !Ut_temp = Ut - Ut_temp*RK4_a(iStage)
-  !U = U + Ut_temp*b_dt(iStage)
-  CALL VAXPBY(nTotalU,Ut,Ut_temp,ConstOut=-RK_a(iStage))
-  CALL VAXPBY(nTotalU,Ut_temp,U,ConstIn=b_dt(iStage))
-
+  Ut_temp = Ut - Ut_temp*RK_a(iStage)
+  U = U + Ut_temp*b_dt(iStage)
   !PML auxiliary variables
   IF(DoPML)THEN
-    CALL VAXPBY(nTotalPML,U2t,U2t_temp,ConstOut=-RK_a(iStage))
-    CALL VAXPBY(nTotalPML,U2t_temp,U2,ConstIn=b_dt(iStage))
+    U2t_temp = U2t - U2t_temp*RK_a(iStage)
+    U2 = U2 + U2t_temp*b_dt(iStage)
   END IF
 
 #ifdef PP_POIS
-  CALL VAXPBY(nTotalU,Phit,Phit_temp,ConstOut=-RK_a(iStage))
-  CALL VAXPBY(nTotalU,Phit_temp,Phi,ConstIn=b_dt(iStage))
+  Phit_temp = Phit - Phit_temp*RK_a(iStage)
+  Phi = Phi + Phit_temp*b_dt(iStage)
   CALL EvalGradient()
 #endif
 
 #ifdef PARTICLES
   ! particle step
   IF (t.GE.DelayTime) THEN
-    CALL LVCOPY(nTotalHalfPart,PartState(1:PDM%particleVecLength,1:3),LastPartPos(1:PDM%ParticleVecLength,1:3))
-    DO iPart=1,PDM%ParticleVecLength
-      PEM%LastElement(iPart)=PEM%Element(iPart)
-    END DO
-    CALL LVAXPBY(nTotalHalfPart,PartState(1:PDM%ParticleVecLength,4:6),Pt_temp(1:PDM%ParticleVecLength,1:3),ConstOut=-RK_a(iStage))
-    CALL LVAXPBY(nTotalHalfPart,Pt(1:PDM%ParticleVecLength,1:3),Pt_temp(1:PDM%ParticleVecLength,4:6),ConstOut=-RK_a(iStage))
-    CALL LVAXPBY(nTotalPart,Pt_temp(1:PDM%ParticleVecLength,1:6),PartState(1:PDM%ParticleVecLength,1:6),ConstIn=b_dt(iStage))
-
+    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+    PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+    Pt_temp(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,4) &
+                             - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,1)
+    Pt_temp(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,5) &
+                             - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,2)
+    Pt_temp(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,6) &
+                             - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,3)
+    Pt_temp(1:PDM%ParticleVecLength,4) = Pt(1:PDM%ParticleVecLength,1) &
+                             - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,4)
+    Pt_temp(1:PDM%ParticleVecLength,5) = Pt(1:PDM%ParticleVecLength,2) &
+                             - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,5)
+    Pt_temp(1:PDM%ParticleVecLength,6) = Pt(1:PDM%ParticleVecLength,3) &
+                             - RK_a(iStage) * Pt_temp(1:PDM%ParticleVecLength,6)
+    PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,1)*b_dt(iStage)
+    PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,2)*b_dt(iStage)
+    PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,3)*b_dt(iStage)
+    PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,4)*b_dt(iStage)
+    PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,5)*b_dt(iStage)
+    PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                       + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(iStage)
     ! particle tracking
-    !CALL ParticleBoundary()
-   !CALL ParticleTracking()
-   CALL ParticleTrackingCurved()
 #ifdef MPI
-   CALL Communicate_PIC()
+    CALL IRecvNbofParticles()
+#endif /*MPI*/
+    ! actual tracking
+    CALL ParticleTrackingCurved()
+
+#ifdef MPI
+  CALL MPIParticleSend()
 !    CALL UpdateNextFreePosition() ! only required for parallel communication
 #endif
   END IF
@@ -653,21 +707,234 @@ DO iStage=2,nRKStages
 END DO
 
 #ifdef PARTICLES
+#ifdef MPI
+IF (t.GE.DelayTime) THEN
+  CALL MPIParticleRecv()
+END IF
+#endif
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   CALL UpdateNextFreePosition()
-  nTotalHalfPart=PDM%ParticleVecLength*3
-  nTotalPart    =PDM%ParticleVecLength*6
 END IF
-
-!print*,'time',t1,t2
 
 IF (useDSMC) THEN
   IF (t.GE.DelayTime) THEN
     CALL DSMC_main()
-    CALL LVAXPBY(nTotalHalfPart,DSMC_RHS(1:PDM%ParticleVecLength,1:3),PartState(1:PDM%ParticleVecLength,4:6))
+    PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,1)
+    PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,2)
+    PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                           + DSMC_RHS(1:PDM%ParticleVecLength,3)
   END IF
 END IF
 #endif /*PARTICLES*/
+
+
+! vectorisazation is commented out! 
+! 
+! 
+! ! RK coefficients
+! DO iStage=1,nRKStages
+!   b_dt(iStage)=RK_b(iStage)*dt
+! END DO
+! iStage=1
+! 
+! #ifdef PARTICLES
+! Time=t
+! IF (t.GE.DelayTime) THEN
+!   SWRITE(*,*) 'emission'
+!   CALL ParticleInserting()
+!   SWRITE(*,*) 'emission done'
+!   nTotalHalfPart=PDM%ParticleVecLength*3
+!   nTotalPart    =PDM%ParticleVecLength*6
+! END IF
+! 
+! IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+!   ! because of emmision and UpdateParticlePosition
+!   CALL Deposition(doInnerParts=.TRUE.)
+! !#ifdef MPI
+! !  CALL MPIParticleRecv()
+! !  ! second buffer
+! !  CALL Deposition(doInnerParts=.FALSE.)
+! !#endif /*MPI*/
+! END IF
+! 
+! IF (t.GE.DelayTime) THEN
+!   ! forces on particle
+!   CALL InterpolateFieldToParticle()
+!   CALL CalcPartRHS()
+! END IF
+! #endif /*PARTICLES*/
+! 
+! ! field solver
+! CALL DGTimeDerivative_weakForm(t,t,0)
+! IF(DoPML) THEN
+!   CALL CalcPMLSource()
+!   CALL PMLTimeDerivative()
+! END IF
+! CALL DivCleaningDamping()
+! 
+! #ifdef PP_POIS
+! ! Potential
+! CALL DGTimeDerivative_weakForm_Pois(t,t,0)
+! CALL DivCleaningDamping_Pois()
+! #endif
+! 
+! ! calling the analyze routines
+! CALL PerformAnalyze(t,iter,tendDiff,force=.FALSE.)
+! 
+! ! first RK step
+! ! EM field
+! !Ut_temp = Ut 
+! !U = U + Ut*b_dt(1)
+! CALL VCOPY(nTotalU,Ut,Ut_temp)
+! CALL VAXPBY(nTotalU,Ut,U,ConstIn=b_dt(1))
+! 
+! !PML auxiliary variables
+! IF(DoPML) THEN
+!   CALL VCOPY(nTotalPML,U2t,U2t_temp)
+!   CALL VAXPBY(nTotalPML,U2t,U2,ConstIn=b_dt(1))
+! END IF
+! 
+! #ifdef PP_POIS
+!   CALL VCOPY(nTotalU,Phit,Phit_temp)
+!   CALL VAXPBY(nTotalU,Phit,Phi,ConstIn=b_dt(1))
+!   CALL EvalGradient()
+! #endif
+! 
+! #ifdef PARTICLES
+! ! particles
+! CALL LVCOPY(nTotalHalfPart,PartState(1:PDM%ParticleVecLength,1:3),LastPartPos(1:PDM%ParticleVecLength,1:3))
+! DO iPart=1,PDM%ParticleVecLength
+!   PEM%LastElement(iPart)=PEM%Element(iPart)
+! END DO
+! IF (t.GE.DelayTime) THEN
+!   CALL LVCOPY(nTotalHalfPart,PartState(1:PDM%ParticleVecLength,4:6),Pt_temp(1:PDM%ParticleVecLength,1:3))
+!   CALL LVCOPY(nTotalHalfPart,Pt(1:PDM%ParticleVecLength,:),Pt_temp(1:PDM%ParticleVecLength,4:6))
+!   CALL LVAXPBY(nTotalHalfPart,PartState(1:PDM%ParticleVecLength,4:6),PartState(1:PDM%ParticleVecLength,1:3),ConstIn=b_dt(1))
+!   CALL LVAXPBY(nTotalHalfPart,Pt(1:PDM%ParticleVecLength,:),PartState(1:PDM%ParticleVecLength,4:6),ConstIn=b_dt(1))
+! END IF
+! 
+! IF (t.GE.DelayTime) THEN
+! !CALL ParticleTracking()
+! #ifdef MPI
+! CALL IRecvNbofParticles()
+! #endif /*MPI*/
+! CALL ParticleTrackingCurved()
+! #ifdef MPI
+! CALL MPIParticleSend()
+! #endif /*MPI*/
+! END IF
+! #endif /*PARTICLES*/
+! 
+! DO iStage=2,nRKStages
+!   SWRITE(*,*) " iState", iStage
+!   tStage=t+dt*RK_c(iStage)
+!   IF (t.GE.DelayTime) THEN 
+! #ifdef PARTICLES
+!    ! deposition  
+!     CALL Deposition(doInnerParts=.TRUE.)
+! #ifdef MPI
+!     CALL MPIParticleRecv()
+!     ! second buffer
+!     CALL Deposition(doInnerParts=.FALSE.)
+! #endif /*MPI*/
+!   ! particle RHS
+!     CALL InterpolateFieldToParticle()
+!     CALL CalcPartRHS()
+!   END IF
+! #endif /*PARTICLES*/
+! 
+! 
+!   ! field solver
+!   CALL DGTimeDerivative_weakForm(t,tStage,0)
+!   IF(DoPML) THEN
+!     CALL CalcPMLSource()
+!     CALL PMLTimeDerivative()
+!   END IF
+!   CALL DivCleaningDamping()
+! 
+! #ifdef PP_POIS
+!   CALL DGTimeDerivative_weakForm_Pois(t,tStage,0)
+!   CALL DivCleaningDamping_Pois()
+! #endif
+! 
+!   ! performe RK steps
+!   ! field step
+! 
+!   !Ut_temp = Ut - Ut_temp*RK4_a(iStage)
+!   !U = U + Ut_temp*b_dt(iStage)
+!   CALL VAXPBY(nTotalU,Ut,Ut_temp,ConstOut=-RK_a(iStage))
+!   CALL VAXPBY(nTotalU,Ut_temp,U,ConstIn=b_dt(iStage))
+! 
+!   !PML auxiliary variables
+!   IF(DoPML)THEN
+!     CALL VAXPBY(nTotalPML,U2t,U2t_temp,ConstOut=-RK_a(iStage))
+!     CALL VAXPBY(nTotalPML,U2t_temp,U2,ConstIn=b_dt(iStage))
+!   END IF
+! 
+! #ifdef PP_POIS
+!   CALL VAXPBY(nTotalU,Phit,Phit_temp,ConstOut=-RK_a(iStage))
+!   CALL VAXPBY(nTotalU,Phit_temp,Phi,ConstIn=b_dt(iStage))
+!   CALL EvalGradient()
+! #endif
+! 
+! #ifdef PARTICLES
+!   ! particle step
+!   IF (t.GE.DelayTime) THEN
+!     CALL LVCOPY(nTotalHalfPart,PartState(1:PDM%particleVecLength,1:3),LastPartPos(1:PDM%ParticleVecLength,1:3))
+!     DO iPart=1,PDM%ParticleVecLength
+!       PEM%LastElement(iPart)=PEM%Element(iPart)
+!     END DO
+!  CALL LVAXPBY(nTotalHalfPart,PartState(1:PDM%ParticleVecLength,4:6),Pt_temp(1:PDM%ParticleVecLength,1:3),ConstOut=-RK_a(iStage))
+!  CALL LVAXPBY(nTotalHalfPart,Pt(1:PDM%ParticleVecLength,1:3),Pt_temp(1:PDM%ParticleVecLength,4:6),ConstOut=-RK_a(iStage))
+!  CALL LVAXPBY(nTotalPart,Pt_temp(1:PDM%ParticleVecLength,1:6),PartState(1:PDM%ParticleVecLength,1:6),ConstIn=b_dt(iStage))
+! 
+!     ! particle tracking
+!     !CALL ParticleBoundary()
+!    !CALL ParticleTracking()
+! #ifdef MPI
+!     CALL IRecvNbofParticles()
+! #endif
+!     CALL ParticleTrackingCurved()
+! #ifdef MPI
+!     CALL MPIParticleSend()
+! #endif
+!   END IF
+! #endif /*PARTICLES*/
+! 
+! 
+! END DO
+! 
+! !IF (t.GE.DelayTime) THEN
+! !  CALL Deposition(doInnerParts=.TRUE.)
+! !#ifdef MPI
+! !  CALL MPIParticleRecv()
+! !  ! second buffer
+! !  CALL Deposition(doInnerParts=.FALSE.)
+! !#endif /*MPI*/
+! #ifdef PARTICLES
+! IF (t.GE.DelayTime) THEN
+! #ifdef MPI
+!   CALL MPIParticleRecv()
+! #endif /*MPI*/
+! END IF
+! 
+! IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+!   CALL UpdateNextFreePosition()
+!   nTotalHalfPart=PDM%ParticleVecLength*3
+!   nTotalPart    =PDM%ParticleVecLength*6
+! END IF
+! 
+! !print*,'time',t1,t2
+! 
+! IF (useDSMC) THEN
+!   IF (t.GE.DelayTime) THEN
+!     CALL DSMC_main()
+!     CALL LVAXPBY(nTotalHalfPart,DSMC_RHS(1:PDM%ParticleVecLength,1:3),PartState(1:PDM%ParticleVecLength,4:6))
+!   END IF
+! END IF
+! #endif /*PARTICLES*/
 
 END SUBROUTINE TimeStepByLSERK
 #endif
@@ -906,8 +1173,10 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   CALL ParticleTrackingCurved()
 #ifdef MPI
   CALL MPIParticleSend()
+#endif
   ! buffer routine
   CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
   CALL MPIParticleRecv()
   ! second buffer
   CALL Deposition(doInnerParts=.FALSE.)

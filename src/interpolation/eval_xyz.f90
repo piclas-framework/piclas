@@ -465,10 +465,10 @@ DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
   IF(ANY(ABS(Xi).GT.1.5)) THEN
-    SWRITE(*,*) ' Particle not inside of element!!!'
-    SWRITE(*,*) ' xi  ', xi(1)
-    SWRITE(*,*) ' eta ', xi(2)
-    SWRITE(*,*) ' zeta', xi(3)
+    !SWRITE(*,*) ' Particle not inside of element!!!'
+    !SWRITE(*,*) ' xi  ', xi(1)
+    !SWRITE(*,*) ' eta ', xi(2)
+    !SWRITE(*,*) ' zeta', xi(3)
     EXIT
   END IF
   

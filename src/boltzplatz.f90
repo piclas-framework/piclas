@@ -30,9 +30,6 @@ USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces, Ge
 USE MOD_InitializeBackgroundField, ONLY: FinalizeBackGroundField
 USE MOD_Particle_Mesh,    ONLY:InitParticleMesh
 USE MOD_Particle_MPI,     ONLY:InitParticleMPI
-#ifdef MPI
-USE MOD_Particle_MPI,     ONLY:InitParticleCommSize
-#endif
 #endif
 
 ! IMPLICIT VARIABLE HANDLING
@@ -96,9 +93,6 @@ CALL InitTimeDisc()
 #ifdef PARTICLES
 CALL InitParticles()
 CALL GetSideType
-#ifdef MPI
-CALL InitParticleCommSize()
-#endif
 CALL InitParticleAnalyze()
 #endif
 CALL InitAnalyze()

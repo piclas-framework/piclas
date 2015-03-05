@@ -347,6 +347,9 @@ USE MOD_DSMC_Vars,     ONLY: useDSMC, DSMC, SampDSMC
 USE MOD_Mesh_Vars,     ONLY : nElems
 USE MOD_InitializeBackgroundField
 USE MOD_PICInterpolation_Vars, ONLY: useBGField
+#ifdef MPI
+USE MOD_Particle_MPI,     ONLY:InitParticleCommSize
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -366,6 +369,9 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
 
 CALL InitializeVariables()
+#ifdef MPI
+CALL InitParticleCommSize()
+#endif
 IF(useBGField) CALL InitializeBackgroundField()
 CALL InitializeParticleEmission()
 

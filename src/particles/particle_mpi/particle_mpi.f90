@@ -268,6 +268,7 @@ DO iProc=1,PartMPI%nMPINeighbors
 !                , PartMPIExchange%SendRequest(1,PartMPI%MPINeighbor(iProc))  &
 !                , IERROR )
 END DO ! iProc
+!IPWRITE(*,*) 'Number of send  particles',   SUM(PartMPIExchange%nPartsSend(:))
 
 ! 3) Build Message
 DO iProc=1, PartMPI%nMPINeighbors
@@ -284,7 +285,7 @@ DO iProc=1, PartMPI%nMPINeighbors
     IF(ElemID.GT.PP_nElems) THEN
       !IF(PartHaloToProc(NATIVE_PROC_ID,ElemID).NE.PartMPI%MPINeighbor(iProc))THEN
       IF(PartHaloToProc(LOCAL_PROC_ID,ElemID).NE.iProc)THEN
-        WRITE(*,*) " Warning: Target Rank and rank of cell mismatch!!!"
+        IPWRITE(*,*) " Warning: Target Rank and rank of cell mismatch!!!"
       END IF
       !iPos=iPos+1
       ! fill content
@@ -314,7 +315,7 @@ DO iProc=1, PartMPI%nMPINeighbors
           END IF
         ELSE
           IF (usevMPF) THEN
-            SendBuf(iProc)%content(15,iPos) = PartMPF(iPart)
+            SendBuf(iProc)%content(15+iPos) = PartMPF(iPart)
           END IF
         END IF
       !ELSE ! UseLD == true      =>      useDSMC == true
@@ -408,7 +409,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       !  END IF
       !END IF
 #endif 
-      iPos=iPos+MessageSize
+      iPos=iPos+PartCommSize
       ! particle is ready for send, now it can deleted
       PDM%ParticleInside(iPart) = .FALSE.  
     END IF ! ElemID is HaloElement
@@ -419,8 +420,11 @@ END DO ! iProc
 DO iProc=1,PartMPI%nMPINeighbors
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
 END DO ! iProc
+
 ! total number of received particles
 PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(:))
+!IPWRITE(*,*) 'Number of received particles',SUM(PartMPIExchange%nPartsRecv(:))
+
 
 ! 5) Allocate received buffer and open MPI_IRECV
 DO iProc=1,PartMPI%nMPINeighbors
@@ -813,12 +817,12 @@ IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
 !  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .FALSE.
 !END IF
 
-CALL  WriteParticlePartitionInformation()
+!CALL  WriteParticlePartitionInformation()
 
 END SUBROUTINE InitHaloMesh
 
 
-SUBROUTINE WriteParticlePartitionInformation()
+SUBROUTINE WriteParticlePartitionInformation(nPlanar,nBilinear,nCurved)
 !===================================================================================================================================
 ! write the particle partition information to file
 !===================================================================================================================================
@@ -832,7 +836,8 @@ USE MOD_Particle_Mesh_Vars,   ONLY:nTotalSides,nTotalElems
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
+! INPUT VARIABLES
+INTEGER,INTENT(IN)         :: nPlanar,nBilinear,nCurved
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -840,7 +845,7 @@ IMPLICIT NONE
 CHARACTER(LEN=10)          :: formatstr
 INTEGER,ALLOCATABLE        :: nNBProcs_glob(:), ProcInfo_glob(:,:),NBInfo_glob(:,:), NBInfo(:), tmparray(:,:)
 REAL,ALLOCATABLE           :: tmpreal(:,:)
-INTEGER                    :: ProcInfo(4),nNBmax,iProc,i,j,ioUnit
+INTEGER                    :: ProcInfo(7),nNBmax,iProc,i,j,ioUnit
 !===================================================================================================================================
 
 !WRITE(formatstr,'(a5,I2,a3)')'(A22,',PartMPI%nMPINeighbors,'I8)'
@@ -865,9 +870,12 @@ ProcInfo(1)=nElems
 ProcInfo(2)=nSides
 ProcInfo(3)=nTotalElems-nElems
 ProcInfo(4)=nTotalSides-nSides
+ProcInfo(5)=nPlanar
+ProcInfo(6)=nBilinear
+ProcInfo(7)=nCurved
 IF(MPIroot)THEN
   ALLOCATE(nNBProcs_glob(0:PartMPI%nProcs-1))
-  ALLOCATE(ProcInfo_glob(4,0:PartMPI%nProcs-1))
+  ALLOCATE(ProcInfo_glob(7,0:PartMPI%nProcs-1))
   nNBProcs_glob=-99999
   Procinfo_glob=-88888
 ELSE
@@ -875,7 +883,7 @@ ELSE
   ALLOCATE(ProcInfo_glob(1,1)) !dummy for debug
 END IF !MPIroot 
 CALL MPI_GATHER(PartMPI%nMPINeighbors,1,MPI_INTEGER,nNBProcs_glob,1,MPI_INTEGER,0,PartMPI%COMM,iError)
-CALL MPI_GATHER(ProcInfo,4,MPI_INTEGER,ProcInfo_glob,4,MPI_INTEGER,0,PartMPI%COMM,iError)
+CALL MPI_GATHER(ProcInfo,7,MPI_INTEGER,ProcInfo_glob,7,MPI_INTEGER,0,PartMPI%COMM,iError)
 IF(MPIroot)THEN
   nNBmax=MAXVAL(nNBProcs_glob) !count, total number of columns in table
   ALLOCATE(NBinfo_glob(nNBmax,0:PartMPI%nProcs-1))
@@ -895,11 +903,12 @@ IF(MPIroot)THEN
   WRITE(ioUnit,*)'total number of Procs,',PartMPI%nProcs
   WRITE(ioUnit,*)'total number of Elems,',SUM(Procinfo_glob(1,:))
 
-  WRITE(ioUnit,'(6(A15))')'Rank','nElems','nSides','nHaloElems','nHaloSides','nNBProcs'
-  WRITE(ioUnit,'(A90)')&
-      '========================================================================================='
+  WRITE(ioUnit,'(9(A15))')'Rank','nElems','nSides','nHaloElems','nHaloSides','nPlanar','nBilinear','nCurved','nNBProcs'
+  WRITE(ioUnit,'(A90,A45)')&
+      '==========================================================================================',&
+      '============================================='
   !statistics
-  ALLOCATE(tmparray(5,0:3),tmpreal(5,2))
+  ALLOCATE(tmparray(8,0:3),tmpreal(8,2))
   tmparray(:,0)=0      !tmp
   tmparray(:,1)=0      !mean
   tmparray(:,2)=0      !max
@@ -910,8 +919,11 @@ IF(MPIroot)THEN
     tmparray(2,0)=Procinfo_glob(2,i) ! nSides
     tmparray(3,0)=Procinfo_glob(3,i) ! nHaloElems
     tmparray(4,0)=Procinfo_glob(4,i) ! nHaloSides
-    tmparray(5,0)=nNBProcs_glob(i)   ! nNBProcs
-    DO j=1,5
+    tmparray(5,0)=Procinfo_glob(5,i) ! nHaloSides
+    tmparray(6,0)=Procinfo_glob(6,i) ! nHaloSides
+    tmparray(7,0)=Procinfo_glob(7,i) ! nHaloSides
+    tmparray(8,0)=nNBProcs_glob(i)   ! nNBProcs
+    DO j=1,8
       !mean
       tmparray(j,1)=tmparray(j,1)+tmparray(j,0)
       !max
@@ -927,28 +939,39 @@ IF(MPIroot)THEN
     tmparray(2,0)=Procinfo_glob(2,i)
     tmparray(3,0)=Procinfo_glob(3,i)
     tmparray(4,0)=Procinfo_glob(4,i)
-    tmparray(5,0)=nNBProcs_glob(i)
+    tmparray(5,0)=Procinfo_glob(5,i)
+    tmparray(6,0)=Procinfo_glob(6,i)
+    tmparray(7,0)=Procinfo_glob(7,i)
+    tmparray(8,0)=nNBProcs_glob(i)
     DO j=1,5
       tmpreal(j,2)=tmpreal(j,2)+(tmparray(j,0)-tmpreal(j,1))**2 
     END DO ! j
   END DO ! i
   tmpreal(:,2)=SQRT(tmpreal(:,2)/REAL(PartMPI%nProcs))
-  WRITE(ioUnit,'(A15,5(5X,F10.2))')'   MEAN        ',tmpreal(:,1)
-  WRITE(ioUnit,'(A90)')&
-      '-----------------------------------------------------------------------------------------'
-  WRITE(ioUnit,'(A15,5(5X,F10.2))')'   RMS         ',tmpreal(:,2)
-  WRITE(ioUnit,'(A90)')&
-      '-----------------------------------------------------------------------------------------'
-  WRITE(ioUnit,'(A15,5(5X,I10))')'   MIN         ',tmparray(:,3)
-  WRITE(ioUnit,'(A90)')&
-      '-----------------------------------------------------------------------------------------'
-  WRITE(ioUnit,'(A15,5(5X,I10))')'   MAX         ',tmparray(:,2)
-  WRITE(ioUnit,'(A90)')&
-      '========================================================================================='
+  WRITE(ioUnit,'(A15,8(5X,F10.2))')'   MEAN        ',tmpreal(:,1)
+  WRITE(ioUnit,'(A90,A45)')&
+      '------------------------------------------------------------------------------------------',&
+      '---------------------------------------------'
+  WRITE(ioUnit,'(A15,8(5X,F10.2))')'   RMS         ',tmpreal(:,2)
+  WRITE(ioUnit,'(A90,A45)')&
+      '------------------------------------------------------------------------------------------',&
+      '---------------------------------------------'
+  WRITE(ioUnit,'(A15,8(5X,I10))')'   MIN         ',tmparray(:,3)
+  WRITE(ioUnit,'(A90,A45)')&
+      '------------------------------------------------------------------------------------------',&
+      '---------------------------------------------'
+  WRITE(ioUnit,'(A15,8(5X,I10))')'   MAX         ',tmparray(:,2)
+  WRITE(ioUnit,'(A90,A45)')&
+      '------------------------------------------------------------------------------------------',&
+      '---------------------------------------------'
+  WRITE(ioUnit,'(A90,A45)')&
+      '==========================================================================================',&
+      '============================================='
   DO i=0,PartMPI%nProcs-1
-    WRITE(ioUnit,'(6(5X,I10))')i,Procinfo_glob(:,i),nNBProcs_glob(i)
-    WRITE(ioUnit,'(A90)')&
-      '-----------------------------------------------------------------------------------------'
+    WRITE(ioUnit,'(9(5X,I10))')i,Procinfo_glob(:,i),nNBProcs_glob(i)
+    WRITE(ioUnit,'(A90,A45)')&
+      '------------------------------------------------------------------------------------------',&
+      '---------------------------------------------'
   END DO! i
   DEALLOCATE(tmparray,tmpreal)
   CLOSE(ioUnit) 
