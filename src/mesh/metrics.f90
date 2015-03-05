@@ -77,7 +77,6 @@ USE MOD_Mesh_Vars,               ONLY:nElems,sideID_minus_upper
 !USE MOD_Particle_Surfaces,       ONLY:GetSuperSampledSurface,GetBezierControlPoints3D!,GetSideType
 USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D!,GetSideType
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
-USE MOD_Mesh_Vars,               ONLY:xBaryCL_NGeo
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_ChangeBasis,        ONLY:changeBasis3D
@@ -107,10 +106,10 @@ ALLOCATE(dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo,1:PP_nElems)) !jacobi matrix of the 
 ! null outside!!
 dXCL_NGeo=0.
 ! Prerequisites
-
 Metrics_fTilde=0.
 Metrics_gTilde=0.
 Metrics_hTilde=0.
+
 ! 
 Cyclic=(/1,2,3,1,2/)
 ! Outer loop over all elements
@@ -301,10 +300,6 @@ DO iElem=1,nElems
   ! get supersampled surfaces informations
 !  CALL GetSuperSampledSurface  (XCL_NGeo(:,:,:,:,iElem),iElem)
   CALL GetBezierControlPoints3D(XCL_NGeo(:,:,:,:,iElem),iElem)
-  ! compute barycenter of element
-  xBaryCL_NGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))/NGeo
-  xBaryCL_NGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))/NGeo
-  xBaryCL_NGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))/NGeo
 #endif /*PARTICLES*/
 END DO !iElem=1,nElems
 

@@ -1058,8 +1058,10 @@ IF (RecvMsg%nSides.GT.0) THEN
       isDone(HaloSideID)=.TRUE.
     END DO ! ilocSide
   END DO ! Elem
-  PartMPI%isMPINeighbor(iProc)=.TRUE.
-  PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
+  IF(.NOT.PartMPI%isMPINeighbor(iProc))THEN
+    PartMPI%isMPINeighbor(iProc) = .true.
+    PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
+  END IF
   DEALLOCATE(isSide)
   DEALLOCATE(isDone)
   DEALLOCATE(HaloInc)

@@ -40,9 +40,6 @@ REAL,ALLOCATABLE :: wBaryCL_NGeo(:)
 REAL,ALLOCATABLE :: XiCL_NGeo(:)
 REAL,ALLOCATABLE :: XCL_NGeo(:,:,:,:,:)
 REAL,ALLOCATABLE :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
-#ifdef PARTICLES
-REAL,ALLOCATABLE :: xBaryCL_NGeo(:,:)
-#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! surface vectors 
 !-----------------------------------------------------------------------------------------------------------------------------------

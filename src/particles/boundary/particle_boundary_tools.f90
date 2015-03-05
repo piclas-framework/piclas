@@ -1357,8 +1357,8 @@ USE MOD_Preproc
 USE MOD_Particle_Vars
 USE MOD_TimeDisc_Vars,          ONLY:dt
 USE MOD_Equation_Vars,          ONLY:c_inv
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,SuperSampledNodes,NPartCurved
-USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo,xBaryCL_NGeo
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,SuperSampledNodes,NPartCurved,ElemBaryNGeo
+USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:BubbleSortID
 ! IMPLICIT VARIABLE HANDLING
@@ -1414,9 +1414,9 @@ Distance=0.
 ListDistance=0.
 DO iBGMElem = 1, nBGMElems
   ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
-  Distance(iBGMElem)=(PartState(iPart,1)-xBaryCL_NGeo(1,ElemID))*(PartState(iPart,1)-xBaryCL_NGeo(1,ElemID)) &
-                    +(PartState(iPart,2)-xBaryCL_NGeo(2,ElemID))*(PartState(iPart,2)-xBaryCL_NGeo(2,ElemID)) &
-                    +(PartState(iPart,3)-xBaryCL_NGeo(3,ElemID))*(PartState(iPart,3)-xBaryCL_NGeo(3,ElemID)) 
+  Distance(iBGMElem)=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
+                    +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
+                    +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) 
   Distance(iBGMElem)=SQRT(Distance(iBGMElem))
   ListDistance(iBGMElem)=ElemID
 END DO ! nBGMElems
@@ -1439,7 +1439,7 @@ DO iBGMElem=1,nBGMElems
   ELSE ! particle at face,edge or node, check most possible point
     ! alter particle position
     ! 1) compute vector to cell centre
-    vBary=xBaryCL_NGeo(1:3,ElemID)-PartState(iPart,1:3)
+    vBary=ElemBaryNGeo(1:3,ElemID)-PartState(iPart,1:3)
     ! 2) move particle pos along vector
     PartState(iPart,1:3) = PartState(iPart,1:3)+eps*VBary(1:3)
     CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)

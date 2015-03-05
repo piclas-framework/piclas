@@ -785,10 +785,11 @@ DO iProc=0,PartMPI%nProcs-1
      CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
      CALL MPI_SEND(PartMPI%isMPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,IERROR)
   END IF
+  !IPWRITE(*,*) 'check',tmpneigh,PartMPI%isMPINeighbor(iProc)
   IF (TmpNeigh.NEQV.PartMPI%isMPINeighbor(iProc)) THEN
-   WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
-   PartMPI%isMPINeighbor(iProc) = .TRUE.
-   PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
+    WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
+    PartMPI%isMPINeighbor(iProc) = .TRUE.
+    PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
   END IF
 END DO
 
@@ -796,6 +797,10 @@ END DO
 ! fill list with neighbor proc id and add local neighbor id to PartHaloToProc
 ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors))
 iMPINeighbor=0
+!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+!IPWRITE(*,*) 'PartMPI%nMPINeighbors',PartMPI%nMPINeighbors
+!IPWRITE(*,*) 'blabla',PartMPI%isMPINeighbor
+!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 DO iProc=0,PartMPI%nProcs-1
   IF(PartMPI%isMPINeighbor(iProc))THEN
     iMPINeighbor=iMPINeighbor+1
@@ -805,7 +810,7 @@ DO iProc=0,PartMPI%nProcs-1
     END DO ! iElem
   END IF
 END DO
-IPWRITE(*,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
+!IPWRITE(*,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
 
 IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
   __STAMP__&

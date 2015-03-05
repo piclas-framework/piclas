@@ -49,7 +49,6 @@ USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes ! new
 !USE MOD_ParticleInit,           ONLY:InitParticleGeometry,InitElemVolumes ! old!
 !USE MOD_Particle_Surfaces_Vars, ONLY:nPartCurved, DoPartCurved, SuperSampledNodes,nTriangles,nQuads
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
-USE MOD_Mesh_Vars,              ONLY:xBaryCL_NGeo
 #endif
 #ifdef MPI
 USE MOD_Prepare_Mesh,       ONLY:exchangeFlip
@@ -123,10 +122,6 @@ CALL setLocalSideIDs()
 
 ALLOCATE(XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems))
 XCL_NGeo = 0.
-#ifdef PARTICLES
-ALLOCATE(xBaryCL_NGeo(1:3,1:nElems))
-xBaryCL_NGeo=0.
-#endif /*PARTICLES*/
 
 ! map pointer structure to XCL_NGeo
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillElemGeo..."
