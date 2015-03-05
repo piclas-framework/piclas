@@ -45,8 +45,8 @@ SUBROUTINE InitAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Interpolation_Vars,   ONLY: xGP,wBary,InterpolationInitIsDone,wGP
-USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt,wGPSurf
+USE MOD_Interpolation_Vars,   ONLY: xGP,wBary,InterpolationInitIsDone
+USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL
 USE MOD_Analyze_Vars,         ONLY:CalcPoyntingInt
 USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
@@ -73,11 +73,6 @@ AnalyzeInitIsDone=.TRUE.
 
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
-
-ALLOCATE(wGPSurf(0:PP_N,0:PP_N))
-DO i=0,PP_N;DO j=0,PP_N;
-  wGPSurf(i,j)  = wGP(i)*wGP(j)
-END DO; END DO;
 
 ! init Poynting-Integral
 IF(CalcPoyntingInt) CALL GetPoyntingIntPlane()
@@ -311,7 +306,6 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(Vdm_GaussN_NAnalyze)
 SDEALLOCATE(wAnalyze)
-SDEALLOCATE(wGPSurf)
 IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
 AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze

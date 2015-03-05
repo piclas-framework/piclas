@@ -158,8 +158,8 @@ SUBROUTINE CalcPoyntingIntegral(t,doProlong)
 ! MODULES
 USE MOD_Mesh_Vars             ,ONLY:isPoyntingIntSide,nElems, SurfElem, NormVec,whichPoyntingPlane
 USE MOD_Mesh_Vars             ,ONLY:ElemToSide
-USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes,wGPSurf, S!, STEM
-USE MOD_Interpolation_Vars    ,ONLY:L_Minus,L_Plus
+USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes, S!, STEM
+USE MOD_Interpolation_Vars    ,ONLY:L_Minus,L_Plus,wGPSurf
 USE MOD_DG_Vars               ,ONLY:U,U_Minus
 USE MOD_Equation_Vars         ,ONLY:smu0
 #ifdef MPI

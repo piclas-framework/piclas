@@ -104,7 +104,7 @@ DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
     END DO ! iBGM
   END DO ! jBGM
 END DO ! kBGM
-IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Send:   ', SendMsg%nMPISides
+!IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Send:   ', SendMsg%nMPISides
 
 !--- NOTE: IF SENDMSG%NNODES IS 0 AT THIS POINT, THEN I SHOULD BE ABLE TO RETURN HERE!!!
 !          This is not done yet because I'm not sure whether there are still inconsistencies in the code...
@@ -381,7 +381,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
 END IF  ! nperiodicvectors>0
 
 
-IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of marked sides:   ', NbOfSides
+!IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of marked sides:   ', NbOfSides
 
 END SUBROUTINE CheckMPINeighborhoodByFIBGM
 
@@ -495,7 +495,7 @@ DO iElem=1,nElems
 END DO ! iElem
 
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-print*,'MyRank, sides to send, elem to send', PartMPI%MyRank,SendMsg%nSides,SendMsg%nElems
+!print*,'MyRank, sides to send, elem to send', PartMPI%MyRank,SendMsg%nSides,SendMsg%nElems
 !IF(PartMPI%MPIROOT) print*,'SideIndex',SideIndex(:)
 !IF(PartMPI%MPIROOT) print*,'isElem',isElem(:)
 !IF(PartMPI%MPIROOT) print*,'sendnelems',SendMsg%nElems
@@ -764,7 +764,7 @@ END DO
 
 
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-IPWRITE(*,*) " Now MPI exchange"
+!IPWRITE(*,*) " Now MPI exchange"
 
 dataSize=3*(NGeo+1)*(NGeo+1)
 IF (PartMPI%MyRank.LT.iProc) THEN
@@ -867,7 +867,7 @@ DEALLOCATE(isElem,isSide,ElemIndex,SideIndex)
 !print*,'iproc',iproc
 
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-IPWRITE(*,*) " Recive stuff"
+!IPWRITE(*,*) " Recive stuff"
 
 IF (RecvMsg%nSides.GT.0) THEN
   ! now, the famous reconstruction of geometry
@@ -914,13 +914,13 @@ IF (RecvMsg%nSides.GT.0) THEN
   END DO ! iHaloSide
   
   ! new number of sides
-  print*,'MyRank,nSides,nnewSides,nDoubleSides', PartMPI%MyRank,nSides,RecvMsg%nSides,nDoubleSides
+  !print*,'MyRank,nSides,nnewSides,nDoubleSides', PartMPI%MyRank,nSides,RecvMsg%nSides,nDoubleSides
   tmpnSides =nTotalSides
   tmpnElems=nTotalElems
   nTotalSides=nTotalSides+RecvMsg%nSides-nDoubleSides
   nTotalElems=nTotalElems+RecvMsg%nElems
   CALL ResizeParticleMeshData(tmpnSides,tmpnElems,nTotalSides,nTotalElems)
-  print*,'MyRank after resize', PartMPI%MyRank
+  !print*,'MyRank after resize', PartMPI%MyRank
 
   ! loop over all new elements
   !DO iElem=tmpnElems+1,nTotalElems
@@ -1106,8 +1106,8 @@ LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 
 ! reallocate shapes
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-print*,'rank, in reshape',myrank
-print*,'rank, in reshape',myrank, nOldSides,nOldElems,nTotalSides,nTotalElems
+!print*,'rank, in reshape',myrank
+!print*,'rank, in reshape',myrank, nOldSides,nOldElems,nTotalSides,nTotalElems
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! PartElemToSide
 ALLOCATE(DummyElemToSide(1:2,1:6,1:nOldElems))
@@ -1123,12 +1123,12 @@ PartElemToSide=-1
 PartElemToSide(:,:,1:nOldElems) =DummyElemToSide(:,:,1:nOldElems)
 DEALLOCATE(DummyElemToSide)
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-print*,' done elem to side',myrank
+!print*,' done elem to side',myrank
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! HaloToProc
 IF(.NOT.ALLOCATED(PartHaloToProc))THEN
-  print*,'both here',myrank,nElems,nElems+1,nTotalElems
-  print*,'myrank',myrank,allocstat
+  !print*,'both here',myrank,nElems,nElems+1,nTotalElems
+  !print*,'myrank',myrank,allocstat
   nLower=nElems+1
   ALLOCATE(PartHaloToProc(1:3,nLower:nTotalElems),STAT=ALLOCSTAT)                                 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
@@ -1150,9 +1150,9 @@ ELSE
   PartHaloToProc(1:2,PP_nElems+1:nOldElems)    =DummyHaloToProc(1:2,PP_nElems+1:nOldElems)
   DEALLOCATE(DummyHaloToProc)
 END IF
-print*,' done halotoproc',myrank
+!print*,' done halotoproc',myrank
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-print*,' done halotoproc',myrank
+!print*,' done halotoproc',myrank
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! PartSideToElem
 ALLOCATE(DummySideToElem(1:5,1:nOldSides))
@@ -1166,7 +1166,7 @@ IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
 PartSideToElem=-1
 PartSideToElem(:,1:nOldSides  )              =DummySideToElem(:,1:nOldSides)
 DEALLOCATE(DummySideToElem)
-print*,' done side to elem',myrank
+!print*,' done side to elem',myrank
 ! PartNeighborElemID
 ALLOCATE(DummyNeighborElemID(1:6,1:nOldElems))
 IF (.NOT.ALLOCATED(DummyNeighborElemID)) CALL abort(__STAMP__,& !wunderschoen!!!

@@ -28,6 +28,14 @@ END INTERFACE
 INTERFACE DeCasteljauInterpolation
    MODULE PROCEDURE DeCasteljauInterpolation
 END INTERFACE
+
+INTERFACE BernSteinPolynomial
+   MODULE PROCEDURE BernSteinPolynomial
+END INTERFACE
+
+INTERFACE BuildBernSteinVdm
+   MODULE PROCEDURE BuildBernSteinVdm
+END INTERFACE
 #endif /*PARTICLES*/
 
 INTERFACE InitializeVandermonde
@@ -67,6 +75,8 @@ PUBLIC::BuildLegendreVdm
 #ifdef PARTICLES
 PUBLIC::BuildBezierVdm
 PUBLIC::DeCasteljauInterpolation
+PUBLIC::BernSteinPolynomial
+PUBLIC::BuildBernSteinVdm
 #endif /*PARTICLES*/
 PUBLIC::InitializeVandermonde
 PUBLIC::LegGaussLobNodesAndWeights
@@ -84,6 +94,72 @@ PUBLIC::LagrangeInterpolationPolys
 CONTAINS
 
 #ifdef PARTICLES
+SUBROUTINE BuildBernSteinVdm(N_In,xi_In)
+!===================================================================================================================================
+! required for deposition
+! build a 1D Vandermonde matrix using the Bezier basis functions of degree N_In
+! todo: replace numerical recipes function gaussj() for calculation the inverse of V 
+! by a BLAS routine for better matrix conditioning
+!===================================================================================================================================
+! MODULES
+!USE nr,                        ONLY : gaussj
+USE MOD_PreProc
+USE MOD_Globals,                ONLY:abort
+USE MOD_Interpolation_Vars,     ONLY:NChooseK
+!USE MOD_PICDepo_Vars,           ONLY:Vdm_BernSteinN_GaussN,sVDM_BernSteinN_GaussN
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: N_In
+REAL,INTENT(IN)    :: xi_In(0:N_In)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!REAL,INTENT(OUT)   :: Vdm_Bezier(0:N_In,0:N_In),sVdm_Bezier(0:N_In,0:N_In)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER            :: i,j,errorflag
+REAL               :: dummy 
+REAL               :: dummy_vec(0:N_In)
+REAL               :: IPIV(0:N_In)
+!REAL               :: Vector(3)
+!REAL               :: Matrix(0:N_In,0:N_In)
+!===================================================================================================================================
+! store the coefficients
+ALLOCATE(NchooseK(0:N_In,0:N_In))
+NchooseK(:,:) = 0.
+
+!Vandermonde on xi_In
+DO i=0,N_In
+  DO j=0,N_In
+!    CALL BernsteinPolynomial(N_In,j,xi_in(i),Vdm_BernSteinN_GaussN(i,j)) 
+    ! array with binomial coeffs for bezier clipping
+    IF(i.GE.j)THEN!only calculate LU (for n >= k, else 0)
+      NchooseK(i,j)=REAL(CHOOSE(i,j))
+    ELSE
+      NchooseK(i,j)=0.
+    END IF
+  END DO !i
+END DO !j
+
+!!Inverse of the Vandermonde
+!dummy_vec=0.
+!!sVdm_BernSteinN_GaussN=Vdm_BernSteinN_GaussN
+!CALL DGETRF(N_In+1,N_In+1,sVdm_BernSteinN_GaussN,N_In+1,IPIV,errorflag)
+!IF (errorflag .NE. 0) CALL Abort(__STAMP__, &
+!               'LU factorisation of matrix crashed',999,999.)
+!CALL DGETRI(N_In+1,sVdm_BernSteinN_GaussN,N_In+1,IPIV,dummy_vec,N_In+1,errorflag)
+!IF (errorflag .NE. 0) CALL Abort(__STAMP__, &
+!               'Solver crashed',999,999.)
+!!check (Vdm_Bezier)^(-1)*Vdm_Bezier := I 
+!dummy=SUM(ABS(MATMUL(sVdm_BernSteinN_GaussN,Vdm_BernSteinN_GaussN)))-REAL(N_In+1)
+!!print*,dummy,PP_RealTolerance
+!!read*
+!IF(ABS(dummy).GT.1.E-13) CALL abort(__STAMP__,&
+!'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)
+END SUBROUTINE BuildBernSteinVdm
+
+
 SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
 !===================================================================================================================================
 ! build a 1D Vandermonde matrix using the Bezier basis functions of degree N_In
@@ -231,6 +307,34 @@ END DO
 xPoint=ReducedBezierControlPoints(:,0,0)
 
 END SUBROUTINE DeCasteljauInterpolation
+
+
+SUBROUTINE BernsteinPolynomial(N_in,j,x,B,NChooseK)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!input parameters
+INTEGER,INTENT(IN)      :: N_in,j ! polynomial degree, (N+1) points and j-th Bernstein polynomial is selected
+REAL,INTENT(IN),OPTIONAl:: NChooseK(0:N_in,0:N_in)
+REAL,INTENT(IN)         :: x      ! coordinate value in the interval [-1,1]
+!-----------------------------------------------------------------------------------------------------------------------------------
+!output parameters
+REAL,INTENT(OUT)        :: B      ! B_N(xi)
+!-----------------------------------------------------------------------------------------------------------------------------------
+!local variables
+!INTEGER             :: iLegendre
+!REAL                :: L_Nm1,L_Nm2 ! L_{N_in-2},L_{N_in-1}
+!REAL                :: Lder_Nm1,Lder_Nm2 ! Lder_{N_in-2},Lder_{N_in-1}
+!===================================================================================================================================
+IF(PRESENT(NChooseK))THEN
+  B = (1./(2**N_in))*NCHOOSEK(N_in,j)*((x+1.)**j)*((1.-x)**(N_in-j))
+ELSE
+  B = (1./(2**N_in))*REAL(CHOOSE(N_in,j))*((x+1.)**j)*((1.-x)**(N_in-j))
+END IF
+
+END SUBROUTINE BernsteinPolynomial
 #endif /*PARTICLES*/
 
 
@@ -363,28 +467,6 @@ L=L*SQRT(REAL(N_in)+0.5)
 Lder=Lder*SQRT(REAL(N_in)+0.5)
 END SUBROUTINE LegendrePolynomialAndDerivative
 
-
-
-SUBROUTINE BernsteinPolynomial(N_in,j,x,B)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-!input parameters
-INTEGER,INTENT(IN)  :: N_in,j ! polynomial degree, (N+1) points and j-th Bernstein polynomial is selected
-REAL,INTENT(IN)     :: x      ! coordinate value in the interval [-1,1]
-!-----------------------------------------------------------------------------------------------------------------------------------
-!output parameters
-REAL,INTENT(OUT)    :: B      ! B_N(xi)
-!-----------------------------------------------------------------------------------------------------------------------------------
-!local variables
-!INTEGER             :: iLegendre
-!REAL                :: L_Nm1,L_Nm2 ! L_{N_in-2},L_{N_in-1}
-!REAL                :: Lder_Nm1,Lder_Nm2 ! Lder_{N_in-2},Lder_{N_in-1}
-!===================================================================================================================================
-B = (1./(2**N_in))*REAL(CHOOSE(N_in,j))*((x+1.)**j)*((1.-x)**(N_in-j))
-END SUBROUTINE BernsteinPolynomial
 
 SUBROUTINE ChebyshevGaussNodesAndWeights(N_in,xGP,wGP)
 !===================================================================================================================================

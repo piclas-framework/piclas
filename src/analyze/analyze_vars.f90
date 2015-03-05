@@ -20,7 +20,6 @@ INTEGER           :: nPoyntingIntPlanes          ! number of planes
 REAL,ALLOCATABLE  :: PosPoyntingInt(:)           ! z-coordinate of plane
 REAL,ALLOCATABLE  :: PoyntingIntPlaneFactor(:)   ! plane factor
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     ! vector, abs for TEM waves
-REAL,ALLOCATABLE  :: wGPSurf(:,:)                ! wGPSurf(i,j)=wGP(i)*wGP(j)
 !===================================================================================================================================
 LOGICAL           :: AnalyzeInitIsDone = .FALSE.
 END MODULE MOD_Analyze_Vars

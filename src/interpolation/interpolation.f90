@@ -86,7 +86,7 @@ SUBROUTINE InitInterpolationBasis(N_in)
 !============================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Interpolation_Vars,ONLY:xGP,wGP,wBary,L_Minus,L_Plus,StrNodeType
+USE MOD_Interpolation_Vars,ONLY:xGP,wGP,wBary,L_Minus,L_Plus,StrNodeType,wGPSurf,swGP
 USE MOD_Basis,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,ChebyGaussLobNodesAndWeights
 USE MOD_Basis,ONLY:BarycentricWeights,LagrangeInterpolationPolys
 ! IMPLICIT VARIABLE HANDLING
@@ -98,6 +98,7 @@ INTEGER,INTENT(IN)                         :: N_in
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
+INTEGER                                     :: i,j
 !============================================================================================================================
 ! Allocate global variables, needs to go somewhere else later
 ALLOCATE(xGP(0:N_in), wGP(0:N_in), wBary(0:N_in))
@@ -124,6 +125,16 @@ ALLOCATE(L_Minus(0:N_in), L_Plus(0:N_in))
 #endif
 
 CALL BarycentricWeights(N_in,xGP,wBary)
+
+ALLOCATE(wGPSurf(0:N_in,0:N_in))
+DO i=0,N_in;DO j=0,N_in;
+  wGPSurf(i,j)  = wGP(i)*wGP(j)
+END DO; END DO;
+
+ALLOCATE(swGP(0:N_in))
+DO i=0,N_in
+  swGP(i)=1.0/wGP(i)
+END DO ! i
 
 !! interpolate to left and right face (1 and -1) and pre-divide by mass matrix
 CALL LagrangeInterpolationPolys(1.,N_in,xGP,wBary,L_Plus)
@@ -198,7 +209,10 @@ IMPLICIT NONE
 ! Deallocate global variables, needs to go somewhere else later
 SDEALLOCATE(xGP)
 SDEALLOCATE(wGP)
+SDEALLOCATE(swGP)
+SDEALLOCATE(wGPSurf)
 SDEALLOCATE(wBary)
+SDEALLOCATE(NChooseK)
 SDEALLOCATE(L_Minus)
 SDEALLOCATE(L_Plus)
 
