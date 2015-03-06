@@ -232,13 +232,13 @@ DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
 END DO !newton
 
 ! check if Newton is successful
-IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
-  WRITE(*,*) ' Particle outside of parameter range!!!'
-  WRITE(*,*) ' xi  ', xi(1)
-  WRITE(*,*) ' eta ', xi(2)
-  WRITE(*,*) ' zeta', xi(3)
-  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
-END IF
+! IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
+!   WRITE(*,*) ' Particle outside of parameter range!!!'
+!   WRITE(*,*) ' xi  ', xi(1)
+!   WRITE(*,*) ' eta ', xi(2)
+!   WRITE(*,*) ' zeta', xi(3)
+!   IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
+! END IF
 
 ! 2.1) get "Vandermonde" vectors
 DO i=1,3

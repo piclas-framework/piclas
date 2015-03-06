@@ -284,9 +284,7 @@ DO iProc=1, PartMPI%nMPINeighbors
     ElemID=PEM%Element(iPart)
     IF(ElemID.GT.PP_nElems) THEN
       !IF(PartHaloToProc(NATIVE_PROC_ID,ElemID).NE.PartMPI%MPINeighbor(iProc))THEN
-      IF(PartHaloToProc(LOCAL_PROC_ID,ElemID).NE.iProc)THEN
-        IPWRITE(*,*) " Warning: Target Rank and rank of cell mismatch!!!"
-      END IF
+      IF(PartHaloToProc(LOCAL_PROC_ID,ElemID).NE.iProc) CYCLE
       !iPos=iPos+1
       ! fill content
       SendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
@@ -810,6 +808,10 @@ DO iProc=0,PartMPI%nProcs-1
     END DO ! iElem
   END IF
 END DO
+IF(PartMPI%nMPINeighbors.GT.0)THEN
+  IF(ANY(PartHaloToProc(LOCAL_PROC_ID,:).EQ.-1)) IPWRITE(*,*) ' Local proc id not found'
+  IF(MAXVAL(PartHaloToProc(LOCAL_PROC_ID,:)).GT.PartMPI%nMPINeighbors) IPWRITE(*,*) ' Local proc id too high.'
+END IF
 !IPWRITE(*,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
 
 IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&

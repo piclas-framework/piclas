@@ -411,8 +411,9 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 USE MOD_Particle_MPI_Vars,     ONLY:PartMPI,PartMPIInsert
 #endif /* MPI*/
 USE MOD_Globals
-USE MOD_Particle_Vars
 USE MOD_PIC_Vars
+USE MOD_Particle_Vars,         ONLY:Species,BoltzmannConst,PDM,PartState
+USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 USE MOD_Globals_Vars,          ONLY:PI
 USE MOD_Timedisc_Vars,         ONLY:dt, iter, IterDisplayStep, DoDisplayIter
 !USE MOD_BoundaryTools,         ONLY:SingleParticleToExactElement old method for LINEAR elements, only
@@ -1133,8 +1134,8 @@ chunkSize=chunkSize2 !particles reaching comp. domain from VPI
      CellZ = INT((particle_positions(DimSend*(i-1)+3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
      InsideMyBGM=.TRUE.
      IF ((CellX.GT.GEO%FIBGMimax).OR.(CellX.LT.GEO%FIBGMimin) .OR. &
-         (CellY.GT.GEO%FIBGMkmax).OR.(CellY.LT.GEO%FIBGMkmin) .OR. &
-         (CellZ.GT.GEO%FIBGMlmax).OR.(CellZ.LT.GEO%FIBGMlmin)) THEN
+         (CellY.GT.GEO%FIBGMjmax).OR.(CellY.LT.GEO%FIBGMjmin) .OR. &
+         (CellZ.GT.GEO%FIBGMkmax).OR.(CellZ.LT.GEO%FIBGMkmin)) THEN
        InsideMyBGM=.FALSE.
      END If
      IF (InsideMyBGM) THEN
@@ -1181,8 +1182,8 @@ chunkSize=chunkSize2 !particles reaching comp. domain from VPI
       CellZ = INT((particle_positions(DimSend*(i-1)+3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
       InsideMyBGM=.TRUE.
       IF ((CellX.GT.GEO%FIBGMimax).OR.(CellX.LT.GEO%FIBGMimin) .OR. &
-          (CellY.GT.GEO%FIBGMkmax).OR.(CellY.LT.GEO%FIBGMkmin) .OR. &
-          (CellZ.GT.GEO%FIBGMlmax).OR.(CellZ.LT.GEO%FIBGMlmin)) THEN
+          (CellY.GT.GEO%FIBGMjmax).OR.(CellY.LT.GEO%FIBGMjmin) .OR. &
+          (CellZ.GT.GEO%FIBGMkmax).OR.(CellZ.LT.GEO%FIBGMkmin)) THEN
         InsideMyBGM=.FALSE.
       END If
       IF (InsideMyBGM) THEN

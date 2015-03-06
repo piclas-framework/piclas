@@ -3005,7 +3005,7 @@ ELSE
       xitild=xi(1)
       etatild=eta(1)
     ELSE
-      alpha=t(3)
+      alpha=t(2)
       xitild=xi(2)
       etatild=eta(2)
     END IF
