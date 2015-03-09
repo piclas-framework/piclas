@@ -170,16 +170,21 @@ DO iPart=1,PDM%ParticleVecLength
             SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
             ! noch nicht drin
             IF(SideID.LE.nBCSides)THEN
+              !print*,'hit boundary, sideid,sidetype',SideID,SideType(SideID)
               ! check if interesction is possible and take first intersection
               CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                              ,xi (hitlocSide)    &
                                                                              ,eta(hitlocSide)    ,iPart,SideID,ElemID)
+
+              IF(.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
               dolocSide=.TRUE.
-              IF(SideType(SideID).NE.PLANAR) THEN
-                lastlocSide=hitlocSide
-                !oldXInterSection=LastPartPos(iPart,1:3)
-              END IF !SideType
-              dolocSide(hitlocSide)=.FALSE.
+              !IF(SideType(SideID).NE.PLANAR) THEN
+              !  lastlocSide=hitlocSide
+              !  !oldXInterSection=LastPartPos(iPart,1:3)
+              !END IF !SideType
+              IF(SideType(SideID).EQ.PLANAR) THEN
+                dolocSide(hitlocSide)=.FALSE.
+              END IF
               !IF(SideType(SideID).EQ.PLANAR) dolocSide(ilocSide)=.FALSE.+Side
             ELSE ! no BC Side
               ! check for periodic sides
@@ -206,40 +211,44 @@ DO iPart=1,PDM%ParticleVecLength
                 ElemID=PartNeighborElemID(ilocSide,ElemID)
                 lastlocSide=-1
                 EXIT
-              END IF ! SidePeriodicType
+              ELSE ! no periodic side
 #ifdef MPI
-              IF(SideID.GT.nSides)THEN
-                IF(BC(SideID).NE.0)THEN
-                  ! encountered a bc side
-                  CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                 ,xi (hitlocSide)    &
-                                                                                 ,eta(hitlocSide)    ,iPart,SideID,ElemID)
-                  dolocSide=.TRUE.
+                IF(SideID.GT.nSides)THEN
+                  IF(BC(SideID).NE.0)THEN
+                    ! encountered a bc side
+                    CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                   ,xi (hitlocSide)    &
+                                                                                   ,eta(hitlocSide)    ,iPart,SideID,ElemID)
+                    dolocSide=.TRUE.
+                    IF(SideType(SideID).EQ.PLANAR) THEN
+                      dolocSide(hitlocSide)=.FALSE.
+                    END IF
+                  ELSE
+                    ! inner side
+                    dolocSide=.TRUE.
+                    dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
+                    ElemID=PartNeighborElemID(hitlocSide,ElemID)
+                    lastlocSide=-1
+                    IF(ElemID.EQ.-1) CALL abort(&
+                        __STAMP__,&
+                       ' HaloRegion too small or critical error during halo region reconstruction!')
+                    EXIT
+                  END IF ! BC?
                 ELSE
-                  ! inner side
                   dolocSide=.TRUE.
                   dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
                   ElemID=PartNeighborElemID(hitlocSide,ElemID)
                   lastlocSide=-1
-                  IF(ElemID.EQ.-1) CALL abort(&
-                      __STAMP__,&
-                     ' HaloRegion too small or critical error during halo region reconstruction!')
                   EXIT
-                END IF ! BC?
-              ELSE
+                END IF ! SideID.GT.nSides
+#else
                 dolocSide=.TRUE.
                 dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
                 ElemID=PartNeighborElemID(hitlocSide,ElemID)
                 lastlocSide=-1
                 EXIT
-              END IF ! SideID.GT.nSides
-#else
-              dolocSide=.TRUE.
-              dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
-              ElemID=PartNeighborElemID(hitlocSide,ElemID)
-              lastlocSide=-1
-              EXIT
 #endif /* MP!!I */
+              END IF ! SidePeriodicType
             END IF ! SideID>nCBSides
           END IF ! selection of side
         END DO ! ilocSide
@@ -383,40 +392,6 @@ firstClip=.TRUE.
 CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
                ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
-!IF(SideID.EQ.2)THEN
-!  print*,'nInterSections',nInterSections
-!  print*,'locAlpha',locAlpha
-!  print*,'lengthPartTrajectory',lengthPartTrajectory
-!  read*
-!END IF
-!
-!
-!IF(time.GT.103.0)THEN
-!  print*, 'SideID',SideID
-!  print*,'nInterSections',nInterSections
-!  IF(SideID.EQ.2)THEN
-!   print*,'LastPartPos',LastPartPos(iPart,1:3)
-!   print*,'PartTrajectory',PartTrajectory
-!   stop
-!  END IF
-!  IF(nInterSections.GE.1) read*
-!  print*,'locAlpha',locAlpha
-!  IF(SideID.EQ.8)THEN
-!    read*
-!  END IF
-!END IF
-!IF(iter.GE.2190)THEN
-!  print*,'nInterSections',nInterSections
-!  print*,'locAlpha',locAlpha
-!END IF
-
-! old and oobsolet
-!IF(nInterSections.GT.1)THEN
-!  ALLOCATE(locID(nInterSections))
-!  DO iInter=1,nInterSections
-!    locID(iInter)=iInter
-!  END DO ! iInter
-!END IF ! nInterSections
 
 SELECT CASE(nInterSections)
 CASE(0)
@@ -449,6 +424,7 @@ CASE DEFAULT
   ELSE
     IF(MOD(nInterSections,2).EQ.0) THEN
       SDEALLOCATE(locID)
+      print*,'fuck here'
       RETURN ! leave and enter a cell multiple times
     END IF
     alpha=locAlpha(nInterSections)
@@ -532,7 +508,6 @@ DO iClipIter=iClipIter,ClipMaxIter
     DO q=0,NGeo 
       DO p=0,NGeo
         BezierControlPoints1D(p,q)=DOT_PRODUCT(BezierControlPoints2D(:,p,q),LineNormVec)
-!        WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8)') 'Bezier1d',p,q,BezierControlPoints1D(p,q)
       END DO
     END DO
     DO l=0,NGeo
@@ -541,13 +516,6 @@ DO iClipIter=iClipIter,ClipMaxIter
     END DO ! l
     ! calc Smin and Smax and check boundaries
     CALL CalcSminSmax(minmax,XiMin,XiMax)
-!IF(time.GT.28.07)THEN
-!  IF(SideID.EQ.8)THEN
-!    print*,'XiMinm,XiMax',XiMin,XiMax
-!    read*
-!  END IF
-!END IF
-
 
     IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))RETURN
     nXiClip=nXiClip+1
@@ -585,16 +553,6 @@ DO iClipIter=iClipIter,ClipMaxIter
       ELSE
         BezierControlPoints2D_temp=BezierControlPoints2D
       END IF ! XiMax
-
-!print*,'upper'
-!DO q=0,NGeo
-!  DO p=0,NGeo
-!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D_temp(1,p,q)&
-!        ,BezierControlPoints2d_temp(2,p,q)
-!  END DO
-!END DO
-
-
       ! BOTTOM (mirrored Bernstein Basis evaluation)
       ! s = (smin+1)/(smax+1) for [-1, +1]
       ! s = 2*(1-s)-1         for mirror input for bernstein (1-) and trafo [-1, +1] to [0, 1]
@@ -755,14 +713,6 @@ DO iClipIter=iClipIter,ClipMaxIter
         BezierControlPoints2D=BezierControlPoints2D_temp
       END IF
 
-!print*,'new patch in xi'
-!DO q=0,NGeo
-!  DO p=0,NGeo
-!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D(1,p,q),BezierControlPoints2d(2,p,q)
-!  END DO
-!END DO
-!
-!
 !      print*,'check xi-tolereance'  
       ! c) check Tolerance
       !IF(DoCheck)THEN
@@ -779,12 +729,11 @@ DO iClipIter=iClipIter,ClipMaxIter
         END DO
       END DO
       ZeroDistance=ZeroDistance*PatchDOF2D
-      IF(ZeroDistance.LT.ClipTolerance2) EXIT
+      !IF(ZeroDistance.LT.ClipTolerance2) EXIT
+      IF(SQRT(ZeroDistance).LT.ClipTolerance) EXIT
 
       !END IF ! DoCheck
       IF(ABS(XiMax-XiMin).LT.ClipTolerance) DoXiClip=.FALSE.
-
-
 
 
     END IF ! check clip size
@@ -822,7 +771,7 @@ DO iClipIter=iClipIter,ClipMaxIter
     nEtaClip=nEtaClip+1
     ! 2.) CLIPPING eta
     !IF((EtaMax-EtaMin).GT.1.8)THEN ! two possible intersections
-    IF((XiMax-XiMin).GT.SplitLimit)THEN ! two possible intersections
+    IF((EtaMax-EtaMin).GT.SplitLimit)THEN ! two possible intersections
 !      print*,'eta split'
       EtaSplit=0.5*(EtaMax+EtaMin)
       ! first clip
@@ -1008,13 +957,6 @@ DO iClipIter=iClipIter,ClipMaxIter
         END DO
         BezierControlPoints2D=BezierControlPoints2D_temp
 
-!print*,'new patch in eta'
-!DO q=0,NGeo
-!  DO p=0,NGeo
-!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D(1,p,q),BezierControlPoints2d(2,p,q)
-!  END DO
-!END DO
-
        !print*,'check eta-tolereance'  
        ! c) check Tolerance
        !IF(DoCheck)THEN
@@ -1032,10 +974,9 @@ DO iClipIter=iClipIter,ClipMaxIter
          END DO
        END DO
        ZeroDistance=ZeroDistance*PatchDOF2D
-       IF(ZeroDistance.LT.ClipTolerance2) EXIT
+       !IF(ZeroDistance.LT.ClipTolerance2) EXIT
+       IF(SQRT(ZeroDistance).LT.ClipTolerance) EXIT
 
-
-       
        !END IF ! DoCheck
        IF(ABS(EtaMax-EtaMin).LT.ClipTolerance) DoEtaClip=.FALSE.
 
@@ -1043,6 +984,10 @@ DO iClipIter=iClipIter,ClipMaxIter
     END IF ! check clip size
   END IF ! DoEtaClip 
 END DO
+
+IF(iClipIter.GE.ClipMaxIter)THEN
+  WRITE(*,*) 'Bezier Clipping not converged!'
+END IF
 
 IF(DoCheck)THEN
   ! back transformation of sub-level clipping values to original bezier surface: ximean, etamean
