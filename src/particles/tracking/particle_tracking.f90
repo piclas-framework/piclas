@@ -17,8 +17,13 @@ INTERFACE ParticleTrackingCurved
   MODULE PROCEDURE ParticleTrackingCurved
 END INTERFACE
 
+INTERFACE ParticleLocalization
+  MODULE PROCEDURE ParticleLocalization
+END INTERFACE
+
 !PUBLIC::ParticleTracking,ParticleTrackingCurved
 PUBLIC::ParticleTrackingCurved
+PUBLIC::ParticleLocalization
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -45,6 +50,7 @@ USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Vars,               ONLY:time
 USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacement
 USE MOD_Utils,                       ONLY:BubbleSortID
+USE MOD_Particle_surfaces_vars, ONLY: ntracks
 #ifdef MPI
 USE MOD_Mesh_Vars,                   ONLY:BC,nSides
 #endif /*MPI*/
@@ -67,6 +73,7 @@ REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 !===================================================================================================================================
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
+    nTracks=nTracks+1
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
     !LastElemID=ElemID
@@ -189,9 +196,10 @@ DO iPart=1,PDM%ParticleVecLength
               !  lastlocSide=hitlocSide
               !  !oldXInterSection=LastPartPos(iPart,1:3)
               !END IF !SideType
-              IF(SideType(SideID).EQ.PLANAR) THEN
+              ! currently: only one bc intersection per rk stage or euler step is allowed 
+              !IF(SideType(SideID).EQ.PLANAR) THEN
                 dolocSide(hitlocSide)=.FALSE.
-              END IF
+              !END IF
               !IF(SideType(SideID).EQ.PLANAR) dolocSide(ilocSide)=.FALSE.+Side
             ELSE ! no BC Side
               ! check for periodic sides
@@ -251,6 +259,9 @@ DO iPart=1,PDM%ParticleVecLength
 #else
                 dolocSide=.TRUE.
                 dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
+!                IF(iPart.EQ.223) THEN
+!                  print*,'old,new elem',Elemid,PartNeighborElemID(hitlocSide,ElemID)
+!                END IF
                 ElemID=PartNeighborElemID(hitlocSide,ElemID)
                 lastlocSide=-1
                 EXIT
@@ -265,6 +276,116 @@ DO iPart=1,PDM%ParticleVecLength
 END DO ! iPart
 
 END SUBROUTINE ParticleTrackingCurved
+
+
+SUBROUTINE ParticleLocalization()
+!===================================================================================================================================
+! Compute the intersection with a Bezier surface
+! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,                 ONLY:Cross,abort
+USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState
+USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
+USE MOD_Particle_Surfaces_Vars,  ONLY:nTracks,ClipHit
+USE MOD_Particle_Mesh_Vars,      ONLY:Geo
+USE MOD_Utils,                   ONLY:BubbleSortID
+USE MOD_Particle_Surfaces_Vars,  ONLY:ElemBaryNGeo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iPart, ElemID,newElemID
+INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems
+REAL                        :: xi(1:3)
+REAL,ALLOCATABLE            :: Distance(:)
+INTEGER,ALLOCATABLE         :: ListDistance(:)
+LOGICAL                     :: ParticleFound
+!===================================================================================================================================
+
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    nTracks=nTracks+1
+    ElemID = PEM%lastElement(iPart)
+    ParticleFound=.FALSE.
+    CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+!    IF(ipart.eq.9)THEN
+!      print*,'xi fisrt',xi
+!    END IF
+    IF(ALL(ABS(Xi).LE.ClipHit)) THEN ! particle inside
+      PEM%Element(iPart) = ElemID
+      ParticleFound=.TRUE.
+      CYCLE
+    ELSE ! relocalization
+      ! open BC
+      IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
+           (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
+           (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
+         PDM%ParticleInside(iPart) = .FALSE.
+         ParticleFound=.TRUE.
+         CYCLE
+      END IF
+      ! --- get background mesh cell of particle
+      CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
+      CellX = MIN(GEO%FIBGMimax,CellX)                             
+      CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+      CellY = MIN(GEO%FIBGMjmax,CellY) 
+      CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+      CellZ = MIN(GEO%FIBGMkmax,CellZ)
+
+      !--- check all cells associated with this beckground mesh cell
+      nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+      ALLOCATE( Distance(1:nBGMElems) &
+              , ListDistance(1:nBGMElems) )
+
+      ! get closest element barycenter
+      Distance=1.
+      ListDistance=0.
+      DO iBGMElem = 1, nBGMElems
+        newElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+        Distance(iBGMElem)=(PartState(iPart,1)-ElemBaryNGeo(1,newElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,newElemID)) &
+                          +(PartState(iPart,2)-ElemBaryNGeo(2,newElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,newElemID)) &
+                          +(PartState(iPart,3)-ElemBaryNGeo(3,newElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,newElemID)) 
+        Distance(iBGMElem)=SQRT(Distance(iBGMElem))
+        ListDistance(iBGMElem)=newElemID
+      END DO ! nBGMElems
+
+      CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+
+      ! loop through sorted list and start by closest element  
+      DO iBGMElem=1,nBGMElems
+        newElemID=ListDistance(iBGMElem)
+        IF(newElemID.EQ.ElemID) CYCLE
+        CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,newElemID)
+!        IF(iPart.eq.9)THEN
+!          print*,'xi',xi
+!        END IF
+        IF(ALL(ABS(Xi).LE.ClipHit)) THEN ! particle inside
+          PEM%Element(iPart) = newElemID
+          ParticleFound=.TRUE.
+          EXIT
+        END IF
+      END DO ! iBGMElem
+      IF(.NOT.ParticleFound)THEN
+        WRITE(*,*) ' iPart', iPart
+        WRITE(*,*) ' pos', partstate(ipart,1:3)
+        CALL abort(__STAMP__,&
+          ' particle lost !! ')
+      END IF
+      DEALLOCATE( Distance)
+      DEALLOCATE( ListDistance)
+   END IF ! particle in ref element
+  END IF ! Particle inside
+END DO ! ipart
+
+
+END SUBROUTINE ParticleLocalization
+
 
 SUBROUTINE ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
 !===================================================================================================================================
@@ -310,6 +431,8 @@ alpha=-1.0
 Xi   = 2.0
 Eta  = 2.0
 
+
+
 !!!! DEBUGGG fix side ID
 !print*,'sideid',sideid
 ! If side is flat, than check if particle vector is perpenticular to side. if true, then particle moves parallel to or in side
@@ -327,6 +450,8 @@ IF(BoundingBoxIsEmpty(SideID))THEN
 !
 !ELSE 
 END IF ! BoundingBoxIsEmpty
+
+
   
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
 IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
@@ -342,11 +467,8 @@ END IF
 !  read*
 !END IF
 
-!IF(ipart.EQ.5930)THEN
-!  print*,''
-!  print*,'do check intersection'
-!  print*,'box empty',boundingboxisempty(sideid)
-!  read*
+!IF(ipart.EQ.223)THEN
+!  print*,'hello '
 !END IF
 
 
@@ -395,6 +517,9 @@ END DO
 !  END DO
 !END DO
 
+!IF(ipart.EQ.223)THEN
+!  print*,'do check intersection'
+!END IF
 
 
 
@@ -410,10 +535,12 @@ CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTraject
                ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
 
-!IF(ipart.EQ.5930)THEN
-!  print*,'nintersections',nintersections
-!  print*,'alpha ',localpha
-!  read*
+!IF(ipart.EQ.1899)THEN
+!  IF(nInterSections.GT.0)THEN
+!    print*,'nintersections',nintersections
+!    print*,'alpha ',localpha
+!  END IF
+!   !read*
 !END IF
 !IF(ipart.EQ.214)THEN
 !  print*,'ninter ',nintersections
@@ -486,7 +613,7 @@ RECURSIVE SUBROUTINE BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,l
 !================================================================================================================================
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
-USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter,SplitLimit
+USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter,SplitLimit,ClipHit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,mEpsilontol
 USE MOD_Particle_Vars,           ONLY:LastPartPos,Time
 USE MOD_TimeDisc_Vars,               ONLY:iter
@@ -1106,9 +1233,9 @@ IF(DoCheck)THEN
 !    print*,'ll',lengthPartTrajectory
 !    read*
 !  END IF
-!   IF(ipart.EQ.214)THEN
-!     print*,'alpha/l ',alpha/lengthparttrajectory
-!     read*
+!   IF(ipart.EQ.223)THEN
+!     IF((alpha/lengthPartTrajectory).lt.1.2) print*,'alpha/l ',alpha/lengthparttrajectory
+!!     read*
 !   END IF
 
 
@@ -1117,7 +1244,7 @@ IF(DoCheck)THEN
   !IF((alpha.LE.lengthPartTrajectory).AND.(alpha.GT.Mepsilontol))THEN
   ! funny hard coded tolerance :), obtained by numerical experiments
   !IF((alpha/lengthPartTrajectory.LE.1.0000464802767983).AND.(alpha.GT.Mepsilontol))THEN
-  IF((alpha/lengthPartTrajectory.LE.1.00005).AND.(alpha.GT.Mepsilontol))THEN
+  IF((alpha/lengthPartTrajectory.LE.ClipHit).AND.(alpha.GT.Mepsilontol))THEN
     ! found additional intersection point
     nInterSections=nIntersections+1
     IF(nInterSections.GT.ClipMaxInter)THEN

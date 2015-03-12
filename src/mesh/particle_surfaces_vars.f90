@@ -36,6 +36,7 @@ REAL                                    :: epsilonOne                   ! epsilo
 REAL                                    :: OneMepsilon
 REAL                                    :: epsilontol                   ! epsilone for setting the tolerance
 REAL                                    :: Mepsilontol               
+REAL                                    :: ClipHit                      ! value for clip hit
 LOGICAL                                 :: ParticleSurfaceInitIsDone=.FALSE.
 ! settings for Bezier-Clipping and definition of maximal number of intersections
 REAL                                    :: ClipTolerance
@@ -49,6 +50,9 @@ REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo
 INTEGER                                 :: MappingGuess
 REAL                                    :: epsMapping
 LOGICAL                                 :: DoRefMapping
+REAL                                    :: tTracking
+REAL                                    :: tLocalization
+INTEGER                                 :: nTracks
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Surfaces_Vars

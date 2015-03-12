@@ -26,10 +26,11 @@ USE MOD_MPI,              ONLY:InitMPIvars
 #endif
 #ifdef PARTICLES
 USE MOD_ParticleInit,     ONLY:InitParticles
-USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces, GetSideType
+USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces!, GetSideType
 USE MOD_InitializeBackgroundField, ONLY: FinalizeBackGroundField
 USE MOD_Particle_Mesh,    ONLY:InitParticleMesh
 USE MOD_Particle_MPI,     ONLY:InitParticleMPI
+USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization
 #endif
 
 ! IMPLICIT VARIABLE HANDLING
@@ -92,7 +93,7 @@ CALL InitFilter()
 CALL InitTimeDisc()
 #ifdef PARTICLES
 CALL InitParticles()
-CALL GetSideType
+!CALL GetSideType
 CALL InitParticleAnalyze()
 #endif
 CALL InitAnalyze()
@@ -133,6 +134,10 @@ IF(iError .NE. 0) &
   CALL abort(__STAMP__,'MPI finalize error',iError,999.)
 #endif
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' BOLTZPLATZ FINISHED! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,F8.2,A)')  ' BOLTZPLATZ FINISHED! [',Time-StartTime,' sec ]'
+SWRITE(UNIT_stdOut,'(A,I8,A)')    ' Number of trackings:   ',nTracks
+SWRITE(UNIT_stdOut,'(A,F15.6,A)') ' Tracking time:         ',tTracking
+SWRITE(UNIT_stdOut,'(A,F15.8,A)') ' Average Tracking time: ',tTracking/REAL(nTracks)
+SWRITE(UNIT_stdOut,'(A,F15.6,A)') ' Localization time:     ',tLocalization
 SWRITE(UNIT_stdOut,'(132("="))')
 END PROGRAM Boltzplatz

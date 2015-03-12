@@ -448,16 +448,21 @@ DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.50))
   ! Iterate Xi using Newton step
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
-  !IF(ANY(ABS(Xi).GT.1.5)) THEN
-  !  WRITE(*,*) ' Particle not inside of element!!!'
-  !  WRITE(*,*) ' Element', iElem
-  !  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
-  !  WRITE(*,*) ' xi  ', xi(1)
-  !  WRITE(*,*) ' eta ', xi(2)
-  !  WRITE(*,*) ' zeta', xi(3)
-  !  read*
-  !  EXIT
-  !END IF
+  IF(ANY(ABS(Xi).GT.1.5)) THEN
+    IF(PRESENT(PartID)) THEN
+      WRITE(*,*) 'ParticleID', PartID
+      WRITE(*,*) ' Particle not inside of element!!!'
+      WRITE(*,*) ' Element', iElem
+      WRITE(*,*) ' xi  ', xi(1)
+      WRITE(*,*) ' eta ', xi(2)
+      WRITE(*,*) ' zeta', xi(3)
+      WRITE(*,*) ' PartPos', X_in
+      CALL abort(__STAMP__, &
+          'Particle Not inSide of Element')
+    END IF
+  ELSE 
+    EXIT
+  END IF
   
   ! Compute function value
   CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
@@ -479,23 +484,26 @@ END DO !newton
 
 ! caution: check is performed outside!
 !! check if Newton is successful
-IF(PRESENT(PartID)) THEN
-  !IF(ANY(ABS(Xi).GT.epsOne)) THEN
-  IF(ANY(ABS(Xi).GT.1.024)) THEN
-    WRITE(*,*) ' Particle outside of parameter range!!!'
-    WRITE(*,*) ' ParticleID', PartID
-    WRITE(*,*) ' Element', iElem
-    WRITE(*,*) ' PartPos', X_in
-    WRITE(*,*) ' SideType', SideType(ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
-    !WRITE(*,*) ' BezierPoints3D x', BezierControlPoints3D(1,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
-    !WRITE(*,*) ' BezierPoints3D y', BezierControlPoints3D(2,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
-    !WRITE(*,*) ' BezierPoints3D z', BezierControlPoints3D(4,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
-    WRITE(*,*) ' xi  ', xi(1)
-    WRITE(*,*) ' eta ', xi(2)
-    WRITE(*,*) ' zeta', xi(3)
-    read*
-  END IF
-END IF
+!IF(PRESENT(PartID)) THEN
+!  !IF(ANY(ABS(Xi).GT.epsOne)) THEN
+!  IF(ANY(ABS(Xi).GT.1.024)) THEN
+!    IF(PartID.EQ.223)THEN
+!    WRITE(*,*) ' Particle outside of parameter range!!!'
+!    WRITE(*,*) ' ParticleID', PartID
+!    WRITE(*,*) ' Element', iElem
+!    WRITE(*,*) ' PartPos', X_in
+!    WRITE(*,*) ' SideType+', SideType(ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem))
+!    WRITE(*,*) ' SideType-', SideType(ElemToSide(E2S_SIDE_ID,ZETA_MINUS,iElem))
+!    !WRITE(*,*) ' BezierPoints3D x', BezierControlPoints3D(1,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
+!    !WRITE(*,*) ' BezierPoints3D y', BezierControlPoints3D(2,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
+!    !WRITE(*,*) ' BezierPoints3D z', BezierControlPoints3D(4,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
+!    WRITE(*,*) ' xi  ', xi(1)
+!    WRITE(*,*) ' eta ', xi(2)
+!    WRITE(*,*) ' zeta', xi(3)
+!    read*
+!    END IF
+!  END IF
+!END IF
 
 END SUBROUTINE eval_xyz_elemcheck
 

@@ -432,6 +432,7 @@ USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
 USE MOD_ReadInTools,                        ONLY:GetRealArray
+USE MOD_Particle_Surfaces,                  ONLY:GetSideType
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Equation_Vars,                      ONLY:c
@@ -1203,6 +1204,7 @@ DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, Ce
 CALL InitHaloMesh()
 #endif
 
+CALL GetSideType
 !exitTrue=.false.
 !DO iSpec = 1,nSpecies
 !  DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits

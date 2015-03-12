@@ -136,6 +136,7 @@ USE MOD_PICDepo,               ONLY: Deposition, DepositionMPF
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, Time, useManualTimestep
+USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,GEO,MaxwellIterNum,NextTimeStepAdjustmentIter
 USE MOD_Equation_Vars,         ONLY: c
@@ -217,6 +218,9 @@ CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
 CALL CalcError(t)
 ! first analyze Particles and DG solution (write zero state)
 #ifdef PARTICLES
+nTracks=0
+tTracking=0
+tLocalization=0
 CALL AnalyzeParticles(t) 
 #else
 CALL AnalyzeField(t) 
@@ -466,13 +470,14 @@ USE MOD_DG,               ONLY: DGTimeDerivative_weakForm_Pois
 USE MOD_Equation_Vars,    ONLY: Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
+USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,DoRefMapping
 USE MOD_PICDepo,          ONLY: Deposition, DepositionMPF
 USE MOD_PICInterpolation, ONLY: InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY: PIC
 USE MOD_Particle_Vars,    ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
 USE MOD_Particle_Vars,    ONLY: nTotalPart,nTotalHalfPart
 USE MOD_part_RHS,         ONLY: CalcPartRHS
-USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved
+USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleLocalization
 USE MOD_part_emission,    ONLY: ParticleInserting
 USE MOD_DSMC,             ONLY: DSMC_main
 USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS, DSMC
@@ -495,6 +500,7 @@ INTEGER                       :: iPart
 REAL                          :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
 REAL                          :: U2t_temp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
 REAL                          :: tStage,b_dt(1:nRKStages)
+REAL                          :: timeStart,timeEnd
 #ifdef PP_POIS
 REAL                          :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif
@@ -510,7 +516,10 @@ iStage=1
 !SWRITE(*,*) 'iStage', iStage
 Time=t
 IF (t.GE.DelayTime) THEN
+  TimeStart=BOLTZPLATZTIME()
   CALL ParticleInserting()
+  TimeEnd=BOLTZPLATZTIME()
+  tLocalization=tLocalization+TimeEnd-TimeStart
 ! forces on particle
   CALL InterpolateFieldToParticle()
   CALL CalcPartRHS()
@@ -597,7 +606,14 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 #ifdef MPI
   CALL IRecvNbofParticles()
 #endif /*MPI*/
-  CALL ParticleTrackingCurved()
+  TimeStart=BOLTZPLATZTIME()
+  IF(DoRefMapping)THEN
+    CALL ParticleLocalization()
+  ELSE
+    CALL ParticleTrackingCurved()
+  END IF
+  TimeEnd=BOLTZPLATZTIME()
+  tTracking=tTracking+TimeEnd-TimeStart
 #ifdef MPI
   CALL MPIParticleSend()
 #endif
@@ -696,8 +712,15 @@ DO iStage=2,nRKStages
     CALL IRecvNbofParticles()
 #endif /*MPI*/
     ! actual tracking
-    CALL ParticleTrackingCurved()
-
+!    CALL ParticleTrackingCurved()
+    TimeStart=BOLTZPLATZTIME()
+    IF(DoRefMapping)THEN
+      CALL ParticleLocalization()
+    ELSE
+      CALL ParticleTrackingCurved()
+    END IF
+    TimeEnd=BOLTZPLATZTIME()
+    tTracking=tTracking+TimeEnd-TimeStart
 #ifdef MPI
   CALL MPIParticleSend()
 !    CALL UpdateNextFreePosition() ! only required for parallel communication

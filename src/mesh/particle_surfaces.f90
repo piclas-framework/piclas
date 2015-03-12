@@ -94,6 +94,7 @@ ClipTolerance   = GETREAL('ClipTolerance','1e-4')
 SplitLimit      = GETREAL('SplitLimit','0.4')
 SplitLimit      =2.*SplitLimit
 ClipMaxIter     = GETINT('ClipMaxIter','10')
+ClipHit         = GETREAL('ClipHit','1.0')
 tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp
 ClipMaxInter    = GETINT('ClipMaxInter',dummy)

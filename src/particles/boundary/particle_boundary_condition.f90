@@ -98,7 +98,6 @@ CASE(2) !PartBound%ReflectiveBC)
   n_loc=CalcNormVec(xi,eta,QuadID,SideID)
   ! substract tolerance from length
   LengthPartTrajectory=LengthPartTrajectory-epsilontol
-  print*,'n_loc',n_loc
   ! compute old relativistic impulse
 !  gamma1=PartState(iPart,4)*PartState(iPart,4)+PartState(iPart,5)*PartState(iPart,5) &
 !        +PartState(iPart,6)*PartState(iPart,6)
@@ -123,6 +122,8 @@ CASE(2) !PartBound%ReflectiveBC)
 !  WRITE(*,'(A,E24.15,E24.15,E24.15)') 'BC velo',PartBound%WallVelo(1:3,BC(SideID))
   ! intersection point with surface
   LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
+  print*,'intersecsection', LastPartPos(iPart,1:3)
+  STOP
   ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
   !v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
   v_aux                  = -2*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
@@ -281,6 +282,8 @@ CASE(2) !PartBound%ReflectiveBC)
   ! intersection point with surface
   LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
 
+!  print*,'intersection',lastpartpos(ipart,1:3)
+!  stop
   ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
   !v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
   !v_aux                  = -2*((1-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
