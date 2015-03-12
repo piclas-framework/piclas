@@ -50,7 +50,7 @@ USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:wBary,xGP
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,MappingGuess
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,MappingGuess,epsMapping
 USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
@@ -76,7 +76,7 @@ INTEGER             :: NewTonIter
 REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
 REAL                :: Winner_Dist,Dist
-REAL, PARAMETER     :: EPS=1E-8,EPSONE=1.00000001
+REAL, PARAMETER     :: EPSONE=1.00000001
 INTEGER             :: iDir
 REAL                :: F(1:3),Lag(1:3,0:NGeo),Lag2(1:3,0:N_In)
 REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
@@ -171,7 +171,7 @@ END DO !j=0,NGeo
 !read*
 
 NewtonIter=0
-DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
+DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.50))
   NewtonIter=NewtonIter+1
   ! 
   ! caution, dXCL_NGeo is transposed of required matrix
@@ -205,11 +205,11 @@ DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
   IF(ANY(ABS(Xi).GT.1.5)) THEN
-    SWRITE(*,*) ' Particle not inside of element!!!'
-    SWRITE(*,*) ' xi  ', xi(1)
-    SWRITE(*,*) ' eta ', xi(2)
-    SWRITE(*,*) ' zeta', xi(3)
-    SWRITE(*,*) ' PartPos', X_in
+    WRITE(*,*) ' Particle not inside of element!!!'
+    WRITE(*,*) ' xi  ', xi(1)
+    WRITE(*,*) ' eta ', xi(2)
+    WRITE(*,*) ' zeta', xi(3)
+    WRITE(*,*) ' PartPos', X_in
     CALL abort(__STAMP__, &
         'Particle Not inSide of Element, iProc, iElem',PartMPI%MyRank,REAL(iElem))
   END IF
@@ -232,13 +232,13 @@ DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
 END DO !newton
 
 ! check if Newton is successful
-! IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
-!   WRITE(*,*) ' Particle outside of parameter range!!!'
-!   WRITE(*,*) ' xi  ', xi(1)
-!   WRITE(*,*) ' eta ', xi(2)
-!   WRITE(*,*) ' zeta', xi(3)
-!   IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
-! END IF
+!IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
+!  WRITE(*,*) ' Particle outside of parameter range!!!'
+!  WRITE(*,*) ' xi  ', xi(1)
+!  WRITE(*,*) ' eta ', xi(2)
+!  WRITE(*,*) ' zeta', xi(3)
+!  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
+!END IF
 
 ! 2.1) get "Vandermonde" vectors
 DO i=1,3
@@ -315,7 +315,7 @@ END IF ! useBGField
 END SUBROUTINE eval_xyz_curved
 
 
-SUBROUTINE eval_xyz_elemcheck(x_in,xi,iElem)
+SUBROUTINE eval_xyz_elemcheck(x_in,xi,iElem,PartID)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
@@ -326,35 +326,36 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:wBary,xGP
-USE MOD_Particle_Surfaces_Vars,  ONLY:MappingGuess
+USE MOD_Particle_Surfaces_Vars,  ONLY:MappingGuess,epsMapping
 USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo,NGeo
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,SideType
+USE MOD_Mesh_Vars,               ONLY:ElemToSide
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: iElem                                 ! elem index
-REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
+INTEGER,INTENT(IN)          :: iElem                                 ! elem index
+REAL,INTENT(IN)             :: x_in(3)                                  ! physical position of particle 
+INTEGER,INTENT(IN),OPTIONAL :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT) :: xi(1:3)
+REAL,INTENT(OUT)            :: xi(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER             :: i,j,k
-!REAL                :: xi(3)
-REAL                :: epsOne
-INTEGER             :: NewTonIter
-REAL                :: Winner_Dist,Dist
-REAL, PARAMETER     :: EPS=1E-8
-INTEGER             :: n_Newton,idir
-REAL                :: F(1:3),Lag(1:3,0:NGeo)
-REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
-REAL                :: buff,buff2
-REAL                :: Ptild(1:3),XiLinear(1:6)
+INTEGER                    :: i,j,k
+REAL                       :: epsOne
+INTEGER                    :: NewTonIter
+REAL                       :: Winner_Dist,Dist
+INTEGER                    :: n_Newton,idir
+REAL                       :: F(1:3),Lag(1:3,0:NGeo)
+REAL                       :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
+REAL                       :: buff,buff2
+REAL                       :: Ptild(1:3),XiLinear(1:6)
 !===================================================================================================================================
 
-epsOne=1.0+eps
+epsOne=1.0+epsMapping
 SELECT CASE(MappingGuess)
 CASE(1)
   Ptild=X_in - ElemBaryNGeo(:,iElem)
@@ -396,28 +397,6 @@ CASE(4)
   xi=0.
 END SELECT
 
-!print*,'Winnerdist',Winner_Dist
-!print*,'initial guess'
-!print*,'xi',xi
-!
-!print*,'NGeo',NGeo
-!print*,'Xi_CLNGeo',XiCL_NGeo
-!print*,'wbary_CLNGeo',wBaryCL_NGeo
-!read*
-
-!DO k=0,NGeo
-!  DO j=0,NGeo
-!    DO i=0,NGeo
-!     !! Matrix-vector multiplication
-!       print*,'dXCL_NGeo',dXCL_NGeo(:,1,i,j,k,iElem)
-!       print*,'dXCL_NGeo',dXCL_NGeo(:,2,i,j,k,iElem)
-!       print*,'dXCL_NGeo',dXCL_NGeo(:,3,i,j,k,iElem)
-!       read*
-!    END DO !i=0,NGeo
-!  END DO !j=0,NGeo
-!END DO !k=0,NGeo
-
-
 ! initial guess
 CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
 CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
@@ -436,7 +415,7 @@ END DO !j=0,NGeo
 !read*
 
 NewtonIter=0
-DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
+DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.50))
   NewtonIter=NewtonIter+1
   ! 
   ! caution, dXCL_NGeo is transposed of required matrix
@@ -469,13 +448,16 @@ DO WHILE ((SUM(F*F).GT.eps).AND.(NewtonIter.LT.50))
   ! Iterate Xi using Newton step
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
-  IF(ANY(ABS(Xi).GT.1.5)) THEN
-    !SWRITE(*,*) ' Particle not inside of element!!!'
-    !SWRITE(*,*) ' xi  ', xi(1)
-    !SWRITE(*,*) ' eta ', xi(2)
-    !SWRITE(*,*) ' zeta', xi(3)
-    EXIT
-  END IF
+  !IF(ANY(ABS(Xi).GT.1.5)) THEN
+  !  WRITE(*,*) ' Particle not inside of element!!!'
+  !  WRITE(*,*) ' Element', iElem
+  !  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
+  !  WRITE(*,*) ' xi  ', xi(1)
+  !  WRITE(*,*) ' eta ', xi(2)
+  !  WRITE(*,*) ' zeta', xi(3)
+  !  read*
+  !  EXIT
+  !END IF
   
   ! Compute function value
   CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
@@ -497,16 +479,23 @@ END DO !newton
 
 ! caution: check is performed outside!
 !! check if Newton is successful
-!IF(ANY(ABS(Xi).GT.epsOne)) THEN
-!  WRITE(*,*) ' Particle outside of parameter range!!!'
-!  WRITE(*,*) ' xi  ', xi(1)
-!  WRITE(*,*) ' eta ', xi(2)
-!  WRITE(*,*) ' zeta', xi(3)
-!  !read*
-!  PartInElem=.FALSE.
-!ELSE
-!  PartInElem=.TRUE.
-!END IF
+IF(PRESENT(PartID)) THEN
+  !IF(ANY(ABS(Xi).GT.epsOne)) THEN
+  IF(ANY(ABS(Xi).GT.1.024)) THEN
+    WRITE(*,*) ' Particle outside of parameter range!!!'
+    WRITE(*,*) ' ParticleID', PartID
+    WRITE(*,*) ' Element', iElem
+    WRITE(*,*) ' PartPos', X_in
+    WRITE(*,*) ' SideType', SideType(ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
+    !WRITE(*,*) ' BezierPoints3D x', BezierControlPoints3D(1,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
+    !WRITE(*,*) ' BezierPoints3D y', BezierControlPoints3D(2,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
+    !WRITE(*,*) ' BezierPoints3D z', BezierControlPoints3D(4,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
+    WRITE(*,*) ' xi  ', xi(1)
+    WRITE(*,*) ' eta ', xi(2)
+    WRITE(*,*) ' zeta', xi(3)
+    read*
+  END IF
+END IF
 
 END SUBROUTINE eval_xyz_elemcheck
 

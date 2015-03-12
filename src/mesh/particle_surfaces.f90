@@ -67,7 +67,7 @@ USE MOD_Globals
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem,NGeo
-USE MOD_ReadInTools,                ONLY:GETREAL,GETINT
+USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -97,9 +97,12 @@ ClipMaxIter     = GETINT('ClipMaxIter','10')
 tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp
 ClipMaxInter    = GETINT('ClipMaxInter',dummy)
+DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
+
 
 ! method from xPhysic to parameter space
-MappingGuess     = GETINT('MappingGuess','1')
+MappingGuess    = GETINT('MappingGuess','1')
+epsMapping      = GETREAL('epsMapping','1e-8')
 IF((MappingGuess.LT.1).OR.(MappingGuess.GT.4))THEN
    CALL abort(__STAMP__, &
         'Wrong guessing method for mapping from physical space in reference space.',MappingGuess,999.)

@@ -146,6 +146,13 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
       END DO ! ilocSide
 !      print*,'locAlpha',locAlpha
+!      IF(ipart.EQ.5930)THEN
+!        print*,'pos',partstate(ipart,1:3)
+!        print*,'last',lastpartpos(ipart,1:3)
+!        print*,'direction',partstate(ipart,4:6)
+!        print*,'alpha',localpha
+!        read*
+!      END IF
 !      read*
       IF(ALMOSTEQUAL(MAXVAL(locAlpha(:)),-1.0))THEN
         ! no intersection found and particle is in final element
@@ -293,8 +300,9 @@ INTEGER                                  :: nInterSections,iInter,p,q
 INTEGER                                  :: iClipIter,nXiClip,nEtaClip
 REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
 REAL                                     :: coeffA,locSideDistance
-INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID
+INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID!,realInterID
 LOGICAL                                  :: foundInter,firstClip
+INTEGER                                  :: realnInter
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
@@ -333,6 +341,15 @@ END IF
 !  print*,'SideID',SideID
 !  read*
 !END IF
+
+!IF(ipart.EQ.5930)THEN
+!  print*,''
+!  print*,'do check intersection'
+!  print*,'box empty',boundingboxisempty(sideid)
+!  read*
+!END IF
+
+
 !
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
 IF(ABS(PartTrajectory(3)).LT.epsilontol)THEN
@@ -393,6 +410,18 @@ CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTraject
                ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
 
+!IF(ipart.EQ.5930)THEN
+!  print*,'nintersections',nintersections
+!  print*,'alpha ',localpha
+!  read*
+!END IF
+!IF(ipart.EQ.214)THEN
+!  print*,'ninter ',nintersections
+!  read*
+!END IF
+
+
+
 SELECT CASE(nInterSections)
 CASE(0)
   RETURN
@@ -422,14 +451,27 @@ CASE DEFAULT
       END IF
     END DO ! iInter
   ELSE
-    IF(MOD(nInterSections,2).EQ.0) THEN
-      SDEALLOCATE(locID)
-      print*,'fuck here'
+    realnInter=1
+    !ALLOCATE(RealInterID(1:nInterSections))
+    !print*,MOD(nInterSections,2)
+    DO iInter=2,nInterSections
+      IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
+      .AND.(locAlpha(1)/locAlpha(iInter).GT.1.002))THEN
+          realNInter=realnInter+1
+      END IF
+    END DO
+    IF(MOD(realNInter,2).EQ.0) THEN
+      DEALLOCATE(locID)
+      !print*,'fuck here'
       RETURN ! leave and enter a cell multiple times
+    ELSE
+      !print*,'inter hit'
+      alpha=locAlpha(nInterSections)
+      xi =locXi (locID(nInterSections))
+      eta=loceta(locID(nInterSections))
+      DEALLOCATE(locID)
+      RETURN
     END IF
-    alpha=locAlpha(nInterSections)
-    xi =locXi (locID(nInterSections))
-    eta=loceta(locID(nInterSections))
   END IF
   DEALLOCATE(locID)
 END SELECT
@@ -1064,10 +1106,18 @@ IF(DoCheck)THEN
 !    print*,'ll',lengthPartTrajectory
 !    read*
 !  END IF
+!   IF(ipart.EQ.214)THEN
+!     print*,'alpha/l ',alpha/lengthparttrajectory
+!     read*
+!   END IF
+
 
   
   !IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
-  IF((alpha.LT.lengthPartTrajectory).AND.(alpha.GT.Mepsilontol))THEN
+  !IF((alpha.LE.lengthPartTrajectory).AND.(alpha.GT.Mepsilontol))THEN
+  ! funny hard coded tolerance :), obtained by numerical experiments
+  !IF((alpha/lengthPartTrajectory.LE.1.0000464802767983).AND.(alpha.GT.Mepsilontol))THEN
+  IF((alpha/lengthPartTrajectory.LE.1.00005).AND.(alpha.GT.Mepsilontol))THEN
     ! found additional intersection point
     nInterSections=nIntersections+1
     IF(nInterSections.GT.ClipMaxInter)THEN

@@ -47,6 +47,8 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo
 INTEGER                                 :: MappingGuess
+REAL                                    :: epsMapping
+LOGICAL                                 :: DoRefMapping
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Surfaces_Vars

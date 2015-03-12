@@ -1411,7 +1411,7 @@ ALLOCATE( Distance(1:nBGMElems) &
 
 ! get closest element barycenter
 Distance=0.
-ListDistance=0.
+ListDistance=0
 DO iBGMElem = 1, nBGMElems
   ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
   Distance(iBGMElem)=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &

@@ -31,7 +31,9 @@ INTEGER                               :: BGMmaxX            ! Local maximum BGM 
 INTEGER                               :: BGMmaxY            ! Local maximum BGM Index in y
 INTEGER                               :: BGMmaxZ            ! Local maximum BGM Index in z
 LOGICAL                               :: Periodic_Depo      ! Flag for periodic treatment for deposition
-LOGICAL                               :: UseBernStein       ! Flag
+INTEGER                               :: DeltaType          ! Flag
+INTEGER                               :: NKnots
+REAL,ALLOCATABLE                      :: Knots(:)
 !REAL,ALLOCATABLE                      :: Vdm_BernSteinN_GaussN(:,:)
 !REAL,ALLOCATABLE                      :: sVdm_BernSteinN_GaussN(:,:)
 !===================================================================================================================================

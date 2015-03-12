@@ -606,7 +606,7 @@ END IF
 #endif /*PARTICLES*/
 
 DO iStage=2,nRKStages
-  !SWRITE(*,*) 'iStage', iStage
+ ! SWRITE(*,*) 'istage',istage
   tStage=t+dt*RK_c(iStage)
 #ifdef PARTICLES
   ! deposition  

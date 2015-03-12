@@ -30,13 +30,17 @@ INTERFACE SingleParticleToExactElement
   MODULE PROCEDURE SingleParticleToExactElement
 END INTERFACE
 
+INTERFACE SingleParticleToExactElementNoMap
+  MODULE PROCEDURE SingleParticleToExactElementNoMap
+END INTERFACE
+
 INTERFACE InitElemVolumes
   MODULE PROCEDURE InitElemVolumes
 END INTERFACE
 
 
 PUBLIC::InitElemVolumes
-PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement
+PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 !===================================================================================================================================
 
 CONTAINS
@@ -187,6 +191,7 @@ REAL                              :: xi(1:3),vBary(1:3)
 REAL,ALLOCATABLE                  :: Distance(:)
 INTEGER,ALLOCATABLE               :: ListDistance(:)
 REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
+REAL,PARAMETER                    :: eps2=1e-3
 REAL                              :: epsOne,OneMeps
 !===================================================================================================================================
 
@@ -216,8 +221,9 @@ nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
 ALLOCATE( Distance(1:nBGMElems) &
         , ListDistance(1:nBGMElems) )
 
+
 ! get closest element barycenter
-Distance=0.
+Distance=1.
 ListDistance=0.
 DO iBGMElem = 1, nBGMElems
   ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
@@ -231,13 +237,11 @@ END DO ! nBGMElems
 !print*,'earlier',Distance,ListDistance
 CALL BubbleSortID(Distance,ListDistance,nBGMElems)
 !print*,'after',Distance,ListDistance
-!read*
 
 ! loop through sorted list and start by closest element  
 DO iBGMElem=1,nBGMElems
   ElemID=ListDistance(iBGMElem)
   CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
-  !print*,'xi',xi
   IF(ALL(ABS(Xi).LE.OneMEps)) THEN ! particle inside
     InElementCheck=.TRUE.
   ELSE IF(ANY(ABS(Xi).GT.epsOne))THEN ! particle outside
@@ -248,7 +252,7 @@ DO iBGMElem=1,nBGMElems
     ! 1) compute vector to cell centre
     vBary=ElemBaryNGeo(1:3,ElemID)-PartState(iPart,1:3)
     ! 2) move particle pos along vector
-    PartState(iPart,1:3) = PartState(iPart,1:3)+eps*VBary(1:3)
+    PartState(iPart,1:3) = PartState(iPart,1:3)+eps2*VBary(1:3)
     CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
     !print*,xi
     IF(ALL(ABS(Xi).LT.epsOne)) THEN ! particle inside
@@ -279,6 +283,140 @@ DEALLOCATE( Distance,ListDistance)
 END SUBROUTINE SingleParticleToExactElement
 
 
+SUBROUTINE SingleParticleToExactElementNoMap(iPart)                                                         
+!===================================================================================================================================
+! this subroutine maps each particle to an element
+! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
+! distance is picked as an initial guess
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Vars,              ONLY:NGeo
+USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,LastPartPos
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide
+USE MOD_Particle_Mesh_Vars,     ONLY:Geo
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,ElemBaryNGeo,BezierControlPoints3D,SideType
+USE MOD_Utils,                  ONLY:BubbleSortID
+USE MOD_Particle_Tracking,      ONLY:ComputePlanarInterSectionBezier,ComputeBilinearIntersectionSuperSampled2
+USE MOD_Particle_Tracking,      ONLY:ComputeBezierIntersection
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE                                                                                   
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)                :: iPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                           :: ilocSide,SideID
+LOGICAL                           :: ParticleFound                                
+REAL                              :: vBary(1:3),lengthPartTrajectory,tmpPos(3)
+REAL,ALLOCATABLE                  :: Distance(:)
+INTEGER,ALLOCATABLE               :: ListDistance(:)
+REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
+REAL,PARAMETER                    :: eps2=1e-3
+REAL                              :: epsOne,OneMeps,locAlpha(6),xi,eta
+REAL                              :: PartTrajectory(1:3)
+!===================================================================================================================================
+
+epsOne=1.0+eps
+OneMeps=1.0-eps
+ParticleFound = .FALSE.
+IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
+     (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
+     (PartState(iPart,3).LT.GEO%zmin).OR.(PartState(iPart,3).GT.GEO%zmax)) THEN
+   PDM%ParticleInside(iPart) = .FALSE.
+   RETURN
+END IF
+
+! --- get background mesh cell of particle
+CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
+CellX = MIN(GEO%FIBGMimax,CellX)                             
+CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+CellY = MIN(GEO%FIBGMjmax,CellY) 
+CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+CellZ = MIN(GEO%FIBGMkmax,CellZ)
+
+!--- check all cells associated with this beckground mesh cell
+nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+ALLOCATE( Distance(1:nBGMElems) &
+        , ListDistance(1:nBGMElems) )
+
+! get closest element barycenter
+Distance=1.
+ListDistance=0
+DO iBGMElem = 1, nBGMElems
+  ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+  Distance(iBGMElem)=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
+                    +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
+                    +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) 
+  Distance(iBGMElem)=SQRT(Distance(iBGMElem))
+  ListDistance(iBGMElem)=ElemID
+END DO ! nBGMElems
+
+CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+
+! loop through sorted list and start by closest element  
+tmpPos=PartState(iPart,1:3)
+LastPartPos(iPart,1:3)=PartState(iPart,1:3)
+DO iBGMElem=1,nBGMElems
+  ElemID=ListDistance(iBGMElem)
+  PartState(iPart,1:3)=ElemBaryNGeo(:,ElemID)
+  PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
+  lengthPartTrajectory=lengthPartTrajectory+epsilontol
+  locAlpha=1.
+  DO ilocSide=1,6
+    !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+    SELECT CASE(SideType(SideID))
+    CASE(PLANAR)
+      CALL ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                              ,xi                 &
+                                                                              ,eta             ,iPart,ilocSide,SideID,ElemID)
+    CASE(BILINEAR)
+      CALL ComputeBiLinearIntersectionSuperSampled2([BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
+                                                    ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
+                                                    ,BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &
+                                                    ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
+                                                    ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                        ,xi                 &
+                                                                                        ,eta                ,iPart,SideID)
+    CASE(CURVED)
+      CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                        ,xi                 &
+                                                                        ,eta                ,iPart,SideID)
+    END SELECT
+  END DO ! ilocSide
+  IF(ALMOSTEQUAL(MAXVAL(locAlpha(:)),-1.0))THEN
+    ! no intersection found and particle is in final element
+    PartState(iPart,1:3)=tmpPos
+    PEM%Element(iPart) = ElemID
+    ParticleFound=.TRUE.
+    EXIT
+  END IF
+END DO ! iBGMElem
+
+! particle not found
+IF (.NOT.ParticleFound) THEN
+  PDM%ParticleInside(iPart) = .FALSE.
+  print*,'not found'
+  read*
+END IF
+! deallocate lists
+DEALLOCATE( Distance,ListDistance)
+!read*
+END SUBROUTINE SingleParticleToExactElementNoMap
+
+
 SUBROUTINE InitFIBGM()
 !===================================================================================================================================
 ! Build Fast-Init-Background-Mesh.
@@ -287,7 +425,8 @@ SUBROUTINE InitFIBGM()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
+!USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
+USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
 USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo,ElemToSide,SideToElem
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
@@ -361,14 +500,22 @@ zmin = HUGE(1.0)
 zmax =-HUGE(1.0)
 
 ! serch for min,max of BezierControlPoints, e.g. the convec hull of the domain
-DO iSide=1,nSides
-  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
-  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,iSide)))
-  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,iSide)))
-  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,iSide)))
-  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,iSide)))
-  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,iSide)))
-END DO ! iSide
+! more accurate, XCL_NGeo
+!DO iSide=1,nSides
+DO iElem=1,PP_nElems
+  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
+  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
+  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
+  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
+  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
+  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
+!  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
+!  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,iSide)))
+!  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,iSide)))
+!  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,iSide)))
+!  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,iSide)))
+!  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,iSide)))
+END DO ! iElem
 GEO%xmin=xmin
 GEO%xmax=xmax
 GEO%ymin=ymin
@@ -400,6 +547,12 @@ GEO%zmax=zmax
   GEO%zmaxglob=GEO%zmax
 #endif   
 
+!! Read parameter for FastInitBackgroundMesh (FIBGM)
+GEO%FIBGMdeltas(1:3)              = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
+GEO%FactorFIBGM(1:3)              = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
+GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
+
+
 CALL InitPeriodicBC()
 !CALL InitializeInterpolation() ! not any more required ! has to be called earliear
 CALL InitializeDeposition()     ! has to remain here, because domain can have changed
@@ -421,11 +574,6 @@ IF (ALLOCATED(GEO%FIBGM)) THEN
   END DO
   DEALLOCATE(GEO%FIBGM)
 END IF
-
-!! Read parameter for FastInitBackgroundMesh (FIBGM)
-GEO%FIBGMdeltas(1:3)              = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
-GEO%FactorFIBGM(1:3)              = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
-GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 !--- compute number of background cells in each direction
 BGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
@@ -514,16 +662,23 @@ DO iElem=1,PP_nElems
   zmin = HUGE(1.0)
   zmax =-HUGE(1.0)
 
-  ! get min,max of BezierControlPoints of Element
-  DO iLocSide = 1,6
-    SideID = ElemToSide(E2S_SIDE_ID, ilocSide, iElem)
-    xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,SideID)))
-    xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,SideID)))
-    ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,SideID)))
-    ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,SideID)))
-    zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,SideID)))
-    zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,SideID)))
-  END DO ! ilocSide
+  ! use XCL_NGeo of each element :)
+  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
+  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
+  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
+  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
+  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
+  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
+  !! get min,max of BezierControlPoints of Element
+  !DO iLocSide = 1,6
+  !  SideID = ElemToSide(E2S_SIDE_ID, ilocSide, iElem)
+  !  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,SideID)))
+  !  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,SideID)))
+  !  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,SideID)))
+  !  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,SideID)))
+  !  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,SideID)))
+  !  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,SideID)))
+  !END DO ! ilocSide
   !--- find minimum and maximum BGM cell for current element
   BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
   BGMCellXmax = MIN(BGMCellXmax,BGMimax)
@@ -566,16 +721,25 @@ DO iElem=1,PP_nElems
   zmin = HUGE(1.0)
   zmax =-HUGE(1.0)
 
-  ! get min,max of BezierControlPoints of Element
-  DO iLocSide = 1,6
-    SideID = ElemToSide(E2S_SIDE_ID, ilocSide, iElem)
-    xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,SideID)))
-    xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,SideID)))
-    ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,SideID)))
-    ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,SideID)))
-    zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,SideID)))
-    zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,SideID)))
-  END DO ! ilocSide
+
+  ! use XCL_NGeo of each element :)
+  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
+  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
+  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
+  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
+  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
+  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
+
+  !! get min,max of BezierControlPoints of Element
+  !DO iLocSide = 1,6
+  !  SideID = ElemToSide(E2S_SIDE_ID, ilocSide, iElem)
+  !  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,SideID)))
+  !  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,SideID)))
+  !  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,SideID)))
+  !  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,SideID)))
+  !  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,SideID)))
+  !  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,SideID)))
+  !END DO ! ilocSide
 
   ! same as above
   BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))

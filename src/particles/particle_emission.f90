@@ -417,7 +417,8 @@ USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 USE MOD_Globals_Vars,          ONLY:PI
 USE MOD_Timedisc_Vars,         ONLY:dt, iter, IterDisplayStep, DoDisplayIter
 !USE MOD_BoundaryTools,         ONLY:SingleParticleToExactElement old method for LINEAR elements, only
-USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement
+USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
+USE MOD_Particle_Surfaces_vars,ONLY:DoRefMapping
 USE MOD_PICInterpolation,      ONLY:InterpolateCurvedExternalField
 USE MOD_PICInterpolation_vars, ONLY:useCurvedExternalField
 USE MOD_Equation_vars,         ONLY:c_inv
@@ -1009,7 +1010,11 @@ IF (mode.EQ.1) THEN
          IF (ParticleIndexNbr .ne. 0) THEN
             PartState(ParticleIndexNbr,1:3) = PartState(j,1:3)
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-            CALL SingleParticleToExactElement(ParticleIndexNbr)
+            IF(DoRefMapping)THEN
+              CALL SingleParticleToExactElement(ParticleIndexNbr)
+            ELSE
+              CALL SingleParticleToExactElementNoMap(ParticleIndexNbr)
+            END IF
             IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
                mySumOfMatchedParticles = mySumOfMatchedParticles + 1
             ELSE
@@ -1286,7 +1291,12 @@ ELSE ! mode.NE.1:
     IF (ParticleIndexNbr .ne. 0) THEN
        PartState(ParticleIndexNbr,1:DimSend) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-       CALL SingleParticleToExactElement(ParticleIndexNbr)
+       IF(DoRefMapping)THEN
+         CALL SingleParticleToExactElement(ParticleIndexNbr)
+       ELSE
+         CALL SingleParticleToExactElementNoMap(ParticleIndexNbr)
+       END IF
+       !CALL SingleParticleToExactElement(ParticleIndexNbr)
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
        ELSE
@@ -1588,6 +1598,10 @@ CASE('gyrotron_circle')
              CALL abort(__STAMP__,&
                 'ERROR in gyrotron_circle spaceIC!')
            END If
+           IF(SQRT(DOT_PRODUCT(PartState(PositionNbr,4:6),PartState(PositionNbr,4:6))).GT.c)THEN
+             CALL abort(__STAMP__,&
+                'particle faster than speed of light!')
+           END IF
            IF (PartState(PositionNbr,4).NE.PartState(PositionNbr,4) .OR. &
                PartState(PositionNbr,5).NE.PartState(PositionNbr,5) .OR. &
                PartState(PositionNbr,6).NE.PartState(PositionNbr,6)     ) THEN

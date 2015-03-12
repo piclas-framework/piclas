@@ -173,7 +173,8 @@ USE MOD_DSMC_Vars,       ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
 !USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
 !USE MOD_BoundaryTools,   ONLY: ParticleInsideQuad3D
 USE MOD_Eval_XYZ,        ONLY: EVal_xyz_ElemCheck
-USE MOD_Particle_Mesh,   ONLY:SingleParticleToExactElement
+USE MOD_Particle_Mesh,   ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
+USE MOD_Particle_Surfaces_vars,ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,ONLY:PartMPI
 #endif
@@ -400,7 +401,12 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     END IF
     IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
       COUNTER = COUNTER + 1
-      CALL SingleParticleToExactElement(i)
+      !CALL SingleParticleToExactElement(i)
+      IF(DoRefMapping)THEN
+        CALL SingleParticleToExactElement(i)
+      ELSE
+        CALL SingleParticleToExactElementNoMap(i)
+      END IF
       IF (.NOT.PDM%ParticleInside(i)) THEN
         COUNTER2 = COUNTER2 + 1
       ELSE
@@ -463,7 +469,12 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     DO i = 1, SUM(LostParts)
       PartState(CurrentPartNum,1:6) = RecBuff(COUNTER+1:COUNTER+6)
       PDM%ParticleInside(CurrentPartNum) = .true.
-      CALL SingleParticleToExactElement(CurrentPartNum)
+      IF(DoRefMapping)THEN
+        CALL SingleParticleToExactElement(CurrentPartNum)
+      ELSE
+        CALL SingleParticleToExactElementNoMap(CurrentPartNum)
+      END IF
+      !CALL SingleParticleToExactElement(CurrentPartNum)
       IF (PDM%ParticleInside(CurrentPartNum)) THEN
         PEM%LastElement(CurrentPartNum) = PEM%Element(CurrentPartNum)
         NbrOfFoundParts = NbrOfFoundParts + 1

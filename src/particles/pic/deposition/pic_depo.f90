@@ -51,7 +51,7 @@ USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t
-REAL                      :: BetaFac, Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax
+REAL                      :: BetaFac, Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
 REAL                      :: auxiliary(0:3),weight(1:3,0:3)
 !===================================================================================================================================
 
@@ -123,8 +123,27 @@ CASE('delta_distri')
     CALL abort(__STAMP__, &
       'ERROR in pic_depo.f90: Cannot allocate mapped particle pos!')
   END IF
-  UseBernStein = GETLOGICAL('PIC-DeltaBernStein','.FALSE.')
-  IF(UseBernStein) CALL BuildBernSteinVdm(PP_N,xGP)
+  DeltaType = GETINT('PIC-DeltaType','3')
+  SELECT CASE(DeltaType)
+  CASE(1)
+    SWRITE(UNIT_stdOut,'(A)') ' Lagrange-Polynomial'
+  CASE(2)
+    SWRITE(UNIT_stdOut,'(A)') ' Bernstein-Polynomial'
+    CALL BuildBernSteinVdm(PP_N,xGP)
+  CASE(3)
+    SWRITE(UNIT_stdOut,'(A)') ' Uniform B-Spline '
+    NKnots=(PP_N+1)*2-1
+    ALLOCATE( Knots(0:NKnots)  )
+    ! knots distance is 2 [-1,1)
+    X0=-1-PP_N*2.0
+    DO i=0,nKnots
+      Knots(i) =X0+2.0*REAL(i)
+    END DO ! i
+  CASE DEFAULT
+    CALL abort(__STAMP__, &
+        ' Wrong Delta-Type')
+  END SELECT
+
 CASE('cartmesh_volumeweighting')
 
   CALL abort(__STAMP__,&
@@ -594,17 +613,24 @@ CASE('shape_function')
 !   SDEALLOCATE(ExtPartState)
 !   SDEALLOCATE(ExtPartSpecies)
 ! #endif
-CASE('delta_distri')
+  CASE('delta_distri')
     DO iElem=1,PP_nElems
-      DO iPart=firstPart,lastPart
+      DO iPart=1,PDM%ParticleVecLength
         IF (PDM%ParticleInside(iPart)) THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
             prefac= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 
             ! Map Particle to -1|1 space (re-used in interpolation)
-            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosMapped(iPart,1:3),iElem)
+            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosMapped(iPart,1:3),iElem,iPart)
             ! get value of test function at particle position
-            IF(UseBernStein)THEN
-              !print*,'here'
+            SELECT CASE(DeltaType)
+            CASE(1)
+              ! xi   -direction
+              CALL LagrangeInterpolationPolys(PartPosMapped(iPart,1),PP_N,xGP,wBary,L_xi(1,:))
+              ! eta  -direction
+              CALL LagrangeInterpolationPolys(PartPosMapped(iPart,2),PP_N,xGP,wBary,L_xi(2,:))
+              ! zeta -direction
+              CALL LagrangeInterpolationPolys(PartPosMapped(iPart,3),PP_N,xGP,wBary,L_xi(3,:))
+            CASE(2)
               DO i=0,PP_N
                 ! xi   -direction
                  CALL BernsteinPolynomial(PP_N,i,PartPosMapped(iPart,1),L_xi(1,i),NChooseK)
@@ -613,15 +639,14 @@ CASE('delta_distri')
                 ! zeta  -direction
                  CALL BernsteinPolynomial(PP_N,i,PartPosMapped(iPart,3),L_xi(3,i),NChooseK)
               END DO ! i
-            ELSE
-              !print*,'not here'
-              ! xi   -direction
-              CALL LagrangeInterpolationPolys(PartPosMapped(iPart,1),PP_N,xGP,wBary,L_xi(1,:))
-              ! eta  -direction
-              CALL LagrangeInterpolationPolys(PartPosMapped(iPart,2),PP_N,xGP,wBary,L_xi(2,:))
-              ! zeta -direction
-              CALL LagrangeInterpolationPolys(PartPosMapped(iPart,3),PP_N,xGP,wBary,L_xi(3,:))
-            END IF
+            CASE(3)
+              ! xi - direction
+              CALL DeBoorRef(PP_N,NKnots,Knots,PartPosMapped(iPart,1),L_xi(1,:))
+              ! eta - direction
+              CALL DeBoorRef(PP_N,NKnots,Knots,PartPosMapped(iPart,2),L_xi(2,:))
+              ! zeta - direction
+              CALL DeBoorRef(PP_N,NKnots,Knots,PartPosMapped(iPart,3),L_xi(3,:))
+            END SELECT
             DO k=0,PP_N
               DO j=0,PP_N
                 DO i=0,PP_N
@@ -637,11 +662,6 @@ CASE('delta_distri')
           END IF ! Particle in Element
         END IF ! ParticleInside of domain
       END DO ! ParticleVecLength
-      ! now, mapp from reference element into physical space
-      !IF(UseBernStein)THEN
-      !  !CALL ChangeBasis3D(4,PP_N,PP_N,Vdm_BernSteinN_GaussN,source(:,:,:,:,iElem),source(:,:,:,:,iElem))
-      !  !CALL ChangeBasis3D(4,PP_N,PP_N,sVdm_BernSteinN_GaussN,source(:,:,:,:,iElem),source(:,:,:,:,iElem))
-      !END IF
       DO k=0,PP_N
         DO j=0,PP_N
           DO i=0,PP_N
@@ -654,7 +674,6 @@ CASE('delta_distri')
         END DO ! j
       END DO ! k
     END DO ! loop over all elems
-
 CASE('nearest_gausspoint')
   SAVE_GAUSS = .FALSE.
   IF(TRIM(InterpolationType).EQ.'nearest_gausspoint') SAVE_GAUSS = .TRUE.
@@ -1985,6 +2004,62 @@ SUBROUTINE DeBoor(PosInd, aux, coord, results, dir)
 
     RETURN
 END SUBROUTINE DeBoor
+
+
+SUBROUTINE DeBoorRef(N_in,NKnots,Knots,Xi_in,UBspline)
+!===================================================================================================================================
+! DeBoor algorithms for uniform B-Splines
+! rule of DeBoor algorithm
+! N_i^0 (x) = 1 if x in [u_i, u_i+1); else 0     
+! N_i^n (x) = (x-u_i) /(u_i+n-u_i) N_i^n-1(x) + (u_i+n+1 - x)/(u_i+n+1 - u_i+1) N_i+1^n-1(x)
+! this algorithm evaluates the complete 1D basis fuction, because certain knots can be reused
+!===================================================================================================================================
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/ OUTPUT VARIABLES
+INTEGER,INTENT(IN)      :: N_in,Nknots
+REAL,INTENT(IN)         :: Xi_in
+REAL,INTENT(OUT)        :: UBspline(0:N_in)
+REAL,INTENT(IN)         :: knots(0:Nknots) ! range of parameter
+!REAL,INTENT(IN)         :: DXi is 2 for [-1,1)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: i,n, last,first
+REAL                    :: tmpArray(0:NKnots-1,0:NKnots-1)
+REAL                    :: sDxiN!,DxiN1
+!===================================================================================================================================
+
+ 
+! init, first layer (constant)
+! zero order
+n=0
+tmpArray=0.
+last=nknots-1
+DO i=0,last
+  IF((knots(i).LE.Xi_in).AND.(Xi_in.LT.knots(i+1)))THEN
+    tmpArray(i,n)=1.0
+  END IF ! select
+END DO ! i
+
+DO n=1,N_in
+  last=last-1
+  DO i=0,last
+    ! standard
+!    tmpArray(i,n) = (Xi_in-knots(i))/(knots(i+n)-knots(i))*tmpArray(i,n-1) &
+!                  + (knots(i+n+1)-Xi_in)/(knots(i+n+1)-knots(i+1))*tmpArray(i+1,n-1)
+    ! optimized
+    sDxiN=0.5/REAL(n)
+    tmpArray(i,n) = sDxiN*( (Xi_in-knots(i) )*tmparray(i,n-1)+(knots(i+n+1)-Xi_in)*tmpArray(i+1,n-1))
+  END DO ! i
+END DO ! n
+
+! move back to correct range
+UBSpline(0:N_in)=tmpArray(0:N_in,N_in)
+
+END SUBROUTINE DeBoorRef
 
 
 FUNCTION beta(z,w)  
