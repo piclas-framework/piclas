@@ -477,7 +477,7 @@ USE MOD_PIC_Vars,         ONLY: PIC
 USE MOD_Particle_Vars,    ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
 USE MOD_Particle_Vars,    ONLY: nTotalPart,nTotalHalfPart
 USE MOD_part_RHS,         ONLY: CalcPartRHS
-USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleLocalization
+USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
 USE MOD_part_emission,    ONLY: ParticleInserting
 USE MOD_DSMC,             ONLY: DSMC_main
 USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS, DSMC
@@ -608,7 +608,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 #endif /*MPI*/
   TimeStart=BOLTZPLATZTIME()
   IF(DoRefMapping)THEN
-    CALL ParticleLocalization()
+    CALL ParticleRefTracking()
   ELSE
     CALL ParticleTrackingCurved()
   END IF
@@ -715,7 +715,7 @@ DO iStage=2,nRKStages
 !    CALL ParticleTrackingCurved()
     TimeStart=BOLTZPLATZTIME()
     IF(DoRefMapping)THEN
-      CALL ParticleLocalization()
+      CALL ParticleRefTracking()
     ELSE
       CALL ParticleTrackingCurved()
     END IF

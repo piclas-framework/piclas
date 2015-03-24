@@ -315,7 +315,7 @@ END IF ! useBGField
 END SUBROUTINE eval_xyz_curved
 
 
-SUBROUTINE eval_xyz_elemcheck(x_in,xi,iElem,PartID)
+SUBROUTINE eval_xyz_elemcheck(x_in,xi,iElem,PartID,DoReUseMap)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
@@ -339,9 +339,10 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)          :: iElem                                 ! elem index
 REAL,INTENT(IN)             :: x_in(3)                                  ! physical position of particle 
 INTEGER,INTENT(IN),OPTIONAL :: PartID
+LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)            :: xi(1:3)
+REAL,INTENT(INOUT)          :: xi(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                    :: i,j,k
@@ -356,46 +357,48 @@ REAL                       :: Ptild(1:3),XiLinear(1:6)
 !===================================================================================================================================
 
 epsOne=1.0+epsMapping
-SELECT CASE(MappingGuess)
-CASE(1)
-  Ptild=X_in - ElemBaryNGeo(:,iElem)
-  ! plus coord system (1-3) and minus coord system (4-6)
-  DO iDir=1,6
-    XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,iElem))*slenXiEtaZetaBasis(iDir,iElem)
-  END DO
-  ! compute guess as average value
-  DO iDir=1,3
-    Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
-  END DO 
-  IF(ANY(ABS(Xi).GT.epsOne)) THEN
+IF(.NOT.PRESENT(DoReUseMap))THEN
+  SELECT CASE(MappingGuess)
+  CASE(1)
+    Ptild=X_in - ElemBaryNGeo(:,iElem)
+    ! plus coord system (1-3) and minus coord system (4-6)
+    DO iDir=1,6
+      XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,iElem))*slenXiEtaZetaBasis(iDir,iElem)
+    END DO
+    ! compute guess as average value
     DO iDir=1,3
-      IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
-      IF(Xi(iDir).LT.-epsOne) Xi(iDir)=-1.0
-    END DO ! iDir
-  END IF
-CASE(2)
-  Winner_Dist=HUGE(1.)
-  DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
-    Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
-    IF (Dist.LT.Winner_Dist) THEN
-      Winner_Dist=Dist
-      Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
+      Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
+    END DO 
+    IF(ANY(ABS(Xi).GT.epsOne)) THEN
+      DO iDir=1,3
+        IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
+        IF(Xi(iDir).LT.-epsOne) Xi(iDir)=-1.0
+      END DO ! iDir
     END IF
-  END DO; END DO; END DO
-CASE(3) 
-  ! compute distance on XCL Points
-  Winner_Dist=HUGE(1.)
-  DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
-    Dist=SUM((x_in(:)-XCL_NGeo(:,i,j,k,iElem))*(x_in(:)-XCL_NGeo(:,i,j,k,iElem)))
-    IF (Dist.LT.Winner_Dist) THEN
-      Winner_Dist=Dist
-      Xi(:)=(/XiCL_NGeo(i),XiCL_NGeo(j),XiCL_NGeo(k)/) ! start value
-    END IF
-  END DO; END DO; END DO
-CASE(4)
-  ! trival guess, cell mean point
-  xi=0.
-END SELECT
+  CASE(2)
+    Winner_Dist=HUGE(1.)
+    DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
+      Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
+      IF (Dist.LT.Winner_Dist) THEN
+        Winner_Dist=Dist
+        Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
+      END IF
+    END DO; END DO; END DO
+  CASE(3) 
+    ! compute distance on XCL Points
+    Winner_Dist=HUGE(1.)
+    DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
+      Dist=SUM((x_in(:)-XCL_NGeo(:,i,j,k,iElem))*(x_in(:)-XCL_NGeo(:,i,j,k,iElem)))
+      IF (Dist.LT.Winner_Dist) THEN
+        Winner_Dist=Dist
+        Xi(:)=(/XiCL_NGeo(i),XiCL_NGeo(j),XiCL_NGeo(k)/) ! start value
+      END IF
+    END DO; END DO; END DO
+  CASE(4)
+    ! trival guess, cell mean point
+    xi=0.
+  END SELECT
+END IF
 
 ! initial guess
 CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))

@@ -163,11 +163,11 @@ SUBROUTINE SingleParticleToExactElement(iPart)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM
+USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
 USE MOD_TimeDisc_Vars,          ONLY:dt
 USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,SuperSampledNodes,NPartCurved,ElemBaryNGeo
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,SuperSampledNodes,NPartCurved,ElemBaryNGeo,doRefMapping
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:BubbleSortID
@@ -224,7 +224,7 @@ ALLOCATE( Distance(1:nBGMElems) &
 
 ! get closest element barycenter
 Distance=1.
-ListDistance=0.
+ListDistance=0
 DO iBGMElem = 1, nBGMElems
   ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
   Distance(iBGMElem)=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
@@ -268,6 +268,7 @@ DO iBGMElem=1,nBGMElems
   IF (InElementCheck) THEN !  !     print*,Element
  ! read*
     PEM%Element(iPart) = ElemID
+    IF(DoRefMapping) PartPosRef(1:3,iPart) = Xi
     ParticleFound = .TRUE.
     EXIT
   END IF

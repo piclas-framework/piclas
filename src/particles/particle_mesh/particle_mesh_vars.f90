@@ -26,12 +26,17 @@ REAL,ALLOCATABLE    :: SidePeriodicDisplacement(:,:)                            
                                                                                           
 INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                                              ! containing the ElemToSide of my
                                                                                           ! geometry + halo information
-
+                                                                                          
 INTEGER,ALLOCATABLE :: PartSideToElem(:,:)
 INTEGER,ALLOCATABLE :: PartNeighborElemID(:,:)
 INTEGER,ALLOCATABLE :: PartNeighborlocSideID(:,:)
 INTEGER             :: nTotalSides
 INTEGER             :: nTotalElems
+
+LOGICAL,ALLOCATABLE :: IsBCElem(:)
+INTEGER             :: nTotalBCSides
+INTEGER             :: nTotalBCElems
+INTEGER,ALLOCATABLE :: PartBCSideList(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 

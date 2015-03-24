@@ -48,7 +48,7 @@ USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
 USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes ! new
 !USE MOD_ParticleInit,           ONLY:InitParticleGeometry,InitElemVolumes ! old!
 !USE MOD_Particle_Surfaces_Vars, ONLY:nPartCurved, DoPartCurved, SuperSampledNodes,nTriangles,nQuads
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SlabNormals,SlabIntervalls,BoundingBoxIsEmpty,DoRefMapping
 #endif
 #ifdef MPI
 USE MOD_Prepare_Mesh,       ONLY:exchangeFlip
@@ -246,9 +246,15 @@ ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
 !ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,1:nSides)              )! &
         !, SuperSampledBiLinearCoeff(1:3,1:4,1:NPartCurved,1:NPartCurved,1:nSides) )
 
+IF(DoRefMapping)THEN
+ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nBCSides) ) 
+BezierControlPoints3D=0.
+ALLOCATE(SlabNormals(1:3,1:3,1:nBCSides),SlabIntervalls(1:6,nSides),BoundingBoxIsEmpty(1:nBCSides) )
+ELSE
 ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) ) 
 BezierControlPoints3D=0.
 ALLOCATE(SlabNormals(1:3,1:3,1:nSides),SlabIntervalls(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
+END IF
 #endif /*PARTICLES*/
 
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
