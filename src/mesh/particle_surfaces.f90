@@ -72,9 +72,10 @@ SUBROUTINE InitParticleSurfaces()
 USE MOD_Globals
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem,NGeo
+USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem,NGeo,nBCSides
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
-USE MOD_Particle_Vars,              ONLY:PartPosRef,PDM
+USE MOD_Particle_Vars,              ONLY:PDM
+USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList,nTotalBCSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -84,7 +85,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iElem,ilocSide,SideID,flip,tmp,allocstat
+INTEGER                         :: iElem,ilocSide,SideID,flip,tmp,allocstat,iSide
 CHARACTER(LEN=2)                :: dummy                         
 !===================================================================================================================================
 
@@ -101,17 +102,20 @@ ClipTolerance   = GETREAL('ClipTolerance','1e-4')
 SplitLimit      = GETREAL('SplitLimit','0.4')
 SplitLimit      =2.*SplitLimit
 ClipMaxIter     = GETINT('ClipMaxIter','10')
-ClipHit         = GETREAL('ClipHit','1.0')
+ClipHit         = GETREAL('ClipHit','1e-7')
+ClipHit =1.0+ClipHit
 tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp
 ClipMaxInter    = GETINT('ClipMaxInter',dummy)
-DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
+!DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
 
-IF(DoRefMapping) THEN
-  ALLOCATE(PartPosRef(1:3,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0)  CALL abort(&
-      __STAMP__, &
-      ' Cannot allocate particle pos in reference element!')
+IF(DoRefMapping)THEN
+  ALLOCATE(PartBCSideList(1:nSides))
+  PartBCSideList(:) = HUGE(1)
+  DO iSide=1,nBCSides
+    PartBCSideList(iSide)=iSide
+  END DO 
+  nTotalBCSides=nBCSides
 END IF
 
 ! method from xPhysic to parameter space
@@ -124,6 +128,7 @@ END IF
 ! ElemBaryNGeo are required for particle mapping| SingleParticleToExactElem
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:PP_nElems) &
         ,slenXiEtaZetaBasis(1:6,1:PP_nElems) &
+        ,ElemRadiusNGeo(1:PP_nElems)         &
         ,ElemBaryNGeo(1:3,1:PP_nElems)       )
 CALL BuildElementBasis()
 
@@ -926,7 +931,7 @@ REAL                              :: tmp(3,0:NGeo,0:NGeo)
 !print*,SHAPE(BezierControlPoints)
 ! BCSides, InnerSides and MINE MPISides are filled
 lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
-IF(DoRefMapping) lastSideID  = nBCSides
+!IF(DoRefMapping) lastSideID  = nBCSides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) XI_MINUS
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1465,8 +1470,9 @@ USE MOD_Mesh_Vars,                ONLY:nSides,NGeo,Xi_NGeo,Sideid_minus_upper,nB
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,epsilontol,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
 USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide
+USE MOD_Particle_Mesh_Vars,       ONLY:PartBCSideList,nTotalBCSides
 #ifdef MPI
-USE MOD_Particle_MPI,             ONLY:WriteParticlePartitionInformation
+USE MOD_Particle_MPI,             ONLY:WriteParticleMappingPartitionInformation
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1476,12 +1482,12 @@ IMPLICIT NONE
 !OUTPUT VARIABLES
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy,SideID,iElem,ilocSide
+INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy,SideID,iElem,ilocSide,nBCElems
 REAL,DIMENSION(1:3)         :: v1,v2
 REAL                        :: length,eps
 LOGICAL                     :: isLinear
 #ifdef MPI  
-INTEGER                     :: nPlanarTot,nBilinearTot,nCurvedTot
+INTEGER                     :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
 #endif /*MPI*/
 !================================================================================================================================
 
@@ -1505,18 +1511,20 @@ eps=1e-8
 nPlanar=0
 nBilinear=0
 nCurved=0
+nBCElems=0
 #ifdef MPI
 nPlanarTot=0
 nBilinearTot=0
 nCurvedTot=0
+nBCElemsTot=0
 #endif /*MPI*/
-DO iSide=1,nTotalBCSides
+DO iSide=1,nTotalSides
   isLinear=.TRUE.
-  !SideID  =PartBCSideList(iSide)
-  SideID  =iSide
+  SideID  =PartBCSideList(iSide)
+  IF(SideID.GT.nTotalBCSides) CYCLE
   ! all four edges
   !IF(iSide.GT.nSides) IPWRITE(*,*) BezierControlPOints3D(:,:,:,iSide)
-  IF(SUM(ABS(BezierControlPoints3D(:,:,:,SideID))).LT.1e-10) IPWRITE(*,*) 'missing side'
+  IF(SUM(ABS(BezierControlPoints3D(:,:,:,SideID))).LT.1e-10) IPWRITE(*,*) 'missing side',SideID
   q=0
   v1=BezierControlPoints3D(:,NGeo,q,SideID)-BezierControlPoints3D(:,0,q,SideID)
   DO p=1,NGeo-1
@@ -1607,10 +1615,13 @@ nTotalBCElems=0
 DO iElem=1,nTotalElems
   DO ilocSide=1,6
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF((SideID.LT.nBCSides).OR.(SideID.GT.nSides))THEN
+    IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
       IF(.NOT.isBCElem(iElem))THEN
         IsBCElem(iElem)=.TRUE.
         nTotalBCElems=nTotalBCElems+1
+        IF(SideID.LE.nBCSides)THEN
+          nBCElems=nBCElems+1
+        END IF
       END IF ! count only single
     END IF
   END DO ! ilocSide
@@ -1624,22 +1635,24 @@ IF(MPIRoot) THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,nPlanar  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,nBilinear,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,nCurved  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nBCElems ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
 ELSE ! no Root
   CALL MPI_REDUCE(nPlanar  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   CALL MPI_REDUCE(nBilinear,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   CALL MPI_REDUCE(nCurved  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nBCElems  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
 END IF
 #endif /*MPI*/
 
 
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar    faces: ', nPlanar
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear faces: ', nBilinear
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved    faces: ', nCurved
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of BC-adjoined elems: ', nBCElems
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar      faces: ', nPlanar
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear   faces: ', nBilinear
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved      faces: ', nCurved
 SWRITE(UNIT_StdOut,'(132("-"))')
 
-
 #ifdef MPI
-CALL  WriteParticlePartitionInformation(nPlanarTot,nBilinearTot,nCurvedTot)
+CALL  WriteParticleMappingPartitionInformation(nPlanarTot,nBilinearTot,nCurvedTot,nTotalBCElems)
 #endif
 
 END SUBROUTINE GetBCSideType
@@ -1832,10 +1845,11 @@ SUBROUTINE BuildElementBasis()
 !================================================================================================================================
 USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,ElemToSide
+USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,ElemToSide,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D
 USE MOD_Basis,                    ONLY:DeCasteljauInterpolation
-USE MOD_Particle_Surfaces_Vars,   ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
+USE MOD_Particle_Surfaces_Vars,   ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo!,DoRefMapping
+USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1844,63 +1858,153 @@ IMPLICIT NONE
 !OUTPUT VARIABLES
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem,SideID
-REAL                    :: Xi(2)
+INTEGER                 :: iElem,SideID,i,j,k
+REAL                    :: Xi(3),XPos(3),Radius
 REAL                    :: RNGeo3
+REAL                    :: Lag(1:3,0:NGeo)
 !================================================================================================================================
 
-Xi=(/0.0,0.0/)
+Xi=(/0.0,0.0,0.0/)
+ElemRadiusNGeo=0.
 RNGeo3=1.0/REAL((NGeo+1)**3)
 DO iElem=1,PP_nElems
   ElemBaryNGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))*RNGeo3
   ElemBaryNGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))*RNGeo3
   ElemBaryNGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))*RNGeo3
   ! get point on each side 
+!  IF(DoRefMapping)THEN
   ! xi plus
-  IF(NGeo.EQ.1)THEN
-    XiEtaZetaBasis(1:3,1,iElem)=0.25*(XCL_NGeo(:,NGeo,0,0,iElem)       &
-                                     +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
-                                     +XCL_NGeo(:,NGeo,0,NGeo,iElem)    &
-                                     +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
-    ! eta plus
-    XiEtaZetaBasis(1:3,2,iElem)=0.25*(XCL_NGeo(:,0,   NGeo,0,iElem)    &
-                                     +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
-                                     +XCL_NGeo(:,0,   NGeo,NGeo,iElem) &
-                                     +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
-    ! zeta plus
-    XiEtaZetaBasis(1:3,3,iElem)=0.25*(XCL_NGeo(:,0,0,      NGeo,iElem) &
-                                     +XCL_NGeo(:,NGeo,0,   NGeo,iElem) &
-                                     +XCL_NGeo(:,0,NGeo,   NGeo,iElem) &
-                                     +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
-    ! xi minus
-    XiEtaZetaBasis(1:3,4,iElem)=0.25*(XCL_NGeo(:,0,0,0,iElem)       &
-                                     +XCL_NGeo(:,0,NGeo,0,iElem)    &
-                                     +XCL_NGeo(:,0,0,NGeo,iElem)    &
-                                     +XCL_NGeo(:,0,NGeo,NGeo,iElem) )
-    ! eta minus
-    XiEtaZetaBasis(1:3,5,iElem)=0.25*(XCL_NGeo(:,0,   0,0,iElem)    &
-                                     +XCL_NGeo(:,NGeo,0,0,iElem)    &
-                                     +XCL_NGeo(:,0,   0,NGeo,iElem) &
-                                     +XCL_NGeo(:,NGeo,0,NGeo,iElem) )
-    ! zeta plus
-    XiEtaZetaBasis(1:3,6,iElem)=0.25*(XCL_NGeo(:,0,0,      0,iElem) &
-                                     +XCL_NGeo(:,NGeo,0,   0,iElem) &
-                                     +XCL_NGeo(:,0,NGeo,   0,iElem) &
-                                     +XCL_NGeo(:,NGeo,NGeo,0,iElem) )
-  ELSE
-    SideID = ElemToSide(1,XI_PLUS,iElem)
-    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,1,iElem))
-    SideID = ElemToSide(1,ETA_PLUS,iElem)
-    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,2,iElem))
-    SideID = ElemToSide(1,ZETA_PLUS,iElem)
-    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,3,iElem))
-    SideID = ElemToSide(1,XI_MINUS,iElem)
-    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,4,iElem))
-    SideID = ElemToSide(1,ETA_MINUS,iElem)
-    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,5,iElem))
-    SideID = ElemToSide(1,ZETA_MINUS,iElem)
-    CALL DeCasteljauInterpolation(NGeo,Xi,SideID,XiEtaZetaBasis(1:3,6,iElem))
-  END IF
+  Xi=(/1.0,0.0,0.0/)
+  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  xPos=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      DO i=0,NGeo
+        xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  XiEtaZetaBasis(1:3,1,iElem)=xPos
+  ! eta plus
+  Xi=(/0.0,1.0,0.0/)
+  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  xPos=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      DO i=0,NGeo
+        xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  XiEtaZetaBasis(1:3,2,iElem)=xPos
+  ! zeta plus
+  Xi=(/0.0,0.0,1.0/)
+  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  xPos=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      DO i=0,NGeo
+        xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  XiEtaZetaBasis(1:3,3,iElem)=xPos
+  ! xi minus
+  Xi=(/-1.0,0.0,0.0/)
+  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  xPos=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      DO i=0,NGeo
+        xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  XiEtaZetaBasis(1:3,4,iElem)=xPos
+  ! eta minus
+  Xi=(/0.0,-1.0,0.0/)
+  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  xPos=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      DO i=0,NGeo
+        xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  XiEtaZetaBasis(1:3,5,iElem)=xPos
+  ! zeta minus
+  Xi=(/0.0,0.0,-1.0/)
+  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  xPos=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      DO i=0,NGeo
+        xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  XiEtaZetaBasis(1:3,6,iElem)=xPos
+!  ELSE ! compute particle position in physical space
+!    IF(NGeo.EQ.1)THEN
+!      ! xi plus
+!      XiEtaZetaBasis(1:3,1,iElem)=0.25*(XCL_NGeo(:,NGeo,0,0,iElem)       &
+!                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
+!                                       +XCL_NGeo(:,NGeo,0,NGeo,iElem)    &
+!                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
+!      ! eta plus
+!      XiEtaZetaBasis(1:3,2,iElem)=0.25*(XCL_NGeo(:,0,   NGeo,0,iElem)    &
+!                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
+!                                       +XCL_NGeo(:,0,   NGeo,NGeo,iElem) &
+!                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
+!      ! zeta plus
+!      XiEtaZetaBasis(1:3,3,iElem)=0.25*(XCL_NGeo(:,0,0,      NGeo,iElem) &
+!                                       +XCL_NGeo(:,NGeo,0,   NGeo,iElem) &
+!                                       +XCL_NGeo(:,0,NGeo,   NGeo,iElem) &
+!                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
+!      ! xi minus
+!      XiEtaZetaBasis(1:3,4,iElem)=0.25*(XCL_NGeo(:,0,0,0,iElem)       &
+!                                       +XCL_NGeo(:,0,NGeo,0,iElem)    &
+!                                       +XCL_NGeo(:,0,0,NGeo,iElem)    &
+!                                       +XCL_NGeo(:,0,NGeo,NGeo,iElem) )
+!      ! eta minus
+!      XiEtaZetaBasis(1:3,5,iElem)=0.25*(XCL_NGeo(:,0,   0,0,iElem)    &
+!                                       +XCL_NGeo(:,NGeo,0,0,iElem)    &
+!                                       +XCL_NGeo(:,0,   0,NGeo,iElem) &
+!                                       +XCL_NGeo(:,NGeo,0,NGeo,iElem) )
+!      ! zeta plus
+!      XiEtaZetaBasis(1:3,6,iElem)=0.25*(XCL_NGeo(:,0,0,      0,iElem) &
+!                                       +XCL_NGeo(:,NGeo,0,   0,iElem) &
+!                                       +XCL_NGeo(:,0,NGeo,   0,iElem) &
+!                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem) )
+!    ELSE
+!      Xi=(/0.0,0.0,0.0/)
+!      SideID = ElemToSide(1,XI_PLUS,iElem)
+!      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,1,iElem))
+!      SideID = ElemToSide(1,ETA_PLUS,iElem)
+!      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,2,iElem))
+!      SideID = ElemToSide(1,ZETA_PLUS,iElem)
+!      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,3,iElem))
+!      SideID = ElemToSide(1,XI_MINUS,iElem)
+!      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,4,iElem))
+!      SideID = ElemToSide(1,ETA_MINUS,iElem)
+!      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,5,iElem))
+!      SideID = ElemToSide(1,ZETA_MINUS,iElem)
+!      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,6,iElem))
+!    END IF
+!  END IF ! no ref mapping
   ! compute vector from each barycenter to sidecenter
   XiEtaZetaBasis(:,1,iElem)=XiEtaZetaBasis(:,1,iElem)-ElemBaryNGeo(:,iElem)
   XiEtaZetaBasis(:,2,iElem)=XiEtaZetaBasis(:,2,iElem)-ElemBaryNGeo(:,iElem)
@@ -1915,6 +2019,18 @@ DO iElem=1,PP_nElems
   slenXiEtaZetaBasis(4,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,4,iElem),XiEtaZetaBasis(:,4,iElem))
   slenXiEtaZetaBasis(5,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,5,iElem),XiEtaZetaBasis(:,5,iElem))
   slenXiEtaZetaBasis(6,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,6,iElem),XiEtaZetaBasis(:,6,iElem))
+  
+  Radius=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      DO i=0,NGeo
+        xPos=XCL_NGeo(:,i,j,k,iElem)-ElemBaryNGeo(:,iElem)
+        Radius=MAX(Radius,SQRT(DOT_PRODUCT(xPos,xPos)))      
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  ElemRadiusNGeo=Radius
+
 END DO ! iElem
 
 END SUBROUTINE BuildElementBasis

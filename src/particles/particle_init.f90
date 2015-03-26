@@ -417,6 +417,7 @@ USE MOD_PICInterpolation_Vars, ONLY: InterpolationType
 USE MOD_PICInterpolation,      ONLY: InitializeInterpolation
 USE MOD_PICInit,               ONLY: InitPIC
 USE MOD_Particle_Mesh,         ONLY: InitFIBGM
+USE MOD_Particle_Surfaces_Vars,ONLY: DoRefMapping
 !USE MOD_Particle_Mesh_Vars,    ONLY:Geo
 #ifdef MPI
 !USE MOD_part_MPI_Vars,         ONLY: PMPIVAR
@@ -462,6 +463,13 @@ IF (ALLOCSTAT.NE.0) THEN
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
 #endif 
+
+IF(DoRefMapping)THEN
+  ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+  __STAMP__&
+  ,' Cannot allocate partposref!')
+END IF
 
 
 ! predefine random vectors

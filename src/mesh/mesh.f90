@@ -245,16 +245,16 @@ ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
 #ifdef PARTICLES
 !ALLOCATE( SuperSampledNodes(1:3,0:NPartCurved,0:NPartCurved,1:nSides)              )! &
         !, SuperSampledBiLinearCoeff(1:3,1:4,1:NPartCurved,1:NPartCurved,1:nSides) )
-
-IF(DoRefMapping)THEN
-ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nBCSides) ) 
-BezierControlPoints3D=0.
-ALLOCATE(SlabNormals(1:3,1:3,1:nBCSides),SlabIntervalls(1:6,nSides),BoundingBoxIsEmpty(1:nBCSides) )
-ELSE
-ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) ) 
-BezierControlPoints3D=0.
-ALLOCATE(SlabNormals(1:3,1:3,1:nSides),SlabIntervalls(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
-END IF
+DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
+!IF(DoRefMapping)THEN
+!  ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nBCSides) ) 
+!  BezierControlPoints3D=0.
+!  ALLOCATE(SlabNormals(1:3,1:3,1:nBCSides),SlabIntervalls(1:6,nSides),BoundingBoxIsEmpty(1:nBCSides) )
+!ELSE
+  ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) ) 
+  BezierControlPoints3D=0.
+  ALLOCATE(SlabNormals(1:3,1:3,1:nSides),SlabIntervalls(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
+!END IF
 #endif /*PARTICLES*/
 
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')

@@ -135,9 +135,13 @@ IF(iError .NE. 0) &
 #endif
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F8.2,A)')  ' BOLTZPLATZ FINISHED! [',Time-StartTime,' sec ]'
-SWRITE(UNIT_stdOut,'(A,I8,A)')    ' Number of trackings:   ',nTracks
-SWRITE(UNIT_stdOut,'(A,F15.6,A)') ' Tracking time:         ',tTracking
-SWRITE(UNIT_stdOut,'(A,F15.8,A)') ' Average Tracking time: ',tTracking/REAL(nTracks)
-SWRITE(UNIT_stdOut,'(A,F15.6,A)') ' Localization time:     ',tLocalization
+#ifdef PARTICLES
+IF(nTracks.GT.0)THEN
+  SWRITE(UNIT_stdOut,'(A,I8,A)')    ' Number of trackings:   ',nTracks
+  SWRITE(UNIT_stdOut,'(A,F15.6,A)') ' Tracking time:         ',tTracking
+  SWRITE(UNIT_stdOut,'(A,F15.8,A)') ' Average Tracking time: ',tTracking/REAL(nTracks)
+  SWRITE(UNIT_stdOut,'(A,F15.6,A)') ' Localization time:     ',tLocalization
+END IF
+#endif /*PARTICLES*/
 SWRITE(UNIT_stdOut,'(132("="))')
 END PROGRAM Boltzplatz

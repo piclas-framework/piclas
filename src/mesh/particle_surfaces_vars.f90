@@ -47,6 +47,7 @@ REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo
+REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo
 INTEGER                                 :: MappingGuess
 REAL                                    :: epsMapping
 LOGICAL                                 :: DoRefMapping

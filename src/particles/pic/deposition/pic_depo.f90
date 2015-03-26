@@ -55,6 +55,8 @@ REAL                      :: BetaFac, Temp(3), MappedGauss(1:PP_N+1), xmin, ymin
 REAL                      :: auxiliary(0:3),weight(1:3,0:3)
 !===================================================================================================================================
 
+SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
+
 DepositionType = GETSTR('PIC-Deposition-Type','nearest_blurrycenter')
 ! check for interpolation type incompatibilities (cannot be done at interpolation_init
 ! because DepositionType is not known yet)
@@ -358,6 +360,9 @@ CASE DEFAULT
   CALL abort(__STAMP__, &
       'Unknown DepositionType in pic_depo.f90')
 END SELECT
+
+SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
+
 END SUBROUTINE InitializeDeposition
 
 SUBROUTINE Deposition(doInnerParts)  

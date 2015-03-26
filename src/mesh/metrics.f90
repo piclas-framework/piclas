@@ -72,11 +72,11 @@ USE MOD_Mesh_Vars,               ONLY:NGeo,dXCL_NGeo,XCL_NGeo
 USE MOD_Mesh_Vars,               ONLY:Vdm_CLNGeo_GaussN,Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
 USE MOD_Mesh_Vars,               ONLY:DCL_NGeo,DCL_N
 USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
-USE MOD_Mesh_Vars,               ONLY:nElems,sideID_minus_upper
+USE MOD_Mesh_Vars,               ONLY:nElems,sideID_minus_upper,nBCSides
 #ifdef PARTICLES
 !USE MOD_Particle_Surfaces,       ONLY:GetSuperSampledSurface,GetBezierControlPoints3D!,GetSideType
 USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D!,GetSideType
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,DoRefMapping
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_ChangeBasis,        ONLY:changeBasis3D
@@ -88,7 +88,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: i,j,k,q,iElem,iSide
+INTEGER            :: i,j,k,q,iElem,iSide,lowerLimit
 INTEGER            :: dd,ee,ff
 INTEGER            :: nn,mm,ll
 INTEGER            :: iGeo,jGeo,kGeo,lGeo
@@ -308,11 +308,12 @@ END DO !iElem=1,nElems
 #ifdef PARTICLES
 SWRITE(UNIT_stdOut,'(A)') ' '
 SWRITE(UNIT_stdOut,'(A)') ' VALIDATION OF BEZIERCONTROLPOINTS ...'
-
-DO iSide=1,sideID_minus_upper
+lowerLimit=SideID_minus_upper
+IF(DoRefMapping) lowerLimit=nBCSides
+DO iSide=1,lowerLimit
   IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
     IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
-    print*,'Points',BezierControlPoints3D(:,:,:,iSide)
+    IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
   END IF
 END DO 
 

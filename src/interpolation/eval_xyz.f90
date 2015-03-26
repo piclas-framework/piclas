@@ -204,7 +204,7 @@ DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.50))
   ! Iterate Xi using Newton step
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
-  IF(ANY(ABS(Xi).GT.1.5)) THEN
+  IF(ANY(ABS(Xi).GT.1.2)) THEN
     WRITE(*,*) ' Particle not inside of element!!!'
     WRITE(*,*) ' xi  ', xi(1)
     WRITE(*,*) ' eta ', xi(2)
@@ -331,6 +331,7 @@ USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaB
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo,NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,SideType
 USE MOD_Mesh_Vars,               ONLY:ElemToSide
+USE MOD_Particle_Surfaces_Vars,  ONLY:ElemRadiusNGeo
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -352,7 +353,7 @@ REAL                       :: Winner_Dist,Dist
 INTEGER                    :: n_Newton,idir
 REAL                       :: F(1:3),Lag(1:3,0:NGeo)
 REAL                       :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
-REAL                       :: buff,buff2
+REAL                       :: buff,buff2,abortcrit
 REAL                       :: Ptild(1:3),XiLinear(1:6)
 !===================================================================================================================================
 
@@ -410,15 +411,14 @@ DO k=0,NGeo
   DO j=0,NGeo
     DO i=0,NGeo
       F=F+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
-      !print*,'XCL',i,j,k,XCL_NGeo(:,i,j,k,iElem)
-    END DO !l=0,NGeo
-  END DO !i=0,NGeo
-END DO !j=0,NGeo
-!print*,'F',F
-!read*
+    END DO !i=0,NGeo
+  END DO !j=0,NGeo
+END DO !k=0,NGeo
 
 NewtonIter=0
-DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.50))
+abortCrit=ElemRadiusNGeo(iElem)*epsMapping
+!DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.50))
+DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   NewtonIter=NewtonIter+1
   ! 
   ! caution, dXCL_NGeo is transposed of required matrix
@@ -462,9 +462,9 @@ DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.50))
       WRITE(*,*) ' PartPos', X_in
       CALL abort(__STAMP__, &
           'Particle Not inSide of Element')
+    ELSE
+      EXIT
     END IF
-  ELSE 
-    EXIT
   END IF
   
   ! Compute function value
@@ -484,29 +484,6 @@ DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.50))
     END DO !i=0,NGeo
   END DO !j=0,NGeo
 END DO !newton
-
-! caution: check is performed outside!
-!! check if Newton is successful
-!IF(PRESENT(PartID)) THEN
-!  !IF(ANY(ABS(Xi).GT.epsOne)) THEN
-!  IF(ANY(ABS(Xi).GT.1.024)) THEN
-!    IF(PartID.EQ.223)THEN
-!    WRITE(*,*) ' Particle outside of parameter range!!!'
-!    WRITE(*,*) ' ParticleID', PartID
-!    WRITE(*,*) ' Element', iElem
-!    WRITE(*,*) ' PartPos', X_in
-!    WRITE(*,*) ' SideType+', SideType(ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem))
-!    WRITE(*,*) ' SideType-', SideType(ElemToSide(E2S_SIDE_ID,ZETA_MINUS,iElem))
-!    !WRITE(*,*) ' BezierPoints3D x', BezierControlPoints3D(1,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
-!    !WRITE(*,*) ' BezierPoints3D y', BezierControlPoints3D(2,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
-!    !WRITE(*,*) ' BezierPoints3D z', BezierControlPoints3D(4,:,:,ElemToSide(E2S_SIDE_ID,ETA_PLUS,iElem))
-!    WRITE(*,*) ' xi  ', xi(1)
-!    WRITE(*,*) ' eta ', xi(2)
-!    WRITE(*,*) ' zeta', xi(3)
-!    read*
-!    END IF
-!  END IF
-!END IF
 
 END SUBROUTINE eval_xyz_elemcheck
 

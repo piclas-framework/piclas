@@ -208,7 +208,8 @@ CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.FALSE.)
 ! Nullify arrays
 ! NOTE: IF NEW DG_VOLINT AND LIFTING_VOLINT ARE USED AND CALLED FIRST,
 !       ARRAYS DO NOT NEED TO BE NULLIFIED, OTHERWISE THEY HAVE TO!
-CALL VNullify(nTotalU,Ut)
+!CALL VNullify(nTotalU,Ut)
+Ut=0.
 
 ! compute volume integral contribution and add to ut, first half of all elements
 CALL VolInt(Ut,dofirstElems=.TRUE.)
@@ -406,8 +407,8 @@ CALL StartExchangeMPIData(U_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.FALSE.)
 
-!Ut=0.
-CALL VNullify(nTotalU,Ut)
+Ut=0.
+!CALL VNullify(nTotalU,Ut)
 CALL VolInt(Ut,dofirstElems=.TRUE.)
 
 #ifdef MPI

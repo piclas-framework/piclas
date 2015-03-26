@@ -65,7 +65,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT
-INTEGER           :: iElem, ilocSide,SideID,flip
+INTEGER           :: iElem, ilocSide,SideID,flip,iSide
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -149,6 +149,7 @@ SDEALLOCATE(PartElemToSide)
 SDEALLOCATE(PartSideToElem)
 SDEALLOCATE(PartNeighborElemID)
 SDEALLOCATE(PartNeighborLocSideID)
+SDEALLOCATE(PartBCSideList)
 ParticleMeshInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeParticleMesh
@@ -168,6 +169,7 @@ USE MOD_TimeDisc_Vars,          ONLY:dt
 USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,SuperSampledNodes,NPartCurved,ElemBaryNGeo,doRefMapping
+USE MOD_Particle_Surfaces_Vars, ONLY:ClipHit
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:BubbleSortID
@@ -242,9 +244,9 @@ CALL BubbleSortID(Distance,ListDistance,nBGMElems)
 DO iBGMElem=1,nBGMElems
   ElemID=ListDistance(iBGMElem)
   CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
-  IF(ALL(ABS(Xi).LE.OneMEps)) THEN ! particle inside
+  IF(ALL(ABS(Xi).LT.ClipHit)) THEN ! particle inside
     InElementCheck=.TRUE.
-  ELSE IF(ANY(ABS(Xi).GT.epsOne))THEN ! particle outside
+  ELSE IF(ANY(ABS(Xi).GT.ClipHit))THEN ! particle outside
   !  print*,'ici'
     InElementCheck=.FALSE.
   ELSE ! particle at face,edge or node, check most possible point
@@ -255,7 +257,7 @@ DO iBGMElem=1,nBGMElems
     PartState(iPart,1:3) = PartState(iPart,1:3)+eps2*VBary(1:3)
     CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
     !print*,xi
-    IF(ALL(ABS(Xi).LT.epsOne)) THEN ! particle inside
+    IF(ALL(ABS(Xi).LT.ClipHit)) THEN ! particle inside
       InElementCheck=.TRUE.
     ELSE
 !      IPWRITE(*,*) ' PartPos', PartState(iPart,1:3)
@@ -409,8 +411,6 @@ END DO ! iBGMElem
 ! particle not found
 IF (.NOT.ParticleFound) THEN
   PDM%ParticleInside(iPart) = .FALSE.
-  print*,'not found'
-  read*
 END IF
 ! deallocate lists
 DEALLOCATE( Distance,ListDistance)
@@ -433,7 +433,8 @@ USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
 USE MOD_ReadInTools,                        ONLY:GetRealArray
-USE MOD_Particle_Surfaces,                  ONLY:GetSideType
+USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType
+USE MOD_Particle_Surfaces_Vars,             ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Equation_Vars,                      ONLY:c
@@ -556,6 +557,7 @@ GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 
 CALL InitPeriodicBC()
+IF(DoRefMapping) CALL ReshapeBezierSides()
 !CALL InitializeInterpolation() ! not any more required ! has to be called earliear
 CALL InitializeDeposition()     ! has to remain here, because domain can have changed
 !CALL InitPIC()                 ! does not depend on domain
@@ -1205,7 +1207,11 @@ DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, Ce
 CALL InitHaloMesh()
 #endif
 
-CALL GetSideType
+IF(DoRefMapping) THEN
+  CALL GetBCSideType()
+ELSE
+  CALL GetSideType()
+END IF
 !exitTrue=.false.
 !DO iSpec = 1,nSpecies
 !  DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
@@ -1287,6 +1293,112 @@ END DO
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes) DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
+
+
+SUBROUTINE ReShapeBezierSides()
+!===================================================================================================================================
+! Init of Particle mesh
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList
+USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: ALLOCSTAT
+INTEGER           :: iSide,nPeriodicSides,nOldBCSides,newBCSideID,BCInc
+REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummySlabNormals                  ! normal vectors of bounding slab box
+REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummySlabIntervalls               ! intervalls beta1, beta2, beta3
+LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
+REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)                                
+!===================================================================================================================================
+
+
+nPeriodicSides=0
+DO iSide=nBCSides+1,nSides
+  IF(SidePeriodicType(iSide).NE.0) nPeriodicSides=nPeriodicSides+1
+END DO ! iSide
+
+! now, shrink partbcsidelist
+nOldBCSides  =nTotalBCSides
+nTotalBCSides=nTotalBCSides+nPeriodicSides
+
+! allocate & fill dummy
+! BezierControlPoints3D
+ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
+IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummyBezierControlPoints3d=BezierControlPoints3d
+DEALLOCATE(BezierControlPoints3D)
+ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+! SlabNormals
+ALLOCATE(DummySlabNormals(1:3,1:3,1:nOldBCSides))
+IF (.NOT.ALLOCATED(DummySlabNormals)) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummySlabNormals=SlabNormals
+DEALLOCATE(SlabNormals)
+ALLOCATE(SlabNormals(1:3,1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+! SlabIntervalls
+ALLOCATE(DummySlabIntervalls(1:6,1:nOldBCSides))
+IF (.NOT.ALLOCATED(DummySlabIntervalls)) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummySlabIntervalls=SlabIntervalls
+DEALLOCATE(SlabIntervalls)
+ALLOCATE(SlabIntervalls(1:6,1:nTotalBCSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+! BoundingBoxIsEmpty
+ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldBCSides))
+IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
+DEALLOCATE(BoundingBoxIsEmpty)
+ALLOCATE(BoundingBoxIsEmpty(1:nTotalBCSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  'Could not allocate ElemIndex')
+
+BCInc=0
+DO iSide=1,nSides
+  IF((iSide.LE.nBCSides).OR.(SidePeriodicType(iSide).NE.0))THEN
+    IF(iSide.LE.nBCSides)THEN
+      newBCSideID=iSide
+    ELSE IF(SidePeriodicType(iSide).NE.0)THEN
+      BCInc=BCInc+1
+      newBCSideID=nBCSides+BCInc
+      PartBCSideList(iSide)=newBCSideID
+    END IF
+    BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
+    SlabNormals          (1:3,1:3,          newBCSideID) =DummySlabNormals         (1:3,1:3,           iSide)
+    SlabIntervalls       (1:6,              newBCSideID) =DummySlabIntervalls      (1:6,               iSide)
+    BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
+  END IF
+END DO ! iSide
+
+! deallocate dummy buffer
+DEALLOCATE(DummyBezierControlPoints3D)
+DEALLOCATE(DummySlabNormals)
+DEALLOCATE(DummySlabIntervalls)
+DEALLOCATE(DummyBoundingBoxIsEmpty)
+
+
+END SUBROUTINE ReShapeBezierSides
 
 
 END MODULE MOD_Particle_Mesh

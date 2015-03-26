@@ -313,7 +313,7 @@ LOGICAL,INTENT(INOUT)         :: PartisDone
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ilocSide,SideID,iIntersect, locSideList(1:6), hitlocSide
+INTEGER                       :: ilocSide,SideID,iIntersect, locSideList(1:6), hitlocSide,CheckSideID
 LOGICAL                       :: dolocSide(1:6)
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6)
 INTEGER                       :: lastlocSide,nInter
@@ -330,11 +330,13 @@ lengthPartTrajectory=lengthPartTrajectory+epsilontol
 
 locAlpha=-1.0
 nInter=0
+dolocSide=.TRUE.
 DO iLocSide=1,6
   ! track particle vector until the final particle position is achieved
-  dolocSide=.TRUE.
   locSideList(ilocSide)=ilocSide
-  SideID=PartBCSideList(SideID)
+  CheckSideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+  IF(CheckSideID.EQ.0) CYCLE 
+  SideID=PartBCSideList(CheckSideID)
   IF(SideID.GT.nTotalBCSides) CYCLE
   SELECT CASE(SideType(SideID))
   CASE(PLANAR)
@@ -368,11 +370,6 @@ ELSE
     IF(locAlpha(ilocSide).GT.-1.0)THEN
       hitlocSide=locSideList(ilocSide)
       SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
-      ! noch nicht drin
-      !CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-      !                                                                  ,xi (hitlocSide)    &
-      !                                                                  ,eta(hitlocSide)    ,PartID,SideID,ElemID)
-  
       CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                         ,xi(hitlocSide)     &
                                                                         ,eta(hitlocSide)    &
@@ -408,9 +405,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iPart, ElemID,oldElemID,iElem
+INTEGER                     :: iPart, ElemID,oldElemID,iElem, newElemID
 INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems
 REAL,ALLOCATABLE            :: Distance(:)
+REAL                        :: oldXi(3),newXi(3)
 INTEGER,ALLOCATABLE         :: ListDistance(:)
 LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength)
 !===================================================================================================================================
@@ -439,7 +437,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
   END DO ! iPart
 END DO ! iElem
 
-! now, found all not located particles
+! now, locate not all found particle
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     IF(ParticleFound(iPart)) CYCLE
@@ -476,11 +474,18 @@ DO iPart=1,PDM%ParticleVecLength
 
     CALL BubbleSortID(Distance,ListDistance,nBGMElems)
 
+    OldXi=PartPosRef(1:3,iPart)
+    newXi=HUGE(1.0)
+    newElemID=-1.0
     ! loop through sorted list and start by closest element  
     DO iBGMElem=1,nBGMElems
       ElemID=ListDistance(iBGMElem)
       IF(oldElemID.EQ.ElemID) CYCLE
       CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.MAXVAL(ABS(newXi))) THEN
+        newXi=PartPosRef(1:3,iPart)
+        newElemID=ElemID
+      END IF
       IF(ALL(ABS(PartPosRef(1:3,iPart)).LE.ClipHit)) THEN ! particle inside
         PEM%Element(iPart) = ElemID
         ParticleFound(iPart)=.TRUE.
@@ -488,16 +493,30 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     END DO ! iBGMElem
     IF(.NOT.ParticleFound(iPart))THEN
-      WRITE(*,*) ' iPart', iPart
-      WRITE(*,*) ' pos', partstate(ipart,1:3)
-      CALL abort(__STAMP__,&
-        ' particle lost !! ')
+      ! use best xi
+      IF(MAXVAL(ABS(oldXi)).LT.MAXVAL(ABS(newXi)))THEN
+        PartPosRef(1:3,iPart)=OldXi
+        PEM%Element(iPart)=oldElemID
+      ELSE
+        PartPosRef(1:3,iPart)=NewXi
+        PEM%Element(iPart)=NewElemID
+      END IF
+      ParticleFound(iPart)=.TRUE.
+      !WRITE(*,*) ' iPart  :   ', iPart
+      !WRITE(*,*) ' PartPos:   ', PartState(iPart,1:3)
+      !WRITE(*,*) ' oldxi:     ', oldXi
+      !WRITE(*,*) ' bestxi:    ', newXi
+      !WRITE(*,*) ' oldelemid: ', oldElemID
+      !WRITE(*,*) ' bestelemid ', NewElemID
+      !CALL abort(__STAMP__,&
+      !  ' particle lost !! ')
     END IF
     DEALLOCATE( Distance)
     DEALLOCATE( ListDistance)
 
   END IF ! particle inside
 END DO ! iPart
+
 
 END SUBROUTINE ParticleRefTracking
 

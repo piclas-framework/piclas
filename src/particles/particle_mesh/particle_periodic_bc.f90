@@ -112,12 +112,12 @@ SUBROUTINE MapPeriodicVectorsToSides()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals,                 ONLY:AlmostZero,AlmostEqual
+USE MOD_Globals,                 ONLY:AlmostZero,AlmostEqual,CROSSNORM
 !USE MOD_Mesh_Vars,               ONLY:Elems,offsetElem,nSides, ElemToSide
-USE MOD_Mesh_Vars,               ONLY:nSides, ElemToSide
+USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+USE MOD_Mesh_Vars,               ONLY:nSides, ElemToSide,nBCSides,XCL_NGeo,NGeo
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO, SidePeriodicType, SidePeriodicDisplacement
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -127,8 +127,12 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER             :: iElem,ilocSide,SideID,flip
+INTEGER             :: iElem,ilocSide,SideID,flip,iSide
 INTEGER             :: iPV,iDisplace,nDisplacement
+INTEGER             :: nPeriodicSides,tmpBCSides
+INTEGER             :: nLocalSides
+REAL                :: xmin,xmax,ymin,ymax,zmin,zmax
+REAL                :: v1(3),v2(3),nVec(3)
 REAL,ALLOCATABLE    :: normDisplaceVec(:,:)
 !===================================================================================================================================
 
@@ -153,30 +157,75 @@ DO iPV=1,GEO%nPeriodicVectors
   iDisplace=iDisplace+2
 END DO ! iPV
 
+nLocalSides = nBCSides+nInnerSides+nMPISides_MINE
 !--- Initialize Periodic Side Info
 DO iElem=1,PP_nElems
   DO ilocSide=1,6
     SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
     flip   = ElemToSide(E2S_FLIP,ilocSide,iElem)
-    ! check if periodic side
-!    IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)&
-!      .AND.(ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
     IF(SideperiodicType(SideID).EQ.-1)THEN
-      ! method with flip
-      IF(flip.EQ.0)THEN ! master side
-        DO iDisplace=1,nDisplacement
-          IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),-1.0)) &
-              SidePeriodicType(SideID)=iDisplace
-        END DO ! iDisplace
-      ELSE ! slave side
+      SELECT CASE(iLocSide)
+      CASE(XI_MINUS)
+        v1=XCL_NGeo(1:3,0   ,NGeo,0,iElem) - XCL_NGeo(1:3,0   ,0,0,iElem)
+        v2=XCL_NGeo(1:3,0   ,0,NGeo,iElem) - XCL_NGeo(1:3,0   ,0,0,iElem)
+      CASE(XI_PLUS)
+        v1=XCL_NGeo(1:3,NGeo,NGeo,0,iElem) - XCL_NGeo(1:3,NGeo,0,0,iElem)
+        v2=XCL_NGeo(1:3,NGeo,0,NGeo,iElem) - XCL_NGeo(1:3,NGeo,0,0,iElem)
+      CASE(ETA_MINUS)
+        v1=XCL_NGeo(1:3,NGeo,0,0   ,iElem)-XCL_NGeo(1:3,0,0,0,iElem)
+        v2=XCL_NGeo(1:3,0   ,0,Ngeo,iElem)-XCL_NGeo(1:3,0,0,0,iElem)
+      CASE(ETA_PLUS)
+        v1=XCL_NGeo(1:3,NGeo,NGeo,0   ,iElem)-XCL_NGeo(1:3,0,NGeo,0,iElem)
+        v2=XCL_NGeo(1:3,0   ,NGeo,NGeo,iElem)-XCL_NGeo(1:3,0,NGeo,0,iElem)
+      CASE(ZETA_MINUS)
+        v1=XCL_NGeo(1:3,NGeo,0,0   ,iElem)-XCL_NGeo(1:3,0,0,0   ,iElem)
+        v2=XCL_NGeo(1:3,0,NGeo,0   ,iElem)-XCL_NGeo(1:3,0,0,0   ,iElem)
+      CASE(ZETA_PLUS)
+        v1=XCL_NGeo(1:3,NGeo,0,NGeo,iElem)-XCL_NGeo(1:3,0,0,NGeo,iElem)
+        v2=XCL_NGeo(1:3,0,NGeo,NGeo,iElem)-XCL_NGeo(1:3,0,0,NGeo,iElem)
+      END SELECT
+      nVec=CROSSNORM(v1,v2)
+      IF(SideID.LE.nLocalSides)THEN
+        IF(flip.EQ.0)THEN ! master side
+          DO iDisplace=1,nDisplacement
+            IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),-1.0)) &
+                SidePeriodicType(SideID)=iDisplace
+          END DO ! iDisplace
+        END IF ! flip
+      ELSE ! mpi Side & no master flip
         DO iDisplace=1,nDisplacement
           IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),1.0)) &
               SidePeriodicType(SideID)=iDisplace
         END DO ! iDisplace
-      END IF ! flip
-    END IF
-  END DO
-END DO
+      END IF ! SideID.GT.nLocalSides
+    END IF ! is periodic side
+  END DO ! ilocSide
+END DO  ! iElem
+
+!DO iElem=1,PP_nElems
+!  DO ilocSide=1,6
+!    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!    flip   = ElemToSide(E2S_FLIP,ilocSide,iElem)
+!    ! check if periodic side
+!!    IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)&
+!!      .AND.(ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
+!    IF(SideperiodicType(SideID).EQ.-1)THEN
+!      ! method with flip
+!      IF(flip.EQ.0)THEN ! master side
+!        DO iDisplace=1,nDisplacement
+!          IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),-1.0)) &
+!              SidePeriodicType(SideID)=iDisplace
+!        END DO ! iDisplace
+!      ELSE ! slave side
+!        DO iDisplace=1,nDisplacement
+!          IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),1.0)) &
+!              SidePeriodicType(SideID)=iDisplace
+!        END DO ! iDisplace
+!      END IF ! flip
+!    END IF
+!  END DO
+!END DO
+
 
 !!--- Initialize Periodic Side Info
 !DO iElem=1,PP_nElems
