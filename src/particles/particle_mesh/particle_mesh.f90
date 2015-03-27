@@ -38,11 +38,10 @@ INTERFACE InitElemVolumes
   MODULE PROCEDURE InitElemVolumes
 END INTERFACE
 
-
 PUBLIC::InitElemVolumes
 PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 !===================================================================================================================================
-
+!
 CONTAINS
 
 SUBROUTINE InitParticleMesh()
@@ -1399,6 +1398,5 @@ DEALLOCATE(DummyBoundingBoxIsEmpty)
 
 
 END SUBROUTINE ReShapeBezierSides
-
 
 END MODULE MOD_Particle_Mesh

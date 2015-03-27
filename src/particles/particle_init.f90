@@ -422,6 +422,7 @@ USE MOD_Particle_Surfaces_Vars,ONLY: DoRefMapping
 #ifdef MPI
 !USE MOD_part_MPI_Vars,         ONLY: PMPIVAR
 USE MOD_Particle_MPI_Vars,     ONLY: SafetyFactor,halo_eps_velo,PartMPI
+USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -579,7 +580,7 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC','0.')
       Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor','1.')
     END IF ! iInit
-    ! get emmission and init data
+    ! get emission and init data
     Species(iSpec)%Init(iInit)%UseForInit           = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
     Species(iSpec)%Init(iInit)%UseForEmission       = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForEmission','.TRUE.')
     Species(iSpec)%Init(iInit)%SpaceIC               = GETSTR('Part-Species'//TRIM(hilf2)//'-SpaceIC','cuboid')
@@ -959,6 +960,9 @@ halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 #endif /*MPI*/
 !-- Finalizing InitializeVariables
 CALL InitFIBGM()
+#ifdef MPI
+CALL InitEmissionComm()
+#endif /*MPI*/
 !CALL DomainUpdate()
 IF(enableParticleMerge) THEN
  !IF (TRIM(InterpolationType).NE.'particle_position') CALL DefineElemT_inv()

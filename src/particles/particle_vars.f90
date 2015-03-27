@@ -114,6 +114,9 @@ TYPE tInit                                                                   ! P
   REAL                                   :: Nsigma                           ! sigma multiple of maxwell for virtual insert length
   LOGICAL                                :: VirtPreInsert                    ! virtual Pre-Inserting region (adapeted SetPos/Velo)?
   TYPE (tConstPressure)                  :: ConstPress!(:)           =>NULL() !
+#ifdef MPI
+  INTEGER                                :: InitComm                          ! number of init-communicator
+#endif /*MPI*/
 END TYPE tInit
 
 TYPE tSpecies                                                                ! Particle Data for each Species

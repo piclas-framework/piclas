@@ -5,6 +5,7 @@ MODULE MOD_Particle_MPI_Vars
 ! Contains global variables provided by the particle surfaces routines
 !===================================================================================================================================
 ! MODULES
+USE mpi
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -22,8 +23,23 @@ LOGICAL                                  :: ParticleMPIInitIsDone=.FALSE.
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)                   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfCases                        ! Number of periodic cases
 
+TYPE tPartMPIGROUP
+!  TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)             ! MPI connect for each process
+  !TYPE(MPI_Comm)                         :: COMM                          ! MPI communicator for PIC GTS region
+  INTEGER                                :: COMM                          ! MPI communicator for PIC GTS region
+  INTEGER                                :: nProcs                        ! number of MPI processes for particles
+  INTEGER                                :: MyRank                        ! MyRank of PartMPIVAR%COMM
+  LOGICAL                                :: MPIRoot                       ! Root, MPIRank=0
+!  INTEGER                                :: nMPINeighbors                 ! number of MPI-Neighbors with HALO
+!  LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)              ! list of possible neighbors
+!  INTEGER,ALLOCATABLE                    :: MPINeighbor(:)                ! list containing the rank of MPI-neighbors
+END TYPE
+
+
 TYPE tPartMPIVAR
 !  TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)             ! MPI connect for each process
+  TYPE(tPartMPIGROUP),ALLOCATABLE        :: InitGroup(:)                  ! small communicator for initialization
+  !TYPE(MPI_Comm)                         :: COMM                          ! MPI communicator for PIC GTS region
   INTEGER                                :: COMM                          ! MPI communicator for PIC GTS region
   INTEGER                                :: nProcs                        ! number of MPI processes for particles
   INTEGER                                :: MyRank                        ! MyRank of PartMPIVAR%COMM

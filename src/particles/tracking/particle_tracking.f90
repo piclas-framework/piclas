@@ -405,15 +405,15 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iPart, ElemID,oldElemID,iElem, newElemID
+INTEGER                     :: iPart, ElemID,oldElemID,iElem, newElemID,ilocSide
 INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems
 REAL,ALLOCATABLE            :: Distance(:)
 REAL                        :: oldXi(3),newXi(3)
 INTEGER,ALLOCATABLE         :: ListDistance(:)
-LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength)
+LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength),CheckNeighbor(6)
 !===================================================================================================================================
 
-ParticleFound=.FALSE.
+!ParticleFound=.TRUE.
 ! first step, reuse Elem cache, therefore, check if particle are still in element, if not, search later
 DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in HALO, it shall not be found here
   DO iPart=1,PDM%ParticleVecLength
@@ -431,7 +431,8 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
       END IF ! initial check
       IF(ALL(ABS(PartPosRef(1:3,iPart)).LE.ClipHit)) THEN ! particle inside
         PEM%Element(iPart) = ElemID
-        ParticleFound(iPart)=.TRUE.
+      ELSE
+        ParticleFound(iPart)=.FALSE.
       END IF
     END IF
   END DO ! iPart
@@ -439,82 +440,80 @@ END DO ! iElem
 
 ! now, locate not all found particle
 DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    IF(ParticleFound(iPart)) CYCLE
-    ! relocate particle
-    oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
-    ! get background mesh cell of particle
-    CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-    CellX = MIN(GEO%FIBGMimax,CellX)                             
-    CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    CellY = MIN(GEO%FIBGMjmax,CellY) 
-    CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    CellZ = MIN(GEO%FIBGMkmax,CellZ)
- 
-    ! check all cells associated with this beckground mesh cell
-    nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
-    ALLOCATE( Distance(1:nBGMElems) &
-            , ListDistance(1:nBGMElems) )
- 
-    ! get closest element barycenter
-    Distance=1.
-    ListDistance=0
-    DO iBGMElem = 1, nBGMElems
-      ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
-      IF(ElemID.EQ.OldElemID)THEN
-        Distance(iBGMElem)=HUGE(1)
-      ELSE
-        Distance(iBGMElem)=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
-                          +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
-                          +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) 
-        Distance(iBGMElem)=SQRT(Distance(iBGMElem))
-      END IF
-      ListDistance(iBGMElem)=ElemID
-    END DO ! nBGMElems
+  IF(ParticleFound(iPart)) CYCLE
+  ! relocate particle
+  oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
+  ! get background mesh cell of particle
+  CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
+  CellX = MIN(GEO%FIBGMimax,CellX)                             
+  CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  CellY = MIN(GEO%FIBGMjmax,CellY) 
+  CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+  CellZ = MIN(GEO%FIBGMkmax,CellZ)
 
-    CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+  ! check all cells associated with this beckground mesh cell
+  nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+  ALLOCATE( Distance(1:nBGMElems) &
+          , ListDistance(1:nBGMElems) )
 
-    OldXi=PartPosRef(1:3,iPart)
-    newXi=HUGE(1.0)
-    newElemID=-1.0
-    ! loop through sorted list and start by closest element  
-    DO iBGMElem=1,nBGMElems
-      ElemID=ListDistance(iBGMElem)
-      IF(oldElemID.EQ.ElemID) CYCLE
-      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
-      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.MAXVAL(ABS(newXi))) THEN
-        newXi=PartPosRef(1:3,iPart)
-        newElemID=ElemID
-      END IF
-      IF(ALL(ABS(PartPosRef(1:3,iPart)).LE.ClipHit)) THEN ! particle inside
-        PEM%Element(iPart) = ElemID
-        ParticleFound(iPart)=.TRUE.
-        EXIT
-      END IF
-    END DO ! iBGMElem
-    IF(.NOT.ParticleFound(iPart))THEN
-      ! use best xi
-      IF(MAXVAL(ABS(oldXi)).LT.MAXVAL(ABS(newXi)))THEN
-        PartPosRef(1:3,iPart)=OldXi
-        PEM%Element(iPart)=oldElemID
-      ELSE
-        PartPosRef(1:3,iPart)=NewXi
-        PEM%Element(iPart)=NewElemID
-      END IF
-      ParticleFound(iPart)=.TRUE.
-      !WRITE(*,*) ' iPart  :   ', iPart
-      !WRITE(*,*) ' PartPos:   ', PartState(iPart,1:3)
-      !WRITE(*,*) ' oldxi:     ', oldXi
-      !WRITE(*,*) ' bestxi:    ', newXi
-      !WRITE(*,*) ' oldelemid: ', oldElemID
-      !WRITE(*,*) ' bestelemid ', NewElemID
-      !CALL abort(__STAMP__,&
-      !  ' particle lost !! ')
+  ! get closest element barycenter
+  Distance=1.
+  ListDistance=0
+  DO iBGMElem = 1, nBGMElems
+    ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+    IF(ElemID.EQ.OldElemID)THEN
+      Distance(iBGMElem)=HUGE(1)
+    ELSE
+      Distance(iBGMElem)=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
+                        +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
+                        +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) 
+      Distance(iBGMElem)=SQRT(Distance(iBGMElem))
     END IF
-    DEALLOCATE( Distance)
-    DEALLOCATE( ListDistance)
+    ListDistance(iBGMElem)=ElemID
+  END DO ! nBGMElems
 
-  END IF ! particle inside
+  CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+
+  OldXi=PartPosRef(1:3,iPart)
+  newXi=HUGE(1.0)
+  newElemID=-1.0
+  ! loop through sorted list and start by closest element  
+  DO iBGMElem=1,nBGMElems
+    ElemID=ListDistance(iBGMElem)
+    IF(oldElemID.EQ.ElemID) CYCLE
+    CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.MAXVAL(ABS(newXi))) THEN
+      newXi=PartPosRef(1:3,iPart)
+      newElemID=ElemID
+    END IF
+    IF(ALL(ABS(PartPosRef(1:3,iPart)).LE.ClipHit)) THEN ! particle inside
+      PEM%Element(iPart) = ElemID
+      ParticleFound(iPart)=.TRUE.
+      EXIT
+    END IF
+  END DO ! iBGMElem
+  IF(.NOT.ParticleFound(iPart))THEN
+    ! use best xi
+    IF(MAXVAL(ABS(oldXi)).LT.MAXVAL(ABS(newXi)))THEN
+      PartPosRef(1:3,iPart)=OldXi
+      PEM%Element(iPart)=oldElemID
+    ELSE
+      PartPosRef(1:3,iPart)=NewXi
+      PEM%Element(iPart)=NewElemID
+    END IF
+    ParticleFound(iPart)=.TRUE.
+    !WRITE(*,*) ' iPart  :   ', iPart
+    !WRITE(*,*) ' PartPos:   ', PartState(iPart,1:3)
+    !WRITE(*,*) ' oldxi:     ', oldXi
+    !WRITE(*,*) ' bestxi:    ', newXi
+    !WRITE(*,*) ' oldelemid: ', oldElemID
+    !WRITE(*,*) ' bestelemid ', NewElemID
+    !CALL abort(__STAMP__,&
+    !  ' particle lost !! ')
+  END IF
+  DEALLOCATE( Distance)
+  DEALLOCATE( ListDistance)
+
 END DO ! iPart
 
 
