@@ -144,8 +144,11 @@ SELECT CASE(PartLorentzType)
         v2s = PartState(iPart,5) * PartState(iPart,5)
         v3s = PartState(iPart,6) * PartState(iPart,6)
         velosq = v1s+v2s+v3s
-        IF(velosq.GT.c2) CALL abort(__STAMP__,&
+        IF(velosq.GT.c2) THEN
+          IPWRITE(*,*) 'proc'
+          CALL abort(__STAMP__,&
           'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',iPart,velosq/c2)
+        END IF
 
         LorentzFac=SQRT(1.0 - velosq*c2_inv)
         LorentzFac2=LorentzFac*LorentzFac

@@ -1308,6 +1308,7 @@ ELSE ! mode.NE.1:
        END IF
        !CALL SingleParticleToExactElement(ParticleIndexNbr)
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
+          !IPWRITE(*,*) 'partpos',PartState(ParticleIndexNbr,1:3)
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
        ELSE
           PDM%ParticleInside(ParticleIndexNbr) = .FALSE.

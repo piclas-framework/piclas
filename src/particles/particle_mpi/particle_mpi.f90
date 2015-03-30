@@ -19,14 +19,6 @@ INTERFACE InitParticleMPI
 END INTERFACE
 
 #ifdef MPI
-INTERFACE WriteParticlePartitionInformation
-  MODULE PROCEDURE WriteParticlePartitionInformation
-END INTERFACE
-
-INTERFACE WriteParticleMappingPartitionInformation
-  MODULE PROCEDURE WriteParticleMappingPartitionInformation
-END INTERFACE
-
 INTERFACE IRecvNbOfParticles
   MODULE PROCEDURE IRecvNbOfParticles
 END INTERFACE
@@ -61,7 +53,6 @@ END INTERFACE
 
 PUBLIC :: InitParticleMPI,FinalizeParticleMPI,InitHaloMesh, InitParticleCommSize, IRecvNbOfParticles, MPIParticleSend
 PUBLIC :: MPIParticleRecv
-PUBLIC :: WriteParticlePartitionInformation,WriteParticleMappingPartitionInformation
 PUBLIC :: InitEmissionComm
 #else
 PUBLIC :: InitParticleMPI
@@ -130,295 +121,6 @@ END SUBROUTINE InitParticleMPI
 
 
 #ifdef MPI
-SUBROUTINE WriteParticlePartitionInformation(nPlanar,nBilinear,nCurved)
-!===================================================================================================================================
-! write the particle partition information to file
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Mesh_Vars,            ONLY:nSides,nElems
-USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
-USE MOD_Particle_Mesh_Vars,   ONLY:nTotalSides,nTotalElems
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)         :: nPlanar,nBilinear,nCurved
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=10)          :: formatstr
-INTEGER,ALLOCATABLE        :: nNBProcs_glob(:), ProcInfo_glob(:,:),NBInfo_glob(:,:), NBInfo(:), tmparray(:,:)
-REAL,ALLOCATABLE           :: tmpreal(:,:)
-INTEGER                    :: ProcInfo(7),nNBmax,iProc,i,j,ioUnit
-!===================================================================================================================================
-
-
-!output partitioning info
-ProcInfo(1)=nElems
-ProcInfo(2)=nSides
-ProcInfo(3)=nTotalElems-nElems
-ProcInfo(4)=nTotalSides-nSides
-ProcInfo(5)=nPlanar
-ProcInfo(6)=nBilinear
-ProcInfo(7)=nCurved
-IF(MPIroot)THEN
-  ALLOCATE(nNBProcs_glob(0:PartMPI%nProcs-1))
-  ALLOCATE(ProcInfo_glob(7,0:PartMPI%nProcs-1))
-  nNBProcs_glob=-99999
-  Procinfo_glob=-88888
-ELSE
-  ALLOCATE(nNBProcs_glob(1)) !dummy for debug
-  ALLOCATE(ProcInfo_glob(1,1)) !dummy for debug
-END IF !MPIroot 
-CALL MPI_GATHER(PartMPI%nMPINeighbors,1,MPI_INTEGER,nNBProcs_glob,1,MPI_INTEGER,0,PartMPI%COMM,iError)
-CALL MPI_GATHER(ProcInfo,7,MPI_INTEGER,ProcInfo_glob,7,MPI_INTEGER,0,PartMPI%COMM,iError)
-IF(MPIroot)THEN
-  nNBmax=MAXVAL(nNBProcs_glob) !count, total number of columns in table
-  ALLOCATE(NBinfo_glob(nNBmax,0:PartMPI%nProcs-1))
-  NBinfo_glob=-77777
-ELSE
-  ALLOCATE(NBinfo_glob(1,1)) !dummy for debug
-END IF
-CALL MPI_BCAST(nNBmax,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError) 
-ALLOCATE(NBinfo(nNbmax))
-NBinfo(1:PartMPI%nMPINeighbors)=PartMPI%MPINeighbor(1:PartMPi%nMPINeighbors)
-CALL MPI_GATHER(NBinfo,nNBmax,MPI_INTEGER,NBinfo_glob,nNBmax,MPI_INTEGER,0,PartMPI%COMM,iError)
-DEALLOCATE(NBinfo)
-IF(MPIroot)THEN
-  ioUnit=GETFREEUNIT()
-  OPEN(UNIT=ioUnit,FILE='particlepartitionInfo.out',STATUS='REPLACE')
-  WRITE(ioUnit,*)'Particle Partition Information:'
-  WRITE(ioUnit,*)'total number of Procs,',PartMPI%nProcs
-  WRITE(ioUnit,*)'total number of Elems,',SUM(Procinfo_glob(1,:))
-
-  WRITE(ioUnit,'(9(A15))')'Rank','nElems','nSides','nHaloElems','nHaloSides','nPlanar','nBilinear','nCurved','nNBProcs'
-  WRITE(ioUnit,'(A90,A45)')&
-      '==========================================================================================',&
-      '============================================='
-  !statistics
-  ALLOCATE(tmparray(8,0:3),tmpreal(8,2))
-  tmparray(:,0)=0      !tmp
-  tmparray(:,1)=0      !mean
-  tmparray(:,2)=0      !max
-  tmparray(:,3)=HUGE(1)   !min
-  DO i=0,nProcessors-1
-    !actual proc
-    tmparray(1,0)=Procinfo_glob(1,i) ! nElems
-    tmparray(2,0)=Procinfo_glob(2,i) ! nSides
-    tmparray(3,0)=Procinfo_glob(3,i) ! nHaloElems
-    tmparray(4,0)=Procinfo_glob(4,i) ! nHaloSides
-    tmparray(5,0)=Procinfo_glob(5,i) ! nHaloSides
-    tmparray(6,0)=Procinfo_glob(6,i) ! nHaloSides
-    tmparray(7,0)=Procinfo_glob(7,i) ! nHaloSides
-    tmparray(8,0)=nNBProcs_glob(i)   ! nNBProcs
-    DO j=1,8
-      !mean
-      tmparray(j,1)=tmparray(j,1)+tmparray(j,0)
-      !max
-      tmparray(j,2)=MAX(tmparray(j,2),tmparray(j,0))
-      tmparray(j,3)=MIN(tmparray(j,3),tmparray(j,0))
-    END DO !j
-  END DO ! i
-  tmpreal(:,1)=REAL(tmparray(:,1))/REAL(PartMPI%nProcs) !mean in REAL
-  tmpreal(:,2)=0.   !RMS
-  DO i=0,PartMPI%nProcs-1
-    !actual proc
-    tmparray(1,0)=Procinfo_glob(1,i)
-    tmparray(2,0)=Procinfo_glob(2,i)
-    tmparray(3,0)=Procinfo_glob(3,i)
-    tmparray(4,0)=Procinfo_glob(4,i)
-    tmparray(5,0)=Procinfo_glob(5,i)
-    tmparray(6,0)=Procinfo_glob(6,i)
-    tmparray(7,0)=Procinfo_glob(7,i)
-    tmparray(8,0)=nNBProcs_glob(i)
-    DO j=1,5
-      tmpreal(j,2)=tmpreal(j,2)+(tmparray(j,0)-tmpreal(j,1))**2 
-    END DO ! j
-  END DO ! i
-  tmpreal(:,2)=SQRT(tmpreal(:,2)/REAL(PartMPI%nProcs))
-  WRITE(ioUnit,'(A15,8(5X,F10.2))')'   MEAN        ',tmpreal(:,1)
-  WRITE(ioUnit,'(A90,A45)')&
-      '------------------------------------------------------------------------------------------',&
-      '---------------------------------------------'
-  WRITE(ioUnit,'(A15,8(5X,F10.2))')'   RMS         ',tmpreal(:,2)
-  WRITE(ioUnit,'(A90,A45)')&
-      '------------------------------------------------------------------------------------------',&
-      '---------------------------------------------'
-  WRITE(ioUnit,'(A15,8(5X,I10))')'   MIN         ',tmparray(:,3)
-  WRITE(ioUnit,'(A90,A45)')&
-      '------------------------------------------------------------------------------------------',&
-      '---------------------------------------------'
-  WRITE(ioUnit,'(A15,8(5X,I10))')'   MAX         ',tmparray(:,2)
-  WRITE(ioUnit,'(A90,A45)')&
-      '------------------------------------------------------------------------------------------',&
-      '---------------------------------------------'
-  WRITE(ioUnit,'(A90,A45)')&
-      '==========================================================================================',&
-      '============================================='
-  DO i=0,PartMPI%nProcs-1
-    WRITE(ioUnit,'(9(5X,I10))')i,Procinfo_glob(:,i),nNBProcs_glob(i)
-    WRITE(ioUnit,'(A90,A45)')&
-      '------------------------------------------------------------------------------------------',&
-      '---------------------------------------------'
-  END DO! i
-  DEALLOCATE(tmparray,tmpreal)
-  CLOSE(ioUnit) 
-END IF !MPIroot
-DEALLOCATE(NBinfo_glob,nNBProcs_glob,ProcInfo_glob)
-
-END SUBROUTINE WriteParticlePartitionInformation
-
-
-SUBROUTINE WriteParticleMappingPartitionInformation(nPlanar,nBilinear,nCurved,nTotalBCElems)
-!===================================================================================================================================
-! write the particle partition information to file
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Mesh_Vars,            ONLY:nSides,nElems
-USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
-USE MOD_Particle_Mesh_Vars,   ONLY:nTotalSides,nTotalElems
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)         :: nPlanar,nBilinear,nCurved,nTotalBCElems
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=10)          :: formatstr
-INTEGER,ALLOCATABLE        :: nNBProcs_glob(:), ProcInfo_glob(:,:),NBInfo_glob(:,:), NBInfo(:), tmparray(:,:)
-REAL,ALLOCATABLE           :: tmpreal(:,:)
-INTEGER                    :: ProcInfo(8),nNBmax,iProc,i,j,ioUnit
-!===================================================================================================================================
-
-
-!output partitioning info
-ProcInfo(1)=nElems
-ProcInfo(2)=nSides
-ProcInfo(3)=nTotalBCElems
-ProcInfo(4)=nTotalElems-nElems
-ProcInfo(5)=nTotalSides-nSides
-ProcInfo(6)=nPlanar
-ProcInfo(7)=nBilinear
-ProcInfo(8)=nCurved
-IF(MPIroot)THEN
-  ALLOCATE(nNBProcs_glob(0:PartMPI%nProcs-1))
-  ALLOCATE(ProcInfo_glob(8,0:PartMPI%nProcs-1))
-  nNBProcs_glob=-99999
-  Procinfo_glob=-88888
-ELSE
-  ALLOCATE(nNBProcs_glob(1)) !dummy for debug
-  ALLOCATE(ProcInfo_glob(1,1)) !dummy for debug
-END IF !MPIroot 
-CALL MPI_GATHER(PartMPI%nMPINeighbors,1,MPI_INTEGER,nNBProcs_glob,1,MPI_INTEGER,0,PartMPI%COMM,iError)
-CALL MPI_GATHER(ProcInfo,8,MPI_INTEGER,ProcInfo_glob,8,MPI_INTEGER,0,PartMPI%COMM,iError)
-IF(MPIroot)THEN
-  nNBmax=MAXVAL(nNBProcs_glob) !count, total number of columns in table
-  ALLOCATE(NBinfo_glob(nNBmax,0:PartMPI%nProcs-1))
-  NBinfo_glob=-77777
-ELSE
-  ALLOCATE(NBinfo_glob(1,1)) !dummy for debug
-END IF
-CALL MPI_BCAST(nNBmax,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError) 
-ALLOCATE(NBinfo(nNbmax))
-NBinfo(1:PartMPI%nMPINeighbors)=PartMPI%MPINeighbor(1:PartMPi%nMPINeighbors)
-CALL MPI_GATHER(NBinfo,nNBmax,MPI_INTEGER,NBinfo_glob,nNBmax,MPI_INTEGER,0,PartMPI%COMM,iError)
-DEALLOCATE(NBinfo)
-IF(MPIroot)THEN
-  ioUnit=GETFREEUNIT()
-  OPEN(UNIT=ioUnit,FILE='particlepartitionInfo.out',STATUS='REPLACE')
-  WRITE(ioUnit,*)'Particle Partition Information:'
-  WRITE(ioUnit,*)'total number of Procs,',PartMPI%nProcs
-  WRITE(ioUnit,*)'total number of Elems,',SUM(Procinfo_glob(1,:))
-
-  WRITE(ioUnit,'(10(A15))')'Rank','nElems','nSides','nBCElems','nHaloElems','nHaloSides','nPlanar','nBilinear','nCurved','nNBProcs'
-  WRITE(ioUnit,'(A90,A60)')&
-      '==========================================================================================',&
-      '============================================================'
-  !statistics
-  ALLOCATE(tmparray(9,0:3),tmpreal(9,2))
-  tmparray(:,0)=0      !tmp
-  tmparray(:,1)=0      !mean
-  tmparray(:,2)=0      !max
-  tmparray(:,3)=HUGE(1)   !min
-  DO i=0,nProcessors-1
-    !actual proc
-    tmparray(1,0)=Procinfo_glob(1,i) ! nElems
-    tmparray(2,0)=Procinfo_glob(2,i) ! nSides
-    tmparray(3,0)=Procinfo_glob(3,i) ! nBCElems
-    tmparray(4,0)=Procinfo_glob(4,i) ! nHaloElems
-    tmparray(5,0)=Procinfo_glob(5,i) ! nHaloSides
-    tmparray(6,0)=Procinfo_glob(6,i) ! nPlanarSides
-    tmparray(7,0)=Procinfo_glob(7,i) ! nBilinearSides
-    tmparray(8,0)=Procinfo_glob(8,i) ! nCurvedSides
-    tmparray(9,0)=nNBProcs_glob(i)   ! nNBProcs
-    DO j=1,9
-      !mean
-      tmparray(j,1)=tmparray(j,1)+tmparray(j,0)
-      !max
-      tmparray(j,2)=MAX(tmparray(j,2),tmparray(j,0))
-      tmparray(j,3)=MIN(tmparray(j,3),tmparray(j,0))
-    END DO !j
-  END DO ! i
-  tmpreal(:,1)=REAL(tmparray(:,1))/REAL(PartMPI%nProcs) !mean in REAL
-  tmpreal(:,2)=0.   !RMS
-  DO i=0,PartMPI%nProcs-1
-    !actual proc
-    tmparray(1,0)=Procinfo_glob(1,i)
-    tmparray(2,0)=Procinfo_glob(2,i)
-    tmparray(3,0)=Procinfo_glob(3,i)
-    tmparray(4,0)=Procinfo_glob(4,i)
-    tmparray(5,0)=Procinfo_glob(5,i)
-    tmparray(6,0)=Procinfo_glob(6,i)
-    tmparray(7,0)=Procinfo_glob(7,i)
-    tmparray(8,0)=Procinfo_glob(8,i)
-    tmparray(9,0)=nNBProcs_glob(i)
-    DO j=1,9
-      tmpreal(j,2)=tmpreal(j,2)+(tmparray(j,0)-tmpreal(j,1))**2 
-    END DO ! j
-  END DO ! i
-  tmpreal(:,2)=SQRT(tmpreal(:,2)/REAL(PartMPI%nProcs))
-  WRITE(ioUnit,'(A15,9(5X,F10.2))')'   MEAN        ',tmpreal(:,1)
-  WRITE(ioUnit,'(A90,A60)')&
-      '------------------------------------------------------------------------------------------',&
-      '------------------------------------------------------------'
-  WRITE(ioUnit,'(A15,9(5X,F10.2))')'   RMS         ',tmpreal(:,2)
-  WRITE(ioUnit,'(A90,A60)')&
-      '------------------------------------------------------------------------------------------',&
-      '------------------------------------------------------------'
-  WRITE(ioUnit,'(A15,9(5X,I10))')'   MIN         ',tmparray(:,3)
-  WRITE(ioUnit,'(A90,A60)')&
-      '------------------------------------------------------------------------------------------',&
-      '------------------------------------------------------------'
-  WRITE(ioUnit,'(A15,9(5X,I10))')'   MAX         ',tmparray(:,2)
-  WRITE(ioUnit,'(A90,A60)')&
-      '------------------------------------------------------------------------------------------',&
-      '------------------------------------------------------------'
-  WRITE(ioUnit,'(A90,A60)')&
-      '==========================================================================================',&
-      '============================================================'
-  DO i=0,PartMPI%nProcs-1
-    WRITE(ioUnit,'(10(5X,I10))')i,Procinfo_glob(:,i),nNBProcs_glob(i)
-    WRITE(ioUnit,'(A90,A60)')&
-      '------------------------------------------------------------------------------------------',&
-      '------------------------------------------------------------'
-  END DO! i
-  DEALLOCATE(tmparray,tmpreal)
-  CLOSE(ioUnit) 
-END IF !MPIroot
-DEALLOCATE(NBinfo_glob,nNBProcs_glob,ProcInfo_glob)
-
-END SUBROUTINE WriteParticleMappingPartitionInformation
-
-
 SUBROUTINE InitParticleCommSize()
 !===================================================================================================================================
 ! get size of Particle-MPI-Message. Unfortunately, this subroutine have to be called after particle_init because
@@ -557,6 +259,7 @@ END DO ! iPart
 
 ! 2) send number of send particles
 DO iProc=1,PartMPI%nMPINeighbors
+  !IPWRITE(*,*) 'Target Number of send particles',PartMPI%MPINeighbor(iProc),PartMPIExchange%nPartsSend(iProc)
   CALL MPI_ISEND( PartMPIExchange%nPartsSend(iProc)                          &
                 , 1                                                          &
                 , MPI_INTEGER                                                &
@@ -595,9 +298,11 @@ DO iProc=1, PartMPI%nMPINeighbors
       !iPos=iPos+1
       ! fill content
       SendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
+      !IPWRITE(*,*) ' send state',PartState(iPart,1:6)
       SendBuf(iProc)%content(       7+iPos) = REAL(PartSpecies(iPart))
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
       SendBuf(iProc)%content(8+iPos:13+iPos) = Pt_temp(iPart,1:6)
+      !IPWRITE(*,*) ' send pt',SendBuf(iProc)%content(8+iPos:13+iPos)
       SendBuf(iProc)%content(       14+iPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID))
       !IF(.NOT.UseLD) THEN   
         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
@@ -819,6 +524,8 @@ INTEGER                       :: MessageSize
 INTEGER                       :: nRecvParticles
 !===================================================================================================================================
 
+!IPWRITE(*,*) 'exchange',PartMPIExchange%nMPIParticles
+
 nRecv=0
 DO iProc=1,PartMPI%nMPINeighbors
   nRecvParticles=PartMPIExchange%nPartsRecv(iProc)
@@ -833,9 +540,11 @@ DO iProc=1,PartMPI%nMPINeighbors
     IF(PartID.EQ.0)  CALL abort(__STAMP__&
           ,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
     PartState(PartID,1:6)   = PartRecvBuf(iProc)%content( 1+iPos: 6+iPos)
+    !IPWRITE(*,*) ' recv  state',PartState(PartID,1:6)
     PartSpecies(PartID)     = INT(PartRecvBuf(iProc)%content( 7+iPos))
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
     Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 8+iPos:13+iPos)
+    !IPWRITE(*,*) ' recv pt',Pt_temp(PartID,1:6)
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(14+iPos))
     !IF(.NOT.UseLD) THEN
       IF (useDSMC.AND.(CollisMode.NE.1)) THEN
@@ -1004,7 +713,8 @@ USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_PreProc
 USE MOD_Particle_Surfaces_vars,     ONLY:DoRefMapping,BezierControlPoints3D
-USE MOD_Mesh_Vars,                  ONLY:NGeo,nSides
+USE MOD_Particle_Surfaces,          ONLY:GetSlabNormalsAndIntervalls
+USE MOD_Mesh_Vars,                  ONLY:NGeo,nSides,SideID_minus_Upper,NGeo
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloToProc
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry,ExchangeMappedHaloGeometry
 USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems
@@ -1018,7 +728,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 ::BezierSideSize,SendID, iElem
+INTEGER                 ::BezierSideSize,SendID, iElem,iSide
 INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
 LOGICAL                 :: TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:)
@@ -1056,6 +766,10 @@ IF(.NOT.DoRefMapping)THEN
   DO iNbProc=1,nNbProcs
     IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest_Flux(iNbProc),MPIStatus,iError)
   END DO !iProc=1,nNBProcs
+
+  DO iSide=sideID_minus_upper+1,nSides
+    CALL GetSlabNormalsAndIntervalls(NGeo,iSide)
+  END DO
 END IF ! DoRefMapping
 
 ALLOCATE(SideIndex(1:nSides),STAT=ALLOCSTAT)

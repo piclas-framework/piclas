@@ -54,9 +54,12 @@ INTERFACE CalcBiLinearNormVecBezier
   MODULE PROCEDURE CalcBiLinearNormVecBezier
 END INTERFACE
 
+INTERFACE GetSlabNormalsAndIntervalls
+  MODULE PROCEDURE GetSlabNormalsAndIntervalls
+END INTERFACE
 
 PUBLIC::GetSideType, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, &!GetSuperSampledSurface, &
-        CalcNormVec,GetBezierControlPoints3D,CalcBiLinearNormVecBezier,CalcNormVecBezier
+        CalcNormVec,GetBezierControlPoints3D,CalcBiLinearNormVecBezier,CalcNormVecBezier, GetSlabNormalsAndIntervalls
 
 PUBLIC::GetBCSideType
 
@@ -1403,6 +1406,7 @@ IF(ALMOSTZERO(dx*dy*dz))THEN
 ELSE
   BoundingBoxIsEmpty(SideID)=.FALSE.
 END IF
+
 ! print*,"SideIsPlanar(",SideID,")",SideIsPlanar
 ! print*,"BezierControlPoints3D(:,0,0,SideID)",BezierControlPoints3D(:,0,0,SideID)
 ! print*,"SlabNormals(:,1,SideID)",SlabNormals(:,1,SideID),"beta1 ",SlabIntervalls(1, SideID),SlabIntervalls(2,SideID),&
@@ -1472,7 +1476,7 @@ USE MOD_Particle_Mesh_Vars,       ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotal
 USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide
 USE MOD_Particle_Mesh_Vars,       ONLY:PartBCSideList,nTotalBCSides
 #ifdef MPI
-USE MOD_Particle_MPI,             ONLY:WriteParticleMappingPartitionInformation
+USE MOD_Particle_MPI_HALO,        ONLY:WriteParticleMappingPartitionInformation
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1672,8 +1676,9 @@ USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Mesh_Vars,                ONLY:nSides,NGeo,Xi_NGeo,Sideid_minus_upper
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,epsilontol,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalSides
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI
 #ifdef MPI
-USE MOD_Particle_MPI,             ONLY:WriteParticlePartitionInformation
+USE MOD_Particle_MPI_HALO,        ONLY:WriteParticlePartitionInformation
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1720,7 +1725,9 @@ DO iSide=1,nTotalSides
   isLinear=.TRUE.
   ! all four edges
   !IF(iSide.GT.nSides) IPWRITE(*,*) BezierControlPOints3D(:,:,:,iSide)
-  IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10) IPWRITE(*,*) 'missing side'
+  IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10) &
+   CALL abort(__STAMP__, &
+        ' no BezierControlPoints',PartMPI%MyRank)
   q=0
   v1=BezierControlPoints3D(:,NGeo,q,iSide)-BezierControlPoints3D(:,0,q,iSide)
   DO p=1,NGeo-1
@@ -1781,6 +1788,7 @@ DO iSide=1,nTotalSides
 !        read*
 !      END IF
     ELSE
+      IPWRITE(*,*) 'Boundingboxisempty',boundingboxisempty(iside)
       SideType(iSide)=BILINEAR
       IF(iSide.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
 #ifdef MPI

@@ -315,7 +315,7 @@ INTEGER,INTENT(IN)                :: iPart
 ! LOCAL VARIABLES
 INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                           :: ilocSide,SideID
+INTEGER                           :: ilocSide,SideID,flip
 LOGICAL                           :: ParticleFound                                
 REAL                              :: vBary(1:3),lengthPartTrajectory,tmpPos(3)
 REAL,ALLOCATABLE                  :: Distance(:)
@@ -379,11 +379,13 @@ DO iBGMElem=1,nBGMElems
   DO ilocSide=1,6
     !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+    flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
     SELECT CASE(SideType(SideID))
     CASE(PLANAR)
       CALL ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                               ,xi                 &
-                                                                              ,eta             ,iPart,ilocSide,SideID,ElemID)
+                                                                              ,eta             ,iPart,flip,SideID)
+                                                                              !,eta             ,iPart,ilocSide,SideID,ElemID)
     CASE(BILINEAR)
       CALL ComputeBiLinearIntersectionSuperSampled2([BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
                                                     ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
@@ -391,7 +393,7 @@ DO iBGMElem=1,nBGMElems
                                                     ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
                                                     ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                         ,xi                 &
-                                                                                        ,eta                ,iPart,SideID)
+                                                                                        ,eta                ,iPart,flip,SideID)
     CASE(CURVED)
       CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                         ,xi                 &

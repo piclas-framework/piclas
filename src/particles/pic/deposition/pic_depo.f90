@@ -423,11 +423,11 @@ REAL                             :: DeltaIntCoeff,prefac
 IF(doInnerParts)THEN
   source=0.0
   firstPart=1
-  lastPart=PDM%ParticleVecLength
+  lastPart =PDM%ParticleVecLength
 ELSE
 #ifdef MPI
   firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
-  lastPart=PDM%ParticleVecLength
+  lastPart =PDM%ParticleVecLength
 #endif /*MPI*/
 END IF
 IF(firstPart.GT.lastPart) RETURN
@@ -620,7 +620,7 @@ CASE('shape_function')
 ! #endif
   CASE('delta_distri')
     DO iElem=1,PP_nElems
-      DO iPart=1,PDM%ParticleVecLength
+      DO iPart=firstPart,LastPart
         IF (PDM%ParticleInside(iPart)) THEN
           IF(PEM%Element(iPart).EQ.iElem)THEN
             prefac= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 

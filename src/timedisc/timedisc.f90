@@ -622,7 +622,7 @@ END IF
 #endif /*PARTICLES*/
 
 DO iStage=2,nRKStages
- ! SWRITE(*,*) 'istage',istage
+  !SWRITE(*,*) 'istage',istage
   tStage=t+dt*RK_c(iStage)
 #ifdef PARTICLES
   ! deposition  
@@ -733,9 +733,10 @@ END DO
 #ifdef PARTICLES
 #ifdef MPI
 IF (t.GE.DelayTime) THEN
+!  SWRITE(*,*) 'receivee last'
   CALL MPIParticleRecv()
 END IF
-#endif
+#endif /*MPI*/
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   CALL UpdateNextFreePosition()
 END IF

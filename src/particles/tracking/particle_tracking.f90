@@ -67,10 +67,21 @@ INTEGER                       :: iPart,ElemID,flip
 INTEGER                       :: ilocSide,SideID,iIntersect, locSideList(1:6), hitlocSide
 LOGICAL                       :: PartisDone,dolocSide(1:6)
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6)
-INTEGER                       :: lastlocSide
+!INTEGER                       :: lastlocSide
 REAL                          :: oldXIntersection(1:3),distance,helpVec(1:3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 !===================================================================================================================================
+
+!DO ElemID=1,nTotalElems
+!  DO ilocSide=1,6
+!    IF(PartNeighborElemID(ilocSide,ElemID).EQ.-1)CYCLE
+!    IPWRITE(*,*) 'nb-eid', ilocside,ElemID,PartNeighborElemID(ilocSide,ElemID)
+!    IPWRITE(*,*) 'lcoside',ilocside,ElemID,PartNeighborLocSideID(ilocSide,ElemID)
+!  END DO ! ilocSide
+!END DO ! iElem
+!CALL MPI_BARRIER(MPI_COMM_WORLD,IERROR)
+!STOP
+
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     nTracks=nTracks+1
@@ -98,7 +109,7 @@ DO iPart=1,PDM%ParticleVecLength
                              +PartTrajectory(3)*PartTrajectory(3) )
     PartTrajectory=PartTrajectory/lengthPartTrajectory
     lengthPartTrajectory=lengthPartTrajectory+epsilontol
-    lastlocSide=-1
+    !lastlocSide=-1
     !oldXInterSection=HUGE(1.0)
     !print*,'partTrajectory',PartTrajectory
 
@@ -126,11 +137,13 @@ DO iPart=1,PDM%ParticleVecLength
         IF(.NOT.dolocSide(ilocSide)) CYCLE
         !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+        flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
         SELECT CASE(SideType(SideID))
         CASE(PLANAR)
           CALL ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
-                                                                                  ,eta(ilocSide)   ,iPart,ilocSide,SideID,ElemID)
+                                                                                  ,eta(ilocSide)   ,iPart,flip,SideID)
+                                                                                  !,eta(ilocSide)   ,iPart,ilocSide,SideID,ElemID)
         CASE(BILINEAR)
           CALL ComputeBiLinearIntersectionSuperSampled2([BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
                                                         ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
@@ -138,7 +151,9 @@ DO iPart=1,PDM%ParticleVecLength
                                                         ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
                                                         ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                             ,xi (ilocSide)      &
-                                                                                            ,eta(ilocSide)      ,iPart,SideID)
+                                                                                            ,eta(ilocSide)      &
+                                                                                            ,iPart,flip,SideID)
+                                                                                            !ilocSide,iPart,SideID)
         CASE(CURVED)
           CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                             ,xi (ilocSide)      &
@@ -198,7 +213,8 @@ DO iPart=1,PDM%ParticleVecLength
               !END IF !SideType
               ! currently: only one bc intersection per rk stage or euler step is allowed 
               !IF(SideType(SideID).EQ.PLANAR) THEN
-                dolocSide(hitlocSide)=.FALSE.
+              dolocSide(hitlocSide)=.FALSE.
+              EXIT
               !END IF
               !IF(SideType(SideID).EQ.PLANAR) dolocSide(ilocSide)=.FALSE.+Side
             ELSE ! no BC Side
@@ -224,7 +240,7 @@ DO iPart=1,PDM%ParticleVecLength
                 dolocSide=.TRUE.
                 dolocSide(PartneighborlocSideID(ilocSide,ElemID))=.FALSE.
                 ElemID=PartNeighborElemID(ilocSide,ElemID)
-                lastlocSide=-1
+                !lastlocSide=-1
                 EXIT
               ELSE ! no periodic side
 #ifdef MPI
@@ -238,13 +254,22 @@ DO iPart=1,PDM%ParticleVecLength
                     IF(SideType(SideID).EQ.PLANAR) THEN
                       dolocSide(hitlocSide)=.FALSE.
                     END IF
+                    EXIT
                   ELSE
                     ! inner side
                     dolocSide=.TRUE.
+                    !IPWRITE(*,*) 'iElem,hitlocSide,SideID',ElemID, hitlocSide,SideID
+                    !IPWRITE(*,*) 'nb-elemid',PartNeighborElemID(hitlocSide,ElemID)
+                    !IPWRITE(*,*) 'nb-locsideid',PartneighborlocSideID(hitlocSide,ElemID)
+                    !IPWRITE(*,*) 'part id',ipart
+                    !IPWRITE(*,*) 'part elemtoside',PartElemToSide(1,:,ElemID)
+                    !IPWRITE(*,*) 'part sidetoelem',PartSideToElem(:,PartElemToSide(1,hitlocSide,ElemID))
+                    !IPWRITE(*,*) 'part neighborelemid',PartNeighborElemID(:,ElemID)
+                    !IPWRITE(*,*) 'part neighborlocsideid',PartneighborlocSideID(:,ElemID)
                     dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
                     ElemID=PartNeighborElemID(hitlocSide,ElemID)
-                    lastlocSide=-1
-                    IF(ElemID.EQ.-1) CALL abort(&
+                    !lastlocSide=-1
+                    IF(ElemID.LE.0) CALL abort(&
                         __STAMP__,&
                        ' HaloRegion too small or critical error during halo region reconstruction!')
                     EXIT
@@ -253,7 +278,7 @@ DO iPart=1,PDM%ParticleVecLength
                   dolocSide=.TRUE.
                   dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
                   ElemID=PartNeighborElemID(hitlocSide,ElemID)
-                  lastlocSide=-1
+                  !lastlocSide=-1
                   EXIT
                 END IF ! SideID.GT.nSides
 #else
@@ -263,7 +288,7 @@ DO iPart=1,PDM%ParticleVecLength
 !                  print*,'old,new elem',Elemid,PartNeighborElemID(hitlocSide,ElemID)
 !                END IF
                 ElemID=PartNeighborElemID(hitlocSide,ElemID)
-                lastlocSide=-1
+                !lastlocSide=-1
                 EXIT
 #endif /* MP!!I */
               END IF ! SidePeriodicType
@@ -316,7 +341,7 @@ LOGICAL,INTENT(INOUT)         :: PartisDone
 INTEGER                       :: ilocSide,SideID,iIntersect, locSideList(1:6), hitlocSide,CheckSideID
 LOGICAL                       :: dolocSide(1:6)
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6)
-INTEGER                       :: lastlocSide,nInter
+INTEGER                       :: lastlocSide,nInter,flip
 REAL                          :: oldXIntersection(1:3),distance
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory
 !===================================================================================================================================
@@ -338,11 +363,13 @@ DO iLocSide=1,6
   IF(CheckSideID.EQ.0) CYCLE 
   SideID=PartBCSideList(CheckSideID)
   IF(SideID.GT.nTotalBCSides) CYCLE
+  flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
   SELECT CASE(SideType(SideID))
   CASE(PLANAR)
     CALL ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                             ,xi (ilocSide)      &
-                                                                            ,eta(ilocSide)   ,PartID,ilocSide,SideID,ElemID)
+                                                                            ,eta(ilocSide)   ,PartID,flip,SideID)
+                                                                            !,eta(ilocSide)   ,PartID,ilocSide,SideID,ElemID)
   CASE(BILINEAR)
     CALL ComputeBiLinearIntersectionSuperSampled2([BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
                                                   ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
@@ -350,7 +377,7 @@ DO iLocSide=1,6
                                                   ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
                                                   ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                       ,xi (ilocSide)      &
-                                                                                      ,eta(ilocSide)      ,PartID,SideID)
+                                                                                      ,eta(ilocSide)      ,PartID,flip,SideID)
   CASE(CURVED)
     CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                       ,xi (ilocSide)      &
@@ -476,7 +503,7 @@ DO iPart=1,PDM%ParticleVecLength
 
   OldXi=PartPosRef(1:3,iPart)
   newXi=HUGE(1.0)
-  newElemID=-1.0
+  newElemID=-1
   ! loop through sorted list and start by closest element  
   DO iBGMElem=1,nBGMElems
     ElemID=ListDistance(iBGMElem)
@@ -2014,7 +2041,8 @@ END FUNCTION BoundingBoxIntersection
 !
 !END SUBROUTINE ComputePlanarIntersection
 
-SUBROUTINE ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,locSideID,SideID,ElemID)
+!SUBROUTINE ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,locSideID,SideID,ElemID)
+SUBROUTINE ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,flip,SideID)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! equation of plane: P1*xi + P2*eta+P0
@@ -2037,19 +2065,20 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
-INTEGER,INTENT(IN)                :: iPart,SideID,ElemID,locSideID
-!INTEGER,INTENT(IN)                :: flip
+INTEGER,INTENT(IN)                :: iPart,SideID!,ElemID,locSideID
+INTEGER,INTENT(IN)                :: flip
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha,xi,eta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(1:3)               :: P0,P1,P2
+REAL                              :: NormVec(1:3),locDistance
 REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
 !REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
 REAL                              :: a1,a2,b1,b2,c1,c2
 REAL                              :: coeffA,nlength,locSideDistance,SideBasePoint(1:3)
-INTEGER                           :: flip
+!INTEGER                           :: flip
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
@@ -2058,38 +2087,54 @@ alpha=-1.0
 xi=-2.
 eta=-2.
 
-coeffA=DOT_PRODUCT(SideNormVec(:,SideID),PartTrajectory)
+!flip   = PartElemToSide(E2S_FLIP,LocSideID,ElemID)
+IF(flip.EQ.0)THEN
+  NormVec  =SideNormVec(1:3,SideID)
+  locDistance=SideDistance(SideID)
+ELSE
+  NormVec  =-SideNormVec(1:3,SideID)
+  locDistance=-SideDistance(SideID)
+END IF
+
+coeffA=DOT_PRODUCT(NormVec,PartTrajectory)
 
 !! corresponding to particle starting in plane
 !! interaction should be computed in last step
-IF(ABS(coeffA).LT.+epsilontol)THEN 
-  RETURN
-END IF
+!  IF(ABS(coeffA).LT.+epsilontol)THEN 
+!  RETURN
+!END IF
+IF(coeffA.LE.0.0) RETURN
 
 ! extension for periodic sides
 IF(SidePeriodicType(SideID).EQ.0)THEN
-  locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(:,SideID))
+  !locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(:,SideID))
+  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
   alpha=locSideDistance/coeffA
   locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
   locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
   locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
   locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
 ELSE
-  locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
-  locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
-  locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
-  locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
   SideBasePoint=0.25*(locBezierControlPoints3D(:,0,0) &
                      +locBezierControlPoints3D(:,0,1) & 
                      +locBezierControlPoints3D(:,1,0) &
                      +locBezierControlPoints3D(:,1,1) )
-  flip   = PartElemToSide(E2S_FLIP,LocSideID,ElemID)
+  !flip   = PartElemToSide(E2S_FLIP,LocSideID,ElemID)
   ! nothing to do for master side, Side of elem to which owns the BezierPoints
-  IF(flip.NE.0)THEN
+  IF(flip.EQ.0)THEN
+    locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+    locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+    locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+    locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+  ELSE
+    locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)      -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+    locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+    locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+    locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
     ! caution, displacement is for master side computed, therefore, slave side requires negative displacement
     SideBasePoint=SideBasePoint-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
   END IF
-  locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
+  locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),NormVec)
   alpha=locSideDistance/coeffA
 END IF ! SidePeriodicType
 
@@ -2102,10 +2147,13 @@ END IF ! SidePeriodicType
 !END IF
 
 !IF((alpha.GT.epsilonOne).OR.(alpha.LT.-epsilontol))THEN
-IF((alpha.GT.lengthPartTrajectory).OR.(alpha.LT.-epsilontol))THEN
+IF(alpha.GT.lengthPartTrajectory) THEN !.OR.(alpha.LT.-epsilontol))THEN
   alpha=-1.0
   RETURN
 END IF
+
+! algorithm fails in last test
+IF(alpha.LT.0.0) alpha=1e-12
 
 P1=0.25*(-locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0   )      &
          -locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )
@@ -3084,7 +3132,8 @@ END IF ! nRoot
 END SUBROUTINE ComputeBiLinearIntersection
 
 
-SUBROUTINE ComputeBiLinearIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild,iPart,SideID)
+SUBROUTINE ComputeBiLinearIntersectionSuperSampled2(xNodes,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
+                                                   ,iPart,flip,SideID)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 !===================================================================================================================================
@@ -3102,7 +3151,7 @@ IMPLICIT NONE
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
 REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
-INTEGER,INTENT(IN)                :: iPart,SideID
+INTEGER,INTENT(IN)                :: iPart,SideID,flip
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha,xitild,etatild

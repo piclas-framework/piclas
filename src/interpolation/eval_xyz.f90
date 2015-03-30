@@ -171,7 +171,7 @@ END DO !j=0,NGeo
 !read*
 
 NewtonIter=0
-DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.50))
+DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.100))
   NewtonIter=NewtonIter+1
   ! 
   ! caution, dXCL_NGeo is transposed of required matrix
@@ -205,11 +205,11 @@ DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.50))
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
   IF(ANY(ABS(Xi).GT.1.2)) THEN
-    WRITE(*,*) ' Particle not inside of element!!!'
-    WRITE(*,*) ' xi  ', xi(1)
-    WRITE(*,*) ' eta ', xi(2)
-    WRITE(*,*) ' zeta', xi(3)
-    WRITE(*,*) ' PartPos', X_in
+    IPWRITE(*,*) ' Particle not inside of element!!!'
+    IPWRITE(*,*) ' xi  ', xi(1)
+    IPWRITE(*,*) ' eta ', xi(2)
+    IPWRITE(*,*) ' zeta', xi(3)
+    IPWRITE(*,*) ' PartPos', X_in
     CALL abort(__STAMP__, &
         'Particle Not inSide of Element, iProc, iElem',PartMPI%MyRank,REAL(iElem))
   END IF
@@ -233,12 +233,13 @@ END DO !newton
 
 ! check if Newton is successful
 !IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
-!  WRITE(*,*) ' Particle outside of parameter range!!!'
-!  WRITE(*,*) ' xi  ', xi(1)
-!  WRITE(*,*) ' eta ', xi(2)
-!  WRITE(*,*) ' zeta', xi(3)
-!  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
-!END IF
+IF(ANY(ABS(Xi).GT.1.0)) THEN
+  WRITE(*,*) ' Particle outside of parameter range!!!'
+  WRITE(*,*) ' xi  ', xi(1)
+  WRITE(*,*) ' eta ', xi(2)
+  WRITE(*,*) ' zeta', xi(3)
+  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
+END IF
 
 ! 2.1) get "Vandermonde" vectors
 DO i=1,3
@@ -453,13 +454,13 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   Xi = Xi - MATMUL(sJac,F)
   IF(ANY(ABS(Xi).GT.1.5)) THEN
     IF(PRESENT(PartID)) THEN
-      WRITE(*,*) 'ParticleID', PartID
-      WRITE(*,*) ' Particle not inside of element!!!'
-      WRITE(*,*) ' Element', iElem
-      WRITE(*,*) ' xi  ', xi(1)
-      WRITE(*,*) ' eta ', xi(2)
-      WRITE(*,*) ' zeta', xi(3)
-      WRITE(*,*) ' PartPos', X_in
+      IPWRITE(*,*) 'ParticleID', PartID
+      IPWRITE(*,*) ' Particle not inside of element!!!'
+      IPWRITE(*,*) ' Element', iElem
+      IPWRITE(*,*) ' xi  ', xi(1)
+      IPWRITE(*,*) ' eta ', xi(2)
+      IPWRITE(*,*) ' zeta', xi(3)
+      IPWRITE(*,*) ' PartPos', X_in
       CALL abort(__STAMP__, &
           'Particle Not inSide of Element')
     ELSE
@@ -484,6 +485,19 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
     END DO !i=0,NGeo
   END DO !j=0,NGeo
 END DO !newton
+
+
+IF(ANY(ABS(Xi).GT.1.0)) THEN
+  IF(PRESENT(PartID))     IPWRITE(*,*) 'ParticleID', PartID
+    IPWRITE(*,*) ' Particle not inside of element!!!'
+    IPWRITE(*,*) ' Element', iElem
+    IPWRITE(*,*) ' xi  ', xi(1)
+    IPWRITE(*,*) ' eta ', xi(2)
+    IPWRITE(*,*) ' zeta', xi(3)
+    IPWRITE(*,*) ' PartPos', X_in
+  !END IF
+END IF
+
 
 END SUBROUTINE eval_xyz_elemcheck
 
