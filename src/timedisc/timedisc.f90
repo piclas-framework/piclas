@@ -528,6 +528,11 @@ END IF
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   ! because of emmision and UpdateParticlePosition
   CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+  ! here: finish deposition with delta kernal
+  !       maps source terms in physical space
+  CALL Deposition(doInnerParts=.FALSE.)
+#endif /*MPI*/
 !#ifdef MPI
 !  CALL MPIParticleRecv()
 !  ! second buffer
@@ -616,6 +621,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   tTracking=tTracking+TimeEnd-TimeStart
 #ifdef MPI
   CALL MPIParticleSend()
+!  CALL MPIParticleRecv()
 #endif
   !CALL Filter(U)
 END IF
@@ -722,7 +728,8 @@ DO iStage=2,nRKStages
     TimeEnd=BOLTZPLATZTIME()
     tTracking=tTracking+TimeEnd-TimeStart
 #ifdef MPI
-  CALL MPIParticleSend()
+    CALL MPIParticleSend()
+!    CALL MPIParticleRecv()
 !    CALL UpdateNextFreePosition() ! only required for parallel communication
 #endif
   END IF

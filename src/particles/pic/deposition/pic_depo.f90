@@ -430,7 +430,8 @@ ELSE
   lastPart =PDM%ParticleVecLength
 #endif /*MPI*/
 END IF
-IF(firstPart.GT.lastPart) RETURN
+! thats wrong
+IF((firstPart.GT.lastPart).AND.(DepositionType.NE.'delta_distri')) RETURN
 
 SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
@@ -667,18 +668,26 @@ CASE('shape_function')
           END IF ! Particle in Element
         END IF ! ParticleInside of domain
       END DO ! ParticleVecLength
-      DO k=0,PP_N
-        DO j=0,PP_N
-          DO i=0,PP_N
+    END DO ! iElem
+#ifdef MPI
+    IF(.NOT.DoInnerParts)THEN
+#endif /*MPI*/
+      DO iElem=1,PP_nElems
+        DO k=0,PP_N
+          DO j=0,PP_N
+            DO i=0,PP_N
 #if (PP_nVar==8)
-            source( : ,i,j,k,iElem) = source( : ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
+              source( : ,i,j,k,iElem) = source( : ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
 #else
-            source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
+              source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
 #endif
-          END DO ! i
-        END DO ! j
-      END DO ! k
-    END DO ! loop over all elems
+            END DO ! i
+          END DO ! j
+        END DO ! k
+      END DO ! loop over all elems
+#ifdef MPI
+    END IF ! DoInnerParts
+#endif /*MPI*/
 CASE('nearest_gausspoint')
   SAVE_GAUSS = .FALSE.
   IF(TRIM(InterpolationType).EQ.'nearest_gausspoint') SAVE_GAUSS = .TRUE.

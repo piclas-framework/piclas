@@ -1063,7 +1063,7 @@ IF (RecvMsg%nSides.GT.0) THEN
           ! already filled
           !PartSideToElem(S2E_NB_ELEM_ID,newSide)       = 
           !PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) = 
-          PartNeighborElemID(PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))=newElemID
+          PartNeighborElemID(   PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))=newElemID
           PartNeighborlocSideID(PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))=ilocSide
           PartNeighborElemID(ilocSide,newElemID)    = PartSideToElem(S2E_NB_ELEM_ID,newSideID)
           PartNeighborlocSideID(ilocSide,newElemID) = PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID)
@@ -1118,7 +1118,7 @@ IF (RecvMsg%nSides.GT.0) THEN
       flip   = PartElemToSide(E2S_FLIP,ilocSide,iElem)
       SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
       ! check of sideid
-      HaloSideID=SideID-tmpnSides
+      !HaloSideID=SideID-tmpnSides
       !print*,'HaloSideID',HaloSideID
       ! do not double sides
       ! debug commented out
