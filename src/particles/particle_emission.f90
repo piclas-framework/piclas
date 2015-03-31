@@ -790,6 +790,7 @@ IF (mode.EQ.1) THEN
          particle_positions(i*3-2) = Particle_pos(1) + radius_vec(1)
          particle_positions(i*3-1) = Particle_pos(2) + radius_vec(2)
          !particle_positions(i*3  )=0.
+         IF((particle_positions(i*3-2).EQ.0.).AND.(particle_positions(i*3-1).EQ.0.)) print*,'x=y=0'
       END DO
     CASE('circle_equidistant')
       IF (Species(FractNbr)%Init(iInit)%NormalIC(3).NE.0) THEN
@@ -1533,6 +1534,7 @@ CASE('gyrotron_circle')
        y_1 = 0.
        x_2 = PartState(PositionNbr,1)
        y_2 = PartState(PositionNbr,2)
+       IPWRITE(*,*) 'x1,y2,x2,y2',x_1,y_2,x_2,y_2
        IF (x_1 .eq. x_2) THEN
          a = (x_1 - x_2)/(y_2-y_1)
          b = ((r1**2-r2**2)-(x_1**2-x_2**2)-(y_1**2-y_2**2))&

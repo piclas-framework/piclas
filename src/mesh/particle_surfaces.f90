@@ -1788,7 +1788,7 @@ DO iSide=1,nTotalSides
 !        read*
 !      END IF
     ELSE
-      IPWRITE(*,*) 'Boundingboxisempty',boundingboxisempty(iside)
+      !IPWRITE(*,*) 'Boundingboxisempty',boundingboxisempty(iside)
       SideType(iSide)=BILINEAR
       IF(iSide.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
 #ifdef MPI

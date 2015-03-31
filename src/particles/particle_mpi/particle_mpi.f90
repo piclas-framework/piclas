@@ -858,7 +858,7 @@ END SUBROUTINE InitHaloMesh
 
 SUBROUTINE InitEmissionComm()
 !===================================================================================================================================
-! read required parameters
+! build emission communicators for particle emission regions
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -866,6 +866,7 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 USE MOD_Particle_Vars,          ONLY:Species,nSpecies
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
+USE MOD_CalcTimeStep,           ONLY: CalcTimeStep
 !USE MOD_Particle_Mesh,          ONLY:BoxInProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -879,8 +880,9 @@ IMPLICIT NONE
 INTEGER                         :: iSpec,iInit,iNode
 INTEGER                         :: nInitRegions
 LOGICAL                         :: RegionOnProc
-REAL                            :: xCoords(3,8),lineVector(3)
+REAL                            :: xCoords(3,8),lineVector(3),radius
 REAL                            :: xlen,ylen,zlen
+REAL                            :: dt
 INTEGER                         :: color,iProc
 INTEGER                         :: noInitRank,InitRank,MyInitRank
 INTEGER                         :: iRank
@@ -949,8 +951,28 @@ DO iSpec=1,nSpecies
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
     CASE('gyrotron_circle')
-      CALL abort(__STAMP__,&
-          'not implemented')
+      Radius=Species(iSpec)%Init(iInit)%RadiusIC+Species(iSpec)%Init(iInit)%RadiusICGyro
+      xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
+           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
+      ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
+           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
+      zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
+           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
+      IF(Species(iSpec)%Init(iInit)%initialParticleNumber.NE.0)THEN
+        lineVector(1:3)=(/0.,0.,Species(iSpec)%Init(iInit)%CuboidHeightIC/)
+      ELSE
+        dt = CALCTIMESTEP()
+        lineVector(1:3)= dt* Species(iSpec)%Init(iInit)%VeloIC/Species(iSpec)%Init(iInit)%alpha 
+      END IF
+      xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
+      xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
+      xCoords(1:3,3) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,-zlen/)
+      xCoords(1:3,4) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,-zlen/)
+      xCoords(1:3,5) = Species(iSpec)%Init(iInit)%BasePointIC+lineVector+(/-xlen,-ylen,+zlen/)
+      xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+lineVector+(/+xlen,-ylen,+zlen/)
+      xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+lineVector+(/-xlen,+ylen,+zlen/)
+      xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+lineVector+(/+xlen,+ylen,+zlen/)
+      RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
     CASE('circle_equidistant')
       CALL abort(__STAMP__,&
           'not implemented')
