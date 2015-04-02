@@ -210,6 +210,7 @@ DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.100))
     IPWRITE(*,*) ' eta ', xi(2)
     IPWRITE(*,*) ' zeta', xi(3)
     IPWRITE(*,*) ' PartPos', X_in
+    IF(PRESENT(PartID)) IPWRITE(*,*) ' PartID', PartID
     CALL abort(__STAMP__, &
         'Particle Not inSide of Element, iProc, iElem',PartMPI%MyRank,REAL(iElem))
   END IF
@@ -234,11 +235,15 @@ END DO !newton
 ! check if Newton is successful
 !IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
 IF(ANY(ABS(Xi).GT.1.0)) THEN
-  WRITE(*,*) ' Particle outside of parameter range!!!'
-  WRITE(*,*) ' xi  ', xi(1)
-  WRITE(*,*) ' eta ', xi(2)
-  WRITE(*,*) ' zeta', xi(3)
-  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
+  !IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
+  IF(PRESENT(PartID).AND.PartID.EQ.186) THEN
+!  !   WRITE(*,*) 'ParticleID', PartID
+     IPWRITE(*,*) ' elemid', ielem
+     IPWRITE(*,*) ' Particle outside of parameter range!!!'
+     IPWRITE(*,*) ' xi  ', xi(:)
+!     WRITE(*,*) ' eta ', xi(2)
+!     WRITE(*,*) ' zeta', xi(3)
+  END IF
 END IF
 
 ! 2.1) get "Vandermonde" vectors
@@ -488,14 +493,14 @@ END DO !newton
 
 
 IF(ANY(ABS(Xi).GT.1.0)) THEN
-  IF(PRESENT(PartID))     IPWRITE(*,*) 'ParticleID', PartID
+  IF(PRESENT(PartID).AND.PartID.EQ.186) THEN
+    !IPWRITE(*,*) 'ParticleID', PartID
+ ! IF(PRESENT(PartID))     IPWRITE(*,*) 'ParticleID', PartID
     IPWRITE(*,*) ' Particle not inside of element!!!'
     IPWRITE(*,*) ' Element', iElem
-    IPWRITE(*,*) ' xi  ', xi(1)
-    IPWRITE(*,*) ' eta ', xi(2)
-    IPWRITE(*,*) ' zeta', xi(3)
-    IPWRITE(*,*) ' PartPos', X_in
-  !END IF
+    IPWRITE(*,*) ' xi  ', xi(:)
+  !  IPWRITE(*,*) ' PartPos', X_in
+  END IF
 END IF
 
 

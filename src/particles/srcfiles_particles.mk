@@ -44,6 +44,8 @@ particles/particle_mesh/particle_periodic_bc.f90
 particles/particle_mpi/particle_mpi_vars.f90
 particles/particle_mpi/particle_mpi.f90
 particles/particle_mpi/particle_mpi_halo.f90
+particles/particle_mesh/sfc/particle_sfc.f90
+particles/particle_mesh/sfc/particle_sfc_vars.f90
 mpi/mpi_vars.f90
 mpi/mpi.f90
 output/output_vars.f90

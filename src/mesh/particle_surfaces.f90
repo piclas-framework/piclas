@@ -17,7 +17,6 @@ INTERFACE GetSideType
   MODULE PROCEDURE GetSideType
 END INTERFACE
 
-
 INTERFACE GetBCSideType
   MODULE PROCEDURE GetBCSideType
 END INTERFACE
@@ -98,6 +97,8 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES ...!'
 
 epsilonbilinear = GETREAL('eps-bilinear','1e-6')
 epsilontol      = GETREAL('epsOne','1e-12')
+hitepsbi        = GETREAL('hitepsbi','1e-12')
+hitepsbi=1.0+hitepsbi
 Mepsilontol     = -epsilontol
 epsilonOne      = 1.0 + epsilontol
 OneMepsilon     = 1.0 - epsilontol
@@ -1229,6 +1230,7 @@ SUBROUTINE GetSlabNormalsAndIntervalls(NGeo,SideID)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Surfaces_Vars,   ONLY:SlabNormals,SlabIntervalls,BezierControlPoints3D,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1247,6 +1249,8 @@ REAL               :: skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
 LOGICAL            :: SideIsPlanar
 LOGICAL            :: SideIsCritical
 !===================================================================================================================================
+
+
 !BezierControlPoints(:,:,:,SideID)
 !SlabNormals( x y z,1 2 3 , SideID)
 
@@ -1380,17 +1384,20 @@ dz=ABS(ABS(SlabIntervalls(6, SideID))-ABS(SlabIntervalls(5, SideID)))
 dMax=MAX(dx,dy,dz)
 dMin=MIN(dx,dy,dz)
 !print*,dx
-IF(dx/dMax.LT.1.E-3)THEN
+!IF(dx/dMax.LT.1.E-3)THEN
+IF(dx/dMax.LT.epsilonbilinear)THEN
   SlabIntervalls(1:2, SideID)=0.
   dx=0.
 END IF
 !print*,dy
-IF(dy/dMax.LT.1.E-3)THEN
+!IF(dy/dMax.LT.1.E-3)THEN
+IF(dy/dMax.LT.epsilonbilinear)THEN
   SlabIntervalls(3:4, SideID)=0.
   dy=0.
 END IF
 !print*,dz
-IF(dz/dMax.LT.1.E-3)THEN
+!IF(dz/dMax.LT.1.E-3)THEN
+IF(dz/dMax.LT.epsilonbilinear)THEN
   SlabIntervalls(5:6, SideID)=0.
   dz=0.
 END IF
@@ -1675,6 +1682,7 @@ SUBROUTINE GetSideType()
 USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Mesh_Vars,                ONLY:nSides,NGeo,Xi_NGeo,Sideid_minus_upper
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,epsilontol,SideType,SideNormVec,SideDistance
+USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalSides
 USE MOD_Particle_MPI_Vars,        ONLY:PartMPI
 #ifdef MPI
@@ -1689,8 +1697,8 @@ IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy
-REAL,DIMENSION(1:3)         :: v1,v2
-REAL                        :: length,eps
+REAL,DIMENSION(1:3)         :: v1,v2,v0
+REAL                        :: length,eps,displacement
 LOGICAL                     :: isLinear
 #ifdef MPI  
 INTEGER                     :: nPlanarTot,nBilinearTot,nCurvedTot
@@ -1762,14 +1770,24 @@ DO iSide=1,nTotalSides
   END DO ! q
   IF(isLinear)THEN
     IF(BoundingBoxIsEmpty(iSide))THEN
+    !v0= BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)     &
+    !   -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide)  
+    !IF(VECNORM(v0).LT.epsilontol)THEN
+    !IF(VECNORM(v0).LT.epsilonbilinear)THEN
       SideType(iSide)=PLANAR
       IF(iSide.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
 #ifdef MPI
       IF(iSide.GT.SideID_Minus_Upper) nPlanartot=nPlanartot+1
 #endif /*MPI*/
       ! compute the norm vec of side and distance from origin
-      v1=BezierControlPoints3D(:,NGeo,0,iSide)-BezierControlPoints3D(:,0,0,iSide)
-      v2=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,0,0,iSide)
+      !v1=BezierControlPoints3D(:,NGeo,0,iSide)-BezierControlPoints3D(:,0,0,iSide)
+      !v2=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,0,0,iSide)
+      v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+          -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+      
+      v2=(-BezierControlPoints3D(:,0,0   ,iSide)-BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+          +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+
       SideNormVec(:,iSide) = CROSSNORM(v1,v2)
 !      length=SQRT(v2(1)*v2(1)+v1(2)*v1(2)+v1(3)*v1(3))
 !      SideNormVec(:,iSide) =SideNormVec(:,iSide)/length

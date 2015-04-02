@@ -33,6 +33,7 @@ INTEGER,ALLOCATABLE,DIMENSION(:)        :: gElemBCSides                 ! number
 !INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: neighborElemID,neighborlocSideID
 REAL                                    :: epsilonbilinear              ! bi-linear tolerance for the bi-linear - planar decision
 REAL                                    :: epsilonOne                   ! epsilone for setting the boundary tolerance
+REAL                                    :: hitEpsBi
 REAL                                    :: OneMepsilon
 REAL                                    :: epsilontol                   ! epsilone for setting the tolerance
 REAL                                    :: Mepsilontol               
