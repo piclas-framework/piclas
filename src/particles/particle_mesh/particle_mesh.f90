@@ -431,11 +431,12 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
 USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo,ElemToSide,SideToElem
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
 USE MOD_ReadInTools,                        ONLY:GetRealArray
-USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType
+USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType,BuildElementBasis
 USE MOD_Particle_Surfaces_Vars,             ONLY:DoRefMapping
+USE MOD_Particle_Surfaces_Vars,             ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo!,DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Equation_Vars,                      ONLY:c
@@ -1210,6 +1211,11 @@ CALL InitHaloMesh()
 
 IF(DoRefMapping) THEN
   CALL GetBCSideType()
+  ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
+          ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
+          ,ElemRadiusNGeo(1:nTotalElems)         &
+          ,ElemBaryNGeo(1:3,1:nTotalElems)       )
+  CALL BuildElementBasis()
 ELSE
   CALL GetSideType()
 END IF

@@ -415,7 +415,7 @@ INTEGER,ALLOCATABLE         :: ListDistance(:)
 LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength),CheckNeighbor(6)
 !===================================================================================================================================
 
-!ParticleFound=.TRUE.
+ParticleFound=.TRUE.
 ! first step, reuse Elem cache, therefore, check if particle are still in element, if not, search later
 DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in HALO, it shall not be found here
   DO iPart=1,PDM%ParticleVecLength
@@ -426,12 +426,13 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
       ! sanity check
       IF(IsBCElem(ElemID))THEN
         CALL ParticleBCTracking(ElemID,iPart,ParticleFound(iPart))
-        IF(ParticleFound(iPart)) CYCLE
+        !IF(ParticleFound(iPart)) CYCLE
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
       ELSE ! no bc elem, therefore, no bc ineraction possible
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
       END IF ! initial check
-      IF(ALL(ABS(PartPosRef(1:3,iPart)).LE.ClipHit)) THEN ! particle inside
+      !IF(iPart.EQ.1) print*,'pos,elem',PartPosRef(:,ipart),ElemID
+      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
         PEM%Element(iPart) = ElemID
       ELSE
         ParticleFound(iPart)=.FALSE.
@@ -488,30 +489,31 @@ DO iPart=1,PDM%ParticleVecLength
       newXi=PartPosRef(1:3,iPart)
       newElemID=ElemID
     END IF
-    IF(ALL(ABS(PartPosRef(1:3,iPart)).LE.ClipHit)) THEN ! particle inside
+    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
       PEM%Element(iPart) = ElemID
       ParticleFound(iPart)=.TRUE.
       EXIT
     END IF
   END DO ! iBGMElem
+  !IF(iPart.EQ.1) print*,'pos,elem',PartPosRef(:,ipart),ElemID
   IF(.NOT.ParticleFound(iPart))THEN
     ! use best xi
-    IF(MAXVAL(ABS(oldXi)).LT.MAXVAL(ABS(newXi)))THEN
-      PartPosRef(1:3,iPart)=OldXi
-      PEM%Element(iPart)=oldElemID
-    ELSE
-      PartPosRef(1:3,iPart)=NewXi
-      PEM%Element(iPart)=NewElemID
-    END IF
-    ParticleFound(iPart)=.TRUE.
-    !WRITE(*,*) ' iPart  :   ', iPart
-    !WRITE(*,*) ' PartPos:   ', PartState(iPart,1:3)
-    !WRITE(*,*) ' oldxi:     ', oldXi
-    !WRITE(*,*) ' bestxi:    ', newXi
-    !WRITE(*,*) ' oldelemid: ', oldElemID
-    !WRITE(*,*) ' bestelemid ', NewElemID
-    !CALL abort(__STAMP__,&
-    !  ' particle lost !! ')
+    !IF(MAXVAL(ABS(oldXi)).LT.MAXVAL(ABS(newXi)))THEN
+    !  PartPosRef(1:3,iPart)=OldXi
+    !  PEM%Element(iPart)=oldElemID
+    !ELSE
+    !  PartPosRef(1:3,iPart)=NewXi
+    !  PEM%Element(iPart)=NewElemID
+    !END IF
+    !ParticleFound(iPart)=.TRUE.
+    WRITE(*,*) ' iPart  :   ', iPart
+    WRITE(*,*) ' PartPos:   ', PartState(iPart,1:3)
+    WRITE(*,*) ' oldxi:     ', oldXi
+    WRITE(*,*) ' bestxi:    ', newXi
+    WRITE(*,*) ' oldelemid: ', oldElemID
+    WRITE(*,*) ' bestelemid ', NewElemID
+    CALL abort(__STAMP__,&
+      ' particle lost !! ')
   END IF
   DEALLOCATE( Distance)
   DEALLOCATE( ListDistance)

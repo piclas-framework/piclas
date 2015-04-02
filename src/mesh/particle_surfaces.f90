@@ -57,10 +57,14 @@ INTERFACE GetSlabNormalsAndIntervalls
   MODULE PROCEDURE GetSlabNormalsAndIntervalls
 END INTERFACE
 
+INTERFACE BuildElementBasis
+  MODULE PROCEDURE BuildElementBasis
+END INTERFACE
+
 PUBLIC::GetSideType, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, &!GetSuperSampledSurface, &
         CalcNormVec,GetBezierControlPoints3D,CalcBiLinearNormVecBezier,CalcNormVecBezier, GetSlabNormalsAndIntervalls
 
-PUBLIC::GetBCSideType
+PUBLIC::GetBCSideType,BuildElementBasis
 
 !===================================================================================================================================
 
@@ -78,6 +82,7 @@ USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem,NGeo,nBCSi
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 USE MOD_Particle_Vars,              ONLY:PDM
 USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList,nTotalBCSides
+USE MOD_Particle_SFC_Vars,          ONLY:whichBoundBox
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -129,12 +134,16 @@ IF((MappingGuess.LT.1).OR.(MappingGuess.GT.4))THEN
    CALL abort(__STAMP__, &
         'Wrong guessing method for mapping from physical space in reference space.',MappingGuess,999.)
 END IF
-! ElemBaryNGeo are required for particle mapping| SingleParticleToExactElem
-ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:PP_nElems) &
-        ,slenXiEtaZetaBasis(1:6,1:PP_nElems) &
-        ,ElemRadiusNGeo(1:PP_nElems)         &
-        ,ElemBaryNGeo(1:3,1:PP_nElems)       )
-CALL BuildElementBasis()
+!! ElemBaryNGeo are required for particle mapping| SingleParticleToExactElem
+IF(.NOT.DoRefMapping)THEN
+   ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:PP_nElems) &
+           ,slenXiEtaZetaBasis(1:6,1:PP_nElems) &
+           ,ElemRadiusNGeo(1:PP_nElems)         &
+           ,ElemBaryNGeo(1:3,1:PP_nElems)       )
+   CALL BuildElementBasis()
+ELSE
+  whichBoundBox = GETINT('PartSFC-BoundBox','1')
+END IF
 
 ALLOCATE( locAlpha(1:ClipMaxInter) &
         , locXi   (1:ClipMaxInter) &
@@ -1858,6 +1867,7 @@ CALL  WriteParticlePartitionInformation(nPlanarTot,nBilinearTot,nCurvedTot)
 #endif
 
 END SUBROUTINE GetSideType
+
 
 SUBROUTINE BuildElementBasis()
 !================================================================================================================================

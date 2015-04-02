@@ -54,6 +54,7 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,MappingGuess,epsMapping
 USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
+USE MOD_Particle_Surfaces_Vars,  ONLY:ElemRadiusNGeo
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -75,7 +76,7 @@ REAL                :: xi(3)
 INTEGER             :: NewTonIter
 REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
-REAL                :: Winner_Dist,Dist
+REAL                :: Winner_Dist,Dist,abortcrit
 REAL, PARAMETER     :: EPSONE=1.00000001
 INTEGER             :: iDir
 REAL                :: F(1:3),Lag(1:3,0:NGeo),Lag2(1:3,0:N_In)
@@ -170,9 +171,14 @@ END DO !j=0,NGeo
 !print*,'F',F
 !read*
 
+!DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.100))
+!  NewtonIter=NewtonIter+1
 NewtonIter=0
-DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.100))
+abortCrit=ElemRadiusNGeo(iElem)*epsMapping
+!DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.50))
+DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   NewtonIter=NewtonIter+1
+
   ! 
   ! caution, dXCL_NGeo is transposed of required matrix
   Jac=0.
@@ -205,7 +211,7 @@ DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.100))
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
   IF(ANY(ABS(Xi).GT.1.2)) THEN
-    IPWRITE(*,*) ' Particle not inside of element!!!'
+    IPWRITE(*,*) ' Particle not inside of element, force!!!'
     IPWRITE(*,*) ' xi  ', xi(1)
     IPWRITE(*,*) ' eta ', xi(2)
     IPWRITE(*,*) ' zeta', xi(3)
@@ -234,17 +240,17 @@ END DO !newton
 
 ! check if Newton is successful
 !IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
-IF(ANY(ABS(Xi).GT.1.0)) THEN
-  !IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
-  IF(PRESENT(PartID).AND.PartID.EQ.186) THEN
-!  !   WRITE(*,*) 'ParticleID', PartID
-     IPWRITE(*,*) ' elemid', ielem
-     IPWRITE(*,*) ' Particle outside of parameter range!!!'
-     IPWRITE(*,*) ' xi  ', xi(:)
-!     WRITE(*,*) ' eta ', xi(2)
-!     WRITE(*,*) ' zeta', xi(3)
-  END IF
-END IF
+!IF(ANY(ABS(Xi).GT.1.0)) THEN
+!  !IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
+!  IF(PRESENT(PartID).AND.PartID.EQ.430) THEN
+!!  !   WRITE(*,*) 'ParticleID', PartID
+!     IPWRITE(*,*) ' elemid', ielem
+!     IPWRITE(*,*) ' Particle outside of parameter range!!!'
+!     IPWRITE(*,*) ' xi  ', xi(:)
+!!     WRITE(*,*) ' eta ', xi(2)
+!!     WRITE(*,*) ' zeta', xi(3)
+!  END IF
+!END IF
 
 ! 2.1) get "Vandermonde" vectors
 DO i=1,3
@@ -492,17 +498,17 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
 END DO !newton
 
 
-IF(ANY(ABS(Xi).GT.1.0)) THEN
-  IF(PRESENT(PartID).AND.PartID.EQ.186) THEN
-    !IPWRITE(*,*) 'ParticleID', PartID
- ! IF(PRESENT(PartID))     IPWRITE(*,*) 'ParticleID', PartID
-    IPWRITE(*,*) ' Particle not inside of element!!!'
-    IPWRITE(*,*) ' Element', iElem
-    IPWRITE(*,*) ' xi  ', xi(:)
-  !  IPWRITE(*,*) ' PartPos', X_in
-  END IF
-END IF
-
+!IF(ANY(ABS(Xi).GT.1.0)) THEN
+!  IF(PRESENT(PartID).AND.PartID.EQ.430) THEN
+!    !IPWRITE(*,*) 'ParticleID', PartID
+! ! IF(PRESENT(PartID))     IPWRITE(*,*) 'ParticleID', PartID
+!    IPWRITE(*,*) ' Particle not inside of element!!!'
+!    IPWRITE(*,*) ' Element', iElem
+!    IPWRITE(*,*) ' xi  ', xi(:)
+!  !  IPWRITE(*,*) ' PartPos', X_in
+!  END IF
+!END IF
+!
 
 END SUBROUTINE eval_xyz_elemcheck
 
