@@ -95,7 +95,7 @@ Pi=ACOS(-1.)
 spi = 1./pi
 
 ! get machine accuracy
-epsmach=EPSILON(0.0)
+!epsmach=EPSILON(0.0)
 
 c2     = c*c 
 c_inv  = 1./c

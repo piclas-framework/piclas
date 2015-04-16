@@ -285,7 +285,7 @@ DEALLOCATE( Distance,ListDistance)
 END SUBROUTINE SingleParticleToExactElement
 
 
-SUBROUTINE SingleParticleToExactElementNoMap(iPart)                                                         
+SUBROUTINE SingleParticleToExactElementNoMap(iPart,debug) 
 !===================================================================================================================================
 ! this subroutine maps each particle to an element
 ! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
@@ -300,14 +300,15 @@ USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,ElemBaryNGeo,BezierControlPoints3D,SideType
 USE MOD_Utils,                  ONLY:BubbleSortID
-USE MOD_Particle_Tracking,      ONLY:ComputePlanarInterSectionBezier,ComputeBilinearIntersectionSuperSampled2
-USE MOD_Particle_Tracking,      ONLY:ComputeBezierIntersection
+USE MOD_Particle_Intersection,  ONLY:ComputePlanarInterSectionBezier,ComputeBilinearIntersectionSuperSampled2
+USE MOD_Particle_Intersection,  ONLY:ComputeBezierIntersection
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)                :: iPart
+LOGICAL,INTENT(IN),OPTIONAL       :: debug
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -316,8 +317,8 @@ INTEGER,INTENT(IN)                :: iPart
 INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                           :: ilocSide,SideID,flip
-LOGICAL                           :: ParticleFound                                
-REAL                              :: vBary(1:3),lengthPartTrajectory,tmpPos(3)
+LOGICAL                           :: ParticleFound,isHit
+REAL                              :: vBary(1:3),lengthPartTrajectory,tmpPos(3),xNodes(1:3,1:4),tmpLastPartPos(1:3)
 REAL,ALLOCATABLE                  :: Distance(:)
 INTEGER,ALLOCATABLE               :: ListDistance(:)
 REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
@@ -365,6 +366,7 @@ CALL BubbleSortID(Distance,ListDistance,nBGMElems)
 
 ! loop through sorted list and start by closest element  
 tmpPos=PartState(iPart,1:3)
+tmpLastPartPos(1:3)=LastPartPos(iPart,1:3)
 LastPartPos(iPart,1:3)=PartState(iPart,1:3)
 DO iBGMElem=1,nBGMElems
   ElemID=ListDistance(iBGMElem)
@@ -382,27 +384,43 @@ DO iBGMElem=1,nBGMElems
     flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
     SELECT CASE(SideType(SideID))
     CASE(PLANAR)
-      CALL ComputePlanarIntersectionBezier(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+      CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                               ,xi                 &
                                                                               ,eta             ,iPart,flip,SideID)
                                                                               !,eta             ,iPart,ilocSide,SideID,ElemID)
     CASE(BILINEAR)
-      CALL ComputeBiLinearIntersectionSuperSampled2([BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
-                                                    ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
-                                                    ,BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &
-                                                    ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
-                                                    ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                        ,xi                 &
+      xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
+      xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
+      xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
+      xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
+      CALL ComputeBiLinearIntersectionSuperSampled2(ishit,xNodes &
+                                                          ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                        ,xi                       &
                                                                                         ,eta                ,iPart,flip,SideID)
+ 
+
+
+!      CALL ComputeBiLinearIntersectionSuperSampled2(ishit,[BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
+!                                                          ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
+!                                                          ,BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &
+!                                                          ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
+!                                                          ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+!                                                                                        ,xi                       &
+                                                                                        !,eta                ,iPart,flip,SideID)
     CASE(CURVED)
-      CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                        ,xi                 &
-                                                                        ,eta                ,iPart,SideID)
+      CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                              ,xi                 &
+                                                                              ,eta                ,iPart,SideID)
     END SELECT
+    IF(locAlpha(ilocSide).GT.-1.0)THEN
+      IF((ABS(xi).GT.1.0).OR.(ABS(eta).GT.1.0)) locAlpha(ilocSide)=-1.0
+    END IF
   END DO ! ilocSide
+  !IF((present(debug)).and.(ipart.eq.39)) print*,'blabla',locAlpha
   IF(ALMOSTEQUAL(MAXVAL(locAlpha(:)),-1.0))THEN
     ! no intersection found and particle is in final element
     PartState(iPart,1:3)=tmpPos
+    LastPartPos(iPart,1:3)=tmpLastPartPos
     PEM%Element(iPart) = ElemID
     ParticleFound=.TRUE.
     EXIT

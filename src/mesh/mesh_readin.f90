@@ -225,7 +225,7 @@ IF (DoRestart) THEN
   ALLOCATE(ElemWeight(1:nGlobalElems))
   DO iElem = 1, nGlobalElems
     locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
-    ElemWeight(iElem) = locnPart*ParticleMPIWeight + 1
+    ElemWeight(iElem) = locnPart*ParticleMPIWeight + 1.0
     SumWeight = SumWeight + ElemWeight(iElem)
   END DO
 

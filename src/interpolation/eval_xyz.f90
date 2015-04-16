@@ -102,12 +102,13 @@ CASE(1)
   DO iDir=1,3
     Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
   END DO 
-  IF(ANY(ABS(Xi).GT.epsOne)) THEN
-    DO iDir=1,3
-      IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
-      IF(Xi(iDir).LT.-epsOne) Xi(iDir)=-1.0
-    END DO ! iDir
-  END IF
+  IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=0.
+!  IF(ANY(ABS(Xi).GT.epsOne)) THEN
+!    DO iDir=1,3
+!      IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
+!      IF(Xi(iDir).LT.-epsOne) Xi(iDir)=-1.0
+!    END DO ! iDir
+!  END IF
 CASE(2) 
   ! compute distance on Gauss Points
   Winner_Dist=HUGE(1.)
@@ -216,6 +217,7 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
     IPWRITE(*,*) ' eta ', xi(2)
     IPWRITE(*,*) ' zeta', xi(3)
     IPWRITE(*,*) ' PartPos', X_in
+    IPWRITE(*,*) ' ElemID', iElem
     IF(PRESENT(PartID)) IPWRITE(*,*) ' PartID', PartID
     CALL abort(__STAMP__, &
         'Particle Not inSide of Element, iProc, iElem',PartMPI%MyRank,REAL(iElem))
@@ -241,15 +243,15 @@ END DO !newton
 ! check if Newton is successful
 !IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
 !IF(ANY(ABS(Xi).GT.1.0)) THEN
-!  !IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
-!  IF(PRESENT(PartID).AND.PartID.EQ.430) THEN
+!  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
+! ! IF(PRESENT(PartID).AND.PartID.EQ.40) THEN
 !!  !   WRITE(*,*) 'ParticleID', PartID
 !     IPWRITE(*,*) ' elemid', ielem
 !     IPWRITE(*,*) ' Particle outside of parameter range!!!'
 !     IPWRITE(*,*) ' xi  ', xi(:)
 !!     WRITE(*,*) ' eta ', xi(2)
 !!     WRITE(*,*) ' zeta', xi(3)
-!  END IF
+! ! END IF
 !END IF
 
 ! 2.1) get "Vandermonde" vectors
@@ -382,12 +384,13 @@ IF(.NOT.PRESENT(DoReUseMap))THEN
     DO iDir=1,3
       Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
     END DO 
-    IF(ANY(ABS(Xi).GT.epsOne)) THEN
-      DO iDir=1,3
-        IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
-        IF(Xi(iDir).LT.-epsOne) Xi(iDir)=-1.0
-      END DO ! iDir
-    END IF
+    IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=0.
+    !IF(ANY(ABS(Xi).GT.epsOne)) THEN
+    !  DO iDir=1,3
+    !    IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
+    !    IF(Xi(iDir).LT.-epsOne) Xi(iDir)=-1.0
+    !  END DO ! iDir
+    !END IF
   CASE(2)
     Winner_Dist=HUGE(1.)
     DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
@@ -472,8 +475,8 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
       IPWRITE(*,*) ' eta ', xi(2)
       IPWRITE(*,*) ' zeta', xi(3)
       IPWRITE(*,*) ' PartPos', X_in
-      CALL abort(__STAMP__, &
-          'Particle Not inSide of Element')
+      !CALL abort(__STAMP__, &
+      !    'Particle Not inSide of Element')
     ELSE
       EXIT
     END IF
@@ -498,15 +501,14 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
 END DO !newton
 
 
-!IF(ANY(ABS(Xi).GT.1.0)) THEN
-!  IF(PRESENT(PartID).AND.PartID.EQ.430) THEN
-!    !IPWRITE(*,*) 'ParticleID', PartID
-! ! IF(PRESENT(PartID))     IPWRITE(*,*) 'ParticleID', PartID
+!IF(MAXVAL(ABS(Xi)).GT.1.0) THEN
+!!  IF(PRESENT(PartID).AND.PartID.EQ.40) THEN
+!  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
 !    IPWRITE(*,*) ' Particle not inside of element!!!'
 !    IPWRITE(*,*) ' Element', iElem
 !    IPWRITE(*,*) ' xi  ', xi(:)
 !  !  IPWRITE(*,*) ' PartPos', X_in
-!  END IF
+!!  END IF
 !END IF
 !
 
