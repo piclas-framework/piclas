@@ -5,7 +5,7 @@ MODULE MOD_Particle_MPI_Vars
 ! Contains global variables provided by the particle surfaces routines
 !===================================================================================================================================
 ! MODULES
-USE mpi
+!USE mpi
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC

@@ -88,9 +88,9 @@ DO iPart=1,PDM%ParticleVecLength
     lengthPartTrajectory=lengthPartTrajectory!+epsilontol
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
-    IF((iPart.EQ.40).AND.(iter.GE.68)) WRITE(*,*) '----'
+    !IF((iPart.EQ.40).AND.(iter.GE.68)) WRITE(*,*) '----'
     DO WHILE (.NOT.PartisDone)
-      IF((iPart.EQ.40).AND.(iter.GE.68)) WRITE(*,*) 'ElemID',ElemID
+      !IF((iPart.EQ.40).AND.(iter.GE.68)) WRITE(*,*) 'ElemID',ElemID
       locAlpha=-1.
       nInterSections=0
       markTol=.FALSE.
@@ -161,10 +161,10 @@ DO iPart=1,PDM%ParticleVecLength
       CASE DEFAULT ! two or more hits
         ! take last possible intersection, furthest
         CALL BubbleSortID(locAlpha,locSideList,6)
-        IF((ipart.eq.40).AND.(iter.GE.68)) THEN
-          print*,'nbelemid',PartNeighborElemID(locSideList(6),ElemID)
-          print*,'nbelemid',PartNeighborElemID(locSideList(5),ElemID)
-        END IF
+!        IF((ipart.eq.40).AND.(iter.GE.68)) THEN
+!          print*,'nbelemid',PartNeighborElemID(locSideList(6),ElemID)
+!          print*,'nbelemid',PartNeighborElemID(locSideList(5),ElemID)
+!        END IF
         nloc=0
         DO ilocSide=6,1,-1
           IF(locAlpha(ilocSide).GT.-1.0)THEN
@@ -185,7 +185,7 @@ DO iPart=1,PDM%ParticleVecLength
         print*,'ipart,loc',ipart,localpha
         PEM%Element(iPart)=ElemID
         IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,debug=.TRUE.)
-        print*,'new elem',PEM%Element(ipart)
+!        print*,'new elem',PEM%Element(ipart)
         PartIsDone=.TRUE.
         IF(.NOT.PDM%ParticleInside(iPart))THEN
           IPWRITE(*,*) 'lost particle with id', ipart

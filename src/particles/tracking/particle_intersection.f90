@@ -1243,7 +1243,7 @@ ELSE
 END IF ! SidePeriodicType
 
 
-IF(iPart.EQ.40.AND.iter.GE.68) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
+!IF(iPart.EQ.40.AND.iter.GE.68) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
 !IF(iPart.EQ.40) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
 !IF(alpha.GT.lengthPartTrajectory) THEN !.OR.(alpha.LT.-epsilontol))THEN
 IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
@@ -1365,7 +1365,7 @@ ELSE
   END IF
 END IF
 
-IF(iPart.EQ.40) IPWRITE(*,*) 'xi',xi
+!IF(iPart.EQ.40) IPWRITE(*,*) 'xi',xi
 !IF(ABS(xi).GT.epsilonOne)THEN
 IF(ABS(xi).GT.ClipHit)THEN
 !IF((ABS(xi).GT.ClipHit).AND.(.NOT.forceInter))THEN
@@ -1380,7 +1380,7 @@ END IF
 !  eta=(-A2*xi-C2)/B2
 !END IF
 eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-IF(iPart.EQ.40) IPWRITE(*,*) 'eta',eta
+!IF(iPart.EQ.40) IPWRITE(*,*) 'eta',eta
 IF(ABS(eta).GT.ClipHit)THEN
 !IF((ABS(eta).GT.ClipHit).AND.(.NOT.forceInter))THEN
   alpha=-1.0
@@ -1480,15 +1480,15 @@ IF (nRoot.EQ.1) THEN
   !IF(iPart.EQ.40)  IPWRITE(*,*) 'eta',eta(1)
 
   !IF(iPart.EQ.40) THEN
-  IF((iPart.EQ.40).AND.(iter.GT.68))THEN
-    IPWRITE(*,*) 'eta',eta(1)
-    xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
-    xi(1)=1.0/xi(1)
-    xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
-    IPWRITE(*,*) 'xi',xi(1)
-    t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
-  END IF
+!  IF((iPart.EQ.40).AND.(iter.GT.68))THEN
+!    IPWRITE(*,*) 'eta',eta(1)
+!    xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
+!    xi(1)=1.0/xi(1)
+!    xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
+!    IPWRITE(*,*) 'xi',xi(1)
+!    t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+!    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
+!  END IF
 
   !IF(ABS(eta(1)).LT.epsilonOne)THEN
   IF(ABS(eta(1)).LT.hitepsbi)THEN
@@ -1523,16 +1523,16 @@ IF (nRoot.EQ.1) THEN
 ELSE 
   nInter=0
   t=-1.
-  !IF(iPart.EQ.40) THEN
-  IF((iPart.EQ.40).AND.(iter.GT.68))THEN
-    IPWRITE(*,*) 'eta',eta(1)
-    xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
-    xi(1)=1.0/xi(1)
-    xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
-    IPWRITE(*,*) 'xi',xi(1)
-    t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
-  END IF
+!  !IF(iPart.EQ.40) THEN
+!  IF((iPart.EQ.40).AND.(iter.GT.68))THEN
+!    IPWRITE(*,*) 'eta',eta(1)
+!    xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
+!    xi(1)=1.0/xi(1)
+!    xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
+!    IPWRITE(*,*) 'xi',xi(1)
+!    t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+!    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
+!  END IF
 
   IF(ABS(eta(1)).LT.hitepsbi)THEN
 !    IF(eta(1).GT.0.)THEN
@@ -1555,20 +1555,20 @@ ELSE
     END IF
   END IF
   !IF(iPart.EQ.40) THEN
-  IF((iPart.EQ.40).AND.(iter.GT.68))THEN
-    IPWRITE(*,*) 'eta',eta(2)
-    IF(eta(2).GT.0.)THEN
-      eta(2)=eta(2)+1e-3
-    ELSE
-      eta(2)=eta(2)-1e-3
-    END IF
-    xi(2)=eta(2)*(a2(1)-a1(1))+a2(2)-a1(2)
-    xi(2)=1.0/xi(2)
-    xi(2)=(eta(2)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(2)
-    IPWRITE(*,*) 'xi',xi(2)
-    t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
-    IPWRITE(*,*) 'a/l',t(2)/lengthPartTrajectory
-  END IF
+!  IF((iPart.EQ.40).AND.(iter.GT.68))THEN
+!    IPWRITE(*,*) 'eta',eta(2)
+!    IF(eta(2).GT.0.)THEN
+!      eta(2)=eta(2)+1e-3
+!    ELSE
+!      eta(2)=eta(2)-1e-3
+!    END IF
+!    xi(2)=eta(2)*(a2(1)-a1(1))+a2(2)-a1(2)
+!    xi(2)=1.0/xi(2)
+!    xi(2)=(eta(2)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(2)
+!    IPWRITE(*,*) 'xi',xi(2)
+!    t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
+!    IPWRITE(*,*) 'a/l',t(2)/lengthPartTrajectory
+!  END IF
 
   IF(ABS(eta(2)).LT.hitepsbi)THEN
 !    IF(eta(2).GT.0.)THEN

@@ -55,6 +55,7 @@ USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaB
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 USE MOD_Particle_Surfaces_Vars,  ONLY:ElemRadiusNGeo
+USE MOD_TimeDisc_Vars,           ONLY:iter
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -207,11 +208,12 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
         'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
   ENDIF 
   sJac=getInv(Jac,sdetJac)
-  
+
   ! Iterate Xi using Newton step
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
-  IF(ANY(ABS(Xi).GT.1.2)) THEN
+
+  IF(ANY(ABS(Xi).GT.1.5)) THEN
     IPWRITE(*,*) ' Particle not inside of element, force!!!'
     IPWRITE(*,*) ' xi  ', xi(1)
     IPWRITE(*,*) ' eta ', xi(2)
@@ -450,7 +452,6 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
     END DO !j=0,NGeo
   END DO !k=0,NGeo
   
-  !print*,'print',Jac
 
   ! Compute inverse of Jacobian
   sdetJac=getDet(Jac)
