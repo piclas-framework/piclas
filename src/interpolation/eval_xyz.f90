@@ -245,15 +245,12 @@ END DO !newton
 ! check if Newton is successful
 !IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
 !IF(ANY(ABS(Xi).GT.1.0)) THEN
-!  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
-! ! IF(PRESENT(PartID).AND.PartID.EQ.40) THEN
-!!  !   WRITE(*,*) 'ParticleID', PartID
-!     IPWRITE(*,*) ' elemid', ielem
+!!  IF(PRESENT(PartID).AND.PartID.EQ.238) THEN
 !     IPWRITE(*,*) ' Particle outside of parameter range!!!'
+!     IF(PRESENT(PartID)) IPWRITE(*,*) 'ParticleID', PartID
+!     IPWRITE(*,*) ' elemid', ielem
 !     IPWRITE(*,*) ' xi  ', xi(:)
-!!     WRITE(*,*) ' eta ', xi(2)
-!!     WRITE(*,*) ' zeta', xi(3)
-! ! END IF
+!!  END IF
 !END IF
 
 ! 2.1) get "Vandermonde" vectors
@@ -469,13 +466,13 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   Xi = Xi - MATMUL(sJac,F)
   IF(ANY(ABS(Xi).GT.1.5)) THEN
     IF(PRESENT(PartID)) THEN
-      IPWRITE(*,*) 'ParticleID', PartID
-      IPWRITE(*,*) ' Particle not inside of element!!!'
-      IPWRITE(*,*) ' Element', iElem
-      IPWRITE(*,*) ' xi  ', xi(1)
-      IPWRITE(*,*) ' eta ', xi(2)
-      IPWRITE(*,*) ' zeta', xi(3)
-      IPWRITE(*,*) ' PartPos', X_in
+!      IPWRITE(*,*) 'ParticleID', PartID
+!      IPWRITE(*,*) ' Particle not inside of element!!!'
+!      IPWRITE(*,*) ' Element', iElem
+!      IPWRITE(*,*) ' xi  ', xi(1)
+!      IPWRITE(*,*) ' eta ', xi(2)
+!      IPWRITE(*,*) ' zeta', xi(3)
+!      IPWRITE(*,*) ' PartPos', X_in
       !CALL abort(__STAMP__, &
       !    'Particle Not inSide of Element')
     ELSE
@@ -503,13 +500,13 @@ END DO !newton
 
 
 !IF(MAXVAL(ABS(Xi)).GT.1.0) THEN
-!!  IF(PRESENT(PartID).AND.PartID.EQ.40) THEN
-!  IF(PRESENT(PartID)) WRITE(*,*) 'ParticleID', PartID
-!    IPWRITE(*,*) ' Particle not inside of element!!!'
-!    IPWRITE(*,*) ' Element', iElem
-!    IPWRITE(*,*) ' xi  ', xi(:)
+! ! IF(PRESENT(PartID).AND.PartID.EQ.813) THEN
+!  IPWRITE(*,*) ' Particle not inside of element!!!'
+!  IF(PRESENT(PartID)) IPWRITE(*,*) 'ParticleID', PartID
+!  IPWRITE(*,*) ' Element', iElem
+!  IPWRITE(*,*) ' xi  ', xi(:)
 !  !  IPWRITE(*,*) ' PartPos', X_in
-!!  END IF
+!  !END IF
 !END IF
 !
 

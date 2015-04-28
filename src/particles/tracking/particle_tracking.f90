@@ -53,6 +53,7 @@ USE MOD_Particle_surfaces_vars,      ONLY:ntracks
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap
 USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
                                          ,ComputePlanarIntersectionBezier,PartInElemCheck
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust
 #ifdef MPI
 USE MOD_Mesh_Vars,                   ONLY:BC,nSides
 #endif /*MPI*/
@@ -83,14 +84,14 @@ DO iPart=1,PDM%ParticleVecLength
     lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                              +PartTrajectory(2)*PartTrajectory(2) &
                              +PartTrajectory(3)*PartTrajectory(3) )
-    PartTrajectory=PartTrajectory/lengthPartTrajectory+epsilontol
+    PartTrajectory=PartTrajectory/lengthPartTrajectory!+epsilontol
     !PartTrajectory=PartTrajectory/(lengthPartTrajectory+epsilontol)
     lengthPartTrajectory=lengthPartTrajectory!+epsilontol
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
-    !IF((iPart.EQ.40).AND.(iter.GE.68)) WRITE(*,*) '----'
+    !IF((iPart.EQ.238).AND.(iter.GE.182)) WRITE(*,*) '----'
     DO WHILE (.NOT.PartisDone)
-      !IF((iPart.EQ.40).AND.(iter.GE.68)) WRITE(*,*) 'ElemID',ElemID
+      !IF((iPart.EQ.238).AND.(iter.GE.182)) WRITE(*,*) 'ElemID',ElemID
       locAlpha=-1.
       nInterSections=0
       markTol=.FALSE.
@@ -103,11 +104,15 @@ DO iPart=1,PDM%ParticleVecLength
         SELECT CASE(SideType(SideID))
         CASE(PLANAR)
           !IF(iPart.EQ.40) WRITE(*,*) 'planar'
-          CALL ComputePlanarIntersectionBezier(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+          CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                         ,xi (ilocSide)      &
                                                                                         ,eta(ilocSide)   ,iPart,flip,SideID)
-                                                                              !,doTest=.TRUE.)
-                                                                                  !,eta(ilocSide)   ,iPart,ilocSide,SideID,ElemID)
+
+!          CALL ComputePlanarIntersectionBezier(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+!                                                                                        ,xi (ilocSide)      &
+!                                                                                        ,eta(ilocSide)   ,iPart,flip,SideID)
+!                                                                              !,doTest=.TRUE.)
+!                                                                                  !,eta(ilocSide)   ,iPart,ilocSide,SideID,ElemID)
         CASE(BILINEAR)
           !IF(iPart.EQ.40) WRITE(*,*) 'bilinear'
           xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
@@ -139,7 +144,10 @@ DO iPart=1,PDM%ParticleVecLength
         END SELECT
         IF(isHit) THEN
           nInterSections=nInterSections+1
-          IF((ABS(xi(ilocSide)).GT.1.0).OR.(ABS(eta(ilocSide)).GT.1.0)) markTol=.TRUE.
+          IF((ABS(xi(ilocSide)).GE.1.0).OR.(ABS(eta(ilocSide)).GE.1.0)) markTol=.TRUE.
+          IF(ALMOSTZERO(locAlpha(ilocSide))) markTol=.TRUE.
+          !IF((ABS(xi(ilocSide)).GE.0.99).OR.(ABS(eta(ilocSide)).GE.0.99)) markTol=.TRUE.
+          !IF(locAlpha(ilocSide)/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
         END IF
       END DO ! ilocSide
       !IF((ipart.eq.40).AND.(iter.GE.68)) print*,' nIntersections',nIntersections
@@ -177,12 +185,13 @@ DO iPart=1,PDM%ParticleVecLength
         SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
         CALL SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
                                          ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
+        markTol=.TRUE.
       END SELECT
       IF(markTol)THEN
         CALL PartInElemCheck(iPart,ElemID,isHit)
-        print*,'partid',ipart,'in elem',isHit
-        print*,'old elem',ElemID
-        print*,'ipart,loc',ipart,localpha
+        !print*,'partid',ipart,'in elem',isHit
+        !print*,'old elem',ElemID
+        !print*,'ipart,loc',ipart,localpha
         PEM%Element(iPart)=ElemID
         IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,debug=.TRUE.)
 !        print*,'new elem',PEM%Element(ipart)
@@ -192,6 +201,15 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
       END IF ! markTol
     END DO ! PartisDone=.FALSE.
+!    IF(markTol)THEN
+!      CALL PartInElemCheck(iPart,ElemID,isHit)
+!      PEM%Element(iPart)=ElemID
+!      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,debug=.TRUE.)
+!      PartIsDone=.TRUE.
+!      IF(.NOT.PDM%ParticleInside(iPart))THEN
+!        IPWRITE(*,*) 'lost particle with id', ipart
+!      END IF
+!    END IF
   END IF ! Part inside
 END DO ! iPart
 

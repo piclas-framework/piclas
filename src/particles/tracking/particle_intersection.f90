@@ -26,10 +26,15 @@ INTERFACE ComputePlanarInterSectionBezier
   MODULE PROCEDURE ComputePlanarInterSectionBezier
 END INTERFACE
 
+INTERFACE ComputePlanarInterSectionBezierRobust
+  MODULE PROCEDURE ComputePlanarInterSectionBezierRobust
+END INTERFACE
+
 
 PUBLIC::ComputeBezierIntersection
 PUBLIC::ComputeBilinearIntersectionSuperSampled2
 PUBLIC::ComputePlanarInterSectionBezier
+PUBLIC::ComputePlanarInterSectionBezierRobust
 PUBLIC::PartInElemCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1148,6 +1153,7 @@ SUBROUTINE ComputePlanarIntersectionBezier(isHit,PartTrajectory,lengthPartTrajec
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals!,                 ONLY:Cross,abort
+USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
@@ -1179,6 +1185,7 @@ REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
 !REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
 REAL                              :: a1,a2,b1,b2,c1,c2
 REAL                              :: coeffA,nlength,locSideDistance,SideBasePoint(1:3)
+REAL                              :: xi1,xi2
 !INTEGER                           :: flip
 !===================================================================================================================================
 
@@ -1206,7 +1213,8 @@ coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory)
 !! corresponding to particle starting in plane
 !! interaction should be computed in last step
 !IF(iPart.EQ.257) IPWRITE(*,*) coeffA
-IF(ABS(coeffA).LT.+epsilontol)  RETURN
+!IF(ABS(coeffA).LT.+epsilontol)  RETURN
+IF(ABS(coeffA).EQ.0.)  RETURN
 
 ! extension for periodic sides
 IF(SidePeriodicType(SideID).EQ.0)THEN
@@ -1243,10 +1251,12 @@ ELSE
 END IF ! SidePeriodicType
 
 
-!IF(iPart.EQ.40.AND.iter.GE.68) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
-!IF(iPart.EQ.40) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
+!IF(iPart.EQ.238) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
 !IF(alpha.GT.lengthPartTrajectory) THEN !.OR.(alpha.LT.-epsilontol))THEN
-IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
+!IF((alpha.GT.lengthPartTrajectory+epsilontol) .OR.(alpha.LT.-epsilontol))THEN
+!IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
+IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-100*epsMach*coeffA))THEN
   alpha=-1.0
   RETURN
 END IF
@@ -1332,6 +1342,16 @@ P2=0.25*P2
 Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
 P0=0.25*P0-Inter1
 
+
+
+!IF((ABS(P1(1)).GE.ABS(P1(2))).AND.(ABS(P1(1)).GE.ABS(P1(3))))THEN
+!  
+!ELSE IF(ABS(P1(2)).GE.ABS(P1(3)))THEN
+!
+!ELSE
+!
+!END IF
+
 A1=P1(1)+P1(3)
 B1=P2(1)+P2(3)
 C1=P0(1)+P0(3)
@@ -1340,15 +1360,48 @@ A2=P1(2)+P1(3)
 B2=P2(2)+P2(3)
 C2=P0(2)+P0(3)
 
-!IF(iter.GE.67.AND.iPart.EQ.288) IPWRITE(*,*) 'P0',P0
-!IF(iter.GE.67.AND.iPart.EQ.288) IPWRITE(*,*) 'P1',P1
-!IF(iter.GE.67.AND.iPart.EQ.288) IPWRITE(*,*) 'P2',P2
-!IF(iter.GE.67.AND.iPart.EQ.288) IPWRITE(*,*) 'a1',a1
-!IF(iter.GE.67.AND.iPart.EQ.288) IPWRITE(*,*) 'b1',b1
-!IF(iter.GE.67.AND.iPart.EQ.288) IPWRITE(*,*) 'c1',c1
-!IF(iter.GE.67.AND.iPart.EQ.288) IPWRITE(*,*) 'a2',a2
-!IF(iter.GE.67.AND.iPart.EQ.288) IPWRITE(*,*) 'b2',b2
-!IF(iter.GE.67.AND.iPart.EQ.288) IPWRITE(*,*) 'c2',c2
+!IF((ABS(P2(1)).GE.ABS(P2(2))).AND.(ABS(P2(1))).GE.ABS(P2(3)))THEN
+!  xi1= P1(2)-P2(2)/P2(1)*P1(1)
+!  xi2= P1(3)-P2(3)/P2(1)*P1(1)
+!  IF(ABS(xi1).GT.ABS(xi2))THEN
+!    xi=-(P0(2)-P2(2)/P2(1)*P0(1))/xi1
+!  ELSE
+!    xi=-(P0(3)-P2(3)/P2(1)*P0(1))/xi2
+!  END IF
+!ELSE IF(ABS(P2(2)).GE.ABS(P2(3)))THEN
+!  xi1= P1(1)-P2(1)/P2(2)*P1(2)
+!  xi2= P1(3)-P2(3)/P2(2)*P1(2)
+!  IF(ABS(xi1).GT.ABS(xi2))THEN
+!    xi=-(P0(1)-P2(1)/P2(2)*P0(2))/xi1
+!  ELSE
+!    xi=-(P0(3)-P2(3)/P2(2)*P0(2))/xi2
+!  END IF
+!ELSE
+!  xi1= P1(1)-P2(1)/P2(3)*P1(3)
+!  xi2= P1(2)-P2(2)/P2(3)*P1(3)
+!  IF(ABS(xi1).GT.ABS(xi2))THEN
+!    xi=-(P0(1)-P2(1)/P2(3)*P0(3))/xi1
+!  ELSE
+!    xi=-(P0(2)-P2(2)/P2(3)*P0(3))/xi2
+!  END IF
+!END IF
+
+
+IF(ABS(B1).GE.ABS(B2))THEN
+  xi = A2-B2/B1*A1
+  IF(ABS(xi).LT.epsilontol)THEN
+    print*,'blabla'
+    STOP
+  END IF
+  xi = (B2/B1*C1-C2)/xi
+ELSE
+  xi = A1-B1/B2*A2
+  IF(ABS(xi).LT.epsilontol)THEN
+    print*,'blabla'
+    STOP
+  END IF
+  xi = (B1/B2*C2-C1)/xi
+END IF
 IF(ABS(B1).GT.epsilontol)THEN
   xi = A2-B2/B1*A1
   IF(ABS(xi).LT.epsilontol)THEN
@@ -1365,10 +1418,11 @@ ELSE
   END IF
 END IF
 
-!IF(iPart.EQ.40) IPWRITE(*,*) 'xi',xi
-!IF(ABS(xi).GT.epsilonOne)THEN
-IF(ABS(xi).GT.ClipHit)THEN
+!IF(iPart.EQ.238) IPWRITE(*,*) 'xi',xi
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'xi',xi
 !IF((ABS(xi).GT.ClipHit).AND.(.NOT.forceInter))THEN
+IF(ABS(xi).GT.ClipHit)THEN
+!IF(ABS(xi).GT.epsilonOne)THEN
   alpha=-1.0
   RETURN
 END IF
@@ -1380,8 +1434,10 @@ END IF
 !  eta=(-A2*xi-C2)/B2
 !END IF
 eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-!IF(iPart.EQ.40) IPWRITE(*,*) 'eta',eta
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'eta',eta
+!IF(iPart.EQ.238) IPWRITE(*,*) 'eta',eta
 IF(ABS(eta).GT.ClipHit)THEN
+!IF(ABS(xi).GT.epsilonOne)THEN
 !IF((ABS(eta).GT.ClipHit).AND.(.NOT.forceInter))THEN
   alpha=-1.0
   RETURN
@@ -1389,6 +1445,235 @@ END IF
 isHit=.TRUE.
 
 END SUBROUTINE ComputePlanarIntersectionBezier
+
+
+SUBROUTINE ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,flip,SideID)!,doTest)
+!===================================================================================================================================
+! Compute the Intersection with planar surface
+! equation of plane: P1*xi + P2*eta+P0
+! equation to solve intersection point with plane
+! P1*xi+P2*eta+P0-LastPartPos-alpha*PartTrajectory
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals!,                 ONLY:Cross,abort
+USE MOD_Globals_Vars,            ONLY:epsMach
+USE MOD_Mesh_Vars,               ONLY:NGeo
+USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
+USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+!USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
+!USE MOD_Equations_Vars,          ONLY:epsMach
+!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+USE MOD_Timedisc_vars,           ONLY: iter
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+REAL,INTENT(IN)                   :: lengthPartTrajectory
+INTEGER,INTENT(IN)                :: iPart,SideID!,ElemID,locSideID
+INTEGER,INTENT(IN)                :: flip
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                  :: alpha,xi,eta
+LOGICAL,INTENT(OUT)               :: isHit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                           :: forceInter
+REAL,DIMENSION(1:3)               :: P0,P1,P2
+REAL                              :: NormVec(1:3),locDistance,Inter1(1:3),Inter2(1:3)
+REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
+!REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
+REAL                              :: a1,a2,b1,b2,c1,c2
+REAL                              :: coeffA,nlength,locSideDistance,SideBasePoint(1:3)
+REAL                              :: xi1,xi2
+!INTEGER                           :: flip
+!===================================================================================================================================
+
+! set alpha to minus 1, asume no intersection
+!print*,PartTrajectory
+alpha=-1.0
+xi=-2.
+eta=-2.
+isHit=.FALSE.
+
+! new with flip
+IF(flip.EQ.0)THEN
+  NormVec  =SideNormVec(1:3,SideID)
+  locDistance=SideDistance(SideID)
+ELSE
+  NormVec  =-SideNormVec(1:3,SideID)
+  locDistance=-SideDistance(SideID)
+END IF
+coeffA=DOT_PRODUCT(NormVec,PartTrajectory)
+
+!! corresponding to particle starting in plane
+!! interaction should be computed in last step
+IF(ABS(coeffA).EQ.0.)  RETURN
+
+! extension for periodic sides
+IF(SidePeriodicType(SideID).EQ.0)THEN
+  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
+  alpha=locSideDistance/coeffA
+  locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+  locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+  locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+  locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+ELSE
+  locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+  locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+  locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+  locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+  SideBasePoint=0.25*(locBezierControlPoints3D(:,0,0) &
+                     +locBezierControlPoints3D(:,0,1) & 
+                     +locBezierControlPoints3D(:,1,0) &
+                     +locBezierControlPoints3D(:,1,1) )
+  !flip   = PartElemToSide(E2S_FLIP,LocSideID,ElemID)
+  ! nothing to do for master side, Side of elem to which owns the BezierPoints
+  IF(flip.EQ.0)THEN
+    locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+    locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+    locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+    locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+  ELSE
+    locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)      -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+    locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+    locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+    locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+    ! caution, displacement is for master side computed, therefore, slave side requires negative displacement
+    SideBasePoint=SideBasePoint-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+  END IF
+  !locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),NormVec)
+  locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
+  alpha=locSideDistance/coeffA
+END IF ! SidePeriodicType
+
+IF(locSideDistance.LT.0)THEN
+  ! particle is located outside of element, THEREFORE, an intersection were not detected
+  alpha=0.
+  isHit=.TRUE.
+  RETURN
+  ! do I have to compute the xi and eta value? first try: do not re-check new element!
+END IF
+
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
+!IF(alpha.GT.lengthPartTrajectory) THEN !.OR.(alpha.LT.-epsilontol))THEN
+!IF((alpha.GT.lengthPartTrajectory+epsilontol) .OR.(alpha.LT.-epsilontol))THEN
+IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
+!IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-100*epsMach*coeffA))THEN
+  alpha=-1.0
+  RETURN
+END IF
+
+P1=(-locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)   &
+    -locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )
+
+P2=(-locBezierControlPoints3D(:,0,0)-locBezierControlPoints3D(:,1,0)   &
+    +locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )
+
+P0=(locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)    &
+   +locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) ) 
+
+P1=0.25*P1
+P2=0.25*P2
+Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
+P0=0.25*P0-Inter1
+
+A1=P1(1)+P1(3)
+B1=P2(1)+P2(3)
+C1=P0(1)+P0(3)
+
+A2=P1(2)+P1(3)
+B2=P2(2)+P2(3)
+C2=P0(2)+P0(3)
+
+!IF((ABS(P2(1)).GE.ABS(P2(2))).AND.(ABS(P2(1))).GE.ABS(P2(3)))THEN
+!  xi1= P1(2)-P2(2)/P2(1)*P1(1)
+!  xi2= P1(3)-P2(3)/P2(1)*P1(1)
+!  IF(ABS(xi1).GT.ABS(xi2))THEN
+!    xi=-(P0(2)-P2(2)/P2(1)*P0(1))/xi1
+!  ELSE
+!    xi=-(P0(3)-P2(3)/P2(1)*P0(1))/xi2
+!  END IF
+!ELSE IF(ABS(P2(2)).GE.ABS(P2(3)))THEN
+!  xi1= P1(1)-P2(1)/P2(2)*P1(2)
+!  xi2= P1(3)-P2(3)/P2(2)*P1(2)
+!  IF(ABS(xi1).GT.ABS(xi2))THEN
+!    xi=-(P0(1)-P2(1)/P2(2)*P0(2))/xi1
+!  ELSE
+!    xi=-(P0(3)-P2(3)/P2(2)*P0(2))/xi2
+!  END IF
+!ELSE
+!  xi1= P1(1)-P2(1)/P2(3)*P1(3)
+!  xi2= P1(2)-P2(2)/P2(3)*P1(3)
+!  IF(ABS(xi1).GT.ABS(xi2))THEN
+!    xi=-(P0(1)-P2(1)/P2(3)*P0(3))/xi1
+!  ELSE
+!    xi=-(P0(2)-P2(2)/P2(3)*P0(3))/xi2
+!  END IF
+!END IF
+
+
+IF(ABS(B1).GE.ABS(B2))THEN
+  xi = A2-B2/B1*A1
+  IF(ABS(xi).LT.epsilontol)THEN
+    print*,'blabla'
+    STOP
+  END IF
+  xi = (B2/B1*C1-C2)/xi
+ELSE
+  xi = A1-B1/B2*A2
+  IF(ABS(xi).LT.epsilontol)THEN
+    print*,'blabla'
+    STOP
+  END IF
+  xi = (B1/B2*C2-C1)/xi
+END IF
+IF(ABS(B1).GT.epsilontol)THEN
+  xi = A2-B2/B1*A1
+  IF(ABS(xi).LT.epsilontol)THEN
+    xi=0.
+  ELSE
+    xi = (B2/B1*C1-C2)/xi
+  END IF
+ELSE
+  xi = A1-B1/B2*A2
+  IF(ABS(xi).LT.epsilontol)THEN
+    xi=0.
+  ELSE
+    xi = (B1/B2*C2-C1)/xi
+  END IF
+END IF
+
+!IF(iPart.EQ.238) IPWRITE(*,*) 'xi',xi
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'xi',xi
+!IF((ABS(xi).GT.ClipHit).AND.(.NOT.forceInter))THEN
+IF(ABS(xi).GT.ClipHit)THEN
+!IF(ABS(xi).GT.epsilonOne)THEN
+  alpha=-1.0
+  RETURN
+END IF
+
+!eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
+!IF(ABS(B1).GT.epsilontol)THEN
+!  eta=(-A1*xi-C1)/B1
+!ELSE
+!  eta=(-A2*xi-C2)/B2
+!END IF
+eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'eta',eta
+!IF(iPart.EQ.238) IPWRITE(*,*) 'eta',eta
+IF(ABS(eta).GT.ClipHit)THEN
+!IF(ABS(xi).GT.epsilonOne)THEN
+!IF((ABS(eta).GT.ClipHit).AND.(.NOT.forceInter))THEN
+  alpha=-1.0
+  RETURN
+END IF
+isHit=.TRUE.
+
+END SUBROUTINE ComputePlanarIntersectionBezierRobust
 
 
 SUBROUTINE ComputeBiLinearIntersectionSuperSampled2(isHit,xNodes,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
@@ -1400,7 +1685,8 @@ SUBROUTINE ComputeBiLinearIntersectionSuperSampled2(isHit,xNodes,PartTrajectory,
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,epsilonOne,hitepsbi
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,epsilonOne,hitepsbi,cliphit
+USE MOD_Particle_Vars,ONLY:PartState
 !USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
@@ -1456,52 +1742,43 @@ A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
 !print*,'A,B,C', A,B,C
-CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
-!read*
-!  IF(iloop.EQ.34)THEN
-!    print*,eta
-!  END IF
-!SELECT CASE(iter)
-!CASE(162)
-!  print*,nRoot,eta
-!  print*,'PartTrajectory',PartTrajectory
-!  print*,'length',LengthPartTrajectory
-!  read*
-!END SELECT
+!IF((iPart.EQ.238).AND.(iter.GT.78))THEN
+!  IPWRITE(*,*) 'a,b,c',a,b,c
+!END IF
 
-!print*,'number of roots', nRoot
-!read*
-!!IF((iPart.EQ.40).AND.(iter.GE.67))  IPWRITE(*,*) 'nroots',nroot
+CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
+
+!IF((iPart.EQ.238).AND.(iter.GE.182))  IPWRITE(*,*) 'nroots',nroot
 IF(nRoot.EQ.0)THEN
   RETURN
 END IF
 
 IF (nRoot.EQ.1) THEN
-  !IF(iPart.EQ.40)  IPWRITE(*,*) 'eta',eta(1)
 
-  !IF(iPart.EQ.40) THEN
-!  IF((iPart.EQ.40).AND.(iter.GT.68))THEN
+!  IF((iPart.EQ.238).AND.(iter.GE.182))THEN
+!    IPWRITE(*,*) 'radicant', B*B-4.0*A*C
+!    IPWRITE(*,*) 'partpos',PartState(iPart,1:3)
+!    IPWRITE(*,*) 'lastpartpos',LastPartPos(iPart,1:3)
+!    IPWRITE(*,*) 'trajectory',PartTrajectory
+!    IPWRITE(*,*) 'length',lengthPartTrajectory
 !    IPWRITE(*,*) 'eta',eta(1)
-!    xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
-!    xi(1)=1.0/xi(1)
-!    xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
+!    xi(1)=ComputeXi(a1,a2,eta(1))
 !    IPWRITE(*,*) 'xi',xi(1)
+!    IPWRITE(*,*) 'intetrsect', xi(1)*eta(1)*BiLinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)&
+!                               +eta(1)*BilinearCoeff(:,3)+BilinearCoeff(:,4)
 !    t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
 !    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
 !  END IF
 
   !IF(ABS(eta(1)).LT.epsilonOne)THEN
-  IF(ABS(eta(1)).LT.hitepsbi)THEN
-!    IF(eta(1).GT.0.)THEN
-!      eta(1)=eta(1)+1.2e-4
-!    ELSE
-!      eta(1)=eta(1)-1.2e-4
-!    END IF
-    xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
-    xi(1)=1.0/xi(1)
-    xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
-    IF(ABS(xi(1)).LT.hitepsbi)THEN
-   ! IF(ABS(xi(1)).LT.epsilonOne)THEN
+  IF(ABS(eta(1)).LT.ClipHit)THEN
+  !IF(ABS(eta(1)).LT.hitepsbi)THEN
+    ! as paper ramsay
+    xi(1)=ComputeXi(a1,a2,eta(1))
+
+   ! IF(ABS(xi(1)).LT.hitepsbi)THEN
+    !IF(ABS(xi(1)).LT.epsilonOne)THEN
+    IF(ABS(xi(1)).LT.ClipHit)THEN
       !q1=xi(1)*eta(1)*BilinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)+eta(1)*BilinearCoeff(:,3)+BilinearCoeff(:,4)-lastPartState
       t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
       !IF((t(1).GE.-epsilontol).AND.(t(1).LE.epsilonOne))THEN
@@ -1523,28 +1800,25 @@ IF (nRoot.EQ.1) THEN
 ELSE 
   nInter=0
   t=-1.
-!  !IF(iPart.EQ.40) THEN
-!  IF((iPart.EQ.40).AND.(iter.GT.68))THEN
+!  IF((iPart.EQ.238).AND.(iter.GE.182))THEN
+!    IPWRITE(*,*) 'radicant', B*B-4.0*A*C
+!    IPWRITE(*,*) 'partpos',PartState(iPart,1:3)
 !    IPWRITE(*,*) 'eta',eta(1)
-!    xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
-!    xi(1)=1.0/xi(1)
-!    xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
+!    xi(1)=ComputeXi(a1,a2,eta(1))
 !    IPWRITE(*,*) 'xi',xi(1)
 !    t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
 !    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
 !  END IF
 
-  IF(ABS(eta(1)).LT.hitepsbi)THEN
-!    IF(eta(1).GT.0.)THEN
-!      eta(1)=eta(1)+1.2e-4
-!    ELSE
-!      eta(1)=eta(1)-1.2e-4
-!    END IF
-    xi(1)=eta(1)*(a2(1)-a1(1))+a2(2)-a1(2)
-    xi(1)=1.0/xi(1)
-    xi(1)=(eta(1)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(1)
-    IF(ABS(xi(1)).LT.hitepsbi)THEN
+  !IF(ABS(eta(1)).LT.hitepsbi)THEN
+  !IF(ABS(eta(1)).LT.epsilonOne)THEN
+  IF(ABS(eta(1)).LT.ClipHit)THEN
+    ! as paper ramsay
+    xi(1)=ComputeXi(a1,a2,eta(1))
+
+    !IF(ABS(xi(1)).LT.hitepsbi)THEN
     !IF(ABS(xi(1)).LT.epsilonOne)THEN
+    IF(ABS(xi(1)).LT.Cliphit)THEN
       t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
       IF((t(1).LT.-epsilontol).OR.(t(1).GT.lengthPartTrajectory))THEN
         t(1)=-1.0
@@ -1553,51 +1827,25 @@ ELSE
         t(1)=t(1)!/lengthPartTrajectory
       END IF
     END IF
-  END IF
-  !IF(iPart.EQ.40) THEN
-!  IF((iPart.EQ.40).AND.(iter.GT.68))THEN
+  END IF ! eta(1)
+
+!  IF((iPart.EQ.238).AND.(iter.GE.182))THEN
 !    IPWRITE(*,*) 'eta',eta(2)
-!    IF(eta(2).GT.0.)THEN
-!      eta(2)=eta(2)+1e-3
-!    ELSE
-!      eta(2)=eta(2)-1e-3
-!    END IF
-!    xi(2)=eta(2)*(a2(1)-a1(1))+a2(2)-a1(2)
-!    xi(2)=1.0/xi(2)
-!    xi(2)=(eta(2)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(2)
+!    xi(2)=ComputeXi(a1,a2,eta(2))
 !    IPWRITE(*,*) 'xi',xi(2)
 !    t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
 !    IPWRITE(*,*) 'a/l',t(2)/lengthPartTrajectory
 !  END IF
 
-  IF(ABS(eta(2)).LT.hitepsbi)THEN
-!    IF(eta(2).GT.0.)THEN
-!      eta(2)=eta(2)+5e-4
-!    ELSE
-!      eta(2)=eta(2)-5e-4
-!    END IF
+ !IF(ABS(eta(2)).LT.hitepsbi)THEN
+ !IF(ABS(eta(2)).LT.epsilonOne)THEN
+ IF(ABS(eta(2)).LT.ClipHit)THEN
+    ! as paper ramsay
+    xi(2)=ComputeXi(a1,a2,eta(2))
 
-!  IF((iPart.EQ.40).AND.(iter.GT.68))THEN
-!    IPWRITE(*,*) 'eta',eta(2)
-!    xi(2)=eta(2)*(a2(1)-a1(1))+a2(2)-a1(2)
-!    xi(2)=1.0/xi(2)
-!    xi(2)=(eta(2)*(a1(3)-a2(3))+a1(4)-a2(4))*xi(2)
-!    IPWRITE(*,*) 'xi',xi(2)
-!    !IPWRITE(*,*) 'displacement',DOT_PRODUCT(BiLinearCoeff(:,1),BiLinearCoeff(:,1))
-!    !IPWRITE(*,*) 'v1',DOT_PRODUCT(BiLinearCoeff(:,2),BiLinearCoeff(:,2))
-!    !IPWRITE(*,*) 'v2',DOT_PRODUCT(BiLinearCoeff(:,3),BiLinearCoeff(:,3))
-!    !IPWRITE(*,*) 'sideid',sideid
-!    t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
-!    IPWRITE(*,*) 'a/l',t(2)/lengthPartTrajectory
-!  END IF
-
-
-  !IF(ABS(eta(2)).LT.epsilonOne)THEN
-    xi(2)=eta(2)*a2(1)-eta(2)*a1(1)+a2(2)-a1(2)
-    xi(2)=1.0/xi(2)
-    xi(2)=(eta(2)*a1(3)-eta(2)*a2(3)+a1(4)-a2(4))*xi(2)
-    IF(ABS(xi(2)).LT.hitepsbi)THEN
+    !IF(ABS(xi(2)).LT.hitepsbi)THEN
     !IF(ABS(xi(2)).LT.epsilonOne)THEN
+    IF(ABS(xi(2)).LT.ClipHit)THEN
       t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
       IF((t(2).LT.-epsilontol).OR.(t(2).GT.lengthPartTrajectory))THEN
         !print*,'here'
@@ -1663,7 +1911,8 @@ IF(radicant.LT.0.)THEN
   nRoot=0
   R1=0.
   R2=0.
-ELSE IF (radicant.LT.epsMach)THEN
+!ELSE IF (radicant.LT.epsMach)THEN
+ELSE IF (radicant.EQ.0.)THEN
   nRoot=1
   R1=-0.5*B/A
   R2=0.
@@ -1710,6 +1959,7 @@ END SUBROUTINE QuatricSolver
 FUNCTION ComputeSurfaceDistance2(BiLinearCoeff,xi,eta,PartTrajectory,iPart)
 !================================================================================================================================
 ! compute the required vector length to intersection
+! ramsey paper algorithm 3.4
 !================================================================================================================================
 USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol
 USE MOD_Particle_Vars,            ONLY:PartState,LastPartPos
@@ -1729,20 +1979,62 @@ REAL                                 :: ComputeSurfaceDistance2
 REAL                                 :: t
 !================================================================================================================================
 
-IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GT.ABS(PartTrajectory(3))))THEN
+
+IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(3))))THEN
   t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
-  t = t/ PartTrajectory(1)!-epsilontol 
+  t = t/ PartTrajectory(1)-epsilontol 
 ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
   t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
-  t = t/ PartTrajectory(2)!-epsilontol 
+  t = t/ PartTrajectory(2)-epsilontol 
 ELSE
   t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
-  t = t/ PartTrajectory(3)!-epsilontol 
+  t = t/ PartTrajectory(3)-epsilontol 
 END IF
+
+!IF((ABS(PartTrajectory(1)).GE.ABS(PartTrajectory(2))).AND.(ABS(PartTrajectory(1)).GT.ABS(PartTrajectory(3))))THEN
+!  t =xi*eta*BiLinearCoeff(1,1)+xi*BilinearCoeff(1,2)+eta*BilinearCoeff(1,3)+BilinearCoeff(1,4) -lastPartPos(iPart,1)
+!  t = t/ PartTrajectory(1)!-epsilontol 
+!ELSE IF(ABS(PartTrajectory(2)).GE.ABS(PartTrajectory(3)))THEN
+!  t =xi*eta*BilinearCoeff(2,1)+xi*BilinearCoeff(2,2)+eta*BilinearCoeff(2,3)+BilinearCoeff(2,4) -lastPartPos(iPart,2)
+!  t = t/ PartTrajectory(2)!-epsilontol 
+!ELSE
+!  t =xi*eta*BilinearCoeff(3,1)+xi*BilinearCoeff(3,2)+eta*BilinearCoeff(3,3)+BilinearCoeff(3,4) -lastPartPos(iPart,3)
+!  t = t/ PartTrajectory(3)!-epsilontol 
+!END IF
 
 ComputeSurfaceDistance2=t
 
 END FUNCTION ComputeSurfaceDistance2
+
+
+FUNCTION ComputeXi(A1,A2,eta)
+!================================================================================================================================
+! compute the xi value with algorithm 3.3 of Ramsey paper
+!================================================================================================================================
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,DIMENSION(4),INTENT(IN)         :: A1,A2
+REAL,INTENT(IN)                      :: eta
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                                 :: ComputeXi
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: a,b
+!================================================================================================================================
+
+a=eta*A2(1)+A2(2)
+b=eta*(A2(1)-A1(1))+A2(2)-A1(2)
+
+IF(ABS(B).GE.ABS(A))THEN
+  ComputeXi=(eta*(A1(3)-A2(3))+A1(4)-A2(4))/b
+ELSE
+  ComputeXi=(-eta*A2(3)-A2(4))/a
+END IF
+
+END FUNCTION ComputeXi
 
 
 END MODULE MOD_Particle_Intersection
