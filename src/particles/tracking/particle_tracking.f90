@@ -53,7 +53,7 @@ USE MOD_Particle_surfaces_vars,      ONLY:ntracks
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap
 USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
                                          ,ComputePlanarIntersectionBezier,PartInElemCheck
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
 #ifdef MPI
 USE MOD_Mesh_Vars,                   ONLY:BC,nSides
 #endif /*MPI*/
@@ -119,11 +119,17 @@ DO iPart=1,PDM%ParticleVecLength
           xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
           xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
           xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
-          CALL ComputeBiLinearIntersectionSuperSampled2(isHit,xNodes &
-                                                              ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+          !CALL ComputeBiLinearIntersectionSuperSampled2(isHit,xNodes &
+          !                                                    ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+          !                                                                                  ,xi (ilocSide)      &
+          !                                                                                  ,eta(ilocSide)      &
+          !                                                                                  ,iPart,flip,SideID)
+          CALL ComputeBiLinearIntersectionRobust(isHit,xNodes &
+                                                ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                             ,xi (ilocSide)      &
                                                                                             ,eta(ilocSide)      &
                                                                                             ,iPart,flip,SideID)
+
           !CALL ComputeBiLinearIntersectionSuperSampled2(isHit,[BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
           !                                                    ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
           !                                                    ,BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &

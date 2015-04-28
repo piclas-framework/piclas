@@ -30,9 +30,14 @@ INTERFACE ComputePlanarInterSectionBezierRobust
   MODULE PROCEDURE ComputePlanarInterSectionBezierRobust
 END INTERFACE
 
+INTERFACE ComputeBilinearIntersectionRobust
+  MODULE PROCEDURE ComputeBilinearIntersectionRobust
+END INTERFACE
+
 
 PUBLIC::ComputeBezierIntersection
 PUBLIC::ComputeBilinearIntersectionSuperSampled2
+PUBLIC::ComputeBilinearIntersectionRobust
 PUBLIC::ComputePlanarInterSectionBezier
 PUBLIC::ComputePlanarInterSectionBezierRobust
 PUBLIC::PartInElemCheck
@@ -1886,6 +1891,233 @@ ELSE
 END IF ! nRoot
 
 END SUBROUTINE ComputeBiLinearIntersectionSuperSampled2
+
+
+SUBROUTINE ComputeBiLinearIntersectionRobust(isHit,xNodes,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
+                                                   ,iPart,flip,SideID)
+!===================================================================================================================================
+! Compute the Intersection with planar surface
+! robust version
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Mesh_Vars,               ONLY:nBCSides
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,epsilonOne,hitepsbi,cliphit
+USE MOD_Particle_Vars,ONLY:PartState
+USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier
+!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+USE MOD_Timedisc_vars,           ONLY: iter
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+REAL,INTENT(IN)                   :: lengthPartTrajectory
+REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
+INTEGER,INTENT(IN)                :: iPart,SideID,flip
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                  :: alpha,xitild,etatild
+LOGICAL,INTENT(OUT)               :: isHit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(4)                 :: a1,a2
+REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
+REAL                              :: A,B,C
+REAL                              :: h1,h2,h3
+REAL                              :: xi(2),eta(2),t(2), q1(3),xInter(3),normVec(3)
+INTEGER                           :: nInter,nRoot
+!===================================================================================================================================
+
+! set alpha to minus one // no interesction
+alpha=-1.0
+xitild=-2.0
+etatild=-2.0
+isHit=.FALSE.
+
+! compute initial vectors
+BiLinearCoeff(:,1) = xNodes(:,1)-xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
+BiLinearCoeff(:,2) =-xNodes(:,1)+xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
+BiLinearCoeff(:,3) =-xNodes(:,1)-xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
+BiLinearCoeff(:,4) = xNodes(:,1)+xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
+BiLinearCoeff= 0.25*BiLinearCoeff
+
+! compute product with particle trajectory
+a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
+a1(2)= BilinearCoeff(1,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(1)
+a1(3)= BilinearCoeff(1,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(1)
+a1(4)=(BilinearCoeff(1,4)-LastPartPos(iPart,1))*PartTrajectory(3) &
+     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(1)
+
+a2(1)= BilinearCoeff(2,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(2)
+a2(2)= BilinearCoeff(2,2)*PartTrajectory(3) - BilinearCoeff(3,2)*PartTrajectory(2)
+a2(3)= BilinearCoeff(2,3)*PartTrajectory(3) - BilinearCoeff(3,3)*PartTrajectory(2)
+a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
+     -(BilinearCoeff(3,4)-LastPartPos(iPart,3))*PartTrajectory(2)
+
+A = a2(1)*a1(3)-a1(1)*a2(3)
+B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
+C = a1(4)*a2(2)-a1(2)*a2(4)
+!print*,'A,B,C', A,B,C
+!IF((iPart.EQ.238).AND.(iter.GT.78))THEN
+!  IPWRITE(*,*) 'a,b,c',a,b,c
+!END IF
+
+CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
+
+!IF((iPart.EQ.238).AND.(iter.GE.182))  IPWRITE(*,*) 'nroots',nroot
+IF(nRoot.EQ.0)THEN
+  RETURN
+END IF
+
+IF (nRoot.EQ.1) THEN
+!  IF((iPart.EQ.238).AND.(iter.GE.182))THEN
+!    IPWRITE(*,*) 'eta',eta(1)
+!    IPWRITE(*,*) 'xi',xi(1)
+!    IPWRITE(*,*) 'intetrsect', xi(1)*eta(1)*BiLinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)&
+!                               +eta(1)*BilinearCoeff(:,3)+BilinearCoeff(:,4)
+!    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
+!  END IF
+  xi(1)=ComputeXi(a1,a2,eta(1))
+  t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+  IF(flip.EQ.0)THEN
+    normVec=CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
+  ELSE
+    normVec=-CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
+  END IF
+  !xInter=LastpartPos(iPart,1:3)+t(1)*PartTrajactory
+  ! check if lastpartpos is inside of the element
+  IF(DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0)THEN
+    ! or not null??
+    alpha=0.
+    isHit=.TRUE.
+    RETURN
+  END IF
+  !IF(ABS(eta(1)).LT.epsilonOne)THEN
+  IF(ABS(eta(1)).LT.ClipHit)THEN
+  !IF(ABS(eta(1)).LT.hitepsbi)THEN
+    ! as paper ramsay
+    xi(1)=ComputeXi(a1,a2,eta(1))
+    IF(ABS(xi(1)).LT.ClipHit)THEN
+      IF((t(1).GE.-epsilontol).AND.(t(1).LE.lengthPartTrajectory))THEN
+        alpha=t(1)!/LengthPartTrajectory
+        xitild=xi(1)
+        etatild=eta(1)
+        isHit=.TRUE.
+        RETURN
+      ELSE ! t is not in range
+        RETURN
+      END IF
+    ELSE ! xi not in range
+      RETURN
+    END IF ! xi .lt. epsilonOne
+  ELSE ! eta not in reange
+    RETURN 
+  END IF ! eta .lt. epsilonOne
+ELSE 
+  nInter=0
+  t=-1.
+!  IF((iPart.EQ.238).AND.(iter.GE.182))THEN
+!    IPWRITE(*,*) 'radicant', B*B-4.0*A*C
+!    IPWRITE(*,*) 'partpos',PartState(iPart,1:3)
+!    IPWRITE(*,*) 'eta',eta(1)
+!    xi(1)=ComputeXi(a1,a2,eta(1))
+!    IPWRITE(*,*) 'xi',xi(1)
+!    t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+!    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
+!  END IF
+
+  !IF(ABS(eta(1)).LT.hitepsbi)THEN
+  !IF(ABS(eta(1)).LT.epsilonOne)THEN
+  xi(1)=ComputeXi(a1,a2,eta(1))
+  t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
+  IF(flip.EQ.0)THEN
+    normVec=CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
+  ELSE
+    normVec=-CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
+  END IF
+  !xInter=LastpartPos(iPart,1:3)+t(1)*PartTrajactory
+  ! check if lastpartpos is inside of the element
+  IF(DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0)THEN
+    ! or not null??
+    alpha=0.
+    isHit=.TRUE.
+    RETURN
+  END IF
+
+  IF(ABS(eta(1)).LT.ClipHit)THEN
+    ! as paper ramsay
+    IF(ABS(xi(1)).LT.Cliphit)THEN
+      IF((t(1).LT.-epsilontol).OR.(t(1).GT.lengthPartTrajectory))THEN
+        t(1)=-1.0
+      ELSE
+        nInter=nInter+1
+        t(1)=t(1)!/lengthPartTrajectory
+      END IF
+    END IF
+  END IF ! eta(1)
+
+  xi(2)=ComputeXi(a1,a2,eta(2))
+  t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
+  IF(flip.EQ.0)THEN
+    normVec=CalcBiLinearNormVecBezier(xi(2),eta(2),SideID)
+  ELSE
+    normVec=-CalcBiLinearNormVecBezier(xi(2),eta(2),SideID)
+  END IF
+  !xInter=LastpartPos(iPart,1:3)+t(1)*PartTrajactory
+  ! check if lastpartpos is inside of the element
+  IF(DOT_PRODUCT(t(2)*PartTrajectory,NormVec).LT.0)THEN
+    ! or not null??
+    alpha=0.
+    isHit=.TRUE.
+    RETURN
+  END IF
+
+ !IF(ABS(eta(2)).LT.epsilonOne)THEN
+ IF(ABS(eta(2)).LT.ClipHit)THEN
+    !IF(ABS(xi(2)).LT.epsilonOne)THEN
+    IF(ABS(xi(2)).LT.ClipHit)THEN
+      IF((t(2).LT.-epsilontol).OR.(t(2).GT.lengthPartTrajectory))THEN
+        !print*,'here'
+        t(2)=-1.0
+      ELSE
+        !print*,'why'
+        t(2)=t(2)!/lengthPartTrajectory
+        nInter=nInter+1
+      END IF
+    END IF
+  END IF
+  IF(nInter.EQ.0) RETURN
+  isHit=.TRUE.
+  IF(SideID.LE.nBCSides)THEN
+    IF(ABS(t(1)).LT.ABS(t(2)))THEN
+      alpha=t(1)
+      xitild=xi(1)
+      etatild=eta(1)
+    ELSE
+      alpha=t(2)
+      xitild=xi(2)
+      etatild=eta(2)
+    END IF
+  ELSE ! no BC Side
+    ! if two intersections, return, particle re-enters element
+    IF(nInter.EQ.2) RETURN
+    IF(ABS(t(1)).LT.ABS(t(2)))THEN
+      alpha=t(1)
+      xitild=xi(1)
+      etatild=eta(1)
+    ELSE
+      alpha=t(2)
+      xitild=xi(2)
+      etatild=eta(2)
+    END IF
+  END IF ! SideID.LT.nCBSides
+ !print*,'xi,eta,t',xitild,etatild,t(2)
+END IF ! nRoot
+
+END SUBROUTINE ComputeBiLinearIntersectionRobust
 
 
 SUBROUTINE QuatricSolver(A,B,C,nRoot,r1,r2)
