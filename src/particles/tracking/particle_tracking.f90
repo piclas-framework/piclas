@@ -199,7 +199,7 @@ DO iPart=1,PDM%ParticleVecLength
         !print*,'old elem',ElemID
         !print*,'ipart,loc',ipart,localpha
         PEM%Element(iPart)=ElemID
-        IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,debug=.TRUE.)
+        IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,debug=.TRUE.)
 !        print*,'new elem',PEM%Element(ipart)
         PartIsDone=.TRUE.
         IF(.NOT.PDM%ParticleInside(iPart))THEN

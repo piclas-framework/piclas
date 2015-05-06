@@ -403,9 +403,9 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
       COUNTER = COUNTER + 1
       !CALL SingleParticleToExactElement(i)
       IF(DoRefMapping)THEN
-        CALL SingleParticleToExactElement(i)
+        CALL SingleParticleToExactElement(i,doHALO=.FALSE.)
       ELSE
-        CALL SingleParticleToExactElementNoMap(i)
+        CALL SingleParticleToExactElementNoMap(i,doHALO=.FALSE.)
       END IF
       IF (.NOT.PDM%ParticleInside(i)) THEN
         COUNTER2 = COUNTER2 + 1
@@ -470,9 +470,9 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
       PartState(CurrentPartNum,1:6) = RecBuff(COUNTER+1:COUNTER+6)
       PDM%ParticleInside(CurrentPartNum) = .true.
       IF(DoRefMapping)THEN
-        CALL SingleParticleToExactElement(CurrentPartNum)
+        CALL SingleParticleToExactElement(CurrentPartNum,doHALO=.FALSE.)
       ELSE
-        CALL SingleParticleToExactElementNoMap(CurrentPartNum)
+        CALL SingleParticleToExactElementNoMap(CurrentPartNum,doHALO=.FALSE.)
       END IF
       !CALL SingleParticleToExactElement(CurrentPartNum)
       IF (PDM%ParticleInside(CurrentPartNum)) THEN

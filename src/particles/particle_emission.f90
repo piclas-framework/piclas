@@ -1020,9 +1020,9 @@ IF (mode.EQ.1) THEN
             PartState(ParticleIndexNbr,1:3) = PartState(j,1:3)
             PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
             IF(DoRefMapping)THEN
-              CALL SingleParticleToExactElement(ParticleIndexNbr)
+              CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.)
             ELSE
-              CALL SingleParticleToExactElementNoMap(ParticleIndexNbr)
+              CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
             END IF
             IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
                mySumOfMatchedParticles = mySumOfMatchedParticles + 1
@@ -1306,9 +1306,9 @@ ELSE ! mode.NE.1:
        PartState(ParticleIndexNbr,1:DimSend) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
        PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
        IF(DoRefMapping)THEN
-         CALL SingleParticleToExactElement(ParticleIndexNbr)
+         CALL SingleParticleToExactElement(ParticleIndexNbr,doHALO=.FALSE.)
        ELSE
-         CALL SingleParticleToExactElementNoMap(ParticleIndexNbr)
+         CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)
        END IF
        !CALL SingleParticleToExactElement(ParticleIndexNbr)
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
