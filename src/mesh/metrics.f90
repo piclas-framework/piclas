@@ -41,7 +41,7 @@ PUBLIC::CalcMetrics
 
 CONTAINS
 
-SUBROUTINE CalcMetrics()!XCL_NGeo)
+SUBROUTINE CalcMetrics(NodeCoords)
 !===================================================================================================================================
 ! calculate the Volume Metric terms
 !           Metrics_fTilde(n=1:3) 
@@ -68,7 +68,7 @@ SUBROUTINE CalcMetrics()!XCL_NGeo)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,               ONLY:NGeo,dXCL_NGeo,XCL_NGeo
+USE MOD_Mesh_Vars,               ONLY:NGeo,dXCL_NGeo,XCL_NGeo,Vdm_NGeo_CLNGeo
 USE MOD_Mesh_Vars,               ONLY:Vdm_CLNGeo_GaussN,Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
 USE MOD_Mesh_Vars,               ONLY:DCL_NGeo,DCL_N
 USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
@@ -84,6 +84,7 @@ USE MOD_ChangeBasis,        ONLY:changeBasis3D
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+REAL,INTENT(IN)    :: NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -114,6 +115,8 @@ Metrics_hTilde=0.
 Cyclic=(/1,2,3,1,2/)
 ! Outer loop over all elements
 DO iElem=1,nElems
+  !from equidistant to CL, save in global array XCL_NGEO for particle tracking
+  CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_NGeo_CLNGeo,NodeCoords(:,:,:,:,iElem),XCL_NGeo(:,:,:,:,iElem))
   XCL_NGeo_loc(:,:,:,:)=XCL_NGeo(:,:,:,:,iElem)
   !1.a) Jacobi Matrix of d/dxi_dd(X_nn): dXCL_NGeo(dd,nn,i,j,k,iElem)) 
   R_CL_N=0.
@@ -168,7 +171,7 @@ DO iElem=1,nElems
   scaledJac(1)=MINVAL(detJacCL_N(1,:,:,:))/MAXVAL(detJacCL_N(1,:,:,:))
   scaledJac(2)=MINVAL(detJacGauss_N(1,:,:,:))/MAXVAL(detJacGauss_N(1,:,:,:))
   IF(ANY(scaledJac.LT.0.01)) THEN
-    WRITE(Unit_StdOut,*) 'Too small scaled Jacobians found (CL/Gauss):', scaledJac 
+    WRITE(Unit_StdOut,*) 'Too small scaled Jacobians found (Jac/element):', scaledJac,iElem
     CALL abort(__STAMP__,'Scaled Jacobian lower then tolerance!',iElem)
   END IF
   ! check for negative Jacobians
@@ -297,8 +300,6 @@ DO iElem=1,nElems
   CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_CLN_GaussN,JaCL_N(3,:,:,:,:),Metrics_hTilde(:,:,:,:,iElem))
   CALL CalcSurfMetrics(JaCL_N,XCL_N,iElem)
 #ifdef PARTICLES
-  ! get supersampled surfaces informations
-!  CALL GetSuperSampledSurface  (XCL_NGeo(:,:,:,:,iElem),iElem)
   CALL GetBezierControlPoints3D(XCL_NGeo(:,:,:,:,iElem),iElem)
 #endif /*PARTICLES*/
 END DO !iElem=1,nElems

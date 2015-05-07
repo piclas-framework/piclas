@@ -91,10 +91,10 @@ CALL InitPML()
 CALL InitDG()
 CALL InitFilter()
 CALL InitTimeDisc()
+CALL InitParticleAnalyze()
 #ifdef PARTICLES
 CALL InitParticles()
 !CALL GetSideType
-CALL InitParticleAnalyze()
 #endif
 CALL InitAnalyze()
 CALL InitRecordPoints()

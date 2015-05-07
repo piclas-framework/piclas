@@ -66,6 +66,7 @@
 ! Entry position in BC
 #define BC_TYPE  1
 #define BC_STATE 2
+#define BC_ALPHA 3
 
 !#define DEBUGMESH
 

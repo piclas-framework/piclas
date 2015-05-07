@@ -67,7 +67,7 @@ DO iElem=1,nElems
   DO iLocSide=1,6
     SideID=ElemToSide(E2S_SIDE_ID,XI_MINUS,iElem)
      bctype_loc=0
-    IF(SideID.LT.nBCSides) bctype_loc=BC(SideID)
+    IF(SideID.LT.nBCSides) bctype_loc=REAL(BC(SideID))
     SELECT CASE(iLocSide)
     CASE(XI_MINUS)
       debugVisu(2,0,:,:,iElem)=REAL(SideID)

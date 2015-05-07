@@ -48,11 +48,18 @@ REAL,ALLOCATABLE :: TangVec1(:,:,:,:)
 REAL,ALLOCATABLE :: TangVec2(:,:,:,:)
 REAL,ALLOCATABLE :: SurfElem(:,:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,ALLOCATABLE :: ElemToSide(:,:,:)
-INTEGER,ALLOCATABLE :: SideToElem(:,:)
-INTEGER,ALLOCATABLE :: SideToElem2(:,:)
-INTEGER,ALLOCATABLE :: BC(:)
-INTEGER,ALLOCATABLE :: BoundaryType(:,:)
+INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) ! SideID    = ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
+                                         ! flip      = ElemToSide(E2S_FLIP,ZETA_PLUS,iElem)
+INTEGER,ALLOCATABLE :: SideToElem(:,:)   ! ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+                                         ! NB_ElemID = SideToElem(S2E_NB_ELEM_ID,SideID)
+                                         ! locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
+INTEGER,ALLOCATABLE :: SideToElem2(:,:)  ! ElemID    = SideToElem2(S2E2_ELEM_ID,SideID)  
+                                         ! SideID    = SideToElem2(S2E2_SIDE_ID,SideID)  
+                                         ! locSideID = SideToElem2(S2E2_LOC_SIDE_ID,SideID)
+                                         ! flip      = SideToElem2(S2E2_FLIP,SideID)
+INTEGER,ALLOCATABLE :: BC(:)             ! BCIndex   = BC(SideID), 1:nBCSides
+INTEGER,ALLOCATABLE :: BoundaryType(:,:) ! BCType    = BoundaryType(BC(SideID),BC_TYPE)
+                                         ! BCState   = BoundaryType(BC(SideID),BC_STATE)
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER          :: nGlobalElems=0      ! number of elements in mesh
 INTEGER          :: nElems=0            ! number of local elements
@@ -68,7 +75,7 @@ INTEGER          :: SideID_minus_lower  ! lower side ID of array U_minus/GradUx_
 INTEGER          :: SideID_minus_upper  ! upper side ID of array U_minus/GradUx_minus...
 INTEGER          :: SideID_plus_lower   ! lower side ID of array U_plus/GradUx_plus...
 INTEGER          :: SideID_plus_upper   ! upper side ID of array U_plus/GradUx_plus...
-INTEGER          :: nNodes=0            ! SIZE of Nodes pointer array, number of unique nodes
+INTEGER          :: nNodes=0            ! total number of nodes in mesh nElems*(NGeo+1)**3
 INTEGER          :: nBCs=0              ! number of BCs in mesh
 INTEGER          :: nUserBCs=0          ! number of BC in inifile
 INTEGER          :: MeshType            !for DEBUGMESH
@@ -110,9 +117,6 @@ TYPE tElem
   INTEGER                      :: ind             ! global element index
   INTEGER                      :: Type            ! element type (linear/bilinear/curved)
   INTEGER                      :: Zone
-  INTEGER                      :: nCurvedNodes 
-  TYPE(tNodePtr),POINTER       :: Node(:)
-  TYPE(tNodePtr),POINTER       :: CurvedNode(:)
   TYPE(tSidePtr),POINTER       :: Side(:)
 END TYPE tElem
 
@@ -123,7 +127,6 @@ TYPE tSide
   INTEGER                      :: NbProc 
   INTEGER                      :: BCindex         ! index in BoundaryType array! 
   INTEGER                      :: flip 
-  TYPE(tNodePtr),POINTER       :: Node(:)
   TYPE(tElem),POINTER          :: Elem
   TYPE(tSide),POINTER          :: connection
 END TYPE tSide
@@ -134,7 +137,6 @@ TYPE tNode
 END TYPE tNode
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE(tElemPtr),POINTER         :: Elems(:)
-TYPE(tNodePtr),POINTER         :: Nodes(:)
 TYPE(tElem),POINTER            :: aElem
 TYPE(tSide),POINTER            :: aSide,bSide
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -169,13 +171,8 @@ IMPLICIT NONE
 TYPE(tSide),POINTER :: getNewSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iNode
 !===================================================================================================================================
 ALLOCATE(getNewSide)
-ALLOCATE(getNewSide%Node(4))
-DO iNode=1,4
-  NULLIFY(getNewSide%Node(iNode)%np)
-END DO
 NULLIFY(getNewSide%Elem)
 NULLIFY(getNewSide%connection)
 getNewSide%sideID=0
@@ -200,71 +197,18 @@ IMPLICIT NONE
 TYPE(tElem),POINTER :: getNewElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iNode,iLocSide
+INTEGER             :: iLocSide
 !===================================================================================================================================
 ALLOCATE(getNewElem)
-ALLOCATE(getNewElem%Node(8))
-DO iNode=1,8
-  NULLIFY(getNewElem%Node(iNode)%np)
-END DO
 ALLOCATE(getNewElem%Side(6))
 DO iLocSide=1,6
   getNewElem%Side(iLocSide)%sp=>getNewSide()
 END DO
-NULLIFY(getNewElem%CurvedNode)
 getNewElem%ind=0
 getNewElem%Zone=0
 getNewElem%Type=0
-getNewElem%nCurvedNodes=0
 END FUNCTION GETNEWELEM
 
-
-SUBROUTINE createSides(Elem)
-!===================================================================================================================================
-! if element nodes already assigned, create Sides using CGNS standard
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-TYPE(tElem),POINTER :: Elem
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-!side 1
-Elem%Side(1)%sp%Node(1)%np=>Elem%Node(1)%np
-Elem%Side(1)%sp%Node(2)%np=>Elem%Node(4)%np
-Elem%Side(1)%sp%Node(3)%np=>Elem%Node(3)%np
-Elem%Side(1)%sp%Node(4)%np=>Elem%Node(2)%np
-!side 2                                    
-Elem%Side(2)%sp%Node(1)%np=>Elem%Node(1)%np
-Elem%Side(2)%sp%Node(2)%np=>Elem%Node(2)%np
-Elem%Side(2)%sp%Node(3)%np=>Elem%Node(6)%np
-Elem%Side(2)%sp%Node(4)%np=>Elem%Node(5)%np
-!side 3                                    
-Elem%Side(3)%sp%Node(1)%np=>Elem%Node(2)%np
-Elem%Side(3)%sp%Node(2)%np=>Elem%Node(3)%np
-Elem%Side(3)%sp%Node(3)%np=>Elem%Node(7)%np
-Elem%Side(3)%sp%Node(4)%np=>Elem%Node(6)%np
-!side 4                                    
-Elem%Side(4)%sp%Node(1)%np=>Elem%Node(3)%np
-Elem%Side(4)%sp%Node(2)%np=>Elem%Node(4)%np
-Elem%Side(4)%sp%Node(3)%np=>Elem%Node(8)%np
-Elem%Side(4)%sp%Node(4)%np=>Elem%Node(7)%np
-!side 5                                    
-Elem%Side(5)%sp%Node(1)%np=>Elem%Node(1)%np
-Elem%Side(5)%sp%Node(2)%np=>Elem%Node(5)%np
-Elem%Side(5)%sp%Node(3)%np=>Elem%Node(8)%np
-Elem%Side(5)%sp%Node(4)%np=>Elem%Node(4)%np
-!side 6                                                
-Elem%Side(6)%sp%Node(1)%np=>Elem%Node(5)%np
-Elem%Side(6)%sp%Node(2)%np=>Elem%Node(6)%np
-Elem%Side(6)%sp%Node(3)%np=>Elem%Node(7)%np
-Elem%Side(6)%sp%Node(4)%np=>Elem%Node(8)%np
-END SUBROUTINE createSides
 
 
 SUBROUTINE deleteMeshPointer()
@@ -281,41 +225,20 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER       :: FirstElemInd,LastElemInd
-INTEGER       :: iElem,iLocSide,iNode,nAssocNodes
+INTEGER       :: iElem,iLocSide
 !===================================================================================================================================
 FirstElemInd = offsetElem+1
 LastElemInd  = offsetElem+nElems
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
-  DO iNode=1,8
-    NULLIFY(aElem%Node(iNode)%np)
-  END DO
-  DEALLOCATE(aElem%Node)
-  DO iNode=1,aElem%nCurvedNodes
-    NULLIFY(aElem%curvedNode(iNode)%np)
-  END DO
-  IF(ASSOCIATED(aElem%CurvedNode)) DEALLOCATE(aElem%curvedNode)
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
-    DO iNode=1,4
-      NULLIFY(aSide%Node(iNode)%np)
-    END DO
-    DEALLOCATE(aSide%Node)
     DEALLOCATE(aSide)
   END DO
   DEALLOCATE(aElem%Side)
   DEALLOCATE(aElem)
 END DO
 DEALLOCATE(Elems)
-nAssocNodes=0
-DO iNode=1,nNodes
-  IF(ASSOCIATED(Nodes(iNode)%np))THEN
-    DEALLOCATE(Nodes(iNode)%np)
-    nAssocNodes=nAssocNodes+1
-  END IF
-END DO
-!WRITE(*,*)'DEBUG,nAssocNodes',nAssocNodes
-DEALLOCATE(Nodes)
 END SUBROUTINE deleteMeshPointer
 
 

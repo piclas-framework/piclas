@@ -16,6 +16,10 @@ SAVE
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part
 ! ----------------------------------------------------------------------------------------------------------------------------------
+INTERFACE INV
+   MODULE PROCEDURE INV
+END INTERFACE
+
 INTERFACE BuildLegendreVdm
    MODULE PROCEDURE BuildLegendreVdm
 END INTERFACE
@@ -70,7 +74,7 @@ INTERFACE LagrangeInterpolationPolys
    MODULE PROCEDURE LagrangeInterpolationPolys
 END INTERFACE
 
-
+PUBLIC::INV
 PUBLIC::BuildLegendreVdm
 #ifdef PARTICLES
 PUBLIC::BuildBezierVdm
@@ -92,6 +96,49 @@ PUBLIC::LagrangeInterpolationPolys
 
 
 CONTAINS
+
+FUNCTION INV(A) RESULT(AINV)
+!===================================================================================================================================
+! Computes matrix inverse using lapack
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)  :: A(:,:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL             :: AINV(SIZE(A,1),SIZE(A,2))
+!-----------------------------------------------------------------------------------------------------------------------------------
+! External procedures defined in LAPACK
+EXTERNAL DGETRF
+EXTERNAL DGETRI
+! LOCAL VARIABLES 
+REAL    :: work(SIZE(A,1))  ! work array for lapack
+INTEGER :: ipiv(SIZE(A,1))  ! pivot indices
+INTEGER :: n,info
+!===================================================================================================================================
+! Store A in Ainv to prevent it from being overwritten by LAPACK
+Ainv = A
+n = size(A,1)
+
+! DGETRF computes an LU factorization of a general M-by-N matrix A
+! using partial pivoting with row interchanges.
+CALL DGETRF(n, n, Ainv, n, ipiv, info)
+
+IF(info.NE.0)THEN
+   STOP 'Matrix is numerically singular!'
+END IF
+
+! DGETRI computes the inverse of a matrix using the LU factorization
+! computed by DGETRF.
+CALL DGETRI(n, Ainv, n, ipiv, work, n, info)
+
+IF(info.NE.0)THEN
+   STOP 'Matrix inversion failed!'
+END IF
+END FUNCTION INV
 
 #ifdef PARTICLES
 SUBROUTINE BuildBernSteinVdm(N_In,xi_In)

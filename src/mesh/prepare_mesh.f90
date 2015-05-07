@@ -21,15 +21,7 @@ INTERFACE fillMeshInfo
   MODULE PROCEDURE fillMeshInfo
 END INTERFACE
 
-INTERFACE fillElemGeo
-  MODULE PROCEDURE fillElemGeo
-END INTERFACE
-
-INTERFACE getVolumeMapping
-  MODULE PROCEDURE getVolumeMapping
-END INTERFACE
-
-PUBLIC::setLocalSideIDs,fillMeshInfo,fillElemGeo,getVolumeMapping
+PUBLIC::setLocalSideIDs,fillMeshInfo
 
 #ifdef MPI
 INTERFACE exchangeFlip
@@ -49,14 +41,13 @@ SUBROUTINE setLocalSideIDs()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,  ONLY: nElems,nInnerSides,nBCSides,offsetElem
+USE MOD_Mesh_Vars,  ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
 USE MOD_Mesh_Vars,  ONLY: aElem,aSide
-USE MOD_Mesh_Vars,  ONLY: Elems,nMPISides_MINE,nMPISides_YOUR
+USE MOD_Mesh_Vars,  ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 #ifdef MPI
-USE MOD_Mesh_Vars,  ONLY: nSides
+USE MOD_ReadInTools,ONLY: GETLOGICAL
 USE MOD_MPI_Vars,   ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
 USE MOD_MPI_Vars,   ONLY: offsetElemMPI,offsetMPISides_MINE,offsetMPISides_YOUR
-USE MOD_Mesh_ReadIn,ONLY: Qsort1Int,INVMAP
 #endif
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -68,13 +59,16 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER   :: iElem,FirstElemInd,LastElemInd
 INTEGER   :: iLocSide,iSide,iInnerSide,iBCSide
+INTEGER   :: i,j
+INTEGER   :: PeriodicBCMap(nBCs)       !connected periodic BCs
 #ifdef MPI
 INTEGER               :: iNbProc,ioUnit
+INTEGER               :: ProcInfo(4),nNBmax      !for output only
 INTEGER,ALLOCATABLE   :: SideIDMap(:)
-CHARACTER(LEN=10)     :: formatstr
 INTEGER,ALLOCATABLE   :: NBinfo(:,:),NBinfo_glob(:,:,:),nNBProcs_glob(:),Procinfo_glob(:,:),tmparray(:,:)  !for output only
 REAL,ALLOCATABLE      :: tmpreal(:,:)
-INTEGER               :: i,j,ProcInfo(4),nNBmax      !for output only
+CHARACTER(LEN=10)     :: formatstr
+LOGICAL               :: writePartitionInfo
 #endif
 !===================================================================================================================================
 FirstElemInd= offsetElem+1
@@ -86,11 +80,31 @@ LastElemInd = offsetElem+nElems
 ! 3. MPI sides
 ! MPI Sides are not included here!
 ! ----------------------------------------
+! Get connection between periodic BCs
+PeriodicBCMap=-2
+DO i=1,nBCs
+  IF((BoundaryType(i,BC_TYPE).NE.1)) PeriodicBCMap(i)=-1 ! not periodic
+  IF((BoundaryType(i,BC_TYPE).EQ.1).AND.(BoundaryType(i,BC_ALPHA).GT.0)) PeriodicBCMap(i)=-1 ! slave
+  IF((BoundaryType(i,BC_TYPE).EQ.1).AND.(BoundaryType(i,BC_ALPHA).LT.0))THEN
+    DO j=1,nBCs
+      IF(BoundaryType(j,BC_TYPE).NE.1) CYCLE
+      IF(BoundaryType(j,BC_ALPHA).EQ.(-BoundaryType(i,BC_ALPHA))) PeriodicBCMap(i)=j
+    END DO
+  END IF
+END DO
+IF(ANY(PeriodicBCMap.EQ.-2))&
+  CALL abort(__STAMP__,'Periodic connection not found.')
 
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
   DO iLocSide=1,6
-      aElem%Side(iLocSide)%sp%sideID=-1
+    aSide=>aElem%Side(iLocSide)%sp
+    aSide%sideID=-1
+    ! periodics have two bcs: set to (positive) master bc (e.g. from -1 to 1)
+    IF(aSide%BCIndex.GE.1)THEN
+      IF(PeriodicBCMap(aSide%BCIndex).NE.-1)&
+        aSide%BCIndex=PeriodicBCMap(aSide%BCIndex)
+    END IF
   END DO
 END DO
 
@@ -162,7 +176,7 @@ DO iNbProc=1,nNbProcs
       SideIDMap(iSide)=aSide%ind !global Side Index 
     END DO !iLocSide
   END DO !iElem
-  CALL Qsort1Int(SideIDMap) !sort by global side index
+  CALL MergeSort(SideIDMap,nMPISides_Proc(iNbProc)) !sort by global side index
   DO iElem=FirstElemInd,LastElemInd
     aElem=>Elems(iElem)%ep
     DO iLocSide=1,6
@@ -204,6 +218,8 @@ LOGWRITE(*,formatstr)'offsetMPISides_MINE:',offsetMPISides_MINE
 LOGWRITE(*,formatstr)'offsetMPISides_YOUR:',offsetMPISides_YOUR
 LOGWRITE(*,*)'-------------------------------------------------------'
 
+writePartitionInfo = GETLOGICAL('writePartitionInfo','.FALSE.')
+IF(.NOT.writePartitionInfo) RETURN
 !output partitioning info
 ProcInfo(1)=nElems
 ProcInfo(2)=nSides
@@ -252,7 +268,7 @@ IF(MPIroot)THEN
   ALLOCATE(tmparray(7,0:3),tmpreal(7,2))
   tmparray(:,0)=0      !tmp
   tmparray(:,1)=0      !mean
-  tmparray(:,2)=HUGE(-1)  !max
+  tmparray(:,2)=0       !HUGE(-1)  !max
   tmparray(:,3)=HUGE(1)   !min
   DO i=0,nProcessors-1
     !actual proc
@@ -325,13 +341,14 @@ DEALLOCATE(NBinfo_glob,nNBProcs_glob,ProcInfo_glob)
 #endif /*MPI*/  
 END SUBROUTINE setLocalSideIDs
 
+
 SUBROUTINE fillMeshInfo()
 !===================================================================================================================================
 ! 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,ONLY:nElems,offsetElem,nInnerSides,nBCSides
+USE MOD_Mesh_Vars,ONLY:nElems,offsetElem,nInnerSides,nBCSides,nMPISides
 USE MOD_Mesh_Vars,ONLY:nMPISides_MINE
 USE MOD_Mesh_Vars,ONLY:ElemToSide,BC,SideToElem,SideToElem2
 USE MOD_Mesh_Vars,ONLY:aElem,aSide
@@ -353,14 +370,6 @@ INTEGER             :: iElem,iSide,LocSideID,nSides_flip(0:4)
 INTEGER             :: dummy(0:4)
 #endif
 !===================================================================================================================================
-!  LOGWRITE(*,'(4A8)')'SideID', 'globID','NbProc','Flip'
-!  DO iElem=1,nElems
-!    aElem=>Elems(iElem+offsetElem)%ep
-!    DO LocSideID=1,6
-!      aSide=>aElem%Side(LocSideID)%sp
-!      LOGWRITE(*,'(4I8)') aSide%SideID,aSide%ind,aSide%NbProc,aSide%flip
-!    END DO !iLocSide
-!  END DO !iElem
 ! ELement to Side mapping
 nSides_flip=0
 DO iElem=1,nElems
@@ -521,155 +530,124 @@ END SUBROUTINE exchangeFlip
 #endif
 
 
-SUBROUTINE fillElemGeo(XCL_NGeo)
+RECURSIVE SUBROUTINE MergeSort(A,nTotal)
 !===================================================================================================================================
-! Fill XCL_NGeo with interpolation points and transform those to Chebyshev-Lobatto points
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Mesh_Vars,ONLY:nElems,offsetElem
-USE MOD_Mesh_Vars,ONLY:Elems
-USE MOD_Mesh_Vars,ONLY:aElem
-USE MOD_Mesh_Vars,ONLY:NGeo,Vdm_NGeo_CLNGeo
-USE MOD_ChangeBasis,ONLY:changeBasis3D
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-REAL,INTENT(INOUT)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: iElem,iNode,iGeo(3)
-INTEGER            :: NodeMap((NGeo+1)**3,3)
-!===================================================================================================================================
-IF(NGeo.EQ.1)THEN
-  NodeMap(1,:)=(/   0,   0,   0/)
-  NodeMap(2,:)=(/NGeo,   0,   0/)
-  NodeMap(3,:)=(/NGeo,NGeo,   0/)
-  NodeMap(4,:)=(/   0,NGeo,   0/)
-  NodeMap(5,:)=(/   0,   0,NGeo/)
-  NodeMap(6,:)=(/NGeo,   0,NGeo/)
-  NodeMap(7,:)=(/NGeo,NGeo,NGeo/)
-  NodeMap(8,:)=(/   0,NGeo,NGeo/)
-ELSE
-  CALL getBasisMappingHexa(NGeo,NodeMap)
-END IF
-
-DO iElem=1,nElems
-  aElem=>Elems(iElem+offsetElem)%ep
-  IF(aElem%nCurvedNodes.EQ.0)THEN !Only use corner nodes
-    DO iNode=1,8
-      iGeo=NodeMap(iNode,:)
-      XCL_NGeo(:,iGeo(1),iGeo(2),iGeo(3),iElem) = aElem%Node(iNode)%np%x
-    END DO !iNode
-  ELSE !NGeo > 1, so curved elements
-    DO iNode=1,aElem%nCurvedNodes
-      iGeo=NodeMap(iNode,:)
-      XCL_NGeo(:,iGeo(1),iGeo(2),iGeo(3),iElem) = aElem%curvedNode(iNode)%np%x
-    END DO !iNode
-  END IF
-  !from equidistant to CL
-  CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_NGeo_CLNGeo,XCL_NGeo(:,:,:,:,iElem),XCL_NGeo(:,:,:,:,iElem))
-END DO
-
-
-END SUBROUTINE fillElemGeo
-
-SUBROUTINE getBasisMappingHexa(N,bMap,bMapInv)
-!===================================================================================================================================
-! mapping from iAns -> i,j  in [0,Deg], can be used for nodeMap too: CALL getBasisMapping(nNodes1D-1,nodeMap) 
+! Sorts array of integers
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)           :: N 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)          :: bMap((N+1)**3,3)
-INTEGER,INTENT(OUT),OPTIONAL :: bMapInv(0:N,0:N,0:N)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-INTEGER                      :: iAns,i,j,k
-!===================================================================================================================================
-iAns=0
-DO k=0,N; DO j=0,N; DO i=0,N
-  iAns=iAns+1
-  bMap(iAns,:)=(/i,j,k/)
-END DO; END DO; END DO
-IF(PRESENT(bMapInv))THEN
-  bMapInv=0
-  iAns=0
-  DO k=0,N; DO j=0,N; DO i=0,N
-    iAns=iAns+1
-    bMapInv(i,j,k)=iAns
-  END DO; END DO; END DO
-END IF
-END SUBROUTINE getBasisMappingHexa
-
-SUBROUTINE getVolumeMapping(XCL_NGeo)
-!===================================================================================================================================
-! 
-!===================================================================================================================================
-! MODULES
-USE MOD_Mesh_Vars,   ONLY:NGeo,Vdm_NGeo_CLNGeo,Xi_NGeo
-USE MOD_Mesh_Vars,   ONLY:nElems
-USE MOD_ChangeBasis, ONLY:changeBasis3D
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-REAL,INTENT(INOUT)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems)
+INTEGER,INTENT(IN)    :: nTotal
+INTEGER,INTENT(INOUT) :: A(nTotal)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: iElem,i,j,k
-REAL               :: xi(3),rxi(3)
-REAL               :: X_loc(3,0:NGeo,0:NGeo,0:NGeo)
+INTEGER               :: nA,nB,tmp
 !===================================================================================================================================
-DO iElem=1,nElems
-  X_loc=XCL_NGeo(:,:,:,:,iElem)
-! Test
-!  X_loc=0.
-!  DO k=0,NGeo  
-!    DO j=0,NGeo  
-!      DO i=0,NGeo  
-!        X_loc(:,i,j,k)=REAL((/i,j,k/))/REAL(NGeo)
-!      END DO  !i
-!    END DO  !j
-!  END DO  !k
-  DO k=1,NGeo-1  
-    DO j=1,NGeo-1  
-      DO i=1,NGeo-1
-!        xi  = REAL((/i,j,k/))/REAL(NGeo) ![0,1]
-        xi  = 0.5*((/Xi_NGeo(i),Xi_NGeo(j),Xi_NGeo(k)/)+1.)
-        rxi = 1.-xi
-        !FACES-EDGES+CORNERS
-        X_loc(:,i,j,k) =  (  rxi(1)*X_loc(:,0,j,k) + xi(1)*X_loc(:,NGeo,j,k)   &
-                           + rxi(2)*X_loc(:,i,0,k) + xi(2)*X_loc(:,i,NGeo,k)   &
-                           + rxi(3)*X_loc(:,i,j,0) + xi(3)*X_loc(:,i,j,NGeo) ) &
-                        - (  rxi(1)*rxi(2)*X_loc(:,   0,   0,k) + rxi(1)*xi(2)*X_loc(:,   0,NGeo,   k)   &
-                           +  xi(1)*rxi(2)*X_loc(:,NGeo,   0,k) +  xi(1)*xi(2)*X_loc(:,NGeo,NGeo,   k)   &
-                           + rxi(1)*rxi(3)*X_loc(:,   0,   j,0) + rxi(1)*xi(3)*X_loc(:,   0,   j,NGeo)   &
-                           +  xi(1)*rxi(3)*X_loc(:,NGeo,   j,0) +  xi(1)*xi(3)*X_loc(:,NGeo,   j,NGeo)   &
-                           + rxi(2)*rxi(3)*X_loc(:,   i,   0,0) + rxi(2)*xi(3)*X_loc(:,   i,   0,NGeo)   &
-                           +  xi(2)*rxi(3)*X_loc(:,   i,NGeo,0) +  xi(2)*xi(3)*X_loc(:,   i,NGeo,NGeo) ) &
-                        + (  rxi(1)*rxi(2)*rxi(3)*X_loc(:,   0,   0,   0) + rxi(1)*rxi(2)*xi(3)*X_loc(:,   0,   0,NGeo) &
-                           + rxi(1)* xi(2)*rxi(3)*X_loc(:,   0,NGeo,   0) + rxi(1)* xi(2)*xi(3)*X_loc(:,   0,NGeo,NGeo) &
-                           +  xi(1)*rxi(2)*rxi(3)*X_loc(:,NGeo,   0,   0) +  xi(1)*rxi(2)*xi(3)*X_loc(:,NGeo,   0,NGeo) &
-                           +  xi(1)* xi(2)*rxi(3)*X_loc(:,NGeo,NGeo,   0) +  xi(1)* xi(2)*xi(3)*X_loc(:,NGeo,NGeo,NGeo) ) 
-      END DO  !i
-    END DO  !j
-  END DO  !k
-  !XCL_NGeo(:,:,:,:,iElem)=X_loc
-  !from equidistant to CL
-  CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_NGeo_CLNGeo,X_loc,XCL_NGeo(:,:,:,:,iElem))
-END DO  !iElem
-END SUBROUTINE getVolumeMapping
+IF(nTotal.LT.2) RETURN
+IF(nTotal.EQ.2)THEN
+  IF(A(1).GT.A(2))THEN
+    tmp  = A(1)
+    A(1) = A(2)
+    A(2) = tmp
+  ENDIF
+  RETURN
+ENDIF
+nA=(nTotal+1)/2
+CALL MergeSort(A,nA)
+nB=nTotal-nA
+CALL MergeSort(A(nA+1:nTotal),nB)
+! Performed first on lowest level
+IF(A(nA).GT.A(nA+1)) CALL DoMerge(A,nA,nB)
+END SUBROUTINE MergeSort
 
+
+SUBROUTINE DoMerge(A,nA,nB)
+!===================================================================================================================================
+! Merge subarrays
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)    :: nA,nB
+INTEGER,INTENT(INOUT) :: A(nA+nB)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: i,j,k
+INTEGER :: part1(nA),part2(nB)
+!===================================================================================================================================
+part1(1:nA)=A(1:nA)
+part2(1:nB)=A(nA+1:nA+nB)
+i=1; j=1; k=1;
+DO WHILE((i.LE.nA).AND.(j.LE.nB))
+  IF(part1(i).LE.part2(j))THEN
+    A(k)=part1(i)
+    i=i+1
+  ELSE
+    A(k)=part2(j)
+    j=j+1
+  ENDIF
+  k=k+1
+END DO
+j=nA-i
+A(k:k+nA-i)=part1(i:nA)
+END SUBROUTINE DoMerge
+
+
+FUNCTION INVMAP(ID,nIDs,ArrID)
+!===================================================================================================================================
+! find the inverse Mapping p.e. NodeID-> entry in NodeMap (a sorted array of unique NodeIDs), using bisection 
+! if Index is not in the range, -1 will be returned, if it is in the range, but is not found, 0 will be returned!!
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)                :: ID            ! ID to search for
+INTEGER, INTENT(IN)                :: nIDs          ! size of ArrID
+INTEGER, INTENT(IN)                :: ArrID(nIDs)   ! 1D array of IDs
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER                            :: INVMAP               ! index of ID in NodeMap array
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                            :: i,maxSteps,low,up,mid
+!===================================================================================================================================
+INVMAP=0
+maxSteps=INT(LOG(REAL(nIDs))*1.4426950408889634556)+1    !1/LOG(2.)=1.4426950408889634556
+low=1
+up=nIDs
+IF((ID.LT.ArrID(low)).OR.(ID.GT.ArrID(up))) THEN
+  !WRITE(*,*)'WARNING, Node Index Not in local range -> set to -1'
+  INVMAP=-1  ! not in the range!
+  RETURN
+END IF 
+IF(ID.EQ.ArrID(low))THEN
+  INVMAP=low
+ELSEIF(ID.EQ.ArrID(up))THEN
+  INVMAP=up
+ELSE
+  !bisection
+  DO i=1,maxSteps
+    mid=(up-low)/2+low
+    IF(ID .EQ. ArrID(mid))THEN
+      INVMAP=mid                     !index found!
+      EXIT
+    ELSEIF(ID .GT. ArrID(mid))THEN ! seek in upper half
+      low=mid
+    ELSE
+      up=mid
+    END IF
+  END DO
+END IF
+END FUNCTION INVMAP 
 
 END MODULE MOD_Prepare_Mesh

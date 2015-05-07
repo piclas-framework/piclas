@@ -29,10 +29,6 @@ INTERFACE GetDataProps
   MODULE PROCEDURE GetHDF5DataProps
 END INTERFACE
 
-INTERFACE ReadCoords
-  MODULE PROCEDURE ReadCoordsFromHDF5
-END INTERFACE
-
 !INTERFACE ReadArray
 !  MODULE PROCEDURE ReadArrayFromHDF5
 !END INTERFACE
@@ -43,7 +39,7 @@ END INTERFACE
 
 
 PUBLIC :: ISVALIDHDF5FILE,GetDataSize,GetDataProps,GetHDF5NextFileName
-PUBLIC :: ReadCoords,ReadArray,ReadAttribute
+PUBLIC :: ReadArray,ReadAttribute
 PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
 PUBLIC :: OpenDataFile,CloseDataFile ! Subroutines that need to be public
 
@@ -51,7 +47,7 @@ PUBLIC :: OpenDataFile,CloseDataFile ! Subroutines that need to be public
 
 CONTAINS
 
-FUNCTION ISVALIDHDF5FILE(FileName)
+FUNCTION ISVALIDHDF5FILE(FileName,FileVersionOpt)
 !===================================================================================================================================
 ! Subroutine to check if a file is a valid Boltzplatz HDF5 file
 !===================================================================================================================================
@@ -62,18 +58,21 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: FileName
+REAL,INTENT(IN),OPTIONAL       :: FileVersionOpt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL                        :: isValidHDF5File
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                           :: FileVersion
+REAL                           :: FileVersion,FileVersionRef
 INTEGER(HID_T)                 :: Plist_ID
 CHARACTER(LEN=255)             :: ProgramName
 LOGICAL                        :: help
 !===================================================================================================================================
 isValidHDF5File=.TRUE.
 iError=0
+FileVersionRef=1.0
+IF(PRESENT(FileVersionOpt)) FileVersionRef=FileVersionOpt
 
 ! Disable error messages
 CALL H5ESET_AUTO_F(0, iError)
@@ -99,10 +98,9 @@ IF(iError.EQ.0) THEN
   ! Check file version -------------------------------------------------------------------------------------------------------------
   ! Open the attribute "File_Version" of root group
   CALL ReadAttributeFromHDF5(File_ID,'File_Version',1,RealScalar=FileVersion)
-  IF(FileVersion .LT. 0.1)THEN
+  IF(FileVersion .LT. FileVersionRef)THEN
     isValidHDF5File=.FALSE.
-    SWRITE(UNIT_stdOut,'(A)')' ERROR: FILE VERSION < 0.1, FILE TOO OLD! '
-    SWRITE(UNIT_stdOut,'(A)')'        Try performing a restart...'
+    SWRITE(UNIT_stdOut,'(A)')' ERROR: FILE VERSION TOO OLD! FileName: '//TRIM(FileName)
   END IF
   ! Close the file.
   CALL H5FCLOSE_F(File_ID, iError)
@@ -211,82 +209,6 @@ SWRITE(UNIT_stdOut,'(A3,A30,A3,I33,A13)')' | ','GeometricnElems',' | ',nElems_HD
 SWRITE(UNIT_stdOut,'(A)')' DONE!'
 SWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE GetHDF5DataProps
-
-
-
-SUBROUTINE ReadCoordsFromHDF5(Loc_ID,ArrayName,nVal,ElementList,CoordArray)
-!===================================================================================================================================
-! Subroutine to read arrays of rank "Rank" with dimensions "Dimsf(1:Rank)".
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE,INTRINSIC :: ISO_C_BINDING
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                :: ElementList(:)
-INTEGER                            :: nVal(2)
-INTEGER(HID_T), INTENT(IN)         :: Loc_ID
-CHARACTER(LEN=*),INTENT(IN)        :: ArrayName
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT),TARGET            :: CoordArray(nVal(1),nVal(2))
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                        :: rank
-INTEGER(HID_T)                 :: DSet_ID, MemSpace, FileSpace, PList_ID
-INTEGER(SIZE_T)                :: num_elements
-INTEGER(HSIZE_T)               :: Coords(2,nVal(1)*nVal(2)),Dimsf(2),i,j
-#ifndef HDF5_F90 /* HDF5 compiled with fortran2003 flag */
-TYPE(C_PTR)                    :: buf
-#endif
-!===================================================================================================================================
-rank=2
-LOGWRITE(*,'(A,I1.1,A,A,A)')'    READ ',Rank,'D ARRAY "',TRIM(ArrayName),'"'
-Dimsf=INT(nVal,8)
-CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, MemSpace, iError)
-CALL H5DOPEN_F(Loc_ID, TRIM(ArrayName) , DSet_ID, iError)
-! Define and select the hyperslab to use for reading.
-CALL H5DGET_SPACE_F(DSet_ID, FileSpace, iError)
-
-!select elements from Element List
-num_elements=0
-DO j=1,Dimsf(2)
-  DO i=1,Dimsf(1)
-    num_elements=num_elements+1
-    Coords(1,num_elements)=ElementList(i)
-    Coords(2,num_elements)=j 
-  END DO
-END DO
-CALL H5SSELECT_ELEMENTS_F(FileSpace, H5S_SELECT_SET_F, rank,num_elements,Coords,iError)
-
-! Create property list
-CALL H5PCREATE_F(H5P_DATASET_XFER_F, PList_ID, iError)
-#ifdef MPI
-! Set property list to collective dataset read
-CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F, iError)
-#endif
-
-! Read the data
-#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-CALL H5DREAD_F(DSet_ID,H5T_NATIVE_DOUBLE,CoordArray,Dimsf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-#else
-buf=C_LOC(CoordArray)
-CALL H5DREAD_F(DSet_ID,H5T_NATIVE_DOUBLE,buf,iError,mem_space_id=MemSpace,file_space_id=FileSpace,xfer_prp=PList_ID)
-#endif /* HDF5_F90 */
-
-! Close the property list, dataspaces and dataset.
-CALL H5PCLOSE_F(PList_ID,iError)
-! Close the file dataspace
-CALL H5SCLOSE_F(FileSpace,iError)
-! Close the dataset
-CALL H5DCLOSE_F(DSet_ID, iError)
-! Close the memory dataspace
-CALL H5SCLOSE_F(MemSpace,iError)
-
-LOGWRITE(*,*)'...DONE!'
-END SUBROUTINE ReadCoordsFromHDF5
 
 
 SUBROUTINE ReadArray(ArrayName,Rank,nVal,Offset_in,Offset_dim,RealArray,IntegerArray,StrArray)
