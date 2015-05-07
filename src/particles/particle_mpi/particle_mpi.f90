@@ -702,6 +702,7 @@ SDEALLOCATE( PartMPIExchange%RecvRequest)
 SDEALLOCATE( PartMPIExchange%SendRequest)
 END SUBROUTINE FinalizeParticleMPI
 
+
 SUBROUTINE InitHaloMesh()
 !===================================================================================================================================
 ! communicate all direct neighbor sides from master to slave
@@ -731,7 +732,7 @@ IMPLICIT NONE
 INTEGER                 ::BezierSideSize,SendID, iElem,iSide
 INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
 LOGICAL                 :: TmpNeigh
-INTEGER,ALLOCATABLE     ::SideIndex(:)
+INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
 !===================================================================================================================================
 
 ! funny: should not be required, as sides are build for master and slave sides??
@@ -776,23 +777,28 @@ ALLOCATE(SideIndex(1:nSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
 ,'  Cannot allocate SideIndex!')
 SideIndex=0
+ALLOCATE(ElemIndex(1:PP_nElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+,'  Cannot allocate ElemIndex!')
+ElemIndex=0
 ! check epsilondistance
 DO iProc=0,PartMPI%nProcs-1
   IF(iProc.EQ.PartMPI%MyRank) CYCLE
   LOGWRITE(*,*)'  - Identify non-immediate MPI-Neighborhood...'
   !--- AS: identifies which of my node have to be sent to iProc w.r.t. to 
   !        eps vicinity region.
-  CALL IdentifyHaloMPINeighborhood(iProc,SideIndex)
+  CALL IdentifyHaloMPINeighborhood(iProc,SideIndex,ElemIndex)
   LOGWRITE(*,*)'    ...Done'
 
   LOGWRITE(*,*)'  - Exchange Geometry of MPI-Neighborhood...'
   IF(.NOT.DoRefMapping)THEN
-    CALL ExchangeHaloGeometry(iProc,SideIndex)
+    CALL ExchangeHaloGeometry(iProc,SideIndex,ElemIndex)
   ELSE
-    CALL ExchangeMappedHaloGeometry(iProc,SideIndex)
+    CALL ExchangeMappedHaloGeometry(iProc,SideIndex,ElemIndex)
   END IF
   LOGWRITE(*,*)'    ...Done'
   SideIndex(:)=0
+  ElemIndex(:)=0
 END DO 
 DEALLOCATE(SideIndex,STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN

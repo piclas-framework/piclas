@@ -44,7 +44,7 @@ PUBLIC :: WriteParticlePartitionInformation,WriteParticleMappingPartitionInforma
 CONTAINS
 
 
-SUBROUTINE IdentifyHaloMPINeighborhood(iProc,SideIndex)
+SUBROUTINE IdentifyHaloMPINeighborhood(iProc,SideIndex,ElemIndex)
 !===================================================================================================================================
 ! Searches for sides in the neighborhood of MPI-neighbors
 ! mark all Sides for communication which are in range of halo_eps of own MPI_Sides
@@ -63,6 +63,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 INTEGER, INTENT(IN)   :: iProc  ! MPI proc with which the local proc has to exchange boundary information
 INTEGER, INTENT(INOUT):: SideIndex(nSides)
+INTEGER, INTENT(INOUT):: ElemIndex(PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -241,8 +242,9 @@ END IF
 !             and I check which sides are within eps range
 
 SideIndex(:)=0
+ElemIndex(:)=0
 IF (RecvMsg%nMPISides.GT.0) THEN
-  CALL CheckMPINeighborhoodByFIBGM(RecvMsg%BezierSides3D,RecvMsg%nMPISides,SideIndex)
+  CALL CheckMPINeighborhoodByFIBGM(RecvMsg%BezierSides3D,RecvMsg%nMPISides,SideIndex,ElemIndex)
 END IF
 
 !--- Deallocate Messages
@@ -264,7 +266,7 @@ END IF
 END SUBROUTINE IdentifyHaloMPINeighborhood
 
 
-SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex)
+SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,ElemIndex)
 !===================================================================================================================================
 ! Compute distance of MPI-Side to my-Sides, if distance below helo_eps2 distance, mark size for MPI-Exchange
 ! Question: Why does one does not mark the INNER Sides, too??
@@ -287,9 +289,10 @@ INTEGER, INTENT(IN)      :: nExternalSides
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER, INTENT(INOUT)   :: SideIndex(nSides)
+INTEGER, INTENT(INOUT)   :: ElemIndex(PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: iSide, NbOfSides,p,q,ElemID,ilocSide,SideID,r,s,iBGMElem,iCase
+INTEGER                  :: iSide, NbOfSides,p,q,ElemID,ilocSide,SideID,r,s,iBGMElem,iCase,NbOfElems
 REAL                     :: NodeX(1:3),xNodes(1:3,0:NGeo,0:NGeo)
 INTEGER                  :: iBGM,jBGM,kBGM,iPBGM,jPBGM,kPBGM
 LOGICAL                  :: leave
@@ -302,7 +305,9 @@ REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3)
 !--- for idiots: get BezierControlPoints of myProc that are within eps distance to MPI-bound 
 !                of iProc
 SideIndex(:)=0
+ElemIndex=0
 NbOfSides=0
+NBOfElems=0
 
 DO iSide=1,nExternalSides
   DO q=0,NGeo
@@ -351,6 +356,10 @@ DO iSide=1,nExternalSides
                                            ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
                           NbOfSides=NbOfSides+1
                           SideIndex(SideID)=NbOfSides
+                          IF(ElemIndex(ElemID).EQ.0)THEN
+                            NbOfElems=NbOfElems+1
+                            ElemIndex(ElemID)=NbofElems
+                          END IF
                           leave=.TRUE.
                           EXIT
                         END IF
@@ -368,6 +377,10 @@ DO iSide=1,nExternalSides
                                            ,BezierControlPoints3D(:,r,s,SideID)-NodeX )).LE.halo_eps)THEN
                           NbOfSides=NbOfSides+1
                           SideIndex(SideID)=NbOfSides
+                          IF(ElemIndex(ElemID).EQ.0)THEN
+                            NbOfElems=NbOfElems+1
+                            ElemIndex(ElemID)=NbofElems
+                          END IF
                           leave=.TRUE.
                           EXIT
                         END IF
@@ -389,6 +402,8 @@ END DO ! iSide
 
 !--- if there are periodic boundaries, they need to be taken into account as well:
 IF (GEO%nPeriodicVectors.GT.0) THEN
+  WRITE(*,*) 'ups, something missing'
+  STOP
   Vec1(1:3) = 0.
   Vec2(1:3) = 0.
   Vec3(1:3) = 0.
@@ -438,6 +453,10 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
                                         ,BezierControlPoints3D(:,r,s,SideID)-NodeX )).LE.halo_eps)THEN
                             NbOfSides=NbOfSides+1
                             SideIndex(SideID)=NbOfSides
+                            IF(ElemIndex(ElemID).EQ.0)THEN
+                              NbOfElems=NbOfElems+1
+                              ElemIndex(ElemID)=NbofElems
+                            END IF
                             leave=.TRUE.
                             EXIT
                           END IF
@@ -462,7 +481,7 @@ END IF  ! nperiodicvectors>0
 END SUBROUTINE CheckMPINeighborhoodByFIBGM
 
 
-SUBROUTINE ExchangeHaloGeometry(iProc,SideList)
+SUBROUTINE ExchangeHaloGeometry(iProc,SideList,ElemList)
 !===================================================================================================================================
 ! exchange of halo geometry
 ! including:
@@ -487,6 +506,7 @@ USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmp
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iProc       ! MPI proc with which the local proc is to exchange boundary information
 INTEGER, INTENT(INOUT)          :: SideList(nSides)
+INTEGER, INTENT(INOUT)          :: ElemList(PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE tMPISideMessage
@@ -543,17 +563,24 @@ SendMsg%nSides=0
 
 ! 1) get number of elements and sides
 DO iElem=1,nElems
-  DO ilocSide=1,6
-    SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    ! CAUTION DEBUG
-    IF(SideList(SideID).NE.0)THEN
-      IF(.NOT.isElem(iElem)) THEN
-        SendMsg%nElems=SendMsg%nElems+1
-        ElemIndex(iElem) = SendMsg%nElems
-        isElem(iElem)=.TRUE.
-      END IF ! NOT isElem
-    END IF
-  END DO ! ilocSide
+  IF(ElemList(iElem).NE.0)THEN
+    !IF(.NOT.isElem(iElem)) THEN
+    SendMsg%nElems=SendMsg%nElems+1
+    ElemIndex(iElem) = SendMsg%nElems
+    isElem(iElem)=.TRUE.
+    !END IF ! NOT isElem
+  END IF
+!  DO ilocSide=1,6
+!    SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+!    ! CAUTION DEBUG
+!    IF(SideList(SideID).NE.0)THEN
+!      IF(.NOT.isElem(iElem)) THEN
+!        SendMsg%nElems=SendMsg%nElems+1
+!        ElemIndex(iElem) = SendMsg%nElems
+!        isElem(iElem)=.TRUE.
+!      END IF ! NOT isElem
+!    END IF
+!  END DO ! ilocSide
 END DO ! iElem
 
 ! 2) mark all required sides and get number of send sides
@@ -1449,7 +1476,7 @@ DEALLOCATE(DummyBC)
 END SUBROUTINE ResizeParticleMeshData
 
 
-SUBROUTINE ExchangeMappedHaloGeometry(iProc,SideList)
+SUBROUTINE ExchangeMappedHaloGeometry(iProc,SideList,ElemList)
 !===================================================================================================================================
 ! exchange of halo geometry
 ! including:
@@ -1475,6 +1502,7 @@ USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmp
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iProc       ! MPI proc with which the local proc is to exchange boundary information
 INTEGER, INTENT(INOUT)          :: SideList(nSides)
+INTEGER, INTENT(INOUT)          :: ElemList(PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 TYPE tMPISideMessage
@@ -1503,6 +1531,7 @@ INTEGER, ALLOCATABLE        :: ElemIndex(:), SideIndex(:),HaloInc(:)
 INTEGER                     :: iElem, ilocSide,NbOfMarkedSides,SideID,iSide,p,q,iIndex,iHaloSide,flip
 INTEGER                     :: nDoubleSides,nDoubleBezier,tmpnSides,tmpnElems
 INTEGER                     :: datasize,datasize2,datasize3
+INTEGER                     :: markElem
 !===================================================================================================================================
 
 ALLOCATE(isElem(1:nElems))
@@ -1533,17 +1562,25 @@ SendMsg%nSides=0
 
 ! 1) get number of elements and sides
 DO iElem=1,nElems
-  DO ilocSide=1,6
-    SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    ! CAUTION DEBUG
-    IF(SideList(SideID).NE.0)THEN
-      IF(.NOT.isElem(iElem)) THEN
-        SendMsg%nElems=SendMsg%nElems+1
-        ElemIndex(iElem) = SendMsg%nElems
-        isElem(iElem)=.TRUE.
-      END IF ! NOT isElem
-    END IF
-  END DO ! ilocSide
+  SWRITE(*,*) ElemList(iElem)
+  IF(ElemList(iElem).NE.0)THEN
+  !IF(.NOT.isElem(iElem)) THEN
+    SendMsg%nElems=SendMsg%nElems+1
+    ElemIndex(iElem) = SendMsg%nElems
+    isElem(iElem)=.TRUE.
+  END IF ! NOT isElem
+  !END IF
+!  DO ilocSide=1,6
+!    SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+!    ! CAUTION DEBUG
+!    IF(SideList(SideID).NE.0)THEN
+!      IF(.NOT.isElem(iElem)) THEN
+!        SendMsg%nElems=SendMsg%nElems+1
+!        ElemIndex(iElem) = SendMsg%nElems
+!        isElem(iElem)=.TRUE.
+!      END IF ! NOT isElem
+!    END IF
+!  END DO ! ilocSide
 END DO ! iElem
 
 ! 2) mark all required sides and get number of send sides
@@ -1760,8 +1797,8 @@ END IF
 
 DO iElem = 1,nElems
   IF (ElemIndex(iElem).NE.0) THEN
-    SendMsg%XCL_NGeo(:,:,:,:,ElemIndex(iElem))=XCL_NGeo(:,:,:,:,ElemIndex(iElem))
-    SendMsg%dXCL_NGeo(:,:,:,:,:,ElemIndex(iElem))=dXCL_NGeo(:,:,:,:,:,ElemIndex(iElem))
+    SendMsg%XCL_NGeo(:,:,:,:,ElemIndex(iElem))=XCL_NGeo(:,:,:,:,iElem)
+    SendMsg%dXCL_NGeo(:,:,:,:,:,ElemIndex(iElem))=dXCL_NGeo(:,:,:,:,:,iElem)
     DO iLocSide = 1,6
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
       IF(isSide(SideID))THEN
