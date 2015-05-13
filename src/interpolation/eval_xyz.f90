@@ -53,7 +53,7 @@ USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_N
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,MappingGuess,epsMapping
 USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
+!USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 USE MOD_Particle_Surfaces_Vars,  ONLY:ElemRadiusNGeo
 USE MOD_TimeDisc_Vars,           ONLY:iter
 !USE MOD_Mesh_Vars,ONLY: X_CP
@@ -214,6 +214,7 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   Xi = Xi - MATMUL(sJac,F)
 
   IF(ANY(ABS(Xi).GT.1.5)) THEN
+  !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
     IPWRITE(*,*) ' Particle not inside of element, force!!!'
     IPWRITE(*,*) ' xi  ', xi(1)
     IPWRITE(*,*) ' eta ', xi(2)
@@ -222,7 +223,7 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
     IPWRITE(*,*) ' ElemID', iElem
     IF(PRESENT(PartID)) IPWRITE(*,*) ' PartID', PartID
     CALL abort(__STAMP__, &
-        'Particle Not inSide of Element, iProc, iElem',PartMPI%MyRank,REAL(iElem))
+        'Particle Not inSide of Element, iElem, iPart',iElem,REAL(PartID))
   END IF
   
   ! Compute function value
@@ -464,7 +465,8 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   ! Iterate Xi using Newton step
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
-  IF(ANY(ABS(Xi).GT.1.5)) THEN
+  !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
+  IF(ANY(ABS(Xi).GT.1.5))THEN
     IF(PRESENT(PartID)) THEN
 !      IPWRITE(*,*) 'ParticleID', PartID
 !      IPWRITE(*,*) ' Particle not inside of element!!!'

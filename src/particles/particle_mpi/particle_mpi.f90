@@ -781,6 +781,7 @@ ALLOCATE(ElemIndex(1:PP_nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
 ,'  Cannot allocate ElemIndex!')
 ElemIndex=0
+
 ! check epsilondistance
 DO iProc=0,PartMPI%nProcs-1
   IF(iProc.EQ.PartMPI%MyRank) CYCLE

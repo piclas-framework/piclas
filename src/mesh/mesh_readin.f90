@@ -362,7 +362,8 @@ DO iElem=FirstElemInd,LastElemInd
       aSide%connection=>bSide
       bSide%connection=>aSide
       IF(bSide%ind.NE.aSide%ind)&
-        CALL abort(__STAMP__,'SideInfo: Index of side and neighbor side have to be identical!')
+        CALL abort(__STAMP__,&
+        'SideInfo: Index of side and neighbor side have to be identical!')
     ELSE !MPI
 #ifdef MPI
       aSide%connection=>GETNEWSIDE()            

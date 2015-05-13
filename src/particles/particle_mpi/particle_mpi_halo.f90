@@ -598,12 +598,6 @@ DO iElem=1,nElems
 END DO ! iElem
 
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-!print*,'MyRank, sides to send, elem to send', PartMPI%MyRank,SendMsg%nSides,SendMsg%nElems
-!IF(PartMPI%MPIROOT) print*,'SideIndex',SideIndex(:)
-!IF(PartMPI%MPIROOT) print*,'isElem',isElem(:)
-!IF(PartMPI%MPIROOT) print*,'sendnelems',SendMsg%nElems
-!IF(PartMPI%MPIROOT) print*,'isSide',isSide
-
 !WRITE(*,*) "Nodes:", SendMsg%nNodes,"Sides:",SendMsg%nSides,"elems:",SendMsg%nElems,"iProc",PMPIVAR%iProc
 !--- Communicate number of sides (trias,quads), elems (tets,hexas) and nodes to each MPI proc
   
@@ -787,7 +781,6 @@ DO iSide = 1,nSides
          SendMsg%SideBCType(SideIndex(iSide)) = SidePeriodicType(iSide)
       END IF
     END DO ! S2E_LOC_SIDE_ID, S2E_NB_LOC_SIDE_ID, S2E_FLIP
-   ! IF(PartMPI%MPIROOT) print*,'iSide,SideIndex',iSide,SideIndex(iSide)
     SendMsg%SideToElem(3:5,SideIndex(iSide)) = &
         SideToElem(3:5,iSide)
     SendMsg%BezierControlPoints3D(:,:,:,SideIndex(iSide)) = &
@@ -961,12 +954,6 @@ END IF
 
 DEALLOCATE(isElem,isSide,ElemIndex,SideIndex)
 
-!print*,'Rank,sendsides',PartMPI%MyRank,SendMsg%nSides
-!print*,'Rank,recvsides',PartMPI%MyRank,RecvMsg%nSides
-!print*,'Rank,recvelemtoside',PartMPI%MyRank,RecvMsg%ElemToSide
-!print*,'iproc',iproc
-
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 !IPWRITE(*,*) " Recive stuff"
 
 IF (RecvMsg%nSides.GT.0) THEN
@@ -1534,6 +1521,7 @@ INTEGER                     :: datasize,datasize2,datasize3
 INTEGER                     :: markElem
 !===================================================================================================================================
 
+
 ALLOCATE(isElem(1:nElems))
 IF (.NOT.ALLOCATED(isElem)) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate isElem')
@@ -1562,7 +1550,6 @@ SendMsg%nSides=0
 
 ! 1) get number of elements and sides
 DO iElem=1,nElems
-  SWRITE(*,*) ElemList(iElem)
   IF(ElemList(iElem).NE.0)THEN
   !IF(.NOT.isElem(iElem)) THEN
     SendMsg%nElems=SendMsg%nElems+1

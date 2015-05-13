@@ -16,15 +16,58 @@ INTERFACE BubbleSortID
   MODULE PROCEDURE BubbleSortID
 END INTERFACE
 
+INTERFACE InsertionSort
+  MODULE PROCEDURE InsertionSort
+END INTERFACE
+
 INTERFACE QSort1Doubleint1Pint
   MODULE PROCEDURE QSort1DoubleInt1Pint
 END INTERFACE
 
 PUBLIC:: BubbleSortID
+PUBLIC:: InsertionSort
 PUBLIC:: QSort1Doubleint1Pint
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE InsertionSort(a,id,len)
+!===================================================================================================================================
+! Insertion sort 
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: len
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)                :: a(len)
+INTEGER,INTENT(INOUT)             :: id(len)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                              :: tmpR
+INTEGER                           :: i, j, tmpI
+!===================================================================================================================================
+
+DO i=2,len
+  j=i-1  
+  tmpR=a(i)
+  tmpI=ID(i)
+  DO WHILE (j.GT.1 .AND. a(j).GT.tmpR)
+    a (j+1) = a(j)
+    ID(j+1) = ID(j)
+    j=j-1
+  END DO
+  a (j+1) =tmpR
+  ID(j+1) =tmpI
+END DO ! i
+
+END SUBROUTINE InsertionSort
+
 
 SUBROUTINE BubbleSortID(a,id,len)
 !===================================================================================================================================

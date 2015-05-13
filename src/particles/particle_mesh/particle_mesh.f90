@@ -479,7 +479,6 @@ GEO%FactorFIBGM(1:3)              = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. ,
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 CALL GetFIBGM()
-
 #ifdef MPI
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 CALL InitHaloMesh()
@@ -490,14 +489,14 @@ CALL AddHALOCellsToFIBGM()
 
 IF(DoRefMapping) THEN
   CALL GetBCSideType()
-  ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
-          ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
-          ,ElemRadiusNGeo(1:nTotalElems)         &
-          ,ElemBaryNGeo(1:3,1:nTotalElems)       )
-  CALL BuildElementBasis()
 ELSE
   CALL GetSideType()
 END IF
+ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
+        ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
+        ,ElemRadiusNGeo(1:nTotalElems)         &
+        ,ElemBaryNGeo(1:3,1:nTotalElems)       )
+CALL BuildElementBasis()
 
 END SUBROUTINE InitFIBGM
 
@@ -722,7 +721,7 @@ IF (ALLOCSTAT.NE.0) THEN
   iProc=0
 #endif /*MPI*/
   CALL abort(__STAMP__&
-      , 'Problem allocating GEO%FIBGM, MyRank', iProc )
+      , 'Problem allocating GEO%FIBGM!' )
 END IF
 
 ! null number of element per BGM cell
@@ -1111,11 +1110,9 @@ END DO
 ! fill real array
 DO Cell=0, BGMCells-1
   TempProcList=0
-  !print*,'Cell',Cell
   DO iBGM = BGMCellsArray(Cell*3+1)-nShapePaddingX, BGMCellsArray(Cell*3+1)+nShapePaddingX
     DO jBGM = BGMCellsArray(Cell*3+2)-nShapePaddingY, BGMCellsArray(Cell*3+2)+nShapePaddingY
       DO kBGM = BGMCellsArray(Cell*3+3)-nShapePaddingZ, BGMCellsArray(Cell*3+3)+nShapePaddingZ
-        !print*,'i,j,k',iBGM,jBGM,kBGM
         DO m = 1,CellProcNum(iBGM,jBGM,kBGM)
           TempProcList(CellProcList(iBGM,jBGM,kBGM,m))=1       ! every proc that is within the stencil gets a 1
         END DO ! m
@@ -1490,27 +1487,27 @@ DO iElem=1,nTotalElems
   IF(.NOT.ElementFound(iElem))THEN
     IPWRITE(*,*) ' FIBGM , iElem'
     IF(DoRefMapping)THEN
-      IF(PartMPI%MyRank.EQ.1)THEN
-        WRITE(*,*) 'xmin',GEO%xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem))
-        WRITE(*,*) 'xmax',GEO%xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem))
-        WRITE(*,*) 'ymin',GEO%ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem))
-        WRITE(*,*) 'ymax',GEO%ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem))
-        WRITE(*,*) 'zmin',GEO%zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem))
-        WRITE(*,*) 'zmax',GEO%zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem))
+     ! IF(PartMPI%MyRank.EQ.1)THEN
+       IPWRITE(*,*) 'xmin',GEO%xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem))
+       IPWRITE(*,*) 'xmax',GEO%xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem))
+       IPWRITE(*,*) 'ymin',GEO%ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem))
+       IPWRITE(*,*) 'ymax',GEO%ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem))
+       IPWRITE(*,*) 'zmin',GEO%zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem))
+       IPWRITE(*,*) 'zmax',GEO%zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem))
         xmin=MINVAL(XCL_NGeo(1,:,:,:,iElem))
         xmax=MAXVAL(XCL_NGeo(1,:,:,:,iElem))
         ymin=MINVAL(XCL_NGeo(2,:,:,:,iElem))
         ymax=MAXVAL(XCL_NGeo(2,:,:,:,iElem))
         zmin=MINVAL(XCL_NGeo(3,:,:,:,iElem))
         zmax=MAXVAL(XCL_NGeo(3,:,:,:,iElem))
-        WRITE(*,*) ' BGM , iBGM'
-        WRITE(*,*) 'xmin', BGMimin,CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-        WRITE(*,*) 'xmax', BGMimax,CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-        WRITE(*,*) 'ymin', BGMjmin,CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-        WRITE(*,*) 'ymax', BGMjmax,CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-        WRITE(*,*) 'zmin', BGMkmin,CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-        WRITE(*,*) 'zmax', BGMkmax,CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-      END IF
+       IPWRITE(*,*) ' BGM , iBGM'
+       IPWRITE(*,*) 'xmin', BGMimin,CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+       IPWRITE(*,*) 'xmax', BGMimax,CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+       IPWRITE(*,*) 'ymin', BGMjmin,CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+       IPWRITE(*,*) 'ymax', BGMjmax,CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+       IPWRITE(*,*) 'zmin', BGMkmin,CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+       IPWRITE(*,*) 'zmax', BGMkmax,CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+     ! END IF
     END IF
     CALL abort(__STAMP__&
     ,' Element not located in FIBGM! iElem, myRank',iElem,REAL(PartMPI%MyRank))

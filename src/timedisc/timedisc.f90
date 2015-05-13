@@ -173,6 +173,10 @@ INTEGER                      :: TimeArray(8)              ! Array for system tim
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: MaximumIterNum
 #endif
+#ifdef PARTICLES
+INTEGER                      :: RECI
+REAL                         :: RECR
+#endif /*PARTICLES*/
 !===================================================================================================================================
 ! init
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -438,6 +442,19 @@ END IF
     EXIT
   END IF
 END DO ! iter_t
+
+#ifdef PARTICLES
+IF(MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,nTracks      , 1 ,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,tTracking    , 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,tLocalization, 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+ELSE ! no Root
+  CALL MPI_REDUCE(nTracks      ,RECI,1,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(tTracking    ,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(tLocalization,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+END IF
+#endif /*PARTICLES*/
+
 !CALL FinalizeAnalyze
 END SUBROUTINE TimeDisc
 

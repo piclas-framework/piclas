@@ -306,7 +306,9 @@ CASE(2) !PartBound%ReflectiveBC)
                            +PartTrajectory(2)*PartTrajectory(2) &
                            +PartTrajectory(3)*PartTrajectory(3) )
   PartTrajectory=PartTrajectory/lengthPartTrajectory
-  lengthPartTrajectory=lengthPartTrajectory+epsilontol
+  ! move particle eps along line to prevent a detection of alpha=zero
+  LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3)+1.0e-8*PartTrajectory
+  lengthPartTrajectory=lengthPartTrajectory+epsilontol-1.0e-8
 !  print*, ' oldElemID', ElemID
   ! get new element ID
 !  CALL SingleParticleToExactElement(iPart)
