@@ -93,6 +93,16 @@ TYPE tGeometry
 END TYPE
 
 TYPE (tGeometry)                         :: GEO
+
+
+TYPE tBCElem
+  INTEGER                                :: nInnerSides                       ! Number of BC-Sides of Element
+  INTEGER                                :: lastSide                          ! total number of BC-Sides in eps-vicinity of element
+  INTEGER, ALLOCATABLE                   :: BCSideID(:)                       ! List of elements in BGM cell
+END TYPE
+
+TYPE (tBCElem),ALLOCATABLE               :: BCElem(:)
+
 !===================================================================================================================================
 
 

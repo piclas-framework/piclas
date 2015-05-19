@@ -1255,7 +1255,7 @@ IF(DoRefMapping)THEN
   ALLOCATE(PartBCSideList(1:nTotalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
-  PartBCSideList=HUGE(1)
+  PartBCSideList=-1 !HUGE(1)
   PartBCSideList(1:nOldSides) =DummyPartBCSideList(1:nOldSides)
   DEALLOCATE(DummyPartBCSideList)
 END IF
@@ -1576,8 +1576,8 @@ DO iElem=1,nElems
     DO ilocSide=1,6
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
       ! for reference mapping, always send only bc sides, all other sides are not required
-      !IF(.NOT.isSide(SideID).AND.SideID.LE.nBCSides) THEN
-      IF(.NOT.isSide(SideID).AND.PartBCSideList(SideID).LE.nTotalBCSides) THEN
+      !IF(.NOT.isSide(SideID).AND.PartBCSideList(SideID).LE.nTotalBCSides) THEN
+      IF(.NOT.isSide(SideID).AND.SideID.LE.nBCSides) THEN
         ! missing: what do do with BC sides??"
         SendMsg%nSides=SendMsg%nSides+1
         SideIndex(SideID) = SendMsg%nSides
@@ -2221,6 +2221,8 @@ IF (RecvMsg%nElems.GT.0) THEN
         END IF
       END IF
       ! build entry to PartElemToSide
+      BC(newSideID)=RecvMsg%BC(haloSideID)
+      SidePeriodicType(newSideID)=RecvMsg%SideBCType(haloSideID)
       PartBCSideList(newSideID)=newBCSideID !tmpBCSides+haloinc(haloSideID)
       PartElemToSide(E2S_SIDE_ID,iLocSide,newElemId)=newSideID
       PartElemToSide(E2S_FLIP,ilocSide,newElemId)=RecvMsg%ElemToSide(2,ilocSide,iElem)

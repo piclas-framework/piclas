@@ -663,42 +663,42 @@ BGMjmin = INT((GEO%ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
 BGMkmax = INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
 BGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
 
-#ifdef MPI
-  !--- JN: For MPI communication, information also about the neighboring FIBGM cells is needed
-  !--- AS: shouldn't we add up here the nPaddingCells? 
-  !--- TS: What we need to do is increase the BGM area for shape_function ONLY
-  !        Reason: if a particle moves outside the domain, there still needs to be a
-  !                BGM with an associated ShapeProc at the particle position
-  !        Particle may only move c*dt*Safetyfactor.
-  !--- PO: modified for curved and shape-function influence
-  !        c*dt*SafetyFactor+r_cutoff
-  IF (ManualTimeStep.EQ.0.0) THEN
-    deltaT=CALCTIMESTEP()
-  ELSE
-    deltaT=ManualTimeStep
-  END IF
-  IF (halo_eps_velo.EQ.0) halo_eps_velo = c
+!--- JN: For MPI communication, information also about the neighboring FIBGM cells is needed
+!--- AS: shouldn't we add up here the nPaddingCells? 
+!--- TS: What we need to do is increase the BGM area for shape_function ONLY
+!        Reason: if a particle moves outside the domain, there still needs to be a
+!                BGM with an associated ShapeProc at the particle position
+!        Particle may only move c*dt*Safetyfactor.
+!--- PO: modified for curved and shape-function influence
+!        c*dt*SafetyFactor+r_cutoff
+IF (ManualTimeStep.EQ.0.0) THEN
+  deltaT=CALCTIMESTEP()
+ELSE
+  deltaT=ManualTimeStep
+END IF
+IF (halo_eps_velo.EQ.0) halo_eps_velo = c
 #if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==1000)
-  IF (halo_eps_velo.EQ.c) THEN
-     CALL abort(__STAMP__&
-     , 'Halo Eps Velocity for MPI not defined')
-  END IF
+IF (halo_eps_velo.EQ.c) THEN
+   CALL abort(__STAMP__&
+   , 'Halo Eps Velocity for MPI not defined')
+END IF
 #endif
 #if (PP_TimeDiscMethod==201)
-  deltaT=CALCTIMESTEP()
-  halo_eps = c*deltaT*SafetyFactor*3.8
+deltaT=CALCTIMESTEP()
+halo_eps = c*deltaT*SafetyFactor*3.8
 #else
-  halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
+halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
-  halo_eps2=halo_eps*halo_eps
-  IF (DepositionType.EQ.'shape_function') THEN
-    BGMimax = INT((GEO%xmax+halo_eps-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
-    BGMimin = INT((GEO%xmin-halo_eps-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
-    BGMjmax = INT((GEO%ymax+halo_eps-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
-    BGMjmin = INT((GEO%ymin-halo_eps-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
-    BGMkmax = INT((GEO%zmax+halo_eps-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
-    BGMkmin = INT((GEO%zmin-halo_eps-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
-  END IF
+halo_eps2=halo_eps*halo_eps
+#ifdef MPI
+IF (DepositionType.EQ.'shape_function') THEN
+  BGMimax = INT((GEO%xmax+halo_eps-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
+  BGMimin = INT((GEO%xmin-halo_eps-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
+  BGMjmax = INT((GEO%ymax+halo_eps-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
+  BGMjmin = INT((GEO%ymin-halo_eps-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
+  BGMkmax = INT((GEO%zmax+halo_eps-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
+  BGMkmin = INT((GEO%zmin-halo_eps-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
+END IF
 #endif
 
 !print*,"BGM-Indices:",PartMPI%iProc, BGMimin, BGMimax, BGMjmin, BGMjmax, BGMkmin, BGMkmax

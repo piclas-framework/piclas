@@ -199,7 +199,7 @@ CASE(6) !PartBound%MPINeighborhoodBC)
   ' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
 CASE DEFAULT
   CALL abort(__STAMP__,&
-' ERROR: PartBound not associated!. (unknown case)',999,999.)
+' ERROR: PartBound not associated!. (unknown case). BC(Side)',BC(SideID),999.)
 END SELECT !PartBound%Map(BC(SideID)
 
 END SUBROUTINE GetBoundaryInteractionSuperSampled
@@ -381,7 +381,7 @@ USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut,PartAnalyzeStep
 USE MOD_TimeDisc_Vars,          ONLY:iter
-USE MOD_Mesh_Vars,              ONLY:BC
+USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
@@ -510,7 +510,7 @@ CASE(6) !PartBound%MPINeighborhoodBC)
   ' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
 CASE DEFAULT
   CALL abort(__STAMP__,&
-' ERROR: PartBound not associated!. (unknown case)',999,999.)
+' ERROR: PartBound not associated!. BC(SideID)',BC(SideID),REAL(SideID/nSides))
 END SELECT !PartBound%Map(BC(SideID)
 
 END SUBROUTINE GetBoundaryInteractionRef

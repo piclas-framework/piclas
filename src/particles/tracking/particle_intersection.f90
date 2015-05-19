@@ -1257,7 +1257,7 @@ END IF ! SidePeriodicType
 
 
 !IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
-!IF(iPart.EQ.238) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
+!IF(MyRank.EQ.5 .AND. (iPart.EQ.8462 .AND. iter.GE.190) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
 !IF(alpha.GT.lengthPartTrajectory) THEN !.OR.(alpha.LT.-epsilontol))THEN
 !IF((alpha.GT.lengthPartTrajectory+epsilontol) .OR.(alpha.LT.-epsilontol))THEN
 !IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN

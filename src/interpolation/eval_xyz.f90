@@ -216,6 +216,7 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   IF(ANY(ABS(Xi).GT.1.5)) THEN
   !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
     IPWRITE(*,*) ' Particle not inside of element, force!!!'
+    IPWRITE(*,*) ' Newton-Iter', NewtonIter
     IPWRITE(*,*) ' xi  ', xi(1)
     IPWRITE(*,*) ' eta ', xi(2)
     IPWRITE(*,*) ' zeta', xi(3)
@@ -466,7 +467,7 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
   !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
-  IF(ANY(ABS(Xi).GT.1.5))THEN
+  IF(ANY(ABS(Xi).GT.1.8))THEN
     IF(PRESENT(PartID)) THEN
 !      IPWRITE(*,*) 'ParticleID', PartID
 !      IPWRITE(*,*) ' Particle not inside of element!!!'

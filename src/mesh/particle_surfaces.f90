@@ -122,7 +122,7 @@ ClipMaxInter    = GETINT('ClipMaxInter',dummy)
 
 IF(DoRefMapping)THEN
   ALLOCATE(PartBCSideList(1:nSides))
-  PartBCSideList(:) = HUGE(1)
+  PartBCSideList(:) = -1.0
   DO iSide=1,nBCSides
     PartBCSideList(iSide)=iSide
   END DO 
@@ -132,9 +132,14 @@ END IF
 ! method from xPhysic to parameter space
 MappingGuess    = GETINT('MappingGuess','1')
 epsMapping      = GETREAL('epsMapping','1e-8')
+epsInCell       = SQRT(epsMapping)
 IF((MappingGuess.LT.1).OR.(MappingGuess.GT.4))THEN
    CALL abort(__STAMP__, &
         'Wrong guessing method for mapping from physical space in reference space.',MappingGuess,999.)
+END IF
+IF(DoRefMapping .AND. MappingGuess.EQ.2) THEN
+   CALL abort(__STAMP__, &
+       ' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',MappingGuess)
 END IF
 !! ElemBaryNGeo are required for particle mapping| SingleParticleToExactElem
 IF(.NOT.DoRefMapping)THEN
@@ -1491,8 +1496,9 @@ USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Mesh_Vars,                ONLY:nSides,NGeo,Xi_NGeo,Sideid_minus_upper,nBCSides
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,epsilontol,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
-USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide
+USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,BCElem
 USE MOD_Particle_Mesh_Vars,       ONLY:PartBCSideList,nTotalBCSides
+USE MOD_Particle_MPI_Vars,        ONLY:halo_eps,halo_eps2
 #ifdef MPI
 USE MOD_Particle_MPI_HALO,        ONLY:WriteParticleMappingPartitionInformation
 #endif /*MPI*/
@@ -1505,9 +1511,11 @@ IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy,SideID,iElem,ilocSide,nBCElems
-REAL,DIMENSION(1:3)         :: v1,v2
+INTEGER                     :: nSideCount, BCSideID, BCSideID2, s,r
+INTEGER,ALLOCATABLE         :: SideIndex(:)
+REAL,DIMENSION(1:3)         :: v1,v2,NodeX
 REAL                        :: length,eps
-LOGICAL                     :: isLinear
+LOGICAL                     :: isLinear,isOwnSide,leave
 #ifdef MPI  
 INTEGER                     :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
 #endif /*MPI*/
@@ -1543,7 +1551,7 @@ nBCElemsTot=0
 DO iSide=1,nTotalSides
   isLinear=.TRUE.
   SideID  =PartBCSideList(iSide)
-  IF(SideID.GT.nTotalBCSides) CYCLE
+  IF(SideID.EQ.-1) CYCLE
   ! all four edges
   !IF(iSide.GT.nSides) IPWRITE(*,*) BezierControlPOints3D(:,:,:,iSide)
   IF(SUM(ABS(BezierControlPoints3D(:,:,:,SideID))).LT.1e-10) IPWRITE(*,*) 'missing side',SideID
@@ -1632,6 +1640,7 @@ DO iSide=1,nTotalSides
   END IF ! isLinear
 END DO ! iSide
 
+! mark elements as bc element
 IsBCElem=.FALSE.
 nTotalBCElems=0
 DO iElem=1,nTotalElems
@@ -1647,6 +1656,92 @@ DO iElem=1,nTotalElems
       END IF ! count only single
     END IF
   END DO ! ilocSide
+END DO ! iElem
+
+! build list with elements in halo-eps vicinity around bc-elements
+ALLOCATE( BCElem(1:nTotalElems) )
+ALLOCATE( SideIndex(1:nTotalSides) )
+! number of element local BC-Sides
+DO iElem=1,nTotalElems
+  BCElem(iElem)%nInnerSides=0
+  IF(.NOT.isBCElem(iElem)) CYCLE
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF(SideID.EQ.-1) CYCLE
+    IF(PartBCSideList(SideID).EQ.-1) CYCLE
+    BCElem(iElem)%nInnerSides = BCElem(iElem)%nInnerSides+1
+    !END IF
+  END DO ! ilocSide
+  BCElem(iElem)%lastSide=BCElem(iElem)%nInnerSides
+  ! loop over all sides
+  SideIndex=0
+  DO iSide=1,nTotalSides
+    BCSideID  =PartBCSideList(iSide)
+    IF(BCSideID.EQ.-1) CYCLE
+    ! first loop for checking if side is element-side
+    isOwnSide=.FALSE.
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF(iSide.EQ.SideID) THEN
+        isOwnSide=.TRUE.
+        EXIT
+      END IF
+    END DO ! ilocSide
+    IF(isOwnSide) CYCLE
+    ! next, get all sides in halo-eps vicinity
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF(SideID.EQ.-1) CYCLE
+      BCSideID2 =PartBCSideList(SideID)
+      IF(BCSideID2.EQ.-1) CYCLE
+      leave=.FALSE.
+      ! all points of bc side
+      DO q=0,NGeo
+        DO p=0,NGeo
+          NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+          ! all nodes of current side
+          DO s=0,NGeo
+            DO r=0,NGeo
+              IF(SQRT(DOT_Product(BezierControlPoints3D(:,r,s,BCSideID2)-NodeX &
+                                 ,BezierControlPoints3D(:,r,s,BCSideID2)-NodeX )).LE.halo_eps)THEN
+                BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                SideIndex(iSide)=BCElem(iElem)%lastSide
+                leave=.TRUE.
+                EXIT
+              END IF
+            END DO ! r
+            IF(leave) EXIT
+          END DO ! s
+          IF(leave) EXIT
+        END DO ! p
+        IF(leave) EXIT
+      END DO ! q
+    END DO ! ilocSide
+  END DO ! iSide
+  ! finally, allocate the bc side list
+  ALLOCATE( BCElem(iElem)%BCSideID(BCElem(iElem)%lastSide) )
+  ! 1) inner sides
+  nSideCount=0
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF(SideID.EQ.-1) CYCLE
+    BCSideID=PartBCSideList(SideID)
+    IF(BCSideID.EQ.-1) CYCLE
+   ! IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
+    nSideCount=nSideCount+1
+    !BCElem(iElem)%BCSideID(nSideCount)= BCSideID
+    BCElem(iElem)%BCSideID(nSideCount)= SideID
+    !END IF
+  END DO ! ilocSide
+  ! 2) outer sides
+  DO iSide=1,nTotalSides
+    IF(SideIndex(iSide).GT.0)THEN
+      nSideCount=nSideCount+1
+      BCSideID=PartBCSideList(iSide)
+      !BCElem(iElem)%BCSideID(nSideCount)=BCSideID
+      BCElem(iElem)%BCSideID(nSideCount)=iSide
+    END IF
+  END DO  ! iSide
 END DO ! iElem
 
 #ifdef MPI

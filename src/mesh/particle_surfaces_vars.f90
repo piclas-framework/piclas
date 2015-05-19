@@ -47,10 +47,11 @@ REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo             
 REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo
-INTEGER                                 :: MappingGuess
-REAL                                    :: epsMapping
+INTEGER                                 :: MappingGuess                  ! select mapping guess into reference element
+REAL                                    :: epsMapping                    ! tolerance for Netwton to get xi from X
+REAL                                    :: epsInCell                     ! tolerance for 1+eps for particle in element
 LOGICAL                                 :: DoRefMapping
 REAL                                    :: tTracking
 REAL                                    :: tLocalization
