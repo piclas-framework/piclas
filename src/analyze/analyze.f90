@@ -57,7 +57,6 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=40)                :: DefStr
-INTEGER                          :: i,j
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
   CALL abort(__STAMP__,'InitAnalyse not ready to be called or already called.',999,999.)
@@ -198,6 +197,8 @@ IF(MPIroot) THEN
     WRITE(UNIT_stdOut,'(A,A,A,F8.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',CalcTime-StartTime,' sec ]'
     WRITE(UNIT_StdOut,'(132("-"))')
     WRITE(UNIT_StdOut,*)
+  ELSE
+    WRITE(UNIT_StdOut,'(132("="))')
   END IF
 END IF
 END SUBROUTINE CalcError
@@ -224,6 +225,7 @@ REAL,INTENT(IN)                :: L_2_Error(PP_nVar)           ! L2 error norms
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
+!REAL                           :: Dummyreal(PP_nVar+1),Dummytime  ! Dummy values for file handling
 INTEGER                        :: openStat! File IO status
 CHARACTER(LEN=50)              :: formatStr                    ! format string for the output and Tecplot header
 CHARACTER(LEN=30)              :: L2name(PP_nVar)              ! variable name for the Tecplot header
@@ -310,7 +312,8 @@ IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
 AnalyzeInitIsDone = .FALSE.
 END SUBROUTINE FinalizeAnalyze
 
-SUBROUTINE PerformAnalyze(t,iter,tenddiff,force)
+
+SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
@@ -345,51 +348,47 @@ IMPLICIT NONE
 REAL,INTENT(INOUT)            :: t
 REAL,INTENT(IN)               :: tenddiff
 INTEGER(KIND=8),INTENT(INOUT) :: iter
-LOGICAL,INTENT(IN),OPTIONAL   :: force
+LOGICAL,INTENT(IN)            :: forceAnalyze,output
+LOGICAL,INTENT(IN),OPTIONAL   :: LastIter
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                       :: ForceAnalyze
 !===================================================================================================================================
-
-!#ifndef PARTICLES
-!!PartAnalyzeStep=1
-!#endif /* NOT PARTICLES*/
 
 ! not for first iteration
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-IF(iter.EQ.0) RETURN
+IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
+!IF(iter.EQ.0) RETURN
 #endif
-
-IF(PRESENT(force))THEN
-  ForceAnalyze=force
-ELSE
-  ForceAnalyze=.FALSE.
-END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DG-Solver
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ! Calculate error norms
-IF(ForceAnalyze) CALL CalcError(t)
+IF(forceAnalyze.OR.Output) CALL CalcError(t)
 
 ! poynting vector
 IF (CalcPoyntingInt) THEN
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-  IF(ForceAnalyze)THEN
+  IF(forceAnalyze)THEN
     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
    ELSE
-    IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
+    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CalcPoyntingIntegral(t,doProlong=.FALSE.)
   END IF ! ForceAnalyze
+  IF(PRESENT(LastIter) .AND. LastIter) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
 #else
   IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
 #endif
 END IF
 
 ! fill recordpoints buffer
-IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.) 
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+IF(RP_onProc) THEN
+  CALL RecordPoints(iter,t,forceAnalyze,Output)
+END IF
+#endif
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC & DG-Sovler
@@ -398,20 +397,24 @@ IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.)
 #ifdef PARTICLES
 ! particle analyze
 IF (DoAnalyze)  THEN
-  IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL AnalyzeParticles(t) 
+  IF(forceAnalyze)THEN
+    CALL AnalyzeParticles(t) 
+  ELSE
+    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL AnalyzeParticles(t) 
+  END IF
+  IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeParticles(t) 
 END IF
 
-IF(ForceAnalyze)THEN
-  CALL AnalyzeParticles(t) 
-  !IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
-END IF
 #else /*pure DGSEM */
 IF (DoAnalyze)  THEN
-  IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL AnalyzeField(t) 
+  IF(ForceAnalyze)THEN
+    CALL AnalyzeField(t) 
+  ELSE
+    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL AnalyzeField(t) 
+  END IF
+  IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeField(t) 
 END IF
 
-IF(ForceAnalyze)THEN
-  CALL AnalyzeField(t) 
   !IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
 END IF
 #endif /*PARTICLES*/

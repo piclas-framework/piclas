@@ -279,9 +279,7 @@ DO iRP=1,nRP
 END DO
 END SUBROUTINE InitRPBasis
 
-
-
-SUBROUTINE RecordPoints(iter,t,forceSampling)
+SUBROUTINE RecordPoints(iter,t,forceSampling,Output)
 !===================================================================================================================================
 ! Interpolate solution at time t to recordpoint positions and fill output buffer 
 !===================================================================================================================================
@@ -301,7 +299,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER(KIND=8),INTENT(IN)     :: iter
 REAL,INTENT(IN)                :: t
-LOGICAL,INTENT(IN)             :: forceSampling ! force sampling (e.g. first/last timestep)
+LOGICAL,INTENT(IN)             :: forceSampling,Output ! force sampling (e.g. first/last timestep)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -310,10 +308,13 @@ INTEGER                 :: i,j,k,iRP
 REAL                    :: u_RP(PP_nVar,nRP)
 REAL                    :: l_eta_zeta_RP 
 !-----------------------------------------------------------------------------------------------------------------------------------
-IF(MOD(iter,RP_SamplingOffset).NE.0 .AND. .NOT. forceSampling) RETURN
+IF(.NOT.Output) THEN
+  IF(MOD(iter,RP_SamplingOffset).NE.0 .AND. .NOT. forceSampling ) RETURN
+END IF
+
 IF(iter.EQ.0)THEN
   ! Compute required buffersize from timestep and add 10% tolerance
-  RP_Buffersize = MIN(CEILING((1.2*Analyze_dt)/(dt*RP_SamplingOffset)),RP_MaxBuffersize)
+  RP_Buffersize = MIN(CEILING((1.05*Analyze_dt)/(dt*RP_SamplingOffset))+1,RP_MaxBuffersize)
   ALLOCATE(RP_Data(0:PP_nVar,nRP,RP_Buffersize))
 END IF
 
@@ -335,7 +336,10 @@ RP_Data(0,        :,iSample)=t
 
 ! dataset is full, write data and reset
 !IF(iSample.EQ.RP_Buffersize) CALL WriteRPToHDF5(tWriteData,.FALSE.)
-IF(iSample.EQ.RP_Buffersize) CALL WriteRPToHDF5(tAnalyze,.FALSE.)
+IF(iSample.EQ.RP_Buffersize) THEN
+  SWRITE(UNIT_StdOut,*) ' BufferSize reached!'
+  CALL WriteRPToHDF5(tAnalyze,.FALSE.)
+END IF
 
 END SUBROUTINE RecordPoints
 
@@ -419,10 +423,16 @@ IF(finalizeFile)THEN
     ALLOCATE(RP_Data(0:PP_nVar,nRP,RP_Buffersize))
   END IF
   ! last sample = first sample
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+  nSamples=0
+  iSample=0
+  RP_fileExists=.FALSE.
+#else
   RP_Data(:,:,1)=lastSample
   nSamples=0
   iSample=1
   RP_fileExists=.FALSE.
+#endif
 ELSE
   iSample=0
   RP_fileExists=.TRUE.

@@ -162,7 +162,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                         :: t,tFuture
+REAL                         :: t,tFuture,tZero
+INTEGER(KIND=8)              :: nAnalyze
 REAL                         :: dt_Min, tEndDiff, tAnalyzeDiff
 #if (PP_TimeDiscMethod==201)
 REAL                         :: dt_temp,vMax,vMaxx,vMaxy,vMaxz
@@ -171,8 +172,9 @@ INTEGER(KIND=8)              :: iter_loc
 REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
 #if (PP_TimeDiscMethod==201)
-INTEGER                      :: MaximumIterNum
+INTEGER                      :: MaximumIterNum, iPart
 #endif
+LOGICAL                      :: finalIter
 #ifdef PARTICLES
 INTEGER                      :: RECI
 REAL                         :: RECR
@@ -201,7 +203,9 @@ ELSE
   SWRITE(UNIT_StdOut,*)'REWRITING SOLUTION:'
 END IF
 #endif /*PARTICLES*/
-tAnalyze=MIN(t+Analyze_dt,tEnd)
+tZero=t
+nAnalyze=1
+tAnalyze=MIN(tZero+Analyze_dt,tEnd)
 
 ! write number of grid cells and dofs only once per computation
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#GridCells : ',REAL(nGlobalElems)
@@ -217,22 +221,14 @@ IF(DoRestart) CALL EvalGradient()
 ! Write the state at time=0, i.e. the initial condition
 CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
 
-! init of analyzation and write file header
-! Determine the initial error
-CALL CalcError(t)
-! first analyze Particles and DG solution (write zero state)
+! if measurement of particle tracking time
 #ifdef PARTICLES
 IF(MeassureTrackTime)THEN
   nTracks=0
   tTracking=0
   tLocalization=0
 END IF
-CALL AnalyzeParticles(t) 
-#else
-CALL AnalyzeField(t) 
 #endif /*PARTICLES*/
-IF (CalcPoyntingInt) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
-!CALL Visualize_Particles(t)
 
 ! No computation needed if tEnd=tStart!
 IF(t.EQ.tEnd)RETURN
@@ -282,6 +278,7 @@ ELSE ! .NO. ManualTimeStep
   ! time step is calculated by the solver
   ! first Maxwell time step for explicit LSRK
   dt_Min=CALCTIMESTEP()
+  dt=dt_Min
   ! calculate time step for sub-cycling of divergence correction
   ! automatic particle time step of quasi-stationary time integration is not implemented
 #ifdef PARTICLES
@@ -312,9 +309,8 @@ CalcTimeStart=BOLTZPLATZTIME()
 iter=0
 iter_loc=0
 
-! fill recordpoints buffer (first iteration)
-IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.) 
-
+! fill initial analyze stuff
+CALL PerformAnalyze(t,iter,0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! iterations starting up from here
@@ -332,12 +328,23 @@ DO !iter_t=0,MaxIter
       dt_max_particles = dt_maxwell ! initial evolution of field with maxwellts
   ELSE
     DO 
-      vMaxx = MAXVAL(ABS(PDM%ParticleInside(1:PDM%ParticleVecLength) &
-            * (PartState(1:PDM%ParticleVecLength, 4) + dt_temp*Pt(1:PDM%ParticleVecLength,1))))
-      vMaxy = MAXVAL(ABS(PDM%ParticleInside(1:PDM%ParticleVecLength) &
-            * (PartState(1:PDM%ParticleVecLength, 5) + dt_temp*Pt(1:PDM%ParticleVecLength,2))))
-      vMaxz = MAXVAL(ABS(PDM%ParticleInside(1:PDM%ParticleVecLength) &
-            * (PartState(1:PDM%ParticleVecLength, 6) + dt_temp*Pt(1:PDM%ParticleVecLength,3))))
+      vMaxx = 0.
+      vMaxy = 0.
+      vMaxz = 0.
+      DO iPart=1,PDM%ParticleVecLength
+        IF (PDM%ParticleInside(iPart)) THEN
+          vMaxx = MAX( vMaxx , ABS(PartState(iPart, 4) + dt_temp*Pt(iPart,1)) )
+          vMaxy = MAX( vMaxy , ABS(PartState(iPart, 5) + dt_temp*Pt(iPart,2)) )
+          vMaxz = MAX( vMaxz , ABS(PartState(iPart, 6) + dt_temp*Pt(iPart,3)) )
+        END IF
+      END DO
+!! -- intrinsic logical->real/int-conversion should be avoided!!!
+!      vMaxx = MAXVAL(ABS(PDM%ParticleInside(1:PDM%ParticleVecLength) &
+!            * (PartState(1:PDM%ParticleVecLength, 4) + dt_temp*Pt(1:PDM%ParticleVecLength,1))))
+!      vMaxy = MAXVAL(ABS(PDM%ParticleInside(1:PDM%ParticleVecLength) &
+!            * (PartState(1:PDM%ParticleVecLength, 5) + dt_temp*Pt(1:PDM%ParticleVecLength,2))))
+!      vMaxz = MAXVAL(ABS(PDM%ParticleInside(1:PDM%ParticleVecLength) &
+!            * (PartState(1:PDM%ParticleVecLength, 6) + dt_temp*Pt(1:PDM%ParticleVecLength,3))))
       vMax = MAX(vMaxx,vMaxy,vMaxz,1.0) 
 #ifdef MPI
      CALL MPI_ALLREDUCE(MPI_IN_PLACE,vMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
@@ -366,9 +373,14 @@ END IF
 
   tAnalyzeDiff=tAnalyze-t    ! time to next analysis, put in extra variable so number does not change due to numerical errors
   tEndDiff=tEnd-t            ! dito for end time
-  dt=MIN(MIN(dt_Min,tAnalyzeDiff),MIN(dt_Min,tEndDiff))
+  dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
   IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
+  IF ( dt .LT. 0. ) THEN
+    SWRITE(UNIT_StdOut,*)'*** ERROR: Is something wrong with the defined tEnd?!? ***'
+    CALL abort(__STAMP__,&
+      'Error in tEndDiff or tAnalyzeDiff!')
+  END IF
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
@@ -407,10 +419,16 @@ END IF
   END IF
 #if (PP_TimeDiscMethod!=1) &&  (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6)
   ! calling the analyze routines
-  CALL PerformAnalyze(t,iter,tendDiff,force=.FALSE.)
+  CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 #endif
   ! output of state file
-  IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
+  !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
+  IF((ALMOSTEQUAL(dt,tAnalyzeDiff)).OR.(ALMOSTEQUAL(dt,tEndDiff)))THEN
+    IF(ALMOSTEQUAL(dt,tEndDiff))THEN
+      finalIter=.TRUE.
+    ELSE
+      finalIter=.FALSE.
+    END IF
     CalcTimeEnd=BOLTZPLATZTIME()
     IF(MPIroot)THEN
       ! Get calculation time per DOF
@@ -424,20 +442,21 @@ END IF
       WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
     END IF !MPIroot
     ! Analyze for output
-    CALL PerformAnalyze(t,iter,tenddiff,force=.TRUE.)
+    CALL PerformAnalyze(t,iter,tenddiff,forceAnalyze=.FALSE.,OutPut=.TRUE.,LastIter=finalIter)
     ! future time
-    tFuture=t+Analyze_dt
+    nAnalyze=nAnalyze+1
+    tFuture=tZero+REAL(nAnalyze)*Analyze_dt
     ! Write state to file
     IF(DoPML) CALL BacktransformPMLVars()
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
     IF(DoPML) CALL TransformPMLVars()
     ! Write recordpoints data to hdf5
     IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
-    SWRITE(UNIT_StdOut,'(132("-"))')
     iter_loc=0
-    CalcTimeStart=BOLTZPLATZTIME()
-    tAnalyze=tAnalyze+Analyze_dt
+    tAnalyze=tZero+REAL(nAnalyze)*Analyze_dt
     IF (tAnalyze > tEnd) tAnalyze = tEnd
+    SWRITE(UNIT_StdOut,'(132("-"))')
+    CalcTimeStart=BOLTZPLATZTIME()
   ENDIF   
   IF(t.GE.tEnd) THEN  ! done, worst case: one additional time step
     EXIT
@@ -587,7 +606,7 @@ CALL DivCleaningDamping_Pois()
 #endif
 
 ! calling the analyze routines
-CALL PerformAnalyze(t,iter,tendDiff,force=.FALSE.)
+CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 
 ! first RK step
 ! EM field
