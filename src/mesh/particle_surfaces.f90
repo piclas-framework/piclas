@@ -195,6 +195,8 @@ ALLOCATE( XiArray (1:2,1:ClipMaxIter) &
 !          , SuperSampledBiLinearCoeff(1:3,1:4,1:NPartCurved,1:NPartCurved,1:nSides) )
   !kCALL GetSuperSampledPlane()
 !END IF
+
+MeassureTrackTime = GETLOGICAL('MeassureTrackTime','.FALSE.')
 ParticleSurfaceInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -2186,6 +2188,7 @@ DO iElem=1,nTotalElems
   ELSE
     DO ilocSide=1,6
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF(SideID.EQ.-1) CYCLE
       DO j=0,NGeo
         DO i=0,NGeo
           xPos=BezierControlPoints3D(:,j,k,SideID)-ElemBaryNGeo(:,iElem)

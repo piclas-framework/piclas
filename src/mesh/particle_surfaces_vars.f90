@@ -56,6 +56,7 @@ LOGICAL                                 :: DoRefMapping
 REAL                                    :: tTracking
 REAL                                    :: tLocalization
 INTEGER                                 :: nTracks
+LOGICAL                                 :: MeassureTrackTime
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Surfaces_Vars

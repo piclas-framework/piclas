@@ -136,7 +136,7 @@ USE MOD_PICDepo,               ONLY: Deposition, DepositionMPF
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, Time, useManualTimestep
-USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization
+USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,MeassuretrackTime
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,GEO,MaxwellIterNum,NextTimeStepAdjustmentIter
 USE MOD_Equation_Vars,         ONLY: c
@@ -222,9 +222,11 @@ CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
 CALL CalcError(t)
 ! first analyze Particles and DG solution (write zero state)
 #ifdef PARTICLES
-nTracks=0
-tTracking=0
-tLocalization=0
+IF(MeassureTrackTime)THEN
+  nTracks=0
+  tTracking=0
+  tLocalization=0
+END IF
 CALL AnalyzeParticles(t) 
 #else
 CALL AnalyzeField(t) 
@@ -368,7 +370,6 @@ END IF
   IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
 
-
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
   CALL TimeStepByLSERK(t,iter,tEndDiff)
@@ -444,15 +445,19 @@ END IF
 END DO ! iter_t
 
 #ifdef PARTICLES
-IF(MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,nTracks      , 1 ,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,tTracking    , 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,tLocalization, 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-ELSE ! no Root
-  CALL MPI_REDUCE(nTracks      ,RECI,1,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  CALL MPI_REDUCE(tTracking    ,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  CALL MPI_REDUCE(tLocalization,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+#ifdef MPI
+IF(MeassureTrackTime)THEN
+  IF(MPIRoot) THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,nTracks      , 1 ,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,tTracking    , 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,tLocalization, 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  ELSE ! no Root
+    CALL MPI_REDUCE(nTracks      ,RECI,1,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(tTracking    ,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    CALL MPI_REDUCE(tLocalization,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  END IF
 END IF
+#endif /*MPI*/
 #endif /*PARTICLES*/
 
 !CALL FinalizeAnalyze
@@ -487,7 +492,7 @@ USE MOD_DG,               ONLY: DGTimeDerivative_weakForm_Pois
 USE MOD_Equation_Vars,    ONLY: Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,DoRefMapping
+USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,DoRefMapping,MeassureTrackTime
 USE MOD_PICDepo,          ONLY: Deposition, DepositionMPF
 USE MOD_PICInterpolation, ONLY: InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY: PIC
@@ -533,10 +538,12 @@ iStage=1
 !SWRITE(*,*) 'iStage', iStage
 Time=t
 IF (t.GE.DelayTime) THEN
-  TimeStart=BOLTZPLATZTIME()
+  IF(MeassureTrackTime)TimeStart=BOLTZPLATZTIME()
   CALL ParticleInserting()
-  TimeEnd=BOLTZPLATZTIME()
-  tLocalization=tLocalization+TimeEnd-TimeStart
+  IF(MeassureTrackTime) THEN
+    TimeEnd=BOLTZPLATZTIME()
+    tLocalization=tLocalization+TimeEnd-TimeStart
+  END IF
 ! forces on particle
   CALL InterpolateFieldToParticle()
   CALL CalcPartRHS()
@@ -628,14 +635,16 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 #ifdef MPI
   CALL IRecvNbofParticles()
 #endif /*MPI*/
-  TimeStart=BOLTZPLATZTIME()
+  IF(MeassureTrackTime)TimeStart=BOLTZPLATZTIME()
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
     CALL ParticleTrackingCurved()
   END IF
-  TimeEnd=BOLTZPLATZTIME()
-  tTracking=tTracking+TimeEnd-TimeStart
+  IF(MeassureTrackTime) THEN
+    TimeEnd=BOLTZPLATZTIME()
+    tTracking=tTracking+TimeEnd-TimeStart
+  END IF
 #ifdef MPI
   CALL MPIParticleSend()
 !  CALL MPIParticleRecv()
@@ -736,14 +745,16 @@ DO iStage=2,nRKStages
 #endif /*MPI*/
     ! actual tracking
 !    CALL ParticleTrackingCurved()
-    TimeStart=BOLTZPLATZTIME()
+    IF(MeassureTrackTime)TimeStart=BOLTZPLATZTIME()
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
       CALL ParticleTrackingCurved()
     END IF
-    TimeEnd=BOLTZPLATZTIME()
-    tTracking=tTracking+TimeEnd-TimeStart
+    IF(MeassureTrackTime) THEN
+      TimeEnd=BOLTZPLATZTIME()
+      tTracking=tTracking+TimeEnd-TimeStart
+    END IF
 #ifdef MPI
     CALL MPIParticleSend()
 !    CALL MPIParticleRecv()

@@ -86,16 +86,17 @@ MeshFile = GETSTR('MeshFile')
 useCurveds=GETLOGICAL('useCurveds','.TRUE.')
 CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.)
 CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
-CALL CloseDataFile()
-IF(useCurveds.AND.(PP_N.LT.NGeo))THEN
-  SWRITE(UNIT_stdOut,'(A)') 'WARNING: N<NGeo, for curved hexa normals are only approximated,&
-                           & can cause problems on periodic boundaries! Set N>NGeo'
-ENDIF
+SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
 
-IF(usecurveds)THEN
-  IF(PP_N.LT.NGeo) THEN
-    SWRITE(*,*)'WARNING: N<NGeo, for curved hexa normals are only approximated,&
-                                can cause problems on periodic boundaries! Set N>NGeo'
+CALL CloseDataFile()
+IF(useCurveds)THEN
+  IF(PP_N.LT.NGeo)THEN
+    SWRITE(UNIT_stdOut,'(A)') 'WARNING: N<NGeo, for curved hexa normals are only approximated,&
+                             & can cause problems on periodic boundaries! Set N>NGeo'
+  END IF
+ELSE
+  IF(NGeo.GT.1) THEN
+    SWRITE(*,*) ' WARNING: Using linear elements although NGeo>1!'
   END IF
 END IF
 
