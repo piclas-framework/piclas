@@ -129,7 +129,8 @@ SUBROUTINE DSMC_output_calc
 !===================================================================================================================================
   USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, MacroDSMC, CollisMode, SpecDSMC, realtime, useDSMC
   USE MOD_Mesh_Vars,              ONLY : nElems,MeshFile
-  USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species, GEO, usevMPF
+  USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species, usevMPF
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_Particle_Vars,          ONLY : Time
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, iter, dt
   USE MOD_Restart_Vars,           ONLY : RestartTime
@@ -303,7 +304,7 @@ SUBROUTINE WriteOutputMesh()
 ! MODULES
    USE MOD_Particle_Vars
    USE MOD_DSMC_Vars,      ONLY : CollisMode, useDSMC  
-   USE MOD_Mesh_Vars,     ONLY : nElems, nNodes
+   USE MOD_Mesh_Vars,     ONLY : nElems!, nNodes
 #ifdef MPI
    USE MOD_Particle_MPI_Vars, ONLY: PartMPI
 #endif
@@ -329,51 +330,52 @@ SUBROUTINE WriteOutputMesh()
   ELSE
     withMolecules = 0
   END IF
+  STOP
 
-#ifdef MPI
-  WRITE(myFileName,'(A8,I5.5,A4)')'DSMCMesh',PartMPI%MyRank,'.vtk'
-#else
-  WRITE(myFileName,'(A12)')'DSMCMesh.vtk'
-#endif  
-  OPEN(1112,FILE=myFileName,STATUS='replace')
-  WRITE(1112,'(A36,I0,A11,I0)')'# vtk DataFile Version 2.0 Species: ',nSpecies+1,' Molcules: ',withMolecules 
-  WRITE(1112,'(A)')'Debug Mesh '
-  WRITE(1112,'(A)')'ASCII'
-  WRITE(1112,'(A)')'DATASET UNSTRUCTURED_GRID'
-  WRITE(1112,'(A)')''
-  WRITE(1112,'(A,I0,A)')'POINTS ',nNodes,' FLOAT'
-  DO iNode=1, nNodes
-    WRITE(1112,*) GEO%NodeCoords(1:3, iNode)
-  END DO
-  WRITE(1112,*)''
-  WRITE(1112,'(A,I0,1X,I0)')'CELLS ',nElems,9*nElems
-  DO iElem=1, nElems
-    WRITE(1112,'(I0)',ADVANCE="NO")8
-    DO iNode=1, 8
-    WRITE(1112,'(1X,I0)',ADVANCE="NO") GEO%ElemToNodeID(iNode,iElem) -1
-    END DO
-    WRITE(1112,*)''
-  END DO
-  WRITE(1112,*)''
-  WRITE(1112,'(A,I0)')'CELL_TYPES ',nElems
-  DO iElem=1,nElems
-    WRITE(1112,'(1X,I0)',ADVANCE="NO")12
-  END DO  
-  WRITE(1112,*)''
-  WRITE(1112,*)''
-  WRITE(1112,'(A,I0)')'CELL_DATA ',nElems
-  DO iSpec=1, nSpecies
-    DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
-      IF ((Species(iSpec)%Init(iInit)%ParticleEmissionType.GE.3).AND.(Species(iSpec)%Init(iInit)%ParticleEmissionType.LE.6)) THEN
-        WRITE(1112,'(A32,I3.3,A5,I3.3,A)')'SCALARS PressureElemType_Species', iSpec, '_Init', iInit, ' FLOAT'
-        WRITE(1112,'(A)')'LOOKUP_TABLE default'
-        DO iElem = 1, nElems
-          WRITE(1112,*) Species(iSpec)%Init(iInit)%ConstPress%ElemStat(iElem)
-        END DO
-      END IF
-    END DO
-  END DO
-  CLOSE(1112)
+!#ifdef MPI
+!  WRITE(myFileName,'(A8,I5.5,A4)')'DSMCMesh',PartMPI%MyRank,'.vtk'
+!#else
+!  WRITE(myFileName,'(A12)')'DSMCMesh.vtk'
+!#endif  
+!  OPEN(1112,FILE=myFileName,STATUS='replace')
+!  WRITE(1112,'(A36,I0,A11,I0)')'# vtk DataFile Version 2.0 Species: ',nSpecies+1,' Molcules: ',withMolecules 
+!  WRITE(1112,'(A)')'Debug Mesh '
+!  WRITE(1112,'(A)')'ASCII'
+!  WRITE(1112,'(A)')'DATASET UNSTRUCTURED_GRID'
+!  WRITE(1112,'(A)')''
+!  WRITE(1112,'(A,I0,A)')'POINTS ',nNodes,' FLOAT'
+!  DO iNode=1, nNodes
+!    WRITE(1112,*) GEO%NodeCoords(1:3, iNode)
+!  END DO
+!  WRITE(1112,*)''
+!  WRITE(1112,'(A,I0,1X,I0)')'CELLS ',nElems,9*nElems
+!  DO iElem=1, nElems
+!    WRITE(1112,'(I0)',ADVANCE="NO")8
+!    DO iNode=1, 8
+!    WRITE(1112,'(1X,I0)',ADVANCE="NO") GEO%ElemToNodeID(iNode,iElem) -1
+!    END DO
+!    WRITE(1112,*)''
+!  END DO
+!  WRITE(1112,*)''
+!  WRITE(1112,'(A,I0)')'CELL_TYPES ',nElems
+!  DO iElem=1,nElems
+!    WRITE(1112,'(1X,I0)',ADVANCE="NO")12
+!  END DO  
+!  WRITE(1112,*)''
+!  WRITE(1112,*)''
+!  WRITE(1112,'(A,I0)')'CELL_DATA ',nElems
+!  DO iSpec=1, nSpecies
+!    DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
+!      IF ((Species(iSpec)%Init(iInit)%ParticleEmissionType.GE.3).AND.(Species(iSpec)%Init(iInit)%ParticleEmissionType.LE.6)) THEN
+!        WRITE(1112,'(A32,I3.3,A5,I3.3,A)')'SCALARS PressureElemType_Species', iSpec, '_Init', iInit, ' FLOAT'
+!        WRITE(1112,'(A)')'LOOKUP_TABLE default'
+!        DO iElem = 1, nElems
+!          WRITE(1112,*) Species(iSpec)%Init(iInit)%ConstPress%ElemStat(iElem)
+!        END DO
+!      END IF
+!    END DO
+!  END DO
+!  CLOSE(1112)
 END SUBROUTINE WriteOutputMesh
 
 
@@ -1083,7 +1085,7 @@ SUBROUTINE WriteOutputMeshSamp()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Particle_Vars
-  USE MOD_Mesh_Vars,     ONLY : nElems, nNodes
+  USE MOD_Mesh_Vars,     ONLY : nElems!, nNodes
   USE MOD_Globals
 #ifdef MPI
   !USE MOD_part_MPI_Vars, ONLY : PMPIVAR
@@ -1104,6 +1106,7 @@ SUBROUTINE WriteOutputMeshSamp()
   REAL, ALLOCATABLE               :: ElemSampOutput(:,:)
 !===================================================================================================================================
 
+  STOP 
   ALLOCATE (ElemSampOutput(nElems,0:6))
 #ifdef MPI
   WRITE(myFileName,'(A13,I5.5)')'DSMCMesh_Samp',PartMPI%MyRank
@@ -1117,17 +1120,17 @@ SUBROUTINE WriteOutputMeshSamp()
   WRITE(1503,'(A)')'ASCII'
   WRITE(1503,'(A)')'DATASET UNSTRUCTURED_GRID'
   WRITE(1503,'(A)')''
-  WRITE(1503,'(A,I0,A)')'POINTS ',nNodes,' FLOAT'
-  DO iNode=1, nNodes
-    WRITE(1503,*) GEO%NodeCoords(1:3, iNode)
-  END DO
+! WRITE(1503,'(A,I0,A)')'POINTS ',nNodes,' FLOAT'
+!  DO iNode=1, nNodes
+!    WRITE(1503,*) GEO%NodeCoords(1:3, iNode)
+!  END DO
   WRITE(1503,*)''
   WRITE(1503,'(A,I0,1X,I0)')'CELLS ',nElems,9*nElems
   DO iElem=1, nElems
     WRITE(1503,'(I0)',ADVANCE="NO")8
-    DO iNode=1, 8
-      WRITE(1503,'(1X,I0)',ADVANCE="NO") GEO%ElemToNodeID(iNode,iElem) -1
-    END DO
+    !DO iNode=1, 8
+    !  !WRITE(1503,'(1X,I0)',ADVANCE="NO") GEO%ElemToNodeID(iNode,iElem) -1
+    !END DO
     WRITE(1503,*)''
   END DO
   WRITE(1503,*)''

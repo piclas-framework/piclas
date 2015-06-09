@@ -571,7 +571,8 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Mesh_Vars,          ONLY:nBCSides, SideToElem, BC
-  USE MOD_Particle_Vars,      ONLY:GEO, PartBound, nSpecies
+  USE MOD_Particle_Vars,      ONLY: PartBound, nSpecies
+  USE MOD_Particle_Mesh_Vars, ONLY:GEO
   USE MOD_DSMC_Vars,          ONLY:SurfMesh, SampWall
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -587,70 +588,71 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
   LOGICAL                 :: IsSortedSurfNode
 !===================================================================================================================================
 
-  ALLOCATE(TempBCSurfNodes(4*nBCSides))
-  ALLOCATE(TempSideSurfNodeMap(1:4,1:nBCSides))
-  ALLOCATE(SurfMesh%GlobSideToSurfSideMap(nBCSides))
-  ALLOCATE(TempSurfaceArea(nBCSides))
-  SurfMesh%nSurfaceNode=0
-  SurfMesh%nSurfaceBCSides=0
-  SurfMesh%GlobSideToSurfSideMap(1:nBCSides)=0
-
-  DO iSide=1, nBCSides
-    IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
-      SurfMesh%nSurfaceBCSides = SurfMesh%nSurfaceBCSides + 1
-      SurfMesh%GlobSideToSurfSideMap(iSide) = SurfMesh%nSurfaceBCSides
-      iElem = SideToElem(1,iSide)
-      IF (iElem.LT.1) THEN
-        iElem = SideToElem(2,iSide)
-        iLocSide = SideToElem(4,iSide)
-      ELSE
-        iLocSide = SideToElem(3,iSide)
-      END IF
-      TempSurfaceArea(SurfMesh%nSurfaceBCSides) = CalcArea(iLocSide, iElem)
-      DO iNode2 = 1, 4
-      IsSortedSurfNode = .false.
-        DO iNode = 1, SurfMesh%nSurfaceNode 
-          IF (GEO%ElemSideNodeID(iNode2, iLocSide, iElem).EQ.TempBCSurfNodes(iNode)) THEN
-          TempSideSurfNodeMap(iNode2,SurfMesh%nSurfaceBCSides) = iNode
-          IsSortedSurfNode = .true.
-          EXIT
-          END IF
-        END DO
-        IF(.NOT.IsSortedSurfNode) THEN
-          SurfMesh%nSurfaceNode = SurfMesh%nSurfaceNode + 1
-          TempBCSurfNodes(SurfMesh%nSurfaceNode) = GEO%ElemSideNodeID(iNode2, iLocSide, iElem)
-          TempSideSurfNodeMap(iNode2,SurfMesh%nSurfaceBCSides) = SurfMesh%nSurfaceNode
-        END IF
-      END DO  
-    END IF
-  END DO
-
-  ALLOCATE(SurfMesh%BCSurfNodes(1:SurfMesh%nSurfaceNode))
-  SurfMesh%BCSurfNodes(1:SurfMesh%nSurfaceNode) = TempBCSurfNodes(1:SurfMesh%nSurfaceNode)
-  ALLOCATE(SurfMesh%SideSurfNodeMap(1:4,1:SurfMesh%nSurfaceBCSides))
-  SurfMesh%SideSurfNodeMap(1:4,1:SurfMesh%nSurfaceBCSides) = TempSideSurfNodeMap(1:4,1:SurfMesh%nSurfaceBCSides)
-  ALLOCATE(SurfMesh%SurfaceArea(1:SurfMesh%nSurfaceBCSides))
-  SurfMesh%SurfaceArea(1:SurfMesh%nSurfaceBCSides)=TempSurfaceArea(1:SurfMesh%nSurfaceBCSides)
-  ALLOCATE(SampWall(1:SurfMesh%nSurfaceBCSides))
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(1) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(2) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(3) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(4) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(5) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(6) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(7) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(8) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(9) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Force(1) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Force(2) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Force(3) = 0.0
-  DO iSampWallAlloc=1,SurfMesh%nSurfaceBCSides
-    ALLOCATE(SampWall(iSampWallAlloc)%Counter(1:nSpecies))
-    SampWall(iSampWallAlloc)%Counter(1:nSpecies) = 0.0
-  END DO
-  DEALLOCATE(TempBCSurfNodes)
-  DEALLOCATE(TempSideSurfNodeMap)
-  DEALLOCATE(TempSurfaceArea)
+  STOP
+!  ALLOCATE(TempBCSurfNodes(4*nBCSides))
+!  ALLOCATE(TempSideSurfNodeMap(1:4,1:nBCSides))
+!  ALLOCATE(SurfMesh%GlobSideToSurfSideMap(nBCSides))
+!  ALLOCATE(TempSurfaceArea(nBCSides))
+!  SurfMesh%nSurfaceNode=0
+!  SurfMesh%nSurfaceBCSides=0
+!  SurfMesh%GlobSideToSurfSideMap(1:nBCSides)=0
+!
+!  DO iSide=1, nBCSides
+!    IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
+!      SurfMesh%nSurfaceBCSides = SurfMesh%nSurfaceBCSides + 1
+!      SurfMesh%GlobSideToSurfSideMap(iSide) = SurfMesh%nSurfaceBCSides
+!      iElem = SideToElem(1,iSide)
+!      IF (iElem.LT.1) THEN
+!        iElem = SideToElem(2,iSide)
+!        iLocSide = SideToElem(4,iSide)
+!      ELSE
+!        iLocSide = SideToElem(3,iSide)
+!      END IF
+!      TempSurfaceArea(SurfMesh%nSurfaceBCSides) = CalcArea(iLocSide, iElem)
+!      DO iNode2 = 1, 4
+!      IsSortedSurfNode = .false.
+!        DO iNode = 1, SurfMesh%nSurfaceNode 
+!          IF (GEO%ElemSideNodeID(iNode2, iLocSide, iElem).EQ.TempBCSurfNodes(iNode)) THEN
+!          TempSideSurfNodeMap(iNode2,SurfMesh%nSurfaceBCSides) = iNode
+!          IsSortedSurfNode = .true.
+!          EXIT
+!          END IF
+!        END DO
+!        IF(.NOT.IsSortedSurfNode) THEN
+!          SurfMesh%nSurfaceNode = SurfMesh%nSurfaceNode + 1
+!          TempBCSurfNodes(SurfMesh%nSurfaceNode) = GEO%ElemSideNodeID(iNode2, iLocSide, iElem)
+!          TempSideSurfNodeMap(iNode2,SurfMesh%nSurfaceBCSides) = SurfMesh%nSurfaceNode
+!        END IF
+!      END DO  
+!    END IF
+!  END DO
+!
+!  ALLOCATE(SurfMesh%BCSurfNodes(1:SurfMesh%nSurfaceNode))
+!  SurfMesh%BCSurfNodes(1:SurfMesh%nSurfaceNode) = TempBCSurfNodes(1:SurfMesh%nSurfaceNode)
+!  ALLOCATE(SurfMesh%SideSurfNodeMap(1:4,1:SurfMesh%nSurfaceBCSides))
+!  SurfMesh%SideSurfNodeMap(1:4,1:SurfMesh%nSurfaceBCSides) = TempSideSurfNodeMap(1:4,1:SurfMesh%nSurfaceBCSides)
+!  ALLOCATE(SurfMesh%SurfaceArea(1:SurfMesh%nSurfaceBCSides))
+!  SurfMesh%SurfaceArea(1:SurfMesh%nSurfaceBCSides)=TempSurfaceArea(1:SurfMesh%nSurfaceBCSides)
+!  ALLOCATE(SampWall(1:SurfMesh%nSurfaceBCSides))
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(1) = 0.0
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(2) = 0.0
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(3) = 0.0
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(4) = 0.0
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(5) = 0.0
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(6) = 0.0
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(7) = 0.0
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(8) = 0.0
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(9) = 0.0
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Force(1) = 0.0
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Force(2) = 0.0
+!  SampWall(1:SurfMesh%nSurfaceBCSides)%Force(3) = 0.0
+!  DO iSampWallAlloc=1,SurfMesh%nSurfaceBCSides
+!    ALLOCATE(SampWall(iSampWallAlloc)%Counter(1:nSpecies))
+!    SampWall(iSampWallAlloc)%Counter(1:nSpecies) = 0.0
+!  END DO
+!  DEALLOCATE(TempBCSurfNodes)
+!  DEALLOCATE(TempSideSurfNodeMap)
+!  DEALLOCATE(TempSurfaceArea)
 
 END SUBROUTINE DSMC_BuildSurfaceOutputMapping
 
@@ -723,7 +725,8 @@ SUBROUTINE ReadinVTKFileBGG
   USE MOD_Mesh_Vars,              ONLY : nNodes
 #endif
   USE MOD_Mesh_Vars,              ONLY : nElems
-  USE MOD_Particle_Vars,          ONLY : GEO, BGGdataAtElem
+  USE MOD_Particle_Vars,          ONLY : BGGdataAtElem
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -745,247 +748,251 @@ SUBROUTINE ReadinVTKFileBGG
   LOGICAL                :: InElementCheck
 !===================================================================================================================================
 
-  SWRITE(UNIT_stdOut,'(132("~"))')
-  SWRITE(UNIT_stdOut,'(A)')'Reading VTK file for BGG...'
+  STOP
 
-  VTKfile = GETSTR('BGG-VTK-File','blubb')
-  IF(TRIM(VTKfile).EQ.'blubb')THEN 
-    CALL abort(__STAMP__,&
-    'ERROR: No VTK-Filename for Background-Gas defined!')
-  END IF 
 
-  unit_in = 1123
-  OPEN(UNIT   = unit_in,              &
-       FILE   = VTKfile,              &
-       IOSTAT = os,                   &
-       STATUS = 'OLD',                &
-       ACTION = 'READ',               &
-       ACCESS = 'SEQUENTIAL'          )
-
-  IF(os.NE.0) THEN  ! File Error
-    CALL abort(__STAMP__,&
-    'ERROR: cannot open VTK file: '//trim(VTKfile))
-  END IF
-    
-  DO iNode=1,7
-    READ(unit_in, '(A)') cdummy
-  END DO
-  READ(unit_in,*) cdummy,npoints,cdummy  ! POINTS ???? float
-  ALLOCATE(VTKNodes(1:3,npoints))
-  DO iNode = 0,INT(npoints/3)-1
-    READ(unit_in,*) VTKNodes(:,3*iNode+1),VTKNodes(:,3*iNode+2),VTKNodes(:,3*iNode+3)
-  END DO
-  IF (MOD(npoints,3).EQ.1) THEN
-    READ(unit_in,*) VTKNodes(:,3*iNode+1)
-  ELSE IF (MOD(npoints,3).EQ.2) THEN
-    READ(unit_in,*) VTKNodes(:,3*iNode+1),VTKNodes(:,3*iNode+2)
-  END IF
-  READ(unit_in,*) cdummy,ncells,cdummy  ! CELLS ???? ????
-  ALLOCATE (VTKCells(1:8, ncells))
-  DO icell = 1,ncells
-    READ(unit_in,*), cdummy, VTKCells(:,icell)
-  END DO
-  VTKCells(:,:) = VTKCells(:,:) + 1
-  READ(unit_in, '(A)') cdummy  ! blank line
-  READ(unit_in, '(A)') cdummy  ! blank line
-  DO icell = 1,ncells
-    READ(unit_in,*) cdummy !skip cells
-  END DO
-  !var1
-  DO icell=1,2
-    READ(unit_in, '(A)') cdummy
-  END DO
-  READ(unit_in,*) cdummy, varname, cdummy
-  VI = 0
-  IF (TRIM(varname).EQ.'T') THEN
-    VI=0
-  ELSE IF (TRIM(varname).EQ.'v') THEN
-    VI=3
-  ELSE
-    CALL abort(__STAMP__,&
-    'Error in order of variables in BGGdata: '//varname//' is not recognized!')
-  END IF
-  ALLOCATE(VTK_BGGdata_Cells(1:7,ncells))
-  DO icell = 0,INT(ncells/3)-1
-    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2) &
-      ,VTK_BGGdata_Cells(1+VI:3+VI,3*icell+3)
-  END DO
-  IF (MOD(ncells,3).EQ.1) THEN
-    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1)
-  ELSE IF (MOD(ncells,3).EQ.2) THEN
-    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2)
-  END IF
-  !var2
-  DO icell=1,2
-    READ(unit_in, '(A)') cdummy
-  END DO
-  READ(unit_in,*) varname, cdummy, cdummy, cdummy
-  IF (TRIM(varname).EQ.'T') THEN
-    VI=0
-  ELSE IF (TRIM(varname).EQ.'v') THEN
-    VI=3
-  ELSE
-    CALL abort(__STAMP__,&
-    'Error in order of variables in BGGdata: '//varname//' is not recognized!')
-  END IF
-  DO icell = 0,INT(ncells/3)-1
-    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2) &
-      ,VTK_BGGdata_Cells(1+VI:3+VI,3*icell+3)
-  END DO
-  IF (MOD(ncells,3).EQ.1) THEN
-    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1)
-  ELSE IF (MOD(ncells,3).EQ.2) THEN
-    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2)
-  END IF
-  !n
-  DO icell=1,2
-    READ(unit_in, '(A)') cdummy
-  END DO
-  DO icell = 0,INT(ncells/9)-1
-    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
-      ,VTK_BGGdata_Cells(7,9*icell+7),VTK_BGGdata_Cells(7,9*icell+8),VTK_BGGdata_Cells(7,9*icell+9)
-  END DO
-  SELECT CASE (MOD(ncells,9))
-  CASE(1)
-    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1)
-  CASE(2)
-    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2)
-  CASE(3)
-    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3)
-  CASE(4)
-    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-      ,VTK_BGGdata_Cells(7,9*icell+4)
-  CASE(5)
-    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5)
-  CASE(6)
-    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6)
-  CASE(7)
-    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
-      ,VTK_BGGdata_Cells(7,9*icell+7)
-  CASE(8)
-    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
-      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
-      ,VTK_BGGdata_Cells(7,9*icell+7),VTK_BGGdata_Cells(7,9*icell+8)
-  END SELECT
-  CLOSE(1123)
-
-#ifndef MPI
-  IF (npoints.NE.nNodes) THEN
-    CALL abort(__STAMP__,&
-    'ERROR: wrong number of points in VTK-File')
-  END IF
-  IF (ncells.NE.nElems) THEN
-    CALL abort(__STAMP__,&
-    'ERROR: wrong number of cells in VTK-File')
-  END IF
-#endif /*MPI*/
-
-  ALLOCATE(VTKCellsSP(1:3,ncells))
-  DO icell = 1, ncells
-    Elem_SP(:)=0.
-    DO iNode = 1,8 !SP Nodes_new
-      DO icoord = 1,3
-        Elem_SP(icoord)=Elem_SP(icoord)+VTKNodes(icoord,VTKCells(iNode,icell))
-      END DO
-    END DO
-    VTKCellsSP(:,icell)=Elem_SP(:)/8.
-  END DO
-
-  ALLOCATE(BGGdataAtElem(1:7,nElems))
-  ALLOCATE(IsAssociated1(ncells))
-  ALLOCATE(IsAssociated2(nElems))
-  BGGdataAtElem=0.
-  IsAssociated1=.FALSE.
-  IsAssociated2=.FALSE.
-
-  DO iVTKcell = 1,ncells
-    x = VTKCellsSP(1:3,iVTKcell)
-    CellX = INT((x(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
-    CellY = INT((x(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
-    CellZ = INT((x(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
-#ifdef MPI
-    IF ((GEO%FIBGMimax.GE.CellX).AND.(GEO%FIBGMimin.LE.CellX)) THEN  
-    IF ((GEO%FIBGMkmax.GE.CellY).AND.(GEO%FIBGMkmin.LE.CellY)) THEN  
-    IF ((GEO%FIBGMlmax.GE.CellZ).AND.(GEO%FIBGMlmin.LE.CellZ)) THEN  
-#endif /* MPI */
-      DO iElem=1, nElems
-        CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
-              GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
-              GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
-              GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
-              VTKCellsSP(:,iVTKcell), &
-              InElementCheck)
-        IF(InElementCheck) THEN
-          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
-                VTKCellsSP(:,iVTKcell), &
-                InElementCheck)
-        END IF
-        IF(InElementCheck) THEN
-          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
-                VTKCellsSP(:,iVTKcell), &
-                InElementCheck)
-        END IF
-        IF(InElementCheck) THEN
-          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
-                VTKCellsSP(:,iVTKcell), &
-                InElementCheck)
-        END IF
-        IF(InElementCheck) THEN
-          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
-                VTKCellsSP(:,iVTKcell), &
-                InElementCheck)
-        END IF
-        IF(InElementCheck) THEN
-          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
-                GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
-                VTKCellsSP(:,iVTKcell), &
-                InElementCheck)
-        END IF
-        IF(InElementCheck) THEN
-          IF (IsAssociated1(iVTKcell).OR.IsAssociated2(iElem)) THEN
-            CALL abort(__STAMP__,&
-              'ERROR: Cell is already mapped!')
-          END IF
-          BGGdataAtElem(:,iElem)=VTK_BGGdata_Cells(:,iVTKcell)
-          IsAssociated1(iVTKcell)=.TRUE.
-          IsAssociated2(iElem)=.TRUE.
-          EXIT
-        END IF
-      END DO
-#ifdef MPI
-    END IF
-    END IF 
-    END IF  
-#endif /* MPI */
-  END DO ! iVTKcell
-  !IF (.NOT. ALL(IsAssociated1)) THEN         !only for 1 proc!!!!!!!!
-  !  CALL abort(__STAMP__,&
-  !	'ERROR: Not all VTKcells mapped for BGG!',999,999.)
-  !END IF
-  IF (.NOT. ALL(IsAssociated2)) THEN
-    CALL abort(__STAMP__,&
-              'ERROR: Not all Elems mapped for BGG!')
-  END IF
-  SWRITE(UNIT_stdOut,'(A)')'DONE!'
-  SWRITE(UNIT_stdOut,'(132("~"))')
+!  SWRITE(UNIT_stdOut,'(132("~"))')
+!  SWRITE(UNIT_stdOut,'(A)')'Reading VTK file for BGG...'
+!
+!  VTKfile = GETSTR('BGG-VTK-File','blubb')
+!  IF(TRIM(VTKfile).EQ.'blubb')THEN 
+!    CALL abort(__STAMP__,&
+!    'ERROR: No VTK-Filename for Background-Gas defined!')
+!  END IF 
+!
+!  unit_in = 1123
+!  OPEN(UNIT   = unit_in,              &
+!       FILE   = VTKfile,              &
+!       IOSTAT = os,                   &
+!       STATUS = 'OLD',                &
+!       ACTION = 'READ',               &
+!       ACCESS = 'SEQUENTIAL'          )
+!
+!  IF(os.NE.0) THEN  ! File Error
+!    CALL abort(__STAMP__,&
+!    'ERROR: cannot open VTK file: '//trim(VTKfile))
+!  END IF
+!    
+!  DO iNode=1,7
+!    READ(unit_in, '(A)') cdummy
+!  END DO
+!  READ(unit_in,*) cdummy,npoints,cdummy  ! POINTS ???? float
+!  ALLOCATE(VTKNodes(1:3,npoints))
+!  DO iNode = 0,INT(npoints/3)-1
+!    READ(unit_in,*) VTKNodes(:,3*iNode+1),VTKNodes(:,3*iNode+2),VTKNodes(:,3*iNode+3)
+!  END DO
+!  IF (MOD(npoints,3).EQ.1) THEN
+!    READ(unit_in,*) VTKNodes(:,3*iNode+1)
+!  ELSE IF (MOD(npoints,3).EQ.2) THEN
+!    READ(unit_in,*) VTKNodes(:,3*iNode+1),VTKNodes(:,3*iNode+2)
+!  END IF
+!  READ(unit_in,*) cdummy,ncells,cdummy  ! CELLS ???? ????
+!  ALLOCATE (VTKCells(1:8, ncells))
+!  DO icell = 1,ncells
+!    READ(unit_in,*), cdummy, VTKCells(:,icell)
+!  END DO
+!  VTKCells(:,:) = VTKCells(:,:) + 1
+!  READ(unit_in, '(A)') cdummy  ! blank line
+!  READ(unit_in, '(A)') cdummy  ! blank line
+!  DO icell = 1,ncells
+!    READ(unit_in,*) cdummy !skip cells
+!  END DO
+!  !var1
+!  DO icell=1,2
+!    READ(unit_in, '(A)') cdummy
+!  END DO
+!  READ(unit_in,*) cdummy, varname, cdummy
+!  VI = 0
+!  IF (TRIM(varname).EQ.'T') THEN
+!    VI=0
+!  ELSE IF (TRIM(varname).EQ.'v') THEN
+!    VI=3
+!  ELSE
+!    CALL abort(__STAMP__,&
+!    'Error in order of variables in BGGdata: '//varname//' is not recognized!')
+!  END IF
+!  ALLOCATE(VTK_BGGdata_Cells(1:7,ncells))
+!  DO icell = 0,INT(ncells/3)-1
+!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2) &
+!      ,VTK_BGGdata_Cells(1+VI:3+VI,3*icell+3)
+!  END DO
+!  IF (MOD(ncells,3).EQ.1) THEN
+!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1)
+!  ELSE IF (MOD(ncells,3).EQ.2) THEN
+!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2)
+!  END IF
+!  !var2
+!  DO icell=1,2
+!    READ(unit_in, '(A)') cdummy
+!  END DO
+!  READ(unit_in,*) varname, cdummy, cdummy, cdummy
+!  IF (TRIM(varname).EQ.'T') THEN
+!    VI=0
+!  ELSE IF (TRIM(varname).EQ.'v') THEN
+!    VI=3
+!  ELSE
+!    CALL abort(__STAMP__,&
+!    'Error in order of variables in BGGdata: '//varname//' is not recognized!')
+!  END IF
+!  DO icell = 0,INT(ncells/3)-1
+!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2) &
+!      ,VTK_BGGdata_Cells(1+VI:3+VI,3*icell+3)
+!  END DO
+!  IF (MOD(ncells,3).EQ.1) THEN
+!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1)
+!  ELSE IF (MOD(ncells,3).EQ.2) THEN
+!    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2)
+!  END IF
+!  !n
+!  DO icell=1,2
+!    READ(unit_in, '(A)') cdummy
+!  END DO
+!  DO icell = 0,INT(ncells/9)-1
+!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+!      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
+!      ,VTK_BGGdata_Cells(7,9*icell+7),VTK_BGGdata_Cells(7,9*icell+8),VTK_BGGdata_Cells(7,9*icell+9)
+!  END DO
+!  SELECT CASE (MOD(ncells,9))
+!  CASE(1)
+!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1)
+!  CASE(2)
+!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2)
+!  CASE(3)
+!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3)
+!  CASE(4)
+!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+!      ,VTK_BGGdata_Cells(7,9*icell+4)
+!  CASE(5)
+!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+!      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5)
+!  CASE(6)
+!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+!      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6)
+!  CASE(7)
+!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+!      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
+!      ,VTK_BGGdata_Cells(7,9*icell+7)
+!  CASE(8)
+!    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+!      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
+!      ,VTK_BGGdata_Cells(7,9*icell+7),VTK_BGGdata_Cells(7,9*icell+8)
+!  END SELECT
+!  CLOSE(1123)
+!
+!#ifndef MPI
+!  IF (npoints.NE.nNodes) THEN
+!    CALL abort(__STAMP__,&
+!    'ERROR: wrong number of points in VTK-File')
+!  END IF
+!  IF (ncells.NE.nElems) THEN
+!    CALL abort(__STAMP__,&
+!    'ERROR: wrong number of cells in VTK-File')
+!  END IF
+!#endif /*MPI*/
+!
+!  ALLOCATE(VTKCellsSP(1:3,ncells))
+!  DO icell = 1, ncells
+!    Elem_SP(:)=0.
+!    DO iNode = 1,8 !SP Nodes_new
+!      DO icoord = 1,3
+!        Elem_SP(icoord)=Elem_SP(icoord)+VTKNodes(icoord,VTKCells(iNode,icell))
+!      END DO
+!    END DO
+!    VTKCellsSP(:,icell)=Elem_SP(:)/8.
+!  END DO
+!
+!  ALLOCATE(BGGdataAtElem(1:7,nElems))
+!  ALLOCATE(IsAssociated1(ncells))
+!  ALLOCATE(IsAssociated2(nElems))
+!  BGGdataAtElem=0.
+!  IsAssociated1=.FALSE.
+!  IsAssociated2=.FALSE.
+!
+!  DO iVTKcell = 1,ncells
+!    x = VTKCellsSP(1:3,iVTKcell)
+!    CellX = INT((x(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+!    CellY = INT((x(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+!    CellZ = INT((x(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+!#ifdef MPI
+!    IF ((GEO%FIBGMimax.GE.CellX).AND.(GEO%FIBGMimin.LE.CellX)) THEN  
+!    IF ((GEO%FIBGMjmax.GE.CellY).AND.(GEO%FIBGMjmin.LE.CellY)) THEN  
+!    IF ((GEO%FIBGMkmax.GE.CellZ).AND.(GEO%FIBGMkmin.LE.CellZ)) THEN  
+!#endif /* MPI */
+!      DO iElem=1, nElems
+!        ! OMG
+!        CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
+!              GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
+!              GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
+!              GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
+!              VTKCellsSP(:,iVTKcell), &
+!              InElementCheck)
+!        IF(InElementCheck) THEN
+!          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
+!                VTKCellsSP(:,iVTKcell), &
+!                InElementCheck)
+!        END IF
+!        IF(InElementCheck) THEN
+!          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
+!                VTKCellsSP(:,iVTKcell), &
+!                InElementCheck)
+!        END IF
+!        IF(InElementCheck) THEN
+!          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
+!                VTKCellsSP(:,iVTKcell), &
+!                InElementCheck)
+!        END IF
+!        IF(InElementCheck) THEN
+!          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
+!                VTKCellsSP(:,iVTKcell), &
+!                InElementCheck)
+!        END IF
+!        IF(InElementCheck) THEN
+!          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
+!                GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
+!                VTKCellsSP(:,iVTKcell), &
+!                InElementCheck)
+!        END IF
+!        IF(InElementCheck) THEN
+!          IF (IsAssociated1(iVTKcell).OR.IsAssociated2(iElem)) THEN
+!            CALL abort(__STAMP__,&
+!              'ERROR: Cell is already mapped!')
+!          END IF
+!          BGGdataAtElem(:,iElem)=VTK_BGGdata_Cells(:,iVTKcell)
+!          IsAssociated1(iVTKcell)=.TRUE.
+!          IsAssociated2(iElem)=.TRUE.
+!          EXIT
+!        END IF
+!      END DO
+!#ifdef MPI
+!    END IF
+!    END IF 
+!    END IF  
+!#endif /* MPI */
+!  END DO ! iVTKcell
+!  !IF (.NOT. ALL(IsAssociated1)) THEN         !only for 1 proc!!!!!!!!
+!  !  CALL abort(__STAMP__,&
+!  !	'ERROR: Not all VTKcells mapped for BGG!',999,999.)
+!  !END IF
+!  IF (.NOT. ALL(IsAssociated2)) THEN
+!    CALL abort(__STAMP__,&
+!              'ERROR: Not all Elems mapped for BGG!')
+!  END IF
+!  SWRITE(UNIT_stdOut,'(A)')'DONE!'
+!  SWRITE(UNIT_stdOut,'(132("~"))')
 END SUBROUTINE ReadinVTKFileBGG
 
 
@@ -1074,7 +1081,9 @@ REAL FUNCTION CalcArea(iLocSide, Element)
 ! Calculates area of mesh element
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,          ONLY : GEO
+!  USE MOD_Particle_Vars,          ONLY : GEO
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1090,42 +1099,43 @@ REAL FUNCTION CalcArea(iLocSide, Element)
   REAL                        :: Vector1(1:3), Vector2(1:3), Vector3(1:3)
 !===================================================================================================================================
 
-  xNod1 = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
-  yNod1 = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
-  zNod1 = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
-
-  xNod2 = GEO%NodeCoords(1,GEO%ElemSideNodeID(2,iLocSide,Element))
-  yNod2 = GEO%NodeCoords(2,GEO%ElemSideNodeID(2,iLocSide,Element))
-  zNod2 = GEO%NodeCoords(3,GEO%ElemSideNodeID(2,iLocSide,Element))
-
-  xNod3 = GEO%NodeCoords(1,GEO%ElemSideNodeID(3,iLocSide,Element))
-  yNod3 = GEO%NodeCoords(2,GEO%ElemSideNodeID(3,iLocSide,Element))
-  zNod3 = GEO%NodeCoords(3,GEO%ElemSideNodeID(3,iLocSide,Element))
-
-  xNod4 = GEO%NodeCoords(1,GEO%ElemSideNodeID(4,iLocSide,Element))
-  yNod4 = GEO%NodeCoords(2,GEO%ElemSideNodeID(4,iLocSide,Element))
-  zNod4 = GEO%NodeCoords(3,GEO%ElemSideNodeID(4,iLocSide,Element))
-
-  Vector1(1) = xNod2 - xNod1
-  Vector1(2) = yNod2 - yNod1
-  Vector1(3) = zNod2 - zNod1
-
-  Vector2(1) = xNod3 - xNod1
-  Vector2(2) = yNod3 - yNod1
-  Vector2(3) = zNod3 - zNod1
-
-  Vector3(1) = xNod4 - xNod1
-  Vector3(2) = yNod4 - yNod1
-  Vector3(3) = zNod4 - zNod1
-
-  CalcArea = 0.5*(SQRT((Vector1(2)*Vector2(3)-Vector1(3)*Vector2(2))**2 &
-         + (-Vector1(1)*Vector2(3)+Vector1(3)*Vector2(1))**2 &
-         + (Vector1(1)*Vector2(2)-Vector1(2)*Vector2(1))**2) &
-         + SQRT((Vector3(2)*Vector2(3)-Vector3(3)*Vector2(2))**2 &
-         + (-Vector3(1)*Vector2(3)+Vector3(3)*Vector2(1))**2 &
-         + (Vector3(1)*Vector2(2)-Vector3(2)*Vector2(1))**2))
-
-  RETURN
+STOP
+!  xNod1 = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
+!  yNod1 = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
+!  zNod1 = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
+!
+!  xNod2 = GEO%NodeCoords(1,GEO%ElemSideNodeID(2,iLocSide,Element))
+!  yNod2 = GEO%NodeCoords(2,GEO%ElemSideNodeID(2,iLocSide,Element))
+!  zNod2 = GEO%NodeCoords(3,GEO%ElemSideNodeID(2,iLocSide,Element))
+!
+!  xNod3 = GEO%NodeCoords(1,GEO%ElemSideNodeID(3,iLocSide,Element))
+!  yNod3 = GEO%NodeCoords(2,GEO%ElemSideNodeID(3,iLocSide,Element))
+!  zNod3 = GEO%NodeCoords(3,GEO%ElemSideNodeID(3,iLocSide,Element))
+!
+!  xNod4 = GEO%NodeCoords(1,GEO%ElemSideNodeID(4,iLocSide,Element))
+!  yNod4 = GEO%NodeCoords(2,GEO%ElemSideNodeID(4,iLocSide,Element))
+!  zNod4 = GEO%NodeCoords(3,GEO%ElemSideNodeID(4,iLocSide,Element))
+!
+!  Vector1(1) = xNod2 - xNod1
+!  Vector1(2) = yNod2 - yNod1
+!  Vector1(3) = zNod2 - zNod1
+!
+!  Vector2(1) = xNod3 - xNod1
+!  Vector2(2) = yNod3 - yNod1
+!  Vector2(3) = zNod3 - zNod1
+!
+!  Vector3(1) = xNod4 - xNod1
+!  Vector3(2) = yNod4 - yNod1
+!  Vector3(3) = zNod4 - zNod1
+!
+!  CalcArea = 0.5*(SQRT((Vector1(2)*Vector2(3)-Vector1(3)*Vector2(2))**2 &
+!         + (-Vector1(1)*Vector2(3)+Vector1(3)*Vector2(1))**2 &
+!         + (Vector1(1)*Vector2(2)-Vector1(2)*Vector2(1))**2) &
+!         + SQRT((Vector3(2)*Vector2(3)-Vector3(3)*Vector2(2))**2 &
+!         + (-Vector3(1)*Vector2(3)+Vector3(3)*Vector2(1))**2 &
+!         + (Vector3(1)*Vector2(2)-Vector3(2)*Vector2(1))**2))
+!
+!  RETURN
 
 END FUNCTION CalcArea
 

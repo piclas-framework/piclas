@@ -20,7 +20,8 @@ SUBROUTINE WriteDebugMesh(n,iFIBG,kFIBG,lFIBG)                                  
 !===================================================================================================================================
 !===================================================================================================================================
    USE MOD_Particle_Vars
-   USE MOD_Mesh_Vars,     ONLY : nElems
+   USE MOD_Mesh_Vars,          ONLY:nElems,XCL_NGeo,NGeo
+   USE MOD_Particle_Mesh_Vars, ONLY:GEO
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
    IMPLICIT NONE                                                                                   !
@@ -43,9 +44,14 @@ SUBROUTINE WriteDebugMesh(n,iFIBG,kFIBG,lFIBG)                                  
   WRITE(1112,'(A)')''
   WRITE(1112,'(A,I0,A)')'POINTS ',nNodes,' FLOAT'
   DO iElem=1,nElems
-    DO iCorner=1,8
-      WRITE(1112,*)GEO%NodeCoords(1:3,GEO%ElemToNodeID(iCorner,iElem))
-    END DO
+    WRITE(1112,*)XCL_NGeo(1:3,0   ,0   ,0   ,iElem)
+    WRITE(1112,*)XCL_NGeo(1:3,NGeo,0   ,0   ,iElem)
+    WRITE(1112,*)XCL_NGeo(1:3,0   ,NGeo,0   ,iElem)
+    WRITE(1112,*)XCL_NGeo(1:3,NGeo,NGeo,0   ,iElem)
+    WRITE(1112,*)XCL_NGeo(1:3,0   ,0   ,NGeo,iElem)
+    WRITE(1112,*)XCL_NGeo(1:3,NGeo,0   ,NGeo,iElem)
+    WRITE(1112,*)XCL_NGeo(1:3,0   ,NGeo,NGeo,iElem)
+    WRITE(1112,*)XCL_NGeo(1:3,NGeo,NGeo,NGeo,iElem)
   END DO
   WRITE(1112,*)''
   WRITE(1112,'(A,I0,1X,I0)')'CELLS ',nElems,nNodes+nElems

@@ -36,7 +36,8 @@ SUBROUTINE DSMC_vmpf_prob(iElem, iPair, NodeVolume)
 ! IMPLICIT VARIABLE HANDLING
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, GEO, PartMPF, useVTKFileBGG, BGGdataAtElem
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartMPF, useVTKFileBGG, BGGdataAtElem
+  USE MOD_Particle_Mesh_Vars,     ONLY : Geo
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_SpecXSec
 
@@ -153,7 +154,8 @@ SUBROUTINE vMPF_PostVelo(iPair, iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : DSMC_RHS, Coll_pData
-  USE MOD_Particle_Vars,          ONLY : PartMPF, GEO, PartSpecies, Species
+  USE MOD_Particle_Vars,          ONLY : PartMPF, PartSpecies, Species
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 !--------------------------------------------------------------------------------------------------!
   IMPLICIT NONE                                                                                 !
 !--------------------------------------------------------------------------------------------------!
@@ -253,7 +255,8 @@ SUBROUTINE AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
   USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
   USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
-  USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, GEO, Species
+  USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species
+  USE MOD_Particle_Mesh_Vars,    ONLY : GEO
   USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
 !--------------------------------------------------------------------------------------------------!
 IMPLICIT NONE                                                                                      !
@@ -534,7 +537,8 @@ SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, DSMC
   USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, RandomVec, NumRanVec, PartState, &
-                                          BoltzmannConst, GEO, PartMPF
+                                          BoltzmannConst,  PartMPF
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !

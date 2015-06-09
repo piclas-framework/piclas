@@ -1884,7 +1884,9 @@ SUBROUTINE ParticleInsertingCellPressure(iSpec,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_part_MPFtools,   ONLY : MapToGEO
+USE MOD_Eval_xyz,           ONLY:Eval_XYZ_Poly
+USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo
+USE MOD_Particle_Mesh_Vars, ONLY:GEO
 !USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1903,6 +1905,9 @@ INTEGER, ALLOCATABLE  :: PartsInCell(:)
 LOGICAL               :: InElementCheck
 REAL                  :: det(16)
 !===================================================================================================================================
+
+
+STOP
 
 NbrOfParticle = 0
 DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
@@ -1926,10 +1931,10 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
     CALL RANDOM_NUMBER(RandVal)
     IF(PartDiffRest.GT.RandVal) PartDiff = PartDiff + 1.0
     NbrNewParts = INT(PartDiff)
-    ! Build array for element nodes
-    DO iNode = 1,8
-      P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,Elem))
-    END DO
+    ! ! Build array for element nodes
+    ! DO iNode = 1,8
+    !   P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,Elem))
+    ! END DO
     ! insert particles (positions)
     DO i = 1, NbrNewParts
       ! set random position in -1,1 space
@@ -1937,7 +1942,9 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
       RandVal3 = RandVal3 * 2.0 - 1.0 
       ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
       IF (ParticleIndexNbr.NE.0) THEN
-        PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
+        ! WTF????????
+        CALL Eval_xyz_Poly(RandVal3,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3),iElem)
+        !PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         STOP
         !CALL ParticleInsideQuad3D(ParticleIndexNbr,Elem,InElementCheck,det)
@@ -1978,8 +1985,11 @@ SUBROUTINE ParticleInsertingPressureOut(iSpec,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
+USE MOD_Eval_xyz,           ONLY:Eval_XYZ_Poly
+USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo
+
 !USE MOD_PIC_Vars !hoechstwahrscheinlich nicht benoetigt
-USE MOD_part_MPFtools,   ONLY : MapToGEO
+!USE MOD_part_MPFtools,   ONLY : MapToGEO
 !USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2024,10 +2034,10 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
   DEALLOCATE(PartsInCell)
   ! step 3: add new particles
   IF(NbrPartsInCell.GT.0) THEN
-    ! Build array for element nodes
-    DO iNode = 1,8
-      P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,Elem))
-    END DO
+    !! Build array for element nodes
+    !DO iNode = 1,8
+    !  P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,Elem))
+    !END DO
     ! insert particles (positions and velocities)
     v_sum(1:3) = 0.0
     v2_sum = 0.0
@@ -2037,7 +2047,9 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
       RandVal3 = RandVal3 * 2.0 - 1.0 
       ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
       IF (ParticleIndexNbr.NE.0) THEN
-        PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
+        ! und sie wussten nicht, was sie taten..... WTF
+        CALL Eval_xyz_Poly(RandVal3,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3),iElem)
+        !PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         STOP
         !CALL ParticleInsideQuad3D(ParticleIndexNbr,Elem,InElementCheck,det)
@@ -2099,9 +2111,10 @@ SUBROUTINE ParticleInsertingPressureOut_Sampling(iSpec, iInit, iElem, ElemSamp, 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars,         ONLY : PartState,usevMPF,GEO,Species,PartSpecies,BoltzmannConst,usevMPF,PartMPF,PDM
+USE MOD_Particle_Vars,         ONLY : PartState,usevMPF,Species,PartSpecies,BoltzmannConst,usevMPF,PartMPF,PDM
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC
 USE MOD_TimeDisc_Vars,         ONLY : iter
+USE MOD_Particle_Mesh_Vars,    ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -216,7 +216,8 @@ USE MOD_Globals,               ONLY : abort
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec
-USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, GEO, Species
+USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species
+USE MOD_Particle_Mesh_Vars,    ONLY : GEO
 USE MOD_vmpf_collision,        ONLY : vMPF_AfterSplitting
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
 ! IMPLICIT VARIABLE HANDLING

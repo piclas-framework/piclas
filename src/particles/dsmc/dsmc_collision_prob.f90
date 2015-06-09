@@ -30,8 +30,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, GEO, usevMPF, useVTKFileBGG, BGGdataAtElem
-!  USE MOD_Particle_Vars,          ONLY : PartState       ! da muss noch was getan werden (s.u.)
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, usevMPF, useVTKFileBGG, BGGdataAtElem
+  USE MOD_Particle_Mesh_Vars,     ONLY : Geo       ! da muss noch was getan werden (s.u.)
   USE MOD_TimeDisc_Vars,          ONLY : dt
 !  USE MOD_Equation_Vars,          ONLY : c2              ! da muss noch was getan werden (s.u.)
   USE MOD_DSMC_SpecXSec

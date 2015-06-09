@@ -86,7 +86,8 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
 ! Electronic energy exchange
 !===================================================================================================================================
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, GEO, usevMPF,PartMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, usevMPF,PartMPF
+  USE MOD_Particle_Mesh_Vars,     ONLY : Geo
 #if (PP_TimeDiscMethod==42)
   USE MOD_DSMC_Vars,              ONLY : DSMC
 #endif
@@ -225,7 +226,8 @@ SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
 ! Electronic energy exchange
 !===================================================================================================================================
   USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PartStateIntEn
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, GEO, usevMPF,PartMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, usevMPF,PartMPF
+  USE MOD_Particle_Mesh_Vars,     ONLY : Geo
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
 !-----------------------------------------------------------------------------------------------------------------------------------

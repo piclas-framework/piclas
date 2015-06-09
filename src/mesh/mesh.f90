@@ -262,7 +262,7 @@ USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm
 USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
 #ifdef PARTICLES
-USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_CLNGeo_EquiNPartCurved,Vdm_Bezier,sVdm_Bezier
+USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_Bezier,sVdm_Bezier
 USE MOD_Basis,                   ONLY: BuildBezierVdm
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -279,7 +279,7 @@ REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP
 REAL,DIMENSION(0:N_in)                     :: XiCL_N,wBaryCL_N
 REAL,DIMENSION(0:NGeo_in)                  :: wBary_NGeo!: XiCL_NGeo,!,wBaryCL_NGeo,wBary_NGeo
 #ifdef PARTICLES
-REAL,DIMENSION(0:NGeo_in)                  :: XiEquiPartCurved
+!REAL,DIMENSION(0:NGeo_in)                  :: XiEquiPartCurved
 #endif
 INTEGER                                    :: i
 !===================================================================================================================================
@@ -314,13 +314,11 @@ CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,XiCL_N   ,Vdm_
 CALL InitializeVandermonde(NGeo_in,NGeo_in,wBary_NGeo  ,Xi_NGeo  ,XiCL_NGeo,Vdm_NGeo_CLNGeo  )
 #ifdef PARTICLES
 ! new for curved particle sides
-ALLOCATE(Vdm_CLNGeo_EquiNPartCurved(0:NGeo_in,0:NGeo_in))
 ALLOCATE(Vdm_Bezier(0:NGeo_in,0:NGeo_in),sVdm_Bezier(0:NGeo_in,0:NGeo_in))
 ! initialize vandermonde for super-sampled surfaces (particle tracking with curved elements)
-DO i=0,NGeo_in
-  XiEquiPartCurved(i) = 2./REAL(NGeo_in) * REAL(i) - 1. 
-END DO
-!CALL InitializeVandermonde(NGeo_in,NGeo_in ,wBaryCL_NGeo,XiCL_NGeo,XiEquiPartCurved   ,Vdm_CLNGeo_EquiNPartCurved   )
+!DO i=0,NGeo_in
+!  XiEquiPartCurved(i) = 2./REAL(NGeo_in) * REAL(i) - 1. 
+!END DO
 ! initialize vandermonde for bezier basis surface representation (particle tracking with curved elements)
 CALL BuildBezierVdm(NGeo_in,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
 #endif

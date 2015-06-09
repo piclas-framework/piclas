@@ -733,6 +733,7 @@ SUBROUTINE CalcShapeEfficiencyR()
 ! MODULES
 USE MOD_Particle_Analyze_Vars,   ONLY : CalcShapeEfficiencyMethod, ShapeEfficiencyNumber
 USE MOD_Mesh_Vars,               ONLY : nElems, Elem_xGP
+USE MOD_Particle_Mesh_Vars,      ONLY : GEO
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
@@ -771,13 +772,13 @@ CASE('AllParts')
       kmin = INT((PartState(i,1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
       kmin = MAX(kmin,GEO%FIBGMimin)
       lmax = INT((PartState(i,2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-      lmax = MIN(lmax,GEO%FIBGMkmax)
+      lmax = MIN(lmax,GEO%FIBGMjmax)
       lmin = INT((PartState(i,2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-      lmin = MAX(lmin,GEO%FIBGMkmin)
+      lmin = MAX(lmin,GEO%FIBGMjmin)
       mmax = INT((PartState(i,3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-      mmax = MIN(mmax,GEO%FIBGMlmax)
+      mmax = MIN(mmax,GEO%FIBGMkmax)
       mmin = INT((PartState(i,3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-      mmin = MAX(mmin,GEO%FIBGMlmin)
+      mmin = MAX(mmin,GEO%FIBGMkmin)
       !-- go through all these cells
       DO kk = kmin,kmax
         DO ll = lmin, lmax
@@ -831,13 +832,13 @@ CASE('SomeParts')
         kmin = INT((PartState(i,1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
         kmin = MAX(kmin,GEO%FIBGMimin)
         lmax = INT((PartState(i,2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-        lmax = MIN(lmax,GEO%FIBGMkmax)
+        lmax = MIN(lmax,GEO%FIBGMjmax)
         lmin = INT((PartState(i,2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-        lmin = MAX(lmin,GEO%FIBGMkmin)
+        lmin = MAX(lmin,GEO%FIBGMjmin)
         mmax = INT((PartState(i,3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-        mmax = MIN(mmax,GEO%FIBGMlmax)
+        mmax = MIN(mmax,GEO%FIBGMkmax)
         mmin = INT((PartState(i,3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-        mmin = MAX(mmin,GEO%FIBGMlmin)
+        mmin = MAX(mmin,GEO%FIBGMkmin)
         !-- go through all these cells
         DO kk = kmin,kmax
           DO ll = lmin, lmax
@@ -1410,7 +1411,8 @@ SUBROUTINE ReacRates(RRate, NumSpec)
 ! MODULES
 USE MOD_DSMC_Vars,          ONLY: ChemReac, DSMC
 USE MOD_TimeDisc_Vars,      ONLY: dt
-USE MOD_Particle_Vars,      ONLY: GEO, Species
+USE MOD_Particle_Vars,      ONLY: Species
+USE MOD_Particle_Mesh_Vars, ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -31,7 +31,12 @@ INTERFACE eval_xyz_part2
   MODULE PROCEDURE eval_xyz_part2
 END INTERFACE
 
-PUBLIC :: eval_xyz_curved,eval_xyz_elemcheck, eval_xyz_part2
+INTERFACE eval_xyz_poly
+  MODULE PROCEDURE eval_xyz_poly
+END INTERFACE
+
+
+PUBLIC :: eval_xyz_curved,eval_xyz_elemcheck, eval_xyz_part2,eval_xyz_poly
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
@@ -514,6 +519,69 @@ END DO !newton
 !
 
 END SUBROUTINE eval_xyz_elemcheck
+
+
+SUBROUTINE Eval_xyz_Poly(xi_in,NVar,N_in,X3D_In,X3D_Out,iElem)
+!===================================================================================================================================
+! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
+! hoewver, particle is already mapped to reference space -1|1
+! xi instead of x_in
+!===================================================================================================================================
+! MODULES
+USE MOD_Basis,                 ONLY: LagrangeInterpolationPolys
+USE MOD_Interpolation_Vars,    ONLY: wBary,xGP
+USE MOD_PICInterpolation_Vars, ONLY:NBG,BGField,useBGField,BGDataSize,BGField_xGP,BGField_wBary,BGType
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)        :: NVar                                  ! 6 (Ex, Ey, Ez, Bx, By, Bz) 
+INTEGER,INTENT(IN)        :: N_In                                  ! usually PP_N
+INTEGER,INTENT(IN)        :: iElem                                 ! elem index
+REAL,INTENT(IN)           :: X3D_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
+REAL,INTENT(IN)           :: xi_in(3)                              ! reference space position of particle 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)          :: X3D_Out(1:NVar)  ! Interpolated state
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER                   :: iN_In,jN_In,kN_In,i
+REAL                      :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
+REAL                      :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
+REAL,DIMENSION(3,0:N_in)  :: L_xi        
+!===================================================================================================================================
+! --------------------------------------------------
+! 2.) Interpolation
+! --------------------------------------------------
+! 2.1) get "Vandermonde" vectors
+DO i=1,3
+  CALL LagrangeInterpolationPolys(xi_in(i),N_in,xGP,wBary,L_xi(i,:))
+END DO
+
+! 2.2) do the tensor product thing 
+X3D_buf1=0.
+! first direction iN_In
+DO kN_In=0,N_In
+  DO jN_In=0,N_In
+    DO iN_In=0,N_In
+      X3D_Buf1(:,jN_In,kN_In)=X3D_Buf1(:,jN_In,kN_In)+L_xi(1,iN_In)*X3D_In(:,iN_In,jN_In,kN_In)
+    END DO
+  END DO
+END DO
+X3D_buf2=0.
+! second direction jN_In
+DO kN_In=0,N_In
+  DO jN_In=0,N_In
+    X3D_Buf2(:,kN_In)=X3D_Buf2(:,kN_In)+L_xi(2,jN_In)*X3D_Buf1(:,jN_In,kN_In)
+  END DO
+END DO
+X3D_Out=0.
+! last direction kN_In
+DO kN_In=0,N_In
+  X3D_Out(:)=X3D_Out(:)+L_xi(3,kN_In)*X3D_Buf2(:,kN_In)
+END DO
+
+END SUBROUTINE Eval_xyz_poly
 
 
 SUBROUTINE eval_xyz_part2(xi_in,NVar,N_in,X3D_In,X3D_Out,iElem)

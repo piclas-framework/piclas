@@ -102,10 +102,11 @@ SUBROUTINE QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,Node
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars
-USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-USE MOD_Particle_Vars,          ONLY: PartSpecies, BoltzmannConst, Species, PEM, GEO, PartState,  usevMPF
-USE MOD_DSMC_ChemReact,         ONLY: AtomRecomb
-USE MOD_vmpf_collision,         ONLY: AtomRecomb_vMPF
+USE MOD_DSMC_Vars,              ONLY:Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
+USE MOD_Particle_Vars,          ONLY:PartSpecies, BoltzmannConst, Species, PEM, PartState,  usevMPF
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO
+USE MOD_DSMC_ChemReact,         ONLY:AtomRecomb
+USE MOD_vmpf_collision,         ONLY:AtomRecomb_vMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                    
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -88,7 +88,8 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn
-  USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,GEO,Species,usevMPF,PartMPF,useVTKFileBGG,BGGdataAtElem
+  USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,useVTKFileBGG,BGGdataAtElem
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

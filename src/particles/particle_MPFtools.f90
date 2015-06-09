@@ -29,17 +29,13 @@ INTERFACE StartParticleMerge
   MODULE PROCEDURE StartParticleMerge
 END INTERFACE
 
-INTERFACE MapToGeo
-  MODULE PROCEDURE MapToGeo
-END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SplitParticle, MergeParticles, DefinePolyVec, DefineSplitVec, StartParticleMerge, &
-            MapToGeo
+PUBLIC :: SplitParticle, MergeParticles, DefinePolyVec, DefineSplitVec, StartParticleMerge
 !===================================================================================================================================
 
 CONTAINS   
@@ -663,8 +659,10 @@ SUBROUTINE SetMPFParticlePosCube(iElem, FinPartNum)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Particle_Vars, ONLY : PartState, PEM, vMPFMergeCellSplitOrder, vMPF_OrderVec &
-                        , vMPFPolySol, vMPF_SplitVecBack, GEO, PartStatevMPFSpec, vMPF_velocityDistribution &
+                        , vMPFPolySol, vMPF_SplitVecBack, PartStatevMPFSpec, vMPF_velocityDistribution &
                         , vMPF_NewPosRefElem
+  USE MOD_Eval_xyz,           ONLY:Eval_XYZ_Poly
+  USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -674,12 +672,9 @@ SUBROUTINE SetMPFParticlePosCube(iElem, FinPartNum)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration
   INTEGER               :: iLoop, x_cube, y_cube, z_cube, iNode, iLoop2
-  REAL                  :: RandVac(3), ProbPos,  iRan, P(3,8)
+  REAL                  :: RandVac(3), ProbPos,  iRan
 !===================================================================================================================================
 
-  DO iNode = 1,8
-    P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-  END DO
   iLoop2 = 1                      
 
   IF(vMPF_velocityDistribution.EQ.'DENSEST') ALLOCATE(vMPF_NewPosRefElem(FinPartNum,3))  
@@ -703,7 +698,8 @@ SUBROUTINE SetMPFParticlePosCube(iElem, FinPartNum)
     END DO
     RandVac = RandVac * 2.0 - 1.0
     IF(vMPF_velocityDistribution.EQ.'DENSEST')  vMPF_NewPosRefElem(iLoop, 1:3) = RandVac 
-    PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
+    CALL Eval_xyz_Poly(RandVac,3,NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(PartStatevMPFSpec(iLoop),1:3),iElem)
+    !PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
   END DO
 
 END SUBROUTINE SetMPFParticlePosCube
@@ -714,9 +710,12 @@ SUBROUTINE SetMPFParticlePosDensEst(iElem, FinPartNum, SpecNum,PosFailed)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Particle_Vars, ONLY : PartState, PEM, vMPFMergeCellSplitOrder, vMPF_OrderVec &
-                        , vMPFPolySol, vMPF_SplitVecBack, GEO, PartStatevMPFSpec, PartStateMap &
+                        , vMPFPolySol, vMPF_SplitVecBack, PartStatevMPFSpec, PartStateMap &
                         , vMPF_oldMPFSum, vMPFOldMPF, vMPF_NewPosRefElem, vMPF_velocityDistribution &
                         ,vMPFOldPos, vMPFOldVelo, vMPFOldMPF, vMPFNewPosNum, PartMPF, PDM
+  USE MOD_Eval_xyz,           ONLY:Eval_XYZ_Poly
+  USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo
+
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    !
@@ -727,14 +726,14 @@ LOGICAL , INTENT(INOUT)             :: PosFailed
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration
 INTEGER               :: iLoop, iNode, iLoop2, NumLoop
-REAL                  :: RandVac(3), ProbPos,  iRan, P(3,8), bandwidth, MaxProb, MaxProbtemp
+REAL                  :: RandVac(3), ProbPos,  iRan,  bandwidth, MaxProb, MaxProbtemp
 
 !===================================================================================================================================
 bandwidth = 0.03 !0.03
 PosFailed=.false.
-DO iNode = 1,8
-  P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-END DO                   
+!DO iNode = 1,8
+!  P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
+!END DO                   
 
 IF(vMPF_velocityDistribution.EQ.'DENSEST') ALLOCATE(vMPF_NewPosRefElem(FinPartNum,3))   
 
@@ -776,7 +775,8 @@ DO iLoop = 1, FinPartNum
   END DO
   IF(PosFailed) EXIT
   IF(vMPF_velocityDistribution.EQ.'DENSEST')  vMPF_NewPosRefElem(iLoop, 1:3) = RandVac
-  PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
+  CALL Eval_xyz_Poly(RandVac,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(PartStatevMPFSpec(iLoop),1:3),iElem)
+  !PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
 END DO
 
 IF(PosFailed) THEN
@@ -981,35 +981,6 @@ END IF
 
 END SUBROUTINE SetNewVelos
 
-
-FUNCTION MapToGeo(xi,P)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  REAL,INTENT(IN)          :: xi(3)      ! 
-  REAL,INTENT(IN)          :: P(3,8)     ! 
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  REAL                     :: MapToGeo(3)
-!===================================================================================================================================
-
-  MapToGeo =0.125 *(P(:,1)*(1-xi(1)) * (1-xi(2)) * (1-xi(3))  &
-                + P(:,2)*(1+xi(1)) * (1-xi(2)) * (1-xi(3))  &
-                + P(:,3)*(1+xi(1)) * (1+xi(2)) * (1-xi(3))  &
-                + P(:,4)*(1-xi(1)) * (1+xi(2)) * (1-xi(3))  &
-                + P(:,5)*(1-xi(1)) * (1-xi(2)) * (1+xi(3))  &
-                + P(:,6)*(1+xi(1)) * (1-xi(2)) * (1+xi(3))  &
-                + P(:,7)*(1+xi(1)) * (1+xi(2)) * (1+xi(3))  &
-                + P(:,8)*(1-xi(1)) * (1+xi(2)) * (1+xi(3))) 
-
-END FUNCTION MapToGeo 
 
 FUNCTION GaussCore(bandwidth,oldpos,newpos)
 !===================================================================================================================================

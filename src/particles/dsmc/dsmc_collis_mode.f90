@@ -29,7 +29,8 @@ SUBROUTINE DSMC_Elastic_Col(iPair, iElem)
 !===================================================================================================================================
 ! MODULES  
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, PairE_vMPF
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, RandomVec, NumRanVec, PartState, usevMPF, PartMPF, GEO
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, RandomVec, NumRanVec, PartState, usevMPF, PartMPF
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -102,8 +103,9 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, &
                                          SpecDSMC, PartStateIntEn, PairE_vMPF
   USE MOD_Particle_Vars,          ONLY : PartSpecies, RandomVec, NumRanVec, &
-                                         PartState, BoltzmannConst, usevMPF, GEO, PartMPF
+                                         PartState, BoltzmannConst, usevMPF, PartMPF
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPolyFast
 ! IMPLICIT VARIABLE HANDLING
@@ -542,10 +544,11 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 ! MODULES
   USE MOD_Globals,                ONLY : Abort
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PartState , BoltzmannConst, PEM, GEO, usevMPF
+  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PartState , BoltzmannConst, PEM,  usevMPF
   USE MOD_DSMC_ChemReact,         ONLY : ElecImpactIoni, MolecDissoc, MolecExch, AtomRecomb, simpleCEX
   USE MOD_Globals,                ONLY : Unit_stdOut
   USE MOD_vmpf_collision,         ONLY : AtomRecomb_vMPF
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

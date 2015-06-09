@@ -36,7 +36,7 @@ SUBROUTINE InitializeInterpolation
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Particle_Vars,          ONLY : PDM, GEO
+USE MOD_Particle_Vars,          ONLY : PDM
 USE MOD_PICInterpolation_Vars
 USE MOD_Mesh_Vars,              ONLY : nElems
 ! IMPLICIT VARIABLE HANDLING

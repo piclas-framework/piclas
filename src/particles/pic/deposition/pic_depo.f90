@@ -34,7 +34,8 @@ USE MOD_Globals
 USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_inv
 USE MOD_Particle_Vars ! crazy??
 USE MOD_Globals_Vars,           ONLY:PI
-USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP
+USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP,XCL_NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Interpolation_Vars,     ONLY:xGP
 USE MOD_Basis,                  ONLY:BuildBernsteinVdm
 USE MOD_PreProc,                ONLY:PP_N
@@ -175,14 +176,12 @@ CASE('cartmesh_volumeweighting')
   ymax = -1.0E200
   zmax = -1.0E200
   DO iElem = 1, nElems
-    DO i = 1,8
-      xmin = MIN(xmin,GEO%NodeCoords(1,GEO%ElemToNodeID(i,iElem)))
-      ymin = MIN(ymin,GEO%NodeCoords(2,GEO%ElemToNodeID(i,iElem)))
-      zmin = MIN(zmin,GEO%NodeCoords(3,GEO%ElemToNodeID(i,iElem)))
-      xmax = MAX(xmax,GEO%NodeCoords(1,GEO%ElemToNodeID(i,iElem)))
-      ymax = MAX(ymax,GEO%NodeCoords(2,GEO%ElemToNodeID(i,iElem)))
-      zmax = MAX(zmax,GEO%NodeCoords(3,GEO%ElemToNodeID(i,iElem)))
-    END DO
+    xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
+    xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
+    ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
+    ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
+    zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
+    zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
   END DO
   ! define minimum and maximum backgroundmesh index, compute volume
   BGMVolume = BGMdeltas(1)*BGMdeltas(2)*BGMdeltas(3)
@@ -264,14 +263,12 @@ CASE('cartmesh_splines')
   ymax = -1.0E200
   zmax = -1.0E200
   DO iElem = 1, nElems
-    DO i = 1,8
-      xmin = MIN(xmin,GEO%NodeCoords(1,GEO%ElemToNodeID(i,iElem)))
-      ymin = MIN(ymin,GEO%NodeCoords(2,GEO%ElemToNodeID(i,iElem)))
-      zmin = MIN(zmin,GEO%NodeCoords(3,GEO%ElemToNodeID(i,iElem)))
-      xmax = MAX(xmax,GEO%NodeCoords(1,GEO%ElemToNodeID(i,iElem)))
-      ymax = MAX(ymax,GEO%NodeCoords(2,GEO%ElemToNodeID(i,iElem)))
-      zmax = MAX(zmax,GEO%NodeCoords(3,GEO%ElemToNodeID(i,iElem)))
-    END DO
+    xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
+    xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
+    ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
+    ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
+    zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
+    zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
   END DO
   ! define minimum and maximum backgroundmesh index, compute volume
   BGMVolume = BGMdeltas(1)*BGMdeltas(2)*BGMdeltas(3)
@@ -397,6 +394,7 @@ USE MOD_Eval_xyz,              ONLY:eval_xyz_elemcheck
 USE MOD_Basis,                 ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
 USE MOD_Interpolation_Vars,    ONLY:wBary,xGP
 USE MOD_Particle_Surfaces_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 #ifdef MPI
 ! only required for shape function??
 !USE MOD_part_MPI_Vars,        ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
@@ -962,6 +960,7 @@ USE MOD_Basis,                 ONLY:LagrangeInterpolationPolys,BernSteinPolynomi
 USE MOD_Interpolation_Vars,    ONLY:wBary,xGP
 USE MOD_PICInterpolation_Vars, ONLY:InterpolationType
 USE MOD_Particle_Surfaces_Vars,ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 #ifdef MPI
 !USE MOD_part_MPI_Vars,        ONLY:ExtPartState, ExtPartSpecies, NbrOfextParticles
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI,PartMPIExchange
