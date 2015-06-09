@@ -213,11 +213,11 @@ DO SideID=firstSideID,lastSideID
         END DO ! p
       END DO ! q
     END SELECT !locSideID
-#endif
+#endif /*(PP_NodeType==1)*/
   END DO ! i=1,2 master side, slave side
 END DO ! SideID=1,nSides
 END SUBROUTINE SurfInt1
-#endif DONTCOMPILETHIS
+#endif /*DONTCOMPILETHIS*/
 
 ! surfint optimized for performance (but ugly to read)
 SUBROUTINE SurfInt2(Flux,Ut,doMPISides)

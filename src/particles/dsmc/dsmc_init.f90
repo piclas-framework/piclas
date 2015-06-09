@@ -34,11 +34,11 @@ SUBROUTINE InitDSMC()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars,             ONLY : nElems
+USE MOD_Globals_Vars,          ONLY:PI
 USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,  ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
-USE MOD_PARTICLE_Vars,         ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies
-USE MOD_Equation_Vars,         ONLY: Pi
+USE MOD_PARTICLE_Vars,         ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, useVTKFileBGG
 USE MOD_DSMC_Analyze,          ONLY: WriteOutputMesh
 USE MOD_TimeDisc_Vars,         ONLY: TEnd
 USE MOD_DSMC_ChemInit,         ONLY: DSMC_chemical_init
@@ -76,7 +76,7 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
     SWRITE(UNIT_stdOut,'(A)')' WRITING OUTPUT-MESH DONE!'
   END IF
 ! reading and reset general DSMC values
-  CollisMode = GETINT('Particles-DSMC-CollisMode','1') !1:elastic col, 2:elast+rela, 3:chem
+  CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
   DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
   DSMC%TimeFracSamp = GETREAL('Part-TimeFracForSampling','0')
   DSMC%NumOutput = GETINT('Particles-NumberForDSMCOutputs','1')
@@ -117,6 +117,8 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
   SampDSMC(1:nElems,1:nSpecies)%ERot      = 0
   SampDSMC(1:nElems,1:nSpecies)%EVib      = 0
   SampDSMC(1:nElems,1:nSpecies)%EElec     = 0
+  ALLOCATE(DSMC%CollProbSamp(nElems))
+  DSMC%CollProbSamp(1:nElems) = 0.0
   ALLOCATE(DSMC%CollProbOut(nElems,2))
   DSMC%CollProbOut(1:nElems,1:2) = 0.0
 
@@ -129,6 +131,14 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
      __STAMP__,&
      "ERROR: nSpecies .LE. 0:", nSpecies)
   END IF
+
+  IF (CollisMode.EQ.0) THEN
+#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001) || (PP_TimeDiscMethod==42)
+    CALL Abort(&
+     __STAMP__,&
+     "Free Molecular Flow (CollisMode=0) is not supported for LD or DEBUG!")
+#endif
+  ELSE !CollisMode.GT.0
 
 ! reading species data of ini_2
   ALLOCATE(SpecDSMC(nSpecies))
@@ -210,13 +220,17 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
             !the omega should be the same for both in vhs!!!
     END DO
   END DO
-  DSMC%CollProbMax = 0   ! Reset of maximal Collision Probability
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading BG Gas stuff (required for the temperature definition in iInit=0)
 !-----------------------------------------------------------------------------------------------------------------------------------
   BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
   BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0')
+  IF (useVTKFileBGG) THEN
+    IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') & !(use always Init 0 for BGG !!!)
+      STOP "only maxwell_lpn is implemened as velocity-distribution for BGG from VTK-File!"
+    CALL ReadinVTKFileBGG()
+  END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading/writing molecular stuff
@@ -443,6 +457,7 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
     END IF
   END IF
 
+  END IF !CollisMode.GT.0
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! reading/writing Surface stuff
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -477,6 +492,9 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
               'Error in Particles-DSMC-CalcSurfCollis_NbrOfSpecies!')
   END IF
   DSMC%CalcSurfCollis_OnlySwaps = GETLOGICAL('Particles-DSMC-CalcSurfCollis_OnlySwaps','.FALSE.')
+  DSMC%CalcSurfCollis_Only0Swaps = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Only0Swaps','.FALSE.')
+  DSMC%CalcSurfCollis_Output = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Output','.FALSE.')
+  IF (DSMC%CalcSurfCollis_Only0Swaps) DSMC%CalcSurfCollis_OnlySwaps=.TRUE.
 
   SWRITE(UNIT_stdOut,'(A)')' INIT DSMC DONE!'
   SWRITE(UNIT_StdOut,'(132("-"))')
@@ -553,7 +571,7 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Mesh_Vars,          ONLY:nBCSides, SideToElem, BC
-  USE MOD_Particle_Vars,      ONLY:GEO, PartBound
+  USE MOD_Particle_Vars,      ONLY:GEO, PartBound, nSpecies
   USE MOD_DSMC_Vars,          ONLY:SurfMesh, SampWall
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -563,7 +581,7 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                 :: iElem, iLocSide, iSide, iNode, iNode2
+  INTEGER                 :: iElem, iLocSide, iSide, iNode, iNode2, iSampWallAlloc
   INTEGER, ALLOCATABLE    :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:)
   REAL,ALLOCATABLE        :: TempSurfaceArea(:)
   LOGICAL                 :: IsSortedSurfNode
@@ -578,7 +596,7 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
   SurfMesh%GlobSideToSurfSideMap(1:nBCSides)=0
 
   DO iSide=1, nBCSides
-    IF (PartBound%Map(BC(iSide)).EQ.PartBound%ReflectiveBC) THEN  
+    IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
       SurfMesh%nSurfaceBCSides = SurfMesh%nSurfaceBCSides + 1
       SurfMesh%GlobSideToSurfSideMap(iSide) = SurfMesh%nSurfaceBCSides
       iElem = SideToElem(1,iSide)
@@ -626,7 +644,10 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
   SampWall(1:SurfMesh%nSurfaceBCSides)%Force(1) = 0.0
   SampWall(1:SurfMesh%nSurfaceBCSides)%Force(2) = 0.0
   SampWall(1:SurfMesh%nSurfaceBCSides)%Force(3) = 0.0
-  SampWall(1:SurfMesh%nSurfaceBCSides)%Counter(1) = 0.0
+  DO iSampWallAlloc=1,SurfMesh%nSurfaceBCSides
+    ALLOCATE(SampWall(iSampWallAlloc)%Counter(1:nSpecies))
+    SampWall(iSampWallAlloc)%Counter(1:nSpecies) = 0.0
+  END DO
   DEALLOCATE(TempBCSurfNodes)
   DEALLOCATE(TempSideSurfNodeMap)
   DEALLOCATE(TempSurfaceArea)
@@ -640,7 +661,7 @@ SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping()
 ! Perform mapping for halo surface output of MPI case
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,      ONLY : PartBound
+  USE MOD_Particle_Vars,      ONLY : PartBound, nSpecies
   USE MOD_DSMC_Vars,          ONLY : SampWallHaloCell
   USE MOD_DSMC_Vars,          ONLY : SurfMesh
   USE MOD_part_MPI_Vars,      ONLY : MPIGEO
@@ -652,7 +673,7 @@ SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping()
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                 :: iSide
+  INTEGER                 :: iSide, iSampWallAlloc
 !===================================================================================================================================
 
   ALLOCATE(SurfMesh%HaloSideIDToSurfSideMap(SIZE(MPIGEO%BC,2)))
@@ -660,7 +681,7 @@ SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping()
   SurfMesh%nHaloSurfaceBCSides = 0
   DO iSide=1, SIZE(MPIGEO%BC,2)
     IF ((MPIGEO%BC(1,iSide).NE.0).AND.(MPIGEO%BC(1,iSide).NE.-1).AND.(MPIGEO%BC(1,iSide).NE.424242)) THEN
-      IF (PartBound%Map(MPIGEO%BC(1,iSide)).EQ.PartBound%ReflectiveBC) THEN
+      IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(MPIGEO%BC(1,iSide))).EQ.PartBound%ReflectiveBC) THEN
         SurfMesh%nHaloSurfaceBCSides = SurfMesh%nHaloSurfaceBCSides + 1
         SurfMesh%HaloSideIDToSurfSideMap(iSide) = SurfMesh%nHaloSurfaceBCSides
       END IF
@@ -680,10 +701,290 @@ SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping()
   SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(1) = 0.0
   SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(2) = 0.0
   SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(3) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Counter(1) = 0.0
+  DO iSampWallAlloc=1,SurfMesh%nHaloSurfaceBCSides
+    ALLOCATE(SampWallHaloCell(iSampWallAlloc)%Counter(1:nSpecies))
+    SampWallHaloCell(iSampWallAlloc)%Counter(1:nSpecies) = 0.0
+  END DO
 
 END SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping
 #endif
+
+
+SUBROUTINE ReadinVTKFileBGG
+!===================================================================================================================================
+! Readin of custom VTK file for non-constant background gas distribution
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+  USE MOD_ReadInTools
+#ifndef MPI
+  USE MOD_Mesh_Vars,              ONLY : nNodes
+#endif
+  USE MOD_Mesh_Vars,              ONLY : nElems
+  USE MOD_Particle_Vars,          ONLY : GEO, BGGdataAtElem
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                :: unit_in
+  INTEGER                :: os !openStatus
+  CHARACTER(255)         :: VTKfile
+  CHARACTER(LEN=255)     :: cdummy, varname
+  INTEGER                :: npoints, iNode, ncells, icell, VI, icoord, iElem
+  REAL, ALLOCATABLE      :: VTKNodes(:,:), VTK_BGGdata_Cells(:,:),VTKCellsSP(:,:)
+  LOGICAL, ALLOCATABLE   :: IsAssociated1(:),IsAssociated2(:)
+  REAL                   :: x(3), Elem_SP(3)
+  INTEGER                :: iVTKcell, CellX, CellY, CellZ
+  INTEGER, ALLOCATABLE  :: VTKCells(:,:)
+  LOGICAL                :: InElementCheck
+!===================================================================================================================================
+
+  SWRITE(UNIT_stdOut,'(132("~"))')
+  SWRITE(UNIT_stdOut,'(A)')'Reading VTK file for BGG...'
+
+  VTKfile = GETSTR('BGG-VTK-File','blubb')
+  IF(TRIM(VTKfile).EQ.'blubb')THEN 
+    CALL abort(__STAMP__,&
+    'ERROR: No VTK-Filename for Background-Gas defined!')
+  END IF 
+
+  unit_in = 1123
+  OPEN(UNIT   = unit_in,              &
+       FILE   = VTKfile,              &
+       IOSTAT = os,                   &
+       STATUS = 'OLD',                &
+       ACTION = 'READ',               &
+       ACCESS = 'SEQUENTIAL'          )
+
+  IF(os.NE.0) THEN  ! File Error
+    CALL abort(__STAMP__,&
+    'ERROR: cannot open VTK file: '//trim(VTKfile))
+  END IF
+    
+  DO iNode=1,7
+    READ(unit_in, '(A)') cdummy
+  END DO
+  READ(unit_in,*) cdummy,npoints,cdummy  ! POINTS ???? float
+  ALLOCATE(VTKNodes(1:3,npoints))
+  DO iNode = 0,INT(npoints/3)-1
+    READ(unit_in,*) VTKNodes(:,3*iNode+1),VTKNodes(:,3*iNode+2),VTKNodes(:,3*iNode+3)
+  END DO
+  IF (MOD(npoints,3).EQ.1) THEN
+    READ(unit_in,*) VTKNodes(:,3*iNode+1)
+  ELSE IF (MOD(npoints,3).EQ.2) THEN
+    READ(unit_in,*) VTKNodes(:,3*iNode+1),VTKNodes(:,3*iNode+2)
+  END IF
+  READ(unit_in,*) cdummy,ncells,cdummy  ! CELLS ???? ????
+  ALLOCATE (VTKCells(1:8, ncells))
+  DO icell = 1,ncells
+    READ(unit_in,*), cdummy, VTKCells(:,icell)
+  END DO
+  VTKCells(:,:) = VTKCells(:,:) + 1
+  READ(unit_in, '(A)') cdummy  ! blank line
+  READ(unit_in, '(A)') cdummy  ! blank line
+  DO icell = 1,ncells
+    READ(unit_in,*) cdummy !skip cells
+  END DO
+  !var1
+  DO icell=1,2
+    READ(unit_in, '(A)') cdummy
+  END DO
+  READ(unit_in,*) cdummy, varname, cdummy
+  VI = 0
+  IF (TRIM(varname).EQ.'T') THEN
+    VI=0
+  ELSE IF (TRIM(varname).EQ.'v') THEN
+    VI=3
+  ELSE
+    CALL abort(__STAMP__,&
+    'Error in order of variables in BGGdata: '//varname//' is not recognized!')
+  END IF
+  ALLOCATE(VTK_BGGdata_Cells(1:7,ncells))
+  DO icell = 0,INT(ncells/3)-1
+    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2) &
+      ,VTK_BGGdata_Cells(1+VI:3+VI,3*icell+3)
+  END DO
+  IF (MOD(ncells,3).EQ.1) THEN
+    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1)
+  ELSE IF (MOD(ncells,3).EQ.2) THEN
+    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2)
+  END IF
+  !var2
+  DO icell=1,2
+    READ(unit_in, '(A)') cdummy
+  END DO
+  READ(unit_in,*) varname, cdummy, cdummy, cdummy
+  IF (TRIM(varname).EQ.'T') THEN
+    VI=0
+  ELSE IF (TRIM(varname).EQ.'v') THEN
+    VI=3
+  ELSE
+    CALL abort(__STAMP__,&
+    'Error in order of variables in BGGdata: '//varname//' is not recognized!')
+  END IF
+  DO icell = 0,INT(ncells/3)-1
+    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2) &
+      ,VTK_BGGdata_Cells(1+VI:3+VI,3*icell+3)
+  END DO
+  IF (MOD(ncells,3).EQ.1) THEN
+    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1)
+  ELSE IF (MOD(ncells,3).EQ.2) THEN
+    READ(unit_in,*) VTK_BGGdata_Cells(1+VI:3+VI,3*icell+1),VTK_BGGdata_Cells(1+VI:3+VI,3*icell+2)
+  END IF
+  !n
+  DO icell=1,2
+    READ(unit_in, '(A)') cdummy
+  END DO
+  DO icell = 0,INT(ncells/9)-1
+    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
+      ,VTK_BGGdata_Cells(7,9*icell+7),VTK_BGGdata_Cells(7,9*icell+8),VTK_BGGdata_Cells(7,9*icell+9)
+  END DO
+  SELECT CASE (MOD(ncells,9))
+  CASE(1)
+    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1)
+  CASE(2)
+    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2)
+  CASE(3)
+    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3)
+  CASE(4)
+    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+      ,VTK_BGGdata_Cells(7,9*icell+4)
+  CASE(5)
+    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5)
+  CASE(6)
+    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6)
+  CASE(7)
+    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
+      ,VTK_BGGdata_Cells(7,9*icell+7)
+  CASE(8)
+    READ(unit_in,*) VTK_BGGdata_Cells(7,9*icell+1),VTK_BGGdata_Cells(7,9*icell+2),VTK_BGGdata_Cells(7,9*icell+3) &
+      ,VTK_BGGdata_Cells(7,9*icell+4),VTK_BGGdata_Cells(7,9*icell+5),VTK_BGGdata_Cells(7,9*icell+6) &
+      ,VTK_BGGdata_Cells(7,9*icell+7),VTK_BGGdata_Cells(7,9*icell+8)
+  END SELECT
+  CLOSE(1123)
+
+#ifndef MPI
+  IF (npoints.NE.nNodes) THEN
+    CALL abort(__STAMP__,&
+    'ERROR: wrong number of points in VTK-File')
+  END IF
+  IF (ncells.NE.nElems) THEN
+    CALL abort(__STAMP__,&
+    'ERROR: wrong number of cells in VTK-File')
+  END IF
+#endif /*MPI*/
+
+  ALLOCATE(VTKCellsSP(1:3,ncells))
+  DO icell = 1, ncells
+    Elem_SP(:)=0.
+    DO iNode = 1,8 !SP Nodes_new
+      DO icoord = 1,3
+        Elem_SP(icoord)=Elem_SP(icoord)+VTKNodes(icoord,VTKCells(iNode,icell))
+      END DO
+    END DO
+    VTKCellsSP(:,icell)=Elem_SP(:)/8.
+  END DO
+
+  ALLOCATE(BGGdataAtElem(1:7,nElems))
+  ALLOCATE(IsAssociated1(ncells))
+  ALLOCATE(IsAssociated2(nElems))
+  BGGdataAtElem=0.
+  IsAssociated1=.FALSE.
+  IsAssociated2=.FALSE.
+
+  DO iVTKcell = 1,ncells
+    x = VTKCellsSP(1:3,iVTKcell)
+    CellX = INT((x(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+    CellY = INT((x(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+    CellZ = INT((x(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+#ifdef MPI
+    IF ((GEO%FIBGMimax.GE.CellX).AND.(GEO%FIBGMimin.LE.CellX)) THEN  
+    IF ((GEO%FIBGMkmax.GE.CellY).AND.(GEO%FIBGMkmin.LE.CellY)) THEN  
+    IF ((GEO%FIBGMlmax.GE.CellZ).AND.(GEO%FIBGMlmin.LE.CellZ)) THEN  
+#endif /* MPI */
+      DO iElem=1, nElems
+        CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
+              GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
+              GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
+              GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
+              VTKCellsSP(:,iVTKcell), &
+              InElementCheck)
+        IF(InElementCheck) THEN
+          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
+                VTKCellsSP(:,iVTKcell), &
+                InElementCheck)
+        END IF
+        IF(InElementCheck) THEN
+          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(2,iElem)), &
+                VTKCellsSP(:,iVTKcell), &
+                InElementCheck)
+        END IF
+        IF(InElementCheck) THEN
+          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(1,iElem)), &
+                VTKCellsSP(:,iVTKcell), &
+                InElementCheck)
+        END IF
+        IF(InElementCheck) THEN
+          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(3,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(4,iElem)), &
+                VTKCellsSP(:,iVTKcell), &
+                InElementCheck)
+        END IF
+        IF(InElementCheck) THEN
+          CALL ParticleInsideQuad3D_DSMC(GEO%NodeCoords(:,GEO%ElemToNodeID(5,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(6,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(7,iElem)), &
+                GEO%NodeCoords(:,GEO%ElemToNodeID(8,iElem)), &
+                VTKCellsSP(:,iVTKcell), &
+                InElementCheck)
+        END IF
+        IF(InElementCheck) THEN
+          IF (IsAssociated1(iVTKcell).OR.IsAssociated2(iElem)) THEN
+            CALL abort(__STAMP__,&
+              'ERROR: Cell is already mapped!')
+          END IF
+          BGGdataAtElem(:,iElem)=VTK_BGGdata_Cells(:,iVTKcell)
+          IsAssociated1(iVTKcell)=.TRUE.
+          IsAssociated2(iElem)=.TRUE.
+          EXIT
+        END IF
+      END DO
+#ifdef MPI
+    END IF
+    END IF 
+    END IF  
+#endif /* MPI */
+  END DO ! iVTKcell
+  !IF (.NOT. ALL(IsAssociated1)) THEN         !only for 1 proc!!!!!!!!
+  !  CALL abort(__STAMP__,&
+  !	'ERROR: Not all VTKcells mapped for BGG!',999,999.)
+  !END IF
+  IF (.NOT. ALL(IsAssociated2)) THEN
+    CALL abort(__STAMP__,&
+              'ERROR: Not all Elems mapped for BGG!')
+  END IF
+  SWRITE(UNIT_stdOut,'(A)')'DONE!'
+  SWRITE(UNIT_stdOut,'(132("~"))')
+END SUBROUTINE ReadinVTKFileBGG
 
 
 SUBROUTINE ParticleInsideQuad3D_DSMC(Node1,Node2,Node3,Node4,Point,InElementCheck)

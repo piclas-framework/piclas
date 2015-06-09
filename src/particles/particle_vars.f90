@@ -10,8 +10,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
-
-REAL, PARAMETER       :: BoltzmannConst=1.380650524E-23                      ! Boltzmann constant [J/K] SI-Unit!
+REAL, PARAMETER       :: BoltzmannConst=1.380648813E-23                      ! Boltzmann constant [J/K] SI-Unit!
 REAL                  :: ManualTimeStep                                      ! Manual TimeStep
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
@@ -65,6 +64,23 @@ TYPE tConstPressure
                                                                               !                                    6 = v of sound**2
 END TYPE
 
+TYPE tExcludeRegion
+  CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
+  REAL                                   :: RadiusIC                         ! Radius for IC circle
+  REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
+  REAL                                   :: NormalIC(3)                      ! Normal / Orientation of cylinder (altern. to BV1/2)
+  REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
+  REAL                                   :: BaseVector1IC(3)                 ! first base vector for IC cuboid
+  REAL                                   :: BaseVector2IC(3)                 ! second base vector for IC cuboid
+  REAL                                   :: CuboidHeightIC                   ! third measure of cuboid
+                                                                             ! (set 0 for flat rectangle),
+                                                                             ! negative value = opposite direction
+  REAL                                   :: CylinderHeightIC                 ! third measure of cylinder
+                                                                             ! (set 0 for flat circle),
+                                                                             ! negative value = opposite direction
+  REAL                                   :: ExcludeBV_lenghts(2)                    ! lenghts of BV1/2 (to be calculated)
+END TYPE
+
 TYPE tInit                                                                   ! Particle Data for each init emission for each species
   !Specific Emission/Init values
   LOGICAL                                :: UseForInit                       ! Use Init/Emission for init.?
@@ -85,6 +101,7 @@ TYPE tInit                                                                   ! P
   REAL                                   :: CylinderHeightIC                 ! third measure of cylinder
                                                                              ! (set 0 for flat rectangle),
                                                                              ! negative value = opposite direction
+  LOGICAL                                :: CalcHeightFromDt                 ! Calc. cuboid/cylinder height from v and dt?
   REAL                                   :: VeloIC                           ! velocity for inital Data
   REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
   REAL                                   :: Amplitude                        ! Amplitude for sin-deviation initiation.
@@ -109,10 +126,18 @@ TYPE tInit                                                                   ! P
                                                                              !               5 = cell pres. w. complete part removal
                                                                              !               6 = outflow BC (characteristics method)
   REAL                                   :: ParticleEmission                 ! Emission in [1/s] or [1/Iteration]
-  INTEGER(KIND=8)                       :: InsertedParticle                 ! Number of all already inserted Particles
+  INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   REAL                                   :: Nsigma                           ! sigma multiple of maxwell for virtual insert length
-  LOGICAL                                :: VirtPreInsert                    ! virtual Pre-Inserting region (adapeted SetPos/Velo)?
-  TYPE (tConstPressure)                  :: ConstPress!(:)           =>NULL() !
+  LOGICAL                                :: VirtPreInsert                    ! virtual Pre-Inserting region (adapted SetPos/Velo)?
+  CHARACTER(40)                          :: vpiDomainType                    ! specifying Keyword for virtual Pre-Inserting region
+                                                                             ! implemented: - perpendicular_extrusion (default)
+                                                                             !              - freestream
+                                                                             !              - orifice
+                                                                             !              - ...more following...
+  LOGICAL                                :: vpiBVBuffer(4)                   ! incl. buffer region in -BV1/+BV1/-BV2/+BV2 direction?
+  TYPE(tConstPressure)                   :: ConstPress!(:)           =>NULL() !
+  INTEGER                                :: NumberOfExcludeRegions           ! Number of different regions to be excluded
+  TYPE(tExcludeRegion), ALLOCATABLE      :: ExcludeRegion(:)
 #ifdef MPI
   INTEGER                                :: InitComm                          ! number of init-communicator
 #endif /*MPI*/
@@ -137,10 +162,11 @@ TYPE tPartBoundary
   INTEGER                                :: PeriodicBC              = 3      ! = 3 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SimpleAnodeBC           = 4      ! = 4 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SimpleCathodeBC         = 5      ! = 5 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: MPINeighborhoodBC       = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
+  !INTEGER                                :: MPINeighborhoodBC       = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
   CHARACTER(LEN=200)           , POINTER :: SourceBoundName(:) =>NULL() ! Link part 1 for mapping Boltzplatz BCs to Particle BC
   INTEGER                      , POINTER :: TargetBoundCond(:) =>NULL() ! Link part 2 for mapping Boltzplatz BCs to Particle BC
   INTEGER                      , POINTER :: Map(:)             =>NULL() ! Map from Boltzplatz BCindex to Particle BC
+  INTEGER                      , POINTER :: MapToPartBC(:)     =>NULL() ! Map from Boltzplatz BCindex to Particle BC (NOT TO TYPE!)
   REAL    , ALLOCATABLE                  :: MomentumACC(:)      
   REAL    , ALLOCATABLE                  :: WallTemp(:)     
   REAL    , ALLOCATABLE                  :: TransACC(:)     
@@ -260,6 +286,7 @@ LOGICAL           :: ParticlesInitIsDone=.FALSE.
 LOGICAL                                  :: WriteMacroValues                  ! Output of macroscopic values
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling   
                                                                               ! macroscopic values
+REAL                                     :: MacroValSampTime                  ! Sampling time for WriteMacroVal. (e.g., for td201)
 LOGICAL                                  :: usevMPF                           ! use the vMPF per particle
 LOGICAL                                  :: enableParticleMerge               ! enables the particle merge routines
 LOGICAL                                  :: doParticleMerge=.false.           ! flag for particle merge
@@ -282,13 +309,20 @@ REAL, ALLOCATABLE                        :: vMPFOldVelo(:,:)                  ! 
 REAL, ALLOCATABLE                        :: vMPFOldBrownVelo(:,:)             ! Old brownian Velo
 REAL, ALLOCATABLE                        :: vMPFOldPos(:,:)                   ! Old Particle Pos for Polynom
 REAL, ALLOCATABLE                        :: vMPFOldMPF(:)                     ! Old Particle MPF
+REAL, ALLOCATABLE                        :: vMPFNewPosNum(:)
 INTEGER, ALLOCATABLE                     :: vMPF_SpecNumElem(:,:)             ! number of particles of spec (:,i) in element (j,:)
 CHARACTER(30)                            :: vMPF_velocityDistribution         ! specifying keyword for velocity distribution
+REAL, ALLOCATABLE                        :: vMPF_NewPosRefElem(:,:)          ! new positions in ref elem
+LOGICAL                                  :: vMPF_relativistic
 LOGICAL                                  :: PartPressureCell                  ! Flag: constant pressure in cells emission (type4)
 LOGICAL                                  :: PartPressAddParts                 ! Should Parts be added to reach wanted pressure?
 LOGICAL                                  :: PartPressRemParts                 ! Should Parts be removed to reach wanted pressure?
 INTEGER                                  :: NumRanVec      ! Number of predefined random vectors
 REAL  , ALLOCATABLE                      :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
+REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)          ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
+LOGICAL                                  :: useVTKFileBGG                     ! Flag for BGG via VTK-File
+REAL, ALLOCATABLE                        :: BGGdataAtElem(:,:)                ! data for BGG via VTK-File
+LOGICAL                                  :: OutputVpiWarnings                 ! Flag for warnings for rejected v if VPI+PartDensity
 
 INTEGER(8)                               :: nTotalPart
 INTEGER(8)                               :: nTotalHalfPart

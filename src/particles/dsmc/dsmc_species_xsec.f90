@@ -21,7 +21,8 @@ SUBROUTINE XSec_Argon_DravinLotz(SpecToExec, iPair)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, SpecDSMC
-  USE MOD_Equation_Vars,          ONLY : Pi, eps0
+  USE MOD_Equation_Vars,          ONLY : eps0
+  USE MOD_Globals_Vars,ONLY:PI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

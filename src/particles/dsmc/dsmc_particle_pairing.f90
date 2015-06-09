@@ -277,18 +277,18 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
     iPartIndx_Node(iPart1) = iPartIndx_Node(nPart)
     nPart = nPart - 1
     iPart2 = 1
-    Dist1 = (PartState(iPartIndx_Node(iPart1),1) &
+    Dist1 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
            - PartState(iPartIndx_Node(iPart2),1))**2 &
-           +(PartState(iPartIndx_Node(iPart1),2) &
+           +(PartState(Coll_pData(iPair)%iPart_p1,2) &
            - PartState(iPartIndx_Node(iPart2),2))**2 &
-           +(PartState(iPartIndx_Node(iPart1),3) &
+           +(PartState(Coll_pData(iPair)%iPart_p1,3) &
            - PartState(iPartIndx_Node(iPart2),3))**2 
     DO iLoop = 2, nPart
-      Dist2 = (PartState(iPartIndx_Node(iPart1),1) &
+      Dist2 = (PartState(Coll_pData(iPair)%iPart_p1,1) &
              - PartState(iPartIndx_Node(iLoop),1))**2 &
-             +(PartState(iPartIndx_Node(iPart1),2) &
+             +(PartState(Coll_pData(iPair)%iPart_p1,2) &
              - PartState(iPartIndx_Node(iLoop),2))**2 &
-             +(PartState(iPartIndx_Node(iPart1),3) &
+             +(PartState(Coll_pData(iPair)%iPart_p1,3) &
              - PartState(iPartIndx_Node(iLoop),3))**2 
       IF (Dist2.LT.Dist1) THEN
         iPart2 = iLoop

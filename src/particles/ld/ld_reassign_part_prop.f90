@@ -146,20 +146,30 @@ USE MOD_DSMC_Vars,             ONLY : CollisMode, LD_MultiTemperaturMod
   !
   ! reassign particle properties
   !
-  IF (CollisMode.NE.1) THEN
-    SELECT CASE(LD_MultiTemperaturMod)
-      CASE(0)
-        ! Do Nothing
-      CASE(1)
-!       CALL CalcInternalTemp_LD_first(iElem)
-      CASE(2)
-        CALL CalcInternalTemp_LD_second(iElem)
-      CASE(3)
-        CALL CalcInternalTemp_LD_third(iElem)
-      CASE DEFAULT
-        PRINT*, 'ERROR in Wrong MultiTemperature Model! = ', LD_MultiTemperaturMod
-        STOP 
-    END SELECT
+  IF (CollisMode.GT.1) THEN
+    IF(LD_MultiTemperaturMod.NE. 1) THEN
+      SELECT CASE(LD_MultiTemperaturMod)
+        CASE(0)
+          ! Do Nothing
+        CASE(1)
+          CALL abort(__STAMP__,&
+               'ERROR: Wrong MultiTemperature Model here!')
+        CASE(2)
+          CALL CalcInternalTemp_LD_second(iElem)
+        CASE(3)
+          CALL CalcInternalTemp_LD_third(iElem)
+        CASE DEFAULT
+          CALL abort(__STAMP__,&
+               'ERROR: Wrong MultiTemperature Model!')
+      END SELECT
+    END IF
+  END IF
+
+  IF (BulkValues(iElem)%BulkTemperature.lt. 0) then
+    SWRITE(UNIT_StdOut,'(132("-"))')
+    SWRITE(UNIT_stdOut,'(A)') 'Element, Temperatur:',iElem, BulkValues(iElem)%BulkTemperature
+    CALL abort(__STAMP__,&
+         'ERROR LD-DSMC: Temperature is lt zero after MultiTemperature Model')
   END IF
 
   nPart     = PEM%pNumber(iElem)
@@ -227,6 +237,7 @@ SUBROUTINE CalcViscousTerms(iElem,iLocSide,trinum,DeltaM,DeltaE)
 ! calculation viscous transport terms
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals,               ONLY : abort
 USE MOD_LD_Vars
 USE MOD_TimeDisc_Vars,         ONLY : dt
 USE MOD_Mesh_Vars,             ONLY : ElemToSide, nBCSides, BC
@@ -315,14 +326,14 @@ USE MOD_Particle_Vars,         ONLY : PartBound, GEO
                 + DynamicVisc * BulkVeloDiffDirT1 / CellCenterDiffDir * MeanBulkVeloDirT1 &
                 + DynamicVisc * BulkVeloDiffDirT2 / CellCenterDiffDir * MeanBulkVeloDirT2 )
     END IF
-  ELSE IF (PartBound%Map(BC(SideID)).EQ.PartBound%ReflectiveBC) THEN
-    MomentumACC = PartBound%MomentumACC(BC(SideID))
-    TransACC = PartBound%TransACC(BC(SideID))
-    TempWall = PartBound%WallTemp(BC(SideID))
+  ELSE IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%ReflectiveBC) THEN
+    MomentumACC = PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))
+    TransACC = PartBound%TransACC(PartBound%MapToPartBC(BC(SideID)))
+    TempWall = PartBound%WallTemp(PartBound%MapToPartBC(BC(SideID)))
     TempCell = BulkValues(iElem)%BulkTemperature
-    WallVelo(1) = PartBound%WallVelo(1,BC(SideID))
-    WallVelo(2) = PartBound%WallVelo(2,BC(SideID))
-    WallVelo(3) = PartBound%WallVelo(3,BC(SideID))
+    WallVelo(1) = PartBound%WallVelo(1,PartBound%MapToPartBC(BC(SideID)))
+    WallVelo(2) = PartBound%WallVelo(2,PartBound%MapToPartBC(BC(SideID)))
+    WallVelo(3) = PartBound%WallVelo(3,PartBound%MapToPartBC(BC(SideID)))
     SpecR = BulkValues(iElem)%SpezGasConst
     BulkVeloCellT1 = (BulkValues(iElem)%CellV(1)-WallVelo(1)) * T1Vec(1) &
                    + (BulkValues(iElem)%CellV(2)-WallVelo(2)) * T1Vec(2) &
@@ -339,6 +350,9 @@ USE MOD_Particle_Vars,         ONLY : PartBound, GEO
               * BulkValues(iElem)%MassDens * SQRT(SpecR * TempCell /(2 * PI))
     DeltaE = DeltaE - TransACC * 0.5 * dt * Area * (BulkValues(iElem)%DegreeOfFreedom + 1.0) &
            * BulkValues(iElem)%MassDens * SpecR * (TempCell - TempWall) * SQRT(SpecR * TempCell /(2 * PI))
+  ELSE IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%SymmetryBC) THEN
+    CALL abort(__STAMP__,&
+      'SymmetryBC is not implemented for LD!')
   END IF
 END SUBROUTINE CalcViscousTerms
 

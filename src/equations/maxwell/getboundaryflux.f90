@@ -34,11 +34,11 @@ SUBROUTINE GetBoundaryFlux(F_Face,BCType,BCState,xGP_Face,normal,t,tDeriv,U_Face
 ! Attention 2: U_FacePeriodic is only needed in the case of periodic boundary conditions
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,        ONLY:Abort
+USE MOD_Globals,        ONLY:Abort,CROSS
 USE MOD_PreProc
 USE MOD_Riemann,        ONLY:Riemann
 USE MOD_Equation,       ONLY:ExactFunc
-USE MOD_Equation_vars,  ONLY:c,c_inv
+USE MOD_Equation_vars,  ONLY:c,c_inv,c2,c_corr,c_corr_c,c_corr_c2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -98,6 +98,53 @@ CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
       U_Face_loc(4:6,p,q) =  resul(4:6) - 2*(DOT_PRODUCT(resul(4:6),n_loc))*n_loc
       U_Face_loc(  7,p,q) =  resul(  7)
       U_Face_loc(  8,p,q) = -resul(  8)
+    END DO ! p
+  END DO ! q
+  ! Dirichlet means that we use the gradients from inside the grid cell
+  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
+ 
+CASE(5) ! 1st order absorbing BC 
+        ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
+  U_Face_loc=0.
+  ! A problem of the absorbing BC arises if E or B is close to zero. 
+  ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
+  !          that E cross n is zero which is enforced through the div. cleaning of E
+  DO q=0,PP_N
+    DO p=0,PP_N
+      U_Face_loc(7,p,q) = - U_Face(7,p,q) - c*(DOT_PRODUCT(U_Face(4:6,p,q),normal(1:3,p,q)))
+      U_Face_loc(8,p,q) = - U_Face(8,p,q) - c_inv*(DOT_PRODUCT(U_Face(1:3,p,q),normal(1:3,p,q)))
+    END DO ! p
+  END DO ! q
+
+  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
+
+CASE(6) ! 1st order absorbing BC + fix for low B field
+        ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
+  U_Face_loc=0.
+  ! A problem of the absorbing BC arises if E or B is close to zero. 
+  ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
+  !          that E cross n is zero which is enforced through the div. cleaning of E
+  DO q=0,PP_N
+    DO p=0,PP_N
+      IF (DOT_PRODUCT(U_FACE(4:6,p,q),U_FACE(4:6,p,q))*c*10..GT.DOT_PRODUCT(U_FACE(1:3,p,q),U_FACE(1:3,p,q)))THEN
+        U_Face_loc(7,p,q) = - U_Face(7,p,q) - c*(DOT_PRODUCT(U_Face(4:6,p,q),normal(1:3,p,q)))
+        U_Face_loc(8,p,q) = - U_Face(8,p,q) - c_inv*(DOT_PRODUCT(U_Face(1:3,p,q),normal(1:3,p,q)))
+      END IF ! sum(abs(B)) > epsBC
+    END DO ! p
+  END DO ! q
+
+  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
+
+CASE(10) ! symmetry BC (perfect MAGNETIC conductor, PMC)
+  ! Determine the exact BC state
+  DO q=0,PP_N
+    DO p=0,PP_N
+      resul=U_Face(:,p,q)
+      n_loc=normal(:,p,q)
+      U_Face_loc(1:3,p,q) =  resul(1:3) - 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
+      U_Face_loc(4:6,p,q) = -resul(4:6) + 2*(DOT_PRODUCT(resul(4:6),n_loc))*n_loc
+      U_Face_loc(  7,p,q) = -resul(  7)
+      U_Face_loc(  8,p,q) =  resul(  8)
     END DO ! p
   END DO ! q
   ! Dirichlet means that we use the gradients from inside the grid cell

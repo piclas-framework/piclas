@@ -80,7 +80,7 @@ END DO
 SWRITE(*,*) "On the grid deposited charge", Charge
 SWRITE(*,*) "Charge by the particles:", PartCharge
 SWRITE(*,*) "Absolute deposition error:", ABS(PartCharge-Charge)
-SWRITE(*,*) "Relative deposition error:", ABS(PartCharge-Charge)/PartCharge
+SWRITE(*,*) "Relative deposition error in percent:", ABS(PartCharge-Charge)/PartCharge*100
 SWRITE(UNIT_stdOut,'(A)')' CHARGE DEPOSITION PLAUSIBILITY CHECK DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 ChargeCalcDone = .TRUE.

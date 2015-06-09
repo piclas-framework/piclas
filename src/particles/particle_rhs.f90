@@ -72,7 +72,7 @@ SELECT CASE(PartLorentzType)
       END IF
     END DO
   CASE(2)
-  ! exact Lorentz-Pusher
+  ! Lorentz-Pusher, wrong
   ! prevent particles from acceleration above speed of light
     DO iPart = 1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
@@ -145,7 +145,6 @@ SELECT CASE(PartLorentzType)
         v3s = PartState(iPart,6) * PartState(iPart,6)
         velosq = v1s+v2s+v3s
         IF(velosq.GT.c2) THEN
-          IPWRITE(*,*) 'proc'
           CALL abort(__STAMP__,&
           'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',iPart,velosq/c2)
         END IF

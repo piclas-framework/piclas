@@ -90,8 +90,8 @@ IMPLICIT NONE
 
 SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
 
-Pi=ACOS(-1.)
-spi = 1./pi
+PI=ACOS(-1.)
+sPI = 1./PI
 
 ! get machine accuracy
 epsMach=EPSILON(0.0)
@@ -178,9 +178,11 @@ REAL                              :: RealInfo        ! Error info (real)
 INTEGER                           :: errOut          ! Output of MPI_ABORT
 #endif /*MPI*/
 !===================================================================================================================================
+#ifdef MPI
 IF(PRESENT(SingleOpt))THEN
   IF(SingleOpt.AND.(.NOT.MPIRoot)) RETURN
 END IF
+#endif
 IntInfo  = MERGE(IntInfoOpt ,999 ,PRESENT(IntInfoOpt) )
 RealInfo = MERGE(RealInfoOpt,999.,PRESENT(RealInfoOpt))
 WRITE(UNIT_stdOut,*)

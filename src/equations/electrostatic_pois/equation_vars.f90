@@ -16,7 +16,6 @@ REAL              :: c_corr_c   !c_corr*c
 REAL              :: c_corr_c2  !c_corr*c^2
 REAL              :: eta_c      !(c_corr -1 )*c
 REAL              :: fDamping
-REAL              :: Pi,spi
 INTEGER           :: IniExactFunc
 INTEGER           :: BCType(6)=-999
 INTEGER           :: BoundaryCondition(6,2)

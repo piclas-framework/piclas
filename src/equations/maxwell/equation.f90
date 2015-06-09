@@ -36,6 +36,7 @@ SUBROUTINE InitEquation()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,ONLY:PI
 USE MOD_ReadInTools
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
@@ -91,11 +92,6 @@ IF ( ABS(c-c_test)/c.GT.10E-8) THEN
 END IF
 
 
-Pi=ACOS(-1.)
-spi = 1./pi
-
-! get machine accuracy
-!epsmach=EPSILON(0.0)
 
 c2     = c*c 
 c_inv  = 1./c
@@ -142,7 +138,8 @@ SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 USE nr,only:bessj
 USE nrtype,only:SP
 USE MOD_Globals
-USE MOD_Equation_Vars,ONLY:Pi,c,c2,eps0
+USE MOD_Globals_Vars,ONLY:PI
+USE MOD_Equation_Vars,ONLY:c,c2,eps0
 # if (PP_TimeDiscMethod==1)
 USE MOD_TimeDisc_vars,ONLY:dt
 # endif

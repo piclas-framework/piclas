@@ -29,7 +29,8 @@ SUBROUTINE CalcMacCellLDValues()
   USE MOD_LD_Vars
   USE MOD_Mesh_Vars,              ONLY : nElems
   USE MOD_Particle_Vars,          ONLY : GEO, PEM, usevMPF, PartMPF, BoltzmannConst, Species, PartSpecies
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollisMode, LD_MultiTemperaturMod
+  USE MOD_LD_internal_Temp
 #if (PP_TimeDiscMethod==1001)
   USE MOD_LD_DSMC_TOOLS,          ONLY : LD_DSMC_Mean_Bufferzone_A_Val
 #endif
@@ -70,6 +71,11 @@ IF((BulkValues(iElem)%CellType.EQ.3).OR.(BulkValues(iElem)%CellType.EQ.4)) THEN 
     MeanRefTemp                       = 0.0
     MeanRefDiameter                   = 0.0
     MeanOmega                         = 0.0
+    IF (CollisMode.GT.1) THEN
+      IF(LD_MultiTemperaturMod.EQ. 1) THEN
+        CALL CalcInternalTemp_LD_first(iElem)
+      END IF
+    END IF
     iPartIndx = PEM%pStart(iElem)
     DO ipart = 1, nPart
       IF (usevMPF) THEN
@@ -88,11 +94,11 @@ IF((BulkValues(iElem)%CellType.EQ.3).OR.(BulkValues(iElem)%CellType.EQ.4)) THEN 
                                                       + (PartStateBulkValues(iPartIndx,3))**2 ) &
                                                       * WeightFak * Species(PartSpecies(iPartIndx))%MassIC
       CellTempMean                      = CellTempMean + PartStateBulkValues(iPartIndx,4) * WeightFak
-      IF (CellTempMean.lt. 0) THEN
-          SWRITE(UNIT_stdOut,'(A)') 'Element, Temperatur:',iElem, CellTempMean
-          CALL abort(__STAMP__,&
-               'ERROR: Temperature is lt zero')
-      END IF
+!      IF (CellTempMean.lt. 0) THEN
+!          SWRITE(UNIT_stdOut,'(A)') 'Element, Temperatur:',iElem, CellTempMean
+!          CALL abort(__STAMP__,&
+!               'ERROR: Temperature is lt zero')
+!      END IF
       BulkValues(iElem)%DegreeOfFreedom = BulkValues(iElem)%DegreeOfFreedom + PartStateBulkValues(iPartIndx,5) * WeightFak
       CellMass                          = CellMass + WeightFak * Species(PartSpecies(iPartIndx))%MassIC
 !--- for viscousity terms...

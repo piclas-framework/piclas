@@ -88,7 +88,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn
-  USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,GEO,Species,usevMPF,PartMPF!,useVTKFileBGG,BGGdataAtElem
+  USE MOD_Particle_Vars,          ONLY : PEM,PartSpecies,nSpecies,PartState,GEO,Species,usevMPF,PartMPF,useVTKFileBGG,BGGdataAtElem
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -126,13 +126,13 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
   END DO
   
   ! Setting Number of BGGas Particles per Cell
-!  IF (useVTKFileBGG) THEN
-!    BGGas%BGColl_SpecPartNum = BGGdataAtElem(7,iElem) * GEO%Volume(iElem)      &
-!                                               / Species(BGGas%BGGasSpecies)%MacroParticleFactor
-!  ELSE
+  IF (useVTKFileBGG) THEN
+    BGGas%BGColl_SpecPartNum = BGGdataAtElem(7,iElem) * GEO%Volume(iElem)      &
+                                               / Species(BGGas%BGGasSpecies)%MacroParticleFactor
+  ELSE
     BGGas%BGColl_SpecPartNum = BGGas%BGGasDensity * GEO%Volume(iElem)      &
                                                / Species(BGGas%BGGasSpecies)%MacroParticleFactor
-!  END IF
+  END IF
 
   DO iPair = 1, nPair 
     DO cPart1 = 1, nPart ! Searching the first non BG particle

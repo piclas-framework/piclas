@@ -324,7 +324,7 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
   iSpec = PartSpecies(iPart)
   IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
     ZetaRot = 2.0
-    IF (CollisMode.NE.1) THEN
+    IF (CollisMode.GT.1) THEN
 !!!!!!!!      PartTvib = CalcTVib(SpecDSMC(iSpec)%CharaTVib, PartStateIntEn(iPart,1), SpecDSMC(iSpec)%MaxVibQuant)
 
 !!!!!!!      PartTvib = SpecDSMC(iSpec)%CharaTVib / LOG(1 + 1/(PartStateIntEn(iPart,1) & 

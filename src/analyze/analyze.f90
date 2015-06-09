@@ -335,9 +335,15 @@ USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt
 USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpecies, Time
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
-USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout
-!USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues
-USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, WriteOutputMeshSamp
+USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout,SurfMesh,SampWall
+USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues, WriteOutputMeshSamp
+#if (PP_TimeDiscMethod!=42)
+!USE MOD_LD_Vars,               ONLY: useLD
+#endif
+!USE MOD_LD_Analyze,            ONLY: LD_data_sampling, LD_output_calc
+#if (PP_TimeDiscMethod==1001)
+!USE MOD_LD_DSMC_TOOLS
+#endif
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
@@ -354,6 +360,7 @@ LOGICAL,INTENT(IN),OPTIONAL   :: LastIter
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                       :: iSampWallAlloc
 !===================================================================================================================================
 
 ! not for first iteration
@@ -426,13 +433,25 @@ END IF
 #ifdef PARTICLES
 Time = t
 ! write DSMC macroscopic values 
-IF (WriteMacroValues) THEN
+IF ((WriteMacroValues).AND.(.NOT.Output))THEN
+#if (PP_TimeDiscMethod==1000)
+  CALL LD_data_sampling()  ! Data sampling for output
+#elif(PP_TimeDiscMethod==1001)
+  CALL LD_DSMC_data_sampling()
+#else
   CALL DSMC_data_sampling()
-
+#endif
   iter_macvalout = iter_macvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
-    CALL DSMC_output_calc()
+#if (PP_TimeDiscMethod==1000)
+    CALL LD_output_calc()  ! Data sampling for output
+#elif(PP_TimeDiscMethod==1001)
+    CALL LD_DSMC_output_calc()
+#else
+    CALL DSMC_output_calc
+    IF (DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
     IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
+#endif
     nOutput = nOutput + 1
     iter_macvalout = 0
     DSMC%SampNum = 0
@@ -445,10 +464,29 @@ IF (WriteMacroValues) THEN
     SampDSMC(1:nElems,1:nSpecies)%PartNum   = 0
     SampDSMC(1:nElems,1:nSpecies)%ERot      = 0
     SampDSMC(1:nElems,1:nSpecies)%EVib      = 0
+
+    IF(DSMC%CalcSurfaceVal) THEN
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(1) = 0.0
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(2) = 0.0
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(3) = 0.0
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(4) = 0.0
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(5) = 0.0
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(6) = 0.0
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(7) = 0.0
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(8) = 0.0
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(9) = 0.0
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Force(1) = 0.0
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Force(2) = 0.0
+      SampWall(1:SurfMesh%nSurfaceBCSides)%Force(3) = 0.0
+      DO iSampWallAlloc=1,SurfMesh%nSurfaceBCSides
+        SampWall(iSampWallAlloc)%Counter(1:nSpecies) = 0.0
+      END DO
+    END IF
+
   END IF
 END IF
 
-IF(ForceAnalyze)THEN
+IF(OutPut)THEN
 #if (PP_TimeDiscMethod==42)
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
     CALL DSMC_output_calc
@@ -456,9 +494,11 @@ IF(ForceAnalyze)THEN
 #else
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
     nOutput = INT((DSMC%TimeFracSamp * TEnd) / DSMC%DeltaTimeOutput)
-    CALL DSMC_output_calc
-    IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
-    !IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
+    !IF (.NOT. useLD) THEN
+      CALL DSMC_output_calc
+      IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
+    !END IF
+    IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
   END IF
 #endif
 END IF

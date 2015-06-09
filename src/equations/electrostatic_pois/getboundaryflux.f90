@@ -85,11 +85,21 @@ CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
       U_Face_loc(1:3,p,q) = resul(1:3) !-resul(1:3) + 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
       U_Face_loc(  4,p,q) = -resul(  4)
     END DO ! p
-  
   END DO ! q
   ! Dirichlet means that we use the gradients from inside the grid cell
-!print*,resul(1)
-!      read*
+  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
+
+CASE(10) ! symmetry BC
+  ! Determine the exact BC state
+  DO q=0,PP_N
+    DO p=0,PP_N
+      resul=U_Face(:,p,q)
+      n_loc=normal(:,p,q)
+      U_Face_loc(1:3,p,q) = -resul(1:3)
+      U_Face_loc(  4,p,q) = resul(  4)
+    END DO ! p
+  END DO ! q
+  ! Dirichlet means that we use the gradients from inside the grid cell
   CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
 
 CASE DEFAULT ! unknown BCType

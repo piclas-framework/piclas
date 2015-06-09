@@ -58,6 +58,8 @@ SUBROUTINE DSMC_chemical_init()
   IF (ChemReac%NumOfReact.GT.0) THEN    
     ALLOCATE(ChemReac%NumReac(ChemReac%NumOfReact))
     ChemReac%NumReac = 0
+    ALLOCATE(ChemReac%ReacCount(ChemReac%NumOfReact))
+    ChemReac%ReacCount = 0
     ALLOCATE(ChemReac%QKProcedure(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%QKMethod(ChemReac%NumOfReact))
     ALLOCATE(ChemReac%QKCoeff(ChemReac%NumOfReact,2))
@@ -283,7 +285,7 @@ SUBROUTINE Calc_Arrhenius_Factors()
   USE MOD_Globals,            ONLY : Abort
   USE MOD_DSMC_Vars,          ONLY : ChemReac, SpecDSMC, CollInf
   USE MOD_PARTICLE_Vars,      ONLY : BoltzmannConst
-  USE MOD_Equation_Vars,      ONLY : Pi
+  USE MOD_Globals_Vars,       ONLY:PI
   USE MOD_DSMC_Analyze,       ONLY : CalcTVib
   USE nr,                     ONLY : gammln
 ! IMPLICIT VARIABLE HANDLING

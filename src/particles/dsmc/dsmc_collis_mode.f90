@@ -634,6 +634,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 #if (PP_TimeDiscMethod==42)
           IF (.NOT.DSMC%ReservoirRateStatistic) THEN
             ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reactionrate coeficient
+            ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
           END IF
 #endif
           CALL RANDOM_NUMBER(iRan)
@@ -694,6 +695,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 #if (PP_TimeDiscMethod==42)
         IF (.NOT.DSMC%ReservoirRateStatistic) THEN
           ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reactionrate coeficient
+          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
         END IF
 #endif
         CALL RANDOM_NUMBER(iRan)
@@ -759,6 +761,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 #if (PP_TimeDiscMethod==42)
         IF (.NOT.DSMC%ReservoirRateStatistic) THEN
           ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reactionrate coeficient
+          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
         END IF
 #endif
         CALL RANDOM_NUMBER(iRan)
@@ -830,6 +833,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirRateStatistic) THEN
               ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reactionrate coeficient
+              ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
             END IF
 #endif
             CALL RANDOM_NUMBER(iRan)
@@ -884,6 +888,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 #if (PP_TimeDiscMethod==42)
         IF (.NOT.DSMC%ReservoirRateStatistic) THEN
           ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reactionrate coeficient
+          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
         END IF
 #endif
         ! calculation of exchange reaction probability
@@ -925,6 +930,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 #if (PP_TimeDiscMethod==42)
         IF (.NOT.DSMC%ReservoirRateStatistic) THEN
           ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb2  ! for calculation of reactionrate coeficient
+          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
         END IF
 #endif
         CALL RANDOM_NUMBER(iRan)

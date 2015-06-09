@@ -173,6 +173,9 @@ USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif
+#if (PP_TimeDiscMethod ==1000)
+USE MOD_DSMC_Vars,             ONLY: DSMC, SpecDSMC
+#endif
 #if ( PP_TimeDiscMethod ==42)
 USE MOD_DSMC_Vars,             ONLY: DSMC, SpecDSMC
 USE MOD_Particle_Vars,         ONLY: Species
@@ -198,6 +201,9 @@ REAL                :: RECBR(nSpecies),RECBR2(nEkin),RECBR1
 INTEGER             :: RECBIM(nSpecies)
 #endif
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
+#if (PP_TimeDiscMethod ==1000)
+REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3)
+#endif
 #if (PP_TimeDiscMethod ==42)
 INTEGER             :: ii, iunit, iCase, iTvib,jSpec
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
@@ -217,8 +223,13 @@ IF (DoAnalyze) THEN
 !SWRITE(UNIT_StdOut,'(132("-"))')
 !SWRITE(UNIT_stdOut,'(A)') ' PERFORMING PARTICLE ANALYZE...'
 IF (useDSMC) THEN
-  ALLOCATE(CRate(CollInf%NumCase + 1))
-  IF (CollisMode.EQ.3) ALLOCATE(RRate(ChemReac%NumOfReact))
+  IF (CollisMode.NE.0) THEN
+    ALLOCATE(CRate(CollInf%NumCase + 1))
+    IF (CollisMode.EQ.3) THEN
+      ALLOCATE(RRate(ChemReac%NumOfReact))
+      RRate = 0.0
+    END IF
+  END IF
 END IF
 OutputCounter = 2
 unit_index = 535
@@ -351,8 +362,39 @@ unit_index = 535
               OutputCounter = OutputCounter + 1
             END DO
           END IF
+#if (PP_TimeDiscMethod==1000)
+              IF (CollisMode.GT.1) THEN
+                DO iSpec=1, nSpecies         
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EVib',iSpec,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                DO iSpec=1, nSpecies
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' ERot',iSpec,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                IF ( DSMC%ElectronicState ) THEN
+                  DO iSpec = 1, nSpecies
+                    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                    WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EElec',iSpec,' '
+                    OutputCounter = OutputCounter + 1
+                  END DO
+                END IF
+                DO iSpec=1, nSpecies
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempVib',iSpec,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+                DO iSpec=1, nSpecies
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempRot',iSpec,' '
+                  OutputCounter = OutputCounter + 1
+                END DO
+              END IF
+#endif
 #if (PP_TimeDiscMethod==42)
-              IF (CollisMode.NE.1) THEN
+              IF (CollisMode.GT.1) THEN
                 DO iSpec=1, nSpecies         
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                   WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EVib',iSpec,' '
@@ -408,11 +450,6 @@ unit_index = 535
                   OutputCounter = OutputCounter + 1
                 END DO
               END IF
-              DO iSpec = 1, nSpecies
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' PartNum', iSpec,' '
-                OutputCounter = OutputCounter + 1
-              END DO              
 #endif
           WRITE(unit_index,'(A14)') ' ' 
        END IF
@@ -471,14 +508,18 @@ ELSE ! no Root
 END IF
 #endif
 
+#if (PP_TimeDiscMethod==1000)
+IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
+#endif
+
 #if (PP_TimeDiscMethod==42)
 CALL CollRates(CRate)
-IF (CollisMode.EQ.3) CALL ReacRates(RRate, NumSpec)
-IF (CollisMode.NE.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
+IF (CollisMode.EQ.3.AND.(Time.GT.0).AND.(Time.NE.RestartTime)) CALL ReacRates(RRate, NumSpec)
+IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 ! currently, calculation of internal electronic energy not implemented !
 #ifdef MPI
 ! average over all cells
-  IF (CollisMode.NE.1) THEN
+  IF (CollisMode.GT.1) THEN
     CALL MPI_REDUCE(IntTemp(:,1), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
     IntTemp(:,1) = sumIntTemp / PartMPI%nProcs
     CALL MPI_REDUCE(IntTemp(:,2), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0,PartMPI%COMM, IERROR)
@@ -563,8 +604,37 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
        WRITE(unit_index,104,ADVANCE='NO') PartEkinOut(iSpec)
      END DO
    END IF
+
+#if (PP_TimeDiscMethod==1000)
+      IF (CollisMode.GT.1) THEN
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,1)
+        END DO
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,2)
+        END DO
+        IF ( DSMC%ElectronicState ) THEN
+          DO iSpec=1, nSpecies
+          ! currently set to one
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,3)
+          END DO
+        END IF
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,1)
+        END DO
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,2)
+        END DO
+      END IF
+#endif
+
 #if (PP_TimeDiscMethod==42)
-      IF (CollisMode.NE.1) THEN
+      IF (CollisMode.GT.1) THEN
         DO iSpec=1, nSpecies
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,1)
@@ -608,10 +678,6 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
           WRITE(unit_index,104,ADVANCE='NO') RRate(iCase)
         END DO
       END IF
-      DO iSpec=1, nSpecies
-        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,'(I10.1)',ADVANCE='NO') NumSpec(iSpec)
-      END DO
 #endif
    WRITE(unit_index,'(A1)') ' ' 
 #ifdef MPI
@@ -630,6 +696,7 @@ END IF ! DoAnalyze
 IF( CalcPartBalance) CALL CalcParticleBalance()
 
 #if ( PP_TimeDiscMethod ==42 )
+DSMC%CollProbOut(1,1) = 0.0
 ! hard coded
 ! array not allocated
 IF ( DSMC%ElectronicState ) THEN
@@ -1003,6 +1070,9 @@ SUBROUTINE CalcTemperature(Temp, NumSpec)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars,      ONLY : PartState, PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
+#if (PP_TimeDiscMethod==1000)
+USE MOD_LD_Vars,            ONLY : BulkValues
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1015,13 +1085,31 @@ INTEGER, INTENT(OUT)            :: NumSpec(:)
 ! LOCAL VARIABLES
 INTEGER           :: i, iSpec
 REAL              ::  TempDirec(nSpecies,3), RealNumSpec(nSpecies)
+#if (PP_TimeDiscMethod!=1000)
 REAL              :: PartV(nSpecies, 3), PartV2(nSpecies,3),Mean_PartV2(nSpecies, 3), MeanPartV_2(nSpecies,3)
+#endif
 !===================================================================================================================================
 
 ! Compute velocity averages
   NumSpec = 0
   RealNumSpec = 0
 ! Sum up velocity
+#if (PP_TimeDiscMethod==1000)
+  DO iSpec=1, nSpecies
+    TempDirec(iSpec,1:3) = BulkValues(1)%BulkTemperature
+    Temp(iSpec) = BulkValues(1)%BulkTemperature
+  END DO
+  DO i=1,PDM%ParticleVecLength
+    IF (PDM%ParticleInside(i)) THEN
+      IF (usevMPF) THEN 
+        RealNumSpec(PartSpecies(i)) = RealNumSpec(PartSpecies(i)) + PartMPF(i)
+        NumSpec(PartSpecies(i)) = NumSpec(PartSpecies(i)) + 1
+      ELSE
+        NumSpec(PartSpecies(i)) = NumSpec(PartSpecies(i)) + 1
+      END IF
+    END IF
+  END DO
+#else 
   PartV = 0
   PartV2 = 0
   DO i=1,PDM%ParticleVecLength
@@ -1057,6 +1145,7 @@ REAL              :: PartV(nSpecies, 3), PartV2(nSpecies,3),Mean_PartV2(nSpecies
          / BoltzmannConst ! Temp calculation is limitedt to one species
     Temp(iSpec) = (TempDirec(iSpec,1) + TempDirec(iSpec,2) + TempDirec(iSpec,3))/3
   END DO
+#endif
 END SUBROUTINE CalcTemperature
 
 
@@ -1319,7 +1408,7 @@ SUBROUTINE ReacRates(RRate, NumSpec)
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,          ONLY: ChemReac
+USE MOD_DSMC_Vars,          ONLY: ChemReac, DSMC
 USE MOD_TimeDisc_Vars,      ONLY: dt
 USE MOD_Particle_Vars,      ONLY: GEO, Species
 ! IMPLICIT VARIABLE HANDLING
@@ -1334,41 +1423,88 @@ INTEGER, INTENT(IN)             :: NumSpec(:)
 ! LOCAL VARIABLES
 INTEGER                         :: iReac
 !===================================================================================================================================
+
   DO iReac=1, ChemReac%NumOfReact
-    SELECT CASE(ChemReac%ReactType(iReac))
-    CASE('R')
+    IF ((NumSpec(ChemReac%DefinedReact(iReac,1,1)).GT.0).AND.(NumSpec(ChemReac%DefinedReact(iReac,1,2)).GT.0)) THEN
+      SELECT CASE(ChemReac%ReactType(iReac))
+      CASE('R')
+        IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
         RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
                      * GEO%Volume(1)**2 / (dt &
                      * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                      * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) &
                      * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,3)) )
-    CASE('D')
-        RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                     * GEO%Volume(1) / (dt &
-                     * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
-                     * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) )
-    CASE('E')
-        RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                     * GEO%Volume(1) / (dt &
-                     * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
-                     * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) )
-    CASE('i')
-        RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                     * GEO%Volume(1) / (dt &
-                     * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
-                     * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) )
-    CASE('r')
+        ELSE ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
+          RRate(iReac) = ChemReac%NumReac(iReac) * DSMC%CollMean * GEO%Volume(1)**2 &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor / (dt * ChemReac%ReacCount(iReac)             &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))     &
+               * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2))    &
+               * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,3)) )
+        END IF
+      CASE('D')
+        IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
+          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
+                       * GEO%Volume(1) / (dt &
+                       * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
+                       * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+        ELSE ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
+          RRate(iReac) = ChemReac%NumReac(iReac) * DSMC%CollMean &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * GEO%Volume(1) / (dt * ChemReac%ReacCount(iReac) &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
+               * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+        END IF
+      CASE('E')
+        IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
+          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
+                       * GEO%Volume(1) / (dt &
+                       * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
+                       * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+        ELSE ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
+          RRate(iReac) = ChemReac%NumReac(iReac) * DSMC%CollMean &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * GEO%Volume(1) / (dt * ChemReac%ReacCount(iReac) &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
+               * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+        END IF
+      CASE('i')
+        IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
+          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
+                       * GEO%Volume(1) / (dt &
+                       * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
+                       * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+        ELSE ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
+          RRate(iReac) = ChemReac%NumReac(iReac) * DSMC%CollMean &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * GEO%Volume(1) / (dt * ChemReac%ReacCount(iReac) &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
+               * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+        END IF
+      CASE('r')
+        IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
         RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
                      * GEO%Volume(1)**2 / (dt &
                      * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
                      * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) &
                      * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,3)) )
-    CASE('x')
-        RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
-                     * GEO%Volume(1) / (dt &
-                     * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
-                     * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor * NumSpec(ChemReac%DefinedReact(iReac,1,2)) )
-    END SELECT
+        ELSE ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
+          RRate(iReac) = ChemReac%NumReac(iReac) * DSMC%CollMean * GEO%Volume(1)**2 &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor / (dt * ChemReac%ReacCount(iReac)             &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))     &
+               * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2))    &
+               * Species(ChemReac%DefinedReact(iReac,1,3))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,3)) )
+        END IF
+      CASE('x')
+        IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
+          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%DefinedReact(iReac,2,1))%MacroParticleFactor &
+                       * GEO%Volume(1) / (dt &
+                       * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1)) &
+                       * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+        ELSE ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
+          RRate(iReac) = ChemReac%NumReac(iReac) * DSMC%CollMean &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor * GEO%Volume(1) / (dt * ChemReac%ReacCount(iReac) &
+               * Species(ChemReac%DefinedReact(iReac,1,1))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,1))         &
+               * Species(ChemReac%DefinedReact(iReac,1,2))%MacroParticleFactor*NumSpec(ChemReac%DefinedReact(iReac,1,2)))
+        END IF
+      END SELECT
+    END IF
   END DO
   ChemReac%NumReac = 0
 END SUBROUTINE ReacRates

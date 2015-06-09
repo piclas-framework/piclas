@@ -30,7 +30,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, GEO, usevMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, Species, GEO, usevMPF, useVTKFileBGG, BGGdataAtElem
 !  USE MOD_Particle_Vars,          ONLY : PartState       ! da muss noch was getan werden (s.u.)
   USE MOD_TimeDisc_Vars,          ONLY : dt
 !  USE MOD_Equation_Vars,          ONLY : c2              ! da muss noch was getan werden (s.u.)
@@ -61,7 +61,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   END IF
   SELECT CASE(iPType)
 
-    CASE(2,3,4,11) !Atom-Atom,  Atom-Mol, Mol-Mol, non-CEX/MEX Atom-Atomic Ion
+    CASE(2,3,4,11) !Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion
       SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
       SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
       IF (BGGas%BGGasSpecies.NE.0) THEN       
@@ -135,7 +135,11 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       ! generally this is only a HS calculation of the prob
       IF (BGGas%BGGasSpecies.NE.0) THEN
         IF (usevMPF) THEN
-          BGGasDensity_new=BGGas%BGGasDensity
+          IF (useVTKFileBGG) THEN
+            BGGasDensity_new=BGGdataAtElem(7,iElem)
+          ELSE
+            BGGasDensity_new=BGGas%BGGasDensity
+          END IF
           Coll_pData(iPair)%Prob = BGGasDensity_new * GEO%Volume(iElem)      &
                  /(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  & 
                         ! weighting Fact, here only one MPF is used!!!      
@@ -203,7 +207,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
           'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
   END SELECT
   IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
-    IPWRITE(*,*)iPair,'in',iElem,'is NaN!'
+    IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'
     CALL Abort(&
          __STAMP__,&
         'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))

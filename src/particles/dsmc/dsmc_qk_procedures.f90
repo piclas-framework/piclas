@@ -151,9 +151,9 @@ SELECT CASE (ChemReac%QKMethod(iReac))
                                       SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%DrefVHS                  + &
                                       SpecDSMC(PartSpecies(iPart_p3))%DrefVHS       )**3
     IF ( ReactionProb .ge. 1 ) THEN
-      IPWRITE(*,*) 'ERROR: Recombination probability  >1'
-      IPWRITE(*,*) 'iReac: ',iReac
-      IPWRITE(*,*) 'Probability: ', ReactionProb
+      IPWRITE(UNIT_stdOut,*) 'ERROR: Recombination probability  >1'
+      IPWRITE(UNIT_stdOut,*) 'iReac: ',iReac
+      IPWRITE(UNIT_stdOut,*) 'Probability: ', ReactionProb
     END IF
 #if (PP_TimeDiscMethod==42)
     IF (.NOT. DSMC%ReservoirRateStatistic) THEN
@@ -397,9 +397,9 @@ SELECT CASE (ChemReac%QKMethod(iReac))
 !                           ( ( Coll_pData(iPair)%Ec / ( BoltzmannConst * coeffT ) )**ChemReac%QKCoeff(iReac,2) ) * &
 !                           exp( -  ChemReac%EActiv(iReac) * coeffT /  Coll_pData(iPair)%Ec  )
     IF ( ReactionProb .gt. 1 ) THEN
-      IPWRITE(*,*) 'Error: ReactionProb in chemical reaction >1!'
-      IPWRITE(*,*) 'ReactionProb:',ReactionProb
-      IPWRITE(*,*) 'iReac:',iReac
+      IPWRITE(UNIT_stdOut,*) 'Error: ReactionProb in chemical reaction >1!'
+      IPWRITE(UNIT_stdOut,*) 'ReactionProb:',ReactionProb
+      IPWRITE(UNIT_stdOut,*) 'iReac:',iReac
     END IF
 #if (PP_TimeDiscMethod==42)
     IF (.NOT. DSMC%ReservoirRateStatistic) THEN

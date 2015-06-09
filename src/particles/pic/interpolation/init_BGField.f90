@@ -136,7 +136,7 @@ IF(NBG.EQ.N_IN)THEN
   CALL ReadArray('BGField',5,(/BGdatasize,N_in+1,N_in+1,N_in+1,PP_nElems/),OffsetElem,5,RealArray=BGField)
 ELSE
   ALLOCATE(BGField_tmp(1:BGDataSize,N_in+1,N_in+1,N_in+1,1:PP_nElems))
-  ALLOCATE(BGField(1:BGDataSize,NBG+1,NBG+1,NBG+1,1:PP_nElems))
+  ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
   CALL ReadArray('BGField',5,(/BGdatasize,N_in+1,N_in+1,N_in+1,PP_nElems/),OffsetElem,5,RealArray=BGField_tmp)
 END IF
 
@@ -168,9 +168,9 @@ IF(NBG.NE.N_In)THEN
 
   SELECT CASE(TRIM(NodeType_BGField))
   CASE("GAUSS")
-    CALL LegendreGaussNodesAndWeights(N_In,xGP_tmp)
+    CALL LegendreGaussNodesAndWeights(N_In,xGP_tmp,wGP_tmp)
   CASE("GAUSS-LOBATTO")
-    CALL LegGaussLobNodesAndWeights(N_In,xGP_tmp)
+    CALL LegGaussLobNodesAndWeights(N_In,xGP_tmp,wGP_tmp)
   CASE DEFAULT
     CALL abort(__STAMP__,&
         ' Not type of BackGround-Field is not implemented!')

@@ -1,6 +1,5 @@
 #include "boltzplatz.h"
 
-
 MODULE MOD_AnalyzeField
 !===================================================================================================================================
 ! Contains the Poynting Vector Integral part for the power analysis of the field vector

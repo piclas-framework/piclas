@@ -78,7 +78,6 @@ IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   SWRITE(*,*) "1/sqrt(eps*mu):", c_test
   STOP
 END IF
-Pi=ACOS(-1.)
 
 c2     = c*c 
 c_inv  = 1./c
@@ -124,7 +123,8 @@ SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 USE nr,only:bessj
 USE nrtype,only:SP
 USE MOD_Globals
-USE MOD_Equation_Vars,ONLY:Pi,c,c2,eps0
+USE MOD_Globals_Vars,ONLY:PI
+USE MOD_Equation_Vars,ONLY:c,c2,eps0
 USE MOD_TimeDisc_vars,ONLY:dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

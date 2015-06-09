@@ -96,8 +96,8 @@ SUBROUTINE LD_output_calc()
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-INTEGER                       :: iElem, iSpec, MolecPartNum, HeavyPartNum                   !
-REAL                          :: TVib_TempFac
+INTEGER                       :: iElem, iSpec                  !
+REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum 
 !--------------------------------------------------------------------------------------------------!
 
   ALLOCATE(MacroDSMC(nElems,nSpecies + 1))

@@ -36,7 +36,7 @@ SUBROUTINE DSMC_vmpf_prob(iElem, iPair, NodeVolume)
 ! IMPLICIT VARIABLE HANDLING
   USE MOD_Globals
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, Coll_pData, CollInf, DSMC, BGGas
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, GEO, PartMPF
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, GEO, PartMPF, useVTKFileBGG, BGGdataAtElem
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_SpecXSec
 
@@ -72,7 +72,11 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
       SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
       SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
       IF (BGGas%BGGasSpecies.NE.0) THEN
-        BGGasDensity_new=BGGas%BGGasDensity
+        IF (useVTKFileBGG) THEN
+          BGGasDensity_new=BGGdataAtElem(7,iElem)
+        ELSE
+          BGGasDensity_new=BGGas%BGGasDensity
+        END IF
         Coll_pData(iPair)%Prob = BGGasDensity_new/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType)) & 
                 * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
                 * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) &
@@ -109,7 +113,11 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
       SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
       ! generally this is only a HS calculation of the prob
       IF (BGGas%BGGasSpecies.NE.0) THEN
-        BGGasDensity_new=BGGas%BGGasDensity
+        IF (useVTKFileBGG) THEN
+          BGGasDensity_new=BGGdataAtElem(7,iElem)
+        ELSE
+          BGGasDensity_new=BGGas%BGGasDensity
+        END IF
         Coll_pData(iPair)%Prob = BGGasDensity_new  &   
                 * SQRT(Coll_pData(iPair)%CRela2)*Coll_pData(iPair)%Sigma(0) &
                 * dt                     ! timestep (should be sclaed in time disc)
@@ -131,7 +139,7 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
       CALL abort(__STAMP__,&
            'ERROR in DSMC_collis: Wrong iPType case! =', iPType)
   END SELECT
-  DSMC%CollProbMax = MAX(Coll_pData(iPair)%Prob, DSMC%CollProbMax)
+  DSMC%CollProbOut(iElem,1) = MAX(Coll_pData(iPair)%Prob, DSMC%CollProbOut(iElem,1))
   DSMC%CollMean = DSMC%CollMean + Coll_pData(iPair)%Prob
   DSMC%CollMeanCount = DSMC%CollMeanCount + 1
 END SUBROUTINE DSMC_vmpf_prob

@@ -16,6 +16,7 @@ INTEGER                       :: DSMCSumOfFormedParticles   !number of formed pa
 REAL  , ALLOCATABLE           :: DSMC_RHS(:,:)              ! RHS of the DSMC Method/ deltaV (npartmax, direction)
 
 INTEGER                       :: CollisMode                 ! Mode of Collision:, ini_1
+                                                            !    0: No Collisions (=free molecular flow with DSMC-Sampling-Routines)
                                                             !    1: Elastic Collision
                                                             !    2: Relaxation + Elastic Collision
                                                             !    3: Chemical Reactions
@@ -89,7 +90,6 @@ TYPE tDSMC
   REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot), 
                                                             ! should be 0.5 or 0
   INTEGER(KIND=8), ALLOCATABLE  :: NumColl(:)               ! Number of Collision for each case + entire Collision number
-  REAL                          :: CollProbMax              ! maximum of Collision Probability
   REAL                          :: TimeFracSamp             ! %-of simulation time for sampling
   INTEGER                       :: SampNum                  ! number of Samplingsteps
   INTEGER                       :: NumOutput                ! number of Outputs
@@ -108,10 +108,13 @@ TYPE tDSMC
   INTEGER                       :: CalcSurfCollis_NbrOfSpecies     ! Nbr. of Species to be counted for wall collisions (def. 0: all)
   LOGICAL,ALLOCATABLE           :: CalcSurfCollis_SpeciesFlags(:)  ! Species counted for wall collisions (def.: all species=T)
   LOGICAL                       :: CalcSurfCollis_OnlySwaps        ! count only wall collisions being SpeciesSwaps (def. F)
+  LOGICAL                       :: CalcSurfCollis_Only0Swaps       ! count only wall collisions being delete-SpeciesSwaps (def. F)
+  LOGICAL                       :: CalcSurfCollis_Output           ! Print sums of all counted wall collisions (def. F)
   REAL                          :: CollMean                 ! output of mean Collision Probability
   INTEGER                       :: CollMeanCount            ! counter for mean Collision Probability max
-  REAL  , ALLOCATABLE          :: CollProbOut(:,:)           ! Collision probability per cell
+  REAL, ALLOCATABLE            :: CollProbOut(:,:)           ! Collision probability per cell for output
                                                             ! (1: Maximal collision prob, 2: Time-averaged mean collision prob)
+  REAL, ALLOCATABLE            :: CollProbSamp(:)       ! Sampling of mean collision probability per cell
   LOGICAL                       :: ElectronicState          ! Flag for Electronic State of atoms and molecules
   CHARACTER(LEN=64)             :: ElectronicStateDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
@@ -199,7 +202,9 @@ TYPE tChemReactions
   LOGICAL, ALLOCATABLE            :: QKProcedure(:)         ! Defines if QK Procedure is selected
   INTEGER, ALLOCATABLE            :: QKMethod(:)            ! Recombination method for Q-K model (1 by Bird / 2 by Gallis)
   REAL,ALLOCATABLE,DIMENSION(:,:) :: QKCoeff                ! QKRecombiCoeff for Birds method
-  REAL, ALLOCATABLE    :: NumReac(:)                        ! Number of occured reactions for each reaction number
+  REAL, ALLOCATABLE               :: NumReac(:)             ! Number of occured reactions for each reaction number
+  INTEGER, ALLOCATABLE            :: ReacCount(:)           ! Counter of chemical reactions for the determination of rate
+                                                            ! coefficient based on the reaction probabilities
 !  INTEGER(KIND=8), ALLOCATABLE    :: NumReac(:)            ! Number of occured reactions for each reaction number
   LOGICAL                         :: MeanEVib_Necc          ! Flag if the MeanEVibQua_PerIter is necessary to calculate
   CHARACTER(LEN=1),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
@@ -256,7 +261,7 @@ TYPE tSampWall             ! DSMC sample for Wall
                                                             ! 4-6 E_rot (pre, wall, re),
                                                             ! 7-9 E_vib (pre, wall, re)
   REAL                           :: Force(3)                ! x, y, z direction
-  REAL                           :: Counter(1)              ! Wall-Collision counter
+  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter
 END TYPE
 
 TYPE(tSampWall), ALLOCATABLE     :: SampWall(:)             ! Wall sample array (number of BC-Sides)
@@ -267,7 +272,8 @@ TYPE(tSampWall), ALLOCATABLE     :: SampWallHaloCell(:)     ! Wall sample array 
 TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall    
   REAL                           :: Heatflux                ! 
   REAL                           :: Force(3)                ! x, y, z direction
-  REAL                           :: Counter(1)              ! Wall-Collision counter
+  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
+  REAL                           :: CounterOut              ! Wall-Collision counter for Output
 END TYPE
 
 TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)

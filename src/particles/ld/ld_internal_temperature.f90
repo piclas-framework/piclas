@@ -13,11 +13,105 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-PUBLIC :: CalcInternalTemp_LD_second, CalcInternalTemp_LD_third
+PUBLIC :: CalcInternalTemp_LD_first, CalcInternalTemp_LD_second, CalcInternalTemp_LD_third
 !===================================================================================================================================
 
 CONTAINS
 
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+SUBROUTINE CalcInternalTemp_LD_first(iElem)
+
+USE MOD_LD_Vars
+USE MOD_Mesh_Vars,              ONLY : nElems
+USE MOD_Particle_Vars,          ONLY : GEO, PEM, BoltzmannConst, Species, nSpecies, PartSpecies
+USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
+USE MOD_TimeDisc_Vars,          ONLY : dt
+
+!--------------------------------------------------------------------------------------------------!
+   IMPLICIT NONE                                                                                  !
+!--------------------------------------------------------------------------------------------------!
+! argument list declaration                                                                        !
+! Local variable declaration                                                                       !
+  INTEGER               :: iPart, nPart, iPartIndx, iSpec
+  REAL                   :: NumDensOfPartSpec(nSpecies)
+  REAL                   :: CollFreq, CollNum, RotRelaxProbLD, VibRelaxProbLD, iRan, AFactor, BFactor, TauMW, TauV
+  REAL                   :: PreRotEnergy, PreVibEnergy, PostRotEnergy, PostVibEnergy, NumDensTot, DoFConstV
+  INTEGER                       :: iQuant
+  INTEGER, INTENT(IN)           :: iElem
+
+!--------------------------------------------------------------------------------------------------!
+
+  nPart = PEM%pNumber(iElem)
+  NumDensOfPartSpec(1:nSpecies) = 0.0
+
+  iPartIndx = PEM%pStart(iElem)
+  DO ipart = 1, nPart
+    NumDensOfPartSpec(PartSpecies(iPartIndx)) = NumDensOfPartSpec(PartSpecies(iPartIndx)) + 1.0
+    iPartIndx = PEM%pNext(iPartIndx)
+  END DO
+  NumDensOfPartSpec(1:nSpecies) = NumDensOfPartSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / GEO%Volume(iElem)
+  NumDensTot = SUM(NumDensOfPartSpec)
+
+  iPartIndx = PEM%pStart(iElem)
+  DO ipart = 1, nPart 
+    PreVibEnergy  = PartStateIntEn(iPartIndx,1)
+    PreRotEnergy  = PartStateIntEn(iPartIndx,2)
+    CollFreq = 0.0 
+    DO iSpec = 1, nSpecies
+        CollFreq = CollFreq + 0.5 * (SpecDSMC(iSpec)%DrefVHS + SpecDSMC(PartSpecies(iPartIndx))%DrefVHS)**2.0 &
+                 * NumDensOfPartSpec(iSpec) &
+                 * ( 2.0 * 3.14159265359 * BoltzmannConst * SpecDSMC(PartSpecies(iPartIndx))%TrefVHS &
+                 * (Species(iSpec)%MassIC + Species(PartSpecies(iPartIndx))%MassIC) &
+                 / (Species(iSpec)%MassIC * Species(PartSpecies(iPartIndx))%MassIC) )**0.5 &
+                 * (PartStateBulkValues(iPartIndx,4) / SpecDSMC(PartSpecies(iPartIndx))%TrefVHS)**(0.5 - SpecDSMC(iSpec)%omegaVHS)
+    END DO
+    CollNum = 18.1 / ( 1.0 + 0.5*3.14159265359**1.5*(91.5/ PartStateBulkValues(iPartIndx,4) )**0.5 &
+            + (3.14159265359 + 0.25*3.14159265359**2.0)*91.5 / PartStateBulkValues(iPartIndx,4) )
+    RotRelaxProbLD = 3.0 / 5.0 * (1.0 - EXP(-5.0/3.0 * CollFreq/CollNum * dt))
+    CALL RANDOM_NUMBER(iRan)
+
+    IF(RotRelaxProbLD.GT.iRan) THEN
+      CALL RANDOM_NUMBER(iRan)
+      PartStateIntEn(iPartIndx,2) = -BoltzmannConst * PartStateBulkValues(iPartIndx,4) * LOG(iRan)
+    END IF
+
+    AFactor = 0.00116 * (0.5 * 6.02214129E26 * Species(PartSpecies(iPartIndx))%MassIC)**0.5 &
+            * SpecDSMC(PartSpecies(iPartIndx))%CharaTVib**(4.0/3.0)
+    BFactor = -0.015 * AFactor * (0.5 * 6.02214129E26 * Species(PartSpecies(iPartIndx))%MassIC)**0.25 - 18.42
+    TauMW = EXP(AFactor * PartStateBulkValues(iPartIndx,4)**(-1.0/3.0) + BFactor) &
+          / (NumDensTot * BoltzmannConst * PartStateBulkValues(iPartIndx,4)  )!* 1E-5)
+    TauV = TauMW + ( 3.14159265359 * Species(PartSpecies(iPartIndx))%MassIC &
+         / (8.0*BoltzmannConst*PartStateBulkValues(iPartIndx,4)) )**0.5 &
+         / (5.81E-21*NumDensTot)
+    
+    DoFConstV = 1.0 + 2/3*SpecDSMC(PartSpecies(iPartIndx))%CharaTVib/PartStateBulkValues(iPartIndx,4) &
+              / (EXP(SpecDSMC(PartSpecies(iPartIndx))%CharaTVib/PartStateBulkValues(iPartIndx,4)) - 1.0)
+    VibRelaxProbLD = 1/DoFConstV * (1.0 - EXP(-DoFConstV*dt/TauV))
+
+    CALL RANDOM_NUMBER(iRan)
+    IF(VibRelaxProbLD.GT.iRan) THEN
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT(-LOG(iRan)*PartStateBulkValues(iPartIndx,4)/SpecDSMC(PartSpecies(iPartIndx))%CharaTVib)
+      DO WHILE (iQuant.GE.SpecDSMC(PartSpecies(iPartIndx))%MaxVibQuant)
+        CALL RANDOM_NUMBER(iRan)
+        iQuant = INT(-LOG(iRan)*PartStateBulkValues(iPartIndx,4)/SpecDSMC(PartSpecies(iPartIndx))%CharaTVib)
+      END DO
+      PartStateIntEn(iPartIndx, 1) = (iQuant + DSMC%GammaQuant)*SpecDSMC(PartSpecies(iPartIndx))%CharaTVib*BoltzmannConst
+    END IF
+    PostVibEnergy = PartStateIntEn(iPartIndx,1)
+    PostRotEnergy = PartStateIntEn(iPartIndx,2)
+    PartStateBulkValues(iPartIndx,4) = PartStateBulkValues(iPartIndx,4) &
+                                      + (PreRotEnergy+PreVibEnergy-PostRotEnergy-PostVibEnergy) &
+                                      / (1.5 * BoltzmannConst)
+    iPartIndx = PEM%pNext(iPartIndx)
+  END DO
+
+END SUBROUTINE CalcInternalTemp_LD_first
+
+!-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 SUBROUTINE CalcInternalTemp_LD_second(iElem)
@@ -438,7 +532,7 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
   REAL                   :: PreTransEnergy, PreRotEnergy, PreVibEnergy
   REAL                   :: CollPartion, SumOfCombination, PartionFactor, MolNum, Xi_vibPerPart
   INTEGER                :: PairType 
-  REAL                   :: CRela2
+  REAL                   :: CRela2, GasMixFak
 
   INTEGER, INTENT(IN)           :: iElem
 
@@ -571,9 +665,12 @@ USE MOD_TimeDisc_Vars,          ONLY : dt
     END IF
     iPartIndx = PEM%pNext(iPartIndx)
   END DO
+
   NewRotEnergy = NewRotEnergy / MolNum
-  NewTransEnergy = (SumEnergy - NewRotEnergy - NewVibEnergy)  ! sum of DOF
-  BulkValues(iElem)%BulkTemperature = 2.0/3.0 * NewTransEnergy / BoltzmannConst
+  NewTransEnergy = (SumEnergy - NewRotEnergy - NewVibEnergy) ! sum of DOF
+  GasMixFak = MolNum / nPart
+  BulkValues(iElem)%BulkTemperature = (1.0 - GasMixFak) * BulkValues(iElem)%BulkTemperature &
+                                    + GasMixFak * 2.0/3.0 * NewTransEnergy / BoltzmannConst
 END SUBROUTINE CalcInternalTemp_LD_third
 
 !-----------------------------------------------------------------------------------------------------------------------------------
