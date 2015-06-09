@@ -564,7 +564,7 @@ IF (t.GE.DelayTime) THEN
     tLocalization=tLocalization+TimeEnd-TimeStart
   END IF
 ! forces on particle
-  CALL InterpolateFieldToParticle()
+  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
   CALL CalcPartRHS()
 END IF
 
@@ -693,7 +693,7 @@ DO iStage=2,nRKStages
   END IF
   ! particle RHS
   IF (t.GE.DelayTime) THEN
-    CALL InterpolateFieldToParticle()
+    CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
     CALL CalcPartRHS()
   END IF
 #endif /*PARTICLES*/

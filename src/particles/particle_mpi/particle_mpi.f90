@@ -166,8 +166,8 @@ END IF
   PartCommSize = PartCommSize - 6
 #endif
 
-ALLOCATE( PartMPIExchange%nPartsSend(PartMPI%nMPINeighbors)    & 
-        , PartMPIExchange%nPartsRecv(PartMPI%nMPINeighbors)    &
+ALLOCATE( PartMPIExchange%nPartsSend(PartMPI%nMPINeighbors)  & 
+        , PartMPIExchange%nPartsRecv(PartMPI%nMPINeighbors)  &
         , PartRecvBuf(1:PartMPI%nMPINeighbors)                 &
         , PartMPIExchange%SendRequest(2,PartMPI%nMPINeighbors) &
         , PartMPIExchange%RecvRequest(2,PartMPI%nMPINeighbors) )
@@ -231,8 +231,9 @@ SUBROUTINE MPIParticleSend()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize,tMPIMessage, PartRecvBuf
-USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp
+USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,Species
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
+USE MOD_Particle_Mesh_Vars,       ONLY:GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -246,6 +247,9 @@ INTEGER                       :: iPart,ElemID,iPos,iProc
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 TYPE(tMPIMessage)             :: SendBuf(0:PartMPI%nMPINeighbors)                          
+! shape function 
+INTEGER, ALLOCATABLE          :: shape_indices(:)
+INTEGER                       :: CellX,CellY,CellZ, iPartShape
 !===================================================================================================================================
 
 ! 1) get number of send particles
@@ -256,6 +260,35 @@ DO iPart=1,PDM%ParticleVecLength
   IF(ElemID.GT.PP_nElems)  PartMPIExchange%nPartsSend(PartHaloToProc(LOCAL_PROC_ID,ElemID))=             &
                                         PartMPIExchange%nPartsSend(PartHaloToProc(LOCAL_PROC_ID,ElemID))+1
 END DO ! iPart
+
+! external particles add to same message
+! IF(DoExternalParts)THEN
+!   ALLOCATE( shape_indices(1:PDM%ParticleVecLength), stat=allocstat)
+!   shape_indices(:) = 0
+!   iPartShape=1
+!   DO iPart=1,PDM%ParticleVecLength
+!     IF(PDM%ParticleInside(iPart))THEN
+!       IF(ALMOSTZERO(Species(PartSpecies(iPart))%ChargeIC) CYCLE        ! Don't deposite neutral particles!
+!       CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+!       CellX = MIN(GEO%FIBGMimax,CellX)
+!       CellX = MAX(GEO%FIBGMimin,CellX)
+!       CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+!       CellY = MIN(GEO%FIBGMkmax,CellY)
+!       CellY = MAX(GEO%FIBGMkmin,CellY)
+!       CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+!       CellZ = MIN(GEO%FIBGMlmax,CellZ)
+!       CellZ = MAX(GEO%FIBGMlmin,CellZ)
+!       IF(ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
+!         IF(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1) .GT. 0) THEN
+!           shape_indices(iPartShape) = i
+!           iPartShape = iPartShape + 1
+!         END IF
+!       END IF
+!     END IF ! ParticleInside
+!   END DO ! iPart
+!   iPartShape = iPartShape - 1
+! 
+! END IF ! DoExternalParts
 
 ! 2) send number of send particles
 DO iProc=1,PartMPI%nMPINeighbors

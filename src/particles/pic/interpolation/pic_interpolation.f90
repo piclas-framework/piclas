@@ -86,61 +86,86 @@ END SELECT
 END SUBROUTINE InitializeInterpolation
 
 
-SUBROUTINE InterpolateFieldToParticle()                                                            
+SUBROUTINE InterpolateFieldToParticle(doInnerParts)
 !===================================================================================================================================
 ! interpolates field to particles
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DG_Vars,       ONLY : U
+USE MOD_Particle_Vars,           ONLY:PartPosRef
+USE MOD_Particle_Surfaces_Vars,  ONLY:DoRefMapping
+USE MOD_DG_Vars,                 ONLY:U
 USE MOD_Particle_Vars!, ONLY: 
 USE MOD_PIC_Vars!,      ONLY: 
 USE MOD_PICInterpolation_Vars
-USE MOD_PICDepo_Vars,  ONLY : DepositionType
+USE MOD_PICDepo_Vars,            ONLY:DepositionType
 USE MOD_PreProc
 USE MOD_Eval_xyz
 #ifdef PP_POIS
-USE MOD_Equation_Vars,ONLY: E
+USE MOD_Equation_Vars,           ONLY:E
 #endif
+#ifdef MPI
+! only required for shape function??
+USE MOD_Particle_MPI_Vars,    ONLY:PartMPI,PartMPIExchange
+#endif 
+
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL                          :: doInnerParts
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES                                                                    
-  REAL                             :: Pos(3)                                                      
-  REAL                             :: field(6)                                                    
-  INTEGER                          :: m,iPart,iElem
+INTEGER                          :: firstPart,lastPart
+REAL                             :: Pos(3)                                                      
+REAL                             :: field(6)                                                    
+INTEGER                          :: m,iPart,iElem
 #ifdef PP_POIS
-  REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
+REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 #endif
 !===================================================================================================================================
 
+IF(doInnerParts)THEN
+  firstPart=1
+  lastPart =PDM%ParticleVecLength
+ELSE
+#ifdef MPI
+  firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
+  lastPart =PDM%ParticleVecLength
+#else
+  firstPart=2
+  LastPart =1
+#endif /*MPI*/
+END IF
+! thats wrong
+IF(firstPart.GT.lastPart) RETURN
+
+
 IF(usecurvedExternalField) THEN ! used curved external Bz
-  FieldAtParticle(1:PDM%ParticleVecLength,:) = 0.
-  FieldAtParticle(1:PDM%ParticleVecLength,1) = externalField(1)
-  FieldAtParticle(1:PDM%ParticleVecLength,2) = externalField(2)
-  FieldAtParticle(1:PDM%ParticleVecLength,3) = externalField(3)
+  FieldAtParticle(firstPart:lastPart,:) = 0.
+  FieldAtParticle(firstPart:lastPart,1) = externalField(1)
+  FieldAtParticle(firstPart:lastPart,2) = externalField(2)
+  FieldAtParticle(firstPart:lastPart,3) = externalField(3)
 #if (PP_nVar==8)
-  FieldAtParticle(1:PDM%ParticleVecLength,4) = externalField(4)
-  FieldAtParticle(1:PDM%ParticleVecLength,5) = externalField(5)
+  FieldAtParticle(firstPart:lastPart,4) = externalField(4)
+  FieldAtParticle(firstPart:lastPart,5) = externalField(5)
 #endif
   ! Bz field strength at particle position
-  DO iPart = 1, PDM%ParticleVecLength
+  DO iPart = firstPart, LastPart
     FieldAtparticle(iPart,6) = InterpolateCurvedExternalField(PartState(iPart,3))
   END DO
 ELSE ! usecurvedExternalField
-  FieldAtParticle(1:PDM%ParticleVecLength,:) = 0.
-  FieldAtParticle(1:PDM%ParticleVecLength,1) = externalField(1)
-  FieldAtParticle(1:PDM%ParticleVecLength,2) = externalField(2)
-  FieldAtParticle(1:PDM%ParticleVecLength,3) = externalField(3)
+  FieldAtParticle(firstPart:lastPart,:) = 0.
+  FieldAtParticle(firstPart:lastPart,1) = externalField(1)
+  FieldAtParticle(firstPart:lastPart,2) = externalField(2)
+  FieldAtParticle(firstPart:lastPart,3) = externalField(3)
 #if (PP_nVar==8)
-  FieldAtParticle(1:PDM%ParticleVecLength,4) = externalField(4)
-  FieldAtParticle(1:PDM%ParticleVecLength,5) = externalField(5)
-  FieldAtParticle(1:PDM%ParticleVecLength,6) = externalField(6)
+  FieldAtParticle(firstPart:lastPart,4) = externalField(4)
+  FieldAtParticle(firstPart:lastPart,5) = externalField(5)
+  FieldAtParticle(firstPart:lastPart,6) = externalField(6)
 #endif
 END IF ! use constant external field
 
@@ -148,79 +173,38 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
   SELECT CASE(TRIM(InterpolationType))
   CASE('nearest_blurrycenter')
     ! add fields to fields at particle position
-    DO iPart=1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        iElem = PEM%Element(iPart)
-        m = INT(PP_N/2)+1
-#ifdef PP_POIS
-        FieldAtParticle(iPart,1) = FieldAtParticle(iPart,1) + E(1,m,m,m,iElem) 
-        FieldAtParticle(iPart,2) = FieldAtParticle(iPart,2) + E(2,m,m,m,iElem) 
-        FieldAtParticle(iPart,3) = FieldAtParticle(iPart,3) + E(3,m,m,m,iElem) 
-#else
-        FieldAtParticle(iPart,1) = FieldAtParticle(iPart,1) + U(1,m,m,m,iElem) 
-        FieldAtParticle(iPart,2) = FieldAtParticle(iPart,2) + U(2,m,m,m,iElem) 
-        FieldAtParticle(iPart,3) = FieldAtParticle(iPart,3) + U(3,m,m,m,iElem) 
-#endif
-#if (PP_nVar==8)
-        FieldAtParticle(iPart,4) = FieldAtParticle(iPart,4) + U(4,m,m,m,iElem) 
-        FieldAtParticle(iPart,5) = FieldAtParticle(iPart,5) + U(5,m,m,m,iElem) 
-        FieldAtParticle(iPart,6) = FieldAtParticle(iPart,6) + U(6,m,m,m,iElem) 
-#endif
-      END IF
-    END DO
-  CASE('particle_position_slow')
-    DO iPart = 1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        iElem = PEM%Element(iPart)
-        Pos = PartState(iPart,1:3)
-        !--- evaluate at Particle position
+    ! should nearest_blurrycenter not require to
+    ! a) evaluate the polynomial at Xi=0??
+    ! b) require the mean value of the field
+    !m = INT(PP_N/2)+1
+    DO iElem=1,PP_nElems
 #if (PP_nVar==8)
 #ifdef PP_POIS
-        HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
-        HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-        CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field,iElem)
+      HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+      HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
+      CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field,iElem)
 #else
-        CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
-#endif
-#else
+      CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
+#endif /*PP_POIS*/
+#else 
 #ifdef PP_POIS
-        CALL eval_xyz_curved(Pos,3,PP_N,E(1:6,:,:,:,iElem),field,iElem)
+      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field,iElem)
 #else
-        CALL eval_xyz_curved(Pos,3,PP_N,U(1:6,:,:,:,iElem),field,iElem)
-#endif
-#endif
-        FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
-      END IF
-    END DO
-  CASE('particle_position')
-    IF(TRIM(DepositionType).EQ.'nearest_gausspoint')THEN
-      ! particles have already been mapped in deposition, other eval routine used
-      DO iPart = 1,PDM%ParticleVecLength
-        IF (PDM%ParticleInside(iPart)) THEN
-          iElem = PEM%Element(iPart)
-          !--- evaluate at Particle position
-#if (PP_nVar==8)
-#ifdef PP_POIS
-          HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
-          HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,HelperU,field,ielem)
-#else
-          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),6,PP_N,U(1:6,:,:,:,iElem),field,ielem)
-#endif
-#else
-#ifdef PP_POIS
-          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),3,PP_N,E(1:3,:,:,:,iElem),field,iElem)     
-#else
-          CALL eval_xyz_part2(PartPosMapped(iPart,1:3),3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
-#endif
-#endif
+      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
+#endif /*PP_POIS*/
+#endif /*PP_nVar*/
+      DO iPart=firstPart,LastPart
+        IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+        IF(PEM%Element(iPart).EQ.iElem)THEN
           FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
-        END IF
-      END DO
-    ELSE ! particles are not yet mapped
-      DO iPart = 1,PDM%ParticleVecLength
-        IF (PDM%ParticleInside(iPart)) THEN
-          iElem = PEM%Element(iPart)
+        END IF! Element(iPart).EQ.iElem
+      END DO ! iPart
+    END DO ! iElem
+  CASE('particle_position_slow')
+    DO iElem=1,PP_nElems
+      DO iPart = firstPart, LastPart
+        IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+        IF(PEM%Element(iPart).EQ.iElem)THEN
           Pos = PartState(iPart,1:3)
           !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -239,35 +223,91 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif         
 #endif
           FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
-        END IF
-      END DO
-    END IF
+        END IF ! Element(iPart).EQ.iElem
+      END DO ! iPart
+    END DO ! iElem=1,PP_nElems
+  CASE('particle_position')
+    IF(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint')THEN
+      ! particles have already been mapped in deposition, other eval routine used
+      DO iElem=1,PP_nElems
+        DO iPart=firstPart,LastPart
+          IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+          IF(PEM%Element(iPart).EQ.iElem)THEN
+            !--- evaluate at Particle position
+#if (PP_nVar==8)
+#ifdef PP_POIS
+            HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+            HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field,ielem)
+#else
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),field,ielem)
+#endif
+#else
+#ifdef PP_POIS
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field,iElem)     
+#else
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
+#endif
+#endif
+            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+          END IF ! Element(iPart).EQ.iElem
+        END DO ! iPart
+      END DO ! iElem=1,PP_nElems
+    ELSE ! particles are not yet mapped
+      DO iElem=1,PP_nElems
+        DO iPart=firstPart,LastPart
+          IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+          IF(PEM%Element(iPart).EQ.iElem)THEN
+            Pos = PartState(iPart,1:3)
+            !--- evaluate at Particle position
+#if (PP_nVar==8)
+#ifdef PP_POIS
+            HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+            HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
+            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field,iElem)
+#else
+            CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem,iPart)
+#endif
+#else
+#ifdef PP_POIS
+            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field,iElem)
+#else
+            CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
+#endif         
+#endif
+            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+          END IF ! Element(iPart).EQ.iElem
+        END DO ! iPart
+      END DO ! iElem=1,PP_nElems
+    END IF ! DoRefMapping .or. Depositiontype=nearest_gausspoint
   CASE('nearest_gausspoint')
-      ! particles have already been mapped in deposition
-      DO iPart = 1,PDM%ParticleVecLength
-        IF (PDM%ParticleInside(iPart)) THEN
-          iElem = PEM%Element(iPart)
+    ! particles have already been mapped in deposition
+    DO iElem=1,PP_nElems
+      DO iPart=firstPart,LastPart
+        IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+        IF(PEM%Element(iPart).EQ.iElem)THEN
           !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
-          field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-          field(4:6) = U(4:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+         field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+         field(4:6) = U(4:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+         FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
 #else
-          field = U(1:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+         field = U(1:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+         FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
 #endif
 #else
 #ifdef PP_POIS
-          field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-          FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
+         field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+         FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
 #else
-          field(1:3) = U(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-          FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
+         field(1:3) = U(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+         FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
 #endif
 #endif
-        END IF
-      END DO
+        END IF ! Element(iPart).EQ.iElem
+      END DO ! iPart
+    END DO ! iElem=1,PP_nElems
   CASE DEFAULT
     CALL abort(__STAMP__, &
         'ERROR: Unknown InterpolationType!')

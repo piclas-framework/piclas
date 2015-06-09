@@ -80,12 +80,12 @@ END TYPE
 TYPE(tMPIMessage),ALLOCATABLE  :: PartRecvBuf(:)
 
 TYPE tParticleMPIExchange
-  INTEGER,ALLOCATABLE            :: nPartsSend(:)    ! only mpi neighbors
-  INTEGER,ALLOCATABLE            :: nPartsRecv(:)    ! only mpi neighbors
-  INTEGER                        :: nMPIParticles    ! number of all received particles
-  INTEGER,ALLOCATABLE            :: SendRequest(:,:) ! send requirest message handle 1 - Number, 2-Message
-  INTEGER,ALLOCATABLE            :: RecvRequest(:,:) ! recv request message handle,  1 - Number, 2-Message
-  TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)  ! message, required for particle emission
+  INTEGER,ALLOCATABLE            :: nPartsSend(:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: nPartsRecv(:)     ! only mpi neighbors
+  INTEGER                        :: nMPIParticles     ! number of all received particles
+  INTEGER,ALLOCATABLE            :: SendRequest(:,:)  ! send requirest message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:,:)  ! recv request message handle,  1 - Number, 2-Message
+  TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)   ! message, required for particle emission
 !  INTEGER                       ,POINTER :: MPINbrOfParticles(:)
 !  INTEGER                       ,POINTER :: MPIProcNbr(:)
 !  INTEGER                       ,POINTER :: MPITags(:)
@@ -94,9 +94,15 @@ TYPE tParticleMPIExchange
 !  INTEGER                       ,POINTER :: nbrOfSendParticlesEmission(:)  ! (1:nProcs)
 END TYPE
  
+
 TYPE (tParticleMPIExchange)              :: PartMPIInsert
 TYPE (tParticleMPIExchange)              :: PartMPIExchange
 
+LOGICAL                                  :: DoExternalParts                  ! external particles
+INTEGER                                  :: NbrOfExtParticles                ! number of external particles
+LOGICAL                                  :: ExtPartsAllocated                ! number of allocated external particles
+REAL, ALLOCATABLE                        :: ExtPartState(:,:)                ! external particle state
+INTEGER, ALLOCATABLE                     :: ExtPartSpecies(:)                ! species of external particles
 
 #endif /*MPI*/
 !===================================================================================================================================

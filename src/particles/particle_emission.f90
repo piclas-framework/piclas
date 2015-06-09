@@ -536,7 +536,7 @@ chunkSize = nbrOfParticle
 #ifdef MPI
 !IF ( (nbrOfParticle.GT.10*PMPIVAR%nProcs                                      ) .AND. &
 !IF ( (nbrOfParticle.GT.10*PartMPI%nProcs                                      ) .AND. &
-IF ( (nbrOfParticle.GT.10*PartMPI%InitGroup(InitGroup)%nProcs                             ) .AND. &
+IF ( (nbrOfParticle.LE.PartMPI%InitGroup(InitGroup)%nProcs                             ) .AND. &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'circle_equidistant'                 ) .AND. &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'sin_deviation'                      ) .AND. &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'cuboid_with_equidistant_distribution') .AND. &
