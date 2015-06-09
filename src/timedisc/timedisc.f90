@@ -556,6 +556,17 @@ iStage=1
 #ifdef PARTICLES
 !SWRITE(*,*) 'iStage', iStage
 Time=t
+
+IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+  ! because of emmision and UpdateParticlePosition
+  CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+  ! here: finish deposition with delta kernal
+  !       maps source terms in physical space
+  CALL Deposition(doInnerParts=.FALSE.)
+#endif /*MPI*/
+END IF
+
 IF (t.GE.DelayTime) THEN
   IF(MeassureTrackTime)TimeStart=BOLTZPLATZTIME()
   CALL ParticleInserting()
@@ -566,28 +577,6 @@ IF (t.GE.DelayTime) THEN
 ! forces on particle
   CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
   CALL CalcPartRHS()
-END IF
-
-IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-  ! because of emmision and UpdateParticlePosition
-  CALL Deposition(doInnerParts=.TRUE.)
-#ifdef MPI
-  ! here: finish deposition with delta kernal
-  !       maps source terms in physical space
-  CALL Deposition(doInnerParts=.FALSE.)
-#endif /*MPI*/
-!#ifdef MPI
-!  CALL MPIParticleRecv()
-!  ! second buffer
-!  CALL Deposition(doInnerParts=.FALSE.)
-!#endif /*MPI*/
-!  IF (usevMPF) THEN 
-!    CALL DepositionMPF()
-!  ELSE 
-!    CALL Deposition()
-!  END IF
-!  CALL CalcDepositedCharge()
-!  STOP
 END IF
 #endif /*PARTICLES*/
 
