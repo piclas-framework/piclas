@@ -158,7 +158,7 @@ IF (.NOT.DoRestart) THEN
 !          CALL ParticleInsideCheck(i, iInit, nPartInside, TempInside, EInside)
 !          IF (Species(i)%Init(iInit)%ParticleEmission .GT. nPartInside) THEN
 !            NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
-!            IPWRITE(*,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
+!            IPWRITE(UNIT_stdOut,*) 'Emission PartNum (Spec ',i,')', NbrOfParticle
 !#ifdef MPI
 !            CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
 !            CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
@@ -1038,9 +1038,9 @@ IF (mode.EQ.1) THEN
           , MPI_SUM, PartMPI%InitGroup(InitGroup)%COMM, IERROR)
       nbrOfParticle = NbrOfParticle - sumOfMatchedParticles
       IF (nbrOfParticle .NE. 0) THEN
-        IPWRITE(*,*)'ERROR in ParticleEmission_parallel:'
-        IPWRITE(*,'(A,I8,A)')'matched ', sumOfMatchedParticles, ' particles'
-        IPWRITE(*,'(A,I8,A)')'when ', NbrOfParticle+sumOfMatchedParticles, ' particles were required!'
+        IPWRITE(UNIT_stdOut,*)'ERROR in ParticleEmission_parallel:'
+        IPWRITE(UNIT_stdOut,'(A,I8,A)')'matched ', sumOfMatchedParticles, ' particles'
+        IPWRITE(UNIT_stdOut,'(A,I8,A)')'when ', NbrOfParticle+sumOfMatchedParticles, ' particles were required!'
         CALL abort(__STAMP__,&
             'ERROR in ParticleEmission_parallel')
       END IF
@@ -1312,7 +1312,7 @@ ELSE ! mode.NE.1:
        END IF
        !CALL SingleParticleToExactElement(ParticleIndexNbr)
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
-          !IPWRITE(*,*) 'partpos',PartState(ParticleIndexNbr,1:3)
+          !IPWRITE(UNIT_stdOut,*) 'partpos',PartState(ParticleIndexNbr,1:3)
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
        ELSE
           PDM%ParticleInside(ParticleIndexNbr) = .FALSE.

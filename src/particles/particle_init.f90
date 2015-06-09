@@ -451,7 +451,7 @@ USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 !   PMPIVAR%nProcs = nProcessors
 !   CALL MPI_COMM_GROUP(PMPIVAR%COMM,PMPIVAR%GROUP,IERROR)
 !   PMPIVAR%GROUPWORLD=PMPIVAR%GROUP
-!!IPWRITE(*,*)'INIT: GROUPWORLD',PMPIVAR%GROUPWORLD
+!!IPWRITE(UNIT_stdOut,*)'INIT: GROUPWORLD',PMPIVAR%GROUPWORLD
 !#endif
 
 ! Read basic particle parameter
@@ -917,14 +917,14 @@ TrueRandom = .FALSE.                             ! FALSE for defined random seed
 
 IF (nrSeeds.GT.0) THEN
    IF (nrSeeds.NE.SeedSize) THEN
-      IPWRITE(*,*) 'Error: Number of seeds for RNG must be ',SeedSize
-      IPWRITE(*,*) 'Random RNG seeds are used'
+      IPWRITE(UNIT_stdOut,*) 'Error: Number of seeds for RNG must be ',SeedSize
+      IPWRITE(UNIT_stdOut,*) 'Random RNG seeds are used'
       TrueRandom = .TRUE.
    END IF
    DO iSeed = 1, nrSeeds
       IF (Seeds(iSeed).EQ.0) THEN
-         IPWRITE(*,*) 'Error: ',SeedSize,' seeds for RNG must be defined'
-         IPWRITE(*,*) 'Random RNG seeds are used'
+         IPWRITE(UNIT_stdOut,*) 'Error: ',SeedSize,' seeds for RNG must be defined'
+         IPWRITE(UNIT_stdOut,*) 'Random RNG seeds are used'
          TrueRandom = .TRUE.
       END IF
    END DO
@@ -944,9 +944,9 @@ END IF
 ALLOCATE(iseeds(SeedSize))
 iseeds(:)=0
 CALL RANDOM_SEED(GET = iseeds(1:SeedSize))
-IPWRITE(*,*) 'Random seeds in PIC_init:'
+IPWRITE(UNIT_stdOut,*) 'Random seeds in PIC_init:'
 DO iSeed = 1,SeedSize
-   IPWRITE(*,*) iseeds(iSeed)
+   IPWRITE(UNIT_stdOut,*) iseeds(iSeed)
 END DO
 DEALLOCATE(iseeds)
 

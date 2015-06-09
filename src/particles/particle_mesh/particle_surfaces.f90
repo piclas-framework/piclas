@@ -1421,7 +1421,7 @@ IF(dz/dMax.LT.epsilonbilinear)THEN
 END IF
 
 IF(dx*dy*dz.LT.0) THEN
-  IPWRITE(*,*) ' Warning, no bounding box'
+  IPWRITE(UNIT_stdOut,*) ' Warning, no bounding box'
 END IF
 
 !IF(dx*dy*dz.EQ.0.)THEN
@@ -1555,8 +1555,8 @@ DO iSide=1,nTotalSides
   SideID  =PartBCSideList(iSide)
   IF(SideID.EQ.-1) CYCLE
   ! all four edges
-  !IF(iSide.GT.nSides) IPWRITE(*,*) BezierControlPOints3D(:,:,:,iSide)
-  IF(SUM(ABS(BezierControlPoints3D(:,:,:,SideID))).LT.1e-10) IPWRITE(*,*) 'missing side',SideID
+  !IF(iSide.GT.nSides) IPWRITE(UNIT_stdOut,*) BezierControlPOints3D(:,:,:,iSide)
+  IF(SUM(ABS(BezierControlPoints3D(:,:,:,SideID))).LT.1e-10) IPWRITE(UNIT_stdOut,*) 'missing side',SideID
   q=0
   v1=BezierControlPoints3D(:,NGeo,q,SideID)-BezierControlPoints3D(:,0,q,SideID)
   DO p=1,NGeo-1
@@ -1840,7 +1840,7 @@ nCurvedTot=0
 DO iSide=1,nTotalSides
   isLinear=.TRUE.
   ! all four edges
-  !IF(iSide.GT.nSides) IPWRITE(*,*) BezierControlPOints3D(:,:,:,iSide)
+  !IF(iSide.GT.nSides) IPWRITE(UNIT_stdOut,*) BezierControlPOints3D(:,:,:,iSide)
   IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10) &
    CALL abort(__STAMP__, &
         ' no BezierControlPoints',PartMPI%MyRank)
@@ -1914,7 +1914,7 @@ DO iSide=1,nTotalSides
 !        read*
 !      END IF
     ELSE
-      !IPWRITE(*,*) 'Boundingboxisempty',boundingboxisempty(iside)
+      !IPWRITE(UNIT_stdOut,*) 'Boundingboxisempty',boundingboxisempty(iside)
       SideType(iSide)=BILINEAR
       IF(iSide.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
 #ifdef MPI

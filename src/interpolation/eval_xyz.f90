@@ -215,14 +215,14 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
 
   IF(ANY(ABS(Xi).GT.1.5)) THEN
   !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
-    IPWRITE(*,*) ' Particle not inside of element, force!!!'
-    IPWRITE(*,*) ' Newton-Iter', NewtonIter
-    IPWRITE(*,*) ' xi  ', xi(1)
-    IPWRITE(*,*) ' eta ', xi(2)
-    IPWRITE(*,*) ' zeta', xi(3)
-    IPWRITE(*,*) ' PartPos', X_in
-    IPWRITE(*,*) ' ElemID', iElem
-    IF(PRESENT(PartID)) IPWRITE(*,*) ' PartID', PartID
+    IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, force!!!'
+    IPWRITE(UNIT_stdOut,*) ' Newton-Iter', NewtonIter
+    IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1)
+    IPWRITE(UNIT_stdOut,*) ' eta ', xi(2)
+    IPWRITE(UNIT_stdOut,*) ' zeta', xi(3)
+    IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
+    IPWRITE(UNIT_stdOut,*) ' ElemID', iElem
+    IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
     CALL abort(__STAMP__, &
         'Particle Not inSide of Element, iElem, iPart',iElem,REAL(PartID))
   END IF
@@ -248,10 +248,10 @@ END DO !newton
 !IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
 !IF(ANY(ABS(Xi).GT.1.0)) THEN
 !!  IF(PRESENT(PartID).AND.PartID.EQ.238) THEN
-!     IPWRITE(*,*) ' Particle outside of parameter range!!!'
-!     IF(PRESENT(PartID)) IPWRITE(*,*) 'ParticleID', PartID
-!     IPWRITE(*,*) ' elemid', ielem
-!     IPWRITE(*,*) ' xi  ', xi(:)
+!     IPWRITE(UNIT_stdOut,*) ' Particle outside of parameter range!!!'
+!     IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) 'ParticleID', PartID
+!     IPWRITE(UNIT_stdOut,*) ' elemid', ielem
+!     IPWRITE(UNIT_stdOut,*) ' xi  ', xi(:)
 !!  END IF
 !END IF
 
@@ -469,13 +469,13 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
   IF(ANY(ABS(Xi).GT.1.8))THEN
     IF(PRESENT(PartID)) THEN
-!      IPWRITE(*,*) 'ParticleID', PartID
-!      IPWRITE(*,*) ' Particle not inside of element!!!'
-!      IPWRITE(*,*) ' Element', iElem
-!      IPWRITE(*,*) ' xi  ', xi(1)
-!      IPWRITE(*,*) ' eta ', xi(2)
-!      IPWRITE(*,*) ' zeta', xi(3)
-!      IPWRITE(*,*) ' PartPos', X_in
+!      IPWRITE(UNIT_stdOut,*) 'ParticleID', PartID
+!      IPWRITE(UNIT_stdOut,*) ' Particle not inside of element!!!'
+!      IPWRITE(UNIT_stdOut,*) ' Element', iElem
+!      IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1)
+!      IPWRITE(UNIT_stdOut,*) ' eta ', xi(2)
+!      IPWRITE(UNIT_stdOut,*) ' zeta', xi(3)
+!      IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
       !CALL abort(__STAMP__, &
       !    'Particle Not inSide of Element')
     ELSE
@@ -504,11 +504,11 @@ END DO !newton
 
 !IF(MAXVAL(ABS(Xi)).GT.1.0) THEN
 ! ! IF(PRESENT(PartID).AND.PartID.EQ.813) THEN
-!  IPWRITE(*,*) ' Particle not inside of element!!!'
-!  IF(PRESENT(PartID)) IPWRITE(*,*) 'ParticleID', PartID
-!  IPWRITE(*,*) ' Element', iElem
-!  IPWRITE(*,*) ' xi  ', xi(:)
-!  !  IPWRITE(*,*) ' PartPos', X_in
+!  IPWRITE(UNIT_stdOut,*) ' Particle not inside of element!!!'
+!  IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) 'ParticleID', PartID
+!  IPWRITE(UNIT_stdOut,*) ' Element', iElem
+!  IPWRITE(UNIT_stdOut,*) ' xi  ', xi(:)
+!  !  IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
 !  !END IF
 !END IF
 !

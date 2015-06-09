@@ -204,7 +204,7 @@ DO iPart=1,PDM%ParticleVecLength
 !        print*,'new elem',PEM%Element(ipart)
         PartIsDone=.TRUE.
         IF(.NOT.PDM%ParticleInside(iPart))THEN
-          IPWRITE(*,*) 'lost particle with id', ipart
+          IPWRITE(UNIT_stdOut,*) 'lost particle with id', ipart
         END IF
       END IF ! markTol
     END DO ! PartisDone=.FALSE.
@@ -214,7 +214,7 @@ DO iPart=1,PDM%ParticleVecLength
 !      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,debug=.TRUE.)
 !      PartIsDone=.TRUE.
 !      IF(.NOT.PDM%ParticleInside(iPart))THEN
-!        IPWRITE(*,*) 'lost particle with id', ipart
+!        IPWRITE(UNIT_stdOut,*) 'lost particle with id', ipart
 !      END IF
 !    END IF
   END IF ! Part inside
@@ -393,7 +393,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
       nTracks=nTracks+1
       ! sanity check
       IF(PartState(iPart,3).GE.0.089)THEN
-        IPWRITE(*,*) ' Part out of area, z,ipart', PartState(iPart,3),iPart
+        IPWRITE(UNIT_stdOut,*) ' Part out of area, z,ipart', PartState(iPart,3),iPart
       END IF
       IF(IsBCElem(ElemID))THEN
         nlocSides=BCElem(ElemID)%nInnerSides
@@ -414,7 +414,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
         PEM%Element(iPart)  = ElemID
         ParticleFound(iPart)=.TRUE.
       !ELSE IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.5) THEN
-      !  IPWRITE(*,*) ' partposref to large!',iPart
+      !  IPWRITE(UNIT_stdOut,*) ' partposref to large!',iPart
       END IF
       !IF((iPart.EQ.85).AND.(iter.GE.30))THEN
       !  WRITE(*,*) ' PartPosRef', PartPosRef(1:3,iPart)
@@ -501,7 +501,7 @@ DO iPart=1,PDM%ParticleVecLength
 
   IF(.NOT.ParticleFound(iPart))THEN
     ! use best xi
-    !IPWRITE(*,*) ' recover particle', iPart
+    !IPWRITE(UNIT_stdOut,*) ' recover particle', iPart
     IF(MAXVAL(ABS(oldXi)).LT.MAXVAL(ABS(newXi)))THEN
       PartPosRef(1:3,iPart)=OldXi
       PEM%Element(iPart)=oldElemID

@@ -125,7 +125,7 @@ END DO ! kBGM
 
 !--- Debugging information
 LOGWRITE(*,*)' nMPISides for iProc=',iProc,':',SendMsg%nMPISides
-!IPWRITE(*,*)' nMPISides for iProc=',iProc,':',SendMsg%nMPISides
+!IPWRITE(UNIT_stdOut,*)' nMPISides for iProc=',iProc,':',SendMsg%nMPISides
 
 !--- Send number of MPI sides to MPI neighbor iProc and receive number of MPI
 !    sides from MPI neighbor iProc (immediate neighbor or not)
@@ -857,7 +857,7 @@ END DO
 
 
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-!IPWRITE(*,*) " Now MPI exchange"
+!IPWRITE(UNIT_stdOut,*) " Now MPI exchange"
 
 dataSize=3*(NGeo+1)*(NGeo+1)
 IF (PartMPI%MyRank.LT.iProc) THEN
@@ -954,7 +954,7 @@ END IF
 
 DEALLOCATE(isElem,isSide,ElemIndex,SideIndex)
 
-!IPWRITE(*,*) " Recive stuff"
+!IPWRITE(UNIT_stdOut,*) " Recive stuff"
 
 IF (RecvMsg%nSides.GT.0) THEN
   ! now, the famous reconstruction of geometry
@@ -1021,9 +1021,9 @@ IF (RecvMsg%nSides.GT.0) THEN
     !  print*,'haloSideId',haloSideID
       isDoubleSide=.FALSE.
       IF(isSide(haloSideID)) THEN
-        IF(HaloInc(haloSideID).EQ.0) IPWRITE(*,*) ' Warning: wrong halo inc'
+        IF(HaloInc(haloSideID).EQ.0) IPWRITE(UNIT_stdOut,*) ' Warning: wrong halo inc'
         newSideID=tmpnSides+haloinc(haloSideID)
-        IF(newSideID.LT.tmpnSides) IPWRITE(*,*) 'Warning: wrong new sideid', newsideid
+        IF(newSideID.LT.tmpnSides) IPWRITE(UNIT_stdOut,*) 'Warning: wrong new sideid', newsideid
       ELSE ! find correct side id
         ! check if side is consistent with older side 
         DO iOldSide=nBCSides+1,tmpnSides
@@ -1066,7 +1066,7 @@ IF (RecvMsg%nSides.GT.0) THEN
             PartNeighborlocSideID(PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))=ilocSide
             PartNeighborElemID(ilocSide,newElemID)    = PartSideToElem(S2E_ELEM_ID,newSideID)
             PartNeighborlocSideID(ilocSide,newElemID) = PartSideToElem(S2E_LOC_SIDE_ID,newSideID)
-          !  IF(PartSideToElem(S2E_ELEM_ID,newSideID).EQ.-1) IPWRITE(*,*) 'warning'
+          !  IF(PartSideToElem(S2E_ELEM_ID,newSideID).EQ.-1) IPWRITE(UNIT_stdOut,*) 'warning'
         ELSE ! SE2_NB_ELEM_ID=DEFINED
           IF(PartSideToElem(S2E_ELEM_ID,newSideID).NE.-1) &
             CALL abort(__STAMP__,&
@@ -1081,7 +1081,7 @@ IF (RecvMsg%nSides.GT.0) THEN
           PartNeighborlocSideID(PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))=ilocSide
           PartNeighborElemID(ilocSide,newElemID)    = PartSideToElem(S2E_NB_ELEM_ID,newSideID)
           PartNeighborlocSideID(ilocSide,newElemID) = PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID)
-          !IF(PartSideToElem(S2E_NB_ELEM_ID,newSideID).EQ.-1) IPWRITE(*,*)'warning'
+          !IF(PartSideToElem(S2E_NB_ELEM_ID,newSideID).EQ.-1) IPWRITE(UNIT_stdOut,*)'warning'
         END IF
         isDone(haloSideID)=.TRUE.
       ELSE ! non-double side || new side
@@ -1211,7 +1211,7 @@ ALLOCATE(DummyElemToSide(1:2,1:6,1:nOldElems))
 IF (.NOT.ALLOCATED(DummyElemToSide)) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 DummyElemToSide=PartElemToSide
-!IPWRITE(*,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
+!IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
 DEALLOCATE(PartElemToSide)
 ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
@@ -1225,7 +1225,7 @@ IF(DoRefMapping)THEN
   IF (.NOT.ALLOCATED(DummyXCL_NGeo)) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummyXCL_NGeo=XCL_NGeo
-  !IPWRITE(*,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
+  !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
   DEALLOCATE(XCL_NGeo)
   ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
@@ -1238,7 +1238,7 @@ IF(DoRefMapping)THEN
   IF (.NOT.ALLOCATED(DummydXCL_NGeo)) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummydXCL_NGeo=dXCL_NGeo
-  !IPWRITE(*,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
+  !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
   DEALLOCATE(dXCL_NGeo)
   ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
@@ -1593,7 +1593,7 @@ END DO ! iElem
 !IF(PartMPI%MPIROOT) print*,'isElem',isElem(:)
 !IF(PartMPI%MPIROOT) print*,'sendnelems',SendMsg%nElems
 !IF(PartMPI%MPIROOT) print*,'isSide',isSide
-!IPWRITE(*,*) ' Send number of elems,sides', SendMsg%nElems, SendMsg%nSides
+!IPWRITE(UNIT_stdOut,*) ' Send number of elems,sides', SendMsg%nElems, SendMsg%nSides
 
 !WRITE(*,*) "Nodes:", SendMsg%nNodes,"Sides:",SendMsg%nSides,"elems:",SendMsg%nElems,"iProc",PMPIVAR%iProc
 !--- Communicate number of sides (trias,quads), elems (tets,hexas) and nodes to each MPI proc
@@ -1888,7 +1888,7 @@ END DO
 
 
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-!IPWRITE(*,*) " Now MPI exchange"
+!IPWRITE(UNIT_stdOut,*) " Now MPI exchange"
 
 dataSize =3*(NGeo+1)*(NGeo+1)
 dataSize2=3*(NGeo+1)*(NGeo+1)*(NGeo+1)
@@ -1896,148 +1896,104 @@ dataSize3=9*(NGeo+1)*(NGeo+1)*(NGeo+1)
 IF (PartMPI%MyRank.LT.iProc) THEN
   ! Send:
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%ElemToSide,SendMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%SideToElem,SendMsg%nSides*5,MPI_INTEGER         ,iProc,1105,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BezierControlPoints3D,SendMsg%nSides*datasize,MPI_DOUBLE_PRECISION,iProc,1106,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%BC,SendMsg%nSides,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%NativeElemID,SendMsg%nElems,MPI_INTEGER         ,iProc,1108,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
 !  IF(GEO%nPeriodicVectors.GT.0)THEN
 !    IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%PeriodicElemSide,SendMsg%nElems*6,MPI_INTEGER ,iProc,1109,PartMPI%COMM,IERROR)
 !  END IF
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%SideBCType,SendMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%SlabNormals,SendMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%SlabIntervalls,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BoundingBoxIsEmpty,SendMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%XCL_NGeo,SendMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%dXCL_NGeo,SendMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
 
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
     CALL MPI_RECV(RecvMsg%ElemToSide,RecvMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nSides.GT.0) &
     CALL MPI_RECV(RecvMsg%SideToElem,RecvMsg%nSides*5,MPI_INTEGER         ,iProc,1105,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nSides.GT.0) &
   CALL MPI_RECV(RecvMsg%BezierControlPoints3D,RecvMsg%nSides*datasize,MPI_DOUBLE_PRECISION,iProc,1106,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
 
   IF (RecvMsg%nSides.GT.0) &
     CALL MPI_RECV(RecvMsg%BC,RecvMsg%nSides,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,MPISTATUS,IERROR)
-  !!IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nElems.GT.0) &
     CALL MPI_RECV(RecvMsg%NativeElemID,RecvMsg%nElems,MPI_INTEGER         ,iProc,1108,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   !IF(GEO%nPeriodicVectors.GT.0)THEN
   !  IF (RecvMsg%nElems.GT.0) &
   !       CALL MPI_RECV(RecvMsg%PeriodicElemSide,RecvMsg%nElems*6,MPI_INTEGER,iProc,1109,PartMPI%COMM,MPISTATUS,IERROR)
   !END IF
   IF (RecvMsg%nSides.GT.0) CALL MPI_RECV(RecvMsg%SideBCType,RecvMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%SlabNormals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%SlabIntervalls,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
 
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
     CALL MPI_RECV(RecvMsg%ElemToSide,RecvMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nSides.GT.0) &
     CALL MPI_RECV(RecvMsg%SideToElem,RecvMsg%nSides*5,MPI_INTEGER         ,iProc,1105,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nSides.GT.0) &
   CALL MPI_RECV(RecvMsg%BezierControlPoints3D,RecvMsg%nSides*datasize,MPI_DOUBLE_PRECISION,iProc,1106,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nSides.GT.0) &
     CALL MPI_RECV(RecvMsg%BC,RecvMsg%nSides,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nElems.GT.0) &
     CALL MPI_RECV(RecvMsg%NativeElemID,RecvMsg%nElems,MPI_INTEGER         ,iProc,1108,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   !IF(GEO%nPeriodicVectors.GT.0)THEN
   !  IF (RecvMsg%nElems.GT.0) &
   !       CALL MPI_RECV(RecvMsg%PeriodicElemSide,RecvMsg%nElems*6,MPI_INTEGER,iProc,1109,PartMPI%COMM,MPISTATUS,IERROR)
   !END IF
   IF (RecvMsg%nSides.GT.0) CALL MPI_RECV(RecvMsg%SideBCType,RecvMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%SlabNormals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%SlabIntervalls,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (RecvMsg%nElems.GT.0) &
       CALL MPI_RECV(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
 
 
   ! Send:
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%ElemToSide,SendMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%SideToElem,SendMsg%nSides*5,MPI_INTEGER         ,iProc,1105,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BezierControlPoints3D,SendMsg%nSides*datasize,MPI_DOUBLE_PRECISION,iProc,1106,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%BC,SendMsg%nSides,MPI_INTEGER                 ,iProc,1107,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%NativeElemID,SendMsg%nElems,MPI_INTEGER         ,iProc,1108,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   !IF(GEO%nPeriodicVectors.GT.0)THEN
   !  IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%PeriodicElemSide,SendMsg%nElems*6,MPI_INTEGER ,iProc,1109,PartMPI%COMM,IERROR)
   !END IF
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%SideBCType,SendMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%SlabNormals,SendMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%SlabIntervalls,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BoundingBoxIsEmpty,SendMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%XCL_NGeo,SendMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
   IF (SendMsg%nElems.GT.0) &
       CALL MPI_SEND(SendMsg%dXCL_NGeo,SendMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
-  !IPWRITE(*,*) 'ierror',ierror
 
 END IF
 
@@ -2050,8 +2006,6 @@ END IF
 
 DEALLOCATE(isElem,isSide,ElemIndex,SideIndex)
 
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-!IPWRITE(*,*) " Recive stuff"
 
 !IF (RecvMsg%nSides.GT.0) THEN
 IF (RecvMsg%nElems.GT.0) THEN
@@ -2107,8 +2061,6 @@ IF (RecvMsg%nElems.GT.0) THEN
   nTotalSides  =nTotalSides+RecvMsg%nSides-nDoubleSides
   nTotalBCSides=nTotalBCSides+RecvMsg%nSides-nDoubleSides
   nTotalElems  =nTotalElems+RecvMsg%nElems
-  !IPWRITE(*,*) 'recnsides',RecvMsg%nSides
-  !IPWRITE(*,*) 'nSides,nnewSides,nDoubleSides', nSides,RecvMsg%nSides,nDoubleSides
   CALL ResizeParticleMeshData(tmpnSides,tmpnElems,nTotalSides,nTotalElems,tmpBCSides,nTotalBCSides)
   !print*,'MyRank after resize', PartMPI%MyRank
 
@@ -2120,14 +2072,13 @@ IF (RecvMsg%nElems.GT.0) THEN
     newElemID=tmpnElems+iElem
     DO ilocSide=1,6
       haloSideID=RecvMsg%ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-      !IPWRITE(*,*) 'halosideid', haloSideID
       IF(haloSideID.EQ.0) CYCLE ! all non BC faces have not to be located
       isDoubleSide=.FALSE.
       IF(isSide(haloSideID)) THEN
-        IF(HaloInc(haloSideID).EQ.0) IPWRITE(*,*) ' Warning: wrong halo inc'
+        IF(HaloInc(haloSideID).EQ.0) IPWRITE(UNIT_stdOut,*) ' Warning: wrong halo inc'
         newSideID  =tmpnSides+haloinc(haloSideID)
         newBCSideID=tmpBCSides+haloinc(haloSideID)
-        IF(newSideID.LT.tmpnSides) IPWRITE(*,*) 'Warning: wrong new sideid', newsideid
+        IF(newSideID.LT.tmpnSides) IPWRITE(UNIT_stdOut,*) 'Warning: wrong new sideid', newsideid
       ELSE ! find correct side id
         ! check if side is consistent with older side 
         DO iOldSide=nBCSides+1,tmpnSides

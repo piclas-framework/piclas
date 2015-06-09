@@ -263,8 +263,8 @@ DO iBGMElem=1,nBGMElems
     IF(ALL(ABS(Xi).LT.ClipHit)) THEN ! particle inside
       InElementCheck=.TRUE.
     ELSE
-!      IPWRITE(*,*) ' PartPos', PartState(iPart,1:3)
-!      IPWRITE(*,*) ' xi',      XI(1:3)
+!      IPWRITE(UNIT_stdOut,*) ' PartPos', PartState(iPart,1:3)
+!      IPWRITE(UNIT_stdOut,*) ' xi',      XI(1:3)
       !SWRITE(*,*) ' Particle not located!'
       !SWRITE(*,*) ' PartPos', PartState(iPart,1:3)
       InElementCheck=.FALSE.
@@ -1131,7 +1131,7 @@ DO Cell=0, BGMCells-1
       IF (TempProcList(m) .EQ. 1) THEN
         IF(.NOT.PartMPI%isMPINeighbor(m))THEN
           !IF(mode.EQ.2)THEN
-          !  IPWRITE(*,*) ' Warning, something wrong with halo region'
+          !  IPWRITE(UNIT_stdOut,*) ' Warning, something wrong with halo region'
           !  CALL abort(__STAMP__&
           !      , ' Something wrong with Halo region' )
           !END IF
@@ -1485,28 +1485,28 @@ END DO ! iElem
 
 DO iElem=1,nTotalElems
   IF(.NOT.ElementFound(iElem))THEN
-    IPWRITE(*,*) ' FIBGM , iElem'
+    IPWRITE(UNIT_stdOut,*) ' FIBGM , iElem'
     IF(DoRefMapping)THEN
      ! IF(PartMPI%MyRank.EQ.1)THEN
-       IPWRITE(*,*) 'xmin',GEO%xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem))
-       IPWRITE(*,*) 'xmax',GEO%xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem))
-       IPWRITE(*,*) 'ymin',GEO%ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem))
-       IPWRITE(*,*) 'ymax',GEO%ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem))
-       IPWRITE(*,*) 'zmin',GEO%zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem))
-       IPWRITE(*,*) 'zmax',GEO%zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem))
+       IPWRITE(UNIT_stdOut,*) 'xmin',GEO%xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem))
+       IPWRITE(UNIT_stdOut,*) 'xmax',GEO%xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem))
+       IPWRITE(UNIT_stdOut,*) 'ymin',GEO%ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem))
+       IPWRITE(UNIT_stdOut,*) 'ymax',GEO%ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem))
+       IPWRITE(UNIT_stdOut,*) 'zmin',GEO%zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem))
+       IPWRITE(UNIT_stdOut,*) 'zmax',GEO%zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem))
         xmin=MINVAL(XCL_NGeo(1,:,:,:,iElem))
         xmax=MAXVAL(XCL_NGeo(1,:,:,:,iElem))
         ymin=MINVAL(XCL_NGeo(2,:,:,:,iElem))
         ymax=MAXVAL(XCL_NGeo(2,:,:,:,iElem))
         zmin=MINVAL(XCL_NGeo(3,:,:,:,iElem))
         zmax=MAXVAL(XCL_NGeo(3,:,:,:,iElem))
-       IPWRITE(*,*) ' BGM , iBGM'
-       IPWRITE(*,*) 'xmin', BGMimin,CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-       IPWRITE(*,*) 'xmax', BGMimax,CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-       IPWRITE(*,*) 'ymin', BGMjmin,CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-       IPWRITE(*,*) 'ymax', BGMjmax,CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-       IPWRITE(*,*) 'zmin', BGMkmin,CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-       IPWRITE(*,*) 'zmax', BGMkmax,CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+       IPWRITE(UNIT_stdOut,*) ' BGM , iBGM'
+       IPWRITE(UNIT_stdOut,*) 'xmin', BGMimin,CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+       IPWRITE(UNIT_stdOut,*) 'xmax', BGMimax,CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+       IPWRITE(UNIT_stdOut,*) 'ymin', BGMjmin,CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+       IPWRITE(UNIT_stdOut,*) 'ymax', BGMjmax,CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+       IPWRITE(UNIT_stdOut,*) 'zmin', BGMkmin,CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+       IPWRITE(UNIT_stdOut,*) 'zmax', BGMkmax,CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
      ! END IF
     END IF
     CALL abort(__STAMP__&

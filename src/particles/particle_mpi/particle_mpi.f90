@@ -292,7 +292,7 @@ END DO ! iPart
 
 ! 2) send number of send particles
 DO iProc=1,PartMPI%nMPINeighbors
-  !IPWRITE(*,*) 'Target Number of send particles',PartMPI%MPINeighbor(iProc),PartMPIExchange%nPartsSend(iProc)
+  !IPWRITE(UNIT_stdOut,*) 'Target Number of send particles',PartMPI%MPINeighbor(iProc),PartMPIExchange%nPartsSend(iProc)
   CALL MPI_ISEND( PartMPIExchange%nPartsSend(iProc)                          &
                 , 1                                                          &
                 , MPI_INTEGER                                                &
@@ -311,7 +311,7 @@ DO iProc=1,PartMPI%nMPINeighbors
 !                , PartMPIExchange%SendRequest(1,PartMPI%MPINeighbor(iProc))  &
 !                , IERROR )
 END DO ! iProc
-!IPWRITE(*,*) 'Number of send  particles',   SUM(PartMPIExchange%nPartsSend(:))
+!IPWRITE(UNIT_stdOut,*) 'Number of send  particles',   SUM(PartMPIExchange%nPartsSend(:))
 
 ! 3) Build Message
 DO iProc=1, PartMPI%nMPINeighbors
@@ -331,11 +331,11 @@ DO iProc=1, PartMPI%nMPINeighbors
       !iPos=iPos+1
       ! fill content
       SendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
-      !IPWRITE(*,*) ' send state',PartState(iPart,1:6)
+      !IPWRITE(UNIT_stdOut,*) ' send state',PartState(iPart,1:6)
       SendBuf(iProc)%content(       7+iPos) = REAL(PartSpecies(iPart))
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
       SendBuf(iProc)%content(8+iPos:13+iPos) = Pt_temp(iPart,1:6)
-      !IPWRITE(*,*) ' send pt',SendBuf(iProc)%content(8+iPos:13+iPos)
+      !IPWRITE(UNIT_stdOut,*) ' send pt',SendBuf(iProc)%content(8+iPos:13+iPos)
       SendBuf(iProc)%content(       14+iPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID))
       !IF(.NOT.UseLD) THEN   
         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
@@ -466,7 +466,7 @@ END DO ! iProc
 
 ! total number of received particles
 PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(:))
-!IPWRITE(*,*) 'Number of received particles',SUM(PartMPIExchange%nPartsRecv(:))
+!IPWRITE(UNIT_stdOut,*) 'Number of received particles',SUM(PartMPIExchange%nPartsRecv(:))
 
 
 ! 5) Allocate received buffer and open MPI_IRECV
@@ -557,7 +557,7 @@ INTEGER                       :: MessageSize
 INTEGER                       :: nRecvParticles
 !===================================================================================================================================
 
-!IPWRITE(*,*) 'exchange',PartMPIExchange%nMPIParticles
+!IPWRITE(UNIT_stdOut,*) 'exchange',PartMPIExchange%nMPIParticles
 
 nRecv=0
 DO iProc=1,PartMPI%nMPINeighbors
@@ -573,11 +573,11 @@ DO iProc=1,PartMPI%nMPINeighbors
     IF(PartID.EQ.0)  CALL abort(__STAMP__&
           ,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
     PartState(PartID,1:6)   = PartRecvBuf(iProc)%content( 1+iPos: 6+iPos)
-    !IPWRITE(*,*) ' recv  state',PartState(PartID,1:6)
+    !IPWRITE(UNIT_stdOut,*) ' recv  state',PartState(PartID,1:6)
     PartSpecies(PartID)     = INT(PartRecvBuf(iProc)%content( 7+iPos))
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
     Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 8+iPos:13+iPos)
-    !IPWRITE(*,*) ' recv pt',Pt_temp(PartID,1:6)
+    !IPWRITE(UNIT_stdOut,*) ' recv pt',Pt_temp(PartID,1:6)
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(14+iPos))
     !IF(.NOT.UseLD) THEN
       IF (useDSMC.AND.(CollisMode.NE.1)) THEN
@@ -850,7 +850,7 @@ DO iProc=0,PartMPI%nProcs-1
     CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
     CALL MPI_SEND(PartMPI%isMPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,IERROR)
   END IF
-  !IPWRITE(*,*) 'check',tmpneigh,PartMPI%isMPINeighbor(iProc)
+  !IPWRITE(UNIT_stdOut,*) 'check',tmpneigh,PartMPI%isMPINeighbor(iProc)
   IF (TmpNeigh.NEQV.PartMPI%isMPINeighbor(iProc)) THEN
     WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
     PartMPI%isMPINeighbor(iProc) = .TRUE.
@@ -863,8 +863,8 @@ END DO
 ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors))
 iMPINeighbor=0
 !CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-!IPWRITE(*,*) 'PartMPI%nMPINeighbors',PartMPI%nMPINeighbors
-!IPWRITE(*,*) 'blabla',PartMPI%isMPINeighbor
+!IPWRITE(UNIT_stdOut,*) 'PartMPI%nMPINeighbors',PartMPI%nMPINeighbors
+!IPWRITE(UNIT_stdOut,*) 'blabla',PartMPI%isMPINeighbor
 !CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 DO iProc=0,PartMPI%nProcs-1
   IF(PartMPI%isMPINeighbor(iProc))THEN
@@ -876,10 +876,10 @@ DO iProc=0,PartMPI%nProcs-1
   END IF
 END DO
 IF(PartMPI%nMPINeighbors.GT.0)THEN
-  IF(ANY(PartHaloToProc(LOCAL_PROC_ID,:).EQ.-1)) IPWRITE(*,*) ' Local proc id not found'
-  IF(MAXVAL(PartHaloToProc(LOCAL_PROC_ID,:)).GT.PartMPI%nMPINeighbors) IPWRITE(*,*) ' Local proc id too high.'
+  IF(ANY(PartHaloToProc(LOCAL_PROC_ID,:).EQ.-1)) IPWRITE(UNIT_stdOut,*) ' Local proc id not found'
+  IF(MAXVAL(PartHaloToProc(LOCAL_PROC_ID,:)).GT.PartMPI%nMPINeighbors) IPWRITE(UNIT_stdOut,*) ' Local proc id too high.'
 END IF
-!IPWRITE(*,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
+!IPWRITE(UNIT_stdOut,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
 
 IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
   __STAMP__&
@@ -1123,7 +1123,7 @@ DO iSpec=1,nSpecies
     END SELECT
     ! create new communicator
     color=MPI_UNDEFINED
-    !IPWRITE(*,*) RegionOnProc
+    !IPWRITE(UNIT_stdOut,*) RegionOnProc
     IF(RegionOnProc) color=nInitRegions!+1
     ! set communicator id
     Species(iSpec)%Init(iInit)%InitComm=nInitRegions
@@ -1156,12 +1156,12 @@ DO iSpec=1,nSpecies
     END IF
 
     ! create new emission communicator
-!    IPWRITE(*,*) 'color',color
+!    IPWRITE(UNIT_stdOut,*) 'color',color
 !    SWRITE(*,*) 'comm null',MPI_COMM_NULL
     CALL MPI_COMM_SPLIT(PartMPI%COMM, color, PartMPI%InitGroup(nInitRegions)%MyRank, PartMPI%InitGroup(nInitRegions)%COMM,iError)
     IF(RegionOnProc) CALL MPI_COMM_SIZE(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%nProcs ,iError)
-!    IPWRITE(*,*) 'loc rank',PartMPI%InitGroup(nInitRegions)%MyRank
-!    IPWRITE(*,*) 'loc comm',PartMPI%InitGroup(nInitRegions)%COMM
+!    IPWRITE(UNIT_stdOut,*) 'loc rank',PartMPI%InitGroup(nInitRegions)%MyRank
+!    IPWRITE(UNIT_stdOut,*) 'loc comm',PartMPI%InitGroup(nInitRegions)%COMM
     IF(PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0 .AND. RegionOnProc) &
     WRITE(*,*) ' Emission-Region,Emission-Communicator:',nInitRegions,PartMPI%InitGroup(nInitRegions)%nProcs,' procs'
     IF(PartMPI%InitGroup(nInitRegions)%COMM.NE.MPI_COMM_NULL) THEN

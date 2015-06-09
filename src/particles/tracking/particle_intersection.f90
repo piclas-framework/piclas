@@ -1217,7 +1217,7 @@ isHit=.FALSE.
 coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory)
 !! corresponding to particle starting in plane
 !! interaction should be computed in last step
-!IF(iPart.EQ.257) IPWRITE(*,*) coeffA
+!IF(iPart.EQ.257) IPWRITE(UNIT_stdOut,*) coeffA
 !IF(ABS(coeffA).LT.+epsilontol)  RETURN
 IF(ABS(coeffA).EQ.0.)  RETURN
 
@@ -1256,8 +1256,8 @@ ELSE
 END IF ! SidePeriodicType
 
 
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
-!IF(MyRank.EQ.5 .AND. (iPart.EQ.8462 .AND. iter.GE.190) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'a/l',alpha/lengthPartTrajectory
+!IF(MyRank.EQ.5 .AND. (iPart.EQ.8462 .AND. iter.GE.190) IPWRITE(UNIT_stdOut,*) 'a/l',alpha/lengthPartTrajectory
 !IF(alpha.GT.lengthPartTrajectory) THEN !.OR.(alpha.LT.-epsilontol))THEN
 !IF((alpha.GT.lengthPartTrajectory+epsilontol) .OR.(alpha.LT.-epsilontol))THEN
 !IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
@@ -1303,11 +1303,11 @@ END IF
 !    !forceInter=.TRUE.
 !!  ELSE
 !!    ForceInter=.TRUE.
-!!    IPWRITE(*,*) 'e-clip', iPart
+!!    IPWRITE(UNIT_stdOut,*) 'e-clip', iPart
 !  END IF
 !END IF
 
-!IF(iPart.EQ.288) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
+!IF(iPart.EQ.288) IPWRITE(UNIT_stdOut,*) 'a/l',alpha/lengthPartTrajectory
 ! algorithm fails in last test
 !IF(alpha.LT.0.0) alpha=1e-12
 
@@ -1423,8 +1423,8 @@ ELSE
   END IF
 END IF
 
-!IF(iPart.EQ.238) IPWRITE(*,*) 'xi',xi
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'xi',xi
+!IF(iPart.EQ.238) IPWRITE(UNIT_stdOut,*) 'xi',xi
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'xi',xi
 !IF((ABS(xi).GT.ClipHit).AND.(.NOT.forceInter))THEN
 IF(ABS(xi).GT.ClipHit)THEN
 !IF(ABS(xi).GT.epsilonOne)THEN
@@ -1439,8 +1439,8 @@ END IF
 !  eta=(-A2*xi-C2)/B2
 !END IF
 eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'eta',eta
-!IF(iPart.EQ.238) IPWRITE(*,*) 'eta',eta
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'eta',eta
+!IF(iPart.EQ.238) IPWRITE(UNIT_stdOut,*) 'eta',eta
 IF(ABS(eta).GT.ClipHit)THEN
 !IF(ABS(xi).GT.epsilonOne)THEN
 !IF((ABS(eta).GT.ClipHit).AND.(.NOT.forceInter))THEN
@@ -1563,7 +1563,7 @@ IF(locSideDistance.LT.0)THEN
   ! do I have to compute the xi and eta value? first try: do not re-check new element!
 END IF
 
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'a/l',alpha/lengthPartTrajectory
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'a/l',alpha/lengthPartTrajectory
 !IF(alpha.GT.lengthPartTrajectory) THEN !.OR.(alpha.LT.-epsilontol))THEN
 !IF((alpha.GT.lengthPartTrajectory+epsilontol) .OR.(alpha.LT.-epsilontol))THEN
 IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
@@ -1652,8 +1652,8 @@ ELSE
   END IF
 END IF
 
-!IF(iPart.EQ.238) IPWRITE(*,*) 'xi',xi
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'xi',xi
+!IF(iPart.EQ.238) IPWRITE(UNIT_stdOut,*) 'xi',xi
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'xi',xi
 !IF((ABS(xi).GT.ClipHit).AND.(.NOT.forceInter))THEN
 IF(ABS(xi).GT.ClipHit)THEN
 !IF(ABS(xi).GT.epsilonOne)THEN
@@ -1668,8 +1668,8 @@ END IF
 !  eta=(-A2*xi-C2)/B2
 !END IF
 eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(*,*) 'eta',eta
-!IF(iPart.EQ.238) IPWRITE(*,*) 'eta',eta
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'eta',eta
+!IF(iPart.EQ.238) IPWRITE(UNIT_stdOut,*) 'eta',eta
 IF(ABS(eta).GT.ClipHit)THEN
 !IF(ABS(xi).GT.epsilonOne)THEN
 !IF((ABS(eta).GT.ClipHit).AND.(.NOT.forceInter))THEN
@@ -1748,12 +1748,12 @@ B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
 !print*,'A,B,C', A,B,C
 !IF((iPart.EQ.238).AND.(iter.GT.78))THEN
-!  IPWRITE(*,*) 'a,b,c',a,b,c
+!  IPWRITE(UNIT_stdOut,*) 'a,b,c',a,b,c
 !END IF
 
 CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
 
-!IF((iPart.EQ.238).AND.(iter.GE.182))  IPWRITE(*,*) 'nroots',nroot
+!IF((iPart.EQ.238).AND.(iter.GE.182))  IPWRITE(UNIT_stdOut,*) 'nroots',nroot
 IF(nRoot.EQ.0)THEN
   RETURN
 END IF
@@ -1761,18 +1761,18 @@ END IF
 IF (nRoot.EQ.1) THEN
 
 !  IF((iPart.EQ.238).AND.(iter.GE.182))THEN
-!    IPWRITE(*,*) 'radicant', B*B-4.0*A*C
-!    IPWRITE(*,*) 'partpos',PartState(iPart,1:3)
-!    IPWRITE(*,*) 'lastpartpos',LastPartPos(iPart,1:3)
-!    IPWRITE(*,*) 'trajectory',PartTrajectory
-!    IPWRITE(*,*) 'length',lengthPartTrajectory
-!    IPWRITE(*,*) 'eta',eta(1)
+!    IPWRITE(UNIT_stdOut,*) 'radicant', B*B-4.0*A*C
+!    IPWRITE(UNIT_stdOut,*) 'partpos',PartState(iPart,1:3)
+!    IPWRITE(UNIT_stdOut,*) 'lastpartpos',LastPartPos(iPart,1:3)
+!    IPWRITE(UNIT_stdOut,*) 'trajectory',PartTrajectory
+!    IPWRITE(UNIT_stdOut,*) 'length',lengthPartTrajectory
+!    IPWRITE(UNIT_stdOut,*) 'eta',eta(1)
 !    xi(1)=ComputeXi(a1,a2,eta(1))
-!    IPWRITE(*,*) 'xi',xi(1)
-!    IPWRITE(*,*) 'intetrsect', xi(1)*eta(1)*BiLinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)&
+!    IPWRITE(UNIT_stdOut,*) 'xi',xi(1)
+!    IPWRITE(UNIT_stdOut,*) 'intetrsect', xi(1)*eta(1)*BiLinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)&
 !                               +eta(1)*BilinearCoeff(:,3)+BilinearCoeff(:,4)
 !    t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-!    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
+!    IPWRITE(UNIT_stdOut,*) 'a/l',t(1)/lengthPartTrajectory
 !  END IF
 
   !IF(ABS(eta(1)).LT.epsilonOne)THEN
@@ -1806,13 +1806,13 @@ ELSE
   nInter=0
   t=-1.
 !  IF((iPart.EQ.238).AND.(iter.GE.182))THEN
-!    IPWRITE(*,*) 'radicant', B*B-4.0*A*C
-!    IPWRITE(*,*) 'partpos',PartState(iPart,1:3)
-!    IPWRITE(*,*) 'eta',eta(1)
+!    IPWRITE(UNIT_stdOut,*) 'radicant', B*B-4.0*A*C
+!    IPWRITE(UNIT_stdOut,*) 'partpos',PartState(iPart,1:3)
+!    IPWRITE(UNIT_stdOut,*) 'eta',eta(1)
 !    xi(1)=ComputeXi(a1,a2,eta(1))
-!    IPWRITE(*,*) 'xi',xi(1)
+!    IPWRITE(UNIT_stdOut,*) 'xi',xi(1)
 !    t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-!    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
+!    IPWRITE(UNIT_stdOut,*) 'a/l',t(1)/lengthPartTrajectory
 !  END IF
 
   !IF(ABS(eta(1)).LT.hitepsbi)THEN
@@ -1835,11 +1835,11 @@ ELSE
   END IF ! eta(1)
 
 !  IF((iPart.EQ.238).AND.(iter.GE.182))THEN
-!    IPWRITE(*,*) 'eta',eta(2)
+!    IPWRITE(UNIT_stdOut,*) 'eta',eta(2)
 !    xi(2)=ComputeXi(a1,a2,eta(2))
-!    IPWRITE(*,*) 'xi',xi(2)
+!    IPWRITE(UNIT_stdOut,*) 'xi',xi(2)
 !    t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
-!    IPWRITE(*,*) 'a/l',t(2)/lengthPartTrajectory
+!    IPWRITE(UNIT_stdOut,*) 'a/l',t(2)/lengthPartTrajectory
 !  END IF
 
  !IF(ABS(eta(2)).LT.hitepsbi)THEN
@@ -1962,23 +1962,23 @@ B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
 !print*,'A,B,C', A,B,C
 !IF((iPart.EQ.238).AND.(iter.GT.78))THEN
-!  IPWRITE(*,*) 'a,b,c',a,b,c
+!  IPWRITE(UNIT_stdOut,*) 'a,b,c',a,b,c
 !END IF
 
 CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
 
-!IF((iPart.EQ.238).AND.(iter.GE.182))  IPWRITE(*,*) 'nroots',nroot
+!IF((iPart.EQ.238).AND.(iter.GE.182))  IPWRITE(UNIT_stdOut,*) 'nroots',nroot
 IF(nRoot.EQ.0)THEN
   RETURN
 END IF
 
 IF (nRoot.EQ.1) THEN
 !  IF((iPart.EQ.238).AND.(iter.GE.182))THEN
-!    IPWRITE(*,*) 'eta',eta(1)
-!    IPWRITE(*,*) 'xi',xi(1)
-!    IPWRITE(*,*) 'intetrsect', xi(1)*eta(1)*BiLinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)&
+!    IPWRITE(UNIT_stdOut,*) 'eta',eta(1)
+!    IPWRITE(UNIT_stdOut,*) 'xi',xi(1)
+!    IPWRITE(UNIT_stdOut,*) 'intetrsect', xi(1)*eta(1)*BiLinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)&
 !                               +eta(1)*BilinearCoeff(:,3)+BilinearCoeff(:,4)
-!    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
+!    IPWRITE(UNIT_stdOut,*) 'a/l',t(1)/lengthPartTrajectory
 !  END IF
   xi(1)=ComputeXi(a1,a2,eta(1))
   t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
@@ -2020,13 +2020,13 @@ ELSE
   nInter=0
   t=-1.
 !  IF((iPart.EQ.238).AND.(iter.GE.182))THEN
-!    IPWRITE(*,*) 'radicant', B*B-4.0*A*C
-!    IPWRITE(*,*) 'partpos',PartState(iPart,1:3)
-!    IPWRITE(*,*) 'eta',eta(1)
+!    IPWRITE(UNIT_stdOut,*) 'radicant', B*B-4.0*A*C
+!    IPWRITE(UNIT_stdOut,*) 'partpos',PartState(iPart,1:3)
+!    IPWRITE(UNIT_stdOut,*) 'eta',eta(1)
 !    xi(1)=ComputeXi(a1,a2,eta(1))
-!    IPWRITE(*,*) 'xi',xi(1)
+!    IPWRITE(UNIT_stdOut,*) 'xi',xi(1)
 !    t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-!    IPWRITE(*,*) 'a/l',t(1)/lengthPartTrajectory
+!    IPWRITE(UNIT_stdOut,*) 'a/l',t(1)/lengthPartTrajectory
 !  END IF
 
   !IF(ABS(eta(1)).LT.hitepsbi)THEN
