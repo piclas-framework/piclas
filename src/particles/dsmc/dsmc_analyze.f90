@@ -741,12 +741,13 @@ SUBROUTINE MPISurfaceValuesSend()
 ! Sends surface values of the halo cells to the respective processor
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,       ONLY : IERROR, MPISTATUS
-  USE MOD_part_MPI_Vars, ONLY : PMPIVAR, MPIGEO
-  USE MOD_DSMC_Vars,     ONLY : SurfMesh, SampWall, SampWallHaloCell
-  USE MOD_Mesh_Vars,     ONLY : ElemToSide
-  USE MOD_Particle_Vars,      ONLY : nSpecies
+!  USE MOD_part_MPI_Vars, ONLY : PMPIVAR, MPIGEO
   USE mpi
+  USE MOD_Globals,           ONLY:IERROR, MPISTATUS
+  USE MOD_DSMC_Vars,         ONLY:SurfMesh, SampWall, SampWallHaloCell
+  USE MOD_Mesh_Vars,         ONLY:ElemToSide
+  USE MOD_Particle_Vars,     ONLY:nSpecies
+  USE MOD_Particle_MPI_Vars, ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -765,136 +766,137 @@ SUBROUTINE MPISurfaceValuesSend()
   TYPE(tMPISurfContent), POINTER     :: RecvContent(:) => NULL()
 !===================================================================================================================================
 
-  ALLOCATE(SendMsgSurfs(0:PMPIVAR%nProcs-1))
-  ALLOCATE(RecvMsgSurfs(0:PMPIVAR%nProcs-1))
-  ALLOCATE(SendContent(0:PMPIVAR%nProcs-1))
-  ALLOCATE(RecvContent(0:PMPIVAR%nProcs-1))
-  ALLOCATE(PosCount(0:PMPIVAR%nProcs-1))
-  PosCount(0:PMPIVAR%nProcs-1) = 0
-  SendMsgSurfs(0:PMPIVAR%nProcs-1) = 0
-  RecvMsgSurfs(0:PMPIVAR%nProcs-1) = 0
+  ALLOCATE(SendMsgSurfs(0:PartMPI%nProcs-1))
+  ALLOCATE(RecvMsgSurfs(0:PartMPI%nProcs-1))
+  ALLOCATE(SendContent (0:PartMPI%nProcs-1))
+  ALLOCATE(RecvContent (0:PartMPI%nProcs-1))
+  ALLOCATE(PosCount    (0:PartMPI%nProcs-1))
+  PosCount    (0:PartMPI%nProcs-1) = 0
+  SendMsgSurfs(0:PartMPI%nProcs-1) = 0
+  RecvMsgSurfs(0:PartMPI%nProcs-1) = 0
 
 !---- calculation of send-massages number for each proc
-  DO iSide = 1, SIZE(MPIGEO%BC,2)  !---- loop over all halosides that are defined as BC
-    IF(SurfMesh%HaloSideIDToSurfSideMap(iSide).NE.0) THEN  !---- only surfaces (=wall-sides)   
-      ! get halo cells ElemID. Not quite sure if ELEM_ID or NB_ELEM_ID. 
-      ! maybe check this later and delete IF-query here to save cpu time
-      IF (MPIGEO%SideToElem(1,iSide).NE.-1) THEN
-       Element = MPIGEO%SideToElem(1,iSide)
-      ELSE
-       Element = MPIGEO%SideToElem(2,iSide)
-      END IF
-      iProc = MPIGEO%ElemMPIID(Element)
-      SendMsgSurfs(iProc) = SendMsgSurfs(iProc) + 1
-    END IF
-  END DO
+STOP
+!  DO iSide = 1, SIZE(MPIGEO%BC,2)  !---- loop over all halosides that are defined as BC
+!    IF(SurfMesh%HaloSideIDToSurfSideMap(iSide).NE.0) THEN  !---- only surfaces (=wall-sides)   
+!      ! get halo cells ElemID. Not quite sure if ELEM_ID or NB_ELEM_ID. 
+!      ! maybe check this later and delete IF-query here to save cpu time
+!      IF (MPIGEO%SideToElem(1,iSide).NE.-1) THEN
+!       Element = MPIGEO%SideToElem(1,iSide)
+!      ELSE
+!       Element = MPIGEO%SideToElem(2,iSide)
+!      END IF
+!      iProc = MPIGEO%ElemMPIID(Element)
+!      SendMsgSurfs(iProc) = SendMsgSurfs(iProc) + 1
+!    END IF
+!  END DO
 !---- comunicate send-massages number (=number of surfaces) for each proc
-  DO iProc=0, PMPIVAR%nProcs-1 
-    IF (PMPIVAR%iProc.LT.iProc) THEN
-      CALL MPI_SEND(SendMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,IERROR)    
-      CALL MPI_RECV(RecvMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)      
-    ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
-      CALL MPI_RECV(RecvMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)
-      CALL MPI_SEND(SendMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PMPIVAR%COMM,IERROR)
-    END IF
-  END DO
-!---- allocate (send and recv) massages size (15 * send-massages number)
-!---- 1=iLocSide; 2=target element; 3-11=Energy(1-9); 12-14=Force(1-3); 14+nSpecies=Counter(1:nSpecies)  per surface
-  DO iProc=0, PMPIVAR%nProcs-1
-    IF (SendMsgSurfs(iProc).NE.0) THEN
-      ALLOCATE(SendContent(iProc)%content((14+nSpecies)*SendMsgSurfs(iProc)))
-    END IF
-    IF (RecvMsgSurfs(iProc).NE.0) THEN
-      ALLOCATE(RecvContent(iProc)%content((14+nSpecies)*RecvMsgSurfs(iProc)))
-    END IF
-  END DO
+!  DO iProc=0, PartMPI%nProcs-1 
+!    IF (PartMPI%iProc.LT.iProc) THEN
+!      CALL MPI_SEND(SendMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PartMPI%COMM,IERROR)    
+!      CALL MPI_RECV(RecvMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)      
+!    ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
+!      CALL MPI_RECV(RecvMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
+!      CALL MPI_SEND(SendMsgSurfs(iProc),1,MPI_INTEGER,iProc,1101,PartMPI%COMM,IERROR)
+!    END IF
+!  END DO
+!!---- allocate (send and recv) massages size (15 * send-massages number)
+!!---- 1=iLocSide; 2=target element; 3-11=Energy(1-9); 12-14=Force(1-3); 14+nSpecies=Counter(1:nSpecies)  per surface
+!  DO iProc=0, PartMPI%nProcs-1
+!    IF (SendMsgSurfs(iProc).NE.0) THEN
+!      ALLOCATE(SendContent(iProc)%content((14+nSpecies)*SendMsgSurfs(iProc)))
+!    END IF
+!    IF (RecvMsgSurfs(iProc).NE.0) THEN
+!      ALLOCATE(RecvContent(iProc)%content((14+nSpecies)*RecvMsgSurfs(iProc)))
+!    END IF
+!  END DO
 !---- build massage
-  DO iSide = 1, SIZE(MPIGEO%BC,2)
-    IF(SurfMesh%HaloSideIDToSurfSideMap(iSide).NE.0) THEN     
-      ! get halo cells ElemID. Not quite sure if ELEM_ID or NB_ELEM_ID. 
-      ! maybe check this later and delete IF-query here to save cpu time
-      IF (MPIGEO%SideToElem(1,iSide).NE.-1) THEN
-        Element = MPIGEO%SideToElem(1,iSide)
-      ELSE
-        Element = MPIGEO%SideToElem(2,iSide)
-      END IF
-      iProc = MPIGEO%ElemMPIID(Element)
-      PosCount(iProc) = PosCount(iProc) + 1
-      DO iLocSide=1,6  !---- search for iLocSide
-        IF (MPIGEO%ElemToSide(1,iLocSide,Element).EQ.iSide) THEN
-          SendContent(iProc)%content(PosCount(iProc))= REAL(iLocSide)  !---- 1=iLocSide
-          EXIT
-        END IF
-      END DO
-      PosCount(iProc) = PosCount(iProc) + 1
-      SendContent(iProc)%content(PosCount(iProc))= REAL(MPIGEO%NativeElemID(Element))  !---- 2=target element
-      PosCount(iProc) = PosCount(iProc) + 1
-      SendContent(iProc)%content(PosCount(iProc):PosCount(iProc)+8)= &  !---- 3-11=Energy(1-9)
-                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Energy(1:9)
-      SendContent(iProc)%content(PosCount(iProc)+9:PosCount(iProc)+11)= &  !---- 12-14=Force(1-3)
-                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Force(1:3)
-      SendContent(iProc)%content(PosCount(iProc)+12:PosCount(iProc)+11+nSpecies)= &  !---- 14+nSpecies=Counter(1:nSpecies)
-                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Counter(1:nSpecies)
-      PosCount(iProc) = PosCount(iProc)+11+nSpecies
-    END IF
-  END DO
-!---- comunication
-  DO iProc=0, PMPIVAR%nProcs-1          
-    IF (PMPIVAR%iProc.LT.iProc) THEN
-      IF (SendMsgSurfs(iProc).NE.0) CALL MPI_SEND(SendContent(iProc)%content, &
-          (14+nSpecies)*SendMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)    
-      IF (RecvMsgSurfs(iProc).NE.0) CALL MPI_RECV(RecvContent(iProc)%content, &
-          (14+nSpecies)*RecvMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR) 
-    ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
-      IF (RecvMsgSurfs(iProc).NE.0) CALL MPI_RECV(RecvContent(iProc)%content, & 
-          (14+nSpecies)*RecvMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)  
-      IF (SendMsgSurfs(iProc).NE.0) CALL MPI_SEND(SendContent(iProc)%content, &
-          (14+nSpecies)*SendMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)    
-    END IF
-  END DO
-
-!---- sum up surface values  
-  DO iProc=0, PMPIVAR%nProcs-1
-!    IF (RecvMsgSurfs(iProc).ne.0) print*,RecvMsgSurfs(iProc)
-    IF ((iProc.NE.PMPIVAR%iProc).AND.(RecvMsgSurfs(iProc).NE.0)) THEN
-      DO iCount = 1, RecvMsgSurfs(iProc)
-        SurfSideID = SurfMesh%GlobSideToSurfSideMap( &  !---- get local surfaceID (iLocSide(target) = iLocSide(local))
-        ElemToSide(1,INT(RecvContent(iProc)%content(iCount*(14+nSpecies)-13-nSpecies)), &
-        INT(RecvContent(iProc)%content(iCount*(14+nSpecies)-12-nSpecies)))) 
-        SampWall(SurfSideID)%Energy(1:9) = SampWall(SurfSideID)%Energy(1:9) &
-        + RecvContent(iProc)%content(iCount*(14+nSpecies)-11-nSpecies:iCount*(14+nSpecies)-3-nSpecies)
-        SampWall(SurfSideID)%Force(1:3) = SampWall(SurfSideID)%Force(1:3) &
-        + RecvContent(iProc)%content(iCount*(14+nSpecies)-2-nSpecies:iCount*(14+nSpecies)-nSpecies)
-        SampWall(SurfSideID)%Counter(1:nSpecies) = SampWall(SurfSideID)%Counter(1:nSpecies) &
-        + RecvContent(iProc)%content(iCount*(14+nSpecies)+1-nSpecies:iCount*(14+nSpecies))
-      END DO
-    END IF
-  END DO  
-
-  DO iProc=0, PMPIVAR%nProcs-1
-    IF (ASSOCIATED(SendContent(iProc)%content)) DEALLOCATE(SendContent(iProc)%content)
-    IF (ASSOCIATED(RecvContent(iProc)%content)) DEALLOCATE(RecvContent(iProc)%content)
-  END DO
-  DEALLOCATE(SendMsgSurfs)
-  DEALLOCATE(RecvMsgSurfs)
-  DEALLOCATE(SendContent)
-  DEALLOCATE(RecvContent)
-  DEALLOCATE(PosCount)
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(1) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(2) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(3) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(4) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(5) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(6) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(7) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(8) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(9) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(1) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(2) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(3) = 0.0
-  DO iSampWallAlloc=1,SurfMesh%nHaloSurfaceBCSides
-    SampWallHaloCell(iSampWallAlloc)%Counter(1:nSpecies) = 0.0
-  END DO
+!  DO iSide = 1, SIZE(MPIGEO%BC,2)
+!    IF(SurfMesh%HaloSideIDToSurfSideMap(iSide).NE.0) THEN     
+!      ! get halo cells ElemID. Not quite sure if ELEM_ID or NB_ELEM_ID. 
+!      ! maybe check this later and delete IF-query here to save cpu time
+!      IF (MPIGEO%SideToElem(1,iSide).NE.-1) THEN
+!        Element = MPIGEO%SideToElem(1,iSide)
+!      ELSE
+!        Element = MPIGEO%SideToElem(2,iSide)
+!      END IF
+!      iProc = MPIGEO%ElemMPIID(Element)
+!      PosCount(iProc) = PosCount(iProc) + 1
+!      DO iLocSide=1,6  !---- search for iLocSide
+!        IF (MPIGEO%ElemToSide(1,iLocSide,Element).EQ.iSide) THEN
+!          SendContent(iProc)%content(PosCount(iProc))= REAL(iLocSide)  !---- 1=iLocSide
+!          EXIT
+!        END IF
+!      END DO
+!      PosCount(iProc) = PosCount(iProc) + 1
+!      SendContent(iProc)%content(PosCount(iProc))= REAL(MPIGEO%NativeElemID(Element))  !---- 2=target element
+!      PosCount(iProc) = PosCount(iProc) + 1
+!      SendContent(iProc)%content(PosCount(iProc):PosCount(iProc)+8)= &  !---- 3-11=Energy(1-9)
+!                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Energy(1:9)
+!      SendContent(iProc)%content(PosCount(iProc)+9:PosCount(iProc)+11)= &  !---- 12-14=Force(1-3)
+!                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Force(1:3)
+!      SendContent(iProc)%content(PosCount(iProc)+12:PosCount(iProc)+11+nSpecies)= &  !---- 14+nSpecies=Counter(1:nSpecies)
+!                      SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(iSide))%Counter(1:nSpecies)
+!      PosCount(iProc) = PosCount(iProc)+11+nSpecies
+!    END IF
+!  END DO
+!!---- comunication
+!  DO iProc=0, PMPIVAR%nProcs-1          
+!    IF (PMPIVAR%iProc.LT.iProc) THEN
+!      IF (SendMsgSurfs(iProc).NE.0) CALL MPI_SEND(SendContent(iProc)%content, &
+!          (14+nSpecies)*SendMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)    
+!      IF (RecvMsgSurfs(iProc).NE.0) CALL MPI_RECV(RecvContent(iProc)%content, &
+!          (14+nSpecies)*RecvMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR) 
+!    ELSE IF (PMPIVAR%iProc.GT.iProc) THEN
+!      IF (RecvMsgSurfs(iProc).NE.0) CALL MPI_RECV(RecvContent(iProc)%content, & 
+!          (14+nSpecies)*RecvMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,MPISTATUS,IERROR)  
+!      IF (SendMsgSurfs(iProc).NE.0) CALL MPI_SEND(SendContent(iProc)%content, &
+!          (14+nSpecies)*SendMsgSurfs(iProc),MPI_DOUBLE_PRECISION,iProc,1101,PMPIVAR%COMM,IERROR)    
+!    END IF
+!  END DO
+!
+!!---- sum up surface values  
+!  DO iProc=0, PMPIVAR%nProcs-1
+!!    IF (RecvMsgSurfs(iProc).ne.0) print*,RecvMsgSurfs(iProc)
+!    IF ((iProc.NE.PMPIVAR%iProc).AND.(RecvMsgSurfs(iProc).NE.0)) THEN
+!      DO iCount = 1, RecvMsgSurfs(iProc)
+!        SurfSideID = SurfMesh%GlobSideToSurfSideMap( &  !---- get local surfaceID (iLocSide(target) = iLocSide(local))
+!        ElemToSide(1,INT(RecvContent(iProc)%content(iCount*(14+nSpecies)-13-nSpecies)), &
+!        INT(RecvContent(iProc)%content(iCount*(14+nSpecies)-12-nSpecies)))) 
+!        SampWall(SurfSideID)%Energy(1:9) = SampWall(SurfSideID)%Energy(1:9) &
+!        + RecvContent(iProc)%content(iCount*(14+nSpecies)-11-nSpecies:iCount*(14+nSpecies)-3-nSpecies)
+!        SampWall(SurfSideID)%Force(1:3) = SampWall(SurfSideID)%Force(1:3) &
+!        + RecvContent(iProc)%content(iCount*(14+nSpecies)-2-nSpecies:iCount*(14+nSpecies)-nSpecies)
+!        SampWall(SurfSideID)%Counter(1:nSpecies) = SampWall(SurfSideID)%Counter(1:nSpecies) &
+!        + RecvContent(iProc)%content(iCount*(14+nSpecies)+1-nSpecies:iCount*(14+nSpecies))
+!      END DO
+!    END IF
+!  END DO  
+!
+!  DO iProc=0, PMPIVAR%nProcs-1
+!    IF (ASSOCIATED(SendContent(iProc)%content)) DEALLOCATE(SendContent(iProc)%content)
+!    IF (ASSOCIATED(RecvContent(iProc)%content)) DEALLOCATE(RecvContent(iProc)%content)
+!  END DO
+!  DEALLOCATE(SendMsgSurfs)
+!  DEALLOCATE(RecvMsgSurfs)
+!  DEALLOCATE(SendContent)
+!  DEALLOCATE(RecvContent)
+!  DEALLOCATE(PosCount)
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(1) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(2) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(3) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(4) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(5) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(6) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(7) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(8) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(9) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(1) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(2) = 0.0
+!  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(3) = 0.0
+!  DO iSampWallAlloc=1,SurfMesh%nHaloSurfaceBCSides
+!    SampWallHaloCell(iSampWallAlloc)%Counter(1:nSpecies) = 0.0
+!  END DO
 
 
 END SUBROUTINE MPISurfaceValuesSend

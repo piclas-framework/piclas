@@ -106,7 +106,8 @@ IF (.NOT.DoRestart) THEN
           CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
           CALL SetParticleVelocity(i,iInit,NbrOfParticle)
         ELSE !emission type 6 (constant pressure outflow)
-          CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
+          STOP
+          !CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
         END IF
         CALL SetParticleChargeAndMass(i,NbrOfParticle)
         IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
@@ -337,7 +338,8 @@ DO i=1,nSpecies
         CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
         CALL SetParticleVelocity(i,iInit,NbrOfParticle)
       ELSE !emission type 6 (constant pressure outflow)
-        CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
+        STOP
+        !CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
       END IF
       CALL SetParticleChargeAndMass(i,NbrOfParticle)
       IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
@@ -1883,7 +1885,7 @@ SUBROUTINE ParticleInsertingCellPressure(iSpec,iInit,NbrOfParticle)
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_part_MPFtools,   ONLY : MapToGEO
-USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
+!USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1937,11 +1939,13 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
       IF (ParticleIndexNbr.NE.0) THEN
         PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-        CALL ParticleInsideQuad3D(ParticleIndexNbr,Elem,InElementCheck,det)
+        STOP
+        !CALL ParticleInsideQuad3D(ParticleIndexNbr,Elem,InElementCheck,det)
         IF (InElementCheck) THEN
           PEM%Element(ParticleIndexNbr) = Elem
         ELSE
-          CALL SingleParticleToExactElement(ParticleIndexNbr)
+          ! cautgion
+          !CALL SingleParticleToExactElement(ParticleIndexNbr)
         END IF
       ELSE
         CALL abort(__STAMP__,&
@@ -1976,7 +1980,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 !USE MOD_PIC_Vars !hoechstwahrscheinlich nicht benoetigt
 USE MOD_part_MPFtools,   ONLY : MapToGEO
-USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
+!USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2035,11 +2039,12 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
       IF (ParticleIndexNbr.NE.0) THEN
         PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
-        CALL ParticleInsideQuad3D(ParticleIndexNbr,Elem,InElementCheck,det)
+        STOP
+        !CALL ParticleInsideQuad3D(ParticleIndexNbr,Elem,InElementCheck,det)
         IF (InElementCheck) THEN
           PEM%Element(ParticleIndexNbr) = Elem
         ELSE
-          CALL SingleParticleToExactElement(ParticleIndexNbr)
+          !CALL SingleParticleToExactElement(ParticleIndexNbr)
         END IF
         ! Determine the particle velocity (maxwell, part 1)
         DO distnum = 1, 3

@@ -73,11 +73,6 @@ particles/particle_rhs.f90
 particles/debug/particle_debug.f90
 particles/analyze/particle_analyze.f90
 particles/analyze/particle_analyze_vars.f90
-particles/boundary/particle_boundary_treatment.f90
-particles/boundary/particle_boundary_tools.f90
-particles/boundary/particle_boundary_mpi.f90
-particles/boundary/particle_boundary_periodic.f90
-particles/boundary/particle_boundary_mpi_vars.f90
 particles/pic/pic_vars.f90
 particles/pic/pic_init.f90
 particles/pic/deposition/pic_depo.f90

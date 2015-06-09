@@ -664,7 +664,7 @@ SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping()
   USE MOD_Particle_Vars,      ONLY : PartBound, nSpecies
   USE MOD_DSMC_Vars,          ONLY : SampWallHaloCell
   USE MOD_DSMC_Vars,          ONLY : SurfMesh
-  USE MOD_part_MPI_Vars,      ONLY : MPIGEO
+  !USE MOD_part_MPI_Vars,      ONLY : MPIGEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -676,35 +676,37 @@ SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping()
   INTEGER                 :: iSide, iSampWallAlloc
 !===================================================================================================================================
 
-  ALLOCATE(SurfMesh%HaloSideIDToSurfSideMap(SIZE(MPIGEO%BC,2)))
-  SurfMesh%HaloSideIDToSurfSideMap(1:SIZE(MPIGEO%BC,2))=0
-  SurfMesh%nHaloSurfaceBCSides = 0
-  DO iSide=1, SIZE(MPIGEO%BC,2)
-    IF ((MPIGEO%BC(1,iSide).NE.0).AND.(MPIGEO%BC(1,iSide).NE.-1).AND.(MPIGEO%BC(1,iSide).NE.424242)) THEN
-      IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(MPIGEO%BC(1,iSide))).EQ.PartBound%ReflectiveBC) THEN
-        SurfMesh%nHaloSurfaceBCSides = SurfMesh%nHaloSurfaceBCSides + 1
-        SurfMesh%HaloSideIDToSurfSideMap(iSide) = SurfMesh%nHaloSurfaceBCSides
-      END IF
-    END IF
-  END DO
+  STOP
+  !ALLOCATE(SurfMesh%HaloSideIDToSurfSideMap(SIZE(MPIGEO%BC,2)))
+  !SurfMesh%HaloSideIDToSurfSideMap(1:SIZE(MPIGEO%BC,2))=0
+  !SurfMesh%nHaloSurfaceBCSides = 0
 
-  ALLOCATE(SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides))
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(1) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(2) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(3) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(4) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(5) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(6) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(7) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(8) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(9) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(1) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(2) = 0.0
-  SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(3) = 0.0
-  DO iSampWallAlloc=1,SurfMesh%nHaloSurfaceBCSides
-    ALLOCATE(SampWallHaloCell(iSampWallAlloc)%Counter(1:nSpecies))
-    SampWallHaloCell(iSampWallAlloc)%Counter(1:nSpecies) = 0.0
-  END DO
+  !DO iSide=1, SIZE(MPIGEO%BC,2)
+  !  IF ((MPIGEO%BC(1,iSide).NE.0).AND.(MPIGEO%BC(1,iSide).NE.-1).AND.(MPIGEO%BC(1,iSide).NE.424242)) THEN
+  !    IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(MPIGEO%BC(1,iSide))).EQ.PartBound%ReflectiveBC) THEN
+  !      SurfMesh%nHaloSurfaceBCSides = SurfMesh%nHaloSurfaceBCSides + 1
+  !      SurfMesh%HaloSideIDToSurfSideMap(iSide) = SurfMesh%nHaloSurfaceBCSides
+  !    END IF
+  !  END IF
+  !END DO
+
+  !ALLOCATE(SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides))
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(1) = 0.0
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(2) = 0.0
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(3) = 0.0
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(4) = 0.0
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(5) = 0.0
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(6) = 0.0
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(7) = 0.0
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(8) = 0.0
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Energy(9) = 0.0
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(1) = 0.0
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(2) = 0.0
+  !SampWallHaloCell(1:SurfMesh%nHaloSurfaceBCSides)%Force(3) = 0.0
+  !DO iSampWallAlloc=1,SurfMesh%nHaloSurfaceBCSides
+  !  ALLOCATE(SampWallHaloCell(iSampWallAlloc)%Counter(1:nSpecies))
+  !  SampWallHaloCell(iSampWallAlloc)%Counter(1:nSpecies) = 0.0
+  !END DO
 
 END SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping
 #endif

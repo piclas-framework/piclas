@@ -399,7 +399,7 @@ USE MOD_Interpolation_Vars,    ONLY:wBary,xGP
 USE MOD_Particle_Surfaces_Vars, ONLY:DoRefMapping
 #ifdef MPI
 ! only required for shape function??
-USE MOD_part_MPI_Vars,        ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
+!USE MOD_part_MPI_Vars,        ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI,PartMPIExchange
 #endif 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -954,7 +954,6 @@ USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
 USE MOD_Globals
-!USE MOD_part_MPI_Vars,      ONLY : casematrix, NbrOfCases
 USE MOD_Mesh_Vars,             ONLY:nElems, Elem_xGP, sJ
 USE MOD_Interpolation_Vars,    ONLY:wGP,swGP,NChooseK
 USE MOD_PICInterpolation_Vars, ONLY:InterpolationType
@@ -964,7 +963,7 @@ USE MOD_Interpolation_Vars,    ONLY:wBary,xGP
 USE MOD_PICInterpolation_Vars, ONLY:InterpolationType
 USE MOD_Particle_Surfaces_Vars,ONLY:DoRefMapping
 #ifdef MPI
-USE MOD_part_MPI_Vars,        ONLY:ExtPartState, ExtPartSpecies, NbrOfextParticles
+!USE MOD_part_MPI_Vars,        ONLY:ExtPartState, ExtPartSpecies, NbrOfextParticles
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI,PartMPIExchange
 #endif 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1515,7 +1514,7 @@ SUBROUTINE PeriodicSourceExchange(BGMSource)
 ! Exchange sources in periodic case
 !============================================================================================================================
 ! use MODULES                                                    
-  USE MOD_part_MPI_Vars
+  !USE MOD_part_MPI_Vars
   USE MOD_PICDepo_Vars
   USE MOD_Particle_Vars
 !-----------------------------------------------------------------------------------------------------------------------------------
