@@ -113,6 +113,7 @@ include deplist.mk
 
 clean:
 	rm -f $(OBJ) $(SRCS) *.mod boltzplatz.o boltzplatz.i90
+	rm -f $(SRCPP) boltzplatz.i90
 
 veryclean: clean
 	rm deplist.mk srcfiles_preproc.mk
