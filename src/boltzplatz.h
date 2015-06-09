@@ -24,7 +24,7 @@
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
 #else
 #  define SWRITE WRITE
-#  define IPWRITE WRITE
+#  define IPWRITE(a,b) WRITE(a,b)0,
 #endif
 #define ERRWRITE(a,b) WRITE(UNIT_errOut,b)
 #define LOGWRITE(a,b) IF(Logging) WRITE(UNIT_logOut,b)

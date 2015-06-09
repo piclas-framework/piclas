@@ -18,7 +18,7 @@ REAL             :: CFLScale
 REAL             :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver
 INTEGER          :: maxIter_LinearSolver
 INTEGER          :: iStage
-INTEGER(KIND=8)  :: iter, IterDisplayStep
+INTEGER(KIND=8)  :: iter, IterDisplayStep, IterDisplayStepUser
 LOGICAL          :: DoDisplayIter
 LOGICAl          :: TimediscInitIsDone = .FALSE.
 #if (PP_TimeDiscMethod==1)
