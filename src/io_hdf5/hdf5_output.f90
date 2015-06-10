@@ -360,10 +360,10 @@ INTEGER                        :: minnParts
 !    ELSE
 !      PartDataSize=12 !+ 0
 !    END IF
-!  ELSE IF (usevMPF) THEN
-!    PartDataSize=8 !vmpf +1
-!  ELSE
-!    PartDataSize=7
+  ELSE IF (usevMPF) THEN
+    PartDataSize=8 !vmpf +1
+  ELSE
+    PartDataSize=7
   END IF  
 
   locnPart =   0
