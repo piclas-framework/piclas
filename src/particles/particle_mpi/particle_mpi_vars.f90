@@ -32,7 +32,8 @@ TYPE tPartMPIGROUP
   LOGICAL                                :: MPIRoot                       ! Root, MPIRank=0
 !  INTEGER                                :: nMPINeighbors                 ! number of MPI-Neighbors with HALO
 !  LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)              ! list of possible neighbors
-!  INTEGER,ALLOCATABLE                    :: MPINeighbor(:)                ! list containing the rank of MPI-neighbors
+  INTEGER,ALLOCATABLE                    :: GroupToComm(:)                ! list containing the rank in PartMPI%COMM
+  INTEGER,ALLOCATABLE                    :: CommToGroup(:)                ! list containing the rank in PartMPI%COMM
 END TYPE
 
 

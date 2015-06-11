@@ -441,7 +441,7 @@ INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 ! LOCAL VARIABLES
 #ifdef MPI
 INTEGER                                  :: mode
-INTEGER                                  :: iProc, CellX, CellY, CellZ                                  
+INTEGER                                  :: iProc,tProc, CellX, CellY, CellZ                                  
 INTEGER                                  :: msg_status(1:MPI_STATUS_SIZE)                               
 INTEGER                                  :: MessageSize
 LOGICAL                                  :: InsideMyBGM                                                 
@@ -1161,7 +1161,10 @@ chunkSize=chunkSize2 !particles reaching comp. domain from VPI
      IF (InsideMyBGM) THEN
        DO j=2,GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1)+1
          iProc=GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(j)
-         PartMPIInsert%nPartsSend(iProc)=PartMPIInsert%nPartsSend(iProc)+1
+         tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(iProc)
+         IF(tProc.EQ.-1)CYCLE
+         !IF(PartMPI%InitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
+         PartMPIInsert%nPartsSend(tProc)=PartMPIInsert%nPartsSend(tProc)+1
        END DO
        PartMPIInsert%nPartsSend(PartMPI%InitGroup(InitGroup)%MyRank)=&
               PartMPIInsert%nPartsSend(PartMPI%InitGroup(InitGroup)%MyRank)+1
@@ -1210,9 +1213,11 @@ chunkSize=chunkSize2 !particles reaching comp. domain from VPI
       IF (InsideMyBGM) THEN
         DO j=2,GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1)+1
           iProc=GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(j)
-          PartMPIInsert%nPartsSend(iProc)=PartMPIInsert%nPartsSend(iProc)+1
-          k=PartMPIInsert%nPartsSend(iProc)
-          PartMPIInsert%send_message(iProc)%content(DimSend*(k-1)+1:DimSend*k)=particle_positions(DimSend*(i-1)+1:DimSend*i)
+          tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(iProc)
+          IF(tProc.EQ.-1)CYCLE
+          PartMPIInsert%nPartsSend(tProc)=PartMPIInsert%nPartsSend(tProc)+1
+          k=PartMPIInsert%nPartsSend(tProc)
+          PartMPIInsert%send_message(tProc)%content(DimSend*(k-1)+1:DimSend*k)=particle_positions(DimSend*(i-1)+1:DimSend*i)
         END DO
         PartMPIInsert%nPartsSend(PartMPI%InitGroup(InitGroup)%MyRank)= &
             PartMPIInsert%nPartsSend(PartMPI%InitGroup(InitGroup)%MyRank)+1

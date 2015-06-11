@@ -168,7 +168,7 @@ USE MOD_TimeDisc_Vars,          ONLY:dt
 USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,ElemBaryNGeo,doRefMapping
-USE MOD_Particle_Surfaces_Vars, ONLY:ClipHit
+USE MOD_Particle_Surfaces_Vars, ONLY:epsInCell
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:BubbleSortID
@@ -192,13 +192,13 @@ LOGICAL                           :: InElementCheck,ParticleFound
 REAL                              :: xi(1:3),vBary(1:3)
 REAL,ALLOCATABLE                  :: Distance(:)
 INTEGER,ALLOCATABLE               :: ListDistance(:)
-REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
-REAL,PARAMETER                    :: eps2=1e-3
+!REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
+!REAL,PARAMETER                    :: eps2=1e-3
 REAL                              :: epsOne,OneMeps
 !===================================================================================================================================
 
-epsOne=1.0+eps
-OneMeps=1.0-eps
+epsOne=1.0+epsInCell
+!OneMeps=1.0-eps
 ParticleFound = .FALSE.
 IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
      (PartState(iPart,2).LT.GEO%ymin).OR.(PartState(iPart,2).GT.GEO%ymax).OR. &
@@ -247,9 +247,9 @@ DO iBGMElem=1,nBGMElems
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
   CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
-  IF(ALL(ABS(Xi).LT.ClipHit)) THEN ! particle inside
+  IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
     InElementCheck=.TRUE.
-  ELSE IF(ANY(ABS(Xi).GT.ClipHit))THEN ! particle outside
+  ELSE IF(ANY(ABS(Xi).GT.epsOne))THEN ! particle outside
   !  print*,'ici'
     InElementCheck=.FALSE.
   ELSE ! particle at face,edge or node, check most possible point
@@ -257,10 +257,10 @@ DO iBGMElem=1,nBGMElems
     ! 1) compute vector to cell centre
     vBary=ElemBaryNGeo(1:3,ElemID)-PartState(iPart,1:3)
     ! 2) move particle pos along vector
-    PartState(iPart,1:3) = PartState(iPart,1:3)+eps2*VBary(1:3)
+    PartState(iPart,1:3) = PartState(iPart,1:3)+epsInCell*VBary(1:3)
     CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
     !print*,xi
-    IF(ALL(ABS(Xi).LT.ClipHit)) THEN ! particle inside
+    IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
       InElementCheck=.TRUE.
     ELSE
 !      IPWRITE(UNIT_stdOut,*) ' PartPos', PartState(iPart,1:3)

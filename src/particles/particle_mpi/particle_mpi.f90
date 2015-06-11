@@ -917,7 +917,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iSpec,iInit,iNode
+INTEGER                         :: iSpec,iInit,iNode,iRank
 INTEGER                         :: nInitRegions
 LOGICAL                         :: RegionOnProc
 REAL                            :: xCoords(3,8),lineVector(3),radius
@@ -925,7 +925,7 @@ REAL                            :: xlen,ylen,zlen
 REAL                            :: dt
 INTEGER                         :: color,iProc
 INTEGER                         :: noInitRank,InitRank,MyInitRank
-INTEGER                         :: iRank
+!INTEGER,ALLOCATABLE             :: DummyRank(:)
 LOGICAL                         :: hasRegion
 !===================================================================================================================================
 
@@ -938,6 +938,10 @@ IF(nInitRegions.EQ.0) RETURN
 
 ! allocate communicators
 ALLOCATE( PartMPI%InitGroup(1:nInitRegions))
+!ALLOCATE( DummyRank(0:PartMPI%nProcs-1) )
+!DO iRank=0,PartMPI%nProcs-1
+!  DummyRank(iRank)=iRank
+!END DO ! iRank
 
 nInitRegions=0
 DO iSpec=1,nSpecies
@@ -1170,9 +1174,23 @@ DO iSpec=1,nSpecies
       ELSE
         PartMPI%InitGroup(nInitRegions)%MPIRoot=.FALSE.
       END IF
+      !ALLOCATE(PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1))
+      ALLOCATE(PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1))
+      PartMPI%InitGroup(nInitRegions)%GroupToComm(PartMPI%InitGroup(nInitRegions)%MyRank)= PartMPI%MyRank
+      CALL MPI_ALLGATHER(PartMPI%MyRank,1,MPI_INTEGER&
+                        ,PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1)&
+                       ,1,MPI_INTEGER,PartMPI%InitGroup(nInitRegions)%COMM,iERROR)
+      ALLOCATE(PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1))
+      PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1)=-1
+      DO iRank=0,PartMPI%InitGroup(nInitRegions)%nProcs-1
+        PartMPI%InitGroup(nInitRegions)%CommToGroup(PartMPI%InitGroup(nInitRegions)%GroupToComm(iRank))=iRank
+      END DO ! iRank
+      !IPWRITE(*,*) 'CommToGroup',PartMPI%InitGroup(nInitRegions)%GroupToComm
     END IF
   END DO ! iniT
 END DO ! iSpec
+
+!DEALLOCATE(DummyRank)
 
 END SUBROUTINE InitEmissionComm
 
