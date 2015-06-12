@@ -390,9 +390,9 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
       IF(ElemID.NE.iElem) CYCLE
       nTracks=nTracks+1
       ! sanity check
-      IF(PartState(iPart,3).GE.0.089)THEN
-        IPWRITE(UNIT_stdOut,*) ' Part out of area, z,ipart', PartState(iPart,3),iPart
-      END IF
+      !IF(PartState(iPart,3).GE.0.089)THEN
+      !  IPWRITE(UNIT_stdOut,*) ' Part out of area, z,ipart', PartState(iPart,3),iPart
+      !END IF
       IF(IsBCElem(ElemID))THEN
         nlocSides=BCElem(ElemID)%nInnerSides
         CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%nInnerSides,nlocSides,iPart,ParticleFound(iPart))

@@ -335,7 +335,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       ! fill content
       SendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
       IF(DoRefMapping) THEN ! + deposition type....
-        SendBuf(iProc)%content(7+iPos:9:iPos) = PartPosRef(1:3,iPart)
+        SendBuf(iProc)%content(7+iPos:9+iPos) = PartPosRef(1:3,iPart)
         jPos=iPos+3
       ELSE
         jPos=iPos
@@ -343,7 +343,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       !IPWRITE(UNIT_stdOut,*) ' send state',PartState(iPart,1:6)
       SendBuf(iProc)%content(       7+jPos) = REAL(PartSpecies(iPart))
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
-      SendBuf(iProc)%content(8+iPos:13+jPos) = Pt_temp(iPart,1:6)
+      SendBuf(iProc)%content(8+jPos:13+jPos) = Pt_temp(iPart,1:6)
       !IPWRITE(UNIT_stdOut,*) ' send pt',SendBuf(iProc)%content(8+iPos:13+iPos)
       SendBuf(iProc)%content(       14+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID))
       !IF(.NOT.UseLD) THEN   
@@ -373,32 +373,32 @@ DO iProc=1, PartMPI%nMPINeighbors
       !ELSE ! UseLD == true      =>      useDSMC == true
       !  IF (CollisMode.NE.1) THEN
       !    IF (usevMPF .AND. DSMC%ElectronicState) THEN
-      !      SendBuf(iProc)%content(15+iPos) = PartStateIntEn(iPart, 1)
-      !      SendBuf(iProc)%content(16+iPos) = PartStateIntEn(iPart, 2)    
-      !      SendBuf(iProc)%content(17+iPos) = PartMPF(iPart)
-      !      SendBuf(iProc)%content(18+iPos) = PartStateIntEn(iPart, 3)
-      !      SendBuf(iProc)%content(19+iPos:23+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)    
+      !      SendBuf(iProc)%content(17+jPos) = PartMPF(iPart)
+      !      SendBuf(iProc)%content(18+jPos) = PartStateIntEn(iPart, 3)
+      !      SendBuf(iProc)%content(19+jPos:23+jPos) = PartStateBulkValues(iPart,1:5)
       !    ELSE IF (usevMPF) THEN
-      !      SendBuf(iProc)%content(15+iPos) = PartStateIntEn(iPart, 1)
-      !      SendBuf(iProc)%content(16+iPos) = PartStateIntEn(iPart, 2)    
-      !      SendBuf(iProc)%content(17+iPos) = PartMPF(iPart)
-      !      SendBuf(iProc)%content(18+iPos:22+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)    
+      !      SendBuf(iProc)%content(17+jPos) = PartMPF(iPart)
+      !      SendBuf(iProc)%content(18+jPos:22+jPos) = PartStateBulkValues(iPart,1:5)
       !    ELSE IF ( DSMC%ElectronicState ) THEN
-      !      SendBuf(iProc)%content(15+iPos) = PartStateIntEn(iPart, 1)
-      !      SendBuf(iProc)%content(16+iPos) = PartStateIntEn(iPart, 2)    
-      !      SendBuf(iProc)%content(17+iPos) = PartStateIntEn(iPart, 3)
-      !      SendBuf(iProc)%content(18+iPos:22+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)    
+      !      SendBuf(iProc)%content(17+jPos) = PartStateIntEn(iPart, 3)
+      !      SendBuf(iProc)%content(18+jPos:22+jPos) = PartStateBulkValues(iPart,1:5)
       !    ELSE
-      !      SendBuf(iProc)%content(15+iPos) = PartStateIntEn(iPart, 1)
-      !      SendBuf(iProc)%content(16+iPos) = PartStateIntEn(iPart, 2)
-      !      SendBuf(iProc)%content(17+iPos:21+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
+      !      SendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)
+      !      SendBuf(iProc)%content(17+jPos:21+jPos) = PartStateBulkValues(iPart,1:5)
       !    END IF
       !  ELSE
       !    IF (usevMPF) THEN
-      !      SendBuf(iProc)%content(15+iPos) = PartMPF(iPart)
-      !      SendBuf(iProc)%content(16+iPos:20+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content(15+jPos) = PartMPF(iPart)
+      !      SendBuf(iProc)%content(16+jPos:20+jPos) = PartStateBulkValues(iPart,1:5)
       !    ELSE
-      !      SendBuf(iProc)%content(15+iPos:19+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content(15+jPos:19+jPos) = PartStateBulkValues(iPart,1:5)
       !    END IF
       !  END IF
       !END IF
@@ -435,28 +435,28 @@ DO iProc=1, PartMPI%nMPINeighbors
       !      SendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
       !      SendBuf(iProc)%content(11+jPos) = PartMPF(iPart)
       !      SendBuf(iProc)%content(12+jPos) = PartStateIntEn(iPart, 3)
-      !      SendBuf(iProc)%content(13+jPos:17+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content(13+jPos:17+jPos) = PartStateBulkValues(iPart,1:5)
       !    ELSE IF (usevMPF) THEN
       !      SendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
       !      SendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
       !      SendBuf(iProc)%content(11+jPos) = PartMPF(iPart)
-      !      SendBuf(iProc)%content(12+jPos:16+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content(12+jPos:16+jPos) = PartStateBulkValues(iPart,1:5)
       !    ELSE IF ( DSMC%ElectronicState ) THEN
       !      SendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
       !      SendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
       !      SendBuf(iProc)%content(11+jPos) = PartStateIntEn(iPart, 3)
-      !      SendBuf(iProc)%content(12+jPos:15+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content(12+jPos:15+jPos) = PartStateBulkValues(iPart,1:5)
       !    ELSE
       !      SendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
       !      SendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)
-      !      SendBuf(iProc)%content(11+jPos:15+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content(11+jPos:15+jPos) = PartStateBulkValues(iPart,1:5)
       !    END IF
       !  ELSE
       !    IF (usevMPF) THEN
       !      SendBuf(iProc)%content( 9+jPos) = PartMPF(iPart)
-      !      SendBuf(iProc)%content(10+jPos:14+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content(10+jPos:14+jPos) = PartStateBulkValues(iPart,1:5)
       !    ELSE
-      !      SendBuf(iProc)%content( 9+jPos:13+iPos) = PartStateBulkValues(iPart,1:5)
+      !      SendBuf(iProc)%content( 9+jPos:13+jPos) = PartStateBulkValues(iPart,1:5)
       !    END IF
       !  END IF
       !END IF
@@ -585,7 +585,7 @@ DO iProc=1,PartMPI%nMPINeighbors
           ,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
     PartState(PartID,1:6)   = PartRecvBuf(iProc)%content( 1+iPos: 6+iPos)
     IF(DoRefMapping)THEN
-      PartPosRef(1:3,PartID) = PartRecvBuf(iProc)%content(7+iPos: 9:iPos)
+      PartPosRef(1:3,PartID) = PartRecvBuf(iProc)%content(7+iPos: 9+iPos)
       jPos=iPos+3
     ELSE
       jPos=iPos
