@@ -129,6 +129,7 @@ END IF
 MappingGuess    = GETINT('MappingGuess','1')
 epsMapping      = GETREAL('epsMapping','1e-8')
 epsInCell       = SQRT(epsMapping)
+epsOneCell      = 1.0+epsInCell
 IF((MappingGuess.LT.1).OR.(MappingGuess.GT.4))THEN
    CALL abort(__STAMP__, &
         'Wrong guessing method for mapping from physical space in reference space.',MappingGuess,999.)

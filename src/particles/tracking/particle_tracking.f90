@@ -359,7 +359,7 @@ USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
-USE MOD_Particle_Surfaces_Vars,  ONLY:nTracks,ClipHit,epsInCell
+USE MOD_Particle_Surfaces_Vars,  ONLY:nTracks,ClipHit,epsInCell,epsOneCell
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Surfaces_Vars,  ONLY:ElemBaryNGeo,ElemRadiusNGeo
@@ -378,15 +378,20 @@ INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems,nLocSides
 REAL,ALLOCATABLE            :: Distance(:)
 REAL                        :: oldXi(3),newXi(3)
 INTEGER,ALLOCATABLE         :: ListDistance(:)
+!REAL                        :: epsOne
 LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength),CheckNeighbor(6)
 !===================================================================================================================================
 
+!epsOne=1.0+epsInCell
 ParticleFound=.FALSE.
 ! first step, reuse Elem cache, therefore, check if particle are still in element, if not, search later
 DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in HALO, it shall not be found here
   DO iPart=1,PDM%ParticleVecLength
     IF(PDM%ParticleInside(iPart))THEN
       ElemID = PEM%lastElement(iPart)
+      IF(ElemID.GT.PP_nElems) IPWRITE(*,*) 'too large',ElemID,PP_nElems
+      IF(ElemID.LT.1)         IPWRITE(*,*) 'too small',ElemID,1
+      IF(ElemID.EQ.-888)      IPWRITE(*,*) 'not set',ElemID
       IF(ElemID.NE.iElem) CYCLE
       nTracks=nTracks+1
       ! sanity check
@@ -399,7 +404,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
         !IF(ParticleFound(iPart)) CYCLE
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
         !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.ClipHit) THEN ! particle inside
-        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsInCell) THEN ! particle inside
+        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell) THEN ! particle inside
           nlocSides=BCElem(ElemID)%lastSide-BCElem(ElemID)%nInnerSides+1
           CALL ParticleBCTracking(ElemID,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%lastSide,nlocSides,iPart,ParticleFound(iPart))
         END IF
@@ -408,7 +413,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
       END IF ! initial check
       !IF(iPart.EQ.1) print*,'pos,elem',PartPosRef(:,ipart),ElemID
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
-      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.epsInCell) THEN ! particle inside
+      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.epsOneCell) THEN ! particle inside
         PEM%Element(iPart)  = ElemID
         ParticleFound(iPart)=.TRUE.
       !ELSE IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.5) THEN
@@ -433,6 +438,9 @@ DO iPart=1,PDM%ParticleVecLength
   IF(ParticleFound(iPart)) CYCLE
   ! relocate particle
   oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
+  IF(oldElemID.GT.PP_nElems) IPWRITE(*,*) 'second too large'
+  IF(oldElemID.LT.1)         IPWRITE(*,*) 'second too small'
+  IF(oldElemID.EQ.-888)      IPWRITE(*,*) 'second not set'
   ! get background mesh cell of particle
   CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
   !CellX = MIN(GEO%FIBGMimax,CellX)
@@ -480,7 +488,7 @@ DO iPart=1,PDM%ParticleVecLength
     ElemID=ListDistance(iBGMElem)
     CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
     !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
-    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.epsInCell) THEN ! particle inside
+    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.epsOneCell) THEN ! particle inside
       PEM%Element(iPart) = ElemID
       ParticleFound(iPart)=.TRUE.
       EXIT

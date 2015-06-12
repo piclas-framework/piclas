@@ -45,7 +45,8 @@ REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo                  ! eleme
 REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo                ! radius of element
 INTEGER                                 :: MappingGuess                  ! select mapping guess into reference element
 REAL                                    :: epsMapping                    ! tolerance for Netwton to get xi from X
-REAL                                    :: epsInCell                     ! tolerance for 1+eps for particle in element
+REAL                                    :: epsInCell                     ! tolerance for eps for particle in element
+REAL                                    :: epsOneCell                    ! tolerance for particle in element 1+epsinCell
 LOGICAL                                 :: DoRefMapping                  ! tracking by mapping particle into reference element
 REAL                                    :: tTracking                     ! Tracking time
 REAL                                    :: tLocalization                 ! localization time

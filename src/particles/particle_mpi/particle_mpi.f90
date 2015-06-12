@@ -314,7 +314,7 @@ DO iProc=1,PartMPI%nMPINeighbors
 !                , PartMPIExchange%SendRequest(1,PartMPI%MPINeighbor(iProc))  &
 !                , IERROR )
 END DO ! iProc
-!IPWRITE(UNIT_stdOut,*) 'Number of send  particles',   SUM(PartMPIExchange%nPartsSend(:))
+IPWRITE(UNIT_stdOut,*) 'Number of send  particles',   SUM(PartMPIExchange%nPartsSend(:))
 
 ! 3) Build Message
 DO iProc=1, PartMPI%nMPINeighbors
@@ -346,6 +346,9 @@ DO iProc=1, PartMPI%nMPINeighbors
       SendBuf(iProc)%content(8+jPos:13+jPos) = Pt_temp(iPart,1:6)
       !IPWRITE(UNIT_stdOut,*) ' send pt',SendBuf(iProc)%content(8+iPos:13+iPos)
       SendBuf(iProc)%content(       14+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID))
+      !IF(PartHaloToProc(NATIVE_ELEM_ID,ElemID).EQ.0)THEN
+      !  IPWRITE(*,*) 'send with native elem id.EQ.0'
+      !END IF
       !IF(.NOT.UseLD) THEN   
         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
           IF (usevMPF .AND. DSMC%ElectronicState) THEN
@@ -404,6 +407,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       !END IF
 #else 
       SendBuf(iProc)%content(    8+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID))
+
       !IF(.NOT.UseLD) THEN   
         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
           IF (usevMPF .AND. DSMC%ElectronicState) THEN
@@ -476,7 +480,7 @@ END DO ! iProc
 
 ! total number of received particles
 PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(:))
-!IPWRITE(UNIT_stdOut,*) 'Number of received particles',SUM(PartMPIExchange%nPartsRecv(:))
+IPWRITE(UNIT_stdOut,*) 'Number of received particles',SUM(PartMPIExchange%nPartsRecv(:))
 
 
 ! 5) Allocate received buffer and open MPI_IRECV
@@ -596,6 +600,9 @@ DO iProc=1,PartMPI%nMPINeighbors
     Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 8+jPos:13+jPos)
     !IPWRITE(UNIT_stdOut,*) ' recv pt',Pt_temp(PartID,1:6)
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(14+jPos))
+    !IF(PEM%Element(PartID).EQ.0)THEN
+    !  IPWRITE(*,*) 'receied elem id.EQ.0'
+    !END IF
     !IF(.NOT.UseLD) THEN
       IF (useDSMC.AND.(CollisMode.NE.1)) THEN
         IF (usevMPF .AND. DSMC%ElectronicState) THEN

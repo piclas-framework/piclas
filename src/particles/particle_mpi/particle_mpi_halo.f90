@@ -1123,8 +1123,8 @@ IF (RecvMsg%nSides.GT.0) THEN
       PartElemToSide(2,ilocSide,newElemId)=RecvMsg%ElemToSide(2,ilocSide,iElem)
     END DO ! ilocSide
     ! set native elemID
-    PartHaloToProc(1,newElemId)=RecvMsg%NativeElemID(iElem)
-    PartHaloToProc(2,newElemId)=iProc
+    PartHaloToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
+    PartHaloToProc(NATIVE_PROC_ID,newElemId)=iProc
   END DO ! iElem
   ! build rest: PartNeighborElemID, PartLocSideID
   DO iElem=PP_nElems+1,nTotalElems
@@ -1285,7 +1285,7 @@ ELSE
     'Could not allocate PartHaloToProc')
   ! copy array to new
   PartHaloToProc=-1
-  PartHaloToProc(1:2,PP_nElems+1:nOldElems)    =DummyHaloToProc(1:2,PP_nElems+1:nOldElems)
+  PartHaloToProc(1:3,PP_nElems+1:nOldElems)    =DummyHaloToProc(1:3,PP_nElems+1:nOldElems)
   DEALLOCATE(DummyHaloToProc)
 END IF
 !print*,' done halotoproc',myrank
@@ -2179,8 +2179,8 @@ IF (RecvMsg%nElems.GT.0) THEN
       PartElemToSide(E2S_FLIP,ilocSide,newElemId)=RecvMsg%ElemToSide(2,ilocSide,iElem)
     END DO ! ilocSide
     ! set native elemID
-    PartHaloToProc(1,newElemId)=RecvMsg%NativeElemID(iElem)
-    PartHaloToProc(2,newElemId)=iProc
+    PartHaloToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
+    PartHaloToProc(NATIVE_PROC_ID,newElemId)=iProc
     XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
     dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
   END DO ! iElem

@@ -168,7 +168,7 @@ USE MOD_TimeDisc_Vars,          ONLY:dt
 USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,ElemBaryNGeo,doRefMapping
-USE MOD_Particle_Surfaces_Vars, ONLY:epsInCell
+USE MOD_Particle_Surfaces_Vars, ONLY:epsInCell,epsOneCell
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:BubbleSortID
@@ -194,10 +194,10 @@ REAL,ALLOCATABLE                  :: Distance(:)
 INTEGER,ALLOCATABLE               :: ListDistance(:)
 !REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
 !REAL,PARAMETER                    :: eps2=1e-3
-REAL                              :: epsOne,OneMeps
+!REAL                              :: epsOne,OneMeps
 !===================================================================================================================================
 
-epsOne=1.0+epsInCell
+!epsOne=1.0+epsInCell
 !OneMeps=1.0-eps
 ParticleFound = .FALSE.
 IF ( (PartState(iPart,1).LT.GEO%xmin).OR.(PartState(iPart,1).GT.GEO%xmax).OR. &
@@ -249,7 +249,7 @@ DO iBGMElem=1,nBGMElems
   CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
   IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
     InElementCheck=.TRUE.
-  ELSE IF(ANY(ABS(Xi).GT.epsOne))THEN ! particle outside
+  ELSE IF(ANY(ABS(Xi).GT.epsOneCell))THEN ! particle outside
   !  print*,'ici'
     InElementCheck=.FALSE.
   ELSE ! particle at face,edge or node, check most possible point
