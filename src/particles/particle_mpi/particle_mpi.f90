@@ -314,7 +314,11 @@ DO iProc=1,PartMPI%nMPINeighbors
 !                , PartMPIExchange%SendRequest(1,PartMPI%MPINeighbor(iProc))  &
 !                , IERROR )
 END DO ! iProc
-IPWRITE(UNIT_stdOut,*) 'Number of send  particles',   SUM(PartMPIExchange%nPartsSend(:))
+
+!DO iProc=1,PartMPI%nMPINeighbors
+!  IPWRITE(UNIT_stdOut,*) 'Number of send  particles',  PartMPIExchange%nPartsSend(iProc)&
+!                        , 'target proc', PartMPI%MPINeighbor(iProc)
+!END DO
 
 ! 3) Build Message
 DO iProc=1, PartMPI%nMPINeighbors
@@ -341,11 +345,12 @@ DO iProc=1, PartMPI%nMPINeighbors
         jPos=iPos
       END IF
       !IPWRITE(UNIT_stdOut,*) ' send state',PartState(iPart,1:6)
-      SendBuf(iProc)%content(       7+jPos) = REAL(PartSpecies(iPart))
+      SendBuf(iProc)%content(       7+jPos) = REAL(PartSpecies(iPart),KIND=8)
+      !IF(PartSpecies(ipart).EQ.0) IPWRITE(*,*) 'part species zero',ipart
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
       SendBuf(iProc)%content(8+jPos:13+jPos) = Pt_temp(iPart,1:6)
       !IPWRITE(UNIT_stdOut,*) ' send pt',SendBuf(iProc)%content(8+iPos:13+iPos)
-      SendBuf(iProc)%content(       14+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID))
+      SendBuf(iProc)%content(       14+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       !IF(PartHaloToProc(NATIVE_ELEM_ID,ElemID).EQ.0)THEN
       !  IPWRITE(*,*) 'send with native elem id.EQ.0'
       !END IF
@@ -406,7 +411,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       !  END IF
       !END IF
 #else 
-      SendBuf(iProc)%content(    8+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID))
+      SendBuf(iProc)%content(    8+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
 
       !IF(.NOT.UseLD) THEN   
         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
@@ -471,16 +476,18 @@ DO iProc=1, PartMPI%nMPINeighbors
       PDM%ParticleInside(iPart) = .FALSE.  
     END IF ! ElemID is HaloElement
   END DO  ! iPart
+  IF(iPos.NE.MessageSize) IPWRITE(*,*) ' error message size', iPos,MessageSize
 END DO ! iProc
 
 ! 4) Finish Received number of particles
 DO iProc=1,PartMPI%nMPINeighbors
+  CALL MPI_WAIT(PartMPIExchange%SendRequest(1,iProc),MPIStatus,IERROR)
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
 END DO ! iProc
 
 ! total number of received particles
 PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(:))
-IPWRITE(UNIT_stdOut,*) 'Number of received particles',SUM(PartMPIExchange%nPartsRecv(:))
+!IPWRITE(UNIT_stdOut,*) 'Number of received particles',SUM(PartMPIExchange%nPartsRecv(:))
 
 
 ! 5) Allocate received buffer and open MPI_IRECV
@@ -574,6 +581,16 @@ INTEGER                       :: nRecvParticles
 
 !IPWRITE(UNIT_stdOut,*) 'exchange',PartMPIExchange%nMPIParticles
 
+!DO iProc=1,PartMPI%nMPINeighbors
+!  IPWRITE(UNIT_stdOut,*) 'Number of received  particles',  PartMPIExchange%nPartsRecv(iProc) &
+!                        , 'source proc', PartMPI%MPINeighbor(iProc)
+!END DO
+
+DO iProc=1,PartMPI%nMPINeighbors
+  IF(PartMPIExchange%nPartsSend(iProc).EQ.0) CYCLE
+  CALL MPI_WAIT(PartMPIExchange%SendRequest(2,iProc),MPIStatus,IERROR)
+END DO ! iProc
+
 nRecv=0
 DO iProc=1,PartMPI%nMPINeighbors
   nRecvParticles=PartMPIExchange%nPartsRecv(iProc)
@@ -581,7 +598,10 @@ DO iProc=1,PartMPI%nMPINeighbors
   MessageSize=nRecvParticles*PartCommSize
   ! finish communication with iproc
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
-  !DO iPos=1,nRecvParticles
+  ! correct loop shape
+  ! DO iPart=1,nRecvParticles
+  ! nParts 1 Pos=1..17 
+  ! nPart2 2 Pos=1..17,18..34
   DO iPos=0,MessageSize-1,PartCommSize
     nRecv=nRecv+1
     PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
@@ -595,11 +615,12 @@ DO iProc=1,PartMPI%nMPINeighbors
       jPos=iPos
     END IF
     !IPWRITE(UNIT_stdOut,*) ' recv  state',PartState(PartID,1:6)
-    PartSpecies(PartID)     = INT(PartRecvBuf(iProc)%content( 7+jPos))
+    PartSpecies(PartID)     = INT(PartRecvBuf(iProc)%content( 7+jPos),KIND=4)
+    ! IF(PartSpecies(PartID).EQ.0) IPWRITE(*,*) 'part species zero',PartID
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
     Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 8+jPos:13+jPos)
     !IPWRITE(UNIT_stdOut,*) ' recv pt',Pt_temp(PartID,1:6)
-    PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(14+jPos))
+    PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(14+jPos),KIND=4)
     !IF(PEM%Element(PartID).EQ.0)THEN
     !  IPWRITE(*,*) 'receied elem id.EQ.0'
     !END IF
@@ -658,7 +679,7 @@ DO iProc=1,PartMPI%nMPINeighbors
       !END IF
     !END IF
 #else 
-    PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos))
+    PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     !IF(.NOT.UseLD) THEN
       IF (useDSMC.AND.(CollisMode.NE.1)) THEN
         IF (usevMPF .AND. DSMC%ElectronicState) THEN
@@ -720,12 +741,15 @@ DO iProc=1,PartMPI%nMPINeighbors
   END DO
   ! be nice: deallocate the receive buffer
   ! deallocate non used array
-  DEALLOCATE(PartRecvBuf(iProc)%Content)
+  !DEALLOCATE(PartRecvBuf(iProc)%Content)
+END DO ! iProc
+
+DO iProc=1,PartMPI%nMPINeighbors
+  SDEALLOCATE(PartRecvBuf(iProc)%content)
 END DO ! iProc
 
 PDM%ParticleVecLength       = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
-
 
 
 END SUBROUTINE MPIParticleRecv
@@ -902,6 +926,9 @@ END DO
 IF(PartMPI%nMPINeighbors.GT.0)THEN
   IF(ANY(PartHaloToProc(LOCAL_PROC_ID,:).EQ.-1)) IPWRITE(UNIT_stdOut,*) ' Local proc id not found'
   IF(MAXVAL(PartHaloToProc(LOCAL_PROC_ID,:)).GT.PartMPI%nMPINeighbors) IPWRITE(UNIT_stdOut,*) ' Local proc id too high.'
+  IF(MINVAL(PartHaloToProc(NATIVE_ELEM_ID,:)).LT.1) IPWRITE(UNIT_stdOut,*) ' native elem id too low'
+  IF(MINVAL(PartHaloToProc(NATIVE_PROC_ID,:)).LT.0) IPWRITE(UNIT_stdOut,*) ' native proc id not found'
+  IF(MAXVAL(PartHaloToProc(NATIVE_PROC_ID,:)).GT.PartMPI%nProcs-1) IPWRITE(UNIT_stdOut,*) ' native proc id too high.'
 END IF
 !IPWRITE(UNIT_stdOut,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
 

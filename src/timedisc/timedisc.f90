@@ -542,6 +542,7 @@ USE MOD_part_MPFtools,    ONLY: StartParticleMerge
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv
+USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
 #else /*No MPI*/
 #endif /*MPI*/
 USE MOD_part_tools,       ONLY: UpdateNextFreePosition
@@ -575,6 +576,9 @@ iStage=1
 !SWRITE(*,*) 'iStage', iStage
 Time=t
 
+!SWRITE(*,*),'-------'
+!SWRITE(*,*),'istage'
+!SWRITE(*,*),'-------'
 IF (t.GE.DelayTime) THEN
   IF(MeassureTrackTime)TimeStart=BOLTZPLATZTIME()
   CALL ParticleInserting()
@@ -678,13 +682,15 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   END IF
 #ifdef MPI
   CALL MPIParticleSend()
-!  CALL MPIParticleRecv()
+  CALL MPIParticleRecv()
+  PartMPIExchange%nMPIParticles=0
 #endif
   !CALL Filter(U)
 END IF
 #endif /*PARTICLES*/
 
 DO iStage=2,nRKStages
+!  SWRITE(*,*),'-------'
   !SWRITE(*,*) 'istage',istage
   tStage=t+dt*RK_c(iStage)
 #ifdef PARTICLES
@@ -693,7 +699,7 @@ DO iStage=2,nRKStages
 !    ! deposition  
      CALL Deposition(doInnerParts=.TRUE.)
 #ifdef MPI
-     CALL MPIParticleRecv()
+     !CALL MPIParticleRecv()
      ! second buffer
      CALL Deposition(doInnerParts=.FALSE.)
 #endif /*MPI*/
@@ -788,7 +794,8 @@ DO iStage=2,nRKStages
     END IF
 #ifdef MPI
     CALL MPIParticleSend()
-!    CALL MPIParticleRecv()
+    CALL MPIParticleRecv()
+    PartMPIExchange%nMPIParticles=0
 !    CALL UpdateNextFreePosition() ! only required for parallel communication
 #endif
   END IF
@@ -800,7 +807,7 @@ END DO
 #ifdef MPI
 IF (t.GE.DelayTime) THEN
 !  SWRITE(*,*) 'receivee last'
-  CALL MPIParticleRecv()
+  !CALL MPIParticleRecv()
 END IF
 #endif /*MPI*/
 
