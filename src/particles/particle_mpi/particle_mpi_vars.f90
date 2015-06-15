@@ -79,6 +79,7 @@ TYPE tMPIMessage
 END TYPE
 
 TYPE(tMPIMessage),ALLOCATABLE  :: PartRecvBuf(:)
+TYPE(tMPIMessage),ALLOCATABLE  :: PartSendBuf(:)
 
 TYPE tParticleMPIExchange
   INTEGER,ALLOCATABLE            :: nPartsSend(:)     ! only mpi neighbors
