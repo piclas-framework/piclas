@@ -55,7 +55,7 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,         ONLY:GEO
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
 USE MOD_Particle_Surfaces_Vars,     ONLY:BezierControlPoints3D,DoRefMapping
-USE MOD_Mesh_Vars,                  ONLY:NGeo,ElemToSide,nElems,nInnerSides,nBCSides,nSides,SideToElem,XCL_NGeo
+USE MOD_Mesh_Vars,                  ONLY:NGeo,ElemToSide,nElems,nInnerSides,nBCSides,nSides,XCL_NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -276,9 +276,9 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,El
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,SideToElem,nSides,XCL_NGeo
+USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,nSides,XCL_NGeo
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding
-USE MOD_Particle_MPI_Vars,         ONLY:halo_eps, NbrOfCases,casematrix, halo_eps2
+USE MOD_Particle_MPI_Vars,         ONLY:halo_eps, NbrOfCases,casematrix!, halo_eps2
 USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D,DoRefMapping
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -481,7 +481,8 @@ END IF  ! nperiodicvectors>0
 END SUBROUTINE CheckMPINeighborhoodByFIBGM
 
 
-SUBROUTINE ExchangeHaloGeometry(iProc,SideList,ElemList)
+!SUBROUTINE ExchangeHaloGeometry(iProc,SideList,ElemList)
+SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 !===================================================================================================================================
 ! exchange of halo geometry
 ! including:
@@ -494,7 +495,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloToProc
 USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, nInnerSides, ElemToSide, BC,nGeo,SideToElem
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,nTotalSides,nTotalElems,SidePeriodicType
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartNeighborElemID,PartNeighborLocSideID
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
@@ -505,7 +506,7 @@ USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmp
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iProc       ! MPI proc with which the local proc is to exchange boundary information
-INTEGER, INTENT(INOUT)          :: SideList(nSides)
+!INTEGER, INTENT(INOUT)          :: SideList(nSides)
 INTEGER, INTENT(INOUT)          :: ElemList(PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -526,11 +527,11 @@ END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
 INTEGER                     :: ALLOCSTAT
-INTEGER                     :: newSideID,haloSideID,ioldSide,haloElemID,oldElemID,newElemID
+INTEGER                     :: newSideID,haloSideID,ioldSide,oldElemID,newElemID
 LOGICAL                     :: isDoubleSide
 LOGICAL,ALLOCATABLE         :: isElem(:),isSide(:),isDone(:)
 INTEGER, ALLOCATABLE        :: ElemIndex(:), SideIndex(:),HaloInc(:)
-INTEGER                     :: iElem, ilocSide,NbOfMarkedSides,SideID,iSide,p,q,iIndex,iHaloSide,flip
+INTEGER                     :: iElem, ilocSide,SideID,iSide,iIndex,iHaloSide,flip
 INTEGER                     :: nDoubleSides,nDoubleBezier,tmpnSides,tmpnElems
 INTEGER                     :: datasize
 !===================================================================================================================================
@@ -1230,7 +1231,7 @@ IF(DoRefMapping)THEN
   ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate XCL_NGeo')
-  XCL_NGeo=0
+  XCL_NGeo=0.
   XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems) =DummyXCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems)
   DEALLOCATE(DummyXCL_NGeo)
   ! dXCL_NGeo
@@ -1243,7 +1244,7 @@ IF(DoRefMapping)THEN
   ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate dXCL_NGeo')
-  dXCL_NGeo=0
+  dXCL_NGeo=0.
   dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems) =DummydXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems)
   DEALLOCATE(DummydXCL_NGeo)
   ! PartBCSideList
@@ -1463,7 +1464,8 @@ DEALLOCATE(DummyBC)
 END SUBROUTINE ResizeParticleMeshData
 
 
-SUBROUTINE ExchangeMappedHaloGeometry(iProc,SideList,ElemList)
+!SUBROUTINE ExchangeMappedHaloGeometry(iProc,SideList,ElemList)
+SUBROUTINE ExchangeMappedHaloGeometry(iProc,ElemList)
 !===================================================================================================================================
 ! exchange of halo geometry
 ! including:
@@ -1475,9 +1477,9 @@ SUBROUTINE ExchangeMappedHaloGeometry(iProc,SideList,ElemList)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloToProc
-USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, nInnerSides, ElemToSide, BC,nGeo,SideToElem
+USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, ElemToSide, BC,nGeo,SideToElem
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nTotalBCSides
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nTotalBCSides
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartNeighborElemID,PartNeighborLocSideID
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
@@ -1488,7 +1490,7 @@ USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmp
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iProc       ! MPI proc with which the local proc is to exchange boundary information
-INTEGER, INTENT(INOUT)          :: SideList(nSides)
+!INTEGER, INTENT(INOUT)          :: SideList(nSides)
 INTEGER, INTENT(INOUT)          :: ElemList(PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -1511,14 +1513,13 @@ END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
 INTEGER                     :: ALLOCSTAT,tmpBCSides,newBCSideID
-INTEGER                     :: newSideID,haloSideID,ioldSide,haloElemID,oldElemID,newElemID
+INTEGER                     :: newSideID,haloSideID,ioldSide,oldElemID,newElemID
 LOGICAL                     :: isDoubleSide
 LOGICAL,ALLOCATABLE         :: isElem(:),isSide(:),isDone(:)
 INTEGER, ALLOCATABLE        :: ElemIndex(:), SideIndex(:),HaloInc(:)
-INTEGER                     :: iElem, ilocSide,NbOfMarkedSides,SideID,iSide,p,q,iIndex,iHaloSide,flip
+INTEGER                     :: iElem, ilocSide,SideID,iSide,iIndex,iHaloSide,flip
 INTEGER                     :: nDoubleSides,nDoubleBezier,tmpnSides,tmpnElems
 INTEGER                     :: datasize,datasize2,datasize3
-INTEGER                     :: markElem
 !===================================================================================================================================
 
 
@@ -2239,10 +2240,10 @@ INTEGER,INTENT(IN)         :: nPlanar,nBilinear,nCurved
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=10)          :: formatstr
+!CHARACTER(LEN=10)          :: formatstr
 INTEGER,ALLOCATABLE        :: nNBProcs_glob(:), ProcInfo_glob(:,:),NBInfo_glob(:,:), NBInfo(:), tmparray(:,:)
 REAL,ALLOCATABLE           :: tmpreal(:,:)
-INTEGER                    :: ProcInfo(7),nNBmax,iProc,i,j,ioUnit
+INTEGER                    :: ProcInfo(7),nNBmax,i,j,ioUnit
 !===================================================================================================================================
 
 
@@ -2382,10 +2383,10 @@ INTEGER,INTENT(IN)         :: nPlanar,nBilinear,nCurved,nTotalBCElems
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=10)          :: formatstr
+!CHARACTER(LEN=10)          :: formatstr
 INTEGER,ALLOCATABLE        :: nNBProcs_glob(:), ProcInfo_glob(:,:),NBInfo_glob(:,:), NBInfo(:), tmparray(:,:)
 REAL,ALLOCATABLE           :: tmpreal(:,:)
-INTEGER                    :: ProcInfo(8),nNBmax,iProc,i,j,ioUnit
+INTEGER                    :: ProcInfo(8),nNBmax,i,j,ioUnit
 !===================================================================================================================================
 
 

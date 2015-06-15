@@ -26,7 +26,7 @@ SUBROUTINE InitPeriodicBC()
 USE MOD_Globals
 USE MOD_ReadInTools,        ONLY:GETINT,GETREALARRAY
 USE MOD_Particle_Mesh_Vars, ONLY:GEO
-USE MOD_Particle_Vars,      ONLY:PartBound, PDM 
+USE MOD_Particle_Vars,      ONLY:PartBound
 USE MOD_Particle_MPI_Vars,  ONLY:NbrOfCases, casematrix!, partShiftVector
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -114,8 +114,8 @@ SUBROUTINE MapPeriodicVectorsToSides()
 USE MOD_Preproc
 USE MOD_Globals,                 ONLY:AlmostZero,AlmostEqual,CROSSNORM
 !USE MOD_Mesh_Vars,               ONLY:Elems,offsetElem,nSides, ElemToSide
-USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-USE MOD_Mesh_Vars,               ONLY:nSides, ElemToSide,nBCSides,XCL_NGeo,NGeo
+USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMPISides_MINE
+USE MOD_Mesh_Vars,               ONLY:ElemToSide,nBCSides,XCL_NGeo,NGeo
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO, SidePeriodicType, SidePeriodicDisplacement
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -127,11 +127,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER             :: iElem,ilocSide,SideID,flip,iSide
+INTEGER             :: iElem,ilocSide,SideID,flip
 INTEGER             :: iPV,iDisplace,nDisplacement
-INTEGER             :: nPeriodicSides,tmpBCSides
 INTEGER             :: nLocalSides
-REAL                :: xmin,xmax,ymin,ymax,zmin,zmax
 REAL                :: v1(3),v2(3),nVec(3)
 REAL,ALLOCATABLE    :: normDisplaceVec(:,:)
 !===================================================================================================================================

@@ -260,7 +260,8 @@ INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nM
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 ! shape function 
 INTEGER, ALLOCATABLE          :: shape_indices(:)
-INTEGER                       :: CellX,CellY,CellZ, iPartShape,ALLOCSTAT
+INTEGER                       :: CellX,CellY,CellZ, iPartShape
+INTEGER                       :: ALLOCSTAT
 !===================================================================================================================================
 
 ! 1) get number of send particles
@@ -899,9 +900,11 @@ DO iProc=0,PartMPI%nProcs-1
 
   LOGWRITE(*,*)'  - Exchange Geometry of MPI-Neighborhood...'
   IF(.NOT.DoRefMapping)THEN
-    CALL ExchangeHaloGeometry(iProc,SideIndex,ElemIndex)
+    !CALL ExchangeHaloGeometry(iProc,SideIndex,ElemIndex)
+    CALL ExchangeHaloGeometry(iProc,ElemIndex)
   ELSE
-    CALL ExchangeMappedHaloGeometry(iProc,SideIndex,ElemIndex)
+    !CALL ExchangeMappedHaloGeometry(iProc,SideIndex,ElemIndex)
+    CALL ExchangeMappedHaloGeometry(iProc,ElemIndex)
   END IF
   LOGWRITE(*,*)'    ...Done'
   SideIndex(:)=0

@@ -31,7 +31,7 @@ SUBROUTINE WriteDebugMesh(n,iFIBG,kFIBG,lFIBG)                                  
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLE DECLARATION                                                                       !
   CHARACTER(LEN=26)                  :: myFileName
-  INTEGER                            :: j, iElem, nNodes,iCorner, iFIBG, kFIBG, lFIBG
+  INTEGER                            :: j, iElem, nNodes, iFIBG, kFIBG, lFIBG
 !===================================================================================================================================
 
   nNodes=nElems*8

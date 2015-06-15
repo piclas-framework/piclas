@@ -31,7 +31,7 @@ SUBROUTINE VolInt_weakForm(Ut,dofirstElems)
 ! Attention 2: ut is initialized and is updated with the volume flux derivatives
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,ONLY:D_hat,D_hat_T
+USE MOD_DG_Vars,ONLY:D_hat!,D_hat_T
 USE MOD_Mesh_Vars,ONLY:Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 USE MOD_PreProc
 USE MOD_Flux,ONLY:EvalFlux3D                                         ! computes volume fluxes in local coordinates
@@ -120,7 +120,7 @@ DO iElem=firstElemID,lastElemID
 END DO ! iElem
 END SUBROUTINE VolInt_weakForm
 
-
+#ifdef donotcompilethis
 SUBROUTINE VolInt_Metrics(f,g,h,Mf,Mg,Mh)
 !===================================================================================================================================
 ! Compute the tranformed states for all conservative variables
@@ -158,5 +158,6 @@ DO i=1,nTotal_Vol
            hTilde*Mh(3,i)
 END DO ! i
 END SUBROUTINE VolInt_Metrics
+#endif /* donotcompilethis */
 
 END MODULE MOD_VolInt

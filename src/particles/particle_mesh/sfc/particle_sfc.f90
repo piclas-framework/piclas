@@ -14,6 +14,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 
+#ifdef donotcompilethis
 INTERFACE InitParticleSFC
   MODULE PROCEDURE InitParticleSFC
 END INTERFACE
@@ -729,5 +730,7 @@ END SUBROUTINE FinalizeParticleSFC
 !END DO
 !INVMAP=low
 !END FUNCTION INVMAP 
+
+#endif /*donotcompilethis*/
 !
 END MODULE MOD_Particle_SFC

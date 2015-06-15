@@ -13,6 +13,7 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
+#ifdef donotcompilethis
 LOGICAL                       ::ParticleSFCInitIsDone=.FALSE.                       ! flag if init is done
 INTEGER                       ::whichBoundBox                                       ! select bounding box for SFC
 TYPE tBox
@@ -20,5 +21,6 @@ TYPE tBox
   INTEGER      :: nbits
   REAL(KIND=8) :: spacing(3)
 END TYPE tBox
+#endif /*donotcompilethis*/
 
 END MODULE MOD_Particle_SFC_Vars

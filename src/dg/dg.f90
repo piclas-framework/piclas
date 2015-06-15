@@ -173,7 +173,7 @@ USE MOD_SurfInt,       ONLY: SurfInt
 USE MOD_VolInt,        ONLY: VolInt
 USE MOD_ProlongToFace, ONLY: ProlongToFace
 USE MOD_FillFlux,      ONLY: FillFlux,FillFlux_BC
-USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nBCSides,nInnerSides
+USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nInnerSides
 USE MOD_Equation,      ONLY: CalcSource
 USE MOD_Equation_Vars, ONLY: IniExactFunc
 USE MOD_Interpolation, ONLY: ApplyJacobian
@@ -264,7 +264,7 @@ USE MOD_Preproc
 USE MOD_Vector
 USE MOD_Equation,      ONLY: VolInt_Pois,FillFlux_Pois,ProlongToFace_Pois, SurfInt_Pois
 USE MOD_GetBoundaryFlux, ONLY: FillFlux_BC_Pois
-USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nBCSides,nInnerSides
+USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nInnerSides
 USE MOD_Equation,      ONLY: CalcSource_Pois
 USE MOD_Equation_Vars, ONLY: IniExactFunc,Phi,Phit,Phi_Minus,Phi_Plus,FluxPhi,nTotalPhi
 USE MOD_Interpolation, ONLY: ApplyJacobian
@@ -375,7 +375,7 @@ USE MOD_SurfInt,       ONLY: SurfInt
 USE MOD_VolInt,        ONLY: VolInt
 USE MOD_ProlongToFace, ONLY: ProlongToFace
 USE MOD_FillFlux,      ONLY: FillFlux,FillFlux_BC
-USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nBCSides,nInnerSides
+USE MOD_Mesh_Vars,     ONLY: sJ,nSides,nInnerSides
 !USE MOD_Equation,      ONLY: CalcSource
 USE MOD_Interpolation, ONLY: ApplyJacobian
 USE MOD_Equation_Vars, ONLY: IniExactFunc
@@ -394,7 +394,7 @@ INTEGER,INTENT(IN)              :: tDeriv
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,i,j,k,iVar
+!INTEGER :: iElem,i,j,k,iVar
 !===================================================================================================================================
 
 ! prolong the solution to the face integration points for flux computation

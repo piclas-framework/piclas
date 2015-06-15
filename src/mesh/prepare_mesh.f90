@@ -47,7 +47,7 @@ USE MOD_Mesh_Vars,  ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 #ifdef MPI
 USE MOD_ReadInTools,ONLY: GETLOGICAL
 USE MOD_MPI_Vars,   ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
-USE MOD_MPI_Vars,   ONLY: offsetElemMPI,offsetMPISides_MINE,offsetMPISides_YOUR
+USE MOD_MPI_Vars,   ONLY: offsetMPISides_MINE,offsetMPISides_YOUR
 #endif
 IMPLICIT NONE
 ! INPUT VARIABLES

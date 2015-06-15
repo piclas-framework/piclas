@@ -9,7 +9,6 @@ MODULE MOD_Eval_xyz
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-  INTEGER :: errorflag
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
@@ -53,14 +52,12 @@ SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,X3D_In,X3D_Out,iElem,PartID)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,      ONLY:wBary,xGP
+USE MOD_Interpolation_Vars,      ONLY:xGP,wBary
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,MappingGuess,epsMapping
+USE MOD_Particle_Surfaces_Vars,  ONLY:MappingGuess,epsMapping
 USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
-!USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 USE MOD_Particle_Surfaces_Vars,  ONLY:ElemRadiusNGeo
-USE MOD_TimeDisc_Vars,           ONLY:iter
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -250,7 +247,7 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
 END DO !newton
 
 ! check if Newton is successful
-!IF(ANY(ABS(Xi).GT.epsilonOne)) THEN
+!IF(ANY(ABS(Xi).GT.epsOneCell)) THEN
 !IF(ANY(ABS(Xi).GT.1.0)) THEN
 !!  IF(PRESENT(PartID).AND.PartID.EQ.238) THEN
 !     IPWRITE(UNIT_stdOut,*) ' Particle outside of parameter range!!!'
@@ -345,12 +342,10 @@ SUBROUTINE eval_xyz_elemcheck(x_in,xi,iElem,PartID,DoReUseMap)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,      ONLY:wBary,xGP
+USE MOD_Interpolation_Vars,      ONLY:xGP
 USE MOD_Particle_Surfaces_Vars,  ONLY:MappingGuess,epsMapping
 USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo,NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,SideType
-USE MOD_Mesh_Vars,               ONLY:ElemToSide
 USE MOD_Particle_Surfaces_Vars,  ONLY:ElemRadiusNGeo
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
@@ -370,7 +365,7 @@ INTEGER                    :: i,j,k
 REAL                       :: epsOne
 INTEGER                    :: NewTonIter
 REAL                       :: Winner_Dist,Dist
-INTEGER                    :: n_Newton,idir
+INTEGER                    :: idir
 REAL                       :: F(1:3),Lag(1:3,0:NGeo)
 REAL                       :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                       :: buff,buff2,abortcrit
@@ -521,7 +516,7 @@ END DO !newton
 END SUBROUTINE eval_xyz_elemcheck
 
 
-SUBROUTINE Eval_xyz_Poly(xi_in,NVar,N_in,X3D_In,X3D_Out,iElem)
+SUBROUTINE Eval_xyz_Poly(xi_in,NVar,N_in,X3D_In,X3D_Out)!,iElem)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! hoewver, particle is already mapped to reference space -1|1
@@ -530,14 +525,13 @@ SUBROUTINE Eval_xyz_Poly(xi_in,NVar,N_in,X3D_In,X3D_Out,iElem)
 ! MODULES
 USE MOD_Basis,                 ONLY: LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,    ONLY: wBary,xGP
-USE MOD_PICInterpolation_Vars, ONLY:NBG,BGField,useBGField,BGDataSize,BGField_xGP,BGField_wBary,BGType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)        :: NVar                                  ! 6 (Ex, Ey, Ez, Bx, By, Bz) 
 INTEGER,INTENT(IN)        :: N_In                                  ! usually PP_N
-INTEGER,INTENT(IN)        :: iElem                                 ! elem index
+!INTEGER,INTENT(IN)        :: iElem                                 ! elem index
 REAL,INTENT(IN)           :: X3D_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
 REAL,INTENT(IN)           :: xi_in(3)                              ! reference space position of particle 
 !-----------------------------------------------------------------------------------------------------------------------------------

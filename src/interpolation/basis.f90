@@ -141,7 +141,7 @@ END IF
 END FUNCTION INV
 
 #ifdef PARTICLES
-SUBROUTINE BuildBernSteinVdm(N_In,xi_In)
+SUBROUTINE BuildBernSteinVdm(N_In) !,xi_In)
 !===================================================================================================================================
 ! required for deposition
 ! build a 1D Vandermonde matrix using the Bezier basis functions of degree N_In
@@ -159,16 +159,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN) :: N_In
-REAL,INTENT(IN)    :: xi_In(0:N_In)
+!REAL,INTENT(IN)    :: xi_In(0:N_In)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !REAL,INTENT(OUT)   :: Vdm_Bezier(0:N_In,0:N_In),sVdm_Bezier(0:N_In,0:N_In)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER            :: i,j,errorflag
-REAL               :: dummy 
-REAL               :: dummy_vec(0:N_In)
-REAL               :: IPIV(0:N_In)
+INTEGER            :: i,j!,errorflag
 !REAL               :: Vector(3)
 !REAL               :: Matrix(0:N_In,0:N_In)
 !===================================================================================================================================
@@ -189,21 +186,6 @@ DO i=0,N_In
   END DO !i
 END DO !j
 
-!!Inverse of the Vandermonde
-!dummy_vec=0.
-!!sVdm_BernSteinN_GaussN=Vdm_BernSteinN_GaussN
-!CALL DGETRF(N_In+1,N_In+1,sVdm_BernSteinN_GaussN,N_In+1,IPIV,errorflag)
-!IF (errorflag .NE. 0) CALL Abort(__STAMP__, &
-!               'LU factorisation of matrix crashed',999,999.)
-!CALL DGETRI(N_In+1,sVdm_BernSteinN_GaussN,N_In+1,IPIV,dummy_vec,N_In+1,errorflag)
-!IF (errorflag .NE. 0) CALL Abort(__STAMP__, &
-!               'Solver crashed',999,999.)
-!!check (Vdm_Bezier)^(-1)*Vdm_Bezier := I 
-!dummy=SUM(ABS(MATMUL(sVdm_BernSteinN_GaussN,Vdm_BernSteinN_GaussN)))-REAL(N_In+1)
-!!print*,dummy,PP_RealTolerance
-!!read*
-!IF(ABS(dummy).GT.1.E-13) CALL abort(__STAMP__,&
-!'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)
 END SUBROUTINE BuildBernSteinVdm
 
 
@@ -230,12 +212,9 @@ REAL,INTENT(IN)    :: xi_In(0:N_In)
 REAL,INTENT(OUT)   :: Vdm_Bezier(0:N_In,0:N_In),sVdm_Bezier(0:N_In,0:N_In)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER            :: i,j,errorflag
+INTEGER            :: i,j, errorflag,IPIV(1:N_in+1)
 REAL               :: dummy 
 REAL               :: dummy_vec(0:N_In)
-REAL               :: IPIV(0:N_In)
-!REAL               :: Vector(3)
-!REAL               :: Matrix(0:N_In,0:N_In)
 !===================================================================================================================================
 ! set NPartCurved to N_In (NGeo)
 !IF(NPartCurved.NE.N_In)THEN
@@ -313,7 +292,7 @@ SUBROUTINE DeCasteljauInterpolation(N_In,xi_In,SideID,xPoint)
 !USE nr,                        ONLY : gaussj
 USE MOD_Globals,                ONLY: abort
 USE MOD_PreProc
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,mEpsilontol
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

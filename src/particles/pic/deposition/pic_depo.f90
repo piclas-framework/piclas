@@ -34,8 +34,8 @@ USE MOD_Globals
 USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_inv
 USE MOD_Particle_Vars ! crazy??
 USE MOD_Globals_Vars,           ONLY:PI
-USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP,XCL_NGeo
-USE MOD_Particle_Mesh_Vars,     ONLY:Geo
+USE MOD_Mesh_Vars,              ONLY:nElems, XCL_NGeo,Elem_xGP
+!USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Interpolation_Vars,     ONLY:xGP
 USE MOD_Basis,                  ONLY:BuildBernsteinVdm
 USE MOD_PreProc,                ONLY:PP_N
@@ -141,7 +141,8 @@ CASE('delta_distri')
     SWRITE(UNIT_stdOut,'(A)') ' Lagrange-Polynomial'
   CASE(2)
     SWRITE(UNIT_stdOut,'(A)') ' Bernstein-Polynomial'
-    CALL BuildBernSteinVdm(PP_N,xGP)
+    !CALL BuildBernSteinVdm(PP_N,xGP)
+    CALL BuildBernSteinVdm(PP_N)
   CASE(3)
     SWRITE(UNIT_stdOut,'(A)') ' Uniform B-Spline '
     NKnots=(PP_N+1)*2-1
@@ -413,7 +414,8 @@ LOGICAL                          :: doInnerParts
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                          :: firstPart,lastPart
 INTEGER                          :: i,j, k, l, m, iElem, iPart
-LOGICAL                          :: chargedone(1:nElems), SAVE_GAUSS             
+!LOGICAL                          :: chargedone(1:nElems), SAVE_GAUSS             
+LOGICAL                          :: SAVE_GAUSS
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
 INTEGER                          :: kk, ll, mm, ppp                                              
 INTEGER                          :: ElemID, iCase, ind
@@ -975,14 +977,13 @@ LOGICAL                          :: doInnerParts
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: firstPart,lastPart
-INTEGER                          :: i,j, k, l, m, Element, iElem                            
+INTEGER                          :: i,j, k, l, m,  iElem                            
 LOGICAL                          :: chargedone(1:PP_nElems), SAVE_GAUSS             
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
 INTEGER                          :: kk, ll, mm, ppp                                              
-INTEGER                          :: ElemID, iCase, ind
-REAL                             :: radius, S, S1, Fac(4)
+REAL                             :: radius, S, S1!, Fac(4)
 REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
-INTEGER                          :: a,b, ii, expo
+INTEGER                          :: a,b, ii!, expo
 REAL                             :: ElemSource(nElems,1:4)
 REAL, ALLOCATABLE                :: BGMSource(:,:,:,:)
 REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
@@ -2164,7 +2165,7 @@ REAL,INTENT(IN)         :: knots(0:Nknots) ! range of parameter
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: i,n, last,first
+INTEGER                 :: i,n, last!,first
 REAL                    :: tmpArray(0:NKnots-1,0:NKnots-1)
 REAL                    :: sDxiN!,DxiN1
 !===================================================================================================================================

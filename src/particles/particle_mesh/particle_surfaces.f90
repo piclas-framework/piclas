@@ -78,7 +78,7 @@ USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem,NGeo,nBCSi
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 USE MOD_Particle_Vars,              ONLY:PDM
 USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList,nTotalBCSides
-USE MOD_Particle_SFC_Vars,          ONLY:whichBoundBox
+!USE MOD_Particle_SFC_Vars,          ONLY:whichBoundBox
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -118,7 +118,7 @@ ClipMaxInter    = GETINT('ClipMaxInter',dummy)
 
 IF(DoRefMapping)THEN
   ALLOCATE(PartBCSideList(1:nSides))
-  PartBCSideList(:) = -1.0
+  PartBCSideList(:) = -1
   DO iSide=1,nBCSides
     PartBCSideList(iSide)=iSide
   END DO 
@@ -139,15 +139,15 @@ IF(DoRefMapping .AND. MappingGuess.EQ.2) THEN
        ' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',MappingGuess)
 END IF
 !! ElemBaryNGeo are required for particle mapping| SingleParticleToExactElem
-IF(.NOT.DoRefMapping)THEN
-!   ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:PP_nElems) &
-!           ,slenXiEtaZetaBasis(1:6,1:PP_nElems) &
-!           ,ElemRadiusNGeo(1:PP_nElems)         &
-!           ,ElemBaryNGeo(1:3,1:PP_nElems)       )
-!   CALL BuildElementBasis()
-ELSE
-  whichBoundBox = GETINT('PartSFC-BoundBox','1')
-END IF
+!IF(.NOT.DoRefMapping)THEN
+!!   ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:PP_nElems) &
+!!           ,slenXiEtaZetaBasis(1:6,1:PP_nElems) &
+!!           ,ElemRadiusNGeo(1:PP_nElems)         &
+!!           ,ElemBaryNGeo(1:3,1:PP_nElems)       )
+!!   CALL BuildElementBasis()
+!ELSE
+!  !whichBoundBox = GETINT('PartSFC-BoundBox','1')
+!END IF
 
 ALLOCATE( locAlpha(1:ClipMaxInter) &
         , locXi   (1:ClipMaxInter) &
@@ -1392,7 +1392,7 @@ SUBROUTINE GetSideType()
 USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Mesh_Vars,                ONLY:nSides,NGeo,Xi_NGeo,Sideid_minus_upper
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,epsilontol,SideType,SideNormVec,SideDistance
-USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear
+!USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalSides
 USE MOD_Particle_MPI_Vars,        ONLY:PartMPI
 #ifdef MPI
@@ -1408,7 +1408,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy
 REAL,DIMENSION(1:3)         :: v1,v2,v0
-REAL                        :: length,eps,displacement
+REAL                        :: length,eps
 LOGICAL                     :: isLinear
 #ifdef MPI  
 INTEGER                     :: nPlanarTot,nBilinearTot,nCurvedTot
@@ -1582,7 +1582,7 @@ SUBROUTINE BuildElementBasis()
 !================================================================================================================================
 USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,ElemToSide,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D
 USE MOD_Basis,                    ONLY:DeCasteljauInterpolation
 USE MOD_Particle_Surfaces_Vars,   ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,DoRefMapping

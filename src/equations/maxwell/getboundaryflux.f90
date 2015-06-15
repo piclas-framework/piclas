@@ -38,7 +38,7 @@ USE MOD_Globals,        ONLY:Abort,CROSS
 USE MOD_PreProc
 USE MOD_Riemann,        ONLY:Riemann
 USE MOD_Equation,       ONLY:ExactFunc
-USE MOD_Equation_vars,  ONLY:c,c_inv,c2,c_corr,c_corr_c,c_corr_c2
+USE MOD_Equation_vars,  ONLY:c,c_inv
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

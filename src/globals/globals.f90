@@ -257,7 +257,6 @@ FUNCTION TIMESTAMP(Filename,Time)
 ! Creates a timestamp, consistent of a filename (project name + processor) and current time niveau
 !===================================================================================================================================
 ! MODULES
-USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

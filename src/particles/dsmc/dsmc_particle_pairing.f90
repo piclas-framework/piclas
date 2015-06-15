@@ -68,7 +68,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 
   !Set approx element mid point Sollte man in die ini packen!!!!!
   IF(nPart.GT.DSMC%PartNumOctreeNode) THEN
-    CALL Eval_xyz_Poly((/0.,0.,0./),3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),TreeNode%MidPoint(1:3),iElem)
+    CALL Eval_xyz_Poly((/0.,0.,0./),3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),TreeNode%MidPoint(1:3))!,iElem)
     !DO iNode = 1, 8
     !  TreeNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) + GEO%NodeCoords(1:3, GEO%ElemToNodeID(iNode,iElem))          
     !END DO

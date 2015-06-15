@@ -698,7 +698,7 @@ SUBROUTINE SetMPFParticlePosCube(iElem, FinPartNum)
     END DO
     RandVac = RandVac * 2.0 - 1.0
     IF(vMPF_velocityDistribution.EQ.'DENSEST')  vMPF_NewPosRefElem(iLoop, 1:3) = RandVac 
-    CALL Eval_xyz_Poly(RandVac,3,NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(PartStatevMPFSpec(iLoop),1:3),iElem)
+    CALL Eval_xyz_Poly(RandVac,3,NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(PartStatevMPFSpec(iLoop),1:3))!,iElem)
     !PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
   END DO
 
@@ -775,7 +775,7 @@ DO iLoop = 1, FinPartNum
   END DO
   IF(PosFailed) EXIT
   IF(vMPF_velocityDistribution.EQ.'DENSEST')  vMPF_NewPosRefElem(iLoop, 1:3) = RandVac
-  CALL Eval_xyz_Poly(RandVac,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(PartStatevMPFSpec(iLoop),1:3),iElem)
+  CALL Eval_xyz_Poly(RandVac,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(PartStatevMPFSpec(iLoop),1:3))!,iElem)
   !PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
 END DO
 
@@ -987,7 +987,7 @@ FUNCTION GaussCore(bandwidth,oldpos,newpos)
 !
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars, ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP
+USE MOD_Mesh_Vars, ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde!,Elem_xGP
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1015,7 +1015,7 @@ FUNCTION GaussCore4D(bandwidth,oldpos,oldvelo,newpos,newvelo)
 !
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars, ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP
+USE MOD_Mesh_Vars, ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde!,Elem_xGP
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

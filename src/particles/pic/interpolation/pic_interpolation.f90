@@ -38,7 +38,6 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars,          ONLY : PDM
 USE MOD_PICInterpolation_Vars
-USE MOD_Mesh_Vars,              ONLY : nElems
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -48,8 +47,8 @@ USE MOD_Mesh_Vars,              ONLY : nElems
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                   :: ALLOCSTAT
-REAL                      :: P(3,8), T(3,3), T_inv(3,3)
-INTEGER                   :: iNode, iElem
+!REAL                      :: P(3,8), T(3,3), T_inv(3,3)
+!INTEGER                   :: iNode, Elem
 !===================================================================================================================================
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
 externalField(1:6)= GETREALARRAY('PIC-externalField',6,'0.,0.,0.,0.,0.,0.')
@@ -106,7 +105,7 @@ USE MOD_Equation_Vars,           ONLY:E
 #endif
 #ifdef MPI
 ! only required for shape function??
-USE MOD_Particle_MPI_Vars,    ONLY:PartMPI,PartMPIExchange
+USE MOD_Particle_MPI_Vars,    ONLY:PartMPIExchange
 #endif 
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -122,7 +121,7 @@ LOGICAL                          :: doInnerParts
 INTEGER                          :: firstPart,lastPart
 REAL                             :: Pos(3)                                                      
 REAL                             :: field(6)                                                    
-INTEGER                          :: m,iPart,iElem
+INTEGER                          :: iPart,iElem
 #ifdef PP_POIS
 REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 #endif
