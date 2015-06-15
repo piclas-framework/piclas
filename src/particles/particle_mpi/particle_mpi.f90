@@ -825,7 +825,7 @@ USE MOD_Particle_Surfaces,          ONLY:GetSlabNormalsAndIntervalls
 USE MOD_Mesh_Vars,                  ONLY:NGeo,nSides,SideID_minus_Upper,NGeo
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloToProc
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry,ExchangeMappedHaloGeometry
-USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems
+USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -915,6 +915,9 @@ IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__,&
                        'Could not deallocate SideIndex')
 END IF
+
+IF(DoRefMapping) CALL CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
+
 
 ! Make sure PMPIVAR%MPINeighbor is consistent
 DO iProc=0,PartMPI%nProcs-1
@@ -1367,6 +1370,121 @@ IF(    ((xmin.LE.GEO%FIBGMimax).AND.(xmax.GE.GEO%FIBGMimin)) &
   .AND.((zmin.LE.GEO%FIBGMkmax).AND.(zmax.GE.GEO%FIBGMkmin)) ) PointInProc=.TRUE.
 
 END FUNCTION PointInProc
+
+
+SUBROUTINE CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
+!===================================================================================================================================
+! resize the partilce mesh data
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_MPI_Vars,      ONLY:PartHaloToProc
+USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO
+USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartNeighborElemID,PartNeighborLocSideID
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,DoRefMapping
+USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                 :: nTotalSides,nTotalElems
+INTEGER,INTENT(IN),OPTIONAL        :: nTotalBCSides
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                            :: ALLOCSTAT,nLower
+INTEGER                            :: iElem,iVar,iVar2,i,j,k
+INTEGER                            :: ilocSide,iSide
+!===================================================================================================================================
+
+DO iElem=1,nTotalElems
+  ! PartElemToSide
+  DO ilocSide=1,6
+    DO iVar=1,2
+      IF(PartElemToSide(iVar,ilocSide,iElem).NE.PartElemToSide(iVar,ilocSide,iElem)) CALL abort(&
+          __STAMP__, ' Error in PartElemToSide')
+    END DO ! iVar=1,2
+  END DO ! ilocSide=1,6
+  IF(DoRefMapping)THEN
+    ! XCL_NGeo & dXCL_NGeo
+    DO k=0,NGeo
+      DO j=0,NGeo
+        DO i=0,NGeo
+          DO iVar=1,3
+            IF(XCL_NGeo(iVar,i,j,k,iElem).NE.XCL_NGeo(iVar,i,j,k,iElem)) CALL abort(&
+                __STAMP__, ' Error in XCL_NGeo')
+            DO iVar2=1,3
+              IF(dXCL_NGeo(iVar2,iVar,i,j,k,iElem).NE.dXCL_NGeo(iVar2,iVar,i,j,k,iElem)) CALL abort(&
+                  __STAMP__, ' Error in dXCL_NGeo')
+            END DO ! iVar2=1,3
+          END DO ! iVar=1,3
+        END DO ! i=0,NGeo
+      END DO ! j=0,NGeo
+    END DO ! k=0,NGeo
+  END IF ! DoRefMapping
+  ! PartNeighborElemID & PartNeighborlocSideID
+  DO ilocSide=1,6
+    IF(PartNeighborElemID(ilocSide,iElem).NE.PartNeighborElemID(ilocSide,iElem)) CALL abort(&
+       __STAMP__, ' Error in PartNeighborElemID')
+    IF(PartNeighborlocSideID(ilocSide,iElem).NE.PartNeighborlocSideID(ilocSide,iElem)) CALL abort(&
+       __STAMP__, ' Error in PartNeighborElemID')
+  END DO ! ilocSide=1,6
+END DO ! iElem=1,nTotalElems
+IF(DoRefMapping)THEN
+  ! PartBCSideList
+  DO iSide = 1,nTotalSides
+    IF(PartBCSideList(iSide).NE.PartBCSideList(iSide)) CALL abort(&
+        __STAMP__, ' Error in dXCL_NGeo')
+  END DO ! iSide=1,nTotalSides
+  ! BezierControlPoints3D
+  DO iSide=1,nTotalBCSides
+    DO k=0,NGeo
+      DO j=0,NGeo
+        DO iVar=1,3
+          IF(BezierControlPoints3D(iVar,j,k,iSide) &
+         .NE.BezierControlPoints3D(iVar,j,k,iSide)) CALL abort(&
+              __STAMP__, ' Error in dXCL_NGeo')
+        END DO ! iVar=1,3
+      END DO ! j=0,nGeo
+    END DO ! k=0,nGeo
+    ! Slabnormals & SlabIntervals
+    DO iVar=1,3
+      DO iVar2=1,3
+        IF(SlabNormals(iVar2,iVar,iSide).NE.SlabNormals(iVar2,iVar,iSide)) CALL abort(&
+            __STAMP__, ' Error in PartHaloToProc')
+      END DO ! iVar2=1,PP_nVar
+    END DO ! iVar=1,PP_nVar
+    DO ilocSide=1,6
+      IF(SlabIntervalls(ilocSide,iSide).NE.SlabIntervalls(ilocSide,iSide)) CALL abort(&
+         __STAMP__, ' Error in SlabInvervalls')
+    END DO ! ilocSide=1,6
+    IF(BoundingBoxIsEmpty(iSide).NEQV.BoundingBoxIsEmpty(iSide)) CALL abort(&
+       __STAMP__, ' Error in BoundingBoxIsEmpty')
+  END DO ! iSide=1,nTotalBCSides
+END IF ! DoRefMapping
+! PartHaloToProc
+DO iElem=PP_nElems+1,nTotalElems
+  DO iVar=1,3
+    IF(PartHaloToProc(iVar,iElem).NE.PartHaloToProc(iVar,iElem)) CALL abort(&
+        __STAMP__, ' Error in PartHaloToProc')
+  END DO ! iVar=1,3
+END DO ! iElem=PP_nElems+1,nTotalElems
+DO iSide = 1,nTotalSides
+  DO iVar=1,5
+    IF(PartSideToElem(iVar,iSide).NE.PartSideToElem(iVar,iSide)) CALL abort(&
+        __STAMP__, ' Error in PartSideToElem')
+  END DO ! iVar=1,5
+  IF(SidePeriodicType(iSide).NE.SidePeriodicType(iSide)) CALL abort(&
+      __STAMP__, ' Error in BCSideType')
+  IF(BC(iSide).NE.BC(iSide)) CALL abort(&
+      __STAMP__, ' Error in BC')
+END DO ! iSide=1,nTotalSides
+
+
+END SUBROUTINE CheckArrays
 #endif /*MPI*/
 
 END MODULE MOD_Particle_MPI
