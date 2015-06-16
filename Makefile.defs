@@ -301,8 +301,11 @@ ifeq ($(findstring GNU,$(ENVIRONMENT)),GNU)
   FLFLAGS  = -fdefault-real-8 -fbackslash  #-Wall # don't change
 
   ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
-    FCFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
-    FLFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
+    FCFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace -fsanitize=address,undefined -fno-omit-frame-pointer
+    FLFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace -fsanitize=address,undefined -fno-omit-frame-pointer
+		# -Wc-binding-type - check for interoperability with iso c 
+		#-fsanitize=address,thread,undefined
+
   else
 	  # -03(=general optlevel) -march=native(adapt to current system) -flto(=interprocedural optimizations) 
     FCFLAGS  += -O3 $(INSTRUCTION) 

@@ -229,6 +229,9 @@ DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
 ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) ) 
 BezierControlPoints3D=0.
 ALLOCATE(SlabNormals(1:3,1:3,1:nSides),SlabIntervalls(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
+SlabNormals=0.
+SlabIntervalls=0.
+BoundingBoxIsEmpty=.TRUE.
 #endif /*PARTICLES*/
 
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')

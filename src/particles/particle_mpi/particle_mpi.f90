@@ -800,13 +800,22 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-ParticleMPIInitIsDone=.FALSE.
+SDEALLOCATE( PartHaloToProc)
 SDEALLOCATE( PartMPI%isMPINeighbor)
 SDEALLOCATE( PartMPI%MPINeighbor )
 SDEALLOCATE( PartMPIExchange%nPartsSend)
 SDEALLOCATE( PartMPIExchange%nPartsRecv)
 SDEALLOCATE( PartMPIExchange%RecvRequest)
 SDEALLOCATE( PartMPIExchange%SendRequest)
+SDEALLOCATE( PartMPIExchange%Send_message)
+SDEALLOCATE( PartMPI%isMPINeighbor)
+SDEALLOCATE( PartMPI%MPINeighbor)
+SDEALLOCATE( PartMPI%InitGroup)
+SDEALLOCATE( PartSendBuf)
+SDEALLOCATE( PartRecvBuf)
+SDEALLOCATE( ExtPartState)
+SDEALLOCATE( ExtPartSpecies)
+ParticleMPIInitIsDone=.FALSE.
 END SUBROUTINE FinalizeParticleMPI
 
 

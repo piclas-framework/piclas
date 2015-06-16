@@ -28,8 +28,8 @@ USE MOD_MPI,              ONLY:InitMPIvars
 USE MOD_ParticleInit,     ONLY:InitParticles
 USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces!, GetSideType
 USE MOD_InitializeBackgroundField, ONLY: FinalizeBackGroundField
-USE MOD_Particle_Mesh,    ONLY:InitParticleMesh
-USE MOD_Particle_MPI,     ONLY:InitParticleMPI
+USE MOD_Particle_Mesh,    ONLY:InitParticleMesh,FinalizeParticleMesh
+USE MOD_Particle_MPI,     ONLY:InitParticleMPI,FinalizeParticleMPI
 USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,MeassureTrackTime
 #endif
 
@@ -41,7 +41,6 @@ REAL    :: Time
 !===================================================================================================================================
 CALL InitMPI()
 CALL InitIO()
-CALL InitGlobals()
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')&
  "           ____            ___    __                    ___              __              "
@@ -64,6 +63,8 @@ SWRITE(UNIT_stdOut,'(A)')&
 SWRITE(UNIT_stdOut,'(A)')&
  ' '
 SWRITE(UNIT_stdOut,'(132("="))')
+! call init routines
+CALL InitGlobals()
 ! Measure init duration
 StartTime=BOLTZPLATZTIME()
 
@@ -124,6 +125,10 @@ CALL FinalizeMesh()
 CALL FinalizeFilter()
 #ifdef PARTICLES
 CALL FinalizeParticleSurfaces()
+CALL FinalizeParticleMesh()
+#ifdef MPI
+CALL FinalizeParticleMPI()
+#endif /*MPI*/
 CALL FinalizeBackGroundField()
 #endif
 ! Measure simulation duration

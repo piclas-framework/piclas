@@ -219,6 +219,16 @@ SDEALLOCATE(locXi)
 SDEALLOCATE(locEta)
 SDEALLOCATE(XiArray)
 SDEALLOCATE(EtaArray)
+SDEALLOCATE(Vdm_Bezier)
+SDEALLOCATE(sVdm_Bezier)
+SDEALLOCATE(arrayNChooseK)
+SDEALLOCATE(FacNchooseK)
+SDEALLOCATE(SideType)
+!SDEALLOCATE(gElemBCSide)
+SDEALLOCATE(XiEtaZetaBasis)
+SDEALLOCATE(slenXiEtaZetaBasis)
+SDEALLOCATE(ElemBaryNGeo)
+SDEALLOCATE(ElemRadiusNGeo)
 ParticleSurfaceInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeParticleSurfaces
