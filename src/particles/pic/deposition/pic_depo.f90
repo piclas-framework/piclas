@@ -35,7 +35,7 @@ USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_
 USE MOD_Particle_Vars ! crazy??
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Mesh_Vars,              ONLY:nElems, XCL_NGeo,Elem_xGP
-!USE MOD_Particle_Mesh_Vars,     ONLY:Geo
+USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Interpolation_Vars,     ONLY:xGP
 USE MOD_Basis,                  ONLY:BuildBernsteinVdm
 USE MOD_PreProc,                ONLY:PP_N
@@ -220,31 +220,31 @@ CASE('cartmesh_volumeweighting')
 #ifdef MPI
   CALL MPIBackgroundMeshInit()
 #else
-  IF(GEO%nPeriodicVectors.GT.0)THEN
-    ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
-    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
-    IF (allocStat .NE. 0) THEN
-      CALL abort(__STAMP__, &
-      'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
-    END IF
-    DO i = 1, GEO%nPeriodicVectors
-      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
-      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
-      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
-      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-    END DO
-  END IF
+!  IF(GEO%nPeriodicVectors.GT.0)THEN
+!    ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
+!    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
+!    IF (allocStat .NE. 0) THEN
+!      CALL abort(__STAMP__, &
+!      'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
+!    END IF
+!    DO i = 1, GEO%nPeriodicVectors
+!      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
+!      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
+!        CALL abort(__STAMP__, &
+!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+!      END IF
+!      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
+!      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
+!        CALL abort(__STAMP__, &
+!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+!      END IF
+!      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
+!      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
+!        CALL abort(__STAMP__, &
+!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+!      END IF
+!    END DO
+!  END IF
 #endif
 CASE('cartmesh_splines')
   CALL abort(__STAMP__,&
@@ -337,31 +337,31 @@ CASE('cartmesh_splines')
 #ifdef MPI
   CALL MPIBackgroundMeshInit()
 #else
-  IF(GEO%nPeriodicVectors.GT.0)THEN
-    ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
-    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
-    IF (allocStat .NE. 0) THEN
-      CALL abort(__STAMP__, &
-      'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
-    END IF
-    DO i = 1, GEO%nPeriodicVectors
-      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
-      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__,  &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
-      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
-      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-      END IF
-    END DO
-  END IF
+!  IF(GEO%nPeriodicVectors.GT.0)THEN
+!    ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
+!    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
+!    IF (allocStat .NE. 0) THEN
+!      CALL abort(__STAMP__, &
+!      'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
+!    END IF
+!    DO i = 1, GEO%nPeriodicVectors
+!      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
+!      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
+!        CALL abort(__STAMP__,  &
+!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+!      END IF
+!      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
+!      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
+!        CALL abort(__STAMP__, &
+!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+!      END IF
+!      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
+!      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
+!        CALL abort(__STAMP__, &
+!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+!      END IF
+!    END DO
+!  END IF
 #endif
 CASE DEFAULT
   CALL abort(__STAMP__, &
@@ -989,9 +989,7 @@ REAL, ALLOCATABLE                :: BGMSource(:,:,:,:)
 REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
 REAL                             :: alpha1, alpha2, alpha3
 INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
-#ifdef MPI
-INTEGER                           ::iPart
-#endif
+INTEGER                          ::iPart
 REAL,DIMENSION(3,0:PP_N)         :: L_xi
 REAL                             :: DeltaIntCoeff,prefac
 !--------------------------------------------------------------------------------------------------!
@@ -1529,25 +1527,25 @@ SUBROUTINE PeriodicSourceExchange(BGMSource)
     INTEGER                     :: i,k,l,m,k2,l2,m2
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-DO i = 1,GEO%nPeriodicVectors
-  DO k = BGMminX, BGMmaxX
-    k2 = k + GEO%PeriodicBGMVectors(1,i)
-    DO l = BGMminY, BGMmaxY
-      l2 = l + GEO%PeriodicBGMVectors(2,i)
-      DO m = BGMminZ, BGMmaxZ
-        m2 = m + GEO%PeriodicBGMVectors(3,i)
-        IF ((k2.GE.BGMminX).AND.(k2.LE.BGMmaxX)) THEN
-          IF ((l2.GE.BGMminY).AND.(l2.LE.BGMmaxY)) THEN
-            IF ((m2.GE.BGMminZ).AND.(m2.LE.BGMmaxZ)) THEN
-              BGMSource(k,l,m,:) = BGMSource(k,l,m,:) + BGMSource(k2,l2,m2,:)
-              BGMSource(k2,l2,m2,:) = BGMSource(k,l,m,:)
-            END IF
-          END IF
-        END IF
-      END DO
-    END DO
-  END DO
-END DO
+!DO i = 1,GEO%nPeriodicVectors
+!  DO k = BGMminX, BGMmaxX
+!    k2 = k + GEO%PeriodicBGMVectors(1,i)
+!    DO l = BGMminY, BGMmaxY
+!      l2 = l + GEO%PeriodicBGMVectors(2,i)
+!      DO m = BGMminZ, BGMmaxZ
+!        m2 = m + GEO%PeriodicBGMVectors(3,i)
+!        IF ((k2.GE.BGMminX).AND.(k2.LE.BGMmaxX)) THEN
+!          IF ((l2.GE.BGMminY).AND.(l2.LE.BGMmaxY)) THEN
+!            IF ((m2.GE.BGMminZ).AND.(m2.LE.BGMmaxZ)) THEN
+!              BGMSource(k,l,m,:) = BGMSource(k,l,m,:) + BGMSource(k2,l2,m2,:)
+!              BGMSource(k2,l2,m2,:) = BGMSource(k,l,m,:)
+!            END IF
+!          END IF
+!        END IF
+!      END DO
+!    END DO
+!  END DO
+!END DO
 RETURN
 END SUBROUTINE PeriodicSourceExchange
 #else /*MPI*/

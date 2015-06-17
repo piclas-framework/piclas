@@ -526,15 +526,16 @@ USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
 USE MOD_Particle_Surfaces_Vars,             ONLY:DoRefMapping
+USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
+USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
+USE MOD_Equation_Vars,                      ONLY:c
+USE MOD_Particle_Vars,                      ONLY:manualtimestep
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Equation_Vars,                      ONLY:c
 USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartElemToSide,PartSideToElem
 USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI,SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Particle_MPI_Vars,                  ONLY:NbrOfCases,casematrix
-USE MOD_Particle_Vars,                      ONLY:manualtimestep
-USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
 #endif /*MPI*/
 
 ! IMPLICIT VARIABLE HANDLING
@@ -555,8 +556,8 @@ INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin
 INTEGER                          :: ALLOCSTAT
 INTEGER                          :: iSpec,iProc
-#ifdef MPI
 REAL                             :: deltaT
+#ifdef MPI
 INTEGER                          :: ii,jj,kk,i,j,k
 INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
 INTEGER                          :: imin, imax, kmin, kmax, jmin, jmax
@@ -650,6 +651,7 @@ GEO%zmax=zmax
   !CALL InitPIC()                 ! does not depend on domain
 
 ! deallocate stuff // required for dynamic load balance
+#ifdef MPI
 IF (ALLOCATED(GEO%FIBGM)) THEN
   DO iBGM=GEO%FIBGMimin,GEO%FIBGMimax
     DO jBGM=GEO%FIBGMjmin,GEO%FIBGMjmax
@@ -663,6 +665,7 @@ IF (ALLOCATED(GEO%FIBGM)) THEN
   END DO
   DEALLOCATE(GEO%FIBGM)
 END IF
+#endif /*MPI*/
 
 !--- compute number of background cells in each direction
 BGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)

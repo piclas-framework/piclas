@@ -84,7 +84,11 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
 MeshFile = GETSTR('MeshFile')
 
 useCurveds=GETLOGICAL('useCurveds','.TRUE.')
+#ifdef MPI
 CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.)
+#else
+CALL OpenDataFile(MeshFile,create=.FALSE.)
+#endif
 CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
 SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
 
@@ -121,13 +125,13 @@ CALL exchangeFlip()
 ALLOCATE(ElemToSide(2,6,nElems))
 ALLOCATE(SideToElem(5,nSides))
 ALLOCATE(SideToElem2(4,2*nInnerSides+nBCSides+nMPISides))
-!ALLOCATE(BC(1:nBCSides))
-! modification simplifies the pic sides treatment in parallel
 ALLOCATE(BC(1:nSides))
+!ALLOCATE(AnalyzeSide(1:nSides))
 ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
 SideToElem2 = -1   !mapping side to elem, sorted by elem ID (for ProlongToFace) 
-BC         = 0
+BC          = 0
+!AnalyzeSide = 0
 
 !lower and upper index of U/gradUx/y/z _plus
 !lower and upper index of U/gradUx/y/z _plus

@@ -52,14 +52,14 @@ END TYPE
 
 TYPE (tPartMPIVAR)                       :: PartMPI
 
-#ifdef MPI
-INTEGER                                  :: PartCommSize                      ! Number of REAL entries for particle communication
-                                                                              ! should think about own MPI-Data-Type
 REAL                                     :: SafetyFactor                      ! Factor to scale the halo region with MPI
 REAL                                     :: halo_eps_velo                     ! halo_eps_velo
 REAL                                     :: halo_eps                          ! length of halo-region
 REAL                                     :: halo_eps2                         ! length of halo-region^2
 
+#ifdef MPI
+INTEGER                                  :: PartCommSize                      ! Number of REAL entries for particle communication
+                                                                              ! should think about own MPI-Data-Type
 TYPE tPartMPIConnect
 !  TYPE(tSidePtr)               , POINTER :: tagToSide(:)           =>NULL()   ! gives side pointer for each MPI tag
   !TYPE(tPeriodicPtr)       , ALLOCATABLE :: Periodic(:)                       ! data for different periodic borders for process

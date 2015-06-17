@@ -179,6 +179,8 @@ ALLOCATE( PartMPIExchange%nPartsSend(PartMPI%nMPINeighbors)    &
         , PartSendBuf(1:PartMPI%nMPINeighbors)                 &
         , PartMPIExchange%SendRequest(2,PartMPI%nMPINeighbors) &
         , PartMPIExchange%RecvRequest(2,PartMPI%nMPINeighbors) )
+PartMPIExchange%nPartsSend=0
+PartMPIExchange%nPartsRecv=0
 END SUBROUTINE InitParticleCommSize
 
 
