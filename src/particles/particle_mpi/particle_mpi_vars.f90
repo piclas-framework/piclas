@@ -22,6 +22,7 @@ INTEGER             :: myRealKind
 LOGICAL                                  :: ParticleMPIInitIsDone=.FALSE.
 INTEGER, ALLOCATABLE                     :: casematrix(:,:)                   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfCases                        ! Number of periodic cases
+INTEGER                                  :: iMessage                          ! Number of MPI-Messages for Debug purpose
 
 TYPE tPartMPIGROUP
 !  TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)             ! MPI connect for each process

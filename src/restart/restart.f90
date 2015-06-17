@@ -167,14 +167,14 @@ USE MOD_PML_Vars,        ONLY:DoPML,PMLToElem,U2,nPMLElems
 USE MOD_Equation_Vars,   ONLY:Phi
 #endif
 #ifdef PARTICLES
-USE MOD_Particle_Vars,   ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF
+USE MOD_Particle_Vars,   ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF,PartPosRef
 USE MOD_part_tools,      ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars,       ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC
 !USE MOD_BoundaryTools,   ONLY : SingleParticleToExactElement, ParticleInsideQuad3D
 !USE MOD_BoundaryTools,   ONLY: ParticleInsideQuad3D
 USE MOD_Eval_XYZ,        ONLY: EVal_xyz_ElemCheck
 USE MOD_Particle_Mesh,   ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Particle_Surfaces_vars,ONLY:DoRefMapping
+USE MOD_Particle_Surfaces_vars,ONLY:DoRefMapping,epsOneCell
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,ONLY:PartMPI
 #endif
@@ -203,8 +203,6 @@ REAL                     :: xi(3)
 LOGICAL                  :: InElementCheck
 REAL                     :: det(16)
 INTEGER                  :: COUNTER, COUNTER2
-REAL,PARAMETER           :: eps=1e-8 ! same value as in eval_xyz_elem
-REAL                     :: epsOne
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
 INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
@@ -298,7 +296,6 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   END IF
 
 #ifdef PARTICLES
-  epsOne=1.0+eps
   IF (useDSMC) THEN
     IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN !int ener + 3, vmpf +1
       PartDataSize=11
@@ -392,28 +389,48 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   ! Step 1: Identify particles that are not in the element in which they were before the restart
   COUNTER = 0
   COUNTER2 = 0
-  DO i = 1,PDM%ParticleVecLength
-    CALL Eval_xyz_ElemCheck(PartState(i,1:3),Xi,PEM%Element(i))
-    IF(ALL(ABS(Xi).LE.EpsOne)) THEN ! particle inside
-      InElementCheck=.TRUE.
-    ELSE
-      InElementCheck=.FALSE.
-    END IF
-    IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
-      COUNTER = COUNTER + 1
-      !CALL SingleParticleToExactElement(i)
-      IF(DoRefMapping)THEN
+  IF(DoRefMapping) THEN
+    DO i = 1,PDM%ParticleVecLength
+      CALL Eval_xyz_ElemCheck(PartState(i,1:3),Xi,PEM%Element(i))
+      IF(ALL(ABS(Xi).LE.EpsOneCell)) THEN ! particle inside
+        InElementCheck=.TRUE.
+        PartPosRef(1:3,i)=Xi
+      ELSE
+        InElementCheck=.FALSE.
+      END IF
+      IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
+        COUNTER = COUNTER + 1
+        !CALL SingleParticleToExactElement(i)
         CALL SingleParticleToExactElement(i,doHALO=.FALSE.)
+        IF (.NOT.PDM%ParticleInside(i)) THEN
+          COUNTER2 = COUNTER2 + 1
+          PartPosRef(1:3,i) = -888.
+        ELSE
+          PEM%LastElement(i) = PEM%Element(i)
+        END IF
+      END IF
+    END DO
+  ELSE ! no Ref Mapping
+    DO i = 1,PDM%ParticleVecLength
+      CALL Eval_xyz_ElemCheck(PartState(i,1:3),Xi,PEM%Element(i))
+      IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
+        InElementCheck=.TRUE.
+        PartPosRef(1:3,i)=Xi
       ELSE
+        InElementCheck=.FALSE.
+      END IF
+      IF (.NOT.InElementCheck) THEN  ! try to find them within MyProc
+        COUNTER = COUNTER + 1
+        !CALL SingleParticleToExactElement(i)
         CALL SingleParticleToExactElementNoMap(i,doHALO=.FALSE.)
+        IF (.NOT.PDM%ParticleInside(i)) THEN
+          COUNTER2 = COUNTER2 + 1
+        ELSE
+          PEM%LastElement(i) = PEM%Element(i)
+        END IF
       END IF
-      IF (.NOT.PDM%ParticleInside(i)) THEN
-        COUNTER2 = COUNTER2 + 1
-      ELSE
-        PEM%LastElement(i) = PEM%Element(i)
-      END IF
-    END IF
-  END DO
+    END DO
+  END IF
 #ifdef MPI
   ! Step 2: All particles that are not found withing MyProc need to be communicated to the others and located there
   ! Combine number of lost particles of all processes and allocate variables

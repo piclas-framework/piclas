@@ -103,6 +103,7 @@ IF(PartMPI%MyRank.EQ.0) THEN
 ELSE
   PartMPI%MPIRoot=.FALSE.
 END IF
+iMessage=0
 #else
 PartMPI%myRank = 0 
 PartMPI%nProcs = 1 
@@ -353,17 +354,21 @@ DO iProc=1, PartMPI%nMPINeighbors
       !iPos=iPos+1
       ! fill content
       PartSendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
+      PartState(iPart,1:6)=0.
       IF(DoRefMapping) THEN ! + deposition type....
         PartSendBuf(iProc)%content(7+iPos:9+iPos) = PartPosRef(1:3,iPart)
+        PartPosRef(1:3,iPart)=-888.
         jPos=iPos+3
       ELSE
         jPos=iPos
       END IF
       !IPWRITE(UNIT_stdOut,*) ' send state',PartState(iPart,1:6)
       PartSendBuf(iProc)%content(       7+jPos) = REAL(PartSpecies(iPart),KIND=8)
+      PartSpecies(iPart)=0
       !IF(PartSpecies(ipart).EQ.0) IPWRITE(*,*) 'part species zero',ipart
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
       PartSendBuf(iProc)%content(8+jPos:13+jPos) = Pt_temp(iPart,1:6)
+      Pt_temp(iPart,1:6)=0.
       !IPWRITE(UNIT_stdOut,*) ' send pt',SendBuf(iProc)%content(8+iPos:13+iPos)
       PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       !IF(PartHaloToProc(NATIVE_ELEM_ID,ElemID).EQ.0)THEN
@@ -586,7 +591,7 @@ SUBROUTINE MPIParticleRecv()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Surfaces_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize, PartRecvBuf,PartSendBuf
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
 ! IMPLICIT VARIABLE HANDLING
@@ -602,6 +607,8 @@ INTEGER                       :: iProc, iPos, nRecv, PartID,jPos
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
 INTEGER                       :: MessageSize
 INTEGER                       :: nRecvParticles
+!INTEGER,ALLOCATABLE           :: RecvArray(:,:), RecvArray_glob(:,:,:)
+!CHARACTER(LEN=64)             :: filename,hilf
 !===================================================================================================================================
 
 !IPWRITE(UNIT_stdOut,*) 'exchange',PartMPIExchange%nMPIParticles
@@ -778,6 +785,66 @@ END DO ! iProc
 
 PDM%ParticleVecLength       = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
+
+! validate solution and check
+! debug
+! ProcID=PartMPI%MyRank
+! iMessage=iMessage+1
+! ALLOCATE(RecvArray(1:2,0:PartMPI%nProcs-1))
+! IF(PartMPI%MPIROOT)THEN
+!   ALLOCATE(RecvArray_glob(1:2,0:PartMPI%nProcs-1,0:PartMPI%nProcs-1))
+! ELSE
+!   ALLOCATE(RecvArray_glob(1:1,1:1,1:1))
+! END IF
+! RecvArray=0
+! DO iProc=1,PartMPI%nMPINeighbors
+!   RecvArray(1,PartMPI%MPINeighbor(iProc)) = PartMPIExchange%nPartsSend(iProc)
+!   RecvArray(2,PartMPI%MPINeighbor(iProc)) = PartMPIExchange%nPartsRecv(iProc)
+! END DO ! iProc
+! 
+! ! mpi gather
+! CALL MPI_GATHER(RecvArray,2*PartMPI%nProcs,MPI_INTEGER,RecvArray_glob,PartMPI%nProcs*2,MPI_INTEGER,0,PartMPI%COMM,iError)
+! IF(PartMPI%MPIROOT) THEN
+!   WRITE( hilf, '(I5.5)') iMessage
+!   filename = 'particle_send_'//TRIM(hilf)//'.csv'
+!   OPEN(unit=63,FILE=filename,status='UNKNOWN')
+!   !  WRITE(63,'(A6)',ADVANCE='NO') ' Procs'
+!   !  DO iProc=0,PartMPI%nProcs-1
+!   !    WRITE(63, '(A3,I5)',ADVANCE='NO') ',  ',iProc
+!   !  END DO ! iProc
+!   !  WRITE(63, '(A)') ''
+!   DO iProc=0,PartMPI%nProcs-1
+!   !    WRITE(63,'(I5)',ADVANCE='NO') iProc
+!      DO ProcID=0,PartMPI%nProcs-1
+!        WRITE(63,'(3x,I5)',ADVANCE='NO') RecvArray_glob(1,ProcID,iProc)
+!      END DO ! ProcID
+!      WRITE(63,'(A)') ''
+!    END DO ! iProc
+!   CLOSE(63)
+! 
+!   filename = 'particle_recv_'//TRIM(hilf)//'.csv'
+!   OPEN(unit=63,FILE=filename,status='UNKNOWN')
+! !  WRITE(63,'(A6)',ADVANCE='NO') ' Procs'
+! !  WRITE(63,'(A6)',ADVANCE='NO') ' Procs'
+! !  DO iProc=0,PartMPI%nProcs-1
+! !    WRITE(63, '(A3,I5)',ADVANCE='NO') ',  ',iProc
+! !  END DO ! iProc
+! !  WRITE(63, '(A)') ''
+!   DO iProc=0,PartMPI%nProcs-1
+! !    WRITE(63,'(I5)',ADVANCE='NO') iProc
+!     DO ProcID=0,PartMPI%nProcs-1
+!       WRITE(63,'(3x,I5)',ADVANCE='NO') RecvArray_glob(2,ProcID,iProc)
+!     END DO ! ProcID
+!     WRITE(63,'(A)') ''
+!   END DO ! iProc
+! 
+!   CLOSE(63)
+! END IF
+
+
+! final
+PartMPIExchange%nPartsRecv=0
+PartMPIExchange%nPartsSend=0
 
 
 END SUBROUTINE MPIParticleRecv

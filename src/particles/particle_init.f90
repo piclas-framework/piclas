@@ -457,12 +457,13 @@ USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
-print*, "SFSDRWE#"
+!print*, "SFSDRWE#"
 ALLOCATE(Pt_temp(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
+Pt_temp=0.
 #endif 
 
 IF(DoRefMapping)THEN
@@ -470,6 +471,7 @@ IF(DoRefMapping)THEN
   IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&
   ,' Cannot allocate partposref!')
+  PartPosRef=-888.
 END IF
 
 
@@ -501,16 +503,13 @@ IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
+! always zero
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
 LastPartPos(1:PDM%maxParticleNumber,1:3)    = 0.
-IF (.NOT.DoRestart) THEN
-  PartState          = 0.
-!  LastPartPos        = 0.
-  Pt                 = 0.
-  PartSpecies        = 0
-!  PDM%ParticleInside = .FALSE.                ! Initialize with no particles inside (will be filled in SetParticlePosition)
-!  Pt_temp            = 0. ! gets initialized in RK4-stepper 
-END IF
+PartState=0.
+Pt=0.
+PartSpecies        = 0
+PDM%nextFreePosition(1:PDM%maxParticleNumber)=0
 
 nSpecies = GETINT('Part-nSpecies','1')
 
