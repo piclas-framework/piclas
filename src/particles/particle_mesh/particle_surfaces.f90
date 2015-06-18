@@ -117,6 +117,7 @@ ClipMaxInter    = GETINT('ClipMaxInter',dummy)
 !DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
 
 IF(DoRefMapping)THEN
+  MultipleBCs    = GETLOGICAL('MultibleBCs',".FALSE.")
   ALLOCATE(PartBCSideList(1:nSides))
   PartBCSideList(:) = -1
   DO iSide=1,nBCSides
@@ -1110,7 +1111,7 @@ USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Mesh_Vars,                ONLY:nSides,NGeo,Xi_NGeo,Sideid_minus_upper,nBCSides
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,epsilontol,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
-USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,BCElem
+USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,BCElem,PartSideToElem
 USE MOD_Particle_Mesh_Vars,       ONLY:PartBCSideList,nTotalBCSides
 USE MOD_Particle_MPI_Vars,        ONLY:halo_eps,halo_eps2
 #ifdef MPI
@@ -1290,18 +1291,10 @@ DO iElem=1,nTotalElems
   ! loop over all sides
   SideIndex=0
   DO iSide=1,nTotalSides
+    ! ignore sides of the same element
+    IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
     BCSideID  =PartBCSideList(iSide)
     IF(BCSideID.EQ.-1) CYCLE
-    ! first loop for checking if side is element-side
-    isOwnSide=.FALSE.
-    DO ilocSide=1,6
-      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-      IF(iSide.EQ.SideID) THEN
-        isOwnSide=.TRUE.
-        EXIT
-      END IF
-    END DO ! ilocSide
-    IF(isOwnSide) CYCLE
     ! next, get all sides in halo-eps vicinity
     DO ilocSide=1,6
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
@@ -1318,10 +1311,12 @@ DO iElem=1,nTotalElems
             DO r=0,NGeo
               IF(SQRT(DOT_Product(BezierControlPoints3D(:,r,s,BCSideID2)-NodeX &
                                  ,BezierControlPoints3D(:,r,s,BCSideID2)-NodeX )).LE.halo_eps)THEN
-                BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
-                SideIndex(iSide)=BCElem(iElem)%lastSide
-                leave=.TRUE.
-                EXIT
+                IF(SideIndex(iSide).EQ.0)THEN
+                  BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                  SideIndex(iSide)=BCElem(iElem)%lastSide
+                  leave=.TRUE.
+                  EXIT
+                END IF
               END IF
             END DO ! r
             IF(leave) EXIT
@@ -1330,6 +1325,7 @@ DO iElem=1,nTotalElems
         END DO ! p
         IF(leave) EXIT
       END DO ! q
+      IF(leave) EXIT
     END DO ! ilocSide
   END DO ! iSide
   ! finally, allocate the bc side list

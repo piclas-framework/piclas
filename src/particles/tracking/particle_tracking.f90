@@ -359,7 +359,7 @@ USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
-USE MOD_Particle_Surfaces_Vars,  ONLY:nTracks,ClipHit,epsInCell,epsOneCell
+USE MOD_Particle_Surfaces_Vars,  ONLY:nTracks,ClipHit,epsInCell,epsOneCell,MultipleBCs
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Surfaces_Vars,  ONLY:ElemBaryNGeo,ElemRadiusNGeo
@@ -376,7 +376,7 @@ IMPLICIT NONE
 INTEGER                     :: iPart, ElemID,oldElemID,iElem, newElemID,ilocSide
 INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems,nLocSides
 REAL,ALLOCATABLE            :: Distance(:)
-REAL                        :: oldXi(3),newXi(3)
+REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne
 INTEGER,ALLOCATABLE         :: ListDistance(:)
 !REAL                        :: epsOne
 LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength),CheckNeighbor(6)
@@ -384,6 +384,7 @@ LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength),CheckNeigh
 
 !epsOne=1.0+epsInCell
 ParticleFound=.FALSE.
+epsLowOne=1.0-2.0*epsInCell
 ! first step, reuse Elem cache, therefore, check if particle are still in element, if not, search later
 DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in HALO, it shall not be found here
   DO iPart=1,PDM%ParticleVecLength
@@ -399,14 +400,37 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
       !  IPWRITE(UNIT_stdOut,*) ' Part out of area, z,ipart', PartState(iPart,3),iPart
       !END IF
       IF(IsBCElem(ElemID))THEN
-        nlocSides=BCElem(ElemID)%nInnerSides
-        CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%nInnerSides,nlocSides,iPart,ParticleFound(iPart))
-        !IF(ParticleFound(iPart)) CYCLE
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
-        !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.ClipHit) THEN ! particle inside
-        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell) THEN ! particle inside
-          nlocSides=BCElem(ElemID)%lastSide-BCElem(ElemID)%nInnerSides+1
-          CALL ParticleBCTracking(ElemID,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%lastSide,nlocSides,iPart,ParticleFound(iPart))
+        !nlocSides=BCElem(ElemID)%lastSide
+        IF(MultipleBCs)THEN
+          ! expansive, but multiple BC intersections
+          LastPos=PartState(iPart,1:3)
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+          IF(ParticleFound(iPart)) CYCLE
+          DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
+              .AND.  .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
+              .AND.  .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
+            LastPos=PartState(iPart,1:3)
+            CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+            IF(ParticleFound(iPart)) EXIT
+          END DO
+          IF(ParticleFound(iPart)) CYCLE
+          CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+        ELSE
+          ! cheap method if only one bc intersection
+          nlocSides=BCElem(ElemID)%nInnerSides
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%nInnerSides,nlocSides,iPart,ParticleFound(iPart))
+          IF(ParticleFound(iPart)) CYCLE
+          CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+          IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsLowOne) THEN ! particle inside
+            LastPos=PartState(iPart,1:3)
+            nlocSides=BCElem(ElemID)%lastSide-BCElem(ElemID)%nInnerSides+1
+            CALL ParticleBCTracking(ElemID,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%lastSide,nlocSides,iPart,ParticleFound(iPart))
+            IF(ParticleFound(iPart)) CYCLE
+          END IF
+          IF ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
+          .AND..NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
+          .AND..NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) ) &
+          CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
         END IF
       ELSE ! no bc elem, therefore, no bc ineraction possible
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
