@@ -573,12 +573,8 @@ END DO
 iStage=1
 
 #ifdef PARTICLES
-!SWRITE(*,*) 'iStage', iStage
 Time=t
 
-!SWRITE(*,*),'-------'
-!SWRITE(*,*),'istage'
-!SWRITE(*,*),'-------'
 IF (t.GE.DelayTime) THEN
   IF(MeassureTrackTime)TimeStart=BOLTZPLATZTIME()
   CALL ParticleInserting()
@@ -594,6 +590,8 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 #ifdef MPI
   ! here: finish deposition with delta kernal
   !       maps source terms in physical space
+  ! ALWAYS require
+  PartMPIExchange%nMPIParticles=0
   CALL Deposition(doInnerParts=.FALSE.)
 #endif /*MPI*/
 !  CALL CalcDepositedCharge()
@@ -601,7 +599,8 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 END IF
 
 IF (t.GE.DelayTime) THEN
-! forces on particle
+  ! forces on particle
+  ! can be used to hide sending of number of particles
   CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
   CALL CalcPartRHS()
 END IF
@@ -682,16 +681,14 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   END IF
 #ifdef MPI
   CALL MPIParticleSend()
-  CALL MPIParticleRecv()
-  PartMPIExchange%nMPIParticles=0
+  !CALL MPIParticleRecv()
+  !PartMPIExchange%nMPIParticles=0
 #endif
   !CALL Filter(U)
 END IF
 #endif /*PARTICLES*/
 
 DO iStage=2,nRKStages
-!  SWRITE(*,*),'-------'
-  !SWRITE(*,*) 'istage',istage
   tStage=t+dt*RK_c(iStage)
 #ifdef PARTICLES
   ! deposition  
@@ -699,9 +696,11 @@ DO iStage=2,nRKStages
 !    ! deposition  
      CALL Deposition(doInnerParts=.TRUE.)
 #ifdef MPI
-     !CALL MPIParticleRecv()
+     CALL MPIParticleRecv()
      ! second buffer
      CALL Deposition(doInnerParts=.FALSE.)
+     ! null here, careful
+     PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
 !    IF (usevMPF) THEN 
 !      CALL DepositionMPF()
@@ -794,9 +793,8 @@ DO iStage=2,nRKStages
     END IF
 #ifdef MPI
     CALL MPIParticleSend()
-    CALL MPIParticleRecv()
-    PartMPIExchange%nMPIParticles=0
-!    CALL UpdateNextFreePosition() ! only required for parallel communication
+    !CALL MPIParticleRecv()
+    !PartMPIExchange%nMPIParticles=0
 #endif
   END IF
 #endif /*PARTICLES*/
@@ -806,8 +804,8 @@ END DO
 #ifdef PARTICLES
 #ifdef MPI
 IF (t.GE.DelayTime) THEN
-!  SWRITE(*,*) 'receivee last'
-  !CALL MPIParticleRecv()
+  CALL MPIParticleRecv()
+   PartMPIExchange%nMPIParticles=0
 END IF
 #endif /*MPI*/
 
