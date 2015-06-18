@@ -152,6 +152,7 @@ USE MOD_PARTICLE_Vars,         ONLY: PDM,Pt,PartState
 USE MOD_PARTICLE_Vars,         ONLY : doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,             ONLY: realtime,nOutput, Iter_macvalout
+USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,MeassureTrackTime
 #ifdef MPI
 USE MOD_Particle_MPI,           ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv
 #endif /*MPI*/
@@ -178,10 +179,6 @@ INTEGER                      :: TimeArray(8)              ! Array for system tim
 INTEGER                      :: MaximumIterNum, iPart
 #endif
 LOGICAL                      :: finalIter
-#ifdef PARTICLES
-INTEGER                      :: RECI
-REAL                         :: RECR
-#endif /*PARTICLES*/
 !===================================================================================================================================
 ! init
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -478,21 +475,6 @@ DO !iter_t=0,MaxIter
   END IF
 END DO ! iter_t
 
-#ifdef PARTICLES
-#ifdef MPI
-IF(MeassureTrackTime)THEN
-  IF(MPIRoot) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE,nTracks      , 1 ,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,tTracking    , 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE,tLocalization, 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  ELSE ! no Root
-    CALL MPI_REDUCE(nTracks      ,RECI,1,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(tTracking    ,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-    CALL MPI_REDUCE(tLocalization,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  END IF
-END IF
-#endif /*MPI*/
-#endif /*PARTICLES*/
 
 !CALL FinalizeAnalyze
 END SUBROUTINE TimeDisc
@@ -526,7 +508,7 @@ USE MOD_DG,               ONLY: DGTimeDerivative_weakForm_Pois
 USE MOD_Equation_Vars,    ONLY: Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,DoRefMapping,MeassureTrackTime
+USE MOD_Particle_surfaces_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeassureTrackTime
 USE MOD_PICDepo,          ONLY: Deposition, DepositionMPF
 USE MOD_PICInterpolation, ONLY: InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY: PIC
@@ -576,10 +558,10 @@ iStage=1
 Time=t
 
 IF (t.GE.DelayTime) THEN
-  IF(MeassureTrackTime)TimeStart=BOLTZPLATZTIME()
+  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
   CALL ParticleInserting()
   IF(MeassureTrackTime) THEN
-    TimeEnd=BOLTZPLATZTIME()
+    CALL CPU_TIME(TimeEnd)
     tLocalization=tLocalization+TimeEnd-TimeStart
   END IF
 END IF
@@ -669,14 +651,14 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 #ifdef MPI
   CALL IRecvNbofParticles()
 #endif /*MPI*/
-  IF(MeassureTrackTime)TimeStart=BOLTZPLATZTIME()
+  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
     CALL ParticleTrackingCurved()
   END IF
   IF(MeassureTrackTime) THEN
-    TimeEnd=BOLTZPLATZTIME()
+    CALL CPU_TIME(TimeEnd)
     tTracking=tTracking+TimeEnd-TimeStart
   END IF
 #ifdef MPI
@@ -781,14 +763,14 @@ DO iStage=2,nRKStages
 #endif /*MPI*/
     ! actual tracking
 !    CALL ParticleTrackingCurved()
-    IF(MeassureTrackTime)TimeStart=BOLTZPLATZTIME()
+    IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
       CALL ParticleTrackingCurved()
     END IF
     IF(MeassureTrackTime) THEN
-      TimeEnd=BOLTZPLATZTIME()
+      CALL CPU_TIME(TimeEnd)
       tTracking=tTracking+TimeEnd-TimeStart
     END IF
 #ifdef MPI
