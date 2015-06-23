@@ -1408,18 +1408,34 @@ DO iElem=1,nTotalElems
     END DO ! ilocSide
   END IF
   !--- find minimum and maximum BGM cell for current element
-  BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  BGMCellXmax = MIN(BGMCellXmax,BGMimax)
-  BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  BGMCellXmin = MAX(BGMCellXmin,BGMimin)
-  BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
-  BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
-  BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
-  BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
+  IF(GEO%nPeriodicVectors.EQ.0)THEN
+    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
+  ELSE
+    ! here fancy stuff, because element could be wide out of element range
+    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
+    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
+    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
+    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
+    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
+    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
+  END IF
   ! add ecurrent element to number of BGM-elems
   DO iBGM = BGMCellXmin,BGMCellXmax
     DO jBGM = BGMCellYmin,BGMCellYmax
@@ -1472,18 +1488,33 @@ DO iElem=1,nTotalElems
   END IF ! DoRefMapping
 
   ! same as above
-  BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  BGMCellXmax = MIN(BGMCellXmax,BGMimax)
-  BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  BGMCellXmin = MAX(BGMCellXmin,BGMimin)
-  BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
-  BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
-  BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
-  BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  BGMCellZmin = MAX(BGMCellZmin,BGMkmin)     
+  IF(GEO%nPeriodicVectors.EQ.0)THEN
+    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmin = MAX(BGMCellZmin,BGMkmin)     
+  ELSE
+    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
+    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
+    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
+    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
+    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
+    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
+  END IF
   ! add current Element to BGM-Elem
   DO iBGM = BGMCellXmin,BGMCellXmax
     DO jBGM = BGMCellYmin,BGMCellYmax
@@ -1506,12 +1537,12 @@ DO iElem=1,nTotalElems
        IPWRITE(UNIT_stdOut,*) 'ymax',GEO%ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem))
        IPWRITE(UNIT_stdOut,*) 'zmin',GEO%zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem))
        IPWRITE(UNIT_stdOut,*) 'zmax',GEO%zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem))
-        xmin=MINVAL(XCL_NGeo(1,:,:,:,iElem))
-        xmax=MAXVAL(XCL_NGeo(1,:,:,:,iElem))
-        ymin=MINVAL(XCL_NGeo(2,:,:,:,iElem))
-        ymax=MAXVAL(XCL_NGeo(2,:,:,:,iElem))
-        zmin=MINVAL(XCL_NGeo(3,:,:,:,iElem))
-        zmax=MAXVAL(XCL_NGeo(3,:,:,:,iElem))
+       xmin=MINVAL(XCL_NGeo(1,:,:,:,iElem))
+       xmax=MAXVAL(XCL_NGeo(1,:,:,:,iElem))
+       ymin=MINVAL(XCL_NGeo(2,:,:,:,iElem))
+       ymax=MAXVAL(XCL_NGeo(2,:,:,:,iElem))
+       zmin=MINVAL(XCL_NGeo(3,:,:,:,iElem))
+       zmax=MAXVAL(XCL_NGeo(3,:,:,:,iElem))
        IPWRITE(UNIT_stdOut,*) ' BGM , iBGM'
        IPWRITE(UNIT_stdOut,*) 'xmin', BGMimin,CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
        IPWRITE(UNIT_stdOut,*) 'xmax', BGMimax,CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
@@ -1615,13 +1646,15 @@ REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)
 
 
 nPeriodicSides=0
-DO iSide=nBCSides+1,nSides
-  IF(SidePeriodicType(iSide).NE.0) nPeriodicSides=nPeriodicSides+1
-END DO ! iSide
+!DO iSide=nBCSides+1,nSides
+!  IF(SidePeriodicType(iSide).NE.0) nPeriodicSides=nPeriodicSides+1
+!END DO ! iSide
 
 ! now, shrink partbcsidelist
 nOldBCSides  =nTotalBCSides
-nTotalBCSides=nTotalBCSides+nPeriodicSides
+nTotalBCSides=nTotalBCSides!+nPeriodicSides
+
+IF(nTotalBCSides.EQ.0) RETURN
 
 ! allocate & fill dummy
 ! BezierControlPoints3D
@@ -1664,21 +1697,33 @@ IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 
 BCInc=0
-DO iSide=1,nSides
-  IF((iSide.LE.nBCSides).OR.(SidePeriodicType(iSide).NE.0))THEN
-    IF(iSide.LE.nBCSides)THEN
-      newBCSideID=iSide
-    ELSE IF(SidePeriodicType(iSide).NE.0)THEN
-      BCInc=BCInc+1
-      newBCSideID=nBCSides+BCInc
-      PartBCSideList(iSide)=newBCSideID
-    END IF
-    BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
-    SlabNormals          (1:3,1:3,          newBCSideID) =DummySlabNormals         (1:3,1:3,           iSide)
-    SlabIntervalls       (1:6,              newBCSideID) =DummySlabIntervalls      (1:6,               iSide)
-    BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
-  END IF
+!DO iSide=1,nSides
+DO iSide=1,nBCSides
+  newBCSideID=iSide
+  BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
+  SlabNormals          (1:3,1:3,          newBCSideID) =DummySlabNormals         (1:3,1:3,           iSide)
+  SlabIntervalls       (1:6,              newBCSideID) =DummySlabIntervalls      (1:6,               iSide)
+  BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
 END DO ! iSide
+! with periodic as bc sides
+!BCInc=0
+!DO iSide=1,nSides
+!  IF((iSide.LE.nBCSides).OR.(SidePeriodicType(iSide).NE.0))THEN
+!    IF(iSide.LE.nBCSides)THEN
+!      newBCSideID=iSide
+!    ELSE IF(SidePeriodicType(iSide).NE.0)THEN
+!      BCInc=BCInc+1
+!      newBCSideID=nBCSides+BCInc
+!      PartBCSideList(iSide)=newBCSideID
+!    END IF
+!    BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
+!    SlabNormals          (1:3,1:3,          newBCSideID) =DummySlabNormals         (1:3,1:3,           iSide)
+!    SlabIntervalls       (1:6,              newBCSideID) =DummySlabIntervalls      (1:6,               iSide)
+!    BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
+!  END IF
+!END DO ! iSide
+
+
 
 ! deallocate dummy buffer
 DEALLOCATE(DummyBezierControlPoints3D)

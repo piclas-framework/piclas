@@ -402,8 +402,8 @@ END DO ! iSide
 
 !--- if there are periodic boundaries, they need to be taken into account as well:
 IF (GEO%nPeriodicVectors.GT.0) THEN
-  WRITE(*,*) 'ups, something missing'
-  STOP
+  !WRITE(*,*) 'ups, something missing'
+  !STOP
   Vec1(1:3) = 0.
   Vec2(1:3) = 0.
   Vec3(1:3) = 0.
@@ -445,25 +445,63 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
                   DO ilocSide=1,6
                     SideID=ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
                     ! caution, not save if corect
-                    IF(SideIndex(SideID).EQ.0)THEN
-                      leave=.FALSE.
-                      DO s=0,NGeo
-                        DO r=0,NGeo
-                          IF(SQRT(DOT_Product(BezierControlPoints3D(:,r,s,SideID)-NodeX &
-                                        ,BezierControlPoints3D(:,r,s,SideID)-NodeX )).LE.halo_eps)THEN
-                            NbOfSides=NbOfSides+1
-                            SideIndex(SideID)=NbOfSides
-                            IF(ElemIndex(ElemID).EQ.0)THEN
-                              NbOfElems=NbOfElems+1
-                              ElemIndex(ElemID)=NbofElems
+                    IF(DoRefMapping)THEN
+                      IF(SideIndex(SideID).EQ.0)THEN
+                        leave=.FALSE.
+                        SELECT CASE(ilocSide)
+                        CASE(XI_MINUS)
+                          xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,ElemID)
+                        CASE(XI_PLUS)
+                          xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,ElemID)
+                        CASE(ETA_MINUS)
+                          xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,ElemID)
+                        CASE(ETA_PLUS)
+                          xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,ElemID)
+                        CASE(ZETA_MINUS)
+                          xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,ElemID)
+                        CASE(ZETA_PLUS)
+                          xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,ElemID)
+                        END SELECT
+                        leave=.FALSE.
+                        DO s=0,NGeo
+                          DO r=0,NGeo
+                            IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
+                                               ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
+                              NbOfSides=NbOfSides+1
+                              SideIndex(SideID)=NbOfSides
+                              IF(ElemIndex(ElemID).EQ.0)THEN
+                                NbOfElems=NbOfElems+1
+                                ElemIndex(ElemID)=NbofElems
+                              END IF
+                              leave=.TRUE.
+                              EXIT
                             END IF
-                            leave=.TRUE.
-                            EXIT
-                          END IF
-                        END DO ! r
-                        IF(leave) EXIT
-                      END DO ! s
-                    END IF ! SideIndex(SideID).EQ.0
+                          END DO ! r
+                          IF(leave) EXIT
+                        END DO ! s
+                      END IF ! SideIndex(SideID).EQ.0
+                    ELSE ! norefmapping
+                      ! caution, not save if corect
+                      IF(SideIndex(SideID).EQ.0)THEN
+                        leave=.FALSE.
+                        DO s=0,NGeo
+                          DO r=0,NGeo
+                            IF(SQRT(DOT_Product(BezierControlPoints3D(:,r,s,SideID)-NodeX &
+                                               ,BezierControlPoints3D(:,r,s,SideID)-NodeX )).LE.halo_eps)THEN
+                              NbOfSides=NbOfSides+1
+                              SideIndex(SideID)=NbOfSides
+                              IF(ElemIndex(ElemID).EQ.0)THEN
+                                NbOfElems=NbOfElems+1
+                                ElemIndex(ElemID)=NbofElems
+                              END IF
+                              leave=.TRUE.
+                              EXIT
+                            END IF
+                          END DO ! r
+                          IF(leave) EXIT
+                        END DO ! s
+                      END IF ! SideIndex(SideID).EQ.0
+                    END IF ! DoRefMapping
                   END DO ! ilocSide
                 END DO ! iElem
               END DO ! kPBGM
@@ -2218,6 +2256,7 @@ IF (RecvMsg%nElems.GT.0) THEN
     END SELECT
     IF(GEO%nPeriodicVectors.GT.0)THEN
       iDisplace= SidePeriodicType(iSide)
+      IF(iDisplace.EQ.0) CYCLE
       IF(flip.EQ.0)THEN
         DO q=0,NGeo
           DO p=0,NGeo

@@ -154,7 +154,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars,             ONLY: realtime,nOutput, Iter_macvalout
 USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,MeassureTrackTime
 #ifdef MPI
-USE MOD_Particle_MPI,           ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv
+USE MOD_Particle_MPI,           ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfParticles
 #endif /*MPI*/
 #endif /*PARTICLES*/
 #ifdef PP_POIS
@@ -523,7 +523,7 @@ USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS, DSMC
 USE MOD_part_MPFtools,    ONLY: StartParticleMerge
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 #ifdef MPI
-USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv
+USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
 #else /*No MPI*/
 #endif /*MPI*/
@@ -566,6 +566,13 @@ IF (t.GE.DelayTime) THEN
   END IF
 END IF
 
+IF (t.GE.DelayTime) THEN
+  ! forces on particle
+  ! can be used to hide sending of number of particles
+  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
+  CALL CalcPartRHS()
+END IF
+
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   ! because of emmision and UpdateParticlePosition
   CALL Deposition(doInnerParts=.TRUE.)
@@ -580,12 +587,6 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 !  STOP
 END IF
 
-IF (t.GE.DelayTime) THEN
-  ! forces on particle
-  ! can be used to hide sending of number of particles
-  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
-  CALL CalcPartRHS()
-END IF
 #endif /*PARTICLES*/
 
 ! field solver
@@ -662,7 +663,8 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
     tTracking=tTracking+TimeEnd-TimeStart
   END IF
 #ifdef MPI
-  CALL MPIParticleSend()
+  CALL SendNbOfParticles()
+  !CALL MPIParticleSend()
   !CALL MPIParticleRecv()
   !PartMPIExchange%nMPIParticles=0
 #endif
@@ -675,11 +677,15 @@ DO iStage=2,nRKStages
 #ifdef PARTICLES
   ! deposition  
   IF (t.GE.DelayTime) THEN 
+     CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
+     CALL MPIParticleSend()
 !    ! deposition  
      CALL Deposition(doInnerParts=.TRUE.)
 #ifdef MPI
      CALL MPIParticleRecv()
      ! second buffer
+     CALL InterpolateFieldToParticle(doInnerParts=.FALSE.)
+     CALL CalcPartRHS()
      CALL Deposition(doInnerParts=.FALSE.)
      ! null here, careful
      PartMPIExchange%nMPIParticles=0
@@ -689,11 +695,6 @@ DO iStage=2,nRKStages
 !    ELSE 
 !      CALL Deposition()
 !    END IF
-  END IF
-  ! particle RHS
-  IF (t.GE.DelayTime) THEN
-    CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
-    CALL CalcPartRHS()
   END IF
 #endif /*PARTICLES*/
 
@@ -774,7 +775,8 @@ DO iStage=2,nRKStages
       tTracking=tTracking+TimeEnd-TimeStart
     END IF
 #ifdef MPI
-    CALL MPIParticleSend()
+    CALL SendNbOfParticles()
+    !CALL MPIParticleSend()
     !CALL MPIParticleRecv()
     !PartMPIExchange%nMPIParticles=0
 #endif
@@ -786,8 +788,9 @@ END DO
 #ifdef PARTICLES
 #ifdef MPI
 IF (t.GE.DelayTime) THEN
+  CALL MPIParticleSend()
   CALL MPIParticleRecv()
-   PartMPIExchange%nMPIParticles=0
+  PartMPIExchange%nMPIParticles=0
 END IF
 #endif /*MPI*/
 

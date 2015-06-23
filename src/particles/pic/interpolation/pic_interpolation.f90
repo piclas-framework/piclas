@@ -91,15 +91,15 @@ SUBROUTINE InterpolateFieldToParticle(doInnerParts)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_PreProc
 USE MOD_Particle_Vars,           ONLY:PartPosRef
 USE MOD_Particle_Surfaces_Vars,  ONLY:DoRefMapping
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_Particle_Vars!, ONLY: 
 USE MOD_PIC_Vars!,      ONLY: 
 USE MOD_PICInterpolation_Vars
-USE MOD_PICDepo_Vars,            ONLY:DepositionType
-USE MOD_PreProc
-USE MOD_Eval_xyz
+USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
+USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
 #endif
@@ -122,6 +122,8 @@ INTEGER                          :: firstPart,lastPart
 REAL                             :: Pos(3)                                                      
 REAL                             :: field(6)                                                    
 INTEGER                          :: iPart,iElem
+! for Nearest GaussPoint
+INTEGER                          :: a,b,k,ii,l,m
 #ifdef PP_POIS
 REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 #endif
@@ -232,6 +234,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         DO iPart=firstPart,LastPart
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           IF(PEM%Element(iPart).EQ.iElem)THEN
+            IF(.NOT.DoRefMapping)THEN
+              CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+            END IF
             !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS
@@ -281,10 +286,51 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     END IF ! DoRefMapping .or. Depositiontype=nearest_gausspoint
   CASE('nearest_gausspoint')
     ! particles have already been mapped in deposition
+    IF(MOD(PP_N,2).EQ.0) THEN
+      a = PP_N/2
+      b = a
+    ELSE
+      a = (PP_N+1)/2
+      b = a-1
+    END IF
     DO iElem=1,PP_nElems
       DO iPart=firstPart,LastPart
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         IF(PEM%Element(iPart).EQ.iElem)THEN
+          IF(.NOT.DoRefMapping)THEN
+            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+          END IF
+          ! compute exact k,l,m
+          !! x-direction
+          k = a
+          DO ii = 0,b-1
+            IF(ABS(PartPosRef(1,iPart)).GE.GaussBorder(PP_N-ii))THEN
+              k = PP_N-ii
+              EXIT
+            END IF
+          END DO
+          k = NINT((PP_N+SIGN(2.0*k-PP_N,PartPosRef(1,iPart)))/2)
+          !! y-direction
+          l = a
+          DO ii = 0,b-1
+            IF(ABS(PartPosRef(2,iPart)).GE.GaussBorder(PP_N-ii))THEN
+              l = PP_N-ii
+              EXIT
+            END IF
+          END DO
+          l = NINT((PP_N+SIGN(2.0*l-PP_N,PartPosRef(2,iPart)))/2)
+          !! z-direction
+          m = a
+          DO ii = 0,b-1
+            IF(ABS(PartPosRef(3,iPart)).GE.GaussBorder(PP_N-ii))THEN
+              m = PP_N-ii
+              EXIT
+            END IF
+          END DO
+          m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,iPart)))/2)
+          PartPosGauss(iPart,1) = k
+          PartPosGauss(iPart,2) = l
+          PartPosGauss(iPart,3) = m
           !--- evaluate at Particle position
 #if (PP_nVar==8)
 #ifdef PP_POIS

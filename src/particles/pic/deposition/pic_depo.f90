@@ -725,46 +725,48 @@ CASE('nearest_gausspoint')
         IF(PEM%Element(iPart).EQ.iElem)THEN
           prefac= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 
           ! Map Particle to -1|1 space (re-used in interpolation)
-          IF(.NOT.DoRefMapping)THEN
-            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
-          END IF
+          !IF(.NOT.DoRefMapping)THEN
+          !  CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+          !END IF
           ! Find out which gausspoint is closest and add up charges and currents
           !! x-direction
-          k = a
-          DO ii = 0,b-1
-            IF(ABS(PartPosRef(1,iPart)).GE.GaussBorder(PP_N-ii))THEN
-              k = PP_N-ii
-              EXIT
-            END IF
-          END DO
-          k = NINT((PP_N+SIGN(2.0*k-PP_N,PartPosRef(1,iPart)))/2)
-          !! y-direction
-          l = a
-          DO ii = 0,b-1
-            IF(ABS(PartPosRef(2,iPart)).GE.GaussBorder(PP_N-ii))THEN
-              l = PP_N-ii
-              EXIT
-            END IF
-          END DO
-          l = NINT((PP_N+SIGN(2.0*l-PP_N,PartPosRef(2,iPart)))/2)
-          !! z-direction
-          m = a
-          DO ii = 0,b-1
-            IF(ABS(PartPosRef(3,iPart)).GE.GaussBorder(PP_N-ii))THEN
-              m = PP_N-ii
-              EXIT
-            END IF
-          END DO
-          m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,iPart)))/2)
+          IF(.NOT.SAVE_GAUSS) THEN
+            k = a
+            DO ii = 0,b-1
+              IF(ABS(PartPosRef(1,iPart)).GE.GaussBorder(PP_N-ii))THEN
+                k = PP_N-ii
+                EXIT
+              END IF
+            END DO
+            k = NINT((PP_N+SIGN(2.0*k-PP_N,PartPosRef(1,iPart)))/2)
+            !! y-direction
+            l = a
+            DO ii = 0,b-1
+              IF(ABS(PartPosRef(2,iPart)).GE.GaussBorder(PP_N-ii))THEN
+                l = PP_N-ii
+                EXIT
+              END IF
+            END DO
+            l = NINT((PP_N+SIGN(2.0*l-PP_N,PartPosRef(2,iPart)))/2)
+            !! z-direction
+            m = a
+            DO ii = 0,b-1
+              IF(ABS(PartPosRef(3,iPart)).GE.GaussBorder(PP_N-ii))THEN
+                m = PP_N-ii
+                EXIT
+              END IF
+            END DO
+            m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,iPart)))/2)
+          END IF
 #if (PP_nVar==8)
           source(1:3,k,l,m,iElem) = source(1:3,k,l,m,iElem) + PartState(i,4:6) * prefac
 #endif
           source( 4 ,k,l,m,iElem) = source( 4 ,k,l,m,iElem) + prefac
-          IF (SAVE_GAUSS) THEN
-            PartPosGauss(i,1) = k
-            PartPosGauss(i,2) = l
-            PartPosGauss(i,3) = m
-          END IF
+          !IF (SAVE_GAUSS) THEN
+          !  PartPosGauss(iPart,1) = k
+          !  PartPosGauss(iPart,2) = l
+          !  PartPosGauss(iPart,3) = m
+          !END IF
         END IF ! Element .EQ. iElem
       END IF ! Particle inside
     END DO ! iPart
@@ -1292,7 +1294,7 @@ CASE('nearest_gausspoint')
         IF(PEM%Element(iPart).EQ.iElem)THEN
           prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
           ! Map Particle to -1|1 space (re-used in interpolation)
-          IF(.NOT.DoRefMapping)THEN
+          IF(.NOT.DoRefMapping .AND. .NOT.SAVE_GAUSS )THEN
             CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
           END IF
           ! Find out which gausspoint is closest and add up charges and currents

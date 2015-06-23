@@ -23,6 +23,10 @@ INTERFACE IRecvNbOfParticles
   MODULE PROCEDURE IRecvNbOfParticles
 END INTERFACE
 
+INTERFACE SendNbOfParticles
+  MODULE PROCEDURE SendNbOfParticles
+END INTERFACE
+
 INTERFACE FinalizeParticleMPI
   MODULE PROCEDURE FinalizeParticleMPI
 END INTERFACE
@@ -231,11 +235,12 @@ END DO ! iProc
 END SUBROUTINE IRecvNbOfParticles
 
 
-SUBROUTINE MPIParticleSend()
+SUBROUTINE SendNbOfParticles()
 !===================================================================================================================================
-! this routine sends the particles. Following steps are performed
+! this routine sends the number of send particles. Following steps are performed
 ! 1) Compute number of Send Particles
 ! 2) Performe MPI_ISEND with number of particles
+! Rest is perforemd in SendParticles
 ! 3) Build Message 
 ! 4) MPI_WAIT for number of received particles
 ! 5) Open Receive-Buffer for particle message -> MPI_IRECV
@@ -262,9 +267,9 @@ INTEGER                       :: iPart,ElemID,iPos,iProc,jPos
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 ! shape function 
-INTEGER, ALLOCATABLE          :: shape_indices(:)
-INTEGER                       :: CellX,CellY,CellZ, iPartShape
-INTEGER                       :: ALLOCSTAT
+!INTEGER, ALLOCATABLE          :: shape_indices(:)
+!INTEGER                       :: CellX,CellY,CellZ, iPartShape
+!INTEGER                       :: ALLOCSTAT
 !===================================================================================================================================
 
 ! 1) get number of send particles
@@ -328,6 +333,108 @@ DO iProc=1,PartMPI%nMPINeighbors
 !                , PartMPIExchange%SendRequest(1,PartMPI%MPINeighbor(iProc))  &
 !                , IERROR )
 END DO ! iProc
+
+END SUBROUTINE SendNbOfParticles
+
+SUBROUTINE MPIParticleSend()
+!===================================================================================================================================
+! this routine sends the particles. Following steps are performed
+! first steps are perforemd in SendNbOfParticles
+! 1) Compute number of Send Particles
+! 2) Performe MPI_ISEND with number of particles
+! Starting Here:
+! 3) Build Message 
+! 4) MPI_WAIT for number of received particles
+! 5) Open Receive-Buffer for particle message -> MPI_IRECV
+! 6) Send Particles -> MPI_ISEND
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Surfaces_vars,   ONLY:DoRefMapping
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize,PartSendBuf, PartRecvBuf
+USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,Species,PartPosRef
+USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
+USE MOD_Particle_Mesh_Vars,       ONLY:GEO
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPart,ElemID,iPos,iProc,jPos
+INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
+INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
+! shape function 
+INTEGER, ALLOCATABLE          :: shape_indices(:)
+INTEGER                       :: CellX,CellY,CellZ, iPartShape
+INTEGER                       :: ALLOCSTAT
+!===================================================================================================================================
+
+! ! 1) get number of send particles
+! PartMPIExchange%nPartsSend=0
+! DO iPart=1,PDM%ParticleVecLength
+!   IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+!   ElemID=PEM%Element(iPart)
+!   IF(ElemID.GT.PP_nElems)  PartMPIExchange%nPartsSend(PartHaloToProc(LOCAL_PROC_ID,ElemID))=             &
+!                                         PartMPIExchange%nPartsSend(PartHaloToProc(LOCAL_PROC_ID,ElemID))+1
+! END DO ! iPart
+
+! external particles add to same message
+! IF(DoExternalParts)THEN
+!   ALLOCATE( shape_indices(1:PDM%ParticleVecLength), stat=allocstat)
+!   shape_indices(:) = 0
+!   iPartShape=1
+!   DO iPart=1,PDM%ParticleVecLength
+!     IF(PDM%ParticleInside(iPart))THEN
+!       IF(ALMOSTZERO(Species(PartSpecies(iPart))%ChargeIC) CYCLE        ! Don't deposite neutral particles!
+!       CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+!       CellX = MIN(GEO%FIBGMimax,CellX)
+!       CellX = MAX(GEO%FIBGMimin,CellX)
+!       CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+!       CellY = MIN(GEO%FIBGMkmax,CellY)
+!       CellY = MAX(GEO%FIBGMkmin,CellY)
+!       CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+!       CellZ = MIN(GEO%FIBGMlmax,CellZ)
+!       CellZ = MAX(GEO%FIBGMlmin,CellZ)
+!       IF(ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
+!         IF(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1) .GT. 0) THEN
+!           shape_indices(iPartShape) = i
+!           iPartShape = iPartShape + 1
+!         END IF
+!       END IF
+!     END IF ! ParticleInside
+!   END DO ! iPart
+!   iPartShape = iPartShape - 1
+! 
+! END IF ! DoExternalParts
+
+! ! 2) send number of send particles
+! DO iProc=1,PartMPI%nMPINeighbors
+!   !IPWRITE(UNIT_stdOut,*) 'Target Number of send particles',PartMPI%MPINeighbor(iProc),PartMPIExchange%nPartsSend(iProc)
+!   CALL MPI_ISEND( PartMPIExchange%nPartsSend(iProc)                          &
+!                 , 1                                                          &
+!                 , MPI_INTEGER                                                &
+!                 , PartMPI%MPINeighbor(iProc)                                 &
+!                 , 1001                                                       &
+!                 , PartMPI%COMM                                               &
+!                 , PartMPIExchange%SendRequest(1,iProc)                       &
+!                 , IERROR )
+!   IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+!           ,' MPI Communication error', IERROR)
+! 
+! !  CALL MPI_ISEND( PartMPIExchange%nPartsSend(iProc)                          &
+! !                , 1                                                          &
+! !                , MPI_INTEGER                                                &
+! !                , PartMPI%MPINeighbor(iProc)                                 &
+! !                , 1001                                                       &
+! !                , PartMPI%COMM                                               &
+! !                , PartMPIExchange%SendRequest(1,PartMPI%MPINeighbor(iProc))  &
+! !                , IERROR )
+! END DO ! iProc
 
 !DO iProc=1,PartMPI%nMPINeighbors
 !  IPWRITE(UNIT_stdOut,*) 'Number of send  particles',  PartMPIExchange%nPartsSend(iProc)&
