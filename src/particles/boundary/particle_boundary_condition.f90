@@ -41,7 +41,8 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
-USE MOD_Particle_Vars,          ONLY:PartBound,PDM,PartSpecies,PartState,LastPartPos,PEM
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos,PEM
+USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 !USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
@@ -71,9 +72,9 @@ REAL                                 :: absPt_temp
 #endif
 !===================================================================================================================================
 
-IF (.NOT. ASSOCIATED(PartBound%Map)) THEN
+IF (.NOT. ALLOCATED(PartBound%Map)) THEN
   CALL abort(__STAMP__,&
-  ' ERROR: PartBound not associated!.',999,999.)
+  ' ERROR: PartBound not allocated!.',999,999.)
 END IF
 
 ! Select the corresponding boundary condition and calculate particle treatment
@@ -197,7 +198,8 @@ SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,x
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
-USE MOD_Particle_Vars,          ONLY:PartBound,PDM,PartSpecies,PartState,LastPartPos,PEM
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos,PEM
+USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 !USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
@@ -226,15 +228,17 @@ REAL                                 :: absPt_temp
 #endif
 !===================================================================================================================================
 
-IF (.NOT. ASSOCIATED(PartBound%Map)) THEN
+IF (.NOT. ALLOCATED(PartBound%Map)) THEN
   CALL abort(__STAMP__,&
-  ' ERROR: PartBound not associated!.',999,999.)
+  ' ERROR: PartBound not allocated!.',999,999.)
 END IF
 
 ! Select the corresponding boundary condition and calculate particle treatment
 SELECT CASE(PartBound%Map(BC(SideID)))
+!SELECT CASE(PartBound%SideBCType(SideID))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartBound%OpenBC)
+!CASE(PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF(CalcPartBalance) THEN
     IF(MOD(iter+1,PartAnalyzeStep).EQ.0)THEN ! caution if correct
@@ -246,6 +250,7 @@ CASE(1) !PartBound%OpenBC)
   alpha=-1.
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
+!CASE(PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   SELECT CASE(SideType(SideID))
   CASE(PLANAR)
@@ -308,6 +313,7 @@ CASE(2) !PartBound%ReflectiveBC)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
+!CASE(PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! new implementation, nothing to due :)
   ! however, never checked
@@ -316,19 +322,22 @@ CASE(3) !PartBound%PeriodicBC)
   !compute new bc
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
+!CASE(PartBound%SimpleAnodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL abort(__STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(5) !PartBound%SimpleCathodeBC)
+!CASE(PartBound%SimpleCathodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL abort(__STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(6) !PartBound%MPINeighborhoodBC)
-!-----------------------------------------------------------------------------------------------------------------------------------
+!CASE(PartBound%MPINeighborhoodBC)
   CALL abort(__STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
+!-----------------------------------------------------------------------------------------------------------------------------------
 CASE DEFAULT
   CALL abort(__STAMP__,&
 ' ERROR: PartBound not associated!. BC(SideID)',BC(SideID),REAL(SideID/nSides))

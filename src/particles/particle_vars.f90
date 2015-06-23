@@ -156,39 +156,6 @@ END TYPE
 INTEGER                                  :: nSpecies                         ! number of species
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
-TYPE tPartBoundary
-  INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: PeriodicBC              = 3      ! = 3 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SimpleAnodeBC           = 4      ! = 4 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SimpleCathodeBC         = 5      ! = 5 (s.u.) Boundary Condition Integer Definition
-  !INTEGER                                :: MPINeighborhoodBC       = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
-  CHARACTER(LEN=200)           , POINTER :: SourceBoundName(:) =>NULL() ! Link part 1 for mapping Boltzplatz BCs to Particle BC
-  INTEGER                      , POINTER :: TargetBoundCond(:) =>NULL() ! Link part 2 for mapping Boltzplatz BCs to Particle BC
-  INTEGER                      , POINTER :: Map(:)             =>NULL() ! Map from Boltzplatz BCindex to Particle BC
-  INTEGER                      , POINTER :: MapToPartBC(:)     =>NULL() ! Map from Boltzplatz BCindex to Particle BC (NOT TO TYPE!)
-  REAL    , ALLOCATABLE                  :: MomentumACC(:)      
-  REAL    , ALLOCATABLE                  :: WallTemp(:)     
-  REAL    , ALLOCATABLE                  :: TransACC(:)     
-  REAL    , ALLOCATABLE                  :: VibACC(:) 
-  REAL    , ALLOCATABLE                  :: RotACC(:) 
-  REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
-  REAL    , ALLOCATABLE                  :: Voltage(:)
-  INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
-  REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
-  INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
-  LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
-  REAL    , ALLOCATABLE                  :: AmbientTemp(:)
-  REAL    , ALLOCATABLE                  :: AmbientMeanPartMass(:)
-  REAL    , ALLOCATABLE                  :: AmbientBeta(:)
-  REAL    , ALLOCATABLE                  :: AmbientVelo(:,:)
-  REAL    , ALLOCATABLE                  :: AmbientDens(:)
-  REAL    , ALLOCATABLE                  :: AmbientDynamicVisc(:)               ! dynamic viscousity
-  REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
-END TYPE
-
-INTEGER                                  :: nPartBound                       ! number of particle boundaries
-TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
 
 TYPE tParticleElementMapping
   INTEGER                      , POINTER :: Element(:)             =>NULL()  ! Element number allocated to each Particle

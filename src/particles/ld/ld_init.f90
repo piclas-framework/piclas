@@ -28,14 +28,14 @@ SUBROUTINE InitLD()
 ! MODULES
 USE MOD_Globals
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,             ONLY : nElems, nSides, SideToElem, ElemToSide, Elem_xGP
+USE MOD_Mesh_Vars,             ONLY : nElems, nSides,  Elem_xGP
 !USE MOD_Mesh_Vars,             ONLY : nNodes    !!! nur für "Tetra-Methode"
 USE MOD_Particle_Vars,         ONLY : GEO, PDM, Species, PartSpecies, nSpecies
 USE nr,                        ONLY : gaussj 
 USE MOD_DSMC_Init,             ONLY : InitDSMC
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC, CollisMode
 USE MOD_ReadInTools
-USE MOD_part_MPFtools,         ONLY : MapToGeo
+USE MOD_Particle_Mesh_Vars,    ONLY : ElemBaryNGeo,PartElemToSide,PartNeighborElemID
 #ifdef MPI
 USE MOD_Mesh_Vars,             ONLY : nInnerSides, nBCSides
 USE MOD_MPI_Vars
@@ -49,14 +49,10 @@ USE MOD_part_MPI_Vars,         ONLY : MPIGEO
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, trinum, iLocSide, iNode, iPart, iInit, iSpec, SideID, Elem2
+INTEGER                 :: iElem, trinum, iLocSide, iNode, iPart, iInit, iSpec, SideID, Elem2,flip
 REAL                    :: NVecTest
-REAL,ALLOCATABLE       :: CellCenterList(:,:)
-REAL                    :: CellNodePos(3,8)
 REAL                    :: OriginCube(3), CellCenterLocal(3)
 #ifdef MPI
-REAL                    :: MPICellNodePos(3,8)
-REAL                    :: MPICellCenterLocal(3)
 INTEGER                 :: Element, MPINodeNum, MPINodeID, haloSideID, SumOfMPISides, EndOfMPINeighbor, iProc, OffsetInnerAndBCSides
 #endif
 CHARACTER(32)           :: hilf
@@ -138,19 +134,9 @@ CHARACTER(32)           :: hilf
 !!!!  ALLOCATE(NewNodePosIndx(1:3,nNodes))  !!! nur für "Tetra-Methode"
 
 !--- calculate cellcenter distance for viscousity terms
-  ALLOCATE(CellCenterList(3,nElems))
-  DO iElem=1, nElems
-    DO iNode=1, 8
-      CellNodePos(1,iNode) = GEO%NodeCoords(1,GEO%ElemToNodeID(iNode,iElem))
-      CellNodePos(2,iNode) = GEO%NodeCoords(2,GEO%ElemToNodeID(iNode,iElem))
-      CellNodePos(3,iNode) = GEO%NodeCoords(3,GEO%ElemToNodeID(iNode,iElem))
-    END DO
-    OriginCube(1:3) = 0.0
-    CellCenterLocal = MapToGeo(OriginCube,CellNodePos)
-    CellCenterList(1,iElem) = CellCenterLocal(1)
-    CellCenterList(2,iElem) = CellCenterLocal(2)
-    CellCenterList(3,iElem) = CellCenterLocal(3)
-  END DO
+
+! P.O. should be computed AFTER construction of HALO mesh DEBUG
+
 !--- end calculate cellcenter distance for viscousity terms
 
   ALLOCATE(IsDoneLagVelo(nSides))
@@ -158,89 +144,15 @@ CHARACTER(32)           :: hilf
   DO iElem=1, nElems
     DO iLocSide = 1, 6
       DO trinum=1, 2
-        SurfLagValues(iLocSide, iElem, trinum)%Area = CalcTriNumArea(iLocSide, iElem, trinum)
         CALL CalcLagNormVec(iLocSide, iElem, trinum)
-        NVecTest = (GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(1,0,0,0,iElem)) &
-                 * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(1) &
-                 + (GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(2,0,0,0,iElem)) &
-                 * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(2) &
-                 + (GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(3,0,0,0,iElem)) &
-                 * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(3)
-        IF (NVecTest.LE.0.0) THEN
-          SWRITE(UNIT_StdOut,'(132("-"))')
-          SWRITE(UNIT_StdOut,'(A)') 'Element:',iElem
-          CALL abort(__STAMP__,&
-               'ERROR in Calculation of NormVec for Element')
-        END IF  
 !--- calculate cellcenter distance for viscousity terms
-        SideID = ElemToSide(1,iLocSide,iElem)
-#ifdef MPI
-        IF (SideID.GT.nBCSides+nInnerSides) THEN ! it must be a MPI Side
-          haloSideID = MPIGEO%haloMPINbSide(SideID-nInnerSides-nBCSides)
-          IF (MPIGEO%SideToElem(S2E_ELEM_ID,haloSideID).NE.-1) THEN
-           Element = MPIGEO%SideToElem(S2E_ELEM_ID,haloSideID)
-          ELSE
-           Element = MPIGEO%SideToElem(S2E_NB_ELEM_ID,haloSideID)
-          END IF
-          iNode = 1
-          DO MPINodeNum = 1,4
-            MPINodeID = MPIGEO%ElemSideNodeID(MPINodeNum,1,Element)
-            MPICellNodePos(1,iNode) = MPIGEO%NodeCoords(1,MPINodeID)
-            MPICellNodePos(2,iNode) = MPIGEO%NodeCoords(2,MPINodeID)
-            MPICellNodePos(3,iNode) = MPIGEO%NodeCoords(3,MPINodeID)
-            iNode = iNode + 1
-          END DO
-          DO MPINodeNum = 1,4
-            MPINodeID = MPIGEO%ElemSideNodeID(MPINodeNum,6,Element)
-            MPICellNodePos(1,iNode) = MPIGEO%NodeCoords(1,MPINodeID)
-            MPICellNodePos(2,iNode) = MPIGEO%NodeCoords(2,MPINodeID)
-            MPICellNodePos(3,iNode) = MPIGEO%NodeCoords(3,MPINodeID)
-            iNode = iNode + 1
-          END DO
-          OriginCube(1:3) = 0.0
-          MPICellCenterLocal = MapToGeo(OriginCube,MPICellNodePos)
-          MeanSurfValues(iLocSide, iElem)%CellCentDist(1) = CellCenterList(1,iElem) - MPICellCenterLocal(1)
-          MeanSurfValues(iLocSide, iElem)%CellCentDist(2) = CellCenterList(2,iElem) - MPICellCenterLocal(2)
-          MeanSurfValues(iLocSide, iElem)%CellCentDist(3) = CellCenterList(3,iElem) - MPICellCenterLocal(3)
-        ELSE
-#endif
-          IF (SideToElem(1,SideID) .EQ. iElem) THEN
-            IF (SideToElem(2,SideID) .GT. 0) THEN ! it must be an interior face
-              IF (SideToElem(1,SideID).NE.SideToElem(2,SideID)) THEN ! no one periodic cell
-                Elem2 = SideToElem(2,SideID)
-                  MeanSurfValues(iLocSide, iElem)%CellCentDist(1) = CellCenterList(1,iElem) - CellCenterList(1,Elem2)
-                  MeanSurfValues(iLocSide, iElem)%CellCentDist(2) = CellCenterList(2,iElem) - CellCenterList(2,Elem2)
-                  MeanSurfValues(iLocSide, iElem)%CellCentDist(3) = CellCenterList(3,iElem) - CellCenterList(3,Elem2)
-              END IF
-            END IF
-          ELSE
-            IF (SideToElem(1,SideID) .GT. 0) THEN ! it must be an interior face
-              IF (SideToElem(1,SideID).NE.SideToElem(2,SideID)) THEN ! no one periodic cell
-                Elem2 = SideToElem(1,SideID)
-                MeanSurfValues(iLocSide, iElem)%CellCentDist(1) = CellCenterList(1,iElem) - CellCenterList(1,Elem2)
-                MeanSurfValues(iLocSide, iElem)%CellCentDist(2) = CellCenterList(2,iElem) - CellCenterList(2,Elem2)
-                MeanSurfValues(iLocSide, iElem)%CellCentDist(3) = CellCenterList(3,iElem) - CellCenterList(3,Elem2)
-              END IF
-            END IF
-          END IF
-#ifdef MPI
-        END IF
-#endif
+        Elem2=PartNeighborElemID(ilocSide,iElem) 
+        MeanSurfValues(iLocSide, iElem)%CellCentDist(1) = ElemBaryNGeo(1,iElem) - ElemBaryNGeo(1,Elem2)
+        MeanSurfValues(iLocSide, iElem)%CellCentDist(2) = ElemBaryNGeo(2,iElem) - ElemBaryNGeo(2,Elem2)
+        MeanSurfValues(iLocSide, iElem)%CellCentDist(3) = ElemBaryNGeo(3,iElem) - ElemBaryNGeo(3,Elem2)
 !--- end calculate cellcenter distance for viscousity terms  
       END DO
       CALL SetMeanSurfValues(iLocSide, iElem)
-      NVecTest = (GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(1,0,0,0,iElem)) &  
-               * MeanSurfValues(iLocSide, iElem)%MeanNormVec(1) &
-               + (GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(2,0,0,0,iElem)) &
-               * MeanSurfValues(iLocSide, iElem)%MeanNormVec(2) &
-               + (GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,iElem))-Elem_xGP(3,0,0,0,iElem)) & 
-               * MeanSurfValues(iLocSide, iElem)%MeanNormVec(3)
-      IF (NVecTest.LE.0.0) THEN
-        SWRITE(UNIT_StdOut,'(132("-"))')
-        SWRITE(UNIT_StdOut,'(A)') 'Element:',iElem
-        CALL abort(__STAMP__,&
-             'ERROR in Calculation of NormVec for Element')
-      END IF
     END DO
   END DO
   DEALLOCATE(CellCenterList)
@@ -353,12 +265,12 @@ END FUNCTION CalcDegreeOfFreedom
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
 
-REAL FUNCTION CalcTriNumArea(iLocSide, Element, trinum)
+REAL FUNCTION CalcTriNumArea(Vector1,Vector2)
 !===================================================================================================================================
 ! Calculation of triangle surface area
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,          ONLY : GEO
+  !USE MOD_Particle_Vars,          ONLY : GEO
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -368,38 +280,10 @@ REAL FUNCTION CalcTriNumArea(iLocSide, Element, trinum)
   REAL                        :: xNod1, xNod2, xNod3 
   REAL                        :: yNod1, yNod2, yNod3 
   REAL                        :: zNod1, zNod2, zNod3 
-  REAL                        :: Vector1(1:3), Vector2(1:3)
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)         :: iLocSide, Element, trinum
+  REAL, INTENT(IN)            :: Vector1(1:3), Vector2(1:3)
 !--------------------------------------------------------------------------------------------------!
-
-!--- Node 1 ---
-   xNod1 = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
-   yNod1 = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
-   zNod1 = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
-
-!--- Node 2 ---
-   Nod2 = trinum + 1      ! vector 1-2 for first triangle
-                          ! vector 1-3 for second triangle
-   xNod2 = GEO%NodeCoords(1,GEO%ElemSideNodeID(Nod2,iLocSide,Element))
-   yNod2 = GEO%NodeCoords(2,GEO%ElemSideNodeID(Nod2,iLocSide,Element))
-   zNod2 = GEO%NodeCoords(3,GEO%ElemSideNodeID(Nod2,iLocSide,Element))
-
-!--- Node 3 ---
-   Nod3 = trinum + 2      ! vector 1-3 for first triangle
-                          ! vector 1-4 for second triangle
-   xNod3 = GEO%NodeCoords(1,GEO%ElemSideNodeID(Nod3,iLocSide,Element))
-   yNod3 = GEO%NodeCoords(2,GEO%ElemSideNodeID(Nod3,iLocSide,Element))
-   zNod3 = GEO%NodeCoords(3,GEO%ElemSideNodeID(Nod3,iLocSide,Element))
-
-   Vector1(1) = xNod2 - xNod1
-   Vector1(2) = yNod2 - yNod1
-   Vector1(3) = zNod2 - zNod1
-
-   Vector2(1) = xNod3 - xNod1
-   Vector2(2) = yNod3 - yNod1
-   Vector2(3) = zNod3 - zNod1
 
 !--- 2 * Area = |cross product| of vector 1-2 and 1-3 for first triangle or
                                  ! vector 1-3 and 1-4 for second triangle
@@ -420,7 +304,10 @@ SUBROUTINE CalcLagNormVec(iLocSide, Element, trinum)
 !===================================================================================================================================
 ! MODULES
   USE MOD_LD_Vars
-  USE MOD_Particle_Vars,          ONLY : GEO
+  USE MOD_Particle_Vars,          ONLY:GEO
+  USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo,NGeo
+  USE MOD_Particle_surfaces_Vars, ONLY:ElemBaryNGeo
+  USE MOD_Particle_Mesh_Vars,     ONLY:PartNeighborElemID,PartNeighborLocSideID
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -432,28 +319,105 @@ SUBROUTINE CalcLagNormVec(iLocSide, Element, trinum)
   REAL                        :: zNod1, zNod2, zNod3 
   REAL                        :: Vector1(1:3), Vector2(1:3)
   REAL                        :: nx, ny, nz, nVal
+  INTEGER                     :: flip,ElemID,locSideID
+  REAL                        :: SideCoord(1:3,0:1,0:1)
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)         :: iLocSide, Element, trinum
 !--------------------------------------------------------------------------------------------------!
+
+IF(ElemToSide(E2S_FLIP,ilocSide,Element).EQ.0) THEN
+  ElemID=Element
+  locSideID=ilocSide
+ELSE
+  ElemID=PartNeighborElemID(ilocSide,Element)
+  locSideID=PartNeighborlocSideID(ilocSide,Elemnt)
+END IF
+
+SELECT CASE(locSideID)
+
+CASE(XI_MINUS)
+  DO q=0,NGeo
+    DO p=0,NGeo
+      SideCoord(1:3,p,q)=XCL_NGeo(1:3,0,q,p,ElemID)
+    END DO !p
+  END DO !q
+
+CASE(XI_PLUS)
+  SideCoord(1:3,:,:)=XCL_NGeo(1:3,NGeo,:,:,ElemID)
+
+CASE(ETA_MINUS)
+  SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,0,:,ElemID)
+
+CASE(ETA_PLUS)
+  DO q=0,NGeo
+    DO p=0,NGeo
+      SideCoord(1:3,p,q)=XCL_NGeo(1:3,NGeo-p,NGeo,q,ElemID)
+    END DO !p
+  END DO !q
+
+CASE(ZETA_MINUS)
+  DO q=0,NGeo
+    DO p=0,NGeo
+      SideCoord(1:3,p,q)=XCL_NGeo(1:3,q,p,0,ElemID)
+    END DO !p
+  END DO !q
+
+CASE(ZETA_PLUS)
+  SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,:,NGeo,ElemID)
+END SELECT
+
+IF(trinum.EQ.1) THEN
 !--- Node 1 ---
-   xNod1 = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
-   yNod1 = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
-   zNod1 = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
+   xNod1 = SideCoord(1,0,0)
+   yNod1 = SideCoord(2,0,0)
+   zNod1 = SideCoord(3,0,0)
 
 !--- Node 2 ---
-   Nod2 = trinum + 1      ! vector 1-2 for first triangle
-                          ! vector 1-3 for second triangle
-   xNod2 = GEO%NodeCoords(1,GEO%ElemSideNodeID(Nod2,iLocSide,Element))
-   yNod2 = GEO%NodeCoords(2,GEO%ElemSideNodeID(Nod2,iLocSide,Element))
-   zNod2 = GEO%NodeCoords(3,GEO%ElemSideNodeID(Nod2,iLocSide,Element))
+   xNod2 = SideCood(1,NGeo,0)
+   yNod2 = SideCood(2,NGeo,0)
+   zNod2 = SideCood(3,NGeo,0)
 
 !--- Node 3 ---
-   Nod3 = trinum + 2      ! vector 1-3 for first triangle
-                          ! vector 1-4 for second triangle
-   xNod3 = GEO%NodeCoords(1,GEO%ElemSideNodeID(Nod3,iLocSide,Element))
-   yNod3 = GEO%NodeCoords(2,GEO%ElemSideNodeID(Nod3,iLocSide,Element))
-   zNod3 = GEO%NodeCoords(3,GEO%ElemSideNodeID(Nod3,iLocSide,Element))
+   xNod3 = SideCood(1,NGeo,NGeo)
+   yNod3 = SideCood(2,NGeo,NGeo)
+   zNod3 = SideCood(3,NGeo,NGeo)
+ELSE
+!--- Node 1 ---
+   xNod1 = SideCoord(1,0,0)
+   yNod1 = SideCoord(2,0,0)
+   zNod1 = SideCoord(3,0,0)
+!--- Node 3 ---
+   xNod2 = SideCood(1,0,NGeo)
+   yNod2 = SideCood(2,0,NGeo)
+   zNod2 = SideCood(3,0,NGeo)
+
+!--- Node 2 ---
+   xNod3 = SideCood(1,NGeo,NGeo)
+   yNod3 = SideCood(2,NGeo,NGeo)
+   zNod3 = SideCood(3,NGeo,NGeo)
+END IF
+
+
+
+!!--- Node 1 ---
+!   xNod1 = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
+!   yNod1 = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
+!   zNod1 = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
+!
+!!--- Node 2 ---
+!   Nod2 = trinum + 1      ! vector 1-2 for first triangle
+!                          ! vector 1-3 for second triangle
+!   xNod2 = GEO%NodeCoords(1,GEO%ElemSideNodeID(Nod2,iLocSide,Element))
+!   yNod2 = GEO%NodeCoords(2,GEO%ElemSideNodeID(Nod2,iLocSide,Element))
+!   zNod2 = GEO%NodeCoords(3,GEO%ElemSideNodeID(Nod2,iLocSide,Element))
+!
+!!--- Node 3 ---
+!   Nod3 = trinum + 2      ! vector 1-3 for first triangle
+!                          ! vector 1-4 for second triangle
+!   xNod3 = GEO%NodeCoords(1,GEO%ElemSideNodeID(Nod3,iLocSide,Element))
+!   yNod3 = GEO%NodeCoords(2,GEO%ElemSideNodeID(Nod3,iLocSide,Element))
+!   zNod3 = GEO%NodeCoords(3,GEO%ElemSideNodeID(Nod3,iLocSide,Element))
 
    Vector1(1) = xNod2 - xNod1
    Vector1(2) = yNod2 - yNod1
@@ -478,7 +442,7 @@ SUBROUTINE CalcLagNormVec(iLocSide, Element, trinum)
    SurfLagValues(iLocSide, Element,trinum)%LagTangVec(1,1) = Vector1(1)/nVal
    SurfLagValues(iLocSide, Element,trinum)%LagTangVec(1,2) = Vector1(2)/nVal
    SurfLagValues(iLocSide, Element,trinum)%LagTangVec(1,3) = Vector1(3)/nVal
-!--- second tangential Vector == |cross product| of N_Vec and Tang_1
+!--- second tangential Vector == |cross product| of N_Vec and Tang_2
    SurfLagValues(iLocSide, Element,trinum)%LagTangVec(2,1) = &
           SurfLagValues(iLocSide, Element,trinum)%LagNormVec(2) * SurfLagValues(iLocSide, Element,trinum)%LagTangVec(1,3) &
         - SurfLagValues(iLocSide, Element,trinum)%LagNormVec(3) * SurfLagValues(iLocSide, Element,trinum)%LagTangVec(1,2)
@@ -488,6 +452,23 @@ SUBROUTINE CalcLagNormVec(iLocSide, Element, trinum)
    SurfLagValues(iLocSide, Element,trinum)%LagTangVec(2,3) = &
           SurfLagValues(iLocSide, Element,trinum)%LagNormVec(1) * SurfLagValues(iLocSide, Element,trinum)%LagTangVec(1,2) &
         - SurfLagValues(iLocSide, Element,trinum)%LagNormVec(2) * SurfLagValues(iLocSide, Element,trinum)%LagTangVec(1,1)
+
+
+   NVecTest = (SideCoord(1,0,0)-ElemBaryNGeo(1,Element) ) &
+            * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(1) &
+            + (SideCoord(2,0,0)-ElemBaryNGeo(2,Element) ) &
+            * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(2) &
+            + (SideCoord(3,0,0)-ElemBaryNGeo(3,Element) ) &
+            * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(3)
+   IF (NVecTest.LE.0.0) THEN
+     SWRITE(UNIT_StdOut,'(132("-"))')
+     SWRITE(UNIT_StdOut,'(A)') 'Element:',iElem
+     CALL abort(__STAMP__,&
+          'ERROR in Calculation of NormVec for Element')
+   END IF  
+
+   SurfLagValues(iLocSide, iElem, trinum)%Area = CalcTriNumArea(Vector1,Vector2)
+
 END SUBROUTINE CalcLagNormVec
 !--------------------------------------------------------------------------------------------------!
 !--------------------------------------------------------------------------------------------------!
@@ -497,7 +478,9 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
 !===================================================================================================================================
 ! MODULES
   USE MOD_LD_Vars
-  USE MOD_Particle_Vars,          ONLY : GEO
+  !USE MOD_Particle_Vars,          ONLY : GEO
+  USE MOD_Mesh_Vars,              ONLY : XCL_NGeo
+  USE MOD_Particle_Mesh_Vars,    ONLY : ElemBaryNGeo
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -508,27 +491,59 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
   REAL                        :: zNod1, zNod2, zNod3, zNod4 
   REAL                        :: Vector1(3), Vector2(3),BaseVectorS(3) 
   REAL                        :: nx, ny, nz, nVal
+  REAL                        :: SideCoord(1:3,0:1,0:1)!,SideCenter(1:3)
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)         :: iLocSide, Element                                                 !
 !--------------------------------------------------------------------------------------------------!
 
-  !--- Node 1 ---
-  xNod1 = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
-  yNod1 = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
-  zNod1 = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
-  !--- Node 2 ---
-  xNod2 = GEO%NodeCoords(1,GEO%ElemSideNodeID(2,iLocSide,Element))
-  yNod2 = GEO%NodeCoords(2,GEO%ElemSideNodeID(2,iLocSide,Element))
-  zNod2 = GEO%NodeCoords(3,GEO%ElemSideNodeID(2,iLocSide,Element))
-  !--- Node 3 ---
-  xNod3 = GEO%NodeCoords(1,GEO%ElemSideNodeID(3,iLocSide,Element))
-  yNod3 = GEO%NodeCoords(2,GEO%ElemSideNodeID(3,iLocSide,Element))
-  zNod3 = GEO%NodeCoords(3,GEO%ElemSideNodeID(3,iLocSide,Element))
-  !--- Node 4 ---
-  xNod4 = GEO%NodeCoords(1,GEO%ElemSideNodeID(4,iLocSide,Element))
-  yNod4 = GEO%NodeCoords(2,GEO%ElemSideNodeID(4,iLocSide,Element))
-  zNod4 = GEO%NodeCoords(3,GEO%ElemSideNodeID(4,iLocSide,Element))
+SELECT CASE(ilocSide)
+
+CASE(XI_MINUS)
+  SideCoord(1:3,:,:)=XCL_NGeo(1:3,0,:,:,Element)
+CASE(XI_PLUS)
+  SideCoord(1:3,:,:)=XCL_NGeo(1:3,NGeo,:,:,Element)
+CASE(ETA_MINUS)
+  SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,0,:,Element)
+CASE(ETA_PLUS)
+  SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,NGeo,:,Element)
+CASE(ZETA_MINUS)
+  SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,:,0,Element)
+CASE(ZETA_PLUS)
+  SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,:,NGeo,Element)
+END SELECT
+
+xNod1=SideCoord(1,0,0)
+yNod1=SideCoord(2,0,0)
+zNod1=SideCoord(3,0,0)
+
+xNod2=SideCoord(1,NGeo,0)
+yNod2=SideCoord(2,NGeo,0)
+zNod2=SideCoord(3,NGeo,0)
+
+xNod3=SideCoord(1,0,NGeo)
+yNod3=SideCoord(2,0,NGeo)
+zNod3=SideCoord(3,0,NGeo)
+
+xNod4=SideCoord(1,NGeo,NGeo)
+yNod4=SideCoord(2,NGeo,NGeo)
+zNod4=SideCoord(3,NGeo,NGeo)
+  !!--- Node 1 ---
+  !xNod1 = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
+  !yNod1 = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
+  !zNod1 = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
+  !!--- Node 2 ---
+  !xNod2 = GEO%NodeCoords(1,GEO%ElemSideNodeID(2,iLocSide,Element))
+  !yNod2 = GEO%NodeCoords(2,GEO%ElemSideNodeID(2,iLocSide,Element))
+  !zNod2 = GEO%NodeCoords(3,GEO%ElemSideNodeID(2,iLocSide,Element))
+  !!--- Node 3 ---
+  !xNod3 = GEO%NodeCoords(1,GEO%ElemSideNodeID(3,iLocSide,Element))
+  !yNod3 = GEO%NodeCoords(2,GEO%ElemSideNodeID(3,iLocSide,Element))
+  !zNod3 = GEO%NodeCoords(3,GEO%ElemSideNodeID(3,iLocSide,Element))
+  !!--- Node 4 ---
+  !xNod4 = GEO%NodeCoords(1,GEO%ElemSideNodeID(4,iLocSide,Element))
+  !yNod4 = GEO%NodeCoords(2,GEO%ElemSideNodeID(4,iLocSide,Element))
+  !zNod4 = GEO%NodeCoords(3,GEO%ElemSideNodeID(4,iLocSide,Element))
   Vector1(1) = xNod3 - xNod1
   Vector1(2) = yNod3 - yNod1
   Vector1(3) = zNod3 - zNod1
@@ -538,11 +553,8 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
   nx = Vector1(2) * Vector2(3) - Vector1(3) * Vector2(2) ! n is inward normal vector
   ny = Vector1(3) * Vector2(1) - Vector1(1) * Vector2(3)
   nz = Vector1(1) * Vector2(2) - Vector1(2) * Vector2(1)
-  BaseVectorS(1:3) = 0.25 *( &
-                   + GEO%NodeCoords(1:3,GEO%ElemSideNodeID(1,iLocSide,Element)) &
-                   + GEO%NodeCoords(1:3,GEO%ElemSideNodeID(2,iLocSide,Element)) &
-                   + GEO%NodeCoords(1:3,GEO%ElemSideNodeID(3,iLocSide,Element)) &
-                   + GEO%NodeCoords(1:3,GEO%ElemSideNodeID(4,iLocSide,Element)) )
+  BaseVectorS(1:3) = 0.25*SUM(SideCoord(1:3,:,:))
+
   nVal = SQRT(nx*nx + ny*ny + nz*nz)
   MeanSurfValues(iLocSide, Element)%MeanNormVec(1) = nx/nVal
   MeanSurfValues(iLocSide, Element)%MeanNormVec(2) = ny/nVal
@@ -550,6 +562,16 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
   MeanSurfValues(iLocSide, Element)%MeanBaseD = MeanSurfValues(iLocSide, Element)%MeanNormVec(1) * BaseVectorS(1) &
                                   + MeanSurfValues(iLocSide, Element)%MeanNormVec(2) * BaseVectorS(2) &
                                   + MeanSurfValues(iLocSide, Element)%MeanNormVec(3) * BaseVectorS(3)
+
+  NVecTest = DOT_PRODUCT(BaseVectorS-ElemBaryNGeo(:,Element),MeanSurfValue(ilocSide,iElem)%MeanNormVec)
+  IF(NVecTest.LE.0.0)  MeanSurfValue(ilocSide,iElem)%MeanNormVec=(-1.0)*MeanSurfValue(ilocSide,iElem)%MeanNormVec
+
+  !IF (NVecTest.LE.0.0) THEN
+  !  SWRITE(UNIT_StdOut,'(132("-"))')
+  !  SWRITE(UNIT_StdOut,'(A)') 'Element:',iElem
+  !  CALL abort(__STAMP__,&
+  !       'ERROR in Calculation of NormVec for Element')
+  !END IF
 
 END SUBROUTINE SetMeanSurfValues
 

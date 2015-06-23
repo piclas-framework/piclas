@@ -571,8 +571,8 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Mesh_Vars,          ONLY:nBCSides, SideToElem, BC
-  USE MOD_Particle_Vars,      ONLY: PartBound, nSpecies
-  USE MOD_Particle_Mesh_Vars, ONLY:GEO
+  USE MOD_Particle_Vars,      ONLY:nSpecies
+  USE MOD_Particle_Mesh_Vars, ONLY:GEO,PartBound
   USE MOD_DSMC_Vars,          ONLY:SurfMesh, SampWall
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -663,9 +663,10 @@ SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping()
 ! Perform mapping for halo surface output of MPI case
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,      ONLY : PartBound, nSpecies
+  USE MOD_Particle_Vars,      ONLY : nSpecies
   USE MOD_DSMC_Vars,          ONLY : SampWallHaloCell
   USE MOD_DSMC_Vars,          ONLY : SurfMesh
+  USE MOD_Particle_Mesh_Vars, ONLY : PartBound
   !USE MOD_part_MPI_Vars,      ONLY : MPIGEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

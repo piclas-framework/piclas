@@ -43,7 +43,7 @@ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne,epsilonbilinear
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D,BoundingBoxIsEmpty
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems
-USE MOD_Particle_Mesh_Vars,          ONLY:PartNeighborElemID,PartNeighborLocSideID
+USE MOD_Particle_Mesh_Vars,          ONLY:PartNeighborElemID,PartNeighborLocSideID,GEO
 USE MOD_TimeDisc_Vars,               ONLY:iter
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Vars,               ONLY:time
@@ -359,7 +359,7 @@ USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
-USE MOD_Particle_Surfaces_Vars,  ONLY:nTracks,ClipHit,epsInCell,epsOneCell,MultipleBCs
+USE MOD_Particle_Surfaces_Vars,  ONLY:nTracks,ClipHit,epsInCell,epsOneCell
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Surfaces_Vars,  ONLY:ElemBaryNGeo,ElemRadiusNGeo
@@ -390,46 +390,42 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
   DO iPart=1,PDM%ParticleVecLength
     IF(PDM%ParticleInside(iPart))THEN
       ElemID = PEM%lastElement(iPart)
-      IF(ElemID.GT.PP_nElems) IPWRITE(*,*) 'too large',ElemID,PP_nElems
-      IF(ElemID.LT.1)         IPWRITE(*,*) 'too small',ElemID,1
-      IF(ElemID.EQ.-888)      IPWRITE(*,*) 'not set',ElemID
+      !IF(ElemID.GT.PP_nElems) IPWRITE(*,*) 'too large',ElemID,PP_nElems
+      !IF(ElemID.LT.1)         IPWRITE(*,*) 'too small',ElemID,1
+      !IF(ElemID.EQ.-888)      IPWRITE(*,*) 'not set',ElemID
       IF(ElemID.NE.iElem) CYCLE
       nTracks=nTracks+1
       ! sanity check
       !IF(PartState(iPart,3).GE.0.089)THEN
       !  IPWRITE(UNIT_stdOut,*) ' Part out of area, z,ipart', PartState(iPart,3),iPart
       !END IF
+      IF(GEO%nPeriodicVectors.GT.0)THEN
+        ! call here function for mapping of partpos and lastpartpos
+        CALL PeriodicMovement(iPart)
+      END IF
       IF(IsBCElem(ElemID))THEN
-        !nlocSides=BCElem(ElemID)%lastSide
-        IF(MultipleBCs)THEN
-          ! expansive, but multiple BC intersections
+        !  multiple BC intersections
+        !LastPos=PartState(iPart,1:3)
+        ! check inner sides
+        CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,ParticleFound(iPart))
+        IF(ParticleFound(iPart)) CYCLE
+        ! check if particle is still in element
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+        ! particle can hit outside bc due to tolerance
+        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsLowOne) THEN ! particle inside
           LastPos=PartState(iPart,1:3)
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+          nlocSides=BCElem(ElemID)%lastSide-BCElem(ElemID)%nInnerSides
+          CALL ParticleBCTracking(ElemID,BCElem(ElemID)%nInnerSides+1,BCElem(ElemID)%lastSide,nlocSides,iPart,ParticleFound(iPart))
           IF(ParticleFound(iPart)) CYCLE
           DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
               .AND.  .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
               .AND.  .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
             LastPos=PartState(iPart,1:3)
+            ! unfortunately, here all sides
             CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
             IF(ParticleFound(iPart)) EXIT
           END DO
           IF(ParticleFound(iPart)) CYCLE
-          CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
-        ELSE
-          ! cheap method if only one bc intersection
-          nlocSides=BCElem(ElemID)%nInnerSides
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%nInnerSides,nlocSides,iPart,ParticleFound(iPart))
-          IF(ParticleFound(iPart)) CYCLE
-          CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
-          IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsLowOne) THEN ! particle inside
-            LastPos=PartState(iPart,1:3)
-            nlocSides=BCElem(ElemID)%lastSide-BCElem(ElemID)%nInnerSides+1
-            CALL ParticleBCTracking(ElemID,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%lastSide,nlocSides,iPart,ParticleFound(iPart))
-            IF(ParticleFound(iPart)) CYCLE
-          END IF
-          IF ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
-          .AND..NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
-          .AND..NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) ) &
           CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
         END IF
       ELSE ! no bc elem, therefore, no bc ineraction possible
@@ -462,9 +458,9 @@ DO iPart=1,PDM%ParticleVecLength
   IF(ParticleFound(iPart)) CYCLE
   ! relocate particle
   oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
-  IF(oldElemID.GT.PP_nElems) IPWRITE(*,*) 'second too large'
-  IF(oldElemID.LT.1)         IPWRITE(*,*) 'second too small'
-  IF(oldElemID.EQ.-888)      IPWRITE(*,*) 'second not set'
+  !IF(oldElemID.GT.PP_nElems) IPWRITE(*,*) 'second too large'
+  !IF(oldElemID.LT.1)         IPWRITE(*,*) 'second too small'
+  !IF(oldElemID.EQ.-888)      IPWRITE(*,*) 'second not set'
   ! get background mesh cell of particle
   CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
   !CellX = MIN(GEO%FIBGMimax,CellX)
@@ -662,6 +658,114 @@ ELSE ! no BC Side
 END IF ! SideID>nCBSides
 
 END SUBROUTINE SelectInterSectionType
+
+
+SUBROUTINE PeriodicMovement(PartID) 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! move particle in the periodic direction, if particle is outside of the box
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
+USE MOD_Particle_Mesh_Vars,          ONLY:GEO
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)              :: PartID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: PeriodicVector(3)
+INTEGER                         :: iPV
+!===================================================================================================================================
+
+! x direction
+IF(GEO%directions(1)) THEN
+  IF(PartState(PartID,1).GT.GEO%xmaxglob) THEN
+    DO iPV=1,GEO%nPeriodicVectors
+      IF(GEO%DirPeriodicVectors(iPV).EQ.1) EXIT
+    END DO
+    IF(GEO%PeriodicVectors(1,iPV).GT.0)THEN
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+    ELSE
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+    END IF
+  END IF
+  IF(PartState(PartID,1).LT.GEO%xminglob) THEN
+    DO iPV=1,GEO%nPeriodicVectors
+      IF(GEO%DirPeriodicVectors(iPV).EQ.1) EXIT
+    END DO
+    IF(GEO%PeriodicVectors(1,iPV).GT.0)THEN
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+    ELSE
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+    END IF
+  END IF
+END IF
+
+! y direction
+IF(GEO%directions(2)) THEN
+  IF(PartState(PartID,2).GT.GEO%ymaxglob) THEN
+    DO iPV=1,GEO%nPeriodicVectors
+      IF(GEO%DirPeriodicVectors(iPV).EQ.2) EXIT
+    END DO
+    IF(GEO%PeriodicVectors(2,iPV).GT.0)THEN
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+    ELSE
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+    END IF
+  END IF
+  IF(PartState(PartID,2).LT.GEO%yminglob) THEN
+    DO iPV=1,GEO%nPeriodicVectors
+      IF(GEO%DirPeriodicVectors(iPV).EQ.2) EXIT
+    END DO
+    IF(GEO%PeriodicVectors(2,iPV).GT.0)THEN
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+    ELSE
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+    END IF
+  END IF
+END IF
+
+! z direction
+IF(GEO%directions(3)) THEN
+  IF(PartState(PartID,3).GT.GEO%ymaxglob) THEN
+    DO iPV=1,GEO%nPeriodicVectors
+      IF(GEO%DirPeriodicVectors(iPV).EQ.3) EXIT
+    END DO
+    IF(GEO%PeriodicVectors(3,iPV).GT.0)THEN
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+    ELSE
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+    END IF
+  END IF
+  IF(PartState(PartID,3).LT.GEO%yminglob) THEN
+    DO iPV=1,GEO%nPeriodicVectors
+      IF(GEO%DirPeriodicVectors(iPV).EQ.3) EXIT
+    END DO
+    IF(GEO%PeriodicVectors(3,iPV).GT.0)THEN
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+    ELSE
+      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+    END IF
+  END IF
+END IF
+
+
+END SUBROUTINE PeriodicMovement
 
 
 END MODULE MOD_Particle_Tracking

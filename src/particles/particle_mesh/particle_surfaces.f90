@@ -74,7 +74,7 @@ SUBROUTINE InitParticleSurfaces()
 USE MOD_Globals
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem,NGeo,nBCSides
+USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem,NGeo,nBCSides,BC,nSides
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 USE MOD_Particle_Vars,              ONLY:PDM
 USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList,nTotalBCSides
@@ -88,7 +88,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iElem,ilocSide,SideID,flip,tmp,allocstat,iSide
+INTEGER                         :: iElem,ilocSide,SideID,flip,tmp,allocstat,iSide,iBCSide
 CHARACTER(LEN=2)                :: dummy                         
 !===================================================================================================================================
 
@@ -117,13 +117,21 @@ ClipMaxInter    = GETINT('ClipMaxInter',dummy)
 !DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
 
 IF(DoRefMapping)THEN
-  MultipleBCs    = GETLOGICAL('MultibleBCs',".FALSE.")
+  !MultipleBCs    = GETLOGICAL('MultibleBCs',".FALSE.")
   ALLOCATE(PartBCSideList(1:nSides))
   PartBCSideList(:) = -1
   DO iSide=1,nBCSides
     PartBCSideList(iSide)=iSide
   END DO 
   nTotalBCSides=nBCSides
+ ! iBCSide=nBCSides
+ ! DO iSide=nBCSides+1,nSides
+ !   IF(BC(iSide).EQ.1) THEN
+ !     iBCSide=iBCSide+1
+ !     PartBCSideList(iSide)=iBCSide
+ !   END IF
+ ! END DO 
+ ! nTotalBCSides=iBCSide
 END IF
 
 ! method from xPhysic to parameter space

@@ -101,7 +101,8 @@ END TYPE
 TYPE (tParticleMPIExchange)              :: PartMPIInsert
 TYPE (tParticleMPIExchange)              :: PartMPIExchange
 
-LOGICAL                                  :: DoExternalParts                  ! external particles
+LOGICAL                                  :: DoExternalParts                  ! external particles, required for 
+                                                                             ! shape-function or b-spline or valume weighting
 INTEGER                                  :: NbrOfExtParticles                ! number of external particles
 LOGICAL                                  :: ExtPartsAllocated                ! number of allocated external particles
 REAL, ALLOCATABLE                        :: ExtPartState(:,:)                ! external particle state

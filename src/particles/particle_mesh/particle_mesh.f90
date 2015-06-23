@@ -83,17 +83,17 @@ IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
  ,'  Cannot allocate particle mesh vars!')
 
 !--- Initialize Periodic Side Info
-ALLOCATE(SidePeriodicType(1:nSides)) 
-SidePeriodicType=0
-DO iElem=1,nElems
-  DO iLocSide=1,6
-    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)           .AND. &
-        (ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
-      SidePeriodicType(SideID) = -1
-    END IF
-  END DO
-END DO
+!ALLOCATE(SidePeriodicType(1:nSides)) 
+!SidePeriodicType=0
+!DO iElem=1,nElems
+!  DO iLocSide=1,6
+!    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+!    IF ((Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%BCindex.GT.0)           .AND. &
+!        (ASSOCIATED(Elems(iElem+offsetElem)%ep%Side(iLocSide)%sp%connection))) THEN
+!      SidePeriodicType(SideID) = -1
+!    END IF
+!  END DO
+!END DO
 
 ! copy
 PartElemToSide=ElemToSide

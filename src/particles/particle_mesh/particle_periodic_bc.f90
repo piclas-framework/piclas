@@ -25,8 +25,8 @@ SUBROUTINE InitPeriodicBC()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools,        ONLY:GETINT,GETREALARRAY
-USE MOD_Particle_Mesh_Vars, ONLY:GEO
-USE MOD_Particle_Vars,      ONLY:PartBound
+USE MOD_Particle_Mesh_Vars, ONLY:GEO,PartBound
+!USE MOD_Particle_Vars,      ONLY:PartBound
 USE MOD_Particle_MPI_Vars,  ONLY:NbrOfCases, casematrix!, partShiftVector
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -101,6 +101,7 @@ END IF
 
 END SUBROUTINE InitPeriodicBC
 
+
 SUBROUTINE MapPeriodicVectorsToSides()
 !===================================================================================================================================
 ! Per direction, two different periodic displacements are possible: +- periodic_vector
@@ -114,8 +115,8 @@ SUBROUTINE MapPeriodicVectorsToSides()
 USE MOD_Preproc
 USE MOD_Globals,                 ONLY:AlmostZero,AlmostEqual,CROSSNORM
 !USE MOD_Mesh_Vars,               ONLY:Elems,offsetElem,nSides, ElemToSide
-USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMPISides_MINE
-USE MOD_Mesh_Vars,               ONLY:ElemToSide,nBCSides,XCL_NGeo,NGeo
+USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMPISides_MINE,nSides
+USE MOD_Mesh_Vars,               ONLY:ElemToSide,nBCSides,XCL_NGeo,NGeo,BC,SideToElem
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO, SidePeriodicType, SidePeriodicDisplacement
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -127,7 +128,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER             :: iElem,ilocSide,SideID,flip
+INTEGER             :: iElem,ilocSide,SideID,flip,iSide,ElemID,locSideID
 INTEGER             :: iPV,iDisplace,nDisplacement
 INTEGER             :: nLocalSides
 REAL                :: v1(3),v2(3),nVec(3)
@@ -135,6 +136,8 @@ REAL,ALLOCATABLE    :: normDisplaceVec(:,:)
 !===================================================================================================================================
 
 nDisplacement=2*GEO%nPeriodicVectors
+IF(.NOT.ALLOCATED(SidePeriodicTYPE)) ALLOCATE(SidePeriodicType(1:nSides))
+SidePeriodicType=0
 !ALLOCATE(SidePeriodicType(1:nSides)                 &
 !        ,normDisplaceVec(1:3,nDisplacement)         &
 !        ,SidePeriodicDisplacement(1:3,nDisplacement))
@@ -151,54 +154,117 @@ DO iPV=1,GEO%nPeriodicVectors
   normDisplaceVec(:,iDisplace  ) = SidePeriodicDisplacement(:,iDisplace) &
                                  / SQRT(DOT_PRODUCT(SidePeriodicDisplacement(:,iDisplace),SidePeriodicDisplacement(:,iDisplace)))
   SidePeriodicDisplacement(:,iDisplace+1)=-GEO%PeriodicVectors(:,iPV)
-  normDisplaceVec(:,iDisplace+1) =-normDisplaceVec(:,iDisplace+1)
+  !normDisplaceVec(:,iDisplace+1) =-normDisplaceVec(:,iDisplace+1)
+  normDisplaceVec(:,iDisplace+1) =-normDisplaceVec(:,iDisplace)
   iDisplace=iDisplace+2
 END DO ! iPV
 
 nLocalSides = nBCSides+nInnerSides+nMPISides_MINE
 !--- Initialize Periodic Side Info
-DO iElem=1,PP_nElems
-  DO ilocSide=1,6
-    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    flip   = ElemToSide(E2S_FLIP,ilocSide,iElem)
-    IF(SideperiodicType(SideID).EQ.-1)THEN
-      SELECT CASE(iLocSide)
-      CASE(XI_MINUS)
-        v1=XCL_NGeo(1:3,0   ,NGeo,0,iElem) - XCL_NGeo(1:3,0   ,0,0,iElem)
-        v2=XCL_NGeo(1:3,0   ,0,NGeo,iElem) - XCL_NGeo(1:3,0   ,0,0,iElem)
-      CASE(XI_PLUS)
-        v1=XCL_NGeo(1:3,NGeo,NGeo,0,iElem) - XCL_NGeo(1:3,NGeo,0,0,iElem)
-        v2=XCL_NGeo(1:3,NGeo,0,NGeo,iElem) - XCL_NGeo(1:3,NGeo,0,0,iElem)
-      CASE(ETA_MINUS)
-        v1=XCL_NGeo(1:3,NGeo,0,0   ,iElem)-XCL_NGeo(1:3,0,0,0,iElem)
-        v2=XCL_NGeo(1:3,0   ,0,Ngeo,iElem)-XCL_NGeo(1:3,0,0,0,iElem)
-      CASE(ETA_PLUS)
-        v1=XCL_NGeo(1:3,NGeo,NGeo,0   ,iElem)-XCL_NGeo(1:3,0,NGeo,0,iElem)
-        v2=XCL_NGeo(1:3,0   ,NGeo,NGeo,iElem)-XCL_NGeo(1:3,0,NGeo,0,iElem)
-      CASE(ZETA_MINUS)
-        v1=XCL_NGeo(1:3,NGeo,0,0   ,iElem)-XCL_NGeo(1:3,0,0,0   ,iElem)
-        v2=XCL_NGeo(1:3,0,NGeo,0   ,iElem)-XCL_NGeo(1:3,0,0,0   ,iElem)
-      CASE(ZETA_PLUS)
-        v1=XCL_NGeo(1:3,NGeo,0,NGeo,iElem)-XCL_NGeo(1:3,0,0,NGeo,iElem)
-        v2=XCL_NGeo(1:3,0,NGeo,NGeo,iElem)-XCL_NGeo(1:3,0,0,NGeo,iElem)
-      END SELECT
-      nVec=CROSSNORM(v1,v2)
-      IF(SideID.LE.nLocalSides)THEN
-        IF(flip.EQ.0)THEN ! master side
-          DO iDisplace=1,nDisplacement
-            IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),-1.0)) &
-                SidePeriodicType(SideID)=iDisplace
-          END DO ! iDisplace
-        END IF ! flip
-      ELSE ! mpi Side & no master flip
-        DO iDisplace=1,nDisplacement
-          IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),1.0)) &
-              SidePeriodicType(SideID)=iDisplace
-        END DO ! iDisplace
-      END IF ! SideID.GT.nLocalSides
-    END IF ! is periodic side
-  END DO ! ilocSide
-END DO  ! iElem
+
+DO iSide=nBCSides+1,nSides
+  IF(BC(iSide).NE.1)CYCLE
+  iElem=SideToElem(S2E_ELEM_ID,iSide)
+  IF(iElem.GE.1 .AND. iElem .LE. PP_nElems)THEN
+    flip=0
+    ElemID=iElem
+    locSideID=SideToElem(S2E_LOC_SIDE_ID,iSide)
+  ELSE
+    flip=1
+    ElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
+    locSideID=SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+  END IF
+  !print*,'flip',flip
+  SELECT CASE(locSideID)
+  CASE(XI_MINUS)
+  !  print*,'ximinus'
+    v1=XCL_NGeo(1:3,0   ,NGeo,0   ,ElemID) - XCL_NGeo(1:3,0   ,0,0,ElemID)
+    v2=XCL_NGeo(1:3,0   ,0,NGeo   ,ElemID) - XCL_NGeo(1:3,0   ,0,0,ElemID)
+    nVec=CROSSNORM(v1,v2)
+  CASE(XI_PLUS)
+  !  print*,'xiplus'
+    v1=XCL_NGeo(1:3,NGeo,NGeo,0   ,ElemID) - XCL_NGeo(1:3,NGeo,0,0,ElemID)
+    v2=XCL_NGeo(1:3,NGeo,0,NGeo   ,ElemID) - XCL_NGeo(1:3,NGeo,0,0,ElemID)
+    nVec=CROSSNORM(v1,v2)
+  CASE(ETA_MINUS)
+  !  print*,'eta_minus'
+    v1=XCL_NGeo(1:3,NGeo,0,0      ,ElemID)-XCL_NGeo(1:3,0,0,0     ,ElemID)
+    v2=XCL_NGeo(1:3,0   ,0,Ngeo   ,ElemID)-XCL_NGeo(1:3,0,0,0     ,ElemID)
+    nVec=CROSSNORM(v1,v2)
+  CASE(ETA_PLUS)
+  !  print*,'eta_plus'
+    v2=XCL_NGeo(1:3,NGeo,NGeo,0   ,ElemID)-XCL_NGeo(1:3,0,NGeo,0  ,ElemID)
+    v1=XCL_NGeo(1:3,0   ,NGeo,NGeo,ElemID)-XCL_NGeo(1:3,0,NGeo,0  ,ElemID)
+    nVec=CROSSNORM(v1,v2)
+  CASE(ZETA_MINUS)
+  !  print*,'zeta_minus'
+    v1=XCL_NGeo(1:3,NGeo,0,0      ,ElemID)-XCL_NGeo(1:3,0,0,0     ,ElemID)
+    v2=XCL_NGeo(1:3,0,NGeo,0      ,ElemID)-XCL_NGeo(1:3,0,0,0     ,ElemID)
+    nVec=CROSSNORM(v1,v2)
+  CASE(ZETA_PLUS)
+  !  print*,'zeta_plus'
+    v1=XCL_NGeo(1:3,NGeo,0,NGeo   ,ElemID)-XCL_NGeo(1:3,0,0,NGeo  ,ElemID)
+    v2=XCL_NGeo(1:3,0,NGeo,NGeo   ,ElemID)-XCL_NGeo(1:3,0,0,NGeo  ,ElemID)
+    nVec=CROSSNORM(v1,v2)
+  END SELECT
+  !print*,'nVec',nVec
+  IF(flip.EQ.0)THEN ! master side
+    DO iDisplace=1,nDisplacement
+      IF(ALMOSTEQUAL(DOT_PRODUCT(nVec,normDisplaceVec(:,iDisplace)),-1.0)) &
+        SidePeriodicType(iSide)=iDisplace
+    END DO
+  ELSE ! mpi Side & no master flip
+    DO iDisplace=1,nDisplacement
+      IF(ALMOSTEQUAL(DOT_PRODUCT(nVec,normDisplaceVec(:,iDisplace)),1.0)) &
+          SidePeriodicType(iSide)=iDisplace
+    END DO ! iDisplace
+  END IF ! SideID.GT.nLocalSides
+END DO ! iSide=nBCSides+1,nSides
+
+!DO iElem=1,PP_nElems
+!  DO ilocSide=1,6
+!    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+!    flip   = ElemToSide(E2S_FLIP,ilocSide,iElem)
+!    IF(BC(SideID).EQ.1)THEN
+!      SELECT CASE(iLocSide)
+!      CASE(XI_MINUS)
+!        v1=XCL_NGeo(1:3,0   ,NGeo,0,iElem) - XCL_NGeo(1:3,0   ,0,0,iElem)
+!        v2=XCL_NGeo(1:3,0   ,0,NGeo,iElem) - XCL_NGeo(1:3,0   ,0,0,iElem)
+!      CASE(XI_PLUS)
+!        v1=XCL_NGeo(1:3,NGeo,NGeo,0,iElem) - XCL_NGeo(1:3,NGeo,0,0,iElem)
+!        v2=XCL_NGeo(1:3,NGeo,0,NGeo,iElem) - XCL_NGeo(1:3,NGeo,0,0,iElem)
+!      CASE(ETA_MINUS)
+!        v1=XCL_NGeo(1:3,NGeo,0,0   ,iElem)-XCL_NGeo(1:3,0,0,0,iElem)
+!        v2=XCL_NGeo(1:3,0   ,0,Ngeo,iElem)-XCL_NGeo(1:3,0,0,0,iElem)
+!      CASE(ETA_PLUS)
+!        v1=XCL_NGeo(1:3,NGeo,NGeo,0   ,iElem)-XCL_NGeo(1:3,0,NGeo,0,iElem)
+!        v2=XCL_NGeo(1:3,0   ,NGeo,NGeo,iElem)-XCL_NGeo(1:3,0,NGeo,0,iElem)
+!      CASE(ZETA_MINUS)
+!        v1=XCL_NGeo(1:3,NGeo,0,0   ,iElem)-XCL_NGeo(1:3,0,0,0   ,iElem)
+!        v2=XCL_NGeo(1:3,0,NGeo,0   ,iElem)-XCL_NGeo(1:3,0,0,0   ,iElem)
+!      CASE(ZETA_PLUS)
+!        v1=XCL_NGeo(1:3,NGeo,0,NGeo,iElem)-XCL_NGeo(1:3,0,0,NGeo,iElem)
+!        v2=XCL_NGeo(1:3,0,NGeo,NGeo,iElem)-XCL_NGeo(1:3,0,0,NGeo,iElem)
+!      END SELECT
+!      nVec=CROSSNORM(v1,v2)
+!      IF(SideID.LE.nLocalSides)THEN
+!        IF(flip.EQ.0)THEN ! master side
+!          DO iDisplace=1,nDisplacement
+!            IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),-1.0)) &
+!                SidePeriodicType(SideID)=iDisplace
+!          END DO ! iDisplace
+!        END IF ! flip
+!      ELSE ! mpi Side & no master flip
+!        DO iDisplace=1,nDisplacement
+!          IF(ALMOSTEQUAL(DOT_PRODUCT(SideNormVec(:,SideID),SidePeriodicDisplacement(:,iDisplace)),1.0)) &
+!              SidePeriodicType(SideID)=iDisplace
+!        END DO ! iDisplace
+!      END IF ! SideID.GT.nLocalSides
+!    END IF ! is periodic side
+!  END DO ! ilocSide
+!END DO  ! iElem
+!
+!print*,'SidePeriodicType',SidePeriodicType
 
 !DO iElem=1,PP_nElems
 !  DO ilocSide=1,6
@@ -285,6 +351,7 @@ SDEALLOCATE(normDisplaceVec)
 
 END SUBROUTINE MapPeriodicVectorsToSides
 
+
 SUBROUTINE GetPeriodicVectors()
 !===================================================================================================================================
 ! Check the periodic vectors for consistency
@@ -307,7 +374,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-LOGICAL                :: directions(1:3)
+!LOGICAL                :: directions(1:3)
 INTEGER                :: iPV
 REAL                   :: eps(1:3)
 !===================================================================================================================================
@@ -320,8 +387,10 @@ END IF
 
 IF(GEO%nPeriodicVectors.EQ.0) RETURN
 
+GEO%directions=.FALSE.
+ALLOCATE(GEO%DirPeriodicVectors(1:GEO%nPeriodicVectors))
 ! check if all periodic vectors are cartesian
-directions(1:3)=.FALSE.
+!directions(1:3)=.FALSE.
 DO iPV = 1,GEO%nPeriodicVectors
   LOGWRITE(*,*)'PeriodicVectors(1:3),',iPV,')=',GEO%PeriodicVectors(1:3,iPV)
   IF(GEO%PeriodicVectors(1,iPV).NE.0) THEN
@@ -329,8 +398,9 @@ DO iPV = 1,GEO%nPeriodicVectors
       CALL abort(__STAMP__,&
                           'Periodic Vector not in Cartesian direction!',iPV)
     END IF
-    IF (.NOT.directions(1)) THEN
-      directions(1) = .TRUE.
+    GEO%DirPeriodicVectors(iPV)=1
+    IF (.NOT.GEO%directions(1)) THEN
+      GEO%directions(1) = .TRUE.
     ELSE
       CALL abort(__STAMP__,&
                           '2 Periodic Vectors in x-direction!',iPV)
@@ -340,8 +410,9 @@ DO iPV = 1,GEO%nPeriodicVectors
       CALL abort(__STAMP__,&
                           'Periodic Vector not in Cartesian direction!',iPV)
     END IF
-    IF (.NOT.directions(2)) THEN
-      directions(2) = .TRUE.
+    GEO%DirPeriodicVectors(iPV)=2
+    IF (.NOT.GEO%directions(2)) THEN
+      GEO%directions(2) = .TRUE.
     ELSE
       CALL abort(__STAMP__,&
                           '2 Periodic Vectors in y-direction!',iPV)
@@ -351,8 +422,9 @@ DO iPV = 1,GEO%nPeriodicVectors
       CALL abort(__STAMP__,&
                           'Periodic Vector not in Cartesian direction!',iPV)
     END IF
-    IF (.NOT.directions(3)) THEN
-      directions(3) = .TRUE.
+    GEO%DirPeriodicVectors(iPV)=3
+    IF (.NOT.GEO%directions(3)) THEN
+      GEO%directions(3) = .TRUE.
     ELSE
       CALL abort(__STAMP__,&
                           '2 Periodic Vectors in z-direction!',iPV)

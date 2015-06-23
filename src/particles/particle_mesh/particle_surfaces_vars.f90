@@ -48,7 +48,7 @@ REAL                                    :: epsMapping                    ! toler
 REAL                                    :: epsInCell                     ! tolerance for eps for particle in element
 REAL                                    :: epsOneCell                    ! tolerance for particle in element 1+epsinCell
 LOGICAL                                 :: DoRefMapping                  ! tracking by mapping particle into reference element
-LOGICAL                                 :: MultipleBCs                   ! allow for multiple BC during one tracking step
+!LOGICAL                                 :: MultipleBCs                   ! allow for multiple BC during one tracking step
                                                                          ! only for do-ref-mapping required
 REAL                                    :: tTracking                     ! Tracking time
 REAL                                    :: tLocalization                 ! localization time

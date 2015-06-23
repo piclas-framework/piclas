@@ -1466,7 +1466,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,DoRefMapping
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
 !USE MOD_Equations_Vars,          ONLY:epsMach
 !USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
@@ -1519,41 +1519,50 @@ coeffA=DOT_PRODUCT(NormVec,PartTrajectory)
 IF(ABS(coeffA).EQ.0.)  RETURN
 
 ! extension for periodic sides
-IF(SidePeriodicType(SideID).EQ.0)THEN
-  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
-  alpha=locSideDistance/coeffA
-  locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
-  locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
-  locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
-  locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+IF(.NOT.DoRefMapping)THEN
+ IF(SidePeriodicType(SideID).EQ.0)THEN
+   locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
+   alpha=locSideDistance/coeffA
+   locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+   locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+   locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+   locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+ ELSE
+   locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+   locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+   locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+   locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+   SideBasePoint=0.25*(locBezierControlPoints3D(:,0,0) &
+                      +locBezierControlPoints3D(:,0,1) & 
+                      +locBezierControlPoints3D(:,1,0) &
+                      +locBezierControlPoints3D(:,1,1) )
+   !flip   = PartElemToSide(E2S_FLIP,LocSideID,ElemID)
+   ! nothing to do for master side, Side of elem to which owns the BezierPoints
+   IF(flip.EQ.0)THEN
+     locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+     locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+     locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+     locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+   ELSE
+     locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)      -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+     locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+     locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+     locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+     ! caution, displacement is for master side computed, therefore, slave side requires negative displacement
+     SideBasePoint=SideBasePoint-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+   END IF
+   !locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),NormVec)
+   locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
+   alpha=locSideDistance/coeffA
+ END IF ! SidePeriodicType
 ELSE
-  locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
-  locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
-  locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
-  locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
-  SideBasePoint=0.25*(locBezierControlPoints3D(:,0,0) &
-                     +locBezierControlPoints3D(:,0,1) & 
-                     +locBezierControlPoints3D(:,1,0) &
-                     +locBezierControlPoints3D(:,1,1) )
-  !flip   = PartElemToSide(E2S_FLIP,LocSideID,ElemID)
-  ! nothing to do for master side, Side of elem to which owns the BezierPoints
-  IF(flip.EQ.0)THEN
-    locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
-    locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
-    locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
-    locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
-  ELSE
-    locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)      -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-    locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-    locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-    locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-    ! caution, displacement is for master side computed, therefore, slave side requires negative displacement
-    SideBasePoint=SideBasePoint-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-  END IF
-  !locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),NormVec)
-  locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
-  alpha=locSideDistance/coeffA
-END IF ! SidePeriodicType
+ locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
+ alpha=locSideDistance/coeffA
+ locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+ locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+ locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+ locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+END IF
 
 IF(locSideDistance.LT.0)THEN
   ! particle is located outside of element, THEREFORE, an intersection were not detected

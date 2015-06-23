@@ -352,7 +352,7 @@ USE MOD_Mesh_Vars,ONLY:nElems,offsetElem,nInnerSides,nBCSides,nMPISides
 USE MOD_Mesh_Vars,ONLY:nMPISides_MINE
 USE MOD_Mesh_Vars,ONLY:ElemToSide,BC,SideToElem,SideToElem2
 USE MOD_Mesh_Vars,ONLY:aElem,aSide
-USE MOD_Mesh_Vars,ONLY:Elems
+USE MOD_Mesh_Vars,ONLY:Elems,BoundaryType
 #ifdef MPI
 USE MOD_Mesh_Vars,ONLY:nMPISides
 USE MOD_MPI_vars
@@ -398,6 +398,11 @@ DO iElem=1,nElems
     END IF
     IF(aSide%sideID .LE. nBCSides)THEN
       BC(aSide%sideID)=aSide%BCIndex
+    ELSE
+      ! mark periodic BCs
+      IF(aSide%BCindex.NE.0)THEN !side is BC or periodic side
+        IF(BoundaryType(aSide%BCindex,BC_TYPE).EQ.1) BC(aSide%SideID)=1
+      END IF
     END IF
   END DO ! LocSideID
 END DO ! iElem

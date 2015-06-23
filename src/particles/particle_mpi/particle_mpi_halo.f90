@@ -798,7 +798,7 @@ DO iSide = 1,nSides
   END IF
 END DO
 !--- BC Mapping ------------------------------------------------------!
-DO iSide = 1,nBCSides  ! no need to go through all side since BC(1:nBCSides)
+DO iSide = 1,nSides  ! no need to go through all side since BC(1:nBCSides)
   IF (SideIndex(iSide).NE.0) THEN
     SendMsg%BC(SideIndex(iSide)) = BC(iSide)
   END IF
@@ -1477,10 +1477,10 @@ SUBROUTINE ExchangeMappedHaloGeometry(iProc,ElemList)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloToProc
-USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, ElemToSide, BC,nGeo,SideToElem
+USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, ElemToSide, BC,nGeo,SideToElem,nInnerSides
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nTotalBCSides
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartNeighborElemID,PartNeighborLocSideID
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nTotalBCSides,GEO
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartNeighborElemID,PartNeighborLocSideID,SidePeriodicDisplacement
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
 ! should not be needed annymore
@@ -1512,12 +1512,14 @@ TYPE tMPISideMessage
 END TYPE
 TYPE(tMPISideMessage)       :: SendMsg
 TYPE(tMPISideMessage)       :: RecvMsg
-INTEGER                     :: ALLOCSTAT,tmpBCSides,newBCSideID
-INTEGER                     :: newSideID,haloSideID,ioldSide,oldElemID,newElemID
+REAL                        :: xNodes(1:3,0:NGeo,0:NGeo)
+REAL                        :: xNodes2(1:3,0:NGeo,0:NGeo)
+INTEGER                     :: ALLOCSTAT,tmpBCSides,newBCSideID,locSideID
+INTEGER                     :: newSideID,haloSideID,ioldSide,oldElemID,newElemID,iDisplace,p,q
 LOGICAL                     :: isDoubleSide
 LOGICAL,ALLOCATABLE         :: isElem(:),isSide(:),isDone(:)
 INTEGER, ALLOCATABLE        :: ElemIndex(:), SideIndex(:),HaloInc(:)
-INTEGER                     :: iElem, ilocSide,SideID,iSide,iIndex,iHaloSide,flip
+INTEGER                     :: iElem, ilocSide,SideID,iSide,iIndex,iHaloSide,flip,ElemID,ElemID2, HostElemID
 INTEGER                     :: nDoubleSides,nDoubleBezier,tmpnSides,tmpnElems
 INTEGER                     :: datasize,datasize2,datasize3
 !===================================================================================================================================
@@ -1829,7 +1831,7 @@ DO iSide = 1,nSides
   END IF
 END DO
 !--- BC Mapping ------------------------------------------------------!
-DO iSide = 1,nBCSides  ! no need to go through all side since BC(1:nBCSides)
+DO iSide = 1,nSides  ! no need to go through all side since BC(1:nBCSides)
   IF (SideIndex(iSide).NE.0) THEN
     SendMsg%BC(SideIndex(iSide)) = BC(iSide)
   END IF
@@ -2185,6 +2187,85 @@ IF (RecvMsg%nElems.GT.0) THEN
     XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
     dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
   END DO ! iElem
+  ! missing connection info to MPI-Neighbor-ElemID
+  DO iSide=nBCSides+nInnerSides+1,nSides
+    ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
+    ElemID2=PartSideToElem(S2E_NB_ELEM_ID,iSide)
+    IF( ElemID .NE. -1 .AND. ElemID2 .NE. -1 ) CYCLE
+    IF( ElemID .GE. 1 .AND. ElemID .LE. PP_nElems) THEN
+      HostElemID=ElemID
+      locSideID = SideToElem(S2E_LOC_SIDE_ID,iSide)
+      flip=0
+    END IF
+    IF( ElemID2 .GE. 1 .AND. ElemID2 .LE. PP_nElems) THEN
+      HostElemID=ElemID2
+      locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+      flip=1
+    END IF
+    SELECT CASE(locSideID)
+    CASE(XI_MINUS)
+      xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,HostelemID)
+    CASE(XI_PLUS)
+      xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,HostelemID)
+    CASE(ETA_MINUS)
+      xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,HostelemID)
+    CASE(ETA_PLUS)
+      xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,HostelemID)
+    CASE(ZETA_MINUS)
+      xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,HostelemID)
+    CASE(ZETA_PLUS)
+      xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,HostelemID)
+    END SELECT
+    IF(GEO%nPeriodicVectors.GT.0)THEN
+      iDisplace= SidePeriodicType(iSide)
+      IF(flip.EQ.0)THEN
+        DO q=0,NGeo
+          DO p=0,NGeo
+            xNodes(1:3,q,p)=xNodes(1:3,q,p)+SidePeriodicDisplacement(1:3,iDisplace)
+          END DO ! p=0,PP_N
+        END DO ! q=0,PP_N
+      ELSE
+        DO q=0,NGeo
+          DO p=0,NGeo
+            xNodes(1:3,q,p)=xNodes(1:3,q,p)-SidePeriodicDisplacement(1:3,iDisplace)
+          END DO ! p=0,PP_N
+        END DO ! q=0,PP_N
+      END IF
+    END IF
+    DO iElem=PP_nElems+1,nTotalElems
+      DO ilocSide=1,6
+        SELECT CASE(ilocSide)
+        CASE(XI_MINUS)
+          xNodes2=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
+        CASE(XI_PLUS)
+          xNodes2=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
+        CASE(ETA_MINUS)
+          xNodes2=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
+        CASE(ETA_PLUS)
+          xNodes2=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
+        CASE(ZETA_MINUS)
+          xNodes2=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
+        CASE(ZETA_PLUS)
+          xNodes2=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
+        END SELECT
+
+        IF(  ALMOSTEQUAL(xNodes(1,0,0),xNodes2(1,0,0))               &
+        .AND.ALMOSTEQUAL(xNodes(2,0,0),xNodes2(2,0,0))               &
+        .AND.ALMOSTEQUAL(xNodes(3,0,0),xNodes2(3,0,0))               & 
+        .AND.ALMOSTEQUAL(xNodes(1,NGeo,NGeo),xNodes2(1,NGeo,NGeo))   &
+        .AND.ALMOSTEQUAL(xNodes(2,NGeo,NGeo),xNodes2(2,NGeo,NGeo))   &
+        .AND.ALMOSTEQUAL(xNodes(3,NGeo,NGeo),xNodes2(3,NGeo,NGeo)) ) THEN
+          IF(flip.EQ.0)THEN
+            PartSideToElem(S2E_NB_ELEM_ID,iSide)=iElem
+            EXIT
+          ELSE
+            PartSideToElem(S2E_ELEM_ID,iSide)=iElem
+            EXIT
+          END IF
+        END IF
+      END DO ! ilocSide=1,6
+    END DO ! iElem=PP_nElems+1,nTotalElems
+  END DO ! iSide=nBCSides+nInnerSides+1,nSides
   ! build rest: PartNeighborElemID, PartLocSideID
   DO iElem=PP_nElems+1,nTotalElems
     DO ilocSide=1,6
