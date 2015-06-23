@@ -678,16 +678,20 @@ DO iStage=2,nRKStages
   ! deposition  
   IF (t.GE.DelayTime) THEN 
      CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
+#ifdef MPI
      CALL MPIParticleSend()
+#endif /*MPI*/
 !    ! deposition  
      CALL Deposition(doInnerParts=.TRUE.)
 #ifdef MPI
      CALL MPIParticleRecv()
+#endif /*MPI*/
      ! second buffer
      CALL InterpolateFieldToParticle(doInnerParts=.FALSE.)
      CALL CalcPartRHS()
      CALL Deposition(doInnerParts=.FALSE.)
      ! null here, careful
+#ifdef MPI
      PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
 !    IF (usevMPF) THEN 
