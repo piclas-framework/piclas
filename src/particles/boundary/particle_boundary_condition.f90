@@ -46,7 +46,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 !USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
-USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut,PartAnalyzeStep
+USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC
 !USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
@@ -83,10 +83,10 @@ SELECT CASE(PartBound%Map(BC(SideID)))
 CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF(CalcPartBalance) THEN
-    IF(MOD(iter+1,PartAnalyzeStep).EQ.0)THEN ! caution if correct
+    !IF(MOD(iter+1,PartAnalyzeStep).EQ.0)THEN ! caution if correct
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-    END IF ! iter+1
+    !END IF ! iter+1
   END IF ! CalcPartBalance
   PDM%ParticleInside(iPart) = .FALSE.
   alpha=-1.
@@ -104,7 +104,7 @@ CASE(2) !PartBound%ReflectiveBC)
   END SELECT 
 !  print*,'n_loc',n_loc
 !  print*,'n_loc,partt',DOT_PRODUCT(n_loc,PartTrajectory)
-!  read*
+!  ead*
   ! substract tolerance from length
   LengthPartTrajectory=LengthPartTrajectory-epsilontol
   ! intersection point with surface
@@ -203,7 +203,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 !USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
-USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut,PartAnalyzeStep
+USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
@@ -241,10 +241,10 @@ CASE(1) !PartBound%OpenBC)
 !CASE(PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF(CalcPartBalance) THEN
-    IF(MOD(iter+1,PartAnalyzeStep).EQ.0)THEN ! caution if correct
+    !IF(MOD(iter+1,PartAnalyzeStep).EQ.0)THEN ! caution if correct
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-    END IF ! iter+1
+    !END IF ! iter+1
   END IF ! CalcPartBalance
   PDM%ParticleInside(iPart) = .FALSE.
   alpha=-1.
