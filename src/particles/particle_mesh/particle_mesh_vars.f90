@@ -90,6 +90,7 @@ TYPE tGeometry
   INTEGER                                :: FIBGMkmax                         ! biggest index of FastInitBGM (z)
   REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
   REAL, ALLOCATABLE                      :: DeltaEvMPF(:)                     ! Energy difference due to particle merge
+  INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)
 
 !  LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
 END TYPE
@@ -111,11 +112,12 @@ TYPE tPartBoundary
   INTEGER                                :: PeriodicBC              = 3      ! = 3 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SimpleAnodeBC           = 4      ! = 4 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SimpleCathodeBC         = 5      ! = 5 (s.u.) Boundary Condition Integer Definition
-  CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)!=>NULL() ! Link part 1 for mapping Boltzplatz BCs to Particle BC
-  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)!=>NULL() ! Link part 2 for mapping Boltzplatz BCs to Particle BC
-  INTEGER              , ALLOCATABLE     :: Map(:)            !=>NULL() ! Map from Boltzplatz BCindex to Particle BC
-  INTEGER              , ALLOCATABLE     :: MapToPartBC(:)    !=>NULL() ! Map from Boltzplatz BCindex to Particle BC (NOT TO TYPE!)
-  !INTEGER              , ALLOCATABLE     :: SideBCType(:)            ! list with boundary condition for each side
+  INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
+  CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)          ! Link part 1 for mapping Boltzplatz BCs to Particle BC
+  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)          ! Link part 2 for mapping Boltzplatz BCs to Particle BC
+!  INTEGER              , ALLOCATABLE     :: Map(:)                      ! Map from Boltzplatz BCindex to Particle BC
+  INTEGER              , ALLOCATABLE     :: MapToPartBC(:)              ! Map from Boltzplatz BCindex to Particle BC (NOT TO TYPE!)
+  !!INTEGER              , ALLOCATABLE     :: SideBCType(:)            ! list with boundary condition for each side
   REAL    , ALLOCATABLE                  :: MomentumACC(:)      
   REAL    , ALLOCATABLE                  :: WallTemp(:)     
   REAL    , ALLOCATABLE                  :: TransACC(:)     
@@ -139,7 +141,8 @@ END TYPE
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
 TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
 
-
+INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
+REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
 
 
 !===================================================================================================================================

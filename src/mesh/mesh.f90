@@ -146,6 +146,7 @@ CALL fillMeshInfo()
 #ifdef PARTICLES
 ! save geometry information for particle tracking
 CALL InitParticleMesh()
+CALL InitElemVolumes()
 #endif
 
 ! calculating offset of surface elements for DSMC surface output

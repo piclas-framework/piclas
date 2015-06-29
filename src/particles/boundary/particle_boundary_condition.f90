@@ -72,13 +72,13 @@ REAL                                 :: absPt_temp
 #endif
 !===================================================================================================================================
 
-IF (.NOT. ALLOCATED(PartBound%Map)) THEN
+IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
   CALL abort(__STAMP__,&
   ' ERROR: PartBound not allocated!.',999,999.)
 END IF
 
 ! Select the corresponding boundary condition and calculate particle treatment
-SELECT CASE(PartBound%Map(BC(SideID)))
+SELECT CASE(PartBound%MapToPartBC(BC(SideID)))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -179,7 +179,7 @@ CASE(6) !PartBound%MPINeighborhoodBC)
 CASE DEFAULT
   CALL abort(__STAMP__,&
 ' ERROR: PartBound not associated!. (unknown case)',999,999.)
-END SELECT !PartBound%Map(BC(SideID)
+END SELECT !PartBound%MapToPartBC(BC(SideID)
 
 END SUBROUTINE GetBoundaryInteraction 
 
@@ -228,13 +228,13 @@ REAL                                 :: absPt_temp
 #endif
 !===================================================================================================================================
 
-IF (.NOT. ALLOCATED(PartBound%Map)) THEN
+IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
   CALL abort(__STAMP__,&
   ' ERROR: PartBound not allocated!.',999,999.)
 END IF
 
 ! Select the corresponding boundary condition and calculate particle treatment
-SELECT CASE(PartBound%Map(BC(SideID)))
+SELECT CASE(PartBound%MapToPartBC(BC(SideID)))
 !SELECT CASE(PartBound%SideBCType(SideID))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartBound%OpenBC)
@@ -341,7 +341,7 @@ CASE(6) !PartBound%MPINeighborhoodBC)
 CASE DEFAULT
   CALL abort(__STAMP__,&
 ' ERROR: PartBound not associated!. BC(SideID)',BC(SideID),REAL(SideID/nSides))
-END SELECT !PartBound%Map(BC(SideID)
+END SELECT !PartBound%MapToPartBC(BC(SideID)
 
 END SUBROUTINE GetBoundaryInteractionRef
 
