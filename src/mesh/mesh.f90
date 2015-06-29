@@ -146,7 +146,7 @@ CALL fillMeshInfo()
 #ifdef PARTICLES
 ! save geometry information for particle tracking
 CALL InitParticleMesh()
-CALL InitElemVolumes()
+!CALL InitElemVolumes()
 #endif
 
 ! calculating offset of surface elements for DSMC surface output
@@ -252,6 +252,9 @@ END IF !/*debugmesh*/
 
 #ifndef PARTICLES
 DEALLOCATE(XCL_NGeo)
+#else
+! init element volume
+CALL InitElemVolumes()
 #endif
 
 MeshInitIsDone=.TRUE.

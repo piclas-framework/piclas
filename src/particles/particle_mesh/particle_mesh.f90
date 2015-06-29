@@ -1577,6 +1577,9 @@ USE MOD_Particle_Mesh_Vars, ONLY:GEO
 USE MOD_Interpolation_Vars, ONLY:wGP
 USE MOD_Particle_Vars,      ONLY:usevMPF
 USE MOD_ReadInTools
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,  ONLY:PartMPI
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1588,7 +1591,7 @@ USE MOD_ReadInTools
 INTEGER           :: iElem
 INTEGER           :: i,j,k
 INTEGER           :: ALLOCSTAT
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N), VOLUME, RECBIM
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes)...'
@@ -1614,6 +1617,20 @@ DO iElem=1,nElems
     GEO%Volume(iElem) = GEO%Volume(iElem) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
   END DO; END DO; END DO
 END DO
+
+Volume=SUM(GEO%Volume)
+#ifdef MPI
+IF(MPIRoot) THEN
+   CALL MPI_REDUCE(MPI_IN_PLACE,Volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+ELSE ! no Root
+  CALL MPI_REDUCE(Volume,RECBIM,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+END IF
+#endif /*MPI*/
+
+SWRITE(UNIT_StdOut,'(A,F12.6)') ' Total Volume of Mesh: ', Volume
+!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+
+
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes) DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
