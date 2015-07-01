@@ -97,6 +97,7 @@ c                  = GETREAL('c0','1.')
 eps0               = GETREAL('eps','1.')
 mu0                = GETREAL('mu','1.')
 fDamping           = GETREAL('fDamping','0.99')
+fDamping_pois      = GETREAL('fDamping_pois','0.99')
 c_test = 1./SQRT(eps0*mu0)
 IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   SWRITE(*,*) "ERROR: c does not equal 1/sqrt(eps*mu)!"

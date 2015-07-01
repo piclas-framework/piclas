@@ -1173,7 +1173,8 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 USE MOD_Particle_Vars,          ONLY:Species,nSpecies
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-USE MOD_CalcTimeStep,           ONLY: CalcTimeStep
+USE MOD_CalcTimeStep,           ONLY:CalcTimeStep
+USE MOD_Particle_MPI_Vars,      ONLY:halo_eps
 !USE MOD_Particle_Mesh,          ONLY:BoxInProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1187,7 +1188,7 @@ IMPLICIT NONE
 INTEGER                         :: iSpec,iInit,iNode,iRank
 INTEGER                         :: nInitRegions
 LOGICAL                         :: RegionOnProc
-REAL                            :: xCoords(3,8),lineVector(3),radius
+REAL                            :: xCoords(3,8),lineVector(3),radius,height
 REAL                            :: xlen,ylen,zlen
 REAL                            :: dt
 INTEGER                         :: color,iProc
@@ -1285,8 +1286,22 @@ DO iSpec=1,nSpecies
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+lineVector+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
     CASE('circle_equidistant')
-      CALL abort(__STAMP__,&
-          'not implemented')
+      xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
+           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
+      ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
+           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
+      zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
+           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
+      ! all 8 edges
+      xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
+      xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
+      xCoords(1:3,3) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,-zlen/)
+      xCoords(1:3,4) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,-zlen/)
+      xCoords(1:3,5) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,+zlen/)
+      xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,+zlen/)
+      xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
+      xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
+      RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
     CASE('cuboid')
       lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
@@ -1307,19 +1322,105 @@ DO iSpec=1,nSpecies
       xCoords(1:3,4)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector1IC&
                                                            +Species(iSpec)%Init(iInit)%BaseVector2IC
 
+      IF (Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
+        height = halo_eps
+      ELSE
+        height= Species(iInit)%Init(iInit)%CuboidHeightIC 
+      END IF
       DO iNode=1,4
-        xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector
+        xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
       END DO ! iNode
       RegionOnProc=BoxInProc(xCoords,8)
     CASE('cylinder')
-      CALL abort(__STAMP__,&
-          'not implemented')
+      lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
+        Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
+      lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
+        Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
+      lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
+        Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
+      IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
+         CALL abort(__STAMP__,&
+           'BaseVectors are parallel!')
+      ELSE
+        lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
+          lineVector(3) * lineVector(3))
+      END IF
+      radius = Species(iSpec)%Init(iInit)%RadiusIC
+
+      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC-radius*Species(iSpec)%Init(iInit)%BaseVector1IC &
+                                                           -radius*Species(iSpec)%Init(iInit)%BaseVector2IC
+
+      xCoords(1:3,2)=xCoords(1:3,1)+2.0*radius*Species(iSpec)%Init(iInit)%BaseVector1IC
+      xCoords(1:3,3)=xCoords(1:3,1)+2.0*radius*Species(iSpec)%Init(iInit)%BaseVector2IC
+      xCoords(1:3,4)=xCoords(1:3,1)+2.0*radius*Species(iSpec)%Init(iInit)%BaseVector1IC&
+                                   +2.0*radius*Species(iSpec)%Init(iInit)%BaseVector2IC
+
+      IF (Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
+        height = halo_eps
+      ELSE
+        height= Species(iInit)%Init(iInit)%CylinderHeightIC 
+      END IF
+      DO iNode=1,4
+        xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
+      END DO ! iNode
+      RegionOnProc=BoxInProc(xCoords,8)
     CASE('cuboid_vpi')
-      CALL abort(__STAMP__,&
-          'not implemented')
+
+      lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
+        Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
+      lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
+        Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
+      lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
+        Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
+      IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
+         CALL abort(__STAMP__,&
+           'BaseVectors are parallel!')
+      ELSE
+        lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
+          lineVector(3) * lineVector(3))
+      END IF
+      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC
+      xCoords(1:3,2)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector1IC
+      xCoords(1:3,3)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector2IC
+      xCoords(1:3,4)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector1IC&
+                                                           +Species(iSpec)%Init(iInit)%BaseVector2IC
+
+      height = halo_eps
+      DO iNode=1,4
+        xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
+      END DO ! iNode
+      RegionOnProc=BoxInProc(xCoords,8)
     CASE('cylinder_vpi')
-      CALL abort(__STAMP__,&
-          'not implemented')
+      lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
+        Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
+      lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
+        Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
+      lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
+        Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
+      IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
+         CALL abort(__STAMP__,&
+           'BaseVectors are parallel!')
+      ELSE
+        lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
+          lineVector(3) * lineVector(3))
+      END IF
+      radius = Species(iSpec)%Init(iInit)%RadiusIC
+
+      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC-radius*Species(iSpec)%Init(iInit)%BaseVector1IC &
+                                                           -radius*Species(iSpec)%Init(iInit)%BaseVector2IC
+
+      xCoords(1:3,2)=xCoords(1:3,1)+2.0*radius*Species(iSpec)%Init(iInit)%BaseVector1IC
+      xCoords(1:3,3)=xCoords(1:3,1)+2.0*radius*Species(iSpec)%Init(iInit)%BaseVector2IC
+      xCoords(1:3,4)=xCoords(1:3,1)+2.0*radius*Species(iSpec)%Init(iInit)%BaseVector1IC&
+                                   +2.0*radius*Species(iSpec)%Init(iInit)%BaseVector2IC
+
+      height = halo_eps
+      DO iNode=1,4
+        xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
+      END DO ! iNode
+      RegionOnProc=BoxInProc(xCoords,8)
+
+
 !    CASE('LD_insert')
 !      CALL LD_SetParticlePosition(chunkSize,particle_positions_Temp,iSpec,iInit)
 !      DEALLOCATE( particle_positions, STAT=allocStat )

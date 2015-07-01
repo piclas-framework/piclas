@@ -18,6 +18,7 @@ REAL                  :: dt_max_particles                                    ! M
 REAL                  :: dt_maxwell                                          ! timestep for field solver (for static fields only!)
 REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent  
                                                                              ! on particle velocity (for static fields only!)
+REAL                  :: dt_part_ratio
 INTEGER               :: NextTimeStepAdjustmentIter                          ! iteration of next timestep change
 INTEGER               :: MaxwellIterNum                                      ! number of iterations for the maxwell solver
 INTEGER               :: WeirdElems                                          ! Number of Weird Elements (=Elements which are folded

@@ -42,7 +42,11 @@ INTERFACE MapRegionToElem
   MODULE PROCEDURE MapRegionToElem
 END INTERFACE
 
-PUBLIC::InitElemVolumes,MapRegionToElem
+INTERFACE PointToExactElement
+  MODULE PROCEDURE PointToExactElement
+END INTERFACE
+
+PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
 PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 !===================================================================================================================================
 !
@@ -1796,5 +1800,111 @@ END DO ! iElem=1,PP_nElems
 
 
 END SUBROUTINE MapRegionToElem
+
+
+SUBROUTINE PointToExactElement(X_In,isInside,doHalo)                                                         
+!===================================================================================================================================
+! this subroutine maps each particle to an element
+! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
+! distance is picked as an initial guess
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
+USE MOD_TimeDisc_Vars,          ONLY:dt
+USE MOD_Equation_Vars,          ONLY:c_inv,c
+USE MOD_Particle_Mesh_Vars,     ONLY:Geo
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,ElemBaryNGeo,doRefMapping
+USE MOD_Particle_Surfaces_Vars, ONLY:epsInCell,epsOneCell
+USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
+USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Utils,                  ONLY:BubbleSortID
+USE MOD_PICDepo_Vars,           ONLY:DepositionType
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE                                                                                   
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL,INTENT(IN)                   :: X_in(3)
+LOGICAL,INTENT(IN)                :: doHalo
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL,INTENT(OUT)                :: isInside
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                           :: ilocSide,SideID,i
+LOGICAL                           :: InElementCheck
+REAL                              :: xi(1:3),vBary(1:3)
+REAL,ALLOCATABLE                  :: Distance(:)
+INTEGER,ALLOCATABLE               :: ListDistance(:)
+!REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
+!REAL,PARAMETER                    :: eps2=1e-3
+!REAL                              :: epsOne,OneMeps
+!===================================================================================================================================
+
+!epsOne=1.0+epsInCell
+!OneMeps=1.0-eps
+isInside = .FALSE.
+IF ( (X_in(1).LT.GEO%xmin).OR.(X_in(1).GT.GEO%xmax).OR. &
+     (X_in(2).LT.GEO%ymin).OR.(X_in(2).GT.GEO%ymax).OR. &
+     (X_in(3).LT.GEO%zmin).OR.(X_in(3).GT.GEO%zmax)) THEN
+   RETURN
+END IF
+
+! --- get background mesh cell of particle
+CellX = CEILING((X_in(1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
+CellX = MIN(GEO%FIBGMimax,CellX)                             
+CellY = CEILING((X_in(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
+CellY = MIN(GEO%FIBGMjmax,CellY) 
+CellZ = CEILING((X_in(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
+CellZ = MIN(GEO%FIBGMkmax,CellZ)
+!   print*,'cell indices',CellX,CellY,CellZ
+!   print*,'number of cells in bgm',GEO%FIBGM(CellX,CellY,CellZ)%nElem
+!   read*
+
+!--- check all cells associated with this beckground mesh cell
+nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+ALLOCATE( Distance(1:nBGMElems) &
+        , ListDistance(1:nBGMElems) )
+
+
+! get closest element barycenter
+Distance=1.
+ListDistance=0
+DO iBGMElem = 1, nBGMElems
+  ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+  Distance(iBGMElem)=(X_in(1)-ElemBaryNGeo(1,ElemID))*(X_in(1)-ElemBaryNGeo(1,ElemID)) &
+                    +(X_in(2)-ElemBaryNGeo(2,ElemID))*(X_in(2)-ElemBaryNGeo(2,ElemID)) &
+                    +(X_in(3)-ElemBaryNGeo(3,ElemID))*(X_in(3)-ElemBaryNGeo(3,ElemID)) 
+  Distance(iBGMElem)=SQRT(Distance(iBGMElem))
+  ListDistance(iBGMElem)=ElemID
+END DO ! nBGMElems
+
+!print*,'earlier',Distance,ListDistance
+CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+!print*,'after',Distance,ListDistance
+
+! loop through sorted list and start by closest element  
+DO iBGMElem=1,nBGMElems
+  ElemID=ListDistance(iBGMElem)
+  IF(.NOT.DoHALO)THEN
+    IF(ElemID.GT.PP_nElems) CYCLE
+  END IF
+  CALL Eval_xyz_elemcheck(X_in(1:3),xi,ElemID)
+  IF(ALL(ABS(Xi).LE.epsOneCell)) THEN ! particle inside
+    isInSide=.TRUE.
+    EXIT
+  END IF
+END DO ! iBGMElem
+
+! deallocate lists
+DEALLOCATE( Distance,ListDistance)
+!read*
+END SUBROUTINE PointToExactElement
+
 
 END MODULE MOD_Particle_Mesh

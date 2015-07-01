@@ -28,7 +28,7 @@ CONTAINS
 
 
 
-SUBROUTINE GetBoundaryFlux(F_Face,BCType,BCState,xGP_Face,normal,tangent1,tangent2,t,tDeriv,U_Face)
+SUBROUTINE GetBoundaryFlux(F_Face,BCType,BCState,xGP_Face,normal,t,tDeriv,U_Face)
 !===================================================================================================================================
 ! Computes the boundary values for a given Cartesian mesh face (defined by FaceID)
 ! BCType: 1...periodic, 2...exact BC
@@ -50,8 +50,6 @@ INTEGER, INTENT(IN)                  :: BCType,BCState
 REAL,INTENT(INOUT)                   :: U_Face(PP_nVar,0:PP_N,0:PP_N)
 REAL,INTENT(IN)                      :: xGP_Face(3,0:PP_N,0:PP_N)
 REAL,INTENT(IN)                      :: normal(3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)                      :: tangent1(3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)                      :: tangent2(3,0:PP_N,0:PP_N)
 REAL,INTENT(IN)                      :: t
 INTEGER,INTENT(IN)                   :: tDeriv
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -73,8 +71,7 @@ CASE(2) ! exact BC = Dirichlet BC !!
     END DO ! p
   END DO ! q
   ! Dirichlet means that we use the gradients from inside the grid cell
-  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
-               normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
+  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
 
 CASE(3) ! 1st order absorbing BC 
         ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
@@ -92,8 +89,7 @@ CASE(3) ! 1st order absorbing BC
     END DO ! p
   END DO ! q
 
-  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
-               normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
+  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
   
 CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
   ! Determine the exact BC state
@@ -108,12 +104,26 @@ CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
     END DO ! p
   END DO ! q
   ! Dirichlet means that we use the gradients from inside the grid cell
-  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
-               normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
+  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
+
+CASE(10) ! symmetry BC (perfect MAGNETIC conductor, PMC)
+  ! Determine the exact BC state
+  DO q=0,PP_N
+    DO p=0,PP_N
+      resul=U_Face(:,p,q)
+      n_loc=normal(:,p,q)
+      U_Face_loc(1:3,p,q) =  resul(1:3) - 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
+      U_Face_loc(4:6,p,q) = -resul(4:6) + 2*(DOT_PRODUCT(resul(4:6),n_loc))*n_loc
+      U_Face_loc(  7,p,q) = -resul(  7)
+      U_Face_loc(  8,p,q) =  resul(  8)
+    END DO ! p
+  END DO ! q
+  ! Dirichlet means that we use the gradients from inside the grid cell
+  CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
 
 CASE DEFAULT ! unknown BCType
   CALL abort(__STAMP__,&
-       'no BC defined in maxwell/getboundaryflux.f90!',999,999.)
+       'no BC defined in maxwell/getboundaryflux.f90!')
 END SELECT ! BCType
 END SUBROUTINE GetBoundaryFlux
 
@@ -127,7 +137,7 @@ SUBROUTINE FillFlux_BC(t,tDeriv,Flux)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Equation_Vars,   ONLY: Phi_Minus
-USE MOD_Mesh_Vars,       ONLY: NormVec,TangVec1,TangVec2,SurfElem,BCFace_xGP,BC,BoundaryType
+USE MOD_Mesh_Vars,       ONLY: NormVec,SurfElem,BCFace_xGP,BC,BoundaryType
 USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides
 USE MOD_Equation_Vars,   ONLY: IniExactFunc
 USE MOD_GetBoundaryFlux_Pois,ONLY: GetBoundaryFlux_Pois
@@ -150,7 +160,7 @@ DO SideID=1,nBCSides
   BCState=Boundarytype(BC(SideID),BC_STATE)
   IF (BCState.EQ.0)BCState=IniExactFunc
   CALL GetBoundaryFlux_Pois(Flux(:,:,:,SideID),BCType,BCState,BCFace_xGP(:,:,:,SideID),NormVec(:,:,:,SideID), &
-                TangVec1(:,:,:,SideID), TangVec2(:,:,:,SideID),t,tDeriv,Phi_Minus(:,:,:,SideID) ,SideID)
+                t,tDeriv,Phi_Minus(:,:,:,SideID) ,SideID)
   DO q=0,PP_N
     DO p=0,PP_N
       Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)

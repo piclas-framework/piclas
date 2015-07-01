@@ -260,8 +260,8 @@ LOGICAL,INTENT(INOUT)         :: PartisDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ilocSide,SideID,iIntersect, locSideList(firstSide:lastSide), hitlocSide,CheckSideID!,nlocSides
-LOGICAL                       :: dolocSide(1:nlocSides),ishit
-REAL                          :: localpha(1:nlocSides),xi(1:nlocSides),eta(1:nlocSides)
+LOGICAL                       :: dolocSide(firstSide:lastSide),ishit
+REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
 INTEGER                       :: lastlocSide,nInter,flip,BCSideID
 REAL                          :: oldXIntersection(1:3),distance
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)

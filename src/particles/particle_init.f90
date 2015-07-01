@@ -791,7 +791,7 @@ END IF
 CALL RANDOM_SEED(Size = SeedSize)                       ! Check for number of needed Seeds
 TrueRandom = .FALSE.                             ! FALSE for defined random seed
 
-! to be stored in state file!!!
+! to be stored in HDF5-state file!!!
 IF (nrSeeds.GT.0) THEN
    IF (nrSeeds.NE.SeedSize) THEN
       IPWRITE(UNIT_StdOut,*) 'Error: Number of seeds for RNG must be ',SeedSize
@@ -821,6 +821,7 @@ END IF
 ALLOCATE(iseeds(SeedSize))
 iseeds(:)=0
 CALL RANDOM_SEED(GET = iseeds(1:SeedSize))
+! to be stored in HDF5-state file!!!
 IPWRITE(UNIT_stdOut,*) 'Random seeds in PIC_init:'
 DO iSeed = 1,SeedSize
    IPWRITE(UNIT_stdOut,*) iseeds(iSeed)
@@ -853,7 +854,6 @@ END IF
 useVTKFileBGG = GETLOGICAL('Particles-useVTKFileBGG','.FALSE.')
 !-- Read Flag if warnings to be displayed for rejected velocities when virtual Pre-Inserting region (vpi) is used with PartDensity
 OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
-
 
 
 ! init interpolation

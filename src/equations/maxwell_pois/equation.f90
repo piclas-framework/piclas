@@ -96,6 +96,7 @@ eps0               = GETREAL('eps','1.')
 mu0                = GETREAL('mu','1.')
 smu0               = 1./mu0
 fDamping           = GETREAL('fDamping','0.99')
+fDamping_pois      = GETREAL('fDamping_pois','0.99')
 c_test = 1./SQRT(eps0*mu0)
 IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   SWRITE(*,*) "ERROR: c does not equal 1/sqrt(eps*mu)!"
@@ -133,8 +134,8 @@ IniExactFunc = GETINT('IniExactFunc')
 alpha_shape = GETINT('AlphaShape','2')
 rCutoff     = GETREAL('r_cutoff','1.')
 ! Compute factor for shape function
-ShapeFuncPrefix = 1/(2 * beta(1.5, alpha_shape + 1.) * alpha_shape + 2 * beta(1.5, alpha_shape + 1.)) &
-                * (alpha_shape + 1.)/(PI*(rCutoff**3))
+ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
+                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
 
 !Init PHI
 ALLOCATE(Phi(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
@@ -397,7 +398,8 @@ CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
       c1  = -omegaG**tDeriv * sin(a-omegaG*t)
       s1  =  omegaG**tDeriv * cos(a-omegaG*t)
     CASE DEFAULT
-      CALL abort(__STAMP__,'What is that weired tDeriv you gave me?',999,999.)
+      CALL abort(__STAMP__, &
+        'What is that weird tDeriv you gave me?',999,999.)
   END SELECT
 
   Er  =-B0G*mG*omegaG/(r*g**2)*b0     *c1
@@ -583,7 +585,7 @@ SUBROUTINE DivCleaningDamping_Pois()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Equation_Vars,       ONLY : Phi
-USE MOD_Equation_Vars, ONLY : fDamping
+USE MOD_Equation_Vars, ONLY : fDamping_pois
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -597,7 +599,7 @@ INTEGER                         :: i,j,k,iElem
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
-      Phi(2:4,i,j,k,iElem) = Phi(2:4,i,j,k,iElem) * fDamping
+      Phi(2:4,i,j,k,iElem) = Phi(2:4,i,j,k,iElem) * fDamping_pois
     END DO; END DO; END DO
   END DO
 END SUBROUTINE DivCleaningDamping_Pois
@@ -785,7 +787,7 @@ SUBROUTINE FillFlux(Flux,doMPISides)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Equation_Vars,         ONLY: Phi_Minus,Phi_Plus
-USE MOD_Mesh_Vars,       ONLY: NormVec,TangVec1,TangVec2,SurfElem
+USE MOD_Mesh_Vars,       ONLY: NormVec,SurfElem
 USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE
 USE MOD_Riemann_Pois,         ONLY: Riemann_Pois
 ! IMPLICIT VARIABLE HANDLING
@@ -813,8 +815,7 @@ END IF
 !firstSideID=nBCSides+1
 !lastSideID  =nBCSides+nInnerSides+nMPISides_MINE
 DO SideID=firstSideID,lastSideID
-  CALL Riemann_Pois(Flux(:,:,:,SideID),     Phi_Minus(:,:,:,SideID),     Phi_Plus(:,:,:,SideID), &
-               NormVec(:,:,:,SideID),TangVec1(:,:,:,SideID),TangVec2(:,:,:,SideID))
+  CALL Riemann_Pois(Flux(:,:,:,SideID),Phi_Minus(:,:,:,SideID),Phi_Plus(:,:,:,SideID),NormVec(:,:,:,SideID))
   DO q=0,PP_N
     DO p=0,PP_N
       Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)
