@@ -49,5 +49,7 @@ recordpoints/recordpoints.f90
 recordpoints/recordpoints_vars.f90
 pml/pml.f90
 pml/pml_vars.f90
+utils/utils.f90
+utils/utils_vars.f90
 particles/analyze/particle_analyze.f90
 particles/analyze/particle_analyze_vars.f90

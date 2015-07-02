@@ -432,7 +432,6 @@ IF (DoAnalyze)  THEN
 END IF
 
   !IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
-END IF
 #endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -515,6 +514,7 @@ END IF
 ! meassure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time
 ! allows non-synchronous meassurement of particle tracking
 IF(OutPut .AND. MeassureTrackTime)THEN
+#ifdef MPI
   IF(MPIRoot) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,nTracks      , 1 ,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,tTracking    , 1 ,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
@@ -524,6 +524,7 @@ IF(OutPut .AND. MeassureTrackTime)THEN
     CALL MPI_REDUCE(tTracking    ,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
     CALL MPI_REDUCE(tLocalization,RECR,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   END IF
+#endif /*MPI*/
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A,I15)')   ' Number of trackings:   ',nTracks
   SWRITE(UNIT_stdOut,'(A,F15.6)') ' Tracking time:         ',tTracking

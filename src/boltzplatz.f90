@@ -23,13 +23,15 @@ USE MOD_TimeDisc,         ONLY:InitTimeDisc,FinalizeTimeDisc,TimeDisc
 USE MOD_MPI,              ONLY:InitMPI
 #ifdef MPI
 USE MOD_MPI,              ONLY:InitMPIvars
-#endif
+#endif /*MPI*/
 #ifdef PARTICLES
 USE MOD_ParticleInit,     ONLY:InitParticles
 USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces!, GetSideType
 USE MOD_InitializeBackgroundField, ONLY: FinalizeBackGroundField
 USE MOD_Particle_Mesh,    ONLY:InitParticleMesh,FinalizeParticleMesh
+#ifdef MPI
 USE MOD_Particle_MPI,     ONLY:InitParticleMPI,FinalizeParticleMPI
+#endif /*MPI*/
 #endif
 
 ! IMPLICIT VARIABLE HANDLING
@@ -79,7 +81,9 @@ CALL InitMPIVars()
 !CALL InitParticleMPI
 !#endif
 #ifdef PARTICLES
+#ifdef MPI
 CALL InitParticleMPI
+#endif /*MPI*/
 CALL InitParticleSurfaces()
 !CALL InitParticleMesh()
 #endif /*PARTICLES*/

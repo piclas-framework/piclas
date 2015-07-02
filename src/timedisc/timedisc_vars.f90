@@ -21,6 +21,10 @@ INTEGER          :: iStage
 INTEGER(KIND=8)  :: iter, IterDisplayStep, IterDisplayStepUser
 LOGICAL          :: DoDisplayIter
 LOGICAl          :: TimediscInitIsDone = .FALSE.
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! TIME INTEGRATION: RUNGE_KUTTA COEFFICIENTS AND STABILITY NUMBERS
+!-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==1)
 ! Low-storage Runge-Kutta 3, 3 stages, Kopriva,Algorithm 42 
 INTEGER,PARAMETER  :: nRKStages=3
@@ -36,13 +40,16 @@ REAL,PARAMETER  :: RK_b(1:3) = (/RK3_b1,RK3_b2,RK3_b3/)
 REAL,PARAMETER  :: RK3_c2= 1./3. 
 REAL,PARAMETER  :: RK3_c3= 0.75
 REAL,PARAMETER  :: RK_c(2:3) = (/RK3_c2,RK3_c3/)
-REAL,PARAMETER  :: CFLScaleAlpha(1:10) = &
+
+! define scaling factor for CFL for degree N=1..15
+REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 #if (PP_NodeType==1)
-(/1.23,1.05,0.91,0.81,0.73,0.66,0.61,0.57,0.53,0.50/)
+(/ 1.2285, 1.0485, 0.9101, 0.8066, 0.7268, 0.6626, 0.6109, 0.5670, 0.5299, 0.4973, 0.4703, 0.4455, 0.4230, 0.4039, 0.3859 /)
 #elif (PP_NodeType==2)
-(/3.20,2.25,1.78,1.51,1.32,1.19,1.08,0.98,0.92,0.87/)
+(/ 3.1871, 2.2444, 1.7797, 1.5075, 1.3230, 1.1857, 1.0800, 0.9945, 0.9247, 0.8651, 0.8134, 0.7695, 0.7301, 0.6952, 0.6649 /)
 #endif /*PP_NodeType*/
 #endif
+
 #if ((PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==5) || (PP_TimeDiscMethod==200) || (PP_TimeDiscMethod==201))
 ! Runge-Kutta 4 - Carpenter 1994 NASA Report
 INTEGER,PARAMETER  :: nRKStages=5
@@ -65,11 +72,12 @@ REAL,PARAMETER  :: RK4_c4= 2006345519317.0/  3224310063776.0
 REAL,PARAMETER  :: RK4_c5= 2802321613138.0/  2924317926251.0
 REAL,PARAMETER  :: RK_c(2:5) = (/RK4_c2,RK4_c3,RK4_c4,RK4_c5/)
 
-REAL,PARAMETER  :: CFLScaleAlpha(1:10) = &
+! for degree N=1..15
+REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 #if (PP_NodeType==1)
-(/1.39,1.18,1.02,0.90,0.81,0.74,0.68,0.63,0.59,0.55/)
+(/ 2.0351, 1.7595, 1.5401, 1.3702, 1.2375, 1.1318, 1.0440, 0.9709, 0.9079, 0.8539, 0.8066, 0.7650, 0.7290, 0.6952, 0.6660 /)
 #elif (PP_NodeType==2)
-(/3.71,2.57,2.02,1.70,1.49,1.33,1.21,1.11,1.03,0.96/)
+(/ 4.7497, 3.4144, 2.8451, 2.4739, 2.2027, 1.9912, 1.8225, 1.6830, 1.5682, 1.4692, 1.3849, 1.3106, 1.2454, 1.1880, 1.1362 /)
 #endif /*PP_NodeType*/
 #endif
 
