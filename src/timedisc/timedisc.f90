@@ -34,12 +34,12 @@ SUBROUTINE InitTimeDisc()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools,          ONLY:GetReal,GetInt
+USE MOD_ReadInTools,          ONLY:GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone
 #if (PP_TimeDiscMethod>=100 && PP_TimeDiscMethod<200) 
 USE MOD_TimeDisc_Vars,        ONLY:epsTilde_LinearSolver,eps_LinearSolver,eps2_LinearSolver,maxIter_LinearSolver
 #endif /*PP_TimeDiscMethod>=100*/
-USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter,IterDisplayStepUser
+USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter,IterDisplayStepUser,DoDisplayEmissionWarnings
 USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -64,8 +64,10 @@ CALL fillCFL_DFL()
 ! read in requested IterDisplayStep (i.e. how often the message "iter: etc" is displayed, might be changed dependent on Particle-dt)
 DoDisplayIter=.FALSE.
 IterDisplayStepUser = GETINT('IterDisplayStep','1')
+DoDisplayEmissionWarnings= GETLOGICAL('DoDisplayEmissionWarning','T')
 IterDisplayStep = IterDisplayStepUser
 IF(IterDisplayStep.GE.1) DoDisplayIter=.TRUE.
+
 
 #if (PP_TimeDiscMethod>=100 && PP_TimeDiscMethod<200) 
 eps_LinearSolver = GETREAL('eps_LinearSolver')
@@ -366,8 +368,8 @@ DO !iter_t=0,MaxIter
   IterDisplayStep = MAX(INT(IterDisplayStepUser/MaxwellIterNum),1) !IterDisplayStep refers to dt_maxwell
   IF ((MPIroot).AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
     SWRITE(UNIT_StdOut,'(132("!"))')
-    print*, 'New IterNum for MaxwellSolver: ', MaxwellIterNum 
-    print*, 'New Particle TimeStep: ', dt_max_particles
+    !print*, 'New IterNum for MaxwellSolver: ', MaxwellIterNum 
+    !print*, 'New Particle TimeStep: ', dt_max_particles
   END IF
 #endif
 
@@ -1123,7 +1125,7 @@ USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting
 #endif
 #ifdef MPI
-USE MOD_part_boundary,    ONLY : Communicate_PIC
+!USE MOD_part_boundary,    ONLY : Communicate_PIC
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1147,10 +1149,10 @@ Time = t
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
                                          + PartState(1:PDM%ParticleVecLength,6) * dt
 
-  CALL ParticleBoundary()
-#ifdef MPI
-  CALL Communicate_PIC()
-#endif
+!  CALL ParticleBoundary()
+!#ifdef MPI
+!  CALL Communicate_PIC()
+!#endif
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
@@ -1192,16 +1194,16 @@ USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos,Time, PEM, PDM, usevMPF, doParticleMerge, DelayTime, PartPressureCell
 USE MOD_part_RHS,         ONLY : CalcPartRHS
-USE MOD_part_boundary,    ONLY : ParticleBoundary
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS
 USE MOD_part_MPFtools,    ONLY : StartParticleMerge
-#ifdef MPI
-USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
-#else
-USE MOD_part_boundary,    ONLY : ParticleBoundary
-#endif
+!#ifdef MPI
+!!USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
+!#else
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
+!#endif
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 #endif
@@ -1254,11 +1256,11 @@ IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3) 
 END IF
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-  CALL ParticleBoundary()
-#ifdef MPI
-  CALL Communicate_PIC()
-!CALL UpdateNextFreePosition() ! only required for parallel communication
-#endif
+!  CALL ParticleBoundary()
+!#ifdef MPI
+!  CALL Communicate_PIC()
+!!CALL UpdateNextFreePosition() ! only required for parallel communication
+!#endif
 END IF
 
 ! EM field
@@ -1352,13 +1354,13 @@ USE MOD_Filter,ONLY:Filter
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, Time, PDM,PEM
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC
 USE MOD_DSMC,             ONLY : DSMC_main
-USE MOD_part_boundary,    ONLY : ParticleBoundary
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting
 #endif
-#ifdef MPI
-USE MOD_part_boundary,    ONLY : Communicate_PIC
-#endif
+!#ifdef MPI
+!USE MOD_part_boundary,    ONLY : Communicate_PIC
+!#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1402,10 +1404,10 @@ ELSE
                                          + PartState(1:PDM%ParticleVecLength,5) * dt
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
                                          + PartState(1:PDM%ParticleVecLength,6) * dt
-  CALL ParticleBoundary()
-#ifdef MPI
-  CALL Communicate_PIC()
-#endif
+!  CALL ParticleBoundary()
+!#ifdef MPI
+!  CALL Communicate_PIC()
+!#endif
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
 END IF
@@ -1432,15 +1434,15 @@ USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY : PIC
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
 USE MOD_part_RHS,         ONLY : CalcPartRHS
-USE MOD_part_boundary,    ONLY : ParticleBoundary
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
-#ifdef MPI
-USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
-#else
-USE MOD_part_boundary,    ONLY : ParticleBoundary
-#endif
+!#ifdef MPI
+!USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
+!#else
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
+!#endif
 USE MOD_PIC_Analyze,ONLY: CalcDepositedCharge
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
 #endif
@@ -1483,11 +1485,11 @@ IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2) 
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3) 
 END IF
-CALL ParticleBoundary()
-#ifdef MPI
-CALL Communicate_PIC()
-!CALL UpdateNextFreePosition() ! only required for parallel communication
-#endif
+!CALL ParticleBoundary()
+!#ifdef MPI
+!CALL Communicate_PIC()
+!!CALL UpdateNextFreePosition() ! only required for parallel communication
+!#endif
 ! EM field
 CALL LinearSolver(t,dt)
 CALL DivCleaningDamping()
@@ -1529,15 +1531,15 @@ USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY : PIC
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
 USE MOD_part_RHS,         ONLY : CalcPartRHS
-USE MOD_part_boundary,    ONLY : ParticleBoundary
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
-#ifdef MPI
-USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
-#else
-USE MOD_part_boundary,    ONLY : ParticleBoundary
-#endif
+!#ifdef MPI
+!USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
+!#else
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
+!#endif
 !USE MOD_PIC_Analyze,    ONLY: CalcDepositedCharge
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
 #endif
@@ -1590,11 +1592,11 @@ IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2) 
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3) 
 END IF
-CALL ParticleBoundary()
-#ifdef MPI
-CALL Communicate_PIC()
-!CALL UpdateNextFreePosition() ! only required for parallel communication
-#endif
+!CALL ParticleBoundary()
+!#ifdef MPI
+!CALL Communicate_PIC()
+!!CALL UpdateNextFreePosition() ! only required for parallel communication
+!#endif
 ! EM field
 !===================================================================================================================================
 ! Save state at t(n)
@@ -1680,15 +1682,15 @@ USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, dt_maxwell, MaxwellIterNum, usevMPF
 USE MOD_part_RHS,         ONLY : CalcPartRHS
-USE MOD_part_boundary,    ONLY : ParticleBoundary
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS
-#ifdef MPI
-USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
-#else
-USE MOD_part_boundary,    ONLY : ParticleBoundary
-#endif
+!#ifdef MPI
+!USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
+!#else
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
+!#endif
 USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 #endif
@@ -1735,11 +1737,11 @@ IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2) 
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3) 
 END IF
-CALL ParticleBoundary()
-#ifdef MPI
-CALL Communicate_PIC()
+!CALL ParticleBoundary()
+!#ifdef MPI
+!CALL Communicate_PIC()
 !CALL UpdateNextFreePosition() ! only required for parallel communication
-#endif
+!#endif
 ! EM field
 
 dt_save = dt  !quick hack
@@ -1838,15 +1840,15 @@ USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY : PIC
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, dt_maxwell, MaxwellIterNum, usevMPF
 USE MOD_part_RHS,         ONLY : CalcPartRHS
-USE MOD_part_boundary,    ONLY : ParticleBoundary
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
-#ifdef MPI
-USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
-#else
-USE MOD_part_boundary,    ONLY : ParticleBoundary
-#endif
+!#ifdef MPI
+!USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
+!#else
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
+!#endif
 USE MOD_PIC_Analyze,ONLY: CalcDepositedCharge
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
 #endif
@@ -1894,11 +1896,11 @@ IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2) 
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3) 
 END IF
-CALL ParticleBoundary()
-#ifdef MPI
-CALL Communicate_PIC()
-!CALL UpdateNextFreePosition() ! only required for parallel communication
-#endif
+!CALL ParticleBoundary()
+!#ifdef MPI
+!CALL Communicate_PIC()
+!!CALL UpdateNextFreePosition() ! only required for parallel communication
+!#endif
 
 ! EM field
 
@@ -1982,18 +1984,19 @@ SUBROUTINE TimeStep_LD(t)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY: dt
+USE MOD_TimeDisc_Vars,          ONLY:dt
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, Time, PDM,PEM 
-USE MOD_LD_Vars,          ONLY : LD_RHS
-USE MOD_LD,               ONLY : LD_main
-USE MOD_part_boundary,    ONLY : ParticleBoundary
-USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting
-#endif
+USE MOD_Particle_Vars,          ONLY:PartState, LastPartPos, Time, PDM,PEM 
+USE MOD_LD_Vars,                ONLY:LD_RHS
+USE MOD_LD,                     ONLY:LD_main
+USE MOD_part_tools,             ONLY:UpdateNextFreePosition
+USE MOD_part_emission,          ONLY:ParticleInserting
+USE MOD_Particle_surfaces_vars, ONLY:ntracks,tTracking,tLocalization,MeassureTrackTime
+USE MOD_Particle_Tracking,      ONLY:ParticleRefTracking
 #ifdef MPI
-USE MOD_part_boundary,    ONLY : Communicate_PIC
-#endif
+USE MOD_Particle_MPI,           ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfParticles
+#endif /*MPI*/
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2001,8 +2004,9 @@ IMPLICIT NONE
 REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-
+REAL                  :: timeStart, timeEnd
 !===================================================================================================================================
+
   Time = t
   CALL LD_main()
   LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
@@ -2023,11 +2027,28 @@ REAL,INTENT(IN)       :: t
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
                                          + PartState(1:PDM%ParticleVecLength,6) * dt
 
-  CALL ParticleBoundary()
+
 #ifdef MPI
-  CALL Communicate_PIC()
+  CALL IRecvNbofParticles()
+#endif /*MPI*/
+  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
+  CALL ParticleRefTracking()
+  IF(MeassureTrackTime) THEN
+    CALL CPU_TIME(TimeEnd)
+    tTracking=tTracking+TimeEnd-TimeStart
+  END IF
+#ifdef MPI
+  CALL SendNbOfParticles()
+  CALL MPIParticleSend()
+  CALL MPIParticleRecv()
 #endif
+
+  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
   CALL ParticleInserting()
+  IF(MeassureTrackTime) THEN
+    CALL CPU_TIME(TimeEnd)
+    tLocalization=tLocalization+TimeEnd-TimeStart
+  END IF
   CALL UpdateNextFreePosition()
 
 END SUBROUTINE TimeStep_LD
@@ -2047,14 +2068,16 @@ USE MOD_LD_Vars,          ONLY : LD_DSMC_RHS
 USE MOD_LD,               ONLY : LD_main
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_LD_DSMC_TOOLS
-USE MOD_part_boundary,    ONLY : ParticleBoundary
+!USE MOD_part_boundary,    ONLY : ParticleBoundary
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC_Vars,        ONLY : DSMC
 USE MOD_LD_DSMC_DOMAIN_DEC
+USE MOD_Particle_surfaces_vars, ONLY:ntracks,tTracking,tLocalization,MeassureTrackTime
+USE MOD_Particle_Tracking,      ONLY:ParticleRefTracking
 #endif
 #ifdef MPI
-USE MOD_part_boundary,    ONLY : Communicate_PIC
+USE MOD_Particle_MPI,           ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfParticles
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2064,6 +2087,7 @@ REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER           :: nOutput
+  REAL              :: timeStart, timeEnd
 !===================================================================================================================================
 
   IF(iter.EQ. 0.0) CALL LD_DSMC_DOMAIN_DECOMPOSITION
@@ -2107,12 +2131,29 @@ REAL,INTENT(IN)       :: t
                                          + PartState(1:PDM%ParticleVecLength,5) * dt
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
                                          + PartState(1:PDM%ParticleVecLength,6) * dt
-  CALL ParticleBoundary()
 #ifdef MPI
-  CALL Communicate_PIC()
+  CALL IRecvNbofParticles()
+#endif /*MPI*/
+  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
+  CALL ParticleRefTracking()
+  IF(MeassureTrackTime) THEN
+    CALL CPU_TIME(TimeEnd)
+    tTracking=tTracking+TimeEnd-TimeStart
+  END IF
+#ifdef MPI
+  CALL SendNbOfParticles()
+  CALL MPIParticleSend()
+  CALL MPIParticleRecv()
 #endif
+
   CALL LD_DSMC_Clean_Bufferregion
+
+  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
   CALL ParticleInserting()
+  IF(MeassureTrackTime) THEN
+    CALL CPU_TIME(TimeEnd)
+    tLocalization=tLocalization+TimeEnd-TimeStart
+  END IF
   CALL UpdateNextFreePosition()
 
 END SUBROUTINE TimeStep_LD_DSMC

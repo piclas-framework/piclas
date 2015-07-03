@@ -20,6 +20,7 @@ INTEGER          :: maxIter_LinearSolver
 INTEGER          :: iStage
 INTEGER(KIND=8)  :: iter, IterDisplayStep, IterDisplayStepUser
 LOGICAL          :: DoDisplayIter
+LOGICAL          :: DoDisplayEmissionWarnings
 LOGICAl          :: TimediscInitIsDone = .FALSE.
 
 !-----------------------------------------------------------------------------------------------------------------------------------

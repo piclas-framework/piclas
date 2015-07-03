@@ -28,9 +28,10 @@ SUBROUTINE CalcMacCellLDValues()
   USE MOD_Globals
   USE MOD_LD_Vars
   USE MOD_Mesh_Vars,              ONLY : nElems
-  USE MOD_Particle_Vars,          ONLY : GEO, PEM, usevMPF, PartMPF, BoltzmannConst, Species, PartSpecies
+  USE MOD_Particle_Vars,          ONLY : PEM, usevMPF, PartMPF, BoltzmannConst, Species, PartSpecies
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollisMode, LD_MultiTemperaturMod
   USE MOD_LD_internal_Temp
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 #if (PP_TimeDiscMethod==1001)
   USE MOD_LD_DSMC_TOOLS,          ONLY : LD_DSMC_Mean_Bufferzone_A_Val
 #endif
@@ -219,8 +220,8 @@ USE MOD_LD_Vars
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-  USE MOD_part_MPI_Vars,          ONLY : PMPIVAR
-  USE MOD_Mesh_Vars,              ONLY : SideToElem
+USE MOD_Particle_MPI_Vars,      ONLY : PartMPI
+USE MOD_Mesh_Vars,              ONLY : SideToElem
 !--------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE    
@@ -276,12 +277,12 @@ USE MOD_MPI_Vars
         SendBufferCount = SendBufferCount + 1
       END DO
     END IF
-    IF (PMPIVAR%iProc.LT.nbProc(iProc)) THEN
-      CALL MPI_SEND(MPI_LDSendBuffer,NbrOfSendLDVal,MPI_DOUBLE_PRECISION,nbProc(iProc),1101,PMPIVAR%COMM,IERROR)
-      CALL MPI_RECV(MPI_LDRecvBuffer,NbrOfSendLDVal,MPI_DOUBLE_PRECISION,nbProc(iProc),1101,PMPIVAR%COMM,MPISTATUS,IERROR)
-    ELSE IF (PMPIVAR%iProc.GT.nbProc(iProc)) THEN
-      CALL MPI_RECV(MPI_LDRecvBuffer,NbrOfSendLDVal,MPI_DOUBLE_PRECISION,nbProc(iProc),1101,PMPIVAR%COMM,MPISTATUS,IERROR)
-      CALL MPI_SEND(MPI_LDSendBuffer,NbrOfSendLDVal,MPI_DOUBLE_PRECISION,nbProc(iProc),1101,PMPIVAR%COMM,IERROR)
+    IF (PartMPI%MyRank.LT.nbProc(iProc)) THEN
+      CALL MPI_SEND(MPI_LDSendBuffer,NbrOfSendLDVal,MPI_DOUBLE_PRECISION,nbProc(iProc),1101,PartMPI%COMM,IERROR)
+      CALL MPI_RECV(MPI_LDRecvBuffer,NbrOfSendLDVal,MPI_DOUBLE_PRECISION,nbProc(iProc),1101,PartMPI%COMM,MPISTATUS,IERROR)
+    ELSE IF (PartMPI%MyRank.GT.nbProc(iProc)) THEN
+      CALL MPI_RECV(MPI_LDRecvBuffer,NbrOfSendLDVal,MPI_DOUBLE_PRECISION,nbProc(iProc),1101,PartMPI%COMM,MPISTATUS,IERROR)
+      CALL MPI_SEND(MPI_LDSendBuffer,NbrOfSendLDVal,MPI_DOUBLE_PRECISION,nbProc(iProc),1101,PartMPI%COMM,IERROR)
     END IF
 
     RecvBufferCount = 0

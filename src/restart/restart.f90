@@ -36,10 +36,11 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars, ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
-USE MOD_HDF5_Input,ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
-USE MOD_ReadInTools,ONLY:GETLOGICAL,GETREALARRAY,ReadInDone 
+USE MOD_HDF5_Input,         ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
+USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETREALARRAY,ReadInDone 
 #ifdef PARTICLES
-USE MOD_DSMC_Vars,ONLY: UseDSMC
+USE MOD_DSMC_Vars,          ONLY: UseDSMC
+USE MOD_LD_Vars,            ONLY: UseLD
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -64,6 +65,8 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 #ifdef PARTICLES
 ! DSMC handling:
 useDSMC=GETLOGICAL('UseDSMC','.FALSE.')
+useLD=GETLOGICAL('UseLD','.FALSE.')
+IF(useLD) useDSMC=.TRUE.
 IF (useDSMC) THEN
   ReadInDone = .FALSE.
   maxNArgs = 3

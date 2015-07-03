@@ -210,10 +210,10 @@ USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition  
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
-!#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
-!USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
-!USE MOD_LD_Vars
-!#endif
+#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
+USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
+USE MOD_LD_Vars
+#endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 #if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
@@ -423,13 +423,13 @@ USE MOD_PIC_Vars
 USE MOD_Particle_Vars,         ONLY:Species,BoltzmannConst,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 USE MOD_Globals_Vars,          ONLY:PI, TwoepsMach
-USE MOD_Timedisc_Vars,         ONLY:dt, iter, IterDisplayStep, DoDisplayIter
+USE MOD_Timedisc_Vars,         ONLY:dt, iter, DoDisplayEmissionWarnings,IterDisplayStep, DoDisplayIter
 USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Surfaces_vars,ONLY:DoRefMapping
 USE MOD_PICInterpolation,      ONLY:InterpolateCurvedExternalField
 USE MOD_PICInterpolation_vars, ONLY:useCurvedExternalField
 USE MOD_Equation_vars,         ONLY:c_inv
-!USE MOD_LD,                    ONLY : LD_SetParticlePosition
+USE MOD_LD,                    ONLY:LD_SetParticlePosition
 !#ifdef MPI
 !! PilleO: to change into use MPi_2003 or so
 !INCLUDE 'mpif.h'                                                                               
@@ -646,17 +646,17 @@ mySumOfMatchedParticles = 0
 chunkSize = nbrOfParticle
 ! process myRank=0 generates the complete list of random positions for all emitted particles
 #ifdef MPI
-!IF ( (nbrOfParticle.GT.10*PMPIVAR%nProcs                                      ) .AND. &
-!IF ( (nbrOfParticle.GT.10*PartMPI%nProcs                                      ) .AND. &
-IF ( (nbrOfParticle.LE.PartMPI%InitGroup(InitGroup)%nProcs                             ) .AND. &
-     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'circle_equidistant'                 ) .AND. &
-     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'sin_deviation'                      ) .AND. &
-     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'cuboid_with_equidistant_distribution') .AND. &
-     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'line_with_equidistant_distribution' )) THEN
+IF(( (nbrOfParticle.LE.PartMPI%InitGroup(InitGroup)%nProcs                                ) .AND.  &
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'circle_equidistant'                 ) .AND.  &
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'sin_deviation'                      ) .AND.  &
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'cuboid_with_equidistant_distribution').AND.  &
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).NE.'line_with_equidistant_distribution' )).OR.   &
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'LD_insert'))THEN
    nChunks = PartMPI%InitGroup(InitGroup)%nProcs
 ELSE
    nChunks = 1
 END IF
+
 IF (mode.EQ.1) THEN
   chunkSize = INT(nbrOfParticle/nChunks)
   IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
@@ -1242,20 +1242,20 @@ IF (mode.EQ.1) THEN
         i=i+1
         chunkSize2=chunkSize2+1
       END DO
-!    CASE('LD_insert')
-!      CALL LD_SetParticlePosition(chunkSize,particle_positions_Temp,FractNbr,iInit)
-!      DEALLOCATE( particle_positions, STAT=allocStat )
-!      IF (allocStat .NE. 0) THEN
-!        CALL abort(__STAMP__,&
-!          'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
-!      END IF
-!      ALLOCATE(particle_positions(3*chunkSize))
-!      particle_positions(1:3*chunkSize) = particle_positions_Temp(1:3*chunkSize)
-!      DEALLOCATE( particle_positions_Temp, STAT=allocStat )
-!      IF (allocStat .NE. 0) THEN
-!        CALL abort(__STAMP__,&
-!          'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
-!      END IF
+    CASE('LD_insert')
+      CALL LD_SetParticlePosition(chunkSize,particle_positions_Temp,FractNbr,iInit)
+      DEALLOCATE( particle_positions, STAT=allocStat )
+      IF (allocStat .NE. 0) THEN
+        CALL abort(__STAMP__,&
+          'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
+      END IF
+      ALLOCATE(particle_positions(3*chunkSize))
+      particle_positions(1:3*chunkSize) = particle_positions_Temp(1:3*chunkSize)
+      DEALLOCATE( particle_positions_Temp, STAT=allocStat )
+      IF (allocStat .NE. 0) THEN
+        CALL abort(__STAMP__,&
+          'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
+      END IF
     CASE('cuboid_equal')
 #ifdef MPI
       IF (PartMPI%InitGroup(InitGroup)%nProcs.GT. 1) THEN
@@ -1582,56 +1582,66 @@ ELSE ! mode.NE.1:
     END IF
   END DO
  
-  IF(DoDisplayIter)THEN
-    IF(MOD(iter,IterDisplayStep).EQ.0) THEN
 #ifdef MPI
-  !   WRITE(*,*)'mySumOfMatchedParticles=',mySumOfMatchedParticles
-     ! check the sum of the matched particles: did each particle find its "home"-CPU?
-      CALL MPI_ALLREDUCE(mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM &
-                                               , PartMPI%InitGroup(InitGroup)%COMM, IERROR)
+ ! check the sum of the matched particles: did each particle find its "home"-CPU?
+  CALL MPI_ALLREDUCE(mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER, MPI_SUM &
+                                           , PartMPI%InitGroup(InitGroup)%COMM, IERROR)
 #else
-      ! im seriellen Fall kommen alle Partikel auf einen CPU,
-      ! daher ist PIC%maxParticleNumber die harte Grenze
-      sumOfMatchedParticles = mySumOfMatchedParticles
+  ! im seriellen Fall kommen alle Partikel auf einen CPU,
+  ! daher ist PIC%maxParticleNumber die harte Grenze
+  sumOfMatchedParticles = mySumOfMatchedParticles
 #endif
 
 #ifdef MPI
-      IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
+  IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
 #endif
-        IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
-          IF ((nbrOfParticle .NE. sumOfMatchedParticles).AND.OutputVpiWarnings) THEN
-            SWRITE(*,'(A)')'WARNING in ParticleEmission_parallel:'
-            SWRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
-            SWRITE(*,'(I8,A)') sumOfMatchedParticles, ' particles reached the domain when'
-            SWRITE(*,'(I8,A)') NbrOfParticle, '(+1) velocities were calculated with vpi+PartDens'
-          END IF
-        ELSE
-          IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
-            SWRITE(*,*)'WARNING in ParticleEmission_parallel:'
-            SWRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
-            SWRITE(*,'(A,I8,A)')'matched only ', sumOfMatchedParticles, ' particles'
-            SWRITE(*,'(A,I8,A)')'when ', NbrOfParticle, ' particles were required!'
-          ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
-            SWRITE(*,*)'ERROR in ParticleEmission_parallel:'
-            SWRITE(*,'(A,I0)')'Fraction Nbr: ', FractNbr
-            SWRITE(*,'(A,I8,A)')'matched ', sumOfMatchedParticles, ' particles'
-            SWRITE(*,'(A,I8,A)')'when ', NbrOfParticle, ' particles were required!'
-#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
-            CALL abort(__STAMP__,&
-              'selected timedisk does not allow num of inserted part .gt. required')
-#endif
-          ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
-!           SWRITE(UNIT_stdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-!           SWRITE(UNIT_stdOut,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
-          END IF
+    IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
+      IF ((nbrOfParticle .NE. sumOfMatchedParticles).AND.OutputVpiWarnings) THEN
+        IF(DoDisplayEmissionWarnings)THEN
+          WRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
+          WRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
+          WRITE(UNIT_StdOut,'(I8,A)') sumOfMatchedParticles, ' particles reached the domain when'
+          WRITE(UNIT_StdOut,'(I8,A)') NbrOfParticle, '(+1) velocities were calculated with vpi+PartDens'
         END IF
-#ifdef MPI
-      END IF ! PMPIVAR%iProc.EQ.0
+      END IF
+    ELSE
+      IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
+        IF(DoDisplayEmissionWarnings)THEN
+          WRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
+          WRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
+          WRITE(UNIT_StdOut,'(A,I8,A)')'matched only ', sumOfMatchedParticles, ' particles'
+          WRITE(UNIT_StdOut,'(A,I8,A)')'when ', NbrOfParticle, ' particles were required!'
+        END IF
+      ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
+#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
+       IF(DoDisplayIter)THEN
+         IF(MOD(iter,IterDisplayStep).EQ.0) THEN
 #endif
-    END IF ! IterDisplayStep
-  END IF
-   ! Return the *local* NbrOfParticle so that the following Routines only fill in
-   ! the values for the local particles
+            WRITE(UNIT_StdOut,'(A)')'ERROR in ParticleEmission_parallel:'
+            WRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
+            WRITE(UNIT_StdOut,'(A,I8,A)')'matched ', sumOfMatchedParticles, ' particles'
+            WRITE(UNIT_StdOut,'(A,I8,A)')'when ', NbrOfParticle, ' particles were required!'
+#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
+         END IF
+       END IF
+#endif
+#if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
+        CALL abort(__STAMP__,&
+          'selected timedisk does not allow num of inserted part .gt. required')
+#endif
+      ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
+        !IF(DoDisplayEmissionWarnings)THEN
+        !  WRITE(UNIT_stdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
+        !  WRITE(UNIT_stdOut,'(A,I0,A)')'ParticleEmission_parallel: matched all (',NbrOfParticle,') particles!'
+        !END IF
+      END IF
+    END IF
+#ifdef MPI
+  END IF ! PMPIVAR%iProc.EQ.0
+#endif
+
+  ! Return the *local* NbrOfParticle so that the following Routines only fill in
+  ! the values for the local particles
   NbrOfParticle = mySumOfMatchedParticles
 
   DEALLOCATE( particle_positions, STAT=allocStat )

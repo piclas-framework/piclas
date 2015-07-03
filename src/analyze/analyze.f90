@@ -342,11 +342,11 @@ USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,MeassureTr
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
 #if (PP_TimeDiscMethod!=42)
-!USE MOD_LD_Vars,               ONLY: useLD
+USE MOD_LD_Vars,               ONLY: useLD
 #endif
-!USE MOD_LD_Analyze,            ONLY: LD_data_sampling, LD_output_calc
+USE MOD_LD_Analyze,            ONLY: LD_data_sampling, LD_output_calc
 #if (PP_TimeDiscMethod==1001)
-!USE MOD_LD_DSMC_TOOLS
+USE MOD_LD_DSMC_TOOLS
 #endif
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
@@ -502,10 +502,10 @@ IF(OutPut)THEN
 #else
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
     nOutput = INT((DSMC%TimeFracSamp * TEnd) / DSMC%DeltaTimeOutput)
-    !IF (.NOT. useLD) THEN
+    IF (.NOT. useLD) THEN
       CALL DSMC_output_calc
       IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
-    !END IF
+    END IF
     IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
   END IF
 #endif

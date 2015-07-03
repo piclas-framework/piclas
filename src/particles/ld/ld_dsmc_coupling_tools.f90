@@ -1,5 +1,6 @@
 #include "boltzplatz.h"
 
+#ifdef DONONTCOMPILETHIS
 MODULE MOD_LD_DSMC_TOOLS
 !==================================================================================================
 ! module contains tools for coupled DSMC LD method
@@ -701,3 +702,4 @@ END SUBROUTINE LD_DSMC_Mean_Bufferzone_A_Val
 !--------------------------------------------------------------------------------------------------!
 
 END MODULE MOD_LD_DSMC_TOOLS
+#endif /* DONONTCOMPILETHIS*/

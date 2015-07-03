@@ -33,8 +33,8 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone, WriteMacroValues, nSpecies
 USE MOD_part_emission,              ONLY: InitializeParticleEmission
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
-!USE MOD_LD_Init,                    ONLY: InitLD
-!USE MOD_LD_Vars,                    ONLY: useLD
+USE MOD_LD_Init,                    ONLY: InitLD
+USE MOD_LD_Vars,                    ONLY: useLD
 USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, SampDSMC
 USE MOD_Mesh_Vars,                  ONLY : nElems
 USE MOD_InitializeBackgroundField,  ONLY:InitializeBackgroundField
@@ -69,7 +69,7 @@ CALL InitializeParticleEmission()
 
 IF (useDSMC) THEN
   CALL  InitDSMC()
-  !IF (useLD) CALL InitLD
+  IF (useLD) CALL InitLD
 ELSE IF (WriteMacroValues) THEN
   DSMC%SampNum = 0
   DSMC%CalcSurfaceVal  = .FALSE.
@@ -115,8 +115,8 @@ USE MOD_PICInterpolation,      ONLY: InitializeInterpolation
 USE MOD_PICInit,               ONLY: InitPIC
 USE MOD_Particle_Mesh,         ONLY: InitFIBGM,MapRegionToElem
 USE MOD_Particle_Surfaces_Vars,ONLY: DoRefMapping
-#ifdef MPI
 USE MOD_Particle_MPI_Vars,     ONLY: SafetyFactor,halo_eps_velo,PartMPI
+#ifdef MPI
 USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -729,7 +729,7 @@ DO iPBC=1,nPartBound
       SWRITE(*,*)"PartBound",iPBC,"is internal bound, no mapping needed"
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
-      PartBound%MapToPartBC(iBC) = iPBC
+      PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
       SWRITE(*,*)"Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
     END IF
   END DO
@@ -859,10 +859,9 @@ OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
 ! init interpolation
 CALL InitializeInterpolation() ! not any more required ! has to be called earliear
 CALL InitPIC()
-#ifdef MPI
+! always, because you have to construct a halo_eps region around each bc element
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
-#endif /*MPI*/
 !-- Finalizing InitializeVariables
 CALL InitFIBGM()
 #ifdef MPI

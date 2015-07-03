@@ -28,6 +28,7 @@ SUBROUTINE LD_reassign_prop(iElem)
 ! determination of new ld particle bulk values
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars,          ONLY: PI
 USE MOD_LD_Vars
 USE MOD_TimeDisc_Vars,         ONLY : dt
 !--------------------------------------------------------------------------------------------------!
@@ -42,7 +43,7 @@ USE MOD_TimeDisc_Vars,         ONLY : dt
   REAL              :: NVec(3)                                                                     !
   REAL              :: kon, VeloDir                                                                !
   REAL              :: Phi                                                                         !
-  REAL, PARAMETER   :: PI=3.14159265358979323846_8                                                 !
+  !REAL, PARAMETER   :: PI=3.14159265358979323846_8                                                 !
   REAL              :: DeltaM(3)                                                                   !
   REAL              :: DeltaE                                                                      !
   REAL              :: Area                                                                        !
@@ -90,8 +91,9 @@ SUBROUTINE UpdateMacLDValues(iElem, DeltaM, DeltaE)
 ! MODULES
   USE MOD_Globals
 USE MOD_LD_Vars
-USE MOD_Particle_Vars,         ONLY : GEO, BoltzmannConst, PEM
+USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PEM
 USE MOD_LD_Init,               ONLY : CalcDegreeOfFreedom
+USE MOD_Particle_Mesh_Vars,    ONLY : GEO
 USE MOD_LD_internal_Temp
 USE MOD_DSMC_Vars,             ONLY : CollisMode, LD_MultiTemperaturMod
 !--------------------------------------------------------------------------------------------------!
@@ -193,7 +195,8 @@ SUBROUTINE CalcCellTemp_PartDens(iElem, CellTemp, CellPartDens)
 !===================================================================================================================================
 ! MODULES
   USE MOD_LD_Vars
-  USE MOD_Particle_Vars,      ONLY : Species, PartSpecies, BoltzmannConst, usevMPF, PartMPF, PEM, GEO
+  USE MOD_Particle_Vars,      ONLY : Species, PartSpecies, BoltzmannConst, usevMPF, PartMPF, PEM
+  USE MOD_Particle_Mesh_Vars, ONLY: GEO
 !--------------------------------------------------------------------------------------------------!
 ! calculation of LD-cell temperatur
 !--------------------------------------------------------------------------------------------------!
@@ -241,7 +244,7 @@ USE MOD_Globals,               ONLY : abort
 USE MOD_LD_Vars
 USE MOD_TimeDisc_Vars,         ONLY : dt
 USE MOD_Mesh_Vars,             ONLY : ElemToSide, nBCSides, BC
-USE MOD_Particle_Vars,         ONLY : PartBound, GEO
+USE MOD_Particle_Mesh_Vars,    ONLY : PartBound, SidePeriodicType
 !--------------------------------------------------------------------------------------------------!
 ! calculation of LD-cell temperatur
 !--------------------------------------------------------------------------------------------------!
@@ -279,7 +282,8 @@ USE MOD_Particle_Vars,         ONLY : PartBound, GEO
 
   SideID = ElemToSide(1,iLocSide,iElem)
   IF (SideID.GT.nBCSides) THEN
-    IF(GEO%PeriodicElemSide(iLocSide,iElem).EQ.0) THEN ! only inner side without periodic sides
+    IF(SidePeriodicType(SideID).EQ.0)THEN
+    !IF(GEO%PeriodicElemSide(iLocSide,iElem).EQ.0) THEN ! only inner side without periodic sides
       MeanBulkVelo   = MeanSurfValues(iLocSide, iElem)%MeanBulkVelo
       BulkVeloDiff   = MeanSurfValues(iLocSide, iElem)%BulkVeloDiff
       BulkTempDiff   = MeanSurfValues(iLocSide, iElem)%BulkTempDiff

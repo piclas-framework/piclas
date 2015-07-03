@@ -121,9 +121,11 @@ SUBROUTINE LD_reposition
 ! reposition calculation for LD
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,         ONLY : PartState, PEM, GEO
+  USE MOD_Particle_Vars,         ONLY : PartState, PEM
   USE MOD_Mesh_Vars,             ONLY : nElems
-  USE MOD_part_MPFtools,         ONLY : MapToGeo
+  USE MOD_Particle_Mesh_Vars,    ONLY : GEO
+  USE MOD_Eval_xyz,              ONLY : Eval_XYZ_Poly
+  USE MOD_Mesh_Vars,             ONLY : NGeo,XCL_NGeo
   USE MOD_LD_Vars,               ONLY : LD_RepositionFak
 #if (PP_TimeDiscMethod==1001)
   USE MOD_LD_Vars,               ONLY : BulkValues
@@ -136,7 +138,7 @@ SUBROUTINE LD_reposition
 ! Local variable declaration  
 INTEGER               :: iElem
 INTEGER               :: iPart, iNode,iPartIndx,nPart
-REAL                  :: RandVec(3), iRan, P(3,8)
+REAL                  :: RandVec(3), iRan
 !--------------------------------------------------------------------------------------------------!
 
   DO iElem = 1, nElems
@@ -145,15 +147,12 @@ REAL                  :: RandVec(3), iRan, P(3,8)
 #endif
     nPart     = PEM%pNumber(iElem)
     iPartIndx = PEM%pStart(iElem)
-    DO iNode = 1,8
-      P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-    END DO
     DO iPart = 1, nPart
       CALL RANDOM_NUMBER(iRan)
       IF (iRan.LT. LD_RepositionFak) THEN     
         CALL RANDOM_NUMBER(RandVec)
         RandVec = RandVec * 2.0 - 1.0
-        PartState(iPartIndx, 1:3) = MapToGeo(RandVec, P)
+        CALL Eval_xyz_Poly(RandVec,3,NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(iPartIndx,1:3))
         iPartIndx = PEM%pNext(iPartIndx)
       END IF
     END DO
@@ -249,9 +248,11 @@ SUBROUTINE LD_SetParticlePosition(chunkSize,particle_positions_Temp,iSpec,iInit)
 ! modified particle emmission for LD case
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,         ONLY : GEO, Species
-  USE MOD_Mesh_Vars,             ONLY : nElems
-  USE MOD_part_MPFtools,         ONLY : MapToGeo
+  USE MOD_Particle_Vars,         ONLY:Species,PDM
+  USE MOD_Mesh_Vars,             ONLY:nElems
+  USE MOD_Particle_Mesh_Vars,    ONLY:GEO
+  USE MOD_Eval_xyz,              ONLY:Eval_XYZ_Poly
+  USE MOD_Mesh_Vars,             ONLY:NGeo,XCL_NGeo
 !--------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    !
@@ -260,7 +261,7 @@ SUBROUTINE LD_SetParticlePosition(chunkSize,particle_positions_Temp,iSpec,iInit)
 !--------------------------------------------------------------------------------------------------!
 INTEGER               :: iElem, ichunkSize
 INTEGER               :: iPart, iNode, nPart
-REAL                  :: RandVec(3), iRan, P(3,8),RandomPos(3)
+REAL                  :: RandVec(3), iRan, RandomPos(3)
 REAL                  :: PartDens, FractNbr
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
@@ -274,7 +275,7 @@ INTEGER, INTENT(INOUT)           :: chunkSize
 REAL,ALLOCATABLE, INTENT(OUT)    :: particle_positions_Temp(:)
 !--------------------------------------------------------------------------------------------------!
 
-  ALLOCATE(particle_positions_Temp(6*chunkSize))
+  ALLOCATE(particle_positions_Temp(3*PDM%maxParticleNumber))
   PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
   ichunkSize = 1
   DO iElem = 1, nElems
@@ -285,13 +286,10 @@ REAL,ALLOCATABLE, INTENT(OUT)    :: particle_positions_Temp(:)
     ELSE
       nPart = INT(AINT(PartDens * GEO%Volume(iElem))) + 1
     END IF
-    DO iNode = 1,8
-      P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,iElem))
-    END DO
     DO iPart = 1, nPart   
       CALL RANDOM_NUMBER(RandVec)
       RandVec = RandVec * 2.0 - 1.0
-      RandomPos(1:3) = MapToGeo(RandVec, P)
+      CALL Eval_xyz_Poly(RandVec,3,NGeo,XCL_NGeo(:,:,:,:,iElem),RandomPos)
       particle_positions_Temp(ichunkSize*3-2) = RandomPos(1)
       particle_positions_Temp(ichunkSize*3-1) = RandomPos(2)
       particle_positions_Temp(ichunkSize*3)   = RandomPos(3)

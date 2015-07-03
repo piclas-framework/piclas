@@ -26,7 +26,8 @@ SUBROUTINE CalcInternalTemp_LD_first(iElem)
 
 USE MOD_LD_Vars
 USE MOD_Mesh_Vars,              ONLY : nElems
-USE MOD_Particle_Vars,          ONLY : GEO, PEM, BoltzmannConst, Species, nSpecies, PartSpecies
+USE MOD_Particle_Vars,          ONLY : PEM, BoltzmannConst, Species, nSpecies, PartSpecies
+USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
 USE MOD_TimeDisc_Vars,          ONLY : dt
 
@@ -118,7 +119,8 @@ SUBROUTINE CalcInternalTemp_LD_second(iElem)
 
 USE MOD_LD_Vars
 USE MOD_Mesh_Vars,              ONLY : nElems
-USE MOD_Particle_Vars,          ONLY : GEO, PEM, BoltzmannConst, Species, PartSpecies, PDM, NumRanVec, RandomVec
+USE MOD_Particle_Vars,          ONLY : PEM, BoltzmannConst, Species, PartSpecies, PDM, NumRanVec, RandomVec
+USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
 USE MOD_TimeDisc_Vars,          ONLY : dt
 
@@ -514,7 +516,8 @@ SUBROUTINE CalcInternalTemp_LD_third(iElem)
 
 USE MOD_LD_Vars
 USE MOD_Mesh_Vars,              ONLY : nElems
-USE MOD_Particle_Vars,          ONLY : GEO, PEM, BoltzmannConst, Species, nSpecies, PartSpecies
+USE MOD_Particle_Vars,          ONLY : PEM, BoltzmannConst, Species, nSpecies, PartSpecies
+USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
 USE MOD_TimeDisc_Vars,          ONLY : dt
 
@@ -680,7 +683,8 @@ SUBROUTINE CalcInternalTemp_LD_third_back(iElem)
 
 USE MOD_LD_Vars
 USE MOD_Mesh_Vars,              ONLY : nElems
-USE MOD_Particle_Vars,          ONLY : GEO, PEM, BoltzmannConst, Species
+USE MOD_Particle_Vars,          ONLY : PEM, BoltzmannConst, Species
+USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
 USE MOD_TimeDisc_Vars,          ONLY : dt
 

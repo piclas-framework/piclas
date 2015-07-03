@@ -102,3 +102,15 @@ particles/dsmc/dsmc_vmpf_collision.f90
 particles/particle_MPFtools.f90
 particles/num_tools/leven_marq.f90
 particles/particle_pressure.f90
+particles/ld/ld_vars.f90
+particles/ld/ld_init.f90
+particles/ld/ld_mean_cell_val.f90
+particles/ld/ld_main.f90
+particles/ld/ld_lag_surf_velo.f90
+particles/ld/ld_reassign_part_prop.f90
+particles/ld/ld_particle_treatment.f90
+particles/ld/ld_analyze.f90
+particles/particle_pressure.f90
+particles/ld/ld_dsmc_coupling_tools.f90 
+particles/ld/ld_dsmc_domain_decomposition.f90
+particles/ld/ld_internal_temperature.f90

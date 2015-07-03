@@ -26,9 +26,10 @@ SUBROUTINE LDPartTreament(iElem)
 ! MODULES
 USE MOD_LD_Vars
 USE MOD_TimeDisc_Vars,         ONLY : dt
-USE MOD_Particle_Vars,         ONLY : PEM, PartState
+USE MOD_Particle_Vars,         ONLY : PEM, PartState,PartPosRef
+USE MOD_Eval_xyz,              ONLY : Eval_XYZ_Poly
+USE MOD_Mesh_Vars,             ONLY : NGeo
 USE nr,                        ONLY : gaussj 
-USE MOD_part_MPFtools,         ONLY : MapToGeo, GeoCoordToMap
 !--------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
    IMPLICIT NONE                                                                                   !
@@ -40,7 +41,7 @@ USE MOD_part_MPFtools,         ONLY : MapToGeo, GeoCoordToMap
   REAL                          :: PartNewPos(3)
   REAL                          :: Matrix(3,3)
   REAL                          :: Vector(3,1)
-  REAL                          :: NewNodePos(3,8)
+  REAL                          :: NewNodePos(3,8),XCL_NGEO_tmp(1:3,0:NGeo,0:NGeo,0:NGeo)
   REAL                          :: ChosenMeanBaseD1, ChosenMeanBaseD2, ChosenMeanBaseD3
   REAL                          :: vLAG1, vLAG2, vLAG3
   REAL                          :: NVec1(3),NVec2(3),NVec3(3), xi_Out(3)
@@ -118,12 +119,22 @@ USE MOD_part_MPFtools,         ONLY : MapToGeo, GeoCoordToMap
     NewNodePos(2,iNode) = Vector(2,1)
     NewNodePos(3,iNode) = Vector(3,1)
   END DO
+  ! map from vector in CGNS-Standard into polynomial order
+  ! z-minus || zeta_minus
+  XCL_NGeo_tmp(1:3,0   ,0   ,0)=NewNodePos(1:3,1)
+  XCL_NGeo_tmp(1:3,NGeo,0   ,0)=NewNodePos(1:3,2)
+  XCL_NGeo_tmp(1:3,NGeo,NGeo,0)=NewNodePos(1:3,3)
+  XCL_NGeo_tmp(1:3,0   ,NGeo,0)=NewNodePos(1:3,4)
+  ! z-plus || zeta_plus
+  XCL_NGeo_tmp(1:3,0   ,0   ,NGeo)=NewNodePos(1:3,5)
+  XCL_NGeo_tmp(1:3,NGeo,0   ,NGeo)=NewNodePos(1:3,6)
+  XCL_NGeo_tmp(1:3,NGeo,NGeo,NGeo)=NewNodePos(1:3,7)
+  XCL_NGeo_tmp(1:3,0   ,NGeo,NGeo)=NewNodePos(1:3,8)
 
   nPart = PEM%pNumber(iElem)
   iPartIndx = PEM%pStart(iElem)
   DO ipart = 1, nPart
-    CALL GeoCoordToMap(PartState(iPartIndx,1:3),xi_Out,iElem)
-    PartNewPos = MapToGeo(xi_Out,NewNodePos)
+    CALL Eval_xyz_Poly(PartPosRef(1:3,iPartIndx),3,NGeo,XCL_NGeo_tmp,PartNewPos)
 
     LD_RHS(iPartIndx,1) = (PartNewPos(1) - PartState(iPartIndx,1)) / dt - PartState(iPartIndx,4)
     LD_RHS(iPartIndx,2) = (PartNewPos(2) - PartState(iPartIndx,2)) / dt - PartState(iPartIndx,5)
@@ -138,7 +149,6 @@ USE MOD_part_MPFtools,         ONLY : MapToGeo, GeoCoordToMap
     IF (LD_RHS(iPartIndx,3).NE.LD_RHS(iPartIndx,3)) THEN
       LD_RHS(iPartIndx,3) = 0.0
     END IF
-
 
 !    IF ((ABS(PartNewPos(1) - PartState(iPartIndx,1)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
 !      LD_RHS(iPartIndx,1) = 0.0

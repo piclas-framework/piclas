@@ -27,7 +27,8 @@ SUBROUTINE LD_DSMC_DOMAIN_DECOMPOSITION
   USE MOD_Globals
   USE MOD_Mesh_Vars,             ONLY : nElems, Elem_xGP
   USE MOD_LD_Vars,               ONLY : BulkValues,PartStateBulkValues
-  USE MOD_Particle_Vars,         ONLY : PEM, PartState, usevMPF, PartMPF, BoltzmannConst, Species, GEO, PartSpecies
+  USE MOD_Particle_Vars,         ONLY : PEM, PartState, usevMPF, PartMPF, BoltzmannConst, Species,  PartSpecies
+  USE MOD_Particle_Mesh_Vars,    ONLY : GEO
   USE MOD_DSMC_Vars,             ONLY : SpecDSMC, PartStateIntEn, CollisMode
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE

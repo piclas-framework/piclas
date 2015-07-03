@@ -28,18 +28,18 @@ SUBROUTINE InitLD()
 ! MODULES
 USE MOD_Globals
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,             ONLY : nElems, nSides,  Elem_xGP
+USE MOD_Mesh_Vars,             ONLY : nElems, nSides,  Elem_xGP,NGEO
 !USE MOD_Mesh_Vars,             ONLY : nNodes    !!! nur für "Tetra-Methode"
-USE MOD_Particle_Vars,         ONLY : GEO, PDM, Species, PartSpecies, nSpecies
+USE MOD_Particle_Vars,         ONLY : PDM, Species, PartSpecies, nSpecies
 USE nr,                        ONLY : gaussj 
 USE MOD_DSMC_Init,             ONLY : InitDSMC
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC, CollisMode
 USE MOD_ReadInTools
-USE MOD_Particle_Mesh_Vars,    ONLY : ElemBaryNGeo,PartElemToSide,PartNeighborElemID
+USE MOD_Particle_Surfaces_Vars,ONLY: DORefMapping,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToSide,PartNeighborElemID,GEO
 #ifdef MPI
 USE MOD_Mesh_Vars,             ONLY : nInnerSides, nBCSides
 USE MOD_MPI_Vars
-USE MOD_part_MPI_Vars,         ONLY : MPIGEO 
 #endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -60,6 +60,11 @@ CHARACTER(32)           :: hilf
 
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)') ' LD INIT ...'
+
+  IF(.NOT.DoRefMapping) CALL abort(__STAMP__,&
+          ' LD requires ref-mapping tracking.')
+  IF(NGeo.NE.1) CALL abort(__STAMP__,&
+          ' LD requires a linear mesh (NGeo=1)!')
 
   LD_SecantMeth%Guess = GETREAL('LD-InitialGuess','10')
   LD_SecantMeth%MaxIter = GETINT('LD-MaxIterNumForLagVelo','100')
@@ -147,6 +152,7 @@ CHARACTER(32)           :: hilf
         CALL CalcLagNormVec(iLocSide, iElem, trinum)
 !--- calculate cellcenter distance for viscousity terms
         Elem2=PartNeighborElemID(ilocSide,iElem) 
+        IF(Elem2.EQ.-1) CYCLE
         MeanSurfValues(iLocSide, iElem)%CellCentDist(1) = ElemBaryNGeo(1,iElem) - ElemBaryNGeo(1,Elem2)
         MeanSurfValues(iLocSide, iElem)%CellCentDist(2) = ElemBaryNGeo(2,iElem) - ElemBaryNGeo(2,Elem2)
         MeanSurfValues(iLocSide, iElem)%CellCentDist(3) = ElemBaryNGeo(3,iElem) - ElemBaryNGeo(3,Elem2)
@@ -155,7 +161,6 @@ CHARACTER(32)           :: hilf
       CALL SetMeanSurfValues(iLocSide, iElem)
     END DO
   END DO
-  DEALLOCATE(CellCenterList)
   ALLOCATE(PartStateBulkValues(PDM%maxParticleNumber,5))
   ALLOCATE(LD_RHS(PDM%maxParticleNumber,3))
   LD_RHS = 0.0
@@ -303,11 +308,11 @@ SUBROUTINE CalcLagNormVec(iLocSide, Element, trinum)
 ! Calculation of normal vector
 !===================================================================================================================================
 ! MODULES
+  USE MOD_Globals
   USE MOD_LD_Vars
-  USE MOD_Particle_Vars,          ONLY:GEO
   USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo,NGeo
   USE MOD_Particle_surfaces_Vars, ONLY:ElemBaryNGeo
-  USE MOD_Particle_Mesh_Vars,     ONLY:PartNeighborElemID,PartNeighborLocSideID
+  USE MOD_Particle_Mesh_Vars,     ONLY:PartNeighborElemID,PartNeighborLocSideID,GEO
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -317,55 +322,129 @@ SUBROUTINE CalcLagNormVec(iLocSide, Element, trinum)
   REAL                        :: xNod1, xNod2, xNod3 
   REAL                        :: yNod1, yNod2, yNod3 
   REAL                        :: zNod1, zNod2, zNod3 
-  REAL                        :: Vector1(1:3), Vector2(1:3)
+  REAL                        :: Vector1(1:3), Vector2(1:3),nVecTest
   REAL                        :: nx, ny, nz, nVal
-  INTEGER                     :: flip,ElemID,locSideID
+  INTEGER                     :: flip,ElemID,locSideID,p,q
   REAL                        :: SideCoord(1:3,0:1,0:1)
+  REAL                        :: SideCoord_tmp(1:3,0:1,0:1)
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)         :: iLocSide, Element, trinum
 !--------------------------------------------------------------------------------------------------!
 
-IF(ElemToSide(E2S_FLIP,ilocSide,Element).EQ.0) THEN
-  ElemID=Element
-  locSideID=ilocSide
-ELSE
-  ElemID=PartNeighborElemID(ilocSide,Element)
-  locSideID=PartNeighborlocSideID(ilocSide,Elemnt)
-END IF
+! normal vector for each side, pointing outside
 
-SELECT CASE(locSideID)
+flip=ElemToSide(E2S_FLIP,ilocSide,Element)
+! master side, flip=0
+! slave side,  flip=1,..,4
+
+SELECT CASE(ilocSide)
 
 CASE(XI_MINUS)
   DO q=0,NGeo
     DO p=0,NGeo
-      SideCoord(1:3,p,q)=XCL_NGeo(1:3,0,q,p,ElemID)
+      SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,0,q,p,Element)
     END DO !p
   END DO !q
 
 CASE(XI_PLUS)
-  SideCoord(1:3,:,:)=XCL_NGeo(1:3,NGeo,:,:,ElemID)
+  SideCoord_tmp(1:3,:,:)=XCL_NGeo(1:3,NGeo,:,:,Element)
 
 CASE(ETA_MINUS)
-  SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,0,:,ElemID)
+  SideCoord_tmp(1:3,:,:)=XCL_NGeo(1:3,:,0,:,Element)
 
 CASE(ETA_PLUS)
   DO q=0,NGeo
     DO p=0,NGeo
-      SideCoord(1:3,p,q)=XCL_NGeo(1:3,NGeo-p,NGeo,q,ElemID)
+      SideCoord_tmp(1:3,NGeo-p,q)=XCL_NGeo(1:3,p,NGeo,q,Element)
     END DO !p
   END DO !q
 
 CASE(ZETA_MINUS)
   DO q=0,NGeo
     DO p=0,NGeo
-      SideCoord(1:3,p,q)=XCL_NGeo(1:3,q,p,0,ElemID)
+      SideCoord_tmp(1:3,q,p)=XCL_NGeo(1:3,p,q,0,Element)
     END DO !p
   END DO !q
 
 CASE(ZETA_PLUS)
-  SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,:,NGeo,ElemID)
+  DO q=0,NGeo
+    DO p=0,NGeo
+      SideCoord_tmp(1:3,p,q)=XCL_NGeo(1:3,p,q,NGeo,Element)
+    END DO !p
+  END DO ! q
 END SELECT
+
+SELECT CASE(flip)
+  CASE(0) ! master side
+    SideCoord(:,:,:)=SideCoord_tmp
+  CASE(1) ! slave side, SideID=q,jSide=p
+    DO q=0,NGeo
+      DO p=0,NGeo
+        SideCoord(:,p,q)=SideCoord_tmp(:,q,p)
+      END DO ! p
+    END DO ! q
+  CASE(2) ! slave side, SideID=N-p,jSide=q
+    DO q=0,NGeo
+      DO p=0,NGeo
+        SideCoord(:,p,q)=SideCoord_tmp(:,NGeo-p,q)
+      END DO ! p
+    END DO ! q
+  CASE(3) ! slave side, SideID=N-q,jSide=N-p
+    DO q=0,NGeo
+      DO p=0,NGeo
+        SideCoord(:,p,q)=SideCoord_tmp(:,NGeo-q,NGeo-p)
+      END DO ! p
+    END DO ! q
+  CASE(4) ! slave side, SideID=p,jSide=N-q
+    DO q=0,NGeo
+      DO p=0,NGeo
+        SideCoord(:,p,q)=SideCoord_tmp(:,p,NGeo-q)
+      END DO ! p
+    END DO ! q
+END SELECT
+
+
+!IF(ElemToSide(E2S_FLIP,ilocSide,Element).EQ.0) THEN
+!  ElemID=Element
+!  locSideID=ilocSide
+!ELSE
+!  ElemID=PartNeighborElemID(ilocSide,Element)
+!  locSideID=PartNeighborlocSideID(ilocSide,Element)
+!END IF
+
+!SELECT CASE(locSideID)
+!
+!CASE(XI_MINUS)
+!  DO q=0,NGeo
+!    DO p=0,NGeo
+!      SideCoord(1:3,p,q)=XCL_NGeo(1:3,0,q,p,ElemID)
+!    END DO !p
+!  END DO !q
+!
+!CASE(XI_PLUS)
+!  SideCoord(1:3,:,:)=XCL_NGeo(1:3,NGeo,:,:,ElemID)
+!
+!CASE(ETA_MINUS)
+!  SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,0,:,ElemID)
+!
+!CASE(ETA_PLUS)
+!  DO q=0,NGeo
+!    DO p=0,NGeo
+!      SideCoord(1:3,p,q)=XCL_NGeo(1:3,NGeo-p,NGeo,q,ElemID)
+!    END DO !p
+!  END DO !q
+!
+!CASE(ZETA_MINUS)
+!  DO q=0,NGeo
+!    DO p=0,NGeo
+!      SideCoord(1:3,p,q)=XCL_NGeo(1:3,q,p,0,ElemID)
+!    END DO !p
+!  END DO !q
+!
+!CASE(ZETA_PLUS)
+!  SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,:,NGeo,ElemID)
+!END SELECT
 
 IF(trinum.EQ.1) THEN
 !--- Node 1 ---
@@ -374,30 +453,28 @@ IF(trinum.EQ.1) THEN
    zNod1 = SideCoord(3,0,0)
 
 !--- Node 2 ---
-   xNod2 = SideCood(1,NGeo,0)
-   yNod2 = SideCood(2,NGeo,0)
-   zNod2 = SideCood(3,NGeo,0)
+   xNod2 = SideCoord(1,NGeo,0)
+   yNod2 = SideCoord(2,NGeo,0)
+   zNod2 = SideCoord(3,NGeo,0)
 
 !--- Node 3 ---
-   xNod3 = SideCood(1,NGeo,NGeo)
-   yNod3 = SideCood(2,NGeo,NGeo)
-   zNod3 = SideCood(3,NGeo,NGeo)
+   xNod3 = SideCoord(1,NGeo,NGeo)
+   yNod3 = SideCoord(2,NGeo,NGeo)
+   zNod3 = SideCoord(3,NGeo,NGeo)
 ELSE
 !--- Node 1 ---
    xNod1 = SideCoord(1,0,0)
    yNod1 = SideCoord(2,0,0)
    zNod1 = SideCoord(3,0,0)
 !--- Node 3 ---
-   xNod2 = SideCood(1,0,NGeo)
-   yNod2 = SideCood(2,0,NGeo)
-   zNod2 = SideCood(3,0,NGeo)
-
-!--- Node 2 ---
-   xNod3 = SideCood(1,NGeo,NGeo)
-   yNod3 = SideCood(2,NGeo,NGeo)
-   zNod3 = SideCood(3,NGeo,NGeo)
+   xNod2 = SideCoord(1,NGeo,NGeo)
+   yNod2 = SideCoord(2,NGeo,NGeo)
+   zNod2 = SideCoord(3,NGeo,NGeo)
+!--- Node 4 ---
+   xNod3 = SideCoord(1,0,NGeo)
+   yNod3 = SideCoord(2,0,NGeo)
+   zNod3 = SideCoord(3,0,NGeo)
 END IF
-
 
 
 !!--- Node 1 ---
@@ -452,22 +529,22 @@ END IF
    SurfLagValues(iLocSide, Element,trinum)%LagTangVec(2,3) = &
           SurfLagValues(iLocSide, Element,trinum)%LagNormVec(1) * SurfLagValues(iLocSide, Element,trinum)%LagTangVec(1,2) &
         - SurfLagValues(iLocSide, Element,trinum)%LagNormVec(2) * SurfLagValues(iLocSide, Element,trinum)%LagTangVec(1,1)
-
-
+   !IF(flip.NE.0) THEN
+   !  SurfLagValues(iLocSide, Element,trinum)%LagTangVec(:,:) = -SurfLagValues(iLocSide, Element,trinum)%LagTangVec(:,:)
+   !  SurfLagValues(iLocSide, Element,trinum)%LagNormVec      = -SurfLagValues(iLocSide, Element,trinum)%LagNormVec
+   !END IF
    NVecTest = (SideCoord(1,0,0)-ElemBaryNGeo(1,Element) ) &
-            * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(1) &
+            * SurfLagValues(iLocSide, Element,trinum)%LagNormVec(1) &
             + (SideCoord(2,0,0)-ElemBaryNGeo(2,Element) ) &
-            * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(2) &
+            * SurfLagValues(iLocSide, Element,trinum)%LagNormVec(2) &
             + (SideCoord(3,0,0)-ElemBaryNGeo(3,Element) ) &
-            * SurfLagValues(iLocSide, iElem,trinum)%LagNormVec(3)
-   IF (NVecTest.LE.0.0) THEN
-     SWRITE(UNIT_StdOut,'(132("-"))')
-     SWRITE(UNIT_StdOut,'(A)') 'Element:',iElem
-     CALL abort(__STAMP__,&
-          'ERROR in Calculation of NormVec for Element')
+            * SurfLagValues(iLocSide, Element,trinum)%LagNormVec(3)
+   IF (NVecTest.LT.0.0) THEN
+     SurfLagValues(iLocSide, Element,trinum)%LagTangVec(:,:) = -SurfLagValues(iLocSide, Element,trinum)%LagTangVec(:,:)
+     SurfLagValues(iLocSide, Element,trinum)%LagNormVec      = -SurfLagValues(iLocSide, Element,trinum)%LagNormVec
    END IF  
 
-   SurfLagValues(iLocSide, iElem, trinum)%Area = CalcTriNumArea(Vector1,Vector2)
+   SurfLagValues(iLocSide, Element, trinum)%Area = CalcTriNumArea(Vector1,Vector2)
 
 END SUBROUTINE CalcLagNormVec
 !--------------------------------------------------------------------------------------------------!
@@ -479,8 +556,8 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
 ! MODULES
   USE MOD_LD_Vars
   !USE MOD_Particle_Vars,          ONLY : GEO
-  USE MOD_Mesh_Vars,              ONLY : XCL_NGeo
-  USE MOD_Particle_Mesh_Vars,    ONLY : ElemBaryNGeo
+  USE MOD_Mesh_Vars,              ONLY : XCL_NGeo,NGeo
+  USE MOD_Particle_Surfaces_Vars, ONLY : ElemBaryNGeo
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -489,7 +566,7 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
   REAL                        :: xNod1, xNod2, xNod3, xNod4
   REAL                        :: yNod1, yNod2, yNod3, yNod4 
   REAL                        :: zNod1, zNod2, zNod3, zNod4 
-  REAL                        :: Vector1(3), Vector2(3),BaseVectorS(3) 
+  REAL                        :: Vector1(3), Vector2(3),BaseVectorS(3),nVectest
   REAL                        :: nx, ny, nz, nVal
   REAL                        :: SideCoord(1:3,0:1,0:1)!,SideCenter(1:3)
 !--------------------------------------------------------------------------------------------------!
@@ -563,10 +640,9 @@ zNod4=SideCoord(3,NGeo,NGeo)
                                   + MeanSurfValues(iLocSide, Element)%MeanNormVec(2) * BaseVectorS(2) &
                                   + MeanSurfValues(iLocSide, Element)%MeanNormVec(3) * BaseVectorS(3)
 
-  NVecTest = DOT_PRODUCT(BaseVectorS-ElemBaryNGeo(:,Element),MeanSurfValue(ilocSide,iElem)%MeanNormVec)
-  IF(NVecTest.LE.0.0)  MeanSurfValue(ilocSide,iElem)%MeanNormVec=(-1.0)*MeanSurfValue(ilocSide,iElem)%MeanNormVec
-
-  !IF (NVecTest.LE.0.0) THEN
+  NVecTest = DOT_PRODUCT(BaseVectorS-ElemBaryNGeo(:,Element),MeanSurfValues(ilocSide,Element)%MeanNormVec)
+  IF(NVecTest.LE.0.0) MeanSurfValues(ilocSide,Element)%MeanNormVec=(-1.0)*MeanSurfValues(ilocSide,Element)%MeanNormVec
+!IF (NVecTest.LE.0.0) THEN
   !  SWRITE(UNIT_StdOut,'(132("-"))')
   !  SWRITE(UNIT_StdOut,'(A)') 'Element:',iElem
   !  CALL abort(__STAMP__,&

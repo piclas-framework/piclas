@@ -78,7 +78,8 @@ IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
 END IF
 
 ! Select the corresponding boundary condition and calculate particle treatment
-SELECT CASE(PartBound%MapToPartBC(BC(SideID)))
+!SELECT CASE(PartBound%MapToPartBC(BC(SideID)))
+SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -234,7 +235,7 @@ IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
 END IF
 
 ! Select the corresponding boundary condition and calculate particle treatment
-SELECT CASE(PartBound%MapToPartBC(BC(SideID)))
+SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !SELECT CASE(PartBound%SideBCType(SideID))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartBound%OpenBC)
