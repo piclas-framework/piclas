@@ -28,8 +28,9 @@ INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                                    
                                                                                           ! geometry + halo information
                                                                                           
 INTEGER,ALLOCATABLE :: PartSideToElem(:,:)
-INTEGER,ALLOCATABLE :: PartNeighborElemID(:,:)
-INTEGER,ALLOCATABLE :: PartNeighborlocSideID(:,:)
+
+
+INTEGER,ALLOCATABLE :: PartElemToElem(:,:,:)                                              ! Mapping from ElemToElem
 INTEGER             :: nTotalSides
 INTEGER             :: nTotalElems
 
@@ -37,6 +38,17 @@ LOGICAL,ALLOCATABLE :: IsBCElem(:)
 INTEGER             :: nTotalBCSides
 INTEGER             :: nTotalBCElems
 INTEGER,ALLOCATABLE :: PartBCSideList(:)
+
+REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis                ! element local basis vector for ngeo=1 element
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis            ! inverse of length
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo                  ! element local basis: origin
+REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo                ! radius of element
+INTEGER                                 :: MappingGuess                  ! select mapping guess into reference element
+REAL                                    :: epsMapping                    ! tolerance for Netwton to get xi from X
+REAL                                    :: epsInCell                     ! tolerance for eps for particle in element
+REAL                                    :: epsOneCell                    ! tolerance for particle in element 1+epsinCell
+
+!LOGICAL                                 :: DoRefMapping                  ! tracking by mapping particle into reference element
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 

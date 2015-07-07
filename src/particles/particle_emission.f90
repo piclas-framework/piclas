@@ -425,7 +425,7 @@ USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 USE MOD_Globals_Vars,          ONLY:PI, TwoepsMach
 USE MOD_Timedisc_Vars,         ONLY:dt, iter, DoDisplayEmissionWarnings,IterDisplayStep, DoDisplayIter
 USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Particle_Surfaces_vars,ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
 USE MOD_PICInterpolation,      ONLY:InterpolateCurvedExternalField
 USE MOD_PICInterpolation_vars, ONLY:useCurvedExternalField
 USE MOD_Equation_vars,         ONLY:c_inv
@@ -2151,11 +2151,11 @@ SUBROUTINE ParticleInsertingCellPressure(iSpec,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo
-USE MOD_Particle_Mesh_Vars, ONLY:GEO
-USE MOD_Particle_Surfaces_vars,ONLY:DoRefMapping
-USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Eval_xyz,           ONLY:Eval_XYZ_Poly
+USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Mesh,          ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
+USE MOD_Eval_xyz,               ONLY:Eval_XYZ_Poly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2247,7 +2247,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo
 USE MOD_Particle_Mesh,          ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
-USE MOD_Particle_Surfaces_vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Eval_xyz,               ONLY:Eval_XYZ_Poly
 USE MOD_DSMC_Vars,              ONLY:useDSMC, CollisMode
 ! IMPLICIT VARIABLE HANDLING

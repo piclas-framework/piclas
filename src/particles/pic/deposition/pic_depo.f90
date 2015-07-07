@@ -42,7 +42,7 @@ USE MOD_PreProc,                ONLY:PP_N
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
-USE MOD_Particle_Surfaces_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,      ONLY:DoExternalParts
 #endif
@@ -394,7 +394,7 @@ USE MOD_PICInterpolation_Vars, ONLY:InterpolationType
 USE MOD_Eval_xyz,              ONLY:eval_xyz_elemcheck
 USE MOD_Basis,                 ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
 USE MOD_Interpolation_Vars,    ONLY:wBary,xGP
-USE MOD_Particle_Surfaces_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 #ifdef MPI
 ! only required for shape function??
@@ -963,7 +963,7 @@ USE MOD_Eval_xyz,              ONLY:eval_xyz_elemcheck
 USE MOD_Basis,                 ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
 USE MOD_Interpolation_Vars,    ONLY:wBary,xGP
 USE MOD_PICInterpolation_Vars, ONLY:InterpolationType
-USE MOD_Particle_Surfaces_Vars,ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 #ifdef MPI
 !USE MOD_part_MPI_Vars,        ONLY:ExtPartState, ExtPartSpecies, NbrOfextParticles

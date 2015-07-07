@@ -37,6 +37,7 @@ mesh/prepare_mesh.f90
 particles/particle_mesh/particle_surfaces_vars.f90
 particles/particle_mesh/particle_surfaces.f90
 particles/tracking/particle_tracking.f90
+particles/tracking/particle_tracking_vars.f90
 particles/tracking/particle_intersection.f90
 particles/boundary/particle_boundary_condition.f90
 particles/particle_mesh/particle_mesh.f90

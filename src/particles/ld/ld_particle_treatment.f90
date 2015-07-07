@@ -44,7 +44,7 @@ USE nr,                        ONLY : gaussj
   REAL                          :: NewNodePos(3,8),XCL_NGEO_tmp(1:3,0:NGeo,0:NGeo,0:NGeo)
   REAL                          :: ChosenMeanBaseD1, ChosenMeanBaseD2, ChosenMeanBaseD3
   REAL                          :: vLAG1, vLAG2, vLAG3
-  REAL                          :: NVec1(3),NVec2(3),NVec3(3), xi_Out(3)
+  REAL                          :: NVec1(3),NVec2(3),NVec3(3)!, xi_Out(3)
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES  
   INTEGER, INTENT(IN)           :: iElem

@@ -251,7 +251,7 @@ SUBROUTINE MergeParticles(iElem, NumFinPart, SpecNum, SpecID)
   USE MOD_Particle_Vars
   USE Levenberg_Marquardt
   USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
-  USE MOD_Particle_Surfaces_Vars, ONLY: DoRefmapping
+  USE MOD_Particle_Tracking_Vars, ONLY:DoRefmapping
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                      
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -54,7 +54,8 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,         ONLY:GEO
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
-USE MOD_Particle_Surfaces_Vars,     ONLY:BezierControlPoints3D,DoRefMapping
+USE MOD_Particle_Surfaces_Vars,     ONLY:BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
 USE MOD_Mesh_Vars,                  ONLY:NGeo,ElemToSide,nElems,nInnerSides,nBCSides,nSides,XCL_NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -279,7 +280,9 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,nSides,XCL_NGeo
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding
 USE MOD_Particle_MPI_Vars,         ONLY:halo_eps, NbrOfCases,casematrix!, halo_eps2
-USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D,DoRefMapping
+USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars,    ONLY:DoRefMapping
+
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -534,7 +537,7 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloToProc
 USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, nInnerSides, ElemToSide, BC,nGeo,SideToElem
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartNeighborElemID,PartNeighborLocSideID
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
 ! should not be needed annymore
@@ -1101,10 +1104,12 @@ IF (RecvMsg%nSides.GT.0) THEN
             !PartSideToElem(S2E_LOC_SIDE_ID   ,newSideID) = 
             !PartSideToElem(S2E_FLIP          ,newSideID) = 
             ! NeighboreElemID
-            PartneighborElemID   (PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))=newElemID
-            PartNeighborlocSideID(PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))=ilocSide
-            PartNeighborElemID(ilocSide,newElemID)    = PartSideToElem(S2E_ELEM_ID,newSideID)
-            PartNeighborlocSideID(ilocSide,newElemID) = PartSideToElem(S2E_LOC_SIDE_ID,newSideID)
+            PartElemToElem(E2E_NB_ELEM_ID,PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))&
+                                                                                                                    =newElemID
+            PartElemToElem(E2E_NB_LOC_SIDE_ID,PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))&
+                                                                                                                    =ilocSide
+            PartElemToElem(E2E_NB_ELEM_ID,ilocSide,newElemID)    = PartSideToElem(S2E_ELEM_ID,newSideID)
+            PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,newElemID) = PartSideToElem(S2E_LOC_SIDE_ID,newSideID)
           !  IF(PartSideToElem(S2E_ELEM_ID,newSideID).EQ.-1) IPWRITE(UNIT_stdOut,*) 'warning'
         ELSE ! SE2_NB_ELEM_ID=DEFINED
           IF(PartSideToElem(S2E_ELEM_ID,newSideID).NE.-1) &
@@ -1116,15 +1121,17 @@ IF (RecvMsg%nSides.GT.0) THEN
           ! already filled
           !PartSideToElem(S2E_NB_ELEM_ID,newSide)       = 
           !PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) = 
-          PartNeighborElemID(   PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))=newElemID
-          PartNeighborlocSideID(PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))=ilocSide
-          PartNeighborElemID(ilocSide,newElemID)    = PartSideToElem(S2E_NB_ELEM_ID,newSideID)
-          PartNeighborlocSideID(ilocSide,newElemID) = PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID)
+          PartElemToElem(E2E_NB_ELEM_ID,PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID)) &
+                                                                                                                      =newElemID
+          PartElemToElem(E2E_NB_LOC_SIDE_ID,PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID)) &
+                                                                                                                      =ilocSide
+          PartElemToElem(E2E_NB_ELEM_ID,ilocSide,newElemID) = PartSideToElem(S2E_NB_ELEM_ID,newSideID)
+          PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,newElemID) = PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID)
           !IF(PartSideToElem(S2E_NB_ELEM_ID,newSideID).EQ.-1) IPWRITE(UNIT_stdOut,*)'warning'
         END IF
         isDone(haloSideID)=.TRUE.
       ELSE ! non-double side || new side
-        ! cannnot build PartNeighborElemID and PartNeighborlocSideID yet
+        ! cannnot build PartElemToElem and PartElemToElem yet
         ! build PartSideToElem, so much as possible
         ! get correct side out of RecvMsg%SideToElem
         IF(iElem.EQ.RecvMsg%SideToElem(S2E_ELEM_ID,haloSideID))THEN
@@ -1165,7 +1172,7 @@ IF (RecvMsg%nSides.GT.0) THEN
     PartHaloToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
     PartHaloToProc(NATIVE_PROC_ID,newElemId)=iProc
   END DO ! iElem
-  ! build rest: PartNeighborElemID, PartLocSideID
+  ! build rest: PartElemToElem, PartLocSideID
   DO iElem=PP_nElems+1,nTotalElems
     DO ilocSide=1,6
       flip   = PartElemToSide(E2S_FLIP,ilocSide,iElem)
@@ -1179,12 +1186,12 @@ IF (RecvMsg%nSides.GT.0) THEN
       !IF(isDone(HaloSideID)) CYCLE
       IF(flip.EQ.0)THEN
         ! SideID of slave
-        PartneighborlocSideID(ilocSide,iElem)=PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-        PartneighborElemID   (ilocSide,iElem)=PartSideToElem(S2E_NB_ELEM_ID,SideID)
+        PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+        PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_ELEM_ID,SideID)
       ELSE
         ! SideID of master
-        PartneighborlocSideID(ilocSide,iElem)=PartSideToElem(S2E_LOC_SIDE_ID,SideID)
-        PartneighborElemID   (ilocSide,iElem)=PartSideToElem(S2E_ELEM_ID,SideID)
+        PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+        PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_ELEM_ID,SideID)
       END IF
       !isDone(HaloSideID)=.TRUE.
     END DO ! ilocSide
@@ -1211,8 +1218,9 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloToProc
 USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartNeighborElemID,PartNeighborLocSideID
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,DoRefMapping
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1233,8 +1241,7 @@ REAL,ALLOCATABLE                   :: DummydXCL_NGEO(:,:,:,:,:,:)
 INTEGER,ALLOCATABLE                :: DummyHaloToProc(:,:)                                 
 INTEGER,ALLOCATABLE                :: DummySideToElem(:,:)
 INTEGER,ALLOCATABLE                :: DummySideBCType(:),DummyPartBCSideList(:)
-INTEGER,ALLOCATABLE                :: DummyNeighborElemID(:,:)
-INTEGER,ALLOCATABLE                :: DummyNeighborlocSideID(:,:)
+INTEGER,ALLOCATABLE                :: DummyElemToElem(:,:,:)
 REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummySlabNormals                  ! normal vectors of bounding slab box
 REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummySlabIntervalls               ! intervalls beta1, beta2, beta3
 LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
@@ -1344,31 +1351,18 @@ PartSideToElem=-1
 PartSideToElem(:,1:nOldSides  )              =DummySideToElem(:,1:nOldSides)
 DEALLOCATE(DummySideToElem)
 !print*,' done side to elem',myrank
-! PartNeighborElemID
-ALLOCATE(DummyNeighborElemID(1:6,1:nOldElems))
-IF (.NOT.ALLOCATED(DummyNeighborElemID)) CALL abort(__STAMP__,& !wunderschoen!!!
+! PartElemToElem
+ALLOCATE(DummyElemToElem(1:2,1:6,1:nOldElems))
+IF (.NOT.ALLOCATED(DummyElemToElem)) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
-DummyNeighborElemID=PartNeighborElemID
-DEALLOCATE(PartNeighborElemID)
-ALLOCATE(PartNeighborElemID(1:6,1:nTotalElems),STAT=ALLOCSTAT)
+DummyElemToElem=PartElemToElem
+DEALLOCATE(PartElemToElem)
+ALLOCATE(PartElemToElem(1:2,1:6,1:nTotalElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
-PartNeighborElemID=-1
-PartNeighborElemID(:,1:nOldElems)            =DummyNeighborElemID(:,1:nOldElems)
-DEALLOCATE(DummyNeighborElemID)
-! PartNeighborlocSideID
-ALLOCATE(DummyNeighborlocSideID(1:6,1:nOldElems))
-IF (.NOT.ALLOCATED(DummyNeighborLocSideID)) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
-DummyNeighborlocSideID=PartNeighborlocSideID
-DEALLOCATE(PartNeighborlocSideID)
-ALLOCATE(PartNeighborlocSideID(1:6,1:nTotalElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
-PartNeighborlocSideID=-1
-PartNeighborlocSideID(:,1:nOldElems)         =DummyNeighborlocSideID(:,1:nOldElems)
-DEALLOCATE(DummyNeighborlocSideID)
+PartElemToElem=-1
+PartElemToElem(1:2,1:6,1:nOldElems)            =DummyElemToElem(1:2,1:6,1:nOldElems)
+DEALLOCATE(DummyElemToElem)
 IF(DoRefMapping)THEN
   ! BezierControlPoints3D
   ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
@@ -1518,7 +1512,7 @@ USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloToProc
 USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, ElemToSide, BC,nGeo,SideToElem,nInnerSides
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nTotalBCSides,GEO
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartNeighborElemID,PartNeighborLocSideID,SidePeriodicDisplacement
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem,SidePeriodicDisplacement
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
 ! should not be needed annymore
@@ -2156,10 +2150,12 @@ IF (RecvMsg%nElems.GT.0) THEN
             !PartSideToElem(S2E_LOC_SIDE_ID   ,newSideID) = 
             !PartSideToElem(S2E_FLIP          ,newSideID) = 
             ! NeighboreElemID
-            PartneighborElemID(PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))=newElemID
-            PartNeighborlocSideID(PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))=ilocSide
-            PartNeighborElemID(ilocSide,newElemID)    = PartSideToElem(S2E_ELEM_ID,newSideID)
-            PartNeighborlocSideID(ilocSide,newElemID) = PartSideToElem(S2E_LOC_SIDE_ID,newSideID)
+            PartElemToElem(E2E_NB_ELEM_ID,PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))&
+                                                                                                                =newElemID
+            PartElemToElem(E2E_NB_LOC_SIDE_ID,PartSideToElem(S2E_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_ELEM_ID,newSideID))&
+                                                                                                                =ilocSide
+            PartElemToElem(E2E_NB_ELEM_ID,ilocSide,newElemID) = PartSideToElem(S2E_ELEM_ID,newSideID)
+            PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,newElemID) = PartSideToElem(S2E_LOC_SIDE_ID,newSideID)
         ELSE ! SE2_NB_ELEM_ID=DEFINED
           IF(PartSideToElem(S2E_ELEM_ID,newSideID).NE.-1) &
             CALL abort(__STAMP__,&
@@ -2170,14 +2166,16 @@ IF (RecvMsg%nElems.GT.0) THEN
           ! already filled
           !PartSideToElem(S2E_NB_ELEM_ID,newSide)       = 
           !PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) = 
-          PartNeighborElemID(PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))=newElemID
-          PartNeighborlocSideID(PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))=ilocSide
-          PartNeighborElemID(ilocSide,newElemID)    = PartSideToElem(S2E_NB_ELEM_ID,newSideID)
-          PartNeighborlocSideID(ilocSide,newElemID) = PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID)
+          PartElemToElem(E2E_NB_ELEM_ID,PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))&
+                                                                                                              =newElemID
+          PartElemToElem(E2E_NB_LOC_SIDE_ID,PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID),PartSideToElem(S2E_NB_ELEM_ID,newSideID))&
+                                                                                                              =ilocSide
+          PartElemToElem(E2E_NB_ELEM_ID,ilocSide,newElemID) = PartSideToElem(S2E_NB_ELEM_ID,newSideID)
+          PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,newElemID) = PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID)
         END IF
         isDone(haloSideID)=.TRUE.
       ELSE ! non-double side || new side
-        ! cannnot build PartNeighborElemID and PartNeighborlocSideID yet
+        ! cannnot build ElemToElem and PartElemToElem yet
         ! build PartSideToElem, so much as possible
         ! get correct side out of RecvMsg%SideToElem
         IF(iElem.EQ.RecvMsg%SideToElem(S2E_ELEM_ID,haloSideID))THEN
@@ -2305,7 +2303,7 @@ IF (RecvMsg%nElems.GT.0) THEN
       END DO ! ilocSide=1,6
     END DO ! iElem=PP_nElems+1,nTotalElems
   END DO ! iSide=nBCSides+nInnerSides+1,nSides
-  ! build rest: PartNeighborElemID, PartLocSideID
+  ! build rest: PartElemToElem, PartLocSideID
   DO iElem=PP_nElems+1,nTotalElems
     DO ilocSide=1,6
       flip   = PartElemToSide(E2S_FLIP,ilocSide,iElem)
@@ -2318,12 +2316,12 @@ IF (RecvMsg%nElems.GT.0) THEN
       IF(isDone(HaloSideID)) CYCLE
       IF(flip.EQ.0)THEN
         ! SideID of slave
-        PartneighborlocSideID(ilocSide,iElem)=PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-        PartneighborElemID   (ilocSide,iElem)=PartSideToElem(S2E_NB_ELEM_ID,SideID)
+        PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+        PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_ELEM_ID,SideID)
       ELSE
         ! SideID of master
-        PartneighborlocSideID(ilocSide,iElem)=PartSideToElem(S2E_LOC_SIDE_ID,SideID)
-        PartneighborElemID   (ilocSide,iElem)=PartSideToElem(S2E_ELEM_ID,SideID)
+        PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+        PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_ELEM_ID,SideID)
       END IF
       isDone(HaloSideID)=.TRUE.
     END DO ! ilocSide

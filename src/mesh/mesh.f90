@@ -47,7 +47,8 @@ USE MOD_DebugMesh,          ONLY:writeDebugMesh
 USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
 #ifdef PARTICLES
 USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes ! new
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SlabNormals,SlabIntervalls,BoundingBoxIsEmpty,DoRefMapping
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #endif
 #ifdef MPI
 USE MOD_Prepare_Mesh,       ONLY:exchangeFlip
@@ -230,7 +231,6 @@ ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
 ! assign 1/detJ (sJ)
 ! assign normal and tangential vectors and surfElems on faces
 #ifdef PARTICLES
-DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
 ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) ) 
 BezierControlPoints3D=0.
 ALLOCATE(SlabNormals(1:3,1:3,1:nSides),SlabIntervalls(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )

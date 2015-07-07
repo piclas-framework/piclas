@@ -76,7 +76,8 @@ USE MOD_Mesh_Vars,               ONLY:nElems,sideID_minus_upper,nBCSides
 #ifdef PARTICLES
 !USE MOD_Particle_Surfaces,       ONLY:GetSuperSampledSurface,GetBezierControlPoints3D!,GetSideType
 USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D!,GetSideType
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,DoRefMapping
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_ChangeBasis,        ONLY:changeBasis3D

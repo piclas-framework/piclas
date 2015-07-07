@@ -46,6 +46,11 @@ INTERFACE PointToExactElement
   MODULE PROCEDURE PointToExactElement
 END INTERFACE
 
+INTERFACE BuildElementBasis
+  MODULE PROCEDURE BuildElementBasis
+END INTERFACE
+
+PUBLIC::BuildElementBasis
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
 PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 !===================================================================================================================================
@@ -60,7 +65,9 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeassureTrackTime
 USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem
+USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL
 !USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -84,11 +91,28 @@ nTotalSides=nSides
 nTotalElems=nElems
 ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalSides)    &
         ,PartSideToElem(1:5,1:nTotalSides)        &
-        ,PartNeighborElemID(1:6,1:nTotalElems)    &
-        ,PartNeighborLocSideID(1:6,1:nTotalElems) &
+        ,PartElemToElem(1:2,1:6,1:nTotalElems)    &
         ,STAT=ALLOCSTAT                      )
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
  ,'  Cannot allocate particle mesh vars!')
+
+
+DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
+MeassureTrackTime = GETLOGICAL('MeassureTrackTime','.FALSE.')
+
+! method from xPhysic to parameter space
+MappingGuess    = GETINT('MappingGuess','1')
+epsMapping      = GETREAL('epsMapping','1e-8')
+epsInCell       = SQRT(epsMapping)
+epsOneCell      = 1.0+epsInCell
+IF((MappingGuess.LT.1).OR.(MappingGuess.GT.4))THEN
+   CALL abort(__STAMP__, &
+        'Wrong guessing method for mapping from physical space in reference space.',MappingGuess,999.)
+END IF
+IF(DoRefMapping .AND. MappingGuess.EQ.2) THEN
+   CALL abort(__STAMP__, &
+       ' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',MappingGuess)
+END IF
 
 !--- Initialize Periodic Side Info
 !ALLOCATE(SidePeriodicType(1:nSides)) 
@@ -114,17 +138,15 @@ DO iElem=1,PP_nElems
     SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
     IF(flip.EQ.0)THEN
       ! SideID of slave
-      PartneighborlocSideID(ilocSide,iElem)=SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-      PartneighborElemID   (ilocSide,iElem)=SideToElem(S2E_NB_ELEM_ID,SideID)
+      PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+      PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=SideToElem(S2E_NB_ELEM_ID,SideID)
     ELSE
       ! SideID of master
-      PartneighborlocSideID(ilocSide,iElem)=SideToElem(S2E_LOC_SIDE_ID,SideID)
-      PartneighborElemID   (ilocSide,iElem)=SideToElem(S2E_ELEM_ID,SideID)
+      PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=SideToElem(S2E_LOC_SIDE_ID,SideID)
+      PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=SideToElem(S2E_ELEM_ID,SideID)
     END IF
   END DO ! ilocSide
 END DO ! Elem
-!PartNeighborElemID=NeighborElemID
-!PartNeighborLocSideID=NeighborLocSideID
 
 ParticleMeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH DONE!'
@@ -154,8 +176,7 @@ IMPLICIT NONE
 
 SDEALLOCATE(PartElemToSide)
 SDEALLOCATE(PartSideToElem)
-SDEALLOCATE(PartNeighborElemID)
-SDEALLOCATE(PartNeighborLocSideID)
+SDEALLOCATE(PartElemToElem)
 SDEALLOCATE(PartBCSideList)
 SDEALLOCATE(SidePeriodicType)
 SDEALLOCATE(SidePeriodicDisplacement)
@@ -165,6 +186,10 @@ SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%Volume)
 SDEALLOCATE(GEO%DeltaEvMPF)
 SDEALLOCATE(BCElem)
+SDEALLOCATE(XiEtaZetaBasis)
+SDEALLOCATE(slenXiEtaZetaBasis)
+SDEALLOCATE(ElemBaryNGeo)
+SDEALLOCATE(ElemRadiusNGeo)
 
 ParticleMeshInitIsDone=.FALSE.
 
@@ -184,8 +209,9 @@ USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
 USE MOD_TimeDisc_Vars,          ONLY:dt
 USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,ElemBaryNGeo,doRefMapping
-USE MOD_Particle_Surfaces_Vars, ONLY:epsInCell,epsOneCell
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:BubbleSortID
@@ -317,9 +343,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,LastPartPos
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,ElemBaryNGeo,BezierControlPoints3D,SideType
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,BezierControlPoints3D,SideType
 USE MOD_Utils,                  ONLY:BubbleSortID
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarInterSectionBezier,ComputeBilinearIntersectionSuperSampled2
 USE MOD_Particle_Intersection,  ONLY:ComputeBezierIntersection
@@ -471,10 +497,10 @@ SUBROUTINE InitFIBGM()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools,                        ONLY:GetRealArray
-USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType,BuildElementBasis
-USE MOD_Particle_Surfaces_Vars,             ONLY:DoRefMapping
+USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
+USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
-USE MOD_Particle_Surfaces_Vars,             ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo!,DoRefMapping
+USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo!,DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 #endif /*MPI*/
@@ -533,7 +559,7 @@ USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
-USE MOD_Particle_Surfaces_Vars,             ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
 USE MOD_Equation_Vars,                      ONLY:c
@@ -1323,7 +1349,7 @@ USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
-USE MOD_Particle_Surfaces_Vars,             ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Equation_Vars,                      ONLY:c
 USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartElemToSide,PartSideToElem
@@ -1769,8 +1795,7 @@ SUBROUTINE MapRegionToElem()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,          ONLY:NbrOfRegions, RegionBounds,GEO
-USE MOD_Particle_Surfaces_Vars,      ONLY:ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,          ONLY:NbrOfRegions, RegionBounds,GEO,ElemBaryNgeo
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -1815,8 +1840,9 @@ USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
 USE MOD_TimeDisc_Vars,          ONLY:dt
 USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,ElemBaryNGeo,doRefMapping
-USE MOD_Particle_Surfaces_Vars, ONLY:epsInCell,epsOneCell
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne
+USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:BubbleSortID
@@ -1908,6 +1934,244 @@ END DO ! iBGMElem
 DEALLOCATE( Distance,ListDistance)
 !read*
 END SUBROUTINE PointToExactElement
+
+
+SUBROUTINE BuildElementBasis()
+!================================================================================================================================
+! select the side type for each side 
+! check if points on edges are linear. if linear, the cross product of the vector between two vertices and a vector between a 
+! vercites and a edge point has to be zero
+! SideType
+! 0 - planar
+! 1 - bilinear
+! 2 - curved
+!================================================================================================================================
+USE MOD_Globals!,                  ONLY:CROSS
+USE MOD_Preproc
+USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D
+USE MOD_Basis,                    ONLY:DeCasteljauInterpolation
+USE MOD_Particle_Mesh_Vars,       ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo
+USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
+USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iElem,SideID,i,j,k,ilocSide
+REAL                    :: Xi(3),XPos(3),Radius
+REAL                    :: RNGeo3,RNGeoSide
+REAL                    :: Lag(1:3,0:NGeo)
+!================================================================================================================================
+
+!ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
+!        ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
+!        ,ElemRadiusNGeo(1:nTotalElems)         &
+!        ,ElemBaryNGeo(1:3,1:nTotalElems)       )
+
+Xi=(/0.0,0.0,0.0/)
+ElemRadiusNGeo=0.
+ElemBaryNGeo=0.
+RNGeo3=1.0/REAL((NGeo+1)**3)
+RNGeoSide=1.0/(6.0*REAL((NGeo+1)**2))
+DO iElem=1,nTotalElems
+  IF((DoRefMapping).OR.(iElem.LE.PP_nElems))THEN
+    ElemBaryNGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))*RNGeo3
+    ElemBaryNGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))*RNGeo3
+    ElemBaryNGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))*RNGeo3
+  ELSE
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      ElemBaryNGeo(1,iElem)=ElemBaryNGeo(1,iElem)+SUM(BezierControlPoints3D(1,:,:,SideID))
+      ElemBaryNGeo(2,iElem)=ElemBaryNGeo(2,iElem)+SUM(BezierControlPoints3D(2,:,:,SideID))
+      ElemBaryNGeo(3,iElem)=ElemBaryNGeo(3,iElem)+SUM(BezierControlPoints3D(3,:,:,SideID))
+    END DO ! ilocSide
+    ElemBaryNGeo(1,iElem)=ElemBaryNGeo(1,iElem)*RNGeoSide
+    ElemBaryNGeo(2,iElem)=ElemBaryNGeo(2,iElem)*RNGeoSide
+    ElemBaryNGeo(3,iElem)=ElemBaryNGeo(3,iElem)*RNGeoSide
+  END IF
+  ! get point on each side 
+  IF(DoRefMapping)THEN
+    ! xi plus
+    Xi=(/1.0,0.0,0.0/)
+    CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+    CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+    CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+    xPos=0.
+    DO k=0,NGeo
+      DO j=0,NGeo
+        DO i=0,NGeo
+          xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+        END DO !i=0,NGeo
+      END DO !j=0,NGeo
+    END DO !k=0,NGeo
+    XiEtaZetaBasis(1:3,1,iElem)=xPos
+    ! eta plus
+    Xi=(/0.0,1.0,0.0/)
+    CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+    CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+    CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+    xPos=0.
+    DO k=0,NGeo
+      DO j=0,NGeo
+        DO i=0,NGeo
+          xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+        END DO !i=0,NGeo
+      END DO !j=0,NGeo
+    END DO !k=0,NGeo
+    XiEtaZetaBasis(1:3,2,iElem)=xPos
+    ! zeta plus
+    Xi=(/0.0,0.0,1.0/)
+    CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+    CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+    CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+    xPos=0.
+    DO k=0,NGeo
+      DO j=0,NGeo
+        DO i=0,NGeo
+          xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+        END DO !i=0,NGeo
+      END DO !j=0,NGeo
+    END DO !k=0,NGeo
+    XiEtaZetaBasis(1:3,3,iElem)=xPos
+    ! xi minus
+    Xi=(/-1.0,0.0,0.0/)
+    CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+    CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+    CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+    xPos=0.
+    DO k=0,NGeo
+      DO j=0,NGeo
+        DO i=0,NGeo
+          xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+        END DO !i=0,NGeo
+      END DO !j=0,NGeo
+    END DO !k=0,NGeo
+    XiEtaZetaBasis(1:3,4,iElem)=xPos
+    ! eta minus
+    Xi=(/0.0,-1.0,0.0/)
+    CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+    CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+    CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+    xPos=0.
+    DO k=0,NGeo
+      DO j=0,NGeo
+        DO i=0,NGeo
+          xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+        END DO !i=0,NGeo
+      END DO !j=0,NGeo
+    END DO !k=0,NGeo
+    XiEtaZetaBasis(1:3,5,iElem)=xPos
+    ! zeta minus
+    Xi=(/0.0,0.0,-1.0/)
+    CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+    CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+    CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+    xPos=0.
+    DO k=0,NGeo
+      DO j=0,NGeo
+        DO i=0,NGeo
+          xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+        END DO !i=0,NGeo
+      END DO !j=0,NGeo
+    END DO !k=0,NGeo
+    XiEtaZetaBasis(1:3,6,iElem)=xPos
+  ELSE ! compute particle position in physical space
+    IF(NGeo.EQ.1)THEN
+      ! xi plus
+      XiEtaZetaBasis(1:3,1,iElem)=0.25*(XCL_NGeo(:,NGeo,0,0,iElem)       &
+                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
+                                       +XCL_NGeo(:,NGeo,0,NGeo,iElem)    &
+                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
+      ! eta plus
+      XiEtaZetaBasis(1:3,2,iElem)=0.25*(XCL_NGeo(:,0,   NGeo,0,iElem)    &
+                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
+                                       +XCL_NGeo(:,0,   NGeo,NGeo,iElem) &
+                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
+      ! zeta plus
+      XiEtaZetaBasis(1:3,3,iElem)=0.25*(XCL_NGeo(:,0,0,      NGeo,iElem) &
+                                       +XCL_NGeo(:,NGeo,0,   NGeo,iElem) &
+                                       +XCL_NGeo(:,0,NGeo,   NGeo,iElem) &
+                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
+      ! xi minus
+      XiEtaZetaBasis(1:3,4,iElem)=0.25*(XCL_NGeo(:,0,0,0,iElem)       &
+                                       +XCL_NGeo(:,0,NGeo,0,iElem)    &
+                                       +XCL_NGeo(:,0,0,NGeo,iElem)    &
+                                       +XCL_NGeo(:,0,NGeo,NGeo,iElem) )
+      ! eta minus
+      XiEtaZetaBasis(1:3,5,iElem)=0.25*(XCL_NGeo(:,0,   0,0,iElem)    &
+                                       +XCL_NGeo(:,NGeo,0,0,iElem)    &
+                                       +XCL_NGeo(:,0,   0,NGeo,iElem) &
+                                       +XCL_NGeo(:,NGeo,0,NGeo,iElem) )
+      ! zeta plus
+      XiEtaZetaBasis(1:3,6,iElem)=0.25*(XCL_NGeo(:,0,0,      0,iElem) &
+                                       +XCL_NGeo(:,NGeo,0,   0,iElem) &
+                                       +XCL_NGeo(:,0,NGeo,   0,iElem) &
+                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem) )
+    ELSE
+      Xi=(/0.0,0.0,0.0/)
+      SideID = PartElemToSide(1,XI_PLUS,iElem)
+      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,1,iElem))
+      SideID = PartElemToSide(1,ETA_PLUS,iElem)
+      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,2,iElem))
+      SideID = PartElemToSide(1,ZETA_PLUS,iElem)
+      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,3,iElem))
+      SideID = PartElemToSide(1,XI_MINUS,iElem)
+      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,4,iElem))
+      SideID = PartElemToSide(1,ETA_MINUS,iElem)
+      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,5,iElem))
+      SideID = PartElemToSide(1,ZETA_MINUS,iElem)
+      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,6,iElem))
+    END IF
+  END IF ! no ref mapping
+  ! compute vector from each barycenter to sidecenter
+  XiEtaZetaBasis(:,1,iElem)=XiEtaZetaBasis(:,1,iElem)-ElemBaryNGeo(:,iElem)
+  XiEtaZetaBasis(:,2,iElem)=XiEtaZetaBasis(:,2,iElem)-ElemBaryNGeo(:,iElem)
+  XiEtaZetaBasis(:,3,iElem)=XiEtaZetaBasis(:,3,iElem)-ElemBaryNGeo(:,iElem)
+  XiEtaZetaBasis(:,4,iElem)=XiEtaZetaBasis(:,4,iElem)-ElemBaryNGeo(:,iElem)
+  XiEtaZetaBasis(:,5,iElem)=XiEtaZetaBasis(:,5,iElem)-ElemBaryNGeo(:,iElem)
+  XiEtaZetaBasis(:,6,iElem)=XiEtaZetaBasis(:,6,iElem)-ElemBaryNGeo(:,iElem)
+  ! compute length
+  slenXiEtaZetaBasis(1,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,1,iElem),XiEtaZetaBasis(:,1,iElem))
+  slenXiEtaZetaBasis(2,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,2,iElem),XiEtaZetaBasis(:,2,iElem))
+  slenXiEtaZetaBasis(3,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,3,iElem),XiEtaZetaBasis(:,3,iElem))
+  slenXiEtaZetaBasis(4,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,4,iElem),XiEtaZetaBasis(:,4,iElem))
+  slenXiEtaZetaBasis(5,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,5,iElem),XiEtaZetaBasis(:,5,iElem))
+  slenXiEtaZetaBasis(6,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,6,iElem),XiEtaZetaBasis(:,6,iElem))
+  
+  Radius=0.
+  IF(DoRefMapping)THEN
+    DO k=0,NGeo
+      DO j=0,NGeo
+        DO i=0,NGeo
+          xPos=XCL_NGeo(:,i,j,k,iElem)-ElemBaryNGeo(:,iElem)
+          Radius=MAX(Radius,SQRT(DOT_PRODUCT(xPos,xPos)))      
+        END DO !i=0,NGeo
+      END DO !j=0,NGeo
+    END DO !k=0,NGeo
+  ELSE
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF(SideID.EQ.-1) CYCLE
+      DO j=0,NGeo
+        DO i=0,NGeo
+          xPos=BezierControlPoints3D(:,j,k,SideID)-ElemBaryNGeo(:,iElem)
+          Radius=MAX(Radius,SQRT(DOT_PRODUCT(xPos,xPos)))      
+        END DO !i=0,NGeo
+      END DO !j=0,NGeo
+    END DO ! ilocSide
+  END IF
+  ElemRadiusNGeo(iElem)=Radius
+
+END DO ! iElem
+
+
+END SUBROUTINE BuildElementBasis
 
 
 END MODULE MOD_Particle_Mesh

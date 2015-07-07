@@ -54,10 +54,9 @@ USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:xGP,wBary
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:MappingGuess,epsMapping
-USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
+USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess,epsMapping,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
-USE MOD_Particle_Surfaces_Vars,  ONLY:ElemRadiusNGeo
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -343,11 +342,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:xGP
-USE MOD_Particle_Surfaces_Vars,  ONLY:MappingGuess,epsMapping
-USE MOD_Particle_surfaces_Vars,  ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
+USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess,epsMapping
+USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo,NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:ElemRadiusNGeo
-!USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

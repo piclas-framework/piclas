@@ -63,6 +63,10 @@
 #define E2S_SIDE_ID 1
 #define E2S_FLIP    2
 
+! Entry position in ElemToElem
+#define E2E_NB_ELEM_ID      1
+#define E2E_NB_LOC_SIDE_ID  2
+
 ! Entry position in BC
 #define BC_TYPE  1
 #define BC_STATE 2

@@ -93,7 +93,7 @@ SUBROUTINE InterpolateFieldToParticle(doInnerParts)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Particle_Vars,           ONLY:PartPosRef
-USE MOD_Particle_Surfaces_Vars,  ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_Particle_Vars!, ONLY: 
 USE MOD_PIC_Vars!,      ONLY: 

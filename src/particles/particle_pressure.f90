@@ -48,12 +48,13 @@ SUBROUTINE ParticlePressureIni()
   USE MOD_Globals
   USE MOD_Preproc
   USE MOD_Globals_Vars
-  USE MOD_Particle_Surfaces_Vars,  ONLY:DoRefMapping,epsInCell
+  USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+  USE MOD_Particle_Mesh_Vars,      ONLY:epsInCell
   USE MOD_Particle_Mesh,           ONLY:PointToExactElement
   USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide,SideToElem
   USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo
   USE MOD_Eval_XYZ,                ONLY:eval_xyz_poly
-  USE MOD_Particle_Mesh_Vars,      ONLY:PartNeighborElemID,PartNeighborLocSideID
+  USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElem
 #ifdef MPI
   USE MOD_Mesh_Vars,               ONLY : nSides, nInnerSides, nBCSides
 #endif
@@ -277,8 +278,8 @@ SUBROUTINE ParticlePressureIni()
             DO iElem = nInterOld, nInterest
               Element = TempElemPartlyInside(iElem)
               DO ilocSide = 1, 6
-                ExamElem =PartNeighborElemID   (ilocSide,Element)
-                locSideID=PartNeighborlocSideID(ilocSide,Element)
+                ExamElem =PartElemToElem(E2E_NB_ELEM_ID    ,ilocSide,Element)
+                locSideID=PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,Element)
                 IF(ExamElem.EQ.-1) CYCLE
                 IF(ExamElem.GT.PP_nElems) CYCLE
                 IF (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN
@@ -532,8 +533,8 @@ SUBROUTINE ParticlePressureIni()
             DO iElem = nInterOld,nInterest
               Element = TempElemPartlyInside(iElem)
               DO ilocSide = 1, 6
-                ExamElem =PartNeighborElemID   (ilocSide,Element)
-                locSideID=PartNeighborlocSideID(ilocSide,Element)
+                ExamElem =PartElemToElem(E2E_NB_ELEM_ID    ,ilocSide,Element)
+                locSideID=PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,Element)
                 IF(ExamElem.EQ.-1) CYCLE
                 IF(ExamElem.GT.PP_nElems) CYCLE
                 IF (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN
@@ -628,12 +629,13 @@ SUBROUTINE ParticlePressureCellIni()
   USE MOD_Globals
   USE MOD_Preproc
   USE MOD_Globals_Vars
-  USE MOD_Particle_Surfaces_Vars,  ONLY:DoRefMapping,epsInCell
+  USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+  USE MOD_Particle_Mesh_Vars,      ONLY:epsInCell
   USE MOD_Particle_Mesh,           ONLY:PointToExactElement
   USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide,SideToElem
   USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo
   USE MOD_Eval_XYZ,                ONLY:eval_xyz_poly
-  USE MOD_Particle_Mesh_Vars,      ONLY:PartNeighborElemID,PartNeighborLocSideID
+  USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElem
 #ifdef MPI
   USE MOD_Mesh_Vars,               ONLY : nSides, nInnerSides, nBCSides
 #endif
@@ -853,8 +855,8 @@ SUBROUTINE ParticlePressureCellIni()
             DO iElem = nInterOld, nInterest
               Element = TempElemPartlyInside(iElem)
               DO ilocSide = 1, 6
-                ExamElem =PartNeighborElemID   (ilocSide,Element)
-                locSideID=PartNeighborlocSideID(ilocSide,Element)
+                ExamElem =PartElemToElem(E2E_NB_ELEM_ID,ilocSide,Element)
+                locSideID=PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,Element)
                 IF(ExamElem.EQ.-1) CYCLE
                 IF(ExamElem.GT.PP_nElems) CYCLE
                 IF (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN
@@ -1107,8 +1109,8 @@ SUBROUTINE ParticlePressureCellIni()
             DO iElem = nInterOld,nInterest
               Element = TempElemPartlyInside(iElem)
               DO ilocSide = 1, 6
-                ExamElem =PartNeighborElemID   (ilocSide,Element)
-                locSideID=PartNeighborlocSideID(ilocSide,Element)
+                ExamElem =PartElemToElem   (E2E_NB_ELEM_ID,ilocSide,Element)
+                locSideID=PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,Element)
                 IF(ExamElem.EQ.-1) CYCLE
                 IF(ExamElem.GT.PP_nElems) CYCLE
                 IF (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN

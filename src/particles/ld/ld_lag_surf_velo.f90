@@ -28,7 +28,7 @@ USE Mod_Globals
 USE Mod_Globals_vars,          ONLY : PI
 USE MOD_LD_Vars
 USE MOD_Mesh_Vars,             ONLY : nElems, SideToElem, BC, ElemToSide,nBCSides
-USE MOD_Particle_Mesh_Vars,    ONLY : PartBound, GEO,SidePeriodicType
+USE MOD_Particle_Mesh_Vars,    ONLY : PartBound, SidePeriodicType
 USE MOD_TimeDisc_Vars,         ONLY : iter
 #ifdef MPI
 USE MOD_Mesh_Vars,             ONLY : nInnerSides

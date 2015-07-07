@@ -55,9 +55,9 @@ SUBROUTINE PartInElemCheck(PartID,ElemID,Check)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars,              ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars, ONLY:ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,ElemBaryNGeo,BezierControlPoints3D,SideType
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,BezierControlPoints3D,SideType
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1466,7 +1466,8 @@ USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,DoRefMapping
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
 !USE MOD_Equations_Vars,          ONLY:epsMach
 !USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec

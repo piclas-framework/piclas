@@ -337,7 +337,7 @@ USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout,SurfMesh,SampWall
 USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues, WriteOutputMeshSamp
-USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,MeassureTrackTime
+USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeassureTrackTime
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/

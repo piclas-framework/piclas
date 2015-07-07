@@ -39,21 +39,8 @@ INTEGER                                 :: ClipMaxInter                  ! maxim
 INTEGER                                 :: ClipMaxIter                   ! maximal iterations per intersections
 REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta         ! position of trajectory-patch
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray              ! xi and eta history for computation of intersection
-REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis                ! element local basis vector for ngeo=1 element
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis            ! inverse of length
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo                  ! element local basis: origin
-REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo                ! radius of element
-INTEGER                                 :: MappingGuess                  ! select mapping guess into reference element
-REAL                                    :: epsMapping                    ! tolerance for Netwton to get xi from X
-REAL                                    :: epsInCell                     ! tolerance for eps for particle in element
-REAL                                    :: epsOneCell                    ! tolerance for particle in element 1+epsinCell
-LOGICAL                                 :: DoRefMapping                  ! tracking by mapping particle into reference element
 !LOGICAL                                 :: MultipleBCs                   ! allow for multiple BC during one tracking step
                                                                          ! only for do-ref-mapping required
-REAL                                    :: tTracking                     ! Tracking time
-REAL                                    :: tLocalization                 ! localization time
-INTEGER                                 :: nTracks                       ! number of tracked particles
-LOGICAL                                 :: MeassureTrackTime             ! switch, if tracking time is meassured
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Surfaces_Vars

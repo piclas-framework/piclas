@@ -35,8 +35,8 @@ USE nr,                        ONLY : gaussj
 USE MOD_DSMC_Init,             ONLY : InitDSMC
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC, CollisMode
 USE MOD_ReadInTools
-USE MOD_Particle_Surfaces_Vars,ONLY: DORefMapping,ElemBaryNGeo
-USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToSide,PartNeighborElemID,GEO
+USE MOD_Particle_Tracking_Vars,ONLY: DoRefMapping
+USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToElem,GEO,ElemBaryNGeo
 #ifdef MPI
 USE MOD_Mesh_Vars,             ONLY : nInnerSides, nBCSides
 USE MOD_MPI_Vars
@@ -151,7 +151,7 @@ CHARACTER(32)           :: hilf
       DO trinum=1, 2
         CALL CalcLagNormVec(iLocSide, iElem, trinum)
 !--- calculate cellcenter distance for viscousity terms
-        Elem2=PartNeighborElemID(ilocSide,iElem) 
+        Elem2=PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem) 
         IF(Elem2.EQ.-1) CYCLE
         MeanSurfValues(iLocSide, iElem)%CellCentDist(1) = ElemBaryNGeo(1,iElem) - ElemBaryNGeo(1,Elem2)
         MeanSurfValues(iLocSide, iElem)%CellCentDist(2) = ElemBaryNGeo(2,iElem) - ElemBaryNGeo(2,Elem2)
@@ -311,8 +311,7 @@ SUBROUTINE CalcLagNormVec(iLocSide, Element, trinum)
   USE MOD_Globals
   USE MOD_LD_Vars
   USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo,NGeo
-  USE MOD_Particle_surfaces_Vars, ONLY:ElemBaryNGeo
-  USE MOD_Particle_Mesh_Vars,     ONLY:PartNeighborElemID,PartNeighborLocSideID,GEO
+  USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElem,ElemBaryNGeo,GEO
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
@@ -557,7 +556,7 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
   USE MOD_LD_Vars
   !USE MOD_Particle_Vars,          ONLY : GEO
   USE MOD_Mesh_Vars,              ONLY : XCL_NGeo,NGeo
-  USE MOD_Particle_Surfaces_Vars, ONLY : ElemBaryNGeo
+  USE MOD_Particle_Mesh_Vars,     ONLY : ElemBaryNGeo
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!

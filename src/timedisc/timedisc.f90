@@ -143,7 +143,7 @@ USE MOD_PICDepo,               ONLY: Deposition, DepositionMPF
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, Time, useManualTimestep, WriteMacroValues, MacroValSampTime
-USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,MeassuretrackTime
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeassureTrackTime
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,GEO,MaxwellIterNum,NextTimeStepAdjustmentIter
 USE MOD_Equation_Vars,         ONLY: c
@@ -154,7 +154,6 @@ USE MOD_PARTICLE_Vars,         ONLY: PDM,Pt,PartState
 USE MOD_PARTICLE_Vars,         ONLY : doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,             ONLY: realtime,nOutput, Iter_macvalout
-USE MOD_Particle_surfaces_vars, ONLY: ntracks,tTracking,tLocalization,MeassureTrackTime
 #ifdef MPI
 USE MOD_Particle_MPI,           ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfParticles
 #endif /*MPI*/
@@ -510,7 +509,7 @@ USE MOD_DG,               ONLY: DGTimeDerivative_weakForm_Pois
 USE MOD_Equation_Vars,    ONLY: Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_Particle_surfaces_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeassureTrackTime
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeassureTrackTime
 USE MOD_PICDepo,          ONLY: Deposition, DepositionMPF
 USE MOD_PICInterpolation, ONLY: InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY: PIC

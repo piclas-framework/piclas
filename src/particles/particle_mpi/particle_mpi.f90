@@ -142,7 +142,7 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars
 USE MOD_DSMC_Vars,              ONLY:useDSMC, CollisMode, DSMC
 USE MOD_Particle_Vars,          ONLY:usevMPF
-USE MOD_Particle_Surfaces_vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_vars, ONLY:DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -249,7 +249,7 @@ SUBROUTINE SendNbOfParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Surfaces_vars,   ONLY:DoRefMapping
+USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize,PartSendBuf, PartRecvBuf
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,Species,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
@@ -351,7 +351,7 @@ SUBROUTINE MPIParticleSend()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Surfaces_vars,   ONLY:DoRefMapping
+USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize,PartSendBuf, PartRecvBuf
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,Species,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
@@ -698,7 +698,7 @@ SUBROUTINE MPIParticleRecv()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Surfaces_vars,   ONLY:DoRefMapping
+USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
@@ -1007,7 +1007,8 @@ SUBROUTINE InitHaloMesh()
 USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_PreProc
-USE MOD_Particle_Surfaces_vars,     ONLY:DoRefMapping,BezierControlPoints3D
+USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
+USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
 USE MOD_Particle_Surfaces,          ONLY:GetSlabNormalsAndIntervalls
 USE MOD_Mesh_Vars,                  ONLY:NGeo,nSides,SideID_minus_Upper,NGeo
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloToProc
@@ -1658,8 +1659,9 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloToProc
 USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartNeighborElemID,PartNeighborLocSideID
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,DoRefMapping
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1701,12 +1703,12 @@ DO iElem=1,nTotalElems
       END DO ! j=0,NGeo
     END DO ! k=0,NGeo
   END IF ! DoRefMapping
-  ! PartNeighborElemID & PartNeighborlocSideID
+  ! PartElemToElem 
   DO ilocSide=1,6
-    IF(PartNeighborElemID(ilocSide,iElem).NE.PartNeighborElemID(ilocSide,iElem)) CALL abort(&
-       __STAMP__, ' Error in PartNeighborElemID')
-    IF(PartNeighborlocSideID(ilocSide,iElem).NE.PartNeighborlocSideID(ilocSide,iElem)) CALL abort(&
-       __STAMP__, ' Error in PartNeighborElemID')
+    IF(PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)) CALL abort(&
+       __STAMP__, ' Error in PartElemToElem')
+    IF(PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)) CALL abort(&
+       __STAMP__, ' Error in PartElemToElem')
   END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
 IF(DoRefMapping)THEN

@@ -43,12 +43,12 @@ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne,epsilonbilinear
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D,BoundingBoxIsEmpty
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems
-USE MOD_Particle_Mesh_Vars,          ONLY:PartNeighborElemID,PartNeighborLocSideID,GEO
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem,GEO
 USE MOD_TimeDisc_Vars,               ONLY:iter
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Vars,               ONLY:time
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_surfaces_vars,      ONLY:ntracks
+USE MOD_Particle_Tracking_vars,      ONLY:ntracks
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap
 USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
                                          ,ComputePlanarIntersectionBezier,PartInElemCheck
@@ -176,8 +176,6 @@ DO iPart=1,PDM%ParticleVecLength
         !CALL BubbleSortID(locAlpha,locSideList,6)
         CALL InsertionSort(locAlpha,locSideList,6)
 !        IF((ipart.eq.40).AND.(iter.GE.68)) THEN
-!          print*,'nbelemid',PartNeighborElemID(locSideList(6),ElemID)
-!          print*,'nbelemid',PartNeighborElemID(locSideList(5),ElemID)
 !        END IF
         nloc=0
         DO ilocSide=6,1,-1
@@ -235,13 +233,13 @@ USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne,epsilonbilinear
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D,BoundingBoxIsEmpty
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems,PartBCSideList,nTotalBCSides
-USE MOD_Particle_Mesh_Vars,          ONLY:PartNeighborElemID,PartNeighborLocSideID
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem
 USE MOD_TimeDisc_Vars,               ONLY:iter
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
 USE MOD_Particle_Vars,               ONLY:time
 USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacement,BCElem
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_surfaces_vars, ONLY: ntracks
+USE MOD_Particle_Tracking_Vars,      ONLY:ntracks
 USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
                                          ,ComputePlanarIntersectionBezier
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
@@ -359,10 +357,11 @@ USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
-USE MOD_Particle_Surfaces_Vars,  ONLY:nTracks,ClipHit,epsInCell,epsOneCell
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem
+USE MOD_Particle_Tracking_Vars,  ONLY:nTracks
+USE MOD_Particle_Surfaces_Vars,  ONLY:ClipHit
+USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsInCell,epsOneCell
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Surfaces_Vars,  ONLY:ElemBaryNGeo,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo,ElemRadiusNGeo
 USE MOD_TimeDisc_Vars,           ONLY:iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -566,7 +565,7 @@ USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Mesh_Vars,                   ONLY:nBCSides
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems
-USE MOD_Particle_Mesh_Vars,          ONLY:PartNeighborElemID,PartNeighborLocSideID
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem
 USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacement
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos,PDM
 #ifdef MPI
@@ -619,8 +618,8 @@ ELSE ! no BC Side
     lengthPartTrajectory=lengthPartTrajectory
     ! update particle element
     dolocSide=.TRUE.
-    dolocSide(PartneighborlocSideID(ilocSide,ElemID))=.FALSE.
-    ElemID=PartNeighborElemID(ilocSide,ElemID)
+    dolocSide(PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,ElemID))=.FALSE.
+    ElemID=PartElemToElem(E2E_NB_ELEM_ID,ilocSide,ElemID)
     !lastlocSide=-1
   ELSE ! no periodic side
 #ifdef MPI
@@ -637,22 +636,22 @@ ELSE ! no BC Side
       ELSE
         ! inner side
         dolocSide=.TRUE.
-        dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
-        ElemID=PartNeighborElemID(hitlocSide,ElemID)
+        dolocSide(PartElemToElem(E2E_NB_LOC_SIDE_ID,hitlocSide,ElemID))=.FALSE.
+        ElemID=PartElemToElem(E2E_NB_ELEM_ID,hitlocSide,ElemID)
         IF(ElemID.LE.0) CALL abort(&
             __STAMP__,&
            ' HaloRegion too small or critical error during halo region reconstruction!')
       END IF ! BC?
     ELSE
       dolocSide=.TRUE.
-      dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
-      ElemID=PartNeighborElemID(hitlocSide,ElemID)
+      dolocSide(PartElemToElem(E2E_NB_LOC_SIDE_ID,hitlocSide,ElemID))=.FALSE.
+      ElemID=PartElemToElem(E2E_NB_ELEM_ID,hitlocSide,ElemID)
       !lastlocSide=-1
     END IF ! SideID.GT.nSides
 #else
     dolocSide=.TRUE.
-    dolocSide(PartneighborlocSideID(hitlocSide,ElemID))=.FALSE.
-    ElemID=PartNeighborElemID(hitlocSide,ElemID)
+    dolocSide(PartElemToElem(E2E_NB_LOC_SIDE_ID,hitlocSide,ElemID))=.FALSE.
+    ElemID=PartElemToElem(E2E_NB_ELEM_ID,hitlocSide,ElemID)
 #endif /* MP!!I */
     END IF ! SidePeriodicType
 END IF ! SideID>nCBSides
