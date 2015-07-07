@@ -1802,7 +1802,7 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE MapRegionToElem
 
 
-SUBROUTINE PointToExactElement(X_In,isInside,doHalo)                                                         
+SUBROUTINE PointToExactElement(X_In,Element,isInSide,doHalo)                                                         
 !===================================================================================================================================
 ! this subroutine maps each particle to an element
 ! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
@@ -1832,6 +1832,7 @@ LOGICAL,INTENT(IN)                :: doHalo
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL,INTENT(OUT)                :: isInside
+INTEGER,INTENT(OUT)                :: Element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
@@ -1889,6 +1890,7 @@ CALL BubbleSortID(Distance,ListDistance,nBGMElems)
 !print*,'after',Distance,ListDistance
 
 ! loop through sorted list and start by closest element  
+Element=-1
 DO iBGMElem=1,nBGMElems
   ElemID=ListDistance(iBGMElem)
   IF(.NOT.DoHALO)THEN
@@ -1897,6 +1899,7 @@ DO iBGMElem=1,nBGMElems
   CALL Eval_xyz_elemcheck(X_in(1:3),xi,ElemID)
   IF(ALL(ABS(Xi).LE.epsOneCell)) THEN ! particle inside
     isInSide=.TRUE.
+    Element=ElemID
     EXIT
   END IF
 END DO ! iBGMElem
