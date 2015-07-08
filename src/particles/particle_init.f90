@@ -116,6 +116,7 @@ USE MOD_PICInit,               ONLY: InitPIC
 USE MOD_Particle_Mesh,         ONLY: InitFIBGM,MapRegionToElem
 USE MOD_Particle_Tracking_Vars,ONLY: DoRefMapping
 USE MOD_Particle_MPI_Vars,     ONLY: SafetyFactor,halo_eps_velo,PartMPI
+USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 #endif /*MPI*/
@@ -137,6 +138,7 @@ INTEGER,ALLOCATABLE   :: iSeeds(:)
 REAL                  :: iRan, aVec, bVec   ! random numbers for random vectors
 REAL                  :: lineVector(3), v_drift_line, A_ins
 INTEGER               :: iVec, MaxNbrOfSpeciesSwaps
+LOGICAL                       :: exitTrue
 #ifdef MPI
 #endif
 !===================================================================================================================================
@@ -867,6 +869,35 @@ CALL InitFIBGM()
 #ifdef MPI
 CALL InitEmissionComm()
 #endif /*MPI*/
+
+
+exitTrue=.false.
+DO iSpec = 1,nSpecies
+  DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
+    IF((Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
+      CALL ParticlePressureIni()
+      exitTrue=.true.
+      EXIT
+    END IF
+  END DO
+  IF (exitTrue) EXIT
+END DO
+
+exitTrue=.false.
+DO iSpec = 1,nSpecies
+  DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
+    IF ((Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType .EQ. 6)) THEN
+      CALL ParticlePressureCellIni()
+      exitTrue=.true.
+      EXIT
+    END IF
+  END DO
+  IF (exitTrue) EXIT
+END DO
+
+
+
+
 IF(enableParticleMerge) THEN
  CALL DefinePolyVec(vMPFMergePolyOrder) 
  CALL DefineSplitVec(vMPFMergeCellSplitOrder)
