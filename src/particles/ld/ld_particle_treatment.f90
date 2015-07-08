@@ -114,6 +114,10 @@ USE nr,                        ONLY : gaussj
 
     Vector(3,1) = ChosenMeanBaseD3 &
                 + vLAG3 * dt 
+    !print*,'matrix'
+    !print*,matrix(1,:)
+    !print*,matrix(2,:)
+    !print*,matrix(3,:)
     CALL gaussj(Matrix,Vector)
     NewNodePos(1,iNode) = Vector(1,1)
     NewNodePos(2,iNode) = Vector(2,1)

@@ -540,7 +540,6 @@ DO iProc=1, PartMPI%nMPINeighbors
       END IF
 #else 
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
-
       IF(.NOT.UseLD) THEN   
         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
           IF (usevMPF .AND. DSMC%ElectronicState) THEN
@@ -559,7 +558,7 @@ DO iProc=1, PartMPI%nMPINeighbors
           ELSE
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)
-          END 
+          END IF
         ELSE
           IF (usevMPF) THEN
             PartSendBuf(iProc)%content( 9+jPos) = PartMPF(iPart)
@@ -582,7 +581,7 @@ DO iProc=1, PartMPI%nMPINeighbors
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
             PartSendBuf(iProc)%content(11+jPos) = PartStateIntEn(iPart, 3)
-            PartSendBuf(iProc)%content(12+jPos:15+jPos) = PartStateBulkValues(iPart,1:5)
+            PartSendBuf(iProc)%content(12+jPos:16+jPos) = PartStateBulkValues(iPart,1:5)
           ELSE
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)

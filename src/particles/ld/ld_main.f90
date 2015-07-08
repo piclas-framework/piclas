@@ -276,6 +276,7 @@ REAL,ALLOCATABLE, INTENT(OUT)    :: particle_positions_Temp(:)
 !--------------------------------------------------------------------------------------------------!
 
   ALLOCATE(particle_positions_Temp(3*PDM%maxParticleNumber))
+  particle_positions_Temp=0.
   PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
   ichunkSize = 1
   DO iElem = 1, nElems

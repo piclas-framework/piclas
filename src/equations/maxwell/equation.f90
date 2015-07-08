@@ -331,10 +331,10 @@ CASE(10) ! Sin-wave convergenz test
   !omega = 1e-9
   !omega = PI*c*SQRT(3.0)
   omega = PI*c*SQRT(1.0)
-  ea =(/1.0,0.,0./)
+  ea =(/0.0,1.,0./)
 
   ! E-Field
-  resu(1)= COS(omega*t- PI*(x(1))) !+x(2)+x(3)) )
+  resu(1)= COS(omega*t- PI*(DOT_PRODUCT(ea,x))) !+x(2)+x(3)) )
   resu(2)= 0.
   resu(3)= 0.
   ! B-Feild

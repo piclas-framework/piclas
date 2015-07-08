@@ -553,6 +553,7 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
 ! Definition of surface fit
 !===================================================================================================================================
 ! MODULES
+  USE MOD_Globals,                ONLY: CROSSNORM
   USE MOD_LD_Vars
   !USE MOD_Particle_Vars,          ONLY : GEO
   USE MOD_Mesh_Vars,              ONLY : XCL_NGeo,NGeo
@@ -589,21 +590,32 @@ CASE(ZETA_PLUS)
   SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,:,NGeo,Element)
 END SELECT
 
-xNod1=SideCoord(1,0,0)
-yNod1=SideCoord(2,0,0)
-zNod1=SideCoord(3,0,0)
+!print*,'xcl_ngeo',xcl_ngeo(:,:,:,:,Element)
+!print*,''
+!print*,'ilocside',ilocside
+!print*,'sidecoord',sidecoord
+!read*
 
-xNod2=SideCoord(1,NGeo,0)
-yNod2=SideCoord(2,NGeo,0)
-zNod2=SideCoord(3,NGeo,0)
+vector1(:) = SideCoord(:,NGeo,NGeo)-SideCoord(:,0,0)
+vector2(:) = SideCoord(:,0,NGeo)-SideCoord(:,NGeo,0)
 
-xNod3=SideCoord(1,0,NGeo)
-yNod3=SideCoord(2,0,NGeo)
-zNod3=SideCoord(3,0,NGeo)
+!xNod1=SideCoord(1,0,0)
+!yNod1=SideCoord(2,0,0)
+!zNod1=SideCoord(3,0,0)
+!
+!xNod2=SideCoord(1,NGeo,0)
+!yNod2=SideCoord(2,NGeo,0)
+!zNod2=SideCoord(3,NGeo,0)
+!
+!xNod3=SideCoord(1,0,NGeo)
+!yNod3=SideCoord(2,0,NGeo)
+!zNod3=SideCoord(3,0,NGeo)
+!
+!xNod4=SideCoord(1,NGeo,NGeo)
+!yNod4=SideCoord(2,NGeo,NGeo)
+!zNod4=SideCoord(3,NGeo,NGeo)
 
-xNod4=SideCoord(1,NGeo,NGeo)
-yNod4=SideCoord(2,NGeo,NGeo)
-zNod4=SideCoord(3,NGeo,NGeo)
+
   !!--- Node 1 ---
   !xNod1 = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
   !yNod1 = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
@@ -620,24 +632,28 @@ zNod4=SideCoord(3,NGeo,NGeo)
   !xNod4 = GEO%NodeCoords(1,GEO%ElemSideNodeID(4,iLocSide,Element))
   !yNod4 = GEO%NodeCoords(2,GEO%ElemSideNodeID(4,iLocSide,Element))
   !zNod4 = GEO%NodeCoords(3,GEO%ElemSideNodeID(4,iLocSide,Element))
-  Vector1(1) = xNod3 - xNod1
-  Vector1(2) = yNod3 - yNod1
-  Vector1(3) = zNod3 - zNod1
-  Vector2(1) = xNod4 - xNod2
-  Vector2(2) = yNod4 - yNod2
-  Vector2(3) = zNod4 - zNod2
-  nx = Vector1(2) * Vector2(3) - Vector1(3) * Vector2(2) ! n is inward normal vector
-  ny = Vector1(3) * Vector2(1) - Vector1(1) * Vector2(3)
-  nz = Vector1(1) * Vector2(2) - Vector1(2) * Vector2(1)
+  !Vector1(1) = xNod3 - xNod1
+  !Vector1(2) = yNod3 - yNod1
+  !Vector1(3) = zNod3 - zNod1
+  !Vector2(1) = xNod4 - xNod2
+  !Vector2(2) = yNod4 - yNod2
+  !Vector2(3) = zNod4 - zNod2
+! print*,'vectors',vector1,vector2
+! read*
+  !nx = Vector1(2) * Vector2(3) - Vector1(3) * Vector2(2) ! n is inward normal vector
+  !ny = Vector1(3) * Vector2(1) - Vector1(1) * Vector2(3)
+  !nz = Vector1(1) * Vector2(2) - Vector1(2) * Vector2(1)
+
   BaseVectorS(1:3) = 0.25*SUM(SideCoord(1:3,:,:))
 
   nVal = SQRT(nx*nx + ny*ny + nz*nz)
-  MeanSurfValues(iLocSide, Element)%MeanNormVec(1) = nx/nVal
-  MeanSurfValues(iLocSide, Element)%MeanNormVec(2) = ny/nVal
-  MeanSurfValues(iLocSide, Element)%MeanNormVec(3) = nz/nVal
+  !MeanSurfValues(iLocSide, Element)%MeanNormVec(1) = nx/nVal
+  !MeanSurfValues(iLocSide, Element)%MeanNormVec(2) = ny/nVal
+  !MeanSurfValues(iLocSide, Element)%MeanNormVec(3) = nz/nVal
+  MeanSurfValues(iLocSide, Element)%MeanNormVec(1:3) = CROSSNORM(Vector1,Vector2)
   MeanSurfValues(iLocSide, Element)%MeanBaseD = MeanSurfValues(iLocSide, Element)%MeanNormVec(1) * BaseVectorS(1) &
-                                  + MeanSurfValues(iLocSide, Element)%MeanNormVec(2) * BaseVectorS(2) &
-                                  + MeanSurfValues(iLocSide, Element)%MeanNormVec(3) * BaseVectorS(3)
+                                              + MeanSurfValues(iLocSide, Element)%MeanNormVec(2) * BaseVectorS(2) &
+                                              + MeanSurfValues(iLocSide, Element)%MeanNormVec(3) * BaseVectorS(3)
 
   NVecTest = DOT_PRODUCT(BaseVectorS-ElemBaryNGeo(:,Element),MeanSurfValues(ilocSide,Element)%MeanNormVec)
   IF(NVecTest.LE.0.0) MeanSurfValues(ilocSide,Element)%MeanNormVec=(-1.0)*MeanSurfValues(ilocSide,Element)%MeanNormVec

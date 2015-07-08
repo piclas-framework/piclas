@@ -637,7 +637,9 @@ ELSE
   DimSend=3 !save (and send) only positions
 END IF
 
-IF ( (NbrOfParticle .LE. 0).AND.(PartIns .LE. 0.) ) RETURN !0<Partins<1: statistical handling of exact REAL-INT-conv. below!
+
+IF ( (NbrOfParticle .LE. 0).AND.(PartIns .LE. 0.).AND. (AlmostEqual(Species(FractNbr)%Init(iInit)%PartDensity,0.)) ) &
+      RETURN !0<Partins<1: statistical handling of exact REAL-INT-conv. below!
 
 nChunks = 1                   ! Standard: Nicht-MPI
 sumOfMatchedParticles = 0
@@ -1243,14 +1245,15 @@ IF (mode.EQ.1) THEN
         chunkSize2=chunkSize2+1
       END DO
     CASE('LD_insert')
-      CALL LD_SetParticlePosition(chunkSize,particle_positions_Temp,FractNbr,iInit)
+      CALL LD_SetParticlePosition(chunkSize2,particle_positions_Temp,FractNbr,iInit)
       DEALLOCATE( particle_positions, STAT=allocStat )
       IF (allocStat .NE. 0) THEN
         CALL abort(__STAMP__,&
           'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
       END IF
-      ALLOCATE(particle_positions(3*chunkSize))
-      particle_positions(1:3*chunkSize) = particle_positions_Temp(1:3*chunkSize)
+      NbrOfParticle=chunkSize2
+      ALLOCATE(particle_positions(3*chunkSize2))
+      particle_positions(1:3*chunkSize2) = particle_positions_Temp(1:3*chunkSize2)
       DEALLOCATE( particle_positions_Temp, STAT=allocStat )
       IF (allocStat .NE. 0) THEN
         CALL abort(__STAMP__,&

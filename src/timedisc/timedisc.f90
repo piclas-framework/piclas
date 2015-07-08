@@ -1990,7 +1990,7 @@ USE MOD_LD_Vars,                ONLY:LD_RHS
 USE MOD_LD,                     ONLY:LD_main
 USE MOD_part_tools,             ONLY:UpdateNextFreePosition
 USE MOD_part_emission,          ONLY:ParticleInserting
-USE MOD_Particle_surfaces_vars, ONLY:ntracks,tTracking,tLocalization,MeassureTrackTime
+USE MOD_Particle_Tracking_Vars, ONLY:ntracks,tTracking,tLocalization,MeassureTrackTime
 USE MOD_Particle_Tracking,      ONLY:ParticleRefTracking
 #ifdef MPI
 USE MOD_Particle_MPI,           ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfParticles
@@ -2072,7 +2072,7 @@ USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC_Vars,        ONLY : DSMC
 USE MOD_LD_DSMC_DOMAIN_DEC
-USE MOD_Particle_surfaces_vars, ONLY:ntracks,tTracking,tLocalization,MeassureTrackTime
+USE MOD_Particle_Tracking_Vars, ONLY:ntracks,tTracking,tLocalization,MeassureTrackTime
 USE MOD_Particle_Tracking,      ONLY:ParticleRefTracking
 #endif
 #ifdef MPI

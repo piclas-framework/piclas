@@ -355,7 +355,7 @@ SUBROUTINE ParticleRefTracking()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
-USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef
+USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,lastpartpos
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks
 USE MOD_Particle_Surfaces_Vars,  ONLY:ClipHit
@@ -415,14 +415,21 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
           LastPos=PartState(iPart,1:3)
           nlocSides=BCElem(ElemID)%lastSide-BCElem(ElemID)%nInnerSides
           CALL ParticleBCTracking(ElemID,BCElem(ElemID)%nInnerSides+1,BCElem(ElemID)%lastSide,nlocSides,iPart,ParticleFound(iPart))
+          IF(GEO%nPeriodicVectors.GT.0)THEN
+            CALL PeriodicMovement(iPart)
+          END IF
           IF(ParticleFound(iPart)) CYCLE
           DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
-              .AND.  .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
-              .AND.  .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
+              .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
+              .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
             LastPos=PartState(iPart,1:3)
             ! unfortunately, here all sides
             CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
             IF(ParticleFound(iPart)) EXIT
+            IF(GEO%nPeriodicVectors.GT.0)THEN
+              ! call here function for mapping of partpos and lastpartpos
+              CALL PeriodicMovement(iPart)
+            END IF
           END DO
           IF(ParticleFound(iPart)) CYCLE
           CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
@@ -470,6 +477,7 @@ DO iPart=1,PDM%ParticleVecLength
   CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
   !CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
   !CellZ = MIN(GEO%FIBGMkmax,CellZ)
+
         
   ! check all cells associated with this beckground mesh cell
   nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
@@ -737,7 +745,7 @@ END IF
 
 ! z direction
 IF(GEO%directions(3)) THEN
-  IF(PartState(PartID,3).GT.GEO%ymaxglob) THEN
+  IF(PartState(PartID,3).GT.GEO%zmaxglob) THEN
     DO iPV=1,GEO%nPeriodicVectors
       IF(GEO%DirPeriodicVectors(iPV).EQ.3) EXIT
     END DO
@@ -749,7 +757,7 @@ IF(GEO%directions(3)) THEN
       LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
     END IF
   END IF
-  IF(PartState(PartID,3).LT.GEO%yminglob) THEN
+  IF(PartState(PartID,3).LT.GEO%zminglob) THEN
     DO iPV=1,GEO%nPeriodicVectors
       IF(GEO%DirPeriodicVectors(iPV).EQ.3) EXIT
     END DO
