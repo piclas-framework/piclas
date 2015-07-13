@@ -198,10 +198,10 @@ CALL WriteArrayToHDF5(DataSetName='DG_SolutionPhi', rank=5,&
 !CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
 ! ,offsetElem,5,existing=.TRUE.,RealArray=U)
 CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
-                      nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                      nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                      offset=    (/0,      0,     0,     0,     offsetElem/),&
-                      collective=.TRUE., existing=.TRUE., RealArray=U)
+                      nValGlobal =(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                      nVal       =(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
+                      offset     =(/0,      0,     0,     0,     offsetElem  /),&
+                      collective =.TRUE., existing=.TRUE., RealArray=U)
 #endif
 
 CALL CloseDataFile()
@@ -627,19 +627,20 @@ INTEGER                        :: minnParts
   CALL OpenDataFile(FileName,create=.FALSE.)
 #endif
   CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',PartDataSize,StrArray=StrVarNames)
-  IF(minnParts.EQ.0)THEN
-    CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
-                          nValGlobal=(/nPart_glob,PartDataSize/),&
-                          nVal=      (/locnPart,PartDataSize  /),&
-                          offset=    (/offsetnPart , 0  /),&
-                          collective=.FALSE., existing=.FALSE., RealArray=PartData)
-  ELSE
+  SWRITE(*,*) 'minnparts',minnparts
+  !IF(minnParts.EQ.0)THEN
+  !  CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
+  !                        nValGlobal=(/nPart_glob,PartDataSize/),&
+  !                        nVal=      (/locnPart,PartDataSize  /),&
+  !                        offset=    (/offsetnPart , 0  /),&
+  !                        collective=.FALSE., existing=.FALSE., RealArray=PartData)
+  !ELSE
     CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
                             nValGlobal=(/nPart_glob,PartDataSize/),&
                             nVal=      (/locnPart,PartDataSize  /),&
                             offset=    (/offsetnPart , 0  /),&
                             collective=.TRUE., existing=.FALSE., RealArray=PartData)
-  END IF
+  !END IF
 
   CALL CloseDataFile()
 
@@ -977,7 +978,11 @@ IF(PRESENT(IntegerArray)) buf=C_LOC(IntegerArray)
 IF(PRESENT(RealArray))    buf=C_LOC(RealArray)
 IF(PRESENT(StrArray))     buf=C_LOC(StrArray(1))
 !IF(ANY(Dimsf.EQ.0)) buf =NULL()
-CALL H5DWRITE_F(DSet_ID,Type_ID,buf,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
+IF(ANY(Dimsf.EQ.0)) THEN
+  CALL H5DWRITE_F(DSet_ID,Type_ID,C_NULL_PTR,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
+ELSE
+  CALL H5DWRITE_F(DSet_ID,Type_ID,buf,iError,file_space_id=filespace,mem_space_id=memspace,xfer_prp=PList_ID)
+END IF
 #endif /* HDF5_F90 */
 
 IF(PRESENT(StrArray)) CALL H5TCLOSE_F(Type_ID, iError)

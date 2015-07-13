@@ -104,7 +104,8 @@ CASE(1)
   DO iDir=1,3
     Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
   END DO 
-  IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=0.
+  !IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=0.
+  IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
 !  IF(ANY(ABS(Xi).GT.epsOne)) THEN
 !    DO iDir=1,3
 !      IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
@@ -382,7 +383,8 @@ IF(.NOT.PRESENT(DoReUseMap))THEN
     DO iDir=1,3
       Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
     END DO 
-    IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=0.
+   ! IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=0.
+    IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
     !IF(ANY(ABS(Xi).GT.epsOne)) THEN
     !  DO iDir=1,3
     !    IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
@@ -730,6 +732,28 @@ getInv(3,1) = ( Mat(2,1) * Mat(3,2) - Mat(2,2) * Mat(3,1) ) * sdet
 getInv(3,2) = ( Mat(1,2) * Mat(3,1) - Mat(1,1) * Mat(3,2) ) * sdet
 getInv(3,3) = ( Mat(1,1) * Mat(2,2) - Mat(1,2) * Mat(2,1) ) * sdet
 END FUNCTION getInv 
+
+
+FUNCTION LimitXi(Xi)
+!=================================================================================================================================
+! lilmit xi to [-1,1]
+!=================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!---------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)  :: Xi(3)
+!---------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL             :: LimitXi(3)
+!---------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!=================================================================================================================================
+
+LimitXi=MAX(MIN(1.0d0,XI),-1.0d0)
+
+END FUNCTION LimitXi 
 #endif /*PARTICLES*/
 
 END MODULE MOD_Eval_xyz

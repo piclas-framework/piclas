@@ -759,7 +759,7 @@ CASE('nearest_gausspoint')
             m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,iPart)))/2)
           END IF
 #if (PP_nVar==8)
-          source(1:3,k,l,m,iElem) = source(1:3,k,l,m,iElem) + PartState(i,4:6) * prefac
+          source(1:3,k,l,m,iElem) = source(1:3,k,l,m,iElem) + PartState(iPart,4:6) * prefac
 #endif
           source( 4 ,k,l,m,iElem) = source( 4 ,k,l,m,iElem) + prefac
           !IF (SAVE_GAUSS) THEN

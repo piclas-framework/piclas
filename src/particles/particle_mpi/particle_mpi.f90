@@ -1327,7 +1327,7 @@ DO iSpec=1,nSpecies
       IF (Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
         height = halo_eps
       ELSE
-        height= Species(iInit)%Init(iInit)%CuboidHeightIC 
+        height= Species(iSpec)%Init(iInit)%CuboidHeightIC 
       END IF
       DO iNode=1,4
         xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
@@ -1360,7 +1360,7 @@ DO iSpec=1,nSpecies
       IF (Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
         height = halo_eps
       ELSE
-        height= Species(iInit)%Init(iInit)%CylinderHeightIC 
+        height= Species(iSpec)%Init(iInit)%CylinderHeightIC 
       END IF
       DO iNode=1,4
         xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
