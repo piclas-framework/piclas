@@ -437,7 +437,7 @@ CHARACTER(LEN=*),INTENT(IN),OPTIONAL   :: IniFile                    ! Name of i
 ! LOCAL VARIABLES 
 TYPE(tString),POINTER                       :: Str1=>NULL(),Str2=>NULL()
 CHARACTER(LEN=255)                          :: HelpStr,Str
-CHARACTER(LEN=300)                          :: File, DSMCFile
+CHARACTER(LEN=300)                          :: File
 #ifdef PARTICLES
 CHARACTER(LEN=300)                          :: DSMCFile
 CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent2
