@@ -170,8 +170,7 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz              ! aux. Variab
 REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
 REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
 REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
-REAL                            :: ea(3)
-REAL                            :: lambda
+!REAL                            :: ea(3)
 INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 !===================================================================================================================================
 Cent=x
@@ -324,27 +323,27 @@ CASE(6)
   resu   = 0.
   resu(1)= x(1) 
 
-CASE(10) ! Sin-wave convergenz test
-  ! k=4, x=4
-  !lambda=SQRT(48.)
-  !omega = lambda/(2.0*PI*c)
-  !omega = 1e-9
-  !omega = PI*c*SQRT(3.0)
-  omega = PI*c*SQRT(1.0)
-  ea =(/0.0,1.,0./)
-
-  ! E-Field
-  resu(1)= COS(omega*t- PI*(DOT_PRODUCT(ea,x))) !+x(2)+x(3)) )
-  resu(2)= 0.
-  resu(3)= 0.
-  ! B-Feild
-  resu(4:6)=c_inv*CROSS(resu(1:3),ea)
-  !resu(4)= 0.
-  !resu(5)=-c_inv*SIN(omega*t-PI*(x(1))) !+x(2)+x(3)) )
-  !resu(6)= c_inv*SIN(omega*t-PI*(x(1))) !+x(2)+x(3)) )
-  ! div-correction
-  resu(7)=0.
-  resu(8)=0.
+!CASE(10) ! Sin-wave convergenz test
+!  ! k=4, x=4
+!  !lambda=SQRT(48.)
+!  !omega = lambda/(2.0*PI*c)
+!  !omega = 1e-9
+!  !omega = PI*c*SQRT(3.0)
+!  omega = PI*c*SQRT(1.0)
+!  ea =(/0.0,1.,0./)
+!
+!  ! E-Field
+!  resu(1)= COS(omega*t- PI*(DOT_PRODUCT(ea,x))) !+x(2)+x(3)) )
+!  resu(2)= 0.
+!  resu(3)= 0.
+!  ! B-Feild
+!  resu(4:6)=c_inv*CROSS(resu(1:3),ea)
+!  !resu(4)= 0.
+!  !resu(5)=-c_inv*SIN(omega*t-PI*(x(1))) !+x(2)+x(3)) )
+!  !resu(6)= c_inv*SIN(omega*t-PI*(x(1))) !+x(2)+x(3)) )
+!  ! div-correction
+!  resu(7)=0.
+!  resu(8)=0.
 
 CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   eps=1e-10
