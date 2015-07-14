@@ -92,12 +92,11 @@ SUBROUTINE InterpolateFieldToParticle(doInnerParts)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Vars,           ONLY:PartPosRef
+USE MOD_Particle_Vars,           ONLY:PartPosRef,PDM,PartState,PEM,PartPosGauss
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_DG_Vars,                 ONLY:U
-USE MOD_Particle_Vars!, ONLY: 
 USE MOD_PIC_Vars!,      ONLY: 
-USE MOD_PICInterpolation_Vars
+USE MOD_PICInterpolation_Vars,   ONLY:usecurvedExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
 USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
 #ifdef PP_POIS
@@ -435,6 +434,7 @@ USE MOD_PICInterpolation_Vars    ,ONLY:FileNameCurvedExternalField,CurvedExterna
   SWRITE(UNIT_stdOut,'(A,I4.0,A)')'Found', ncounts,' data points.'
   SWRITE(UNIT_stdOut,'(A)')'...CURVED EXTERNAL FIELD INITIALIZATION DONE'
 END SUBROUTINE read_curved_external_Field
+
 
 FUNCTION InterpolateCurvedExternalField(Pos)
 !===================================================================================================================================

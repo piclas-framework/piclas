@@ -65,7 +65,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !CHARACTER(LEN=40)                :: DefStr
+#ifdef PARTICLES
 INTEGER   :: dir, VeloDirs_hilf(4)
+#endif /*PARTICLES/*
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
   CALL abort(__STAMP__,'InitParticleAnalyse already called.',999,999.)
@@ -1665,7 +1667,7 @@ REAL,INTENT(IN)                :: time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: i,iunit,iPartState
-CHARACTER(LEN=60) :: TrackingFilename,hilf
+CHARACTER(LEN=60) :: TrackingFilename!,hilf
 LOGICAL            :: fexist
 !===================================================================================================================================
 
@@ -1722,6 +1724,7 @@ END IF
 104    FORMAT (e25.14)
 
 END SUBROUTINE TrackingParticlePosition
+
 
 Function CalcEkinPart(iPart) 
 !===================================================================================================================================

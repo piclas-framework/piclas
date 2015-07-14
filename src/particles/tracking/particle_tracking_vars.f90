@@ -17,7 +17,9 @@ LOGICAL                                 :: DoRefMapping                  ! track
 REAL                                    :: tTracking                     ! Tracking time
 REAL                                    :: tLocalization                 ! localization time
 INTEGER                                 :: nTracks                       ! number of tracked particles
-LOGICAL                                 :: MeassureTrackTime             ! switch, if tracking time is meassured
+LOGICAL                                 :: MeasureTrackTime             ! switch, if tracking time is measure
+LOGICAL                                 :: FastPeriodic                  ! moves the particle along whole periodic vector, 
+                                                                         ! neglecting possible reflexions
 !===================================================================================================================================
 
 

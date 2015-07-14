@@ -72,7 +72,7 @@ LOGICAL,INTENT(OUT)                      :: Check
 ! LOCAL VARIABLES
 INTEGER                                  :: ilocSide,flip,SideID
 REAL                                     :: PartTrajectory(1:3)
-REAL                                     :: vBary(1:3),lengthPartTrajectory,tmpPos(3),xNodes(1:3,1:4),tmpLastPartPos(1:3)
+REAL                                     :: lengthPartTrajectory,tmpPos(3),xNodes(1:3,1:4),tmpLastPartPos(1:3)
 LOGICAL                                  :: isHit
 REAL                                     :: alpha,eta,xi
 !===================================================================================================================================
@@ -160,9 +160,8 @@ REAL                                     :: n1(3),n2(3)
 INTEGER                                  :: nInterSections,iInter,p,q
 INTEGER                                  :: iClipIter,nXiClip,nEtaClip
 REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
-REAL                                     :: coeffA,locSideDistance
 INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID!,realInterID
-LOGICAL                                  :: foundInter,firstClip
+LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter
 !===================================================================================================================================
 
@@ -179,17 +178,6 @@ isHit=.FALSE.
 ! If side is flat, than check if particle vector is perpenticular to side. if true, then particle moves parallel to or in side
 IF(BoundingBoxIsEmpty(SideID))THEN
   IF(ABS(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID))).LT.epsilontol) RETURN
-!  coeffA=DOT_PRODUCT(SideNormVec(:,SideID),PartTrajectory)
-!  IF(ABS(coeffA).LT.epsilontol) RETURN
-!  !! interaction should be computed in last step
-!  locSideDistance=SideDistance(SideID)-DOT_PRODUCT(LastPartPos(iPart,1:3),SideNormVec(:,SideID))
-!  alpha=locSideDistance/coeffA
-!  IF((alpha.GT.lengthPartTrajectory).OR.(alpha.LT.-epsilontol))THEN
-!    alpha=-1.0
-!    RETURN
-!  END IF
-!
-!ELSE 
 END IF ! BoundingBoxIsEmpty
 
 
@@ -379,14 +367,14 @@ LOGICAL,INTENT(INOUT)                :: firstClip
 ! LOCAL VARIABLES
 REAL,DIMENSION(3,0:NGeo,0:NGeo)      :: ReducedBezierControlPoints
 REAL,DIMENSION(0:NGeo,0:NGeo)        :: BezierControlPoints1D
-REAL,DIMENSION(3)                    :: n1,n2,IntersectionVector
+REAL,DIMENSION(3)                    :: IntersectionVector
 REAL,DIMENSION(2)                    :: LineNormVec
 REAL                                 :: PatchDOF2D
 REAL                                 :: minmax(1:2,0:NGeo)
 REAL                                 :: BezierControlPoints2D_temp(2,0:NGeo,0:NGeo)
 REAL                                 :: BezierControlPoints2D_temp2(2,0:NGeo,0:NGeo)
-INTEGER                              :: p,q,idir,l,iDeCasteljau
-REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,x,y,alpha
+INTEGER                              :: p,q,l,iDeCasteljau
+REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,alpha
 REAL                                 :: ZeroDistance,ClipTolerance2
 LOGICAL                              :: DoXiClip,DoEtaClip,DoCheck
 INTEGER                              :: iClip
@@ -1183,14 +1171,12 @@ REAL,INTENT(OUT)                  :: alpha,xi,eta
 LOGICAL,INTENT(OUT)               :: isHit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                           :: forceInter
 REAL,DIMENSION(1:3)               :: P0,P1,P2
-REAL                              :: NormVec(1:3),locDistance,Inter1(1:3),Inter2(1:3)
+REAL                              :: Inter1(1:3)
 REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
 !REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
 REAL                              :: a1,a2,b1,b2,c1,c2
-REAL                              :: coeffA,nlength,locSideDistance,SideBasePoint(1:3)
-REAL                              :: xi1,xi2
+REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3)
 !INTEGER                           :: flip
 !===================================================================================================================================
 
@@ -1256,81 +1242,11 @@ ELSE
 END IF ! SidePeriodicType
 
 
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'a/l',alpha/lengthPartTrajectory
-!IF(MyRank.EQ.5 .AND. (iPart.EQ.8462 .AND. iter.GE.190) IPWRITE(UNIT_stdOut,*) 'a/l',alpha/lengthPartTrajectory
-!IF(alpha.GT.lengthPartTrajectory) THEN !.OR.(alpha.LT.-epsilontol))THEN
-!IF((alpha.GT.lengthPartTrajectory+epsilontol) .OR.(alpha.LT.-epsilontol))THEN
-!IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
 IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-100*epsMach*coeffA))THEN
   alpha=-1.0
   RETURN
 END IF
 
-!IF(alpha.LT.0.0) THEN
-!IF(PRESENT(DoTest)THEN
-!  IF(alpha.LT.-epsilontol) THEN
-!    IF(flip.EQ.0)THEN
-!      NormVec  =SideNormVec(1:3,SideID)
-!    ELSE
-!      NormVec  =-SideNormVec(1:3,SideID)
-!    END IF
-!    IF(DOT_PRODUCT(NormVec,PartTrajectory).GT.0.) THEN
-!      alpha=-1.0
-!      RETURN !alpha=1e-12
-!    END IF
-!    IF((DOT_PRODUCT(NormVec,PartTrajectory).GT.0.).AND.(ABS(alpha).LT.lengthPartTrajectory)) THEN
-!  END IF
-!ELSE
-!  IF(alpha.LT.-epsilontol) THEN
-!    alpha=-1.0
-!    RETURN !alpha=1e-12
-!  END IF
-!END IF
-!forceInter=.FALSE.
-!IF(alpha.LT.-epsilontol) THEN
-!  IF(flip.EQ.0)THEN
-!    NormVec  =SideNormVec(1:3,SideID)
-!  ELSE
-!    NormVec  =-SideNormVec(1:3,SideID)
-!  END IF
-!  IF(DOT_PRODUCT(NormVec,PartTrajectory).LE.0.) THEN
-!    alpha=-1.0
-!    RETURN !alpha=1e-12
-!!  ELSE 
-!!    CALL SingleParticleToExactElementNoMap(iPart)
-!!    alpha=-1.0
-!!    RETURN
-!    !forceInter=.TRUE.
-!!  ELSE
-!!    ForceInter=.TRUE.
-!!    IPWRITE(UNIT_stdOut,*) 'e-clip', iPart
-!  END IF
-!END IF
-
-!IF(iPart.EQ.288) IPWRITE(UNIT_stdOut,*) 'a/l',alpha/lengthPartTrajectory
-! algorithm fails in last test
-!IF(alpha.LT.0.0) alpha=1e-12
-
-! bilinear algorithm
-!BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
-!BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
-!BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &
-!BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
-! local system
-!BiLinearCoeff(:,2) =-xNodes(:,1)+xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
-!BiLinearCoeff(:,3) =-xNodes(:,1)-xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
-!BiLinearCoeff(:,4) = xNodes(:,1)+xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
-
-!! old
-!P1=0.25*(-locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)   &
-!         -locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )
-!
-!P2=0.25*(-locBezierControlPoints3D(:,0,0)-locBezierControlPoints3D(:,1,0)   &
-!         +locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )
-!
-!P0=0.25*(locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)    &
-!        +locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )  &
-!        -LastPartPos(iPart,1:3)-alpha*PartTrajectory
 
 
 P1=(-locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)   &
@@ -1348,15 +1264,6 @@ Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
 P0=0.25*P0-Inter1
 
 
-
-!IF((ABS(P1(1)).GE.ABS(P1(2))).AND.(ABS(P1(1)).GE.ABS(P1(3))))THEN
-!  
-!ELSE IF(ABS(P1(2)).GE.ABS(P1(3)))THEN
-!
-!ELSE
-!
-!END IF
-
 A1=P1(1)+P1(3)
 B1=P2(1)+P2(3)
 C1=P0(1)+P0(3)
@@ -1364,32 +1271,6 @@ C1=P0(1)+P0(3)
 A2=P1(2)+P1(3)
 B2=P2(2)+P2(3)
 C2=P0(2)+P0(3)
-
-!IF((ABS(P2(1)).GE.ABS(P2(2))).AND.(ABS(P2(1))).GE.ABS(P2(3)))THEN
-!  xi1= P1(2)-P2(2)/P2(1)*P1(1)
-!  xi2= P1(3)-P2(3)/P2(1)*P1(1)
-!  IF(ABS(xi1).GT.ABS(xi2))THEN
-!    xi=-(P0(2)-P2(2)/P2(1)*P0(1))/xi1
-!  ELSE
-!    xi=-(P0(3)-P2(3)/P2(1)*P0(1))/xi2
-!  END IF
-!ELSE IF(ABS(P2(2)).GE.ABS(P2(3)))THEN
-!  xi1= P1(1)-P2(1)/P2(2)*P1(2)
-!  xi2= P1(3)-P2(3)/P2(2)*P1(2)
-!  IF(ABS(xi1).GT.ABS(xi2))THEN
-!    xi=-(P0(1)-P2(1)/P2(2)*P0(2))/xi1
-!  ELSE
-!    xi=-(P0(3)-P2(3)/P2(2)*P0(2))/xi2
-!  END IF
-!ELSE
-!  xi1= P1(1)-P2(1)/P2(3)*P1(3)
-!  xi2= P1(2)-P2(2)/P2(3)*P1(3)
-!  IF(ABS(xi1).GT.ABS(xi2))THEN
-!    xi=-(P0(1)-P2(1)/P2(3)*P0(3))/xi1
-!  ELSE
-!    xi=-(P0(2)-P2(2)/P2(3)*P0(3))/xi2
-!  END IF
-!END IF
 
 
 IF(ABS(B1).GE.ABS(B2))THEN
@@ -1423,27 +1304,14 @@ ELSE
   END IF
 END IF
 
-!IF(iPart.EQ.238) IPWRITE(UNIT_stdOut,*) 'xi',xi
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'xi',xi
-!IF((ABS(xi).GT.ClipHit).AND.(.NOT.forceInter))THEN
 IF(ABS(xi).GT.ClipHit)THEN
 !IF(ABS(xi).GT.epsilonOne)THEN
   alpha=-1.0
   RETURN
 END IF
 
-!eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-!IF(ABS(B1).GT.epsilontol)THEN
-!  eta=(-A1*xi-C1)/B1
-!ELSE
-!  eta=(-A2*xi-C2)/B2
-!END IF
 eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'eta',eta
-!IF(iPart.EQ.238) IPWRITE(UNIT_stdOut,*) 'eta',eta
 IF(ABS(eta).GT.ClipHit)THEN
-!IF(ABS(xi).GT.epsilonOne)THEN
-!IF((ABS(eta).GT.ClipHit).AND.(.NOT.forceInter))THEN
   alpha=-1.0
   RETURN
 END IF
@@ -1487,14 +1355,12 @@ REAL,INTENT(OUT)                  :: alpha,xi,eta
 LOGICAL,INTENT(OUT)               :: isHit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                           :: forceInter
 REAL,DIMENSION(1:3)               :: P0,P1,P2
-REAL                              :: NormVec(1:3),locDistance,Inter1(1:3),Inter2(1:3)
+REAL                              :: NormVec(1:3),locDistance,Inter1(1:3)
 REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
 !REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
 REAL                              :: a1,a2,b1,b2,c1,c2
-REAL                              :: coeffA,nlength,locSideDistance,SideBasePoint(1:3)
-REAL                              :: xi1,xi2
+REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3)
 !INTEGER                           :: flip
 !===================================================================================================================================
 
@@ -1662,27 +1528,14 @@ ELSE
   END IF
 END IF
 
-!IF(iPart.EQ.238) IPWRITE(UNIT_stdOut,*) 'xi',xi
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'xi',xi
-!IF((ABS(xi).GT.ClipHit).AND.(.NOT.forceInter))THEN
 IF(ABS(xi).GT.ClipHit)THEN
 !IF(ABS(xi).GT.epsilonOne)THEN
   alpha=-1.0
   RETURN
 END IF
 
-!eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-!IF(ABS(B1).GT.epsilontol)THEN
-!  eta=(-A1*xi-C1)/B1
-!ELSE
-!  eta=(-A2*xi-C2)/B2
-!END IF
 eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'eta',eta
-!IF(iPart.EQ.238) IPWRITE(UNIT_stdOut,*) 'eta',eta
 IF(ABS(eta).GT.ClipHit)THEN
-!IF(ABS(xi).GT.epsilonOne)THEN
-!IF((ABS(eta).GT.ClipHit).AND.(.NOT.forceInter))THEN
   alpha=-1.0
   RETURN
 END IF
@@ -1722,8 +1575,7 @@ LOGICAL,INTENT(OUT)               :: isHit
 REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C
-REAL                              :: h1,h2,h3
-REAL                              :: xi(2),eta(2),t(2), q1(3)
+REAL                              :: xi(2),eta(2),t(2)
 INTEGER                           :: nInter,nRoot
 !===================================================================================================================================
 
@@ -1936,8 +1788,7 @@ LOGICAL,INTENT(OUT)               :: isHit
 REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C
-REAL                              :: h1,h2,h3
-REAL                              :: xi(2),eta(2),t(2), q1(3),xInter(3),normVec(3)
+REAL                              :: xi(2),eta(2),t(2), normVec(3)
 INTEGER                           :: nInter,nRoot
 !===================================================================================================================================
 

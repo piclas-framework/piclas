@@ -192,7 +192,6 @@ INTEGER,INTENT(IN)              :: tDeriv
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,i,j,k,iVar
 !===================================================================================================================================
 
 ! prolong the solution to the face integration points for flux computation

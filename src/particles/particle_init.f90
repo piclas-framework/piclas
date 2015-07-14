@@ -128,7 +128,7 @@ USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iSpec, iInit, iPartBound, iSeed,iSide
+INTEGER               :: iSpec, iInit, iPartBound, iSeed
 INTEGER               :: SeedSize, iPBC, iBC, iSwaps, iRegions, iExclude
 INTEGER               :: ALLOCSTAT
 CHARACTER(32)         :: hilf , hilf2, hilf3

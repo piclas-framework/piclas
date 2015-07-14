@@ -65,7 +65,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeassureTrackTime
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime
 USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL
 !USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
@@ -79,7 +79,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT
-INTEGER           :: iElem, ilocSide,SideID,flip,iSide
+INTEGER           :: iElem, ilocSide,SideID,flip
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -98,7 +98,7 @@ IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
 
 
 DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
-MeassureTrackTime = GETLOGICAL('MeassureTrackTime','.FALSE.')
+MeasureTrackTime = GETLOGICAL('MeasureTrackTime','.FALSE.')
 
 ! method from xPhysic to parameter space
 MappingGuess    = GETINT('MappingGuess','1')
@@ -230,7 +230,6 @@ LOGICAL,INTENT(IN)                :: doHalo
 ! LOCAL VARIABLES
 INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                           :: ilocSide,SideID,i
 LOGICAL                           :: InElementCheck,ParticleFound                                
 REAL                              :: xi(1:3),vBary(1:3)
 REAL,ALLOCATABLE                  :: Distance(:)
@@ -332,7 +331,7 @@ DEALLOCATE( Distance,ListDistance)
 END SUBROUTINE SingleParticleToExactElement
 
 
-SUBROUTINE SingleParticleToExactElementNoMap(iPart,doHALO,debug) 
+SUBROUTINE SingleParticleToExactElementNoMap(iPart,doHALO)
 !===================================================================================================================================
 ! this subroutine maps each particle to an element
 ! currently, a background mesh is used to find possible elements. if multiple elements are possible, the element with the smallest
@@ -356,7 +355,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)                :: iPart
 LOGICAL,INTENT(IN)                :: doHalo
-LOGICAL,INTENT(IN),OPTIONAL       :: debug
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -366,7 +364,7 @@ INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,Cel
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                           :: ilocSide,SideID,flip
 LOGICAL                           :: ParticleFound,isHit
-REAL                              :: vBary(1:3),lengthPartTrajectory,tmpPos(3),xNodes(1:3,1:4),tmpLastPartPos(1:3)
+REAL                              :: lengthPartTrajectory,tmpPos(3),xNodes(1:3,1:4),tmpLastPartPos(1:3)
 REAL,ALLOCATABLE                  :: Distance(:)
 INTEGER,ALLOCATABLE               :: ListDistance(:)
 REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
@@ -467,7 +465,6 @@ DO iBGMElem=1,nBGMElems
       IF((ABS(xi).GT.1.0).OR.(ABS(eta).GT.1.0)) locAlpha(ilocSide)=-1.0
     END IF
   END DO ! ilocSide
-  !IF((present(debug)).and.(ipart.eq.39)) print*,'blabla',locAlpha
   IF(ALMOSTEQUAL(MAXVAL(locAlpha(:)),-1.0))THEN
     ! no intersection found and particle is in final element
     PartState(iPart,1:3)=tmpPos
@@ -584,15 +581,15 @@ USE MOD_Particle_MPI_Vars,                  ONLY:NbrOfCases,casematrix
 !REAL                  :: localXmin,localXmax,localymin,localymax,localzmin,localzmax
 INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax
 REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
-INTEGER                          :: iSide,iBGM,jBGM,kBGM,SideID,iElem,ilocSide
+INTEGER                          :: iBGM,jBGM,kBGM,iElem!,ilocSide
 INTEGER                          :: BGMCellXmax,BGMCellXmin
 INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin
 INTEGER                          :: ALLOCSTAT
-INTEGER                          :: iSpec,iProc
+INTEGER                          :: iProc
 REAL                             :: deltaT
 #ifdef MPI
-INTEGER                          :: ii,jj,kk,i,j,k
+INTEGER                          :: ii,jj,kk,i,j
 INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
 INTEGER                          :: imin, imax, kmin, kmax, jmin, jmax
 INTEGER                          :: nPaddingCellsX, nPaddingCellsY, nPaddingCellsZ
@@ -1367,27 +1364,10 @@ USE MOD_Particle_MPI_Vars,                  ONLY:NbrOfCases,casematrix
 ! LOCAL VARIABLES
 INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax
 REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
-INTEGER                          :: iSide,iBGM,jBGM,kBGM,SideID,iElem,ilocSide
+INTEGER                          :: iBGM,jBGM,kBGM,SideID,iElem,ilocSide
 INTEGER                          :: BGMCellXmax,BGMCellXmin
 INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin
-INTEGER                          :: ALLOCSTAT
-INTEGER                          :: iSpec,iProc
-INTEGER                          :: ii,jj,kk,i,j,k
-INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
-INTEGER                          :: imin, imax, kmin, kmax, jmin, jmax
-INTEGER                          :: nPaddingCellsX, nPaddingCellsY, nPaddingCellsZ
-INTEGER                          :: nShapePaddingX, nShapePaddingY, nShapePaddingZ
-INTEGER                          :: NbrOfBGMCells(0:PartMPI%nProcs-1)
-INTEGER                          :: Displacement(1:PartMPI%nProcs)
-INTEGER, ALLOCATABLE             :: BGMCellsArray(:),CellProcNum(:,:,:)
-INTEGER, ALLOCATABLE             :: GlobalBGMCellsArray(:), ReducedBGMArray(:)
-INTEGER                          :: ReducedNbrOfBGMCells(0:PartMPI%nProcs-1)
-INTEGER, ALLOCATABLE             :: CellProcList(:,:,:,:)
-INTEGER                          :: tempproclist(0:PartMPI%nProcs-1)
-INTEGER                          :: Vec1(1:3), Vec2(1:3), Vec3(1:3)
-INTEGER                          :: ind, Shift(1:3), iCase
-INTEGER                          :: j_offset
 LOGICAL, ALLOCATABLE             :: ElementFound(:)
 !===================================================================================================================================
 
@@ -1863,9 +1843,7 @@ INTEGER,INTENT(OUT)                :: Element
 ! LOCAL VARIABLES
 INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                           :: ilocSide,SideID,i
-LOGICAL                           :: InElementCheck
-REAL                              :: xi(1:3),vBary(1:3)
+REAL                              :: xi(1:3)
 REAL,ALLOCATABLE                  :: Distance(:)
 INTEGER,ALLOCATABLE               :: ListDistance(:)
 !REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem

@@ -337,7 +337,7 @@ USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout,SurfMesh,SampWall
 USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues, WriteOutputMeshSamp
-USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeassureTrackTime
+USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
@@ -364,10 +364,12 @@ LOGICAL,INTENT(IN),OPTIONAL   :: LastIter
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iSampWallAlloc
 #ifdef PARTICLES
+INTEGER                       :: iSampWallAlloc
+#ifdef MPI
 INTEGER                       :: RECI
 REAL                          :: RECR
+#endif /*MPI*/
 #endif /*PARTICLES*/
 
 !===================================================================================================================================
@@ -513,7 +515,7 @@ END IF
 
 ! meassure tracking time for particles // no MPI barrier MPI Wall-time but local CPU time
 ! allows non-synchronous meassurement of particle tracking
-IF(OutPut .AND. MeassureTrackTime)THEN
+IF(OutPut .AND. MeasureTrackTime)THEN
 #ifdef MPI
   IF(MPIRoot) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,nTracks      , 1 ,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_WORLD,IERROR)

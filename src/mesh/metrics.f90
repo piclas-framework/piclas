@@ -90,7 +90,7 @@ REAL,INTENT(IN)    :: NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: i,j,k,q,iElem,iSide,lowerLimit
+INTEGER            :: i,j,k,q,iElem
 INTEGER            :: dd,ee,ff
 INTEGER            :: nn,mm,ll
 INTEGER            :: iGeo,jGeo,kGeo,lGeo
@@ -103,6 +103,9 @@ REAL               :: dXCL_N(3,3,0:PP_N,0:PP_N,0:PP_N)    !jacobi matrix interpo
 REAL               :: R_CL_N(3,3,0:PP_N,0:PP_N,0:PP_N)    ! buffer for metric terms, uses XCL_N,dXCL_N 
 REAL               :: JaCL_N(3,3,0:PP_N,0:PP_N,0:PP_N)    ! metric terms P\in N
 REAL               :: scaledJac(2)
+#ifdef PARTICLES
+INTEGER            :: iSide,lowerLimit
+#endif /*PARTICLES*/
 !===================================================================================================================================
 ALLOCATE(dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo,1:PP_nElems)) !jacobi matrix of the mapping P\in NGeo
 ! null outside!!

@@ -131,8 +131,11 @@ CALL InitializeVandermonde(N_in,NVisu_in,wBary,xGP,XiVisu,Vdm_GaussN_NVisu)
 END SUBROUTINE InitOutputBasis
 
 
-
+#ifdef PARTICLES
 SUBROUTINE Visualize(OutputTime)
+#else
+SUBROUTINE Visualize()
+#endif /*PARTICLES/*
 !===================================================================================================================================
 ! Simple visualization of conservative variables
 !===================================================================================================================================
@@ -154,13 +157,17 @@ USE MOD_Particle_Output_Vars, ONLY: WriteFieldsToVTK
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#ifdef PARTICLES
 REAL,INTENT(IN)               :: OutputTime
+#endif /*PARTICLES/*
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#ifdef PARTICLES
 INTEGER                       :: iElem
 REAL                          :: Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,1:PP_nElems)
 REAL                          :: U_NVisu(PP_nVar,0:NVisu,0:NVisu,0:NVisu,1:PP_nElems)
 CHARACTER(LEN=255)            :: FileString
+#endif /*PARTICLES/*
 CHARACTER(LEN=32),ALLOCATABLE :: VarNames(:) ! Output variable names
 !===================================================================================================================================
 IF(outputFormat.LE.0) RETURN

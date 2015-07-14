@@ -65,15 +65,9 @@ IMPLICIT NONE
 REAL,ALLOCATABLE  :: NodeCoords(:,:,:,:,:)
 REAL              :: x(3),PI,meshScale
 INTEGER           :: iElem,i,j,k
-
-
-INTEGER           :: iBC
 LOGICAL           :: debugmesh
 INTEGER           :: iSide,countSurfElem,iProc
 INTEGER,ALLOCATABLE :: countSurfElemMPI(:)
-REAL              :: A(3,3),detcon
-INTEGER           :: iLocSide,p,q,SideID
-INTEGER              :: iConcaveTriangle
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.',999,999.)

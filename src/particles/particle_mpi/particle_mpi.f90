@@ -263,9 +263,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart,ElemID,iPos,iProc,jPos
-INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
-INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
+INTEGER                       :: iPart,ElemID,iProc
 ! shape function 
 !INTEGER, ALLOCATABLE          :: shape_indices(:)
 !INTEGER                       :: CellX,CellY,CellZ, iPartShape
@@ -369,10 +367,10 @@ IMPLICIT NONE
 INTEGER                       :: iPart,ElemID,iPos,iProc,jPos
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
-! shape function 
-INTEGER, ALLOCATABLE          :: shape_indices(:)
-INTEGER                       :: CellX,CellY,CellZ, iPartShape
 INTEGER                       :: ALLOCSTAT
+! shape function 
+!INTEGER, ALLOCATABLE          :: shape_indices(:)
+!INTEGER                       :: CellX,CellY,CellZ, iPartShape
 !===================================================================================================================================
 
 ! ! 1) get number of send particles
@@ -1194,7 +1192,7 @@ REAL                            :: xCoords(3,8),lineVector(3),radius,height
 REAL                            :: xlen,ylen,zlen
 REAL                            :: dt
 INTEGER                         :: color,iProc
-INTEGER                         :: noInitRank,InitRank,MyInitRank
+INTEGER                         :: noInitRank,InitRank
 !INTEGER,ALLOCATABLE             :: DummyRank(:)
 LOGICAL                         :: hasRegion
 !===================================================================================================================================
@@ -1672,7 +1670,6 @@ INTEGER,INTENT(IN),OPTIONAL        :: nTotalBCSides
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                            :: ALLOCSTAT,nLower
 INTEGER                            :: iElem,iVar,iVar2,i,j,k
 INTEGER                            :: ilocSide,iSide
 !===================================================================================================================================

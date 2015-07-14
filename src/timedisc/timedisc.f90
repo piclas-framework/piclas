@@ -139,11 +139,11 @@ USE MOD_Filter,                ONLY: Filter
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 #ifdef PARTICLES
-USE MOD_PICDepo,               ONLY: Deposition, DepositionMPF
+USE MOD_PICDepo,               ONLY: Deposition!, DepositionMPF
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, Time, useManualTimestep, WriteMacroValues, MacroValSampTime
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeassureTrackTime
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,GEO,MaxwellIterNum,NextTimeStepAdjustmentIter
 USE MOD_Equation_Vars,         ONLY: c
@@ -225,7 +225,7 @@ CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
 
 ! if measurement of particle tracking time
 #ifdef PARTICLES
-IF(MeassureTrackTime)THEN
+IF(MeasureTrackTime)THEN
   nTracks=0
   tTracking=0
   tLocalization=0
@@ -509,8 +509,8 @@ USE MOD_DG,               ONLY: DGTimeDerivative_weakForm_Pois
 USE MOD_Equation_Vars,    ONLY: Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeassureTrackTime
-USE MOD_PICDepo,          ONLY: Deposition, DepositionMPF
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_PICDepo,          ONLY: Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY: InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY: PIC
 USE MOD_Particle_Vars,    ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF, & 
@@ -539,11 +539,13 @@ REAL,INTENT(INOUT)            :: t
 INTEGER(KIND=8),INTENT(INOUT) :: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart
+!INTEGER                       :: iPart
 REAL                          :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
 REAL                          :: U2t_temp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
 REAL                          :: tStage,b_dt(1:nRKStages)
+#ifdef PARTICLES
 REAL                          :: timeStart,timeEnd
+#endif /*PARTICLES*/
 #ifdef PP_POIS
 REAL                          :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif
@@ -559,9 +561,9 @@ iStage=1
 Time=t
 
 IF (t.GE.DelayTime) THEN
-  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
+  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   CALL ParticleInserting()
-  IF(MeassureTrackTime) THEN
+  IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
     tLocalization=tLocalization+TimeEnd-TimeStart
   END IF
@@ -653,13 +655,13 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 #ifdef MPI
   CALL IRecvNbofParticles()
 #endif /*MPI*/
-  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
+  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
     CALL ParticleTrackingCurved()
   END IF
-  IF(MeassureTrackTime) THEN
+  IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
     tTracking=tTracking+TimeEnd-TimeStart
   END IF
@@ -696,7 +698,7 @@ DO iStage=2,nRKStages
      PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
 !    IF (usevMPF) THEN 
-!      CALL DepositionMPF()
+!      CALL !DepositionMPF()
 !    ELSE 
 !      CALL Deposition()
 !    END IF
@@ -769,13 +771,13 @@ DO iStage=2,nRKStages
 #endif /*MPI*/
     ! actual tracking
 !    CALL ParticleTrackingCurved()
-    IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
+    IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
       CALL ParticleTrackingCurved()
     END IF
-    IF(MeassureTrackTime) THEN
+    IF(MeasureTrackTime) THEN
       CALL CPU_TIME(TimeEnd)
       tTracking=tTracking+TimeEnd-TimeStart
     END IF
@@ -1189,7 +1191,7 @@ USE MOD_DG,ONLY:DGTimeDerivative_weakForm_Pois
 USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
+USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos,Time, PEM, PDM, usevMPF, doParticleMerge, DelayTime, PartPressureCell
 USE MOD_part_RHS,         ONLY : CalcPartRHS
@@ -1229,11 +1231,11 @@ END DO
 
 !IF(t.EQ.0) CALL Deposition()
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-  IF (usevMPF) THEN 
-    CALL DepositionMPF()
-  ELSE 
+  !IF (usevMPF) THEN 
+  !  CALL DepositionMPF()
+  !ELSE 
     CALL Deposition()
-  END IF
+  !END IF
   !CALL CalcDepositedCharge()
 END IF
 
@@ -1428,7 +1430,7 @@ USE MOD_DG_Vars                 ,ONLY:U,Ut
 USE MOD_DG                      ,ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver,     ONLY : LinearSolver
 #ifdef PARTICLES
-USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
+USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY : PIC
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
@@ -1459,11 +1461,11 @@ Time = t
 IF (t.GE.DelayTime) CALL ParticleInserting()
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-  IF (usevMPF) THEN 
-    CALL DepositionMPF()
-  ELSE 
+!  IF (usevMPF) THEN 
+!    CALL DepositionMPF()
+!  ELSE 
     CALL Deposition()
-  END IF
+!  END IF
   !CALL CalcDepositedCharge()
 END IF
 
@@ -1525,7 +1527,7 @@ USE MOD_Equation,ONLY:DivCleaningDamping
 USE MOD_Equation,      ONLY: CalcSource
 USE MOD_LinearSolver,  ONLY : LinearSolver
 #ifdef PARTICLES
-USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
+USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY : PIC
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
@@ -1566,11 +1568,11 @@ Time = t
 IF (t.GE.DelayTime) CALL ParticleInserting()
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-    IF (usevMPF) THEN 
-      CALL DepositionMPF()
-    ELSE 
+!    IF (usevMPF) THEN 
+!      CALL DepositionMPF()
+!    ELSE 
       CALL Deposition()
-    END IF
+!    END IF
   !CALL CalcDepositedCharge()
 END IF
 
@@ -1677,7 +1679,7 @@ USE MOD_DG,               ONLY:DGTimeDerivative_weakForm_Pois
 USE MOD_Equation_Vars,    ONLY:Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
+USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, dt_maxwell, MaxwellIterNum, usevMPF
 USE MOD_part_RHS,         ONLY : CalcPartRHS
@@ -1712,11 +1714,11 @@ Time = t
 IF (t.GE.DelayTime) CALL ParticleInserting()
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-    IF (usevMPF) THEN 
-      CALL DepositionMPF()
-    ELSE 
+!    IF (usevMPF) THEN 
+!      CALL DepositionMPF()
+!    ELSE 
       CALL Deposition()
-    END IF
+    !END IF
   !CALL CalcDepositedCharge()
 END IF
 IF (t.GE.DelayTime) THEN
@@ -1834,7 +1836,7 @@ USE MOD_DG,ONLY:DGTimeDerivative_weakForm_Pois
 USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
+USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY : PIC
 USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, dt_maxwell, MaxwellIterNum, usevMPF
@@ -1870,11 +1872,11 @@ Time = t
 IF (t.GE.DelayTime) CALL ParticleInserting()
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-    IF (usevMPF) THEN 
-      CALL DepositionMPF()
-    ELSE 
+!    IF (usevMPF) THEN 
+!      CALL DepositionMPF()
+!    ELSE 
       CALL Deposition()
-    END IF
+!    END IF
   !CALL CalcDepositedCharge()
 END IF
 
@@ -1990,7 +1992,7 @@ USE MOD_LD_Vars,                ONLY:LD_RHS
 USE MOD_LD,                     ONLY:LD_main
 USE MOD_part_tools,             ONLY:UpdateNextFreePosition
 USE MOD_part_emission,          ONLY:ParticleInserting
-USE MOD_Particle_Tracking_Vars, ONLY:ntracks,tTracking,tLocalization,MeassureTrackTime
+USE MOD_Particle_Tracking_Vars, ONLY:ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_Particle_Tracking,      ONLY:ParticleRefTracking
 #ifdef MPI
 USE MOD_Particle_MPI,           ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfParticles
@@ -2030,9 +2032,9 @@ REAL                  :: timeStart, timeEnd
 #ifdef MPI
   CALL IRecvNbofParticles()
 #endif /*MPI*/
-  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
+  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   CALL ParticleRefTracking()
-  IF(MeassureTrackTime) THEN
+  IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
     tTracking=tTracking+TimeEnd-TimeStart
   END IF
@@ -2042,9 +2044,9 @@ REAL                  :: timeStart, timeEnd
   CALL MPIParticleRecv()
 #endif
 
-  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
+  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   CALL ParticleInserting()
-  IF(MeassureTrackTime) THEN
+  IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
     tLocalization=tLocalization+TimeEnd-TimeStart
   END IF
@@ -2072,7 +2074,7 @@ USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC_Vars,        ONLY : DSMC
 USE MOD_LD_DSMC_DOMAIN_DEC
-USE MOD_Particle_Tracking_Vars, ONLY:ntracks,tTracking,tLocalization,MeassureTrackTime
+USE MOD_Particle_Tracking_Vars, ONLY:ntracks,tTracking,tLocalization,MeasureTrackTime
 USE MOD_Particle_Tracking,      ONLY:ParticleRefTracking
 #endif
 #ifdef MPI
@@ -2133,9 +2135,9 @@ REAL,INTENT(IN)       :: t
 #ifdef MPI
   CALL IRecvNbofParticles()
 #endif /*MPI*/
-  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
+  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   CALL ParticleRefTracking()
-  IF(MeassureTrackTime) THEN
+  IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
     tTracking=tTracking+TimeEnd-TimeStart
   END IF
@@ -2147,9 +2149,9 @@ REAL,INTENT(IN)       :: t
 
   CALL LD_DSMC_Clean_Bufferregion
 
-  IF(MeassureTrackTime) CALL CPU_TIME(TimeStart)
+  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   CALL ParticleInserting()
-  IF(MeassureTrackTime) THEN
+  IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
     tLocalization=tLocalization+TimeEnd-TimeStart
   END IF

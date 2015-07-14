@@ -1100,6 +1100,7 @@ REAL FUNCTION CalcArea(iLocSide, Element)
   REAL                        :: Vector1(1:3), Vector2(1:3), Vector3(1:3)
 !===================================================================================================================================
 
+CalcArea=1.
 STOP
 !  xNod1 = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
 !  yNod1 = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))

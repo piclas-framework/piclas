@@ -205,7 +205,6 @@ INTEGER,PARAMETER        :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE         :: PartData(:,:)
 REAL                     :: xi(3)
 LOGICAL                  :: InElementCheck
-REAL                     :: det(16)
 INTEGER                  :: COUNTER, COUNTER2
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)

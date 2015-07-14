@@ -86,7 +86,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iElem,ilocSide,SideID,flip,tmp,allocstat,iSide,iBCSide
+INTEGER                         :: tmp,iSide!,iBCSide
 CHARACTER(LEN=2)                :: dummy                         
 !===================================================================================================================================
 
@@ -543,7 +543,7 @@ REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: lastSideID,flip,SideID
+INTEGER                           :: lastSideID,SideID
 INTEGER                           :: p,q
 REAL                              :: tmp(3,0:NGeo,0:NGeo)  
 
@@ -1118,7 +1118,7 @@ INTEGER                     :: nSideCount, BCSideID, BCSideID2, s,r
 INTEGER,ALLOCATABLE         :: SideIndex(:)
 REAL,DIMENSION(1:3)         :: v1,v2,NodeX
 REAL                        :: length,eps
-LOGICAL                     :: isLinear,isOwnSide,leave
+LOGICAL                     :: isLinear,leave
 #ifdef MPI  
 INTEGER                     :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
 #endif /*MPI*/
@@ -1401,7 +1401,7 @@ IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy
-REAL,DIMENSION(1:3)         :: v1,v2,v0
+REAL,DIMENSION(1:3)         :: v1,v2
 REAL                        :: length,eps
 LOGICAL                     :: isLinear
 #ifdef MPI  

@@ -66,11 +66,11 @@ SUBROUTINE ParticlePressureIni()
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                 :: BN(3), BV1(3), BV2(3), BV3(3), SV1(3), SV2(3), OV(3), epsi
-  REAL                 :: det1, det2, det3, RandVal(2), dist1, dist2, dete(6,2), xi(3)
+  REAL                 :: BN(3), BV1(3), BV2(3), BV3(3), OV(3), epsi
+  REAL                 :: det1, det2, det3, RandVal(2), dist1, dist2, xi(3)
   INTEGER, ALLOCATABLE :: TempElemTotalInside(:), TempElemPartlyInside(:)
-  INTEGER              :: nNodesInside, nBoundNodes, nInterest, nInterOld, Element, Side, ExamElem
-  INTEGER              :: iShot, iElem, iNode, iSpec, iInit, iSide,iElem2
+  INTEGER              :: nNodesInside, nBoundNodes, nInterest, nInterOld, Element, ExamElem
+  INTEGER              :: iShot, iElem, iSpec, iInit, iElem2
   INTEGER              :: iLocSide,SideID,locSideID
   INTEGER              :: i,j,k
   LOGICAL              :: InElementCheck,Marked
@@ -196,7 +196,6 @@ SUBROUTINE ParticlePressureIni()
           ! If no Element has been found, search for Basepoint ========================================
           IF ((Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside .EQ. 0) .AND. &
                (Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside .EQ. 0)) THEN
-            !CALL PointInsideQuad3D(iSpec,iInit,Element,InElementCheck,dete)
             CALL PointToExactElement(Species(iSpec)%Init(iInit)%BasePointIC,Element,InElementCheck,doHalo=.FALSE.)
             IF (InElementCheck) THEN
               Species(iSpec)%Init(iInit)%ConstPress%ElemStat(Element) = 2
@@ -439,7 +438,6 @@ SUBROUTINE ParticlePressureIni()
           ! If no Element has been found, search for Basepoint ========================================
           IF ((Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside .EQ. 0) .AND. &
                (Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside .EQ. 0)) THEN
-            !CALL PointInsideQuad3D(iSpec,iInit,Element,InElementCheck,dete)
             CALL PointToExactElement(Species(iSpec)%Init(iInit)%BasePointIC,Element,InElementCheck,doHalo=.FALSE.)
             IF (InElementCheck) THEN
               Species(iSpec)%Init(iInit)%ConstPress%ElemStat(Element) = 2
@@ -647,11 +645,11 @@ SUBROUTINE ParticlePressureCellIni()
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                 :: BN(3), BV1(3), BV2(3), BV3(3), SV1(3), SV2(3), OV(3), epsi,XI(3)
-  REAL                 :: det1, det2, det3, RandVal(2), dist1, dist2, dete(6,2)
+  REAL                 :: BN(3), BV1(3), BV2(3), BV3(3), OV(3), epsi,XI(3)
+  REAL                 :: det1, det2, det3, RandVal(2), dist1, dist2
   INTEGER, ALLOCATABLE :: TempElemTotalInside(:), TempElemPartlyInside(:)
-  INTEGER              :: nNodesInside, nBoundNodes, nInterest, nInterOld, Element, Side, ExamElem
-  INTEGER              :: iShot, iElem, iNode, iSpec, iInit, iSide, iElem2
+  INTEGER              :: nNodesInside, nBoundNodes, nInterest, nInterOld, Element, ExamElem
+  INTEGER              :: iShot, iElem, iSpec, iInit, iElem2
   INTEGER              :: iLocSide,SideID,locSideID
   INTEGER              :: i,j,k
   LOGICAL              :: InElementCheck,Marked
@@ -773,7 +771,6 @@ SUBROUTINE ParticlePressureCellIni()
           ! If no Element has been found, search for Basepoint ========================================
           IF ((Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside .EQ. 0) .AND. &
                (Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside .EQ. 0)) THEN
-            !CALL PointInsideQuad3D(iSpec,iInit,Element,InElementCheck,dete)
             CALL PointToExactElement(Species(iSpec)%Init(iInit)%BasePointIC,Element,InElementCheck,doHalo=.FALSE.)
             IF (InElementCheck) THEN
               Species(iSpec)%Init(iInit)%ConstPress%ElemStat(Element) = 2
@@ -1015,7 +1012,6 @@ SUBROUTINE ParticlePressureCellIni()
           ! If no Element has been found, search for Basepoint ========================================
           IF ((Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside .EQ. 0) .AND. &
                (Species(iSpec)%Init(iInit)%ConstPress%nElemPartlyInside .EQ. 0)) THEN
-            !CALL PointInsideQuad3D(iSpec,iInit,Element,InElementCheck,dete)
             CALL PointToExactElement(Species(iSpec)%Init(iInit)%BasePointIC,Element,InElementCheck,doHalo=.FALSE.)
             IF (InElementCheck) THEN
               Species(iSpec)%Init(iInit)%ConstPress%ElemStat(Element) = 2

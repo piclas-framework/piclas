@@ -2169,11 +2169,10 @@ INTEGER,INTENT(IN)    :: iSpec, iInit
 INTEGER,INTENT(OUT)   :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, Elem, iPart, i, NbrPartsInCell, iNode, NbrNewParts
+INTEGER               :: iElem, Elem, iPart, i, NbrPartsInCell, NbrNewParts
 INTEGER               :: ParticleIndexNbr
-REAL                  :: PartDiff, PartDiffRest, RandVal, RandVal3(1:3), P(1:3,1:8)
+REAL                  :: PartDiff, PartDiffRest, RandVal, RandVal3(1:3)
 INTEGER, ALLOCATABLE  :: PartsInCell(:)
-LOGICAL               :: InElementCheck
 !===================================================================================================================================
 
 NbrOfParticle = 0
@@ -2263,11 +2262,10 @@ INTEGER,INTENT(IN)            :: iSpec, iInit
 INTEGER,INTENT(OUT)           :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem, Elem, iPart, i, NbrPartsInCell, iNode, distnum
+INTEGER                       :: iElem, Elem, iPart, i, NbrPartsInCell,  distnum
 INTEGER                       :: ParticleIndexNbr
-REAL                          :: RandVal3(1:3), P(1:3,1:8)
+REAL                          :: RandVal3(1:3)
 INTEGER, ALLOCATABLE          :: PartsInCell(:)
-LOGICAL                       :: InElementCheck
 REAL                          :: Velo1, Velo2, Velosq, v_sum(3), v2_sum, maxwellfac
 REAL                          :: Vec3D(3), RandVal3D(3)
 !===================================================================================================================================
@@ -2300,10 +2298,6 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
   DEALLOCATE(PartsInCell)
   ! step 3: add new particles
   IF(NbrPartsInCell.GT.0) THEN
-    !! Build array for element nodes
-    !DO iNode = 1,8
-    !  P(1:3,iNode) = GEO%NodeCoords(1:3,GEO%ElemToNodeID(iNode,Elem))
-    !END DO
     ! insert particles (positions and velocities)
     v_sum(1:3) = 0.0
     v2_sum = 0.0

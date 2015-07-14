@@ -66,11 +66,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,ElemID,flip
-INTEGER                       :: ilocSide,SideID,iIntersect, locSideList(1:6), hitlocSide,nInterSections,nLoc
+INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections,nLoc
 LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6)
 !INTEGER                       :: lastlocSide
-REAL                          :: oldXIntersection(1:3),distance,helpVec(1:3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
 !===================================================================================================================================
 
@@ -197,7 +196,7 @@ DO iPart=1,PDM%ParticleVecLength
         !print*,'old elem',ElemID
         !print*,'ipart,loc',ipart,localpha
         PEM%Element(iPart)=ElemID
-        IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,debug=.TRUE.)
+        IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)!debug=.TRUE.)
 !        print*,'new elem',PEM%Element(ipart)
         PartIsDone=.TRUE.
         IF(.NOT.PDM%ParticleInside(iPart))THEN
@@ -257,11 +256,10 @@ LOGICAL,INTENT(INOUT)         :: PartisDone
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ilocSide,SideID,iIntersect, locSideList(firstSide:lastSide), hitlocSide,CheckSideID!,nlocSides
+INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide), hitlocSide
 LOGICAL                       :: dolocSide(firstSide:lastSide),ishit
 REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
-INTEGER                       :: lastlocSide,nInter,flip,BCSideID
-REAL                          :: oldXIntersection(1:3),distance
+INTEGER                       :: nInter,flip,BCSideID
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
 !===================================================================================================================================
 
@@ -372,13 +370,13 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iPart, ElemID,oldElemID,iElem, newElemID,ilocSide
+INTEGER                     :: iPart, ElemID,oldElemID,iElem, newElemID
 INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems,nLocSides
 REAL,ALLOCATABLE            :: Distance(:)
 REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne
 INTEGER,ALLOCATABLE         :: ListDistance(:)
 !REAL                        :: epsOne
-LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength),CheckNeighbor(6)
+LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength)
 !===================================================================================================================================
 
 !epsOne=1.0+epsInCell
@@ -683,7 +681,6 @@ INTEGER,INTENT(IN)              :: PartID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: PeriodicVector(3)
 INTEGER                         :: iPV
 !===================================================================================================================================
 

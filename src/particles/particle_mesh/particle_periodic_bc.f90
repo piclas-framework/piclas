@@ -128,7 +128,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER             :: iElem,ilocSide,SideID,flip,iSide,ElemID,locSideID
+INTEGER             :: iElem,flip,iSide,ElemID,locSideID
 INTEGER             :: iPV,iDisplace,nDisplacement
 INTEGER             :: nLocalSides
 REAL                :: v1(3),v2(3),nVec(3)

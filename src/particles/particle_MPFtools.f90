@@ -671,7 +671,7 @@ SUBROUTINE SetMPFParticlePosCube(iElem, FinPartNum)
   INTEGER, INTENT(IN)   :: iElem, FinPartNum
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration
-  INTEGER               :: iLoop, x_cube, y_cube, z_cube, iNode, iLoop2
+  INTEGER               :: iLoop, x_cube, y_cube, z_cube, iLoop2
   REAL                  :: RandVac(3), ProbPos,  iRan
 !===================================================================================================================================
 
@@ -725,7 +725,7 @@ INTEGER, INTENT(IN)   :: iElem, FinPartNum, SpecNum
 LOGICAL , INTENT(INOUT)             :: PosFailed
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration
-INTEGER               :: iLoop, iNode, iLoop2, NumLoop
+INTEGER               :: iLoop,  iLoop2, NumLoop
 REAL                  :: RandVac(3), ProbPos,  iRan,  bandwidth, MaxProb, MaxProbtemp
 
 !===================================================================================================================================
