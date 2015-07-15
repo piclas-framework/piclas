@@ -437,14 +437,10 @@ CHARACTER(LEN=*),INTENT(IN),OPTIONAL   :: IniFile                    ! Name of i
 ! LOCAL VARIABLES 
 TYPE(tString),POINTER                       :: Str1=>NULL(),Str2=>NULL()
 CHARACTER(LEN=255)                          :: HelpStr,Str
-CHARACTER(LEN=300)                          :: File
-#ifdef PARTICLES
-CHARACTER(LEN=300)                          :: DSMCFile
-CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent2
-#endif /*PARTICLES/*
+CHARACTER(LEN=300)                          :: File, DSMCFile
 TYPE(Varying_String)                        :: aStr,bStr,Separator
 INTEGER                                     :: stat,iniUnit,nLines,i
-CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent
+CHARACTER(LEN=100),DIMENSION(:),ALLOCATABLE :: FileContent,FileContent2
 CHARACTER(LEN=1)                            :: tmpChar=''
 !===================================================================================================================================
 ! Check if we have read in ini file already
