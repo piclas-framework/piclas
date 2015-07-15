@@ -24,7 +24,7 @@ INTERFACE BuildLegendreVdm
    MODULE PROCEDURE BuildLegendreVdm
 END INTERFACE
 
-#ifdef PARTICLES
+!#ifdef PARTICLES
 INTERFACE BuildBezierVdm
    MODULE PROCEDURE BuildBezierVdm
 END INTERFACE
@@ -40,7 +40,7 @@ END INTERFACE
 INTERFACE BuildBernSteinVdm
    MODULE PROCEDURE BuildBernSteinVdm
 END INTERFACE
-#endif /*PARTICLES*/
+!#endif /*PARTICLES*/
 
 INTERFACE InitializeVandermonde
    MODULE PROCEDURE InitializeVandermonde
@@ -76,12 +76,12 @@ END INTERFACE
 
 PUBLIC::INV
 PUBLIC::BuildLegendreVdm
-#ifdef PARTICLES
+!#ifdef PARTICLES
 PUBLIC::BuildBezierVdm
 PUBLIC::DeCasteljauInterpolation
 PUBLIC::BernSteinPolynomial
 PUBLIC::BuildBernSteinVdm
-#endif /*PARTICLES*/
+!#endif /*PARTICLES*/
 PUBLIC::InitializeVandermonde
 PUBLIC::LegGaussLobNodesAndWeights
 PUBLIC::LegendreGaussNodesAndWeights
@@ -140,7 +140,7 @@ IF(info.NE.0)THEN
 END IF
 END FUNCTION INV
 
-#ifdef PARTICLES
+!#ifdef PARTICLES
 SUBROUTINE BuildBernSteinVdm(N_In) !,xi_In)
 !===================================================================================================================================
 ! required for deposition
@@ -361,7 +361,7 @@ ELSE
 END IF
 
 END SUBROUTINE BernsteinPolynomial
-#endif /*PARTICLES*/
+!#endif /*PARTICLES*/
 
 
 SUBROUTINE buildLegendreVdm(N_In,xi_In,Vdm_Leg,sVdm_Leg)

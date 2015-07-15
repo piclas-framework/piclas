@@ -17,7 +17,7 @@ INTERFACE FinalizeParticleAnalyze
   MODULE PROCEDURE FinalizeParticleAnalyze
 END INTERFACE
 
-#ifdef PARTICLES
+!#ifdef PARTICLES
 INTERFACE AnalyzeParticles
   MODULE PROCEDURE AnalyzeParticles
 END INTERFACE
@@ -33,15 +33,15 @@ END INTERFACE
 INTERFACE CalcEkinPart
   MODULE PROCEDURE CalcEkinPart
 END INTERFACE
-#endif /*PARTICLES*/
+!#endif /*PARTICLES*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-#ifdef PARTICLES
+!#ifdef PARTICLES
 PUBLIC:: CalcKineticEnergy, CalcEkinPart,AnalyzeParticles
 #if (PP_TimeDiscMethod == 42)
 PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
-#endif /*PARTICLES*/
+!#endif /*PARTICLES*/
 !===================================================================================================================================
 
 CONTAINS
@@ -55,9 +55,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  !,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin, CalcEpot, DoAnalyze
 USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY
-#ifdef PARTICLES
+!#ifdef PARTICLES
 USE MOD_Particle_Vars           ,ONLY: nSpecies
-#endif /*PARTICLES*/
+!#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -65,9 +65,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !CHARACTER(LEN=40)                :: DefStr
-#ifdef PARTICLES
+!#ifdef PARTICLES
 INTEGER   :: dir, VeloDirs_hilf(4)
-#endif /*PARTICLES/*
+!#endif /*PARTICLES/*
 !===================================================================================================================================
 IF (ParticleAnalyzeInitIsDone) THEN
   CALL abort(__STAMP__,'InitParticleAnalyse already called.',999,999.)
@@ -82,7 +82,7 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
 DoAnalyze = .FALSE.
 CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
 IF(CalcEpot) DoAnalyze = .TRUE.
-#ifdef PARTICLES
+!#ifdef PARTICLES
   CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
   IF(CalcCharge) DoAnalyze = .TRUE. 
   CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
@@ -147,7 +147,7 @@ IF(CalcEpot) DoAnalyze = .TRUE.
 
     END SELECT
   END IF
-#endif /*PARTICLES*/
+!#endif /*PARTICLES*/
 
 
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
@@ -159,7 +159,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleAnalyze
 
 
-#ifdef PARTICLES
+!#ifdef PARTICLES
 SUBROUTINE AnalyzeParticles(Time)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -544,11 +544,11 @@ IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed in the file but directly in "out"
 
 #ifdef MPI
-#ifdef PARTICLES
+!#ifdef PARTICLES
  IF (PartMPI%MPIROOT) THEN
 #else
  IF(MPIROOT)THEN
-#endif /*PARTICLES*/
+!#endif /*PARTICLES*/
 #endif    /* MPI */
    WRITE(unit_index,104,ADVANCE='NO') Time
    IF (CalcNumSpec) THEN
@@ -1772,7 +1772,7 @@ ELSE ! novMPF
 END IF ! usevMPF
 CalcEkinPart=Ekin
 END FUNCTION CalcEkinPart
-#endif /*PARTICLES*/
+!#endif /*PARTICLES*/
  
 SUBROUTINE FinalizeParticleAnalyze()
 !===================================================================================================================================

@@ -15,7 +15,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
-#ifdef PARTICLES
+!#ifdef PARTICLES
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
 INTERFACE eval_xyz_curved
@@ -36,12 +36,12 @@ END INTERFACE
 
 
 PUBLIC :: eval_xyz_curved,eval_xyz_elemcheck, eval_xyz_part2,eval_xyz_poly
-#endif /*PARTICLES*/
+!#endif /*PARTICLES*/
 !===================================================================================================================================
 
 CONTAINS
 
-#ifdef PARTICLES
+!#ifdef PARTICLES
 SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,X3D_In,X3D_Out,iElem,PartID)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
@@ -754,6 +754,6 @@ REAL             :: LimitXi(3)
 LimitXi=MAX(MIN(1.0d0,XI),-1.0d0)
 
 END FUNCTION LimitXi 
-#endif /*PARTICLES*/
+!#endif /*PARTICLES*/
 
 END MODULE MOD_Eval_xyz

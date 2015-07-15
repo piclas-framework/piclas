@@ -19,11 +19,8 @@ ifeq ($(EQNSYS),maxwell_pois)
 endif
 SRC_RAW = $(shell cat $(SRCFILE))
 SRC     = $(subst $$(EQNSYS),$(EQNSYS),$(SRC_RAW))
-DEPEX = $(shell ls `cat depexceptions.mk`)
 
-SRCPP = $(SRC:.f90=.i90)
-OBJ   = $(SRC:.f90=.o)
-SRCS  = $(SRC:.f90=.s)
+OBJ = $(SRC:.f90=.o)
 
 all: preproc builddeps
 	$(MAKE) $(BOLTZPLATZ_LIB)
@@ -66,30 +63,7 @@ builddeps:
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 	@echo ' BUILD DEPLIST...'
 	@echo '----------------------------------------------------------------------------------------'
-	@ if [ ! -f srcfiles_preproc.mk ] || [ ! -f deplist.mk ] ; then \
-	  if echo "$(PREPROC)" | grep -q "DCRAY" ; then \
-	    $(FC) $(FPRE) $(PREPROC) -I . $(INCDIRS) boltzplatz.f90 ; \
-	  else \
-	    $(FC) $(FPRE) $(PREPROC) -I . $(INCDIRS) boltzplatz.f90 $(PREOUT) boltzplatz.i90 ; \
-	  fi ; \
-	  echo '   APPLY PREPROCESSOR DIRECTIVES...' ; \
-	  for file in $(SRC) ; \
-	  do \
-	    outfile=$$(echo $$file | sed s/f90/i90/) ; \
-	    if echo "$(PREPROC)" | grep -q "DCRAY" ; then \
-	      $(FC) $(FPRE) $(PREPROC) -I . $(INCDIRS) $$file ; \
-        locfile=$$(echo $$(basename $$file) | sed s/f90/i/) ; \
-	  		mv $$locfile $$outfile ; \
-	  	else \
-	      $(FC) $(FPRE) $(PREPROC) -I . $(INCDIRS) $$file $(PREOUT) $$outfile ; \
-	  	fi ; \
-	  done ; \
-	  echo '   CREATE DEPLIST...' ; \
-	  echo $(SRCPP) | sed -e 's/ /\n/g' > srcfiles_preproc.mk ; \
-	  python ../tools/builddeps --source=srcfiles_preproc.mk deplist.mk --exceptions=depexclude.mk ; \
-	else \
-	  echo '   DEPLIST IS LEFT UNCHANGED' ; \
-	fi
+	@python ../tools/builddeps --target=$(EQNSYS) --source=$(SRCFILE) deplist.mk
 	@echo '----------------------------------------------------------------------------------------'
 	@echo ' BUILD DEPLIST FINISHED!'
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -112,10 +86,7 @@ include deplist.mk
 .PHONY: clean veryclean
 
 clean:
-	rm -f $(OBJ) $(SRCS) *.mod boltzplatz.o boltzplatz.i90
-	rm -f $(SRCPP) boltzplatz.i90
+	rm -f $(OBJ) *.mod boltzplatz.o *.o
 
 veryclean: clean
-	rm deplist.mk srcfiles_preproc.mk
-	rm -f $(SRCPP) boltzplatz.i90
-	rm -f *~ */*~ */*/*~
+	rm -f *~ */*~
