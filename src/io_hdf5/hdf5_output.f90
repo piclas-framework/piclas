@@ -325,7 +325,7 @@ INTEGER,ALLOCATABLE            :: PartInt(:,:)
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-INTEGER                        :: minnParts
+!INTEGER                        :: minnParts
 !=============================================
 ! Write properties -----------------------------------------------------------------------------------------------------------------
 ! Open dataset
@@ -392,11 +392,11 @@ INTEGER                        :: minnParts
   !  END DO
   !END IF
   LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-  CALL MPI_ALLREDUCE(locnPart, minnParts, 1, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, IERROR)
+!  CALL MPI_ALLREDUCE(locnPart, minnParts, 1, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, IERROR)
 #else
   offsetnPart=0
   nPart_glob=locnPart
-  minnParts=locnPart
+!  minnParts=locnPart
 #endif
   ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
   ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
@@ -627,7 +627,7 @@ INTEGER                        :: minnParts
   CALL OpenDataFile(FileName,create=.FALSE.)
 #endif
   CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',PartDataSize,StrArray=StrVarNames)
-  SWRITE(*,*) 'minnparts',minnparts
+!  SWRITE(*,*) 'minnparts',minnparts
   !IF(minnParts.EQ.0)THEN
   !  CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
   !                        nValGlobal=(/nPart_glob,PartDataSize/),&
@@ -635,11 +635,11 @@ INTEGER                        :: minnParts
   !                        offset=    (/offsetnPart , 0  /),&
   !                        collective=.FALSE., existing=.FALSE., RealArray=PartData)
   !ELSE
-    CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
-                            nValGlobal=(/nPart_glob,PartDataSize/),&
-                            nVal=      (/locnPart,PartDataSize  /),&
-                            offset=    (/offsetnPart , 0  /),&
-                            collective=.TRUE., existing=.FALSE., RealArray=PartData)
+  CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
+                          nValGlobal=(/nPart_glob,PartDataSize/),&
+                          nVal=      (/locnPart,PartDataSize  /),&
+                          offset=    (/offsetnPart , 0  /),&
+                          collective=.TRUE., existing=.FALSE., RealArray=PartData)
   !END IF
 
   CALL CloseDataFile()

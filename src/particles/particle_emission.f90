@@ -1665,7 +1665,7 @@ SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle,Is_BGGas_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_Timedisc_Vars, ONLY : dt
-USE MOD_Equation_Vars, ONLY : c
+USE MOD_Equation_Vars, ONLY : c,c2
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 ! IMPLICIT VARIABLE HANDLING
@@ -1688,6 +1688,8 @@ REAL                             :: r1,r2,x_1,x_2,y_1,y_2,a,b,e,g,x_01,x_02,y_01
 REAL                             :: Velosq, v_sum(3), v2_sum, maxwellfac
 LOGICAL                          :: Is_BGGas
 REAL                             :: sigma(3), ftl, PartVelo 
+! Maxwell-Juettner
+REAL                             :: eps, anta, BesselK2, famm, gamm_k, max_val, qq, u_max, value, velabs, xixi, f_gamm
 !===================================================================================================================================
 
 IF (PRESENT(Is_BGGas_opt)) THEN
@@ -1951,6 +1953,90 @@ CASE('maxwell')
      END IF
      i = i + 1
   END DO
+  
+CASE('maxwell-juettner')
+  xixi = Species(FractNbr)%MassIC*c2/ &
+         (BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC)
+  BesselK2 = BessK(2,xixi)
+  
+  ! Find initial value for Newton Algorithm
+  IF (xixi .LT. 4.d0) THEN
+    gamm_k = 5.d0 * BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/ &
+                    (Species(FractNbr)%MassIC*c2)
+  ELSE
+    gamm_k = 1.d0 + BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/ &
+                    (Species(FractNbr)%MassIC*c2)
+  END IF  
+  f_gamm = DEVI(Species(FractNbr)%MassIC, Species(FractNbr)%Init(iInit)%MWTemperatureIC, gamm_k)
+  
+  ! Newton Algorithm to find maximum value of distribution function
+  ! (valid for both the relativistic and quasi relativistic distribution)
+  i = 0
+  eps=1e-8
+  DO WHILE (abs(f_gamm) .GT. eps )
+    i = i+1
+    gamm_k = gamm_k - f_gamm/(xixi*(3._8*gamm_k**2._8-1._8)-10._8*gamm_k)
+    f_gamm = DEVI(Species(FractNbr)%MassIC, Species(FractNbr)%Init(iInit)%MWTemperatureIC, gamm_k)
+    IF(i.EQ.101) &
+          CALL abort(__STAMP__,&
+           ' Newton Algorithm to find maximum value of Maxwell-Juettner distribution has not been successfull!')
+  END DO
+  
+  u_max = sqrt(1.d0-1.d0/(gamm_k*gamm_k))*c
+  IF (xixi .LT. 692.5_8) THEN                  ! due to numerical precision
+        max_val = SYNGE(u_max, Species(FractNbr)%Init(iInit)%MWTemperatureIC, &
+                              Species(FractNbr)%MassIC, BesselK2)
+      ELSE 
+        max_val = QUASIREL(u_max, Species(FractNbr)%Init(iInit)%MWTemperatureIC, &
+                                 Species(FractNbr)%MassIC)
+      END IF
+  
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    anta  = 1._8
+    value = 0._8
+    
+    ! acception rejection method for velocity's absolute value
+    DO WHILE (anta .GT. value)
+      CALL RANDOM_NUMBER(velabs)
+      CALL RANDOM_NUMBER(anta)
+      velabs = velabs*c
+      anta = anta*max_val
+      IF (xixi .LT. 692.5_8) THEN
+        value = SYNGE(velabs, Species(FractNbr)%Init(iInit)%MWTemperatureIC, &
+                              Species(FractNbr)%MassIC, BesselK2)
+      ELSE 
+        value = QUASIREL(velabs, Species(FractNbr)%Init(iInit)%MWTemperatureIC, &
+                                 Species(FractNbr)%MassIC)
+      END IF
+    END DO
+    
+    ! polar method for velocity's x&y direction
+    ! (required to generate elliptical random distribution)
+    qq = 2._8
+    DO WHILE ((qq .GT. 1._8) .OR. (qq .EQ. 0._8))
+      CALL RANDOM_NUMBER(RandVal)
+      RandVal = 2._8*RandVal-1._8
+      qq = RandVal(1)*RandVal(1) + RandVal(2)*RandVal(2)
+    END DO
+    qq = sqrt(-2._8*log(qq)/qq)
+    Vec3D(1) = RandVal(1)*qq*Species(FractNbr)%Init(iInit)%MJxRatio
+    Vec3D(2) = RandVal(2)*qq*Species(FractNbr)%Init(iInit)%MJyRatio
+    
+    ! polar method for velocity's z direction
+    qq = 2._8
+    DO WHILE ((qq .GT. 1._8) .OR. (qq .EQ. 0._8))
+      CALL RANDOM_NUMBER(RandVal)
+      RandVal(:) = 2*RandVal(:)-1._8
+      qq = RandVal(1)*RandVal(1) + RandVal(2)*RandVal(2)
+    END DO
+    qq = sqrt(-2._8*log(qq)/qq)
+    Vec3D(3) = RandVal(1)*qq*Species(FractNbr)%Init(iInit)%MJzRatio
+    
+    Velosq  = sqrt(Vec3D(1)*Vec3D(1)+Vec3D(2)*Vec3D(2)+Vec3D(3)*Vec3D(3))
+    PartState(PositionNbr,4:6) = velabs/Velosq*Vec3D
+  END DO
+
 
 CASE('weibel')
   v_sum(:)  = 0.0
@@ -2617,5 +2703,213 @@ DO iExclude=1,Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions
 END DO
 
 END SUBROUTINE InsideExcludeRegionCheck
+
+
+FUNCTION SYNGE(velabs, temp, mass, BK2)
+!===================================================================================================================================
+! Maxwell-Juettner distribution according to Synge Book p.48
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars,  ONLY: BoltzmannConst
+USE MOD_Equation_Vars,  ONLY: c_inv,c2
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)   :: velabs, temp, mass, BK2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLE
+REAL              :: SYNGE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLE
+REAL              :: gamma
+!===================================================================================================================================
+gamma = 1./sqrt(1.-(velabs*c_inv)*(velabs*c_inv))
+SYNGE = velabs*velabs*gamma**5/BK2*exp(-mass*c2*gamma/(BoltzmannConst*temp))
+END FUNCTION SYNGE
+
+
+FUNCTION QUASIREL(velabs, temp, mass)
+!===================================================================================================================================
+! discard gamma in the prefactor, maintain it in the computation of the energy
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars,  ONLY: BoltzmannConst
+USE MOD_Equation_Vars,  ONLY: c_inv,c2
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL ,INTENT(IN)    :: velabs, temp, mass
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLE
+REAL     :: QUASIREL
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLE
+REAL     :: gamma
+!===================================================================================================================================
+  gamma = 1/sqrt(1-(velabs*c_inv)*(velabs*c_inv))
+  QUASIREL = velabs*velabs*gamma**5._8* &
+               exp((1._8-gamma)*mass*c2/(BoltzmannConst*temp))
+END FUNCTION
+
+
+FUNCTION DEVI(mass, temp, gamma)
+!===================================================================================================================================
+! derivative to find max of function
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars,  ONLY: BoltzmannConst
+USE MOD_Equation_Vars,  ONLY: c2
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)     :: mass, temp, gamma
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLE
+REAL                :: DEVI
+!===================================================================================================================================
+  DEVI = mass*c2/(BoltzmannConst*temp)* &
+           gamma*(gamma*gamma-1._8)-5._8*gamma*gamma+3._8
+END FUNCTION
+
+
+FUNCTION BessK(ord,arg)
+!===================================================================================================================================
+! Modified Bessel function of second kind and integer order (currently only 2nd...) and real argument,
+! required for Maxwell-Juettner distribution
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,    ONLY: PI,EuMas
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,   INTENT(IN)  :: arg
+INTEGER,INTENT(IN)  :: ord
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLE
+REAL                :: BessK
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL     :: BessI0, BessI1, BessK0, BessK1, BessK0_old 
+REAL     :: rr, eps, ct, w0
+REAL     :: set_a(12), set_b(12), set_c(8)
+INTEGER  :: kk, k0
+!===================================================================================================================================
+
+  !em = 0.577215664901533_8        ! Euler–Mascheroni constant
+  eps= 1E-15_8
+  
+  set_a = (/0.125E0_8, 7.03125E-2_8,                  &
+          7.32421875E-2_8, 1.1215209960938E-1_8,      &
+          2.2710800170898E-1_8, 5.7250142097473E-1_8, &
+          1.7277275025845E0_8, 6.0740420012735E0_8,    &
+          2.4380529699556E01_8, 1.1001714026925E02_8, &
+          5.5133589612202E02_8, 3.0380905109224E03_8/)
+     
+  set_b = (/-0.375E0_8, -1.171875E-1_8,                 &
+          -1.025390625E-1_8, -1.4419555664063E-1_8,     &
+          -2.7757644653320E-1_8, -6.7659258842468E-1_8, &
+          -1.9935317337513E0_8, -6.8839142681099E0_8,   &
+          -2.7248827311269E01_8, -1.2159789187654E02_8, &
+          -6.0384407670507E02_8, -3.3022722944809E03_8/)
+     
+  set_c = (/0.125E0_8, 0.2109375E0_8,                 &
+          1.0986328125E0_8, 1.1775970458984E01_8,     &
+          2.1461706161499E2_8, 5.9511522710323E03_8,  &
+          2.3347645606175E05_8, 1.2312234987631E07_8/)
+        
+  
+!==========================================================================================!
+! Compute I_0(x) and I_1(x)
+!==========================================================================================!
+  IF (arg .EQ. 0.) THEN
+    BessI1 = 0.
+    BessI0 = 1.
+    
+  ELSE IF (arg .LE. 18.) THEN
+    BessI0 = 1.
+    rr     = 1.
+    kk     = 0
+    DO WHILE ((rr/BessI0) .GT. eps)
+      kk = kk+1
+      rr = .25*rr*arg*arg/(kk*kk)
+      BessI0 = BessI0 + rr
+    END DO
+!     WRITE(*,*) 'BessI0:', BessI0
+!     WRITE(*,*) kk
+    BessI1 = 1.
+    rr     = 1.
+    kk     = 0
+    DO WHILE ((rr/BessI1) .GT. eps)
+      kk = kk+1
+      rr = .25*rr*arg*arg/(kk*(kk+1))
+      BessI1 = BessI1 + rr
+    END DO
+    BessI1 = 0.5*arg*BessI1
+!     WRITE(*,*) 'BessI1:', BessI1
+    
+  ELSE
+    IF      (arg .LT. 35.) THEN
+      k0 = 12
+    ELSE IF (arg .LT. 50.) THEN 
+      k0 =  9
+    ELSE
+      k0 =  7
+    END IF
+    BessI0 = 1._8
+    DO kk = 1,k0
+      BessI0 = BessI0 + set_a(kk)*arg**(-kk)
+    END DO
+    BessI0 = exp(arg)/sqrt(2._8*pi*arg)*BessI0
+!     WRITE(*,*) 'BessI0: ', BessI0
+    BessI1 = 1._8
+    DO kk = 1,k0
+      BessI1 = BessI1 + set_b(kk)*arg**(-kk)
+    END DO
+    BessI1 = exp(arg)/sqrt(2._8*pi*arg)*BessI1
+!     WRITE(*,*) 'BessI1: ', BessI1
+  END IF
+    
+!==========================================================================================! 
+! Compute K_0(x)
+!==========================================================================================!
+  IF (arg .LE. 0.) THEN
+    CALL abort(__STAMP__,&
+        ' mod. Bessel function of second kind requries pos arg:')
+  ELSE IF (arg .LE. 9.) THEN
+    kk = 1
+    ct = -log(arg/2.)-EuMas
+    w0 = 1._8
+    rr = 0.25*arg*arg
+    BessK0 = rr*(w0+ct) 
+    BessK0_old = 1.E20
+    DO WHILE (abs((BessK0-BessK0_old)/BessK0) .GT. eps)
+      kk = kk+1
+      BessK0_old = BessK0
+      w0 = w0+1._8/kk
+      rr = 0.25*rr*arg*arg/(kk*kk)
+      BessK0 = BessK0 + rr*(w0+ct)
+    END DO
+    BessK0 = BessK0 + ct
+  ELSE
+    BessK0 = 1._8
+    DO kk = 1,8
+      BessK0 = BessK0 + set_c(kk)*arg**(-2._8*kk)
+    END DO
+    BessK0 = BessK0/(2._8*arg*BessI0)
+!     WRITE(*,*) 'BessK0: ', BessK0
+  END IF
+
+!==========================================================================================! 
+! Compute K_1(x) and K_n(x)
+!==========================================================================================!
+  BessK1 = (1._8/arg-BessI1*BessK0)/BessI0
+  BessK = 2._8*(ord-1._8)*BessK1/arg + BessK0
+  
+END FUNCTION BessK
 
 END MODULE MOD_part_emission

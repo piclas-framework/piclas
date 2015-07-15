@@ -13,6 +13,7 @@ IMPLICIT NONE
 REAL                                  :: PI
 REAL                                  :: sPI
 REAL                                  :: epsMach,TwoepsMach
+REAL,PARAMETER                        :: EuMas=0.577215664901533_8                        ! Euler-Mascheroni constant
 !===================================================================================================================================
 
 !CONTAINS

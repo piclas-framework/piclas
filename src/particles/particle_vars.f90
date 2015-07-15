@@ -109,8 +109,11 @@ TYPE tInit                                                                   ! P
   REAL                                   :: WaveNumber                       ! WaveNumber for sin-deviation initiation.
   INTEGER                                :: maxParticleNumberX               ! Maximum Number of all Particles in x direction
   INTEGER                                :: maxParticleNumberY               ! Maximum Number of all Particles in y direction
-  INTEGER                                :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction 
-  REAL                                   :: WeibelVeloPar                    ! Parrallel velocity component for Weibel
+  INTEGER                                :: maxParticleNumberZ               ! Maximum Number of all Particles in z direction
+  REAL                                   :: MJxRatio                         ! x direction portion of velocity for Maxwell-Juettner
+  REAL                                   :: MJyRatio                         ! y direction portion of velocity for Maxwell-Juettner
+  REAL                                   :: MJzRatio                         ! z direction portion of velocity for Maxwell-Juettner
+  REAL                                   :: WeibelVeloPar                    ! Parallel velocity component for Weibel
   REAL                                   :: WeibelVeloPer                    ! Perpendicular velocity component for Weibel
   REAL                                   :: OneDTwoStreamVelo                ! Stream Velocity for the Two Stream Instability
   REAL                                   :: OneDTwoStreamTransRatio          ! Ratio between perpendicular and parallel velocity
