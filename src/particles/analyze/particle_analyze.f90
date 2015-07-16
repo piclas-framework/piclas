@@ -17,7 +17,7 @@ INTERFACE FinalizeParticleAnalyze
   MODULE PROCEDURE FinalizeParticleAnalyze
 END INTERFACE
 
-!#ifdef PARTICLES
+#ifdef PARTICLES
 INTERFACE AnalyzeParticles
   MODULE PROCEDURE AnalyzeParticles
 END INTERFACE
@@ -29,19 +29,20 @@ END INTERFACE
 INTERFACE CalcShapeEfficiencyR
   MODULE PROCEDURE CalcShapeEfficiencyR
 END INTERFACE
-
+#endif /*PARTICLES*/
+  
 INTERFACE CalcEkinPart
   MODULE PROCEDURE CalcEkinPart
 END INTERFACE
-!#endif /*PARTICLES*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
-!#ifdef PARTICLES
-PUBLIC:: CalcKineticEnergy, CalcEkinPart,AnalyzeParticles
+PUBLIC :: CalcEkinPart
+#ifdef PARTICLES
+PUBLIC:: CalcKineticEnergy, AnalyzeParticles
 #if (PP_TimeDiscMethod == 42)
-PUBLIC :: ElectronicTransition, WriteEletronicTransition
+  PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
-!#endif /*PARTICLES*/
+#endif /*PARTICLES*/
 !===================================================================================================================================
 
 CONTAINS
@@ -55,9 +56,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  !,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin, CalcEpot, DoAnalyze
 USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY
-!#ifdef PARTICLES
+#ifdef PARTICLES
 USE MOD_Particle_Vars           ,ONLY: nSpecies
-!#endif /*PARTICLES*/
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -65,10 +66,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !CHARACTER(LEN=40)                :: DefStr
-!#ifdef PARTICLES
+#ifdef PARTICLES
 INTEGER   :: dir, VeloDirs_hilf(4)
-!#endif /*PARTICLES/*
+#endif /*PARTICLES/*
 !===================================================================================================================================
+
+#ifdef PARTICLES  
+
 IF (ParticleAnalyzeInitIsDone) THEN
   CALL abort(__STAMP__,'InitParticleAnalyse already called.',999,999.)
   RETURN
@@ -82,7 +86,7 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
 DoAnalyze = .FALSE.
 CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
 IF(CalcEpot) DoAnalyze = .TRUE.
-!#ifdef PARTICLES
+
   CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
   IF(CalcCharge) DoAnalyze = .TRUE. 
   CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
@@ -147,8 +151,6 @@ IF(CalcEpot) DoAnalyze = .TRUE.
 
     END SELECT
   END IF
-!#endif /*PARTICLES*/
-
 
 IsRestart = GETLOGICAL('IsRestart','.FALSE.')
 
@@ -156,10 +158,13 @@ ParticleAnalyzeInitIsDone=.TRUE.
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
+
+#endif /*PARTICLES*/
+
 END SUBROUTINE InitParticleAnalyze
 
 
-!#ifdef PARTICLES
+#ifdef PARTICLES
 SUBROUTINE AnalyzeParticles(Time)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -174,7 +179,7 @@ USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
-#endif
+#endif /*MPI*/
 #if (PP_TimeDiscMethod ==1000)
 USE MOD_DSMC_Vars,             ONLY: DSMC, SpecDSMC
 #endif
@@ -201,7 +206,7 @@ INTEGER             :: NumSpec(nSpecies), OutputCounter
 #ifdef MPI
 REAL                :: RECBR(nSpecies),RECBR2(nEkin),RECBR1
 INTEGER             :: RECBIM(nSpecies)
-#endif
+#endif /*MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==1000)
 REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3)
@@ -1724,6 +1729,7 @@ END IF
 104    FORMAT (e25.14)
 
 END SUBROUTINE TrackingParticlePosition
+#endif /*PARTICLES*/
 
 
 Function CalcEkinPart(iPart) 
@@ -1772,7 +1778,6 @@ ELSE ! novMPF
 END IF ! usevMPF
 CalcEkinPart=Ekin
 END FUNCTION CalcEkinPart
-!#endif /*PARTICLES*/
  
 SUBROUTINE FinalizeParticleAnalyze()
 !===================================================================================================================================

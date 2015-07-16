@@ -50,6 +50,10 @@ USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL
 USE MOD_Analyze_Vars,         ONLY:CalcPoyntingInt
 USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
+#ifndef PARTICLES
+USE MOD_ReadInTools,          ONLY:GETLOGICAL
+USE MOD_Particle_Analyze_Vars,ONLY:CalcEpot, DoAnalyze,PartAnalyzeStep
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -68,6 +72,16 @@ WRITE(DefStr,'(i4)') 2*(PP_N+1)
 NAnalyze=GETINT('NAnalyze',DefStr) 
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 Analyze_dt=GETREAL('Analyze_dt','0.')
+
+#ifndef PARTICLES
+PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
+IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
+
+DoAnalyze = .FALSE.
+CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
+IF(CalcEpot) DoAnalyze = .TRUE.
+#endif /*PARTICLES*/
+
 AnalyzeInitIsDone=.TRUE.
 
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
