@@ -451,7 +451,7 @@ END IF
 
 SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
-  IF(doInnerParts) ElemSource=0.0
+  ElemSource=0.0
   DO iElem=1,PP_nElems
     DO iPart=firstPart,lastPart
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
@@ -473,8 +473,6 @@ CASE('nearest_blurrycenter')
         END IF ! usevMPF
       END IF ! Element(iPart).EQ.iElem
     END DO ! iPart
-  END DO ! iElem=1,PP_nElems
-  DO iElem=1,PP_nElems
 #if (PP_nVar==8)
     source(1,:,:,:,iElem) = source(1,:,:,:,iElem)+ElemSource(iElem,1) 
     source(2,:,:,:,iElem) = source(2,:,:,:,iElem)+ElemSource(iElem,2) 
