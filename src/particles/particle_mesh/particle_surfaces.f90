@@ -847,6 +847,7 @@ SUBROUTINE GetSlabNormalsAndIntervalls(NGeo,SideID)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,    ONLY:EpsMach
 USE MOD_Preproc
 USE MOD_Particle_Surfaces_Vars,   ONLY:SlabNormals,SlabIntervalls,BezierControlPoints3D,BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear
@@ -1026,7 +1027,8 @@ IF(dx*dy*dz.LT.0) THEN
 END IF
 
 !IF(dx*dy*dz.EQ.0.)THEN
-IF(ALMOSTZERO(dx*dy*dz))THEN
+!IF(ALMOSTZERO(dx*dy*dz))THEN
+IF(ABS(dx*dy*dz).LT.2.0*epsMach)THEN
   SideIsPlanar=.TRUE.
   BoundingBoxIsEmpty(SideID)=.TRUE.
 ELSE

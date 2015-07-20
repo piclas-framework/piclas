@@ -145,6 +145,7 @@ LOGICAL         :: AlmostZero
 !===================================================================================================================================
 
 AlmostZero=.FALSE.
+print*,'ABS(NUM)/Espmach',ABS(num)/epsmach,epsmach
 IF(ABS(Num).LE.EpsMach) AlmostZero=.TRUE.
 
 END FUNCTION AlmostZero

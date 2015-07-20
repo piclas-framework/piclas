@@ -68,7 +68,7 @@ IMPLICIT NONE
 !CHARACTER(LEN=40)                :: DefStr
 #ifdef PARTICLES
 INTEGER   :: dir, VeloDirs_hilf(4)
-#endif /*PARTICLES/*
+#endif /*PARTICLES*/
 !===================================================================================================================================
 
 #ifdef PARTICLES  
@@ -243,9 +243,6 @@ unit_index = 535
 #ifdef MPI
 !#ifdef PARTICLES
  IF (PartMPI%MPIRoot) THEN
-!#else
-! IF(MPIROOT)THEN
-!#endif /*PARTICLES*/
 #endif    /* MPI */
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
@@ -549,11 +546,7 @@ IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed in the file but directly in "out"
 
 #ifdef MPI
-!#ifdef PARTICLES
  IF (PartMPI%MPIROOT) THEN
-#else
- IF(MPIROOT)THEN
-!#endif /*PARTICLES*/
 #endif    /* MPI */
    WRITE(unit_index,104,ADVANCE='NO') Time
    IF (CalcNumSpec) THEN

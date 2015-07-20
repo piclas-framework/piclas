@@ -17,7 +17,6 @@ USE MOD_Filter,           ONLY:InitFilter,FinalizeFilter
 USE MOD_Output,           ONLY:InitOutput,FinalizeOutput
 USE MOD_IO_HDF5,          ONLY:InitIO
 USE MOD_Analyze,          ONLY:InitAnalyze,FinalizeAnalyze
-USE MOD_Particle_Analyze, ONLY:InitParticleAnalyze,FinalizeParticleAnalyze
 USE MOD_RecordPoints,     ONLY:InitRecordPoints,FinalizeRecordPoints
 USE MOD_TimeDisc,         ONLY:InitTimeDisc,FinalizeTimeDisc,TimeDisc
 USE MOD_MPI,              ONLY:InitMPI
@@ -29,8 +28,10 @@ USE MOD_ParticleInit,     ONLY:InitParticles
 USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces,FinalizeParticleSurfaces!, GetSideType
 USE MOD_InitializeBackgroundField, ONLY: FinalizeBackGroundField
 USE MOD_Particle_Mesh,    ONLY:InitParticleMesh,FinalizeParticleMesh
+USE MOD_Particle_Analyze, ONLY:InitParticleAnalyze,FinalizeParticleAnalyze
+USE MOD_Particle_MPI,     ONLY:InitParticleMPI
 #ifdef MPI
-USE MOD_Particle_MPI,     ONLY:InitParticleMPI,FinalizeParticleMPI
+USE MOD_Particle_MPI,     ONLY:FinalizeParticleMPI
 #endif /*MPI*/
 #endif
 
@@ -77,13 +78,10 @@ CALL InitMesh()
 #ifdef MPI
 CALL InitMPIVars()
 #endif /*MPI*/
-!#ifdef PARTICLES
-!CALL InitParticleMPI
-!#endif
 #ifdef PARTICLES
-#ifdef MPI
+!#ifdef MPI
 CALL InitParticleMPI
-#endif /*MPI*/
+!#endif /*MPI*/
 CALL InitParticleSurfaces()
 !CALL InitParticleMesh()
 #endif /*PARTICLES*/
@@ -101,7 +99,9 @@ CALL InitParticles()
 #endif
 CALL InitAnalyze()
 CALL InitRecordPoints()
+#ifdef PARTICLES
 CALL InitParticleAnalyze()
+#endif
 CALL IgnoredStrings()
 CALL Restart()
 
@@ -129,6 +129,7 @@ CALL FinalizeFilter()
 #ifdef PARTICLES
 CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
+CALL FinalizeParticleAnalyze()
 #ifdef MPI
 CALL FinalizeParticleMPI()
 #endif /*MPI*/
