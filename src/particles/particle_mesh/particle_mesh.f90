@@ -65,6 +65,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilonbilinear
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime
 USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL
@@ -114,6 +115,7 @@ IF(DoRefMapping .AND. MappingGuess.EQ.2) THEN
        ' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',MappingGuess)
 END IF
 
+epsilonbilinear = GETREAL('eps-bilinear','1e-6')
 !--- Initialize Periodic Side Info
 !ALLOCATE(SidePeriodicType(1:nSides)) 
 !SidePeriodicType=0

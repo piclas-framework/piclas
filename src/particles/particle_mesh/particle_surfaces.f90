@@ -94,7 +94,6 @@ IF(ParticleSurfaceInitIsDone) RETURN
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES ...!'
 
-epsilonbilinear = GETREAL('eps-bilinear','1e-6')
 epsilontol      = GETREAL('epsOne','1e-12')
 hitepsbi        = GETREAL('hitepsbi','1e-12')
 hitepsbi=1.0+hitepsbi
@@ -1027,8 +1026,8 @@ IF(dx*dy*dz.LT.0) THEN
 END IF
 
 !IF(dx*dy*dz.EQ.0.)THEN
-!IF(ALMOSTZERO(dx*dy*dz))THEN
-IF(ABS(dx*dy*dz).LT.2.0*epsMach)THEN
+IF(ALMOSTZERO(dx*dy*dz))THEN
+!IF(ABS(dx*dy*dz).LT.2.0*epsMach)THEN
   SideIsPlanar=.TRUE.
   BoundingBoxIsEmpty(SideID)=.TRUE.
 ELSE
