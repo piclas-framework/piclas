@@ -20,52 +20,52 @@ INTEGER,ALLOCATABLE :: PartHaloToProc(:,:)                                   ! c
                                                                              ! 3 - local neighbor id
 INTEGER             :: myRealKind
 LOGICAL                                  :: ParticleMPIInitIsDone=.FALSE.
-INTEGER, ALLOCATABLE                     :: casematrix(:,:)                   ! matrix to compute periodic cases
-INTEGER                                  :: NbrOfCases                        ! Number of periodic cases
-INTEGER                                  :: iMessage                          ! Number of MPI-Messages for Debug purpose
+INTEGER, ALLOCATABLE                     :: casematrix(:,:)                  ! matrix to compute periodic cases
+INTEGER                                  :: NbrOfCases                       ! Number of periodic cases
+INTEGER                                  :: iMessage                         ! Number of MPI-Messages for Debug purpose
 
 TYPE tPartMPIGROUP
-!  TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)             ! MPI connect for each process
-  !TYPE(MPI_Comm)                         :: COMM                          ! MPI communicator for PIC GTS region
-  INTEGER                                :: COMM                          ! MPI communicator for PIC GTS region
-  INTEGER                                :: nProcs                        ! number of MPI processes for particles
-  INTEGER                                :: MyRank                        ! MyRank of PartMPIVAR%COMM
-  LOGICAL                                :: MPIRoot                       ! Root, MPIRank=0
-!  INTEGER                                :: nMPINeighbors                 ! number of MPI-Neighbors with HALO
-!  LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)              ! list of possible neighbors
-  INTEGER,ALLOCATABLE                    :: GroupToComm(:)                ! list containing the rank in PartMPI%COMM
-  INTEGER,ALLOCATABLE                    :: CommToGroup(:)                ! list containing the rank in PartMPI%COMM
+!  TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)               ! MPI connect for each process
+  !TYPE(MPI_Comm)                         :: COMM                            ! MPI communicator for PIC GTS region
+  INTEGER                                :: COMM                             ! MPI communicator for PIC GTS region
+  INTEGER                                :: nProcs                           ! number of MPI processes for particles
+  INTEGER                                :: MyRank                           ! MyRank of PartMPIVAR%COMM
+  LOGICAL                                :: MPIRoot                          ! Root, MPIRank=0
+!  INTEGER                                :: nMPINeighbors                   ! number of MPI-Neighbors with HALO
+!  LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)                ! list of possible neighbors
+  INTEGER,ALLOCATABLE                    :: GroupToComm(:)                   ! list containing the rank in PartMPI%COMM
+  INTEGER,ALLOCATABLE                    :: CommToGroup(:)                   ! list containing the rank in PartMPI%COMM
 END TYPE
 
 
 TYPE tPartMPIVAR
-!  TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)             ! MPI connect for each process
-  TYPE(tPartMPIGROUP),ALLOCATABLE        :: InitGroup(:)                  ! small communicator for initialization
-  !TYPE(MPI_Comm)                         :: COMM                          ! MPI communicator for PIC GTS region
-  INTEGER                                :: COMM                          ! MPI communicator for PIC GTS region
-  INTEGER                                :: nProcs                        ! number of MPI processes for particles
-  INTEGER                                :: MyRank                        ! MyRank of PartMPIVAR%COMM
-  LOGICAL                                :: MPIRoot                       ! Root, MPIRank=0
-  INTEGER                                :: nMPINeighbors                 ! number of MPI-Neighbors with HALO
-  LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)              ! list of possible neighbors
-  INTEGER,ALLOCATABLE                    :: MPINeighbor(:)                ! list containing the rank of MPI-neighbors
+!  TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)               ! MPI connect for each process
+  TYPE(tPartMPIGROUP),ALLOCATABLE        :: InitGroup(:)                     ! small communicator for initialization
+  !TYPE(MPI_Comm)                         :: COMM                            ! MPI communicator for PIC GTS region
+  INTEGER                                :: COMM                             ! MPI communicator for PIC GTS region
+  INTEGER                                :: nProcs                           ! number of MPI processes for particles
+  INTEGER                                :: MyRank                           ! MyRank of PartMPIVAR%COMM
+  LOGICAL                                :: MPIRoot                          ! Root, MPIRank=0
+  INTEGER                                :: nMPINeighbors                    ! number of MPI-Neighbors with HALO
+  LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)                 ! list of possible neighbors
+  INTEGER,ALLOCATABLE                    :: MPINeighbor(:)                   ! list containing the rank of MPI-neighbors
 END TYPE
 
 TYPE (tPartMPIVAR)                       :: PartMPI
 
-REAL                                     :: SafetyFactor                      ! Factor to scale the halo region with MPI
-REAL                                     :: halo_eps_velo                     ! halo_eps_velo
-REAL                                     :: halo_eps                          ! length of halo-region
-REAL                                     :: halo_eps2                         ! length of halo-region^2
+REAL                                     :: SafetyFactor                     ! Factor to scale the halo region with MPI
+REAL                                     :: halo_eps_velo                    ! halo_eps_velo
+REAL                                     :: halo_eps                         ! length of halo-region
+REAL                                     :: halo_eps2                        ! length of halo-region^2
 
 #ifdef MPI
-INTEGER                                  :: PartCommSize                      ! Number of REAL entries for particle communication
-                                                                              ! should think about own MPI-Data-Type
+INTEGER                                  :: PartCommSize                     ! Number of REAL entries for particle communication
+                                                                             ! should think about own MPI-Data-Type
 TYPE tPartMPIConnect
-!  TYPE(tSidePtr)               , POINTER :: tagToSide(:)           =>NULL()   ! gives side pointer for each MPI tag
-  !TYPE(tPeriodicPtr)       , ALLOCATABLE :: Periodic(:)                       ! data for different periodic borders for process
-  LOGICAL                                :: isBGMNeighbor                     ! Flag: which process is neighber wrt. bckgrnd mesh
-  LOGICAL                                :: isBGMPeriodicNeighbor             ! Flag: which process is neighber wrt. bckgrnd mesh
+!  TYPE(tSidePtr)               , POINTER :: tagToSide(:)           =>NULL() ! gives side pointer for each MPI tag
+  !TYPE(tPeriodicPtr)       , ALLOCATABLE :: Periodic(:)                     ! data for different periodic borders for process
+  LOGICAL                                :: isBGMNeighbor                    ! Flag: which process is neighber wrt. bckgrnd mesh
+  LOGICAL                                :: isBGMPeriodicNeighbor            ! Flag: which process is neighber wrt. bckgrnd mesh
 !  LOGICAL                      , POINTER :: myBGMPoint(:,:,:)      =>NULL()   ! Flag: does BGM point(i,j,k) belong to me?
 !  LOGICAL                      , POINTER :: yourBGMPoint(:,:,:)    =>NULL()   ! Flag: does BGM point(i,j,k) belong to process?
   INTEGER                  , ALLOCATABLE :: BGMBorder(:,:)            ! indices of border nodes (1=min 2=max,xyz)
@@ -79,8 +79,8 @@ TYPE tMPIMessage
   REAL,ALLOCATABLE                      :: content(:)                   ! message buffer real
 END TYPE
 
-TYPE(tMPIMessage),ALLOCATABLE  :: PartRecvBuf(:)
-TYPE(tMPIMessage),ALLOCATABLE  :: PartSendBuf(:)
+TYPE(tMPIMessage),ALLOCATABLE  :: PartRecvBuf(:)                             ! PartRecvBuf with all required types
+TYPE(tMPIMessage),ALLOCATABLE  :: PartSendBuf(:)                             ! PartSendBuf with all requried types
 
 TYPE tParticleMPIExchange
   INTEGER,ALLOCATABLE            :: nPartsSend(:)     ! only mpi neighbors
@@ -98,7 +98,7 @@ TYPE tParticleMPIExchange
 END TYPE
  
 
-TYPE (tParticleMPIExchange)              :: PartMPIInsert
+TYPE (tParticleMPIExchange)              :: PartMPIInsert 
 TYPE (tParticleMPIExchange)              :: PartMPIExchange
 
 LOGICAL                                  :: DoExternalParts                  ! external particles, required for 

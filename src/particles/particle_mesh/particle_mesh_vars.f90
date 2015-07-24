@@ -19,34 +19,44 @@ LOGICAL             :: ParticleMeshInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Mesh info
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,ALLOCATABLE :: SidePeriodicType(:)                                                ! periodic type of side
+! general: periodic sides have to be Cartesian
+INTEGER,ALLOCATABLE :: SidePeriodicType(:)                                                ! 1:nTotalSides, periodic type of side
                                                                                           ! 0 - normal or BC side
                                                                                           ! >0 type of periodic displacement
-REAL,ALLOCATABLE    :: SidePeriodicDisplacement(:,:)                                      ! dispacement vector
+REAL,ALLOCATABLE    :: SidePeriodicDisplacement(:,:)                                      ! displacement vector
                                                                                           
-INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                                              ! containing the ElemToSide of my
+INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                                              ! extended list: 1:2,1:6,1:nTotalElems
+                                                                                          ! ElemToSide: my geometry + halo
                                                                                           ! geometry + halo information
                                                                                           
-INTEGER,ALLOCATABLE :: PartSideToElem(:,:)
-
+INTEGER,ALLOCATABLE :: PartSideToElem(:,:)                                                ! extended list: 1:5,1:6,1:nTotalSides
+                                                                                          ! SideToElem: my geometry + halo
+                                                                                          ! geometry + halo information
 
 INTEGER,ALLOCATABLE :: PartElemToElem(:,:,:)                                              ! Mapping from ElemToElem
-INTEGER             :: nTotalSides
-INTEGER             :: nTotalElems
+                                                                                          ! 1:2,1:6,1:nTotalElems
+                                                                                          ! 1 - E2E_NB_ELEM_ID 
+                                                                                          ! 2 - E2E_NB_LOC_SIDE_ID 
+INTEGER             :: nTotalSides                                                        ! total nb. of sides (my+halo)
+INTEGER             :: nTotalElems                                                        ! total nb. of elems (my+halo)
 
-LOGICAL,ALLOCATABLE :: IsBCElem(:)
-INTEGER             :: nTotalBCSides
-INTEGER             :: nTotalBCElems
-INTEGER,ALLOCATABLE :: PartBCSideList(:)
+LOGICAL,ALLOCATABLE :: IsBCElem(:)                                                        ! is a BC elem 
+                                                                                          ! or BC in halo-eps distance to BC
+INTEGER             :: nTotalBCSides                                                      ! total number of BC sides (my+halo)
+INTEGER             :: nTotalBCElems                                                      ! total number of bc elems (my+halo)
+INTEGER,ALLOCATABLE :: PartBCSideList(:)                                                  ! mapping from SideID to BCSideID
 
-REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis                ! element local basis vector for ngeo=1 element
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis            ! inverse of length
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo                  ! element local basis: origin
-REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo                ! radius of element
-INTEGER                                 :: MappingGuess                  ! select mapping guess into reference element
-REAL                                    :: epsMapping                    ! tolerance for Netwton to get xi from X
-REAL                                    :: epsInCell                     ! tolerance for eps for particle in element
-REAL                                    :: epsOneCell                    ! tolerance for particle in element 1+epsinCell
+REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: XiEtaZetaBasis                                 ! element local basis vector (linear elem)
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis                             ! inverse of length of basis vector
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo                                   ! element local basis: origin
+REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo                                 ! radius of element
+INTEGER                                 :: MappingGuess                                   ! select guess for mapping into reference
+                                                                                          ! element
+REAL                                    :: epsMapping                                     ! tolerance for Netwton to get xi from X
+REAL                                    :: epsInCell                                      ! tolerance for eps for particle 
+                                                                                          ! inside of ref element
+REAL                                    :: epsOneCell                                     ! tolerance for particle in 
+                                                                                          ! inside ref element 1+epsinCell
 
 !LOGICAL                                 :: DoRefMapping                  ! tracking by mapping particle into reference element
 !-----------------------------------------------------------------------------------------------------------------------------------

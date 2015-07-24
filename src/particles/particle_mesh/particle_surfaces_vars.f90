@@ -26,7 +26,7 @@ REAL,ALLOCATABLE,DIMENSION(:)           :: SideDistance                 ! distan
 INTEGER,ALLOCATABLE,DIMENSION(:)        :: gElemBCSides                 ! number of BC-Sides of element
 REAL                                    :: epsilonbilinear              ! bi-linear tolerance for the bi-linear - planar decision
 REAL                                    :: epsilonOne                   ! epsilone for setting the boundary tolerance
-REAL                                    :: hitEpsBi
+REAL                                    :: hitEpsBi 
 REAL                                    :: OneMepsilon
 REAL                                    :: epsilontol                   ! epsilone for setting the tolerance
 REAL                                    :: Mepsilontol               
