@@ -290,6 +290,7 @@ CASE(0) ! Particles
         source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
                  * EXP( (Phi(  1,i,j,k,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
 #endif /*PARTICLES*/
+      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * source(1:3,i,j,k,iElem)
       Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + eps0inv * ( source(  4,i,j,k,iElem) - source_e ) * c_corr 
       !IF((t.GT.0).AND.(ABS(source(4,i,j,k,iElem)*c_corr).EQ.0))THEN
       !print*, t
@@ -388,7 +389,7 @@ SUBROUTINE DivCleaningDamping_Pois()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Equation_Vars,       ONLY : Phi
-USE MOD_Equation_Vars, ONLY : fDamping
+USE MOD_Equation_Vars, ONLY : fDamping_pois
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -402,7 +403,7 @@ INTEGER                         :: i,j,k,iElem
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
-      Phi(2:4,i,j,k,iElem) = Phi(2:4,i,j,k,iElem) * fDamping
+      Phi(2:4,i,j,k,iElem) = Phi(2:4,i,j,k,iElem) * fDamping_pois
     END DO; END DO; END DO
   END DO
 END SUBROUTINE DivCleaningDamping_Pois

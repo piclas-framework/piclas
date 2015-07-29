@@ -221,6 +221,7 @@ CASE(0) ! Particles
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
+      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * source(1:3,i,j,k,iElem)
       Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + eps0inv * source(  4,i,j,k,iElem) * c_corr 
       !IF((t.GT.0).AND.(ABS(source(4,i,j,k,iElem)*c_corr).EQ.0))THEN
       !print*, t
