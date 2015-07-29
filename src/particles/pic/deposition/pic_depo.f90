@@ -457,36 +457,36 @@ CASE('nearest_blurrycenter')
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       IF(PEM%Element(iPart).EQ.iElem)THEN
         IF(usevMPF)THEN
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
          ElemSource(iElem,1:3) = ElemSource(iElem,1:3)+ &
                 PartState(iPart,4:6)* Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
-#endif
+!#endif
          ElemSource(iElem,4) = ElemSource(iElem,4) + & 
               Species(PartSpecies(iPart))%ChargeIC* PartMPF(iPart)
         ELSE
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
          ElemSource(iElem,1:3) = ElemSource(iElem,1:3)+ &
                 PartState(iPart,4:6)* Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
-#endif
+!#endif
          ElemSource(iElem,4) = ElemSource(iElem,4) + & 
               Species(PartSpecies(iPart))%ChargeIC* Species(PartSpecies(iPart))%MacroParticleFactor
         END IF ! usevMPF
       END IF ! Element(iPart).EQ.iElem
     END DO ! iPart
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
     source(1,:,:,:,iElem) = source(1,:,:,:,iElem)+ElemSource(iElem,1) 
     source(2,:,:,:,iElem) = source(2,:,:,:,iElem)+ElemSource(iElem,2) 
     source(3,:,:,:,iElem) = source(3,:,:,:,iElem)+ElemSource(iElem,3) 
-#endif                                            
+!#endif                                            
     source(4,:,:,:,iElem) = source(4,:,:,:,iElem)+ElemSource(iElem,4) 
   END DO ! iElem=1,PP_nElems
   IF(.NOT.doInnerParts)THEN
     DO iElem=1,PP_nElems
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
       source(1:4,:,:,:,iElem) = source(1:4,:,:,:,iElem) / GEO%Volume(iElem)
-#else
-      source(4,:,:,:,iElem) = source(4,:,:,:,iElem) / GEO%Volume(iElem)
-#endif
+!#else
+!      source(4,:,:,:,iElem) = source(4,:,:,:,iElem) / GEO%Volume(iElem)
+!#endif
     END DO ! iElem=1,PP_nElems
   END IF ! .NOT. doInnerParts
 CASE('shape_function')
@@ -691,9 +691,9 @@ CASE('delta_distri')
               DO i=0,PP_N
            !     print*,'i,j,k,L',i,j,k,L_xi(1,i)* L_xi(2,j)* L_xi(3,k)
                 DeltaIntCoeff = L_xi(1,i)* L_xi(2,j)* L_xi(3,k)*prefac 
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
                 source(1:3,i,j,k,iElem) = source(1:3,i,j,k,iElem) + DeltaIntCoeff*PartState(iPart,4:6)
-#endif
+!#endif
               source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) + DeltaIntCoeff
               END DO ! i
             END DO ! j
@@ -709,11 +709,11 @@ CASE('delta_distri')
       DO k=0,PP_N
         DO j=0,PP_N
           DO i=0,PP_N
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
             source( : ,i,j,k,iElem) = source( : ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
-#else
-            source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
-#endif
+!#else
+!            source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
+!#endif
           END DO ! i
         END DO ! j
       END DO ! k
@@ -774,9 +774,9 @@ CASE('nearest_gausspoint')
             END DO
             m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,iPart)))/2)
           END IF
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
           source(1:3,k,l,m,iElem) = source(1:3,k,l,m,iElem) + PartState(iPart,4:6) * prefac
-#endif
+!#endif
           source( 4 ,k,l,m,iElem) = source( 4 ,k,l,m,iElem) + prefac
           !IF (SAVE_GAUSS) THEN
           !  PartPosGauss(iPart,1) = k
@@ -791,11 +791,11 @@ CASE('nearest_gausspoint')
     DO iElem=1,PP_nElems
       DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
       ! get densities by dividing by gauss volume
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
         source(1:4,k,l,m,iElem) = source(1:4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
-#else
-        source(4,k,l,m,iElem) = source(4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
-#endif
+!#else
+!        source(4,k,l,m,iElem) = source(4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
+!#endif
       END DO; END DO; END DO
     END DO ! iElem=1,PP_nElems
   END IF
@@ -818,11 +818,11 @@ CASE('cartmesh_volumeweighting')
       alpha2 = (PartState(i,2) / BGMdeltas(2)) - l
       alpha3 = (PartState(i,3) / BGMdeltas(3)) - m
       TSource(:) = 0.0
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
       TSource(1) = PartState(i,4)*Charge
       TSource(2) = PartState(i,5)*Charge
       TSource(3) = PartState(i,6)*Charge
-#endif
+!#endif
       TSource(4) = Charge
 
       BGMSource(k,l,m,1:4)       = BGMSource(k,l,m,1:4) + (TSource * (1-alpha1)*(1-alpha2)*(1-alpha3))
@@ -854,7 +854,7 @@ CASE('cartmesh_volumeweighting')
          alpha1 = GaussBGMFactor(1,kk,ll,mm,iElem)
          alpha2 = GaussBGMFactor(2,kk,ll,mm,iElem)
          alpha3 = GaussBGMFactor(3,kk,ll,mm,iElem)
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
          DO i = 1,3
            source(i,kk,ll,mm,iElem) = BGMSource(k,l,m,i) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
                 BGMSource(k,l,m+1,i) * (1-alpha1) * (1-alpha2) * (alpha3) + &
@@ -865,7 +865,7 @@ CASE('cartmesh_volumeweighting')
                 BGMSource(k+1,l+1,m,i) * (alpha1) * (alpha2) * (1-alpha3) + &
                 BGMSource(k+1,l+1,m+1,i) * (alpha1) * (alpha2) * (alpha3)
          END DO
-#endif
+!#endif
          source(4,kk,ll,mm,iElem) = BGMSource(k,l,m,4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
               BGMSource(k,l,m+1,4) * (1-alpha1) * (1-alpha2) * (alpha3) + &
               BGMSource(k,l+1,m,4) * (1-alpha1) * (alpha2) * (1-alpha3) + &
@@ -913,11 +913,11 @@ CASE('cartmesh_splines')
           DO m = PosInd(3)-1, PosInd(3)+2
             mm = abs(m - PosInd(3) - 2)
             locweight = weight(1,kk)*weight(2,ll)*weight(3,mm)
-#if (PP_nVar==8)
+!#if (PP_nVar==8)
             BGMSource(k,l,m,1) = BGMSource(k,l,m,1) + PartState(i,4)*Charge * locweight
             BGMSource(k,l,m,2) = BGMSource(k,l,m,2) + PartState(i,5)*Charge * locweight
             BGMSource(k,l,m,3) = BGMSource(k,l,m,3) + PartState(i,6)*Charge * locweight
-#endif
+!#endif
             BGMSource(k,l,m,4) = BGMSource(k,l,m,4) + Charge * locweight
           END DO
         END DO
@@ -946,11 +946,11 @@ CASE('cartmesh_splines')
               v = ss-l+2
               DO t = m-1,m+2
                 w = t-m+2
-#if (PP_nVar==8)                  
+!#if (PP_nVar==8)                  
                 DO i = 1,3
                   source(i,kk,ll,mm,iElem) = source(i,kk,ll,mm,iElem) + BGMSource(r,ss,t,i) * GPWeight(iElem,kk,ll,mm,u,v,w)
                 END DO
-#endif
+!#endif
                 source(4,kk,ll,mm,iElem) = source(4,kk,ll,mm,iElem) + BGMSource(r,ss,t,4) * GPWeight(iElem,kk,ll,mm,u,v,w)
               END DO !t
             END DO !s
