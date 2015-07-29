@@ -547,7 +547,7 @@ REAL                          :: tStage,b_dt(1:nRKStages)
 REAL                          :: timeStart,timeEnd
 #endif /*PARTICLES*/
 #ifdef PP_POIS
-REAL                          :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                          :: Phit_temp(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif
 !===================================================================================================================================
 

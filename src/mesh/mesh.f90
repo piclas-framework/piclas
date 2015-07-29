@@ -155,7 +155,7 @@ offsetSurfElemMPI=0
 countSurfElem=0
 
 DO iSide=1,nBCSides
-  IF (BoundaryType(1,BC(iSide)).EQ.4) THEN
+  IF (BoundaryType(BC(iSide),1).EQ.4) THEN
     countSurfElem = countSurfElem + 1
   END IF
 END DO
