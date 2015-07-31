@@ -30,6 +30,7 @@ USE MOD_Particle_Vars,         ONLY : PEM, PartState,PartPosRef
 USE MOD_Eval_xyz,              ONLY : Eval_XYZ_Poly
 USE MOD_Mesh_Vars,             ONLY : NGeo
 USE nr,                        ONLY : gaussj 
+USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
 !--------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
    IMPLICIT NONE                                                                                   !
@@ -138,7 +139,7 @@ USE nr,                        ONLY : gaussj
   nPart = PEM%pNumber(iElem)
   iPartIndx = PEM%pStart(iElem)
   DO ipart = 1, nPart
-    CALL Eval_xyz_Poly(PartPosRef(1:3,iPartIndx),3,NGeo,XCL_NGeo_tmp,PartNewPos)
+    CALL Eval_xyz_Poly(PartPosRef(1:3,iPartIndx),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo_tmp,PartNewPos)
 
     LD_RHS(iPartIndx,1) = (PartNewPos(1) - PartState(iPartIndx,1)) / dt - PartState(iPartIndx,4)
     LD_RHS(iPartIndx,2) = (PartNewPos(2) - PartState(iPartIndx,2)) / dt - PartState(iPartIndx,5)

@@ -42,7 +42,7 @@ PUBLIC :: eval_xyz_curved,eval_xyz_elemcheck, eval_xyz_part2,eval_xyz_poly
 CONTAINS
 
 !#ifdef PARTICLES
-SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,X3D_In,X3D_Out,iElem,PartID)
+SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,iElem,PartID)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
@@ -65,32 +65,30 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)  :: NVar                                  ! 6 (Ex, Ey, Ez, Bx, By, Bz) 
 INTEGER,INTENT(IN)  :: N_In                                  ! usually PP_N
 INTEGER,INTENT(IN)  :: iElem                                 ! elem index
-REAL,INTENT(IN)     :: X3D_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
+REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
 REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
 INTEGER,INTENT(IN),OPTIONAL :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)    :: X3D_Out(1:NVar)  ! Interpolated state
+REAL,INTENT(OUT)    :: U_Out(1:NVar)  ! Interpolated state
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER             :: i,j,k
 REAL                :: xi(3)
 INTEGER             :: NewTonIter
-REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
-REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
+!REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
+!REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
 REAL                :: Winner_Dist,Dist,abortcrit
 REAL, PARAMETER     :: EPSONE=1.00000001
 INTEGER             :: iDir
-REAL                :: F(1:3),Lag(1:3,0:NGeo),Lag2(1:3,0:N_In)
+REAL                :: F(1:3),Lag(1:3,0:NGeo)
+REAL                :: L_xi(3,PP_N), L_eta_zeta
 REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                :: buff,buff2
 REAL                :: Ptild(1:3),XiLinear(1:6)
 ! h5-external e,b field
-REAL,ALLOCATABLE    :: L_xi_BGField(:,:), X3D_tmp1(:,:,:), X3D_tmp2(:,:), X3D_tmp3(:)
+REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 !===================================================================================================================================
-
-!print*,'iElem',iElem
-!print*,'Pos',X_in
 
 ! get initial guess by nearest GP search ! simple guess
 SELECT CASE(MappingGuess)
@@ -106,12 +104,6 @@ CASE(1)
   END DO 
   !IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=0.
   IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
-!  IF(ANY(ABS(Xi).GT.epsOne)) THEN
-!    DO iDir=1,3
-!      IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
-!      IF(Xi(iDir).LT.-epsOne) Xi(iDir)=-1.0
-!    END DO ! iDir
-!  END IF
 CASE(2) 
   ! compute distance on Gauss Points
   Winner_Dist=HUGE(1.)
@@ -136,27 +128,6 @@ CASE(4)
   ! trival guess 
   xi=0.
 END SELECT
-!print*,'Winnerdist',Winner_Dist
-!print*,'initial guess'
-!print*,'xi',xi
-!
-!print*,'NGeo',NGeo
-!print*,'Xi_CLNGeo',XiCL_NGeo
-!print*,'wbary_CLNGeo',wBaryCL_NGeo
-!read*
-
-!DO k=0,NGeo
-!  DO j=0,NGeo
-!    DO i=0,NGeo
-!     !! Matrix-vector multiplication
-!       print*,'dXCL_NGeo',dXCL_NGeo(:,1,i,j,k,iElem)
-!       print*,'dXCL_NGeo',dXCL_NGeo(:,2,i,j,k,iElem)
-!       print*,'dXCL_NGeo',dXCL_NGeo(:,3,i,j,k,iElem)
-!       read*
-!    END DO !i=0,NGeo
-!  END DO !j=0,NGeo
-!END DO !k=0,NGeo
-
 
 ! initial guess
 CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
@@ -172,18 +143,13 @@ DO k=0,NGeo
     END DO !l=0,NGeo
   END DO !i=0,NGeo
 END DO !j=0,NGeo
-!print*,'F',F
-!read*
 
-!DO WHILE ((SUM(F*F).GT.epsMapping).AND.(NewtonIter.LT.100))
-!  NewtonIter=NewtonIter+1
 NewtonIter=0
 abortCrit=ElemRadiusNGeo(iElem)*epsMapping
 !DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.50))
 DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   NewtonIter=NewtonIter+1
 
-  ! 
   ! caution, dXCL_NGeo is transposed of required matrix
   Jac=0.
   DO k=0,NGeo
@@ -198,8 +164,6 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
     END DO !j=0,NGeo
   END DO !k=0,NGeo
   
-  !print*,'print',Jac
-
   ! Compute inverse of Jacobian
   sdetJac=getDet(Jac)
   IF(sdetJac.GT.0.) THEN
@@ -246,87 +210,98 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   END DO !j=0,NGeo
 END DO !newton
 
-! check if Newton is successful
-!IF(ANY(ABS(Xi).GT.epsOneCell)) THEN
-!IF(ANY(ABS(Xi).GT.1.0)) THEN
-!!  IF(PRESENT(PartID).AND.PartID.EQ.238) THEN
-!     IPWRITE(UNIT_stdOut,*) ' Particle outside of parameter range!!!'
-!     IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) 'ParticleID', PartID
-!     IPWRITE(UNIT_stdOut,*) ' elemid', ielem
-!     IPWRITE(UNIT_stdOut,*) ' xi  ', xi(:)
-!!  END IF
-!END IF
-
 ! 2.1) get "Vandermonde" vectors
-DO i=1,3
-  CALL LagrangeInterpolationPolys(xi(i),N_in,xGP,wBary,Lag2(i,:))
- !CALL LagrangeInterpolationPolys(xi(i),N_in,xGP,wBary,L_xi(i,:))
-END DO
+CALL LagrangeInterpolationPolys(xi(1),N_in,xGP,wBary,L_xi(1,:))
+CALL LagrangeInterpolationPolys(xi(2),N_in,xGP,wBary,L_xi(2,:))
+CALL LagrangeInterpolationPolys(xi(3),N_in,xGP,wBary,L_xi(3,:))
 
-! 2.2) do the tensor product thing 
-X3D_buf1=0.
-! first direction iN_In
-DO k=0,N_In
-  DO j=0,N_In
-    DO i=0,N_In
-      X3D_Buf1(:,j,k)=X3D_Buf1(:,j,k)+Lag2(1,i)*X3D_In(:,i,j,k)
-    END DO
-  END DO
-END DO
-X3D_buf2=0.
-! second direction jN_In
-DO k=0,N_In
-  DO j=0,N_In
-    X3D_Buf2(:,k)=X3D_Buf2(:,k)+Lag2(2,j)*X3D_Buf1(:,j,k)
-  END DO
-END DO
-X3D_Out=0.
-! last direction kN_In
-DO k=0,N_In
-  X3D_Out(:)=X3D_Out(:)+Lag2(3,k)*X3D_Buf2(:,k)
-END DO
+! "more efficient" - Quote Thomas B.
+U_out(:)=0
+DO k=0,N_in
+  DO j=0,N_in
+    L_eta_zeta=L_xi(2,j)*L_xi(3,k)
+    DO i=0,N_in
+      U_out = U_out + U_IN(:,i,j,k)*L_xi(1,i)*L_Eta_Zeta
+    END DO ! i=0,N_In
+  END DO ! j=0,N_In
+END DO ! k=0,N_In
+
+!! 2.2) do the tensor product thing 
+!X3D_buf1=0.
+!! first direction iN_In
+!DO k=0,N_In
+!  DO j=0,N_In
+!    DO i=0,N_In
+!      X3D_Buf1(:,j,k)=X3D_Buf1(:,j,k)+Lag2(1,i)*X3D_In(:,i,j,k)
+!    END DO
+!  END DO
+!END DO
+!X3D_buf2=0.
+!! second direction jN_In
+!DO k=0,N_In
+!  DO j=0,N_In
+!    X3D_Buf2(:,k)=X3D_Buf2(:,k)+Lag2(2,j)*X3D_Buf1(:,j,k)
+!  END DO
+!END DO
+!X3D_Out=0.
+!! last direction kN_In
+!DO k=0,N_In
+!  X3D_Out(:)=X3D_Out(:)+Lag2(3,k)*X3D_Buf2(:,k)
+!END DO
 
 IF(useBGField)THEN
   ! use of BG-Field with possible different polynomial order and nodetype
-  ALLOCATE( L_xi_BGField(3,0:NBG)            &
-          , X3D_tmp1(BGDataSize,0:NBG,0:NBG) &
-          , X3D_tmp2(BGDataSize,0:NBG)       &
-          , X3D_tmp3(BGDataSize)             )
-  DO i=1,3
-    CALL LagrangeInterpolationPolys(xi(i),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(i,:))
-  END DO
+  ALLOCATE( L_xi_BGField(3,0:NBG)             &
+          , U_BGField(1:BGDataSize)           )
+!          , X3D_tmp1(BGDataSize,0:NBG,0:NBG) &
+!          , X3D_tmp2(BGDataSize,0:NBG)       &
+!          , X3D_tmp3(BGDataSize)             )
+  CALL LagrangeInterpolationPolys(xi(1),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(1,:))
+  CALL LagrangeInterpolationPolys(xi(2),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(2,:))
+  CALL LagrangeInterpolationPolys(xi(3),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(3,:))
   
-  ! 2.2) do the tensor product thing 
-  X3D_tmp1=0.
-  ! first direction iN_In
-  DO k=0,NBG
-    DO j=0,NBG
-      DO i=0,NBG
-        X3D_tmp1(:,j,k)=X3D_tmp1(:,j,k)+L_xi_BGField(1,i)*BGField(:,i,j,k,iElem)
-      END DO
-    END DO
-  END DO
-  X3D_tmp2=0.
-  ! second direction jN_In
-  DO k=0,NBG
-    DO j=0,NBG
-      X3D_tmp2(:,k)=X3D_tmp2(:,k)+L_xi_BGField(2,j)*X3D_tmp1(:,j,k)
-    END DO
-  END DO
-  X3D_tmp3=0.
-  ! last direction kN_In
-  DO k=0,NBG
-    X3D_tmp3(:)=X3D_tmp3(:)+L_xi_BGField(3,k)*X3D_tmp2(:,k)
-  END DO
+  U_BGField(:)=0
+  DO k=0,N_in
+    DO j=0,N_in
+      L_eta_zeta=L_xi_BGField(2,j)*L_xi_BGField(3,k)
+      DO i=0,N_in
+        U_BGField = U_BGField + BGField(:,i,j,k,iElem)*L_xi_BGField(1,i)*L_Eta_Zeta
+      END DO ! i=0,N_In
+    END DO ! j=0,N_In
+  END DO ! k=0,N_In
+
+
+  !! 2.2) do the tensor product thing 
+  !X3D_tmp1=0.
+  !! first direction iN_In
+  !DO k=0,NBG
+  !  DO j=0,NBG
+  !    DO i=0,NBG
+  !      X3D_tmp1(:,j,k)=X3D_tmp1(:,j,k)+L_xi_BGField(1,i)*BGField(:,i,j,k,iElem)
+  !    END DO
+  !  END DO
+  !END DO
+  !X3D_tmp2=0.
+  !! second direction jN_In
+  !DO k=0,NBG
+  !  DO j=0,NBG
+  !    X3D_tmp2(:,k)=X3D_tmp2(:,k)+L_xi_BGField(2,j)*X3D_tmp1(:,j,k)
+  !  END DO
+  !END DO
+  !X3D_tmp3=0.
+  !! last direction kN_In
+  !DO k=0,NBG
+  !  X3D_tmp3(:)=X3D_tmp3(:)+L_xi_BGField(3,k)*X3D_tmp2(:,k)
+  !END DO
   SELECT CASE(BGType)
   CASE(1)
-    X3d_Out(1:3)=x3d_Out(1:3)+X3d_tmp3
+    U_Out(1:3)=U_Out(1:3)+U_BGField
   CASE(2)
-    X3d_Out(4:6)=x3d_Out(4:6)+X3d_tmp3
+    U_Out(4:6)=U_Out(4:6)+U_BGField
   CASE(3)
-    X3d_Out=x3d_Out+X3d_tmp3
+    U_Out=U_Out+U_BGField
   END SELECT
-  DEALLOCATE( L_xi_BGField, X3d_tmp1, x3d_tmp2, x3d_tmp3)
+  DEALLOCATE( L_xi_BGField, U_BGField)! X3d_tmp1, x3d_tmp2, x3d_tmp3)
 END IF ! useBGField
 
 END SUBROUTINE eval_xyz_curved
@@ -383,14 +358,7 @@ IF(.NOT.PRESENT(DoReUseMap))THEN
     DO iDir=1,3
       Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
     END DO 
-   ! IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=0.
     IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
-    !IF(ANY(ABS(Xi).GT.epsOne)) THEN
-    !  DO iDir=1,3
-    !    IF(Xi(iDir).GT.epsOne) Xi(iDir)=1.0
-    !    IF(Xi(iDir).LT.-epsOne) Xi(iDir)=-1.0
-    !  END DO ! iDir
-    !END IF
   CASE(2)
     Winner_Dist=HUGE(1.)
     DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
@@ -515,69 +483,53 @@ END DO !newton
 END SUBROUTINE eval_xyz_elemcheck
 
 
-SUBROUTINE Eval_xyz_Poly(xi_in,NVar,N_in,X3D_In,X3D_Out)!,iElem)
+SUBROUTINE Eval_xyz_Poly(Xi_in,NVar,N_in,xGP_in,wBary_In,U_In,U_Out)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
-! hoewver, particle is already mapped to reference space -1|1
-! xi instead of x_in
 !===================================================================================================================================
 ! MODULES
 USE MOD_Basis,                 ONLY: LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,    ONLY: wBary,xGP
+!USE MOD_Interpolation_Vars,    ONLY: wBary,xGP
+!USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)        :: NVar                                  ! 6 (Ex, Ey, Ez, Bx, By, Bz) 
-INTEGER,INTENT(IN)        :: N_In                                  ! usually PP_N
-!INTEGER,INTENT(IN)        :: iElem                                 ! elem index
-REAL,INTENT(IN)           :: X3D_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
-REAL,INTENT(IN)           :: xi_in(3)                              ! reference space position of particle 
+INTEGER,INTENT(IN)        :: NVar, N_in
+REAL,INTENT(IN)           :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! solution
+REAL,INTENT(IN)           :: xi_in(3)                            ! reference space position of particle 
+REAL,INTENT(IN)           :: xGP_In(0:N_in)
+REAL,INTENT(IN)           :: wBary_In(0:N_in)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)          :: X3D_Out(1:NVar)  ! Interpolated state
+REAL,INTENT(OUT)          :: U_Out(1:NVar)  ! Interpolated state
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                   :: iN_In,jN_In,kN_In,i
-REAL                      :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
-REAL                      :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
+INTEGER                   :: i,j,k
 REAL,DIMENSION(3,0:N_in)  :: L_xi        
+REAL                      :: L_eta_zeta
 !===================================================================================================================================
-! --------------------------------------------------
-! 2.) Interpolation
-! --------------------------------------------------
-! 2.1) get "Vandermonde" vectors
-DO i=1,3
-  CALL LagrangeInterpolationPolys(xi_in(i),N_in,xGP,wBary,L_xi(i,:))
-END DO
 
-! 2.2) do the tensor product thing 
-X3D_buf1=0.
-! first direction iN_In
-DO kN_In=0,N_In
-  DO jN_In=0,N_In
-    DO iN_In=0,N_In
-      X3D_Buf1(:,jN_In,kN_In)=X3D_Buf1(:,jN_In,kN_In)+L_xi(1,iN_In)*X3D_In(:,iN_In,jN_In,kN_In)
-    END DO
-  END DO
-END DO
-X3D_buf2=0.
-! second direction jN_In
-DO kN_In=0,N_In
-  DO jN_In=0,N_In
-    X3D_Buf2(:,kN_In)=X3D_Buf2(:,kN_In)+L_xi(2,jN_In)*X3D_Buf1(:,jN_In,kN_In)
-  END DO
-END DO
-X3D_Out=0.
-! last direction kN_In
-DO kN_In=0,N_In
-  X3D_Out(:)=X3D_Out(:)+L_xi(3,kN_In)*X3D_Buf2(:,kN_In)
-END DO
+! 
+CALL LagrangeInterpolationPolys(xi_in(1),N_in,xGP_in,wBary_In,L_xi(1,:))
+CALL LagrangeInterpolationPolys(xi_in(2),N_in,xGP_in,wBary_In,L_xi(2,:))
+CALL LagrangeInterpolationPolys(xi_in(3),N_in,xGP_in,wBary_In,L_xi(3,:))
+
+U_out(:)=0
+DO k=0,N_in
+  DO j=0,N_in
+    L_eta_zeta=L_xi(2,j)*L_xi(3,k)
+    DO i=0,N_in
+      U_out = U_out + U_IN(:,i,j,k)*L_xi(1,i)*L_eta_zeta
+    END DO ! i=0,N_In
+  END DO ! j=0,N_In
+END DO ! k=0,N_In
+
 
 END SUBROUTINE Eval_xyz_poly
 
 
-SUBROUTINE eval_xyz_part2(xi_in,NVar,N_in,X3D_In,X3D_Out,iElem)
+SUBROUTINE eval_xyz_part2(xi_in,NVar,N_in,U_In,U_Out,iElem)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! hoewver, particle is already mapped to reference space -1|1
@@ -594,93 +546,120 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)        :: NVar                                  ! 6 (Ex, Ey, Ez, Bx, By, Bz) 
 INTEGER,INTENT(IN)        :: N_In                                  ! usually PP_N
 INTEGER,INTENT(IN)        :: iElem                                 ! elem index
-REAL,INTENT(IN)           :: X3D_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
+REAL,INTENT(IN)           :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
 REAL,INTENT(IN)           :: xi_in(3)                              ! reference space position of particle 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)          :: X3D_Out(1:NVar)  ! Interpolated state
+REAL,INTENT(OUT)          :: U_Out(1:NVar)  ! Interpolated state
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                   :: iN_In,jN_In,kN_In,i
-REAL                      :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
-REAL                      :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
-REAL,DIMENSION(3,0:N_in)  :: L_xi        
-REAL,ALLOCATABLE          :: L_xi_BGField(:,:), X3D_tmp1(:,:,:), X3D_tmp2(:,:), X3D_tmp3(:)
+INTEGER             :: i,j,k
+REAL                :: xi(3)
+!REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
+!REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
+REAL                :: F(1:3)!,Lag(1:3,0:NGeo)
+REAL                :: L_xi(3,N_in), L_eta_zeta
+!REAL                :: buff,buff2
+! h5-external e,b field
+REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 !===================================================================================================================================
-! --------------------------------------------------
-! 2.) Interpolation
-! --------------------------------------------------
-! 2.1) get "Vandermonde" vectors
-DO i=1,3
-  CALL LagrangeInterpolationPolys(xi_in(i),N_in,xGP,wBary,L_xi(i,:))
-END DO
 
-! 2.2) do the tensor product thing 
-X3D_buf1=0.
-! first direction iN_In
-DO kN_In=0,N_In
-  DO jN_In=0,N_In
-    DO iN_In=0,N_In
-      X3D_Buf1(:,jN_In,kN_In)=X3D_Buf1(:,jN_In,kN_In)+L_xi(1,iN_In)*X3D_In(:,iN_In,jN_In,kN_In)
-    END DO
-  END DO
-END DO
-X3D_buf2=0.
-! second direction jN_In
-DO kN_In=0,N_In
-  DO jN_In=0,N_In
-    X3D_Buf2(:,kN_In)=X3D_Buf2(:,kN_In)+L_xi(2,jN_In)*X3D_Buf1(:,jN_In,kN_In)
-  END DO
-END DO
-X3D_Out=0.
-! last direction kN_In
-DO kN_In=0,N_In
-  X3D_Out(:)=X3D_Out(:)+L_xi(3,kN_In)*X3D_Buf2(:,kN_In)
-END DO
+! 2.1) get "Vandermonde" vectors
+CALL LagrangeInterpolationPolys(xi(1),N_in,xGP,wBary,L_xi(1,:))
+CALL LagrangeInterpolationPolys(xi(2),N_in,xGP,wBary,L_xi(2,:))
+CALL LagrangeInterpolationPolys(xi(3),N_in,xGP,wBary,L_xi(3,:))
+
+
+! "more efficient" - Quote Thomas B.
+U_out(:)=0
+DO k=0,N_in
+  DO j=0,N_in
+    L_eta_zeta=L_xi(2,j)*L_xi(3,k)
+    DO i=0,N_in
+      U_out = U_out + U_IN(:,i,j,k)*L_xi(1,i)*L_Eta_Zeta
+    END DO ! i=0,N_In
+  END DO ! j=0,N_In
+END DO ! k=0,N_In
+
+!! 2.2) do the tensor product thing 
+!X3D_buf1=0.
+!! first direction iN_In
+!DO k=0,N_In
+!  DO j=0,N_In
+!    DO i=0,N_In
+!      X3D_Buf1(:,j,k)=X3D_Buf1(:,j,k)+Lag2(1,i)*X3D_In(:,i,j,k)
+!    END DO
+!  END DO
+!END DO
+!X3D_buf2=0.
+!! second direction jN_In
+!DO k=0,N_In
+!  DO j=0,N_In
+!    X3D_Buf2(:,k)=X3D_Buf2(:,k)+Lag2(2,j)*X3D_Buf1(:,j,k)
+!  END DO
+!END DO
+!X3D_Out=0.
+!! last direction kN_In
+!DO k=0,N_In
+!  X3D_Out(:)=X3D_Out(:)+Lag2(3,k)*X3D_Buf2(:,k)
+!END DO
 
 IF(useBGField)THEN
   ! use of BG-Field with possible different polynomial order and nodetype
-  ALLOCATE( L_xi_BGField(3,0:NBG)            &
-          , X3D_tmp1(BGDataSize,0:NBG,0:NBG) &
-          , X3D_tmp2(BGDataSize,0:NBG)       &
-          , X3D_tmp3(BGDataSize)             )
-  DO i=1,3
-    CALL LagrangeInterpolationPolys(xi_in(i),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(i,:))
-  END DO
+  ALLOCATE( L_xi_BGField(3,0:NBG)             &
+          , U_BGField(1:BGDataSize)           )
+!          , X3D_tmp1(BGDataSize,0:NBG,0:NBG) &
+!          , X3D_tmp2(BGDataSize,0:NBG)       &
+!          , X3D_tmp3(BGDataSize)             )
+  CALL LagrangeInterpolationPolys(xi(1),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(1,:))
+  CALL LagrangeInterpolationPolys(xi(2),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(2,:))
+  CALL LagrangeInterpolationPolys(xi(3),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(3,:))
   
-  ! 2.2) do the tensor product thing 
-  X3D_tmp1=0.
-  ! first direction iN_In
-  DO kN_In=0,NBG
-    DO jN_In=0,NBG
-      DO iN_In=0,NBG
-        X3D_tmp1(:,jN_In,kN_In)=X3D_tmp1(:,jN_In,kN_In)+L_xi_BGField(1,iN_In)*BGField(:,iN_In,jN_In,kN_In,iElem)
-      END DO
-    END DO
-  END DO
-  X3D_tmp2=0.
-  ! second direction jN_In
-  DO kN_In=0,NBG
-    DO jN_In=0,NBG
-      X3D_tmp2(:,kN_In)=X3D_tmp2(:,kN_In)+L_xi_BGField(2,jN_In)*X3D_tmp1(:,jN_In,kN_In)
-    END DO
-  END DO
-  X3D_tmp3=0.
-  ! last direction kN_In
-  DO kN_In=0,NBG
-    X3D_tmp3(:)=X3D_tmp3(:)+L_xi_BGField(3,kN_In)*X3D_tmp2(:,kN_In)
-  END DO
+  U_BGField(:)=0
+  DO k=0,N_in
+    DO j=0,N_in
+      L_eta_zeta=L_xi_BGField(2,j)*L_xi_BGField(3,k)
+      DO i=0,N_in
+        U_BGField = U_BGField + BGField(:,i,j,k,iElem)*L_xi_BGField(1,i)*L_Eta_Zeta
+      END DO ! i=0,N_In
+    END DO ! j=0,N_In
+  END DO ! k=0,N_In
+
+
+  !! 2.2) do the tensor product thing 
+  !X3D_tmp1=0.
+  !! first direction iN_In
+  !DO k=0,NBG
+  !  DO j=0,NBG
+  !    DO i=0,NBG
+  !      X3D_tmp1(:,j,k)=X3D_tmp1(:,j,k)+L_xi_BGField(1,i)*BGField(:,i,j,k,iElem)
+  !    END DO
+  !  END DO
+  !END DO
+  !X3D_tmp2=0.
+  !! second direction jN_In
+  !DO k=0,NBG
+  !  DO j=0,NBG
+  !    X3D_tmp2(:,k)=X3D_tmp2(:,k)+L_xi_BGField(2,j)*X3D_tmp1(:,j,k)
+  !  END DO
+  !END DO
+  !X3D_tmp3=0.
+  !! last direction kN_In
+  !DO k=0,NBG
+  !  X3D_tmp3(:)=X3D_tmp3(:)+L_xi_BGField(3,k)*X3D_tmp2(:,k)
+  !END DO
   SELECT CASE(BGType)
   CASE(1)
-    X3d_Out(1:3)=x3d_Out(1:3)+X3d_tmp3
+    U_Out(1:3)=U_Out(1:3)+U_BGField
   CASE(2)
-    X3d_Out(4:6)=x3d_Out(4:6)+X3d_tmp3
+    U_Out(4:6)=U_Out(4:6)+U_BGField
   CASE(3)
-    X3d_Out=x3d_Out+X3d_tmp3
+    U_Out=U_Out+U_BGField
   END SELECT
-
-  DEALLOCATE( L_xi_BGField, X3d_tmp1, x3d_tmp2, x3d_tmp3)
+  DEALLOCATE( L_xi_BGField, U_BGFIeld)! X3d_tmp1, x3d_tmp2, x3d_tmp3)
 END IF ! useBGField
+
+
 END SUBROUTINE eval_xyz_part2
 
 

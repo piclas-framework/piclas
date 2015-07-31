@@ -125,7 +125,7 @@ SUBROUTINE LD_reposition
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_Particle_Mesh_Vars,    ONLY : GEO
   USE MOD_Eval_xyz,              ONLY : Eval_XYZ_Poly
-  USE MOD_Mesh_Vars,             ONLY : NGeo,XCL_NGeo
+  USE MOD_Mesh_Vars,             ONLY : NGeo,XCL_NGeo,XiCL_Ngeo,wBaryCL_NGeo
   USE MOD_LD_Vars,               ONLY : LD_RepositionFak
 #if (PP_TimeDiscMethod==1001)
   USE MOD_LD_Vars,               ONLY : BulkValues
@@ -152,7 +152,7 @@ REAL                  :: RandVec(3), iRan
       IF (iRan.LT. LD_RepositionFak) THEN     
         CALL RANDOM_NUMBER(RandVec)
         RandVec = RandVec * 2.0 - 1.0
-        CALL Eval_xyz_Poly(RandVec,3,NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(iPartIndx,1:3))
+        CALL Eval_xyz_Poly(RandVec,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(iPartIndx,1:3))
         iPartIndx = PEM%pNext(iPartIndx)
       END IF
     END DO
@@ -249,10 +249,10 @@ SUBROUTINE LD_SetParticlePosition(chunkSize,particle_positions_Temp,iSpec,iInit)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Particle_Vars,         ONLY:Species,PDM
-  USE MOD_Mesh_Vars,             ONLY:nElems
+  USE MOD_Mesh_Vars,             ONLY:nElems,XiCL_NGeo,wBaryCL_NGeo
   USE MOD_Particle_Mesh_Vars,    ONLY:GEO
-  USE MOD_Eval_xyz,              ONLY:Eval_XYZ_Poly
-  USE MOD_Mesh_Vars,             ONLY:NGeo,XCL_NGeo
+  USE MOD_Eval_xyz,              ONLY:Eval_XYZ_Poly!,eval_xyz_elemcheck
+  USE MOD_Mesh_Vars,             ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 !--------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    !
@@ -261,7 +261,7 @@ SUBROUTINE LD_SetParticlePosition(chunkSize,particle_positions_Temp,iSpec,iInit)
 !--------------------------------------------------------------------------------------------------!
 INTEGER               :: iElem, ichunkSize
 INTEGER               :: iPart, iNode, nPart
-REAL                  :: RandVec(3), iRan, RandomPos(3)
+REAL                  :: RandVec(3), iRan, RandomPos(3),xi(3)
 REAL                  :: PartDens, FractNbr
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
@@ -290,7 +290,14 @@ REAL,ALLOCATABLE, INTENT(OUT)    :: particle_positions_Temp(:)
     DO iPart = 1, nPart   
       CALL RANDOM_NUMBER(RandVec)
       RandVec = RandVec * 2.0 - 1.0
-      CALL Eval_xyz_Poly(RandVec,3,NGeo,XCL_NGeo(:,:,:,:,iElem),RandomPos)
+      CALL Eval_xyz_Poly(RandVec,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,iElem),RandomPos)
+      !CALL Eval_xyz_elemcheck(RandomPos,xi,iElem)
+      !IF(ANY(ABS(Xi).GT.1.0)) THEN
+      !  print*,'upppsss'
+      !  print*,'randvec',randvec
+      !  print*,'xi',xi
+      !  read*
+      !END IF
       particle_positions_Temp(ichunkSize*3-2) = RandomPos(1)
       particle_positions_Temp(ichunkSize*3-1) = RandomPos(2)
       particle_positions_Temp(ichunkSize*3)   = RandomPos(3)
@@ -298,6 +305,7 @@ REAL,ALLOCATABLE, INTENT(OUT)    :: particle_positions_Temp(:)
     END DO
   END DO
   chunkSize = ichunkSize - 1
+  !print*,'chunkSize in ld set particle position', chunksize
 
 END SUBROUTINE LD_SetParticlePosition
 

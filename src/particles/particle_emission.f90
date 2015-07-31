@@ -1629,8 +1629,8 @@ ELSE ! mode.NE.1:
        END IF
 #endif
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
-        CALL abort(__STAMP__,&
-          'selected timedisk does not allow num of inserted part .gt. required')
+!j        CALL abort(__STAMP__,&
+!j          'selected timedisk does not allow num of inserted part .gt. required')
 #endif
       ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
         !IF(DoDisplayEmissionWarnings)THEN
@@ -2240,7 +2240,7 @@ SUBROUTINE ParticleInsertingCellPressure(iSpec,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo
+USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh,          ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
@@ -2290,7 +2290,8 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
       RandVal3 = RandVal3 * 2.0 - 1.0 
       ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
       IF (ParticleIndexNbr.NE.0) THEN
-        CALL Eval_xyz_Poly(RandVal3,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3))
+        CALL Eval_xyz_Poly(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
+                           XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3))
         !PartState(ParticleIndexNbr, 1:3) = MapToGeo(RandVal3,P)
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         IF (.NOT. DoRefMapping) THEN
@@ -2333,7 +2334,7 @@ SUBROUTINE ParticleInsertingPressureOut(iSpec,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo
+USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh,          ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Eval_xyz,               ONLY:Eval_XYZ_Poly
@@ -2393,7 +2394,8 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
       RandVal3 = RandVal3 * 2.0 - 1.0 
       ParticleIndexNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition + i + NbrOfParticle)
       IF (ParticleIndexNbr.NE.0) THEN
-        CALL Eval_xyz_Poly(RandVal3,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3))
+        CALL Eval_xyz_Poly(RandVal3,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
+                           XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(ParticleIndexNbr,1:3))
         PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
         IF (.NOT. DoRefMapping) THEN
           CALL SingleParticleToExactElementNoMap(ParticleIndexNbr,doHALO=.FALSE.)

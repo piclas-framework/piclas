@@ -662,7 +662,7 @@ SUBROUTINE SetMPFParticlePosCube(iElem, FinPartNum)
                         , vMPFPolySol, vMPF_SplitVecBack, PartStatevMPFSpec, vMPF_velocityDistribution &
                         , vMPF_NewPosRefElem
   USE MOD_Eval_xyz,           ONLY:Eval_XYZ_Poly
-  USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo
+  USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -698,7 +698,8 @@ SUBROUTINE SetMPFParticlePosCube(iElem, FinPartNum)
     END DO
     RandVac = RandVac * 2.0 - 1.0
     IF(vMPF_velocityDistribution.EQ.'DENSEST')  vMPF_NewPosRefElem(iLoop, 1:3) = RandVac 
-    CALL Eval_xyz_Poly(RandVac,3,NGeo,XCL_NGeo(:,:,:,:,iElem),PartState(PartStatevMPFSpec(iLoop),1:3))!,iElem)
+    CALL Eval_xyz_Poly(RandVac,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
+                       XCL_NGeo(:,:,:,:,iElem),PartState(PartStatevMPFSpec(iLoop),1:3))!,iElem)
     !PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
   END DO
 
@@ -714,7 +715,7 @@ SUBROUTINE SetMPFParticlePosDensEst(iElem, FinPartNum, SpecNum,PosFailed)
                         , vMPF_oldMPFSum, vMPFOldMPF, vMPF_NewPosRefElem, vMPF_velocityDistribution &
                         ,vMPFOldPos, vMPFOldVelo, vMPFOldMPF, vMPFNewPosNum, PartMPF, PDM
   USE MOD_Eval_xyz,           ONLY:Eval_XYZ_Poly
-  USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo
+  USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -775,7 +776,8 @@ DO iLoop = 1, FinPartNum
   END DO
   IF(PosFailed) EXIT
   IF(vMPF_velocityDistribution.EQ.'DENSEST')  vMPF_NewPosRefElem(iLoop, 1:3) = RandVac
-  CALL Eval_xyz_Poly(RandVac,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(PartStatevMPFSpec(iLoop),1:3))!,iElem)
+  CALL Eval_xyz_Poly(RandVac,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,&
+                     XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),PartState(PartStatevMPFSpec(iLoop),1:3))!,iElem)
   !PartState(PartStatevMPFSpec(iLoop), 1:3) = MapToGeo(RandVac, P)
 END DO
 

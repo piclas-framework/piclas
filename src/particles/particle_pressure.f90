@@ -52,7 +52,7 @@ SUBROUTINE ParticlePressureIni()
   USE MOD_Particle_Mesh_Vars,      ONLY:epsInCell
   USE MOD_Particle_Mesh,           ONLY:PointToExactElement
   USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide,SideToElem
-  USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo
+  USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
   USE MOD_Eval_XYZ,                ONLY:eval_xyz_poly
   USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElem
 #ifdef MPI
@@ -240,7 +240,7 @@ SUBROUTINE ParticlePressureIni()
                 CASE(ZETA_PLUS)
                   XI=(/RandVal(1),RandVal(2), 1.0/)      
                 END SELECT
-                CALL Eval_xyz_Poly(Xi,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
+                CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
                 BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                 !Lokalisierung
@@ -299,7 +299,7 @@ SUBROUTINE ParticlePressureIni()
                     CASE(ZETA_PLUS)
                       XI=(/RandVal(1),RandVal(2), 1.0/)      
                     END SELECT
-                    CALL Eval_xyz_Poly(Xi,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
+                    CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
                     BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                     !Lokalisierung
@@ -483,7 +483,7 @@ SUBROUTINE ParticlePressureIni()
                 CASE(ZETA_PLUS)
                   XI=(/RandVal(1),RandVal(2), 1.0/)      
                 END SELECT
-                CALL Eval_xyz_Poly(Xi,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
+                CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
                 BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                 !Lokalisierung
@@ -553,7 +553,7 @@ SUBROUTINE ParticlePressureIni()
                     CASE(ZETA_PLUS)
                       XI=(/RandVal(1),RandVal(2), 1.0/)      
                     END SELECT
-                    CALL Eval_xyz_Poly(Xi,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
+                    CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
                     BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                     !Lokalisierung
@@ -631,7 +631,7 @@ SUBROUTINE ParticlePressureCellIni()
   USE MOD_Particle_Mesh_Vars,      ONLY:epsInCell
   USE MOD_Particle_Mesh,           ONLY:PointToExactElement
   USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide,SideToElem
-  USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo
+  USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
   USE MOD_Eval_XYZ,                ONLY:eval_xyz_poly
   USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElem
 #ifdef MPI
@@ -815,7 +815,7 @@ SUBROUTINE ParticlePressureCellIni()
                 CASE(ZETA_PLUS)
                   XI=(/RandVal(1),RandVal(2), 1.0/)      
                 END SELECT
-                CALL Eval_xyz_Poly(Xi,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
+                CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
                 BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                 !Lokalisierung
@@ -874,7 +874,7 @@ SUBROUTINE ParticlePressureCellIni()
                     CASE(ZETA_PLUS)
                       XI=(/RandVal(1),RandVal(2), 1.0/)      
                     END SELECT
-                    CALL Eval_xyz_Poly(Xi,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
+                    CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
                     BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                     !Lokalisierung
@@ -1057,7 +1057,7 @@ SUBROUTINE ParticlePressureCellIni()
                 CASE(ZETA_PLUS)
                   XI=(/RandVal(1),RandVal(2), 1.0/)      
                 END SELECT
-                CALL Eval_xyz_Poly(Xi,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
+                CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),BN)
                 ! check if point is in element
                 BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                 !Lokalisierung
@@ -1127,7 +1127,7 @@ SUBROUTINE ParticlePressureCellIni()
                     CASE(ZETA_PLUS)
                       XI=(/RandVal(1),RandVal(2), 1.0/)      
                     END SELECT
-                    CALL Eval_xyz_Poly(Xi,3,NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
+                    CALL Eval_xyz_Poly(Xi,3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ExamElem),BN)
                     ! check if point is in element
                     BN = BN - Species(iSpec)%Init(iInit)%BasePointIC
                     !Lokalisierung
