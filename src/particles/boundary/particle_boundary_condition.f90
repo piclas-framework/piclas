@@ -462,8 +462,9 @@ USE MOD_Mesh_Vars,              ONLY:BC,nSides,NGEO
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,SpecDSMC, DSMC, SampWall, SurfMesh, useDSMC, CollisMode
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
-USE MOD_TimeDisc_Vars,          ONLY:RK_a,iStage,dt,tend
+USE MOD_TimeDisc_Vars,          ONLY:RK_a,iStage
 #endif
+USE MOD_TImeDisc_Vars,          ONLY:dt,tend
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
