@@ -358,6 +358,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
+USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
@@ -380,8 +381,11 @@ REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3)
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 REAL                                 :: absPt_temp
 #endif
-REAL,PARAMETER                       :: oneMinus=0.99999999
+!REAL,PARAMETER                       :: oneMinus=0.99999999
+REAL                                 :: oneMinus!=0.99999999
 !===================================================================================================================================
+
+OneMinus=1.0-epsInCell
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
@@ -460,6 +464,7 @@ USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol,BezierContr
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC,nSides,NGEO
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,SpecDSMC, DSMC, SampWall, SurfMesh, useDSMC, CollisMode
+USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
 USE MOD_TimeDisc_Vars,          ONLY:RK_a,iStage
@@ -483,7 +488,8 @@ REAL                                 :: VibQuantNewR                            
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 REAL                                 :: absPt_temp
 #endif
-REAL,PARAMETER                       :: oneMinus=0.99999999
+!REAL,PARAMETER                       :: oneMinus=0.99999999
+REAL                                 :: oneMinus                
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
 REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
@@ -491,6 +497,8 @@ REAL                                 :: n_loc(1:3), tang1(1:3),tang2(1:3), NewVe
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                                 :: WallTransACC
 !===================================================================================================================================
+
+OneMinus=1.0-epsInCell
 
 ! additional states
 locBCID=PartBound%MapToPartBC(BC(SideID))

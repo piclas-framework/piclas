@@ -305,7 +305,6 @@ REAL,ALLOCATABLE, INTENT(OUT)    :: particle_positions_Temp(:)
     END DO
   END DO
   chunkSize = ichunkSize - 1
-  !print*,'chunkSize in ld set particle position', chunksize
 
 END SUBROUTINE LD_SetParticlePosition
 

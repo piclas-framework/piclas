@@ -263,6 +263,8 @@ INTEGER                       :: nInter,flip,BCSideID
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
 !===================================================================================================================================
 
+IF(LastSide.EQ.0) RETURN
+
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &

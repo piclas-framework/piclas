@@ -1243,6 +1243,9 @@ USE MOD_Particle_MPI_Vars,        ONLY:halo_eps,halo_eps2
 #ifdef MPI
 USE MOD_Particle_MPI_HALO,        ONLY:WriteParticleMappingPartitionInformation
 #endif /*MPI*/
+#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
+USE MOD_Mesh_Vars,                ONLY:XCL_NGeo
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1260,6 +1263,9 @@ LOGICAL                     :: isLinear,leave
 #ifdef MPI  
 INTEGER                     :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
 #endif /*MPI*/
+#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
+REAL,DIMENSION(1:3,0:NGeo,0:NGeo) :: xNodes
+#endif
 !================================================================================================================================
 
 ! allocated here,!!! should be moved?
@@ -1405,7 +1411,9 @@ ALLOCATE( SideIndex(1:nTotalSides) )
 ! number of element local BC-Sides
 DO iElem=1,nTotalElems
   BCElem(iElem)%nInnerSides=0
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
   IF(.NOT.isBCElem(iElem)) CYCLE
+#endif
   DO ilocSide=1,6
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
     IF(SideID.EQ.-1) CYCLE
@@ -1425,6 +1433,7 @@ DO iElem=1,nTotalElems
     DO ilocSide=1,6
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
       IF(SideID.EQ.-1) CYCLE
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
       BCSideID2 =PartBCSideList(SideID)
       IF(BCSideID2.EQ.-1) CYCLE
       leave=.FALSE.
@@ -1451,24 +1460,71 @@ DO iElem=1,nTotalElems
         END DO ! p
         IF(leave) EXIT
       END DO ! q
+#else /* no LSERK */
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS)
+        xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
+      CASE(XI_PLUS)
+        xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
+      CASE(ETA_MINUS)
+        xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
+      CASE(ETA_PLUS)
+        xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
+      CASE(ZETA_MINUS)
+        xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
+      CASE(ZETA_PLUS)
+        xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
+      END SELECT
+      leave=.FALSE.
+      ! all points of bc side
+      DO q=0,NGeo
+        DO p=0,NGeo
+          NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+          ! all nodes of current side
+          DO s=0,NGeo
+            DO r=0,NGeo
+              IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
+                                 ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
+                IF(SideIndex(iSide).EQ.0)THEN
+                  BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                  SideIndex(iSide)=BCElem(iElem)%lastSide
+                  leave=.TRUE.
+                  EXIT
+                END IF
+              END IF
+            END DO ! r
+            IF(leave) EXIT
+          END DO ! s
+          IF(leave) EXIT
+        END DO ! p
+        IF(leave) EXIT
+      END DO ! q
+#endif
       IF(leave) EXIT
     END DO ! ilocSide
   END DO ! iSide
   ! finally, allocate the bc side list
+  IF(BCElem(iElem)%lastSide.EQ.0) CYCLE
+  ! set true, only required for elements without an own bc side
+  IF(.NOT.isBCElem(iElem)) nBCElems=nBCElems+1
+  isBCElem(iElem)=.TRUE.
+  ! allocate complete side list
   ALLOCATE( BCElem(iElem)%BCSideID(BCElem(iElem)%lastSide) )
   ! 1) inner sides
   nSideCount=0
-  DO ilocSide=1,6
-    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(SideID.EQ.-1) CYCLE
-    BCSideID=PartBCSideList(SideID)
-    IF(BCSideID.EQ.-1) CYCLE
-   ! IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
-    nSideCount=nSideCount+1
-    !BCElem(iElem)%BCSideID(nSideCount)= BCSideID
-    BCElem(iElem)%BCSideID(nSideCount)= SideID
-    !END IF
-  END DO ! ilocSide
+  IF(BCElem(iElem)%nInnerSides.GT.0)THEN
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF(SideID.EQ.-1) CYCLE
+      BCSideID=PartBCSideList(SideID)
+      IF(BCSideID.EQ.-1) CYCLE
+     ! IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
+      nSideCount=nSideCount+1
+      !BCElem(iElem)%BCSideID(nSideCount)= BCSideID
+      BCElem(iElem)%BCSideID(nSideCount)= SideID
+      !END IF
+    END DO ! ilocSide
+  END IF ! nInnerSides.GT.0
   ! 2) outer sides
   DO iSide=1,nTotalSides
     IF(SideIndex(iSide).GT.0)THEN

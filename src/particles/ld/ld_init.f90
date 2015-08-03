@@ -590,6 +590,11 @@ CASE(ZETA_PLUS)
   SideCoord(1:3,:,:)=XCL_NGeo(1:3,:,:,NGeo,Element)
 END SELECT
 
+!print*,'SideCoord1',SideCoord(:,0,0)
+!print*,'SideCoord2',SideCoord(:,1,0)
+!print*,'SideCoord3',SideCoord(:,0,1)
+!print*,'SideCoord4',SideCoord(:,1,1)
+
 !print*,'xcl_ngeo',xcl_ngeo(:,:,:,:,Element)
 !print*,''
 !print*,'ilocside',ilocside
@@ -644,19 +649,28 @@ vector2(:) = SideCoord(:,0,NGeo)-SideCoord(:,NGeo,0)
   !ny = Vector1(3) * Vector2(1) - Vector1(1) * Vector2(3)
   !nz = Vector1(1) * Vector2(2) - Vector1(2) * Vector2(1)
 
-  BaseVectorS(1:3) = 0.25*SUM(SideCoord(1:3,:,:))
+  BaseVectorS(1) = 0.25*SUM(SideCoord(1,:,:))
+  BaseVectorS(2) = 0.25*SUM(SideCoord(2,:,:))
+  BaseVectorS(3) = 0.25*SUM(SideCoord(3,:,:))
 
-  nVal = SQRT(nx*nx + ny*ny + nz*nz)
+  !nVal = SQRT(nx*nx + ny*ny + nz*nz)
   !MeanSurfValues(iLocSide, Element)%MeanNormVec(1) = nx/nVal
   !MeanSurfValues(iLocSide, Element)%MeanNormVec(2) = ny/nVal
   !MeanSurfValues(iLocSide, Element)%MeanNormVec(3) = nz/nVal
   MeanSurfValues(iLocSide, Element)%MeanNormVec(1:3) = CROSSNORM(Vector1,Vector2)
-  MeanSurfValues(iLocSide, Element)%MeanBaseD = MeanSurfValues(iLocSide, Element)%MeanNormVec(1) * BaseVectorS(1) &
-                                              + MeanSurfValues(iLocSide, Element)%MeanNormVec(2) * BaseVectorS(2) &
-                                              + MeanSurfValues(iLocSide, Element)%MeanNormVec(3) * BaseVectorS(3)
+
+!  print*,'BaseVectorS',BaseVectorS
+!  print*,'ElemBary',ElemBaryNGeo(:,Element)
 
   NVecTest = DOT_PRODUCT(BaseVectorS-ElemBaryNGeo(:,Element),MeanSurfValues(ilocSide,Element)%MeanNormVec)
   IF(NVecTest.LE.0.0) MeanSurfValues(ilocSide,Element)%MeanNormVec=(-1.0)*MeanSurfValues(ilocSide,Element)%MeanNormVec
+
+  MeanSurfValues(iLocSide, Element)%MeanBaseD = MeanSurfValues(iLocSide, Element)%MeanNormVec(1) * BaseVectorS(1) &
+                                              + MeanSurfValues(iLocSide, Element)%MeanNormVec(2) * BaseVectorS(2) &
+                                              + MeanSurfValues(iLocSide, Element)%MeanNormVec(3) * BaseVectorS(3)
+!print*,'normvec',MeanSurfValues(ilocSide,Element)%MeanNormVec
+!read*
+
 !IF (NVecTest.LE.0.0) THEN
   !  SWRITE(UNIT_StdOut,'(132("-"))')
   !  SWRITE(UNIT_StdOut,'(A)') 'Element:',iElem

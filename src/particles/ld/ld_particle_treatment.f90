@@ -95,6 +95,10 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
     ChosenMeanBaseD1 = MeanSurfValues(iLocSide1,iElem)%MeanBaseD
     ChosenMeanBaseD2 = MeanSurfValues(iLocSide2,iElem)%MeanBaseD
     ChosenMeanBaseD3 = MeanSurfValues(iLocSide3,iElem)%MeanBaseD
+    !print*,'Node',iNode
+    !print*,'iloside,vlag,nvec',ilocside1,vLag1,nVec1
+    !print*,'iloside,vlag,nvec',ilocside2,vLag2,nVec2
+    !print*,'iloside,vlag,nvec',ilocside3,vLag3,nVec3
     Matrix(1,1) = NVec1(1)
     Matrix(2,1) = NVec2(1)
     Matrix(3,1) = NVec3(1)
@@ -120,6 +124,8 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
     !print*,matrix(2,:)
     !print*,matrix(3,:)
     CALL gaussj(Matrix,Vector)
+    !print*,'vector',vector(:,1)
+    !read*
     NewNodePos(1,iNode) = Vector(1,1)
     NewNodePos(2,iNode) = Vector(2,1)
     NewNodePos(3,iNode) = Vector(3,1)
@@ -141,6 +147,10 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
   DO ipart = 1, nPart
     CALL Eval_xyz_Poly(PartPosRef(1:3,iPartIndx),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo_tmp,PartNewPos)
 
+    !print*,'PartNewPos',PartNewPos
+    !print*,'PartPos',PartState(iPartIndx,1:3)
+    !print*,'PartVelo',PartState(iPartIndx,4:6)
+    !read*
     LD_RHS(iPartIndx,1) = (PartNewPos(1) - PartState(iPartIndx,1)) / dt - PartState(iPartIndx,4)
     LD_RHS(iPartIndx,2) = (PartNewPos(2) - PartState(iPartIndx,2)) / dt - PartState(iPartIndx,5)
     LD_RHS(iPartIndx,3) = (PartNewPos(3) - PartState(iPartIndx,3)) / dt - PartState(iPartIndx,6)
@@ -154,6 +164,8 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
     IF (LD_RHS(iPartIndx,3).NE.LD_RHS(iPartIndx,3)) THEN
       LD_RHS(iPartIndx,3) = 0.0
     END IF
+    !print*,'iPart,ld-rhs',iPartIndx,LD_RHS(iPartIndx,1:3)
+    !read*
 
 !    IF ((ABS(PartNewPos(1) - PartState(iPartIndx,1)).LE. 1E-14) .OR. (dt.LE. 1E-14)) THEN
 !      LD_RHS(iPartIndx,1) = 0.0
