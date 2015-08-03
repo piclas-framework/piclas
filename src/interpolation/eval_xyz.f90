@@ -82,7 +82,7 @@ REAL                :: Winner_Dist,Dist,abortcrit
 REAL, PARAMETER     :: EPSONE=1.00000001
 INTEGER             :: iDir
 REAL                :: F(1:3),Lag(1:3,0:NGeo)
-REAL                :: L_xi(3,PP_N), L_eta_zeta
+REAL                :: L_xi(3,0:PP_N), L_eta_zeta
 REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                :: buff,buff2
 REAL                :: Ptild(1:3),XiLinear(1:6)
@@ -558,7 +558,7 @@ REAL                :: xi(3)
 !REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 !REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
 REAL                :: F(1:3)!,Lag(1:3,0:NGeo)
-REAL                :: L_xi(3,N_in), L_eta_zeta
+REAL                :: L_xi(3,0:N_in), L_eta_zeta
 !REAL                :: buff,buff2
 ! h5-external e,b field
 REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)

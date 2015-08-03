@@ -1986,6 +1986,7 @@ SUBROUTINE QuatricSolver(A,B,C,nRoot,r1,r2)
 ! subroutine to compute the modified a,b,c equation, parameter already mapped in final version
 !================================================================================================================================
 USE MOD_Globals_Vars,       ONLY:epsMach
+USE MOD_Globals,            ONLY:AlmostZero
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1998,23 +1999,36 @@ REAL,INTENT(OUT)        :: R1,R2
 REAL                    :: radicant
 !================================================================================================================================
 
-radicant = B*B-4.0*A*C
 !IF(radicant.LT.-epsMach)THEN
-IF(radicant.LT.0.)THEN
-  nRoot=0
-  R1=0.
-  R2=0.
-!ELSE IF (radicant.LT.epsMach)THEN
-ELSE IF (radicant.EQ.0.)THEN
-  nRoot=1
-  R1=-0.5*B/A
-  R2=0.
-ELSE 
-  nRoot=2
-  R1=SQRT(radicant)
-  R2=-R1
-  R1=0.5*(-B+R1)/A
-  R2=0.5*(-B+R2)/A ! sign above
+IF(ALMOSTZERO(a))THEN
+  IF(ABS(b).LT.epsMach)THEN
+    nRoot=0
+    R1=0.
+    R2=0.
+  ELSE
+    nRoot=1
+    R1=-c/b
+    R2=0.
+  END IF
+ELSE
+  radicant = B*B-4.0*A*C
+  IF(radicant.LT.0.)THEN
+    nRoot=0
+    R1=0.
+    R2=0.
+  !ELSE IF (radicant.LT.epsMach)THEN
+  ELSE IF (radicant.EQ.0.)THEN
+    nRoot=1
+    R1=-0.5*B/A
+    R2=0.
+  ELSE 
+    nRoot=2
+    R1=SQRT(radicant)
+    R2=-R1
+    write(*,*) 'a',a
+    R1=0.5*(-B+R1)/A
+    R2=0.5*(-B+R2)/A ! sign above
+  END IF
 END IF
 !IF(ABS(a).LT.epsMach)THEN
 !  IF(ABS(b).LT.epsMach)THEN
