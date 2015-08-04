@@ -2025,7 +2025,6 @@ ELSE
     nRoot=2
     R1=SQRT(radicant)
     R2=-R1
-    write(*,*) 'a',a
     R1=0.5*(-B+R1)/A
     R2=0.5*(-B+R2)/A ! sign above
   END IF

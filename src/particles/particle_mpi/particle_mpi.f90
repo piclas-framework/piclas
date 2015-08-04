@@ -1346,14 +1346,14 @@ DO iSpec=1,nSpecies
           lineVector(3) * lineVector(3))
       END IF
       radius = Species(iSpec)%Init(iInit)%RadiusIC
+      ! here no radius, already inclueded
+      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC-Species(iSpec)%Init(iInit)%BaseVector1IC &
+                                                           -Species(iSpec)%Init(iInit)%BaseVector2IC
 
-      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC-radius*Species(iSpec)%Init(iInit)%BaseVector1IC &
-                                                           -radius*Species(iSpec)%Init(iInit)%BaseVector2IC
-
-      xCoords(1:3,2)=xCoords(1:3,1)+2.0*radius*Species(iSpec)%Init(iInit)%BaseVector1IC
-      xCoords(1:3,3)=xCoords(1:3,1)+2.0*radius*Species(iSpec)%Init(iInit)%BaseVector2IC
-      xCoords(1:3,4)=xCoords(1:3,1)+2.0*radius*Species(iSpec)%Init(iInit)%BaseVector1IC&
-                                   +2.0*radius*Species(iSpec)%Init(iInit)%BaseVector2IC
+      xCoords(1:3,2)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector1IC
+      xCoords(1:3,3)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector2IC
+      xCoords(1:3,4)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector1IC&
+                                   +2.0*Species(iSpec)%Init(iInit)%BaseVector2IC
 
       IF (Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
         height = halo_eps

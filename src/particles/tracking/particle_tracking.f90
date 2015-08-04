@@ -87,7 +87,6 @@ DO iPart=1,PDM%ParticleVecLength
     lengthPartTrajectory=lengthPartTrajectory!+epsilontol
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
-    !IF((iPart.EQ.238).AND.(iter.GE.182)) WRITE(*,*) '----'
     DO WHILE (.NOT.PartisDone)
       !IF((iPart.EQ.238).AND.(iter.GE.182)) WRITE(*,*) 'ElemID',ElemID
       locAlpha=-1.
@@ -380,6 +379,22 @@ INTEGER,ALLOCATABLE         :: ListDistance(:)
 !REAL                        :: epsOne
 LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength)
 !===================================================================================================================================
+
+
+! sanity check
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    IF(PartState(iPart,1).NE.PartState(iPart,1)) CALL abort(&
+        __STAMP__,&
+        ' x-pos is nan of ipart',iPart)
+    IF(PartState(iPart,2).NE.PartState(iPart,2)) CALL abort(&
+        __STAMP__,&
+        ' y-pos is nan of ipart',iPart)
+    IF(PartState(iPart,3).NE.PartState(iPart,3)) CALL abort(&
+        __STAMP__,&
+        ' z-pos is nan of ipart',iPart)
+  END IF
+END DO ! iPart=1,,PDM%ParticleVecLength
 
 !epsOne=1.0+epsInCell
 ParticleFound=.FALSE.

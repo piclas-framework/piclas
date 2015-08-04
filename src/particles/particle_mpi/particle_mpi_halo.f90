@@ -2345,7 +2345,7 @@ SUBROUTINE WriteParticlePartitionInformation(nPlanar,nBilinear,nCurved)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,            ONLY:nSides,nElems
+USE MOD_Mesh_Vars,            ONLY:nSides,nElems,writePartitionInfo
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,   ONLY:nTotalSides,nTotalElems
 ! IMPLICIT VARIABLE HANDLING
@@ -2363,6 +2363,8 @@ INTEGER,ALLOCATABLE        :: nNBProcs_glob(:), ProcInfo_glob(:,:),NBInfo_glob(:
 REAL,ALLOCATABLE           :: tmpreal(:,:)
 INTEGER                    :: ProcInfo(7),nNBmax,i,j,ioUnit
 !===================================================================================================================================
+
+IF(.NOT.WritePartitionInfo) RETURN
 
 
 !output partitioning info
@@ -2488,7 +2490,7 @@ SUBROUTINE WriteParticleMappingPartitionInformation(nPlanar,nBilinear,nCurved,nT
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,            ONLY:nSides,nElems
+USE MOD_Mesh_Vars,            ONLY:nSides,nElems, writePartitionInfo
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,   ONLY:nTotalSides,nTotalElems
 ! IMPLICIT VARIABLE HANDLING
@@ -2507,6 +2509,7 @@ REAL,ALLOCATABLE           :: tmpreal(:,:)
 INTEGER                    :: ProcInfo(8),nNBmax,i,j,ioUnit
 !===================================================================================================================================
 
+IF(.NOT.WritePartitionInfo) RETURN
 
 !output partitioning info
 ProcInfo(1)=nElems

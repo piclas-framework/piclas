@@ -42,7 +42,7 @@ SUBROUTINE setLocalSideIDs()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars,  ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
-USE MOD_Mesh_Vars,  ONLY: aElem,aSide
+USE MOD_Mesh_Vars,  ONLY: aElem,aSide, writePartitionInfo
 USE MOD_Mesh_Vars,  ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 #ifdef MPI
 USE MOD_ReadInTools,ONLY: GETLOGICAL
@@ -68,7 +68,7 @@ INTEGER,ALLOCATABLE   :: SideIDMap(:)
 INTEGER,ALLOCATABLE   :: NBinfo(:,:),NBinfo_glob(:,:,:),nNBProcs_glob(:),Procinfo_glob(:,:),tmparray(:,:)  !for output only
 REAL,ALLOCATABLE      :: tmpreal(:,:)
 CHARACTER(LEN=10)     :: formatstr
-LOGICAL               :: writePartitionInfo
+!LOGICAL               :: writePartitionInfo
 #endif
 !===================================================================================================================================
 FirstElemInd= offsetElem+1
