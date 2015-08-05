@@ -16,6 +16,8 @@ INTEGER,ALLOCATABLE                   :: GaussBGMIndex(:,:,:,:,:) ! Background m
 REAL,ALLOCATABLE                      :: GaussBGMFactor(:,:,:,:,:) ! BGM factor of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
 REAL,ALLOCATABLE                      :: GPWeight(:,:,:,:,:,:,:) ! Weights for splines deposition (check pic_depo for details)
 CHARACTER(LEN=256)                    :: DepositionType     ! Type of Deposition-Method
+INTEGER,ALLOCATABLE                   :: PartToFIBGM(:,:)   ! Mapping form Particle to FIBGM
+REAL,ALLOCATABLE                      :: ElemRadius2_SF(:)  ! elem radius plus radius_sf
 REAL                                  :: r_sf               ! cutoff radius of shape function
 REAL                                  :: r2_sf              ! cutoff radius of shape function * cutoff radius of shape function
 REAL                                  :: r2_sf_inv          ! 1/cutoff radius of shape function * cutoff radius of shape function

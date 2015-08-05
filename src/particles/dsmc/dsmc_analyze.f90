@@ -692,26 +692,26 @@ SUBROUTINE CalcSurfaceValues
   ELSE
     TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
   END IF
-
-  DO iElem=1,SurfMesh%nSurfaceBCSides
-    ALLOCATE(MacroSurfaceVal(iElem)%Counter(1:nSpecies))
-    MacroSurfaceVal(iElem)%Counter(1:nSpecies)=0.0
-    MacroSurfaceVal(iElem)%CounterOut=0.0
-    MacroSurfaceVal(iElem)%Heatflux = (SampWall(iElem)%Energy(1)+SampWall(iElem)%Energy(4)+SampWall(iElem)%Energy(7) &
-                                      -SampWall(iElem)%Energy(3)-SampWall(iElem)%Energy(6)-SampWall(iElem)%Energy(9))&
-                                     /(SurfMesh%SurfaceArea(iElem) * TimeSample)
-    MacroSurfaceVal(iElem)%Force(1) = SampWall(iElem)%Force(1) /(SurfMesh%SurfaceArea(iElem) * TimeSample)
-    MacroSurfaceVal(iElem)%Force(2) = SampWall(iElem)%Force(2) /(SurfMesh%SurfaceArea(iElem) * TimeSample)
-    MacroSurfaceVal(iElem)%Force(3) = SampWall(iElem)%Force(3) / (SurfMesh%SurfaceArea(iElem) * TimeSample)
-    DO iSpec=1,nSpecies
-      MacroSurfaceVal(iElem)%Counter(iSpec) = SampWall(iElem)%Counter(iSpec) / TimeSample
-      IF (DSMC%CalcSurfCollis_Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(SampWall(iElem)%Counter(iSpec))
-      IF (DSMC%CalcSurfCollis_SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
-        MacroSurfaceVal(iElem)%CounterOut = MacroSurfaceVal(iElem)%CounterOut &
-                                          + MacroSurfaceVal(iElem)%Counter(iSpec)
-      END IF
-    END DO
-  END DO
+!
+!  DO iElem=1,SurfMesh%nSurfaceBCSides
+!    ALLOCATE(MacroSurfaceVal(iElem)%Counter(1:nSpecies))
+!    MacroSurfaceVal(iElem)%Counter(1:nSpecies)=0.0
+!    MacroSurfaceVal(iElem)%CounterOut=0.0
+!    MacroSurfaceVal(iElem)%Heatflux = (SampWall(iElem)%Energy(1)+SampWall(iElem)%Energy(4)+SampWall(iElem)%Energy(7) &
+!                                      -SampWall(iElem)%Energy(3)-SampWall(iElem)%Energy(6)-SampWall(iElem)%Energy(9))&
+!                                     /(SurfMesh%SurfaceArea(iElem) * TimeSample)
+!    MacroSurfaceVal(iElem)%Force(1) = SampWall(iElem)%Force(1) /(SurfMesh%SurfaceArea(iElem) * TimeSample)
+!    MacroSurfaceVal(iElem)%Force(2) = SampWall(iElem)%Force(2) /(SurfMesh%SurfaceArea(iElem) * TimeSample)
+!    MacroSurfaceVal(iElem)%Force(3) = SampWall(iElem)%Force(3) / (SurfMesh%SurfaceArea(iElem) * TimeSample)
+!    DO iSpec=1,nSpecies
+!      MacroSurfaceVal(iElem)%Counter(iSpec) = SampWall(iElem)%Counter(iSpec) / TimeSample
+!      IF (DSMC%CalcSurfCollis_Output) CounterTotal(iSpec) = CounterTotal(iSpec) + INT(SampWall(iElem)%Counter(iSpec))
+!      IF (DSMC%CalcSurfCollis_SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
+!        MacroSurfaceVal(iElem)%CounterOut = MacroSurfaceVal(iElem)%CounterOut &
+!                                          + MacroSurfaceVal(iElem)%Counter(iSpec)
+!      END IF
+!    END DO
+!  END DO
 
   IF (DSMC%CalcSurfCollis_Output) THEN
 #ifdef MPI

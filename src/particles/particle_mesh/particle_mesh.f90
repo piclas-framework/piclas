@@ -539,6 +539,7 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemBaryNGeo(1:3,1:nTotalElems)       )
 CALL BuildElementBasis()
+CALL MapElemToFIBGM()
 
 END SUBROUTINE InitFIBGM
 
@@ -568,7 +569,7 @@ USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartElemToSide,PartSideToElem
 USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-USE MOD_Particle_MPI_Vars,                  ONLY:NbrOfCases,casematrix
+USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
 #endif /*MPI*/
 
 ! IMPLICIT VARIABLE HANDLING
@@ -1102,14 +1103,6 @@ END DO !kBGM
 ! reason: this way, the ReducedBGM List only needs to be searched once and not once for each BGM Cell+Stencil
 
 ! first count the maximum number of procs that exist within each BGM cell (inkl. Shape Padding region)
-!print*,'BGMimin',BGMimin,BGMimax
-!print*,'nShapePaddingz',nShapePaddingx
-!
-!print*,'BGMjmin',BGMjmin,BGMjmax
-!print*,'nShapePaddingy',nShapePaddingy
-!
-!print*,'BGMkmin',BGMkmin,BGMkmax
-!print*,'nShapePaddingZ',nShapePaddingz
 ALLOCATE(CellProcNum(BGMimin-nShapePaddingX:BGMimax+nShapePaddingX, &
                      BGMjmin-nShapePaddingY:BGMjmax+nShapePaddingY, &
                      BGMkmin-nShapePaddingZ:BGMkmax+nShapePaddingZ))
@@ -1354,7 +1347,7 @@ USE MOD_Equation_Vars,                      ONLY:c
 USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartElemToSide,PartSideToElem
 USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI,SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
-USE MOD_Particle_MPI_Vars,                  ONLY:NbrOfCases,casematrix
+USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1935,6 +1928,7 @@ USE MOD_Particle_Mesh_Vars,       ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZeta
 USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
+USE MOD_PICDepo_Vars,             ONLY:DepositionType,r_sf,ElemRadius2_sf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1943,7 +1937,7 @@ IMPLICIT NONE
 !OUTPUT VARIABLES
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem,SideID,i,j,k,ilocSide
+INTEGER                 :: iElem,SideID,i,j,k,ilocSide, ALLOCSTAT
 REAL                    :: Xi(3),XPos(3),Radius
 REAL                    :: RNGeo3,RNGeoSide
 REAL                    :: Lag(1:3,0:NGeo)
@@ -2150,8 +2144,111 @@ DO iElem=1,nTotalElems
 
 END DO ! iElem
 
+IF (TRIM(DepositionType).EQ.'shape_function')THEN
+  ALLOCATE(ElemRadius2_sf(1:PP_nElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__, &
+      ' Cannot allocate ElemRadius2_sf!')
+  DO iElem=1,PP_nElems
+    ElemRadius2_sf(iElem)=(ElemRadiusNGeo(iElem)+r_sf)*(ElemRadiusNGeo(iElem)+r_sf)
+  END DO ! iElem=1,PP_nElems
+END IF
+
 
 END SUBROUTINE BuildElementBasis
 
+
+SUBROUTINE MapElemToFIBGM() 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! here, the FIBGM range for each element is stored
+! short list for intersection tracking, longer list for ref mapping tracking
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO,nTotalElems
+USE MOD_Mesh_Vars,              ONLY:XCL_NGeo
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: ALLOCSTAT,iElem,lastElem
+REAL              :: xmin,ymin,zmin,xmax,ymax,zmax
+INTEGER           :: BGMimax,BGMimin,BGMjmax,BGMjmin,BGMkmax,BGMkmin
+INTEGER           :: BGMCellXmax,BGMCellXmin,BGMCellYmax,BGMCellYmin,BGMCellZmax,BGMCellZmin
+!===================================================================================================================================
+
+!IF(.NOT.DoRefMapping) RETURN
+
+IF(DoRefMapping) THEN
+  LastElem=nTotalElems
+ELSE
+  LastElem=PP_nElems
+END IF
+
+ALLOCATE(GEO%ElemToFIBGM(1:6,1:LastElem),STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+ ,'  Cannot allocate GEO%ElemToFIBGM!')
+
+! because I copy and past
+BGMimax=GEO%FIBGMimax
+BGMimin=GEO%FIBGMimin
+BGMjmax=GEO%FIBGMjmax
+BGMjmin=GEO%FIBGMjmin
+BGMkmax=GEO%FIBGMkmax
+BGMkmin=GEO%FIBGMkmin
+
+DO iElem=1,LastElem
+  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
+  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
+  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
+  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
+  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
+  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
+  !--- find minimum and maximum BGM cell for current element
+  IF(GEO%nPeriodicVectors.EQ.0)THEN
+    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
+  ELSE
+    ! here fancy stuff, because element could be wide out of element range
+    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
+    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
+    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
+    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
+    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
+    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
+  END IF
+  GEO%ElemToFIBGM(1,iElem)=BGMCellXmin  
+  GEO%ElemToFIBGM(3,iElem)=BGMCellYmin  
+  GEO%ElemToFIBGM(5,iElem)=BGMCellZmin  
+
+  GEO%ElemToFIBGM(2,iElem)=BGMCellXmax  
+  GEO%ElemToFIBGM(4,iElem)=BGMCellYmax  
+  GEO%ElemToFIBGM(6,iElem)=BGMCellZmax  
+END DO ! iElem=1,nTotalElems
+
+END SUBROUTINE MapElemToFIBGM
 
 END MODULE MOD_Particle_Mesh

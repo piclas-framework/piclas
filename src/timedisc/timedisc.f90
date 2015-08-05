@@ -155,7 +155,8 @@ USE MOD_PARTICLE_Vars,         ONLY : doParticleMerge, enableParticleMerge, vMPF
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars,             ONLY: realtime,nOutput, Iter_macvalout
 #ifdef MPI
-USE MOD_Particle_MPI,           ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfParticles
+USE MOD_Particle_MPI,          ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,     ONLY: PartMPIExchange
 #endif /*MPI*/
 #endif /*PARTICLES*/
 #ifdef PP_POIS
@@ -238,8 +239,14 @@ IF(t.EQ.tEnd)RETURN
 #ifdef PARTICLES
 #ifdef MPI
 IF (DepositionType.EQ."shape_function") THEN
-!  CALL ParticleBoundary()
-!  CALL Communicate_PIC()
+  ! open receive buffer for number of particles
+  CALL IRecvNbofParticles()
+  ! send number of particles
+  CALL SendNbOfParticles()
+  ! finish communication of number of particles and send particles
+  CALL MPIParticleSend()
+  ! finish communication
+  CALL MPIParticleRecv()
 END IF
 #endif /*MPI*/
 #endif /*PARTICLES*/
@@ -586,8 +593,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   PartMPIExchange%nMPIParticles=0
   CALL Deposition(doInnerParts=.FALSE.)
 #endif /*MPI*/
-!  CALL CalcDepositedCharge()
-!  STOP
+  !CALL CalcDepositedCharge()
 END IF
 
 #endif /*PARTICLES*/
@@ -693,6 +699,7 @@ DO iStage=2,nRKStages
      CALL InterpolateFieldToParticle(doInnerParts=.FALSE.)
      CALL CalcPartRHS()
      CALL Deposition(doInnerParts=.FALSE.)
+     !CALL CalcDepositedCharge()
      ! null here, careful
 #ifdef MPI
      PartMPIExchange%nMPIParticles=0
@@ -1121,13 +1128,15 @@ USE MOD_Filter,ONLY:Filter
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, Time, PDM,PEM
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS
 USE MOD_DSMC,             ONLY : DSMC_main
-!USE MOD_part_boundary,    ONLY : ParticleBoundary
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting
-#endif
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
 #ifdef MPI
-!USE MOD_part_boundary,    ONLY : Communicate_PIC
-#endif
+USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
+#endif /*MPI*/
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1135,6 +1144,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL                  :: timeEnd, timeStart
 !===================================================================================================================================
 Time = t
 
@@ -1150,10 +1160,30 @@ Time = t
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
                                          + PartState(1:PDM%ParticleVecLength,6) * dt
 
-!  CALL ParticleBoundary()
-!#ifdef MPI
-!  CALL Communicate_PIC()
-!#endif
+#ifdef MPI
+  ! open receive buffer for number of particles
+  CALL IRecvNbofParticles()
+#endif /*MPI*/
+  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
+  ! actual tracking
+  IF(DoRefMapping)THEN
+    CALL ParticleRefTracking()
+  ELSE
+    CALL ParticleTrackingCurved()
+  END IF
+  IF(MeasureTrackTime) THEN
+    CALL CPU_TIME(TimeEnd)
+    tTracking=tTracking+TimeEnd-TimeStart
+  END IF
+#ifdef MPI
+  ! send number of particles
+  CALL SendNbOfParticles()
+  ! finish communication of number of particles and send particles
+  CALL MPIParticleSend()
+  ! finish communication
+  CALL MPIParticleRecv()
+#endif /*MPI*/
+
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
@@ -1205,7 +1235,7 @@ USE MOD_part_MPFtools,    ONLY : StartParticleMerge
 !#else
 !USE MOD_part_boundary,    ONLY : ParticleBoundary
 !#endif
-!USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
+USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 #endif
 ! IMPLICIT VARIABLE HANDLING

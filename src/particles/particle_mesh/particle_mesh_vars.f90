@@ -19,6 +19,12 @@ LOGICAL             :: ParticleMeshInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Mesh info
 !-----------------------------------------------------------------------------------------------------------------------------------
+
+! periodic case
+INTEGER, ALLOCATABLE                     :: casematrix(:,:)                  ! matrix to compute periodic cases
+INTEGER                                  :: NbrOfCases                       ! Number of periodic cases
+
+
 ! general: periodic sides have to be Cartesian
 INTEGER,ALLOCATABLE :: SidePeriodicType(:)                                                ! 1:nTotalSides, periodic type of side
                                                                                           ! 0 - normal or BC side
@@ -66,7 +72,7 @@ REAL                                    :: epsOneCell                           
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tFastInitBGM
   INTEGER                                :: nElem                             ! Number of elements in background mesh cell
-  INTEGER, ALLOCATABLE                   :: Element(:)                        ! List of elements in BGM cell
+  INTEGER, ALLOCATABLE                   :: Element(:)                        ! List of elements/physical cells in BGM cell
 #ifdef MPI     
   INTEGER, ALLOCATABLE                   :: ShapeProcs(:)                     ! first Entry: Number of Shapeprocs, 
                                                                               ! following: ShapeProcs
@@ -74,7 +80,7 @@ TYPE tFastInitBGM
                                                                               ! following: PaddingProcs
   INTEGER, ALLOCATABLE                   :: SharedProcs(:)                    ! first Entry: Number of Sharedprocs, 
                                                                               ! following: SharedProcs
-  INTEGER                                :: nBCSides                          ! number BC sides in BGM cell
+  !INTEGER                                :: nBCSides                          ! number BC sides in BGM cell
 #endif                     
 END TYPE
 
@@ -110,6 +116,8 @@ TYPE tGeometry
   INTEGER                                :: FIBGMjmax                         ! biggest index of FastInitBGM (y)
   INTEGER                                :: FIBGMkmin                         ! smallest index of FastInitBGM (z)
   INTEGER                                :: FIBGMkmax                         ! biggest index of FastInitBGM (z)
+  INTEGER,ALLOCATABLE                    :: ElemToFIBGM(:,:)                  ! range of FIGMB cells per element
+                                                                              ! 1:6,1:nTotalElems, xmin,max,yminmax,...
   REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
   REAL, ALLOCATABLE                      :: DeltaEvMPF(:)                     ! Energy difference due to particle merge
   INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)

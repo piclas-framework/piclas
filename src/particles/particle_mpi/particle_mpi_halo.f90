@@ -278,8 +278,8 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,El
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,nSides,XCL_NGeo
-USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding
-USE MOD_Particle_MPI_Vars,         ONLY:halo_eps, NbrOfCases,casematrix!, halo_eps2
+USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix
+USE MOD_Particle_MPI_Vars,         ONLY:halo_eps
 USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,    ONLY:DoRefMapping
 

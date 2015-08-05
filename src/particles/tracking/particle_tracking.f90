@@ -690,6 +690,9 @@ SUBROUTINE PeriodicMovement(PartID)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Mesh_Vars,          ONLY:GEO
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,           ONLY:PartShiftVector
+#endif /*MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -701,6 +704,9 @@ INTEGER,INTENT(IN)              :: PartID
 INTEGER                         :: iPV
 !===================================================================================================================================
 
+#ifdef MPI
+PartShiftVector(1:3,PartID)=PartState(PartID,1:3)
+#endif /*MPI*/
 ! x direction
 IF(GEO%directions(1)) THEN
   IF(PartState(PartID,1).GT.GEO%xmaxglob) THEN
@@ -785,6 +791,9 @@ IF(GEO%directions(3)) THEN
   END IF
 END IF
 
+#ifdef MPI
+PartShiftVector(1:3,PartID)=PartState(PartID,1:3)-PartShiftvector(1:3,PartID)
+#endif /*MPI*/
 
 END SUBROUTINE PeriodicMovement
 

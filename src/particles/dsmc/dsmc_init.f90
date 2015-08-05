@@ -570,10 +570,20 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 ! Perform mapping for surface output
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Mesh_Vars,          ONLY:nBCSides, SideToElem, BC
-  USE MOD_Particle_Vars,      ONLY:nSpecies
-  USE MOD_Particle_Mesh_Vars, ONLY:GEO,PartBound
-  USE MOD_DSMC_Vars,          ONLY:SurfMesh, SampWall
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Tracking_vars, ONLY:DoRefMapping
+USE MOD_Mesh_Vars,              ONLY:SurfElem
+USE MOD_DSMC_Vars,              ONLY:nSurfSample,XiEQ_Surf,deltaXiEQ_Surf
+USE MOD_Basis,                  ONLY:BarycentricWeights,InitializeVandermonde
+USE MOD_Interpolation_Vars,     ONLY:xGP,wBary
+USE MOD_ChangeBasis,            ONLY:ChangeBasis2D
+USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList,nTotalBCSides,nTotalSides
+
+!  USE MOD_Mesh_Vars,          ONLY:nBCSides, SideToElem, BC
+!  USE MOD_Particle_Vars,      ONLY:nSpecies
+!  USE MOD_Particle_Mesh_Vars, ONLY:GEO,PartBound
+!  USE MOD_DSMC_Vars,          ONLY:SurfMesh, SampWall
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -582,13 +592,66 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                 :: iElem, iLocSide, iSide, iNode, iNode2, iSampWallAlloc
-  INTEGER, ALLOCATABLE    :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:)
-  REAL,ALLOCATABLE        :: TempSurfaceArea(:)
-  LOGICAL                 :: IsSortedSurfNode
+INTEGER                   :: p,q, iSide
+REAL,ALLOCATABLE          :: VDM_NGP_NSurfEQ(:,:)!, wBary_NSurfSample(:)
+
+
+
+!  INTEGER                 :: iElem, iLocSide, iSide, iNode, iNode2, iSampWallAlloc
+!  INTEGER, ALLOCATABLE    :: TempBCSurfNodes(:), TempSideSurfNodeMap(:,:)
+!  REAL,ALLOCATABLE        :: TempSurfaceArea(:)
+!  LOGICAL                 :: IsSortedSurfNode
 !===================================================================================================================================
 
+!IF(.NOT.DoRefMapping) CALL abort(__STAMP__,&
+!    ' Analyze Surfaces requires DoRefMapping=.TRUE.')
+!
+!nSurfSample = GETINT('DSMC-nSurfSample','0')
+!ALLOCATE(XiEQ_Surf(0:nSurfSample))
+!IF(nSurfSample.EQ.0)THEN
+!  XiEQ_Surf=0.
+!  DeltaXiEQ_Surf=2.
+!ELSE
+!  DO q=0,nSurfSample
+!    XiEQ_Surf(q) = 2./REAL(nSurfSample) * REAL(q) - 1. 
+!  END DO
+!  DeltaXi_NGeo=2./NGeo_in
+!ENDIF
+!
+!ALLOCATE(Vdm_NGP_NSurfEQ(0:PP_N,0:NSurfSample) & 
+!        ,wBary_NSurfSample(0:NSurfSample)      &
+!        ,SurfMesh%SideToSurfID(1:nTotalSides)  )
+!
+!!CALL BarycentricWeights(NSurfSample,XiEQ_Surf,wBary_NSurfSample)
+!CALL InitializeVandermonde(PP_N,NSurfSample,wBary,xGP,XiEQ_Surf,Vdm_NGP_NSurfEQ)
+!
+!! first, get number of bc sides
+!SurfMesh%nSurfaceBCSides = 0
+!DO iSide=1,nTotalSides
+!  IF(BC(iSide).LE.1) CYCLE
+!  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
+!    SurfMesh%nSurfaceBCSides = SurfMesh%nSurfaceBCSides + 1
+!    SurfMesh%SideToSurfID(iSide) = SurfMesh%nSurfaceBCSides
+!  END IF
+!END DO ! iSide=1,nTotalSides
+!
+!!CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:),tmp)
+!
+!
+!!
+!!  ! ChangeBasis3D to lower or higher polynomial degree
+!!  DO iElem=1,PP_nElems
+!!    CALL ChangeBasis3D(BGDataSize,N_In,NBG,Vdm_BGFieldIn_BGField,BGField_tmp(:,:,:,:,iElem),BGField(:,:,:,:,iElem))
+!!  END DO ! iElem
+!
+!
+!
+!DEALLOCATE(Vdm_NGP_NSurfEQ, wBary_NSurfSample)
+!
+
+
   STOP
+
 !  ALLOCATE(TempBCSurfNodes(4*nBCSides))
 !  ALLOCATE(TempSideSurfNodeMap(1:4,1:nBCSides))
 !  ALLOCATE(SurfMesh%GlobSideToSurfSideMap(nBCSides))
@@ -626,11 +689,12 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 !      END DO  
 !    END IF
 !  END DO
-!
+
 !  ALLOCATE(SurfMesh%BCSurfNodes(1:SurfMesh%nSurfaceNode))
 !  SurfMesh%BCSurfNodes(1:SurfMesh%nSurfaceNode) = TempBCSurfNodes(1:SurfMesh%nSurfaceNode)
 !  ALLOCATE(SurfMesh%SideSurfNodeMap(1:4,1:SurfMesh%nSurfaceBCSides))
 !  SurfMesh%SideSurfNodeMap(1:4,1:SurfMesh%nSurfaceBCSides) = TempSideSurfNodeMap(1:4,1:SurfMesh%nSurfaceBCSides)
+!  ! still required !!!
 !  ALLOCATE(SurfMesh%SurfaceArea(1:SurfMesh%nSurfaceBCSides))
 !  SurfMesh%SurfaceArea(1:SurfMesh%nSurfaceBCSides)=TempSurfaceArea(1:SurfMesh%nSurfaceBCSides)
 !  ALLOCATE(SampWall(1:SurfMesh%nSurfaceBCSides))

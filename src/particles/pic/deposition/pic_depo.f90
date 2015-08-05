@@ -35,10 +35,10 @@ USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_
 USE MOD_Particle_Vars ! crazy??
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Mesh_Vars,              ONLY:nElems, XCL_NGeo,Elem_xGP
-USE MOD_Particle_Mesh_Vars,     ONLY:Geo
+USE MOD_Particle_Mesh_Vars,     ONLY:Geo,ElemRadiusNGeo
 USE MOD_Interpolation_Vars,     ONLY:xGP
 USE MOD_Basis,                  ONLY:BuildBernsteinVdm
-USE MOD_PreProc,                ONLY:PP_N
+USE MOD_PreProc,                ONLY:PP_N,PP_nElems
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
@@ -114,6 +114,17 @@ CASE('nearest_gausspoint')
     END IF
   END IF
 CASE('shape_function')
+  !IF(.NOT.DoRefMapping) CALL abort(&
+  !  __STAMP__&
+  !  ,' Shape function has to be used with ref element tracking.')
+  ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__, &
+      ' Cannot allocate PartToFIBGM!')
+  !ALLOCATE(ExtPartToFIBGM(1:6,1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
+  !IF (ALLOCSTAT.NE.0) THEN
+  !  CALL abort(__STAMP__, &
+  !    ' Cannot allocate ExtPartToFIBGM!')
   r_sf     = GETREAL('PIC-shapefunction-radius','1.')
   alpha_sf = GETINT('PIC-shapefunction-alpha','2')
   BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
@@ -121,12 +132,9 @@ CASE('shape_function')
                         * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
   r2_sf = r_sf * r_sf 
   r2_sf_inv = 1./r2_sf
-  CALL abort(__STAMP__,&
-      ' Shape function parallelization unter production. ')
-!#ifdef MPI
-!  ALLOCATE( PartMPIExchange%nPartsSend(PartMPI%nMPINeighbors)    & 
-!          , PartMPIExchange%nPartsRecv(PartMPI%nMPINeighbors)    &
-!#endif /*MPI*/          
+#ifdef MPI
+  DoExternalParts=.TRUE.
+#endif /*MPI*/
 CASE('delta_distri')
   ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
   IF(.NOT.DoRefMapping)THEN
@@ -387,20 +395,19 @@ SUBROUTINE Deposition(doInnerParts)
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_PreProc
-USE MOD_Mesh_Vars,             ONLY:nElems, Elem_xGP, sJ
 USE MOD_Globals
-!USE MOD_part_MPI_Vars,         ONLY:casematrix, NbrOfCases
-USE MOD_Interpolation_Vars,    ONLY:wGP,swGP,NChooseK
-USE MOD_PICInterpolation_Vars, ONLY:InterpolationType
-USE MOD_Eval_xyz,              ONLY:eval_xyz_elemcheck
-USE MOD_Basis,                 ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
-USE MOD_Interpolation_Vars,    ONLY:wBary,xGP
+USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP, sJ
+USE MOD_Interpolation_Vars,     ONLY:wGP,swGP,NChooseK
+USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
+USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
+USE MOD_Interpolation_Vars,     ONLY:wBary,xGP
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO,ElemBaryNGeo,casematrix, NbrOfCases
 #ifdef MPI
 ! only required for shape function??
-!USE MOD_part_MPI_Vars,        ONLY : ExtPartState, ExtPartSpecies, NbrOfextParticles
-USE MOD_Particle_MPI_Vars,    ONLY:PartMPI,PartMPIExchange
+USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartMPIExchange
 #endif 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -417,10 +424,12 @@ INTEGER                          :: firstPart,lastPart
 INTEGER                          :: i,j, k, l, m, iElem, iPart
 !LOGICAL                          :: chargedone(1:nElems), SAVE_GAUSS             
 LOGICAL                          :: SAVE_GAUSS
+INTEGER                          :: BGMimax,BGMimin,BGMjmax,BGMjmin,BGMkmax,BGMkmin
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
 INTEGER                          :: kk, ll, mm, ppp                                              
-INTEGER                          :: ElemID, iCase, ind
-REAL                             :: radius, S, S1, Fac(4)
+INTEGER                          :: ElemID, iCase, ind, N_in
+REAL                             :: radius2, S, S1, Fac(4)
+REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
 REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
 INTEGER                          :: a,b, ii, expo
 REAL                             :: ElemSource(nElems,1:4)
@@ -428,6 +437,7 @@ REAL, ALLOCATABLE                :: BGMSource(:,:,:,:)
 REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
 REAL                             :: alpha1, alpha2, alpha3
 INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
+INTEGER                          :: foundDOF
 REAL,DIMENSION(3,0:PP_N)         :: L_xi
 REAL                             :: DeltaIntCoeff,prefac
 !============================================================================================================================
@@ -490,162 +500,189 @@ CASE('nearest_blurrycenter')
     END DO ! iElem=1,PP_nElems
   END IF ! .NOT. doInnerParts
 CASE('shape_function')
-!   Vec1(1:3) = 0.
-!   Vec2(1:3) = 0.
-!   Vec3(1:3) = 0.
-!   IF (GEO%nPeriodicVectors.EQ.1) THEN
-!     Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!   END IF
-!   IF (GEO%nPeriodicVectors.EQ.2) THEN
-!     Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!     Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-!   END IF
-!   IF (GEO%nPeriodicVectors.EQ.3) THEN
-!     Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!     Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-!     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
-!   END IF
-!   DO i=firstPart,lastPart
-!     IF (PDM%ParticleInside(i)) THEN
-!       Fac(4) = Species(PartSpecies(i))%ChargeIC * Species(PartSpecies(i))%MacroParticleFactor*w_sf
-!       Fac(1:3) = PartState(i,4:6)*Fac(4)
-!       !-- determine which background mesh cells (and interpolation points within) need to be considered
-!       DO iCase = 1, NbrOfCases
-!         chargedone(:) = .FALSE.
-!         DO ind = 1,3
-!           ShiftedPart(ind) = PartState(i,ind) + casematrix(iCase,1)*Vec1(ind) + &
-!                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-!         END DO
-!         kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-!         kmax = MIN(kmax,GEO%FIBGMimax)
-!         kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-!         kmin = MAX(kmin,GEO%FIBGMimin)
-!         lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-!         lmax = MIN(lmax,GEO%FIBGMkmax)
-!         lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-!         lmin = MAX(lmin,GEO%FIBGMkmin)
-!         mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-!         mmax = MIN(mmax,GEO%FIBGMlmax)
-!         mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-!         mmin = MAX(mmin,GEO%FIBGMlmin)
-!         !-- go through all these cells
-!         DO kk = kmin,kmax
-!           DO ll = lmin, lmax
-!             DO mm = mmin, mmax
-!               !--- go through all mapped elements not done yet
-!               DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-!                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-!                 IF (.NOT.chargedone(ElemID)) THEN
-!                   !--- go through all gauss points
-!                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-!                     !-- calculate distance between gauss and particle
-!                     radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
-!                            + (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
-!                            + (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
-!                     !-- calculate charge and current density at ip point using a shape function
-!                     !-- currently only one shapefunction available, more to follow (including structure change)
-!                     IF (radius .LT. r2_sf) THEN
-!                       S = 1 - r2_sf_inv * radius
-!                       S1 = S*S
-!                       DO expo = 3, alpha_sf
-!                         S1 = S*S1
-!                       END DO
-! #if (PP_nVar==8)
-!                       source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
-! #endif
-!                       source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
-!                     END IF
-!                   END DO; END DO; END DO
-!                   chargedone(ElemID) = .TRUE.
-!                 END IF
-!               END DO ! ppp
-!             END DO ! mm
-!           END DO ! ll
-!         END DO ! kk
-!       END DO ! iCase (periodicity)
-!     END IF ! inside
-!   END DO ! i
-! 
-! #ifdef MPI           
-!   Vec1(1:3) = 0.
-!   Vec2(1:3) = 0.
-!   Vec3(1:3) = 0.
-!   IF (NbrOfextParticles .GT. 0) THEN
-!     IF (GEO%nPeriodicVectors.EQ.1) THEN
-!       Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!     END IF
-!     IF (GEO%nPeriodicVectors.EQ.2) THEN
-!       Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!       Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-!     END IF
-!     IF (GEO%nPeriodicVectors.EQ.3) THEN
-!       Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!       Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-!       Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
-!     END IF
-!   END IF
-!   
-!   DO iPart=1,NbrOfextParticles  !external Particles
-!     chargedone(:) = .FALSE.
-!     Fac(4) = Species(ExtPartSpecies(iPart))%ChargeIC * Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf
-!     Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
-!     !-- determine which background mesh cells (and interpolation points within) need to be considered
-!     DO iCase = 1, NbrOfCases
-!       DO ind = 1,3
-!         ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
-!              casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-!       END DO
-!       kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-!       kmax = MIN(kmax,GEO%FIBGMimax)
-!       kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-!       kmin = MAX(kmin,GEO%FIBGMimin)
-!       lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-!       lmax = MIN(lmax,GEO%FIBGMkmax)
-!       lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-!       lmin = MAX(lmin,GEO%FIBGMkmin)
-!       mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-!       mmax = MIN(mmax,GEO%FIBGMlmax)
-!       mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-!       mmin = MAX(mmin,GEO%FIBGMlmin)
-!       !-- go through all these cells (should go through non if periodic and shiftedpart not in my domain
-!       DO kk = kmin,kmax
-!         DO ll = lmin, lmax
-!           DO mm = mmin, mmax
-!             !--- go through all mapped elements not done yet
-!             DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-!               ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-!               IF (.NOT.chargedone(ElemID)) THEN
-!                 !--- go through all gauss points
-!                 DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-!                   !-- calculate distance between gauss and particle
-!                     radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
-!                            + (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
-!                            + (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
-!                     !-- calculate charge and current density at ip point using a shape function
-!                     !-- currently only one shapefunction available, more to follow (including structure change)
-!                     IF (radius .LT. r2_sf) THEN
-!                       S = 1 - r2_sf_inv * radius
-!                       S1 = S*S
-!                       DO expo = 3, alpha_sf
-!                         S1 = S*S1
-!                       END DO
-! #if (PP_nVar==8)
-!                       source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
-! #endif
-!                       source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
-!                     END IF
-!                 END DO; END DO; END DO
-!                 chargedone(ElemID) = .TRUE.
-!               END IF
-!             END DO ! ppp
-!           END DO ! mm
-!         END DO ! ll
-!       END DO ! kk
-!     END DO
-!   END DO
-!   SDEALLOCATE(ExtPartState)
-!   SDEALLOCATE(ExtPartSpecies)
-! #endif
+  N_in=(PP_N+1)*(PP_N+1)*(PP_N+1)
+  !foundDOF=0
+  ! initialize periodic vectors
+  SELECT CASE(GEO%nPeriodicVectors)
+  CASE(1)
+    Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+    Vec2(1:3) = 0.
+    Vec3(1:3) = 0.
+  CASE(2)
+    Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+    Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+    Vec3(1:3) = 0.
+  CASE(3)
+    Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+    Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+    Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
+  CASE DEFAULT
+    Vec1(1:3) = 0.
+    Vec2(1:3) = 0.
+    Vec3(1:3) = 0.
+  END SELECT
+  ! loop over all cases
+  DO iCase = 1, NbrOfCases
+    DO iPart=firstPart,LastPart
+      IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+      DO ind = 1,3
+        ShiftedPart(ind) = PartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+             casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+      END DO
+      BGMimax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
+      BGMimax = MIN(BGMimax,GEO%FIBGMimax)
+      PartToFIBGM(2,iPart)=BGMimax
+      BGMimin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+      BGMimin = MAX(BGMimin,GEO%FIBGMimin)
+      PartToFIBGM(1,iPart)=BGMimin
+      BGMjmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
+      BGMjmax = MIN(BGMjmax,GEO%FIBGMjmax)
+      PartToFIBGM(4,iPart)=BGMjmax
+      BGMjmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+      BGMjmin = MAX(BGMjmin,GEO%FIBGMjmin)
+      PartToFIBGM(3,iPart)=BGMjmin
+      BGMkmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
+      BGMkmax = MIN(BGMkmax,GEO%FIBGMkmax)
+      PartToFIBGM(6,iPart)=BGMkmax
+      BGMkmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+      BGMkmin = MAX(BGMkmin,GEO%FIBGMkmin)
+      PartToFIBGM(5,iPart)=BGMkmin
+    END DO ! iPart=firstPart,LastPart
+#ifdef MPI
+    IF(.NOT.DoInnerParts)THEN
+      ! stuff to add, ExtPartToFIBGM
+      DO iPart=1,NbrOfextParticles  !external Particles
+        DO ind = 1,3
+          ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+               casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+        END DO
+        BGMimax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
+        BGMimax = MIN(BGMimax,GEO%FIBGMimax)
+        ExtPartToFIBGM(2,iPart)=BGMimax
+        BGMimin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
+        BGMimin = MAX(BGMimin,GEO%FIBGMimin)
+        ExtPartToFIBGM(1,iPart)=BGMimin
+        BGMjmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
+        BGMjmax = MIN(BGMjmax,GEO%FIBGMjmax)
+        ExtPartToFIBGM(4,iPart)=BGMjmax
+        BGMjmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
+        BGMjmin = MAX(BGMjmin,GEO%FIBGMjmin)
+        ExtPartToFIBGM(3,iPart)=BGMjmin
+        BGMkmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
+        BGMkmax = MIN(BGMkmax,GEO%FIBGMkmax)
+        ExtPartToFIBGM(6,iPart)=BGMkmax
+        BGMkmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+        BGMkmin = MAX(BGMkmin,GEO%FIBGMkmin)
+        ExtPartToFIBGM(5,iPart)=BGMkmin
+      END DO ! iPart=1,NbrOfextParticles  !external Particles
+    END IF
+#endif /*MPI*/
+    ! loop over all elements
+    DO iElem=1,PP_nElems
+      DO iPart=firstPart,LastPart
+        IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+        ! recomputed
+        DO ind = 1,3
+          ShiftedPart(ind) = PartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+               casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+        END DO
+        ! check if bounding FIBGM box of particle and element overlap
+        IF(PartToFIBGM(1,iPart).GT.GEO%ElemToFIBGM(2,iElem)) CYCLE
+        IF(PartToFIBGM(2,iPart).LT.GEO%ElemToFIBGM(1,iElem)) CYCLE
+        IF(PartToFIBGM(3,iPart).GT.GEO%ElemToFIBGM(4,iElem)) CYCLE
+        IF(PartToFIBGM(4,iPart).LT.GEO%ElemToFIBGM(3,iElem)) CYCLE
+        IF(PartToFIBGM(5,iPart).GT.GEO%ElemToFIBGM(6,iElem)) CYCLE
+        IF(PartToFIBGM(6,iPart).LT.GEO%ElemToFIBGM(5,iElem)) CYCLE
+        ! check if element circumcircle and shape function can interact
+        radius2= (ShiftedPart(1) - ElemBaryNGeo(1,iElem)) * (ShiftedPart(1) - ElemBaryNGeo(1,iElem) ) &
+               + (ShiftedPart(2) - ElemBaryNGeo(2,iElem)) * (ShiftedPart(2) - ElemBaryNGeo(2,iElem) ) &
+               + (ShiftedPart(3) - ElemBaryNGeo(3,iElem)) * (ShiftedPart(3) - ElemBaryNGeo(3,iElem) )
+        IF(radius2.GT.ElemRadius2_sf(iElem)) CYCLE
+        IF (usevMPF) THEN
+          Fac(4)= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)*w_sf
+        ELSE
+          Fac(4)= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor*w_sf
+        END IF ! usevMPF
+        Fac(1:3) = PartState(iPart,4:6)*Fac(4)
+        ! now, compute the actual 
+        CALL ComputeGaussDistance(N_in,ShiftedPart,Elem_xGP(:,:,:,:,iElem),GaussDistance)
+        DO k=0,PP_N
+          DO j=0,PP_N
+            DO i=0,PP_N
+              radius2=GaussDistance(i,j,k)
+              IF(radius2.GT.r2_sf) CYCLE
+!              foundDOF=foundDOF+1
+              S = 1 - r2_sf_inv * radius2
+              S1 = S*S
+              DO expo = 3, alpha_sf,1
+                S1 = S*S1
+              END DO
+              source(1:3,i,j,k,iElem) = source(1:3,i,j,k,iElem) + Fac(1:3) * S1
+              source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) + Fac(4) * S1
+            END DO ! i=0,PP_N
+          END DO ! j=0,PP_N
+        END DO ! k=0,PP_N
+      END DO ! iPart=firstPart,LastPart
+      ! and for second step the external particles
+#ifdef MPI
+      IF(.NOT.DoInnerParts)THEN
+        ! stuff to add, ExtPartToFIBGM
+        DO iPart=1,NbrOfextParticles  !external Particles
+          DO ind = 1,3
+            ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
+                 casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
+          END DO
+          ! check if bounding FIBGM box of particle and element overlap
+          IF(ExtPartToFIBGM(1,iPart).GT.GEO%ElemToFIBGM(2,iElem)) CYCLE
+          IF(ExtPartToFIBGM(2,iPart).LT.GEO%ElemToFIBGM(1,iElem)) CYCLE
+          IF(ExtPartToFIBGM(3,iPart).GT.GEO%ElemToFIBGM(4,iElem)) CYCLE
+          IF(ExtPartToFIBGM(4,iPart).LT.GEO%ElemToFIBGM(3,iElem)) CYCLE
+          IF(ExtPartToFIBGM(5,iPart).GT.GEO%ElemToFIBGM(6,iElem)) CYCLE
+          IF(ExtPartToFIBGM(6,iPart).LT.GEO%ElemToFIBGM(5,iElem)) CYCLE
+          ! check if element circumcircle and shape function can interact
+          radius2= (ShiftedPart(1) - ElemBaryNGeo(1,iElem))* (ShiftedPart(1) - ElemBaryNGeo(1,iElem))&
+                 + (ShiftedPart(2) - ElemBaryNGeo(2,iElem))* (ShiftedPart(2) - ElemBaryNGeo(2,iElem))&
+                 + (ShiftedPart(3) - ElemBaryNGeo(3,iElem))* (ShiftedPart(3) - ElemBaryNGeo(3,iElem))
+          IF(radius2.GT.ElemRadius2_sf(iElem)) CYCLE
+          IF (usevMPF) THEN
+            Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC * ExtPartMPF(iPart)*w_sf
+          ELSE
+            Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC * Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf
+          END IF ! usevMPF
+          Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
+          ! now, compute the actual 
+          CALL ComputeGaussDistance(N_in,ShiftedPart,Elem_xGP(:,:,:,:,iElem),GaussDistance)
+          DO k=0,PP_N
+            DO j=0,PP_N
+              DO i=0,PP_N
+                radius2=GaussDistance(i,j,k)
+                IF(radius2.GT.r2_sf) CYCLE
+                S = 1 - r2_sf_inv * radius2
+                S1 = S*S
+                DO expo = 3, alpha_sf,1
+                  S1 = S*S1
+                END DO
+  !              foundDOF=foundDOF+1
+                source(1:3,i,j,k,iElem) = source(1:3,i,j,k,iElem) + Fac(1:3) * S1
+                source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) + Fac(4) * S1
+              END DO ! i=0,PP_N
+            END DO ! j=0,PP_N
+          END DO ! k=0,PP_N
+        END DO ! iPart=firstPart,LastPart
+      END IF
+#endif /*MPI*/
+    END DO ! iElem=1,PP_nElems
+  END DO ! iCase
+#ifdef MPI
+  IF(.NOT.DoInnerParts)THEN
+    ! deallocate external state
+    SDEALLOCATE(ExtPartState)
+    SDEALLOCATE(ExtPartSpecies)
+    SDEALLOCATE(ExtPartToFIBGM)
+    SDEALLOCATE(ExtPartMPF)
+  END IF
+#endif /*MPI*/
+  !IPWRITE(*,*) 'Number of found DOFs',FoundDOF
 CASE('delta_distri')
   DO iElem=1,PP_nElems
     DO iPart=firstPart,LastPart
@@ -968,571 +1005,6 @@ END SELECT
 RETURN
 END SUBROUTINE Deposition
 
-
-!SUBROUTINE DepositionMPF(doInnerParts)  
-!============================================================================================================================
-! This subroutine performes the deposition of the particle charge and current density to the grid in the MPF case
-! following list of distribution methods are implemted
-! - nearest blurrycenter (barycenter of hexahedra)
-! - nearest Gauss Point  (only volome of IP - higher resolution than nearest blurrycenter )
-! - shape function       (only one type implemented)
-!============================================================================================================================
-! use MODULES                                                                          
-!USE MOD_PICDepo_Vars
-!USE MOD_Particle_Vars
-!USE MOD_PreProc
-!USE MOD_Globals
-!USE MOD_Mesh_Vars,             ONLY:nElems, Elem_xGP, sJ
-!USE MOD_Interpolation_Vars,    ONLY:wGP,swGP,NChooseK
-!USE MOD_PICInterpolation_Vars, ONLY:InterpolationType
-!USE MOD_Eval_xyz,              ONLY:eval_xyz_elemcheck
-!USE MOD_Basis,                 ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
-!USE MOD_Interpolation_Vars,    ONLY:wBary,xGP
-!USE MOD_PICInterpolation_Vars, ONLY:InterpolationType
-!USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
-!USE MOD_Particle_Mesh_Vars,    ONLY:GEO
-!#ifdef MPI
-!!USE MOD_part_MPI_Vars,        ONLY:ExtPartState, ExtPartSpecies, NbrOfextParticles
-!USE MOD_Particle_MPI_Vars,    ONLY:PartMPI,PartMPIExchange
-!#endif 
-!-----------------------------------------------------------------------------------------------------------------------------------
-!  IMPLICIT NONE                                                                                  
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!LOGICAL                          :: doInnerParts
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!INTEGER                          :: firstPart,lastPart
-!INTEGER                          :: i,j, k, l, m,  iElem                            
-!LOGICAL                          :: chargedone(1:PP_nElems), SAVE_GAUSS             
-!INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
-!INTEGER                          :: kk, ll, mm, ppp                                              
-!REAL                             :: radius, S, S1!, Fac(4)
-!REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
-!INTEGER                          :: a,b, ii!, expo
-!REAL                             :: ElemSource(nElems,1:4)
-!REAL, ALLOCATABLE                :: BGMSource(:,:,:,:)
-!REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
-!REAL                             :: alpha1, alpha2, alpha3
-!INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
-!INTEGER                          ::iPart
-!REAL,DIMENSION(3,0:PP_N)         :: L_xi
-!REAL                             :: DeltaIntCoeff,prefac
-!--------------------------------------------------------------------------------------------------!
-
-!IF(doInnerParts)THEN
-!  source=0.0
-!  firstPart=1
-!  lastPart =PDM%ParticleVecLength
-!  IF(firstPart.GT.lastPart) RETURN
-!ELSE
-!#ifdef MPI
-!  firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
-!  lastPart =PDM%ParticleVecLength
-!#else
-!  RETURN
-!#endif /*MPI*/
-!END IF
-!
-!SELECT CASE(TRIM(DepositionType))
-!CASE('nearest_blurrycenter')
-!  IF(doInnerParts) ElemSource=0.0
-!  DO iElem=1,PP_nElems
-!    DO iPart=firstPart,lastPart
-!      IF(.NOT.PDM%ParticleInside(iPart))CYCLE
-!      IF(PEM%Element(iPart).EQ.iElem)THEN
-!#if (PP_nVar==8)
-!        ElemSource(iElem,1:3) = ElemSource(iElem,1:3)+ &
-!               PartState(iPart,4:6)* Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
-!#endif
-!        ElemSource(iElem,4) = ElemSource(iElem,4) + & 
-!             Species(PartSpecies(iPart))%ChargeIC* PartMPF(iPart)
-!      END IF ! Element(iPart).EQ.iElem
-!    END DO ! iPart
-!  END DO ! iElem=1,PP_nElems
-!  DO iElem=1,PP_nElems
-!#if (PP_nVar==8)
-!    source(1,:,:,:,iElem) = source(1,:,:,:,iElem)+ElemSource(iElem,1) 
-!    source(2,:,:,:,iElem) = source(2,:,:,:,iElem)+ElemSource(iElem,2) 
-!    source(3,:,:,:,iElem) = source(3,:,:,:,iElem)+ElemSource(iElem,3) 
-!#endif                                            
-!    source(4,:,:,:,iElem) = source(4,:,:,:,iElem)+ElemSource(iElem,4) 
-!  END DO ! iElem=1,PP_nElems
-!  IF(.NOT.doInnerParts)THEN
-!    DO iElem=1,PP_nElems
-!#if (PP_nVar==8)
-!      source(1:4,:,:,:,iElem) = source(1:4,:,:,:,iElem) / GEO%Volume(iElem)
-!#else
-!      source(4,:,:,:,iElem) = source(4,:,:,:,iElem) / GEO%Volume(iElem)
-!#endif
-!    END DO ! iElem=1,PP_nElems
-!  END IF ! .NOT. doInnerParts
-!CASE('shape_function')
-!  !Vec1(1:3) = 0.
-!  !Vec2(1:3) = 0.
-!  !Vec3(1:3) = 0.
-!  !IF (GEO%nPeriodicVectors.EQ.1) THEN
-!    !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!  !END IF
-!  !IF (GEO%nPeriodicVectors.EQ.2) THEN
-!    !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!    !Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-!  !END IF
-!  !IF (GEO%nPeriodicVectors.EQ.3) THEN
-!    !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!    !Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-!    !Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
-!  !END IF
-!  !DO i=1,PDM%ParticleVecLength
-!    !IF (PDM%ParticleInside(i)) THEN
-!      !Fac(4) = Species(PartSpecies(i))%ChargeIC *PartMPF(i)*w_sf
-!      !Fac(1:3) = PartState(i,4:6)*Fac(4)
-!      !!-- determine which background mesh cells (and interpolation points within) need to be considered
-!      !DO iCase = 1, NbrOfCases
-!        !chargedone(:) = .FALSE.
-!        !DO ind = 1,3
-!          !ShiftedPart(ind) = PartState(i,ind) + casematrix(iCase,1)*Vec1(ind) + &
-!               !casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-!        !END DO
-!        !kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-!        !kmax = MIN(kmax,GEO%FIBGMimax)
-!        !kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-!        !kmin = MAX(kmin,GEO%FIBGMimin)
-!        !lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-!        !lmax = MIN(lmax,GEO%FIBGMkmax)
-!        !lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-!        !lmin = MAX(lmin,GEO%FIBGMkmin)
-!        !mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-!        !mmax = MIN(mmax,GEO%FIBGMlmax)
-!        !mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-!        !mmin = MAX(mmin,GEO%FIBGMlmin)
-!        !!-- go through all these cells
-!        !DO kk = kmin,kmax
-!          !DO ll = lmin, lmax
-!            !DO mm = mmin, mmax
-!              !!--- go through all mapped elements not done yet
-!              !DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-!                !ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-!                !IF (.NOT.chargedone(ElemID)) THEN
-!                  !!--- go through all gauss points
-!                  !DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-!                    !!-- calculate distance between gauss and particle
-!                    !radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
-!                           !+ (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
-!                           !+ (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
-!                    !!-- calculate charge and current density at ip point using a shape function
-!                    !!-- currently only one shapefunction available, more to follow (including structure change)
-!                    !IF (radius .LT. r2_sf) THEN
-!                      !S = 1 - r2_sf_inv * radius
-!                      !S1 = S*S
-!                      !DO expo = 3, alpha_sf
-!                        !S1 = S*S1
-!                      !END DO
-!!#if (PP_nVar==8)
-!                      !source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
-!!#endif
-!                      !source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
-!                    !END IF
-!                  !END DO; END DO; END DO
-!                  !chargedone(ElemID) = .TRUE.
-!                !END IF
-!              !END DO ! ppp
-!            !END DO ! mm
-!          !END DO ! ll
-!        !END DO ! kk
-!      !END DO ! iCase (periodicity)
-!    !END IF ! inside
-!  !END DO ! i
-!
-!!#ifdef MPI           
-!!IF (PMPIVAR%nProcs.GT.1) THEN
-!  !SWRITE(*,*) 'Shape Function MPI does not work with vMPF with more than one proc!'
-!  !SWRITE(*,*) 'Reason: MPF of particles outside of proc domain'
-!  !SWRITE(*,*) '(but still in shape function range) is not communicated yet.'
-!  !CALL abort(__STAMP__, &
-!        !'Shape Function MPI does not work with vMPF with more than one proc!')
-!!END IF
-!    !Vec1(1:3) = 0.
-!    !Vec2(1:3) = 0.
-!    !Vec3(1:3) = 0.
-!    !IF (NbrOfextParticles .GT. 0) THEN
-!      !IF (GEO%nPeriodicVectors.EQ.1) THEN
-!        !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!      !END IF
-!      !IF (GEO%nPeriodicVectors.EQ.2) THEN
-!        !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!        !Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-!      !END IF
-!      !IF (GEO%nPeriodicVectors.EQ.3) THEN
-!        !Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
-!        !Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
-!        !Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
-!      !END IF
-!    !END IF
-!    
-!    !DO iPart=1,NbrOfextParticles  !external Particles
-!      !chargedone(:) = .FALSE.
-!      !Fac(4) = Species(ExtPartSpecies(iPart))%ChargeIC*PartMPF(i)*w_sf
-!      !Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
-!      !!-- determine which background mesh cells (and interpolation points within) need to be considered
-!      !DO iCase = 1, NbrOfCases
-!        !DO ind = 1,3
-!          !ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
-!               !casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
-!        !END DO
-!        !kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-!        !kmax = MIN(kmax,GEO%FIBGMimax)
-!        !kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-!        !kmin = MAX(kmin,GEO%FIBGMimin)
-!        !lmax = CEILING((ShiftedPart(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-!        !lmax = MIN(lmax,GEO%FIBGMkmax)
-!        !lmin = FLOOR((ShiftedPart(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-!        !lmin = MAX(lmin,GEO%FIBGMkmin)
-!        !mmax = CEILING((ShiftedPart(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-!        !mmax = MIN(mmax,GEO%FIBGMlmax)
-!        !mmin = FLOOR((ShiftedPart(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-!        !mmin = MAX(mmin,GEO%FIBGMlmin)
-!        !!-- go through all these cells (should go through non if periodic and shiftedpart not in my domain
-!        !DO kk = kmin,kmax
-!          !DO ll = lmin, lmax
-!            !DO mm = mmin, mmax
-!              !!--- go through all mapped elements not done yet
-!              !DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-!                !ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-!                !IF (.NOT.chargedone(ElemID)) THEN
-!                  !!--- go through all gauss points
-!                  !DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-!                    !!-- calculate distance between gauss and particle
-!                      !radius = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
-!                             !+ (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
-!                             !+ (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
-!                      !!-- calculate charge and current density at ip point using a shape function
-!                      !!-- currently only one shapefunction available, more to follow (including structure change)
-!                      !IF (radius .LT. r2_sf) THEN
-!                        !S = 1 - r2_sf_inv * radius
-!                        !S1 = S*S
-!                        !DO expo = 3, alpha_sf
-!                          !S1 = S*S1
-!                        !END DO
-!!#if (PP_nVar==8)
-!                        !source(1:3,k,l,m,ElemID) = source(1:3,k,l,m,ElemID) + Fac(1:3) * S1
-!!#endif
-!                        !source( 4 ,k,l,m,ElemID) = source( 4 ,k,l,m,ElemID) + Fac(4) * S1
-!                      !END IF
-!                  !END DO; END DO; END DO
-!                  !chargedone(ElemID) = .TRUE.
-!                !END IF
-!              !END DO ! ppp
-!            !END DO ! mm
-!          !END DO ! ll
-!        !END DO ! kk
-!      !END DO
-!    !END DO
-!    !SDEALLOCATE(ExtPartState)
-!    !SDEALLOCATE(ExtPartSpecies)
-!!#endif
-!CASE('delta_distri')
-!  DO iElem=1,PP_nElems
-!    DO iPart=firstPart,LastPart
-!      IF (PDM%ParticleInside(iPart)) THEN
-!        IF(PEM%Element(iPart).EQ.iElem)THEN
-!          prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
-!          ! Map Particle to -1|1 space (re-used in interpolation)
-!          IF(.NOT.DoRefMapping)THEN
-!            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
-!          END IF
-!          ! get value of test function at particle position
-!          SELECT CASE(DeltaType)
-!          CASE(1)
-!            ! xi   -direction
-!            CALL LagrangeInterpolationPolys(PartPosRef(1,iPart),PP_N,xGP,wBary,L_xi(1,:))
-!            ! eta  -direction                                 
-!            CALL LagrangeInterpolationPolys(PartPosRef(2,iPart),PP_N,xGP,wBary,L_xi(2,:))
-!            ! zeta -direction                                 
-!            CALL LagrangeInterpolationPolys(PartPosRef(3,iPart),PP_N,xGP,wBary,L_xi(3,:))
-!          CASE(2)
-!            DO i=0,PP_N
-!              ! xi   -direction
-!               CALL BernsteinPolynomial(PP_N,i,PartPosRef(1,iPart),L_xi(1,i),NChooseK)
-!              ! eta  -direction                                  
-!               CALL BernsteinPolynomial(PP_N,i,PartPosRef(2,iPart),L_xi(2,i),NChooseK)
-!              ! zeta  -direction                                 
-!               CALL BernsteinPolynomial(PP_N,i,PartPosRef(3,iPart),L_xi(3,i),NChooseK)
-!            END DO ! i
-!          CASE(3)
-!            ! xi - direction
-!            CALL DeBoorRef(PP_N,NKnots,Knots,PartPosRef(1,iPart),L_xi(1,:))
-!            ! eta - direction                                  
-!            CALL DeBoorRef(PP_N,NKnots,Knots,PartPosRef(2,iPart),L_xi(2,:))
-!            ! zeta - direction                                 
-!            CALL DeBoorRef(PP_N,NKnots,Knots,PartPosRef(3,iPart),L_xi(3,:))
-!          END SELECT
-!          DO k=0,PP_N
-!            DO j=0,PP_N
-!              DO i=0,PP_N
-!           !     print*,'i,j,k,L',i,j,k,L_xi(1,i)* L_xi(2,j)* L_xi(3,k)
-!                DeltaIntCoeff = L_xi(1,i)* L_xi(2,j)* L_xi(3,k)*prefac 
-!#if (PP_nVar==8)
-!                source(1:3,i,j,k,iElem) = source(1:3,i,j,k,iElem) + DeltaIntCoeff*PartState(iPart,4:6)
-!#endif
-!              source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) + DeltaIntCoeff
-!              END DO ! i
-!            END DO ! j
-!          END DO ! k
-!        END IF ! Particle in Element
-!      END IF ! ParticleInside of domain
-!    END DO ! ParticleVecLength
-!  END DO ! iElem
-!#ifdef MPI
-!  IF(.NOT.DoInnerParts)THEN
-!#endif /*MPI*/
-!    DO iElem=1,PP_nElems
-!      DO k=0,PP_N
-!        DO j=0,PP_N
-!          DO i=0,PP_N
-!#if (PP_nVar==8)
-!            source( : ,i,j,k,iElem) = source( : ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
-!#else
-!            source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
-!#endif
-!          END DO ! i
-!        END DO ! j
-!      END DO ! k
-!    END DO ! loop over all elems
-!#ifdef MPI
-!  END IF ! DoInnerParts
-!#endif /*MPI*/
-!CASE('nearest_gausspoint')
-!  SAVE_GAUSS = .FALSE.
-!  IF(TRIM(InterpolationType).EQ.'nearest_gausspoint') SAVE_GAUSS = .TRUE.
-!  IF(MOD(PP_N,2).EQ.0) THEN
-!    a = PP_N/2
-!    b = a
-!  ELSE
-!    a = (PP_N+1)/2
-!    b = a-1
-!  END IF
-!  DO iElem=1,PP_nElems
-!    DO iPart=firstPart,LastPart
-!      IF (PDM%ParticleInside(iPart)) THEN
-!        IF(PEM%Element(iPart).EQ.iElem)THEN
-!          prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
-!          ! Map Particle to -1|1 space (re-used in interpolation)
-!          IF(.NOT.DoRefMapping .AND. .NOT.SAVE_GAUSS )THEN
-!            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
-!          END IF
-!          ! Find out which gausspoint is closest and add up charges and currents
-!          !! x-direction
-!          k = a
-!          DO ii = 0,b-1
-!            IF(ABS(PartPosRef(1,iPart)).GE.GaussBorder(PP_N-ii))THEN
-!              k = PP_N-ii
-!              EXIT
-!            END IF
-!          END DO
-!          k = NINT((PP_N+SIGN(2.0*k-PP_N,PartPosRef(1,iPart)))/2)
-!          !! y-direction
-!          l = a
-!          DO ii = 0,b-1
-!            IF(ABS(PartPosRef(2,iPart)).GE.GaussBorder(PP_N-ii))THEN
-!              l = PP_N-ii
-!              EXIT
-!            END IF
-!          END DO
-!          l = NINT((PP_N+SIGN(2.0*l-PP_N,PartPosRef(2,iPart)))/2)
-!          !! z-direction
-!          m = a
-!          DO ii = 0,b-1
-!            IF(ABS(PartPosRef(3,iPart)).GE.GaussBorder(PP_N-ii))THEN
-!              m = PP_N-ii
-!              EXIT
-!            END IF
-!          END DO
-!          m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,iPart)))/2)
-!#if (PP_nVar==8)
-!          source(1:3,k,l,m,iElem) = source(1:3,k,l,m,iElem) + PartState(i,4:6) * prefac
-!#endif
-!          source( 4 ,k,l,m,iElem) = source( 4 ,k,l,m,iElem) + prefac
-!          IF (SAVE_GAUSS) THEN
-!            PartPosGauss(i,1) = k
-!            PartPosGauss(i,2) = l
-!            PartPosGauss(i,3) = m
-!          END IF
-!        END IF ! Element .EQ. iElem
-!      END IF ! Particle inside
-!    END DO ! iPart
-!  END DO ! iElem=1,PP_nElems
-!  IF(.NOT.DoInnerParts)THEN
-!    DO iElem=1,PP_nElems
-!      DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-!      ! get densities by dividing by gauss volume
-!#if (PP_nVar==8)
-!        source(1:4,k,l,m,iElem) = source(1:4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
-!#else
-!        source(4,k,l,m,iElem) = source(4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
-!#endif
-!      END DO; END DO; END DO
-!    END DO ! iElem=1,PP_nElems
-!  END IF
-!  CASE('cartmesh_volumeweighting')
-!    ! Step 1: Deposition of all particles onto background mesh -> densities
-!    ALLOCATE(BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4))
-!    BGMSource(:,:,:,:) = 0.0
-!    DO i = 1, PDM%ParticleVecLength
-!      IF (PDM%ParticleInside(i)) THEN
-!        Charge = Species(PartSpecies(i))%ChargeIC * PartMPF(i)
-!        k = FLOOR(PartState(i,1)/BGMdeltas(1))
-!        l = FLOOR(PartState(i,2)/BGMdeltas(2))
-!        m = FLOOR(PartState(i,3)/BGMdeltas(3))
-!        alpha1 = (PartState(i,1) / BGMdeltas(1)) - k
-!        alpha2 = (PartState(i,2) / BGMdeltas(2)) - l
-!        alpha3 = (PartState(i,3) / BGMdeltas(3)) - m
-!        TSource(:) = 0.0
-!#if (PP_nVar==8)
-!        TSource(1) = PartState(i,4)*Charge
-!        TSource(2) = PartState(i,5)*Charge
-!        TSource(3) = PartState(i,6)*Charge
-!#endif
-!        TSource(4) = Charge
-!
-!        BGMSource(k,l,m,1:4)       = BGMSource(k,l,m,1:4) + (TSource * (1-alpha1)*(1-alpha2)*(1-alpha3))
-!        BGMSource(k,l,m+1,1:4)     = BGMSource(k,l,m+1,1:4) + (TSource * (1-alpha1)*(1-alpha2)*(alpha3))
-!        BGMSource(k,l+1,m,1:4)     = BGMSource(k,l+1,m,1:4) + (TSource * (1-alpha1)*(alpha2)*(1-alpha3))
-!        BGMSource(k,l+1,m+1,1:4)   = BGMSource(k,l+1,m+1,1:4) + (TSource * (1-alpha1)*(alpha2)*(alpha3))
-!        BGMSource(k+1,l,m,1:4)     = BGMSource(k+1,l,m,1:4) + (TSource * (alpha1)*(1-alpha2)*(1-alpha3))
-!        BGMSource(k+1,l,m+1,1:4)   = BGMSource(k+1,l,m+1,1:4) + (TSource * (alpha1)*(1-alpha2)*(alpha3))
-!        BGMSource(k+1,l+1,m,1:4)   = BGMSource(k+1,l+1,m,1:4) + (TSource * (alpha1)*(alpha2)*(1-alpha3))
-!        BGMSource(k+1,l+1,m+1,1:4) = BGMSource(k+1,l+1,m+1,1:4) + (TSource * (alpha1)*(alpha2)*(alpha3))
-!      END IF
-!    END DO
-!    BGMSource(:,:,:,:) = BGMSource(:,:,:,:) / BGMVolume
-!
-!#ifdef MPI
-!    CALL MPISourceExchangeBGM(BGMSource)
-!#else
-!    IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange(BGMSource)
-!#endif
-!
-!    ! Step 2: Interpolation of densities onto grid
-!    DO iElem = 1, nElems
-!      DO kk = 0, PP_N
-!        DO ll = 0, PP_N
-!          DO mm = 0, PP_N
-!           k = GaussBGMIndex(1,kk,ll,mm,iElem)
-!           l = GaussBGMIndex(2,kk,ll,mm,iElem)
-!           m = GaussBGMIndex(3,kk,ll,mm,iElem)
-!           alpha1 = GaussBGMFactor(1,kk,ll,mm,iElem)
-!           alpha2 = GaussBGMFactor(2,kk,ll,mm,iElem)
-!           alpha3 = GaussBGMFactor(3,kk,ll,mm,iElem)
-!#if (PP_nVar==8)
-!           DO i = 1,3
-!             source(i,kk,ll,mm,iElem) = BGMSource(k,l,m,i) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
-!                  BGMSource(k,l,m+1,i) * (1-alpha1) * (1-alpha2) * (alpha3) + &
-!                  BGMSource(k,l+1,m,i) * (1-alpha1) * (alpha2) * (1-alpha3) + &
-!                  BGMSource(k,l+1,m+1,i) * (1-alpha1) * (alpha2) * (alpha3) + &
-!                  BGMSource(k+1,l,m,i) * (alpha1) * (1-alpha2) * (1-alpha3) + &
-!                  BGMSource(k+1,l,m+1,i) * (alpha1) * (1-alpha2) * (alpha3) + &
-!                  BGMSource(k+1,l+1,m,i) * (alpha1) * (alpha2) * (1-alpha3) + &
-!                  BGMSource(k+1,l+1,m+1,i) * (alpha1) * (alpha2) * (alpha3)
-!           END DO
-!#endif
-!           source(4,kk,ll,mm,iElem) = BGMSource(k,l,m,4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
-!                BGMSource(k,l,m+1,4) * (1-alpha1) * (1-alpha2) * (alpha3) + &
-!                BGMSource(k,l+1,m,4) * (1-alpha1) * (alpha2) * (1-alpha3) + &
-!                BGMSource(k,l+1,m+1,4) * (1-alpha1) * (alpha2) * (alpha3) + &
-!                BGMSource(k+1,l,m,4) * (alpha1) * (1-alpha2) * (1-alpha3) + &
-!                BGMSource(k+1,l,m+1,4) * (alpha1) * (1-alpha2) * (alpha3) + &
-!                BGMSource(k+1,l+1,m,4) * (alpha1) * (alpha2) * (1-alpha3) + &
-!                BGMSource(k+1,l+1,m+1,4) * (alpha1) * (alpha2) * (alpha3)
-!         END DO !mm
-!       END DO !ll
-!     END DO !kk
-!   END DO !iElem
-!   DEALLOCATE(BGMSource)
-!  CASE('cartmesh_splines')
-!    ! Step 1: Deposition of all particles onto background mesh -> densities
-!    ALLOCATE(BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4))
-!    BGMSource(:,:,:,:) = 0.0
-!    DO i = 1, PDM%ParticleVecLength
-!      IF (PDM%ParticleInside(i)) THEN
-!        Charge = Species(PartSpecies(i))%ChargeIC * PartMPF(i)
-!        PosInd(1) = FLOOR(PartState(i,1)/BGMdeltas(1))
-!        PosInd(2) = FLOOR(PartState(i,2)/BGMdeltas(2))
-!        PosInd(3) = FLOOR(PartState(i,3)/BGMdeltas(3))
-!        DO dir = 1,3               ! x,y,z direction
-!          DO weightrun = 0,3
-!            DO mm = 0, 3
-!              IF (mm.EQ.weightrun) then
-!                auxiliary(mm) = 1.0
-!              ELSE
-!                auxiliary(mm) = 0.0
-!              END IF
-!            END DO
-!            CALL DeBoor(PosInd(dir),auxiliary,PartState(i,dir),weight(dir,weightrun),dir)
-!          END DO
-!        END DO
-!        DO k = PosInd(1)-1, PosInd(1)+2
-!          kk = abs(k - PosInd(1) - 2)
-!          DO l = PosInd(2)-1, PosInd(2)+2
-!            ll = abs(l - PosInd(2) - 2)
-!            DO m = PosInd(3)-1, PosInd(3)+2
-!              mm = abs(m - PosInd(3) - 2)
-!              locweight = weight(1,kk)*weight(2,ll)*weight(3,mm)
-!#if (PP_nVar==8)
-!              BGMSource(k,l,m,1) = BGMSource(k,l,m,1) + PartState(i,4)*Charge * locweight
-!              BGMSource(k,l,m,2) = BGMSource(k,l,m,2) + PartState(i,5)*Charge * locweight
-!              BGMSource(k,l,m,3) = BGMSource(k,l,m,3) + PartState(i,6)*Charge * locweight
-!#endif
-!              BGMSource(k,l,m,4) = BGMSource(k,l,m,4) + Charge * locweight
-!            END DO
-!          END DO
-!        END DO
-!      END IF
-!    END DO
-!    BGMSource(:,:,:,:) = BGMSource(:,:,:,:) / BGMVolume
-!
-!#ifdef MPI
-!    CALL MPISourceExchangeBGM(BGMSource)
-!#else
-!    IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange(BGMSource)
-!#endif
-!
-!    ! Step 2: Interpolation of densities onto grid
-!    DO iElem = 1, nElems
-!      DO kk = 0, PP_N
-!        DO ll = 0, PP_N
-!          DO mm = 0, PP_N
-!            k = GaussBGMIndex(1,kk,ll,mm,iElem)
-!            l = GaussBGMIndex(2,kk,ll,mm,iElem)
-!            m = GaussBGMIndex(3,kk,ll,mm,iElem)
-!            DO r = k-1,k+2
-!              u = r-k+2
-!              DO ss = l-1,l+2
-!                v = ss-l+2
-!                DO t = m-1,m+2
-!                  w = t-m+2
-!#if (PP_nVar==8)                  
-!                  DO i = 1,3
-!                    source(i,kk,ll,mm,iElem) = source(i,kk,ll,mm,iElem) + BGMSource(r,ss,t,i) * GPWeight(iElem,kk,ll,mm,u,v,w)
-!                  END DO
-!#endif
-!                  source(4,kk,ll,mm,iElem) = source(4,kk,ll,mm,iElem) + BGMSource(r,ss,t,4) * GPWeight(iElem,kk,ll,mm,u,v,w)
-!                END DO !t
-!              END DO !s
-!            END DO !r
-!          END DO !mm
-!        END DO !ll
-!      END DO !kk
-!    END DO !iElem
-!   DEALLOCATE(BGMSource)
-!  CASE DEFAULT
-!    CALL abort(__STAMP__, &
-!        'Unknown DepositionType in pic_depo.f90')
-!  END SELECT
-! RETURN
-!END SUBROUTINE DepositionMPF
 
 #ifndef MPI
 SUBROUTINE PeriodicSourceExchange(BGMSource)    
@@ -2246,5 +1718,34 @@ FUNCTION beta(z,w)
 !----------------------------------------------------------------------------------------------------------------------------------
    beta = exp(gammln(z)+gammln(w)-gammln(z+w))                                                                    
 END FUNCTION beta 
+
+
+SUBROUTINE ComputeGaussDistance(N_In,X_in,Elem_xGP,GaussDistance) 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! compute all distance between X_in and given array 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)      :: N_In
+REAL,INTENT(IN)         :: X_in(1:3)
+REAL,INTENT(IN)         :: Elem_xGP(1:3,1:N_In)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)        :: GaussDistance(1:N_In)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: i
+!===================================================================================================================================
+
+DO i=1,N_in
+  GaussDistance(i) = (X_in(1) - Elem_xGP(1,i) )*(X_in(1) - Elem_xGP(1,i) ) &
+                   + (X_in(2) - Elem_xGP(2,i) )*(X_in(2) - Elem_xGP(2,i) ) &
+                   + (X_in(3) - Elem_xGP(3,i) )*(X_in(3) - Elem_xGP(3,i) )
+END DO ! i = 1,N_in
+
+END SUBROUTINE ComputeGaussDistance
 
 END MODULE MOD_PICDepo

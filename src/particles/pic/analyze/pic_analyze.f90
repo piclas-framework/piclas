@@ -85,7 +85,6 @@ SWRITE(UNIT_stdOut,'(A)')' CHARGE DEPOSITION PLAUSIBILITY CHECK DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 ChargeCalcDone = .TRUE.
 
-RETURN
 END SUBROUTINE CalcDepositedCharge
 
 

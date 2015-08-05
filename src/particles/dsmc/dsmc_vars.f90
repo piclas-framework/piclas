@@ -279,14 +279,9 @@ END TYPE
 TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
 
 TYPE tSurfaceMesh
-  INTEGER                         :: nSurfaceNode           ! Number of Nodes on Surface (reflective)
   INTEGER                         :: nSurfaceBCSides        ! Number of Sides on Surface (reflective)
-  INTEGER                         :: nHaloSurfaceBCSides    ! Number of Halo Sides on Surface (reflective)
-  INTEGER, ALLOCATABLE            :: HaloSideIDToSurfSideMap(:)   ! Mapping from glob Side ID to Surface Side ID
-  INTEGER, ALLOCATABLE            :: BCSurfNodes(:)         ! Nodes on Surface (reflective) (nSurfaceNode)
-  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)   ! Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
-  INTEGER, ALLOCATABLE            :: GlobSideToSurfSideMap(:)     ! Mapping from glob Side ID to Surface Side ID
-  REAL, ALLOCATABLE               :: SurfaceArea(:)         ! Area of Surface 
+  INTEGER,ALLOCATABLE             :: SideIDToSurfaceID(:)   ! Mapping form the SideID to shorter side list
+  REAL, ALLOCATABLE               :: SurfaceArea(:,:,:)     ! Area of Surface 
 END TYPE
 
 TYPE (tSurfaceMesh)               :: SurfMesh
@@ -312,5 +307,9 @@ TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
 
 INTEGER                           :: nOutput                 ! output counter for DSMC
 INTEGER(KIND=8)                   :: iter_loc, iter_macvalout, istep
+
+INTEGER                           :: nSurfSample             ! polynomial degree of surface supersampling
+REAL,ALLOCATABLE                  :: XiEq_Surf(:)            ! position of equidistant interpolation points on surface
+REAL                              :: deltaXiEQ_Surf              ! delta of equidistant surface sampling
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

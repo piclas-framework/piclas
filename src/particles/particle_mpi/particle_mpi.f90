@@ -141,7 +141,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars
 USE MOD_DSMC_Vars,              ONLY:useDSMC, CollisMode, DSMC
-USE MOD_Particle_Vars,          ONLY:usevMPF
+USE MOD_Particle_Vars,          ONLY:usevMPF, PDM
 USE MOD_Particle_Tracking_vars, ONLY:DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -178,14 +178,21 @@ IF(DoRefMapping) PartCommSize=PartCommSize+3
   PartCommSize = PartCommSize - 6
 #endif
 
-ALLOCATE( PartMPIExchange%nPartsSend(PartMPI%nMPINeighbors)    & 
-        , PartMPIExchange%nPartsRecv(PartMPI%nMPINeighbors)    &
+ALLOCATE( PartMPIExchange%nPartsSend(2,PartMPI%nMPINeighbors)  & 
+        , PartMPIExchange%nPartsRecv(2,PartMPI%nMPINeighbors)  &
         , PartRecvBuf(1:PartMPI%nMPINeighbors)                 &
         , PartSendBuf(1:PartMPI%nMPINeighbors)                 &
         , PartMPIExchange%SendRequest(2,PartMPI%nMPINeighbors) &
         , PartMPIExchange%RecvRequest(2,PartMPI%nMPINeighbors) )
+        !, PartTargetProc(1:PDM%MaxParticleNumber)              )
 PartMPIExchange%nPartsSend=0
 PartMPIExchange%nPartsRecv=0
+
+IF(DoExternalParts)THEN
+  ExtPartCommSize=7
+  IF(usevMPF) ExtPartCommSize=8
+END IF
+
 END SUBROUTINE InitParticleCommSize
 
 
@@ -211,25 +218,16 @@ INTEGER               :: iProc
 
 PartMPIExchange%nPartsRecv=0
 DO iProc=1,PartMPI%nMPINeighbors
-  CALL MPI_IRECV( PartMPIExchange%nPartsRecv(iProc)                          &
-                , 1                                                          &
+  CALL MPI_IRECV( PartMPIExchange%nPartsRecv(:,iProc)                        &
+                , 2                                                          &
                 , MPI_INTEGER                                                &
                 , PartMPI%MPINeighbor(iProc)                                 &
                 , 1001                                                       &
                 , PartMPI%COMM                                               &
                 , PartMPIExchange%RecvRequest(1,iProc)                       &
                 , IERROR )
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
-          ,' MPI Communication error', IERROR)
-
-!  CALL MPI_IRECV( PartMPIExchange%nPartsRecv(iProc)                          &
-!                , 1                                                          &
-!                , MPI_INTEGER                                                &
-!                , PartMPI%MPINeighbor(iProc)                                 &
-!                , 1001                                                       &
-!                , PartMPI%COMM                                               &
-!                , PartMPIExchange%RecvRequest(1,PartMPI%MPINeighbor(iProc))  &
-!                , IERROR )
+ ! IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+ !         ,' MPI Communication error', IERROR)
 END DO ! iProc
 
 END SUBROUTINE IRecvNbOfParticles
@@ -250,10 +248,13 @@ SUBROUTINE SendNbOfParticles()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize,PartSendBuf, PartRecvBuf
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartSendBuf,PartRecvBuf,PartTargetProc
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,Species,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
 USE MOD_Particle_Mesh_Vars,       ONLY:GEO
+! variables for parallel deposition
+USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend
+USE MOD_Particle_MPI_Vars,        ONLY:PartShiftVector
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -265,54 +266,146 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,ElemID,iProc
 ! shape function 
-!INTEGER, ALLOCATABLE          :: shape_indices(:)
-!INTEGER                       :: CellX,CellY,CellZ, iPartShape
-!INTEGER                       :: ALLOCSTAT
+INTEGER                       :: CellX,CellY,CellZ!, iPartShape
+INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1), nDepoProcs, ProcID,LocalProcID
+INTEGER                       :: ALLOCSTAT,nPartShape
+REAL                          :: ShiftedPart(1:3)
+LOGICAL                       :: PartInBGM
 !===================================================================================================================================
 
 ! 1) get number of send particles
 PartMPIExchange%nPartsSend=0
+ALLOCATE(PartTargetProc(1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__, &
+    ' Cannot allocate PartMPIDepoSend!')
+PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
   IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
   ElemID=PEM%Element(iPart)
-  IF(ElemID.GT.PP_nElems)  PartMPIExchange%nPartsSend(PartHaloToProc(LOCAL_PROC_ID,ElemID))=             &
-                                        PartMPIExchange%nPartsSend(PartHaloToProc(LOCAL_PROC_ID,ElemID))+1
+  IF(ElemID.GT.PP_nElems) THEN
+    PartMPIExchange%nPartsSend(1,PartHaloToProc(LOCAL_PROC_ID,ElemID))=             &
+                                        PartMPIExchange%nPartsSend(1,PartHaloToProc(LOCAL_PROC_ID,ElemID))+1
+    PartTargetProc(iPart)=PartHaloToProc(LOCAL_PROC_ID,ElemID)
+  END IF
 END DO ! iPart
 
-! external particles add to same message
-! IF(DoExternalParts)THEN
-!   ALLOCATE( shape_indices(1:PDM%ParticleVecLength), stat=allocstat)
-!   shape_indices(:) = 0
-!   iPartShape=1
-!   DO iPart=1,PDM%ParticleVecLength
-!     IF(PDM%ParticleInside(iPart))THEN
-!       IF(ALMOSTZERO(Species(PartSpecies(iPart))%ChargeIC) CYCLE        ! Don't deposite neutral particles!
-!       CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
-!       CellX = MIN(GEO%FIBGMimax,CellX)
-!       CellX = MAX(GEO%FIBGMimin,CellX)
-!       CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
-!       CellY = MIN(GEO%FIBGMkmax,CellY)
-!       CellY = MAX(GEO%FIBGMkmin,CellY)
-!       CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
-!       CellZ = MIN(GEO%FIBGMlmax,CellZ)
-!       CellZ = MAX(GEO%FIBGMlmin,CellZ)
-!       IF(ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
-!         IF(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1) .GT. 0) THEN
-!           shape_indices(iPartShape) = i
-!           iPartShape = iPartShape + 1
-!         END IF
-!       END IF
-!     END IF ! ParticleInside
-!   END DO ! iPart
-!   iPartShape = iPartShape - 1
-! 
-! END IF ! DoExternalParts
+!DO CellX=GEO%FIBGMimin,GEO%FIBGMimax
+!  DO Celly=GEO%FIBGMjmin,GEO%FIBGMjmax
+!    DO Cellz=GEO%FIBGMkmin,GEO%FIBGMkmax
+!      IF(ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) IPWRITE(*,*) GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs
+!    END DO
+!  END DO 
+!END DO 
+
+
+! external particles for communication
+IF(DoExternalParts)THEN
+  ALLOCATE(PartMPIDepoSend(1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__, &
+      ' Cannot allocate PartMPIDepoSend!')
+  PartMPIDepoSend=.FALSE.
+  nPartShape=0
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF (Species(PartSpecies(iPart))%ChargeIC.EQ.0) CYCLE        ! Don't deposite neutral particles!
+    CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+    CellX = MIN(GEO%FIBGMimax,CellX)
+    CellX = MAX(GEO%FIBGMimin,CellX)
+    CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+    CellY = MIN(GEO%FIBGMjmax,CellY)
+    CellY = MAX(GEO%FIBGMjmin,CellY)
+    CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+    CellZ = MIN(GEO%FIBGMkmax,CellZ)
+    CellZ = MAX(GEO%FIBGMkmin,CellZ)
+    IF(ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
+      IF(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1) .GT. 0) THEN
+        nPartShape=nPartShape+1
+        !PartMPIDepoSend(nPartShape) =  !iPart
+        PartMPIDepoSend(iPart) = .TRUE.
+      END IF
+    END IF
+  END DO ! iPart=1,PDM%ParticleVecLength
+  ! now, get correct BGM cell for particle 
+  ! shape-padding allows to send particles 
+  ! shape-padding could be modified for all other deposition methods? reuse?
+  DO iPart=1,PDM%ParticleVecLength
+    !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    !IF(PartTargetProc(iPart).EQ.-1) CYCLE
+    IF(.NOT.PartMPIDepoSend(iPart)) CYCLE
+    IF (Species(PartSpecies(iPart))%ChargeIC.EQ.0) CYCLE ! get BMG cell
+    CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+    CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+    CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+    PartInBGM = .TRUE.
+    ! check if particle is in range of my FIBGM 
+    ! first check is outside
+    IF ((CellX.GT.GEO%FIBGMimax).OR.(CellX.LT.GEO%FIBGMimin) .OR. &
+        (CellY.GT.GEO%FIBGMjmax).OR.(CellY.LT.GEO%FIBGMjmin) .OR. &
+        (CellZ.GT.GEO%FIBGMkmax).OR.(CellZ.LT.GEO%FIBGMkmin)) THEN
+      PartInBGM = .FALSE.
+    ELSE
+      ! particle inside, check if particle is not moved by periodic BC
+      ! if this is the case, then the ShapeProcs is not allocated!
+      IF (.NOT.ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
+      END IF
+    END IF
+    IF (.NOT.PartInBGM) THEN
+      ! it is possible that the particle has been moved over a periodic side 
+      IF (GEO%nPeriodicVectors.GT.0) THEN
+        ShiftedPart(1:3) = PartState(iPart,1:3) + partShiftVector(1:3,iPart)
+        CellX = INT((ShiftedPart(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+        CellY = INT((ShiftedPart(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+        CellZ = INT((ShiftedPart(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+        IF (.NOT.ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
+          IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM! Err2'
+          IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+          IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
+          IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
+          IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
+          IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',ShiftedPart(1),',PartY=',ShiftedPart(2),',PartZ=',&
+                  ShiftedPart(3)
+          CALL Abort(&
+               __STAMP__,&
+              'Particle outside BGM! Err2')
+        END IF
+      ELSE
+        IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM!'
+        IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+        IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
+        IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
+        IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
+        IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',PartState(iPart,1),',PartY=',PartState(iPart,2),',PartZ=',&
+                PartState(iPart,3)
+        CALL Abort(&
+             __STAMP__,&
+            'Particle outside BGM!')
+      END IF ! GEO%nPeriodicVectors
+    END IF ! PartInBGM
+    nDepoProcs=GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1)
+    PartDepoProcs(1:nDepoProcs)=GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(2:nDepoProcs+1)
+    DO iProc=1,nDepoProcs
+      ProcID=PartDepoProcs(iProc)
+      ! particle shall not be send to MyRank, is fixed without MPI communication in MPIParticleSend
+      IF(ProcID.EQ.PartMPI%MyRank) CYCLE
+      ! if shapeproc is target proc, to net send
+      !ElemID=PEM%Element(iPart)
+      !IF(PartHaloToProc(NATIVE_PROC_ID,ElemID).EQ.ProcID) CYCLE
+      ! short version
+      LocalProcID=PartMPI%GlobalToLocal(ProcID)
+      IF(PartTargetProc(iPart).EQ.LocalProcID) CYCLE
+      PartMPIExchange%nPartsSend(2,LocalProcID)= PartMPIExchange%nPartsSend(2,LocalProcID) +1
+    END DO ! iProc=1,nDepoProcs
+  END DO ! iPart=1,PDM%ParticleVecLength
+END IF
+
 
 ! 2) send number of send particles
 DO iProc=1,PartMPI%nMPINeighbors
-  !IPWRITE(UNIT_stdOut,*) 'Target Number of send particles',PartMPI%MPINeighbor(iProc),PartMPIExchange%nPartsSend(iProc)
-  CALL MPI_ISEND( PartMPIExchange%nPartsSend(iProc)                          &
-                , 1                                                          &
+  !IPWRITE(UNIT_stdOut,*) 'Target Number of send particles',PartMPI%MPINeighbor(iProc),PartMPIExchange%nPartsSend(:,iProc)
+  CALL MPI_ISEND( PartMPIExchange%nPartsSend(:,iProc)                      &
+                , 2                                                          &
                 , MPI_INTEGER                                                &
                 , PartMPI%MPINeighbor(iProc)                                 &
                 , 1001                                                       &
@@ -334,6 +427,7 @@ END DO ! iProc
 
 END SUBROUTINE SendNbOfParticles
 
+
 SUBROUTINE MPIParticleSend()
 !===================================================================================================================================
 ! this routine sends the particles. Following steps are performed
@@ -345,16 +439,22 @@ SUBROUTINE MPIParticleSend()
 ! 4) MPI_WAIT for number of received particles
 ! 5) Open Receive-Buffer for particle message -> MPI_IRECV
 ! 6) Send Particles -> MPI_ISEND
+! CAUTION: If particles are send for deposition, PartTargetProc has the information, if a particle is send
+!          and after the buld and wait for number of particles reused to build array with external parts
+!          informations in PartState,.. can be reusded, because they are not overwritten
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize,PartSendBuf, PartRecvBuf
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize,PartSendBuf, PartRecvBuf,PartTargetProc
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,Species,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
 USE MOD_Particle_Mesh_Vars,       ONLY:GEO
 USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
+! variables for parallel deposition
+USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,PartShiftVector, ExtPartCommSize, PartMPIDepoSend
+USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF, ExtPartToFIBGM, NbrOfExtParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -366,11 +466,14 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,ElemID,iPos,iProc,jPos
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
-INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
+INTEGER                       :: MessageSize, nRecvParticles, nSendParticles, nSendExtParticles, nRecvExtParticles
 INTEGER                       :: ALLOCSTAT
 ! shape function 
-!INTEGER, ALLOCATABLE          :: shape_indices(:)
-!INTEGER                       :: CellX,CellY,CellZ, iPartShape
+INTEGER                       :: CellX,CellY,CellZ!, iPartShape
+INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1), nDepoProcs, ProcID, jProc, iExtPart, LocalProcID
+REAL                          :: ShiftedPart(1:3)
+LOGICAL                       :: PartInBGM
+INTEGER                       :: nTotalSendParticles
 !===================================================================================================================================
 
 ! ! 1) get number of send particles
@@ -443,27 +546,36 @@ INTEGER                       :: ALLOCSTAT
 ! 3) Build Message
 DO iProc=1, PartMPI%nMPINeighbors
   ! allocate SendBuf
-  nSendParticles=PartMPIExchange%nPartsSend(iProc)
+  nSendParticles=PartMPIExchange%nPartsSend(1,iProc)
   iPos=0
-  IF(nSendParticles.EQ.0) CYCLE
-  MessageSize=nSendParticles*PartCommSize
+  IF(DoExternalParts)THEN
+    nSendExtParticles=PartMPIExchange%nPartsSend(2,iProc)
+    IF((nSendExtParticles.EQ.0).AND.(nSendParticles.EQ.0)) CYCLE
+    MessageSize=nSendParticles*PartCommSize &
+               +nSendExtParticles*ExtPartCommSize
+  ELSE
+    IF(nSendParticles.EQ.0) CYCLE
+    MessageSize=nSendParticles*PartCommSize
+  END IF
   ALLOCATE(PartSendBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
   ,'  Cannot allocate PartSendBuf, local ProcId',iProc)
   ! fill message
   DO iPart=1,PDM%ParticleVecLength
-    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-    ElemID=PEM%Element(iPart)
-    IF(ElemID.GT.PP_nElems) THEN
-      !IF(PartHaloToProc(NATIVE_PROC_ID,ElemID).NE.PartMPI%MPINeighbor(iProc))THEN
-      IF(PartHaloToProc(LOCAL_PROC_ID,ElemID).NE.iProc) CYCLE
+    !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    !ElemID=PEM%Element(iPart)
+    !IF(ElemID.GT.PP_nElems) THEN
+    !  !IF(PartHaloToProc(NATIVE_PROC_ID,ElemID).NE.PartMPI%MPINeighbor(iProc))THEN
+    !  IF(PartHaloToProc(LOCAL_PROC_ID,ElemID).NE.iProc) CYCLE
+    IF(nSendParticles.EQ.0) EXIT
+    IF(PartTargetProc(iPart).EQ.iProc) THEN
       !iPos=iPos+1
       ! fill content
       PartSendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
-      PartState(iPart,1:6)=0.
+      !PartState(iPart,1:6)=0.
       IF(DoRefMapping) THEN ! + deposition type....
         PartSendBuf(iProc)%content(7+iPos:9+iPos) = PartPosRef(1:3,iPart)
-        PartPosRef(1:3,iPart)=-888.
+        !PartPosRef(1:3,iPart)=-888.
         jPos=iPos+3
       ELSE
         jPos=iPos
@@ -474,7 +586,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       !IF(PartSpecies(ipart).EQ.0) IPWRITE(*,*) 'part species zero',ipart
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
       PartSendBuf(iProc)%content(8+jPos:13+jPos) = Pt_temp(iPart,1:6)
-      Pt_temp(iPart,1:6)=0.
+      !Pt_temp(iPart,1:6)=0.
       !IPWRITE(UNIT_stdOut,*) ' send pt',SendBuf(iProc)%content(8+iPos:13+iPos)
       PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       !IF(PartHaloToProc(NATIVE_ELEM_ID,ElemID).EQ.0)THEN
@@ -599,8 +711,84 @@ DO iProc=1, PartMPI%nMPINeighbors
       iPos=iPos+PartCommSize
       ! particle is ready for send, now it can deleted
       PDM%ParticleInside(iPart) = .FALSE.  
-    END IF ! ElemID is HaloElement
+    END IF ! Particle is particle with target proc-id equals local proc id
   END DO  ! iPart
+  ! next, external particles has to be handled for deposition
+  IF(DoExternalParts)THEN
+    IF(nSendExtParticles.EQ.0) CYCLE
+    iPos=nSendParticles*PartCommSize
+    DO iPart=1,PDM%ParticleVecLength
+      IF(PartTargetProc(iPart).EQ.iProc) CYCLE
+      IF(.NOT.PartMPIDepoSend(iPart)) CYCLE
+      IF (Species(PartSpecies(iPart))%ChargeIC.EQ.0) CYCLE
+      ! get BMG cell
+      CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+      CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+      CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+      PartInBGM = .TRUE.
+      ! check if particle is in range of my FIBGM 
+      ! first check is outside
+      IF ((CellX.GT.GEO%FIBGMimax).OR.(CellX.LT.GEO%FIBGMimin) .OR. &
+          (CellY.GT.GEO%FIBGMjmax).OR.(CellY.LT.GEO%FIBGMjmin) .OR. &
+          (CellZ.GT.GEO%FIBGMkmax).OR.(CellZ.LT.GEO%FIBGMkmin)) THEN
+        PartInBGM = .FALSE.
+      ELSE
+        ! particle inside, check if particle is not moved by periodic BC
+        ! if this is the case, then the ShapeProcs is not allocated!
+        IF (.NOT.ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
+          PartInBGM = .FALSE.
+        END IF
+      END IF
+      IF (.NOT.PartInBGM) THEN
+        ! it is possible that the particle has been moved over a periodic side 
+        IF (GEO%nPeriodicVectors.GT.0) THEN
+          ShiftedPart(1:3) = PartState(iPart,1:3) + partShiftVector(1:3,iPart)
+          CellX = INT((ShiftedPart(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+          CellY = INT((ShiftedPart(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+          CellZ = INT((ShiftedPart(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+          IF (.NOT.ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
+            IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM! Err2'
+            IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+            IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
+            IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
+            IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
+            IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',ShiftedPart(1),',PartY=',ShiftedPart(2),',PartZ=',&
+                    ShiftedPart(3)
+            CALL Abort(&
+                 __STAMP__,&
+                'Particle outside BGM! Err2')
+          END IF
+        ELSE
+          IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM!'
+          IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+          IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
+          IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
+          IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
+          IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',PartState(iPart,1),',PartY=',PartState(iPart,2),',PartZ=',&
+                  PartState(iPart,3)
+          CALL Abort(&
+               __STAMP__,&
+              'Particle outside BGM!')
+        END IF ! GEO%nPeriodicVectors
+      END IF ! PartInBGM
+      nDepoProcs=GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1)
+      PartDepoProcs(1:nDepoProcs)=GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(2:nDepoProcs+1)
+      DO jProc=1,nDepoProcs
+        !IF(PartMPI%GlobalToLocal(PartDepoProcs(jProc)).EQ.iProc) CYCLE
+  !      IPWRITE(*,*) PartDepoProcs(jProc)
+        ProcID=PartDepoProcs(jProc)
+        LocalProcID=PartMPI%GlobalToLocal(ProcID)
+  !      IPWRITE(*,*) 'localprocid,iproc',iProc,localprocid
+        IF(PartTargetProc(iPart).EQ.LocalProcID) CYCLE
+        IF(LocalProcID.NE.iProc) CYCLE
+        PartSendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
+        PartSendBuf(iProc)%content(       7+iPos) = REAL(PartSpecies(iPart),KIND=8)
+        IF (usevMPF) PartSendBuf(iProc)%content( 8+iPos) = PartMPF(iPart)
+        ! count only, if particle is send
+        iPos=iPos+ExtPartCommSize
+      END DO ! jProc=1,nDepoProcs
+    END DO ! iPart=1,PDM%ParticleVecLength 
+  END IF ! DoExternalParts
   IF(iPos.NE.MessageSize) IPWRITE(*,*) ' error message size', iPos,MessageSize
 END DO ! iProc
 
@@ -615,15 +803,59 @@ DO iProc=1,PartMPI%nMPINeighbors
 END DO ! iProc
 
 ! total number of received particles
-PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(:))
-!IPWRITE(UNIT_stdOut,*) 'Number of received particles',SUM(PartMPIExchange%nPartsRecv(:))
+PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(1,:))
+!IPWRITE(UNIT_stdOut,*) 'Number of received particles',SUM(PartMPIExchange%nPartsRecv(1,:))
+!IPWRITE(UNIT_stdOut,*) 'Number of received extparticles',SUM(PartMPIExchange%nPartsRecv(2,:))
+
+
+! caution, fancy trick, particles are send, but information is not deleted
+! temporary storage
+IF(DoExternalParts) THEN
+  NbrOfExtParticles =SUM(PartMPIExchange%nPartsSend(1,:))+SUM(PartMPIExchange%nPartsRecv(2,:))
+  ALLOCATE(ExtPartState  (1:NbrOfExtParticles,1:6) &
+          ,ExtPartSpecies(1:NbrOfExtParticles)     &
+          ,ExtPartToFIBGM(1:6,1:NbrOfExtParticles) &
+          ,STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+  ,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank)
+  IF (usevMPF) THEN
+    ALLOCATE(ExtPartMPF (1:NbrOfExtParticles) &
+            ,STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+    ,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank)
+  END IF
+  ! map alt state to ext
+  iExtPart=0
+  DO iPart=1,PDM%ParticleVecLength
+    IF(PartTargetProc(iPart).EQ.-1) CYCLE
+    iExtPart=iExtPart+1
+    ExtPartState(iExtPart,1:6)= PartState(iPart,1:6)
+    ExtPartSpecies(iExtPart)  = PartSpecies(iPart)
+    IF (usevMPF) ExtPartMPF(iExtPart) = PartMPF(iPart)
+  END DO ! iPart=1,PDM%ParticleVecLength 
+END IF
+
+DO iPart=1,PDM%ParticleVecLength
+  IF(PartTargetProc(iPart).EQ.-1) CYCLE
+  PartState(iPart,1:6)=0.
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+  Pt_temp(iPart,1:6)=0.
+#endif
+END DO ! iPart=1,PDM%ParticleVecLength 
 
 
 ! 5) Allocate received buffer and open MPI_IRECV
 DO iProc=1,PartMPI%nMPINeighbors
-  nRecvParticles=PartMPIExchange%nPartsRecv(iProc)
-  IF(nRecvParticles.EQ.0) CYCLE
-  MessageSize=nRecvParticles*PartCommSize
+  nRecvParticles=PartMPIExchange%nPartsRecv(1,iProc)
+  IF(DoExternalParts) THEN
+    nRecvExtParticles=PartMPIExchange%nPartsRecv(2,iProc)
+    IF((nRecvParticles.EQ.0).AND.(nRecvExtParticles.EQ.0)) CYCLE
+    MessageSize=nRecvParticles*PartCommSize   &
+               +nRecvExtParticles*ExtPartCommSize
+  ELSE
+    IF(nRecvParticles.EQ.0) CYCLE
+    MessageSize=nRecvParticles*PartCommSize
+  END IF
   ALLOCATE(PartRecvBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
   ,'  Cannot allocate PartRecvBuf, local source ProcId',iProc)
@@ -650,9 +882,18 @@ END DO ! iProc
 
 ! 6) Send Particles
 DO iProc=1,PartMPI%nMPINeighbors
-  nSendParticles=PartMPIExchange%nPartsSend(iProc)
-  IF(nSendParticles.EQ.0) CYCLE
-  MessageSize=nSendParticles*PartCommSize
+  nSendParticles=PartMPIExchange%nPartsSend(1,iProc)
+  IF(DoExternalParts)THEN
+    nSendExtParticles=PartMPIExchange%nPartsSend(2,iProc)
+    IF((nSendExtParticles.EQ.0).AND.(nSendParticles.EQ.0)) CYCLE
+    MessageSize=nSendParticles*PartCommSize &
+               +nSendExtParticles*ExtPartCommSize
+  ELSE
+    IF(nSendParticles.EQ.0) CYCLE
+    MessageSize=nSendParticles*PartCommSize
+  END IF
+  !IF(nSendParticles.EQ.0) CYCLE
+  !MessageSize=nSendParticles*PartCommSize
   !ALLOCATE(SendBuf(iProc)%content(PartCommSize,nSendParticles))
   CALL MPI_ISEND( PartSendBuf(iProc)%content                                 &
                 , MessageSize                                                &
@@ -679,6 +920,10 @@ END DO ! iProc
 !  SDEALLOCATE(SendBuf(iProc)%content)
 !END DO ! iProc
 
+! and deallocation
+SDEALLOCATE(PartTargetProc)
+SDEALLOCATE(PartMPIDepoSend) 
+
 END SUBROUTINE MPIParticleSend
 
 
@@ -700,6 +945,9 @@ USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, P
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
 USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
+! variables for parallel deposition
+USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,ExtPartCommSize
+USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -711,10 +959,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iProc, iPos, nRecv, PartID,jPos
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,1:PartMPI%nMPINeighbors)
-INTEGER                       :: MessageSize
-INTEGER                       :: nRecvParticles
+INTEGER                       :: MessageSize, nRecvParticles, nRecvExtParticles
 !INTEGER,ALLOCATABLE           :: RecvArray(:,:), RecvArray_glob(:,:,:)
 !CHARACTER(LEN=64)             :: filename,hilf
+! shape function 
+REAL                          :: ShiftedPart(1:3)
+INTEGER                       :: iExtPart
 !===================================================================================================================================
 
 !IPWRITE(UNIT_stdOut,*) 'exchange',PartMPIExchange%nMPIParticles
@@ -725,17 +975,31 @@ INTEGER                       :: nRecvParticles
 !END DO
 
 DO iProc=1,PartMPI%nMPINeighbors
-  IF(PartMPIExchange%nPartsSend(iProc).EQ.0) CYCLE
+  IF(DoExternalParts)THEN
+    IF((PartMPIExchange%nPartsSend(1,iProc).EQ.0).AND. & 
+       (PartMPIExchange%nPartsSend(2,iProc).EQ.0)) CYCLE
+  ELSE
+    IF(PartMPIExchange%nPartsSend(1,iProc).EQ.0) CYCLE
+  END IF
   CALL MPI_WAIT(PartMPIExchange%SendRequest(2,iProc),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
           ,' MPI Communication error', IERROR)
   DEALLOCATE(PartSendBuf(iProc)%content)
 END DO ! iProc
 
+! old number of already filled ExtParticles
+IF(DoExternalParts) iExtPart=SUM(PartMPIExchange%nPartsSend(1,:))
+
 nRecv=0
 DO iProc=1,PartMPI%nMPINeighbors
-  nRecvParticles=PartMPIExchange%nPartsRecv(iProc)
-  IF(nRecvParticles.EQ.0) CYCLE
+  nRecvParticles=PartMPIExchange%nPartsRecv(1,iProc)
+  IF(DoExternalParts) THEN
+    nRecvExtParticles=PartMPIExchange%nPartsRecv(2,iProc)
+    IF((nRecvParticles.EQ.0).AND.(nRecvExtParticles.EQ.0)) CYCLE
+  ELSE
+    IF(nRecvParticles.EQ.0) CYCLE
+  END IF
+  !IF(nRecvParticles.EQ.0) CYCLE
   MessageSize=nRecvParticles*PartCommSize
   ! finish communication with iproc
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
@@ -744,6 +1008,7 @@ DO iProc=1,PartMPI%nMPINeighbors
   ! nParts 1 Pos=1..17 
   ! nPart2 2 Pos=1..17,18..34
   DO iPos=0,MessageSize-1,PartCommSize
+    IF(nRecvParticles.EQ.0) EXIT
     nRecv=nRecv+1
     PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
     IF(PartID.EQ.0)  CALL abort(__STAMP__&
@@ -880,6 +1145,17 @@ DO iProc=1,PartMPI%nMPINeighbors
     PEM%lastElement(PartID) = -888 
     PDM%ParticleInside(PartID) = .TRUE.
   END DO
+  IF(DoExternalParts)THEN
+    jPos=MessageSize
+    IF(nRecvExtParticles.EQ.0) CYCLE
+    MessageSize=nRecvExtParticles*ExtPartCommSize+jPos
+    DO iPos=jPos,MessageSize-1,ExtPartCommSize
+      iExtPart=iExtPart+1
+      ExtPartState(iExtPart,1:6) = PartRecvBuf(iProc)%content( 1+iPos: 6+iPos)
+      ExtPartSpecies(iExtPart)   = INT(PartRecvBuf(iProc)%content( 7+iPos),KIND=4)
+      IF (usevMPF) ExtPartMPF(iExtPart) = PartRecvBuf(iProc)%content( 8+iPos)
+    END DO ! iPos
+  END IF ! DoExternalParts
   ! be nice: deallocate the receive buffer
   ! deallocate non used array
   DEALLOCATE(PartRecvBuf(iProc)%Content)
@@ -1124,8 +1400,10 @@ END DO
 
 
 ! fill list with neighbor proc id and add local neighbor id to PartHaloToProc
-ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors))
+ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors) &
+        , PartMPI%GlobalToLocal(0:PartMPI%nProcs-1)  )
 iMPINeighbor=0
+PartMPI%GlobalToLocal=-1
 !CALL MPI_BARRIER(PartMPI%COMM,IERROR)
 !IPWRITE(UNIT_stdOut,*) 'PartMPI%nMPINeighbors',PartMPI%nMPINeighbors
 !IPWRITE(UNIT_stdOut,*) 'blabla',PartMPI%isMPINeighbor
@@ -1134,6 +1412,7 @@ DO iProc=0,PartMPI%nProcs-1
   IF(PartMPI%isMPINeighbor(iProc))THEN
     iMPINeighbor=iMPINeighbor+1
     PartMPI%MPINeighbor(iMPINeighbor)=iProc
+    PartMPI%GlobalToLocal(iProc)     =iMPINeighbor
     DO iElem=PP_nElems+1,nTotalElems
       IF(iProc.EQ.PartHaloToProc(NATIVE_PROC_ID,iElem)) PartHaloToProc(LOCAL_PROC_ID,iElem)=iMPINeighbor
     END DO ! iElem

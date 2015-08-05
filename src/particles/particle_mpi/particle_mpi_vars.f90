@@ -20,8 +20,6 @@ INTEGER,ALLOCATABLE :: PartHaloToProc(:,:)                                   ! c
                                                                              ! 3 - local neighbor id
 INTEGER             :: myRealKind
 LOGICAL                                  :: ParticleMPIInitIsDone=.FALSE.
-INTEGER, ALLOCATABLE                     :: casematrix(:,:)                  ! matrix to compute periodic cases
-INTEGER                                  :: NbrOfCases                       ! Number of periodic cases
 INTEGER                                  :: iMessage                         ! Number of MPI-Messages for Debug purpose
 
 TYPE tPartMPIGROUP
@@ -49,6 +47,7 @@ TYPE tPartMPIVAR
   INTEGER                                :: nMPINeighbors                    ! number of MPI-Neighbors with HALO
   LOGICAL,ALLOCATABLE                    :: isMPINeighbor(:)                 ! list of possible neighbors
   INTEGER,ALLOCATABLE                    :: MPINeighbor(:)                   ! list containing the rank of MPI-neighbors
+  INTEGER,ALLOCATABLE                    :: GlobalToLocal(:)                 ! map from global proc id to local
 END TYPE
 
 TYPE (tPartMPIVAR)                       :: PartMPI
@@ -83,8 +82,8 @@ TYPE(tMPIMessage),ALLOCATABLE  :: PartRecvBuf(:)                             ! P
 TYPE(tMPIMessage),ALLOCATABLE  :: PartSendBuf(:)                             ! PartSendBuf with all requried types
 
 TYPE tParticleMPIExchange
-  INTEGER,ALLOCATABLE            :: nPartsSend(:)     ! only mpi neighbors
-  INTEGER,ALLOCATABLE            :: nPartsRecv(:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: nPartsSend(:,:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: nPartsRecv(:,:)     ! only mpi neighbors
   INTEGER                        :: nMPIParticles     ! number of all received particles
   INTEGER,ALLOCATABLE            :: SendRequest(:,:)  ! send requirest message handle 1 - Number, 2-Message
   INTEGER,ALLOCATABLE            :: RecvRequest(:,:)  ! recv request message handle,  1 - Number, 2-Message
@@ -97,17 +96,33 @@ TYPE tParticleMPIExchange
 !  INTEGER                       ,POINTER :: nbrOfSendParticlesEmission(:)  ! (1:nProcs)
 END TYPE
  
+TYPE tParticleMPIExchange2
+  INTEGER,ALLOCATABLE            :: nPartsSend(:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: nPartsRecv(:)     ! only mpi neighbors
+  INTEGER                        :: nMPIParticles     ! number of all received particles
+  INTEGER,ALLOCATABLE            :: SendRequest(:,:)  ! send requirest message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:,:)  ! recv request message handle,  1 - Number, 2-Message
+  TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)   ! message, required for particle emission
+END TYPE
 
-TYPE (tParticleMPIExchange)              :: PartMPIInsert 
+TYPE (tParticleMPIExchange2)             :: PartMPIInsert 
 TYPE (tParticleMPIExchange)              :: PartMPIExchange
 
+INTEGER,ALLOCATABLE                      :: PartTargetProc(:)                ! local proc id for communication
+LOGICAL,ALLOCATABLE                      :: PartMPIDepoSend(:)               ! index of part number, if particle has to be send
+                                                                             ! for deposition, e.g. shape-function
 LOGICAL                                  :: DoExternalParts                  ! external particles, required for 
                                                                              ! shape-function or b-spline or valume weighting
 INTEGER                                  :: NbrOfExtParticles                ! number of external particles
-LOGICAL                                  :: ExtPartsAllocated                ! number of allocated external particles
+LOGICAL                                  :: ExtPartsAllocated                ! logical,if exp parts are allocated 
 REAL, ALLOCATABLE                        :: ExtPartState(:,:)                ! external particle state
 INTEGER, ALLOCATABLE                     :: ExtPartSpecies(:)                ! species of external particles
+INTEGER, ALLOCATABLE                     :: ExtPartToFIBGM(:,:)              ! mapping form particle to bounding box in FIBGM
+REAL, ALLOCATABLE                        :: ExtPartMPF(:)                    ! macro-particle factor of external particles
+INTEGER                                  :: ExtPartCommSize                  ! number of entries for ExtParticles
+!INTEGER                                  :: nPartShape
 
+REAL, ALLOCATABLE                        :: PartShiftVector(:,:)             ! store particle periodic map
 #endif /*MPI*/
 !===================================================================================================================================
 
