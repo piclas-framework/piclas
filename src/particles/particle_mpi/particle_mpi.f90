@@ -328,7 +328,7 @@ IF(DoExternalParts)THEN
     END IF
   END DO ! iPart=1,PDM%ParticleVecLength
   ! now, get correct BGM cell for particle 
-  ! shape-padding allows to send particles 
+  ! including periodic displacement or BGM element without mpi neighbors
   ! shape-padding could be modified for all other deposition methods? reuse?
   DO iPart=1,PDM%ParticleVecLength
     !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -563,7 +563,6 @@ DO iProc=1, PartMPI%nMPINeighbors
   ! fill message
   DO iPart=1,PDM%ParticleVecLength
     !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-    !ElemID=PEM%Element(iPart)
     !IF(ElemID.GT.PP_nElems) THEN
     !  !IF(PartHaloToProc(NATIVE_PROC_ID,ElemID).NE.PartMPI%MPINeighbor(iProc))THEN
     !  IF(PartHaloToProc(LOCAL_PROC_ID,ElemID).NE.iProc) CYCLE
@@ -571,6 +570,7 @@ DO iProc=1, PartMPI%nMPINeighbors
     IF(PartTargetProc(iPart).EQ.iProc) THEN
       !iPos=iPos+1
       ! fill content
+      ElemID=PEM%Element(iPart)
       PartSendBuf(iProc)%content(1+iPos:6+iPos) = PartState(iPart,1:6)
       !PartState(iPart,1:6)=0.
       IF(DoRefMapping) THEN ! + deposition type....
@@ -582,73 +582,12 @@ DO iProc=1, PartMPI%nMPINeighbors
       END IF
       !IPWRITE(UNIT_stdOut,*) ' send state',PartState(iPart,1:6)
       PartSendBuf(iProc)%content(       7+jPos) = REAL(PartSpecies(iPart),KIND=8)
-      PartSpecies(iPart)=0
       !IF(PartSpecies(ipart).EQ.0) IPWRITE(*,*) 'part species zero',ipart
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
       PartSendBuf(iProc)%content(8+jPos:13+jPos) = Pt_temp(iPart,1:6)
-      !Pt_temp(iPart,1:6)=0.
-      !IPWRITE(UNIT_stdOut,*) ' send pt',SendBuf(iProc)%content(8+iPos:13+iPos)
-      PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
-      !IF(PartHaloToProc(NATIVE_ELEM_ID,ElemID).EQ.0)THEN
-      !  IPWRITE(*,*) 'send with native elem id.EQ.0'
-      !END IF
-      IF(.NOT.UseLD) THEN   
-        IF (useDSMC.AND.(CollisMode.NE.1)) THEN
-          IF (usevMPF .AND. DSMC%ElectronicState) THEN
-            PartSendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)    
-            PartSendBuf(iProc)%content(17+jPos) = PartMPF(iPart)
-            PartSendBuf(iProc)%content(18+jPos) = PartStateIntEn(iPart, 3)
-          ELSE IF (usevMPF) THEN
-            PartSendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)    
-            PartSendBuf(iProc)%content(17+jPos) = PartMPF(iPart)
-          ELSE IF ( DSMC%ElectronicState ) THEN
-            PartSendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)    
-            PartSendBuf(iProc)%content(17+jPos) = PartStateIntEn(iPart, 3)
-          ELSE
-            PartSendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)
-          END IF
-        ELSE
-          IF (usevMPF) THEN
-            PartSendBuf(iProc)%content(15+jPos) = PartMPF(iPart)
-          END IF
-        END IF
-      ELSE ! UseLD == true      =>      useDSMC == true
-        IF (CollisMode.NE.1) THEN
-          IF (usevMPF .AND. DSMC%ElectronicState) THEN
-            PartSendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)    
-            PartSendBuf(iProc)%content(17+jPos) = PartMPF(iPart)
-            PartSendBuf(iProc)%content(18+jPos) = PartStateIntEn(iPart, 3)
-            PartSendBuf(iProc)%content(19+jPos:23+jPos) = PartStateBulkValues(iPart,1:5)
-          ELSE IF (usevMPF) THEN
-            PartSendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)    
-            PartSendBuf(iProc)%content(17+jPos) = PartMPF(iPart)
-            PartSendBuf(iProc)%content(18+jPos:22+jPos) = PartStateBulkValues(iPart,1:5)
-          ELSE IF ( DSMC%ElectronicState ) THEN
-            PartSendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)    
-            PartSendBuf(iProc)%content(17+jPos) = PartStateIntEn(iPart, 3)
-            PartSendBuf(iProc)%content(18+jPos:22+jPos) = PartStateBulkValues(iPart,1:5)
-          ELSE
-            PartSendBuf(iProc)%content(15+jPos) = PartStateIntEn(iPart, 1)
-            PartSendBuf(iProc)%content(16+jPos) = PartStateIntEn(iPart, 2)
-            PartSendBuf(iProc)%content(17+jPos:21+jPos) = PartStateBulkValues(iPart,1:5)
-          END IF
-        ELSE
-          IF (usevMPF) THEN
-            PartSendBuf(iProc)%content(15+jPos) = PartMPF(iPart)
-            PartSendBuf(iProc)%content(16+jPos:20+jPos) = PartStateBulkValues(iPart,1:5)
-          ELSE
-            PartSendBuf(iProc)%content(15+jPos:19+jPos) = PartStateBulkValues(iPart,1:5)
-          END IF
-        END IF
-      END IF
-#else 
+      jPos=jPos+6
+#endif
+      !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       IF(.NOT.UseLD) THEN   
         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
@@ -706,7 +645,7 @@ DO iProc=1, PartMPI%nMPINeighbors
           END IF
         END IF
       END IF
-#endif 
+      ! endif timedisc
       ! here iPos because PartCommSize contains DoRefMapping
       iPos=iPos+PartCommSize
       ! particle is ready for send, now it can deleted
@@ -829,8 +768,8 @@ IF(DoExternalParts) THEN
   DO iPart=1,PDM%ParticleVecLength
     IF(PartTargetProc(iPart).EQ.-1) CYCLE
     iExtPart=iExtPart+1
-    ExtPartState(iExtPart,1:6)= PartState(iPart,1:6)
-    ExtPartSpecies(iExtPart)  = PartSpecies(iPart)
+    ExtPartState(iExtPart,1:6)        = PartState(iPart,1:6)
+    ExtPartSpecies(iExtPart)          = PartSpecies(iPart)
     IF (usevMPF) ExtPartMPF(iExtPart) = PartMPF(iPart)
   END DO ! iPart=1,PDM%ParticleVecLength 
 END IF
@@ -838,6 +777,7 @@ END IF
 DO iPart=1,PDM%ParticleVecLength
   IF(PartTargetProc(iPart).EQ.-1) CYCLE
   PartState(iPart,1:6)=0.
+  PartSpecies(iPart)=0
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
   Pt_temp(iPart,1:6)=0.
 #endif
@@ -1025,66 +965,8 @@ DO iProc=1,PartMPI%nMPINeighbors
     ! IF(PartSpecies(PartID).EQ.0) IPWRITE(*,*) 'part species zero',PartID
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
     Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 8+jPos:13+jPos)
-    !IPWRITE(UNIT_stdOut,*) ' recv pt',Pt_temp(PartID,1:6)
-    PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(14+jPos),KIND=4)
-    !IF(PEM%Element(PartID).EQ.0)THEN
-    !  IPWRITE(*,*) 'receied elem id.EQ.0'
-    !END IF
-    IF(.NOT.UseLD) THEN
-      IF (useDSMC.AND.(CollisMode.NE.1)) THEN
-        IF (usevMPF .AND. DSMC%ElectronicState) THEN
-          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(15+jPos)
-          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(16+jPos)
-          PartMPF(PartID)           = PartRecvBuf(iProc)%content(17+jPos)
-          PartStateIntEn(PartID, 3) = PartRecvBuf(iProc)%content(18+jPos)
-        ELSE IF ( usevMPF) THEN
-          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(15+jPos)
-          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(16+jPos)
-          PartMPF(PartID)           = PartRecvBuf(iProc)%content(17+jPos)
-        ELSE IF ( DSMC%ElectronicState ) THEN
-          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(15+jPos)
-          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(16+jPos)
-          PartStateIntEn(PartID, 3) = PartRecvBuf(iProc)%content(17+jPos)
-        ELSE
-          PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content(15+jPos)
-          PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(16+jPos)
-        END IF
-      ELSE
-        IF (usevMPF) PartMPF(PartID) = PartRecvBuf(iProc)%content(15+jPos)
-      END IF
-    ELSE ! UseLD == true      =>      useDSMC == true
-      IF (CollisMode.NE.1) THEN
-        IF (usevMPF .AND. DSMC%ElectronicState) THEN
-          PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(15+jPos)
-          PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(16+jPos)
-          PartMPF(PartID)                 = PartRecvBuf(iProc)%content(17+jPos)
-          PartStateIntEn(PartID, 3)       = PartRecvBuf(iProc)%content(18+jPos)
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(19+jPos:23+jPos)
-        ELSE IF ( usevMPF) THEN
-          PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(15+jPos)
-          PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(16+jPos)
-          PartMPF(PartID)                 = PartRecvBuf(iProc)%content(17+jPos)
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(18+jPos:22+jPos)
-        ELSE IF ( DSMC%ElectronicState ) THEN
-          PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(15+jPos)
-          PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(16+jPos)
-          PartStateIntEn(PartID, 3)       = PartRecvBuf(iProc)%content(17+jPos)
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(18+jPos:22+jPos)
-        ELSE
-          PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content(15+jPos)
-          PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(16+jPos)
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(17+jPos:21+jPos)
-        END IF
-      ELSE
-        IF (usevMPF) THEN
-          PartMPF(PartID)                 = PartRecvBuf(iProc)%content(15+jPos)
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(16+jPos:20+jPos)
-        ELSE
-          PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(15+jPos:19+jPos)
-        END IF
-      END IF
-    END IF
-#else 
+    jPos=jPos+6
+#endif
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     IF(.NOT.UseLD) THEN
       IF (useDSMC.AND.(CollisMode.NE.1)) THEN
@@ -1140,7 +1022,6 @@ DO iProc=1,PartMPI%nMPINeighbors
         END IF
       END IF
     END IF
-#endif
     ! Set Flag for received parts in order to localize them later
     PEM%lastElement(PartID) = -888 
     PDM%ParticleInside(PartID) = .TRUE.
@@ -1393,8 +1274,10 @@ DO iProc=0,PartMPI%nProcs-1
   !IPWRITE(UNIT_stdOut,*) 'check',tmpneigh,PartMPI%isMPINeighbor(iProc)
   IF (TmpNeigh.NEQV.PartMPI%isMPINeighbor(iProc)) THEN
     WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
-    PartMPI%isMPINeighbor(iProc) = .TRUE.
-    PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
+    IF(.NOT.PartMPI%isMPINeighbor(iProc))THEN
+      PartMPI%isMPINeighbor(iProc) = .TRUE.
+      PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
+    END IF
   END IF
 END DO
 
@@ -1418,6 +1301,12 @@ DO iProc=0,PartMPI%nProcs-1
     END DO ! iElem
   END IF
 END DO
+
+IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
+  __STAMP__&
+  , ' Found number of mpi neighbors does not match! ', iMPINeighbor,REAL(PartMPI%nMPINeighbors))
+
+
 IF(PartMPI%nMPINeighbors.GT.0)THEN
   IF(ANY(PartHaloToProc(LOCAL_PROC_ID,:).EQ.-1)) IPWRITE(UNIT_stdOut,*) ' Local proc id not found'
   IF(MAXVAL(PartHaloToProc(LOCAL_PROC_ID,:)).GT.PartMPI%nMPINeighbors) IPWRITE(UNIT_stdOut,*) ' Local proc id too high.'
@@ -1427,9 +1316,6 @@ IF(PartMPI%nMPINeighbors.GT.0)THEN
 END IF
 !IPWRITE(UNIT_stdOut,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
 
-IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
-  __STAMP__&
-  , ' Found number of mpi neighbors does not match! ', iMPINeighbor,REAL(PartMPI%nMPINeighbors))
 
 !IF(DepositionType.EQ.'shape_function') THEN
 !  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .TRUE.

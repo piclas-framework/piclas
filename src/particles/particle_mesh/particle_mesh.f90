@@ -2204,7 +2204,15 @@ BGMjmin=GEO%FIBGMjmin
 BGMkmax=GEO%FIBGMkmax
 BGMkmin=GEO%FIBGMkmin
 
+
+
 DO iElem=1,LastElem
+  xmin=HUGE(1.)
+  ymin=HUGE(1.)
+  zmin=HUGE(1.)
+  xmax=-HUGE(1.)
+  ymax=-HUGE(1.)
+  zmax=-HUGE(1.)
   xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
   xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
   ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
