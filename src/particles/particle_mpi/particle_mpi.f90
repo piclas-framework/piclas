@@ -152,6 +152,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER         :: ALLOCSTAT
 !===================================================================================================================================
 
 PartCommSize   = 0  
@@ -183,8 +184,15 @@ ALLOCATE( PartMPIExchange%nPartsSend(2,PartMPI%nMPINeighbors)  &
         , PartRecvBuf(1:PartMPI%nMPINeighbors)                 &
         , PartSendBuf(1:PartMPI%nMPINeighbors)                 &
         , PartMPIExchange%SendRequest(2,PartMPI%nMPINeighbors) &
-        , PartMPIExchange%RecvRequest(2,PartMPI%nMPINeighbors) )
-        !, PartTargetProc(1:PDM%MaxParticleNumber)              )
+        , PartMPIExchange%RecvRequest(2,PartMPI%nMPINeighbors) &
+        , PartTargetProc(1:PDM%MaxParticleNumber)              &
+        , PartMPIDepoSend(1:PDM%MaxParticleNumber)             &
+        , STAT=ALLOCSTAT                                       )
+
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__, &
+    ' Cannot allocate Particle-MPI-Variables! ALLOCSTAT',ALLOCSTAT)
+
 PartMPIExchange%nPartsSend=0
 PartMPIExchange%nPartsRecv=0
 
@@ -275,10 +283,10 @@ LOGICAL                       :: PartInBGM
 
 ! 1) get number of send particles
 PartMPIExchange%nPartsSend=0
-ALLOCATE(PartTargetProc(1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__, &
-    ' Cannot allocate PartMPIDepoSend!')
+!ALLOCATE(PartTargetProc(1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
+!IF (ALLOCSTAT.NE.0) CALL abort(&
+!    __STAMP__, &
+!    ' Cannot allocate PartMPIDepoSend!')
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
   IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -301,10 +309,10 @@ END DO ! iPart
 
 ! external particles for communication
 IF(DoExternalParts)THEN
-  ALLOCATE(PartMPIDepoSend(1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__, &
-      ' Cannot allocate PartMPIDepoSend!')
+  !ALLOCATE(PartMPIDepoSend(1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
+  !IF (ALLOCSTAT.NE.0) CALL abort(&
+  !    __STAMP__, &
+  !    ' Cannot allocate PartMPIDepoSend!')
   PartMPIDepoSend=.FALSE.
   nPartShape=0
   DO iPart=1,PDM%ParticleVecLength
@@ -559,7 +567,7 @@ DO iProc=1, PartMPI%nMPINeighbors
   END IF
   ALLOCATE(PartSendBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
-  ,'  Cannot allocate PartSendBuf, local ProcId',iProc)
+  ,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
   ! fill message
   DO iPart=1,PDM%ParticleVecLength
     !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -786,19 +794,21 @@ END DO ! iPart=1,PDM%ParticleVecLength
 
 ! 5) Allocate received buffer and open MPI_IRECV
 DO iProc=1,PartMPI%nMPINeighbors
+  IF(SUM(PartMPIExchange%nPartsRecv(:,iProc)).EQ.0) CYCLE
   nRecvParticles=PartMPIExchange%nPartsRecv(1,iProc)
+  MessageSize=nRecvParticles*PartCommSize
   IF(DoExternalParts) THEN
     nRecvExtParticles=PartMPIExchange%nPartsRecv(2,iProc)
-    IF((nRecvParticles.EQ.0).AND.(nRecvExtParticles.EQ.0)) CYCLE
-    MessageSize=nRecvParticles*PartCommSize   &
+    MessageSize=MessageSize   &
                +nRecvExtParticles*ExtPartCommSize
-  ELSE
-    IF(nRecvParticles.EQ.0) CYCLE
-    MessageSize=nRecvParticles*PartCommSize
   END IF
   ALLOCATE(PartRecvBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
-  ,'  Cannot allocate PartRecvBuf, local source ProcId',iProc)
+  IF (ALLOCSTAT.NE.0) THEN
+    IPWRITE(*,*) 'sum of total received particles            ', SUM(PartMPIExchange%nPartsRecv(1,:))
+    IPWRITE(*,*) 'sum of total received deposition particles ', SUM(PartMPIExchange%nPartsRecv(2,:))
+    CALL abort(__STAMP__&
+  ,'  Cannot allocate PartRecvBuf, local source ProcId, Allocstat',iProc,REAL(ALLOCSTAT))
+  END IF
   CALL MPI_IRECV( PartRecvBuf(iProc)%content                                 &
                 , MessageSize                                                &
                 , MPI_DOUBLE_PRECISION                                       &
@@ -822,15 +832,13 @@ END DO ! iProc
 
 ! 6) Send Particles
 DO iProc=1,PartMPI%nMPINeighbors
+  IF(SUM(PartMPIExchange%nPartsSend(:,iProc)).EQ.0) CYCLE
   nSendParticles=PartMPIExchange%nPartsSend(1,iProc)
+  MessageSize=nSendParticles*PartCommSize
   IF(DoExternalParts)THEN
     nSendExtParticles=PartMPIExchange%nPartsSend(2,iProc)
-    IF((nSendExtParticles.EQ.0).AND.(nSendParticles.EQ.0)) CYCLE
-    MessageSize=nSendParticles*PartCommSize &
+    MessageSize=MessageSize &
                +nSendExtParticles*ExtPartCommSize
-  ELSE
-    IF(nSendParticles.EQ.0) CYCLE
-    MessageSize=nSendParticles*PartCommSize
   END IF
   !IF(nSendParticles.EQ.0) CYCLE
   !MessageSize=nSendParticles*PartCommSize
@@ -860,9 +868,9 @@ END DO ! iProc
 !  SDEALLOCATE(SendBuf(iProc)%content)
 !END DO ! iProc
 
-! and deallocation
-SDEALLOCATE(PartTargetProc)
-SDEALLOCATE(PartMPIDepoSend) 
+! and not deallocate, because global, fixed variable
+! SDEALLOCATE(PartTargetProc)
+! SDEALLOCATE(PartMPIDepoSend) 
 
 END SUBROUTINE MPIParticleSend
 
@@ -915,16 +923,10 @@ INTEGER                       :: iExtPart
 !END DO
 
 DO iProc=1,PartMPI%nMPINeighbors
-  IF(DoExternalParts)THEN
-    IF((PartMPIExchange%nPartsSend(1,iProc).EQ.0).AND. & 
-       (PartMPIExchange%nPartsSend(2,iProc).EQ.0)) CYCLE
-  ELSE
-    IF(PartMPIExchange%nPartsSend(1,iProc).EQ.0) CYCLE
-  END IF
+  IF(SUM(PartMPIExchange%nPartsSend(:,iProc)).EQ.0) CYCLE
   CALL MPI_WAIT(PartMPIExchange%SendRequest(2,iProc),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
           ,' MPI Communication error', IERROR)
-  DEALLOCATE(PartSendBuf(iProc)%content)
 END DO ! iProc
 
 ! old number of already filled ExtParticles
@@ -932,12 +934,10 @@ IF(DoExternalParts) iExtPart=SUM(PartMPIExchange%nPartsSend(1,:))
 
 nRecv=0
 DO iProc=1,PartMPI%nMPINeighbors
+  IF(SUM(PartMPIExchange%nPartsRecv(:,iProc)).EQ.0) CYCLE
   nRecvParticles=PartMPIExchange%nPartsRecv(1,iProc)
   IF(DoExternalParts) THEN
     nRecvExtParticles=PartMPIExchange%nPartsRecv(2,iProc)
-    IF((nRecvParticles.EQ.0).AND.(nRecvExtParticles.EQ.0)) CYCLE
-  ELSE
-    IF(nRecvParticles.EQ.0) CYCLE
   END IF
   !IF(nRecvParticles.EQ.0) CYCLE
   MessageSize=nRecvParticles*PartCommSize
@@ -1039,12 +1039,8 @@ DO iProc=1,PartMPI%nMPINeighbors
   END IF ! DoExternalParts
   ! be nice: deallocate the receive buffer
   ! deallocate non used array
-  DEALLOCATE(PartRecvBuf(iProc)%Content)
 END DO ! iProc
 
-!DO iProc=1,PartMPI%nMPINeighbors
-!  SDEALLOCATE(PartRecvBuf(iProc)%content)
-!END DO ! iProc
 
 PDM%ParticleVecLength       = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
@@ -1103,6 +1099,13 @@ PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPI
 ! 
 !   CLOSE(63)
 ! END IF
+
+
+! deallocate send,receive buffer
+DO iProc=1,PartMPI%nMPINeighbors
+  SDEALLOCATE(PartRecvBuf(iProc)%content)
+  SDEALLOCATE(PartSendBuf(iProc)%content)
+END DO ! iProc
 
 
 ! final
