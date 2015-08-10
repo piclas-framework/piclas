@@ -87,6 +87,7 @@ DoAnalyze = .FALSE.
 CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
 IF(CalcEpot) DoAnalyze = .TRUE.
 
+  DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
   CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
   IF(CalcCharge) DoAnalyze = .TRUE. 
   CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
@@ -177,6 +178,7 @@ USE MOD_PARTICLE_Vars,         ONLY: nSpecies
 USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
+USE MOD_PIC_Analyze,           ONLY: CalcDepositedCharge
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
@@ -283,6 +285,17 @@ unit_index = 535
               WRITE(unit_index,'(I3.3,A12,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPart-Spec-', iSpec
               OutputCounter = OutputCounter + 1
             END DO              
+          END IF
+          IF (CalcCharge) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A12,A5)',ADVANCE='NO') OutputCounter,'-Charge     '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A16,A5)',ADVANCE='NO') OutputCounter,'-Charge-absError'
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A16,A5)',ADVANCE='NO') OutputCounter,'-Charge-relError'
+            OutputCounter = OutputCounter + 1
           END IF
           IF (CalcPartBalance) THEN
             DO iSpec=1, nSpecies
@@ -463,13 +476,13 @@ unit_index = 535
 #endif    /* MPI */
 
 
-!IF (CalcCharge.AND.(.NOT.ChargeCalcDone)) CALL CalcDepositedCharge()
-IF(CalcEpot) CALL CalcPotentialEnergy(WEl,WMag)
-IF(CalcEkin) CALL CalcKineticEnergy(Ekin)
-IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
-IF(CalcTemp) CALL CalcTemperature(Temp, NumSpec)
+IF(CalcCharge)  CALL CalcDepositedCharge() ! mpi communication done in calcdepositedcharge
 IF(CalcNumSpec) CALL GetNumSpec(NumSpec)
-IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm)
+IF(CalcEpot)    CALL CalcPotentialEnergy(WEl,WMag)
+IF(CalcEkin)    CALL CalcKineticEnergy(Ekin)
+IF(CalcTemp)    CALL CalcTemperature(Temp, NumSpec)
+IF(CalcVelos)   CALL CalcVelocities(PartVtrans, PartVtherm)
+IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
 
 ! MPI Communication
 #ifdef MPI
@@ -554,6 +567,14 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
        WRITE(unit_index,'(I18.1)',ADVANCE='NO') NumSpec(iSpec)
      END DO
+   END IF
+   IF (CalcCharge) THEN 
+     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+     WRITE(unit_index,104,ADVANCE='NO') PartCharge(1)
+     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+     WRITE(unit_index,104,ADVANCE='NO') PartCharge(2)
+     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+     WRITE(unit_index,104,ADVANCE='NO') PartCharge(3)
    END IF
    IF (CalcPartBalance) THEN
      DO iSpec=1, nSpecies

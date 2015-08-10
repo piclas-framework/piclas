@@ -499,43 +499,44 @@ SUBROUTINE TimeStepByLSERK(t,iter,tEndDiff)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Vector
-USE MOD_Analyze,          ONLY: PerformAnalyze
-USE MOD_TimeDisc_Vars,    ONLY: dt,iStage
-USE MOD_TimeDisc_Vars,    ONLY: RK_a,RK_b,RK_c,nRKStages
-USE MOD_DG_Vars,          ONLY: U,Ut,nTotalU
-USE MOD_PML_Vars,         ONLY: U2,U2t,nPMLElems,DoPML,nTotalPML
-USE MOD_PML,              ONLY: PMLTimeDerivative,CalcPMLSource
-USE MOD_Filter,           ONLY: Filter
-USE MOD_Equation,         ONLY: DivCleaningDamping
-USE MOD_Equation,         ONLY: CalcSource
-!USE MOD_DG,               ONLY: DGTimeDerivative_WoSource_weakForm
-USE MOD_DG,               ONLY: DGTimeDerivative_weakForm
+USE MOD_Analyze,                 ONLY: PerformAnalyze
+USE MOD_TimeDisc_Vars,           ONLY: dt,iStage
+USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
+USE MOD_DG_Vars,                 ONLY: U,Ut,nTotalU
+USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML,nTotalPML
+USE MOD_PML,                     ONLY: PMLTimeDerivative,CalcPMLSource
+USE MOD_Filter,                  ONLY: Filter
+USE MOD_Equation,                ONLY: DivCleaningDamping
+USE MOD_Equation,                ONLY: CalcSource
+!USE MOD_DG,                      ONLY: DGTimeDerivative_WoSource_weakForm
+USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
 #ifdef PP_POIS
-USE MOD_Equation,         ONLY: DivCleaningDamping_Pois,EvalGradient
-USE MOD_DG,               ONLY: DGTimeDerivative_weakForm_Pois
-USE MOD_Equation_Vars,    ONLY: Phi,Phit,nTotalPhi
+USE MOD_Equation,                ONLY: DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars,           ONLY: Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-USE MOD_PICDepo,          ONLY: Deposition!, DepositionMPF
-USE MOD_PICInterpolation, ONLY: InterpolateFieldToParticle
-USE MOD_PIC_Vars,         ONLY: PIC
-USE MOD_Particle_Vars,    ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF, & 
-                                 doParticleMerge,PartPressureCell
-USE MOD_Particle_Vars,    ONLY: nTotalPart,nTotalHalfPart
-USE MOD_part_RHS,         ONLY: CalcPartRHS
-USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
-USE MOD_part_emission,    ONLY: ParticleInserting
-USE MOD_DSMC,             ONLY: DSMC_main
-USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS, DSMC
-USE MOD_part_MPFtools,    ONLY: StartParticleMerge
-!USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
+USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_PICDepo,                 ONLY: Deposition!, DepositionMPF
+USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
+USE MOD_PIC_Vars,                ONLY: PIC
+USE MOD_Particle_Vars,           ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF, & 
+                                        doParticleMerge,PartPressureCell
+USE MOD_Particle_Vars,           ONLY: nTotalPart,nTotalHalfPart
+USE MOD_part_RHS,                ONLY: CalcPartRHS
+USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_part_emission,           ONLY: ParticleInserting
+USE MOD_DSMC,                    ONLY: DSMC_main
+USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS, DSMC
+USE MOD_part_MPFtools,           ONLY: StartParticleMerge
+USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
+USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
 #ifdef MPI
-USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
+USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 #else /*No MPI*/
 #endif /*MPI*/
-USE MOD_part_tools,       ONLY: UpdateNextFreePosition
+USE MOD_part_tools,              ONLY: UpdateNextFreePosition
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -593,7 +594,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   PartMPIExchange%nMPIParticles=0
   CALL Deposition(doInnerParts=.FALSE.)
 #endif /*MPI*/
-  !CALL CalcDepositedCharge()
+  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 
 #endif /*PARTICLES*/
@@ -699,7 +700,7 @@ DO iStage=2,nRKStages
      CALL InterpolateFieldToParticle(doInnerParts=.FALSE.)
      CALL CalcPartRHS()
      CALL Deposition(doInnerParts=.FALSE.)
-     !CALL CalcDepositedCharge()
+     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
      ! null here, careful
 #ifdef MPI
      PartMPIExchange%nMPIParticles=0
@@ -1235,7 +1236,7 @@ USE MOD_part_MPFtools,    ONLY : StartParticleMerge
 !#else
 !USE MOD_part_boundary,    ONLY : ParticleBoundary
 !#endif
-USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
+USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -1266,7 +1267,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   !ELSE 
     CALL Deposition()
   !END IF
-  !CALL CalcDepositedCharge()
+  !CALL VerifyDepositedCharge()
 END IF
 
 IF (t.GE.DelayTime) THEN
@@ -1474,7 +1475,7 @@ USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
 !#else
 !USE MOD_part_boundary,    ONLY : ParticleBoundary
 !#endif
-USE MOD_PIC_Analyze,ONLY: CalcDepositedCharge
+USE MOD_PIC_Analyze,ONLY: VerifyDepositedCharge
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -1496,7 +1497,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 !  ELSE 
     CALL Deposition()
 !  END IF
-  !CALL CalcDepositedCharge()
+  !CALL VerifyDepositedCharge()
 END IF
 
 IF (t.GE.DelayTime) THEN
@@ -1571,7 +1572,7 @@ USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
 !#else
 !USE MOD_part_boundary,    ONLY : ParticleBoundary
 !#endif
-!USE MOD_PIC_Analyze,    ONLY: CalcDepositedCharge
+!USE MOD_PIC_Analyze,    ONLY: VerifyDepositedCharge
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
 #endif
 
@@ -1603,7 +1604,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 !    ELSE 
       CALL Deposition()
 !    END IF
-  !CALL CalcDepositedCharge()
+  !CALL VerifyDepositedCharge()
 END IF
 
 IF (t.GE.DelayTime) THEN
@@ -1722,7 +1723,7 @@ USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS
 !#else
 !USE MOD_part_boundary,    ONLY : ParticleBoundary
 !#endif
-USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
+USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -1749,7 +1750,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 !    ELSE 
       CALL Deposition()
     !END IF
-  !CALL CalcDepositedCharge()
+  !CALL VerifyDepositedCharge()
 END IF
 IF (t.GE.DelayTime) THEN
   CALL InterpolateFieldToParticle()
@@ -1880,7 +1881,7 @@ USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
 !#else
 !USE MOD_part_boundary,    ONLY : ParticleBoundary
 !#endif
-USE MOD_PIC_Analyze,ONLY: CalcDepositedCharge
+USE MOD_PIC_Analyze,    ONLY: VerifyDepositedCharge
 USE MOD_part_tools,     ONLY : UpdateNextFreePosition
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -1907,7 +1908,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 !    ELSE 
       CALL Deposition()
 !    END IF
-  !CALL CalcDepositedCharge()
+  !CALL VerifyDepositedCharge()
 END IF
 
 IF (t.GE.DelayTime) THEN

@@ -9,18 +9,21 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+INTERFACE VerifyDepositedCharge
+  MODULE PROCEDURE VerifyDepositedCharge
+END INTERFACE
+
 INTERFACE CalcDepositedCharge
   MODULE PROCEDURE CalcDepositedCharge
 END INTERFACE
 
-PUBLIC:: CalcDepositedCharge 
+
+PUBLIC:: VerifyDepositedCharge, CalcDepositedCharge 
 !===================================================================================================================================
 
 CONTAINS
 
-
-
-SUBROUTINE CalcDepositedCharge() 
+SUBROUTINE VerifyDepositedCharge() 
 !===================================================================================================================================
 ! calcs the deposited chrages
 !===================================================================================================================================
@@ -28,7 +31,7 @@ SUBROUTINE CalcDepositedCharge()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,          ONLY : nElems, sJ
-USE MOD_Particle_Vars,      ONLY : PDM, Species, PartSpecies 
+USE MOD_Particle_Vars,      ONLY : PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_PICDepo_Vars,  ONLY : Source
 USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
@@ -67,7 +70,11 @@ END DO
 PartCharge=0.
 DO i=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(i)) THEN
-    PartCharge = PartCharge + Species(PartSpecies(i))%ChargeIC * Species(PartSpecies(i))%MacroParticleFactor
+    IF(usevMPF)THEN
+      PartCharge = PartCharge + Species(PartSpecies(i))%ChargeIC * PartMPF(i)
+    ELSE
+      PartCharge = PartCharge + Species(PartSpecies(i))%ChargeIC * Species(PartSpecies(i))%MacroParticleFactor
+    END IF
   END IF
 END DO
 
@@ -85,8 +92,80 @@ SWRITE(UNIT_stdOut,'(A)')' CHARGE DEPOSITION PLAUSIBILITY CHECK DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 ChargeCalcDone = .TRUE.
 
-END SUBROUTINE CalcDepositedCharge
+END SUBROUTINE VerifyDepositedCharge
 
+
+SUBROUTINE CalcDepositedCharge() 
+!===================================================================================================================================
+! Calculation of deposited charge and compute the absolute and relative error
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Vars,              ONLY:sJ
+USE MOD_Particle_Vars,          ONLY:PDM, Species, PartSpecies, usevmpf, PartMPF
+USE MOD_Interpolation_Vars,     ONLY:wGP
+USE MOD_PICDepo_Vars,           ONLY:Source
+USE MOD_Particle_Analyze_Vars,  ONLY:PartCharge
+USE MOD_TimeDisc_Vars,          ONLY:iter
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iElem
+INTEGER           :: i,j,k,iPart
+REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL              :: Charge(2)
+#ifdef MPI
+REAL              :: RECBR(2)
+#endif /*MPI*/
+!===================================================================================================================================
+
+! compute local charge
+Charge=0.
+PartCharge=0.
+IF(iter.EQ.0) RETURN
+DO iElem=1,PP_nElems
+  ! compute the deposited charge
+  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * source(4,i,j,k,iElem) * J_N(1,i,j,k)
+  END DO; END DO; END DO
+END DO
+
+! charge of all particles inside of domain
+DO iPart=1,PDM%ParticleVecLength
+  IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  IF(usevMPF)THEN
+    Charge(2) = Charge(2) + Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
+  ELSE
+    Charge(2) = Charge(2) + Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
+  END IF
+END DO
+
+! MPI Communication
+#ifdef MPI
+IF (PartMPI%MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,Charge , 2 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+ELSE ! no Root
+  CALL MPI_REDUCE(Charge,RECBR  ,2,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+END IF
+#endif
+
+IF (PartMPI%MPIRoot) THEN
+  PartCharge(1)=Charge(1)
+  ! absolute error
+  PartCharge(2)=ABS(Charge(2)-Charge(1))
+  ! relative error
+  PartCharge(3)=ABS(Charge(2)-Charge(1))/Charge(2)
+END IF
+
+END SUBROUTINE CalcDepositedCharge
 
 
 END MODULE MOD_PIC_Analyze

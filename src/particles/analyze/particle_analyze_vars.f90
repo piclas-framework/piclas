@@ -12,7 +12,8 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
 LOGICAL                       :: CalcNumSpec                           ! Calculate the number of particles per species
-LOGICAL                       :: CalcCharge                            ! Compute the whole deposited charge
+LOGICAL                       :: CalcCharge                            ! Compute the whole deposited charge and abs and relative
+                                                                       ! charge error
 LOGICAL                       :: CalcEpot                              ! Computation of the energy stored in the electric and
                                                                        ! magnetic field
 LOGICAL                       :: CalcEkin                              ! Compute the kinetic energy of each species
@@ -23,6 +24,8 @@ LOGICAL                       :: CalcVelos                             ! Compute
 LOGICAL                       :: VeloDirs(4)                           ! select the direction for velo computation
 LOGICAL                       :: TrackParticlePosition                 ! track the particle movement
                                                                        ! stored in .csv format, debug only, no MPI 
+LOGICAL                       :: DoVerifyCharge                        ! validate the charge after each deposition and produces
+                                                                       ! an output in std.out
 INTEGER                       :: nEkin                                 ! number of kinetic energies 
 LOGICAL                       :: DoAnalyze                             ! perform analyze
 LOGICAL                       :: IsRestart                             ! check if restart, add data to Database
@@ -37,5 +40,7 @@ INTEGER,ALLOCATABLE           :: nPartInTmp(:)                         ! Number 
 REAL,ALLOCATABLE              :: PartEkinIn(:)                         ! energy and temperatur of input particle
 REAL,ALLOCATABLE              :: PartEkinOut(:)                        ! energy and temperatur of input particle
 REAL,ALLOCATABLE              :: PartEKinInTmp(:)                      ! energy and temperatur of input particle
+REAL                          :: PartCharge(3)                         ! contains the whole deposited charge and its absolute
+                                                                       ! and relative error
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars
