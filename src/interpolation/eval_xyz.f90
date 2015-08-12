@@ -392,11 +392,14 @@ CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
 F=-x_in ! xRp
 DO k=0,NGeo
   DO j=0,NGeo
+    buff=Lag(2,j)*Lag(3,k)
     DO i=0,NGeo
-      F=F+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
-    END DO !i=0,NGeo
-  END DO !j=0,NGeo
-END DO !k=0,NGeo
+      buff2=Lag(1,i)*buff
+      F=F+XCL_NGeo(:,i,j,k,iElem)*buff2
+      !F=F+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+    END DO !l=0,NGeo
+  END DO !i=0,NGeo
+END DO !j=0,NGeo
 
 NewtonIter=0
 abortCrit=ElemRadiusNGeo(iElem)*epsMapping
@@ -435,7 +438,7 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   Xi = Xi - MATMUL(sJac,F)
   !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
   IF(ANY(ABS(Xi).GT.1.8))THEN
-    IF(PRESENT(PartID)) THEN
+!    IF(PRESENT(PartID)) THEN
 !      IPWRITE(UNIT_stdOut,*) 'ParticleID', PartID
 !      IPWRITE(UNIT_stdOut,*) ' Particle not inside of element!!!'
 !      IPWRITE(UNIT_stdOut,*) ' Element', iElem
@@ -443,11 +446,11 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
 !      IPWRITE(UNIT_stdOut,*) ' eta ', xi(2)
 !      IPWRITE(UNIT_stdOut,*) ' zeta', xi(3)
 !      IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
-      !CALL abort(__STAMP__, &
-      !    'Particle Not inSide of Element')
-    ELSE
+!      !CALL abort(__STAMP__, &
+!      !    'Particle Not inSide of Element')
+!    ELSE
       EXIT
-    END IF
+!    END IF
   END IF
   
   ! Compute function value
