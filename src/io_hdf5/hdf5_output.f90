@@ -325,7 +325,9 @@ INTEGER,ALLOCATABLE            :: PartInt(:,:)
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-!INTEGER                        :: minnParts
+#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
+INTEGER                        :: minnParts
+#endif /* HDF5_F90 */
 !=============================================
 ! Write properties -----------------------------------------------------------------------------------------------------------------
 ! Open dataset
@@ -392,11 +394,15 @@ INTEGER                        :: PartDataSize       !number of entries in each 
   !  END DO
   !END IF
   LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-!  CALL MPI_ALLREDUCE(locnPart, minnParts, 1, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, IERROR)
+#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
+  CALL MPI_ALLREDUCE(locnPart, minnParts, 1, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, IERROR)
+#endif /* HDF5_F90 */
 #else
   offsetnPart=0
   nPart_glob=locnPart
-!  minnParts=locnPart
+#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
+  minnParts=locnPart
+#endif /* HDF5_F90 */
 #endif
   ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
   ALLOCATE(PartData(offsetnPart+1:offsetnPart+locnPart,PartDataSize))
@@ -532,7 +538,7 @@ INTEGER                        :: PartDataSize       !number of entries in each 
                         nValGlobal=(/nGlobalElems, nVar/),&
                         nVal=      (/PP_nElems, nVar   /),&
                         offset=    (/offsetElem, 0  /),&
-                        collective=.FALSE., existing=.FALSE., IntegerArray=PartInt)
+                        collective=.TRUE., existing=.FALSE., IntegerArray=PartInt)
 
   DEALLOCATE(StrVarNames)
   CALL CloseDataFile()
@@ -628,19 +634,23 @@ INTEGER                        :: PartDataSize       !number of entries in each 
 #endif
   CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',PartDataSize,StrArray=StrVarNames)
 !  SWRITE(*,*) 'minnparts',minnparts
-  !IF(minnParts.EQ.0)THEN
-  !  CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
-  !                        nValGlobal=(/nPart_glob,PartDataSize/),&
-  !                        nVal=      (/locnPart,PartDataSize  /),&
-  !                        offset=    (/offsetnPart , 0  /),&
-  !                        collective=.FALSE., existing=.FALSE., RealArray=PartData)
-  !ELSE
+#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
+  IF(minnParts.EQ.0)THEN
+    CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
+                          nValGlobal=(/nPart_glob,PartDataSize/),&
+                          nVal=      (/locnPart,PartDataSize  /),&
+                          offset=    (/offsetnPart , 0  /),&
+                          collective=.FALSE., existing=.FALSE., RealArray=PartData)
+  ELSE
+#endif /* HDF5_F90 */
   CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
                           nValGlobal=(/nPart_glob,PartDataSize/),&
                           nVal=      (/locnPart,PartDataSize  /),&
                           offset=    (/offsetnPart , 0  /),&
                           collective=.TRUE., existing=.FALSE., RealArray=PartData)
-  !END IF
+#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
+  END IF
+#endif /* HDF5_F90 */
 
   CALL CloseDataFile()
 
