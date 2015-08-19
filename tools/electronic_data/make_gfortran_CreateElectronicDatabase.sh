@@ -2,8 +2,9 @@
 echo ' -----------------------------------------------'
 echo ' -      Compiling CreateElectronicDatabase     -'
 echo ' -----------------------------------------------'
-ifort -r8 -I ../../share/INTEL-SINGLE/hdf5-1.8.14/include/ -c create_electronic_database.f90
-ifort -r8 create_electronic_database.o -lhdf5_fortran -lhdf5 -lz -L ../../share/INTEL-SINGLE/hdf5-1.8.14/lib/ -o CreateElectronicDatabase # -ldl
+gfortran -fdefault-real-8 -fdefault-double-8 -I ../../share/GNU-SINGLE/hdf5-1.8.14/hdf5/include -c create_electronic_database.f90
+echo ' linking....'
+gfortran -fdefault-real-8 -fdefault-double-8 create_electronic_database.o  -L ../../share/GNU-SINGLE/hdf5-1.8.14/hdf5/lib -o CreateElectronicDatabase -lhdf5_fortran -lhdf5 -lz -ldl
 rm create_electronic_database.o
 echo ' -----------------------------------------------'
 echo ' - CreateElectronicDatabase executable created -'
