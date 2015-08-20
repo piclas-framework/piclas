@@ -252,7 +252,7 @@ unit_index = 535
       ! if only the reaction rate is desired (resevoir) the initial temperature
       ! of the second species is added to the filename
        IF (DSMC%ReservoirSimuRate) THEN
-        IF ( SpecDSMC(1)%InterID .eq. 2 .or. SpecDSMC(1)%InterID .eq. 20 ) THEN
+        IF ( SpecDSMC(1)%InterID .EQ. 2 .OR. SpecDSMC(1)%InterID .EQ. 20 ) THEN
           iTvib = INT(SpecDSMC(1)%Init(0)%Tvib)
           WRITE( hilf, '(I5.5)') iTvib
           outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
@@ -532,7 +532,11 @@ IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 
 #if (PP_TimeDiscMethod==42)
 CALL CollRates(CRate)
-IF (CollisMode.EQ.3.AND.(Time.GT.0).AND.(Time.NE.RestartTime)) CALL ReacRates(RRate, NumSpec)
+IF (DSMC%ReservoirSimuRate  ) THEN
+  IF (CollisMode.EQ.3.AND.(Time.GT.0).AND.(Time.NE.RestartTime))  CALL ReacRates(RRate, NumSpec)
+ELSE
+  RRate=0.
+END IF
 IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 ! currently, calculation of internal electronic energy not implemented !
 #ifdef MPI
@@ -722,12 +726,14 @@ DSMC%CollProbOut(1,1) = 0.0
 ! hard coded
 ! array not allocated
 IF ( DSMC%ElectronicState ) THEN
-  IF(Time.GT.0.) CALL ElectronicTransition( Time, NumSpec )
+  IF (DSMC%ReservoirSimuRate) THEN
+    IF(Time.GT.0.) CALL ElectronicTransition( Time, NumSpec )
+  END IF
 END IF
 #endif
 #if ( PP_TimeDiscMethod ==42 )
   ! Debug Output for initialized electronic state
-IF ( DSMC%ElectronicState ) THEN
+IF ( DSMC%ElectronicState .AND. DSMC%ReservoirSimuRate) THEN
   DO iSpec = 1, nSpecies
     IF ( SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
       IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
@@ -1378,8 +1384,10 @@ RealNumSpec  = 0
     END IF
     IF(usevMPF) THEN
       IF ( DSMC%ElectronicState ) THEN
-        IF ( NumSpec(iSpec) .GT. 0 ) THEN
+        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(NumSpec(iSpec).GT.0))THEN
           IntTemp(iSpec,3) = CalcTelec( Eelec(iSpec)/RealNumSpec(iSpec),iSpec )
+        ELSE
+          IntTemp(iSpec,3) =0.0
         END IF
         IntEn(iSpec,3) = Eelec(iSpec)
       END IF
@@ -1387,8 +1395,10 @@ RealNumSpec  = 0
       IntEn(iSpec,2) = ERot(iSpec)   
     ELSE
       IF ( DSMC%ElectronicState ) THEN
-        IF ( NumSpec(iSpec) .GT. 0 ) THEN
+        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(NumSpec(iSpec).GT.0))THEN
           IntTemp(iSpec,3) = CalcTelec( Eelec(iSpec)/NumSpec(iSpec),iSpec )
+        ELSE
+          IntTemp(iSpec,3) =0.0
         END IF
         IntEn(iSpec,3) = Eelec(iSpec) * Species(iSpec)%MacroParticleFactor
       END IF
@@ -1541,7 +1551,8 @@ SUBROUTINE ElectronicTransition (  Time, NumSpec )
 ! MODULES
   USE MOD_DSMC_Vars,          ONLY: DSMC, SpecDSMC
   USE MOD_TimeDisc_Vars,      ONLY: dt
-  USE MOD_Particle_Vars,      ONLY: GEO, nSpecies, Species
+  USE MOD_Particle_Vars,      ONLY: nSpecies, Species
+  USE MOD_Particle_Mesh_Vars, ONLY: GEO
   ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

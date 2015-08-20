@@ -1389,6 +1389,12 @@ USE MOD_DSMC,             ONLY : DSMC_main
 !USE MOD_part_boundary,    ONLY : ParticleBoundary
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
+#ifdef MPI
+USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
+#endif /*MPI*/
 #endif
 !#ifdef MPI
 !USE MOD_part_boundary,    ONLY : Communicate_PIC
@@ -1401,6 +1407,7 @@ REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: i
+REAL                  :: timeStart, timeEnd
 !===================================================================================================================================
 Time = t
 
@@ -1436,10 +1443,30 @@ ELSE
                                          + PartState(1:PDM%ParticleVecLength,5) * dt
   PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
                                          + PartState(1:PDM%ParticleVecLength,6) * dt
-!  CALL ParticleBoundary()
-!#ifdef MPI
-!  CALL Communicate_PIC()
-!#endif
+#ifdef MPI
+  ! open receive buffer for number of particles
+  CALL IRecvNbofParticles()
+#endif /*MPI*/
+  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
+  ! actual tracking
+  IF(DoRefMapping)THEN
+    CALL ParticleRefTracking()
+  ELSE
+    CALL ParticleTrackingCurved()
+  END IF
+  IF(MeasureTrackTime) THEN
+    CALL CPU_TIME(TimeEnd)
+    tTracking=tTracking+TimeEnd-TimeStart
+  END IF
+#ifdef MPI
+  ! send number of particles
+  CALL SendNbOfParticles()
+  ! finish communication of number of particles and send particles
+  CALL MPIParticleSend()
+  ! finish communication
+  CALL MPIParticleRecv()
+#endif /*MPI*/
+
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
 END IF

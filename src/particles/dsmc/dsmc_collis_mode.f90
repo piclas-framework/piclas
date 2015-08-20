@@ -549,7 +549,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
   USE MOD_Globals,                ONLY : Unit_stdOut
   USE MOD_vmpf_collision,         ONLY : AtomRecomb_vMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-  USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization
+  USE MOD_DSMC_QK_PROCEDURES,     ONLY : QK_dissociation, QK_recombination, QK_exchange, QK_ImpactIonization, QK_IonRecombination
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1306,6 +1306,46 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 #endif
         RelaxToDo = .FALSE.
       END IF
+!-----------------------------------------------------------------------------------------------------------------------------------
+    CASE(8) !only ion-electron recombination
+      ! searching third collison partner
+      IF(ChemReac%RecombParticle.EQ. 0) THEN
+        IF(ChemReac%nPairForRec.GT. 1) THEN
+          PairForRec = iPair
+          DO WHILE(PairForRec.EQ.iPair)
+            CALL RANDOM_NUMBER(iRan)
+            PairForRec = 1 + INT(iRan * ChemReac%nPairForRec)
+          END DO
+          Coll_pData(PairForRec)%NeedForRec = .TRUE.
+          iPart_p3 = Coll_pData(PairForRec)%iPart_p1
+          ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+          ChemReac%nPairForRec = ChemReac%nPairForRec - 1
+        ELSE
+          iPart_p3 = 0
+        END IF
+      ELSE
+        iPart_p3 = ChemReac%RecombParticle
+        ChemReac%RecombParticle = 0
+      END IF
+      IF ( iPart_p3 .GT. 0 ) THEN
+        iReac = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
+                                  PartSpecies(iPart_p3))
+        ! fix
+        IF(SpecDSMC(PartSpecies(iPart_p3))%InterID.NE.4)RETURN
+        IF ( ChemReac%QKProcedure(iReac)  ) THEN
+          IF ( .NOT. DSMC%ElectronicState ) THEN
+            CALL Abort(&
+             __STAMP__,&
+            ' ERROR! Atomic electron shell has to be initalized.')
+          END IF
+          CALL QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
+        END IF
+      IF (.NOT. ChemReac%QKProcedure(iReac) ) THEN
+        CALL Abort(&
+         __STAMP__,&
+         ' ERROR! This recombination type without QK-theory is not implemented! Reaction-ID',iReac)
+      END IF
+    END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE DEFAULT
       IF(CaseOfReaction.NE.0) THEN

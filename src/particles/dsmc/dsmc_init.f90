@@ -226,6 +226,7 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
 !-----------------------------------------------------------------------------------------------------------------------------------
   BGGas%BGGasSpecies  = GETINT('Particles-DSMCBackgroundGas','0')
   BGGas%BGGasDensity  = GETREAL('Particles-DSMCBackgroundGasDensity','0')
+
   IF (useVTKFileBGG) THEN
     IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') & !(use always Init 0 for BGG !!!)
       STOP "only maxwell_lpn is implemened as velocity-distribution for BGG from VTK-File!"
@@ -313,31 +314,47 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
               END IF
             END IF
           END IF
-          ! read electronic temperature
-          IF ( DSMC%ElectronicState ) THEN
-            WRITE(UNIT=hilf,FMT='(I2)') iSpec
-            SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-Tempelec','0.')
-            IF (SpecDSMC(iSpec)%Init(iInit)%Telec.EQ.0.) THEN
-              IF (iInit.EQ.0)THEN
-                IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
-                  CALL Abort(&
-                    __STAMP__,&
-                    ' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
-                ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
-                  CALL Abort(&
-                    __STAMP__,&
-                    ' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for BGGas')
-                END IF
-              ELSE ! iInit >0
-                CALL Abort(&
-                  __STAMP__,&
-                  ' Error! Telec needs to defined in Part-SpeciesXX-InitXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
-              END IF
-            END IF
-          END IF
         END DO !Inits
       END IF !Molecule
     END DO !Species
+
+    ! init of electronic state
+    IF ( DSMC%ElectronicState ) THEN
+      DO iSpec = 1, nSpecies
+        ! electrons do not have an electron hull
+        IF(SpecDSMC(iSpec)%InterID.EQ.4) CYCLE
+        IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))) &
+          ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
+        WRITE(UNIT=hilf,FMT='(I2)') iSpec
+        DO iInit = 0, Species(iSpec)%NumberOfInits
+          IF (iInit .EQ. 0) THEN !0. entry := old style parameter def. (default values if not def., some values might be needed)
+            hilf2=TRIM(hilf)
+          ELSE ! iInit >0
+            WRITE(UNIT=hilf2,FMT='(I2)') iInit
+            hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
+          END IF ! iInit
+          SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-Tempelec','0.')
+          IF (SpecDSMC(iSpec)%Init(iInit)%Telec.EQ.0.) THEN
+            IF (iInit.EQ.0)THEN
+              IF (Species(iSpec)%StartnumberOfInits.EQ.0)THEN
+                CALL Abort(&
+                  __STAMP__,&
+                  ' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for Species',iSpec)
+              ELSE IF (BGGas%BGGasSpecies.EQ.iSpec) THEN !cases which need values of fixed iInit=0 (indep. from Startnr.OfInits)
+                CALL Abort(&
+                  __STAMP__,&
+                  ' Error! Telec needs to defined in Part-SpeciesXX-Tempelec for BGGas')
+              END IF
+            ELSE ! iInit >0
+              CALL Abort(&
+                __STAMP__,&
+                ' Error! Telec needs to defined in Part-SpeciesXX-InitXX-Tempelc for iSpec, iInit',iSpec,REAL(iInit))
+            END IF
+          END IF
+        END DO !Inits
+      END DO ! iSpec
+    END IF ! DSMC%ElectronicState
+
     
     IF(DSMC%NumPolyatomMolecs.GT.0) THEN
       ALLOCATE(VibQuantsPar(PDM%maxParticleNumber))
@@ -363,7 +380,6 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
           SpecDSMC(iSpec)%levelcounter         = 0
           SpecDSMC(iSpec)%dtlevelcounter       = 0
           SpecDSMC(iSpec)%ElectronicTransition = 0
-          SpecDSMC(iSpec)%MaxElecQuant         = size( SpecDSMC(iSpec)%ElectronicState,2) ! max Quant + 1
         END IF
       END DO
     END IF
@@ -544,7 +560,7 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart)
     PartStateIntEn(iPart, 2) = 0
   END IF
   ! set electronic energy
-  IF ( DSMC%ElectronicState .and. SpecDSMC(iSpecies)%InterID .ne. 4) THEN
+  IF ( DSMC%ElectronicState .AND. SpecDSMC(iSpecies)%InterID .NE. 4) THEN
     CALL InitElectronShell(iSpecies,iPart,iInit)
   ENDIF
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)

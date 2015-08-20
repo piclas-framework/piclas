@@ -108,9 +108,9 @@ USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_PICDepo_Vars,           ONLY:Source
 USE MOD_Particle_Analyze_Vars,  ONLY:PartCharge
 USE MOD_TimeDisc_Vars,          ONLY:iter
-#ifdef MPI
+!#ifdef MPI
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
-#endif
+!#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

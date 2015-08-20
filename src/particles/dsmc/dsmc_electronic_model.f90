@@ -53,20 +53,20 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit)
   REAL                          :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2      
 !===================================================================================================================================
 
-  ElectronicPartition  = 0
-  ElectronicPartitionTemp = 0
+  ElectronicPartition  = 0.
+  ElectronicPartitionTemp = 0.
   ! calculate sum over all energy levels == qartition function for temperature Telec
   DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
     ElectronicPartitionTemp = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-            exp ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / SpecDSMC(iSpecies)%Init(iInit)%Telec)
-    IF ( ElectronicPartitionTemp .gt. ElectronicPartition ) THEN
+            EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / SpecDSMC(iSpecies)%Init(iInit)%Telec)
+    IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
       ElectronicPartition = ElectronicPartitionTemp
     END IF
   END DO
-  ElectronicPartitionTemp = 0
+  ElectronicPartitionTemp = 0.
   ! select level
   CALL RANDOM_NUMBER(iRan2)
-  DO WHILE ( iRan2 .ge. ElectronicPartitionTemp / ElectronicPartition )
+  DO WHILE ( iRan2 .GE. ElectronicPartitionTemp / ElectronicPartition )
     CALL RANDOM_NUMBER(iRan)
     iQua = int( ( SpecDSMC(iSpecies)%MaxElecQuant ) * iRan)
     ElectronicPartitionTemp  = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
@@ -119,8 +119,8 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   iQuaold=0
   ! determine old Quant
   DO iQua = 0, MaxElecQuant
-    IF ( PartStateIntEn(iPart1,3) / BoltzmannConst .ge. &
-      SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) ) THEN
+    IF ( PartStateIntEn(iPart1,3)  .GT. &
+      SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua)* BoltzmannConst ) THEN
       iQuaold = iQua
     ELSE
     ! exit loop
@@ -129,16 +129,16 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   END DO
 #endif
   ! determine maximal Quant and term according to Eq (7) of Liechty
-  gmax = 0
+  gmax = 0.
   PartStateTemp = CollisionEnergy / BoltzmannConst
   DO iQua = 0, MaxElecQuant
     IF ( PartStateTemp - &
-             SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) .ge. 0 ) THEN
+             SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua) .GT. 0. ) THEN
       gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
               ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua))**FakXi
       ! maximal possible Quant before term goes negative
       iQuaMax = iQua
-      IF ( gtemp .gt. gmax ) THEN
+      IF ( gtemp .GT. gmax ) THEN
       ! Quant of largest value of Eq (7)
         gmax = gtemp
         iQuaMax2 = iQua
@@ -149,21 +149,24 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
       CYCLE
     END IF
   END DO
+
   ! max value for denominator == max. propability
   !  iQuaMax3 = min(iQuaMax,iQuaMax2)
   !  gmax = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQuaMax3) * &
   !       ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQuaMax3))**FakXi
   ! max iQuant for dicing
-  iQuaMax  = max(iQuaMax,iQuaMax2)
+  iQuaMax  = MAX(iQuaMax,iQuaMax2)
   CALL RANDOM_NUMBER(iRan)
-  iQua = int( ( iQuaMax +1 ) * iRan)
+  iQua = INT( ( iQuaMax +1 ) * iRan)
+  !iQua = INT( ( iQuaMax ) * iRan)
   gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
           ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua))**FakXi
   CALL RANDOM_NUMBER(iRan2)
   ! acceptance-rejection for iQuaElec
-  DO WHILE ( iRan2 .ge. gtemp / gmax )
+  DO WHILE ( iRan2 .GE. gtemp / gmax )
     CALL RANDOM_NUMBER(iRan)
-    iQua = int( ( iQuaMax +1 ) * iRan)
+    iQua = INT( ( iQuaMax+1  ) * iRan)
+    iQua = INT( ( iQuaMax  ) * iRan)
     gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
             ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua))**FakXi
     CALL RANDOM_NUMBER(iRan2)
@@ -413,23 +416,24 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
 !===================================================================================================================================
 
   ! Initialize FORTRAN interface.
-  CALL h5open_f(err)
+  CALL H5OPEN_F(err)
   ! Open the file.
-  CALL h5fopen_f (DSMC%ElectronicStateDatabase, H5F_ACC_RDONLY_F, file_id_dsmc, err)
+  CALL H5FOPEN_F (DSMC%ElectronicStateDatabase, H5F_ACC_RDONLY_F, file_id_dsmc, err)
   ! Open the  dataset.
-  CALL h5dopen_f(file_id_dsmc, dsetname, dset_id_dsmc, err)
+  CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
   ! Get the file space of the dataset.
   CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
   ! get size
   CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
   ! Allocate electronic_state
   ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:dims(1), 0:dims(2)-1 ) )
+  SpecDSMC(iSpec)%MaxElecQuant         = SIZE( SpecDSMC(iSpec)%ElectronicState,2) ! max Quant + 1
   ! read data
-  CALL H5dread_f(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecDSMC(iSpec)%ElectronicState, dims, err)
+  CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecDSMC(iSpec)%ElectronicState, dims, err)
   ! Close the file.
-  CALL h5fclose_f(file_id_dsmc, err)
+  CALL H5FCLOSE_F(file_id_dsmc, err)
   ! Close FORTRAN interface.
-  CALL h5close_f(err)
+  CALL H5CLOSE_F(err)
 
   SWRITE(*,*) 'Read entry ',dsetname,' from ',DSMC%ElectronicStateDatabase
 

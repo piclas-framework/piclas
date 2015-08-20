@@ -102,7 +102,7 @@ SUBROUTINE DSMC_chemical_init()
       ChemReac%MEXa(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXa','0')
       ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','0')
       ! Proof of reactant definition
-      IF (ChemReac%ReactType(iReac).EQ.'R') THEN
+      IF((ChemReac%ReactType(iReac).EQ.'R').OR.(ChemReac%ReactType(iReac).EQ.'r')) THEN
         IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)*ChemReac%DefinedReact(iReac,1,3)).EQ.0) THEN
           CALL abort(__STAMP__,&
           'Error in Definition Reactants of Chemical Reaction: ',iReac)
@@ -131,6 +131,22 @@ SUBROUTINE DSMC_chemical_init()
     PairCombID = 0
     CALL DSMC_BuildChem_IDArray(PairCombID)
 
+    ! Case 8: only ion-electron recombination possible / three-body colusion
+    DO iReac = 1, ChemReac%NumOfReact
+      IF ((ChemReac%ReactType(iReac).EQ.'r').AND.(.NOT.YetDefined_Help(iReac))) THEN
+        IF(.NOT.(ChemReac%QKProcedure(iReac))) &
+          CALL abort(__STAMP__,&
+          'Ion-Recombination has to be a QK Reaction!',iReac,999.)
+          Reactant1 = ChemReac%DefinedReact(iReac,1,1)
+          Reactant2 = ChemReac%DefinedReact(iReac,1,2)
+          Reactant3 = ChemReac%DefinedReact(iReac,1,3)
+          ChemReac%ReactCase(Reactant1, Reactant2) = 8
+          ChemReac%ReactCase(Reactant2, Reactant1) = 8
+          ChemReac%ReactNum(Reactant1, Reactant2, Reactant3) = iReac
+          ChemReac%ReactNum(Reactant2, Reactant1, Reactant3) = iReac
+          YetDefined_Help(iReac) = .TRUE.
+      END IF
+    END DO
     ! Case 7: only simple CEX/MEX possible
     DO iReac = 1, ChemReac%NumOfReact
       IF ((ChemReac%ReactType(iReac).EQ.'x').AND.(.NOT.YetDefined_Help(iReac))) THEN
