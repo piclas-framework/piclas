@@ -18,6 +18,7 @@ REAL,ALLOCATABLE                      :: GPWeight(:,:,:,:,:,:,:) ! Weights for s
 CHARACTER(LEN=256)                    :: DepositionType     ! Type of Deposition-Method
 INTEGER,ALLOCATABLE                   :: PartToFIBGM(:,:)   ! Mapping form Particle to FIBGM
 REAL,ALLOCATABLE                      :: ElemRadius2_SF(:)  ! elem radius plus radius_sf
+REAL, ALLOCATABLE                     :: BGMSource(:,:,:,:)
 REAL                                  :: r_sf               ! cutoff radius of shape function
 REAL                                  :: r2_sf              ! cutoff radius of shape function * cutoff radius of shape function
 REAL                                  :: r2_sf_inv          ! 1/cutoff radius of shape function * cutoff radius of shape function

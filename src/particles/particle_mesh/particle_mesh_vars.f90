@@ -124,7 +124,7 @@ TYPE tGeometry
   REAL, ALLOCATABLE                      :: DeltaEvMPF(:)                     ! Energy difference due to particle merge
   INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)
 
-!  LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
+  LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
 END TYPE
 
 TYPE (tGeometry)                         :: GEO
