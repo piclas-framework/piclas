@@ -36,8 +36,10 @@ USE MOD_Particle_Vars ! crazy??
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Mesh_Vars,              ONLY:nElems, XCL_NGeo,Elem_xGP
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo,ElemRadiusNGeo
-USE MOD_Interpolation_Vars,     ONLY:xGP
+USE MOD_Interpolation_Vars,     ONLY:xGP,wBary
 USE MOD_Basis,                  ONLY:BuildBernsteinVdm
+USE MOD_Basis,                  ONLY:BarycentricWeights,InitializeVandermonde
+USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
 USE MOD_PreProc,                ONLY:PP_N,PP_nElems
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
@@ -54,6 +56,7 @@ USE MOD_Particle_MPI_Vars,      ONLY:DoExternalParts
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL,ALLOCATABLE          :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:),Vdm_GaussN_EquiN(:,:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t
 REAL                      :: BetaFac, Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
 REAL                      :: auxiliary(0:3),weight(1:3,0:3)
@@ -117,21 +120,49 @@ CASE('shape_function')
   !IF(.NOT.DoRefMapping) CALL abort(&
   !  __STAMP__&
   !  ,' Shape function has to be used with ref element tracking.')
-  ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__, &
-      ' Cannot allocate PartToFIBGM!')
+  !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
+  !IF (ALLOCSTAT.NE.0) CALL abort(&
+  !    __STAMP__, &
+  !    ' Cannot allocate PartToFIBGM!')
   !ALLOCATE(ExtPartToFIBGM(1:6,1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) THEN
   !  CALL abort(__STAMP__, &
   !    ' Cannot allocate ExtPartToFIBGM!')
   r_sf     = GETREAL('PIC-shapefunction-radius','1.')
   alpha_sf = GETINT('PIC-shapefunction-alpha','2')
+  DoSFEqui = GETLOGICAL('PIC-shapefunction-equi','F')
   BetaFac = beta(1.5, REAL(alpha_sf) + 1.)
   w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) &
                         * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
   r2_sf = r_sf * r_sf 
   r2_sf_inv = 1./r2_sf
+
+  ALLOCATE(ElemDepo_xGP(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems),STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__, &
+      ' Cannot allocate ElemDepo_xGP!')
+  IF(DoSFEqui)THEN
+    ALLOCATE( Vdm_EquiN_GaussN(0:PP_N,0:PP_N)     &
+            , Vdm_GaussN_EquiN(0:PP_N,0:PP_N)     &
+            , wGP_tmp(0:PP_N)                     &
+            , xGP_tmp(0:PP_N)                     &
+            , wBary_tmp(0:PP_N)                   )
+    DO i=0,PP_N
+      xGP_tmp(i) = 2./REAL(PP_N) * REAL(i) - 1. 
+    END DO
+    CALL BarycentricWeights(PP_N,xGP_tmp,wBary_tmp)
+    ! to Gauss
+    CALL InitializeVandermonde(PP_N,PP_N,wBary_tmp,xGP_tmp,xGP ,Vdm_EquiN_GaussN)
+    ! from Gauss
+    CALL InitializeVandermonde(PP_N,PP_N,wBary,xGP,xGP_tmp ,Vdm_GaussN_EquiN)
+    DO iElem=1,PP_nElems
+      CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_GaussN_EquiN,Elem_xGP(:,:,:,:,iElem),ElemDepo_xGP(:,:,:,:,iElem))
+    END DO ! iElem=1,PP_nElems
+    DEALLOCATE( Vdm_GaussN_EquiN, wGP_tmp, xGP_tmp, wBary_tmp)
+  ELSE
+    ElemDepo_xGP=Elem_xGP
+  END IF
+
 #ifdef MPI
   DoExternalParts=.TRUE.
 #endif /*MPI*/
@@ -228,31 +259,31 @@ CASE('cartmesh_volumeweighting')
 #ifdef MPI
   CALL MPIBackgroundMeshInit()
 #else
-!  IF(GEO%nPeriodicVectors.GT.0)THEN
-!    ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
-!    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
-!    IF (allocStat .NE. 0) THEN
-!      CALL abort(__STAMP__, &
-!      'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
-!    END IF
-!    DO i = 1, GEO%nPeriodicVectors
-!      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
-!      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-!        CALL abort(__STAMP__, &
-!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-!      END IF
-!      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
-!      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-!        CALL abort(__STAMP__, &
-!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-!      END IF
-!      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
-!      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-!        CALL abort(__STAMP__, &
-!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-!      END IF
-!    END DO
-!  END IF
+  IF(GEO%nPeriodicVectors.GT.0)THEN
+    ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
+    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
+    IF (allocStat .NE. 0) THEN
+      CALL abort(__STAMP__, &
+      'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
+    END IF
+    DO i = 1, GEO%nPeriodicVectors
+      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
+      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
+        CALL abort(__STAMP__, &
+      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+      END IF
+      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
+      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
+        CALL abort(__STAMP__, &
+      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+      END IF
+      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
+      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
+        CALL abort(__STAMP__, &
+      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+      END IF
+    END DO
+  END IF
 #endif
 CASE('cartmesh_splines')
   CALL abort(__STAMP__,&
@@ -345,31 +376,31 @@ CASE('cartmesh_splines')
 #ifdef MPI
   CALL MPIBackgroundMeshInit()
 #else
-!  IF(GEO%nPeriodicVectors.GT.0)THEN
-!    ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
-!    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
-!    IF (allocStat .NE. 0) THEN
-!      CALL abort(__STAMP__, &
-!      'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
-!    END IF
-!    DO i = 1, GEO%nPeriodicVectors
-!      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
-!      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-!        CALL abort(__STAMP__,  &
-!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-!      END IF
-!      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
-!      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-!        CALL abort(__STAMP__, &
-!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-!      END IF
-!      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
-!      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-!        CALL abort(__STAMP__, &
-!      'ERROR: Periodic Vector ist not multiple of background mesh delta')
-!      END IF
-!    END DO
-!  END IF
+  IF(GEO%nPeriodicVectors.GT.0)THEN
+    ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
+    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
+    IF (allocStat .NE. 0) THEN
+      CALL abort(__STAMP__, &
+      'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
+    END IF
+    DO i = 1, GEO%nPeriodicVectors
+      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
+      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
+        CALL abort(__STAMP__,  &
+      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+      END IF
+      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
+      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
+        CALL abort(__STAMP__, &
+      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+      END IF
+      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
+      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
+        CALL abort(__STAMP__, &
+      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+      END IF
+    END DO
+  END IF
 #endif
 CASE DEFAULT
   CALL abort(__STAMP__, &
@@ -397,6 +428,7 @@ USE MOD_Particle_Vars
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP, sJ
+USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
 USE MOD_Interpolation_Vars,     ONLY:wGP,swGP,NChooseK
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
@@ -549,14 +581,15 @@ CASE('shape_function')
                 !--- go through all mapped elements not done yet
                 DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
                   ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
+                  IF(ElemID.GT.nElems) CYCLE
                   IF (.NOT.chargedone(ElemID)) THEN
                     !--- go through all gauss points
-                    !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,Elem_xGP(:,:,:,:,ElemID),GaussDistance)
+                    !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                     DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                       !-- calculate distance between gauss and particle
-                      radius2 = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
-                             + (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
-                             + (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
+                      radius2 = (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) &
+                              + (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) &
+                              + (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
                       !-- calculate charge and current density at ip point using a shape function
                       !-- currently only one shapefunction available, more to follow (including structure change)
                       IF (radius2 .LT. r2_sf) THEN
@@ -636,14 +669,15 @@ CASE('shape_function')
               !--- go through all mapped elements not done yet
               DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
+                IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
                   !--- go through all gauss points
-                  !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,Elem_xGP(:,:,:,:,ElemID),GaussDistance)
+                  !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
                     !-- calculate distance between gauss and particle
-                      radius2 = (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - Elem_xGP(1,k,l,m,ElemID)) &
-                             + (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - Elem_xGP(2,k,l,m,ElemID)) &
-                             + (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - Elem_xGP(3,k,l,m,ElemID))
+                      radius2 = (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) * (ShiftedPart(1) - ElemDepo_xGP(1,k,l,m,ElemID)) &
+                              + (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) * (ShiftedPart(2) - ElemDepo_xGP(2,k,l,m,ElemID)) &
+                              + (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID)) * (ShiftedPart(3) - ElemDepo_xGP(3,k,l,m,ElemID))
                       !-- calculate charge and current density at ip point using a shape function
                       !-- currently only one shapefunction available, more to follow (including structure change)
                       IF (radius2 .LT. r2_sf) THEN
@@ -781,7 +815,7 @@ CASE('shape_function')
 !          END IF ! usevMPF
 !          Fac(1:3) = PartState(iPart,4:6)*Fac(4)
 !          ! now, compute the actual 
-!          CALL ComputeGaussDistance(N_in,r2_sf_inv,ShiftedPart,Elem_xGP(:,:,:,:,iElem),GaussDistance)
+!          CALL ComputeGaussDistance(N_in,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,iElem),GaussDistance)
 !          DO k=0,PP_N
 !            DO j=0,PP_N
 !              DO i=0,PP_N
@@ -827,7 +861,7 @@ CASE('shape_function')
 !            END IF ! usevMPF
 !            Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
 !            ! now, compute the actual 
-!            CALL ComputeGaussDistance(N_in,r2_sf_inv,ShiftedPart,Elem_xGP(:,:,:,:,iElem),GaussDistance)
+!            CALL ComputeGaussDistance(N_in,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,iElem),GaussDistance)
 !            DO k=0,PP_N
 !              DO j=0,PP_N
 !                DO i=0,PP_N
@@ -859,6 +893,13 @@ CASE('shape_function')
 !    END IF
 !  #endif /*MPI*/
 !    !IPWRITE(*,*) 'Number of found DOFs',FoundDOF
+
+  IF( .NOT.DoInnerParts .AND. DoSFEqui) THEN
+    ! map source from Equististant points on Gauss-Points
+    DO iElem=1,PP_nElems
+      CALL ChangeBasis3D(4,PP_N,PP_N,Vdm_EquiN_GaussN,source(:,:,:,:,iElem),source(:,:,:,:,iElem))
+    END DO ! iElem=1,PP_nElems
+  END IF
 CASE('delta_distri')
   DO iElem=1,PP_nElems
     DO iPart=firstPart,LastPart
@@ -1562,221 +1603,239 @@ SUBROUTINE MPISourceExchangeBGM(BGMSource)
     !END DO
 END SUBROUTINE MPISourceExchangeBGM
 
+
 SUBROUTINE MPIBackgroundMeshInit()  
 !============================================================================================================================
 ! initialize MPI background mesh
 !============================================================================================================================
 ! use MODULES                                                                   
-  !USE MOD_PICDepo_Vars
-  !USE MOD_Particle_Vars    
-  !USE MOD_Globals
-  !USE MOD_part_MPI_Vars
+! USE MOD_PICDepo_Vars
+! USE MOD_Particle_Vars    
+! USE MOD_Globals
+! USE MOD_part_MPI_Vars
 !-----------------------------------------------------------------------------------------------------------------------------------
-    IMPLICIT NONE                                                                                  
+! IMPLICIT NONE                                                                                  
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-    !INTEGER                     :: i,k,m,n                                    
-    !INTEGER                     :: localminmax(6), maxofmin, minofmax                              
-    !INTEGER                     :: completeminmax(6*PMPIVAR%nProcs)                              
-    !INTEGER                     :: allocStat, NeighCount                                                                 
-    !INTEGER                     :: TempBorder(1:2,1:3)            
-    !INTEGER                     :: Periodicminmax(6), coord, PeriodicVec(1:3)                   
-    !INTEGER                     :: TempPeriBord(1:26,1:2,1:3)                                      
-    !LOGICAL                     :: CHECKNEIGHBOR     
+! INTEGER                     :: i,k,m,n,m0,n0
+! INTEGER                     :: localminmax(6), maxofmin, minofmax                              
+! INTEGER                     :: completeminmax(6*PMPIVAR%nProcs)                              
+! INTEGER                     :: allocStat, NeighCount                                                                 
+! INTEGER                     :: TempBorder(1:2,1:3)            
+! INTEGER                     :: Periodicminmax(6), coord, PeriodicVec(1:3)                   
+! INTEGER                     :: TempPeriBord(1:26,1:2,1:3)                                      
+! LOGICAL                     :: CHECKNEIGHBOR     
 !-----------------------------------------------------------------------------------------------------------------------------------
-  !Periodic Init stuff
- !IF(GEO%nPeriodicVectors.GT.0)THEN
-    !Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
-   !ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
-   !IF (allocStat .NE. 0) THEN
-     !CALL abort(__STAMP__, &
-        !'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
-   !END IF
-   !DO i = 1, GEO%nPeriodicVectors
-     !GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
-     !IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-       !CALL abort(__STAMP__, &
-        !'ERROR: Periodic Vector ist not multiple of background mesh delta')
-     !END IF
-     !GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
-     !IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-       !CALL abort(__STAMP__, &
-        !'ERROR: Periodic Vector ist not multiple of background mesh delta')
-     !END IF
-     !GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
-     !IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-       !CALL abort(__STAMP__, &
-        !'ERROR: Periodic Vector ist not multiple of background mesh delta')
-     !END IF
-   !END DO
-    !Check whether process is periodic with itself
-   !GEO%SelfPeriodic = .FALSE.
-   !--- virtually move myself according to periodic vectors in order to find overlapping areas
-   !--- 26 possibilities,
-   !localminmax(1) = BGMminX
-   !localminmax(2) = BGMminY
-   !localminmax(3) = BGMminZ
-   !localminmax(4) = BGMmaxX
-   !localminmax(5) = BGMmaxY
-   !localminmax(6) = BGMmaxZ
-   !DO k = -1,1
-     !DO m = -1,1
-       !DO n = -1,1
-         !PeriodicVec = k*GEO%PeriodicBGMVectors(:,1) + m*GEO%PeriodicBGMVectors(:,1) + n*GEO%PeriodicBGMVectors(:,1)
-         !IF (ALL(PeriodicVec(:).EQ.0)) CYCLE
-         !periodicminmax(1) = localminmax(1) + PeriodicVec(1)
-         !periodicminmax(2) = localminmax(2) + PeriodicVec(2)
-         !periodicminmax(3) = localminmax(3) + PeriodicVec(3)
-         !periodicminmax(4) = localminmax(4) + PeriodicVec(1)
-         !periodicminmax(5) = localminmax(5) + PeriodicVec(2)
-         !periodicminmax(6) = localminmax(6) + PeriodicVec(3)
-         !--- find overlap
-         !DO coord = 1,3            x y z direction
-           !maxofmin = MAX(periodicminmax(coord),localminmax(coord))
-           !minofmax = MIN(periodicminmax(3+coord),localminmax(3+coord))
-           !IF (maxofmin.LE.minofmax) GEO%SelfPeriodic = .TRUE.       overlapping
-         !END DO
-       !END DO
-     !END DO
-   !END DO
- !END IF
-
- !--- send and receive min max indices to and from all processes
-
-    !--- enter local min max vector (xmin, ymin, zmin, xmax, ymax, zmax)
-    !localminmax(1) = BGMminX
-    !localminmax(2) = BGMminY
-    !localminmax(3) = BGMminZ
-    !localminmax(4) = BGMmaxX
-    !localminmax(5) = BGMmaxY
-    !localminmax(6) = BGMmaxZ
-    !--- do allgather into complete min max vector
-    !CALL MPI_ALLGATHER(localminmax,6,MPI_INTEGER,completeminmax,6,MPI_INTEGER,PMPIVAR%COMM,IERROR)
-     !Allocate MPIConnect
-    !SDEALLOCATE(PMPIVAR%MPIConnect)
-    !ALLOCATE(PMPIVAR%MPIConnect(0:PMPIVAR%nProcs-1),STAT=allocStat)
-    !IF (allocStat .NE. 0) THEN
-      !CALL abort(__STAMP__, &
-        !'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
-    !END IF
-
-    !--- determine borders indices (=overlapping BGM mesh points) with each process
-    !DO i = 0,PMPIVAR%nProcs-1
-      !PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
-      !PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = 0
-       !IF (i.EQ.PMPIVAR%iProc) THEN
-          !PMPIVAR%MPIConnect(i)%isBGMNeighbor = .FALSE.
-       !ELSE
-          !PMPIVAR%MPIConnect(i)%isBGMNeighbor = .TRUE.
-          !DO k = 1,3            x y z direction
-             !maxofmin = MAX(localminmax(k),completeminmax((i*6)+k))
-             !minofmax = MIN(localminmax(3+k),completeminmax((i*6)+3+k))
-             !IF (maxofmin.LE.minofmax) THEN            overlapping
-                !TempBorder(1,k) = maxofmin
-                !TempBorder(2,k) = minofmax
-             !ELSE
-                !PMPIVAR%MPIConnect(i)%isBGMNeighbor = .FALSE.
-             !END IF
-          !END DO          
-       !END IF
-       !IF(PMPIVAR%MPIConnect(i)%isBGMNeighbor)THEN
-          !SDEALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder)
-          !ALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder(1:2,1:3),STAT=allocStat)
-          !IF (allocStat .NE. 0) THEN
-             !CALL abort(__STAMP__, &
-              !'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
-          !END IF
-          !PMPIVAR%MPIConnect(i)%BGMBorder(1:2,1:3) = TempBorder(1:2,1:3)
-       !END IF
-    !END DO
-
-    
-    !--- determine border indices for periodic meshes  
-    !IF (GEO%nPeriodicVectors.GT.0) THEN   
-      !DO i = 0,PMPIVAR%nProcs-1
-        !IF (i.EQ.PMPIVAR%iProc) THEN
-          !PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
-          !PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = 0
-        !ELSE
-          !--- virtually move myself according to periodic vectors in order to find overlapping areas
-          !--- 26 possibilities, processes need to work through them in opposite direction in order
-          !--- to get matching areas.
-          !--- Example for 2D:  I am process #3, I compare myself with #7
-          !--- Periodic Vectors are p1 and p2.
-          !--- I check p1, p2, p1+p2, p1-p2, -p1+p2, -p1-p2, -p2, -p1
-          !--- #7 has to check -p1, -p2, -p1-p2, -p1+p2, p1-p2, p1+p1, p2, p1
-          !--- This is done by doing 3 loops from -1 to 1 (for the higher process number)
-          !--- or 1 to -1 (for the lower process number) and multiplying
-          !--- these numbers to the periodic vectors
-          !NeighCount = 0   -- counter: how often is the process my periodic neighbor?
-          !PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
-          !DO k = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
-            !DO m = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
-              !DO n = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
-                !IF ((k.EQ.0).AND.(m.EQ.0).AND.(n.EQ.0)) CYCLE this is not periodic and already done above
-                !CHECKNEIGHBOR = .TRUE.
-                !PeriodicVec = k*GEO%PeriodicBGMVectors(:,1)
-                !IF (GEO%nPeriodicVectors.GT.1) THEN
-                  !PeriodicVec = PeriodicVec + m*GEO%PeriodicBGMVectors(:,2)
-                !END IF
-                !IF (GEO%nPeriodicVectors.GT.2) THEN
-                  !PeriodicVec = PeriodicVec + n*GEO%PeriodicBGMVectors(:,3)
-                !END IF
-                !periodicminmax(1) = localminmax(1) + PeriodicVec(1)
-                !periodicminmax(2) = localminmax(2) + PeriodicVec(2)
-                !periodicminmax(3) = localminmax(3) + PeriodicVec(3)
-                !periodicminmax(4) = localminmax(4) + PeriodicVec(1)
-                !periodicminmax(5) = localminmax(5) + PeriodicVec(2)
-                !periodicminmax(6) = localminmax(6) + PeriodicVec(3)
-                !--- find overlap
-                !DO coord = 1,3            x y z direction
-                  !maxofmin = MAX(periodicminmax(coord),completeminmax((i*6)+coord))
-                  !minofmax = MIN(periodicminmax(3+coord),completeminmax((i*6)+3+coord))
-                  !IF (maxofmin.LE.minofmax) THEN            overlapping
-                    !TempBorder(1,coord) = maxofmin
-                    !TempBorder(2,coord) = minofmax
-                  !ELSE
-                    !CHECKNEIGHBOR = .FALSE.
-                  !END IF
-                !END DO
-                !IF(CHECKNEIGHBOR)THEN
-                  !NeighCount = NeighCount + 1
-                  !TempBorder(:,1) = TempBorder(:,1) - PeriodicVec(1)
-                  !TempBorder(:,2) = TempBorder(:,2) - PeriodicVec(2)
-                  !TempBorder(:,3) = TempBorder(:,3) - PeriodicVec(3)
-                  !TempPeriBord(NeighCount,1:2,1:3) = TempBorder(1:2,1:3)
-                  !PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .TRUE.
-                !END IF
-              !END DO
-            !END DO
-          !END DO
-          !PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = NeighCount
-          !ALLOCATE(PMPIVAR%MPIConnect(i)%Periodic(1:PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount),STAT=allocStat)
-          !IF (allocStat .NE. 0) THEN
-            !CALL abort(__STAMP__,  &
-              !'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
-          !END IF
-          !DO k = 1,NeighCount
-            !ALLOCATE(PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3),STAT=allocStat)
-            !IF (allocStat .NE. 0) THEN
-              !CALL abort(__STAMP__, &
-                !'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
-            !END IF
-            !PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3) = TempPeriBord(k,1:2,1:3)
-          !END DO
-        !END IF
-      !END DO
-    !ELSE
-      !--- initialize to FALSE for completely non-periodic cases
-      !DO i = 0,PMPIVAR%nProcs-1
-        !PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
-      !END DO
-    !END IF
-  !RETURN
+!   !Periodic Init stuff
+!  IF(GEO%nPeriodicVectors.GT.0)THEN
+!     Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
+!    ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
+!    IF (allocStat .NE. 0) THEN
+!      CALL abort(__STAMP__, &
+!         'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
+!    END IF
+!    DO i = 1, GEO%nPeriodicVectors
+!      GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
+!      IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
+!        CALL abort(__STAMP__, &
+!         'ERROR: Periodic Vector ist not multiple of background mesh delta')
+!      END IF
+!      GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
+!      IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
+!        CALL abort(__STAMP__, &
+!         'ERROR: Periodic Vector ist not multiple of background mesh delta')
+!      END IF
+!      GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
+!      IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
+!        CALL abort(__STAMP__, &
+!         'ERROR: Periodic Vector ist not multiple of background mesh delta')
+!      END IF
+!    END DO
+!    ! Check whether process is periodic with itself
+!    GEO%SelfPeriodic = .FALSE.
+!    !--- virtually move myself according to periodic vectors in order to find overlapping areas
+!    !--- 26 possibilities,
+!    localminmax(1) = BGMminX
+!    localminmax(2) = BGMminY
+!    localminmax(3) = BGMminZ
+!    localminmax(4) = BGMmaxX
+!    localminmax(5) = BGMmaxY
+!    localminmax(6) = BGMmaxZ
+!    DO k = -1,1
+!      DO m = -1,1
+!        DO n = -1,1
+!          PeriodicVec = k*GEO%PeriodicBGMVectors(:,1)
+!          IF (GEO%nPeriodicVectors.GT.1) THEN
+!            PeriodicVec = PeriodicVec + m*GEO%PeriodicBGMVectors(:,2)
+!          END IF
+!          IF (GEO%nPeriodicVectors.GT.2) THEN
+!            PeriodicVec = PeriodicVec + n*GEO%PeriodicBGMVectors(:,3)
+!          END IF
+!          IF (ALL(PeriodicVec(:).EQ.0)) CYCLE
+!          periodicminmax(1) = localminmax(1) + PeriodicVec(1)
+!          periodicminmax(2) = localminmax(2) + PeriodicVec(2)
+!          periodicminmax(3) = localminmax(3) + PeriodicVec(3)
+!          periodicminmax(4) = localminmax(4) + PeriodicVec(1)
+!          periodicminmax(5) = localminmax(5) + PeriodicVec(2)
+!          periodicminmax(6) = localminmax(6) + PeriodicVec(3)
+!          !--- find overlap
+!          DO coord = 1,3            x y z direction
+!            maxofmin = MAX(periodicminmax(coord),localminmax(coord))
+!            minofmax = MIN(periodicminmax(3+coord),localminmax(3+coord))
+!            IF (maxofmin.LE.minofmax) GEO%SelfPeriodic = .TRUE.       overlapping
+!          END DO
+!        END DO
+!      END DO
+!    END DO
+!  END IF
+! 
+! ! --- send and receive min max indices to and from all processes
+! 
+!     !--- enter local min max vector (xmin, ymin, zmin, xmax, ymax, zmax)
+!     localminmax(1) = BGMminX
+!     localminmax(2) = BGMminY
+!     localminmax(3) = BGMminZ
+!     localminmax(4) = BGMmaxX
+!     localminmax(5) = BGMmaxY
+!     localminmax(6) = BGMmaxZ
+!     !--- do allgather into complete min max vector
+!     CALL MPI_ALLGATHER(localminmax,6,MPI_INTEGER,completeminmax,6,MPI_INTEGER,PMPIVAR%COMM,IERROR)
+!      Allocate MPIConnect
+!     SDEALLOCATE(PMPIVAR%MPIConnect)
+!     ALLOCATE(PMPIVAR%MPIConnect(0:PMPIVAR%nProcs-1),STAT=allocStat)
+!     IF (allocStat .NE. 0) THEN
+!       CALL abort(__STAMP__, &
+!         'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
+!     END IF
+! 
+!     !--- determine borders indices (=overlapping BGM mesh points) with each process
+!     DO i = 0,PMPIVAR%nProcs-1
+!       PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+!       PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = 0
+!        IF (i.EQ.PMPIVAR%iProc) THEN
+!           PMPIVAR%MPIConnect(i)%isBGMNeighbor = .FALSE.
+!        ELSE
+!           PMPIVAR%MPIConnect(i)%isBGMNeighbor = .TRUE.
+!           DO k = 1,3            x y z direction
+!              maxofmin = MAX(localminmax(k),completeminmax((i*6)+k))
+!              minofmax = MIN(localminmax(3+k),completeminmax((i*6)+3+k))
+!              IF (maxofmin.LE.minofmax) THEN            overlapping
+!                 TempBorder(1,k) = maxofmin
+!                 TempBorder(2,k) = minofmax
+!              ELSE
+!                 PMPIVAR%MPIConnect(i)%isBGMNeighbor = .FALSE.
+!              END IF
+!           END DO          
+!        END IF
+!        IF(PMPIVAR%MPIConnect(i)%isBGMNeighbor)THEN
+!           SDEALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder)
+!           ALLOCATE(PMPIVAR%MPIConnect(i)%BGMBorder(1:2,1:3),STAT=allocStat)
+!           IF (allocStat .NE. 0) THEN
+!              CALL abort(__STAMP__, &
+!               'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
+!           END IF
+!           PMPIVAR%MPIConnect(i)%BGMBorder(1:2,1:3) = TempBorder(1:2,1:3)
+!        END IF
+!     END DO
+! 
+!     !--- determine border indices for periodic meshes  
+!     IF (GEO%nPeriodicVectors.GT.0) THEN   
+!       !--- m-/-n-loops must be executed just once (with 0) if respective PV is not present
+!       !    (otherwise the unnec. 0 are sent and the 0-0-0-case occurs two 2 more which are not cycled, see below for more info)!
+!       IF (GEO%nPeriodicVectors.GT.1) THEN
+!         m0=1
+!       ELSE
+!         m0=0
+!       END IF
+!       IF (GEO%nPeriodicVectors.GT.2) THEN
+!         n0=1
+!       ELSE
+!         n0=0
+!       END IF
+!       DO i = 0,PMPIVAR%nProcs-1
+!         IF (i.EQ.PMPIVAR%iProc) THEN
+!           PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+!           PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = 0
+!         ELSE
+!           !--- virtually move myself according to periodic vectors in order to find overlapping areas
+!           !--- 26 possibilities, processes need to work through them in opposite direction in order
+!           !--- to get matching areas.
+!           !--- Example for 2D:  I am process #3, I compare myself with #7
+!           !--- Periodic Vectors are p1 and p2.
+!           !--- I check p1, p2, p1+p2, p1-p2, -p1+p2, -p1-p2, -p2, -p1
+!           !--- #7 has to check -p1, -p2, -p1-p2, -p1+p2, p1-p2, p1+p1, p2, p1
+!           !--- This is done by doing 3 loops from -1 to 1 (for the higher process number)
+!           !--- or 1 to -1 (for the lower process number) and multiplying
+!           !--- these numbers to the periodic vectors
+!           NeighCount = 0   -- counter: how often is the process my periodic neighbor?
+!           PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+!           DO k = -SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
+!             DO m = -SIGN(m0,PMPIVAR%iProc-i),SIGN(m0,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
+!               DO n = -SIGN(n0,PMPIVAR%iProc-i),SIGN(n0,PMPIVAR%iProc-i),SIGN(1,PMPIVAR%iProc-i)
+!                 IF ((k.EQ.0).AND.(m.EQ.0).AND.(n.EQ.0)) CYCLE this is not periodic and already done above
+!                 CHECKNEIGHBOR = .TRUE.
+!                 PeriodicVec = k*GEO%PeriodicBGMVectors(:,1)
+!                 IF (GEO%nPeriodicVectors.GT.1) THEN
+!                   PeriodicVec = PeriodicVec + m*GEO%PeriodicBGMVectors(:,2)
+!                 END IF
+!                 IF (GEO%nPeriodicVectors.GT.2) THEN
+!                   PeriodicVec = PeriodicVec + n*GEO%PeriodicBGMVectors(:,3)
+!                 END IF
+!                 periodicminmax(1) = localminmax(1) + PeriodicVec(1)
+!                 periodicminmax(2) = localminmax(2) + PeriodicVec(2)
+!                 periodicminmax(3) = localminmax(3) + PeriodicVec(3)
+!                 periodicminmax(4) = localminmax(4) + PeriodicVec(1)
+!                 periodicminmax(5) = localminmax(5) + PeriodicVec(2)
+!                 periodicminmax(6) = localminmax(6) + PeriodicVec(3)
+!                 --- find overlap
+!                 DO coord = 1,3            x y z direction
+!                   maxofmin = MAX(periodicminmax(coord),completeminmax((i*6)+coord))
+!                   minofmax = MIN(periodicminmax(3+coord),completeminmax((i*6)+3+coord))
+!                   IF (maxofmin.LE.minofmax) THEN            overlapping
+!                     TempBorder(1,coord) = maxofmin
+!                     TempBorder(2,coord) = minofmax
+!                   ELSE
+!                     CHECKNEIGHBOR = .FALSE.
+!                   END IF
+!                 END DO
+!                 IF(CHECKNEIGHBOR)THEN
+!                   NeighCount = NeighCount + 1
+!                   TempBorder(:,1) = TempBorder(:,1) - PeriodicVec(1)
+!                   TempBorder(:,2) = TempBorder(:,2) - PeriodicVec(2)
+!                   TempBorder(:,3) = TempBorder(:,3) - PeriodicVec(3)
+!                   TempPeriBord(NeighCount,1:2,1:3) = TempBorder(1:2,1:3)
+!                   PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .TRUE.
+!                 END IF
+!               END DO
+!             END DO
+!           END DO
+!           PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount = NeighCount
+!           ALLOCATE(PMPIVAR%MPIConnect(i)%Periodic(1:PMPIVAR%MPIConnect(i)%BGMPeriodicBorderCount),STAT=allocStat)
+!           IF (allocStat .NE. 0) THEN
+!             CALL abort(__STAMP__,  &
+!               'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
+!           END IF
+!           DO k = 1,NeighCount
+!             ALLOCATE(PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3),STAT=allocStat)
+!             IF (allocStat .NE. 0) THEN
+!               CALL abort(__STAMP__, &
+!                 'ERROR in MPIBackgroundMeshInit: cannot allocate PMPIVAR%MPIConnect')
+!             END IF
+!             PMPIVAR%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3) = TempPeriBord(k,1:2,1:3)
+!           END DO
+!         END IF
+!       END DO
+!     ELSE
+!       --- initialize to FALSE for completely non-periodic cases
+!       DO i = 0,PMPIVAR%nProcs-1
+!         PMPIVAR%MPIConnect(i)%isBGMPeriodicNeighbor = .FALSE.
+!       END DO
+!     END IF
+!   RETURN
 END SUBROUTINE MPIBackgroundMeshInit
 #endif /*MPI*/
 

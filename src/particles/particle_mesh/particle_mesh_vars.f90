@@ -104,6 +104,8 @@ TYPE tGeometry
   REAL, ALLOCATABLE                      :: PeriodicVectors(:,:)              ! PeriodicVectors(1:3,1:nPeriodicVectors), 1:3=x,y,z
   INTEGER,ALLOCATABLE                    :: DirPeriodicVectors(:)             ! direction of periodic vectors
   LOGICAL                                :: directions(3)                     ! flag for direction
+  ! required for cartesian BGM for desposition
+  INTEGER, ALLOCATABLE                   :: PeriodicBGMVectors(:,:)           ! = periodic vectors in backgroundmesh coords
   ! FIBGM
   REAL                                   :: FIBGMdeltas(3)                    ! size of background mesh cell for particle init
   REAL                                   :: FactorFIBGM(3)                    ! scaling factor for FIBGM

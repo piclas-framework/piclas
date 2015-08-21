@@ -145,7 +145,8 @@ USE MOD_Particle_Output,       ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, Time, useManualTimestep, WriteMacroValues, MacroValSampTime
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
-USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,GEO,MaxwellIterNum,NextTimeStepAdjustmentIter
+USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,MaxwellIterNum,NextTimeStepAdjustmentIter
+USE MOD_Particle_Mesh_Vars,    ONLY: Geo
 USE MOD_Equation_Vars,         ONLY: c
 #endif /*(PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)*/
 #if (PP_TimeDiscMethod==201)
@@ -592,8 +593,8 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   !       maps source terms in physical space
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
-  CALL Deposition(doInnerParts=.FALSE.)
 #endif /*MPI*/
+  CALL Deposition(doInnerParts=.FALSE.)
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 
@@ -1723,36 +1724,38 @@ SUBROUTINE TimeStepByEulerStaticExp(t)
 ! Field is propagated until steady, then particle is moved
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,          ONLY: U,Ut
+USE MOD_DG_Vars,                 ONLY: U,Ut
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,    ONLY: dt,IterDisplayStep,iter,IterDisplayStepUser
-USE MOD_TimeDisc_Vars,    ONLY: RK_a,RK_b,RK_c
-USE MOD_DG,               ONLY:DGTimeDerivative_weakForm
-USE MOD_Filter,           ONLY:Filter
-USE MOD_Equation,         ONLY:DivCleaningDamping
+USE MOD_TimeDisc_Vars,           ONLY: dt,IterDisplayStep,iter,IterDisplayStepUser
+USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c
+USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
+USE MOD_Filter,                  ONLY:Filter
+USE MOD_Equation,                ONLY:DivCleaningDamping
 USE MOD_Globals
 #ifdef PP_POIS
-USE MOD_Equation,         ONLY:DivCleaningDamping_Pois,EvalGradient
-USE MOD_DG,               ONLY:DGTimeDerivative_weakForm_Pois
-USE MOD_Equation_Vars,    ONLY:Phi,Phit,nTotalPhi
+USE MOD_Equation,                ONLY:DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars,           ONLY:Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
-USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
-USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, dt_maxwell, MaxwellIterNum, usevMPF
-USE MOD_part_RHS,         ONLY : CalcPartRHS
-!USE MOD_part_boundary,    ONLY : ParticleBoundary
-USE MOD_part_emission,    ONLY : ParticleInserting
-USE MOD_DSMC,             ONLY : DSMC_main
-USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS
-!#ifdef MPI
-!USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
-!#else
-!USE MOD_part_boundary,    ONLY : ParticleBoundary
-!#endif
-USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
-USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-#endif
+USE MOD_PICDepo,                 ONLY : Deposition!, DepositionMPF
+USE MOD_PICInterpolation,        ONLY : InterpolateFieldToParticle
+USE MOD_Particle_Vars,           ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, dt_maxwell, MaxwellIterNum, usevMPF
+USE MOD_part_RHS,                ONLY : CalcPartRHS
+!USE MOD_part_boundary,           ONLY : ParticleBoundary
+USE MOD_part_emission,           ONLY : ParticleInserting
+USE MOD_DSMC,                    ONLY : DSMC_main
+USE MOD_DSMC_Vars,               ONLY : useDSMC, DSMC_RHS
+USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
+USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
+USE MOD_part_tools,              ONLY : UpdateNextFreePosition
+USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+#ifdef MPI
+USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
+#endif /*MPI*/
+#endif /*Particles*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1767,22 +1770,31 @@ REAL                  :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif
 REAL                  :: b_dt(1:5)
 REAL                  :: dt_save, tStage, t_rk
+#ifdef PARTICLES
+REAL                  :: timeStart,timeEnd
+#endif /*PARTICLES*/
 !===================================================================================================================================
 Time = t
 IF (t.GE.DelayTime) CALL ParticleInserting()
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-!    IF (usevMPF) THEN 
-!      CALL DepositionMPF()
-!    ELSE 
-      CALL Deposition()
-    !END IF
-  !CALL VerifyDepositedCharge()
+  ! because of emmision and UpdateParticlePosition
+  CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+  ! here: finish deposition with delta kernal
+  !       maps source terms in physical space
+  ! ALWAYS require
+  PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+  CALL Deposition(doInnerParts=.FALSE.)
+  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
+
 IF (t.GE.DelayTime) THEN
-  CALL InterpolateFieldToParticle()
+  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
   CALL CalcPartRHS()
 END IF
+
 ! particles
 LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
 LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
@@ -1796,12 +1808,30 @@ IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2) 
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3) 
 END IF
-!CALL ParticleBoundary()
-!#ifdef MPI
-!CALL Communicate_PIC()
-!CALL UpdateNextFreePosition() ! only required for parallel communication
-!#endif
-! EM field
+
+#ifdef MPI
+  ! open receive buffer for number of particles
+  CALL IRecvNbofParticles()
+#endif /*MPI*/
+  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
+  ! actual tracking
+  IF(DoRefMapping)THEN
+    CALL ParticleRefTracking()
+  ELSE
+    CALL ParticleTrackingCurved()
+  END IF
+  IF(MeasureTrackTime) THEN
+    CALL CPU_TIME(TimeEnd)
+    tTracking=tTracking+TimeEnd-TimeStart
+  END IF
+#ifdef MPI
+  ! send number of particles
+  CALL SendNbOfParticles()
+  ! finish communication of number of particles and send particles
+  CALL MPIParticleSend()
+  ! finish communication
+  CALL MPIParticleRecv()
+#endif /*MPI*/
 
 dt_save = dt  !quick hack
 t_rk = t
@@ -1880,36 +1910,37 @@ SUBROUTINE TimeStepByEulerStaticExpAdapTS(t)
 ! Field is propagated until steady or a particle velo dependent adaptive time, then particle is moved
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,ONLY: U,Ut
+USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY: dt,IterDisplayStep,iter,IterDisplayStepUser
-USE MOD_TimeDisc_Vars,ONLY: RK_a,RK_b,RK_c
-USE MOD_DG,ONLY:DGTimeDerivative_weakForm
-USE MOD_Filter,ONLY:Filter
-USE MOD_Equation,ONLY:DivCleaningDamping
+USE MOD_TimeDisc_Vars,           ONLY:dt,IterDisplayStep,iter,IterDisplayStepUser
+USE MOD_TimeDisc_Vars,           ONLY:RK_a,RK_b,RK_c
+USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
+USE MOD_Filter,                  ONLY:Filter
+USE MOD_Equation,                ONLY:DivCleaningDamping
 USE MOD_Globals
 #ifdef PP_POIS
-USE MOD_Equation,ONLY:DivCleaningDamping_Pois,EvalGradient
-USE MOD_DG,ONLY:DGTimeDerivative_weakForm_Pois
-USE MOD_Equation_Vars,ONLY:Phi,Phit,nTotalPhi
+USE MOD_Equation,                ONLY:DivCleaningDamping_Pois,EvalGradient
+USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm_Pois
+USE MOD_Equation_Vars,           ONLY:Phi,Phit,nTotalPhi
 #endif
 #ifdef PARTICLES
-USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
-USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
-USE MOD_PIC_Vars,         ONLY : PIC
-USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, dt_maxwell, MaxwellIterNum, usevMPF
-USE MOD_part_RHS,         ONLY : CalcPartRHS
-!USE MOD_part_boundary,    ONLY : ParticleBoundary
-USE MOD_part_emission,    ONLY : ParticleInserting
-USE MOD_DSMC,             ONLY : DSMC_main
-USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS, DSMC
-!#ifdef MPI
-!USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
-!#else
-!USE MOD_part_boundary,    ONLY : ParticleBoundary
-!#endif
-USE MOD_PIC_Analyze,    ONLY: VerifyDepositedCharge
-USE MOD_part_tools,     ONLY : UpdateNextFreePosition
+USE MOD_PICDepo,                 ONLY:Deposition!, DepositionMPF
+USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
+USE MOD_PIC_Vars,                ONLY:PIC
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, dt_maxwell, MaxwellIterNum, usevMPF
+USE MOD_part_RHS,                ONLY:CalcPartRHS
+USE MOD_part_emission,           ONLY:ParticleInserting
+USE MOD_DSMC,                    ONLY:DSMC_main
+USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS, DSMC
+USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
+USE MOD_part_tools,              ONLY:UpdateNextFreePosition
+USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
+USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+#ifdef MPI
+USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
+#endif /*MPI*/
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1925,21 +1956,28 @@ REAL                  :: Phit_temp(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif
 REAL                  :: b_dt(1:5)
 REAL                  :: dt_save, tStage, t_rk
+#ifdef PARTICLES
+REAL                          :: timeStart,timeEnd
+#endif /*PARTICLES*/
 !===================================================================================================================================
 Time = t
 IF (t.GE.DelayTime) CALL ParticleInserting()
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-!    IF (usevMPF) THEN 
-!      CALL DepositionMPF()
-!    ELSE 
-      CALL Deposition()
-!    END IF
-  !CALL VerifyDepositedCharge()
+  ! because of emmision and UpdateParticlePosition
+  CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+  ! here: finish deposition with delta kernal
+  !       maps source terms in physical space
+  ! ALWAYS require
+  PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+  CALL Deposition(doInnerParts=.FALSE.)
+  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 
 IF (t.GE.DelayTime) THEN
-  CALL InterpolateFieldToParticle()
+  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
   CALL CalcPartRHS()
 END IF
 ! particles
@@ -1955,14 +1993,32 @@ IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
   PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) + dt * Pt(1:PDM%ParticleVecLength,2) 
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) + dt * Pt(1:PDM%ParticleVecLength,3) 
 END IF
-!CALL ParticleBoundary()
-!#ifdef MPI
-!CALL Communicate_PIC()
-!!CALL UpdateNextFreePosition() ! only required for parallel communication
-!#endif
+
+#ifdef MPI
+  ! open receive buffer for number of particles
+  CALL IRecvNbofParticles()
+#endif /*MPI*/
+  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
+  ! actual tracking
+  IF(DoRefMapping)THEN
+    CALL ParticleRefTracking()
+  ELSE
+    CALL ParticleTrackingCurved()
+  END IF
+  IF(MeasureTrackTime) THEN
+    CALL CPU_TIME(TimeEnd)
+    tTracking=tTracking+TimeEnd-TimeStart
+  END IF
+#ifdef MPI
+  ! send number of particles
+  CALL SendNbOfParticles()
+  ! finish communication of number of particles and send particles
+  CALL MPIParticleSend()
+  ! finish communication
+  CALL MPIParticleRecv()
+#endif /*MPI*/
 
 ! EM field
-
 dt_save = dt  !quick hack
 t_rk = t
 dt = dt_maxwell

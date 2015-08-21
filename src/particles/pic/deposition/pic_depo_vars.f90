@@ -22,6 +22,9 @@ REAL                                  :: r_sf               ! cutoff radius of s
 REAL                                  :: r2_sf              ! cutoff radius of shape function * cutoff radius of shape function
 REAL                                  :: r2_sf_inv          ! 1/cutoff radius of shape function * cutoff radius of shape function
 REAL                                  :: w_sf               ! shapefuntion weight
+LOGICAL                               :: DoSFEqui           ! use equidistant points for SF
+REAL,ALLOCATABLE                      :: ElemDepo_xGP(:,:,:,:,:)  ! element xGPs for deposition 
+REAL,ALLOCATABLE                      :: Vdm_EquiN_GaussN(:,:)  ! Vdm from equidistant points to Gauss Points
 INTEGER                               :: alpha_sf           ! shapefuntion exponent 
 REAL                                  :: BGMdeltas(3)       ! Backgroundmesh size in x,y,z
 REAL                                  :: FactorBGM(3)       ! Divider for BGM (to allow real numbers)
