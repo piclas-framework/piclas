@@ -1786,9 +1786,9 @@ GEO%ElemToRegion=0
 
 DO iElem=1,PP_nElems
   DO iRegions=1,NbrOfRegions
-    IF ((ElemBaryNGeo(1,iElem).LE.RegionBounds(1,iRegions)).AND.(ElemBaryNGEO(1,iElem).GE.RegionBounds(2,iRegions))) CYCLE
-    IF ((ElemBaryNGeo(3,iElem).LE.RegionBounds(2,iRegions)).AND.(ElemBaryNGEO(2,iElem).GE.RegionBounds(4,iRegions))) CYCLE
-    IF ((ElemBaryNGeo(5,iElem).LE.RegionBounds(3,iRegions)).AND.(ElemBaryNGEO(3,iElem).GE.RegionBounds(6,iRegions))) CYCLE
+    IF ((ElemBaryNGeo(1,iElem).LT.RegionBounds(1,iRegions)).OR.(ElemBaryNGEO(1,iElem).GE.RegionBounds(2,iRegions))) CYCLE
+    IF ((ElemBaryNGeo(2,iElem).LT.RegionBounds(3,iRegions)).OR.(ElemBaryNGEO(2,iElem).GE.RegionBounds(4,iRegions))) CYCLE
+    IF ((ElemBaryNGeo(3,iElem).LT.RegionBounds(5,iRegions)).OR.(ElemBaryNGEO(3,iElem).GE.RegionBounds(6,iRegions))) CYCLE
     IF (GEO%ElemToRegion(iElem).EQ.0) THEN
       GEO%ElemToRegion(iElem)=iRegions
     ELSE

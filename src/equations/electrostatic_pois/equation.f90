@@ -254,15 +254,16 @@ SUBROUTINE CalcSource(t)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,       ONLY : abort
+USE MOD_Globals,            ONLY : abort
 USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY : Ut
-USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc,Phi
+USE MOD_DG_Vars,            ONLY : Ut
+USE MOD_Equation_Vars,      ONLY : eps0,c_corr,IniExactFunc,Phi
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars,  ONLY : Source
-USE MOD_Particle_Vars, ONLY : GEO, RegionElectronRef
+USE MOD_PICDepo_Vars,       ONLY : Source
+USE MOD_Particle_Mesh_Vars, ONLY : NbrOfRegions,GEO
+USE MOD_Particle_Vars,      ONLY : RegionElectronRef
 #endif /*PARTICLES*/
-USE MOD_Mesh_Vars,     ONLY : Elem_xGP, NbrOfRegions ! Elem_xGP: xyz of Gauss points for shape func., NbrOfRegions: for boltzm. rel.
+USE MOD_Mesh_Vars,          ONLY : Elem_xGP ! Elem_xGP: xyz of Gauss points for shape func., NbrOfRegions: for boltzm. rel.
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

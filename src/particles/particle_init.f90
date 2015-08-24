@@ -837,6 +837,24 @@ DEALLOCATE(iseeds)
 
 DelayTime = GETREAL('Part-DelayTime','0.')
 
+!-- Read Flag for BGG via VTK-File (needed for particles in general as asked for in set velocity!)
+useVTKFileBGG = GETLOGICAL('Particles-useVTKFileBGG','.FALSE.')
+!-- Read Flag if warnings to be displayed for rejected velocities when virtual Pre-Inserting region (vpi) is used with PartDensity
+OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
+
+
+! init interpolation
+CALL InitializeInterpolation() ! not any more required ! has to be called earliear
+CALL InitPIC()
+! always, because you have to construct a halo_eps region around each bc element
+SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
+halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
+!-- Finalizing InitializeVariables
+CALL InitFIBGM()
+#ifdef MPI
+CALL InitEmissionComm()
+#endif /*MPI*/
+
 !-- Read parameters for particle-data on region mapping
 
 !-- Read parameters for region mapping
@@ -857,24 +875,6 @@ IF (NbrOfRegions .GT. 0) THEN
     RegionElectronRef(1:3,iRegions) = GETREALARRAY('Part-RegionElectronRef'//TRIM(hilf2),3,'0. , 0. , 1.')
   END DO
 END IF
-!-- Read Flag for BGG via VTK-File (needed for particles in general as asked for in set velocity!)
-useVTKFileBGG = GETLOGICAL('Particles-useVTKFileBGG','.FALSE.')
-!-- Read Flag if warnings to be displayed for rejected velocities when virtual Pre-Inserting region (vpi) is used with PartDensity
-OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
-
-
-! init interpolation
-CALL InitializeInterpolation() ! not any more required ! has to be called earliear
-CALL InitPIC()
-! always, because you have to construct a halo_eps region around each bc element
-SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
-halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
-!-- Finalizing InitializeVariables
-CALL InitFIBGM()
-#ifdef MPI
-CALL InitEmissionComm()
-#endif /*MPI*/
-
 
 exitTrue=.false.
 DO iSpec = 1,nSpecies
