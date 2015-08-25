@@ -321,6 +321,7 @@ USE MOD_Interpolation_Vars,      ONLY:xGP
 USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess,epsMapping
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo,NGeo
+USE MOD_Mesh_Vars,               ONLY:offsetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -428,8 +429,14 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
    sdetJac=1./sdetJac
   ELSE !shit
    ! Newton has not converged !?!?
-   CALL abort(__STAMP__, &
-        'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
+   Xi(1)=HUGE(1.0)
+   Xi(2)=Xi(1)
+   Xi(3)=Xi(1)
+   EXIT
+   !IPWRITE(*,*) ' GlobalElemID ', OffSetElem+iElem
+   !IPWRITE(*,*) ' PartPos ', X_in
+   !CALL abort(__STAMP__, &
+   !     'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
   ENDIF 
   sJac=getInv(Jac,sdetJac)
   
