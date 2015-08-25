@@ -79,6 +79,7 @@ IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__, &
       'ERROR in pic_depo.f90: Cannot allocate source!')
 END IF
+Source=0.
 SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
 CASE('nearest_blurycenter')
@@ -405,6 +406,8 @@ CASE DEFAULT
       'Unknown DepositionType in pic_depo.f90')
 END SELECT
 
+OutputSource = GETLOGICAL('PIC-OutputSource','F')
+
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 
 END SUBROUTINE InitializeDeposition
@@ -480,6 +483,9 @@ ELSE
 #ifdef MPI
   firstPart=PDM%ParticleVecLength-PartMPIExchange%nMPIParticles+1
   lastPart =PDM%ParticleVecLength
+#else
+  firstPart=1
+  lastPart =0
 #endif /*MPI*/
 END IF
   
@@ -549,6 +555,7 @@ CASE('shape_function')
         ELSE
           Fac(4)= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor*w_sf
         END IF ! usevMPF
+        !IF(fac(4).GT.0.) print*,'charge pos'
         Fac(1:3) = PartState(iPart,4:6)*Fac(4)
         !-- determine which background mesh cells (and interpolation points within) need to be considered
         DO iCase = 1, NbrOfCases
@@ -677,6 +684,7 @@ CASE('shape_function')
                       !-- currently only one shapefunction available, more to follow (including structure change)
                       IF (radius2 .LT. r2_sf) THEN
                         S = 1 - r2_sf_inv * radius2
+                        !IF(S.LT.0.) print*,'dist neg '
                       !radius2=GaussDistance(k,l,m)
                       !IF (radius2 .LT. 1.0) THEN
                       !  S = 1 -  radius2
@@ -1107,7 +1115,8 @@ CASE('cartmesh_volumeweighting')
          alpha3 = GaussBGMFactor(3,kk,ll,mm,iElem)
 !#if (PP_nVar==8)
          DO i = 1,3
-           source(i,kk,ll,mm,iElem) = BGMSource(k,l,m,i) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+           source(i,kk,ll,mm,iElem) = source(i,kk,ll,mm,iElem)            + &
+                BGMSource(k,l,m,i) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
                 BGMSource(k,l,m+1,i) * (1-alpha1) * (1-alpha2) * (alpha3) + &
                 BGMSource(k,l+1,m,i) * (1-alpha1) * (alpha2) * (1-alpha3) + &
                 BGMSource(k,l+1,m+1,i) * (1-alpha1) * (alpha2) * (alpha3) + &
@@ -1117,7 +1126,8 @@ CASE('cartmesh_volumeweighting')
                 BGMSource(k+1,l+1,m+1,i) * (alpha1) * (alpha2) * (alpha3)
          END DO
 !#endif
-         source(4,kk,ll,mm,iElem) = BGMSource(k,l,m,4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+           source(4,kk,ll,mm,iElem) = source(4,kk,ll,mm,iElem)          + &
+              BGMSource(k,l,m,4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
               BGMSource(k,l,m+1,4) * (1-alpha1) * (1-alpha2) * (alpha3) + &
               BGMSource(k,l+1,m,4) * (1-alpha1) * (alpha2) * (1-alpha3) + &
               BGMSource(k,l+1,m+1,4) * (1-alpha1) * (alpha2) * (alpha3) + &
@@ -1146,6 +1156,7 @@ CASE('cartmesh_splines')
       PosInd(1) = FLOOR(PartState(iPart,1)/BGMdeltas(1))
       PosInd(2) = FLOOR(PartState(iPart,2)/BGMdeltas(2))
       PosInd(3) = FLOOR(PartState(iPart,3)/BGMdeltas(3))
+      !print*,'posind(1:3),charge',posInd,charge
       DO dir = 1,3               ! x,y,z direction
         DO weightrun = 0,3
           DO mm = 0, 3
@@ -1170,7 +1181,8 @@ CASE('cartmesh_splines')
             BGMSource(k,l,m,2) = BGMSource(k,l,m,2) + PartState(iPart,5)* locweight
             BGMSource(k,l,m,3) = BGMSource(k,l,m,3) + PartState(iPart,6)* locweight
 !#endif
-            BGMSource(k,l,m,4) = BGMSource(k,l,m,4) + Charge * locweight
+            BGMSource(k,l,m,4) = BGMSource(k,l,m,4) + locweight
+         !   print*,'BMGSOURCE4',BGMSOURCE(k,l,m,4)
           END DO
         END DO
       END DO
@@ -1200,11 +1212,12 @@ CASE('cartmesh_splines')
               DO t = m-1,m+2
                 w = t-m+2
 !#if (PP_nVar==8)                  
-                DO i = 1,3
-                  source(i,kk,ll,mm,iElem) = source(i,kk,ll,mm,iElem) + BGMSource(r,ss,t,i) * GPWeight(iElem,kk,ll,mm,u,v,w)
-                END DO
+                source(1:4,kk,ll,mm,iElem) = source(1:4,kk,ll,mm,iElem) + BGMSource(r,ss,t,1:4) * GPWeight(iElem,kk,ll,mm,u,v,w)
+                !DO i = 1,3
+                !  source(i,kk,ll,mm,iElem) = source(i,kk,ll,mm,iElem) + BGMSource(r,ss,t,i) * GPWeight(iElem,kk,ll,mm,u,v,w)
+                !END DO
 !#endif
-                source(4,kk,ll,mm,iElem) = source(4,kk,ll,mm,iElem) + BGMSource(r,ss,t,4) * GPWeight(iElem,kk,ll,mm,u,v,w)
+                !source(4,kk,ll,mm,iElem) = source(4,kk,ll,mm,iElem) + BGMSource(r,ss,t,4) * GPWeight(iElem,kk,ll,mm,u,v,w)
               END DO !t
             END DO !s
           END DO !r

@@ -337,7 +337,7 @@ CASE(6) !PartBound%MPINeighborhoodBC)
 !CASE(PartBound%SymmetryBC)
 CASE(10)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,BCSideID)
 
 
 CASE DEFAULT

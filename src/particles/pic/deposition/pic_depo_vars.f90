@@ -40,6 +40,7 @@ LOGICAL                               :: Periodic_Depo      ! Flag for periodic 
 INTEGER                               :: DeltaType          ! Flag
 INTEGER                               :: NKnots
 REAL,ALLOCATABLE                      :: Knots(:)
+LOGICAL                               :: OutputSource       ! write the source to hdf5
 !REAL,ALLOCATABLE                      :: Vdm_BernSteinN_GaussN(:,:)
 !REAL,ALLOCATABLE                      :: sVdm_BernSteinN_GaussN(:,:)
 !===================================================================================================================================

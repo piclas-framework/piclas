@@ -50,6 +50,10 @@ USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_Output_Vars,          ONLY:ProjectName
 USE MOD_Mesh_Vars,            ONLY:offsetElem,nGlobalElems
+#ifdef PARTICLES
+USE MOD_PICDepo_Vars,         ONLY:OutputSource,Source
+USE MOD_Equation_Vars,        ONLY:c_corr,eps0
+#endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars,        ONLY:E,Phi
 USE MOD_Mesh_Vars,            ONLY:nElems, sJ, Elem_xGP
@@ -67,21 +71,28 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVal
+INTEGER                        :: nVal,nVar
 #ifdef MPI
 REAL                           :: StartT,EndT
 #endif
-#ifdef PP_POIS
-REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-#endif
+REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
+#ifdef PARTICLES
+REAL                            :: eps0inv
+INTEGER                         :: iElem,i,j,k
+#endif /*PARTICLES*/
 !===================================================================================================================================
+
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
 #ifdef MPI
   StartT=MPI_WTIME()
 #endif
 
 ! Create dataset attribute "VarNames"
-ALLOCATE(StrVarNames(1:PP_nVar))
+nVar=PP_nVar
+#ifdef PARTICLES
+IF(OutPutSource) nVar=nVar+4
+#endif /*PARTICLES*/
+ALLOCATE(StrVarNames(1:nVar))
 #if PP_nVar==8
 #ifndef PP_POIS
 StrVarNames(1)='ElectricFieldX'
@@ -116,12 +127,20 @@ StrVarNames(3)='ElectricFieldY'
 StrVarNames(4)='ElectricFieldZ'        
 #endif       
 #endif
+#ifdef PARTICLES
+IF(OutPutSource) THEN
+  StrVarNames(PP_nVar+1)='CurrentDensityX'
+  StrVarNames(PP_nVar+2)='CurrentDensityY'
+  StrVarNames(PP_nVar+3)='CurrentDensityZ'
+  StrVarNames(PP_nVar+4)='ChargeDensity'
+END IF
+#endif /*PARTICLES*/
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 ! PO:
 ! excahnge PP_N through Nout
-IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',NVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
 #ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
@@ -135,16 +154,29 @@ CALL OpenDataFile(FileName,create=.FALSE.)
 ! Write DG solution ----------------------------------------------------------------------------------------------------------------
 nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
 ! Store the Solution of the Maxwell-Poisson System
+ALLOCATE(Utemp(1:nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 #ifdef PP_POIS
 #if (PP_nVar==8)
 Utemp(8,:,:,:,:)=Phi(1,:,:,:,:)
 Utemp(1:3,:,:,:,:)=E(1:3,:,:,:,:)
 Utemp(4:7,:,:,:,:)=U(4:7,:,:,:,:)
+#ifdef PARTICLES
+IF(OutPutSource) THEN
+  eps0inv = 1./eps0
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+      !  Get source from Particles
+      Utemp(PP_nVar+1:PP_nVar+3,i,j,k,iElem) =  - eps0inv * source(1:3,i,j,k,iElem)
+      Utemp(PP_nVar+4,i,j,k,iElem)        =    eps0inv * source(  4,i,j,k,iElem) * c_corr 
+    END DO; END DO; END DO
+  END DO
+END IF
+#endif /*PARTICLES*/
 !CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
 !,offsetElem,5,existing=.TRUE.,RealArray=Utemp)
 CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
-                      nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                      nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+                      nValGlobal=(/NVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                      nVal=      (/NVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
                       offset=    (/0,      0,     0,     0,     offsetElem/),&
                       collective=.TRUE., existing=.TRUE., RealArray=Utemp)
 ! missing additional attributes to file                  
@@ -168,11 +200,23 @@ CALL WriteArrayToHDF5(DataSetName='DG_SolutionPhi', rank=5,&
 #if (PP_nVar==4)
 Utemp(1,:,:,:,:)=Phi(1,:,:,:,:)
 Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
+#ifdef PARTICLES
+IF(OutPutSource) THEN
+  eps0inv = 1./eps0
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+      !  Get source from Particles
+      Utemp(PP_nVar+1:PP_nVar+3,i,j,k,iElem) =  - eps0inv * source(1:3,i,j,k,iElem)
+      Utemp(PP_nVar+4,i,j,k,iElem)        =    eps0inv * source(  4,i,j,k,iElem) * c_corr 
+    END DO; END DO; END DO
+  END DO
+END IF
+#endif /*PARTICLES*/
 !CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
 !,offsetElem,5,existing=.TRUE.,RealArray=Utemp)
 CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
-                      nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                      nVal=      (/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+                      nValGlobal=(/NVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                      nVal=      (/NVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
                       offset=    (/0,      0,     0,     0,     offsetElem/),&
                       collective=.TRUE., existing=.TRUE., RealArray=Utemp)
 ! missing additional attributes to file                  
@@ -197,9 +241,23 @@ CALL WriteArrayToHDF5(DataSetName='DG_SolutionPhi', rank=5,&
 ! PO: old version
 !CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
 ! ,offsetElem,5,existing=.TRUE.,RealArray=U)
+Utemp=U
+#ifdef PARTICLES
+IF(OutPutSource) THEN
+  eps0inv = 1./eps0
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+      !  Get source from Particles
+      Utemp(PP_nVar+1:PP_nVar+3,i,j,k,iElem) =  - eps0inv * source(1:3,i,j,k,iElem)
+      Utemp(PP_nVar+4,i,j,k,iElem)        =    eps0inv * source(  4,i,j,k,iElem) * c_corr 
+    END DO; END DO; END DO
+  END DO
+END IF
+#endif /*PARTICLES*/
+
 CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
-                      nValGlobal =(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                      nVal       =(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
+                      nValGlobal =(/NVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                      nVal       =(/NVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
                       offset     =(/0,      0,     0,     0,     offsetElem  /),&
                       collective =.TRUE., existing=.TRUE., RealArray=U)
 #endif
@@ -214,7 +272,7 @@ CALL WriteAdditionalDataToHDF5(FileName)
 
 !! Close the file.
 !CALL CloseDataFile()
-
+DEALLOCATE(Utemp)
 DEALLOCATE(StrVarNames)
 #ifdef MPI
 IF(MPIROOT)THEN

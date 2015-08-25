@@ -99,6 +99,7 @@ USE MOD_PIC_Vars!,      ONLY:
 USE MOD_PICInterpolation_Vars,   ONLY:usecurvedExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
 USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
+USE MOD_Particle_Mesh_Vars,ONLY:epsOneCell
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
 #endif
