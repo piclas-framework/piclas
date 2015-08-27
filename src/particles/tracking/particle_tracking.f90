@@ -269,7 +269,7 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 PartTrajectory=PartTrajectory/lengthPartTrajectory
-lengthPartTrajectory=lengthPartTrajectory+epsilontol
+lengthPartTrajectory=lengthPartTrajectory!+epsilontol
 
 locAlpha=-1.0
 nInter=0
@@ -355,6 +355,7 @@ SUBROUTINE ParticleRefTracking()
 USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,lastpartpos
+USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks
 USE MOD_Particle_Surfaces_Vars,  ONLY:ClipHit
@@ -557,6 +558,16 @@ DO iPart=1,PDM%ParticleVecLength
       PartPosRef(1:3,iPart)=NewXi
       PEM%Element(iPart)=NewElemID
     END IF
+
+    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.1) THEN
+      IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
+      IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
+      IPWRITE(UNIT_stdOut,*) ' ElemID       ', iElem+offSetElem
+      CALL abort(&
+          __STAMP__, &
+          'Particle Not inSide of Element, iPart',iPart)
+    END IF
+
     ParticleFound(iPart)=.TRUE.
     !WRITE(*,*) ' iPart  :   ', iPart
     !WRITE(*,*) ' PartPos:   ', PartState(iPart,1:3)

@@ -378,6 +378,7 @@ REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit
 REAL                                 :: ZeroDistance,ClipTolerance2
 LOGICAL                              :: DoXiClip,DoEtaClip,DoCheck
 INTEGER                              :: iClip
+REAL                                 :: alphaNorm
 REAL                                 :: PlusXi,MinusXi,PlusEta,MinusEta,tmpXi,tmpEta
 INTEGER                              :: tmpnClip,tmpnXi,tmpnEta
 !================================================================================================================================
@@ -1356,7 +1357,7 @@ LOGICAL,INTENT(OUT)               :: isHit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(1:3)               :: P0,P1,P2
-REAL                              :: NormVec(1:3),locDistance,Inter1(1:3)
+REAL                              :: NormVec(1:3),locDistance,Inter1(1:3), alphaNorm
 REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
 !REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
 REAL                              :: a1,a2,b1,b2,c1,c2
@@ -1442,8 +1443,10 @@ END IF
 !IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'a/l',alpha/lengthPartTrajectory
 !IF(alpha.GT.lengthPartTrajectory) THEN !.OR.(alpha.LT.-epsilontol))THEN
 !IF((alpha.GT.lengthPartTrajectory+epsilontol) .OR.(alpha.LT.-epsilontol))THEN
-IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
-!IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-100*epsMach*coeffA))THEN
+
+alphaNorm=alpha/lengthPartTrajectory
+!IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
+IF((alphaNorm.GT.epsilonOne) .OR.(alpha.LT.-epsilontol))THEN
   alpha=-1.0
   RETURN
 END IF
@@ -1787,7 +1790,7 @@ LOGICAL,INTENT(OUT)               :: isHit
 ! LOCAL VARIABLES
 REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
-REAL                              :: A,B,C
+REAL                              :: A,B,C,alphaNorm
 REAL                              :: xi(2),eta(2),t(2), normVec(3)
 INTEGER                           :: nInter,nRoot
 !===================================================================================================================================
@@ -1850,7 +1853,8 @@ IF (nRoot.EQ.1) THEN
   END IF
   !xInter=LastpartPos(iPart,1:3)+t(1)*PartTrajactory
   ! check if lastpartpos is inside of the element
-  IF(DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0)THEN
+  ! don't know, if anymore necessary 
+  IF((DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0).AND.(2*ABS(t(1)).LT.epsilontol))THEN
     ! or not null??
     alpha=0.
     isHit=.TRUE.
@@ -1862,7 +1866,9 @@ IF (nRoot.EQ.1) THEN
     ! as paper ramsay
     xi(1)=ComputeXi(a1,a2,eta(1))
     IF(ABS(xi(1)).LT.ClipHit)THEN
-      IF((t(1).GE.-epsilontol).AND.(t(1).LE.lengthPartTrajectory))THEN
+      alphaNorm=t(1)/lengthPartTrajectory
+      IF((alphaNorm.LT.epsilonOne) .OR.(alpha.GT.-epsilontol))THEN
+      !IF((t(1).GE.-epsilontol).AND.(t(1).LE.lengthPartTrajectory))THEN
         alpha=t(1)!/LengthPartTrajectory
         xitild=xi(1)
         etatild=eta(1)
@@ -1901,7 +1907,8 @@ ELSE
   END IF
   !xInter=LastpartPos(iPart,1:3)+t(1)*PartTrajactory
   ! check if lastpartpos is inside of the element
-  IF(DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0)THEN
+  !IF(DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0)THEN
+  IF((DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0).AND.(2*ABS(t(1)).LT.epsilontol))THEN
     ! or not null??
     alpha=0.
     isHit=.TRUE.
@@ -1911,7 +1918,9 @@ ELSE
   IF(ABS(eta(1)).LT.ClipHit)THEN
     ! as paper ramsay
     IF(ABS(xi(1)).LT.Cliphit)THEN
-      IF((t(1).LT.-epsilontol).OR.(t(1).GT.lengthPartTrajectory))THEN
+      alphaNorm=t(1)/lengthPartTrajectory
+      IF((alphaNorm.GT.epsilonOne) .OR.(alpha.LT.-epsilontol))THEN
+      !IF((t(1).LT.-epsilontol).OR.(t(1).GT.lengthPartTrajectory))THEN
         t(1)=-1.0
       ELSE
         nInter=nInter+1
@@ -1929,7 +1938,8 @@ ELSE
   END IF
   !xInter=LastpartPos(iPart,1:3)+t(1)*PartTrajactory
   ! check if lastpartpos is inside of the element
-  IF(DOT_PRODUCT(t(2)*PartTrajectory,NormVec).LT.0)THEN
+  !IF(DOT_PRODUCT(t(2)*PartTrajectory,NormVec).LT.0)THEN
+  IF((DOT_PRODUCT(t(2)*PartTrajectory,NormVec).LT.0).AND.(2*ABS(t(2)).LT.epsilontol))THEN
     ! or not null??
     alpha=0.
     isHit=.TRUE.
@@ -1940,7 +1950,9 @@ ELSE
  IF(ABS(eta(2)).LT.ClipHit)THEN
     !IF(ABS(xi(2)).LT.epsilonOne)THEN
     IF(ABS(xi(2)).LT.ClipHit)THEN
-      IF((t(2).LT.-epsilontol).OR.(t(2).GT.lengthPartTrajectory))THEN
+      alphaNorm=t(2)/lengthPartTrajectory
+      IF((alphaNorm.GT.epsilonOne) .OR.(alpha.LT.-epsilontol))THEN
+      !IF((t(2).LT.-epsilontol).OR.(t(2).GT.lengthPartTrajectory))THEN
         !print*,'here'
         t(2)=-1.0
       ELSE

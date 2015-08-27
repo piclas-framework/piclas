@@ -731,11 +731,13 @@ END IF
 #endif
 #if (PP_TimeDiscMethod==201)
 deltaT=CALCTIMESTEP()
-halo_eps = c*deltaT*SafetyFactor*3.8
+halo_eps = c*deltaT*SafetyFactor
 #else
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
 halo_eps2=halo_eps*halo_eps
+SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 halo distance  |    ',halo_eps 
+
 #ifdef MPI
 IF (DepositionType.EQ.'shape_function') THEN
   BGMimax = INT((GEO%xmax+halo_eps-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)

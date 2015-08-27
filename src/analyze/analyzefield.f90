@@ -610,19 +610,25 @@ IF(DoPML)THEN
       E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
             + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
             + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+#if (PP_nVar==8)
       B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
             + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
             + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
+#endif /*PP_nVar=8*/        
       ! if x, y or z is in PML region
       IF (Elem_xGP(1,i,j,k,iElem) .GE. xyzPhysicalMinMax(1) .AND. Elem_xGP(1,i,j,k,iElem) .LE. xyzPhysicalMinMax(2) .AND. &
           Elem_xGP(2,i,j,k,iElem) .GE. xyzPhysicalMinMax(3) .AND. Elem_xGP(2,i,j,k,iElem) .LE. xyzPhysicalMinMax(4) .AND. &
           Elem_xGP(3,i,j,k,iElem) .GE. xyzPhysicalMinMax(5) .AND. Elem_xGP(3,i,j,k,iElem) .LE. xyzPhysicalMinMax(6)) THEN        
           WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
+#if (PP_nVar==8)
           WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+#endif /*PP_nVar=8*/        
       END IF
     END DO; END DO; END DO
     WEl = WEl + WEl_tmp
+#if (PP_nVar==8)
     WMag = WMag + WMag_tmp
+#endif /*PP_nVar=8*/        
   END DO
 ELSE
   DO iElem=1,nElems
@@ -636,15 +642,21 @@ ELSE
       E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
             + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
             + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+#if (PP_nVar==8)
       B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
             + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
             + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
+#endif /*PP_nVar=8*/        
       ! if x, y or z is in PML region
       WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
+#if (PP_nVar==8)
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+#endif /*PP_nVar=8*/        
     END DO; END DO; END DO
     WEl = WEl + WEl_tmp
+#if (PP_nVar==8)
     WMag = WMag + WMag_tmp
+#endif /*PP_nVar=8*/        
   END DO
 END IF ! noPML
 

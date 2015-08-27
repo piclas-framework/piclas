@@ -197,7 +197,7 @@ SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,x
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,                ONLY:Abort
+USE MOD_Globals!,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
 USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos,PEM
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
@@ -242,6 +242,7 @@ CASE(1) !PartBound%OpenBC)
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
     !END IF ! iter+1
   END IF ! CalcPartBalance
+  BCSideID=PartBCSideList(SideID)
   PDM%ParticleInside(iPart) = .FALSE.
   alpha=-1.
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -337,6 +338,7 @@ CASE(6) !PartBound%MPINeighborhoodBC)
 !CASE(PartBound%SymmetryBC)
 CASE(10)
 !-----------------------------------------------------------------------------------------------------------------------------------
+  BCSideID=PartBCSideList(SideID)
   CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,BCSideID)
 
 

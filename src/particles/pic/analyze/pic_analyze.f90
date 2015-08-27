@@ -162,7 +162,11 @@ IF (PartMPI%MPIRoot) THEN
   ! absolute error
   PartCharge(2)=ABS(Charge(2)-Charge(1))
   ! relative error
-  PartCharge(3)=ABS(Charge(2)-Charge(1))/Charge(2)
+  IF(ALMOSTZERO(Charge(2)))THEN
+    PartCharge(3)=0.
+  ELSE
+    PartCharge(3)=ABS(Charge(2)-Charge(1))/Charge(2)
+  END IF
 END IF
 
 END SUBROUTINE CalcDepositedCharge

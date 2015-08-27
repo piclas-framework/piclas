@@ -57,6 +57,7 @@ USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_N
 USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess,epsMapping,ElemRadiusNGeo
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
+USE MOD_Mesh_Vars,               ONLY:offsetElem
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -179,15 +180,13 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   ! Use FAIL
   Xi = Xi - MATMUL(sJac,F)
 
-  IF(ANY(ABS(Xi).GT.1.5)) THEN
+  IF(ANY(ABS(Xi).GT.1.8)) THEN
   !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
     IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, force!!!'
     IPWRITE(UNIT_stdOut,*) ' Newton-Iter', NewtonIter
-    IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1)
-    IPWRITE(UNIT_stdOut,*) ' eta ', xi(2)
-    IPWRITE(UNIT_stdOut,*) ' zeta', xi(3)
+    IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1:3)
     IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
-    IPWRITE(UNIT_stdOut,*) ' ElemID', iElem
+    IPWRITE(UNIT_stdOut,*) ' ElemID', iElem+offSetElem
     IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
     CALL abort(__STAMP__, &
         'Particle Not inSide of Element, iElem, iPart',iElem,REAL(PartID))
@@ -209,6 +208,20 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
     END DO !i=0,NGeo
   END DO !j=0,NGeo
 END DO !newton
+
+! IF(ANY(ABS(Xi).GT.1.1)) THEN
+! !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
+!   IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, force!!!'
+!   IPWRITE(UNIT_stdOut,*) ' Newton-Iter', NewtonIter
+!   IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1)
+!   IPWRITE(UNIT_stdOut,*) ' eta ', xi(2)
+!   IPWRITE(UNIT_stdOut,*) ' zeta', xi(3)
+!   IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
+!   IPWRITE(UNIT_stdOut,*) ' ElemID', iElem+offSetElem
+!   IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
+!   CALL abort(__STAMP__, &
+!       'Particle Not inSide of Element, iElem, iPart',iElem,REAL(PartID))
+! END IF
 
 ! 2.1) get "Vandermonde" vectors
 CALL LagrangeInterpolationPolys(xi(1),N_in,xGP,wBary,L_xi(1,:))

@@ -364,7 +364,7 @@ DO !iter_t=0,MaxIter
      CALL MPI_ALLREDUCE(MPI_IN_PLACE,vMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
 #endif /*MPI*/
 
-      dt_max_particles = 3.8*dt_maxwell*c/(vMax)
+      dt_max_particles = dt_maxwell*c/(vMax)
       dt_temp = (dt_max_particles+dt_temp)/2
       IF((dt_temp.GE.dt_max_particles*0.95).AND.(dt_temp.LE.dt_max_particles*1.05)) EXIT
     END DO
