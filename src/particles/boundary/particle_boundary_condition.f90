@@ -242,7 +242,7 @@ CASE(1) !PartBound%OpenBC)
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
     !END IF ! iter+1
   END IF ! CalcPartBalance
-  BCSideID=PartBCSideList(SideID)
+  !BCSideID=PartBCSideList(SideID)
   PDM%ParticleInside(iPart) = .FALSE.
   alpha=-1.
 !-----------------------------------------------------------------------------------------------------------------------------------

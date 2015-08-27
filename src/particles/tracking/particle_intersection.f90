@@ -910,7 +910,8 @@ IF(DoCheck)THEN
 
   ! funny hard coded tolerance :), obtained by numerical experiments
   !IF((alpha/lengthPartTrajectory.LE.1.0000464802767983).AND.(alpha.GT.Mepsilontol))THEN
-  IF((alpha/lengthPartTrajectory.LE.ClipHit).AND.(alpha.GT.Mepsilontol))THEN
+  alphaNorm=alpha/lengthPartTrajectory
+  IF((alphaNorm.LE.ClipHit).AND.(alphaNorm.GT.Mepsilontol))THEN
     ! found additional intersection point
     nInterSections=nIntersections+1
     IF(nInterSections.GT.ClipMaxInter)THEN
@@ -1446,7 +1447,7 @@ END IF
 
 alphaNorm=alpha/lengthPartTrajectory
 !IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
-IF((alphaNorm.GT.epsilonOne) .OR.(alpha.LT.-epsilontol))THEN
+IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LT.-epsilontol))THEN
   alpha=-1.0
   RETURN
 END IF
