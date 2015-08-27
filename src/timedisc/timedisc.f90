@@ -145,7 +145,7 @@ USE MOD_Particle_Output,       ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, Time, useManualTimestep, WriteMacroValues, MacroValSampTime
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
-USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,MaxwellIterNum,NextTimeStepAdjustmentIter
+USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum,NextTimeStepAdjustmentIter
 USE MOD_Particle_Mesh_Vars,    ONLY: Geo
 USE MOD_Equation_Vars,         ONLY: c
 #endif /*(PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)*/
@@ -180,6 +180,7 @@ REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: MaximumIterNum, iPart
+LOGICAL                      :: NoPartInside
 #endif
 LOGICAL                      :: finalIter
 !===================================================================================================================================
@@ -341,6 +342,7 @@ DO !iter_t=0,MaxIter
   IF (iter.LE.MaximumIterNum) THEN
       dt_max_particles = dt_maxwell ! initial evolution of field with maxwellts
   ELSE
+    NoPartInside=.TRUE.
     DO 
       vMaxx = 0.
       vMaxy = 0.
@@ -350,6 +352,7 @@ DO !iter_t=0,MaxIter
           vMaxx = MAX( vMaxx , ABS(PartState(iPart, 4) + dt_temp*Pt(iPart,1)) )
           vMaxy = MAX( vMaxy , ABS(PartState(iPart, 5) + dt_temp*Pt(iPart,2)) )
           vMaxz = MAX( vMaxz , ABS(PartState(iPart, 6) + dt_temp*Pt(iPart,3)) )
+          NoPartInside=.FALSE. 
         END IF
       END DO
 !! -- intrinsic logical->real/int-conversion should be avoided!!!
@@ -359,12 +362,18 @@ DO !iter_t=0,MaxIter
 !            * (PartState(1:PDM%ParticleVecLength, 5) + dt_temp*Pt(1:PDM%ParticleVecLength,2))))
 !      vMaxz = MAXVAL(ABS(PDM%ParticleInside(1:PDM%ParticleVecLength) &
 !            * (PartState(1:PDM%ParticleVecLength, 6) + dt_temp*Pt(1:PDM%ParticleVecLength,3))))
-      vMax = MAX(vMaxx,vMaxy,vMaxz,1.0) 
+      vMax = MAX( SQRT(vMaxx*vMaxx + vMaxy*vMaxy + vMaxz*vMaxz) , 1.0 ) 
 #ifdef MPI
-     CALL MPI_ALLREDUCE(MPI_IN_PLACE,vMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+      CALL MPI_ALLREDUCE(MPI_IN_PLACE,vMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+      CALL MPI_ALLREDUCE(MPI_IN_PLACE,NoPartInside,1,MPI_LOGICAL,MPI_LAND,MPI_COMM_WORLD,iError)
 #endif /*MPI*/
 
-      dt_max_particles = dt_maxwell*c/(vMax)
+      IF (NoPartInside) THEN
+        dt_max_particles = dt_maxwell
+        EXIT
+      ELSE
+        dt_max_particles =  max(dt_part_ratio*dt_maxwell*c/(vMax),dt_maxwell)
+      END IF
       dt_temp = (dt_max_particles+dt_temp)/2
       IF((dt_temp.GE.dt_max_particles*0.95).AND.(dt_temp.LE.dt_max_particles*1.05)) EXIT
     END DO
@@ -375,8 +384,8 @@ DO !iter_t=0,MaxIter
   IterDisplayStep = MAX(INT(IterDisplayStepUser/MaxwellIterNum),1) !IterDisplayStep refers to dt_maxwell
   IF ((MPIroot).AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
     SWRITE(UNIT_StdOut,'(132("!"))')
-    !print*, 'New IterNum for MaxwellSolver: ', MaxwellIterNum 
-    !print*, 'New Particle TimeStep: ', dt_max_particles
+    SWRITE(UNIT_StdOut,*)  'New IterNum for MaxwellSolver: ', MaxwellIterNum 
+    SWRITE(UNIT_StdOut,*)  'New Particle TimeStep: ', dt_max_particles
   END IF
 #endif
 

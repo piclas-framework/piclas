@@ -563,7 +563,7 @@ USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
 USE MOD_Equation_Vars,                      ONLY:c
-USE MOD_Particle_Vars,                      ONLY:manualtimestep
+USE MOD_Particle_Vars,                      ONLY:manualtimestep,dt_part_ratio
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartElemToSide,PartSideToElem
@@ -731,7 +731,7 @@ END IF
 #endif
 #if (PP_TimeDiscMethod==201)
 deltaT=CALCTIMESTEP()
-halo_eps = c*deltaT*SafetyFactor
+halo_eps = c*deltaT*SafetyFactor*max(dt_part_ratio,1.0)
 #else
 halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif

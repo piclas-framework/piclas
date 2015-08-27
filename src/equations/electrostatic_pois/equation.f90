@@ -287,9 +287,16 @@ CASE(0) ! Particles
 #ifdef PARTICLES
       RegionID=0
       IF (NbrOfRegions .GT. 0) RegionID=GEO%ElemToRegion(iElem)
-      IF (RegionID .NE. 0) &
-        source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
-                 * EXP( (Phi(  1,i,j,k,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
+      IF (RegionID .NE. 0) THEN
+        source_e = Phi(  1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
+        IF (source_e .LT. 0.) THEN !--- boltzmannrelation (electrons as isothermal fluid!)
+          source_e = RegionElectronRef(1,RegionID) &
+                   * EXP( (source_e) / RegionElectronRef(3,RegionID) )
+        ELSE                       !--- boltzmannrelation with lineariz. in + (floating fix! expected phi values must be <= Ref!!!)
+          source_e = RegionElectronRef(1,RegionID) &
+                   * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
+        END IF
+      END IF
 #endif /*PARTICLES*/
       Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * source(1:3,i,j,k,iElem)
       Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + eps0inv * ( source(  4,i,j,k,iElem) - source_e ) * c_corr 
