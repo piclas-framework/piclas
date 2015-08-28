@@ -363,6 +363,10 @@ USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsInCell,epsOneCell
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo,ElemRadiusNGeo
 USE MOD_TimeDisc_Vars,           ONLY:iter
+#ifdef MPI
+USE MOD_MPI_Vars,                ONLY:offsetElemMPI
+USE MOD_Particle_MPI_Vars,       ONLY:PartHaloToProc
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -378,6 +382,9 @@ REAL,ALLOCATABLE            :: Distance(:)
 REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne
 INTEGER,ALLOCATABLE         :: ListDistance(:)
 !REAL                        :: epsOne
+#ifdef MPI
+INTEGER                     :: InElem
+#endif
 LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength)
 !===================================================================================================================================
 
@@ -562,7 +569,17 @@ DO iPart=1,PDM%ParticleVecLength
     IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.1) THEN
       IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
       IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
-      IPWRITE(UNIT_stdOut,*) ' ElemID       ', iElem+offSetElem
+#ifdef MPI
+      InElem=PEM%Element(iPart)
+      IF(InElem.LE.PP_nElems)THEN
+        IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
+      ELSE
+        IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloToProc(NATIVE_PROC_ID,InElem)) &
+                                                 + PartHaloToProc(NATIVE_ELEM_ID,InElem)
+      END IF
+#else
+      IPWRITE(UNIT_stdOut,*) ' ElemID       ', PEM%Element(iPart)+offSetElem
+#endif
       CALL abort(&
           __STAMP__, &
           'Particle Not inSide of Element, iPart',iPart)
