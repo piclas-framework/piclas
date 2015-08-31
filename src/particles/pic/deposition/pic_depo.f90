@@ -494,7 +494,7 @@ END IF
 
 SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
-  IF((DoInnerParts).AND.(LastPart.GT.firstPart)) RETURN
+  IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   ElemSource=0.0
   DO iElem=1,PP_nElems
     DO iPart=firstPart,lastPart
@@ -534,7 +534,7 @@ CASE('nearest_blurrycenter')
     END DO ! iElem=1,PP_nElems
   END IF ! .NOT. doInnerParts
 CASE('shape_function')
-  IF((DoInnerParts).AND.(LastPart.GT.firstPart)) RETURN
+  IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   Vec1(1:3) = 0.
   Vec2(1:3) = 0.
   Vec3(1:3) = 0.
@@ -904,7 +904,7 @@ CASE('shape_function')
     END DO ! iElem=1,PP_nElems
   END IF
 CASE('delta_distri')
-  IF((DoInnerParts).AND.(LastPart.GT.firstPart)) RETURN
+  IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   DO iElem=1,PP_nElems
     DO iPart=firstPart,LastPart
       IF (PDM%ParticleInside(iPart)) THEN
@@ -980,7 +980,7 @@ CASE('delta_distri')
   END IF ! DoInnerParts
 #endif /*MPI*/
 CASE('nearest_gausspoint')
-  IF((DoInnerParts).AND.(LastPart.GT.firstPart)) RETURN
+  IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   SAVE_GAUSS = .FALSE.
   IF(TRIM(InterpolationType).EQ.'nearest_gausspoint') SAVE_GAUSS = .TRUE.
   IF(MOD(PP_N,2).EQ.0) THEN
