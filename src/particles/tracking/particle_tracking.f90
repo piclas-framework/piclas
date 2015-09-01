@@ -391,7 +391,7 @@ INTEGER,ALLOCATABLE         :: ListDistance(:)
 #ifdef MPI
 INTEGER                     :: InElem
 #endif
-INTEGER                     :: SideID,BCSideID
+INTEGER                     :: SideID,BCSideID,ilocSide
 LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength)
 !===================================================================================================================================
 
@@ -583,37 +583,65 @@ DO iPart=1,PDM%ParticleVecLength
       ! check in which dimension the particle left the cell
       ! backtraze
       oldXi=ABS(PartPosRef(1:3,iPart))
-      IF( oldXI(1).GT.oldXI(2) .AND. OldXi(1) .GT. oldXI(3))THEN
-        tmplocSideID=1
-      ELSEIF( oldXI(2).GT.oldXI(1) .AND. OldXi(2) .GT. oldXI(3))THEN
-        tmplocSideID=2
-      ELSE
-        tmplocSideID=3
-      END IF
+      locSideID=-1
+      DO ilocSide=1,6
+        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,PEM%Element(iPart))
+        BCSideID=PartBCSideList(SideID)
+        IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
+          SELECT CASE(ilocSide)
+          CASE(XI_MINUS,XI_PLUS)
+            IF(ABS(PartPosRef(1,iPart)).GT.1.0) THEN
+              locSideID=ilocSide
+              EXIT
+            END IF
+          CASE(ETA_MINUS,ETA_PLUS)
+            IF(ABS(PartPosRef(2,iPart)).GT.1.0) THEN
+              locSideID=ilocSide
+              EXIT
+            END IF
+          CASE(ZETA_MINUS,ZETA_PLUS)
+            IF(ABS(PartPosRef(3,iPart)).GT.1.0) THEN
+              locSideID=ilocSide
+              EXIT
+            END IF
+          END SELECT
+        END IF ! BCSideID
+      END DO ! ilocSide
+
+      !IF( oldXI(1).GT.oldXI(2) .AND. OldXi(1) .GT. oldXI(3))THEN
+      !  tmplocSideID=1
+      !ELSEIF( oldXI(2).GT.oldXI(1) .AND. OldXi(2) .GT. oldXI(3))THEN
+      !  tmplocSideID=2
+      !ELSE
+      !  tmplocSideID=3
+      !END IF
       !tmpLocSideID=MAXLOC(oldXi)
-      SELECT CASE(tmpLocSideID)
-      CASE(1)
-        IF(PartPosRef(tmpLocSideID,iPart).GT.0)THEN
-          LocSideID=XI_PLUS
-        ELSE
-          LocSideID=XI_MINUS
-        END IF
-      CASE(2)
-        IF(PartPosRef(tmpLocSideID,iPart).GT.0)THEN
-          LocSideID=ETA_PLUS
-        ELSE
-          LocSideID=ETA_MINUS
-        END IF
-      CASE(3)
-        IF(PartPosRef(tmpLocSideID,iPart).GT.0)THEN
-          LocSideID=ZETA_PLUS
-        ELSE
-          LocSideID=ZETA_MINUS
-        END IF
-      END SELECT
-      SideID=PartElemToSide(E2S_SIDE_ID,locSideID,PEM%Element(iPart))
-      BCSideID=PartBCSideList(SideID)
-      IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
+      !SELECT CASE(tmpLocSideID)
+      !CASE(1)
+      !  IF(PartPosRef(tmpLocSideID,iPart).GT.0)THEN
+      !    LocSideID=XI_PLUS
+      !  ELSE
+      !    LocSideID=XI_MINUS
+      !  END IF
+      !CASE(2)
+      !  IF(PartPosRef(tmpLocSideID,iPart).GT.0)THEN
+      !    LocSideID=ETA_PLUS
+      !  ELSE
+      !    LocSideID=ETA_MINUS
+      !  END IF
+      !CASE(3)
+      !  IF(PartPosRef(tmpLocSideID,iPart).GT.0)THEN
+      !    LocSideID=ZETA_PLUS
+      !  ELSE
+      !    LocSideID=ZETA_MINUS
+      !  END IF
+      !END SELECT
+
+      !SideID=PartElemToSide(E2S_SIDE_ID,locSideID,PEM%Element(iPart))
+      !BCSideID=PartBCSideList(SideID)
+
+      !IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
+      IF(locSideID.GT.0)THEN
         CALL ReComputeParticleBCInteraction(LocSideID,SideID,BCSideID,iPart) 
       ELSE ! If no BC SideID
         IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
