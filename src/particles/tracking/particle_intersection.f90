@@ -34,12 +34,17 @@ INTERFACE ComputeBilinearIntersectionRobust
   MODULE PROCEDURE ComputeBilinearIntersectionRobust
 END INTERFACE
 
+INTERFACE ComputePlanarInterSectionBezierRobust2
+  MODULE PROCEDURE ComputePlanarInterSectionBezierRobust2
+END INTERFACE
+
 
 PUBLIC::ComputeBezierIntersection
 PUBLIC::ComputeBilinearIntersectionSuperSampled2
 PUBLIC::ComputeBilinearIntersectionRobust
 PUBLIC::ComputePlanarInterSectionBezier
 PUBLIC::ComputePlanarInterSectionBezierRobust
+PUBLIC::ComputePlanarInterSectionBezierRobust2
 PUBLIC::PartInElemCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1448,6 +1453,7 @@ END IF
 alphaNorm=alpha/lengthPartTrajectory
 !IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
 IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LT.-epsilontol))THEN
+!IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LE.0.))THEN
   alpha=-1.0
   RETURN
 END IF
@@ -2154,6 +2160,190 @@ ELSE
 END IF
 
 END FUNCTION ComputeXi
+
+
+SUBROUTINE ComputePlanarIntersectionBezierRobust2(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,flip,SideID)
+!===================================================================================================================================
+! Compute the Intersection with planar surface
+! equation of plane: P1*xi + P2*eta+P0
+! equation to solve intersection point with plane
+! P1*xi+P2*eta+P0-LastPartPos-alpha*PartTrajectory
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals!,                 ONLY:Cross,abort
+USE MOD_Globals_Vars,            ONLY:epsMach
+USE MOD_Mesh_Vars,               ONLY:NGeo
+USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
+USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+!USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
+!USE MOD_Equations_Vars,          ONLY:epsMach
+!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+USE MOD_Timedisc_vars,           ONLY: iter
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
+REAL,INTENT(IN)                   :: lengthPartTrajectory
+INTEGER,INTENT(IN)                :: iPart,SideID!,ElemID,locSideID
+INTEGER,INTENT(IN)                :: flip
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                  :: alpha,xi,eta
+LOGICAL,INTENT(OUT)               :: isHit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(1:3)               :: P0,P1,P2
+REAL                              :: NormVec(1:3),locDistance,Inter1(1:3), alphaNorm
+REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
+REAL,DIMENSION(2:3)               :: a1,a2
+REAL                              :: a,b,c
+REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3)
+!INTEGER                           :: flip
+!===================================================================================================================================
+
+! set alpha to minus 1, asume no intersection
+!print*,PartTrajectory
+alpha=-1.0
+xi=-2.
+eta=-2.
+isHit=.FALSE.
+
+! new with flip
+IF(flip.EQ.0)THEN
+  NormVec  =SideNormVec(1:3,SideID)
+  locDistance=SideDistance(SideID)
+ELSE
+  NormVec  =-SideNormVec(1:3,SideID)
+  locDistance=-SideDistance(SideID)
+END IF
+coeffA=DOT_PRODUCT(NormVec,PartTrajectory)
+
+!! corresponding to particle starting in plane
+!! interaction should be computed in last step
+IF(ABS(coeffA).EQ.0.)  RETURN
+
+! extension for periodic sides
+IF(.NOT.DoRefMapping)THEN
+ IF(SidePeriodicType(SideID).EQ.0)THEN
+   locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
+   alpha=locSideDistance/coeffA
+   locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+   locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+   locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+   locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+ ELSE
+   locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+   locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+   locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+   locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+   SideBasePoint=0.25*(locBezierControlPoints3D(:,0,0) &
+                      +locBezierControlPoints3D(:,0,1) & 
+                      +locBezierControlPoints3D(:,1,0) &
+                      +locBezierControlPoints3D(:,1,1) )
+   !flip   = PartElemToSide(E2S_FLIP,LocSideID,ElemID)
+   ! nothing to do for master side, Side of elem to which owns the BezierPoints
+   IF(flip.EQ.0)THEN
+     locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+     locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+     locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+     locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+   ELSE
+     locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)      -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+     locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+     locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+     locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+     ! caution, displacement is for master side computed, therefore, slave side requires negative displacement
+     SideBasePoint=SideBasePoint-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
+   END IF
+   !locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),NormVec)
+   locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
+   alpha=locSideDistance/coeffA
+ END IF ! SidePeriodicType
+ELSE
+ locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
+ alpha=locSideDistance/coeffA
+ locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
+ locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
+ locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
+ locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+END IF
+
+IF(locSideDistance.LT.0)THEN
+  ! particle is located outside of element, THEREFORE, an intersection were not detected
+  alpha=0.
+  isHit=.TRUE.
+  RETURN
+  ! do I have to compute the xi and eta value? first try: do not re-check new element!
+END IF
+
+!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'a/l',alpha/lengthPartTrajectory
+!IF(alpha.GT.lengthPartTrajectory) THEN !.OR.(alpha.LT.-epsilontol))THEN
+!IF((alpha.GT.lengthPartTrajectory+epsilontol) .OR.(alpha.LT.-epsilontol))THEN
+
+alphaNorm=alpha/lengthPartTrajectory
+!IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
+IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LT.-epsilontol))THEN
+!IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LE.0.))THEN
+  alpha=-1.0
+  RETURN
+END IF
+
+P1=0.25*(-locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)   &
+         -locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )
+
+P2=0.25*(-locBezierControlPoints3D(:,0,0)-locBezierControlPoints3D(:,1,0)   &
+         +locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )
+
+P0=0.25*( locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)    &
+         +locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) ) 
+
+! compute product with particle trajectory
+a1(2)= P1(1)*PartTrajectory(3) - P1(3)*PartTrajectory(1)
+a1(3)= P2(1)*PartTrajectory(3) - P2(3)*PartTrajectory(1)
+a1(4)=(P0(1)-LastPartPos(iPart,1))*PartTrajectory(3) &
+     -(P0(3)-LastPartPos(iPart,3))*PartTrajectory(1)
+
+a2(2)= P1(2)*PartTrajectory(3) - P1(3)*PartTrajectory(2)
+a2(3)= P2(2)*PartTrajectory(3) - P2(3)*PartTrajectory(2)
+a2(4)=(P0(2)-LastPartPos(iPart,2))*PartTrajectory(3) &
+     -(P0(3)-LastPartPos(iPart,3))*PartTrajectory(2)
+
+A = 0.
+B = a2(2)*a1(3)-a1(2)*a2(3)
+C = a1(4)*a2(2)-a1(2)*a2(4)
+
+IF(ABS(C).LT.epsilontol)THEN
+  print*,'blabla'
+  STOP
+END IF
+
+eta=-C/B
+IF(ABS(eta).GT.ClipHit)THEN
+  alpha=-1.0
+  RETURN
+END IF
+
+a=a2(2)
+b=a2(2)-a1(2)
+IF(ABS(B).GE.ABS(A))THEN
+  xi=(eta*(a1(3)-a2(3)) + a1(4)-a2(2))/b
+ELSE
+  xi=(-eta*a2(3) -a2(2))/a
+END IF
+
+IF(ABS(xi).GT.ClipHit)THEN
+  alpha=-1.0
+  RETURN
+END IF
+isHit=.TRUE.
+
+END SUBROUTINE ComputePlanarIntersectionBezierRobust2
+
 
 
 END MODULE MOD_Particle_Intersection
