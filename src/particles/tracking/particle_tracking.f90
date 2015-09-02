@@ -385,7 +385,7 @@ IMPLICIT NONE
 INTEGER                     :: iPart, ElemID,oldElemID,iElem, newElemID
 INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems,nLocSides,locSideID,tmplocSideID
 REAL,ALLOCATABLE            :: Distance(:)
-REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne
+REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne,xi,eta
 INTEGER,ALLOCATABLE         :: ListDistance(:)
 !REAL                        :: epsOne
 #ifdef MPI
@@ -589,19 +589,53 @@ DO iPart=1,PDM%ParticleVecLength
         BCSideID=PartBCSideList(SideID)
         IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
           SELECT CASE(ilocSide)
-          CASE(XI_MINUS,XI_PLUS)
-            IF(ABS(PartPosRef(1,iPart)).GT.1.0) THEN
+          CASE(XI_MINUS)
+            IF(PartPosRef(1,iPart).LT.-1.0) THEN
               locSideID=ilocSide
+              !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
+              Xi =PartPosRef(3,iPart)
+              Eta=PartPosRef(2,iPart)
+              PartPosRef(1,iPart)=-0.9999
               EXIT
             END IF
-          CASE(ETA_MINUS,ETA_PLUS)
-            IF(ABS(PartPosRef(2,iPart)).GT.1.0) THEN
+          CASE(XI_PLUS)
+            IF(PartPosRef(1,iPart).GT.1.0) THEN
               locSideID=ilocSide
+              Xi =PartPosRef(2,iPart)
+              Eta=PartPosRef(3,iPart)
+              PartPosRef(1,iPart)= 0.9999
               EXIT
             END IF
-          CASE(ZETA_MINUS,ZETA_PLUS)
-            IF(ABS(PartPosRef(3,iPart)).GT.1.0) THEN
+          CASE(ETA_MINUS)
+            IF(PartPosRef(2,iPart).LT.-1.0) THEN
               locSideID=ilocSide
+               Xi =PartPosRef(1,iPart)
+               Eta=PartPosRef(3,iPart)
+               PartPosRef(2,iPart)=-0.9999
+              EXIT
+            END IF
+          CASE(ETA_PLUS)
+            IF(PartPosRef(2,iPart).GT.1.0) THEN
+              locSideID=ilocSide
+              Xi =-PartPosRef(1,iPart)
+              Eta=PartPosRef(3 ,iPart)
+              PartPosRef(2,iPart)= 0.9999
+              EXIT
+            END IF
+          CASE(ZETA_MINUS)
+            IF(PartPosRef(3,iPart).LT.-1.0) THEN
+              locSideID=ilocSide
+              Xi =PartPosRef(2,iPart)
+              Eta=PartPosRef(1,iPart)
+              PartPosRef(3,iPart)=-0.9999
+              EXIT
+            END IF
+          CASE(ZETA_PLUS)
+            IF(PartPosRef(3,iPart).GT.1.0) THEN
+              locSideID=ilocSide
+              Xi =PartPosRef(1,iPart)
+              Eta=PartPosRef(2,iPart)
+              PartPosRef(3,iPart)= 0.9999
               EXIT
             END IF
           END SELECT
@@ -642,7 +676,7 @@ DO iPart=1,PDM%ParticleVecLength
 
       !IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
       IF(locSideID.GT.0)THEN
-        CALL ReComputeParticleBCInteraction(LocSideID,SideID,BCSideID,iPart) 
+        CALL ReComputeParticleBCInteraction(xi,eta,LocSideID,SideID,BCSideID,iPart) 
       ELSE ! If no BC SideID
         IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
         IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
@@ -904,7 +938,7 @@ PartShiftVector(1:3,PartID)=PartState(PartID,1:3)-PartShiftvector(1:3,PartID)
 END SUBROUTINE PeriodicMovement
 
 
-SUBROUTINE ReComputeParticleBCInteraction(locSideID,SideID,BCSideID,PartID) 
+SUBROUTINE ReComputeParticleBCInteraction(xi,eta,locSideID,SideID,BCSideID,PartID) 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! The particle BC intersection is ignored. therefore, the particle is mapped onto the BC at the lost position and a wrong
 ! particle BC interaction is performed. FALLBACK!!
@@ -937,12 +971,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES 
 INTEGER,INTENT(IN)                    :: locSideID,PartID
 INTEGER,INTENT(INOUT)                 :: SideID,BCSideID
+REAL,INTENT(IN)                       :: xi,eta
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: ElemID,oldElemID,newElemID
-REAL                        :: xi,eta,hit
+REAL                        :: hit
 REAL                        :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL                     :: ParticleFound
 INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems
@@ -954,35 +989,35 @@ INTEGER                     :: inElem
 #endif /*MPI*/
 !===================================================================================================================================
 
-SELECT CASE(locSideID)
-CASE(XI_MINUS)
-  !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
-  Xi =PartPosRef(3,PartID)
-  Eta=PartPosRef(2,PartID)
-  PartPosRef(1,PartID)=-0.9999
-CASE(XI_PLUS)
-  Xi =PartPosRef(2,PartID)
-  Eta=PartPosRef(3,PartID)
-  PartPosRef(1,PartID)= 0.9999
-CASE(ETA_MINUS)
-  Xi =PartPosRef(1,PartID)
-  Eta=PartPosRef(3,PartID)
-  PartPosRef(1,PartID)=-0.9999
-CASE(ETA_PLUS)
-  !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,NGeo-p,q)
-  ! hopefully correct
-  Xi =-PartPosRef(1,PartID)
-  Eta=PartPosRef(3,PartID)
-  PartPosRef(1,PartID)= 0.9999
-CASE(ZETA_MINUS)
-  Xi =PartPosRef(2,PartID)
-  Eta=PartPosRef(1,PartID)
-  PartPosRef(1,PartID)=-0.9999
-CASE(ZETA_PLUS)
-  Xi =PartPosRef(1,PartID)
-  Eta=PartPosRef(2,PartID)
-  PartPosRef(1,PartID)= 0.9999
-END SELECT
+! SELECT CASE(locSideID)
+! CASE(XI_MINUS)
+!   !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
+!   Xi =PartPosRef(3,PartID)
+!   Eta=PartPosRef(2,PartID)
+!   PartPosRef(1,PartID)=-0.9999
+! CASE(XI_PLUS)
+!   Xi =PartPosRef(2,PartID)
+!   Eta=PartPosRef(3,PartID)
+!   PartPosRef(1,PartID)= 0.9999
+! CASE(ETA_MINUS)
+!   Xi =PartPosRef(1,PartID)
+!   Eta=PartPosRef(3,PartID)
+!   PartPosRef(2,PartID)=-0.9999
+! CASE(ETA_PLUS)
+!   !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,NGeo-p,q)
+!   ! hopefully correct
+!   Xi =-PartPosRef(1,PartID)
+!   Eta=PartPosRef(3,PartID)
+!   PartPosRef(2,PartID)= 0.9999
+! CASE(ZETA_MINUS)
+!   Xi =PartPosRef(2,PartID)
+!   Eta=PartPosRef(1,PartID)
+!   PartPosRef(3,PartID)=-0.9999
+! CASE(ZETA_PLUS)
+!   Xi =PartPosRef(1,PartID)
+!   Eta=PartPosRef(2,PartID)
+!   PartPosRef(3,PartID)= 0.9999
+! END SELECT
 
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
