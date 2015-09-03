@@ -1099,9 +1099,9 @@ CASE('cartmesh_volumeweighting')
 #ifdef MPI
   ! should be treated in this way, unforunately, we would negelct the periodic stuff
   !IF(.NOT.DoInnerParts)
-  CALL MPISourceExchangeBGM(BGMSource)
+  CALL MPISourceExchangeBGM()
 #else
-  IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange(BGMSource)
+  IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange()
 #endif
 
   ! Step 2: Interpolation of densities onto grid
@@ -1194,9 +1194,9 @@ CASE('cartmesh_splines')
 
 #ifdef MPI
   !IF(.NOT.DoInnerParts)THEN has to be communicated each time :(
-  CALL MPISourceExchangeBGM(BGMSource)
+  CALL MPISourceExchangeBGM()
 #else
-  IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange(BGMSource)
+  IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange()
 #endif
 
   ! Step 2: Interpolation of densities onto grid
@@ -1238,7 +1238,7 @@ END SUBROUTINE Deposition
 
 
 #ifndef MPI
-SUBROUTINE PeriodicSourceExchange(BGMSource)    
+SUBROUTINE PeriodicSourceExchange()    
 !============================================================================================================================
 ! Exchange sources in periodic case
 !============================================================================================================================
@@ -1249,7 +1249,7 @@ USE MOD_Particle_Mesh_Vars,  ONLY: GEO
 IMPLICIT NONE                                                                                  
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT)         :: BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4)
+!REAL,INTENT(INOUT)         :: BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1279,7 +1279,7 @@ END DO
 
 END SUBROUTINE PeriodicSourceExchange
 #else /*MPI*/
-SUBROUTINE MPISourceExchangeBGM(BGMSource)            
+SUBROUTINE MPISourceExchangeBGM()            
 !=================================================================================================================================
 ! Exchange sources in periodic case for MPI
 !==================================================================================================================================
@@ -1292,7 +1292,7 @@ USE MOD_Globals
 IMPLICIT NONE                                                                                  
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT)        :: BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4)
+!REAL,INTENT(INOUT)        :: BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

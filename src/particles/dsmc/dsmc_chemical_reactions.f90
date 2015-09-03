@@ -51,6 +51,7 @@ SUBROUTINE ElecImpactIoni(iReac, iPair)
 ! Perfoms the electron impact ionization
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
@@ -217,6 +218,7 @@ SUBROUTINE ElecImpactIoniQK(iReac, iPair)
 ! Perfoms the electron impact ionization
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
@@ -1173,6 +1175,7 @@ SUBROUTINE IonRecomb(iReac, iPair, iPart_p3)
 ! performe three-body ion-recombination to neutral or less charged ion
 ! ion recombination routine           A+ + e + X -> A + X
 !===================================================================================================================================
+USE MOD_Globals
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, CollisMode, PartStateIntEn
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec

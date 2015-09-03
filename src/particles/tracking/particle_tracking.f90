@@ -475,7 +475,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
       END IF ! initial check
       !IF(iPart.EQ.1) print*,'pos,elem',PartPosRef(:,ipart),ElemID
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
-      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.epsOneCell) THEN ! particle inside
+      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.1.0) THEN ! particle inside
         PEM%Element(iPart)  = ElemID
         ParticleFound(iPart)=.TRUE.
       !ELSE IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.5) THEN
@@ -551,7 +551,7 @@ DO iPart=1,PDM%ParticleVecLength
     ElemID=ListDistance(iBGMElem)
     CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
     !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
-    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.epsOneCell) THEN ! particle inside
+    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.1.0) THEN ! particle inside
       PEM%Element(iPart) = ElemID
       ParticleFound(iPart)=.TRUE.
       EXIT
@@ -743,11 +743,15 @@ DO iPart=1,PDM%ParticleVecLength
             END IF ! BCSideID
           END DO ! ilocSide
           IF(locSideID2.GT.0) THEN
-            CALL ReComputeParticleBCInteraction(xi,eta,LocSideID,SideID,BCSideID,iPart)
-            RETURN
+            CALL ReComputeParticleBCInteraction(xi,eta,LocSideID2,SideID,BCSideID,iPart)
+            ParticleFound(iPart)=.TRUE.
+            DEALLOCATE( Distance)
+            DEALLOCATE( ListDistance)
+            CYCLE
           END IF
         END IF
         IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
+        IPWRITE(UNIT_stdOut,*) ' epsOneCell   ', epsOneCell
         IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
 #ifdef MPI
         InElem=PEM%Element(iPart)

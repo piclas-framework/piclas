@@ -323,7 +323,7 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
       DO iSpec = 1, nSpecies
         ! electrons do not have an electron hull
         IF(SpecDSMC(iSpec)%InterID.EQ.4) CYCLE
-        IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))) &
+        IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%Init)) &
           ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
         WRITE(UNIT=hilf,FMT='(I2)') iSpec
         DO iInit = 0, Species(iSpec)%NumberOfInits
