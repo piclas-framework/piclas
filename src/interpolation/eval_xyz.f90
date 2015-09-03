@@ -76,6 +76,7 @@ REAL,INTENT(OUT)    :: U_Out(1:NVar)  ! Interpolated state
 ! LOCAL VARIABLES 
 INTEGER             :: i,j,k
 REAL                :: xi(3)
+REAL                :: deltaXi(1:3),deltaXi2
 INTEGER             :: NewTonIter
 !REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 !REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
@@ -146,9 +147,11 @@ DO k=0,NGeo
 END DO !j=0,NGeo
 
 NewtonIter=0
-abortCrit=ElemRadiusNGeo(iElem)*epsMapping
+!abortCrit=ElemRadiusNGeo(iElem)*ElemRadiusNGeo(iElem)*epsMapping
+deltaXi2=HUGE(1.0)
 !DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.50))
-DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
+DO WHILE((deltaXi2.GT.epsMapping).AND.(NewtonIter.LT.100))
+!DO WHILE ((DOT_PRODUCT(F,F).GT.abortCrit).AND.(NewtonIter.LT.100))
   NewtonIter=NewtonIter+1
 
   ! caution, dXCL_NGeo is transposed of required matrix
@@ -178,7 +181,11 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
 
   ! Iterate Xi using Newton step
   ! Use FAIL
-  Xi = Xi - MATMUL(sJac,F)
+  !Xi = Xi - MATMUL(sJac,F)
+  deltaXi=MATMUL(sJac,F)
+  Xi = Xi - deltaXI!MATMUL(sJac,F)
+  deltaXi2=DOT_PRODUCT(deltaXi,deltaXi)
+
 
   IF(ANY(ABS(Xi).GT.1.8)) THEN
   !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
@@ -349,6 +356,7 @@ REAL,INTENT(INOUT)          :: xi(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                    :: i,j,k
+REAL                       :: deltaXi(1:3),deltaXi2
 REAL                       :: epsOne
 INTEGER                    :: NewTonIter
 REAL                       :: Winner_Dist,Dist
@@ -416,9 +424,13 @@ DO k=0,NGeo
 END DO !j=0,NGeo
 
 NewtonIter=0
-abortCrit=ElemRadiusNGeo(iElem)*epsMapping
+!abortCrit=ElemRadiusNGeo(iElem)*ElemRadiusNGeo(iElem)*epsMapping
+!abortCrit=ElemRadiusNGeo(iElem)*ElemRadiusNGeo(iElem)*epsMapping
+deltaXi2=HUGE(1.0)
+!abortCrit=DOT_PRODUCT(F,F)*epsMapping
 !DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.50))
-DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
+!@DO WHILE ((DOT_PRODUCT(F,F).GT.abortCrit).AND.(NewtonIter.LT.100))
+DO WHILE((deltaXi2.GT.epsMapping).AND.(NewtonIter.LT.100))
   NewtonIter=NewtonIter+1
   ! 
   ! caution, dXCL_NGeo is transposed of required matrix
@@ -455,7 +467,10 @@ DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.100))
   
   ! Iterate Xi using Newton step
   ! Use FAIL
-  Xi = Xi - MATMUL(sJac,F)
+  deltaXi=MATMUL(sJac,F)
+  Xi = Xi - deltaXI!MATMUL(sJac,F)
+  deltaXi2=DOT_PRODUCT(deltaXi,deltaXi)
+
   !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
   IF(ANY(ABS(Xi).GT.1.8))THEN
 !    IF(PRESENT(PartID)) THEN

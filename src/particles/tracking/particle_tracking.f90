@@ -682,7 +682,7 @@ DO iPart=1,PDM%ParticleVecLength
       ELSE ! If no BC SideID
         IF(OldElemID.NE.PEM%Element(iPart))THEN
           ! backtraze
-          oldXi=ABS(PartPosRef(1:3,iPart))
+          !oldXi=ABS(PartPosRef(1:3,iPart))
           locSideID2=-1
           DO ilocSide=1,6
             SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,oldElemID)
@@ -751,7 +751,9 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
         END IF
         IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
-        IPWRITE(UNIT_stdOut,*) ' epsOneCell   ', epsOneCell
+        IPWRITE(UNIT_stdOut,*) ' epsOneCell  ', epsOneCell
+        IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldXi
+        IPWRITE(UNIT_stdOut,*) ' newxi       ', newXi
         IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
 #ifdef MPI
         InElem=PEM%Element(iPart)
