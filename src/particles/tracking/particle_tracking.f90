@@ -580,7 +580,7 @@ DO iPart=1,PDM%ParticleVecLength
       oldElemID=NewElemID
     END IF
 
-    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.1) THEN
+    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell) THEN
       ! check in which dimension the particle left the cell
       ! backtraze
       oldXi=ABS(PartPosRef(1:3,iPart))
