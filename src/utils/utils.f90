@@ -57,7 +57,8 @@ DO i=2,len
   j=i-1  
   tmpR=a(i)
   tmpI=ID(i)
-  DO WHILE (j.GE.1 .AND. a(j).GT.tmpR)
+  DO WHILE (j.GE.1) !(j.GE.1 .AND. a(j).GT.tmpR)
+    IF (a(j).LE.tmpR) EXIT
     a (j+1) = a(j)
     ID(j+1) = ID(j)
     j=j-1
