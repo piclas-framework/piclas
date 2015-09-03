@@ -383,7 +383,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: iPart, ElemID,oldElemID,iElem, newElemID
-INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems,nLocSides,locSideID,tmplocSideID
+INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems,nLocSides,locSideID,locSideID2,tmplocSideID
 REAL,ALLOCATABLE            :: Distance(:)
 REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne,xi,eta
 INTEGER,ALLOCATABLE         :: ListDistance(:)
@@ -577,6 +577,7 @@ DO iPart=1,PDM%ParticleVecLength
     ELSE
       PartPosRef(1:3,iPart)=NewXi
       PEM%Element(iPart)=NewElemID
+      oldElemID=NewElemID
     END IF
 
     IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.1) THEN
@@ -586,6 +587,7 @@ DO iPart=1,PDM%ParticleVecLength
       locSideID=-1
       DO ilocSide=1,6
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,PEM%Element(iPart))
+        IF (SideID.EQ.-1) CYCLE
         BCSideID=PartBCSideList(SideID)
         IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
           SELECT CASE(ilocSide)
@@ -678,6 +680,73 @@ DO iPart=1,PDM%ParticleVecLength
       IF(locSideID.GT.0)THEN
         CALL ReComputeParticleBCInteraction(xi,eta,LocSideID,SideID,BCSideID,iPart) 
       ELSE ! If no BC SideID
+        IF(OldElemID.NE.PEM%Element(iPart))THEN
+          ! backtraze
+          oldXi=ABS(PartPosRef(1:3,iPart))
+          locSideID2=-1
+          DO ilocSide=1,6
+            SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,oldElemID)
+            IF (SideID.EQ.-1) CYCLE
+            BCSideID=PartBCSideList(SideID)
+            IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
+              SELECT CASE(ilocSide)
+              CASE(XI_MINUS)
+                IF(PartPosRef(1,iPart).LT.-1.0) THEN
+                  locSideID2=ilocSide
+                  !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
+                  Xi =PartPosRef(3,iPart)
+                  Eta=PartPosRef(2,iPart)
+                  PartPosRef(1,iPart)=-0.9999
+                  EXIT
+                END IF
+              CASE(XI_PLUS)
+                IF(PartPosRef(1,iPart).GT.1.0) THEN
+                  locSideID2=ilocSide
+                  Xi =PartPosRef(2,iPart)
+                  Eta=PartPosRef(3,iPart)
+                  PartPosRef(1,iPart)= 0.9999
+                  EXIT
+                END IF
+              CASE(ETA_MINUS)
+                IF(PartPosRef(2,iPart).LT.-1.0) THEN
+                  locSideID2=ilocSide
+                  Xi =PartPosRef(1,iPart)
+                  Eta=PartPosRef(3,iPart)
+                  PartPosRef(2,iPart)=-0.9999
+                  EXIT
+                END IF
+              CASE(ETA_PLUS)
+                IF(PartPosRef(2,iPart).GT.1.0) THEN
+                  locSideID2=ilocSide
+                  Xi =-PartPosRef(1,iPart)
+                  Eta=PartPosRef(3 ,iPart)
+                  PartPosRef(2,iPart)= 0.9999
+                  EXIT
+                END IF
+              CASE(ZETA_MINUS)
+                IF(PartPosRef(3,iPart).LT.-1.0) THEN
+                  locSideID2=ilocSide
+                  Xi =PartPosRef(2,iPart)
+                  Eta=PartPosRef(1,iPart)
+                  PartPosRef(3,iPart)=-0.9999
+                  EXIT
+                END IF
+              CASE(ZETA_PLUS)
+                IF(PartPosRef(3,iPart).GT.1.0) THEN
+                  locSideID2=ilocSide
+                  Xi =PartPosRef(1,iPart)
+                  Eta=PartPosRef(2,iPart)
+                  PartPosRef(3,iPart)= 0.9999
+                  EXIT
+                END IF
+              END SELECT
+            END IF ! BCSideID
+          END DO ! ilocSide
+          IF(locSideID2.GT.0) THEN
+            CALL ReComputeParticleBCInteraction(xi,eta,LocSideID,SideID,BCSideID,iPart)
+            RETURN
+          END IF
+        END IF
         IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
         IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
 #ifdef MPI

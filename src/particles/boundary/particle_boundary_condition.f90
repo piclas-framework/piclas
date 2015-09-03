@@ -387,7 +387,7 @@ REAL                                 :: absPt_temp
 REAL                                 :: oneMinus!=0.99999999
 !===================================================================================================================================
 
-OneMinus=1.0-epsInCell
+OneMinus=1.0-MAX(epsInCell,epsilontol)
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
@@ -418,7 +418,7 @@ LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha*on
 ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
 !v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
 !v_aux                  = -2*((1-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
-v_aux                  = -2*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
+v_aux                  = -2*((LengthPartTrajectory-alpha+MAX(epsInCell,epsilontol))*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
 !PartState(PartID,1:3)   = PartState(PartID,1:3)+PartTrajectory(1:3)+v_aux
 PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
 ! new velocity vector 

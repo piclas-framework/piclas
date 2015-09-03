@@ -216,7 +216,7 @@ USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
-USE MOD_Utils,                  ONLY:BubbleSortID
+USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_PICDepo_Vars,           ONLY:DepositionType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
@@ -281,7 +281,8 @@ DO iBGMElem = 1, nBGMElems
 END DO ! nBGMElems
 
 !print*,'earlier',Distance,ListDistance
-CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+!CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+CALL InsertionSort(Distance,ListDistance,nBGMElems)
 !print*,'after',Distance,ListDistance
 
 ! loop through sorted list and start by closest element  
@@ -347,7 +348,7 @@ USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,LastPartPos
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,BezierControlPoints3D,SideType
-USE MOD_Utils,                  ONLY:BubbleSortID
+USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarInterSectionBezier,ComputeBilinearIntersectionSuperSampled2
 USE MOD_Particle_Intersection,  ONLY:ComputeBezierIntersection
 ! IMPLICIT VARIABLE HANDLING
@@ -410,8 +411,8 @@ DO iBGMElem = 1, nBGMElems
   ListDistance(iBGMElem)=ElemID
 END DO ! nBGMElems
 
-CALL BubbleSortID(Distance,ListDistance,nBGMElems)
-
+!CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+CALL InsertionSort(Distance,ListDistance,nBGMElems)
 ! loop through sorted list and start by closest element  
 tmpPos=PartState(iPart,1:3)
 tmpLastPartPos(1:3)=LastPartPos(iPart,1:3)
@@ -1822,7 +1823,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
-USE MOD_Utils,                  ONLY:BubbleSortID
+USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_PICDepo_Vars,           ONLY:DepositionType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
@@ -1887,7 +1888,8 @@ DO iBGMElem = 1, nBGMElems
 END DO ! nBGMElems
 
 !print*,'earlier',Distance,ListDistance
-CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+!CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+CALL InsertionSort(Distance,ListDistance,nBGMElems)
 !print*,'after',Distance,ListDistance
 
 ! loop through sorted list and start by closest element  

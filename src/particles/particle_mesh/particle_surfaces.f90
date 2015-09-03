@@ -1393,6 +1393,7 @@ nTotalBCElems=0
 DO iElem=1,nTotalElems
   DO ilocSide=1,6
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF (SideID.EQ.-1) CYCLE
     IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
       IF(.NOT.isBCElem(iElem))THEN
         IsBCElem(iElem)=.TRUE.
