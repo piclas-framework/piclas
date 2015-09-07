@@ -1454,7 +1454,8 @@ END IF
 alphaNorm=alpha/lengthPartTrajectory
 !IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
 !IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LT.-epsilontol))THEN
-IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LE.0.))THEN
+!IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LE.0.))THEN
+IF((alphaNorm.GE.1.0) .OR.(alphaNorm.LT.0.))THEN
   alpha=-1.0
   RETURN
 END IF
@@ -1778,6 +1779,7 @@ USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,epsilonOne,hitepsbi,cliphit
 USE MOD_Particle_Vars,ONLY:PartState
+USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList,nTotalBCSides
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier
 !USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
@@ -1800,7 +1802,7 @@ REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C,alphaNorm
 REAL                              :: xi(2),eta(2),t(2), normVec(3)
-INTEGER                           :: nInter,nRoot
+INTEGER                           :: nInter,nRoot,BCSideID
 !===================================================================================================================================
 
 ! set alpha to minus one // no interesction
@@ -1854,29 +1856,39 @@ IF (nRoot.EQ.1) THEN
 !  END IF
   xi(1)=ComputeXi(a1,a2,eta(1))
   t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-  IF(flip.EQ.0)THEN
-    normVec=CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
-  ELSE
-    normVec=-CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
-  END IF
-  !xInter=LastpartPos(iPart,1:3)+t(1)*PartTrajactory
-  ! check if lastpartpos is inside of the element
-  ! don't know, if anymore necessary 
-  IF((DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0).AND.(2*ABS(t(1)).LT.epsilontol))THEN
-    ! or not null??
-    alpha=0.
-    isHit=.TRUE.
-    RETURN
-  END IF
+
+  !IF(ALLOCATED(PartBCSideList))THEN
+  !  BCSideID=PartBCSideList(SideID)
+  !  normVec=CalcBiLinearNormVecBezier(xi(1),eta(1),BCSideID)
+  !ELSE
+  !  normVec=CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
+  !END IF
+  !IF((DOT_PRODUCT(normVec,PartTrajectory)).LT.epsilontol) t(1)=-1.0
+
+
+  !IF(flip.EQ.0)THEN
+  !  normVec=CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
+  !ELSE
+  !  normVec=-CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
+  !END IF
+  !!xInter=LastpartPos(iPart,1:3)+t(1)*PartTrajactory
+  !! check if lastpartpos is inside of the element
+  !! don't know, if anymore necessary 
+  !IF((DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0).AND.(2*ABS(t(1)).LT.epsilontol))THEN
+  !  ! or not null??
+  !  alpha=0.
+  !  isHit=.TRUE.
+  !  RETURN
+  !END IF
   !IF(ABS(eta(1)).LT.epsilonOne)THEN
   IF(ABS(eta(1)).LT.ClipHit)THEN
   !IF(ABS(eta(1)).LT.hitepsbi)THEN
     ! as paper ramsay
-    xi(1)=ComputeXi(a1,a2,eta(1))
+   ! xi(1)=ComputeXi(a1,a2,eta(1))
     IF(ABS(xi(1)).LT.ClipHit)THEN
       alphaNorm=t(1)/lengthPartTrajectory
-!      IF((alphaNorm.LT.epsilonOne) .OR.(alpha.GT.-epsilontol))THEN
-      IF((alphaNorm.LT.epsilonOne) .OR.(alphaNorm.GT.0.))THEN
+      !IF((alphaNorm.LT.epsilonOne) .OR.(alphaNorm.GT.-epsilontol))THEN
+      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
       !IF((t(1).GE.-epsilontol).AND.(t(1).LE.lengthPartTrajectory))THEN
         alpha=t(1)!/LengthPartTrajectory
         xitild=xi(1)
@@ -1909,52 +1921,64 @@ ELSE
   !IF(ABS(eta(1)).LT.epsilonOne)THEN
   xi(1)=ComputeXi(a1,a2,eta(1))
   t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-  IF(flip.EQ.0)THEN
-    normVec=CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
-  ELSE
-    normVec=-CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
-  END IF
+  !IF(flip.EQ.0)THEN
+  !IF(ALLOCATED(PartBCSideList))THEN
+  !  BCSideID=PartBCSideList(SideID)
+  !  normVec=CalcBiLinearNormVecBezier(xi(1),eta(1),BCSideID)
+  !ELSE
+  !  normVec=CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
+  !END IF
+  !IF((DOT_PRODUCT(normVec,PartTrajectory)).LT.epsilontol) t(1)=-1.0
+  !ELSE
+  !  normVec=-CalcBiLinearNormVecBezier(xi(1),eta(1),SideID)
+  !END IF
   !xInter=LastpartPos(iPart,1:3)+t(1)*PartTrajactory
   ! check if lastpartpos is inside of the element
   !IF(DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0)THEN
-  IF((DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0).AND.(2*ABS(t(1)).LT.epsilontol))THEN
-    ! or not null??
-    alpha=0.
-    isHit=.TRUE.
-    RETURN
-  END IF
+  !IF((DOT_PRODUCT(t(1)*PartTrajectory,NormVec).LT.0).AND.(2*ABS(t(1)).LT.epsilontol))THEN
+  !  ! or not null??
+  !  alpha=0.
+  !  isHit=.TRUE.
+  !  RETURN
+  !END IF
 
   IF(ABS(eta(1)).LT.ClipHit)THEN
     ! as paper ramsay
     IF(ABS(xi(1)).LT.Cliphit)THEN
       alphaNorm=t(1)/lengthPartTrajectory
-      !IF((alphaNorm.GT.epsilonOne) .OR.(alpha.LT.-epsilontol))THEN
-      IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LE.0.))THEN
-      !IF((t(1).LT.-epsilontol).OR.(t(1).GT.lengthPartTrajectory))THEN
-        t(1)=-1.0
-      ELSE
+      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
         nInter=nInter+1
-        t(1)=t(1)!/lengthPartTrajectory
+        t(1)=t(1)
+      ELSE
+        t(1)=-1.0
       END IF
     END IF
   END IF ! eta(1)
 
   xi(2)=ComputeXi(a1,a2,eta(2))
   t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
-  IF(flip.EQ.0)THEN
-    normVec=CalcBiLinearNormVecBezier(xi(2),eta(2),SideID)
-  ELSE
-    normVec=-CalcBiLinearNormVecBezier(xi(2),eta(2),SideID)
-  END IF
+  !IF(flip.EQ.0)THEN
+  !  normVec=CalcBiLinearNormVecBezier(xi(2),eta(2),SideID)
+  !ELSE
+  !  normVec=-CalcBiLinearNormVecBezier(xi(2),eta(2),SideID)
+  !END IF
   !xInter=LastpartPos(iPart,1:3)+t(1)*PartTrajactory
   ! check if lastpartpos is inside of the element
   !IF(DOT_PRODUCT(t(2)*PartTrajectory,NormVec).LT.0)THEN
-  IF((DOT_PRODUCT(t(2)*PartTrajectory,NormVec).LT.0).AND.(2*ABS(t(2)).LT.epsilontol))THEN
-    ! or not null??
-    alpha=0.
-    isHit=.TRUE.
-    RETURN
-  END IF
+  !IF((DOT_PRODUCT(t(2)*PartTrajectory,NormVec).LT.0).AND.(2*ABS(t(2)).LT.epsilontol))THEN
+  !  ! or not null??
+  !  alpha=0.
+  !  isHit=.TRUE.
+  !  RETURN
+  !END IF
+  !IF(ALLOCATED(PartBCSideList))THEN
+  !  BCSideID=PartBCSideList(SideID)
+  !  normVec=CalcBiLinearNormVecBezier(xi(2),eta(2),BCSideID)
+  !ELSE
+  !  normVec=CalcBiLinearNormVecBezier(xi(2),eta(2),SideID)
+  !END IF
+  !IF((DOT_PRODUCT(normVec,PartTrajectory)).LT.epsilontol) t(2)=-1.0
+
 
  !IF(ABS(eta(2)).LT.epsilonOne)THEN
  IF(ABS(eta(2)).LT.ClipHit)THEN
@@ -1962,20 +1986,20 @@ ELSE
     IF(ABS(xi(2)).LT.ClipHit)THEN
       alphaNorm=t(2)/lengthPartTrajectory
       !IF((alphaNorm.GT.epsilonOne) .OR.(alpha.LT.-epsilontol))THEN
-      IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LE.0.))THEN
-      !IF((t(2).LT.-epsilontol).OR.(t(2).GT.lengthPartTrajectory))THEN
-        !print*,'here'
-        t(2)=-1.0
-      ELSE
-        !print*,'why'
+      !IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LT.-epsilontol))THEN
+      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
         t(2)=t(2)!/lengthPartTrajectory
         nInter=nInter+1
+      ELSE
+        t(2)=-1.0
       END IF
     END IF
   END IF
   IF(nInter.EQ.0) RETURN
   isHit=.TRUE.
-  IF(SideID.LE.nBCSides)THEN
+  IF(ALLOCATED(PartBCSideList))THEN
+    !BCSideID=PartBCSideList(SideID)
+    !IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
     IF(ABS(t(1)).LT.ABS(t(2)))THEN
       alpha=t(1)
       xitild=xi(1)
@@ -1985,19 +2009,31 @@ ELSE
       xitild=xi(2)
       etatild=eta(2)
     END IF
-  ELSE ! no BC Side
-    ! if two intersections, return, particle re-enters element
-    IF(nInter.EQ.2) RETURN
-    IF(ABS(t(1)).LT.ABS(t(2)))THEN
-      alpha=t(1)
-      xitild=xi(1)
-      etatild=eta(1)
-    ELSE
-      alpha=t(2)
-      xitild=xi(2)
-      etatild=eta(2)
-    END IF
-  END IF ! SideID.LT.nCBSides
+  ELSE
+    IF(SideID.LE.nBCSides)THEN
+      IF(ABS(t(1)).LT.ABS(t(2)))THEN
+        alpha=t(1)
+        xitild=xi(1)
+        etatild=eta(1)
+      ELSE
+        alpha=t(2)
+        xitild=xi(2)
+        etatild=eta(2)
+      END IF
+    ELSE ! no BC Side
+      ! if two intersections, return, particle re-enters element
+      IF(nInter.EQ.2) RETURN
+      IF(ABS(t(1)).LT.ABS(t(2)))THEN
+        alpha=t(1)
+        xitild=xi(1)
+        etatild=eta(1)
+      ELSE
+        alpha=t(2)
+        xitild=xi(2)
+        etatild=eta(2)
+      END IF
+    END IF ! SideID.LT.nCBSides
+  END IF
  !print*,'xi,eta,t',xitild,etatild,t(2)
 END IF ! nRoot
 

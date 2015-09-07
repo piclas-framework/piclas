@@ -356,6 +356,7 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
@@ -384,10 +385,12 @@ REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3)
 REAL                                 :: absPt_temp
 #endif
 !REAL,PARAMETER                       :: oneMinus=0.99999999
-REAL                                 :: oneMinus!=0.99999999
+!REAL                                 :: oneMinus!=0.99999999
+REAL                                  :: epsLength
 !===================================================================================================================================
 
-OneMinus=1.0-MAX(epsInCell,epsilontol)
+!OneMinus=1.0-MAX(epsInCell,epsilontol)
+epsLength=MAX(epsInCell,epsilontol)*lengthPartTrajectory
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
@@ -413,17 +416,21 @@ END IF
 ! substract tolerance from length
 !LengthPartTrajectory=LengthPartTrajectory!-epsilontol
 ! intersection point with surface
-LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha*oneMinus
+IF(ALMOSTZERO(alpha))THEN
+  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha)
+ELSE
+  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha-epsLength)
+END IF
 
 ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
 !v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
 !v_aux                  = -2*((1-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
-v_aux                  = -2*((LengthPartTrajectory-alpha+MAX(epsInCell,epsilontol))*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
+v_aux                  = -2*((LengthPartTrajectory-alpha+epsLength)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
 !PartState(PartID,1:3)   = PartState(PartID,1:3)+PartTrajectory(1:3)+v_aux
 PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
 ! new velocity vector 
 !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
-v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
+v_2=(LengthPartTrajectory-alpha+epsLength)*PartTrajectory(1:3)+v_aux
 PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
                          (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2                         +&
                          PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
@@ -433,7 +440,10 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 PartTrajectory=PartTrajectory/lengthPartTrajectory
-lengthPartTrajectory=lengthPartTrajectory+epsilontol
+lengthPartTrajectory=lengthPartTrajectory!+epsilontol
+
+
+
 
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
   ! correction for Runge-Kutta (correct position!!)
@@ -456,7 +466,7 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals,                ONLY:CROSS
+USE MOD_Globals,                ONLY:CROSS,abort
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormAndTang,CalcNormAndTangBezier
@@ -536,6 +546,9 @@ ELSE
   !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
   END SELECT 
 END IF
+
+!IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)   CALL abort(__STAMP__,&
+!  ' parttrajectory inverse to n_loc')
 
 ! substract tolerance from length
 !LengthPartTrajectory=LengthPartTrajectory!-epsilontol

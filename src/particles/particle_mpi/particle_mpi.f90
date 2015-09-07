@@ -761,7 +761,7 @@ IF(DoExternalParts) THEN
   NbrOfExtParticles =SUM(PartMPIExchange%nPartsSend(1,:))+SUM(PartMPIExchange%nPartsRecv(2,:))
   ALLOCATE(ExtPartState  (1:NbrOfExtParticles,1:6) &
           ,ExtPartSpecies(1:NbrOfExtParticles)     &
-          ,ExtPartToFIBGM(1:6,1:NbrOfExtParticles) &
+          !,ExtPartToFIBGM(1:6,1:NbrOfExtParticles) &
           ,STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
   ,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank)
