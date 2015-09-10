@@ -75,10 +75,10 @@ DO iElem=1,PP_nElems
 !   TimeStepConv=MIN(TimeStepConv,CFLScale*2./(Max_Lambda1))
 ! --------------------------------------------
 ! VERSION 2: quadratic superposition
-  TimeStepConv=MIN(TimeStepConv,CFLScale*2./SQRT(Max_Lambda1**2+Max_Lambda2**2+Max_Lambda3**2))
+!  TimeStepConv=MIN(TimeStepConv,CFLScale*2./SQRT(Max_Lambda1**2+Max_Lambda2**2+Max_Lambda3**2))
 ! --------------------------------------------
 ! VERSION 1: linear superposition 
-!  TimeStepConv=MIN(TimeStepConv,CFLScale*2./(Max_Lambda1+Max_Lambda2+Max_Lambda3))
+  TimeStepConv=MIN(TimeStepConv,CFLScale*2./(Max_Lambda1+Max_Lambda2+Max_Lambda3))
 ! --------------------------------------------
   IF(TimeStepConv.NE.TimeStepConv)THEN
     ERRWRITE(*,'(A,I0,A,I0,A,I0,A,I0)')'Convective timestep NaN on proc ',myRank,' at global position (iElem): ',iElem

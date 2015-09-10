@@ -73,12 +73,13 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...' 
 
 ! Read correction velocity
+scr            = 1./ GETREAL('c_r','0.18')  !constant for damping
 c_corr             = GETREAL('c_corr','1.')
 c                  = GETREAL('c0','1.')
 eps0               = GETREAL('eps','1.')
 mu0                = GETREAL('mu','1.')
 smu0               = 1./mu0
-fDamping           = GETREAL('fDamping','0.99')
+!fDamping           = GETREAL('fDamping','0.99')
 DipoleOmega        = GETREAL('omega','6.28318E08') ! f=100 MHz default
 tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
 c_test = 1./SQRT(eps0*mu0)
@@ -170,7 +171,6 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz              ! aux. Variab
 REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
 REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
 REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
-!REAL                            :: ea(3)
 INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 !===================================================================================================================================
 Cent=x
@@ -319,31 +319,44 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
   resu(7)= 0.0
   resu(8)= 0.0
 
-CASE(6)
-  resu   = 0.
-  resu(1)= x(1) 
+CASE(7) ! Manufactured Solution
+  resu(:)=0
+  resu(1)=SIN(2*pi*(x(1)-t))
+  resu_t(:)=0
+  resu_t(1)=-2*pi*COS(2*pi*(x(1)-t))
+  resu_tt(:)=0
+  resu_tt(1)=-4*pi*pi*resu(1)
 
-!CASE(10) ! Sin-wave convergenz test
-!  ! k=4, x=4
-!  !lambda=SQRT(48.)
-!  !omega = lambda/(2.0*PI*c)
-!  !omega = 1e-9
-!  !omega = PI*c*SQRT(3.0)
-!  omega = PI*c*SQRT(1.0)
-!  ea =(/0.0,1.,0./)
-!
-!  ! E-Field
-!  resu(1)= COS(omega*t- PI*(DOT_PRODUCT(ea,x))) !+x(2)+x(3)) )
-!  resu(2)= 0.
-!  resu(3)= 0.
-!  ! B-Feild
-!  resu(4:6)=c_inv*CROSS(resu(1:3),ea)
-!  !resu(4)= 0.
-!  !resu(5)=-c_inv*SIN(omega*t-PI*(x(1))) !+x(2)+x(3)) )
-!  !resu(6)= c_inv*SIN(omega*t-PI*(x(1))) !+x(2)+x(3)) )
-!  ! div-correction
-!  resu(7)=0.
-!  resu(8)=0.
+CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), domain [0;1]^3!!!
+  resu(:)=0.
+  resu(1)=x(1)*SIN(Pi*x(2))*SIN(Pi*x(3)) !*SIN(t)
+  resu(2)=x(2)*SIN(Pi*x(3))*SIN(Pi*x(1)) !*SIN(t)
+  resu(3)=x(3)*SIN(Pi*x(1))*SIN(Pi*x(2)) !*SIN(t)
+  resu(4)=pi*SIN(Pi*x(1))*(x(3)*COS(Pi*x(2))-x(2)*COS(Pi*x(3))) !*(COS(t)-1)
+  resu(5)=pi*SIN(Pi*x(2))*(x(1)*COS(Pi*x(3))-x(3)*COS(Pi*x(1))) !*(COS(t)-1)
+  resu(6)=pi*SIN(Pi*x(3))*(x(2)*COS(Pi*x(1))-x(1)*COS(Pi*x(2))) !*(COS(t)-1)
+
+  resu_t(:)=0.
+  resu_t(1)= COS(t)*resu(1)
+  resu_t(2)= COS(t)*resu(2)
+  resu_t(3)= COS(t)*resu(3)
+  resu_t(4)=-SIN(t)*resu(4)
+  resu_t(5)=-SIN(t)*resu(5)
+  resu_t(6)=-SIN(t)*resu(6)
+  resu_tt=0.
+  resu_tt(1)=-SIN(t)*resu(1)
+  resu_tt(2)=-SIN(t)*resu(2)
+  resu_tt(3)=-SIN(t)*resu(3)
+  resu_tt(4)=-COS(t)*resu(4)
+  resu_tt(5)=-COS(t)*resu(5)
+  resu_tt(6)=-COS(t)*resu(6)
+
+  resu(1)=     SIN(t)*resu(1)
+  resu(2)=     SIN(t)*resu(2)
+  resu(3)=     SIN(t)*resu(3)
+  resu(4)=(COS(t)-1.)*resu(4)
+  resu(5)=(COS(t)-1.)*resu(5)
+  resu(6)=(COS(t)-1.)*resu(6)
 
 CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   eps=1e-10
@@ -433,9 +446,10 @@ SUBROUTINE CalcSource(t)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,       ONLY : abort
+USE MOD_Globals_Vars,  ONLY : PI
 USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY : Ut
-USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega, tPulse
+USE MOD_DG_Vars,       ONLY : Ut,U
+USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega, tPulse,scr
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,  ONLY : Source
 #endif /*PARTICLES*/
@@ -451,7 +465,7 @@ REAL,INTENT(IN)                 :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem
-REAL                            :: eps0inv
+REAL                            :: eps0inv, x(1:3)
 REAL                            :: r                                                 ! for Dipole
 REAL,PARAMETER                  :: xDipole(1:3)=(/0,0,0/), Q=1, d=1    ! for Dipole
 !===================================================================================================================================
@@ -483,26 +497,46 @@ CASE(4) ! Dipole
     END DO; END DO; END DO
   END DO
 CASE(5) ! TE_34,19 Mode     - no sources
-CASE(10) ! Sin-Test Source term
+CASE(7) ! Manufactured Solution
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - 2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
+      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + 2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
+    END DO; END DO; END DO
+  END DO
+CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), domain [0;1]^3!!!
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N  
+      x(:)=Elem_xGP(:,i,j,k,iElem)
+      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) + (COS(t)- (COS(t)-1.)*2*pi*pi)*x(1)*SIN(Pi*x(2))*SIN(Pi*x(3))
+      Ut(2,i,j,k,iElem) =Ut(2,i,j,k,iElem) + (COS(t)- (COS(t)-1.)*2*pi*pi)*x(2)*SIN(Pi*x(3))*SIN(Pi*x(1))
+      Ut(3,i,j,k,iElem) =Ut(3,i,j,k,iElem) + (COS(t)- (COS(t)-1.)*2*pi*pi)*x(3)*SIN(Pi*x(1))*SIN(Pi*x(2))
+      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - (COS(t)-1.)*pi*COS(Pi*x(1))*(SIN(Pi*x(2))+SIN(Pi*x(3)))
+      Ut(2,i,j,k,iElem) =Ut(2,i,j,k,iElem) - (COS(t)-1.)*pi*COS(Pi*x(2))*(SIN(Pi*x(3))+SIN(Pi*x(1)))
+      Ut(3,i,j,k,iElem) =Ut(3,i,j,k,iElem) - (COS(t)-1.)*pi*COS(Pi*x(3))*(SIN(Pi*x(1))+SIN(Pi*x(2)))
+      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + c_corr*SIN(t)*( SIN(pi*x(2))*SIN(pi*x(3)) &
+                                                            +SIN(pi*x(3))*SIN(pi*x(1)) &
+                                                            +SIN(pi*x(1))*SIN(pi*x(2)) )
+    END DO; END DO; END DO
+  END DO
+
+
 CASE(41) ! Dipole via temporal Gausspuls
 !t0=TEnd/5, w=t0/4 ! for pulsed Dipole (t0=offset and w=width of pulse)
 !TEnd=30.E-9 -> short pulse for 100ns runtime
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
-      IF (t.LE.2*tPulse) THEN
-        IF (shapefunc(r) .GT. 0 ) THEN
-          Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - ((shapefunc(r))*Q*d*COS(DipoleOmega*t)*eps0inv)*&
-                              EXP(-(t-tPulse/5)**2/(2*(tPulse/(4*5))**2))
-        END IF
-      END IF
+      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - 2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
+      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + 2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
     END DO; END DO; END DO
   END DO
-  
+
 CASE(50,51) ! TE_34,19 Mode - no sources
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
+!source fo divcorr damping!
+Ut(7:8,:,:,:,:)=Ut(7:8,:,:,:,:)-(c_corr*scr)*U(7:8,:,:,:,:)
 END SUBROUTINE CalcSource
 
 SUBROUTINE DivCleaningDamping()
@@ -513,7 +547,7 @@ SUBROUTINE DivCleaningDamping()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : U
-USE MOD_Equation_Vars, ONLY : fDamping
+!USE MOD_Equation_Vars, ONLY : fDamping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -524,12 +558,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
-  DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-      !  Get source from Particles
-      U(7:8,i,j,k,iElem) = U(7:8,i,j,k,iElem) * fDamping
-    END DO; END DO; END DO
-  END DO
+!  DO iElem=1,PP_nElems
+!    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+!      !  Get source from Particles
+!      U(7:8,i,j,k,iElem) = U(7:8,i,j,k,iElem) * fDamping
+!    END DO; END DO; END DO
+!  END DO
 END SUBROUTINE DivCleaningDamping
 
 FUNCTION shapefunc(r)

@@ -18,7 +18,8 @@
 #                      BLUEGENE  (Juelich Juqueen cluster)
 #=================================================================================================================================#
 INIFILE=$(MAINDIR)ini/particles.ini
-COMPILER=INTEL_DEBUG
+COMPILER=INTEL
+#COMPILER=INTEL_DEBUG
 #COMPILER=GNU_DEBUG
 #COMPILER=GNU
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
@@ -154,14 +155,30 @@ SHARECOMP=$(subst $(space),$(empty),$(SHARECOMP_MOD))
 #---------------------------------------------------------------------------------------------------------------------------------#
 # HDF5
 #---------------------------------------------------------------------------------------------------------------------------------#
-# Download and compile HDF5 libraries
+# Download and compile HDF5 libraries, if not already available
 ifeq ($(MACHINE),)
   ifeq ($(HDF5_DIR),)
-    HDF5_VERSION = 1.8.14
-    HDF5_BASE = ../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5
+    BUILD_HDF5=T
   else
     HDF5_BASE = $(HDF5_DIR)
   endif
+  ifneq ($(BUILD_HDF5),)
+    HDF5_VERSION = 1.8.14
+    HDF5_BASE = ../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5
+  endif
+endif
+
+# HLRS, CRAY - Use available HDF5 libraries. Don't forget to load HDF5 module!
+ifeq ($(findstring CRAY,$(MACHINE)),CRAY)
+  HDF5_BASE = $(HDF5_DIR)
+endif
+
+# BLUEGENE - Use available HDF5 libraries. Don't forget to load HDF5 module!
+ifeq ($(findstring BLUEGENE,$(MACHINE)),BLUEGENE)
+  HDF5_BASE = /bgsys/local/hdf5
+  SZ_INC    = -I/bgsys/local/szip/include -I/bgsys/local/zlib/include
+  SZ_LIB    = -L/bgsys/local/szip/lib -L/bgsys/local/zlib/lib
+  SZ_LIBS   = -lsz
 endif
 
 HDF5_LIB  = -L$(HDF5_BASE)/lib/
@@ -174,9 +191,9 @@ HDF5_LIBS += -ldl -lz
 #---------------------------------------------------------------------------------------------------------------------------------#
 # Tecplot Binary
 #---------------------------------------------------------------------------------------------------------------------------------#
-  TECLIB_VERSION = 12.0
-  TECBIN_LIB = -L../share/$(SHARECOMP)/tecio-$(TECLIB_VERSION)
-  TECBIN_LIBS = -ltecio -lstdc++
+TECLIB_VERSION = 12.0
+TECBIN_LIB = -L../share/$(SHARECOMP)/tecio-$(TECLIB_VERSION)
+TECBIN_LIBS = -ltecio -lstdc++
 #---------------------------------------------------------------------------------------------------------------------------------#
 
 #---------------------------------------------------------------------------------------------------------------------------------#
