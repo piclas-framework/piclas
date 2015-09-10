@@ -263,6 +263,7 @@ USE MOD_Particle_Mesh_Vars,       ONLY:GEO
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend
 USE MOD_Particle_MPI_Vars,        ONLY:PartShiftVector
+USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -374,6 +375,10 @@ IF(DoExternalParts)THEN
           IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
           IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',ShiftedPart(1),',PartY=',ShiftedPart(2),',PartZ=',&
                   ShiftedPart(3)
+          IF(DoRefMapping)THEN
+            IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartXi=',PartPosRef(1,iPart),',PartEta=',PartPosRef(2,iPart),',PartZeta=',&
+                    PartPosRef(3,iPart)
+          END IF
           CALL Abort(&
                __STAMP__,&
               'Particle outside BGM! Err2')
@@ -386,6 +391,10 @@ IF(DoExternalParts)THEN
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
         IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',PartState(iPart,1),',PartY=',PartState(iPart,2),',PartZ=',&
                 PartState(iPart,3)
+        IF(DoRefMapping)THEN
+          IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartXi=',PartPosRef(1,iPart),',PartEta=',PartPosRef(2,iPart),',PartZeta=',&
+                  PartPosRef(3,iPart)
+        END IF
         CALL Abort(&
              __STAMP__,&
             'Particle outside BGM!')

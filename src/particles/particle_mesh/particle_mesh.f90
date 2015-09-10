@@ -66,7 +66,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilonbilinear
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic
 USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL
 !USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
@@ -100,6 +100,7 @@ IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
 
 DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
 MeasureTrackTime = GETLOGICAL('MeasureTrackTime','.FALSE.')
+FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 
 ! method from xPhysic to parameter space
 MappingGuess    = GETINT('MappingGuess','1')

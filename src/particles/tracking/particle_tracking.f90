@@ -601,7 +601,7 @@ DO iPart=1,PDM%ParticleVecLength
               !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
               Xi =PartPosRef(3,iPart)
               Eta=PartPosRef(2,iPart)
-              PartPosRef(1,iPart)=-0.9999
+              PartPosRef(1,iPart)=-0.99
               EXIT
             END IF
           CASE(XI_PLUS)
@@ -609,7 +609,7 @@ DO iPart=1,PDM%ParticleVecLength
               locSideID=ilocSide
               Xi =PartPosRef(2,iPart)
               Eta=PartPosRef(3,iPart)
-              PartPosRef(1,iPart)= 0.9999
+              PartPosRef(1,iPart)= 0.99
               EXIT
             END IF
           CASE(ETA_MINUS)
@@ -617,7 +617,7 @@ DO iPart=1,PDM%ParticleVecLength
               locSideID=ilocSide
                Xi =PartPosRef(1,iPart)
                Eta=PartPosRef(3,iPart)
-               PartPosRef(2,iPart)=-0.9999
+               PartPosRef(2,iPart)=-0.99
               EXIT
             END IF
           CASE(ETA_PLUS)
@@ -625,7 +625,7 @@ DO iPart=1,PDM%ParticleVecLength
               locSideID=ilocSide
               Xi =-PartPosRef(1,iPart)
               Eta=PartPosRef(3 ,iPart)
-              PartPosRef(2,iPart)= 0.9999
+              PartPosRef(2,iPart)= 0.99
               EXIT
             END IF
           CASE(ZETA_MINUS)
@@ -633,7 +633,7 @@ DO iPart=1,PDM%ParticleVecLength
               locSideID=ilocSide
               Xi =PartPosRef(2,iPart)
               Eta=PartPosRef(1,iPart)
-              PartPosRef(3,iPart)=-0.9999
+              PartPosRef(3,iPart)=-0.99
               EXIT
             END IF
           CASE(ZETA_PLUS)
@@ -641,7 +641,7 @@ DO iPart=1,PDM%ParticleVecLength
               locSideID=ilocSide
               Xi =PartPosRef(1,iPart)
               Eta=PartPosRef(2,iPart)
-              PartPosRef(3,iPart)= 0.9999
+              PartPosRef(3,iPart)= 0.99
               EXIT
             END IF
           END SELECT
@@ -704,7 +704,7 @@ DO iPart=1,PDM%ParticleVecLength
                   !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
                   Xi =PartPosRef(3,iPart)
                   Eta=PartPosRef(2,iPart)
-                  PartPosRef(1,iPart)=-0.9999
+                  PartPosRef(1,iPart)=-0.99
                   EXIT
                 END IF
               CASE(XI_PLUS)
@@ -712,7 +712,7 @@ DO iPart=1,PDM%ParticleVecLength
                   locSideID2=ilocSide
                   Xi =PartPosRef(2,iPart)
                   Eta=PartPosRef(3,iPart)
-                  PartPosRef(1,iPart)= 0.9999
+                  PartPosRef(1,iPart)= 0.99
                   EXIT
                 END IF
               CASE(ETA_MINUS)
@@ -720,7 +720,7 @@ DO iPart=1,PDM%ParticleVecLength
                   locSideID2=ilocSide
                   Xi =PartPosRef(1,iPart)
                   Eta=PartPosRef(3,iPart)
-                  PartPosRef(2,iPart)=-0.9999
+                  PartPosRef(2,iPart)=-0.99
                   EXIT
                 END IF
               CASE(ETA_PLUS)
@@ -728,7 +728,7 @@ DO iPart=1,PDM%ParticleVecLength
                   locSideID2=ilocSide
                   Xi =-PartPosRef(1,iPart)
                   Eta=PartPosRef(3 ,iPart)
-                  PartPosRef(2,iPart)= 0.9999
+                  PartPosRef(2,iPart)= 0.99
                   EXIT
                 END IF
               CASE(ZETA_MINUS)
@@ -736,7 +736,7 @@ DO iPart=1,PDM%ParticleVecLength
                   locSideID2=ilocSide
                   Xi =PartPosRef(2,iPart)
                   Eta=PartPosRef(1,iPart)
-                  PartPosRef(3,iPart)=-0.9999
+                  PartPosRef(3,iPart)=-0.99
                   EXIT
                 END IF
               CASE(ZETA_PLUS)
@@ -744,7 +744,7 @@ DO iPart=1,PDM%ParticleVecLength
                   locSideID2=ilocSide
                   Xi =PartPosRef(1,iPart)
                   Eta=PartPosRef(2,iPart)
-                  PartPosRef(3,iPart)= 0.9999
+                  PartPosRef(3,iPart)= 0.99
                   EXIT
                 END IF
               END SELECT
@@ -933,7 +933,9 @@ SUBROUTINE PeriodicMovement(PartID)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
+USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,          ONLY:GEO
+USE MOD_Particle_Tracking_Vars,      ONLY:FastPeriodic
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartShiftVector
 #endif /*MPI*/
@@ -946,97 +948,235 @@ INTEGER,INTENT(IN)              :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iPV
+REAL                            :: MoveVector(1:3)
 !===================================================================================================================================
 
 #ifdef MPI
 PartShiftVector(1:3,PartID)=PartState(PartID,1:3)
 #endif /*MPI*/
-! x direction
-IF(GEO%directions(1)) THEN
-  IF(PartState(PartID,1).GT.GEO%xmaxglob) THEN
-    DO iPV=1,GEO%nPeriodicVectors
-      IF(GEO%DirPeriodicVectors(iPV).EQ.1) EXIT
-    END DO
-    IF(GEO%PeriodicVectors(1,iPV).GT.0)THEN
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
-    ELSE
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+IF(FastPeriodic)THEN
+  ! x direction
+  IF(GEO%directions(1)) THEN
+    IF(PartState(PartID,1).GT.GEO%xmaxglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.1) EXIT
+      END DO
+      MoveVector=CEILING(ABS(PartState(PartID,1)-GEO%xmaxglob)/ABS(GEO%PeriodicVectors(1,iPV)))*GEO%PeriodicVectors(1:3,iPV)
+      IF(GEO%PeriodicVectors(1,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+      END IF
+    END IF
+    IF(PartState(PartID,1).LT.GEO%xminglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.1) EXIT
+      END DO
+      MoveVector=CEILING(ABS(PartState(PartID,1)-GEO%xminglob)/ABS(GEO%PeriodicVectors(1,iPV)))*GEO%PeriodicVectors(1:3,iPV)
+      IF(GEO%PeriodicVectors(1,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+      END IF
     END IF
   END IF
-  IF(PartState(PartID,1).LT.GEO%xminglob) THEN
-    DO iPV=1,GEO%nPeriodicVectors
-      IF(GEO%DirPeriodicVectors(iPV).EQ.1) EXIT
-    END DO
-    IF(GEO%PeriodicVectors(1,iPV).GT.0)THEN
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
-    ELSE
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+  ! y direction
+  IF(GEO%directions(2)) THEN
+    IF(PartState(PartID,2).GT.GEO%ymaxglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.2) EXIT
+      END DO
+      MoveVector=CEILING(ABS(PartState(PartID,2)-GEO%ymaxglob)/ABS(GEO%PeriodicVectors(2,iPV)))*GEO%PeriodicVectors(1:3,iPV)
+      IF(GEO%PeriodicVectors(2,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+      END IF
+    END IF
+    IF(PartState(PartID,2).LT.GEO%yminglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.2) EXIT
+      END DO
+      MoveVector=CEILING(ABS(PartState(PartID,2)-GEO%yminglob)/ABS(GEO%PeriodicVectors(2,iPV)))*GEO%PeriodicVectors(1:3,iPV)
+      IF(GEO%PeriodicVectors(2,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+      END IF
     END IF
   END IF
-END IF
+  ! z direction
+  IF(GEO%directions(3)) THEN
+    IF(PartState(PartID,3).GT.GEO%zmaxglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.3) EXIT
+      END DO
+      MoveVector=CEILING(ABS(PartState(PartID,3)-GEO%zmaxglob)/ABS(GEO%PeriodicVectors(3,iPV)))*GEO%PeriodicVectors(1:3,iPV)
+      IF(GEO%PeriodicVectors(3,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+      END IF
+    END IF
+    IF(PartState(PartID,3).LT.GEO%zminglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.3) EXIT
+      END DO
+      MoveVector=CEILING(ABS(PartState(PartID,3)-GEO%zminglob)/ABS(GEO%PeriodicVectors(3,iPV)))*GEO%PeriodicVectors(1:3,iPV)
+      IF(GEO%PeriodicVectors(3,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+      END IF
+    END IF
+  END IF
 
-! y direction
-IF(GEO%directions(2)) THEN
-  IF(PartState(PartID,2).GT.GEO%ymaxglob) THEN
-    DO iPV=1,GEO%nPeriodicVectors
-      IF(GEO%DirPeriodicVectors(iPV).EQ.2) EXIT
-    END DO
-    IF(GEO%PeriodicVectors(2,iPV).GT.0)THEN
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
-    ELSE
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
-    END IF
-  END IF
-  IF(PartState(PartID,2).LT.GEO%yminglob) THEN
-    DO iPV=1,GEO%nPeriodicVectors
-      IF(GEO%DirPeriodicVectors(iPV).EQ.2) EXIT
-    END DO
-    IF(GEO%PeriodicVectors(2,iPV).GT.0)THEN
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
-    ELSE
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
-    END IF
-  END IF
-END IF
 
-! z direction
-IF(GEO%directions(3)) THEN
-  IF(PartState(PartID,3).GT.GEO%zmaxglob) THEN
-    DO iPV=1,GEO%nPeriodicVectors
-      IF(GEO%DirPeriodicVectors(iPV).EQ.3) EXIT
-    END DO
-    IF(GEO%PeriodicVectors(3,iPV).GT.0)THEN
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
-    ELSE
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+  ! x direction
+  IF(GEO%directions(1)) THEN
+    IF(PartState(PartID,1).GT.GEO%xmaxglob) THEN
+      IPWRITE(*,*) 'PartPos', PartState(PartID,:)
+      CALL abort(&
+          __STAMP__, &
+          ' particle outside x+, PartID',PartID)
+    END IF
+    IF(PartState(PartID,1).LT.GEO%xminglob) THEN
+      IPWRITE(*,*) 'PartPos', PartState(PartID,:)
+      CALL abort(&
+          __STAMP__, &
+          ' particle outside x-, PartID',PartID)
     END IF
   END IF
-  IF(PartState(PartID,3).LT.GEO%zminglob) THEN
-    DO iPV=1,GEO%nPeriodicVectors
-      IF(GEO%DirPeriodicVectors(iPV).EQ.3) EXIT
-    END DO
-    IF(GEO%PeriodicVectors(3,iPV).GT.0)THEN
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
-    ELSE
-      PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
-      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+  ! y direction
+  IF(GEO%directions(2)) THEN
+    IF(PartState(PartID,2).GT.GEO%ymaxglob) THEN
+      IPWRITE(*,*) 'PartPos', PartState(PartID,:)
+      CALL abort(&
+          __STAMP__, &
+          ' particle outside y+, PartID',PartID)
+    END IF
+    IF(PartState(PartID,2).LT.GEO%yminglob) THEN
+      IPWRITE(*,*) 'PartPos', PartState(PartID,:)
+      CALL abort(&
+          __STAMP__, &
+          ' particle outside y-, PartID',PartID)
+    END IF
+  END IF
+  ! z direction
+  IF(GEO%directions(3)) THEN
+    IF(PartState(PartID,3).GT.GEO%zmaxglob) THEN
+      IPWRITE(*,*) 'PartPos', PartState(PartID,:)
+      CALL abort(&
+          __STAMP__, &
+          ' particle outside z+, PartID',PartID)
+    END IF
+    IF(PartState(PartID,3).LT.GEO%zminglob) THEN
+      IPWRITE(*,*) 'PartPos', PartState(PartID,:)
+      CALL abort(&
+          __STAMP__, &
+          ' particle outside z-, PartID',PartID)
+    END IF
+  END IF 
+ELSE
+  ! x direction
+  IF(GEO%directions(1)) THEN
+    IF(PartState(PartID,1).GT.GEO%xmaxglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.1) EXIT
+      END DO
+      IF(GEO%PeriodicVectors(1,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+      END IF
+    END IF
+    IF(PartState(PartID,1).LT.GEO%xminglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.1) EXIT
+      END DO
+      IF(GEO%PeriodicVectors(1,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+      END IF
+    END IF
+  END IF
+  
+  ! y direction
+  IF(GEO%directions(2)) THEN
+    IF(PartState(PartID,2).GT.GEO%ymaxglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.2) EXIT
+      END DO
+      IF(GEO%PeriodicVectors(2,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+      END IF
+    END IF
+    IF(PartState(PartID,2).LT.GEO%yminglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.2) EXIT
+      END DO
+      IF(GEO%PeriodicVectors(2,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+      END IF
+    END IF
+  END IF
+  
+  ! z direction
+  IF(GEO%directions(3)) THEN
+    IF(PartState(PartID,3).GT.GEO%zmaxglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.3) EXIT
+      END DO
+      IF(GEO%PeriodicVectors(3,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+      END IF
+    END IF
+    IF(PartState(PartID,3).LT.GEO%zminglob) THEN
+      DO iPV=1,GEO%nPeriodicVectors
+        IF(GEO%DirPeriodicVectors(iPV).EQ.3) EXIT
+      END DO
+      IF(GEO%PeriodicVectors(3,iPV).GT.0)THEN
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  +GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+GEO%PeriodicVectors(1:3,iPV)
+      ELSE
+        PartState(PartID,1:3)  =PartState(PartID,1:3)  -GEO%PeriodicVectors(1:3,iPV)
+        LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-GEO%PeriodicVectors(1:3,iPV)
+      END IF
     END IF
   END IF
 END IF
 
 #ifdef MPI
-PartShiftVector(1:3,PartID)=PartState(PartID,1:3)-PartShiftvector(1:3,PartID)
+PartShiftVector(1:3,PartID)=-PartState(PartID,1:3)+PartShiftvector(1:3,PartID)
 #endif /*MPI*/
 
 END SUBROUTINE PeriodicMovement
@@ -1093,35 +1233,35 @@ INTEGER                     :: inElem
 #endif /*MPI*/
 !===================================================================================================================================
 
-! SELECT CASE(locSideID)
-! CASE(XI_MINUS)
-!   !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
-!   Xi =PartPosRef(3,PartID)
-!   Eta=PartPosRef(2,PartID)
-!   PartPosRef(1,PartID)=-0.9999
-! CASE(XI_PLUS)
-!   Xi =PartPosRef(2,PartID)
-!   Eta=PartPosRef(3,PartID)
-!   PartPosRef(1,PartID)= 0.9999
-! CASE(ETA_MINUS)
-!   Xi =PartPosRef(1,PartID)
-!   Eta=PartPosRef(3,PartID)
-!   PartPosRef(2,PartID)=-0.9999
-! CASE(ETA_PLUS)
-!   !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,NGeo-p,q)
-!   ! hopefully correct
-!   Xi =-PartPosRef(1,PartID)
-!   Eta=PartPosRef(3,PartID)
-!   PartPosRef(2,PartID)= 0.9999
-! CASE(ZETA_MINUS)
-!   Xi =PartPosRef(2,PartID)
-!   Eta=PartPosRef(1,PartID)
-!   PartPosRef(3,PartID)=-0.9999
-! CASE(ZETA_PLUS)
-!   Xi =PartPosRef(1,PartID)
-!   Eta=PartPosRef(2,PartID)
-!   PartPosRef(3,PartID)= 0.9999
-! END SELECT
+!SELECT CASE(locSideID)
+!CASE(XI_MINUS)
+!  !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
+!  Xi =PartPosRef(3,PartID)
+!  Eta=PartPosRef(2,PartID)
+!  PartPosRef(1,PartID)=-0.9999
+!CASE(XI_PLUS)
+!  Xi =PartPosRef(2,PartID)
+!  Eta=PartPosRef(3,PartID)
+!  PartPosRef(1,PartID)= 0.9999
+!CASE(ETA_MINUS)
+!  Xi =PartPosRef(1,PartID)
+!  Eta=PartPosRef(3,PartID)
+!  PartPosRef(2,PartID)=-0.9999
+!CASE(ETA_PLUS)
+!  !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,NGeo-p,q)
+!  ! hopefully correct
+!  Xi =-PartPosRef(1,PartID)
+!  Eta=PartPosRef(3,PartID)
+!  PartPosRef(2,PartID)= 0.9999
+!CASE(ZETA_MINUS)
+!  Xi =PartPosRef(2,PartID)
+!  Eta=PartPosRef(1,PartID)
+!  PartPosRef(3,PartID)=-0.9999
+!CASE(ZETA_PLUS)
+!  Xi =PartPosRef(1,PartID)
+!  Eta=PartPosRef(2,PartID)
+!  PartPosRef(3,PartID)= 0.9999
+!END SELECT
 
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
