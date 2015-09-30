@@ -286,7 +286,7 @@ DO iLocSide=firstSide,LastSide
   CASE(PLANAR)
     !CALL ComputePlanarIntersectionBezier(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
     CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                  ,xi (ilocSide)      &
+                                                                                  ,xi (ilocSide)            &
                                                                                   ,eta(ilocSide)   ,PartID,flip,BCSideID)
 
 !    CALL ComputePlanarIntersectionBezierRobust2(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
@@ -478,7 +478,11 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
         IF(ParticleFound(iPart)) CYCLE
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
       ELSE ! no bc elem, therefore, no bc ineraction possible
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
+#else
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+#endif
       END IF ! initial check
       !IF(iPart.EQ.1) print*,'pos,elem',PartPosRef(:,ipart),ElemID
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
@@ -601,7 +605,7 @@ DO iPart=1,PDM%ParticleVecLength
               !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
               Xi =PartPosRef(3,iPart)
               Eta=PartPosRef(2,iPart)
-              PartPosRef(1,iPart)=-0.99
+              PartPosRef(1,iPart)=-1.0
               EXIT
             END IF
           CASE(XI_PLUS)
@@ -609,7 +613,7 @@ DO iPart=1,PDM%ParticleVecLength
               locSideID=ilocSide
               Xi =PartPosRef(2,iPart)
               Eta=PartPosRef(3,iPart)
-              PartPosRef(1,iPart)= 0.99
+              PartPosRef(1,iPart)= 1.0
               EXIT
             END IF
           CASE(ETA_MINUS)
@@ -617,7 +621,7 @@ DO iPart=1,PDM%ParticleVecLength
               locSideID=ilocSide
                Xi =PartPosRef(1,iPart)
                Eta=PartPosRef(3,iPart)
-               PartPosRef(2,iPart)=-0.99
+               PartPosRef(2,iPart)=-1.0
               EXIT
             END IF
           CASE(ETA_PLUS)
@@ -625,7 +629,7 @@ DO iPart=1,PDM%ParticleVecLength
               locSideID=ilocSide
               Xi =-PartPosRef(1,iPart)
               Eta=PartPosRef(3 ,iPart)
-              PartPosRef(2,iPart)= 0.99
+              PartPosRef(2,iPart)= 1.0
               EXIT
             END IF
           CASE(ZETA_MINUS)
@@ -633,7 +637,7 @@ DO iPart=1,PDM%ParticleVecLength
               locSideID=ilocSide
               Xi =PartPosRef(2,iPart)
               Eta=PartPosRef(1,iPart)
-              PartPosRef(3,iPart)=-0.99
+              PartPosRef(3,iPart)=-1.0
               EXIT
             END IF
           CASE(ZETA_PLUS)
@@ -641,7 +645,7 @@ DO iPart=1,PDM%ParticleVecLength
               locSideID=ilocSide
               Xi =PartPosRef(1,iPart)
               Eta=PartPosRef(2,iPart)
-              PartPosRef(3,iPart)= 0.99
+              PartPosRef(3,iPart)= 1.0
               EXIT
             END IF
           END SELECT
@@ -704,7 +708,7 @@ DO iPart=1,PDM%ParticleVecLength
                   !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
                   Xi =PartPosRef(3,iPart)
                   Eta=PartPosRef(2,iPart)
-                  PartPosRef(1,iPart)=-0.99
+                  PartPosRef(1,iPart)=-1.0
                   EXIT
                 END IF
               CASE(XI_PLUS)
@@ -712,7 +716,7 @@ DO iPart=1,PDM%ParticleVecLength
                   locSideID2=ilocSide
                   Xi =PartPosRef(2,iPart)
                   Eta=PartPosRef(3,iPart)
-                  PartPosRef(1,iPart)= 0.99
+                  PartPosRef(1,iPart)= 1.0
                   EXIT
                 END IF
               CASE(ETA_MINUS)
@@ -720,7 +724,7 @@ DO iPart=1,PDM%ParticleVecLength
                   locSideID2=ilocSide
                   Xi =PartPosRef(1,iPart)
                   Eta=PartPosRef(3,iPart)
-                  PartPosRef(2,iPart)=-0.99
+                  PartPosRef(2,iPart)=-1.0
                   EXIT
                 END IF
               CASE(ETA_PLUS)
@@ -728,7 +732,7 @@ DO iPart=1,PDM%ParticleVecLength
                   locSideID2=ilocSide
                   Xi =-PartPosRef(1,iPart)
                   Eta=PartPosRef(3 ,iPart)
-                  PartPosRef(2,iPart)= 0.99
+                  PartPosRef(2,iPart)= 1.0
                   EXIT
                 END IF
               CASE(ZETA_MINUS)
@@ -736,7 +740,7 @@ DO iPart=1,PDM%ParticleVecLength
                   locSideID2=ilocSide
                   Xi =PartPosRef(2,iPart)
                   Eta=PartPosRef(1,iPart)
-                  PartPosRef(3,iPart)=-0.99
+                  PartPosRef(3,iPart)=-1.0
                   EXIT
                 END IF
               CASE(ZETA_PLUS)
@@ -744,7 +748,7 @@ DO iPart=1,PDM%ParticleVecLength
                   locSideID2=ilocSide
                   Xi =PartPosRef(1,iPart)
                   Eta=PartPosRef(2,iPart)
-                  PartPosRef(3,iPart)= 0.99
+                  PartPosRef(3,iPart)= 1.0
                   EXIT
                 END IF
               END SELECT
@@ -1190,6 +1194,8 @@ SUBROUTINE ReComputeParticleBCInteraction(xi,eta,locSideID,SideID,BCSideID,PartI
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
+USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,lastpartpos
 USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
@@ -1226,7 +1232,7 @@ REAL                        :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL                     :: ParticleFound
 INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems
 REAL,ALLOCATABLE            :: Distance(:)
-REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne,OldestPos(3),blubb(3)
+REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne,OldestPos(3),blubb(3), n_loc(3)
 INTEGER,ALLOCATABLE         :: ListDistance(:)
 #ifdef MPI
 INTEGER                     :: inElem
@@ -1269,12 +1275,27 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 
-! compute temporary last particle position
-ElemID=PEM%Element(PartID)
-oldestPos=PartState(PartID,1:3)
-CALL Eval_xyz_Poly(PartPosRef(:,PartID),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),LastPartPos(PartID,1:3))
-blubb=LastPartPos(PartID,1:3)
-PartState(PartID,1:3)=LastPartPos(PartID,1:3)+PartTrajectory*lengthPartTrajectory
+SELECT CASE(SideType(BCSideID))
+CASE(PLANAR)
+  n_loc=SideNormVec(1:3,BCSideID)
+CASE(BILINEAR)
+  n_loc=CalcBiLinearNormVecBezier(xi,eta,BCSideID)
+CASE(CURVED)
+  n_loc=CalcNormVecBezier(xi,eta,BCSideID)
+!   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
+END SELECT 
+
+IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.)THEN
+  CALL Eval_xyz_Poly(PartPosRef(:,PartID),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),PartState(PartID,1:3))
+  RETURN
+ELSE
+  ! compute temporary last particle position
+  ElemID=PEM%Element(PartID)
+  oldestPos=PartState(PartID,1:3)
+  CALL Eval_xyz_Poly(PartPosRef(:,PartID),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),LastPartPos(PartID,1:3))
+  blubb=LastPartPos(PartID,1:3)
+  PartState(PartID,1:3)=LastPartPos(PartID,1:3)+PartTrajectory*lengthPartTrajectory
+END IF
 
 LastPos=PartState(PartID,1:3)
 hit=0.

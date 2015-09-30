@@ -1345,7 +1345,6 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
-!USE MOD_Equations_Vars,          ONLY:epsMach
 !USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
@@ -1439,7 +1438,8 @@ ELSE
  locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
 END IF
 
-IF(locSideDistance.LT.0)THEN
+!IF(locSideDistance.LT.0)THEN
+IF(locSideDistance.LT.-100*epsMach)THEN
   ! particle is located outside of element, THEREFORE, an intersection were not detected
   alpha=0.
   isHit=.TRUE.
@@ -1453,9 +1453,9 @@ END IF
 
 alphaNorm=alpha/lengthPartTrajectory
 !IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
-!IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LT.-epsilontol))THEN
+IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LT.-epsilontol))THEN
 !IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LE.0.))THEN
-IF((alphaNorm.GE.1.0) .OR.(alphaNorm.LT.0.))THEN
+!IF((alphaNorm.GE.1.0) .OR.(alphaNorm.LT.0.))THEN
   alpha=-1.0
   RETURN
 END IF
@@ -1887,8 +1887,8 @@ IF (nRoot.EQ.1) THEN
    ! xi(1)=ComputeXi(a1,a2,eta(1))
     IF(ABS(xi(1)).LT.ClipHit)THEN
       alphaNorm=t(1)/lengthPartTrajectory
-      !IF((alphaNorm.LT.epsilonOne) .OR.(alphaNorm.GT.-epsilontol))THEN
-      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
+      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GT.-epsilontol))THEN
+      !IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
       !IF((t(1).GE.-epsilontol).AND.(t(1).LE.lengthPartTrajectory))THEN
         alpha=t(1)!/LengthPartTrajectory
         xitild=xi(1)
@@ -1946,7 +1946,8 @@ ELSE
     ! as paper ramsay
     IF(ABS(xi(1)).LT.Cliphit)THEN
       alphaNorm=t(1)/lengthPartTrajectory
-      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
+      !IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
+      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GT.-epsilontol))THEN
         nInter=nInter+1
         t(1)=t(1)
       ELSE
@@ -1985,9 +1986,8 @@ ELSE
     !IF(ABS(xi(2)).LT.epsilonOne)THEN
     IF(ABS(xi(2)).LT.ClipHit)THEN
       alphaNorm=t(2)/lengthPartTrajectory
-      !IF((alphaNorm.GT.epsilonOne) .OR.(alpha.LT.-epsilontol))THEN
-      !IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LT.-epsilontol))THEN
-      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
+      !IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
+      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GT.-epsilontol))THEN
         t(2)=t(2)!/lengthPartTrajectory
         nInter=nInter+1
       ELSE

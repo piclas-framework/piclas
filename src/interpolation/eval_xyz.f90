@@ -58,6 +58,7 @@ USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess,epsMapping,ElemRadiusNGeo
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
 USE MOD_Mesh_Vars,               ONLY:offsetElem
+!USE MOD_Particle_Vars,           ONLY:PartPosRef
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -592,7 +593,6 @@ REAL,INTENT(OUT)          :: U_Out(1:NVar)  ! Interpolated state
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER             :: i,j,k
-REAL                :: xi(3)
 !REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 !REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
 REAL                :: F(1:3)!,Lag(1:3,0:NGeo)
@@ -603,9 +603,9 @@ REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 !===================================================================================================================================
 
 ! 2.1) get "Vandermonde" vectors
-CALL LagrangeInterpolationPolys(xi(1),N_in,xGP,wBary,L_xi(1,:))
-CALL LagrangeInterpolationPolys(xi(2),N_in,xGP,wBary,L_xi(2,:))
-CALL LagrangeInterpolationPolys(xi(3),N_in,xGP,wBary,L_xi(3,:))
+CALL LagrangeInterpolationPolys(xi_in(1),N_in,xGP,wBary,L_xi(1,:))
+CALL LagrangeInterpolationPolys(xi_in(2),N_in,xGP,wBary,L_xi(2,:))
+CALL LagrangeInterpolationPolys(xi_in(3),N_in,xGP,wBary,L_xi(3,:))
 
 
 ! "more efficient" - Quote Thomas B.
@@ -649,9 +649,9 @@ IF(useBGField)THEN
 !          , X3D_tmp1(BGDataSize,0:NBG,0:NBG) &
 !          , X3D_tmp2(BGDataSize,0:NBG)       &
 !          , X3D_tmp3(BGDataSize)             )
-  CALL LagrangeInterpolationPolys(xi(1),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(1,:))
-  CALL LagrangeInterpolationPolys(xi(2),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(2,:))
-  CALL LagrangeInterpolationPolys(xi(3),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(3,:))
+  CALL LagrangeInterpolationPolys(xi_in(1),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(1,:))
+  CALL LagrangeInterpolationPolys(xi_in(2),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(2,:))
+  CALL LagrangeInterpolationPolys(xi_in(3),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(3,:))
   
   U_BGField(:)=0
   DO k=0,N_in

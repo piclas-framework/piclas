@@ -278,7 +278,7 @@ IF(useManualTimeStep)THEN
   IF (MaxwellIterNum*dt_maxwell.GT.dt_max_particles) THEN
     WRITE(*,*) 'WARNING: Time of Maxwell Solver is greater then particle time step!'
   END IF
-  IterDisplayStep = MAX(INT(IterDisplayStepUser/MaxwellIterNum),1) !IterDisplayStep refers to dt_maxwell
+  IterDisplayStep = MAX(INT(IterDisplayStepUser/(dt_max_particles / dt_maxwell)),1) !IterDisplayStepUser refers to dt_maxwell
   IF(MPIroot)THEN
     print*, 'IterNum for MaxwellSolver: ', MaxwellIterNum
     print*, 'Particle TimeStep: ', dt_max_particles  
@@ -362,7 +362,8 @@ DO !iter_t=0,MaxIter
 !            * (PartState(1:PDM%ParticleVecLength, 5) + dt_temp*Pt(1:PDM%ParticleVecLength,2))))
 !      vMaxz = MAXVAL(ABS(PDM%ParticleInside(1:PDM%ParticleVecLength) &
 !            * (PartState(1:PDM%ParticleVecLength, 6) + dt_temp*Pt(1:PDM%ParticleVecLength,3))))
-      vMax = MAX( SQRT(vMaxx*vMaxx + vMaxy*vMaxy + vMaxz*vMaxz) , 1.0 ) 
+!      vMax = MAX( SQRT(vMaxx*vMaxx + vMaxy*vMaxy + vMaxz*vMaxz) , 1.0 ) 
+      vMax = MAX(vMaxx,vMaxy,vMaxz,1.0) 
 #ifdef MPI
       CALL MPI_ALLREDUCE(MPI_IN_PLACE,vMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
       CALL MPI_ALLREDUCE(MPI_IN_PLACE,NoPartInside,1,MPI_LOGICAL,MPI_LAND,MPI_COMM_WORLD,iError)
@@ -380,8 +381,8 @@ DO !iter_t=0,MaxIter
   END IF
   dt_Min = dt_max_particles
   MaxwellIterNum = INT(dt_max_particles / dt_maxwell)
+  IterDisplayStep = MAX(INT(IterDisplayStepUser/(dt_max_particles / dt_maxwell)),1) !IterDisplayStepUser refers to dt_maxwell
   IF (MaxwellIterNum.GT.MaximumIterNum) MaxwellIterNum = MaximumIterNum
-  IterDisplayStep = MAX(INT(IterDisplayStepUser/MaxwellIterNum),1) !IterDisplayStep refers to dt_maxwell
   IF ((MPIroot).AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
     SWRITE(UNIT_StdOut,'(132("!"))')
     SWRITE(UNIT_StdOut,*)  'New IterNum for MaxwellSolver: ', MaxwellIterNum 
@@ -1775,7 +1776,7 @@ REAL,INTENT(IN)       :: t
 INTEGER               :: rk, iLoop
 REAL                  :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
 #ifdef PP_POIS
-REAL                  :: Phit_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                  :: Phit_temp(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #endif
 REAL                  :: b_dt(1:5)
 REAL                  :: dt_save, tStage, t_rk
@@ -1850,7 +1851,8 @@ DO rk=1,5
   b_dt(rk)=RK_b(rk)*dt   ! TBD: put in initiation (with maxwell we are linear!!!)
 END DO
 IF(MOD(iter,IterDisplayStep).EQ.0) THEN
-  SWRITE(*,*) "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  SWRITE(*,'(A44,I0,A30)') " !!! EM field is being propagated... (every ",IterDisplayStepUser &
+    ,". dt_maxwell is displayed) !!!"
 END IF
 DO iLoop = 1, MaxwellIterNum
   ! EM field
@@ -2036,13 +2038,14 @@ DO rk=1,5
   b_dt(rk)=RK_b(rk)*dt   ! TBD: put in initiation (with maxwell we are linear!!!)
 END DO
 IF(MOD(iter,IterDisplayStep).EQ.0) THEN
-  SWRITE(*,*) "!!!!!!!!!!!!"
+  SWRITE(*,'(A44,I0,A30)') " !!! EM field is being propagated... (every ",IterDisplayStepUser &
+    ,". dt_maxwell is displayed) !!!"
 END IF
 DO iLoop = 1, MaxwellIterNum
+  ! EM field
   IF ((MOD(iter,IterDisplayStep).EQ.0).AND.(MOD(iLoop,IterDisplayStepUser).EQ.0)) THEN
     SWRITE(*,'(A14,I0,A3,I0)') " MaxwellIter: ",iLoop," / ",MaxwellIterNum
   END IF
-  ! EM field
 
   CALL DGTimeDerivative_weakForm(t_rk,t_rk,0)
   CALL DivCleaningDamping()

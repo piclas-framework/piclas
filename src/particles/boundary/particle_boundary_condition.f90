@@ -309,6 +309,7 @@ CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !CASE(PartBound%PeriodicBC)
+
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! new implementation, nothing to due :)
   ! however, never checked
@@ -364,6 +365,7 @@ USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
+USE MOD_Globals_Vars,    ONLY:EpsMach
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
 USE MOD_TimeDisc_Vars,          ONLY:RK_a,iStage
@@ -386,7 +388,7 @@ REAL                                 :: absPt_temp
 #endif
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 !REAL                                 :: oneMinus!=0.99999999
-REAL                                  :: epsLength
+REAL                                  :: epsLength,epsReflect
 !===================================================================================================================================
 
 !OneMinus=1.0-MAX(epsInCell,epsilontol)
@@ -413,38 +415,43 @@ ELSE
   !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
   END SELECT 
 END IF
-! substract tolerance from length
-!LengthPartTrajectory=LengthPartTrajectory!-epsilontol
-! intersection point with surface
-IF(ALMOSTZERO(alpha))THEN
-  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha)
-ELSE
-  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha-epsLength)
-END IF
+
+IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) RETURN
+
+LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha)
+
+!IF(ALMOSTZERO(alpha))THEN
+!  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha)
+!ELSE
+!  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha-epsLength)
+!END IF
 
 ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
 !v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
-!v_aux                  = -2*((1-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
-v_aux                  = -2*((LengthPartTrajectory-alpha+epsLength)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
-!PartState(PartID,1:3)   = PartState(PartID,1:3)+PartTrajectory(1:3)+v_aux
-PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
-! new velocity vector 
-!v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
-v_2=(LengthPartTrajectory-alpha+epsLength)*PartTrajectory(1:3)+v_aux
-PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
-                         (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2                         +&
-                         PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
+!v_aux                  = -2.0*((LengthPartTrajectory-alpha+epsLength)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
+v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
+!IF(lengthPartTrajectory.LT.epsilontol)THEN
+!  epsReflect=epsilontol
+!ELSE
+epsReflect=epsilontol*lengthPartTrajectory
+!END IF
 
-PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                         +PartTrajectory(2)*PartTrajectory(2) &
-                         +PartTrajectory(3)*PartTrajectory(3) )
-PartTrajectory=PartTrajectory/lengthPartTrajectory
-lengthPartTrajectory=lengthPartTrajectory!+epsilontol
-
-
-
-
+IF((DOT_PRODUCT(v_aux,v_aux)).GT.epsReflect)THEN
+  PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
+  ! new velocity vector 
+  !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
+  v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
+  PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
+                           (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2                         +&
+                           PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
+  
+  PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                           +PartTrajectory(2)*PartTrajectory(2) &
+                           +PartTrajectory(3)*PartTrajectory(3) )
+  PartTrajectory=PartTrajectory/lengthPartTrajectory
+  lengthPartTrajectory=lengthPartTrajectory!+epsilontol
+  
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
   ! correction for Runge-Kutta (correct position!!)
   absPt_temp=SQRT(Pt_temp(PartID,1)*Pt_temp(PartID,1)+Pt_temp(PartID,2)*Pt_temp(PartID,2)+Pt_temp(PartID,3)*Pt_temp(PartID,3))
@@ -454,6 +461,7 @@ lengthPartTrajectory=lengthPartTrajectory!+epsilontol
   Pt_temp(PartID,4:6)=0.
   ! what happens with force term || acceleration?
 #endif 
+END IF
 
 END SUBROUTINE PerfectReflection
 
