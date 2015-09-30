@@ -23,6 +23,9 @@ REAL                                  :: r_sf               ! cutoff radius of s
 REAL                                  :: r2_sf              ! cutoff radius of shape function * cutoff radius of shape function
 REAL                                  :: r2_sf_inv          ! 1/cutoff radius of shape function * cutoff radius of shape function
 REAL                                  :: w_sf               ! shapefuntion weight
+REAL                                  :: r_sf0              ! minimal shape function radius
+REAL                                  :: r_sf_scale         ! scaling of shape function radius
+REAL                                  :: BetaFac            ! betafactor of shape-function || integral =1
 LOGICAL                               :: DoSFEqui           ! use equidistant points for SF
 REAL,ALLOCATABLE                      :: ElemDepo_xGP(:,:,:,:,:)  ! element xGPs for deposition 
 REAL,ALLOCATABLE                      :: Vdm_EquiN_GaussN(:,:)  ! Vdm from equidistant points to Gauss Points

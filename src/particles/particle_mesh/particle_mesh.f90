@@ -293,9 +293,9 @@ DO iBGMElem=1,nBGMElems
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
   CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
-  IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
+  IF(MAXVAL(ABS(Xi)).LE.1.0) THEN ! particle inside
     InElementCheck=.TRUE.
-  ELSE IF(ANY(ABS(Xi).GT.epsOneCell))THEN ! particle outside
+  ELSE IF(MAXVAL(ABS(Xi)).GT.epsOneCell)THEN ! particle outside
   !  print*,'ici'
     InElementCheck=.FALSE.
   ELSE ! particle at face,edge or node, check most possible point
