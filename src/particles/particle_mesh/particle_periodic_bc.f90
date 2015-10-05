@@ -67,6 +67,7 @@ CALL MapPeriodicVectorsToSides()
 IF (GEO%nPeriodicVectors.GT.0) THEN
   ! build case matrix
   NbrOfCases = 3**GEO%nPeriodicVectors
+  SDEALLOCATE(casematrix)
   ALLOCATE(casematrix(1:NbrOfCases,1:3))
   casematrix(:,:) = 0
   IF (GEO%nPeriodicVectors.EQ.1) THEN
@@ -95,10 +96,12 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
   END IF
 ELSE
   NbrOfCases = 1
+  SDEALLOCATE(casematrix)
   ALLOCATE(casematrix(1:1,1:3))
   casematrix(:,:) = 0
 END IF
 #ifdef MPI
+SDEALLOCATE(PartShiftVector)
 IF (GEO%nPeriodicVectors.GT.0) THEN
   ALLOCATE(PartShiftVector(1:3,1:PDM%maxParticleNumber))
   PartShiftVector = 0.

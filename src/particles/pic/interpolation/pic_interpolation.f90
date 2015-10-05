@@ -65,6 +65,7 @@ IF (FileNameCurvedExternalField/='none') THEN
 END IF
 
 !--- Allocate arrays for interpolation of fields to particles
+SDEALLOCATE(FieldAtParticle)
 ALLOCATE(FieldAtParticle(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT) 
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__, &

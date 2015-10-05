@@ -1163,6 +1163,7 @@ CALL MPI_COMM_FREE(PartMPI%COMM,iERROR)
 SDEALLOCATE( PartHaloToProc)
 SDEALLOCATE( PartMPI%isMPINeighbor)
 SDEALLOCATE( PartMPI%MPINeighbor )
+SDEALLOCATE( PartMPI%GlobalToLocal )
 SDEALLOCATE( PartMPIExchange%nPartsSend)
 SDEALLOCATE( PartMPIExchange%nPartsRecv)
 SDEALLOCATE( PartMPIExchange%RecvRequest)
@@ -1176,6 +1177,9 @@ SDEALLOCATE( PartRecvBuf)
 SDEALLOCATE( ExtPartState)
 SDEALLOCATE( ExtPartSpecies)
 
+! and for communication
+SDEALLOCATE( PartTargetProc )
+SDEALLOCATE( PartMPIDepoSend )
 
 ParticleMPIInitIsDone=.FALSE.
 END SUBROUTINE FinalizeParticleMPI

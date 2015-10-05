@@ -21,7 +21,7 @@ USE MOD_RecordPoints,     ONLY:InitRecordPoints,FinalizeRecordPoints
 USE MOD_TimeDisc,         ONLY:InitTimeDisc,FinalizeTimeDisc,TimeDisc
 USE MOD_MPI,              ONLY:InitMPI
 #ifdef MPI
-USE MOD_MPI,              ONLY:InitMPIvars
+USE MOD_MPI,              ONLY:InitMPIvars,FinalizeMPI
 #endif /*MPI*/
 #ifdef PARTICLES
 USE MOD_ParticleInit,     ONLY:InitParticles
@@ -30,19 +30,22 @@ USE MOD_InitializeBackgroundField, ONLY: FinalizeBackGroundField
 USE MOD_Particle_Mesh,    ONLY:InitParticleMesh,FinalizeParticleMesh
 USE MOD_Particle_Analyze, ONLY:InitParticleAnalyze,FinalizeParticleAnalyze
 USE MOD_Particle_MPI,     ONLY:InitParticleMPI
+USE MOD_PICDepo,          ONLY:FinalizeDeposition
+USE MOD_ParticleInit,     ONLY:FinalizeParticles
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY:FinalizeParticleMPI
 #endif /*MPI*/
 #endif
-
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 REAL    :: Time
 !===================================================================================================================================
+
 CALL InitMPI()
 CALL InitIO()
+
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')&
  "           ____            ___    __                    ___              __              "
@@ -130,15 +133,25 @@ CALL FinalizeFilter()
 CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
+CALL FinalizeDeposition() 
 #ifdef MPI
 CALL FinalizeParticleMPI()
 #endif /*MPI*/
+CALL FinalizeParticles()
 CALL FinalizeBackGroundField()
+#endif
+#ifdef MPI
+CALL FinalizeMPI()
 #endif
 ! Measure simulation duration
 Time=BOLTZPLATZTIME()
+
 #ifdef MPI
-!CALL MPI_FREE_COMM(MPI_COMM_WORLD,iERROR)
+! and additional required for restart with load balance
+!ReadInDone=.FALSE.
+!ParticleMPIInitIsDone=.FALSE.
+!ParticlesInitIsDone=.FALSE.
+
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) &
   CALL abort(__STAMP__,'MPI finalize error',iError,999.)
@@ -146,4 +159,6 @@ IF(iError .NE. 0) &
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F8.2,A)')  ' BOLTZPLATZ FINISHED! [',Time-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
+
+
 END PROGRAM Boltzplatz

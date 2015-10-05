@@ -18,7 +18,11 @@ INTERFACE InitParticles
   MODULE PROCEDURE InitParticles
 END INTERFACE
 
-PUBLIC::InitParticles
+INTERFACE FinalizeParticles
+  MODULE PROCEDURE FinalizeParticles
+END INTERFACE
+
+PUBLIC::InitParticles,FinalizeParticles
 !===================================================================================================================================
 
 CONTAINS
@@ -909,5 +913,73 @@ IF(enableParticleMerge) THEN
 END IF
 
 END SUBROUTINE InitializeVariables
+
+
+SUBROUTINE FinalizeParticles() 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! finalize particle variables
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Vars
+USE MOD_Particle_Mesh_Vars
+USE MOD_DSMC_Vars,                  ONLY: SampDSMC
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
+SDEALLOCATE( Pt_temp)
+#endif
+SDEALLOCATE(SampDSMC)
+SDEALLOCATE(PartPosRef)
+SDEALLOCATE(RandomVec)
+SDEALLOCATE(PartState)
+SDEALLOCATE(LastPartPos)
+SDEALLOCATE(PartSpecies)
+SDEALLOCATE(Pt)
+SDEALLOCATE(PDM%ParticleInside)
+SDEALLOCATE(PDM%nextFreePosition)
+SDEALLOCATE(vMPF_SpecNumElem)
+SDEALLOCATE(PartMPF)
+!SDEALLOCATE(Species%Init)
+SDEALLOCATE(Species)
+SDEALLOCATE(PartBound%SourceBoundName)
+SDEALLOCATE(PartBound%TargetBoundCond)
+SDEALLOCATE(PartBound%MomentumACC)
+SDEALLOCATE(PartBound%WallTemp)
+SDEALLOCATE(PartBound%TransACC)
+SDEALLOCATE(PartBound%VibACC)
+SDEALLOCATE(PartBound%RotACC)
+SDEALLOCATE(PartBound%WallVelo)
+SDEALLOCATE(PartBound%AmbientCondition)
+SDEALLOCATE(PartBound%AmbientTemp)
+SDEALLOCATE(PartBound%AmbientMeanPartMass)
+SDEALLOCATE(PartBound%AmbientBeta)
+SDEALLOCATE(PartBound%AmbientVelo)
+SDEALLOCATE(PartBound%AmbientDens)
+SDEALLOCATE(PartBound%AmbientDynamicVisc)
+SDEALLOCATE(PartBound%AmbientThermalCond)
+SDEALLOCATE(PartBound%Voltage)
+SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
+SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
+SDEALLOCATE(PartBound%SpeciesSwaps)
+SDEALLOCATE(PartBound%MapToPartBC)
+SDEALLOCATE(PEM%Element)
+SDEALLOCATE(PEM%lastElement)
+SDEALLOCATE(PEM%pStart)
+SDEALLOCATE(PEM%pNumber)
+SDEALLOCATE(PEM%pEnd)
+SDEALLOCATE(PEM%pNext)
+SDEALLOCATE(seeds)
+SDEALLOCATE(RegionBounds)
+SDEALLOCATE(RegionElectronRef)
+END SUBROUTINE FinalizeParticles
 
 END MODULE MOD_ParticleInit

@@ -39,7 +39,7 @@ REAL    , ALLOCATABLE :: PartMPF(:)                                          ! (
 INTEGER               :: PartLorentzType
 CHARACTER(LEN=256)    :: ParticlePushMethod                                  ! Type of PP-Method
 INTEGER               :: nrSeeds                                             ! Number of Seeds for Random Number Generator
-INTEGER , POINTER     :: seeds(:)                                 =>NULL()   ! Seeds for Random Number Generator
+INTEGER , ALLOCATABLE :: seeds(:)                        !        =>NULL()   ! Seeds for Random Number Generator
 
 TYPE tConstPressure
   INTEGER                                :: nElemTotalInside                  ! Number of elements totally in Emission Particle  
@@ -162,20 +162,20 @@ TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! 
 
 
 TYPE tParticleElementMapping
-  INTEGER                      , POINTER :: Element(:)             =>NULL()  ! Element number allocated to each Particle
-  INTEGER                      , POINTER :: lastElement(:)         =>NULL()  ! Element number allocated
+  INTEGER                , ALLOCATABLE   :: Element(:)      !      =>NULL()  ! Element number allocated to each Particle
+  INTEGER                , ALLOCATABLE   :: lastElement(:)  !      =>NULL()  ! Element number allocated
                                                                              ! to each Particle at previous timestep
 !----------------------------------------------------------------------------!----------------------------------
                                                                              ! Following vectors are assigned in
                                                                              ! SUBROUTINE UpdateNextFreePosition
                                                                              ! IF (PIC%withDSMC .OR. PIC%withFP)
-  INTEGER                      , POINTER :: pStart(:)              =>NULL()  ! Start of Linked List for Particles in Element
-                                                                             ! pStart(1:PIC%nElem)
-  INTEGER                      , POINTER :: pNumber(:)             =>NULL()  ! Number of Particles in Element
-                                                                             ! pStart(1:PIC%nElem)
-  INTEGER                      , POINTER :: pEnd(:)                =>NULL()  ! End of Linked List for Particles in Element
-                                                                             ! pEnd(1:PIC%nElem)
-  INTEGER                      , POINTER :: pNext(:)               =>NULL()  ! Next Particle in same Element (Linked List)
+  INTEGER                , ALLOCATABLE    :: pStart(:)         !     =>NULL()  ! Start of Linked List for Particles in Element
+                                                               !               ! pStart(1:PIC%nElem)
+  INTEGER                , ALLOCATABLE    :: pNumber(:)        !     =>NULL()  ! Number of Particles in Element
+                                                               !               ! pStart(1:PIC%nElem)
+  INTEGER                , ALLOCATABLE    :: pEnd(:)           !     =>NULL()  ! End of Linked List for Particles in Element
+                                                               !               ! pEnd(1:PIC%nElem)
+  INTEGER                , ALLOCATABLE    :: pNext(:)          !     =>NULL()  ! Next Particle in same Element (Linked List)
                                                                              ! pStart(1:PIC%maxParticleNumber)
 END TYPE
 
@@ -188,9 +188,9 @@ TYPE tParticleDataManagement
   INTEGER                                :: insideParticleNumber              ! Number of all recent Particles inside
   INTEGER , ALLOCATABLE                  :: PartInit(:)                       ! (1:NParts), initial emission condition number
                                                                               ! the calculation area
-  INTEGER                      , POINTER :: nextFreePosition(:)    =>NULL()   ! next_free_Position(1:max_Particle_Number)
+  INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:max_Particle_Number)
                                                                               ! List of free Positon
-  LOGICAL                      , POINTER :: ParticleInside(:)      =>NULL()   ! Particle_inside(1:Particle_Number)
+  LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)    !  =>NULL()  ! Particle_inside(1:Particle_Number)
 END TYPE
 
 TYPE (tParticleDataManagement)           :: PDM

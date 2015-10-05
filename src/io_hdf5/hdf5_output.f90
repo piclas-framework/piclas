@@ -481,7 +481,7 @@ INTEGER                        :: minnParts
   DO iElem_loc=1,PP_nElems
     iElem_glob = iElem_loc + offsetElem
     PartInt(iElem_glob,1)=iPart
-    IF (ASSOCIATED(PEM%pNumber)) THEN
+    IF (ALLOCATED(PEM%pNumber)) THEN
       PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + PEM%pNumber(iElem_loc)
       pcount = PEM%pStart(iElem_loc)
       DO iPart=PartInt(iElem_glob,1)+1,PartInt(iElem_glob,2)

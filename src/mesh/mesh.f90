@@ -338,6 +338,9 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
+#ifdef PARTICLES
+!USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -354,6 +357,7 @@ SDEALLOCATE(DCL_NGeo)
 SDEALLOCATE(VdM_CLN_GaussN)
 SDEALLOCATE(VdM_CLNGeo_GaussN)
 SDEALLOCATE(Vdm_CLNGeo_CLN)
+SDEALLOCATE(Vdm_NGeo_CLNgeo)
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)
 SDEALLOCATE(ElemToSide)
@@ -371,6 +375,11 @@ SDEALLOCATE(TangVec1)
 SDEALLOCATE(TangVec2)  
 SDEALLOCATE(SurfElem)  
 SDEALLOCATE(Face_xGP)
+SDEALLOCATE(XCL_NGeo)
+SDEALLOCATE(dXCL_NGeo)
+SDEALLOCATE(Face_xGP)
+SDEALLOCATE(wbaryCL_NGeo)
+SDEALLOCATE(XiCL_NGeo)
 
 MeshInitIsDone = .FALSE.
 END SUBROUTINE FinalizeMesh

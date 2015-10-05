@@ -188,6 +188,7 @@ SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%Volume)
 SDEALLOCATE(GEO%DeltaEvMPF)
+SDEALLOCATE(GEO%ElemToFIBGM)
 SDEALLOCATE(BCElem)
 SDEALLOCATE(XiEtaZetaBasis)
 SDEALLOCATE(slenXiEtaZetaBasis)
@@ -515,7 +516,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !=================================================================================================================================
-
 
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
 GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')

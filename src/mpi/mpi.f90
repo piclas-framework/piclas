@@ -32,7 +32,12 @@ INTERFACE FinishExchangeMPIData
   MODULE PROCEDURE FinishExchangeMPIData
 END INTERFACE
 
-PUBLIC::InitMPIvars,StartExchangeMPIData,FinishExchangeMPIData
+INTERFACE FinalizeMPI
+  MODULE PROCEDURE FinalizeMPI
+END INTERFACE
+
+
+PUBLIC::InitMPIvars,StartExchangeMPIData,FinishExchangeMPIData, FinalizeMPI
 #endif
 !===================================================================================================================================
 
@@ -211,6 +216,52 @@ DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
 END DO !iProc=1,nNBProcs
 END SUBROUTINE FinishExchangeMPIData
+
+
+SUBROUTINE FinalizeMPI() 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Finalize DG MPI-Stuff, deallocate arrays with neighbor connections, etc.
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_MPI_Vars
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+SDEALLOCATE(offsetElemMPI)
+SDEALLOCATE(nMPISides_Proc)
+SDEALLOCATE(nMPISides_MINE_Proc)
+SDEALLOCATE(nMPISides_YOUR_Proc)
+SDEALLOCATE(offsetMPISides_MINE)
+SDEALLOCATE(offsetMPISides_YOUR)
+SDEALLOCATE(NbProc)
+
+! requires knowledge of number of MPI neighbors
+SDEALLOCATE(SendRequest_U)
+SDEALLOCATE(SendRequest_Flux)
+SDEALLOCATE(SendRequest_gradUx)
+SDEALLOCATE(SendRequest_gradUy)
+SDEALLOCATE(SendRequest_gradUz)
+SDEALLOCATE(RecRequest_U)
+SDEALLOCATE(RecRequest_Flux)
+SDEALLOCATE(RecRequest_gradUx)
+SDEALLOCATE(RecRequest_gradUy)
+SDEALLOCATE(RecRequest_gradUz)
+SDEALLOCATE(nMPISides_send)
+SDEALLOCATE(OffsetMPISides_send)
+SDEALLOCATE(nMPISides_rec)
+SDEALLOCATE(OffsetMPISides_rec)
+
+
+
+END SUBROUTINE FinalizeMPI
 #endif /*MPI*/
 
 END MODULE MOD_MPI

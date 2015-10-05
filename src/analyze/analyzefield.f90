@@ -547,7 +547,7 @@ SUBROUTINE FinalizePoyntingInt()
 ! Finalize Poynting Integral
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars         ,ONLY:isPoyntingIntSide
+USE MOD_Mesh_Vars         ,ONLY:isPoyntingIntSide,whichPoyntingPlane
 USE MOD_Analyze_Vars      ,ONLY:PosPoyntingInt,PoyntingIntPlaneFactor, S, STEM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -562,6 +562,7 @@ IMPLICIT NONE
 SDEALLOCATE(isPoyntingIntSide)
 SDEALLOCATE(PosPoyntingInt)
 SDEALLOCATE(PoyntingIntPlaneFactor)
+SDEALLOCATE(whichPoyntingPlane)
 SDEALLOCATE(S)
 SDEALLOCATE(STEM)
 

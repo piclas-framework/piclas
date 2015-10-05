@@ -7,9 +7,6 @@ MODULE  MOD_PICDepo
  IMPLICIT NONE                                                                                   
  PRIVATE                                                                                         
 !===================================================================================================================================
- PUBLIC :: Deposition,InitializeDeposition!, DepositionMPF                                        
-!===================================================================================================================================
-!===================================================================================================================================
 INTERFACE Deposition
   MODULE PROCEDURE Deposition
 END INTERFACE
@@ -18,6 +15,11 @@ INTERFACE InitializeDeposition
   MODULE PROCEDURE InitializeDeposition
 END INTERFACE
 
+INTERFACE FinalizeDeposition
+  MODULE PROCEDURE FinalizeDeposition
+END INTERFACE
+
+PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition
 !INTERFACE DepositionMPF
 !  MODULE PROCEDURE DepositionMPF
 !END INTERFACE
@@ -2266,5 +2268,36 @@ END DO ! k=0,N_in
 !END DO ! i = 1,N_in
 
 END SUBROUTINE ComputeGaussDistance
+
+
+SUBROUTINE FinalizeDeposition() 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! finalize pic deposition
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_PICDepo_Vars
+USE MOD_Particle_Mesh_Vars,   ONLY:Geo
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+SDEALLOCATE(GaussBorder)
+SDEALLOCATE(ElemDepo_xGP)
+SDEALLOCATE(Vdm_EquiN_GaussN)
+SDEALLOCATE(Knots)
+SDEALLOCATE(GaussBGMIndex)
+SDEALLOCATE(GaussBGMFactor)
+SDEALLOCATE(GEO%PeriodicBGMVectors)
+SDEALLOCATE(BGMSource)
+SDEALLOCATE(GPWeight)
+SDEALLOCATE(ElemRadius2_sf)
+END SUBROUTINE FinalizeDeposition
 
 END MODULE MOD_PICDepo
