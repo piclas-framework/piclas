@@ -1286,6 +1286,7 @@ CASE(CURVED)
 END SELECT 
 
 IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.)THEN
+  ElemID=PEM%Element(PartID)
   CALL Eval_xyz_Poly(PartPosRef(:,PartID),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),PartState(PartID,1:3))
   RETURN
 ELSE

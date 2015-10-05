@@ -138,6 +138,7 @@ CALL FinalizeBackGroundField()
 ! Measure simulation duration
 Time=BOLTZPLATZTIME()
 #ifdef MPI
+!CALL MPI_FREE_COMM(MPI_COMM_WORLD,iERROR)
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) &
   CALL abort(__STAMP__,'MPI finalize error',iError,999.)

@@ -1132,6 +1132,7 @@ SUBROUTINE FinalizeParticleMPI()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_MPI_Vars
+USE MOD_Particle_Vars,            ONLY:Species,nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1142,7 +1143,22 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                         :: nInitRegions,iInitRegions,iSpec
 !===================================================================================================================================
+
+nInitRegions=0
+DO iSpec=1,nSpecies
+  nInitRegions=nInitRegions+Species(iSpec)%NumberOfInits+(1-Species(iSpec)%StartnumberOfInits)
+END DO ! iSpec
+IF(nInitRegions.GT.0) THEN
+  DO iInitRegions=1,nInitRegions
+    IF(PartMPI%InitGroup(iInitRegions)%COMM.NE.MPI_COMM_NULL) THEN
+      CALL MPI_COMM_FREE(PartMPI%InitGroup(iInitRegions)%Comm,iERROR)
+    END IF
+  END DO ! iInitRegions
+END IF
+CALL MPI_COMM_FREE(PartMPI%COMM,iERROR)
+
 
 SDEALLOCATE( PartHaloToProc)
 SDEALLOCATE( PartMPI%isMPINeighbor)
@@ -1159,6 +1175,8 @@ SDEALLOCATE( PartSendBuf)
 SDEALLOCATE( PartRecvBuf)
 SDEALLOCATE( ExtPartState)
 SDEALLOCATE( ExtPartSpecies)
+
+
 ParticleMPIInitIsDone=.FALSE.
 END SUBROUTINE FinalizeParticleMPI
 
