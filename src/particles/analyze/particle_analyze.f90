@@ -535,7 +535,7 @@ CALL CollRates(CRate)
 IF (DSMC%ReservoirSimuRate  ) THEN
   IF (CollisMode.EQ.3.AND.(Time.GT.0).AND.(Time.NE.RestartTime))  CALL ReacRates(RRate, NumSpec)
 ELSE
-  RRate=0.
+  IF (CollisMode.EQ.3) RRate=0.
 END IF
 IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 ! currently, calculation of internal electronic energy not implemented !
@@ -1316,15 +1316,17 @@ REAL              :: EVib(nSpecies), ERot(nSpecies), Eelec(nSpecies), RealNumSpe
 !REAL              :: CalcTVib
 !===================================================================================================================================
 NumSpec = 0
-EVib = 0
-ERot = 0
+EVib = 0.0
+ERot = 0.0
+Eelec=0.0
 ! set electronic state to zero
-IntTemp(:,3) = 0
-RealNumSpec  = 0
+IntTemp(:,3) = 0.0
+RealNumSpec  = 0.0
 
 ! Sum up internal energies
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
+
       IF (usevMPF) THEN
         EVib(PartSpecies(i)) = EVib(PartSpecies(i)) + PartStateIntEn(i,1) * PartMPF(i)
         ERot(PartSpecies(i)) = ERot(PartSpecies(i)) + PartStateIntEn(i,2) * PartMPF(i)
