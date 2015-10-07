@@ -151,6 +151,7 @@ USE MOD_Mesh_Vars,          ONLY:aElem,aSide,bSide
 USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE
 #ifdef MPI
 USE MOD_Mesh_Vars,          ONLY:ParticleMPIWeight
+USE MOD_LoadBalance_Vars,   ONLy:nLoadBalance
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_PreProc
 USE MOD_ReadInTools
@@ -230,7 +231,7 @@ IF (DoRestart) THEN
   
   SumWeight = 0.0
   CurWeight = 0.0
-  ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
+  IF(nLoadBalance.EQ.0) ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
   IF (ParticleMPIWeight.LT.0) THEN
     WRITE(*,*) "ERROR: Particle weight can't be negative!"
     STOP

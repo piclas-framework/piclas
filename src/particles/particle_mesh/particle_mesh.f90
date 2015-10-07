@@ -105,7 +105,7 @@ FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 ! method from xPhysic to parameter space
 MappingGuess    = GETINT('MappingGuess','1')
 epsMapping      = GETREAL('epsMapping','1e-8')
-epsInCell       = SQRT(epsMapping)
+epsInCell       = SQRT(3.0*epsMapping)
 epsOneCell      = 1.0+epsInCell
 IF((MappingGuess.LT.1).OR.(MappingGuess.GT.4))THEN
    CALL abort(__STAMP__, &

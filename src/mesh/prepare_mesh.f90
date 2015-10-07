@@ -41,13 +41,14 @@ SUBROUTINE setLocalSideIDs()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,  ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
-USE MOD_Mesh_Vars,  ONLY: aElem,aSide, writePartitionInfo
-USE MOD_Mesh_Vars,  ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
+USE MOD_Mesh_Vars,        ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
+USE MOD_Mesh_Vars,        ONLY: aElem,aSide, writePartitionInfo
+USE MOD_Mesh_Vars,        ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
+USE MOD_LoadBalance_Vars, ONLY: DoLoadBalance,nLoadBalance
 #ifdef MPI
-USE MOD_ReadInTools,ONLY: GETLOGICAL
-USE MOD_MPI_Vars,   ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
-USE MOD_MPI_Vars,   ONLY: offsetMPISides_MINE,offsetMPISides_YOUR
+USE MOD_ReadInTools,      ONLY: GETLOGICAL
+USE MOD_MPI_Vars,         ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
+USE MOD_MPI_Vars,         ONLY: offsetMPISides_MINE,offsetMPISides_YOUR
 #endif
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -68,6 +69,8 @@ INTEGER,ALLOCATABLE   :: SideIDMap(:)
 INTEGER,ALLOCATABLE   :: NBinfo(:,:),NBinfo_glob(:,:,:),nNBProcs_glob(:),Procinfo_glob(:,:),tmparray(:,:)  !for output only
 REAL,ALLOCATABLE      :: tmpreal(:,:)
 CHARACTER(LEN=10)     :: formatstr
+CHARACTER(LEN=64)     :: filename
+CHARACTER(LEN=4)      :: hilf
 !LOGICAL               :: writePartitionInfo
 #endif
 !===================================================================================================================================
@@ -219,6 +222,14 @@ LOGWRITE(*,formatstr)'offsetMPISides_YOUR:',offsetMPISides_YOUR
 LOGWRITE(*,*)'-------------------------------------------------------'
 
 writePartitionInfo = GETLOGICAL('writePartitionInfo','.FALSE.')
+IF(DoLoadBalance)THEN
+  writePartitionInfo=.TRUE.
+  WRITE( hilf,'(I4.4)') nLoadBalance
+  filename='partitionInfo-'//TRIM(hilf)//'.out'
+ELSE
+  filename='partitionInfo.out'
+END IF
+
 IF(.NOT.writePartitionInfo) RETURN
 !output partitioning info
 ProcInfo(1)=nElems
@@ -256,7 +267,7 @@ CALL MPI_GATHER(NBinfo,6*nNBmax,MPI_INTEGER,NBinfo_glob,6*nNBmax,MPI_INTEGER,0,M
 DEALLOCATE(NBinfo)
 IF(MPIroot)THEN
   ioUnit=GETFREEUNIT()
-  OPEN(UNIT=ioUnit,FILE='partitionInfo.out',STATUS='REPLACE')
+  OPEN(UNIT=ioUnit,FILE=filename,STATUS='REPLACE')
   WRITE(ioUnit,*)'Partition Information:'
   WRITE(ioUnit,*)'total number of Procs,',nProcessors
   WRITE(ioUnit,*)'total number of Elems,',SUM(Procinfo_glob(1,:))

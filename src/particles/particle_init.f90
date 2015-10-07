@@ -924,7 +924,7 @@ SUBROUTINE FinalizeParticles()
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars
-USE MOD_DSMC_Vars,                  ONLY: SampDSMC
+!USE MOD_DSMC_Vars,                  ONLY: SampDSMC
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -937,7 +937,7 @@ IMPLICIT NONE
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
 SDEALLOCATE( Pt_temp)
 #endif
-SDEALLOCATE(SampDSMC)
+!SDEALLOCATE(SampDSMC)
 SDEALLOCATE(PartPosRef)
 SDEALLOCATE(RandomVec)
 SDEALLOCATE(PartState)

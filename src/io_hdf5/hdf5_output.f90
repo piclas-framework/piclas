@@ -50,6 +50,8 @@ USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_Output_Vars,          ONLY:ProjectName
 USE MOD_Mesh_Vars,            ONLY:offsetElem,nGlobalElems
+USE MOD_LoadBalance_Vars,     ONLY:OutPutRank
+USE MOD_Restart_Vars,         ONLY:RestartFile
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,         ONLY:OutputSource,Source
 USE MOD_Equation_Vars,        ONLY:c_corr,eps0
@@ -92,6 +94,7 @@ nVar=PP_nVar
 #ifdef PARTICLES
 IF(OutPutSource) nVar=nVar+4
 #endif /*PARTICLES*/
+IF(OutPutRank) nVar=nVar+1
 ALLOCATE(StrVarNames(1:nVar))
 #if PP_nVar==8
 #ifndef PP_POIS
@@ -135,9 +138,13 @@ IF(OutPutSource) THEN
   StrVarNames(PP_nVar+4)='ChargeDensity'
 END IF
 #endif /*PARTICLES*/
+IF(OutPutRank) THEN
+  StrVarNames(nVar)='MyRank'
+END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
+RestartFile=Filename
 ! PO:
 ! excahnge PP_N through Nout
 IF(MPIRoot) CALL GenerateFileSkeleton('State',NVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
@@ -172,6 +179,15 @@ IF(OutPutSource) THEN
   END DO
 END IF
 #endif /*PARTICLES*/
+
+IF(OutPutRank) THEN
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+      Utemp(nVar,i,j,k,iElem)        =  REAL(MyRank)
+    END DO; END DO; END DO
+  END DO
+END IF
+
 !CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
 !,offsetElem,5,existing=.TRUE.,RealArray=Utemp)
 CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
@@ -212,6 +228,14 @@ IF(OutPutSource) THEN
   END DO
 END IF
 #endif /*PARTICLES*/
+IF(OutPutRank) THEN
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+      Utemp(nVar,i,j,k,iElem)        =  REAL(MyRank)
+    END DO; END DO; END DO
+  END DO
+END IF
+
 !CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
 !,offsetElem,5,existing=.TRUE.,RealArray=Utemp)
 CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
@@ -241,7 +265,7 @@ CALL WriteArrayToHDF5(DataSetName='DG_SolutionPhi', rank=5,&
 ! PO: old version
 !CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
 ! ,offsetElem,5,existing=.TRUE.,RealArray=U)
-Utemp=U
+Utemp(1:PP_nVar,:,:,:,:)=U
 #ifdef PARTICLES
 IF(OutPutSource) THEN
   eps0inv = 1./eps0
@@ -254,12 +278,19 @@ IF(OutPutSource) THEN
   END DO
 END IF
 #endif /*PARTICLES*/
+IF(OutPutRank) THEN
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+      Utemp(nVar,i,j,k,iElem)        =  REAL(MyRank)
+    END DO; END DO; END DO
+  END DO
+END IF
 
 CALL WriteArrayToHDF5(DataSetName='DG_Solution', rank=5,&
                       nValGlobal =(/NVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
                       nVal       =(/NVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems   /),&
                       offset     =(/0,      0,     0,     0,     offsetElem  /),&
-                      collective =.TRUE., existing=.TRUE., RealArray=U)
+                      collective =.TRUE., existing=.TRUE., RealArray=Utemp)
 #endif
 
 CALL CloseDataFile()
@@ -976,7 +1007,8 @@ END IF
 ! make array extendable in case you want to append something
 IF(PRESENT(resizeDim))THEN
   IF(.NOT.PRESENT(chunkSize))&
-    CALL abort(__STAMP__,'Chunk size has to be specified when using resizable arrays.')
+    CALL abort(&
+    __STAMP__,'Chunk size has to be specified when using resizable arrays.')
   nValMax = MERGE(H5S_UNLIMITED_F,nValMax,resizeDim)
 END IF
 

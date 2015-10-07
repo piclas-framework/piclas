@@ -408,5 +408,4 @@ REAL            :: VECNORM  !
 VECNORM=SQRT(v1(1)*v1(1)+v1(2)*v1(2)+v1(3)*v1(3))
 END FUNCTION VECNORM
 
-
 END MODULE MOD_Globals

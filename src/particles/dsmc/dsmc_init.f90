@@ -13,6 +13,10 @@ INTERFACE InitDSMC
   MODULE PROCEDURE InitDSMC
 END INTERFACE
 
+INTERFACE FinalizeDSMC
+  MODULE PROCEDURE FinalizeDSMC
+END INTERFACE
+
 INTERFACE DSMC_SetInternalEnr_LauxVFD
   MODULE PROCEDURE DSMC_SetInternalEnr_LauxVFD
 END INTERFACE
@@ -22,7 +26,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitDSMC, DSMC_SetInternalEnr_LauxVFD
+PUBLIC :: InitDSMC, DSMC_SetInternalEnr_LauxVFD,FinalizeDSMC
 !===================================================================================================================================
 
 CONTAINS
@@ -1220,5 +1224,70 @@ STOP
 !  RETURN
 
 END FUNCTION CalcArea
+
+
+SUBROUTINE FinalizeDSMC() 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! finalize dsmc variables
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_DSMC_Vars
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+SDEALLOCATE(SampDSMC)
+SDEALLOCATE(DSMC_RHS)
+SDEALLOCATE(PartStateIntEn)
+SDEALLOCATE(SpecDSMC)
+SDEALLOCATE(DSMC%NumColl)
+SDEALLOCATE(DSMC%CalcSurfCollis_SpeciesFlags)
+SDEALLOCATE(DSMC%CollProbOut)
+SDEALLOCATE(DSMC%CollProbSamp)
+SDEALLOCATE(Coll_pData)
+SDEALLOCATE(SampDSMC)
+SDEALLOCATE(MacroDSMC)
+SDEALLOCATE(ChemReac%QKProcedure)
+SDEALLOCATE(ChemReac%QKMethod)
+SDEALLOCATE(ChemReac%QKCoeff)
+SDEALLOCATE(ChemReac%NumReac)
+SDEALLOCATE(ChemReac%ReacCount)
+SDEALLOCATE(ChemReac%NumReac)
+SDEALLOCATE(ChemReac%ReactType)
+SDEALLOCATE(ChemReac%DefinedReact)
+SDEALLOCATE(ChemReac%ReactCase)
+SDEALLOCATE(ChemReac%ReactNum)
+SDEALLOCATE(ChemReac%Arrhenius_Prefactor)
+SDEALLOCATE(ChemReac%Arrhenius_Powerfactor)
+SDEALLOCATE(ChemReac%EActiv)
+SDEALLOCATE(ChemReac%EForm)
+SDEALLOCATE(ChemReac%MeanEVib_PerIter)
+SDEALLOCATE(ChemReac%MeanEVibQua_PerIter)
+SDEALLOCATE(ChemReac%CEXa)
+SDEALLOCATE(ChemReac%CEXb)
+SDEALLOCATE(ChemReac%MEXa)
+SDEALLOCATE(ChemReac%MEXb)
+SDEALLOCATE(ChemReac%ReactInfo)
+SDEALLOCATE(CollInf%Coll_Case)
+SDEALLOCATE(CollInf%Coll_CaseNum)
+SDEALLOCATE(CollInf%Coll_SpecPartNum)
+SDEALLOCATE(CollInf%Cab)
+SDEALLOCATE(CollInf%KronDelta)
+SDEALLOCATE(CollInf%FracMassCent)
+SDEALLOCATE(CollInf%MassRed)
+SDEALLOCATE(SampWall)
+SDEALLOCATE(MacroSurfaceVal)
+SDEALLOCATE(VibQuantsPar)
+SDEALLOCATE(XiEq_Surf)
+
+END SUBROUTINE FinalizeDSMC
+
 
 END MODULE MOD_DSMC_Init

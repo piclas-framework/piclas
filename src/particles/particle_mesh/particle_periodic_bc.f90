@@ -397,6 +397,7 @@ END IF
 IF(GEO%nPeriodicVectors.EQ.0) RETURN
 
 GEO%directions=.FALSE.
+SDEALLOCATE(GEO%DirPeriodicVectors)
 ALLOCATE(GEO%DirPeriodicVectors(1:GEO%nPeriodicVectors))
 ! check if all periodic vectors are cartesian
 !directions(1:3)=.FALSE.

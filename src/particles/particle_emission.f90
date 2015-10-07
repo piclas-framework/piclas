@@ -452,7 +452,7 @@ INTEGER                                  :: msg_status(1:MPI_STATUS_SIZE)
 INTEGER                                  :: MessageSize
 LOGICAL                                  :: InsideMyBGM                                                 
 #endif
-REAL,POINTER                             :: particle_positions(:)=>NULL()
+REAL,ALLOCATABLE                         :: particle_positions(:)
 INTEGER                                  :: allocStat                                           
 INTEGER                                  :: i,j,k,ParticleIndexNbr                                      
 INTEGER                                  :: mySumOfMatchedParticles, sumOfMatchedParticles              

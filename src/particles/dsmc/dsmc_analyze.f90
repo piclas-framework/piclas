@@ -406,6 +406,10 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
   CHARACTER(LEN=255)                 :: FileName,FileString,Statedummy
   INTEGER                             :: nVal
 !===================================================================================================================================
+  SWRITE(*,*) 'aetsch'
+  RETURN
+
+
   SWRITE(*,*) ' WRITE DSMCSTATE TO HDF5 FILE...'
   FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime)
   FileString=TRIM(FileName)//'.h5'

@@ -36,11 +36,7 @@ TYPE tPartMPIGROUP
 END TYPE
 
 TYPE tPeriodicPtr
-!  LOGICAL                      , POINTER :: myBGMPeriodicPoint(:,:,:)   =>NULL() ! same as below for periodic borders +#
-!  LOGICAL                      , POINTER :: yourBGMPeriodicPoint(:,:,:) =>NULL() ! same as below for periodic borders +#
-  INTEGER                      , POINTER :: BGMPeriodicBorder(:,:)          ! indices of periodic border nodes
-!  INTEGER                                :: nmyBGMPeriodicPoints           ! same as below for periodic border for each border
-!  INTEGER                                :: nyourBGMPeriodicPoints         ! same as below for periodic border for each border
+  INTEGER                  , ALLOCATABLE  :: BGMPeriodicBorder(:,:)          ! indices of periodic border nodes
 END TYPE
 
 #ifdef MPI

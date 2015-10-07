@@ -490,7 +490,7 @@ IonizationEnergy=SpecDSMC(PartSpecies(PartToExec))%ElectronicState(2,MaxElecQua)
 
 ! if you have electronic levels above the ionization limit, such limits should be used instead of
 ! the pure energy comparison
-IF(Coll_pData(iPair)%Ec .gt. IonizationEnergy)THEN
+IF(Coll_pData(iPair)%Ec .GT. IonizationEnergy)THEN
 #if (PP_TimeDiscMethod==42)
   ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
   IF (.NOT. DSMC%ReservoirSimuRate ) THEN
@@ -663,9 +663,10 @@ IF (ReactionProb.GT.iRan) THEN
   IF (.NOT. DSMC%ReservoirSimuRate  ) THEN
 # endif
  ! calculate collision energy as required to performe the chemical reaction (non-qk)
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
-      + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 &
-                                                                                 + PartState(iPart_p3,6)**2 )
+    !Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
+    !  + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2   &
+    !                                                                             + PartState(iPart_p3,6)**2 ) &
+    !                                              + PartStateIntEn(PartReac1,3) + PartStateIntEn(PartReac2,3)
     IF(SpecDSMC(PartSpecies(PartReac1))%InterID.EQ.2)THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(PartReac1,1) + PartStateIntEn(PartReac1,2)
     END IF

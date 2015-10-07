@@ -2348,6 +2348,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,            ONLY:nSides,nElems,writePartitionInfo
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,   ONLY:nTotalSides,nTotalElems
+USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance,nLoadBalance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2362,10 +2363,11 @@ INTEGER,INTENT(IN)         :: nPlanar,nBilinear,nCurved
 INTEGER,ALLOCATABLE        :: nNBProcs_glob(:), ProcInfo_glob(:,:),NBInfo_glob(:,:), NBInfo(:), tmparray(:,:)
 REAL,ALLOCATABLE           :: tmpreal(:,:)
 INTEGER                    :: ProcInfo(7),nNBmax,i,j,ioUnit
+CHARACTER(LEN=64)          :: filename
+CHARACTER(LEN=4)           :: hilf
 !===================================================================================================================================
 
 IF(.NOT.WritePartitionInfo) RETURN
-
 
 !output partitioning info
 ProcInfo(1)=nElems
@@ -2400,7 +2402,13 @@ CALL MPI_GATHER(NBinfo,nNBmax,MPI_INTEGER,NBinfo_glob,nNBmax,MPI_INTEGER,0,PartM
 DEALLOCATE(NBinfo)
 IF(MPIroot)THEN
   ioUnit=GETFREEUNIT()
-  OPEN(UNIT=ioUnit,FILE='particlepartitionInfo.out',STATUS='REPLACE')
+  IF(DoLoadBalance)THEN
+    WRITE( hilf,'(I4.4)') nLoadBalance
+    filename='particlepartitionInfo-'//TRIM(hilf)//'.out'
+  ELSE
+    filename='particlepartitionInfo.out'
+  END IF
+  OPEN(UNIT=ioUnit,FILE=filename,STATUS='REPLACE')
   WRITE(ioUnit,*)'Particle Partition Information:'
   WRITE(ioUnit,*)'total number of Procs,',PartMPI%nProcs
   WRITE(ioUnit,*)'total number of Elems,',SUM(Procinfo_glob(1,:))
@@ -2493,6 +2501,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,            ONLY:nSides,nElems, writePartitionInfo
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,   ONLY:nTotalSides,nTotalElems
+USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance,nLoadBalance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2507,6 +2516,8 @@ INTEGER,INTENT(IN)         :: nPlanar,nBilinear,nCurved,nTotalBCElems
 INTEGER,ALLOCATABLE        :: nNBProcs_glob(:), ProcInfo_glob(:,:),NBInfo_glob(:,:), NBInfo(:), tmparray(:,:)
 REAL,ALLOCATABLE           :: tmpreal(:,:)
 INTEGER                    :: ProcInfo(8),nNBmax,i,j,ioUnit
+CHARACTER(LEN=64)          :: filename
+CHARACTER(LEN=4)           :: hilf
 !===================================================================================================================================
 
 IF(.NOT.WritePartitionInfo) RETURN
@@ -2545,7 +2556,13 @@ CALL MPI_GATHER(NBinfo,nNBmax,MPI_INTEGER,NBinfo_glob,nNBmax,MPI_INTEGER,0,PartM
 DEALLOCATE(NBinfo)
 IF(MPIroot)THEN
   ioUnit=GETFREEUNIT()
-  OPEN(UNIT=ioUnit,FILE='particlepartitionInfo.out',STATUS='REPLACE')
+  IF(DoLoadBalance)THEN
+    WRITE( hilf,'(I4.4)') nLoadBalance
+    filename='particlepartitionInfo-'//TRIM(hilf)//'.out'
+  ELSE
+    filename='particlepartitionInfo.out'
+  END IF
+  OPEN(UNIT=ioUnit,FILE=filename,STATUS='REPLACE')
   WRITE(ioUnit,*)'Particle Partition Information:'
   WRITE(ioUnit,*)'total number of Procs,',PartMPI%nProcs
   WRITE(ioUnit,*)'total number of Elems,',SUM(Procinfo_glob(1,:))

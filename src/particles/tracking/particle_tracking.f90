@@ -48,7 +48,7 @@ USE MOD_TimeDisc_Vars,               ONLY:iter
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Particle_Vars,               ONLY:time
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Tracking_vars,      ONLY:ntracks
+USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap
 USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
                                          ,ComputePlanarIntersectionBezier,PartInElemCheck
@@ -76,6 +76,7 @@ REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     nTracks=nTracks+1
+    nCurrentParts=nCurrentParts+1
     PartisDone=.FALSE.
     ElemID = PEM%lastElement(iPart)
     PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
@@ -362,7 +363,7 @@ USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,lastpartpos
 USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
-USE MOD_Particle_Tracking_Vars,  ONLY:nTracks
+USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,nCurrentParts
 USE MOD_Particle_Surfaces_Vars,  ONLY:ClipHit
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsInCell,epsOneCell
 USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToSide,PartSideToElem,nTotalBCSides,PartBCSideLIst
@@ -402,6 +403,7 @@ LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength)
 ! sanity check
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
+    nCurrentParts=nCurrentParts+1
     IF(PartState(iPart,1).NE.PartState(iPart,1)) CALL abort(&
         __STAMP__,&
         ' x-pos is nan of ipart',iPart)

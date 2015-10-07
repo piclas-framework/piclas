@@ -166,6 +166,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
                              + (PartState(Coll_pData(iPair)%iPart_p1,6) &
                              -  PartState(Coll_pData(iPair)%iPart_p2,6))**2 
     Coll_pData(iPair)%PairType = iCase
+    Coll_pData(iPair)%NeedForRec = .FALSE.
   END DO
   
   DEALLOCATE(iPartIndx)
