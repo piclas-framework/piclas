@@ -187,6 +187,15 @@ INTEGER,PARAMETER              :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER              :: ELEM_LastPartInd=2
 REAL,ALLOCATABLE               :: ElemWeight(:)
 REAL                           :: SumWeight, CurWeight
+! new weight distribution method
+INTEGER                        :: BalanceMethod,iDistriIter
+LOGICAL                        :: FoundDistribution
+REAL                           :: targetWeight,LastProcDiff
+REAL                           :: LoadDistri(0:nProcessors-1),LoadDiff(0:nProcessors-1)
+REAL                           :: MaxLoadDiff,LastLoadDiff
+INTEGER                        :: ElemDistri(0:nProcessors-1)
+INTEGER,ALLOCATABLE            :: PartsInElem(:)
+REAL                           :: diffLower,diffUpper
 #endif
 LOGICAL                        :: fileExists
 LOGICAL                        :: doConnection
@@ -232,6 +241,7 @@ IF (DoRestart) THEN
   SumWeight = 0.0
   CurWeight = 0.0
   IF(nLoadBalance.EQ.0) ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
+  BalanceMethod= GETINT('WeightDistributionMethod','0')
   IF (ParticleMPIWeight.LT.0) THEN
     WRITE(*,*) "ERROR: Particle weight can't be negative!"
     STOP
@@ -240,25 +250,98 @@ IF (DoRestart) THEN
   ! read in particle data
 
   ALLOCATE(ElemWeight(1:nGlobalElems))
+  ALLOCATE(PartsInElem(1:nGlobalElems))
+
   DO iElem = 1, nGlobalElems
     locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
+    PartsInElem(iElem)=locnPart
     ElemWeight(iElem) = locnPart*ParticleMPIWeight + 1.0
     SumWeight = SumWeight + ElemWeight(iElem)
   END DO
 
-  SumWeight=SumWeight/nProcessors 
-  curiElem = 1
-  DO iProc=0, nProcessors-1
-    offsetElemMPI(iProc)=curiElem - 1 
-    DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc  
-      CurWeight=CurWeight+ElemWeight(iElem)  
-      IF (CurWeight.GE.SumWeight*(iProc+1)) THEN
-        curiElem = iElem + 1 
-        EXIT
-      END IF
-    END DO   
-  END DO
-  
+  SELECT CASE(BalanceMethod)
+  CASE(0) ! old scheme
+    curiElem = 1
+    SumWeight=SumWeight/REAL(nProcessors)
+    DO iProc=0, nProcessors-1
+      offsetElemMPI(iProc)=curiElem - 1 
+      DO iElem = curiElem, nGlobalElems - nProcessors + 1 + iProc  
+        CurWeight=CurWeight+ElemWeight(iElem)  
+        IF (CurWeight.GE.SumWeight*(iProc+1)) THEN
+          curiElem = iElem + 1 
+          EXIT
+        END IF
+      END DO   
+    END DO
+  CASE(1)
+    ! last Proc receives the least load
+    IF(MPIRoot)THEN
+      FoundDistribution=.FALSE.
+      targetWeight=SumWeight/nProcessors
+      LastProcDiff=0.
+      iDistriIter=0
+      DO WHILE(.NOT.FoundDistribution)
+        targetWeight=targetWeight+LastProcDiff/REAL(nProcessors)
+        curiElem=1
+        offSetElemMPI=0
+        LoadDistri=0.
+        LoadDiff=0.
+        DO iProc=0,nProcessors-1
+          offSetElemMPI(iProc)=curiElem-1
+          CurWeight=0.
+          DO iElem=curiElem, nGlobalElems - nProcessors +1 + iProc
+            CurWeight=CurWeight+ElemWeight(iElem)
+            IF(CurWeight.GT.targetWeight)THEN
+              diffLower=CurWeight-ElemWeight(iElem)-targetWeight
+              diffUpper=Curweight-targetWeight
+              IF(iProc.EQ.nProcessors-1)THEN
+                LoadDIff(iProc)=diffUpper
+                curiElem=iElem+1
+                LoadDistri(iProc)=CurWeight
+                EXIT
+              ELSE ! all other processes
+                IF(ABS(diffLower).LT.ABS(diffUpper))THEN
+                  LoadDiff(iProc)=diffLower
+                  curiElem=iElem
+                  LoadDistri(iProc)=CurWeight-ElemWeight(iElem)
+                  EXIT
+                ELSE
+                  LoadDiff(iProc)=diffUpper
+                  curiElem=iElem+1
+                  LoadDistri(iProc)=CurWeight
+                  EXIT
+                END IF
+              END IF
+            END IF
+          END DO ! iElem
+        END DO ! iProc
+        ElemDistri=0
+        DO iProc=0,nProcessors-2
+          ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
+        END DO ! iPRoc
+        ElemDistri(nProcessors-1)=nGlobalElems-offSetElemMPI(nProcessors-1)
+        LoadDistri(nProcessors-1)=ElemDistri(nProcessors-1) +&
+                                  SUM(PartsInElem(offSetElemMPI(nProcessors-1)+1:nGlobalElems))*ParticleMPIWeight
+        LastLoadDiff = LoadDistri(nProcessors-1)-targetWeight
+        LoadDiff(nProcessors-1)=LastLoadDiff
+        MaxLoadDiff=MAXVAL(LoadDiff(0:nProcessors-2))
+        LastProcDiff=LastLoadDiff-MaxLoadDiff
+        IF(LastProcDiff.GT.0)THEN
+          iDistriIter=iDistriIter+1
+        ELSE
+          FoundDistribution=.TRUE.
+        END IF
+        IF(iDistriIter.EQ.10) CALL abort(&
+          __STAMP__,'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!')
+        IF(.NOT.ALMOSTEQUAL(SumWeight,SUM(LoadDistri))) CALL abort(&
+          __STAMP__,' Lost Elements and/or Particles during load distribution!')
+      END DO
+      offsetElemMPI(nProcessors)=nGlobalElems
+    END IF
+    ! thend the ound distribution to all other procs
+    CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
+  END SELECT
+  DEALLOCATE(PartsInElem)
 ELSE
   nElems=nGlobalElems/nProcessors
   iElem=nGlobalElems-nElems*nProcessors
