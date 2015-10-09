@@ -118,6 +118,7 @@ USE MOD_Particle_MPI_Vars,     ONLY:PartMPIExchange
 ! LOCAL VARIABLES
 REAL              :: TotalLoad(1:11)
 REAL,ALLOCATABLE  :: GlobalLoad(:,:,:), GlobalWeights(:,:,:)
+REAL              :: totalRatio(2,0:nProcessors-1)
 CHARACTER(LEN=64) :: filename, firstLine(2)
 CHARACTER(LEN=4)  :: hilf
 INTEGER           :: iounit,iProc,iOut
@@ -177,22 +178,30 @@ IF(MPIRoot)THEN
     DO iProc=0,nProcessors-1
       GlobalWeights(iOut,1,iProc) = GlobalLoad(iOut,1 ,iProc)+GlobalLoad(iOut,3 ,iProc)
       GlobalWeights(iOut,2,iProc) = SUM(GlobalLoad(iOut,4:8,iProc))+SUM(GlobalLoad(iOut,10:11,iProc))
-      IF(.NOT.ALMOSTZERO(GlobalWeights(iOut,2,iProc)))THEN
+      IF(.NOT.ALMOSTZERO(GlobalWeights(iOut,1,iProc)))THEN
         GlobalWeights(iOut,3,iProc) =  GlobalWeights(iOut,2,iProc) /  GlobalWeights(iOut,1,iProc)
         nWeights(iOut)=nWeights(iOut)+1
-        IF(.NOT.ALMOSTZERO(GlobalLoad(iOut,2,iProc)))&
+        IF(.NOT.ALMOSTZERO(GlobalLoad(iOut,2,iProc))) THEN
           GlobalWeights(iOut,4,iProc) = GlobalLoad(iOut,9,iProc) / GlobalLoad(iOut,2,iProc)
-        GlobalWeights(iOut,5,iProc) = SUM(GlobalLoad(iOut,4:11,iProc)) / SUM(GlobalLoad(iOut,1:3,iProc))
-        PartWeight(1:3,iOut)=PartWeight(1:3,iOut)+GlobalWeights(iOut,3:5,iProc)
+          GlobalWeights(iOut,5,iProc) = SUM(GlobalLoad(iOut,4:11,iProc)) / SUM(GlobalLoad(iOut,1:3,iProc))
+          PartWeight(1:3,iOut)=PartWeight(1:3,iOut)+GlobalWeights(iOut,3:5,iProc)
+        END IF
+      END IF
+    END DO ! iProc
+    DO iProc=0,nProcessors-1
+      IF(ALMOSTZERO(GlobalWeights(iOut,5,iProc)))THEN
+        totalRatio(iOut,iProc)=HUGE(0.)
+      ELSE
+        totalRatio(iOut,iProc)=GlobalWeights(iOut,5,iProc)
       END IF
     END DO ! iProc
   END DO ! iOut
   PartWeight(1,:)=PartWeight(1,:)/nWeights
   PartWeight(2,:)=PartWeight(2,:)/nWeights
   PartWeight(3,:)=PartWeight(3,:)/nWeights
-  ParticleMPIWeight=MIN(PartWeight(3,1),PartWeight(1,1))
+  !ParticleMPIWeight=MINVAL(totalRatio(2,:)) ! currently per analyze_dt
+  ParticleMPIWeight=PartWeight(3,2)
 END IF
-
 #ifdef MPI
   CALL MPI_BCAST (ParticleMPIWeight,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
 #endif /*MPI*/
@@ -212,6 +221,7 @@ IF(MPIRoot)THEN
     OPEN(UNIT=ioUnit,FILE=filename,STATUS='REPLACE')
     WRITE(ioUnit,'(A)') firstLine(iOut)
     WRITE(ioUnit,'(A,I10)')'total number of Procs,',nProcessors
+    WRITE(ioUnit,'(A20,ES17.5)') 'PartMPIWeight:  ', ParticleMPIWeight
     WRITE(ioUnit,'(A20,ES17.5)') 'Mean-PartWeight: ', PartWeight(1,iOut)
     WRITE(ioUnit,'(A20,ES17.5)') 'Mean-Comm-Weight:', PartWeight(2,iOut)
     WRITE(ioUnit,'(A20,ES17.5)') 'Mean-TotalWeight:', PartWeight(3,iOut)

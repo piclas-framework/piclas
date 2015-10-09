@@ -193,7 +193,7 @@ LOGICAL                        :: FoundDistribution
 REAL                           :: targetWeight,LastProcDiff
 REAL                           :: LoadDistri(0:nProcessors-1),LoadDiff(0:nProcessors-1)
 REAL                           :: MaxLoadDiff,LastLoadDiff
-INTEGER                        :: ElemDistri(0:nProcessors-1)
+INTEGER                        :: ElemDistri(0:nProcessors-1),getElem
 INTEGER,ALLOCATABLE            :: PartsInElem(:)
 REAL                           :: diffLower,diffUpper
 #endif
@@ -274,69 +274,170 @@ IF (DoRestart) THEN
       END DO   
     END DO
   CASE(1)
-    ! last Proc receives the least load
+    ! 1: last Proc receives the least load
+    ! 2: Root receives the least load
     IF(MPIRoot)THEN
       FoundDistribution=.FALSE.
-      targetWeight=SumWeight/nProcessors
+      targetWeight=SumWeight/REAL(nProcessors)
       LastProcDiff=0.
       iDistriIter=0
       DO WHILE(.NOT.FoundDistribution)
+        iDistriIter=iDistriIter+1
+        SWRITE(*,*) 'LoadDistriIter', iDistriIter
         targetWeight=targetWeight+LastProcDiff/REAL(nProcessors)
         curiElem=1
         offSetElemMPI=0
+        offsetElemMPI(nProcessors)=nGlobalElems
         LoadDistri=0.
         LoadDiff=0.
         DO iProc=0,nProcessors-1
           offSetElemMPI(iProc)=curiElem-1
           CurWeight=0.
+          getElem=0
           DO iElem=curiElem, nGlobalElems - nProcessors +1 + iProc
             CurWeight=CurWeight+ElemWeight(iElem)
-            IF(CurWeight.GT.targetWeight)THEN
+            getElem=getElem+1
+            IF((CurWeight.GT.targetWeight) .OR. (iElem .EQ. nGlobalElems - nProcessors +1 + iProc))THEN
               diffLower=CurWeight-ElemWeight(iElem)-targetWeight
               diffUpper=Curweight-targetWeight
-              IF(iProc.EQ.nProcessors-1)THEN
-                LoadDIff(iProc)=diffUpper
+              IF(getElem.GT.1)THEN
+                IF(iProc.EQ.nProcessors-1)THEN
+                  LoadDistri(iProc)=CurWeight
+                  LoadDiff(iProc)=diffUpper
+                  curiElem=iElem+1
+                  EXIT
+                ELSE
+                  IF(ABS(diffLower).LT.ABS(diffUpper) .AND. iElem.LT.nGlobalElems-nProcessors+1+iProc)THEN
+                   LoadDiff(iProc)=diffLower
+                   curiElem=iElem
+                   LoadDistri(iProc)=CurWeight-ElemWeight(iElem)
+                   EXIT
+                  ELSE
+                    LoadDiff(iProc)=diffUpper
+                    curiElem=iElem+1
+                    LoadDistri(iProc)=CurWeight
+                    EXIT
+                  END IF
+                END IF
+              ELSE
+                LoadDiff(iProc)=diffUpper
                 curiElem=iElem+1
                 LoadDistri(iProc)=CurWeight
                 EXIT
-              ELSE ! all other processes
-                IF(ABS(diffLower).LT.ABS(diffUpper))THEN
-                  LoadDiff(iProc)=diffLower
-                  curiElem=iElem
-                  LoadDistri(iProc)=CurWeight-ElemWeight(iElem)
-                  EXIT
-                ELSE
-                  LoadDiff(iProc)=diffUpper
-                  curiElem=iElem+1
-                  LoadDistri(iProc)=CurWeight
-                  EXIT
-                END IF
               END IF
             END IF
           END DO ! iElem
         END DO ! iProc
         ElemDistri=0
-        DO iProc=0,nProcessors-2
+        DO iProc=0,nProcessors-1
           ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
+          ! sanity check
+          IF(ElemDistri(iProc).LE.0) CALL abort(&
+          __STAMP__,' Process received zero elements during load distribution',iProc)
         END DO ! iPRoc
-        ElemDistri(nProcessors-1)=nGlobalElems-offSetElemMPI(nProcessors-1)
         LoadDistri(nProcessors-1)=ElemDistri(nProcessors-1) +&
                                   SUM(PartsInElem(offSetElemMPI(nProcessors-1)+1:nGlobalElems))*ParticleMPIWeight
         LastLoadDiff = LoadDistri(nProcessors-1)-targetWeight
         LoadDiff(nProcessors-1)=LastLoadDiff
         MaxLoadDiff=MAXVAL(LoadDiff(0:nProcessors-2))
         LastProcDiff=LastLoadDiff-MaxLoadDiff
-        IF(LastProcDiff.GT.0)THEN
-          iDistriIter=iDistriIter+1
-        ELSE
+        IF(LastProcDiff.LT.0)THEN
           FoundDistribution=.TRUE.
         END IF
-        IF(iDistriIter.EQ.10) CALL abort(&
+        IF(iDistriIter.EQ.nProcessors) CALL abort(&
           __STAMP__,'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!')
-        IF(.NOT.ALMOSTEQUAL(SumWeight,SUM(LoadDistri))) CALL abort(&
+        IF(ABS(SumWeight-SUM(LoadDistri)).GT.0.5) THEN
+           CALL abort(&
           __STAMP__,' Lost Elements and/or Particles during load distribution!')
+        END IF
       END DO
-      offsetElemMPI(nProcessors)=nGlobalElems
+    END IF
+    ! thend the ound distribution to all other procs
+    CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
+  CASE(2)
+     CALL abort(&
+     __STAMP__,' error in load distritubion. please fix me!')
+    ! 1: last Proc receives the least load
+    ! 2: Root receives the least load
+    IF(MPIRoot)THEN
+      FoundDistribution=.FALSE.
+      targetWeight=SumWeight/REAL(nProcessors)
+      LastProcDiff=0.
+      iDistriIter=0
+      DO WHILE(.NOT.FoundDistribution)
+        iDistriIter=iDistriIter+1
+        SWRITE(*,*) 'LoadDistriIter', iDistriIter
+        targetWeight=targetWeight+LastProcDiff/REAL(nProcessors)
+        curiElem=nGlobalElems
+        offSetElemMPI=0
+        LoadDistri=0.
+        LoadDiff=0.
+        DO iProc=nProcessors-1,0,-1
+          offSetElemMPI(iProc+1)=curiElem
+          CurWeight=0.
+          getElem=0
+          DO iElem=curiElem,  iProc+1,-1
+            CurWeight=CurWeight+ElemWeight(iElem)
+            getElem=getElem+1
+            IF((CurWeight.GT.targetWeight) .OR. (iElem .EQ. iProc+1))THEN ! take lower and upper is special case
+              diffLower=CurWeight-ElemWeight(iElem)-targetWeight
+              diffUpper=Curweight-targetWeight
+              IF(getElem.GT.1)THEN
+                IF(iProc.EQ.0)THEN
+                  LoadDistri(iProc)=CurWeight
+                  LoadDiff(iProc)=diffLower
+                  curiElem=iElem
+                  EXIT
+                ELSE
+                  IF(ABS(diffLower).GT.ABS(diffUpper) .AND. iElem.GT.iProc+1)THEN
+                    ! take upper
+                    LoadDiff(iProc)=diffUpper
+                    curiElem=iElem+1
+                    LoadDistri(iProc)=CurWeight-ElemWeight(iElem)
+                    EXIT
+                  ELSE
+                    LoadDiff(iProc)=diffLower
+                    curiElem=iElem
+                    LoadDistri(iProc)=CurWeight!+ElemWeight(iElem)
+                    EXIT
+                  END IF
+                END IF
+              ELSE
+                LoadDiff(iProc)=diffLower
+                curiElem=iElem
+                LoadDistri(iProc)=CurWeight
+                EXIT
+              END IF
+            END IF
+          END DO ! iElem
+        END DO ! iProc
+        ElemDistri=0
+        DO iProc=0,nProcessors-1
+          ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
+          ! sanity check
+          IF(ElemDistri(iProc).LE.0) CALL abort(&
+          __STAMP__,' Process received zero elements during load distribution',iProc)
+        END DO ! iPRoc
+        LoadDistri(0)=ElemDistri(0) +&
+                                  SUM(PartsInElem(1:offSetElemMPI(1)))*ParticleMPIWeight
+        LastLoadDiff = LoadDistri(0)-targetWeight
+        LoadDiff(0)=LastLoadDiff
+        MaxLoadDiff=MAXVAL(LoadDiff(1:nProcessors-1))
+        LastProcDiff=LastLoadDiff-MaxLoadDiff
+        IF(LastProcDiff.GT.0)THEN
+          FoundDistribution=.TRUE.
+        END IF
+        IF(iDistriIter.EQ.nProcessors) CALL abort(&
+          __STAMP__,'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!')
+        IF(ABS(SumWeight-SUM(LoadDistri)).GT.0.5) THEN
+           WRITE(*,*) SumWeight-SUM(LoadDistri)
+           WRITE(*,*) OffSetElemMPI(1)
+           WRITE(*,*) ElemDistri
+           WRITE(*,*) LoadDistri
+           CALL abort(&
+          __STAMP__,' Lost Elements and/or Particles during load distribution!')
+        END IF
+      END DO
     END IF
     ! thend the ound distribution to all other procs
     CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)

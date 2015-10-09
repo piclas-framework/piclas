@@ -104,6 +104,10 @@ IF(CalcEpot) DoAnalyze = .TRUE.
   CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
   IF (CalcPartBalance) THEN
     DoAnalyze = .TRUE.
+    SDEALLOCATE(nPartIn)
+    SDEALLOCATE(nPartOut)
+    SDEALLOCATE(PartEkinIn)
+    SDEALLOCATE(PartEkinOut)
     ALLOCATE( nPartIn(nSpecies)     &
             , nPartOut(nSpecies)    &
             , PartEkinOut(nSpecies) &
@@ -113,6 +117,8 @@ IF(CalcEpot) DoAnalyze = .TRUE.
    PartEkinOut=0.
    PartEkinIn=0.
 #if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+    SDEALLOCATE( nPartInTmp)
+    SDEALLOCATE( PartEkinInTmp)
     ALLOCATE( nPartInTmp(nSpecies)     &
             , PartEkinInTmp(nSpecies)  )
     PartEkinInTmp=0.
@@ -233,8 +239,10 @@ IF (DoAnalyze) THEN
 !SWRITE(UNIT_stdOut,'(A)') ' PERFORMING PARTICLE ANALYZE...'
 IF (useDSMC) THEN
   IF (CollisMode.NE.0) THEN
+    SDEALLOCATE(CRate)
     ALLOCATE(CRate(CollInf%NumCase + 1))
     IF (CollisMode.EQ.3) THEN
+      SDEALLOCATE(RRate)
       ALLOCATE(RRate(ChemReac%NumOfReact))
       RRate = 0.0
     END IF
