@@ -42,7 +42,8 @@ SUBROUTINE InitLoadBalance()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_LoadBalance_Vars
-USE MOD_ReadInTools,          ONLY:GETLOGICAL
+USE MOD_ReadInTools,          ONLY:GETLOGICAL, GETREAL, GETINT
+USE MOD_Mesh_Vars,            ONLY:ParticleMPIWeight
 #ifdef MPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -62,9 +63,22 @@ DoLoadBalance= GETLOGICAL('Static-LoadBalance','F')
 OutputRank= GETLOGICAL('OutputRank','F')
 nLoadBalance = 0
 
-ALLOCATE( tTotal(1:11)    &
-        , tCurrent(1:11)  &
-        , LoadSum(1:11)   )
+ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
+IF (ParticleMPIWeight.LT.0) THEN
+  CALL abort(&
+    __STAMP__,' ERROR: Particle weight cannot be negative!')
+END IF
+
+PartWeightMethod  = GETINT('Particles-WeightMethod','1')
+WeightAverageMethod = GETINT('Particles-WeightAverageMethod','2')
+IF ( (WeightAverageMethod.NE.1) .AND. (WeightAverageMethod.NE.2) ) THEN
+  CALL abort(&
+    __STAMP__,' ERROR: WeightAverageMethod must be 1 (per iter) or 2 (per dt_analyze)!')
+END IF
+
+ALLOCATE( tTotal(1:13)    &
+        , tCurrent(1:13)  &
+        , LoadSum(1:13)   )
 !  1 -tDG
 !  2 -tDGComm
 !  3 -tPML
@@ -76,6 +90,8 @@ ALLOCATE( tTotal(1:11)    &
 !  9 -tPartComm
 ! 10 -tSplit&Merge
 ! 11 -UNFP
+! 12 -DGAnalyze
+! 13 -PartAnalyze
 
 
 tTotal=0.
@@ -101,13 +117,14 @@ USE MOD_Preproc
 USE MOD_Restart,               ONLY:Restart
 USE MOD_Boltzplatz_Tools,      ONLY:InitBoltzplatz,FinalizeBoltzplatz
 USE MOD_PICDepo_Vars,          ONLY:DepositionType
-USE MOD_LoadBalance_Vars,      ONLY:tCurrent,LoadSum,tTotal,nloaditer,nTotalParts,nLoadBalance
+USE MOD_LoadBalance_Vars,      ONLY:tCurrent,LoadSum,tTotal,nloaditer,nTotalParts,nLoadBalance,PartWeightMethod, WeightAverageMethod
 USE MOD_PML_Vars,              ONLY:DoPML,nPMLElems
 USE MOD_Mesh_Vars,             ONLY:ParticleMPIWeight
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,     ONLY:PartMPIExchange
 #endif
+USE MOD_Utils,                 ONLY:InsertionSort
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -116,13 +133,13 @@ USE MOD_Particle_MPI_Vars,     ONLY:PartMPIExchange
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: TotalLoad(1:11)
+REAL              :: TotalLoad(1:13)
 REAL,ALLOCATABLE  :: GlobalLoad(:,:,:), GlobalWeights(:,:,:)
-REAL              :: totalRatio(2,0:nProcessors-1)
+REAL              :: totalRatio(2,0:nProcessors-1),sortedWeightList(1:nProcessors)
 CHARACTER(LEN=64) :: filename, firstLine(2)
 CHARACTER(LEN=4)  :: hilf
-INTEGER           :: iounit,iProc,iOut
-INTEGER           :: nWeights(2)
+INTEGER           :: iounit,iProc,iOut,iWeigth,iList,listZeros
+INTEGER           :: nWeights(2,3)
 REAL              :: PartWeight(3,2)
 !===================================================================================================================================
 
@@ -133,37 +150,39 @@ nLoadBalance=nLoadBalance+1
 
 ! per iter
 ! finish load measure
-LoadSum=LoadSum/REAL(nloaditer)
+LoadSum=LoadSum/REAL(nLoadIter)
 
 
 TotalLoad=0.
 ! per dt_analyze
 ! dg
 TotalLoad(1:2)=tTotal(1:2)/(REAL(nloaditer)*REAL(PP_nElems))
-
 IF(DoPML)THEN
   IF(nPMLElems.GT.0) TotalLoad(3)=tTotal(3)/(REAL(nPMLElems)*REAL(nloaditer))
 END IF
+TotalLoad(12)=tTotal(12)/(REAL(nloaditer)*REAL(PP_nElems))
 
 ! particles
 IF(nTotalParts.GT.0)THEN
-  TotalLoad(4:11)=tTotal(4:11)/REAL(nTotalParts)
+  TotalLoad(4:11)=tTotal(4:11)/nTotalParts
+  TotalLoad(13)=tTotal(13)/nTotalParts
 ELSE
   TotalLoad(4:11)=0.
+  TotalLoad(13)=0.
 END IF
 
 #ifdef MPI
   ! communication to root
   IF(MPIRoot)THEN
-    ALLOCATE(GlobalLoad(1:2,1:11,0:nProcessors-1))
+    ALLOCATE(GlobalLoad(1:2,1:13,0:nProcessors-1))
     GlobalLoad=0.
   ELSE
     ALLOCATE(GlobalLoad(2,1,0))
   END IF
-  CALL MPI_GATHER(LoadSum  ,11,MPI_DOUBLE_PRECISION,GlobalLoad(1,:,:),11,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
-  CALL MPI_GATHER(TotalLoad,11,MPI_DOUBLE_PRECISION,GlobalLoad(2,:,:),11,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+  CALL MPI_GATHER(LoadSum  ,13,MPI_DOUBLE_PRECISION,GlobalLoad(1,:,:),13,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+  CALL MPI_GATHER(TotalLoad,13,MPI_DOUBLE_PRECISION,GlobalLoad(2,:,:),13,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
 #else
-  ALLOCATE(GlobalLoad(1:2,1:11,0))
+  ALLOCATE(GlobalLoad(1:2,1:13,0))
   GlobalLoad(1,:,:) = LoadSum
   GlobalLoad(2,:,:) = TotalLoad
 #endif /*MPI*/
@@ -173,19 +192,31 @@ IF(MPIRoot)THEN
   PartWeight=0.
   nWeights=0
   ALLOCATE(GlobalWeights(1:2,1:5,0:nProcessors-1))
+  ! 1 - pure DG time
+  ! 2 - pure particle time
+  ! 3 - ratio t_particle / t_DG
+  ! 4 - ratio communication time
+  ! 5 - total ratio (incl. comm+analyze)
   GlobalWeights=0.
-  DO iOut=1,2
+  DO iOut=1,2 !WeightAverageMethod
     DO iProc=0,nProcessors-1
-      GlobalWeights(iOut,1,iProc) = GlobalLoad(iOut,1 ,iProc)+GlobalLoad(iOut,3 ,iProc)
+      GlobalWeights(iOut,1,iProc) = GlobalLoad(iOut,1 ,iProc)+GlobalLoad(iOut,3 ,iProc) 
       GlobalWeights(iOut,2,iProc) = SUM(GlobalLoad(iOut,4:8,iProc))+SUM(GlobalLoad(iOut,10:11,iProc))
       IF(.NOT.ALMOSTZERO(GlobalWeights(iOut,1,iProc)))THEN
         GlobalWeights(iOut,3,iProc) =  GlobalWeights(iOut,2,iProc) /  GlobalWeights(iOut,1,iProc)
-        nWeights(iOut)=nWeights(iOut)+1
-        IF(.NOT.ALMOSTZERO(GlobalLoad(iOut,2,iProc))) THEN
-          GlobalWeights(iOut,4,iProc) = GlobalLoad(iOut,9,iProc) / GlobalLoad(iOut,2,iProc)
-          GlobalWeights(iOut,5,iProc) = SUM(GlobalLoad(iOut,4:11,iProc)) / SUM(GlobalLoad(iOut,1:3,iProc))
-          PartWeight(1:3,iOut)=PartWeight(1:3,iOut)+GlobalWeights(iOut,3:5,iProc)
-        END IF
+        PartWeight(1,iOut)=PartWeight(1,iOut)+GlobalWeights(iOut,3,iProc)
+        nWeights(iOut,1)=nWeights(iOut,1)+1
+      END IF
+      IF(.NOT.ALMOSTZERO(GlobalLoad(iOut,2,iProc))) THEN
+        GlobalWeights(iOut,4,iProc) = GlobalLoad(iOut,9,iProc) / GlobalLoad(iOut,2,iProc)
+        PartWeight(2,iOut)=PartWeight(2,iOut)+GlobalWeights(iOut,4,iProc)
+        nWeights(iOut,2)=nWeights(iOut,2)+1
+      END IF
+      IF(.NOT.ALMOSTZERO(SUM(GlobalLoad(iOut,1:3,iProc))+GlobalLoad(iOut,12,iProc))) THEN
+        GlobalWeights(iOut,5,iProc) = (SUM(GlobalLoad(iOut,4:11,iProc))+GlobalLoad(iOut,13,iProc)) &
+                                     / (SUM(GlobalLoad(iOut,1:3,iProc))+GlobalLoad(iOut,12,iProc))
+        PartWeight(3,iOut)=PartWeight(3,iOut)+GlobalWeights(iOut,5,iProc)
+        nWeights(iOut,3)=nWeights(iOut,3)+1
       END IF
     END DO ! iProc
     DO iProc=0,nProcessors-1
@@ -195,12 +226,46 @@ IF(MPIRoot)THEN
         totalRatio(iOut,iProc)=GlobalWeights(iOut,5,iProc)
       END IF
     END DO ! iProc
+    DO iWeigth=1,3
+      IF (nWeights(iOut,iWeigth).NE.0) THEN
+        PartWeight(iWeigth,iOut)=PartWeight(iWeigth,iOut)/nWeights(iOut,iWeigth)
+      ELSE !iWeigth=0, for safety...
+        PartWeight(iWeigth,iOut)=0.
+      END IF
+    END DO
   END DO ! iOut
-  PartWeight(1,:)=PartWeight(1,:)/nWeights
-  PartWeight(2,:)=PartWeight(2,:)/nWeights
-  PartWeight(3,:)=PartWeight(3,:)/nWeights
-  !ParticleMPIWeight=MINVAL(totalRatio(2,:)) ! currently per analyze_dt
-  ParticleMPIWeight=PartWeight(3,2)
+  !ParticleMPIWeight=MINVAL(totalRatio(WeightAverageMethod,:)) ! currently per analyze_dt
+
+  SELECT CASE(PartWeightMethod)
+  CASE(1)
+    ParticleMPIWeight=PartWeight(3,WeightAverageMethod)
+  CASE(2)
+    sortedWeightList(1:nProcessors)=GlobalWeights(WeightAverageMethod,5,0:nProcessors-1)
+    CALL InsertionSort(a=sortedWeightList,len=nProcessors)
+    listZeros=0
+    DO iList=1,nProcessors
+      IF(ALMOSTZERO(sortedWeightList(iList)))THEN
+        listZeros=iList
+      ELSE
+        EXIT
+      END IF
+    END DO
+!SWRITE(*,*) 'listZeros: ',listZeros
+    IF (listZeros.EQ.nProcessors) THEN
+      ParticleMPIWeight=0.
+    ELSE IF (listZeros.EQ.nProcessors-1) THEN
+      ParticleMPIWeight=sortedWeightList(nProcessors)
+    ELSE IF(MOD(nProcessors-listZeros,2).EQ.0)THEN
+      ParticleMPIWeight=0.5*( sortedWeightList((nProcessors-listZeros)/2 + listZeros) &
+                             +sortedWeightList((nProcessors-listZeros)/2 + 1 + listZeros) )
+    ELSE
+      ParticleMPIWeight=sortedWeightList((nProcessors-listZeros)/2 + 1 + listZeros)
+    END IF
+  !CASE(3)
+  CASE DEFAULT
+    CALL abort(&
+      __STAMP__,' No valid PartWeightMethod defined!')
+  END SELECT
 END IF
 #ifdef MPI
   CALL MPI_BCAST (ParticleMPIWeight,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
@@ -225,25 +290,30 @@ IF(MPIRoot)THEN
     WRITE(ioUnit,'(A20,ES17.5)') 'Mean-PartWeight: ', PartWeight(1,iOut)
     WRITE(ioUnit,'(A20,ES17.5)') 'Mean-Comm-Weight:', PartWeight(2,iOut)
     WRITE(ioUnit,'(A20,ES17.5)') 'Mean-TotalWeight:', PartWeight(3,iOut)
-    WRITE(ioUnit,'(4(A20))')'Rank','DG','Part','Ratio-Part-DG'
-    WRITE(ioUnit,'(A80)')&
-          '================================================================================'
+    WRITE(ioUnit,'(6(A20))')'Rank','DG','Part','Ratio-Part-DG','Ratio-Comm','Ratio-total'
+    WRITE(ioUnit,'(A80,A40)')&
+          '================================================================================',&
+          '========================================'
     DO iProc=0,nProcessors-1
-      WRITE(ioUnit,'(5X,I10,5x,3(3x,ES17.5))') iProc,GlobalWeights(iOut,1:3,iProc)
-      WRITE(ioUnit,'(A80)')&
-            '--------------------------------------------------------------------------------'
+      WRITE(ioUnit,'(5X,I10,5x,5(3x,ES17.5))') iProc,GlobalWeights(iOut,1:5,iProc)
+      WRITE(ioUnit,'(A80,A40)')&
+            '--------------------------------------------------------------------------------',&
+            '----------------------------------------'
     END DO ! iProc
     WRITE(ioUnit,'(A)') ''
-    WRITE(ioUnit,'(12(A20))')'Rank','DG','DGComm','PML','Part-Emission','Part-Tracking','PIC','DSMC','Push','PartComm' &
-                                 ,'SplitMerge','UNFP'
-    WRITE(ioUnit,'(A120,A120)')&
+    WRITE(ioUnit,'(A)') ''
+    WRITE(ioUnit,'(14(A20))')'Rank','DG','DGComm','PML','Part-Emission','Part-Tracking','PIC','DSMC','Push','PartComm' &
+                                 ,'SplitMerge','UNFP','DG-Analyze','Part-Analyze'
+    WRITE(ioUnit,'(A120,A120,A40)')&
       '========================================================================================================================',&
-      '========================================================================================================================'
+      '========================================================================================================================',&
+      '========================================='
     DO iProc=0,nProcessors-1
-      WRITE(ioUnit,'(5X,I10,5x,11(3x,ES17.5))') iProc,GlobalLoad(iOut,:,iProc)
-      WRITE(ioUnit,'(A120,A120)')&
+      WRITE(ioUnit,'(5X,I10,5x,13(3x,ES17.5))') iProc,GlobalLoad(iOut,:,iProc)
+      WRITE(ioUnit,'(A120,A120,A40)')&
       '------------------------------------------------------------------------------------------------------------------------',&
-      '------------------------------------------------------------------------------------------------------------------------'
+      '------------------------------------------------------------------------------------------------------------------------',& 
+      '-----------------------------------------'
     END DO ! iProc
     CLOSE(ioUnit) 
   END DO ! iOut
@@ -256,7 +326,7 @@ TotalLoad  =0.
 tTotal     =0.
 LoadSum    =0.
 tCurrent   =0.
-nTotalParts=0 
+nTotalParts=0.
 nLoadIter  =0
 
 
@@ -300,6 +370,7 @@ USE MOD_Preproc
 USE MOD_LoadBalance_Vars,       ONLY:tCurrent,LoadSum,tTotal,nLoadIter,nTotalParts
 USE MOD_Particle_Tracking_Vars, ONLY:nCurrentParts
 USE MOD_PML_Vars,               ONLY:DoPML,nPMLElems
+USE MOD_TimeDisc_Vars,          ONLY:nRKStages
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -313,9 +384,8 @@ REAL                :: nLocalParts
 nloadIter=nloaditer+1
 tTotal=tTotal+tCurrent
 
-
 #if ((PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
-  nLocalParts=REAL(nCurrentParts)*0.2 ! parts per stage
+  nLocalParts=REAL(nCurrentParts)/REAL(nRKStages) ! parts per stage
 #else
   nLocalParts=REAL(nCurrentParts)
 #endif
@@ -328,10 +398,13 @@ LoadSum(1:2)=LoadSum(1:2)+tCurrent(1:2)/REAL(PP_nElems)
 IF(DoPML)THEN
   IF(nPMLElems.GT.0) LoadSum(3)=LoadSum(3)+tCurrent(3)/REAL(nPMLElems)
 END IF
+LoadSum(12)=LoadSum(12)+tCurrent(12)/REAL(PP_nElems)
 
 ! particles
-IF(nCurrentParts.GT.0)THEN
-  LoadSum(4:11)=LoadSum(4:11)+tCurrent(4:11)/nLocalParts
+IF(nLocalParts.GT.0)THEN
+  nLocalParts=1.0/nLocalParts
+  LoadSum(4:11)=LoadSum(4:11)+tCurrent(4:11)*nLocalParts
+  LoadSum(13)=LoadSum(13)+tCurrent(13)*nLocalParts
 END IF
 
 ! last operation

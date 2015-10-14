@@ -151,7 +151,7 @@ USE MOD_Mesh_Vars,          ONLY:aElem,aSide,bSide
 USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE
 #ifdef MPI
 USE MOD_Mesh_Vars,          ONLY:ParticleMPIWeight
-USE MOD_LoadBalance_Vars,   ONLy:nLoadBalance
+USE MOD_LoadBalance_Vars,   ONLy:nLoadBalance, LoadDistri
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_PreProc
 USE MOD_ReadInTools
@@ -191,7 +191,7 @@ REAL                           :: SumWeight, CurWeight
 INTEGER                        :: BalanceMethod,iDistriIter
 LOGICAL                        :: FoundDistribution
 REAL                           :: targetWeight,LastProcDiff
-REAL                           :: LoadDistri(0:nProcessors-1),LoadDiff(0:nProcessors-1)
+REAL                           :: LoadDiff(0:nProcessors-1)
 REAL                           :: MaxLoadDiff,LastLoadDiff
 INTEGER                        :: ElemDistri(0:nProcessors-1),getElem
 INTEGER,ALLOCATABLE            :: PartsInElem(:)
@@ -228,7 +228,9 @@ DEALLOCATE(HSize)
 IF(ALLOCATED(offsetElemMPI)) DEALLOCATE(offsetElemMPI)
 ALLOCATE(offsetElemMPI(0:nProcessors))
 offsetElemMPI=0
-
+SDEALLOCATE(LoadDistri)
+ALLOCATE(LoadDistri(0:nProcessors-1))
+LoadDistri(:)=0.
 IF (DoRestart) THEN 
   CALL CloseDataFile() 
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
@@ -240,14 +242,10 @@ IF (DoRestart) THEN
   
   SumWeight = 0.0
   CurWeight = 0.0
-  IF(nLoadBalance.EQ.0) ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
-  BalanceMethod= GETINT('WeightDistributionMethod','0')
-  IF (ParticleMPIWeight.LT.0) THEN
-    WRITE(*,*) "ERROR: Particle weight can't be negative!"
-    STOP
-  END IF
+
   ! load balancing for particles
   ! read in particle data
+  BalanceMethod     = GETINT('WeightDistributionMethod','0')
 
   ALLOCATE(ElemWeight(1:nGlobalElems))
   ALLOCATE(PartsInElem(1:nGlobalElems))
@@ -341,11 +339,16 @@ IF (DoRestart) THEN
         LoadDiff(nProcessors-1)=LastLoadDiff
         MaxLoadDiff=MAXVAL(LoadDiff(0:nProcessors-2))
         LastProcDiff=LastLoadDiff-MaxLoadDiff
-        IF(LastProcDiff.LT.0)THEN
+        IF(LastProcDiff.LT.0.01*targetWeight)THEN
           FoundDistribution=.TRUE.
         END IF
-        IF(iDistriIter.EQ.nProcessors) CALL abort(&
-          __STAMP__,'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!')
+        IF(iDistriIter.GT.nProcessors) THEN
+         ! CALL abort(&
+         ! __STAMP__,&
+          SWRITE(UNIT_StdOut,'(A)') &
+          'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!'
+          FoundDistribution=.TRUE.
+        END IF         
         IF(ABS(SumWeight-SUM(LoadDistri)).GT.0.5) THEN
            CALL abort(&
           __STAMP__,' Lost Elements and/or Particles during load distribution!')
@@ -428,7 +431,8 @@ IF (DoRestart) THEN
           FoundDistribution=.TRUE.
         END IF
         IF(iDistriIter.EQ.nProcessors) CALL abort(&
-          __STAMP__,'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!')
+          __STAMP__,&
+          'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!')
         IF(ABS(SumWeight-SUM(LoadDistri)).GT.0.5) THEN
            WRITE(*,*) SumWeight-SUM(LoadDistri)
            WRITE(*,*) OffSetElemMPI(1)

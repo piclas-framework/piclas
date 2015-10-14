@@ -44,7 +44,7 @@ INTEGER,INTENT(IN)                :: len
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                :: a(1:len)
-INTEGER,INTENT(INOUT)             :: id(1:len)
+INTEGER,INTENT(INOUT),OPTIONAL    :: id(1:len)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -53,19 +53,32 @@ REAL                              :: tmpR
 INTEGER                           :: i, j, tmpI
 !===================================================================================================================================
 
-DO i=2,len
-  j=i-1  
-  tmpR=a(i)
-  tmpI=ID(i)
-  DO WHILE (j.GE.1) !(j.GE.1 .AND. a(j).GT.tmpR)
-    IF (a(j).LE.tmpR) EXIT
-    a (j+1) = a(j)
-    ID(j+1) = ID(j)
-    j=j-1
-  END DO
-  a (j+1) =tmpR
-  ID(j+1) =tmpI
-END DO ! i
+IF(PRESENT(ID))THEN
+  DO i=2,len
+    j=i-1
+    tmpR=a(i)
+    tmpI=ID(i)
+    DO WHILE (j.GE.1) !(j.GE.1 .AND. a(j).GT.tmpR)
+      IF (a(j).LE.tmpR) EXIT
+      a (j+1) = a(j)
+      ID(j+1) = ID(j)
+      j=j-1
+    END DO
+    a (j+1) =tmpR
+    ID(j+1) =tmpI
+  END DO ! i
+ELSE
+  DO i=2,len
+    j=i-1
+    tmpR=a(i)
+    DO WHILE (j.GE.1) !(j.GE.1 .AND. a(j).GT.tmpR)
+      IF (a(j).LE.tmpR) EXIT
+      a (j+1) = a(j)
+      j=j-1
+    END DO
+    a (j+1) =tmpR
+  END DO ! i
+END IF
 
 END SUBROUTINE InsertionSort
 
@@ -83,7 +96,7 @@ INTEGER,INTENT(IN)                :: len
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                :: a(len)
-INTEGER,INTENT(INOUT)             :: id(len)
+INTEGER,INTENT(INOUT),OPTIONAL    :: id(len)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                              :: temp
@@ -91,23 +104,39 @@ INTEGER                           :: iloop,jloop, temp2
 LOGICAL                           :: swapped = .TRUE.
 !===================================================================================================================================
 
-DO jloop=len-1,1,-1
-  swapped = .FALSE.
-  DO iloop=1,jloop
-    IF (a(iloop).GT.a(iloop+1))THEN
-      ! switch entries
-      temp=a(iloop)
-      a(iloop) = a(iloop+1)
-      a(iloop+1) = temp
-      ! switch ids
-      temp2=id(iloop)
-      id(iloop) = id(iloop+1)
-      id(iloop+1) = temp2
-      swapped = .TRUE.
-    END IF
-  END DO ! iloop
-  IF (.NOT. swapped) EXIT
-END DO ! jloop
+IF(PRESENT(id))THEN
+  DO jloop=len-1,1,-1
+    swapped = .FALSE.
+    DO iloop=1,jloop
+      IF (a(iloop).GT.a(iloop+1))THEN
+        ! switch entries
+        temp=a(iloop)
+        a(iloop) = a(iloop+1)
+        a(iloop+1) = temp
+        ! switch ids
+        temp2=id(iloop)
+        id(iloop) = id(iloop+1)
+        id(iloop+1) = temp2
+        swapped = .TRUE.
+      END IF
+    END DO ! iloop
+    IF (.NOT. swapped) EXIT
+  END DO ! jloop
+ELSE
+  DO jloop=len-1,1,-1
+    swapped = .FALSE.
+    DO iloop=1,jloop
+      IF (a(iloop).GT.a(iloop+1))THEN
+        ! switch entries
+        temp=a(iloop)
+        a(iloop) = a(iloop+1)
+        a(iloop+1) = temp
+        swapped = .TRUE.
+      END IF
+    END DO ! iloop
+    IF (.NOT. swapped) EXIT
+  END DO ! jloop
+END IF
 END SUBROUTINE BubbleSortID
 
 

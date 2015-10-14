@@ -44,7 +44,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars,        ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
 USE MOD_Mesh_Vars,        ONLY: aElem,aSide, writePartitionInfo
 USE MOD_Mesh_Vars,        ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
-USE MOD_LoadBalance_Vars, ONLY: DoLoadBalance,nLoadBalance
+USE MOD_LoadBalance_Vars, ONLY: DoLoadBalance,nLoadBalance, LoadDistri
 #ifdef MPI
 USE MOD_ReadInTools,      ONLY: GETLOGICAL
 USE MOD_MPI_Vars,         ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
@@ -272,11 +272,12 @@ IF(MPIroot)THEN
   WRITE(ioUnit,*)'total number of Procs,',nProcessors
   WRITE(ioUnit,*)'total number of Elems,',SUM(Procinfo_glob(1,:))
 
-  WRITE(ioUnit,'(8(A15))')'Rank','nElems','nSides','nInnerSides','nBCSides','nMPISides','nMPISides_MINE','nNBProcs'
-  WRITE(ioUnit,'(A120)')&
-      '======================================================================================================================='
+  WRITE(ioUnit,'(9(A15))')'Rank','nElems','Load','nSides','nInnerSides','nBCSides','nMPISides','nMPISides_MINE','nNBProcs'
+  WRITE(ioUnit,'(A120,A15)')&
+      '======================================================================================================================='&
+      ,'==============='
   !statistics
-  ALLOCATE(tmparray(7,0:3),tmpreal(7,2))
+  ALLOCATE(tmparray(8,0:3),tmpreal(8,2))
   tmparray(:,0)=0      !tmp
   tmparray(:,1)=0      !mean
   tmparray(:,2)=0       !HUGE(-1)  !max
@@ -284,13 +285,14 @@ IF(MPIroot)THEN
   DO i=0,nProcessors-1
     !actual proc
     tmparray(1,0)=Procinfo_glob(1,i)
-    tmparray(2,0)=Procinfo_glob(2,i)
-    tmparray(3,0)=Procinfo_glob(3,i)
-    tmparray(4,0)=Procinfo_glob(4,i)
-    tmparray(5,0)=SUM(NBinfo_glob(2,:,i))
-    tmparray(6,0)=SUM(NBinfo_glob(3,:,i))
-    tmparray(7,0)=nNBProcs_glob(i)
-    DO j=1,7
+    tmparray(2,0)=LoadDistri(i) ! load of proc i
+    tmparray(3,0)=Procinfo_glob(2,i)
+    tmparray(4,0)=Procinfo_glob(3,i)
+    tmparray(5,0)=Procinfo_glob(4,i)
+    tmparray(6,0)=SUM(NBinfo_glob(2,:,i))
+    tmparray(7,0)=SUM(NBinfo_glob(3,:,i))
+    tmparray(8,0)=nNBProcs_glob(i)
+    DO j=1,8
       !mean
       tmparray(j,1)=tmparray(j,1)+tmparray(j,0)
       !max
@@ -303,47 +305,56 @@ IF(MPIroot)THEN
   DO i=0,nProcessors-1
     !actual proc
     tmparray(1,0)=Procinfo_glob(1,i)
-    tmparray(2,0)=Procinfo_glob(2,i)
-    tmparray(3,0)=Procinfo_glob(3,i)
-    tmparray(4,0)=Procinfo_glob(4,i)
-    tmparray(5,0)=SUM(NBinfo_glob(2,:,i))
-    tmparray(6,0)=SUM(NBinfo_glob(3,:,i))
-    tmparray(7,0)=nNBProcs_glob(i)
-    DO j=1,7
+    tmparray(2,0)=LoadDistri(i) ! load of proc i
+    tmparray(3,0)=Procinfo_glob(2,i)
+    tmparray(4,0)=Procinfo_glob(3,i)
+    tmparray(5,0)=Procinfo_glob(4,i)
+    tmparray(6,0)=SUM(NBinfo_glob(2,:,i))
+    tmparray(7,0)=SUM(NBinfo_glob(3,:,i))
+    tmparray(8,0)=nNBProcs_glob(i)
+    DO j=1,8
       tmpreal(j,2)=tmpreal(j,2)+(tmparray(j,0)-tmpreal(j,1))**2 
     END DO
   END DO
   tmpreal(:,2)=SQRT(tmpreal(:,2)/REAL(nProcessors))
-  WRITE(ioUnit,'(A15,7(5X,F10.2))')'   MEAN        ',tmpreal(:,1)
-  WRITE(ioUnit,'(A120)')&
-      '-----------------------------------------------------------------------------------------------------------------------'
-  WRITE(ioUnit,'(A15,7(5X,F10.2))')'   RMS         ',tmpreal(:,2)
-  WRITE(ioUnit,'(A120)')&
-      '-----------------------------------------------------------------------------------------------------------------------'
-  WRITE(ioUnit,'(A15,7(5X,I10))')'   MIN         ',tmparray(:,3)
-  WRITE(ioUnit,'(A120)')&
-      '-----------------------------------------------------------------------------------------------------------------------'
-  WRITE(ioUnit,'(A15,7(5X,I10))')'   MAX         ',tmparray(:,2)
-  WRITE(ioUnit,'(A120)')&
-      '======================================================================================================================='
+  WRITE(ioUnit,'(A15,8(5X,F10.2))')'   MEAN        ',tmpreal(:,1)
+  WRITE(ioUnit,'(A120,A15)')&
+      '-----------------------------------------------------------------------------------------------------------------------'&
+      ,'---------------'
+  WRITE(ioUnit,'(A15,8(5X,F10.2))')'   RMS         ',tmpreal(:,2)
+  WRITE(ioUnit,'(A120,A15)')&
+      '-----------------------------------------------------------------------------------------------------------------------'&
+      ,'---------------'
+  WRITE(ioUnit,'(A15,5x,I10,5x,F10.2,6(5X,I10))')'   MIN         ',tmparray(:,3)
+  WRITE(ioUnit,'(A120,A15)')&
+      '-----------------------------------------------------------------------------------------------------------------------'&
+      ,'---------------'
+  WRITE(ioUnit,'(A15,5x,I10,5x,F10.2,6(5X,I10))')'   MAX         ',tmparray(:,2)
+  WRITE(ioUnit,'(A120,A15)')&
+      '======================================================================================================================='&
+      ,'==============='
   DO i=0,nProcessors-1
-    WRITE(ioUnit,'(8(5X,I10))')i,Procinfo_glob(:,i),SUM(NBinfo_glob(2,:,i)),SUM(NBinfo_glob(3,:,i)),nNBProcs_glob(i)
-    WRITE(ioUnit,'(A120)')&
-      '-----------------------------------------------------------------------------------------------------------------------'
+    WRITE(ioUnit,'(2(5X,I10),5x,F10.2,6(5X,I10))')i,Procinfo_glob(1,i),LoadDistri(i),Procinfo_glob(2:4,i)&
+                               ,SUM(NBinfo_glob(2,:,i)),SUM(NBinfo_glob(3,:,i)),nNBProcs_glob(i)
+  WRITE(ioUnit,'(A120,A15)')&
+      '-----------------------------------------------------------------------------------------------------------------------'&
+      ,'---------------'
   END DO
   WRITE(ioUnit,*)' '
   WRITE(ioUnit,*)'Information per neighbor processor'
   WRITE(ioUnit,*)' '
   WRITE(ioUnit,'(7(A15))')'Rank','NBProc','nMPISides_Proc','nMPISides_MINE','nMPISides_YOUR','offset_MINE','offset_YOUR'
-  WRITE(ioUnit,'(A120)')&
-      '======================================================================================================================='
+  WRITE(ioUnit,'(A120,A15)')&
+      '======================================================================================================================='&
+      ,'==============='
   DO i=0,nProcessors-1
     WRITE(ioUnit,'(7(5X,I10))')i,NBinfo_glob(:,1,i)
     DO j=2,nNBProcs_glob(i)
       WRITE(ioUnit,'(A15,6(5X,I10))')' ',NBinfo_glob(:,j,i)
     END DO
-    WRITE(ioUnit,'(A120)')&
-      '-----------------------------------------------------------------------------------------------------------------------'
+  WRITE(ioUnit,'(A120,A15)')&
+      '-----------------------------------------------------------------------------------------------------------------------'&
+      ,'---------------'
   END DO
   DEALLOCATE(tmparray,tmpreal)
   CLOSE(ioUnit) 

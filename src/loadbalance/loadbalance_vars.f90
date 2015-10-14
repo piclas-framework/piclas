@@ -21,5 +21,8 @@ INTEGER                             :: nLoadIter                                
 !INTEGER                             :: nCurrentParts                              ! number of current particles
 INTEGER                             :: nLoadBalance                               ! number of load balances
 LOGICAL                             :: OutputRank                                 ! output rank
-
+REAL,ALLOCATABLE                    :: LoadDistri(:)                              ! Weighted load distribution of all procs
+INTEGER                             :: PartWeightMethod                           ! method to compute the particle weight
+INTEGER                             :: WeightAverageMethod                        ! method to average the particle weight
+                                                                                  ! (1: iter, 2: dt_Analyze)
 END MODULE MOD_LoadBalance_Vars

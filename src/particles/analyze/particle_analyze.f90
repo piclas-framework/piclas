@@ -185,6 +185,7 @@ USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 USE MOD_PIC_Analyze,           ONLY: CalcDepositedCharge
+USE MOD_LoadBalance_Vars,      ONLY: tCurrent
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
@@ -230,11 +231,14 @@ REAL                :: sumIntTemp(nSpecies),sumIntEn(nSpecies)
 #endif
 REAL                :: PartVtrans(nSpecies,4), PartVtherm(nSpecies,4)
 INTEGER             :: dir
+! load balance
+REAL                :: tLBStart,tLBEnd
 !===================================================================================================================================
 IF ( DoRestart ) THEN
   isRestart = .true.
 END IF
 IF (DoAnalyze) THEN
+tLBStart = LOCALTIME() ! LB Time Start
 !SWRITE(UNIT_StdOut,'(132("-"))')
 !SWRITE(UNIT_stdOut,'(A)') ' PERFORMING PARTICLE ANALYZE...'
 IF (useDSMC) THEN
@@ -486,22 +490,35 @@ unit_index = 535
 
 IF(CalcCharge)  CALL CalcDepositedCharge() ! mpi communication done in calcdepositedcharge
 IF(CalcNumSpec) CALL GetNumSpec(NumSpec)
-IF(CalcEpot)    CALL CalcPotentialEnergy(WEl,WMag)
 IF(CalcEkin)    CALL CalcKineticEnergy(Ekin)
 IF(CalcTemp)    CALL CalcTemperature(Temp, NumSpec)
 IF(CalcVelos)   CALL CalcVelocities(PartVtrans, PartVtherm)
 IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
+
+tLBStart = LOCALTIME() ! LB Time Start
+IF(CalcEpot)    CALL CalcPotentialEnergy(WEl,WMag)
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
 
 ! MPI Communication
 #ifdef MPI
 !IF(MPIRoot) THEN
 IF (PartMPI%MPIRoot) THEN
+  tLBStart = LOCALTIME() ! LB Time Start
   IF(CalcNumSpec) &
     CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
   IF (CalcEpot) THEN 
+    tLBStart = LOCALTIME() ! LB Time Start
     CALL MPI_REDUCE(MPI_IN_PLACE,WEl , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,WMag, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+    tLBEnd = LOCALTIME() ! LB Time End
+    tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
   END IF
+  tLBStart = LOCALTIME() ! LB Time Start
   IF (CalcEkin) &
     CALL MPI_REDUCE(MPI_IN_PLACE,Ekin(:) , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   IF (CalcTemp) THEN
@@ -514,13 +531,22 @@ IF (PartMPI%MPIRoot) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(:) ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
 ELSE ! no Root
+  tLBStart = LOCALTIME() ! LB Time Start
   IF(CalcNumSpec) &
     CALL MPI_REDUCE(NumSpec,RECBIM,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
   IF (CalcEpot) THEN 
+    tLBStart = LOCALTIME() ! LB Time Start
     CALL MPI_REDUCE(WEl,RECBR1  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(WMag,RECBR1,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
+    tLBEnd = LOCALTIME() ! LB Time End
+    tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
   END IF
+  tLBStart = LOCALTIME() ! LB Time Start
   IF (CalcEkin) &
     CALL MPI_REDUCE(Ekin,RECBR2 , nEkin , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
   IF (CalcTemp) &
@@ -531,9 +557,12 @@ ELSE ! no Root
     CALL MPI_REDUCE(PartEkinIn,RECBR ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
 END IF
 #endif
 
+tLBStart = LOCALTIME() ! LB Time Start
 #if (PP_TimeDiscMethod==1000)
 IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 #endif
@@ -728,6 +757,8 @@ ELSE
 END IF ! DoAnalyze
 
 IF( CalcPartBalance) CALL CalcParticleBalance()
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
 
 #if ( PP_TimeDiscMethod ==42 )
 DSMC%CollProbOut(1,1) = 0.0

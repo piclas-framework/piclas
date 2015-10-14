@@ -56,6 +56,10 @@ INTERFACE BOLTZPLATZTIME
   MODULE PROCEDURE BOLTZPLATZTIME
 END INTERFACE
 
+INTERFACE LOCALTIME
+  MODULE PROCEDURE LOCALTIME
+END INTERFACE
+
 INTERFACE GETFREEUNIT
   MODULE PROCEDURE GETFREEUNIT
 END INTERFACE GETFREEUNIT
@@ -316,6 +320,30 @@ BoltzplatzTime=MPI_WTIME()
 CALL CPU_TIME(BoltzplatzTime)
 #endif
 END FUNCTION BOLTZPLATZTIME
+
+
+FUNCTION LOCALTIME()
+!===================================================================================================================================
+! Calculates current local time (own function because of a laterMPI implementation)
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                            :: LocalTime
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+!===================================================================================================================================
+#ifdef MPI
+LocalTime=MPI_WTIME()
+#else
+CALL CPU_TIME(LocalTime)
+#endif
+END FUNCTION LOCALTIME
+
 
 FUNCTION GETFREEUNIT()
 !===================================================================================================================================

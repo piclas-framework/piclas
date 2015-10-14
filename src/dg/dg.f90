@@ -200,19 +200,19 @@ REAL                          :: tLBStart,tLBEnd
 ! prolong the solution to the face integration points for flux computation
 #ifdef MPI
 ! Prolong to face for MPI sides - send direction
-CALL CPU_TIME(tLBStart) ! LB Time Start
+tLBStart = LOCALTIME() ! LB Time Start
 CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.TRUE.)
-CALL CPU_TIME(tLBEnd) ! LB Time End
+tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
-CALL CPU_TIME(tLBStart) ! LB Time Start
+tLBStart = LOCALTIME() ! LB Time Start
 CALL StartExchangeMPIData(U_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-CALL CPU_TIME(tLBEnd) ! LB Time End
+tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 
 #endif /*MPI*/
 
-CALL CPU_TIME(tLBStart) ! LB Time Start
+tLBStart = LOCALTIME() ! LB Time Start
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.FALSE.)
 
@@ -224,14 +224,14 @@ Ut=0.
 
 ! compute volume integral contribution and add to ut, first half of all elements
 CALL VolInt(Ut,dofirstElems=.TRUE.)
-CALL CPU_TIME(tLBEnd) ! LB Time End
+tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
 #ifdef MPI
 ! Complete send / receive
-CALL CPU_TIME(tLBStart) ! LB Time Start
+tLBStart = LOCALTIME() ! LB Time Start
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
-CALL CPU_TIME(tLBEnd) ! LB Time End
+tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 #endif /*MPI*/
 
@@ -239,19 +239,19 @@ tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
 #ifdef MPI
 ! fill the global surface flux list
-CALL CPU_TIME(tLBStart) ! LB Time Start
+tLBStart = LOCALTIME() ! LB Time Start
 CALL FillFlux(Flux,doMPISides=.TRUE.)
-CALL CPU_TIME(tLBEnd) ! LB Time End
+tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
-CALL CPU_TIME(tLBStart) ! LB Time Start
+tLBStart = LOCALTIME() ! LB Time Start
 CALL StartExchangeMPIData(Flux,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
-CALL CPU_TIME(tLBEnd) ! LB Time End
+tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 #endif /* MPI*/
 
 ! fill the all surface fluxes on this proc
-CALL CPU_TIME(tLBStart) ! LB Time Start
+tLBStart = LOCALTIME() ! LB Time Start
 CALL FillFlux_BC(t,tDeriv,Flux)
 CALL FillFlux(Flux,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
@@ -259,30 +259,30 @@ CALL SurfInt(Flux,Ut,doMPISides=.FALSE.)
 
 ! compute volume integral contribution and add to ut
 CALL VolInt(Ut,dofirstElems=.FALSE.)
-CALL CPU_TIME(tLBEnd) ! LB Time End
+tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
 #ifdef MPI
 ! Complete send / receive
-CALL CPU_TIME(tLBStart) ! LB Time Start
+tLBStart = LOCALTIME() ! LB Time Start
 CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
-CALL CPU_TIME(tLBEnd) ! LB Time End
+tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 
 !FINALIZE Fluxes for MPI Sides
-CALL CPU_TIME(tLBStart) ! LB Time Start
+tLBStart = LOCALTIME() ! LB Time Start
 CALL SurfInt(Flux,Ut,doMPISides=.TRUE.)
-CALL CPU_TIME(tLBEnd) ! LB Time End
+tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 #endif
 
-CALL CPU_TIME(tLBStart) ! LB Time Start
+tLBStart = LOCALTIME() ! LB Time Start
 ! swap and map to physical space
 CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
 
 ! Add Source Terms
 CALL CalcSource(tStage)
-CALL CPU_TIME(tLBEnd) ! LB Time End
+tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
 END SUBROUTINE DGTimeDerivative_weakForm

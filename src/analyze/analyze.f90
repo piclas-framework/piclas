@@ -340,6 +340,7 @@ USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 USE MOD_RecordPoints,          ONLY: RecordPoints
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
+USE MOD_LoadBalance_Vars,      ONLY: tCurrent
 #if (PP_TimeDiscMethod==42)
 USE MOD_TimeDisc_Vars,         ONLY: dt
 #else
@@ -385,7 +386,8 @@ INTEGER                       :: RECI
 REAL                          :: RECR
 #endif /*MPI*/
 #endif /*PARTICLES*/
-
+! load balance
+REAL                          :: tLBStart,tLBEnd
 !===================================================================================================================================
 
 ! not for first iteration
@@ -403,6 +405,7 @@ IF(forceAnalyze.OR.Output) CALL CalcError(t)
 
 ! poynting vector
 IF (CalcPoyntingInt) THEN
+  tLBStart = LOCALTIME() ! LB Time Start
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
   IF(forceAnalyze)THEN
     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
@@ -413,12 +416,17 @@ IF (CalcPoyntingInt) THEN
 #else
   IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
 #endif
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
 END IF
 
 ! fill recordpoints buffer
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 IF(RP_onProc) THEN
+  tLBStart = LOCALTIME() ! LB Time Start
   CALL RecordPoints(iter,t,forceAnalyze,Output)
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
 END IF
 #endif
 
@@ -439,12 +447,15 @@ END IF
 
 #else /*pure DGSEM */
 IF (DoAnalyze)  THEN
+  tLBStart = LOCALTIME() ! LB Time Start
   IF(ForceAnalyze)THEN
     CALL AnalyzeField(t) 
   ELSE
     IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL AnalyzeField(t) 
   END IF
   IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeField(t) 
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
 END IF
 
   !IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
@@ -455,6 +466,7 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! update of time here
 #ifdef PARTICLES
+tLBStart = LOCALTIME() ! LB Time Start
 Time = t
 ! write DSMC macroscopic values 
 IF ((WriteMacroValues).AND.(.NOT.Output))THEN
@@ -551,6 +563,8 @@ IF(OutPut .AND. MeasureTrackTime)THEN
   tTracking=0.
   tLocalization=0.
 END IF ! only during output like Doftime
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
 #endif /*PARTICLES*/
 
 END SUBROUTINE PerformAnalyze
