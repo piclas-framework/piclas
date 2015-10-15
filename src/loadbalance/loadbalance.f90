@@ -135,7 +135,7 @@ USE MOD_Utils,                 ONLY:InsertionSort
 ! LOCAL VARIABLES
 REAL              :: TotalLoad(1:13)
 REAL,ALLOCATABLE  :: GlobalLoad(:,:,:), GlobalWeights(:,:,:)
-REAL              :: totalRatio(2,0:nProcessors-1),sortedWeightList(1:nProcessors)
+REAL              :: totalRatio(2,0:nProcessors-1),WeightList(1:nProcessors)
 CHARACTER(LEN=64) :: filename, firstLine(2)
 CHARACTER(LEN=4)  :: hilf
 INTEGER           :: iounit,iProc,iOut,iWeigth,iList,listZeros
@@ -238,13 +238,24 @@ IF(MPIRoot)THEN
 
   SELECT CASE(PartWeightMethod)
   CASE(1)
-    ParticleMPIWeight=PartWeight(3,WeightAverageMethod)
+!    ParticleMPIWeight=PartWeight(3,WeightAverageMethod)
+    WeightList(1:nProcessors)=GlobalWeights(WeightAverageMethod,5,0:nProcessors-1)
+    listZeros=0
+    ParticleMPIWeight=0.
+    DO iList=1,nProcessors
+      IF(ALMOSTZERO(WeightList(iList)))THEN
+        listZeros=listZeros+1
+      ELSE
+        ParticleMPIWeight=ParticleMPIWeight+WeightList(iList)
+      END IF
+    END DO
+    ParticleMPIWeight=ParticleMPIWeight/(nProcessors-listZeros)
   CASE(2)
-    sortedWeightList(1:nProcessors)=GlobalWeights(WeightAverageMethod,5,0:nProcessors-1)
-    CALL InsertionSort(a=sortedWeightList,len=nProcessors)
+    WeightList(1:nProcessors)=GlobalWeights(WeightAverageMethod,5,0:nProcessors-1)
+    CALL InsertionSort(a=WeightList,len=nProcessors)
     listZeros=0
     DO iList=1,nProcessors
-      IF(ALMOSTZERO(sortedWeightList(iList)))THEN
+      IF(ALMOSTZERO(WeightList(iList)))THEN
         listZeros=iList
       ELSE
         EXIT
@@ -254,12 +265,12 @@ IF(MPIRoot)THEN
     IF (listZeros.EQ.nProcessors) THEN
       ParticleMPIWeight=0.
     ELSE IF (listZeros.EQ.nProcessors-1) THEN
-      ParticleMPIWeight=sortedWeightList(nProcessors)
+      ParticleMPIWeight=WeightList(nProcessors)
     ELSE IF(MOD(nProcessors-listZeros,2).EQ.0)THEN
-      ParticleMPIWeight=0.5*( sortedWeightList((nProcessors-listZeros)/2 + listZeros) &
-                             +sortedWeightList((nProcessors-listZeros)/2 + 1 + listZeros) )
+      ParticleMPIWeight=0.5*( WeightList((nProcessors-listZeros)/2 + listZeros) &
+                             +WeightList((nProcessors-listZeros)/2 + 1 + listZeros) )
     ELSE
-      ParticleMPIWeight=sortedWeightList((nProcessors-listZeros)/2 + 1 + listZeros)
+      ParticleMPIWeight=WeightList((nProcessors-listZeros)/2 + 1 + listZeros)
     END IF
   !CASE(3)
   CASE DEFAULT
