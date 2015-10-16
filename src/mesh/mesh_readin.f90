@@ -151,7 +151,7 @@ USE MOD_Mesh_Vars,          ONLY:aElem,aSide,bSide
 USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE
 #ifdef MPI
 USE MOD_Mesh_Vars,          ONLY:ParticleMPIWeight
-USE MOD_LoadBalance_Vars,   ONLy:nLoadBalance, LoadDistri
+USE MOD_LoadBalance_Vars,   ONLy:nLoadBalance, LoadDistri, PartDistri
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_PreProc
 USE MOD_ReadInTools
@@ -231,6 +231,9 @@ offsetElemMPI=0
 SDEALLOCATE(LoadDistri)
 ALLOCATE(LoadDistri(0:nProcessors-1))
 LoadDistri(:)=0.
+SDEALLOCATE(PartDistri)
+ALLOCATE(PartDistri(0:nProcessors-1))
+PartDistri(:)=0
 IF (DoRestart) THEN 
   CALL CloseDataFile() 
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
@@ -281,7 +284,7 @@ IF (DoRestart) THEN
       iDistriIter=0
       DO WHILE(.NOT.FoundDistribution)
         iDistriIter=iDistriIter+1
-        SWRITE(*,*) 'LoadDistriIter', iDistriIter
+        SWRITE(*,'(A19,I4,A19,G0)') '... LoadDistriIter ',iDistriIter,' with targetWeight=',targetWeight
         targetWeight=targetWeight+LastProcDiff/REAL(nProcessors)
         curiElem=1
         offSetElemMPI=0
@@ -329,6 +332,9 @@ IF (DoRestart) THEN
         ElemDistri=0
         DO iProc=0,nProcessors-1
           ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
+          DO iElem=offSetElemMPI(iProc)+1,offSetElemMPI(iProc+1)
+            PartDistri(iProc)=PartDistri(iProc)+PartsInElem(iElem)
+          END DO
           ! sanity check
           IF(ElemDistri(iProc).LE.0) CALL abort(&
           __STAMP__,' Process received zero elements during load distribution',iProc)
