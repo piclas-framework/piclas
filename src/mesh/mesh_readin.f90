@@ -332,9 +332,6 @@ IF (DoRestart) THEN
         ElemDistri=0
         DO iProc=0,nProcessors-1
           ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
-          DO iElem=offSetElemMPI(iProc)+1,offSetElemMPI(iProc+1)
-            PartDistri(iProc)=PartDistri(iProc)+PartsInElem(iElem)
-          END DO
           ! sanity check
           IF(ElemDistri(iProc).LE.0) CALL abort(&
           __STAMP__,' Process received zero elements during load distribution',iProc)
@@ -452,6 +449,12 @@ IF (DoRestart) THEN
     ! thend the ound distribution to all other procs
     CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
   END SELECT
+  offsetElemMPI(nProcessors)=nGlobalElems
+  DO iProc=0,nProcessors-1
+    DO iElem=offSetElemMPI(iProc)+1,offSetElemMPI(iProc+1)
+      PartDistri(iProc)=PartDistri(iProc)+PartsInElem(iElem)
+    END DO
+  END DO ! iProc
   DEALLOCATE(PartsInElem)
 ELSE
   nElems=nGlobalElems/nProcessors
@@ -459,8 +462,8 @@ ELSE
   DO iProc=0,nProcessors-1
     offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
   END DO
+  offsetElemMPI(nProcessors)=nGlobalElems
 END IF
-offsetElemMPI(nProcessors)=nGlobalElems
 !local nElems and offset
 nElems=offsetElemMPI(myRank+1)-offsetElemMPI(myRank)
 offsetElem=offsetElemMPI(myRank)
