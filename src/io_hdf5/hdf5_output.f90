@@ -58,7 +58,7 @@ USE MOD_Equation_Vars,        ONLY:c_corr,eps0
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars,        ONLY:E,Phi
-USE MOD_Mesh_Vars,            ONLY:nElems, sJ, Elem_xGP
+!USE MOD_Mesh_Vars,            ONLY:nElems, sJ
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -78,9 +78,9 @@ INTEGER                        :: nVal,nVar
 REAL                           :: StartT,EndT
 #endif
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
+INTEGER                        :: iElem,i,j,k
 #ifdef PARTICLES
 REAL                            :: eps0inv
-INTEGER                         :: iElem,i,j,k
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
@@ -387,7 +387,7 @@ SUBROUTINE WriteParticleToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars,          ONLY:nGlobalElems, offsetElem
-USE MOD_Particle_Vars,      ONLY:PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,enableParticleMerge,PartPressureCell
+USE MOD_Particle_Vars,      ONLY:PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF,PartPressureCell
 USE MOD_part_tools,         ONLY:UpdateNextFreePosition
 USE MOD_DSMC_Vars,          ONLY:UseDSMC, CollisMode,PartStateIntEn, DSMC
 USE MOD_LD_Vars,            ONLY:UseLD, PartStateBulkValues

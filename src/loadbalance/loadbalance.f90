@@ -73,7 +73,8 @@ PartWeightMethod  = GETINT('Particles-WeightMethod','1')
 WeightAverageMethod = GETINT('Particles-WeightAverageMethod','2')
 IF ( (WeightAverageMethod.NE.1) .AND. (WeightAverageMethod.NE.2) ) THEN
   CALL abort(&
-    __STAMP__,' ERROR: WeightAverageMethod must be 1 (per iter) or 2 (per dt_analyze)!')
+    __STAMP__&
+    ,' ERROR: WeightAverageMethod must be 1 (per iter) or 2 (per dt_analyze)!')
 END IF
 
 ALLOCATE( tTotal(1:13)    &

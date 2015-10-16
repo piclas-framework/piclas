@@ -83,6 +83,11 @@ DO iPart=1,PDM%ParticleVecLength
     lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                              +PartTrajectory(2)*PartTrajectory(2) &
                              +PartTrajectory(3)*PartTrajectory(3) )
+    IF(ALMOSTZERO(lengthPartTrajectory))THEN
+      PEM%Element(iPart)=ElemID
+      PartisDone=.TRUE.
+      CYCLE
+    END IF
     PartTrajectory=PartTrajectory/lengthPartTrajectory!+epsilontol
     !PartTrajectory=PartTrajectory/(lengthPartTrajectory+epsilontol)
     lengthPartTrajectory=lengthPartTrajectory!+epsilontol
@@ -269,6 +274,13 @@ PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
+
+IF(ALMOSTZERO(lengthPartTrajectory))THEN
+  PEM%Element(PartID)=ElemID
+  PartIsDone=.TRUE.
+  RETURN
+END IF
+
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 lengthPartTrajectory=lengthPartTrajectory!+epsilontol
 
@@ -436,7 +448,17 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
       !END IF
       IF(GEO%nPeriodicVectors.GT.0)THEN
         ! call here function for mapping of partpos and lastpartpos
+        LastPos=PartState(iPart,1:3)
         CALL PeriodicMovement(iPart)
+        IF(.NOT.IsBCElem(ElemID))THEN
+          DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
+              .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
+              .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
+            LastPos=PartState(iPart,1:3)
+            ! call here function for mapping of partpos and lastpartpos
+            CALL PeriodicMovement(iPart)
+          END DO
+        END IF
       END IF
       IF(IsBCElem(ElemID))THEN
         !  multiple BC intersections
@@ -479,6 +501,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
         END DO
         IF(ParticleFound(iPart)) CYCLE
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+
       ELSE ! no bc elem, therefore, no bc ineraction possible
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)

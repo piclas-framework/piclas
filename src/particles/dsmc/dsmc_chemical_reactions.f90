@@ -52,9 +52,11 @@ SUBROUTINE ElecImpactIoni(iReac, iPair)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
-USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
+USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC_RHS, CollInf, SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars,              ONLY : ChemReac, PartStateIntEn
+USE MOD_Particle_Vars,          ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec,PartPosRef
+USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefmapping
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -147,6 +149,10 @@ Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SpecDSMC(PartSpecies(React1Inx))%E
   PDM%ParticleInside(PositionNbr) = .true.
   PartSpecies(PositionNbr) = ChemReac%DefinedReact(iReac,2,2)
   PartState(PositionNbr,1:3) = PartState(React1Inx,1:3)
+  IF(DoRefMapping)THEN ! here Nearst-GP is missing
+    PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,React1Inx)
+  END IF
+
   PartStateIntEn(PositionNbr, 1) = 0
   PartStateIntEn(PositionNbr, 2) = 0
   PEM%Element(PositionNbr) = PEM%Element(React1Inx)
@@ -222,8 +228,10 @@ USE MOD_Globals
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
-USE MOD_Particle_Vars,         ONLY : usevMPF
+USE MOD_Particle_Vars,         ONLY : usevMPF,PartPosRef
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange, TVEEnergyExchange
+USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefmapping
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -353,6 +361,10 @@ END IF
 PDM%ParticleInside(PositionNbr) = .true.
 PartSpecies(PositionNbr) = ChemReac%DefinedReact(iReac,2,2)
 PartState(PositionNbr,1:3) = PartState(React1Inx,1:3)
+IF(DoRefMapping)THEN ! here Nearst-GP is missing
+  PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,React1Inx)
+END IF
+
 PartStateIntEn(PositionNbr, 1) = 0
 PartStateIntEn(PositionNbr, 2) = 0
 PEM%Element(PositionNbr) = PEM%Element(React1Inx)
@@ -434,10 +446,12 @@ USE MOD_Globals,               ONLY : abort
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec
-USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species
+USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species,PartPosRef
 USE MOD_Particle_Mesh_Vars,    ONLY : GEO
 USE MOD_vmpf_collision,        ONLY : vMPF_AfterSplitting
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefmapping
+! IMPLICIT VARIABLE HANDLING
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -486,6 +500,9 @@ ElecTransfer = 0.
       PDM%ParticleInside(NonReacPart) = .true.
       PartSpecies(NonReacPart)        = PartSpecies(React1Inx)
       PartState(NonReacPart,1:6)      = PartState(React1Inx,1:6)
+      IF(DoRefMapping)THEN ! here Nearst-GP is missing
+        PartPosRef(1:3,NonReacPart)=PartPosRef(1:3,React1Inx)
+      END IF
       PartStateIntEn(NonReacPart, 1)  = PartStateIntEn(React1Inx, 1)
       PartStateIntEn(NonReacPart, 2)  = PartStateIntEn(React1Inx, 2)
       IF (DSMC%ElectronicState) THEN
@@ -730,8 +747,9 @@ USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecD
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
 USE MOD_vmpf_collision,        ONLY : vMPF_AfterSplitting
-USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species
+USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species, PartPosRef
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefmapping
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -776,6 +794,9 @@ JToEv = 1.602176565E-19
       PDM%ParticleInside(NonReacPart) = .true.
       PartSpecies(NonReacPart)        = PartSpecies(React1Inx)
       PartState(NonReacPart,1:6)      = PartState(React1Inx,1:6)
+      IF(DoRefMapping)THEN ! here Nearst-GP is missing
+        PartPosRef(1:3,NonReacPart)=PartPosRef(1:3,React1Inx)
+      END IF
       PartStateIntEn(NonReacPart, 1)  = PartStateIntEn(React1Inx, 1)
       PartStateIntEn(NonReacPart, 2)  = PartStateIntEn(React1Inx, 2)
       IF (DSMC%ElectronicState) THEN
@@ -796,6 +817,9 @@ JToEv = 1.602176565E-19
       PDM%ParticleInside(NonReacPart) = .true.
       PartSpecies(NonReacPart)        = PartSpecies(React2Inx)
       PartState(NonReacPart,1:6)      = PartState(React2Inx,1:6)
+      IF(DoRefMapping)THEN ! here Nearst-GP is missing
+        PartPosRef(1:3,NonReacPart)=PartPosRef(1:3,React2Inx)
+      END IF
       PartStateIntEn(NonReacPart, 1)  = PartStateIntEn(React2Inx, 1)
       PartStateIntEn(NonReacPart, 2)  = PartStateIntEn(React2Inx, 2)
       IF (DSMC%ElectronicState) THEN

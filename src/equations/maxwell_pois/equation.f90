@@ -63,9 +63,9 @@ USE MOD_Mesh_Vars
 USE MOD_ReadInTools
 USE MOD_Basis,ONLY:PolynomialDerivativeMatrix
 USE MOD_Interpolation_Vars, ONLY: xGP
-#ifdef PARTICLES
+!#ifdef PARTICLES
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
-#endif
+!#endif
 USE MOD_Equation_Vars 
 USE MOD_TimeDisc_Vars, ONLY: TEnd
 ! IMPLICIT VARIABLE HANDLING
@@ -185,7 +185,9 @@ USE nrtype,only:SP
 USE MOD_Globals
 USE MOD_Equation_Vars,ONLY:c,c2,eps0
 USE MOD_Globals_Vars,ONLY:PI
+# if (PP_TimeDiscMethod==1)
 USE MOD_TimeDisc_vars,ONLY:dt
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -449,8 +451,9 @@ SUBROUTINE CalcSource(t)
 USE MOD_Globals,       ONLY : abort
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : Ut
-USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
+USE MOD_Equation_Vars, ONLY : eps0,IniExactFunc
 #ifdef PARTICLES
+USE MOD_Equation_Vars, ONLY : c_corr
 USE MOD_PICDepo_Vars,  ONLY : Source
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
@@ -513,8 +516,10 @@ USE MOD_PreProc
 USE MOD_Equation_Vars, ONLY : Phit
 USE MOD_DG_Vars,       ONLY: U
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
+#ifdef PARTICLES
 USE MOD_PICDepo_Vars,  ONLY : Source
-USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
+#endif /*PARTICLES*/
+!USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -673,7 +678,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES 
 REAL,DIMENSION(0:PP_N,0:PP_N,0:PP_N)            :: gradPhi_xi,gradPhi_eta,gradPhi_zeta
 INTEGER                                :: i,j,k,l,iElem
-INTEGER,SAVE                           :: N_old=0
+!INTEGER,SAVE                           :: N_old=0
 !===================================================================================================================================
 
 
@@ -835,7 +840,7 @@ USE MOD_Globals
 USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: SideToElem
-USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+USE MOD_Mesh_Vars,          ONLY: nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
 USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
 USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
 ! IMPLICIT VARIABLE HANDLING

@@ -39,9 +39,10 @@ SUBROUTINE DSMC_InitBGGas()
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
   USE MOD_DSMC_Vars,          ONLY : BGGas
-  USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies, PartState, PEM
+  USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies, PartState, PEM, PartPosRef
   USE MOD_part_emission,      ONLY : SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF
   USE MOD_part_tools,         ONLY : UpdateNextFreePosition
+  USE MOD_Particle_Tracking_Vars, ONLY:DoRefmapping
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -64,6 +65,9 @@ SUBROUTINE DSMC_InitBGGas()
           'ERROR in BGGas: Too many Particles!')
       END IF
       PartState(PositionNbr,1:3) = PartState(iPart,1:3)
+      IF(DoRefMapping)THEN ! here Nearst-GP is missing
+        PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,iPart)
+      END IF
       PartSpecies(PositionNbr) = BGGas%BGGasSpecies
       PEM%Element(PositionNbr) = PEM%Element(iPart)
       PDM%ParticleInside(PositionNbr) = .true.
