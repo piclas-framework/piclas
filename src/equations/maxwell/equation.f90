@@ -73,13 +73,13 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...' 
 
 ! Read correction velocity
-scr            = 1./ GETREAL('c_r','0.18')  !constant for damping
 c_corr             = GETREAL('c_corr','1.')
 c                  = GETREAL('c0','1.')
 eps0               = GETREAL('eps','1.')
 mu0                = GETREAL('mu','1.')
 smu0               = 1./mu0
-!fDamping           = GETREAL('fDamping','0.99')
+fDamping           = GETREAL('fDamping','0.99')
+!scr            = 1./ GETREAL('c_r','0.18')  !constant for damping
 DipoleOmega        = GETREAL('omega','6.28318E08') ! f=100 MHz default
 tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
 c_test = 1./SQRT(eps0*mu0)
@@ -536,7 +536,7 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 !source fo divcorr damping!
-Ut(7:8,:,:,:,:)=Ut(7:8,:,:,:,:)-(c_corr*scr)*U(7:8,:,:,:,:)
+!Ut(7:8,:,:,:,:)=Ut(7:8,:,:,:,:)-(c_corr*scr)*U(7:8,:,:,:,:)
 END SUBROUTINE CalcSource
 
 SUBROUTINE DivCleaningDamping()
@@ -547,7 +547,7 @@ SUBROUTINE DivCleaningDamping()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : U
-!USE MOD_Equation_Vars, ONLY : fDamping
+USE MOD_Equation_Vars, ONLY : fDamping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -558,12 +558,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
-!  DO iElem=1,PP_nElems
-!    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-!      !  Get source from Particles
-!      U(7:8,i,j,k,iElem) = U(7:8,i,j,k,iElem) * fDamping
-!    END DO; END DO; END DO
-!  END DO
+DO iElem=1,PP_nElems
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    !  Get source from Particles
+    U(7:8,i,j,k,iElem) = U(7:8,i,j,k,iElem) * fDamping
+  END DO; END DO; END DO
+END DO
 END SUBROUTINE DivCleaningDamping
 
 FUNCTION shapefunc(r)
