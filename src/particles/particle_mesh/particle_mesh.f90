@@ -80,7 +80,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT
-INTEGER           :: iElem, ilocSide,SideID,flip
+INTEGER           :: iElem, ilocSide,SideID,flip,iSide
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -131,8 +131,14 @@ epsilonbilinear = GETREAL('eps-bilinear','1e-6')
 !END DO
 
 ! copy
-PartElemToSide=ElemToSide
-PartSideToelem=SideToElem
+DO iElem=1,PP_nElems
+  DO iLocSide=1,6
+    PartElemToSide(:,iLocSide,iElem)=ElemToSide(:,iLocSide,iElem)
+  END DO 
+END DO
+DO iSide=1,nSides
+  PartSideToElem(:,iSide)=SideToElem(:,iSide)
+END DO 
 
 ! get conection
 DO iElem=1,PP_nElems
