@@ -13,7 +13,7 @@ SAVE
 INTEGER           :: NAnalyze                    ! number of analyzation points is NAnalyze+1
 REAL,ALLOCATABLE  :: wAnalyze(:)                 ! GL integration weights used for the analyze
 REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    ! for interpolation to Analyze points
-REAL              :: Analyze_dt
+REAL              :: Analyze_dt                  ! time to trigger analyze dt
 LOGICAL           :: CalcPoyntingInt             ! calulate pointing vector integral | only perp to z axis
 REAL              :: PoyntingIntCoordErr         ! tolerance in plane searching
 INTEGER           :: nPoyntingIntPlanes          ! number of planes

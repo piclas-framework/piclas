@@ -21,15 +21,28 @@ INTERFACE FinalizeLoadBalance
   MODULE PROCEDURE FinalizeLoadBalance
 END INTERFACE
 
+!INTERFACE SingleStepOptimalPartition
+!  MODULE PROCEDURE SingleStepOptimalPartition
+!END INTERFACE
+
+INTERFACE ComputeParticleWeightAndLoad
+  MODULE PROCEDURE ComputeParticleWeightAndLoad
+END INTERFACE
+
 INTERFACE LoadBalance
   MODULE PROCEDURE LoadBalance
+END INTERFACE
+
+INTERFACE CalculateProcWeights
+  MODULE PROCEDURE CalculateProcWeights
 END INTERFACE
 
 INTERFACE LoadMeasure 
   MODULE PROCEDURE LoadMeasure
 END INTERFACE
 
-PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance,LoadMeasure
+PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance,LoadMeasure,CalculateProcWeights
+PUBLIC::ComputeParticleWeightAndLoad
 !===================================================================================================================================
 
 CONTAINS
@@ -43,7 +56,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_LoadBalance_Vars
 USE MOD_ReadInTools,          ONLY:GETLOGICAL, GETREAL, GETINT
-USE MOD_Mesh_Vars,            ONLY:ParticleMPIWeight
+USE MOD_Analyze_Vars,         ONLY:Analyze_dt
 #ifdef MPI
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -60,6 +73,8 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 
 DoLoadBalance= GETLOGICAL('Static-LoadBalance','F')
+DeviationThreshold  = GETREAL('Load-DeviationTreshold','0.10')
+DeviationThreshold  = 1.0+DeviationThreshold
 OutputRank= GETLOGICAL('OutputRank','F')
 nLoadBalance = 0
 
@@ -95,6 +110,7 @@ ALLOCATE( tTotal(1:13)    &
 ! 13 -PartAnalyze
 
 
+LastImbalance=0.
 tTotal=0.
 LoadSum=0.
 tCurrent=0.
@@ -108,30 +124,25 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitLoadBalance
 
 
-SUBROUTINE LoadBalance()
-!===================================================================================================================================
-! routine perfoming the load balancing stuff
-!===================================================================================================================================
-! MODULES
+SUBROUTINE ComputeParticleWeightAndLoad(CurrentImbalance,PerformLoadbalance) 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! compute the current particle weight
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Restart,               ONLY:Restart
-USE MOD_Boltzplatz_Tools,      ONLY:InitBoltzplatz,FinalizeBoltzplatz
-USE MOD_PICDepo_Vars,          ONLY:DepositionType
-USE MOD_LoadBalance_Vars,      ONLY:tCurrent,LoadSum,tTotal,nloaditer,nTotalParts,nLoadBalance,PartWeightMethod, WeightAverageMethod
+USE MOD_LoadBalance_Vars,      ONLY:tCurrent,LoadSum,tTotal,nloaditer,nTotalParts,nLoadBalance,PartWeightMethod,DeviationThreshold&
+                                   ,WeightAverageMethod,ParticleMPIWeight,LastImbalance
 USE MOD_PML_Vars,              ONLY:DoPML,nPMLElems
-USE MOD_Mesh_Vars,             ONLY:ParticleMPIWeight
-#ifdef MPI
-USE MOD_Particle_MPI,          ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,     ONLY:PartMPIExchange
-#endif
 USE MOD_Utils,                 ONLY:InsertionSort
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: PerformLoadBalance
+REAL ,INTENT(OUT)             :: Currentimbalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL              :: TotalLoad(1:13)
@@ -142,17 +153,14 @@ CHARACTER(LEN=4)  :: hilf
 INTEGER           :: iounit,iProc,iOut,iWeigth,iList,listZeros
 INTEGER           :: nWeights(2,3)
 REAL              :: PartWeight(3,2)
-!===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
+!===================================================================================================================================
 
 nLoadBalance=nLoadBalance+1
 
 ! per iter
 ! finish load measure
 LoadSum=LoadSum/REAL(nLoadIter)
-
 
 TotalLoad=0.
 ! per dt_analyze
@@ -341,6 +349,55 @@ tCurrent   =0.
 nTotalParts=0.
 nLoadIter  =0
 
+! compute current load
+CALL CalculateProcWeights()
+! compute impalance 
+CALL ComputeImbalance(CurrentImbalance)
+
+PerformLoadBalance=.FALSE.
+IF(CurrentImbalance.GT.DeviationThreshold*LastImbalance) PerformLoadBalance=.TRUE.
+
+
+END SUBROUTINE ComputeParticleWeightAndLoad
+
+
+SUBROUTINE LoadBalance(CurrentImbalance,PerformLoadBalance)
+!===================================================================================================================================
+! routine perfoming the load balancing stuff
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Restart,               ONLY:Restart
+!USE MOD_Boltzplatz_Tools,      ONLY:InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_Boltzplatz_Tools,      ONLY:InitBoltzplatz,FinalizeBoltzplatz
+USE MOD_LoadBalance_Vars,      ONLY:DeviationThreshold,LastImbalance
+#ifdef PARTICLES
+USE MOD_PICDepo_Vars,          ONLY:DepositionType
+#ifdef MPI
+USE MOD_Particle_MPI,          ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,     ONLY:PartMPIExchange
+#endif
+#endif /*PARTICLES*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN)   :: PerformLoadBalance
+REAL,INTENT(IN)      :: Currentimbalance
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL              :: Newimbalance
+!===================================================================================================================================
+
+
+! only do load-balance if necessary
+IF(.NOT.PerformLoadBalance) RETURN
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)') ' PERFORMING LOAD BALANCE ...'
 
 ! finialize all arrays
 CALL FinalizeBoltzplatz(IsLoadBalance=.TRUE.)
@@ -349,6 +406,22 @@ CALL InitBoltzplatz(IsLoadBalance=.TRUE.)
 
 ! restart
 CALL Restart()
+
+! check new distribution
+! compute current load
+CALL CalculateProcWeights()
+! compute impalance 
+CALL ComputeImbalance(NewImbalance)
+
+IF( NewImbalance.GT.DeviationThreshold*LastImbalance   &
+  .OR. NewImbalance.GT.CurrentImbalance ) THEN
+  SWRITE(UNIT_stdOut,'(A)') ' WARNING: LoadBalance not successful!'
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' LastImbalance:    ', LastImBalance
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' CurrentImbalance: ', CurrentImbalance
+  SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance: '    , NewImbalance
+END IF
+
+LastImbalance=NewImBalance
 
 #ifdef PARTICLES
 #ifdef MPI
@@ -364,7 +437,6 @@ IF (DepositionType.EQ."shape_function") THEN
 END IF
 #endif /*MPI*/
 #endif /*PARTICLES*/
-
 
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -426,6 +498,78 @@ nCurrentParts=0
 END SUBROUTINE LoadMeasure
 
 
+SUBROUTINE CalculateProcWeights() 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! calculation of weights of each processor
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_LoadBalance_Vars,  ONLY: ElemWeight,ParticleMPIWeight
+#ifdef PARTICLES
+USE MOD_Particle_Vars, ONLY: PDM,PEM
+#endif /*PARTICLES*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER     :: iElem, iPart,locnParts
+!===================================================================================================================================
+
+IF(.NOT.ALLOCATED(ElemWeight)) ALLOCATE(ElemWeight(1:PP_nElems))
+
+ElemWeight=1.0
+
+#ifdef PARTICLES
+DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in HALO, it shall not be found here
+  locnParts=0
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF(PEM%LastElement(iPart).NE.iElem) CYCLE
+    locnParts=locnParts+1
+  END DO
+  ElemWeight(iElem)=ElemWeight(iElem)+ParticleMPIWeight*locnParts
+END DO ! iElem
+#endif /*PARTICLES*/
+
+END SUBROUTINE CalculateProcWeights
+
+
+SUBROUTINE ComputeImbalance(CurrentImbalance)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! subroutine to compute the imbalance
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_LoadBalance_Vars,    ONLY:ElemWeight, WeightSum, TargetWeight
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)           :: CurrentImbalance
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                       :: MaxWeight
+!===================================================================================================================================
+
+WeightSum=SUM(ElemWeight)
+
+CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(WeightSum,MaxWeight,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+
+TargetWeight=TargetWeight/nProcessors
+
+CurrentImbalance=MaxWeight/TargetWeight
+
+END SUBROUTINE ComputeImbalance
+
+
 SUBROUTINE FinalizeLoadBalance()
 !===================================================================================================================================
 ! Deallocate arrays
@@ -445,6 +589,7 @@ IMPLICIT NONE
 SDEALLOCATE( tTotal  )
 SDEALLOCATE( tCurrent  )
 SDEALLOCATE( LoadSum )
+SDEALLOCATE( ElemWeight )
 InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance

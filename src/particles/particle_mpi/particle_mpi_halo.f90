@@ -2345,10 +2345,10 @@ SUBROUTINE WriteParticlePartitionInformation(nPlanar,nBilinear,nCurved)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,            ONLY:nSides,nElems,writePartitionInfo
+USE MOD_Mesh_Vars,            ONLY:nSides,nElems
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,   ONLY:nTotalSides,nTotalElems
-USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance,nLoadBalance
+USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance,nLoadBalance, writePartitionInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2498,10 +2498,10 @@ SUBROUTINE WriteParticleMappingPartitionInformation(nPlanar,nBilinear,nCurved,nT
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,            ONLY:nSides,nElems, writePartitionInfo
+USE MOD_Mesh_Vars,            ONLY:nSides,nElems
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,   ONLY:nTotalSides,nTotalElems
-USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance,nLoadBalance
+USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance,nLoadBalance, writePartitionInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES

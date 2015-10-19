@@ -94,11 +94,6 @@ INTEGER             :: nPoyntingIntSides=0   ! Sides for the calculation of the 
 LOGICAL,ALLOCATABLE :: isPoyntingIntSide(:)  ! number of all PoyntingInt sides
 INTEGER,ALLOCATABLE :: whichPoyntingPlane(:) ! number of plane used for calculation of poynting vector
 !-----------------------------------------------------------------------------------------------------------------------------------
-! particle load balancing
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL                :: ParticleMPIWeight
-LOGICAL             :: writePartitionInfo     ! write partitioninfo file
-!-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! USER DEFINED TYPES 
 

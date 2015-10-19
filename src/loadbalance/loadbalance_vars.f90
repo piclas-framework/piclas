@@ -26,4 +26,15 @@ INTEGER,ALLOCATABLE                 :: PartDistri(:)                            
 INTEGER                             :: PartWeightMethod                           ! method to compute the particle weight
 INTEGER                             :: WeightAverageMethod                        ! method to average the particle weight
                                                                                   ! (1: iter, 2: dt_Analyze)
+REAL,ALLOCATABLE                    :: ElemWeight(:)
+REAL                                :: LastImbalance
+!-----------------------------------------------------------------------------------------------------------------------------------
+! particle load balancing
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                             :: nSkipAnalyze                               ! Skip Analyze-Dt
+REAL                                :: ParticleMPIWeight
+REAL                                :: DeviationThreshold                         ! threshold for load-balancing
+LOGICAL                             :: writePartitionInfo                         ! write partitioninfo file
+REAL                                :: WeightSum                                  ! global sum of all weights
+REAL                                :: targetWeight                               ! optimal weight for each proc
 END MODULE MOD_LoadBalance_Vars

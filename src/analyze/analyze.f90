@@ -54,6 +54,7 @@ USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
 USE MOD_ReadInTools,          ONLY:GETLOGICAL
 USE MOD_Particle_Analyze_Vars,ONLY:CalcEpot, DoAnalyze,PartAnalyzeStep
 #endif /*PARTICLES*/
+USE MOD_LoadBalance_Vars,     ONLY:nSkipAnalyze
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -72,6 +73,7 @@ WRITE(DefStr,'(i4)') 2*(PP_N+1)
 NAnalyze=GETINT('NAnalyze',DefStr) 
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 Analyze_dt=GETREAL('Analyze_dt','0.')
+nSkipAnalyze=GETINT('nSkipAnalyze','0')
 
 #ifndef PARTICLES
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')

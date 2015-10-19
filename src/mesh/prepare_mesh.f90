@@ -42,7 +42,8 @@ SUBROUTINE setLocalSideIDs()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars,        ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
-USE MOD_Mesh_Vars,        ONLY: aElem,aSide, writePartitionInfo
+USE MOD_Mesh_Vars,        ONLY: aElem,aSide
+USE MOD_LoadBalance_Vars, ONLY: writePartitionInfo
 USE MOD_Mesh_Vars,        ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 USE MOD_LoadBalance_Vars, ONLY: DoLoadBalance,nLoadBalance, LoadDistri, PartDistri
 #ifdef MPI

@@ -13,6 +13,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL             :: TEnd
 REAL             :: TAnalyze
+REAL             :: TLoadBalance
 REAL             :: dt
 REAL             :: CFLScale 
 REAL             :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver

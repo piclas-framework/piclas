@@ -163,8 +163,8 @@ USE MOD_Particle_MPI_Vars,     ONLY: PartMPIExchange
 #ifdef PP_POIS
 USE MOD_Equation,              ONLY: EvalGradient
 #endif /*PP_POIS*/
-USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure
-USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
+USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeightAndLoad
+USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance,nSkipAnalyze
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -173,6 +173,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                         :: t,tFuture,tZero
 INTEGER(KIND=8)              :: nAnalyze
+INTEGER                      :: iAnalyze
 REAL                         :: dt_Min, tEndDiff, tAnalyzeDiff
 #if (PP_TimeDiscMethod==201)
 REAL                         :: dt_temp,vMax,vMaxx,vMaxy,vMaxz
@@ -180,6 +181,8 @@ REAL                         :: dt_temp,vMax,vMaxx,vMaxy,vMaxz
 INTEGER(KIND=8)              :: iter_loc
 REAL                         :: CalcTimeStart,CalcTimeEnd
 INTEGER                      :: TimeArray(8)              ! Array for system time
+REAL                         :: CurrentImbalance
+LOGICAL                      :: PerformLoadBalance
 #if (PP_TimeDiscMethod==201)
 INTEGER                      :: MaximumIterNum, iPart
 LOGICAL                      :: NoPartInside
@@ -212,6 +215,7 @@ END IF
 #endif /*PARTICLES*/
 tZero=t
 nAnalyze=1
+iAnalyze=1
 tAnalyze=MIN(tZero+Analyze_dt,tEnd)
 
 ! write number of grid cells and dofs only once per computation
@@ -464,37 +468,42 @@ DO !iter_t=0,MaxIter
       finalIter=.FALSE.
     END IF
     CalcTimeEnd=BOLTZPLATZTIME()
-    IF(MPIroot)THEN
-      ! Get calculation time per DOF
-      CalcTimeEnd=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
-      CALL DATE_AND_TIME(values=TimeArray) ! get System time
-      WRITE(UNIT_StdOut,'(132("-"))')
-      WRITE(UNIT_stdOut,'(A,I2.2,A1,I2.2,A1,I4.4,A1,I2.2,A1,I2.2,A1,I2.2)') &
-        ' Sys date  :    ',timeArray(3),'.',timeArray(2),'.',timeArray(1),' ',timeArray(5),':',timeArray(6),':',timeArray(7)
-      WRITE(UNIT_stdOut,'(A,ES12.5,A)')' CALCULATION TIME PER TSTEP/DOF: [',CalcTimeEnd,' sec ]'
-      WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
-      WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
-    END IF !MPIroot
-    ! Analyze for output
-    CALL PerformAnalyze(t,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
+    CALL ComputeParticleWeightAndLoad(CurrentImbalance,PerformLoadBalance)
     ! future time
     nAnalyze=nAnalyze+1
     tFuture=tZero+REAL(nAnalyze)*Analyze_dt
-    ! Write state to file
-    IF(DoPML) CALL BacktransformPMLVars()
-    CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
-    IF(DoPML) CALL TransformPMLVars()
-    ! Write recordpoints data to hdf5
-    IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
+    IF(iAnalyze.EQ.nSkipAnalyze .OR. PerformLoadBalance .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
+      IF(MPIroot)THEN
+        ! Get calculation time per DOF
+        CalcTimeEnd=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
+        CALL DATE_AND_TIME(values=TimeArray) ! get System time
+        WRITE(UNIT_StdOut,'(132("-"))')
+        WRITE(UNIT_stdOut,'(A,I2.2,A1,I2.2,A1,I4.4,A1,I2.2,A1,I2.2,A1,I2.2)') &
+          ' Sys date  :    ',timeArray(3),'.',timeArray(2),'.',timeArray(1),' ',timeArray(5),':',timeArray(6),':',timeArray(7)
+        WRITE(UNIT_stdOut,'(A,ES12.5,A)')' CALCULATION TIME PER TSTEP/DOF: [',CalcTimeEnd,' sec ]'
+        WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
+        WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
+      END IF !MPIroot
+      ! Analyze for output
+      CALL PerformAnalyze(t,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
+      ! Write state to file
+      IF(DoPML) CALL BacktransformPMLVars()
+      CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
+      IF(DoPML) CALL TransformPMLVars()
+      ! Write recordpoints data to hdf5
+      IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
+      IF(iAnalyze.EQ.nSkipAnalyze) iAnalyze=0
+      SWRITE(UNIT_StdOut,'(132("-"))')
+    END IF
+    iAnalyze=iAnalyze+1
     iter_loc=0
     tAnalyze=tZero+REAL(nAnalyze)*Analyze_dt
     IF (tAnalyze > tEnd) tAnalyze = tEnd
-    SWRITE(UNIT_StdOut,'(132("-"))')
 #ifdef MPI
     IF(DoLoadBalance .AND. t.LT.tEnd)THEN
       RestartTime=t
-      CALL LoadBalance()
-      CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
+      CALL LoadBalance(CurrentImbalance,PerformLoadBalance)
+      ! CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture) ! not sure if required
     END IF
 #endif /*MPI*/
     CalcTimeStart=BOLTZPLATZTIME()
