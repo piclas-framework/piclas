@@ -12,6 +12,7 @@ USE MOD_Interpolation,    ONLY:InitInterpolation!,FinalizeInterpolation
 USE MOD_IO_HDF5,          ONLY:InitIO
 USE MOD_TimeDisc,         ONLY:InitTimeDisc,FinalizeTimeDisc,TimeDisc
 USE MOD_MPI,              ONLY:InitMPI
+USE MOD_RecordPoints_Vars,ONLY:RP_Data
 #ifdef MPI
 USE MOD_LoadBalance,      ONLY:InitLoadBalance,FinalizeLoadBalance
 USE MOD_MPI,              ONLY:FinalizeMPI
@@ -163,6 +164,8 @@ CALL FinalizeBoltzplatz(IsLoadBalance=.FALSE.)
 !#endif
 
 CALL FinalizeTimeDisc()
+! mssing arrays to deallocate
+SDEALLOCATE(RP_Data)
 
 !Measure simulation duration
 Time=BOLTZPLATZTIME()

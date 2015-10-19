@@ -73,7 +73,7 @@ WRITE(DefStr,'(i4)') 2*(PP_N+1)
 NAnalyze=GETINT('NAnalyze',DefStr) 
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 Analyze_dt=GETREAL('Analyze_dt','0.')
-nSkipAnalyze=GETINT('nSkipAnalyze','0')
+nSkipAnalyze=GETINT('nSkipAnalyze','1')
 
 #ifndef PARTICLES
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
