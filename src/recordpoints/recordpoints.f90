@@ -312,7 +312,12 @@ IF(.NOT.Output) THEN
   IF(MOD(iter,RP_SamplingOffset).NE.0 .AND. .NOT. forceSampling ) RETURN
 END IF
 
-IF(iter.EQ.0)THEN
+!IF(iter.EQ.0)THEN
+!  ! Compute required buffersize from timestep and add 10% tolerance
+!  RP_Buffersize = MIN(CEILING((1.05*Analyze_dt)/(dt*RP_SamplingOffset))+1,RP_MaxBuffersize)
+!  ALLOCATE(RP_Data(0:PP_nVar,nRP,RP_Buffersize))
+!END IF
+IF(.NOT.ALLOCATED(RP_Data))THEN
   ! Compute required buffersize from timestep and add 10% tolerance
   RP_Buffersize = MIN(CEILING((1.05*Analyze_dt)/(dt*RP_SamplingOffset))+1,RP_MaxBuffersize)
   ALLOCATE(RP_Data(0:PP_nVar,nRP,RP_Buffersize))
@@ -454,6 +459,7 @@ SUBROUTINE FinalizeRecordPoints()
 !===================================================================================================================================
 ! MODULES
 USE MOD_RecordPoints_Vars
+USE MOD_LoadBalance_Vars, ONLY:DoLoadBalance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -463,11 +469,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(RP_Data)
+IF(.NOT.DoLoadBalance) THEN
+  SDEALLOCATE(RP_Data)
+END IF
 SDEALLOCATE(RP_ElemID)
 SDEALLOCATE(L_xi_RP)
 SDEALLOCATE(L_eta_RP)
 SDEALLOCATE(L_zeta_RP)
+SDEALLOCATE(LastSample)
 RecordPointsInitIsDone = .FALSE.
 END SUBROUTINE FinalizeRecordPoints
 

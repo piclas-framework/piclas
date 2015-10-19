@@ -449,7 +449,7 @@ USE MOD_Globals,       ONLY : abort
 USE MOD_Globals_Vars,  ONLY : PI
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : Ut,U
-USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega, tPulse,scr
+USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega, tPulse!,scr
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,  ONLY : Source
 #endif /*PARTICLES*/
