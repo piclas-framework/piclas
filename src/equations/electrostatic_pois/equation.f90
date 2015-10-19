@@ -452,7 +452,7 @@ SUBROUTINE FinalizeEquation()
 ! Get the constant advection velocity vector from the ini file
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars,ONLY:EquationInitIsDone
+USE MOD_Equation_Vars,ONLY:EquationInitIsDone,Phi,Phit,Phi_Minus,Phi_Plus,FluxPhi,E,D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -463,6 +463,13 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 EquationInitIsDone = .FALSE.
+SDEALLOCATE(Phi)
+SDEALLOCATE(Phit)
+SDEALLOCATE(Phi_Minus)
+SDEALLOCATE(Phi_Plus)
+SDEALLOCATE(FluxPhi)
+SDEALLOCATE(E)
+SDEALLOCATE(D)
 END SUBROUTINE FinalizeEquation
 
 

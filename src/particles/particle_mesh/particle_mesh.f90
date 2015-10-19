@@ -1784,7 +1784,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
  INTEGER                :: iElem, iRegions
 !===================================================================================================================================
-
+SDEALLOCATE(GEO%ElemToRegion)
 ALLOCATE(GEO%ElemToRegion(1:PP_nElems)) 
 GEO%ElemToRegion=0
 
