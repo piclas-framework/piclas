@@ -41,8 +41,12 @@ INTERFACE LoadMeasure
   MODULE PROCEDURE LoadMeasure
 END INTERFACE
 
+INTERFACE CountPartsPerElem
+  MODULE PROCEDURE CountPartsPerElem
+END INTERFACE
+
 PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance,LoadMeasure,CalculateProcWeights
-PUBLIC::ComputeParticleWeightAndLoad
+PUBLIC::ComputeParticleWeightAndLoad,CountPartsPerElem
 !===================================================================================================================================
 
 CONTAINS
@@ -85,7 +89,7 @@ IF (ParticleMPIWeight.LT.0) THEN
 END IF
 
 PartWeightMethod  = GETINT('Particles-WeightMethod','1')
-WeightAverageMethod = GETINT('Particles-WeightAverageMethod','2')
+WeightAverageMethod = GETINT('Particles-WeightAverageMethod','1')
 IF ( (WeightAverageMethod.NE.1) .AND. (WeightAverageMethod.NE.2) ) THEN
   CALL abort(&
     __STAMP__&
@@ -593,5 +597,33 @@ SDEALLOCATE( ElemWeight )
 InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
+
+
+SUBROUTINE CountPartsPerElem()
+!===================================================================================================================================
+! Deallocate arrays
+!===================================================================================================================================
+! MODULES
+USE MOD_LoadBalance_Vars,        ONLY: nPartsPerElem
+USE MOD_Particle_Vars,           ONLY: PDM,PEM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iPart, ElemID
+!===================================================================================================================================
+
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    ElemID = PEM%Element(iPart)
+    nPartsPerElem(ElemID)=nPartsPerElem(ElemID)+1
+  END IF
+END DO ! iPart=1,PDM%ParticleVecLength
+
+END SUBROUTINE CountPartsPerElem
 
 END MODULE MOD_LoadBalance

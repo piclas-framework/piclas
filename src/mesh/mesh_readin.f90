@@ -151,6 +151,7 @@ USE MOD_Mesh_Vars,          ONLY:aElem,aSide,bSide
 USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE
 #ifdef MPI
 USE MOD_LoadBalance_Vars,   ONLY:nLoadBalance, LoadDistri, PartDistri,ParticleMPIWeight,WeightSum,TargetWeight
+USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_LoadDistribution,   ONLY:SingleStepOptimalPartition
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
 USE MOD_PreProc
@@ -590,6 +591,16 @@ END IF
 nElems=offsetElemMPI(myRank+1)-offsetElemMPI(myRank)
 offsetElem=offsetElemMPI(myRank)
 LOGWRITE(*,*)'offset,nElems',offsetElem,nElems
+! -- LoadBalance preparation
+SDEALLOCATE(ElemTime)
+ALLOCATE(ElemTime(1:nElems))
+SDEALLOCATE(nPartsPerElem)
+ALLOCATE(nPartsPerElem(1:nElems))
+SDEALLOCATE(nDeposPerElem)
+ALLOCATE(nDeposPerElem(1:nElems))
+SDEALLOCATE(nTracksPerElem)
+ALLOCATE(nTracksPerElem(1:nElems))
+! --
 #else /* MPI */
 nElems=nGlobalElems   !local number of Elements 
 offsetElem=0          ! offset is the index of first entry, hdf5 array starts at 0-.GT. -1 

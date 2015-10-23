@@ -69,6 +69,7 @@ USE MOD_Particle_Surfaces_Vars, ONLY:epsilonbilinear
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic
 USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL
+USE MOD_LoadBalance_Vars,       ONLY:nTracksPerElem
 !USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -99,6 +100,9 @@ IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
 
 
 DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
+IF(.NOT.DoRefMapping) THEN
+  SDEALLOCATE(nTracksPerElem)
+END IF
 MeasureTrackTime = GETLOGICAL('MeasureTrackTime','.FALSE.')
 FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 

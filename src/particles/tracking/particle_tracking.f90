@@ -54,6 +54,7 @@ USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLin
                                          ,ComputePlanarIntersectionBezier,PartInElemCheck
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
 #ifdef MPI
+USE MOD_LoadBalance_Vars,            ONLY:ElemTime
 USE MOD_Mesh_Vars,                   ONLY:BC,nSides
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -65,16 +66,18 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart,ElemID,flip
+INTEGER                       :: iPart,ElemID,flip,OldElemID
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections,nLoc
 LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
+REAL                          :: tLBStart,tLBEnd
 !===================================================================================================================================
 
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
+    tLBStart = LOCALTIME() ! LB Time Start
     nTracks=nTracks+1
     nCurrentParts=nCurrentParts+1
     PartisDone=.FALSE.
@@ -173,8 +176,14 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
         END DO ! ilocSide
         SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
+        OldElemID=ElemID
         CALL SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
                                          ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
+        IF(ElemID.NE.OldElemID)THEN
+          tLBEnd = LOCALTIME() ! LB Time End
+          ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
+          tLBStart = LOCALTIME() ! LB Time Start
+        END IF
       CASE DEFAULT ! two or more hits
         ! take last possible intersection, furthest
         !CALL BubbleSortID(locAlpha,locSideList,6)
@@ -191,8 +200,14 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
         END DO ! ilocSide
         SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
+        OldElemID=ElemID
         CALL SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
                                          ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
+        IF(ElemID.NE.OldElemID)THEN
+          tLBEnd = LOCALTIME() ! LB Time End
+          ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
+          tLBStart = LOCALTIME() ! LB Time Start
+        END IF
         markTol=.TRUE.
       END SELECT
       IF(markTol)THEN
@@ -209,6 +224,8 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
       END IF ! markTol
     END DO ! PartisDone=.FALSE.
+    tLBEnd = LOCALTIME() ! LB Time End
+    ElemTime(PEM%Element(iPart))=ElemTime(PEM%Element(iPart))+tLBEnd-tLBStart
 !    IF(markTol)THEN
 !      CALL PartInElemCheck(iPart,ElemID,isHit)
 !      PEM%Element(iPart)=ElemID
@@ -387,6 +404,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 #ifdef MPI
 USE MOD_MPI_Vars,                ONLY:offsetElemMPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartHaloToProc
+USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nTracksPerElem,tTracking
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -409,6 +427,9 @@ INTEGER                     :: InElem
 INTEGER                     :: SideID,BCSideID,ilocSide
 LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength)
 !LOGICAL                     :: HitBC(1:PDM%ParticleVecLength)
+
+! load balance
+REAL                          :: tLBStart,tLBEnd
 !===================================================================================================================================
 
 
@@ -434,6 +455,7 @@ ParticleFound=.FALSE.
 epsLowOne=1.0-2.0*epsInCell
 ! first step, reuse Elem cache, therefore, check if particle are still in element, if not, search later
 DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in HALO, it shall not be found here
+  tLBStart = LOCALTIME() ! LB Time Start
   DO iPart=1,PDM%ParticleVecLength
     IF(PDM%ParticleInside(iPart))THEN
       ElemID = PEM%lastElement(iPart)
@@ -529,9 +551,12 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
       ParticleFound(iPart)=.TRUE.
     END IF
   END DO ! iPart
+  tLBEnd = LOCALTIME() ! LB Time End
+  ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
 END DO ! iElem
 
 ! now, locate not all found particle
+tLBStart = LOCALTIME() ! LB Time Start
 DO iPart=1,PDM%ParticleVecLength
   IF(ParticleFound(iPart)) CYCLE
   ! relocate particle
@@ -582,6 +607,7 @@ DO iPart=1,PDM%ParticleVecLength
   DO iBGMElem=1,nBGMElems
     IF(ALMOSTEQUAL(Distance(iBGMELem),-1.0)) CYCLE
     ElemID=ListDistance(iBGMElem)
+    nTracksPerElem(ElemID)=nTracksPerElem(ElemID)+1
     CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
     !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
     IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.1.0) THEN ! particle inside
@@ -844,6 +870,8 @@ DO iPart=1,PDM%ParticleVecLength
   DEALLOCATE( ListDistance)
 
 END DO ! iPart
+tLBEnd = LOCALTIME() ! LB Time End
+tTracking = tTracking +tLBEnd-tLBStart
 
 
 END SUBROUTINE ParticleRefTracking

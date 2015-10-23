@@ -119,6 +119,7 @@ USE MOD_Output,           ONLY:InitOutput
 USE MOD_Analyze,          ONLY:InitAnalyze
 USE MOD_RecordPoints,     ONLY:InitRecordPoints
 !USE MOD_TimeDisc,         ONLY:InitTimeDisc
+USE MOD_Restart_Vars,     ONLY:N_Restart,InterpolateSolution
 #ifdef MPI
 USE MOD_MPI,              ONLY:InitMPIvars
 #endif /*MPI*/
@@ -145,6 +146,10 @@ IF(IsLoadBalance)THEN
   DoRestart=.TRUE.
   RestartInitIsDone=.TRUE.
   InterpolationInitIsDone=.TRUE.
+  !BuildNewMesh       =.FALSE. !not used anymore?
+  !WriteNewMesh       =.FALSE. !not used anymore?
+  InterpolateSolution=.FALSE.
+  N_Restart=PP_N
 ELSE
   CALL InitRestart()
 END IF

@@ -37,4 +37,15 @@ REAL                                :: DeviationThreshold                       
 LOGICAL                             :: writePartitionInfo                         ! write partitioninfo file
 REAL                                :: WeightSum                                  ! global sum of all weights
 REAL                                :: targetWeight                               ! optimal weight for each proc
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Element Local measurement
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                                :: tCartMesh                                  ! time for CartMesh deposition
+REAL                                :: tTracking                                  ! time for relocation of particles
+REAL,ALLOCATABLE                    :: ElemTime(:)
+INTEGER,ALLOCATABLE                 :: nPartsPerElem(:)
+INTEGER,ALLOCATABLE                 :: nDeposPerElem(:)
+INTEGER,ALLOCATABLE                 :: nTracksPerElem(:)
+
+
 END MODULE MOD_LoadBalance_Vars

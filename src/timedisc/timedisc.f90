@@ -541,6 +541,7 @@ USE MOD_Equation,                ONLY: CalcSource
 !USE MOD_DG,                      ONLY: DGTimeDerivative_WoSource_weakForm
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
 USE MOD_LoadBalance_Vars,        ONLY: tCurrent
+USE MOD_LoadBalance,             ONLY: CountPartsPerElem
 #ifdef PP_POIS
 USE MOD_Equation,                ONLY: DivCleaningDamping_Pois,EvalGradient
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm_Pois
@@ -611,6 +612,8 @@ IF (t.GE.DelayTime) THEN
 END IF
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(4)=tCurrent(4)+tLBEnd-tLBStart
+
+CALL CountPartsPerElem()
 
 tLBStart = LOCALTIME() ! LB Time Start
 IF (t.GE.DelayTime) THEN
@@ -796,6 +799,7 @@ DO iStage=2,nRKStages
 !      CALL Deposition()
 !    END IF
   END IF
+  CALL CountPartsPerElem()
 #endif /*PARTICLES*/
 
   ! field solver
