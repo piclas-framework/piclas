@@ -116,6 +116,7 @@ SUBROUTINE DSMC_main()
               CALL DSMC_perform_collision(iPair,iElem)
             END IF
           END IF
+          ChemReac%nPairForRec = ChemReac%nPairForRec - 1
         END DO
         DEALLOCATE(Coll_pData)
       END IF                                                                                     ! no end octree

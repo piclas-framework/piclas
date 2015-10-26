@@ -38,7 +38,7 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit)
 !===================================================================================================================================
 ! init electronic shell
 !===================================================================================================================================
-  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, PartElecQua
   USE MOD_Particle_Vars,          ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
@@ -77,6 +77,7 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit)
     SpecDSMC(iSpecies)%levelcounter(iQua) = SpecDSMC(iSpecies)%levelcounter(iQua) + 1
 #endif
   PartStateIntEn(iPart,3) = BoltzmannConst * SpecDSMC(iSpecies)%ElectronicState(2,iQua)
+  PartElecQua(iPart) = iQua
 
 END SUBROUTINE InitElectronShell
 
@@ -166,7 +167,7 @@ SUBROUTINE ElectronicEnergyExchange(CollisionEnergy,iPart1,FakXi,iPart2,iElem)
   DO WHILE ( iRan2 .GE. gtemp / gmax )
     CALL RANDOM_NUMBER(iRan)
     iQua = INT( ( iQuaMax+1  ) * iRan)
-    iQua = INT( ( iQuaMax  ) * iRan)
+!    iQua = INT( ( iQuaMax  ) * iRan)
     gtemp = SpecDSMC(PartSpecies(iPart1))%ElectronicState(1,iQua) * &
             ( CollisionEnergy - BoltzmannConst * SpecDSMC(PartSpecies(iPart1))%ElectronicState(2,iQua))**FakXi
     CALL RANDOM_NUMBER(iRan2)

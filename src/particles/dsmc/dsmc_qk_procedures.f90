@@ -72,7 +72,7 @@ END IF
 ! is larger than the activation energy
 Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                      + PartStateIntEn(PartToExec,1)
-! correcture for second collision partner
+! correction for second collision partner
 IF (SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.2) THEN
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - DSMC%GammaQuant *BoltzmannConst*SpecDSMC(PartSpecies(PartReac2))%CharaTVib 
 END IF
@@ -80,9 +80,14 @@ END IF
 iQuaMax   = INT(Coll_pData(iPair)%Ec   / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib ) - &
                                       DSMC%GammaQuant)
 iQuaDiss  = INT(ChemReac%EActiv(iReac) / ( BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%CharaTVib ) )
+
+IF (SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.2) THEN
+  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + DSMC%GammaQuant *BoltzmannConst*SpecDSMC(PartSpecies(PartReac2))%CharaTVib 
+END IF
+
 IF ( iQuaMax .GT. iQuaDiss ) THEN
 #if (PP_TimeDiscMethod==42)
-  ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
+  ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
   IF (.NOT. DSMC%ReservoirSimuRate  ) THEN
 # endif
       ! calculate the collision energy as required input for the performance of the dissociation reaction
@@ -93,7 +98,7 @@ IF ( iQuaMax .GT. iQuaDiss ) THEN
   END IF
   ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
   IF ( DSMC%ReservoirRateStatistic ) THEN
-    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reactionrate coeficient
+    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reactionrate coefficient
   END IF
 # endif
   RelaxToDo = .FALSE.
@@ -515,7 +520,7 @@ SUBROUTINE QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,N
 ! requires a third collision partner, which has to take a part of the energy
 ! this approach is similar to Birds QK molecular recombination, but modified for ion-electron recombination
 !===================================================================================================================================
-USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
+USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, DSMC_RHS
 USE MOD_Particle_Vars,          ONLY: PartSpecies, BoltzmannConst, Species, PEM, PartState, usevMPF
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: IonRecomb ! has to be written, missing subroutine
@@ -536,9 +541,11 @@ INTEGER, INTENT(IN)                 :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                             :: iQuaMax1, iQuaMax2,MaxElecQuant, iQua
-REAL                                :: Volume, nPartNode, omegaAB, ReactionProb, iRan, Vref, coeffT,Tcoll, acorrection
+REAL                                :: Volume, nPartNode, omegaAB, ReactionProb, iRan, Vref, coeffT,Tcoll, acorrection, CRela2X
 INTEGER                             :: PartReac1,PartReac2
+REAL :: evor, enach
 !===================================================================================================================================
+
 
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
@@ -559,7 +566,7 @@ ELSE
   PartReac2 = Coll_pData(iPair)%iPart_p1
 END IF
 
-! Determine max electronic quant of first collision partern
+! Determine max electronic quant of first collision partner
 MaxElecQuant = SpecDSMC(PartSpecies(PartReac1))%MaxElecQuant - 1
 ! determine old Quant
 DO iQua = 0, MaxElecQuant
@@ -573,27 +580,27 @@ DO iQua = 0, MaxElecQuant
 END DO
 
 ! energy of collision
-IF(SpecDSMC(PartSpecies(PartReac2))%InterID.NE.4)THEN
-  Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
-                             + PartStateIntEn(PartReac1,3) + PartStateIntEn(PartReac2,3)
+!IF(SpecDSMC(PartSpecies(PartReac2))%InterID.NE.4)THEN
+!  Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
+!                             + PartStateIntEn(PartReac1,3) + PartStateIntEn(PartReac2,3)
 
-  ! Determine max electronic quant of second collision partner
-  MaxElecQuant = SpecDSMC(PartSpecies(PartReac2))%MaxElecQuant - 1
-  ! determine old Quant
-  DO iQua = 0, MaxElecQuant
-    IF ( PartStateIntEn(PartReac2,3) / BoltzmannConst .ge. &
-      SpecDSMC(PartSpecies(PartReac2))%ElectronicState(2,iQua) ) THEN
-      iQuaMax2 = iQua
-    ELSE
-    ! exit loop
-      EXIT
-    END IF
-  END DO
-ELSE ! second collision partner is an electron
+!  ! Determine max electronic quant of second collision partner
+!  MaxElecQuant = SpecDSMC(PartSpecies(PartReac2))%MaxElecQuant - 1
+!  ! determine old Quant
+!  DO iQua = 0, MaxElecQuant
+!    IF ( PartStateIntEn(PartReac2,3) / BoltzmannConst .ge. &
+!      SpecDSMC(PartSpecies(PartReac2))%ElectronicState(2,iQua) ) THEN
+!      iQuaMax2 = iQua
+!    ELSE
+!    ! exit loop
+!      EXIT
+!    END IF
+!  END DO
+!ELSE ! second collision partner is an electron
   Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 &
                              + PartStateIntEn(PartReac1,3)
   iQuamax2=0
-END IF
+!END IF
 
 ! Bird's recombination approach modified to ion - electron recombination
 ! reference radius
@@ -650,6 +657,7 @@ ReactionProb = nPartNode/Volume * Species(PartSpecies(iPart_p3))%MacroParticleFa
 !  IPWRITE(UNIT_stdOut,*) ' Probability: ', ReactionProb
 ! !                STOP
 ! END IF
+
 #if (PP_TimeDiscMethod==42)
   IF ( DSMC%ReservoirRateStatistic ) THEN
     ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reactionrate coeficient
@@ -657,25 +665,45 @@ ReactionProb = nPartNode/Volume * Species(PartSpecies(iPart_p3))%MacroParticleFa
 # endif
 
 CALL RANDOM_NUMBER(iRan)
+!ReactionProb=0.0
 IF (ReactionProb.GT.iRan) THEN
+!evor = 0.5* Species(PartSpecies(PartReac1))%MassIC &
+!   * (PartState(PartReac1,4)**2+PartState(PartReac1,5)**2+PartState(PartReac1,6)**2) &
+!    + 0.5* Species(PartSpecies(PartReac2))%MassIC* (PartState(PartReac2,4)**2+PartState(PartReac2,5)**2+PartState(PartReac2,6)**2)&
+!    + 0.5* Species(PartSpecies(iPart_p3))%MassIC* (PartState(iPart_p3,4)**2+PartState(iPart_p3,5)**2+PartState(iPart_p3,6)**2) &
+!    + PartStateIntEn(PartReac1,3)
 #if (PP_TimeDiscMethod==42)
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
   IF (.NOT. DSMC%ReservoirSimuRate  ) THEN
 # endif
+
+    ! Relative velocity square between mean velocity of pseudo molecule AB and X
+!    CRela2X = ((PartState(Coll_pData(iPair)%iPart_p1,4) + PartState(Coll_pData(iPair)%iPart_p2,4))/2 - PartState(iPart_p3,4))**2&
+!             +((PartState(Coll_pData(iPair)%iPart_p1,5) + PartState(Coll_pData(iPair)%iPart_p2,5))/2 - PartState(iPart_p3,5))**2&
+!             +((PartState(Coll_pData(iPair)%iPart_p1,6) + PartState(Coll_pData(iPair)%iPart_p2,6))/2 - PartState(iPart_p3,6))**2
+
  ! calculate collision energy as required to performe the chemical reaction (non-qk)
-    !Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
-    !  + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2   &
-    !                                                                             + PartState(iPart_p3,6)**2 ) &
-    !                                              + PartStateIntEn(PartReac1,3) + PartStateIntEn(PartReac2,3)
-    IF(SpecDSMC(PartSpecies(PartReac1))%InterID.EQ.2)THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(PartReac1,1) + PartStateIntEn(PartReac1,2)
-    END IF
-    IF(SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.2)THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(PartReac2,1) + PartStateIntEn(PartReac2,2)
-    END IF
-    IF(SpecDSMC(PartSpecies(iPart_p3))%InterID.EQ.2)THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
-    END IF
+
+    ! old
+!    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
+!      + 0.5 * Species(PartSpecies(iPart_p3))%MassIC * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 &
+!                                                                                 + PartState(iPart_p3,6)**2 )
+
+    ! new
+!    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
+!                         + 0.5*CRela2X * (Species(ChemReac%DefinedReact(iReac,2,1))%MassIC*Species(PartSpecies(iPart_p3))%MassIC) &
+!                                        /(Species(ChemReac%DefinedReact(iReac,2,1))%MassIC+Species(PartSpecies(iPart_p3))%MassIC)
+
+
+!    IF(SpecDSMC(PartSpecies(PartReac1))%InterID.EQ.2)THEN
+!      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(PartReac1,1) + PartStateIntEn(PartReac1,2)
+!    END IF
+!    IF(SpecDSMC(PartSpecies(PartReac2))%InterID.EQ.2)THEN
+!      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(PartReac2,1) + PartStateIntEn(PartReac2,2)
+!    END IF
+!    IF(SpecDSMC(PartSpecies(iPart_p3))%InterID.EQ.2)THEN
+!      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
+!    END IF
 !    IF (usevMPF) THEN
 !      CALL IonRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
 !    ELSE
@@ -690,6 +718,14 @@ IF (ReactionProb.GT.iRan) THEN
   END IF
 # endif
   RelaxToDo = .FALSE.
+!enach = 0.5* Species(PartSpecies(PartReac1))%MassIC &
+!  * ((PartState(PartReac1,4)+DSMC_RHS(PartReac1,1))**2+(PartState(PartReac1,5) &
+!  +DSMC_RHS(PartReac1,2))**2+(PartState(PartReac1,6)+DSMC_RHS(PartReac1,3))**2) &
+!  + 0.5* Species(PartSpecies(iPart_p3))%MassIC* ((PartState(iPart_p3,4)+DSMC_RHS(iPart_p3,1))**2 &
+! +(PartState(iPart_p3,5)+DSMC_RHS(iPart_p3,2))**2+(PartState(iPart_p3,6)+DSMC_RHS(iPart_p3,3))**2) &
+!  + PartStateIntEn(PartReac1,3)
+!print*, evor, enach, evor-enach
+!read*
 END IF
 END SUBROUTINE QK_IonRecombination
 

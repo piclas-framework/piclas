@@ -244,6 +244,8 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
   ! allocate internal enery arrays
     IF ( DSMC%ElectronicState ) THEN
       ALLOCATE(PartStateIntEn(PDM%maxParticleNumber,3))
+      ALLOCATE(PartElecQua(PDM%maxParticleNumber))
+      PartElecQua = 0
     ELSE
       ALLOCATE(PartStateIntEn(PDM%maxParticleNumber,2))
     ENDIF
@@ -287,7 +289,6 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
         ! This should be changed to a calculated value for every coll pair/situation!!!1
         SpecDSMC(iSpec)%RotRelaxProb  = 0.2     !0.2
         SpecDSMC(iSpec)%VibRelaxProb  = 0.02    !0.02
-        SpecDSMC(iSpec)%ElecRelaxProb = 0.01    !or 0.02 | Bird: somewhere in range 0.01 .. 0.02
         ! multi init stuff
         ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
         DO iInit = 0, Species(iSpec)%NumberOfInits
@@ -356,6 +357,7 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
             END IF
           END IF
         END DO !Inits
+        SpecDSMC(iSpec)%ElecRelaxProb = 0.01    !or 0.02 | Bird: somewhere in range 0.01 .. 0.02
       END DO ! iSpec
     END IF ! DSMC%ElectronicState
 

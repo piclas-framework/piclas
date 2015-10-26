@@ -269,7 +269,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 
   IF (CollisMode.EQ.3) THEN
     ChemReac%nPartForRec = PartNum
-    ChemReac%nPairForRec = PairNum_Node
+    ChemReac%nPairForRec = PairNum_Node - 1
   END IF
   ALLOCATE(Coll_pData(PairNum_Node))
   nPart = PartNum
@@ -358,6 +358,7 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
         CALL DSMC_perform_collision(iPair, iElem, NodeVolume, PartNum)  ! call collision from octree
       END IF
     END IF
+    ChemReac%nPairForRec = ChemReac%nPairForRec - 1
   END DO
   DEALLOCATE(Coll_pData)
 
@@ -415,7 +416,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   END DO
   IF (CollisMode.EQ.3) THEN
     ChemReac%nPartForRec = nPart
-    ChemReac%nPairForRec = nPair
+    ChemReac%nPairForRec = nPair - 1
   END IF
 
   IF (usevMPF) MPFFac = 1

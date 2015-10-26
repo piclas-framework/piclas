@@ -101,9 +101,9 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
 !===================================================================================================================================
 ! MODULES  
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, &
-                                         SpecDSMC, PartStateIntEn, PairE_vMPF
+                                         SpecDSMC, PartStateIntEn, PairE_vMPF, Debug_Energy
   USE MOD_Particle_Vars,          ONLY : PartSpecies, RandomVec, NumRanVec, &
-                                         PartState, BoltzmannConst, usevMPF, PartMPF
+                                         PartState, BoltzmannConst, usevMPF, PartMPF, Species
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
@@ -130,6 +130,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   REAL                          :: PartStateIntEnTemp, Phi, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
   ! variables for electronic level relaxation and transition
   LOGICAL                       :: DoElec1, DoElec2
+REAL::evor, enach
 !===================================================================================================================================
 
   DoRot1  = .FALSE.
@@ -167,7 +168,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   IF ( DSMC%ElectronicState ) THEN
     ! step as TRUE
     IF ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID .ne. 4 ) THEN
-      IF ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%ElecRelaxProb .GT. iRan ) THEN
+      IF ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%ElecRelaxProb .GT. iRan ) THEN	
         DoElec1 = .TRUE.
       END IF
     END IF
@@ -193,6 +194,20 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
 
   FakXi = 0.5*Xi  - 1  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
 
+
+!Debug_Energy(1) = Debug_Energy(1) &
+!     + 0.5* Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MassIC &
+!   * (PartState(Coll_pData(iPair)%iPart_p1,4)**2  &
+!     +PartState(Coll_pData(iPair)%iPart_p1,5)**2  &
+!     +PartState(Coll_pData(iPair)%iPart_p1,6)**2) &
+!     + 0.5* Species(PartSpecies(Coll_pData(iPair)%iPart_p2))%MassIC* &
+!     (PartState(Coll_pData(iPair)%iPart_p2,4)**2 &
+!     +PartState(Coll_pData(iPair)%iPart_p2,5)**2&
+!     +PartState(Coll_pData(iPair)%iPart_p2,6)**2) &
+!     +PartStateIntEn(Coll_pData(iPair)%iPart_p1,3) &
+!     +PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
+!print*,'!!!!!!!!!!!!!!!!!!!!'
+!print*, PartStateIntEn(Coll_pData(iPair)%iPart_p1,3), PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
 !--------------------------------------------------------------------------------------------------!
 ! Electronic Relaxation / Transition
 !--------------------------------------------------------------------------------------------------!
@@ -461,6 +476,16 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
 
   IF(usevMPF) CALL vMPF_PostVelo(iPair, iElem)
 
+!Debug_Energy(2) = Debug_Energy(2) &
+!    + 0.5* Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MassIC &
+!   * ((VeloMx + FracMassCent2*RanVelox)**2+(VeloMy + FracMassCent2*RanVeloy)**2 +(VeloMz + FracMassCent2*RanVeloz)**2) &
+!    + 0.5* Species(PartSpecies(Coll_pData(iPair)%iPart_p2))%MassIC* &
+!     ((VeloMx - FracMassCent1*RanVelox)**2+(VeloMy - FracMassCent1*RanVeloy)**2+(VeloMz - FracMassCent1*RanVeloz)**2) &
+!    + PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)+ PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
+
+!print*, PartStateIntEn(Coll_pData(iPair)%iPart_p1,3), PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
+!print*,'relax', evor, enach, evor-enach, PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2)
+!print*,'!!!!!!!!!!!!!!!!!!!!'
 #if (PP_TimeDiscMethod==42)
   ! for TimeDisc 42 & only transition counting: prohibit relaxation and energy exchange
   END IF
@@ -605,6 +630,13 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
         iReac = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), &
                                   PartSpecies(Coll_pData(iPair)%iPart_p2), &
                                   PartSpecies(iPart_p3))
+
+    !print*,"ChemReac%ReactNum(5,5,5)",ChemReac%ReactNum(5,5,5)
+    !print*,"size(ChemReac%ReactNum)",size(ChemReac%ReactNum)
+    !print*,"iReac",iReac
+    !read*
+        IF(iReac.EQ.0)RETURN ! DEBUG STEPHEN, ist das richtig?
+
         IF (ChemReac%QKProcedure(iReac)) THEN
           ! QK - model
           CALL QK_recombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
@@ -658,9 +690,9 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
             END IF
 #endif
             RelaxToDo = .FALSE.
-          END IF
-        END IF
-      END IF
+          END IF ! ReactionProb.GT.iRan
+        END IF ! ChemReac%QKProcedure(iReac)
+      END IF ! iPart_p3 .GT. 0
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE(2)! only dissociation
       iReac = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
@@ -1311,11 +1343,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
       ! searching third collison partner
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(ChemReac%nPairForRec.GT. 1) THEN
-          PairForRec = iPair
-          DO WHILE(PairForRec.EQ.iPair)
             CALL RANDOM_NUMBER(iRan)
-            PairForRec = 1 + INT(iRan * ChemReac%nPairForRec)
-          END DO
+          PairForRec = iPair + 1 + INT(iRan * ChemReac%nPairForRec)
           Coll_pData(PairForRec)%NeedForRec = .TRUE.
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
           ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
@@ -1328,10 +1357,12 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
         ChemReac%RecombParticle = 0
       END IF
       IF ( iPart_p3 .GT. 0 ) THEN
-        iReac = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
+        iReac = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), &
+                                  PartSpecies(Coll_pData(iPair)%iPart_p2), &
                                   PartSpecies(iPart_p3))
         ! fix
-        IF(SpecDSMC(PartSpecies(iPart_p3))%InterID.NE.4)RETURN
+!        IF(SpecDSMC(PartSpecies(iPart_p3))%InterID.NE.4)RETURN
+
         IF ( ChemReac%QKProcedure(iReac)  ) THEN
           IF ( .NOT. DSMC%ElectronicState ) THEN
             CALL Abort(&

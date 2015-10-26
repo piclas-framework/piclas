@@ -10,6 +10,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
+REAL                          :: Debug_Energy(2)=0.0        ! debug variable energy conservation
 INTEGER                       :: DSMCSumOfFormedParticles   !number of formed particles per iteration in chemical reactions
                                                             ! for counting the nextfreeparticleposition
 
@@ -25,6 +26,7 @@ INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
 REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! (npartmax,1:3) with 2nd index: Evib, Erot, Eel
+INTEGER , ALLOCATABLE	      :: PartElecQua(:)
 
 INTEGER                         :: LD_MultiTemperaturMod   ! Modell choice for MultiTemperature
                                                               ! 0 = no MultiTemperature Modeling
