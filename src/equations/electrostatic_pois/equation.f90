@@ -249,14 +249,13 @@ END SUBROUTINE ExactFunc
 
 
 
-SUBROUTINE CalcSource(t)
+SUBROUTINE CalcSource(t,coeff,Ut)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,            ONLY : abort
 USE MOD_PreProc
-USE MOD_DG_Vars,            ONLY : Ut
 USE MOD_Equation_Vars,      ONLY : eps0,c_corr,IniExactFunc,Phi
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,       ONLY : Source
@@ -269,8 +268,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t
+REAL,INTENT(IN)                 :: coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: Ut(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem,RegionID
@@ -298,8 +299,8 @@ CASE(0) ! Particles
         END IF
       END IF
 #endif /*PARTICLES*/
-      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * source(1:3,i,j,k,iElem)
-      Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + eps0inv * ( source(  4,i,j,k,iElem) - source_e ) * c_corr 
+      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - coeff*eps0inv * source(1:3,i,j,k,iElem)
+      Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + coeff*eps0inv * ( source(  4,i,j,k,iElem) - source_e ) * c_corr 
       !IF((t.GT.0).AND.(ABS(source(4,i,j,k,iElem)*c_corr).EQ.0))THEN
       !print*, t
      ! print*, eps0inv * source(4,i,j,k,iElem)*c_corr

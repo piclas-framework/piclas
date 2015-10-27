@@ -17,150 +17,72 @@ INTERFACE FillFlux
   MODULE PROCEDURE FillFlux
 END INTERFACE
 
-INTERFACE FillFlux_BC
-  MODULE PROCEDURE FillFlux_BC
-END INTERFACE
-
-PUBLIC::FillFlux,FillFlux_BC
+PUBLIC::FillFlux
 !===================================================================================================================================
 
 CONTAINS
 
-#ifdef OPTIMIZED
-SUBROUTINE FillFlux(Flux,doMPISides)
+SUBROUTINE FillFlux(t,tDeriv,Flux,U_Minus,U_Plus,doMPISides)
 !===================================================================================================================================
 !
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Riemann,         ONLY: Aplus,Aminus
-USE MOD_DG_Vars,         ONLY: U_Minus,U_Plus
-USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE
+USE MOD_Mesh_Vars,       ONLY:NormVec,SurfElem
+USE MOD_Mesh_Vars,       ONLY:nSides,nBCSides,nInnerSides,nMPISides_MINE
+USE MOD_Riemann,         ONLY:Riemann
+USE MOD_Mesh_Vars,       ONLY:SideID_plus_lower,SideID_plus_upper
+USE MOD_Mesh_Vars,       ONLY:SideID_minus_lower,SideID_minus_upper
+USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,BCFace_xGP
+USE MOD_GetBoundaryFlux, ONLY:GetBoundaryFlux
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides  
+REAL,INTENT(IN)    :: t           ! time
+INTEGER,INTENT(IN) :: tDeriv      ! deriv
+REAL,INTENT(IN)    :: U_Minus(PP_nVar,0:PP_N, 0:PP_N,SideID_Minus_lower:SideID_Minus_Upper)
+REAL,INTENT(IN)    :: U_Plus( PP_nVar,0:PP_N, 0:PP_N,SideID_Plus_Lower :SideID_Plus_Upper )
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)   :: Flux(1:PP_nVar,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: SideID,p,q,firstSideID,lastSideID,iVar,iVar2
+INTEGER            :: SideID,p,q,firstSideID,lastSideID,firstSideID2
 !===================================================================================================================================
+
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
 IF(doMPISides)THEN 
   ! fill only flux for MINE MPISides
   firstSideID = nBCSides+nInnerSides+1
+  firstSideID2= firstSideID
   lastSideID  = firstSideID-1+nMPISides_MINE 
 ELSE
   ! fill only InnerSides
   firstSideID = nBCSides+1
+  firstSideID2= 1
   lastSideID  = firstSideID-1+nInnerSides 
 END IF
 !firstSideID=nBCSides+1
 !lastSideID  =nBCSides+nInnerSides+nMPISides_MINE
-DO SideID=firstSideID,lastSideID
-  DO q=0,PP_N
-    DO p=0,PP_N
-     ! Flux(:,p,q,SideID) = MATMUL(Aplus(:,:,p,q,SideID),U_minus(:,p,q,SideID))+MATMUL(Aminus(:,:,p,q,SideID),U_plus(:,p,q,SideID))
-      !DO iVar=1,PP_nVar
-      !  Flux(iVar,p,q,SideID) = Aplus(iVar,1,p,q,SideID)*U_minus(1,p,q,SideID) + Aminus(iVar,1,p,q,SideID)*U_plus(1,p,q,SideID)
-      !  DO iVar2=2,PP_nVar
-      !    Flux(iVar,p,q,SideID) = Flux(iVar,p,q,SideID) + Aplus (iVar,iVar2,p,q,SideID)*U_minus(iVar2,p,q,SideID) &
-      !                                                  + Aminus(iVar,iVar2,p,q,SideID)*U_plus(iVar2,p,q,SideID)
-      !  END DO ! iVar2
-      !END DO ! iVar
-    END DO ! p
-  END DO ! q
-END DO ! SideID
 
-END SUBROUTINE FillFlux
-#else
-SUBROUTINE FillFlux(Flux,doMPISides)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_DG_Vars,         ONLY: U_Minus,U_Plus
-USE MOD_Mesh_Vars,       ONLY: NormVec,SurfElem
-USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE
-USE MOD_Riemann,         ONLY: Riemann
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides  
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)   :: Flux(1:PP_nVar,0:PP_N,0:PP_N,nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: SideID,p,q,firstSideID,lastSideID
-!===================================================================================================================================
-! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
-IF(doMPISides)THEN 
-  ! fill only flux for MINE MPISides
-  firstSideID = nBCSides+nInnerSides+1
-  lastSideID  = firstSideID-1+nMPISides_MINE 
-ELSE
-  ! fill only InnerSides
-  firstSideID = nBCSides+1
-  lastSideID  = firstSideID-1+nInnerSides 
+! Compute fluxes on PP_N, no additional interpolation required
+DO SideID=firstSideID,lastSideID
+  CALL Riemann(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),U_Plus(  :,:,:,SideID),NormVec(:,:,:,SideID))
+END DO ! SideID
+  
+IF(.NOT.doMPISides)THEN
+  CALL GetBoundaryFlux(t,tDeriv, Flux ,U_Minus ,NormVec, TangVec1, TangVec2, BCFace_xGP)
 END IF
-!firstSideID=nBCSides+1
-!lastSideID  =nBCSides+nInnerSides+nMPISides_MINE
-DO SideID=firstSideID,lastSideID
-  CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Plus(:,:,:,SideID),NormVec(:,:,:,SideID))
-  DO q=0,PP_N
-    DO p=0,PP_N
-      Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)
-    END DO
-  END DO
-END DO ! SideID
+
+! Apply surface element size
+DO SideID=firstSideID2,lastSideID
+  DO q=0,PP_N; DO p=0,PP_N
+    Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)
+  END DO; END DO
+END DO
 
 END SUBROUTINE FillFlux
-#endif
-
-
-SUBROUTINE FillFlux_BC(t,tDeriv,Flux)
-!===================================================================================================================================
-!
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_DG_Vars,         ONLY: U_Minus
-USE MOD_Mesh_Vars,       ONLY: NormVec,SurfElem,BCFace_xGP,BC,BoundaryType
-USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides
-USE MOD_GetBoundaryFlux, ONLY: GetBoundaryFlux
-USE MOD_Equation_Vars,   ONLY: IniExactFunc
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)    :: t
-INTEGER,INTENT(IN) :: tDeriv
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)   :: Flux(1:PP_nVar,0:PP_N,0:PP_N,nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            ::SideID,BCType,BCState,p,q
-!===================================================================================================================================
-! fill flux for boundary sides
-DO SideID=1,nBCSides
-  BCType=Boundarytype(BC(SideID),BC_TYPE)
-  BCState=Boundarytype(BC(SideID),BC_STATE)
-  IF (BCState.EQ.0)BCState=IniExactFunc
-  CALL GetBoundaryFlux(Flux(:,:,:,SideID),BCType,BCState,BCFace_xGP(:,:,:,SideID),NormVec(:,:,:,SideID),  &
-                       t,tDeriv,U_Minus(:,:,:,SideID))
-  DO q=0,PP_N
-    DO p=0,PP_N
-      Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)
-    END DO
-  END DO
-END DO! SideID
-END SUBROUTINE FillFlux_BC
 
 END MODULE MOD_FillFlux

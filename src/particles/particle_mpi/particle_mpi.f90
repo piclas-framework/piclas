@@ -176,7 +176,13 @@ END IF
 IF(DoRefMapping) PartCommSize=PartCommSize+3
 
 #if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
-  PartCommSize = PartCommSize - 6
+#ifdef IMEX
+    ! if iStage=0, then the PartStateN is not communicated
+    !PartCommSize = PartCommSize + (iStage-1)*6
+    PartCommSize0=PartCommSize
+#else
+    PartCommSize = PartCommSize - 6
+#endif /*IMEX*/
 #endif
 
 ALLOCATE( PartMPIExchange%nPartsSend(2,PartMPI%nMPINeighbors)  & 
@@ -472,6 +478,11 @@ USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,PartShiftVector, ExtPartCommSize, PartMPIDepoSend
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF, ExtPartToFIBGM, NbrOfExtParticles
+#ifdef IMEX
+USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
+USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
+USE MOD_Timedisc_Vars,            ONLY:iStage
+#endif /*IMEX*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -491,7 +502,15 @@ INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1), nDepoProcs, 
 REAL                          :: ShiftedPart(1:3)
 LOGICAL                       :: PartInBGM
 INTEGER                       :: nTotalSendParticles
+#ifdef IMEX
+INTEGER                       :: iCounter
+#endif /*IMEX*/
 !===================================================================================================================================
+
+#ifdef IMEX
+PartCommSize=PartCommSize0+(iStage-1)*6
+#endif /*IMEX*/
+
 
 ! ! 1) get number of send particles
 ! PartMPIExchange%nPartsSend=0
@@ -604,6 +623,17 @@ DO iProc=1, PartMPI%nMPINeighbors
       PartSendBuf(iProc)%content(8+jPos:13+jPos) = Pt_temp(iPart,1:6)
       jPos=jPos+6
 #endif
+#ifdef IMEX
+      ! send iStage - 1 messages
+      IF(iStage.GT.0)THEN
+        PartSendBuf(iProc)%content(8+jpos:13+jpos)        = PartStateN(iPart,1:6)
+        DO iCounter=1,iStage-1
+          PartSendBuf(iProc)%content(jpos+14+(iCounter-1)*6:jpos+13+iCounter*6) = PartStage(iPart,1:6,iCounter)
+        END DO
+        jPos=jPos+(iStage)*6
+      ENDIF
+#endif /*no IMEX */
+
       !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       IF(.NOT.UseLD) THEN   
@@ -905,6 +935,11 @@ USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,ExtPartCommSize
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
+#ifdef IMEX
+USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
+USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
+USE MOD_Timedisc_Vars,            ONLY:iStage
+#endif /*IMEX*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -922,6 +957,9 @@ INTEGER                       :: MessageSize, nRecvParticles, nRecvExtParticles
 ! shape function 
 REAL                          :: ShiftedPart(1:3)
 INTEGER                       :: iExtPart
+#ifdef IMEX
+INTEGER                       :: iCounter
+#endif /*IMEX*/
 !===================================================================================================================================
 
 !IPWRITE(UNIT_stdOut,*) 'exchange',PartMPIExchange%nMPIParticles
@@ -930,6 +968,11 @@ INTEGER                       :: iExtPart
 !  IPWRITE(UNIT_stdOut,*) 'Number of received  particles',  PartMPIExchange%nPartsRecv(iProc) &
 !                        , 'source proc', PartMPI%MPINeighbor(iProc)
 !END DO
+
+#ifdef IMEX
+PartCommSize=PartCommSize0+(iStage-1)*6
+#endif /*IMEX*/
+
 
 DO iProc=1,PartMPI%nMPINeighbors
   IF(SUM(PartMPIExchange%nPartsSend(:,iProc)).EQ.0) CYCLE
@@ -976,6 +1019,15 @@ DO iProc=1,PartMPI%nMPINeighbors
     Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 8+jPos:13+jPos)
     jPos=jPos+6
 #endif
+#ifdef IMEX
+    IF(iStage.GT.0)THEN
+      PartStateN(PartID,1:6)     = PartRecvBuf(iProc)%content(jpos+8:jpos+13)
+      DO iCounter=1,iStage-1
+        PartStage(PartID,1:6,iCounter) = PartRecvBuf(iProc)%content(jpos+14+(iCounter-1)*6:jpos+13+iCounter*6)
+      END DO
+      jPos=jPos+(iStage)*6
+    END IF
+#endif /*IMEX*/ 
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     IF(.NOT.UseLD) THEN
       IF (useDSMC.AND.(CollisMode.NE.1)) THEN

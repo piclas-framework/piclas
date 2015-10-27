@@ -15,7 +15,6 @@ REAL              :: c_corr2    !c_corr^2
 REAL              :: c_corr_c   !c_corr*c
 REAL              :: c_corr_c2  !c_corr*c^2
 REAL              :: eta_c      !(c_corr -1 )*c
-!REAL              :: scr        ! constant for damping in divcorr
 REAL              :: fDamping
 INTEGER           :: IniExactFunc
 INTEGER           :: BCType(6)=-999
@@ -33,7 +32,13 @@ REAL              :: tPulse
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff
-REAL              :: epsmach
+! Boundary condition arrays
+REAL,ALLOCATABLE     :: BCData(:,:,:,:)
+INTEGER,ALLOCATABLE  :: nBCByType(:)
+INTEGER,ALLOCATABLE  :: BCSideID(:,:)
+! can specify BC state
+CHARACTER(LEN=255):: BCStateFile
+
 CHARACTER(LEN=255),DIMENSION(8),PARAMETER :: StrVarNames(8)=(/ CHARACTER(LEN=255) :: 'ElectricFieldX', &
                                                                                      'ElectricFieldY', &
                                                                                      'ElectricFieldZ', &

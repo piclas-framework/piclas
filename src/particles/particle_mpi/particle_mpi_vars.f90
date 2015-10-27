@@ -80,6 +80,7 @@ REAL                                     :: halo_eps2                        ! l
 
 #ifdef MPI
 INTEGER                                  :: PartCommSize                     ! Number of REAL entries for particle communication
+INTEGER                                  :: PartCommSize0                    ! Number of REAL entries for particle communication
                                                                              ! should think about own MPI-Data-Typ
 
 TYPE tMPIMessage

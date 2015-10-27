@@ -17,6 +17,9 @@ endif
 ifeq ($(EQNSYS),maxwell_pois)
   SRCFILE = particles/srcfiles_particles_pois.mk
 endif
+ifneq ($(IMEX),)
+  SRCFILE = particles/srcfiles_particles_imex.mk
+endif
 SRC_RAW = $(shell cat $(SRCFILE))
 SRC     = $(subst $$(EQNSYS),$(EQNSYS),$(SRC_RAW))
 

@@ -443,14 +443,13 @@ END SUBROUTINE ExactFunc
 
 
 
-SUBROUTINE CalcSource(t)
+SUBROUTINE CalcSource(t,coeff,Ut)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,       ONLY : abort
 USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY : Ut
 USE MOD_Equation_Vars, ONLY : eps0,IniExactFunc
 #ifdef PARTICLES
 USE MOD_Equation_Vars, ONLY : c_corr
@@ -463,8 +462,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t
+REAL,INTENT(IN)                 :: coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem
@@ -479,8 +480,8 @@ CASE(0) ! Particles
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
-      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * source(1:3,i,j,k,iElem)
-      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * source(  4,i,j,k,iElem) * c_corr 
+      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - coeff*eps0inv * source(1:3,i,j,k,iElem)
+      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + coeff*eps0inv * source(  4,i,j,k,iElem) * c_corr 
     END DO; END DO; END DO
   END DO
   !CALL CalcDepositedCharge()
@@ -493,7 +494,7 @@ CASE(4) ! Dipole
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
-        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) * Q*d*omega * COS(omega*t) * eps0inv
+        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) * coeff*Q*d*omega * COS(omega*t) * eps0inv
     ! dipole should be neutral
        ! Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) * c_corr*Q * eps0inv
       END IF

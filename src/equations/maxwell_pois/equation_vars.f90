@@ -30,6 +30,13 @@ REAL              :: smu0
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff
+! Boundary condition arrays
+REAL,ALLOCATABLE     :: BCData(:,:,:,:)
+INTEGER,ALLOCATABLE  :: nBCByType(:)
+INTEGER,ALLOCATABLE  :: BCSideID(:,:)
+! can specify BC state
+CHARACTER(LEN=255):: BCStateFile
+
 CHARACTER(LEN=255),DIMENSION(8),PARAMETER :: StrVarNames(8)=(/ CHARACTER(LEN=255) :: 'ElectricFieldX', &
                                                                                      'ElectricFieldY', &
                                                                                      'ElectricFieldZ', &

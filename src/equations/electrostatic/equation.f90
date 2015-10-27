@@ -37,6 +37,7 @@ SUBROUTINE InitEquation()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
+USE MOD_Globals_Vars
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
 #endif
@@ -90,6 +91,7 @@ eta_c     = (c_corr-1.)*c
 
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
+BCStateFile=GETSTR('BCStateFile','')
 !WRITE(DefBCState,'(I3,A,I3,A,I3,A,I3,A,I3,A,I3)') &
 !  IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc
 !IF(BCType_in(1) .EQ. -999)THEN
@@ -189,14 +191,13 @@ END SUBROUTINE ExactFunc
 
 
 
-SUBROUTINE CalcSource(t)
+SUBROUTINE CalcSource(t,coeff,Ut)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,       ONLY : abort
 USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY : Ut
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,  ONLY : Source
@@ -207,8 +208,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t
+REAL,INTENT(IN)                 :: coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: Ut(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem
@@ -221,8 +224,8 @@ CASE(0) ! Particles
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
-      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * source(1:3,i,j,k,iElem)
-      Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + eps0inv * source(  4,i,j,k,iElem) * c_corr 
+      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - coeff*eps0inv * source(1:3,i,j,k,iElem)
+      Ut(  4,i,j,k,iElem) = Ut(  4,i,j,k,iElem) + coeff*eps0inv * source(  4,i,j,k,iElem) * c_corr 
       !IF((t.GT.0).AND.(ABS(source(4,i,j,k,iElem)*c_corr).EQ.0))THEN
       !print*, t
      ! print*, eps0inv * source(4,i,j,k,iElem)*c_corr

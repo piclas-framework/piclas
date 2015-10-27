@@ -74,6 +74,10 @@ INTERFACE LagrangeInterpolationPolys
    MODULE PROCEDURE LagrangeInterpolationPolys
 END INTERFACE
 
+INTERFACE GetInverse
+   MODULE PROCEDURE GetInverse
+END INTERFACE
+
 PUBLIC::INV
 PUBLIC::BuildLegendreVdm
 !#ifdef PARTICLES
@@ -90,6 +94,7 @@ PUBLIC::ChebyGaussLobNodesAndWeights
 PUBLIC::PolynomialDerivativeMatrix
 PUBLIC::BarycentricWeights
 PUBLIC::LagrangeInterpolationPolys
+PUBLIC::GetInverse
 
 
 !===================================================================================================================================
@@ -362,6 +367,49 @@ END IF
 
 END SUBROUTINE BernsteinPolynomial
 !#endif /*PARTICLES*/
+
+
+FUNCTION GetInverse(dim1,A) RESULT(Ainv)
+!============================================================================================================================
+! invert a matrix (dependant in LAPACK Routines) 
+!============================================================================================================================
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------
+!input parameters
+INTEGER, INTENT(IN) :: dim1   !size of matrix a
+REAL,INTENT(IN)     :: A(dim1,dim1)
+!----------------------------------------------------------------------------------------------------------------------------
+!output parameters
+REAL                :: Ainv(dim1,dim1)
+!----------------------------------------------------------------------------------------------------------------------------
+!local variables
+INTEGER            :: IPIV(dim1),INFO,lwork,i,j
+REAL               :: WORK(dim1*dim1) 
+!============================================================================================================================
+! Store A in Ainv to prevent it from being overwritten by LAPACK
+  DO j=1,dim1
+    DO i=1,dim1
+      Ainv(i,j) = A(i,j)
+    END DO
+  END DO
+
+  ! DGETRF computes an LU factorization of a general M-by-N matrix A
+  ! using partial pivoting with row interchanges.
+  CALL DGETRF(dim1, dim1, Ainv, dim1, IPIV, INFO)
+
+  IF (INFO /= 0) THEN
+    STOP 'MATRIX IS NUMERICALLY SINGULAR!'
+  END IF
+
+  ! DGETRI computes the inverse of a matrix using the LU factorization
+  ! computed by DGETRF.
+  lwork=dim1*dim1
+  CALL DGETRI(dim1, Ainv, dim1, IPIV, WORK, lwork , INFO)
+
+  IF (INFO /= 0) THEN
+    STOP 'MATRIX INVERSION FAILED!'
+  END IF
+END FUNCTION GetInverse
 
 
 SUBROUTINE buildLegendreVdm(N_In,xi_In,Vdm_Leg,sVdm_Leg)

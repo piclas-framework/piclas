@@ -121,6 +121,9 @@ USE MOD_Particle_Mesh,         ONLY: InitFIBGM,MapRegionToElem
 USE MOD_Particle_Tracking_Vars,ONLY: DoRefMapping
 USE MOD_Particle_MPI_Vars,     ONLY: SafetyFactor,halo_eps_velo,PartMPI
 USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
+#ifdef IMEX
+USE MOD_TimeDisc_Vars,         ONLY: nRKStages
+#endif /*IMEX*/
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: InitEmissionComm
 #endif /*MPI*/
@@ -159,6 +162,20 @@ IF (ALLOCSTAT.NE.0) THEN
 END IF
 Pt_temp=0.
 #endif 
+
+#ifdef IMEX
+ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
+!ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+  ,'ERROR in particle_init.f90: Cannot allocate ParStage arrays!')
+END IF
+ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+  ,'ERROR in particle_init.f90: Cannot allocate PartStateN arrays!')
+END IF
+#endif /* IMEX */
 
 IF(DoRefMapping)THEN
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)

@@ -27,12 +27,17 @@ USE MOD_Restart,                   ONLY:FinalizeRestart
 USE MOD_Interpolation,             ONLY:FinalizeInterpolation
 USE MOD_Mesh,                      ONLY:FinalizeMesh
 USE MOD_Equation,                  ONLY:FinalizeEquation
+USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
 USE MOD_DG,                        ONLY:FinalizeDG
 USE MOD_PML,                       ONLY:FinalizePML
 USE MOD_Filter,                    ONLY:FinalizeFilter
 USE MOD_Output,                    ONLY:FinalizeOutput
 USE MOD_Analyze,                   ONLY:FinalizeAnalyze
 USE MOD_RecordPoints,              ONLY:FinalizeRecordPoints
+#ifdef IMEX
+USE MOD_LinearSolver,              ONLY:FinalizeLinearSolver
+USE MOD_CSR,                       ONLY:FinalizeCSR
+#endif /*IMEX*/
 !USE MOD_TimeDisc,                  ONLY:FinalizeTimeDisc
 #ifdef MPI
 USE MOD_MPI,                       ONLY:FinalizeMPI
@@ -49,9 +54,12 @@ USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
 USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
 #endif /*MPI*/
 #endif /*PARTICLES*/
-USE MOD_ReadinTools,  ONLY: Readindone
-USE MOD_Particle_MPI_Vars, ONLY: ParticleMPIInitisdone
-USE MOD_Particle_Vars, ONLY: ParticlesInitIsDone
+USE MOD_ReadinTools,               ONLY: Readindone
+USE MOD_Particle_MPI_Vars,         ONLY: ParticleMPIInitisdone
+USE MOD_Particle_Vars,             ONLY: ParticlesInitIsDone
+#if (PP_TimeDiscMethod==104)
+USE MOD_LinearSolver_Vars,ONLY:nNewton
+#endif
 
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -68,8 +76,13 @@ CALL FinalizeOutput()
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
 CALL FinalizeDG()
+#ifdef IMEX
+CALL FinalizeCSR()
+CALL FinalizeLinearSolver()
+#endif IMEX
 CALL FinalizePML()
 CALL FinalizeEquation()
+CALL FinalizeBC()
 IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
 !CALL FinalizeTimeDisc()
 CALL FinalizeRestart()
@@ -106,29 +119,34 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Interpolation_Vars, ONLY:InterpolationInitIsDone
 USE MOD_Restart_Vars,       ONLY:RestartInitIsDone
-USE MOD_Restart,          ONLY:InitRestart
-USE MOD_Restart_Vars,     ONLY:DoRestart
-USE MOD_ReadInTools,      ONLY:IgnoredStrings
-!USE MOD_Interpolation,    ONLY:InitInterpolation
-USE MOD_Mesh,             ONLY:InitMesh
-USE MOD_Equation,         ONLY:InitEquation
-USE MOD_DG,               ONLY:InitDG
-USE MOD_PML,              ONLY:InitPML
-USE MOD_Filter,           ONLY:InitFilter
-USE MOD_Output,           ONLY:InitOutput
-USE MOD_Analyze,          ONLY:InitAnalyze
-USE MOD_RecordPoints,     ONLY:InitRecordPoints
-!USE MOD_TimeDisc,         ONLY:InitTimeDisc
-USE MOD_Restart_Vars,     ONLY:N_Restart,InterpolateSolution
+USE MOD_Restart,            ONLY:InitRestart
+USE MOD_Restart_Vars,       ONLY:DoRestart
+USE MOD_ReadInTools,        ONLY:IgnoredStrings
+!USE MOD_Interpolation,      ONLY:InitInterpolation
+USE MOD_Mesh,               ONLY:InitMesh
+USE MOD_Equation,           ONLY:InitEquation
+USE MOD_GetBoundaryFlux,    ONLY:InitBC
+USE MOD_DG,                 ONLY:InitDG
+USE MOD_PML,                ONLY:InitPML
+USE MOD_Filter,             ONLY:InitFilter
+USE MOD_Output,             ONLY:InitOutput
+USE MOD_Analyze,            ONLY:InitAnalyze
+USE MOD_RecordPoints,       ONLY:InitRecordPoints
+#ifdef IMEX
+USE MOD_LinearSolver,       ONLY:InitLinearSolver
+USE MOD_CSR,                ONLY:InitCSR
+#endif /*IMEX*/
+!USE MOD_TimeDisc,           ONLY:InitTimeDisc
+USE MOD_Restart_Vars,       ONLY:N_Restart,InterpolateSolution
 #ifdef MPI
-USE MOD_MPI,              ONLY:InitMPIvars
+USE MOD_MPI,                ONLY:InitMPIvars
 #endif /*MPI*/
 #ifdef PARTICLES
-USE MOD_ParticleInit,     ONLY:InitParticles
-USE MOD_Particle_Surfaces,ONLY:InitParticleSurfaces
-USE MOD_Particle_Mesh,    ONLY:InitParticleMesh
-USE MOD_Particle_Analyze, ONLY:InitParticleAnalyze
-USE MOD_Particle_MPI,     ONLY:InitParticleMPI
+USE MOD_ParticleInit,       ONLY:InitParticles
+USE MOD_Particle_Surfaces,  ONLY:InitParticleSurfaces
+USE MOD_Particle_Mesh,      ONLY:InitParticleMesh
+USE MOD_Particle_Analyze,   ONLY:InitParticleAnalyze
+USE MOD_Particle_MPI,       ONLY:InitParticleMPI
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -166,6 +184,7 @@ CALL InitParticleSurfaces()
 !CALL InitParticleMesh()
 #endif /*PARTICLES*/
 CALL InitEquation()
+CALL InitBC()
 !1#ifdef PARTICLES
 !CALL InitParticles()
 !#endif
@@ -173,6 +192,10 @@ CALL InitPML()
 CALL InitDG()
 CALL InitFilter()
 !CALL InitTimeDisc()
+#ifdef IMEX
+CALL InitLinearSolver()
+CALL InitCSR()
+#endif /*IMEX*/
 #ifdef PARTICLES
 CALL InitParticles()
 !CALL GetSideType

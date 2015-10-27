@@ -86,7 +86,7 @@ SUBROUTINE InitInterpolationBasis(N_in)
 !============================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Interpolation_Vars,ONLY:xGP,wGP,wBary,L_Minus,L_Plus,StrNodeType,wGPSurf,swGP
+USE MOD_Interpolation_Vars,ONLY:xGP,wGP,wBary,L_Minus,L_Plus,StrNodeType,wGPSurf,swGP, L_PlusMinus
 USE MOD_Basis,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,ChebyGaussLobNodesAndWeights
 USE MOD_Basis,ONLY:BarycentricWeights,LagrangeInterpolationPolys
 ! IMPLICIT VARIABLE HANDLING
@@ -103,6 +103,7 @@ INTEGER                                     :: i,j
 ! Allocate global variables, needs to go somewhere else later
 ALLOCATE(xGP(0:N_in), wGP(0:N_in), wBary(0:N_in))
 ALLOCATE(L_Minus(0:N_in), L_Plus(0:N_in))
+ALLOCATE(L_PlusMinus(0:N_in,6))
 
 ! Compute Nodes and weights for Gauss or GaussLobatto-Nodes
 #if (PP_NodeType==1)
@@ -139,6 +140,12 @@ END DO ! i
 !! interpolate to left and right face (1 and -1) and pre-divide by mass matrix
 CALL LagrangeInterpolationPolys(1.,N_in,xGP,wBary,L_Plus)
 CALL LagrangeInterpolationPolys(-1.,N_in,xGP,wBary,L_Minus)
+L_PlusMinus(:,  XI_MINUS) = L_Minus
+L_PlusMinus(:, ETA_MINUS) = L_Minus
+L_PlusMinus(:,ZETA_MINUS) = L_Minus
+L_PlusMinus(:,  XI_PLUS)  = L_Plus
+L_PlusMinus(:, ETA_PLUS)  = L_Plus
+L_PlusMinus(:,ZETA_PLUS)  = L_Plus
 END SUBROUTINE InitInterpolationBasis
 
 SUBROUTINE ApplyJacobian(U,toPhysical,toSwap)

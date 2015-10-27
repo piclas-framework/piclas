@@ -48,6 +48,16 @@ REAL,ALLOCATABLE :: TangVec1(:,:,:,:)
 REAL,ALLOCATABLE :: TangVec2(:,:,:,:)
 REAL,ALLOCATABLE :: SurfElem(:,:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
+! mapping from GaussPoints to Side or Neighbor Volume
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,ALLOCATABLE :: VolToSideA(:,:,:,:,:,:)
+INTEGER,ALLOCATABLE :: CGNS_VolToSideA(:,:,:,:,:)
+INTEGER,ALLOCATABLE :: CGNS_SideToVol2A(:,:,:,:)
+INTEGER,ALLOCATABLE :: SideToVolA(:,:,:,:,:,:)
+INTEGER,ALLOCATABLE :: SideToVol2A(:,:,:,:,:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! mapping from element to sides and sides to element
+!-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) ! SideID    = ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
                                          ! flip      = ElemToSide(E2S_FLIP,ZETA_PLUS,iElem)
 INTEGER,ALLOCATABLE :: SideToElem(:,:)   ! ElemID    = SideToElem(S2E_ELEM_ID,SideID)

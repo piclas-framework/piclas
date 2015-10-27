@@ -996,6 +996,11 @@ USE MOD_Particle_Tracking_Vars,      ONLY:FastPeriodic
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartShiftVector
 #endif /*MPI*/
+#ifdef IMEX
+USE MOD_TimeDisc_Vars,               ONLY: dt,iStage
+USE MOD_TimeDisc_Vars,               ONLY: ERK_a,RK_b,RK_c
+USE MOD_Particle_Vars,               ONLY: PartStateN,PartStage
+#endif /*IMEX*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -1006,6 +1011,9 @@ INTEGER,INTENT(IN)              :: PartID
 ! LOCAL VARIABLES
 INTEGER                         :: iPV
 REAL                            :: MoveVector(1:3)
+#ifdef IMEX
+INTEGER                         :: iCounter
+#endif /*IMEX*/
 !===================================================================================================================================
 
 #ifdef MPI
@@ -1235,6 +1243,18 @@ END IF
 #ifdef MPI
 PartShiftVector(1:3,PartID)=-PartState(PartID,1:3)+PartShiftvector(1:3,PartID)
 #endif /*MPI*/
+
+#ifdef IMEX
+! recompute PartStateN to kill jump in integration through periodic BC
+IF(iStage.GT.0)THEN
+  PartStateN(PartID,1:6) = PartState(PartID,1:6)
+  DO iCounter=1,iStage-1
+    PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
+                      - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+  END DO
+END IF
+#endif /*IMEX*/
+
 
 END SUBROUTINE PeriodicMovement
 

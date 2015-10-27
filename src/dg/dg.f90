@@ -31,12 +31,7 @@ INTERFACE FinalizeDG
   MODULE PROCEDURE FinalizeDG
 END INTERFACE
 
-INTERFACE DGTimeDerivative_WoSource_weakForm
-  MODULE PROCEDURE DGTimeDerivative_WoSource_weakForm
-END INTERFACE
-
 PUBLIC::InitDG,DGTimeDerivative_weakForm,FinalizeDG
-PUBLIC::DGTimeDerivative_WoSource_weakForm
 #ifdef PP_POIS
 PUBLIC::DGTimeDerivative_weakForm_Pois
 #endif
@@ -159,7 +154,8 @@ CALL LagrangeInterpolationPolys(-1.,N_in,xGP,wBary,L_Minus)
 L_HatMinus(:) = MATMUL(Minv,L_Minus)
 END SUBROUTINE InitDGbasis
 
-SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv)
+
+SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv,doSource)
 !===================================================================================================================================
 ! Computes the DG time derivative consisting of Volume Integral and Surface integral for the whole field
 ! U and Ut are allocated
@@ -168,45 +164,51 @@ SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
-USE MOD_DG_Vars,       ONLY: U,Ut,nTotalU,U_Plus,U_Minus,Flux
-USE MOD_SurfInt,       ONLY: SurfInt
-USE MOD_VolInt,        ONLY: VolInt
-USE MOD_ProlongToFace, ONLY: ProlongToFace
-USE MOD_FillFlux,      ONLY: FillFlux,FillFlux_BC
-USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nInnerSides
-USE MOD_Equation,      ONLY: CalcSource
-USE MOD_Equation_Vars, ONLY: IniExactFunc
-USE MOD_Interpolation, ONLY: ApplyJacobian
-USE MOD_LoadBalance_Vars,      ONLY: tCurrent
+USE MOD_DG_Vars,          ONLY:U,Ut,nTotalU,U_Plus,U_Minus,Flux
+USE MOD_SurfInt,          ONLY:SurfInt
+USE MOD_VolInt,           ONLY:VolInt
+USE MOD_ProlongToFace,    ONLY:ProlongToFace
+USE MOD_FillFlux,         ONLY:FillFlux
+USE MOD_Mesh_Vars,        ONLY:sJ,Elem_xGP,nSides,nInnerSides
+USE MOD_Equation,         ONLY:CalcSource
+USE MOD_Equation_Vars,    ONLY:IniExactFunc
+USE MOD_Interpolation,    ONLY:ApplyJacobian
 #ifdef MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:StartExchangeMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
-#endif
+USE MOD_MPI,              ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_Mesh_Vars,        ONLY:SideID_plus_upper,SideID_plus_lower
+USE MOD_LoadBalance_Vars, ONLY:tCurrent
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t,tStage
 INTEGER,INTENT(IN)              :: tDeriv
+LOGICAL,INTENT(IN)              :: doSource
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#ifdef MPI
 ! load balance
-REAL                          :: tLBStart,tLBEnd
+REAL                            :: tLBStart,tLBEnd
+#endif /*MPI*/
 !===================================================================================================================================
 
 ! prolong the solution to the face integration points for flux computation
 #ifdef MPI
 ! Prolong to face for MPI sides - send direction
 tLBStart = LOCALTIME() ! LB Time Start
+CALL StartReceiveMPIData(PP_nVar,U_Plus,SideID_plus_lower,SideID_plus_upper,RecRequest_U,SendID=2) ! Receive MINE
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
+tLBStart = LOCALTIME() ! LB Time Start
 CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
-
 tLBStart = LOCALTIME() ! LB Time Start
-CALL StartExchangeMPIData(U_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
+CALL StartSendMPIData(PP_nVar,U_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,SendID=2) ! Send YOUR
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 
@@ -238,22 +240,26 @@ tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
 #ifdef MPI
+tLBStart = LOCALTIME() ! LB Time Start
+CALL StartReceiveMPIData(PP_nVar,Flux,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 ! fill the global surface flux list
 tLBStart = LOCALTIME() ! LB Time Start
-CALL FillFlux(Flux,doMPISides=.TRUE.)
+CALL FillFlux(t,tDeriv,Flux,U_Minus,U_Plus,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
 tLBStart = LOCALTIME() ! LB Time Start
-CALL StartExchangeMPIData(Flux,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
+CALL StartSendMPIData(PP_nVar,Flux,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
+!CALL StartExchangeMPIData(PP_nVar,Flux,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 #endif /* MPI*/
 
 ! fill the all surface fluxes on this proc
 tLBStart = LOCALTIME() ! LB Time Start
-CALL FillFlux_BC(t,tDeriv,Flux)
-CALL FillFlux(Flux,doMPISides=.FALSE.)
+CALL FillFlux(t,tDeriv,Flux,U_Minus,U_Plus,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
 CALL SurfInt(Flux,Ut,doMPISides=.FALSE.)
 
@@ -281,7 +287,7 @@ tLBStart = LOCALTIME() ! LB Time Start
 CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
 
 ! Add Source Terms
-CALL CalcSource(tStage)
+IF(doSource) CALL CalcSource(tStage,1.0,Ut)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
@@ -305,9 +311,8 @@ USE MOD_Equation,      ONLY: CalcSource_Pois
 USE MOD_Equation_Vars, ONLY: IniExactFunc,Phi,Phit,Phi_Minus,Phi_Plus,FluxPhi,nTotalPhi
 USE MOD_Interpolation, ONLY: ApplyJacobian
 #ifdef MPI
-USE MOD_Equation,      ONLY:StartExchangeMPIData_Pois
 USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:FinishExchangeMPIData
+USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -328,10 +333,11 @@ INTEGER :: iElem,i,j,k,iVar
 ! Prolong to face for MPI sides - send direction
 
 !CALL ProlongToFace(Phi,Phi_Minus,Phi_Plus,doMPiSides=.TRUE.)
+CALL StartReceiveMPIData(4,Phi_Plus,SideID_plus_lower,SideID_plus_upper,RecRequest_U,SendID=2) ! Receive MINE
 CALL ProlongToFace_Pois(Phi,Phi_Minus,Phi_Plus,doMPiSides=.TRUE.)
 
 !CALL StartExchangeMPIData(Phi_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) 
-CALL StartExchangeMPIData_Pois(Phi_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) 
+CALL StartSendMPIData(4,Phi_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,SendID=2) ! Send YOUR
 ! Send YOUR - receive MINE
 #endif /*MPI*/
 
@@ -355,10 +361,12 @@ CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - rec
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
 #ifdef MPI
 ! fill the global surface flux list
+CALL StartReceiveMPIData(4,FluxPhi,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
 CALL FillFlux_Pois(FluxPhi,doMPISides=.TRUE.)
 
 !CALL StartExchangeMPIData(FluxPhi,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
-CALL StartExchangeMPIData_Pois(FluxPhi,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1)
+CALL StartSendMPIData(4,FluxPhi,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
+!CALL StartExchangeMPIData(4,FluxPhi,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1)
 #endif /* MPI*/
 
 ! fill the all surface fluxes on this proc
@@ -395,92 +403,6 @@ CALL CalcSource_Pois(tStage)
 END SUBROUTINE DGTimeDerivative_weakForm_Pois
 
 #endif
-
-
-SUBROUTINE DGTimeDerivative_WoSource_weakForm(t,tStage,tDeriv)
-!===================================================================================================================================
-! Computes the DG time derivative consisting of Volume Integral and Surface integral for the whole field
-! U and Ut are allocated
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Vector
-USE MOD_DG_Vars,       ONLY: U,Ut,nTotalU,U_Plus,U_Minus,Flux
-USE MOD_SurfInt,       ONLY: SurfInt
-USE MOD_VolInt,        ONLY: VolInt
-USE MOD_ProlongToFace, ONLY: ProlongToFace
-USE MOD_FillFlux,      ONLY: FillFlux,FillFlux_BC
-USE MOD_Mesh_Vars,     ONLY: sJ,nSides,nInnerSides
-!USE MOD_Equation,      ONLY: CalcSource
-USE MOD_Interpolation, ONLY: ApplyJacobian
-USE MOD_Equation_Vars, ONLY: IniExactFunc
-#ifdef MPI
-USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:StartExchangeMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)                 :: t,tStage
-INTEGER,INTENT(IN)              :: tDeriv
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!INTEGER :: iElem,i,j,k,iVar
-!===================================================================================================================================
-
-! prolong the solution to the face integration points for flux computation
-#ifdef MPI
-! Prolong to face for MPI sides - send direction
-CALL ProlongToFace(U,U_Minus,U_Plus,doMPiSides=.TRUE.)
-CALL StartExchangeMPIData(U_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-#endif /*MPI*/
-
-! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
-CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.FALSE.)
-
-Ut=0.
-!CALL VNullify(nTotalU,Ut)
-CALL VolInt(Ut,dofirstElems=.TRUE.)
-
-#ifdef MPI
-! Complete send / receive
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
-#endif /*MPI*/
-
-
-! Initialization of the time derivative
-!Flux=0. !don't nullify the fluxes if not really needed (very expensive)
-#ifdef MPI
-! fill the global surface flux list
-CALL FillFlux(Flux,doMPISides=.TRUE.)
-CALL StartExchangeMPIData(Flux,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
-#endif /* MPI*/
-
-! fill the all surface fluxes on this proc
-CALL FillFlux_BC(t,tDeriv,Flux)
-CALL FillFlux(Flux,doMPISides=.FALSE.)
-! compute surface integral contribution and add to ut
-CALL SurfInt(Flux,Ut,doMPISides=.FALSE.)
-!! compute volume integral contribution and add to ut
-!CALL VolInt(Ut)
-CALL VolInt(Ut,dofirstElems=.FALSE.)
-
-#ifdef MPI
-! Complete send / receive
-CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
-!FINALIZE Fluxes for MPI Sides
-CALL SurfInt(Flux,Ut,doMPISides=.TRUE.)
-#endif
-
-! swap and map to physical space
-CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
-
-END SUBROUTINE DGTimeDerivative_WoSource_weakForm
 
 SUBROUTINE FillIni()
 !===================================================================================================================================

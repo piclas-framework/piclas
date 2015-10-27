@@ -92,8 +92,6 @@ IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   STOP
 END IF
 
-
-
 c2     = c*c 
 c_inv  = 1./c
 c2_inv = 1./c2
@@ -105,6 +103,7 @@ eta_c     = (c_corr-1.)*c
 
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
+BCStateFile=GETSTR('BCStateFile','')
 !WRITE(DefBCState,'(I3,A,I3,A,I3,A,I3,A,I3,A,I3)') &
 !  IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc
 !IF(BCType_in(1) .EQ. -999)THEN
@@ -440,7 +439,7 @@ END SUBROUTINE ExactFunc
 
 
 
-SUBROUTINE CalcSource(t)
+SUBROUTINE CalcSource(t,coeff,Ut)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -448,7 +447,7 @@ SUBROUTINE CalcSource(t)
 USE MOD_Globals,       ONLY : abort
 USE MOD_Globals_Vars,  ONLY : PI
 USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY : Ut,U
+!USE MOD_DG_Vars,       ONLY : U
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega, tPulse!,scr
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,  ONLY : Source
@@ -459,9 +458,10 @@ USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xy
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: t
+REAL,INTENT(IN)                 :: t,coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem
@@ -476,8 +476,8 @@ CASE(0) ! Particles
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
-      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv * source(1:3,i,j,k,iElem)
-      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv * source(  4,i,j,k,iElem) * c_corr 
+      Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* source(1:3,i,j,k,iElem)
+      Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* source(  4,i,j,k,iElem) * c_corr 
     END DO; END DO; END DO
   END DO
 #endif /*PARTICLES*/
@@ -490,9 +490,9 @@ CASE(4) ! Dipole
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
-        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) * Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
+        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) *coeff* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
     ! dipole should be neutral
-       ! Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) * c_corr*Q * eps0inv
+        Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) *coeff* c_corr*Q*d*SIN(DipoleOmega*t) * eps0inv
       END IF
     END DO; END DO; END DO
   END DO
@@ -500,21 +500,21 @@ CASE(5) ! TE_34,19 Mode     - no sources
 CASE(7) ! Manufactured Solution
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - 2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
-      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + 2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
+      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
+      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
     END DO; END DO; END DO
   END DO
 CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), domain [0;1]^3!!!
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N  
       x(:)=Elem_xGP(:,i,j,k,iElem)
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) + (COS(t)- (COS(t)-1.)*2*pi*pi)*x(1)*SIN(Pi*x(2))*SIN(Pi*x(3))
-      Ut(2,i,j,k,iElem) =Ut(2,i,j,k,iElem) + (COS(t)- (COS(t)-1.)*2*pi*pi)*x(2)*SIN(Pi*x(3))*SIN(Pi*x(1))
-      Ut(3,i,j,k,iElem) =Ut(3,i,j,k,iElem) + (COS(t)- (COS(t)-1.)*2*pi*pi)*x(3)*SIN(Pi*x(1))*SIN(Pi*x(2))
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - (COS(t)-1.)*pi*COS(Pi*x(1))*(SIN(Pi*x(2))+SIN(Pi*x(3)))
-      Ut(2,i,j,k,iElem) =Ut(2,i,j,k,iElem) - (COS(t)-1.)*pi*COS(Pi*x(2))*(SIN(Pi*x(3))+SIN(Pi*x(1)))
-      Ut(3,i,j,k,iElem) =Ut(3,i,j,k,iElem) - (COS(t)-1.)*pi*COS(Pi*x(3))*(SIN(Pi*x(1))+SIN(Pi*x(2)))
-      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + c_corr*SIN(t)*( SIN(pi*x(2))*SIN(pi*x(3)) &
+      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(1)*SIN(Pi*x(2))*SIN(Pi*x(3))
+      Ut(2,i,j,k,iElem) =Ut(2,i,j,k,iElem) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(2)*SIN(Pi*x(3))*SIN(Pi*x(1))
+      Ut(3,i,j,k,iElem) =Ut(3,i,j,k,iElem) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(3)*SIN(Pi*x(1))*SIN(Pi*x(2))
+      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*(COS(t)-1.)*pi*COS(Pi*x(1))*(SIN(Pi*x(2))+SIN(Pi*x(3)))
+      Ut(2,i,j,k,iElem) =Ut(2,i,j,k,iElem) - coeff*(COS(t)-1.)*pi*COS(Pi*x(2))*(SIN(Pi*x(3))+SIN(Pi*x(1)))
+      Ut(3,i,j,k,iElem) =Ut(3,i,j,k,iElem) - coeff*(COS(t)-1.)*pi*COS(Pi*x(3))*(SIN(Pi*x(1))+SIN(Pi*x(2)))
+      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*c_corr*SIN(t)*( SIN(pi*x(2))*SIN(pi*x(3)) &
                                                             +SIN(pi*x(3))*SIN(pi*x(1)) &
                                                             +SIN(pi*x(1))*SIN(pi*x(2)) )
     END DO; END DO; END DO
@@ -526,8 +526,8 @@ CASE(41) ! Dipole via temporal Gausspuls
 !TEnd=30.E-9 -> short pulse for 100ns runtime
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - 2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
-      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + 2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
+      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
+      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
     END DO; END DO; END DO
   END DO
 
@@ -538,6 +538,7 @@ END SELECT ! ExactFunction
 !source fo divcorr damping!
 !Ut(7:8,:,:,:,:)=Ut(7:8,:,:,:,:)-(c_corr*scr)*U(7:8,:,:,:,:)
 END SUBROUTINE CalcSource
+
 
 SUBROUTINE DivCleaningDamping()
 !===================================================================================================================================

@@ -19,7 +19,11 @@ INTERFACE ProlongToFace
 !  MODULE PROCEDURE ProlongToFace_SideBased4
 END INTERFACE
 
+INTERFACE ProlongToFace_BC
+  MODULE PROCEDURE ProlongToFace_BC
+END INTERFACE
 PUBLIC::ProlongToFace
+PUBLIC::ProlongToFace_BC
 !===================================================================================================================================
 
 CONTAINS
@@ -617,6 +621,129 @@ DO SideID=firstSideID,lastSideID
 END DO !SideID
 END SUBROUTINE ProlongToFace_SideBased4
 #endif /*dontcompilethis*/
+
+
+SUBROUTINE ProlongToFace_BC(Uvol,Uface_BC)
+!===================================================================================================================================
+! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
+! integration points, using fast 1D Interpolation and store in global side structure
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
+USE MOD_Mesh_Vars,          ONLY: SideToElem
+USE MOD_Mesh_Vars,          ONLY: nBCSides
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                 :: Uvol(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: Uface_BC(PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER                         :: l,p,q,ElemID,SideID,LocSideID
+!===================================================================================================================================
+! ONLY BCSides
+DO SideID=1,nBCSides
+  ! master side, flip=0
+  ElemID       = SideToElem(S2E_ELEM_ID,SideID)  
+  locSideID    = SideToElem(S2E_LOC_SIDE_ID,SideID)
+#if (PP_NodeType==1) /* for Gauss-points*/
+  SELECT CASE(locSideID)
+  CASE(XI_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface_BC(:,q,p,SideID)=Uvol(:,0,p,q,ElemID)*L_Minus(0)
+        DO l=1,PP_N
+          ! switch to right hand system
+          Uface_BC(:,q,p,SideID)=Uface_BC(:,q,p,SideID)+Uvol(:,l,p,q,ElemID)*L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ETA_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface_BC(:,p,q,SideID)=Uvol(:,p,0,q,ElemID)*L_Minus(0)
+        DO l=1,PP_N
+          Uface_BC(:,p,q,SideID)=Uface_BC(:,p,q,SideID)+Uvol(:,p,l,q,ElemID)*L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface_BC(:,q,p,SideID)=Uvol(:,p,q,0,ElemID)*L_Minus(0)
+        DO l=1,PP_N
+          ! switch to right hand system
+          Uface_BC(:,q,p,SideID)=Uface_BC(:,q,p,SideID)+Uvol(:,p,q,l,ElemID)*L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(XI_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface_BC(:,p,q,SideID)=Uvol(:,0,p,q,ElemID)*L_Plus(0)
+        DO l=1,PP_N
+          Uface_BC(:,p,q,SideID)=Uface_BC(:,p,q,SideID)+Uvol(:,l,p,q,ElemID)*L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface_BC(:,PP_N-p,q,SideID)=Uvol(:,p,0,q,ElemID)*L_Plus(0)
+        DO l=1,PP_N
+          ! switch to right hand system
+          Uface_BC(:,PP_N-p,q,SideID)=Uface_BC(:,PP_N-p,q,SideID)+Uvol(:,p,l,q,ElemID)*L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface_BC(:,p,q,SideID)=Uvol(:,p,q,0,ElemID)*L_Plus(0)
+        DO l=1,PP_N
+          Uface_BC(:,p,q,SideID)=Uface_BC(:,p,q,SideID)+Uvol(:,p,q,l,ElemID)*L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  END SELECT
+#else /* for Gauss-Lobatto-points*/
+  SELECT CASE(locSideID)
+  CASE(XI_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface_BC(:,q,p,SideID)=Uvol(:,0,p,q,ElemID)
+      END DO ! p
+    END DO ! q
+  CASE(ETA_MINUS)
+    Uface_BC(:,:,:,SideID)=Uvol(:,:,0,:,ElemID)
+  CASE(ZETA_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface_BC(:,q,p,SideID)=Uvol(:,p,q,0,ElemID)
+      END DO ! p
+    END DO ! q
+  CASE(XI_PLUS)
+    Uface_BC(:,:,:,SideID)=Uvol(:,PP_N,:,:,ElemID)
+  CASE(ETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface_BC(:,PP_N-p,q,SideID)=Uvol(:,p,PP_N,q,ElemID)
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface_BC(:,p,q,SideID)=Uvol(:,p,q,PP_N,ElemID)
+      END DO ! p
+    END DO ! q
+  END SELECT
+#endif /*(PP_NodeType==1)*/
+END DO !SideID
+END SUBROUTINE ProlongToFace_BC
 
 
 END MODULE MOD_ProlongToFace
