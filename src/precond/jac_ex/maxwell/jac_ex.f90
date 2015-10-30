@@ -347,7 +347,7 @@ SUBROUTINE Apply_sJ1D(dRdXi,dRdEta,dRdZeta,iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_LinearSolver_Vars ,ONLY:nDOFLine
+USE MOD_LinearSolver_Vars ,ONLY:nDOFLine,mass
 USE MOD_Mesh_Vars         ,ONLY:sJ
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -368,9 +368,9 @@ DO p=0,PP_N
   DO q=0,PP_N
       DO l=0,PP_N
       s=l*PP_nVar
-      dRdXi  (s+1:s+PP_nVar,:,p,q) = -sJ(l,p,q,iElem)*dRdXi  (s+1:s+PP_nVar,:,p,q)
-      dRdEta (s+1:s+PP_nVar,:,p,q) = -sJ(p,l,q,iElem)*dRdEta (s+1:s+PP_nVar,:,p,q)
-      dRdZeta(s+1:s+PP_nVar,:,p,q) = -sJ(p,q,l,iElem)*dRdZeta(s+1:s+PP_nVar,:,p,q)
+      dRdXi  (s+1:s+PP_nVar,:,p,q) = -sJ(l,p,q,iElem)*mass(1,l,p,q,iElem)*dRdXi  (s+1:s+PP_nVar,:,p,q)
+      dRdEta (s+1:s+PP_nVar,:,p,q) = -sJ(p,l,q,iElem)*mass(1,p,l,q,iElem)*dRdEta (s+1:s+PP_nVar,:,p,q)
+      dRdZeta(s+1:s+PP_nVar,:,p,q) = -sJ(p,q,l,iElem)*mass(1,p,q,l,iElem)*dRdZeta(s+1:s+PP_nVar,:,p,q)
     END DO !l
   END DO !p
 END DO ! q

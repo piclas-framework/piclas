@@ -72,12 +72,16 @@ LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
+#ifdef MPI
 REAL                          :: tLBStart,tLBEnd
+#endif /*MPI*/
 !===================================================================================================================================
 
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
+#ifdef MPI
     tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     nTracks=nTracks+1
     nCurrentParts=nCurrentParts+1
     PartisDone=.FALSE.
@@ -180,9 +184,11 @@ DO iPart=1,PDM%ParticleVecLength
         CALL SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
                                          ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
         IF(ElemID.NE.OldElemID)THEN
+#ifdef MPI
           tLBEnd = LOCALTIME() ! LB Time End
           ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
           tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
         END IF
       CASE DEFAULT ! two or more hits
         ! take last possible intersection, furthest
@@ -204,9 +210,11 @@ DO iPart=1,PDM%ParticleVecLength
         CALL SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
                                          ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
         IF(ElemID.NE.OldElemID)THEN
+#ifdef MPI
           tLBEnd = LOCALTIME() ! LB Time End
           ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
           tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
         END IF
         markTol=.TRUE.
       END SELECT
@@ -224,8 +232,10 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
       END IF ! markTol
     END DO ! PartisDone=.FALSE.
+#ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
     ElemTime(PEM%Element(iPart))=ElemTime(PEM%Element(iPart))+tLBEnd-tLBStart
+#endif /*MPI*/
 !    IF(markTol)THEN
 !      CALL PartInElemCheck(iPart,ElemID,isHit)
 !      PEM%Element(iPart)=ElemID
@@ -429,7 +439,9 @@ LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength)
 !LOGICAL                     :: HitBC(1:PDM%ParticleVecLength)
 
 ! load balance
+#ifdef MPI
 REAL                          :: tLBStart,tLBEnd
+#endif /*MPI*/
 !===================================================================================================================================
 
 
@@ -455,7 +467,9 @@ ParticleFound=.FALSE.
 epsLowOne=1.0-2.0*epsInCell
 ! first step, reuse Elem cache, therefore, check if particle are still in element, if not, search later
 DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in HALO, it shall not be found here
+#ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   DO iPart=1,PDM%ParticleVecLength
     IF(PDM%ParticleInside(iPart))THEN
       ElemID = PEM%lastElement(iPart)
@@ -551,12 +565,16 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
       ParticleFound(iPart)=.TRUE.
     END IF
   END DO ! iPart
+#ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
 END DO ! iElem
 
 ! now, locate not all found particle
+#ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
 DO iPart=1,PDM%ParticleVecLength
   IF(ParticleFound(iPart)) CYCLE
   ! relocate particle
@@ -607,7 +625,9 @@ DO iPart=1,PDM%ParticleVecLength
   DO iBGMElem=1,nBGMElems
     IF(ALMOSTEQUAL(Distance(iBGMELem),-1.0)) CYCLE
     ElemID=ListDistance(iBGMElem)
+#ifdef MPI
     nTracksPerElem(ElemID)=nTracksPerElem(ElemID)+1
+#endif /*MPI*/
     CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
     !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
     IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.1.0) THEN ! particle inside
@@ -870,8 +890,10 @@ DO iPart=1,PDM%ParticleVecLength
   DEALLOCATE( ListDistance)
 
 END DO ! iPart
+#ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
 tTracking = tTracking +tLBEnd-tLBStart
+#endif /*MPI*/
 
 
 END SUBROUTINE ParticleRefTracking

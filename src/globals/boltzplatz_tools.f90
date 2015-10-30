@@ -99,8 +99,10 @@ CALL FinalizeParticleMPI()
 CALL FinalizeDSMC()
 CALL FinalizeParticles()
 CALL FinalizeBackGroundField()
-CALL FinalizeMPI()
 #endif
+#ifdef MPI
+CALL FinalizeMPI()
+#endif /*MPI*/
 
 ReadInDone=.FALSE.
 ParticleMPIInitIsDone=.FALSE.

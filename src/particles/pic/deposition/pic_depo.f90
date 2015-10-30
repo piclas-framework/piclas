@@ -499,7 +499,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:GEO,ElemBaryNGeo,casematrix, NbrOfCases
 USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartMPIExchange
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem,tCartMesh,ElemTime
-#endif 
+#endif  /*MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
@@ -531,8 +531,10 @@ INTEGER                          :: foundDOF
 REAL,DIMENSION(3,0:PP_N)         :: L_xi
 REAL                             :: DeltaIntCoeff,prefac
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
+#ifdef MPI
 ! load balance
-REAL                          :: tLBStart,tLBEnd
+REAL                             :: tLBStart,tLBEnd
+#endif /*MPI*/
 !============================================================================================================================
 
 IF(doInnerParts)THEN
@@ -558,7 +560,9 @@ CASE('nearest_blurrycenter')
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   ElemSource=0.0
   DO iElem=1,PP_nElems
+#ifdef MPI
     tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     DO iPart=firstPart,lastPart
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       IF(PEM%Element(iPart).EQ.iElem)THEN
@@ -585,19 +589,25 @@ CASE('nearest_blurrycenter')
     source(3,:,:,:,iElem) = source(3,:,:,:,iElem)+ElemSource(iElem,3) 
 !#endif                                            
     source(4,:,:,:,iElem) = source(4,:,:,:,iElem)+ElemSource(iElem,4) 
+#ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
     ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
   END DO ! iElem=1,PP_nElems
   IF(.NOT.doInnerParts)THEN
     DO iElem=1,PP_nElems
+#ifdef MPI
       tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
 !#if (PP_nVar==8)
       source(1:4,:,:,:,iElem) = source(1:4,:,:,:,iElem) / GEO%Volume(iElem)
 !#else
 !      source(4,:,:,:,iElem) = source(4,:,:,:,iElem) / GEO%Volume(iElem)
 !#endif
+#ifdef MPI
       tLBEnd = LOCALTIME() ! LB Time End
       ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
     END DO ! iElem=1,PP_nElems
   END IF ! .NOT. doInnerParts
 CASE('shape_function')
@@ -654,7 +664,9 @@ CASE('shape_function')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
+#ifdef MPI
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
+#endif /*MPI*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -741,7 +753,9 @@ CASE('shape_function')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
+#ifdef MPI
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
+#endif /*MPI*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -1031,7 +1045,9 @@ CASE('cylindrical_shape_function')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
+#ifdef MPI
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
+#endif /*MPI*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -1122,7 +1138,9 @@ CASE('cylindrical_shape_function')
                 ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
                 IF(ElemID.GT.nElems) CYCLE
                 IF (.NOT.chargedone(ElemID)) THEN
+#ifdef MPI
                   nDeposPerElem(ElemID)=nDeposPerElem(ElemID)+1
+#endif /*MPI*/
                   !--- go through all gauss points
                   !CALL ComputeGaussDistance(PP_N,r2_sf_inv,ShiftedPart,ElemDepo_xGP(:,:,:,:,ElemID),GaussDistance)
                   DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
@@ -1172,7 +1190,9 @@ CASE('cylindrical_shape_function')
 CASE('delta_distri')
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   DO iElem=1,PP_nElems
+#ifdef MPI
     tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     DO iPart=firstPart,LastPart
       IF (PDM%ParticleInside(iPart)) THEN
         IF(PEM%Element(iPart).EQ.iElem)THEN
@@ -1226,14 +1246,18 @@ CASE('delta_distri')
         END IF ! Particle in Element
       END IF ! ParticleInside of domain
     END DO ! ParticleVecLength
+#ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
     ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
   END DO ! iElem
 #ifdef MPI
   IF(.NOT.DoInnerParts)THEN
 #endif /*MPI*/
     DO iElem=1,PP_nElems
+#ifdef MPI
       tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
       DO k=0,PP_N
         DO j=0,PP_N
           DO i=0,PP_N
@@ -1245,8 +1269,10 @@ CASE('delta_distri')
           END DO ! i
         END DO ! j
       END DO ! k
+#ifdef MPI
       tLBEnd = LOCALTIME() ! LB Time End
       ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
     END DO ! loop over all elems
 #ifdef MPI
   END IF ! DoInnerParts
@@ -1263,7 +1289,9 @@ CASE('nearest_gausspoint')
     b = a-1
   END IF
   DO iElem=1,PP_nElems
+#ifdef MPI
     tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     DO iPart=firstPart,LastPart
       IF (PDM%ParticleInside(iPart)) THEN
         IF(PEM%Element(iPart).EQ.iElem)THEN
@@ -1318,12 +1346,16 @@ CASE('nearest_gausspoint')
         END IF ! Element .EQ. iElem
       END IF ! Particle inside
     END DO ! iPart
+#ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
     ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
   END DO ! iElem=1,PP_nElems
   IF(.NOT.DoInnerParts)THEN
     DO iElem=1,PP_nElems
+#ifdef MPI
       tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
       DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
       ! get densities by dividing by gauss volume
 !#if (PP_nVar==8)
@@ -1332,14 +1364,18 @@ CASE('nearest_gausspoint')
 !        source(4,k,l,m,iElem) = source(4,k,l,m,iElem) * sJ(k,l,m,iElem)/(wGP(k)*wGP(l)*wGP(m))
 !#endif
       END DO; END DO; END DO
+#ifdef MPI
       tLBEnd = LOCALTIME() ! LB Time End
       ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
     END DO ! iElem=1,PP_nElems
   END IF
 CASE('cartmesh_volumeweighting')
   ! Step 1: Deposition of all particles onto background mesh -> densities
   ! IF(DoInnerParts) BGMSource=0.0 ! not possible due to periodic stuff --> two communications
+#ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   BGMSource(:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
     IF (PDM%ParticleInside(iPart)) THEN
@@ -1382,12 +1418,16 @@ CASE('cartmesh_volumeweighting')
 #else
   IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange()
 #endif
+#ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCartMesh=tCartMesh+tLBEnd-tLBStart
+#endif /*MPI*/
 
   ! Step 2: Interpolation of densities onto grid
   DO iElem = 1, nElems
+#ifdef MPI
     tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     DO kk = 0, PP_N
       DO ll = 0, PP_N
         DO mm = 0, PP_N
@@ -1422,15 +1462,19 @@ CASE('cartmesh_volumeweighting')
        END DO !mm
      END DO !ll
    END DO !kk
+#ifdef MPI
    tLBEnd = LOCALTIME() ! LB Time End
    ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
  END DO !iElem
  !DEALLOCATE(BGMSource)
 CASE('cartmesh_splines')
   ! Step 1: Deposition of all particles onto background mesh -> densities
   !ALLOCATE(BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4))
   ! IF(DoInnerParts) BGMSource=0. not possible due to periodic stuff
+#ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   BGMSource(:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
     IF (PDM%ParticleInside(iPart)) THEN
@@ -1483,12 +1527,16 @@ CASE('cartmesh_splines')
 #else
   IF (GEO%nPeriodicVectors.GT.0) CALL PeriodicSourceExchange()
 #endif
+#ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
   tCartMesh=tCartMesh+tLBEnd-tLBStart
+#endif /*MPI*/
 
   ! Step 2: Interpolation of densities onto grid
   DO iElem = 1, nElems
+#ifdef MPI
     tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
     DO kk = 0, PP_N
       DO ll = 0, PP_N
         DO mm = 0, PP_N
@@ -1514,8 +1562,10 @@ CASE('cartmesh_splines')
         END DO !mm
       END DO !ll
     END DO !kk
+#ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
     ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
   END DO !iElem
  !DEALLOCATE(BGMSource)
 CASE DEFAULT

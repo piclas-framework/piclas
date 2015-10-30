@@ -40,8 +40,9 @@ SUBROUTINE MatrixVector(t,Coeff,X,Y)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_DG_Vars,    ONLY:U,Ut
-USE MOD_DG,         ONLY:DGTimeDerivative_weakForm
+USE MOD_DG_Vars,            ONLY:U,Ut
+USE MOD_DG,                 ONLY:DGTimeDerivative_weakForm
+USE MOD_LinearSolver_Vars,  ONLY:mass
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -57,7 +58,7 @@ REAL,INTENT(OUT) :: Y(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 U=X
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 ! y = (I-Coeff*R)*x = x - Coeff*R*x 
-Y = U - Coeff*Ut
+Y = mass*(U - Coeff*Ut)
 END SUBROUTINE MatrixVector
 
 
@@ -76,7 +77,7 @@ USE MOD_DG_Vars,           ONLY:U,Ut
 USE MOD_DG,                ONLY:DGTimeDerivative_weakForm
 USE MOD_Equation,          ONLY:CalcSource
 USE MOD_Equation,          ONLY:DivCleaningDamping
-USE MOD_LinearSolver_Vars, ONLY:ImplicitSource, LinSolverRHS
+USE MOD_LinearSolver_Vars, ONLY:ImplicitSource, LinSolverRHS,mass
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -96,7 +97,7 @@ REAL,INTENT(OUT) :: Y(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 !Y = LinSolverRHS - X0 +coeff*ut
 CALL CalcSource(t,1.0,ImplicitSource)
-Y = LinSolverRHS - U +coeff*ut + coeff*ImplicitSource
+Y = mass*(LinSolverRHS - U +coeff*ut + coeff*ImplicitSource)
 
 END SUBROUTINE MatrixVectorSource
 

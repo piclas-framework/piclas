@@ -50,7 +50,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-IF(PrecondType.EQ.22)THEN
+IF(PrecondType.EQ.3)THEN
   ALLOCATE(nUNonZeros(PP_nElems) &
           ,nLNonZeros(PP_nElems) )
   

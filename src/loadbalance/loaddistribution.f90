@@ -14,15 +14,18 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+#ifdef MPI
 INTERFACE SingleStepOptimalPartition
   MODULE PROCEDURE SingleStepOptimalPartition
 END INTERFACE
 
 PUBLIC::SingleStepOptimalPartition
+#endif /*MPI*/
 !===================================================================================================================================
 
 CONTAINS
 
+#ifdef MPI
 SUBROUTINE SingleStepOptimalPartition(OldElems,NewElems,ElemWeight) 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! calculate the optimal load partiton, subroutine taken from sparta.f90 of HALO
@@ -131,5 +134,6 @@ DEALLOCATE(PreSum, send_count, recv_count, split)
 
 
 END SUBROUTINE SingleStepOptimalPartition
+#endif /*MPI*/
 
 END MODULE MOD_LoadDistribution

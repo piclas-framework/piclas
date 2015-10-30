@@ -125,7 +125,7 @@ INTEGER                              :: iProc
 !===================================================================================================================================
 
 Xk=U(:,:,:,:,iElem)
-CALL DGTimeDerivative_WeakForm(t,tStage,tDeriv,doSource=.TRUE.)
+CALL DGTimeDerivative_WeakForm(t,tStage,tDeriv,doSource=.FALSE.)
 Rxk=Ut(:,:,:,:,iElem) !linearization Ut of Xk for FD
 
 ! nullify
@@ -142,7 +142,7 @@ DO iProc=0,nProcessors-1
             IF(iElem.GT.PP_nElems) CYCLE
             U(iVar,i,j,k,iElem) = Xk(iVar,i,j,k) + reps0
           END IF
-          CALL DGTimeDerivative_WeakForm(t,tStage,tDeriv,doSource=.TRUE.)
+          CALL DGTimeDerivative_WeakForm(t,tStage,tDeriv,doSource=.FALSE.)
           IF (iProc.EQ.myRank) THEN
             U(iVar,i,j,k,iElem) = Xk(iVar,i,j,k) 
           END IF
@@ -172,7 +172,7 @@ END DO !iProc
       DO i=0,PP_N
         DO iVar=1,PP_nVar
             U(iVar,i,j,k,iElem) = Xk(iVar,i,j,k) + reps0
-          CALL DGTimeDerivative_WeakForm(t,tStage,tDeriv)
+            CALL DGTimeDerivative_WeakForm(t,tStage,tDeriv,doSource=.FALSE.)
             U(iVar,i,j,k,iElem) = Xk(iVar,i,j,k) 
             r=1
             DO kk=0,PP_N

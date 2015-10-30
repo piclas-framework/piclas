@@ -85,7 +85,9 @@ SWRITE(UNIT_stdOut,'(A)')&
  ' '
 SWRITE(UNIT_stdOut,'(132("="))')
 CALL InitGlobals()
+#ifdef MPI
 CALL InitLoadBalance()
+#endif /*MPI*/
 ! call init routines
 ! Measure init duration
 StartTime=BOLTZPLATZTIME()

@@ -39,7 +39,8 @@ SUBROUTINE InitLinearSolver()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars
-USE MOD_Mesh_Vars,            ONLY:MeshInitIsDone
+USE MOD_Interpolation_Vars,   ONLY:wGP
+USE MOD_Mesh_Vars,            ONLY:MeshInitIsDone,sJ
 USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL,GETLOGICAL
 USE MOD_Precond,              ONLY:InitPrecond
@@ -52,6 +53,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
+INTEGER    :: i,j,k,iElem
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.LinearSolverInitIsDone)THEN
    CALL abort(__STAMP__,&
@@ -102,6 +104,20 @@ maxIter_LinearSolver  = GETINT('maxIter_LinearSolver','60')
 nKDim=GETINT('nKDim','25')
 nInnerIter=0
 totalIterLinearSolver = 0
+
+ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+DO iElem=1,PP_nElems
+  DO k=0,PP_N
+    DO j=0,PP_N
+      DO i=0,PP_N
+        Mass(1:PP_nVar,i,j,k,iElem)=wGP(i)*wGP(j)*wGP(k) /sJ(i,j,k,iElem)
+      END DO ! i
+    END DO ! j
+  END DO !k
+END DO ! iElem=1,PP_nElems
+IF(.NOT.GETLOGICAL('withmass','F')) mass=1.
+
+
 
 
 LinSolver= GETINT('LinSolver','2')

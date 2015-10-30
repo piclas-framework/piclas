@@ -17,6 +17,7 @@ REAL,ALLOCATABLE     :: ImplicitSource(:,:,:,:,:)
 REAL,ALLOCATABLE     :: LinSolverRHS  (:,:,:,:,:)
 REAL,ALLOCATABLE     :: FieldSource(:,:,:,:,:,:)
 REAL,ALLOCATABLE     :: Upast(:,:,:,:,:,:)
+REAL,ALLOCATABLE     :: Mass(:,:,:,:,:)
 INTEGER              :: LinSolver
 INTEGER              :: nKDim,nRestarts
 INTEGER              :: nDofGlobal, nDofGlobalMPI

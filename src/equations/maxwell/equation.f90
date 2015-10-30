@@ -245,7 +245,7 @@ CASE(3) ! Resonator
 
 CASE(4) ! Dipole
   resu(1:8) = 0.
-  RETURN
+  !RETURN
   eps=1e-10
   xrel    = x - xDipole
   r = SQRT(DOT_PRODUCT(xrel,xrel))

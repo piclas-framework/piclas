@@ -22,15 +22,11 @@ INTERFACE FinalizeILU
   MODULE PROCEDURE FinalizeILU
 END INTERFACE
 
-INTERFACE BuildBILU0
-  MODULE PROCEDURE BuildBILU0
-END INTERFACE
-
 INTERFACE BuildBILU0BCSR
   MODULE PROCEDURE BuildBILU0BCSR
 END INTERFACE
 
-PUBLIC::InitILU,FinalizeILU,BuildBILU0,BuildBILU0BCSR
+PUBLIC::InitILU,FinalizeILU,BuildBILU0BCSR
 !===================================================================================================================================
 
 CONTAINS
@@ -175,123 +171,6 @@ IMPLICIT NONE
 
 END SUBROUTINE FinalizeILU
 
-SUBROUTINE BuildBILU0(BJ,iElem)
-!===================================================================================================================================
-! Construct LUSGS
-!===================================================================================================================================
-! MODULES
-!USE MOD_Globals
-USE MOD_PreProc
-USE MOD_Basis               ,ONLY:GetInverse
-USE MOD_LinearSolver_Vars   ,ONLY:nDOFELEM,nDOFLine
-USE MOD_ILU_Vars            ,ONLY:DiagBILU0,XiBILU0,EtaBILU0,ZetaBILU0
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: iElem
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT) :: BJ(nDOFELem,nDOFElem)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-INTEGER            :: s,r,t
-REAL               :: epsZero
-REAL               :: dummy(PP_nVar,PP_nVar)
-INTEGER            :: i,j,k,l,vni,vnj,vnk,vn1,vn2,vnl
-!CHARACTER(LEN=17)  :: strfmt
-!===================================================================================================================================
-
-epsZero=EPSILON(0.0d0)*PP_nVar*PP_nVar
-
-! Saad
-DO s=PP_nVar,nDOFElem-PP_nVar,PP_nVar
-  DO r=0,s-PP_nVar,PP_nVar ! richtig? +1 fehlend?
-    IF(SUM(ABS(BJ(s+1:s+PP_nVar,r+1:r+PP_nVar))).GT.epsZero)THEN
-      dummy=GETINVERSE(PP_nVar,BJ(r+1:r+PP_nVar,r+1:r+PP_nVar))
-      BJ(s+1:s+PP_nVar,r+1:r+PP_nVar)=MATMUL(BJ(s+1:s+PP_nVar,r+1:r+PP_nVar),dummy)
-      DO t=r+PP_nVar,nDOFElem-PP_nVar,PP_nVar
-        IF(SUM(ABS(BJ(s+1:s+PP_nVar,t+1:t+PP_nVar))).GT.epsZero)THEN
-          BJ(s+1:s+PP_nVar,t+1:t+PP_nVar) = BJ(s+1:s+PP_nVar,t+1:t+PP_nVar) &
-                                          - MATMUL(BJ(s+1:s+PP_nVar,r+1:r+PP_nVar),BJ(r+1:r+PP_nVar,t+1:t+PP_nVar))
-        END IF
-      END DO ! t
-    END IF ! 
-  END DO ! r
-END DO ! s
-
-!IF(MPIRoot)THEN
-!  IF(iElem.EQ.1)THEN
-!    WRITE(strfmt,'(A1,I4,A12)')'(',nDOFelem,'(1X,E23.16))'
-!    WRITE(UNIT_stdOut,*)'Debug Block Jacobian to:'
-!    OPEN (UNIT=103,FILE='MPIRank0_Elem1_EBILU0.dat',STATUS='REPLACE')
-!    DO r=1,nDOFelem
-!      WRITE(103,strfmt)BJ(r,:)
-!    END DO
-!    CLOSE(103)
-!  END IF
-!END IF
-!
-!CALL MPI_BARRIER(MPI_COMM_WORLD,ierror)
-!STOP
-
-! prepare ILU0 for storage in decomposed tensor scheme
-vn1 = PP_nVar * (PP_N + 1)
-vn2 = vn1 * (PP_N +1)
-l=1
-DO s=0,nDOFElem-PP_nVar,PP_nVar
-!  print*,'s,sp,spp',s,s+1,s+PP_nVar
-  DiagBILU0(:,:,l,iElem)=GETINVERSE(PP_nVar,BJ(s+1:s+PP_nVar,s+1:s+PP_nVar))
-  BJ(s+1:s+PP_nVar,s+1:s+PP_nVar)=0.
-  l=l+1
-END DO ! s
-
-! now, store the values in xi, eta and zeta
-! xi-direction
-DO k=0,PP_N
-  DO j=0,PP_N
-    DO i=0,PP_N
-      vni=PP_nVar*i
-      r = vn2 * k + vn1 * j + PP_nVar * i
-      DO l=0,PP_N
-        vnl=l*PP_nVar
-        s = vn2 * k + vn1 * j + PP_nVar * l
-        !print*,'vni,vnl,i,l',vni,vnl,i,l
-        XiBILU0(vni+1:vni+PP_nVar,vnl+1:vnl+PP_nVar,j,k,iElem)=BJ(r+1:r+PP_nVar,s+1:s+PP_nVar) 
-      END DO ! l
-    END DO ! i
-  END DO ! j
-END DO ! k
-! eta-direction
-DO k=0,PP_N
-  DO j=0,PP_N
-    vnj=PP_nVar*j
-    DO i=0,PP_N
-      r = vn2 * k + vn1 * j + PP_nVar * i
-      DO l=0,PP_N
-        vnl=l*PP_nVar
-        s = vn2 * k + vn1 * l + PP_nVar * i
-        EtaBILU0(vnj+1:vnj+PP_nVar,vnl+1:vnl+PP_nVar,i,k,iElem)=BJ(r+1:r+PP_nVar,s+1:s+PP_nVar) 
-      END DO ! l
-    END DO ! i
-  END DO ! j
-END DO ! k
-! zeta-direction
-DO k=0,PP_N
-  vnk=PP_nVar*k
-  DO j=0,PP_N
-    DO i=0,PP_N
-      r = vn2 * k + vn1 * j + PP_nVar * i
-      DO l=0,PP_N
-        vnl=l*PP_nVar
-        s = vn2 * l + vn1 * j + PP_nVar * i
-        ZetaBILU0(vnk+1:vnk+PP_nVar,vnl+1:vnl+PP_nVar,i,j,iElem)=BJ(r+1:r+PP_nVar,s+1:s+PP_nVar) 
-      END DO ! l
-    END DO ! i
-  END DO ! j
-END DO ! k
-
-END SUBROUTINE BuildBILU0
 
 SUBROUTINE BuildBILU0BCSR(BJ,iElem)
 !===================================================================================================================================

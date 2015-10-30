@@ -211,25 +211,22 @@ tLBStart = LOCALTIME() ! LB Time Start
 CALL StartSendMPIData(PP_nVar,U_Plus,SideID_plus_lower,SideID_plus_upper,SendRequest_U,SendID=2) ! Send YOUR
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
-
+tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
 
-tLBStart = LOCALTIME() ! LB Time Start
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.FALSE.)
-
 ! Nullify arrays
 ! NOTE: IF NEW DG_VOLINT AND LIFTING_VOLINT ARE USED AND CALLED FIRST,
 !       ARRAYS DO NOT NEED TO BE NULLIFIED, OTHERWISE THEY HAVE TO!
 !CALL VNullify(nTotalU,Ut)
 Ut=0.
-
 ! compute volume integral contribution and add to ut, first half of all elements
 CALL VolInt(Ut,dofirstElems=.TRUE.)
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
 #ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 ! Complete send / receive
 tLBStart = LOCALTIME() ! LB Time Start
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
@@ -255,20 +252,20 @@ CALL StartSendMPIData(PP_nVar,Flux,1,nSides,SendRequest_Flux,SendID=1) ! Send YO
 !CALL StartExchangeMPIData(PP_nVar,Flux,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
+tLBStart = LOCALTIME() ! LB Time Start
 #endif /* MPI*/
 
 ! fill the all surface fluxes on this proc
-tLBStart = LOCALTIME() ! LB Time Start
 CALL FillFlux(t,tDeriv,Flux,U_Minus,U_Plus,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
 CALL SurfInt(Flux,Ut,doMPISides=.FALSE.)
 
 ! compute volume integral contribution and add to ut
 CALL VolInt(Ut,dofirstElems=.FALSE.)
-tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
 #ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 ! Complete send / receive
 tLBStart = LOCALTIME() ! LB Time Start
 CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
@@ -280,16 +277,18 @@ tLBStart = LOCALTIME() ! LB Time Start
 CALL SurfInt(Flux,Ut,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
+tLBStart = LOCALTIME() ! LB Time Start
 #endif
 
-tLBStart = LOCALTIME() ! LB Time Start
 ! swap and map to physical space
 CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
 
 ! Add Source Terms
 IF(doSource) CALL CalcSource(tStage,1.0,Ut)
+#ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
+#endif /*MPI*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
 

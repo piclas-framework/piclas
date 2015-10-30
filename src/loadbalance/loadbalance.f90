@@ -13,6 +13,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+#ifdef MPI
 INTERFACE InitLoadBalance
   MODULE PROCEDURE InitLoadBalance
 END INTERFACE
@@ -41,16 +42,14 @@ INTERFACE LoadMeasure
   MODULE PROCEDURE LoadMeasure
 END INTERFACE
 
-INTERFACE CountPartsPerElem
-  MODULE PROCEDURE CountPartsPerElem
-END INTERFACE
-
 PUBLIC::InitLoadBalance,FinalizeLoadBalance,LoadBalance,LoadMeasure,CalculateProcWeights
-PUBLIC::ComputeParticleWeightAndLoad,CountPartsPerElem
+PUBLIC::ComputeParticleWeightAndLoad
+#endif /*MPI*/
 !===================================================================================================================================
 
 CONTAINS
 
+#ifdef MPI
 SUBROUTINE InitLoadBalance()
 !===================================================================================================================================
 ! init load balancing, new initialization of variables for load balancing
@@ -61,8 +60,6 @@ USE MOD_Preproc
 USE MOD_LoadBalance_Vars
 USE MOD_ReadInTools,          ONLY:GETLOGICAL, GETREAL, GETINT
 USE MOD_Analyze_Vars,         ONLY:Analyze_dt
-#ifdef MPI
-#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -184,7 +181,6 @@ ELSE
   TotalLoad(13)=0.
 END IF
 
-#ifdef MPI
   ! communication to root
   IF(MPIRoot)THEN
     ALLOCATE(GlobalLoad(1:2,1:13,0:nProcessors-1))
@@ -194,11 +190,11 @@ END IF
   END IF
   CALL MPI_GATHER(LoadSum  ,13,MPI_DOUBLE_PRECISION,GlobalLoad(1,:,:),13,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
   CALL MPI_GATHER(TotalLoad,13,MPI_DOUBLE_PRECISION,GlobalLoad(2,:,:),13,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
-#else
-  ALLOCATE(GlobalLoad(1:2,1:13,0))
-  GlobalLoad(1,:,:) = LoadSum
-  GlobalLoad(2,:,:) = TotalLoad
-#endif /*MPI*/
+
+! no mpi
+!  ALLOCATE(GlobalLoad(1:2,1:13,0))
+!  GlobalLoad(1,:,:) = LoadSum
+!  GlobalLoad(2,:,:) = TotalLoad
 
 ! compute weights
 IF(MPIRoot)THEN
@@ -291,9 +287,8 @@ IF(MPIRoot)THEN
       __STAMP__,' No valid PartWeightMethod defined!')
   END SELECT
 END IF
-#ifdef MPI
+
   CALL MPI_BCAST (ParticleMPIWeight,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
-#endif /*MPI*/
  
 ! write load info to file
 IF(MPIRoot)THEN
@@ -378,10 +373,8 @@ USE MOD_Boltzplatz_Tools,      ONLY:InitBoltzplatz,FinalizeBoltzplatz
 USE MOD_LoadBalance_Vars,      ONLY:DeviationThreshold,LastImbalance
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,          ONLY:DepositionType
-#ifdef MPI
 USE MOD_Particle_MPI,          ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,     ONLY:PartMPIExchange
-#endif
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -428,7 +421,6 @@ END IF
 LastImbalance=NewImBalance
 
 #ifdef PARTICLES
-#ifdef MPI
 IF (DepositionType.EQ."shape_function") THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
@@ -439,7 +431,6 @@ IF (DepositionType.EQ."shape_function") THEN
   ! finish communication
   CALL MPIParticleRecv()
 END IF
-#endif /*MPI*/
 #endif /*PARTICLES*/
 
 SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
@@ -476,7 +467,7 @@ tTotal=tTotal+tCurrent
   nLocalParts=REAL(nCurrentParts)/REAL(nRKStages) ! parts per stage
 #else
   nLocalParts=REAL(nCurrentParts)
-#endif
+#endif /*TimeDiscMethod*/
 
 nTotalParts=nTotalParts+nLocalParts
 
@@ -597,33 +588,6 @@ SDEALLOCATE( ElemWeight )
 InitLoadBalanceIsDone = .FALSE.
 
 END SUBROUTINE FinalizeLoadBalance
-
-
-SUBROUTINE CountPartsPerElem()
-!===================================================================================================================================
-! Deallocate arrays
-!===================================================================================================================================
-! MODULES
-USE MOD_LoadBalance_Vars,        ONLY: nPartsPerElem
-USE MOD_Particle_Vars,           ONLY: PDM,PEM
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: iPart, ElemID
-!===================================================================================================================================
-
-DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    ElemID = PEM%Element(iPart)
-    nPartsPerElem(ElemID)=nPartsPerElem(ElemID)+1
-  END IF
-END DO ! iPart=1,PDM%ParticleVecLength
-
-END SUBROUTINE CountPartsPerElem
+#endif /*MPI*/
 
 END MODULE MOD_LoadBalance
