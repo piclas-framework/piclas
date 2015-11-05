@@ -56,6 +56,9 @@ USE MOD_Restart_Vars,         ONLY:RestartFile
 USE MOD_PICDepo_Vars,         ONLY:OutputSource,Source
 USE MOD_Equation_Vars,        ONLY:c_corr,eps0
 #endif /*PARTICLES*/
+#ifdef MPI
+USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance
+#endif /*MPI*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars,        ONLY:E,Phi
 !USE MOD_Mesh_Vars,            ONLY:nElems, sJ
@@ -301,6 +304,10 @@ CALL WriteParticleToHDF5(FileName)
 
 CALL WriteAdditionalDataToHDF5(FileName)
 
+#ifdef MPI
+IF(DoLoadBalance) CALL WriteElemWeightToHDF5(FileName)
+#endif /*MPI*/
+
 !! Close the file.
 !CALL CloseDataFile()
 DEALLOCATE(Utemp)
@@ -314,6 +321,60 @@ END IF
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 #endif
 END SUBROUTINE WriteStateToHDF5
+
+
+SUBROUTINE WriteElemWeightToHDF5(FileName)
+!===================================================================================================================================
+! Write additional (elementwise scalar) data to HDF5
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars        ,ONLY:offsetElem,nGlobalElems
+USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,ElemWeight
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+INTEGER                        :: nVar
+!===================================================================================================================================
+
+nVar=1
+ALLOCATE(StrVarNames(nVar))
+StrVarNames(1)='ElemWeight'
+
+#ifdef MPI
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
+
+CALL WriteAttributeToHDF5(File_ID,'VarNamesLB',nVar,StrArray=StrVarNames)
+
+IF(nLoadBalance.EQ.0) THEN
+  IF(.NOT.ALLOCATED(ElemWeight)) RETURN
+  ElemTime=ElemWeight
+END IF
+
+CALL WriteArrayToHDF5(DataSetName='ElemWeight', rank=1,&
+                    nValGlobal=(/nGlobalElems/),       &
+                    nVal=      (/PP_nElems/),          &
+                    offset=    (/offsetElem/),         &
+                    collective=.TRUE., existing=.FALSE., RealArray=ElemTime)
+
+CALL CloseDataFile()
+DEALLOCATE(StrVarNames)
+
+ElemTime=0.
+
+END SUBROUTINE WriteElemWeightToHDF5
+
 
 SUBROUTINE WriteAdditionalDataToHDF5(FileName)
 !===================================================================================================================================
@@ -853,6 +914,9 @@ SUBROUTINE FlushHDF5(FlushTime_In)
 USE MOD_Globals
 USE MOD_Output_Vars,ONLY:ProjectName
 USE MOD_HDF5_Input,ONLY:GetHDF5NextFileName
+#ifdef MPI
+USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,nLoadBalance
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -867,6 +931,10 @@ REAL                     :: FlushTime
 CHARACTER(LEN=255)       :: FileName,InputFile,NextFile
 !===================================================================================================================================
 IF(.NOT.MPIRoot) RETURN
+
+#ifdef MPI
+IF(DoLoadBalance .AND. nLoadBalance.GT.0) RETURN
+#endif /*MPI*/
 
 WRITE(UNIT_stdOut,'(a)')' DELETING OLD HDF5 FILES...'
 IF (.NOT.PRESENT(FlushTime_In)) THEN

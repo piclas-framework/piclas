@@ -626,7 +626,7 @@ DO iPart=1,PDM%ParticleVecLength
     IF(ALMOSTEQUAL(Distance(iBGMELem),-1.0)) CYCLE
     ElemID=ListDistance(iBGMElem)
 #ifdef MPI
-    nTracksPerElem(ElemID)=nTracksPerElem(ElemID)+1
+    IF(ElemID.LE.PP_nElems) nTracksPerElem(ElemID)=nTracksPerElem(ElemID)+1
 #endif /*MPI*/
     CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
     !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside

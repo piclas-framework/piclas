@@ -45,19 +45,30 @@ SUBROUTINE StartParticleMerge()
 ! Particle Merge routine
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars, ONLY : doParticleMerge, nSpecies,vMPFMergeParticleTarget,vMPF_SpecNumElem,vMPFSplitParticleTarget
-  USE MOD_Mesh_Vars,     ONLY : nElems
+USE MOD_Globals,          ONLY: LocalTime
+USE MOD_Particle_Vars,    ONLY: doParticleMerge, nSpecies,vMPFMergeParticleTarget,vMPF_SpecNumElem,vMPFSplitParticleTarget
+USE MOD_Mesh_Vars,        ONLY: nElems
+#ifdef MPI
+USE MOD_LoadBalance_Vars, ONLY: ElemTime
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                         :: iElem, iSpec
+INTEGER                         :: iElem, iSpec
+#ifdef MPI
+! load balance
+REAL                             :: tLBStart,tLBEnd
+#endif /*MPI*/
 !===================================================================================================================================
 DO iElem = 1, nElems
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
   DO iSpec= 1, nSpecies
     IF ((vMPFMergeParticleTarget.GT.0).AND.(vMPF_SpecNumElem(iElem,iSpec).GT.vMPFMergeParticleTarget*2)) THEN
       CALL MergeParticles(iElem, vMPFMergeParticleTarget, vMPF_SpecNumElem(iElem,iSpec), iSpec)
@@ -66,6 +77,10 @@ DO iElem = 1, nElems
       CALL MergeParticles(iElem, vMPFSplitParticleTarget, vMPF_SpecNumElem(iElem,iSpec), iSpec)
     END IF
   END DO
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
 END DO
 doParticleMerge=.false.
 END SUBROUTINE StartParticleMerge

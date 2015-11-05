@@ -46,7 +46,7 @@ USE MOD_ReadInTools         ,ONLY: GETSTR,GETINT,GETLOGICAL,GETREAL
 USE MOD_Interpolation_Vars  ,ONLY: InterpolationInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RPDefFile,RP_inUse,RP_onProc,RecordpointsInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RP_MaxBuffersize,RP_SamplingOffset
-USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,lastSample
+USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,lastSample,iSample,nSamples
 #ifdef MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
 #endif
@@ -71,6 +71,9 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RECORDPOINTS...'
 
+nRP=0
+iSample=0
+nSamples=0
 RPDefFile=GETSTR('RP_DefFile')                        ! Filename with RP coords
 CALL ReadRPList(RPDefFile) ! RP_inUse is set to FALSE by ReadRPList if no RP is on proc.
 maxRP=nGlobalRP
@@ -86,6 +89,7 @@ IF(RP_onProc)THEN
   CALL MPI_ALLREDUCE(nRP,maxRP,1,MPI_INTEGER,MPI_MAX,RP_COMM,iError)
 # endif /*MPI*/
   RP_MaxBufferSize = CEILING(RP_MaxMemory)*131072/(maxRP*(PP_nVar+1)) != size in bytes/(real*maxRP*nVar)
+  SDEALLOCATE(lastSample)
   ALLOCATE(lastSample(0:PP_nVar,nRP))
 END IF
 
@@ -320,11 +324,14 @@ END IF
 IF(.NOT.ALLOCATED(RP_Data))THEN
   ! Compute required buffersize from timestep and add 10% tolerance
   RP_Buffersize = MIN(CEILING((1.05*Analyze_dt)/(dt*RP_SamplingOffset))+1,RP_MaxBuffersize)
+  !IPWRITE(*,*) 'buffer',rp_buffersize,rp_maxbuffersize
   ALLOCATE(RP_Data(0:PP_nVar,nRP,RP_Buffersize))
+  RP_Data=0.
 END IF
 
 ! evaluate state at RP
 iSample=iSample+1
+!IPWRITE(*,*) 'Sampling ...',iSample,size(U_RP),size(RP_Data),nRP,RP_BufferSize
 U_RP=0.  
 DO iRP=1,nRP
   DO k=0,PP_N
@@ -397,7 +404,11 @@ CALL OpenDataFile(Filestring,create=.NOT.RP_fileExists)
 
 IF(iSample.GT.0)THEN
   ! write buffer into file, we need two offset dimensions (one buffer, one processor)
+  !CALL MPI_BARRIER(RP_COMM,iError)
   nSamples=nSamples+iSample
+  !IPWRITE(*,*) 'blabla',iSample,nSamples,nRP,size(RP_Data),size(LastSample),RP_BufferSize
+  !IPWRITE(*,*) 'values',RP_data(8,nRP,iSample)
+  !CALL MPI_BARRIER(RP_COMM,iError)
   CALL WriteArrayToHDF5(DataSetName='RP_Data', rank=3,&
                         nValGlobal=(/PP_nVar+1,nGlobalRP,nSamples/),&
                         nVal=      (/PP_nVar+1,nRP      ,iSample/),&
@@ -458,6 +469,7 @@ SUBROUTINE FinalizeRecordPoints()
 ! Deallocate RP arrays 
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_RecordPoints_Vars
 USE MOD_LoadBalance_Vars, ONLY:DoLoadBalance
 ! IMPLICIT VARIABLE HANDLING
@@ -469,8 +481,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF(.NOT.DoLoadBalance) THEN
-  SDEALLOCATE(RP_Data)
+IF(DoLoadBalance)THEN
+  IF(RP_onProc)THEN
+    SDEALLOCATE(RP_Data)
+    CALL MPI_COMM_FREE(RP_Comm,iERROR)
+  END IF
+  nRP=0
+  RP_onProc=.FALSE.
 END IF
 SDEALLOCATE(RP_ElemID)
 SDEALLOCATE(L_xi_RP)

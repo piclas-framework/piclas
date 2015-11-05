@@ -28,6 +28,7 @@ SUBROUTINE DSMC_main()
 ! Performs DSMC routines (containing loop over all cells)
 !===================================================================================================================================
 ! MODULES
+  USE MOD_Globals,               ONLY : LocalTime
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
@@ -48,6 +49,9 @@ SUBROUTINE DSMC_main()
   USE MOD_Particle_Vars,         ONLY : WriteMacroValues
   USE MOD_Restart_Vars,          ONLY : RestartTime
 #endif
+#ifdef MPI
+  USE MOD_LoadBalance_Vars,      ONLY: ElemTime
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -61,6 +65,10 @@ SUBROUTINE DSMC_main()
 #if (PP_TimeDiscMethod!=1001)
   INTEGER           :: nOutput
 #endif
+#ifdef MPI
+! load balance
+  REAL                             :: tLBStart,tLBEnd
+#endif /*MPI*/
 !===================================================================================================================================
 
   DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
@@ -70,6 +78,9 @@ SUBROUTINE DSMC_main()
 
   IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas 
   DO iElem = 1, nElems ! element/cell main loop
+#ifdef MPI
+    tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
 #if (PP_TimeDiscMethod==1001)
     IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
 #endif
@@ -127,6 +138,10 @@ SUBROUTINE DSMC_main()
 #if (PP_TimeDiscMethod==1001)
     END IF  ! --- END DSMC Cell?
 #endif
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
   END DO ! iElem Loop
 ! Output!
 #if (PP_TimeDiscMethod!=1001) /* --- LD-DSMC Output in timedisc */

@@ -495,12 +495,12 @@ IF(CalcTemp)    CALL CalcTemperature(Temp, NumSpec)
 IF(CalcVelos)   CALL CalcVelocities(PartVtrans, PartVtherm)
 IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
+tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
 
 tLBStart = LOCALTIME() ! LB Time Start
 IF(CalcEpot)    CALL CalcPotentialEnergy(WEl,WMag)
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
+tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
 
 ! MPI Communication
 #ifdef MPI
@@ -510,13 +510,13 @@ IF (PartMPI%MPIRoot) THEN
   IF(CalcNumSpec) &
     CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
+  tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
   IF (CalcEpot) THEN 
     tLBStart = LOCALTIME() ! LB Time Start
     CALL MPI_REDUCE(MPI_IN_PLACE,WEl , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,WMag, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
     tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
+    tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
   END IF
   tLBStart = LOCALTIME() ! LB Time Start
   IF (CalcEkin) &
@@ -532,19 +532,19 @@ IF (PartMPI%MPIRoot) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
+  tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
 ELSE ! no Root
   tLBStart = LOCALTIME() ! LB Time Start
   IF(CalcNumSpec) &
     CALL MPI_REDUCE(NumSpec,RECBIM,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
+  tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
   IF (CalcEpot) THEN 
     tLBStart = LOCALTIME() ! LB Time Start
     CALL MPI_REDUCE(WEl,RECBR1  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     CALL MPI_REDUCE(WMag,RECBR1,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM, IERROR)
     tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
+    tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
   END IF
   tLBStart = LOCALTIME() ! LB Time Start
   IF (CalcEkin) &
@@ -558,7 +558,7 @@ ELSE ! no Root
     CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
+  tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
 END IF
 #endif
 
@@ -758,7 +758,7 @@ END IF ! DoAnalyze
 
 IF( CalcPartBalance) CALL CalcParticleBalance()
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
+tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
 
 #if ( PP_TimeDiscMethod ==42 )
 DSMC%CollProbOut(1,1) = 0.0
@@ -1332,6 +1332,7 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
 END SUBROUTINE CalcVelocities
 
 
+#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==42)
 SUBROUTINE CalcIntTempsAndEn(IntTemp, IntEn)
 !===================================================================================================================================
 ! Calculation of internal Temps (TVib, TRot)
@@ -1449,8 +1450,10 @@ RealNumSpec  = 0.0
   END DO
 
 END SUBROUTINE CalcIntTempsAndEn
+#endif
 
 
+#if (PP_TimeDiscMethod==42)
 SUBROUTINE CollRates(CRate) 
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -1583,6 +1586,7 @@ INTEGER                         :: iReac
   END DO
   ChemReac%NumReac = 0
 END SUBROUTINE ReacRates
+#endif 
 
 #if ( PP_TimeDiscMethod == 42)
 SUBROUTINE ElectronicTransition (  Time, NumSpec )

@@ -79,7 +79,7 @@ CALL FinalizeDG()
 #ifdef IMEX
 CALL FinalizeCSR()
 CALL FinalizeLinearSolver()
-#endif IMEX
+#endif /*IMEX*/
 CALL FinalizePML()
 CALL FinalizeEquation()
 CALL FinalizeBC()

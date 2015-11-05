@@ -592,15 +592,15 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 ! Perform mapping for surface output
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Particle_Tracking_vars, ONLY:DoRefMapping
-USE MOD_Mesh_Vars,              ONLY:SurfElem
-USE MOD_DSMC_Vars,              ONLY:nSurfSample,XiEQ_Surf,deltaXiEQ_Surf
-USE MOD_Basis,                  ONLY:BarycentricWeights,InitializeVandermonde
-USE MOD_Interpolation_Vars,     ONLY:xGP,wBary
-USE MOD_ChangeBasis,            ONLY:ChangeBasis2D
-USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList,nTotalBCSides,nTotalSides
+! USE MOD_Globals
+! USE MOD_Preproc
+! USE MOD_Particle_Tracking_vars, ONLY:DoRefMapping
+! USE MOD_Mesh_Vars,              ONLY:SurfElem
+! USE MOD_DSMC_Vars,              ONLY:nSurfSample,XiEQ_Surf,deltaXiEQ_Surf
+! USE MOD_Basis,                  ONLY:BarycentricWeights,InitializeVandermonde
+! USE MOD_Interpolation_Vars,     ONLY:xGP,wBary
+! USE MOD_ChangeBasis,            ONLY:ChangeBasis2D
+! USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList,nTotalBCSides,nTotalSides
 
 !  USE MOD_Mesh_Vars,          ONLY:nBCSides, SideToElem, BC
 !  USE MOD_Particle_Vars,      ONLY:nSpecies
@@ -614,8 +614,8 @@ USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList,nTotalBCSides,nTotalSides
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                   :: p,q, iSide
-REAL,ALLOCATABLE          :: VDM_NGP_NSurfEQ(:,:)!, wBary_NSurfSample(:)
+! INTEGER                   :: p,q, iSide
+! REAL,ALLOCATABLE          :: VDM_NGP_NSurfEQ(:,:)!, wBary_NSurfSample(:)
 
 
 
@@ -749,10 +749,10 @@ SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping()
 ! Perform mapping for halo surface output of MPI case
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars,      ONLY : nSpecies
-  USE MOD_DSMC_Vars,          ONLY : SampWallHaloCell
-  USE MOD_DSMC_Vars,          ONLY : SurfMesh
-  USE MOD_Particle_Mesh_Vars, ONLY : PartBound
+!  USE MOD_Particle_Vars,      ONLY : nSpecies
+!  USE MOD_DSMC_Vars,          ONLY : SampWallHaloCell
+!  USE MOD_DSMC_Vars,          ONLY : SurfMesh
+!  USE MOD_Particle_Mesh_Vars, ONLY : PartBound
   !USE MOD_part_MPI_Vars,      ONLY : MPIGEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -762,7 +762,7 @@ SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping()
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                 :: iSide, iSampWallAlloc
+!  INTEGER                 :: iSide, iSampWallAlloc
 !===================================================================================================================================
 
   STOP
@@ -806,14 +806,14 @@ SUBROUTINE ReadinVTKFileBGG
 ! Readin of custom VTK file for non-constant background gas distribution
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_ReadInTools
+!  USE MOD_Globals
+!  USE MOD_ReadInTools
 #ifndef MPI
-  USE MOD_Mesh_Vars,              ONLY : nNodes
+!  USE MOD_Mesh_Vars,              ONLY : nNodes
 #endif
-  USE MOD_Mesh_Vars,              ONLY : nElems
-  USE MOD_Particle_Vars,          ONLY : BGGdataAtElem
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+!  USE MOD_Mesh_Vars,              ONLY : nElems
+!  USE MOD_Particle_Vars,          ONLY : BGGdataAtElem
+!  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -822,17 +822,17 @@ SUBROUTINE ReadinVTKFileBGG
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                :: unit_in
-  INTEGER                :: os !openStatus
-  CHARACTER(255)         :: VTKfile
-  CHARACTER(LEN=255)     :: cdummy, varname
-  INTEGER                :: npoints, iNode, ncells, icell, VI, icoord, iElem
-  REAL, ALLOCATABLE      :: VTKNodes(:,:), VTK_BGGdata_Cells(:,:),VTKCellsSP(:,:)
-  LOGICAL, ALLOCATABLE   :: IsAssociated1(:),IsAssociated2(:)
-  REAL                   :: x(3), Elem_SP(3)
-  INTEGER                :: iVTKcell, CellX, CellY, CellZ
-  INTEGER, ALLOCATABLE  :: VTKCells(:,:)
-  LOGICAL                :: InElementCheck
+!  INTEGER                :: unit_in
+!  INTEGER                :: os !openStatus
+!  CHARACTER(255)         :: VTKfile
+!  CHARACTER(LEN=255)     :: cdummy, varname
+!  INTEGER                :: npoints, iNode, ncells, icell, VI, icoord, iElem
+!  REAL, ALLOCATABLE      :: VTKNodes(:,:), VTK_BGGdata_Cells(:,:),VTKCellsSP(:,:)
+!  LOGICAL, ALLOCATABLE   :: IsAssociated1(:),IsAssociated2(:)
+!  REAL                   :: x(3), Elem_SP(3)
+!  INTEGER                :: iVTKcell, CellX, CellY, CellZ
+!  INTEGER, ALLOCATABLE  :: VTKCells(:,:)
+!  LOGICAL                :: InElementCheck
 !===================================================================================================================================
 
   STOP
@@ -1083,149 +1083,69 @@ SUBROUTINE ReadinVTKFileBGG
 END SUBROUTINE ReadinVTKFileBGG
 
 
-SUBROUTINE ParticleInsideQuad3D_DSMC(Node1,Node2,Node3,Node4,Point,InElementCheck)
-!===================================================================================================================================
-! Check if particle is inside quad (Copy for ReadinVTKFile BGG due to dependency issues)
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  REAL, INTENT(IN)                 :: Node1(3),Node2(3),Node3(3),Node4(3),Point(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-  LOGICAL, INTENT(OUT)             :: InElementCheck
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  REAL                             :: det(2), A(1:3,1:4), cross(3)
-  LOGICAL                          :: ConcaveElemSide
-!===================================================================================================================================
-
-  !CHECK WHETHER ElemSide is concave
-  A(:,1) = Node1(1:3) - Node4(1:3)
-  A(:,2) = Node2(1:3) - Node4(1:3)
-  A(:,3) = Node3(1:3) - Node4(1:3)
-
-  !--- compute cross product for vector 1 and 3
-  cross(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
-  cross(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
-  cross(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
-  !--- negative determinant of triangle 1 (points 1,3,2):
-  det(1) = cross(1) * A(1,2) + &
-                   cross(2) * A(2,2) + &
-                   cross(3) * A(3,2)
-  det(1) = -det(1)
-  IF (det(1).lt.0) THEN
-   ConcaveElemSide = .TRUE.
-  ELSE
-   ConcaveElemSide = .FALSE.
-  END IF
-
-  ! CHECK POINT
-  InElementCheck = .TRUE.
-
-  !--- A = vector from particle to node coords
-  IF(ConcaveElemSide) THEN
-   A(:,1) = Node2(1:3) - Point(1:3)
-   A(:,2) = Node3(1:3) - Point(1:3)
-   A(:,3) = Node4(1:3) - Point(1:3)
-   A(:,4) = Node1(1:3) - Point(1:3)
-  ELSE
-   A(:,1) = Node1(1:3) - Point(1:3)
-   A(:,2) = Node2(1:3) - Point(1:3)
-   A(:,3) = Node3(1:3) - Point(1:3)
-   A(:,4) = Node4(1:3) - Point(1:3)
-  END IF
-
-  !--- compute cross product for vector 1 and 3
-  cross(1) = A(2,1) * A(3,3) - A(3,1) * A(2,3)
-  cross(2) = A(3,1) * A(1,3) - A(1,1) * A(3,3)
-  cross(3) = A(1,1) * A(2,3) - A(2,1) * A(1,3)
-
-  !--- negative determinant of triangle 1 (points 1,3,2):
-  det(1) = cross(1) * A(1,2) + &
-                   cross(2) * A(2,2) + &
-                   cross(3) * A(3,2)
-  det(1) = -det(1)
-  !--- determinant of triangle 2 (points 1,3,4):
-  det(2) = cross(1) * A(1,4) + &
-                   cross(2) * A(2,4) + &
-                   cross(3) * A(3,4)
-  IF (det(1).lt.0) THEN
-   InElementCheck = .FALSE.
-  END IF
-  IF (det(2).lt.0) THEN
-   InElementCheck = .FALSE.
-  END IF
-
-  RETURN
-END SUBROUTINE ParticleInsideQuad3D_DSMC
-
-
-REAL FUNCTION CalcArea(iLocSide, Element)
+!REAL FUNCTION CalcArea(iLocSide, Element)
 !===================================================================================================================================
 ! Calculates area of mesh element
 !===================================================================================================================================
 ! MODULES
 !  USE MOD_Particle_Vars,          ONLY : GEO
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-
+!  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+!
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+!  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)         :: iLocSide, Element
+!  INTEGER, INTENT(IN)         :: iLocSide, Element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                        :: xNod1, xNod2, xNod3, xNod4 
-  REAL                        :: yNod1, yNod2, yNod3, yNod4 
-  REAL                        :: zNod1, zNod2, zNod3, zNod4 
-  REAL                        :: Vector1(1:3), Vector2(1:3), Vector3(1:3)
+!  REAL                        :: xNod1, xNod2, xNod3, xNod4 
+!  REAL                        :: yNod1, yNod2, yNod3, yNod4 
+!  REAL                        :: zNod1, zNod2, zNod3, zNod4 
+!  REAL                        :: Vector1(1:3), Vector2(1:3), Vector3(1:3)
 !===================================================================================================================================
-
-CalcArea=1.
-STOP
-!  xNod1 = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
-!  yNod1 = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
-!  zNod1 = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
 !
-!  xNod2 = GEO%NodeCoords(1,GEO%ElemSideNodeID(2,iLocSide,Element))
-!  yNod2 = GEO%NodeCoords(2,GEO%ElemSideNodeID(2,iLocSide,Element))
-!  zNod2 = GEO%NodeCoords(3,GEO%ElemSideNodeID(2,iLocSide,Element))
+!CalcArea=1.
+!STOP
+!!  xNod1 = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,Element))
+!!  yNod1 = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,Element))
+!!  zNod1 = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,Element))
+!!
+!!  xNod2 = GEO%NodeCoords(1,GEO%ElemSideNodeID(2,iLocSide,Element))
+!!  yNod2 = GEO%NodeCoords(2,GEO%ElemSideNodeID(2,iLocSide,Element))
+!!  zNod2 = GEO%NodeCoords(3,GEO%ElemSideNodeID(2,iLocSide,Element))
+!!
+!!  xNod3 = GEO%NodeCoords(1,GEO%ElemSideNodeID(3,iLocSide,Element))
+!!  yNod3 = GEO%NodeCoords(2,GEO%ElemSideNodeID(3,iLocSide,Element))
+!!  zNod3 = GEO%NodeCoords(3,GEO%ElemSideNodeID(3,iLocSide,Element))
+!!
+!!  xNod4 = GEO%NodeCoords(1,GEO%ElemSideNodeID(4,iLocSide,Element))
+!!  yNod4 = GEO%NodeCoords(2,GEO%ElemSideNodeID(4,iLocSide,Element))
+!!  zNod4 = GEO%NodeCoords(3,GEO%ElemSideNodeID(4,iLocSide,Element))
+!!
+!!  Vector1(1) = xNod2 - xNod1
+!!  Vector1(2) = yNod2 - yNod1
+!!  Vector1(3) = zNod2 - zNod1
+!!
+!!  Vector2(1) = xNod3 - xNod1
+!!  Vector2(2) = yNod3 - yNod1
+!!  Vector2(3) = zNod3 - zNod1
+!!
+!!  Vector3(1) = xNod4 - xNod1
+!!  Vector3(2) = yNod4 - yNod1
+!!  Vector3(3) = zNod4 - zNod1
+!!
+!!  CalcArea = 0.5*(SQRT((Vector1(2)*Vector2(3)-Vector1(3)*Vector2(2))**2 &
+!!         + (-Vector1(1)*Vector2(3)+Vector1(3)*Vector2(1))**2 &
+!!         + (Vector1(1)*Vector2(2)-Vector1(2)*Vector2(1))**2) &
+!!         + SQRT((Vector3(2)*Vector2(3)-Vector3(3)*Vector2(2))**2 &
+!!         + (-Vector3(1)*Vector2(3)+Vector3(3)*Vector2(1))**2 &
+!!         + (Vector3(1)*Vector2(2)-Vector3(2)*Vector2(1))**2))
+!!
+!!  RETURN
 !
-!  xNod3 = GEO%NodeCoords(1,GEO%ElemSideNodeID(3,iLocSide,Element))
-!  yNod3 = GEO%NodeCoords(2,GEO%ElemSideNodeID(3,iLocSide,Element))
-!  zNod3 = GEO%NodeCoords(3,GEO%ElemSideNodeID(3,iLocSide,Element))
-!
-!  xNod4 = GEO%NodeCoords(1,GEO%ElemSideNodeID(4,iLocSide,Element))
-!  yNod4 = GEO%NodeCoords(2,GEO%ElemSideNodeID(4,iLocSide,Element))
-!  zNod4 = GEO%NodeCoords(3,GEO%ElemSideNodeID(4,iLocSide,Element))
-!
-!  Vector1(1) = xNod2 - xNod1
-!  Vector1(2) = yNod2 - yNod1
-!  Vector1(3) = zNod2 - zNod1
-!
-!  Vector2(1) = xNod3 - xNod1
-!  Vector2(2) = yNod3 - yNod1
-!  Vector2(3) = zNod3 - zNod1
-!
-!  Vector3(1) = xNod4 - xNod1
-!  Vector3(2) = yNod4 - yNod1
-!  Vector3(3) = zNod4 - zNod1
-!
-!  CalcArea = 0.5*(SQRT((Vector1(2)*Vector2(3)-Vector1(3)*Vector2(2))**2 &
-!         + (-Vector1(1)*Vector2(3)+Vector1(3)*Vector2(1))**2 &
-!         + (Vector1(1)*Vector2(2)-Vector1(2)*Vector2(1))**2) &
-!         + SQRT((Vector3(2)*Vector2(3)-Vector3(3)*Vector2(2))**2 &
-!         + (-Vector3(1)*Vector2(3)+Vector3(3)*Vector2(1))**2 &
-!         + (Vector3(1)*Vector2(2)-Vector3(2)*Vector2(1))**2))
-!
-!  RETURN
-
-END FUNCTION CalcArea
+!END FUNCTION CalcArea
 
 
 SUBROUTINE FinalizeDSMC() 

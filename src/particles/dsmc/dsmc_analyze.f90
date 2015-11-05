@@ -676,6 +676,9 @@ SUBROUTINE CalcSurfaceValues
   REAL                               :: TimeSample
   INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
 !===================================================================================================================================
+ 
+STOP
+ 
 #ifdef MPI
   CALL MPISurfaceValuesSend()  
 #endif
@@ -749,11 +752,11 @@ SUBROUTINE MPISurfaceValuesSend()
 ! MODULES
 !  USE MOD_part_MPI_Vars, ONLY : PMPIVAR, MPIGEO
   USE mpi
-  USE MOD_Globals,           ONLY:IERROR, MPISTATUS
-  USE MOD_DSMC_Vars,         ONLY:SurfMesh, SampWall, SampWallHaloCell
-  USE MOD_Mesh_Vars,         ONLY:ElemToSide
-  USE MOD_Particle_Vars,     ONLY:nSpecies
-  USE MOD_Particle_MPI_Vars, ONLY:PartMPI
+!  USE MOD_Globals,           ONLY:IERROR, MPISTATUS
+!  USE MOD_DSMC_Vars,         ONLY:SurfMesh, SampWall, SampWallHaloCell
+!  USE MOD_Mesh_Vars,         ONLY:ElemToSide
+!  USE MOD_Particle_Vars,     ONLY:nSpecies
+!  USE MOD_Particle_MPI_Vars, ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -762,24 +765,24 @@ SUBROUTINE MPISurfaceValuesSend()
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  TYPE tMPISurfContent
-    REAL, POINTER                    :: content(:) =>NULL()
-  END TYPE
-  INTEGER                            :: iSide, iProc, Element, iLocSide, iCount, iSampWallAlloc
-  INTEGER                            :: SurfSideID    
-  INTEGER, ALLOCATABLE               :: RecvMsgSurfs(:), SendMsgSurfs(:), PosCount(:)
-  TYPE(tMPISurfContent), POINTER     :: SendContent(:) => NULL()
-  TYPE(tMPISurfContent), POINTER     :: RecvContent(:) => NULL()
+!  TYPE tMPISurfContent
+!    REAL, POINTER                    :: content(:) =>NULL()
+!  END TYPE
+!  INTEGER                            :: iSide, iProc, Element, iLocSide, iCount, iSampWallAlloc
+!  INTEGER                            :: SurfSideID    
+!  INTEGER, ALLOCATABLE               :: RecvMsgSurfs(:), SendMsgSurfs(:), PosCount(:)
+!  TYPE(tMPISurfContent), POINTER     :: SendContent(:) => NULL()
+!  TYPE(tMPISurfContent), POINTER     :: RecvContent(:) => NULL()
 !===================================================================================================================================
 
-  ALLOCATE(SendMsgSurfs(0:PartMPI%nProcs-1))
-  ALLOCATE(RecvMsgSurfs(0:PartMPI%nProcs-1))
-  ALLOCATE(SendContent (0:PartMPI%nProcs-1))
-  ALLOCATE(RecvContent (0:PartMPI%nProcs-1))
-  ALLOCATE(PosCount    (0:PartMPI%nProcs-1))
-  PosCount    (0:PartMPI%nProcs-1) = 0
-  SendMsgSurfs(0:PartMPI%nProcs-1) = 0
-  RecvMsgSurfs(0:PartMPI%nProcs-1) = 0
+!  ALLOCATE(SendMsgSurfs(0:PartMPI%nProcs-1))
+!  ALLOCATE(RecvMsgSurfs(0:PartMPI%nProcs-1))
+!  ALLOCATE(SendContent (0:PartMPI%nProcs-1))
+!  ALLOCATE(RecvContent (0:PartMPI%nProcs-1))
+!  ALLOCATE(PosCount    (0:PartMPI%nProcs-1))
+!  PosCount    (0:PartMPI%nProcs-1) = 0
+!  SendMsgSurfs(0:PartMPI%nProcs-1) = 0
+!  RecvMsgSurfs(0:PartMPI%nProcs-1) = 0
 
 !---- calculation of send-massages number for each proc
 STOP
@@ -1088,13 +1091,13 @@ SUBROUTINE WriteOutputMeshSamp()
 ! Subroutine to write the mesh with sampling values of emistype6-BC as data
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars
-  USE MOD_Mesh_Vars,     ONLY : nElems!, nNodes
-  USE MOD_Globals
-#ifdef MPI
-  !USE MOD_part_MPI_Vars, ONLY : PMPIVAR
-  USE MOD_Particle_MPI_Vars, ONLY: PartMPI
-#endif
+!  USE MOD_Particle_Vars
+!  USE MOD_Mesh_Vars,     ONLY : nElems!, nNodes
+!  USE MOD_Globals
+!#ifdef MPI
+!  !USE MOD_part_MPI_Vars, ONLY : PMPIVAR
+!  USE MOD_Particle_MPI_Vars, ONLY: PartMPI
+!#endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1104,100 +1107,101 @@ SUBROUTINE WriteOutputMeshSamp()
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-  INTEGER                          :: iInit                                                          
-  CHARACTER(LEN=255)              :: myFileName
-  INTEGER                          :: iElem, iNode, iSpec, Elem
-  REAL, ALLOCATABLE               :: ElemSampOutput(:,:)
+!  INTEGER                          :: iInit                                                          
+!  CHARACTER(LEN=255)              :: myFileName
+!  INTEGER                          :: iElem, iNode, iSpec, Elem
+!  REAL, ALLOCATABLE               :: ElemSampOutput(:,:)
+!  !INTEGER
 !===================================================================================================================================
 
   STOP 
-  ALLOCATE (ElemSampOutput(nElems,0:6))
-#ifdef MPI
-  WRITE(myFileName,'(A13,I5.5)')'DSMCMesh_Samp',PartMPI%MyRank
-  myFileName=TRIM(TIMESTAMP(myFileName,Time))//'.vtk'
-#else
-  myFileName=TRIM(TIMESTAMP('DSMCMesh_Samp',Time))//'.vtk'
-#endif
-  OPEN(1503,FILE=myFileName,STATUS='replace')
-  WRITE(1503,'(A26)')'# vtk DataFile Version 2.0'
-  WRITE(1503,'(A)')'Debug Mesh2 '
-  WRITE(1503,'(A)')'ASCII'
-  WRITE(1503,'(A)')'DATASET UNSTRUCTURED_GRID'
-  WRITE(1503,'(A)')''
-! WRITE(1503,'(A,I0,A)')'POINTS ',nNodes,' FLOAT'
-!  DO iNode=1, nNodes
-!    WRITE(1503,*) GEO%NodeCoords(1:3, iNode)
-!  END DO
-  WRITE(1503,*)''
-  WRITE(1503,'(A,I0,1X,I0)')'CELLS ',nElems,9*nElems
-  DO iElem=1, nElems
-    WRITE(1503,'(I0)',ADVANCE="NO")8
-    !DO iNode=1, 8
-    !  !WRITE(1503,'(1X,I0)',ADVANCE="NO") GEO%ElemToNodeID(iNode,iElem) -1
-    !END DO
-    WRITE(1503,*)''
-  END DO
-  WRITE(1503,*)''
-  WRITE(1503,'(A,I0)')'CELL_TYPES ',nElems
-  DO iElem=1,nElems
-    WRITE(1503,'(1X,I0)',ADVANCE="NO")12
-  END DO
-  WRITE(1503,*)''
-  WRITE(1503,*)''
-  WRITE(1503,'(A,I0)')'CELL_DATA ',nElems
-  DO iSpec=1, nSpecies
-    !write Samplingvalues in array of all elements
-    ElemSampOutput(:,:)=0.
-    DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
-      IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.6) THEN
-        DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
-          Elem = Species(iSpec)%Init(iInit)%ConstPress%ElemTotalInside(iElem)
-          IF (ElemSampOutput(Elem,0).EQ.0.) THEN
-            ElemSampOutput(Elem,0)=1.
-            ElemSampOutput(Elem,1:6)=Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(iElem,1:6)
-          END IF
-        END DO
-      END IF
-    END DO
-    !write data
-    WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_status_', iSpec, ' FLOAT'
-    WRITE(1503,'(A)')'LOOKUP_TABLE default'
-    DO iElem = 1, nElems
-      WRITE(1503,*) ElemSampOutput(iElem,0)
-    END DO
-    WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_vx_', iSpec, ' FLOAT'
-    WRITE(1503,'(A)')'LOOKUP_TABLE default'
-    DO iElem = 1, nElems
-      WRITE(1503,*) ElemSampOutput(iElem,1)
-    END DO
-    WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_vy_', iSpec, ' FLOAT'
-    WRITE(1503,'(A)')'LOOKUP_TABLE default'
-    DO iElem = 1, nElems
-      WRITE(1503,*) ElemSampOutput(iElem,2)
-    END DO
-    WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_vz_', iSpec, ' FLOAT'
-    WRITE(1503,'(A)')'LOOKUP_TABLE default'
-    DO iElem = 1, nElems
-      WRITE(1503,*) ElemSampOutput(iElem,3)
-    END DO
-    WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_n_', iSpec, ' FLOAT'
-    WRITE(1503,'(A)')'LOOKUP_TABLE default'
-    DO iElem = 1, nElems
-      WRITE(1503,*) ElemSampOutput(iElem,4)
-    END DO
-    WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_p_', iSpec, ' FLOAT'
-    WRITE(1503,'(A)')'LOOKUP_TABLE default'
-    DO iElem = 1, nElems
-      WRITE(1503,*) ElemSampOutput(iElem,5)
-    END DO
-    WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_a2_', iSpec, ' FLOAT'
-    WRITE(1503,'(A)')'LOOKUP_TABLE default'
-    DO iElem = 1, nElems
-      WRITE(1503,*) ElemSampOutput(iElem,6)
-    END DO
-  END DO
-  CLOSE(1503)
-  DEALLOCATE(ElemSampOutput)
+!   ALLOCATE (ElemSampOutput(nElems,0:6))
+! #ifdef MPI
+!   WRITE(myFileName,'(A13,I5.5)')'DSMCMesh_Samp',PartMPI%MyRank
+!   myFileName=TRIM(TIMESTAMP(myFileName,Time))//'.vtk'
+! #else
+!   myFileName=TRIM(TIMESTAMP('DSMCMesh_Samp',Time))//'.vtk'
+! #endif
+!   OPEN(1503,FILE=myFileName,STATUS='replace')
+!   WRITE(1503,'(A26)')'# vtk DataFile Version 2.0'
+!   WRITE(1503,'(A)')'Debug Mesh2 '
+!   WRITE(1503,'(A)')'ASCII'
+!   WRITE(1503,'(A)')'DATASET UNSTRUCTURED_GRID'
+!   WRITE(1503,'(A)')''
+! ! WRITE(1503,'(A,I0,A)')'POINTS ',nNodes,' FLOAT'
+! !  DO iNode=1, nNodes
+! !    WRITE(1503,*) GEO%NodeCoords(1:3, iNode)
+! !  END DO
+!   WRITE(1503,*)''
+!   WRITE(1503,'(A,I0,1X,I0)')'CELLS ',nElems,9*nElems
+!   DO iElem=1, nElems
+!     WRITE(1503,'(I0)',ADVANCE="NO")8
+!     !DO iNode=1, 8
+!     !  !WRITE(1503,'(1X,I0)',ADVANCE="NO") GEO%ElemToNodeID(iNode,iElem) -1
+!     !END DO
+!     WRITE(1503,*)''
+!   END DO
+!   WRITE(1503,*)''
+!   WRITE(1503,'(A,I0)')'CELL_TYPES ',nElems
+!   DO iElem=1,nElems
+!     WRITE(1503,'(1X,I0)',ADVANCE="NO")12
+!   END DO
+!   WRITE(1503,*)''
+!   WRITE(1503,*)''
+!   WRITE(1503,'(A,I0)')'CELL_DATA ',nElems
+!   DO iSpec=1, nSpecies
+!     !write Samplingvalues in array of all elements
+!     ElemSampOutput(:,:)=0.
+!     DO iInit = Species(iSpec)%StartnumberOfInits, Species(iSpec)%NumberOfInits
+!       IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.6) THEN
+!         DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
+!           Elem = Species(iSpec)%Init(iInit)%ConstPress%ElemTotalInside(iElem)
+!           IF (ElemSampOutput(Elem,0).EQ.0.) THEN
+!             ElemSampOutput(Elem,0)=1.
+!             ElemSampOutput(Elem,1:6)=Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(iElem,1:6)
+!           END IF
+!         END DO
+!       END IF
+!     END DO
+!     !write data
+!     WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_status_', iSpec, ' FLOAT'
+!     WRITE(1503,'(A)')'LOOKUP_TABLE default'
+!     DO iElem = 1, nElems
+!       WRITE(1503,*) ElemSampOutput(iElem,0)
+!     END DO
+!     WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_vx_', iSpec, ' FLOAT'
+!     WRITE(1503,'(A)')'LOOKUP_TABLE default'
+!     DO iElem = 1, nElems
+!       WRITE(1503,*) ElemSampOutput(iElem,1)
+!     END DO
+!     WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_vy_', iSpec, ' FLOAT'
+!     WRITE(1503,'(A)')'LOOKUP_TABLE default'
+!     DO iElem = 1, nElems
+!       WRITE(1503,*) ElemSampOutput(iElem,2)
+!     END DO
+!     WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_vz_', iSpec, ' FLOAT'
+!     WRITE(1503,'(A)')'LOOKUP_TABLE default'
+!     DO iElem = 1, nElems
+!       WRITE(1503,*) ElemSampOutput(iElem,3)
+!     END DO
+!     WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_n_', iSpec, ' FLOAT'
+!     WRITE(1503,'(A)')'LOOKUP_TABLE default'
+!     DO iElem = 1, nElems
+!       WRITE(1503,*) ElemSampOutput(iElem,4)
+!     END DO
+!     WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_p_', iSpec, ' FLOAT'
+!     WRITE(1503,'(A)')'LOOKUP_TABLE default'
+!     DO iElem = 1, nElems
+!       WRITE(1503,*) ElemSampOutput(iElem,5)
+!     END DO
+!     WRITE(1503,'(A,I3.3,A)')'SCALARS PressureElem_a2_', iSpec, ' FLOAT'
+!     WRITE(1503,'(A)')'LOOKUP_TABLE default'
+!     DO iElem = 1, nElems
+!       WRITE(1503,*) ElemSampOutput(iElem,6)
+!     END DO
+!   END DO
+!   CLOSE(1503)
+!   DEALLOCATE(ElemSampOutput)
 END SUBROUTINE WriteOutputMeshSamp
 
 END MODULE MOD_DSMC_Analyze

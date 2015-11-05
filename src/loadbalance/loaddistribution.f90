@@ -30,6 +30,8 @@ SUBROUTINE SingleStepOptimalPartition(OldElems,NewElems,ElemWeight)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! calculate the optimal load partiton, subroutine taken from sparta.f90 of HALO
 ! modification for performance on root
+!
+! algorithm can lead to zero elements per proc!!!!
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES
 !
@@ -82,7 +84,7 @@ minRank = MAX(FLOOR(lowerBoundary/targetWeight),0)
 maxRank = MIN(CEILING(upperboundary / targetWeight),nProcessors-1)
 
 leftOff=1
-
+! retest algorithm with 1 element per proc!!
 DO iRank=minRank,maxRank
   lb = leftoff
   ub = OldElems

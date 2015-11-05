@@ -423,7 +423,10 @@ USE MOD_PIC_Vars
 USE MOD_Particle_Vars,         ONLY:Species,BoltzmannConst,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 USE MOD_Globals_Vars,          ONLY:PI, TwoepsMach
+USE MOD_Timedisc_Vars,         ONLY:dt, DoDisplayEmissionWarnings
+#if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_Timedisc_Vars,         ONLY:dt, iter, DoDisplayEmissionWarnings,IterDisplayStep, DoDisplayIter
+#endif
 USE MOD_Particle_Mesh,         ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
 USE MOD_PICInterpolation,      ONLY:InterpolateCurvedExternalField
@@ -1689,7 +1692,7 @@ REAL                             :: Velosq, v_sum(3), v2_sum, maxwellfac
 LOGICAL                          :: Is_BGGas
 REAL                             :: sigma(3), ftl, PartVelo 
 ! Maxwell-Juettner
-REAL                             :: eps, anta, BesselK2, famm, gamm_k, max_val, qq, u_max, value, velabs, xixi, f_gamm
+REAL                             :: eps, anta, BesselK2,  gamm_k, max_val, qq, u_max, value, velabs, xixi, f_gamm
 !===================================================================================================================================
 
 IF (PRESENT(Is_BGGas_opt)) THEN
@@ -2338,7 +2341,7 @@ USE MOD_Mesh_Vars,              ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh,          ONLY:SingleParticleToExactElement,SingleParticleToExactElementNoMap
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Eval_xyz,               ONLY:Eval_XYZ_Poly
-USE MOD_DSMC_Vars,              ONLY:useDSMC, CollisMode
+USE MOD_DSMC_Vars,              ONLY:CollisMode
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

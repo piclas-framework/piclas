@@ -38,7 +38,6 @@ USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars,ONLY: DoRefMapping
 USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToElem,GEO,ElemBaryNGeo
 #ifdef MPI
-USE MOD_Mesh_Vars,             ONLY : nInnerSides, nBCSides
 USE MOD_MPI_Vars
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -49,11 +48,10 @@ USE MOD_MPI_Vars
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, trinum, iLocSide, iNode, iPart, iInit, iSpec, SideID, Elem2,flip
-REAL                    :: NVecTest
-REAL                    :: OriginCube(3), CellCenterLocal(3)
+INTEGER                 :: iElem, trinum, iLocSide, iPart, iInit, iSpec, Elem2,flip
+REAL                    :: CellCenterLocal(3)
 #ifdef MPI
-INTEGER                 :: Element, MPINodeNum, MPINodeID, haloSideID, SumOfMPISides, EndOfMPINeighbor, iProc, OffsetInnerAndBCSides
+INTEGER                 :: Element,  SumOfMPISides, EndOfMPINeighbor, iProc, OffsetInnerAndBCSides
 #endif
 CHARACTER(32)           :: hilf
 !===================================================================================================================================
@@ -281,10 +279,6 @@ REAL FUNCTION CalcTriNumArea(Vector1,Vector2)
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-  INTEGER                     :: Nod2, Nod3
-  REAL                        :: xNod1, xNod2, xNod3 
-  REAL                        :: yNod1, yNod2, yNod3 
-  REAL                        :: zNod1, zNod2, zNod3 
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
   REAL, INTENT(IN)            :: Vector1(1:3), Vector2(1:3)
@@ -311,21 +305,18 @@ SUBROUTINE CalcLagNormVec(iLocSide, Element, trinum)
   USE MOD_Globals
   USE MOD_LD_Vars
   USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo,NGeo
-  USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToElem,ElemBaryNGeo,GEO
+  USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 !--------------------------------------------------------------------------------------------------!
    IMPLICIT NONE                                                                                   !
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-  INTEGER                     :: Nod2, Nod3
-  REAL                        :: xNod1, xNod2, xNod3 
-  REAL                        :: yNod1, yNod2, yNod3 
-  REAL                        :: zNod1, zNod2, zNod3 
   REAL                        :: Vector1(1:3), Vector2(1:3),nVecTest
   REAL                        :: nx, ny, nz, nVal
-  INTEGER                     :: flip,ElemID,locSideID,p,q
+  INTEGER                     :: flip,p,q
   REAL                        :: SideCoord(1:3,0:1,0:1)
   REAL                        :: SideCoord_tmp(1:3,0:1,0:1)
+  REAL                        :: xNod1,xnod2,xnod3,ynod1,ynod2,ynod3,znod1,znod2,znod3
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)         :: iLocSide, Element, trinum
@@ -567,7 +558,6 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
   REAL                        :: yNod1, yNod2, yNod3, yNod4 
   REAL                        :: zNod1, zNod2, zNod3, zNod4 
   REAL                        :: Vector1(3), Vector2(3),BaseVectorS(3),nVectest
-  REAL                        :: nx, ny, nz, nVal
   REAL                        :: SideCoord(1:3,0:1,0:1)!,SideCenter(1:3)
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES

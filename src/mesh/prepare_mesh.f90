@@ -273,7 +273,7 @@ IF(MPIroot)THEN
   WRITE(ioUnit,*)'total number of Procs,',nProcessors
   WRITE(ioUnit,*)'total number of Elems,',SUM(Procinfo_glob(1,:))
 
-  WRITE(ioUnit,'(10(A15))')'Rank','nElems','Parts','Load','nSides','nInnerSides','nBCSides','nMPISides','nMPISides_MINE','nNBProcs'
+  WRITE(ioUnit,'(10(A15))')'Rank','nElems','nParts','Load','nSides','nInnerSides','nBCSides','nMPISides','nMPISides_MINE','nNBProcs'
   WRITE(ioUnit,'(A120,A30)')&
       '======================================================================================================================='&
       ,'=============================='

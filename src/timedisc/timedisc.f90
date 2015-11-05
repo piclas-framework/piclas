@@ -168,7 +168,7 @@ USE MOD_Particle_MPI_Vars,     ONLY: PartMPIExchange
 USE MOD_Equation,              ONLY: EvalGradient
 #endif /*PP_POIS*/
 #ifdef MPI
-USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeightAndLoad
+USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeightAndLoad,ComputeElemLoad
 USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance,nSkipAnalyze
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -483,7 +483,8 @@ DO !iter_t=0,MaxIter
     END IF
     CalcTimeEnd=BOLTZPLATZTIME()
 #ifdef MPI
-    CALL ComputeParticleWeightAndLoad(CurrentImbalance,PerformLoadBalance)
+    !CALL ComputeParticleWeightAndLoad(CurrentImbalance,PerformLoadBalance)
+    CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance)
 #endif /*MPI*/
     ! future time
     nAnalyze=nAnalyze+1
@@ -525,6 +526,9 @@ DO !iter_t=0,MaxIter
     IF(DoLoadBalance .AND. t.LT.tEnd)THEN
       RestartTime=t
       CALL LoadBalance(CurrentImbalance,PerformLoadBalance)
+      dt_Min=CALCTIMESTEP()
+      dt=dt_Min
+      CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.TRUE.,OutPut=.FALSE.)
       ! CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture) ! not sure if required
     END IF
 #endif /*MPI*/
@@ -652,6 +656,11 @@ IF (t.GE.DelayTime) THEN
   CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
   CALL CalcPartRHS()
 END IF
+#ifdef MPI
+tLBEnd = LOCALTIME() ! LB Time End
+tCurrent(6)=tCurrent(6)+tLBEnd-tLBStart
+tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
 
 IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   ! because of emmision and UpdateParticlePosition
@@ -667,7 +676,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 END IF
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(6)=tCurrent(6)+tLBEnd-tLBStart
+tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
 #endif /*MPI*/
 #endif /*PARTICLES*/
 
@@ -761,7 +770,7 @@ IF (t.GE.DelayTime) THEN
                                        + Pt(1:PDM%ParticleVecLength,3)*b_dt(1)
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(8)=tCurrent(8)+tLBEnd-tLBStart
+tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
 #endif /*MPI*/
 END IF
 
@@ -770,7 +779,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   tLBStart = LOCALTIME() ! LB Time Start
   CALL IRecvNbofParticles()
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+  tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
 
@@ -793,7 +802,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   !CALL MPIParticleRecv()
   !PartMPIExchange%nMPIParticles=0
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+  tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
 #endif /*MPI*/
   !CALL Filter(U)
 END IF
@@ -814,30 +823,35 @@ DO iStage=2,nRKStages
      tLBStart = LOCALTIME() ! LB Time Start
      CALL MPIParticleSend()
      tLBEnd = LOCALTIME() ! LB Time End
-     tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
-#endif /*MPI*/
-!    ! deposition  
-#ifdef MPI
+     tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
      tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
+!    ! deposition  
      CALL Deposition(doInnerParts=.TRUE.)
 #ifdef MPI
      tLBEnd = LOCALTIME() ! LB Time End
-     tCurrent(6)=tCurrent(6)+tLBEnd-tLBStart
+     tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
      tLBStart = LOCALTIME() ! LB Time Start
      CALL MPIParticleRecv()
      tLBEnd = LOCALTIME() ! LB Time End
-     tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+     tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
      ! second buffer
      tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
      CALL InterpolateFieldToParticle(doInnerParts=.FALSE.)
      CALL CalcPartRHS()
+#ifdef MPI
+     tLBEnd = LOCALTIME() ! LB Time End
+     tCurrent(6)=tCurrent(6)+tLBEnd-tLBStart
+     tLBStart = LOCALTIME() ! LB Time Start
+     ! null here, careful
+#endif /*MPI*/
+
      CALL Deposition(doInnerParts=.FALSE.)
      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 #ifdef MPI
      tLBEnd = LOCALTIME() ! LB Time End
-     tCurrent(6)=tCurrent(6)+tLBEnd-tLBStart
+     tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
      ! null here, careful
      PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
@@ -935,12 +949,12 @@ DO iStage=2,nRKStages
                                        + Pt_temp(1:PDM%ParticleVecLength,6)*b_dt(iStage)
 #ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(8)=tCurrent(8)+tLBEnd-tLBStart
+    tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
     ! particle tracking
     tLBStart = LOCALTIME() ! LB Time Start
     CALL IRecvNbofParticles()
     tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+    tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
     ! actual tracking
     tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
@@ -960,7 +974,7 @@ DO iStage=2,nRKStages
     tLBStart = LOCALTIME() ! LB Time Start
     CALL SendNbOfParticles()
     tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+    tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
     !CALL MPIParticleSend()
     !CALL MPIParticleRecv()
     !PartMPIExchange%nMPIParticles=0
@@ -978,7 +992,7 @@ IF (t.GE.DelayTime) THEN
   CALL MPIParticleRecv()
   PartMPIExchange%nMPIParticles=0
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(9)=tCurrent(9)+tLBEnd-tLBStart
+  tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
 END IF 
 #endif /*MPI*/
 
@@ -994,7 +1008,7 @@ IF (doParticleMerge) THEN
   END IF
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
+  tCurrent(11)=tCurrent(11)+tLBEnd-tLBStart
 #endif /*MPI*/
 END IF
 
@@ -1006,7 +1020,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 END IF
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(11)=tCurrent(11)+tLBEnd-tLBStart
+tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
 #endif /*MPI*/
 
 IF (doParticleMerge) THEN
@@ -1022,13 +1036,13 @@ IF (doParticleMerge) THEN
   END IF
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(10)=tCurrent(10)+tLBEnd-tLBStart
+  tCurrent(11)=tCurrent(11)+tLBEnd-tLBStart
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
   CALL UpdateNextFreePosition()
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(11)=tCurrent(11)+tLBEnd-tLBStart
+  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
 #endif /*MPI*/
 END IF
 
@@ -1046,7 +1060,7 @@ IF (useDSMC) THEN
                                            + DSMC_RHS(1:PDM%ParticleVecLength,3)
 #ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
-    tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
+    tCurrent(8)=tCurrent(8)+tLBEnd-tLBStart
 #endif /*MPI*/
   END IF
 END IF

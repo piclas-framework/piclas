@@ -31,7 +31,7 @@ SUBROUTINE LD_data_sampling()
 ! MODULES
   USE MOD_LD_Vars
   USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, PartStateIntEn, CollisMode, SpecDSMC
-  USE MOD_Particle_Vars,          ONLY : PEM, PDM, PartSpecies, PartState, PartMPF, usevMPF
+  USE MOD_Particle_Vars,          ONLY : PEM, PDM, PartSpecies, PartMPF, usevMPF
 !--------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                   !
@@ -87,7 +87,7 @@ SUBROUTINE LD_output_calc()
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, MacroDSMC, CollisMode, SpecDSMC, realtime
   USE MOD_Mesh_Vars,              ONLY : nElems,MeshFile
-  USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species, PartSpecies, usevMPF
+  USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species,  usevMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_Analyze,           ONLY : WriteDSMCToHDF5, CalcTVib
   USE MOD_LD_Vars,                ONLY : LD_Residual, LD_CalcResidual

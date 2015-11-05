@@ -355,9 +355,6 @@ USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout,SurfMesh,SampWall
 USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues, WriteOutputMeshSamp
 USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
-#endif /*MPI*/
 #if (PP_TimeDiscMethod!=42)
 USE MOD_LD_Vars,               ONLY: useLD
 #endif
@@ -419,7 +416,7 @@ IF (CalcPoyntingInt) THEN
   IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
 #endif
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
+  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
 END IF
 
 ! fill recordpoints buffer
@@ -428,7 +425,7 @@ IF(RP_onProc) THEN
   tLBStart = LOCALTIME() ! LB Time Start
   CALL RecordPoints(iter,t,forceAnalyze,Output)
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
+  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
 END IF
 #endif
 
@@ -457,7 +454,7 @@ IF (DoAnalyze)  THEN
   END IF
   IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeField(t) 
   tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(12)=tCurrent(12)+tLBEnd-tLBStart
+  tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
 END IF
 
   !IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
@@ -566,7 +563,7 @@ IF(OutPut .AND. MeasureTrackTime)THEN
   tLocalization=0.
 END IF ! only during output like Doftime
 tLBEnd = LOCALTIME() ! LB Time End
-tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
+tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
 #endif /*PARTICLES*/
 
 END SUBROUTINE PerformAnalyze
