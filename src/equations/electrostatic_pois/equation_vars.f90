@@ -30,7 +30,12 @@ REAL              :: smu0
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff
-
+! Boundary condition arrays
+REAL,ALLOCATABLE     :: BCData(:,:,:,:)
+INTEGER,ALLOCATABLE  :: nBCByType(:)
+INTEGER,ALLOCATABLE  :: BCSideID(:,:)
+! can specify BC state
+CHARACTER(LEN=255):: BCStateFile
 CHARACTER(LEN=255),DIMENSION(4),PARAMETER :: StrVarNames(4)=(/ CHARACTER(LEN=255) :: 'Phi', &
                                                                                      'ThetaX', &
                                                                                      'ThetaY', &
@@ -46,5 +51,6 @@ INTEGER                               :: nTotalPhi
 ! interior face values for all elements
 REAL,ALLOCATABLE                      :: Phi_Minus(:,:,:,:),Phi_Plus(:,:,:,:)
 REAL,ALLOCATABLE                      :: FluxPhi(:,:,:,:)
+
 !===================================================================================================================================
 END MODULE MOD_Equation_Vars

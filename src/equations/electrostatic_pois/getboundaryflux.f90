@@ -20,8 +20,17 @@ END INTERFACE
 INTERFACE FillFlux_BC_Pois
   MODULE PROCEDURE FillFlux_BC
 END INTERFACE
+INTERFACE InitBC
+  MODULE PROCEDURE InitBC
+END INTERFACE
+
+INTERFACE FinalizeBC
+  MODULE PROCEDURE FinalizeBC
+END INTERFACE
+
 
 PUBLIC::GetBoundaryFlux,FillFlux_BC_Pois
+PUBLIC:: InitBC,FinalizeBC
 !===================================================================================================================================
 
 CONTAINS
