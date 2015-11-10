@@ -210,6 +210,7 @@ DO iBC=1,nBCs
      DO q=0,PP_N
        DO p=0,PP_N
          resul=U_Minus(:,p,q,SideID)
+	 U_Face_loc(1:3,p,q) =  resul(1:3)
          U_Face_loc(  4,p,q) = -resul(  4)
        END DO ! p
      END DO ! q

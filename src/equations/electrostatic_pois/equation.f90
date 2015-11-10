@@ -271,7 +271,7 @@ REAL,INTENT(IN)                 :: t
 REAL,INTENT(IN)                 :: coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: Ut(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem,RegionID

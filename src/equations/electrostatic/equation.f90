@@ -36,8 +36,8 @@ SUBROUTINE InitEquation()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,ONLY:PI
 USE MOD_ReadInTools
-USE MOD_Globals_Vars
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
 #endif
@@ -69,6 +69,7 @@ c_corr             = GETREAL('c_corr','1.')
 c                  = GETREAL('c0','1.')
 eps0               = GETREAL('eps','1.')
 mu0                = GETREAL('mu','1.')
+smu0               = 1./mu0
 fDamping           = GETREAL('fDamping','0.99')
 c_test = 1./SQRT(eps0*mu0)
 IF ( ABS(c-c_test)/c.GT.10E-8) THEN
@@ -211,7 +212,7 @@ REAL,INTENT(IN)                 :: t
 REAL,INTENT(IN)                 :: coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: Ut(1:4,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem

@@ -2022,7 +2022,7 @@ DO iStage=2,nRKStages
   ! solve to new stage 
   CALL LinearSolver(tstage,alpha)
     ! damping
-  CALL DivCleaningDamping()
+  !CALL DivCleaningDamping()
 END DO
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -2211,7 +2211,7 @@ ImplicitSource=0.
 CALL Newton(t,1.,1.)
 
 !CALL LinearSolver(tstage,coeff)
-CALL DivCleaningDamping()
+!CALL DivCleaningDamping()
 
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
