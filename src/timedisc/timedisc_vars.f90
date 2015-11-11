@@ -53,6 +53,10 @@ REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 #endif /*PP_NodeType*/
 #endif
 
+#if ((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42))
+INTEGER,PARAMETER  :: nRKStages=1
+#endif
+
 #if ((PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==5) || (PP_TimeDiscMethod==200) || (PP_TimeDiscMethod==201))
 ! Runge-Kutta 4 - Carpenter 1994 NASA Report
 INTEGER,PARAMETER  :: nRKStages=5
