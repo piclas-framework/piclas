@@ -565,9 +565,9 @@ USE MOD_Filter,                  ONLY: Filter
 USE MOD_Equation,                ONLY: DivCleaningDamping
 USE MOD_Equation,                ONLY: CalcSource
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
-USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
 #ifdef MPI
 USE MOD_LoadBalance_Vars,        ONLY: tCurrent
+USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
 #endif /*MPI*/
 #ifdef PP_POIS
 USE MOD_Equation,                ONLY: DivCleaningDamping_Pois,EvalGradient
@@ -645,7 +645,9 @@ tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(4)=tCurrent(4)+tLBEnd-tLBStart
 #endif /*MPI*/
 
+#ifdef MPI
 CALL CountPartsPerElem()
+#endif /*MPI*/
 
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
@@ -861,7 +863,9 @@ DO iStage=2,nRKStages
 !      CALL Deposition()
 !    END IF
   END IF
+#ifdef MPI
   CALL CountPartsPerElem()
+#endif /*MPI*/
 #endif /*PARTICLES*/
 
   ! field solver

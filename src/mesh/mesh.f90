@@ -694,7 +694,7 @@ USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm
 USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
 #ifdef PARTICLES
-USE MOD_Mesh_Vars,               ONLY: wBaryCL_NGeo1
+USE MOD_Mesh_Vars,               ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_Bezier,sVdm_Bezier
 USE MOD_Basis,                   ONLY: BuildBezierVdm
 #endif
@@ -749,12 +749,10 @@ CALL InitializeVandermonde(NGeo_in,NGeo_in,wBary_NGeo  ,Xi_NGeo  ,XiCL_NGeo,Vdm_
 #ifdef PARTICLES
 ! small wBaryCL_NGEO
 ALLOCATE(wBaryCL_NGeo1(0:1))
-IF(NGEO_in.EQ.1)THEN
-  wBaryCL_NGeo1=wBaryCL_NGeo
-ELSE
-  CALL ChebyGaussLobNodesAndWeights(1,XiCL_NGeo1)
-  CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo)
-END IF
+CALL ChebyGaussLobNodesAndWeights(1,XiCL_NGeo1)
+CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo1)
+ALLOCATE(Vdm_CLNGeo1_CLNGeo(0:NGeo_In,0:1) )
+CALL InitializeVandermonde(1, NGeo_in,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo ,Vdm_CLNGeo1_CLNGeo)
 
 ! new for curved particle sides
 ALLOCATE(Vdm_Bezier(0:NGeo_in,0:NGeo_in),sVdm_Bezier(0:NGeo_in,0:NGeo_in))
@@ -823,7 +821,9 @@ SDEALLOCATE(CGNS_VolToSideA)
 SDEALLOCATE(SideToVolA)
 SDEALLOCATE(SideToVol2A)
 SDEALLOCATE(CGNS_SideToVol2A)
-
+SDEALLOCATE(Vdm_CLNGeo1_CLNGeo)
+SDEALLOCATE(wBaryCL_NGeo1)
+SDEALLOCATE(CurvedElem)
 MeshInitIsDone = .FALSE.
 END SUBROUTINE FinalizeMesh
 

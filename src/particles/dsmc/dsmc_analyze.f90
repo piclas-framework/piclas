@@ -1835,7 +1835,8 @@ SUBROUTINE PeriodicSourceExchangeDSMCHO(BGMSource, alphasum)
 !============================================================================================================================
 ! use MODULES                                                    
   USE MOD_Particle_MPI_Vars, ONLY:PartMPI
-  USE MOD_PICDepo_Vars
+  !USE MOD_PICDepo_Vars
+  USE MOD_Particle_Mesh_Vars, ONLY:Geo
   USE MOD_Particle_Vars
   USE MOD_DSMC_Vars
 !-----------------------------------------------------------------------------------------------------------------------------------

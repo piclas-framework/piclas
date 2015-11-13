@@ -54,8 +54,12 @@ INTERFACE CountPartsPerElem
   MODULE PROCEDURE CountPartsPerElem
 END INTERFACE
 
+INTERFACE CheckIfCurvedElem
+  MODULE PROCEDURE CheckIfCurvedElem
+END INTERFACE
+
 PUBLIC::CountPartsPerElem
-PUBLIC::BuildElementBasis
+PUBLIC::BuildElementBasis,CheckIfCurvedElem
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
 PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 !===================================================================================================================================
@@ -518,8 +522,10 @@ USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,Buil
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo!,DoRefMapping
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -530,6 +536,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                                  :: iElem, nCurvedElems,nCurvedElemsTot
 !=================================================================================================================================
 
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -557,6 +564,31 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemBaryNGeo(1:3,1:nTotalElems)       )
 CALL BuildElementBasis()
 CALL MapElemToFIBGM()
+
+ALLOCATE(CurvedElem(1:nTotalElems))
+CurvedElem=.FALSE.
+nCurvedElems=0
+
+DO iElem=1,nTotalElems
+  CALL CheckIfCurvedElem(CurvedElem(iElem),XCL_NGeo(:,:,:,:,iElem))
+  IF(iElem.LE.PP_nElems)THEN
+    IF(CurvedElem(iElem)) nCurvedElems=nCurvedElems+1
+  END IF
+END DO ! iElem=1,nTotalElems
+
+#ifdef MPI
+IF(MPIRoot) THEN
+  CALL MPI_REDUCE(nCurvedElems,nCurvedElemsTot,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE ! no Root
+  CALL MPI_REDUCE(nCurvedElems,nCurvedElemsTot,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#else
+nCurvedElemsTot=nCurvedElems
+#endif /*MPI*/
+
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved      elems: ', nCurvedElemsTot
+SWRITE(UNIT_StdOut,'(132("-"))')
+
 
 END SUBROUTINE InitFIBGM
 
@@ -2307,5 +2339,58 @@ END DO ! iPart=1,PDM%ParticleVecLength
 
 END SUBROUTINE CountPartsPerElem
 
+
+SUBROUTINE CheckIfCurvedElem(IsCurved,XCL_NGeo)
+!===================================================================================================================================
+! check if element is curved
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Mesh_Vars,             ONLY:NGeo,Vdm_CLNGeo1_CLNGeo
+USE MOD_ChangeBasis,           ONLY:changeBasis3D
+USE MOD_Globals,               ONLY:ALMOSTEQUAL
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+REAL,INTENT(IN)      :: XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+LOGICAL              :: IsCurved
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                 :: XCL_NGeo1(1:3,0:1,0:1,0:1)
+REAL                 :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
+INTEGER              :: i,j,k
+!===================================================================================================================================
+
+IsCurved=.FALSE.
+
+! fill dummy
+XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  )
+XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  )
+XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  )
+XCL_NGeo1(1:3,1,1,0) = XCL_NGeo(1:3,NGeo,NGeo, 0  )
+XCL_NGeo1(1:3,0,0,1) = XCL_NGeo(1:3, 0  , 0  ,NGeo)
+XCL_NGeo1(1:3,1,0,1) = XCL_NGeo(1:3,NGeo, 0  ,NGeo)
+XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo)
+XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo)
+
+CALL ChangeBasis3D(3,1,NGeo,Vdm_CLNGeo1_CLNGeo,XCL_NGeo1,XCL_NGeoNew)
+
+DO k=0,NGeo
+  DO j=0,NGeo
+    DO i=0,NGeo
+      IF( ABS(XCL_NGeoNew(1,i,j,k)-XCL_NGeo(1,i,j,k)).GT.1e-14 .OR. & 
+          ABS(XCL_NGeoNew(2,i,j,k)-XCL_NGeo(2,i,j,k)).GT.1e-14 .OR. & 
+          ABS(XCL_NGeoNew(3,i,j,k)-XCL_NGeo(3,i,j,k)).GT.1e-14 ) THEN
+        IsCurved=.TRUE.
+        RETURN
+      END IF
+    END DO ! i=0,NGeo
+  END DO ! j=0,NGeo
+END DO ! k=0,NGeo
+
+END SUBROUTINE CheckIfCurvedElem
 
 END MODULE MOD_Particle_Mesh

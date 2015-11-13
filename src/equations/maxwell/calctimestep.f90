@@ -88,6 +88,8 @@ DO iElem=1,PP_nElems
 END DO ! iElem
 #ifdef MPI
 CALL MPI_ALLREDUCE(locTimeStepConv,TimeStepConv,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+#else
+TimeStepConv=locTimeStepConv
 #endif /*MPI*/
 CalcTimeStep=TimeStepConv
 END FUNCTION CALCTIMESTEP

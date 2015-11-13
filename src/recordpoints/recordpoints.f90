@@ -484,7 +484,9 @@ IMPLICIT NONE
 IF(DoLoadBalance)THEN
   IF(RP_onProc)THEN
     SDEALLOCATE(RP_Data)
+#ifdef MPI
     CALL MPI_COMM_FREE(RP_Comm,iERROR)
+#endif /*MPI*/
   END IF
   nRP=0
   RP_onProc=.FALSE.

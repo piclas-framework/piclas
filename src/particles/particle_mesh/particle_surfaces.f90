@@ -1559,7 +1559,6 @@ SWRITE(UNIT_StdOut,'(A,I8)') ' Number of BC-adjoined elems: ', nBCElems
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar      faces: ', nPlanar
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear   faces: ', nBilinear
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved      faces: ', nCurved
-SWRITE(UNIT_StdOut,'(132("-"))')
 
 #ifdef MPI
 CALL  WriteParticleMappingPartitionInformation(nPlanarTot,nBilinearTot,nCurvedTot,nTotalBCElems)
