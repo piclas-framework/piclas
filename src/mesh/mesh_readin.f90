@@ -239,11 +239,11 @@ LoadDistri(:)=0.
 SDEALLOCATE(PartDistri)
 ALLOCATE(PartDistri(0:nProcessors-1))
 PartDistri(:)=0
+CALL CloseDataFile()
+Dexist=.FALSE. 
 IF (DoRestart) THEN 
-  CALL CloseDataFile() 
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
 
-  Dexist=.FALSE.
 #ifdef MPI
   IF(MPIRoot)THEN
     IF(DoLoadBalance) CALL H5LEXISTS_F(File_ID,'ElemWeight',Dexist,iERROR)

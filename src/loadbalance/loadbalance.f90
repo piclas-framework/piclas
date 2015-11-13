@@ -478,6 +478,7 @@ CALL ComputeImbalance(CurrentImbalance,ElemTime)
 PerformLoadBalance=.FALSE.
 IF(CurrentImbalance.GT.DeviationThreshold*LastImbalance) PerformLoadBalance=.TRUE.
 
+#ifdef PARTICLES
 nTracksPerElem=0
 nDeposPerElem=0
 nPartsPerElem=0
@@ -485,6 +486,7 @@ nPartsPerElem=0
 
 tCartMesh  =0.
 tTracking  =0.
+#endif /*PARTICLES*/
 tTotal     =0.
 LoadSum    =0.
 tCurrent   =0.
