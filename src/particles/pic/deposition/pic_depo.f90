@@ -39,7 +39,7 @@ USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Mesh_Vars,              ONLY:nElems, XCL_NGeo,Elem_xGP
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo,ElemRadiusNGeo
 USE MOD_Interpolation_Vars,     ONLY:xGP,wBary
-USE MOD_Basis,                  ONLY:BuildBernsteinVdm
+USE MOD_Basis,                  ONLY:ComputeBernsteinCoeff
 USE MOD_Basis,                  ONLY:BarycentricWeights,InitializeVandermonde
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
 USE MOD_PreProc,                ONLY:PP_N,PP_nElems
@@ -238,7 +238,7 @@ CASE('delta_distri')
   CASE(2)
     SWRITE(UNIT_stdOut,'(A)') ' Bernstein-Polynomial'
     !CALL BuildBernSteinVdm(PP_N,xGP)
-    CALL BuildBernSteinVdm(PP_N)
+    CALL ComputeBernsteinCoeff(PP_N)
   CASE(3)
     SWRITE(UNIT_stdOut,'(A)') ' Uniform B-Spline '
     NKnots=(PP_N+1)*2-1

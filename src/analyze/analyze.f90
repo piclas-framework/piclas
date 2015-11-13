@@ -32,6 +32,7 @@ INTERFACE PerformAnalyze
   MODULE PROCEDURE PerformAnalyze
 END INTERFACE
 
+
 !===================================================================================================================================
 PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze 
 !===================================================================================================================================
@@ -336,7 +337,7 @@ SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,             ONLY: nElems
+USE MOD_Mesh_Vars,             ONLY: nElems,MeshFile
 USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 USE MOD_RecordPoints,          ONLY: RecordPoints
@@ -353,7 +354,9 @@ USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpec
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout,SurfMesh,SampWall
-USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues, WriteOutputMeshSamp
+USE MOD_DSMC_Vars,             ONLY: realtime, HODSMC, DSMC_HOSolution
+USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
+USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
 USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 #if (PP_TimeDiscMethod!=42)
 USE MOD_LD_Vars,               ONLY: useLD
@@ -474,7 +477,7 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
 #elif(PP_TimeDiscMethod==1001)
   CALL LD_DSMC_data_sampling()
 #else
-  CALL DSMC_data_sampling()
+  CALL DSMCHO_data_sampling()
 #endif
   iter_macvalout = iter_macvalout + 1
   IF (MacroValSamplIterNum.LE.iter_macvalout) THEN
@@ -483,55 +486,28 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
 #elif(PP_TimeDiscMethod==1001)
     CALL LD_DSMC_output_calc()
 #else
-    CALL DSMC_output_calc
+    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),realtime)
     IF (DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
-    IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
 #endif
-    nOutput = nOutput + 1
-    iter_macvalout = 0
-    DSMC%SampNum = 0
-    SampDSMC(1:nElems,1:nSpecies)%PartV(1)  = 0
-    SampDSMC(1:nElems,1:nSpecies)%PartV(2)  = 0
-    SampDSMC(1:nElems,1:nSpecies)%PartV(3)  = 0
-    SampDSMC(1:nElems,1:nSpecies)%PartV2(1) = 0
-    SampDSMC(1:nElems,1:nSpecies)%PartV2(2) = 0
-    SampDSMC(1:nElems,1:nSpecies)%PartV2(3) = 0
-    SampDSMC(1:nElems,1:nSpecies)%PartNum   = 0
-    SampDSMC(1:nElems,1:nSpecies)%ERot      = 0
-    SampDSMC(1:nElems,1:nSpecies)%EVib      = 0
-
-    IF(DSMC%CalcSurfaceVal) THEN
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(1) = 0.0
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(2) = 0.0
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(3) = 0.0
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(4) = 0.0
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(5) = 0.0
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(6) = 0.0
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(7) = 0.0
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(8) = 0.0
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Energy(9) = 0.0
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Force(1) = 0.0
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Force(2) = 0.0
-      SampWall(1:SurfMesh%nSurfaceBCSides)%Force(3) = 0.0
-      DO iSampWallAlloc=1,SurfMesh%nSurfaceBCSides
-        SampWall(iSampWallAlloc)%Counter(1:nSpecies) = 0.0
-      END DO
+    IF (HODSMC%HODSMCOutput) THEN
+      nOutput = nOutput + 1
+      iter_macvalout = 0
+      DSMC%SampNum = 0
+      DSMC_HOSolution = 0.0
     END IF
-
   END IF
 END IF
 
 IF(OutPut)THEN
 #if (PP_TimeDiscMethod==42)
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
-    CALL DSMC_output_calc
+    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),realtime)
   END IF
 #else
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
     nOutput = INT((DSMC%TimeFracSamp * TEnd) / DSMC%DeltaTimeOutput)
     IF (.NOT. useLD) THEN
-      CALL DSMC_output_calc
-      IF (DSMC%OutputMeshSamp) CALL WriteOutputMeshSamp() !EmType6
+      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),realtime)
     END IF
     IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
   END IF

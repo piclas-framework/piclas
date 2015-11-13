@@ -139,7 +139,7 @@ USE nr,only:bessj
 USE nrtype,only:SP
 USE MOD_Globals
 USE MOD_Globals_Vars,ONLY:PI
-USE MOD_Equation_Vars,ONLY:c,c2,eps0,c_inv
+USE MOD_Equation_Vars,ONLY:c,c2,eps0!,c_inv
 # if (PP_TimeDiscMethod==1)
 USE MOD_TimeDisc_vars,ONLY:dt
 # endif

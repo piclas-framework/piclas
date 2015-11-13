@@ -42,7 +42,7 @@ PUBLIC :: eval_xyz_curved,eval_xyz_elemcheck, eval_xyz_part2,eval_xyz_poly
 CONTAINS
 
 !#ifdef PARTICLES
-SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,iElem,PartID)
+SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
@@ -54,10 +54,9 @@ USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:xGP,wBary
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
-USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess,epsMapping,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
-USE MOD_Mesh_Vars,               ONLY:offsetElem
 !USE MOD_Particle_Vars,           ONLY:PartPosRef
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
@@ -66,7 +65,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)  :: NVar                                  ! 6 (Ex, Ey, Ez, Bx, By, Bz) 
 INTEGER,INTENT(IN)  :: N_In                                  ! usually PP_N
-INTEGER,INTENT(IN)  :: iElem                                 ! elem index
+INTEGER,INTENT(IN)  :: ElemID                                 ! elem index
 REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
 REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
 INTEGER,INTENT(IN),OPTIONAL :: PartID
@@ -77,17 +76,13 @@ REAL,INTENT(OUT)    :: U_Out(1:NVar)  ! Interpolated state
 ! LOCAL VARIABLES 
 INTEGER             :: i,j,k
 REAL                :: xi(3)
-REAL                :: deltaXi(1:3),deltaXi2
-INTEGER             :: NewTonIter
 !REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 !REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
-REAL                :: Winner_Dist,Dist,abortcrit
+REAL                :: Winner_Dist,Dist!,abortcrit
 REAL, PARAMETER     :: EPSONE=1.00000001
 INTEGER             :: iDir
-REAL                :: F(1:3),Lag(1:3,0:NGeo)
+!REAL                :: Lag(1:3,0:NGeo)
 REAL                :: L_xi(3,0:PP_N), L_eta_zeta
-REAL                :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
-REAL                :: buff,buff2
 REAL                :: Ptild(1:3),XiLinear(1:6)
 ! h5-external e,b field
 REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
@@ -96,10 +91,10 @@ REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 ! get initial guess by nearest GP search ! simple guess
 SELECT CASE(MappingGuess)
 CASE(1)
-  Ptild=X_in - ElemBaryNGeo(:,iElem)
+  Ptild=X_in - ElemBaryNGeo(:,ElemID)
   ! plus coord system (1-3) and minus coord system (4-6)
   DO iDir=1,6
-    XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,iElem))*slenXiEtaZetaBasis(iDir,iElem)
+    XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,ElemID))*slenXiEtaZetaBasis(iDir,ElemID)
   END DO
   ! compute guess as average value
   DO iDir=1,3
@@ -111,7 +106,7 @@ CASE(2)
   ! compute distance on Gauss Points
   Winner_Dist=HUGE(1.)
   DO i=0,N_in; DO j=0,N_in; DO k=0,N_in
-    Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
+    Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,ElemID))*(x_in(:)-Elem_xGP(:,i,j,k,ElemID)))
     IF (Dist.LT.Winner_Dist) THEN
       Winner_Dist=Dist
       Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
@@ -121,7 +116,7 @@ CASE(3)
   ! compute distance on XCL Points
   Winner_Dist=HUGE(1.)
   DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
-    Dist=SUM((x_in(:)-XCL_NGeo(:,i,j,k,iElem))*(x_in(:)-XCL_NGeo(:,i,j,k,iElem)))
+    Dist=SUM((x_in(:)-XCL_NGeo(:,i,j,k,ElemID))*(x_in(:)-XCL_NGeo(:,i,j,k,ElemID)))
     IF (Dist.LT.Winner_Dist) THEN
       Winner_Dist=Dist
       Xi(:)=(/XiCL_NGeo(i),XiCL_NGeo(j),XiCL_NGeo(k)/) ! start value
@@ -132,90 +127,8 @@ CASE(4)
   xi=0.
 END SELECT
 
-! initial guess
-CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
-CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
-CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
-! F(xi) = x(xi) - x_in
-F=-x_in ! xRp
-DO k=0,NGeo
-  DO j=0,NGeo
-    DO i=0,NGeo
-      F=F+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
-      !print*,'XCL',i,j,k,XCL_NGeo(:,i,j,k,iElem)
-    END DO !l=0,NGeo
-  END DO !i=0,NGeo
-END DO !j=0,NGeo
 
-NewtonIter=0
-!abortCrit=ElemRadiusNGeo(iElem)*ElemRadiusNGeo(iElem)*epsMapping
-deltaXi2=HUGE(1.0)
-!DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.50))
-DO WHILE((deltaXi2.GT.epsMapping).AND.(NewtonIter.LT.100))
-!DO WHILE ((DOT_PRODUCT(F,F).GT.abortCrit).AND.(NewtonIter.LT.100))
-  NewtonIter=NewtonIter+1
-
-  ! caution, dXCL_NGeo is transposed of required matrix
-  Jac=0.
-  DO k=0,NGeo
-    DO j=0,NGeo
-      buff=Lag(2,j)*Lag(3,k)
-      DO i=0,NGeo
-        buff2=Lag(1,i)*buff
-        Jac(1,1:3)=Jac(1,1:3)+dXCL_NGeo(1:3,1,i,j,k,iElem)*buff2
-        Jac(2,1:3)=Jac(2,1:3)+dXCL_NGeo(1:3,2,i,j,k,iElem)*buff2
-        Jac(3,1:3)=Jac(3,1:3)+dXCL_NGeo(1:3,3,i,j,k,iElem)*buff2
-      END DO !i=0,NGeo
-    END DO !j=0,NGeo
-  END DO !k=0,NGeo
-  
-  ! Compute inverse of Jacobian
-  sdetJac=getDet(Jac)
-  IF(sdetJac.GT.0.) THEN
-   sdetJac=1./sdetJac
-  ELSE !shit
-   ! Newton has not converged !?!?
-   CALL abort(__STAMP__, &
-        'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
-  ENDIF 
-  sJac=getInv(Jac,sdetJac)
-
-  ! Iterate Xi using Newton step
-  ! Use FAIL
-  !Xi = Xi - MATMUL(sJac,F)
-  deltaXi=MATMUL(sJac,F)
-  Xi = Xi - deltaXI!MATMUL(sJac,F)
-  deltaXi2=DOT_PRODUCT(deltaXi,deltaXi)
-
-
-  IF(ANY(ABS(Xi).GT.1.8)) THEN
-  !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
-    IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, force!!!'
-    IPWRITE(UNIT_stdOut,*) ' Newton-Iter', NewtonIter
-    IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1:3)
-    IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
-    IPWRITE(UNIT_stdOut,*) ' ElemID', iElem+offSetElem
-    IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
-    CALL abort(__STAMP__, &
-        'Particle Not inSide of Element, iElem, iPart',iElem,REAL(PartID))
-  END IF
-  
-  ! Compute function value
-  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
-  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
-  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
-  ! F(xi) = x(xi) - x_in
-  F=-x_in ! xRp
-  DO k=0,NGeo
-    DO j=0,NGeo
-      buff=Lag(2,j)*Lag(3,k)
-      DO i=0,NGeo
-        buff2=Lag(1,i)*buff
-        F=F+XCL_NGeo(:,i,j,k,iElem)*buff2
-      END DO !l=0,NGeo
-    END DO !i=0,NGeo
-  END DO !j=0,NGeo
-END DO !newton
+CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=1)
 
 ! IF(ANY(ABS(Xi).GT.1.1)) THEN
 ! !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
@@ -225,10 +138,10 @@ END DO !newton
 !   IPWRITE(UNIT_stdOut,*) ' eta ', xi(2)
 !   IPWRITE(UNIT_stdOut,*) ' zeta', xi(3)
 !   IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
-!   IPWRITE(UNIT_stdOut,*) ' ElemID', iElem+offSetElem
+!   IPWRITE(UNIT_stdOut,*) ' ElemID', ElemID+offSetElem
 !   IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
 !   CALL abort(__STAMP__, &
-!       'Particle Not inSide of Element, iElem, iPart',iElem,REAL(PartID))
+!       'Particle Not inSide of Element, ElemID, iPart',ElemID,REAL(PartID))
 ! END IF
 
 ! 2.1) get "Vandermonde" vectors
@@ -247,29 +160,6 @@ DO k=0,N_in
   END DO ! j=0,N_In
 END DO ! k=0,N_In
 
-!! 2.2) do the tensor product thing 
-!X3D_buf1=0.
-!! first direction iN_In
-!DO k=0,N_In
-!  DO j=0,N_In
-!    DO i=0,N_In
-!      X3D_Buf1(:,j,k)=X3D_Buf1(:,j,k)+Lag2(1,i)*X3D_In(:,i,j,k)
-!    END DO
-!  END DO
-!END DO
-!X3D_buf2=0.
-!! second direction jN_In
-!DO k=0,N_In
-!  DO j=0,N_In
-!    X3D_Buf2(:,k)=X3D_Buf2(:,k)+Lag2(2,j)*X3D_Buf1(:,j,k)
-!  END DO
-!END DO
-!X3D_Out=0.
-!! last direction kN_In
-!DO k=0,N_In
-!  X3D_Out(:)=X3D_Out(:)+Lag2(3,k)*X3D_Buf2(:,k)
-!END DO
-
 IF(useBGField)THEN
   ! use of BG-Field with possible different polynomial order and nodetype
   ALLOCATE( L_xi_BGField(3,0:NBG)             &
@@ -282,38 +172,15 @@ IF(useBGField)THEN
   CALL LagrangeInterpolationPolys(xi(3),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(3,:))
   
   U_BGField(:)=0
-  DO k=0,N_in
-    DO j=0,N_in
+  DO k=0,NBG
+    DO j=0,NBG
       L_eta_zeta=L_xi_BGField(2,j)*L_xi_BGField(3,k)
-      DO i=0,N_in
-        U_BGField = U_BGField + BGField(:,i,j,k,iElem)*L_xi_BGField(1,i)*L_Eta_Zeta
-      END DO ! i=0,N_In
-    END DO ! j=0,N_In
-  END DO ! k=0,N_In
+      DO i=0,NBG
+        U_BGField = U_BGField + BGField(:,i,j,k,ElemID)*L_xi_BGField(1,i)*L_Eta_Zeta
+      END DO ! i=0,NBG
+    END DO ! j=0,NBG
+  END DO ! k=0,NBG
 
-
-  !! 2.2) do the tensor product thing 
-  !X3D_tmp1=0.
-  !! first direction iN_In
-  !DO k=0,NBG
-  !  DO j=0,NBG
-  !    DO i=0,NBG
-  !      X3D_tmp1(:,j,k)=X3D_tmp1(:,j,k)+L_xi_BGField(1,i)*BGField(:,i,j,k,iElem)
-  !    END DO
-  !  END DO
-  !END DO
-  !X3D_tmp2=0.
-  !! second direction jN_In
-  !DO k=0,NBG
-  !  DO j=0,NBG
-  !    X3D_tmp2(:,k)=X3D_tmp2(:,k)+L_xi_BGField(2,j)*X3D_tmp1(:,j,k)
-  !  END DO
-  !END DO
-  !X3D_tmp3=0.
-  !! last direction kN_In
-  !DO k=0,NBG
-  !  X3D_tmp3(:)=X3D_tmp3(:)+L_xi_BGField(3,k)*X3D_tmp2(:,k)
-  !END DO
   SELECT CASE(BGType)
   CASE(1)
     U_Out(1:3)=U_Out(1:3)+U_BGField
@@ -328,7 +195,7 @@ END IF ! useBGField
 END SUBROUTINE eval_xyz_curved
 
 
-SUBROUTINE eval_xyz_elemcheck(x_in,xi,iElem,PartID,DoReUseMap)
+SUBROUTINE eval_xyz_elemcheck(x_in,xi,ElemID,PartID,DoReUseMap)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
@@ -340,14 +207,13 @@ USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:xGP
 USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess,epsMapping
-USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis!,ElemRadiusNGeo
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo,NGeo
-USE MOD_Mesh_Vars,               ONLY:offsetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)          :: iElem                                 ! elem index
+INTEGER,INTENT(IN)          :: ElemID                                 ! elem index
 REAL,INTENT(IN)             :: x_in(3)                                  ! physical position of particle 
 INTEGER,INTENT(IN),OPTIONAL :: PartID
 LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap
@@ -357,14 +223,9 @@ REAL,INTENT(INOUT)          :: xi(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER                    :: i,j,k
-REAL                       :: deltaXi(1:3),deltaXi2
 REAL                       :: epsOne
-INTEGER                    :: NewTonIter
 REAL                       :: Winner_Dist,Dist
 INTEGER                    :: idir
-REAL                       :: F(1:3),Lag(1:3,0:NGeo)
-REAL                       :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
-REAL                       :: buff,buff2,abortcrit
 REAL                       :: Ptild(1:3),XiLinear(1:6)
 !===================================================================================================================================
 
@@ -372,10 +233,10 @@ epsOne=1.0+epsMapping
 IF(.NOT.PRESENT(DoReUseMap))THEN
   SELECT CASE(MappingGuess)
   CASE(1)
-    Ptild=X_in - ElemBaryNGeo(:,iElem)
+    Ptild=X_in - ElemBaryNGeo(:,ElemID)
     ! plus coord system (1-3) and minus coord system (4-6)
     DO iDir=1,6
-      XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,iElem))*slenXiEtaZetaBasis(iDir,iElem)
+      XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,ElemID))*slenXiEtaZetaBasis(iDir,ElemID)
     END DO
     ! compute guess as average value
     DO iDir=1,3
@@ -385,7 +246,7 @@ IF(.NOT.PRESENT(DoReUseMap))THEN
   CASE(2)
     Winner_Dist=HUGE(1.)
     DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
-      Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,iElem))*(x_in(:)-Elem_xGP(:,i,j,k,iElem)))
+      Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,ElemID))*(x_in(:)-Elem_xGP(:,i,j,k,ElemID)))
       IF (Dist.LT.Winner_Dist) THEN
         Winner_Dist=Dist
         Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
@@ -395,7 +256,7 @@ IF(.NOT.PRESENT(DoReUseMap))THEN
     ! compute distance on XCL Points
     Winner_Dist=HUGE(1.)
     DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
-      Dist=SUM((x_in(:)-XCL_NGeo(:,i,j,k,iElem))*(x_in(:)-XCL_NGeo(:,i,j,k,iElem)))
+      Dist=SUM((x_in(:)-XCL_NGeo(:,i,j,k,ElemID))*(x_in(:)-XCL_NGeo(:,i,j,k,ElemID)))
       IF (Dist.LT.Winner_Dist) THEN
         Winner_Dist=Dist
         Xi(:)=(/XiCL_NGeo(i),XiCL_NGeo(j),XiCL_NGeo(k)/) ! start value
@@ -407,117 +268,8 @@ IF(.NOT.PRESENT(DoReUseMap))THEN
   END SELECT
 END IF
 
-! initial guess
-CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
-CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
-CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
-! F(xi) = x(xi) - x_in
-F=-x_in ! xRp
-DO k=0,NGeo
-  DO j=0,NGeo
-    buff=Lag(2,j)*Lag(3,k)
-    DO i=0,NGeo
-      buff2=Lag(1,i)*buff
-      F=F+XCL_NGeo(:,i,j,k,iElem)*buff2
-      !F=F+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
-    END DO !l=0,NGeo
-  END DO !i=0,NGeo
-END DO !j=0,NGeo
+CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=2)
 
-NewtonIter=0
-!abortCrit=ElemRadiusNGeo(iElem)*ElemRadiusNGeo(iElem)*epsMapping
-!abortCrit=ElemRadiusNGeo(iElem)*ElemRadiusNGeo(iElem)*epsMapping
-deltaXi2=HUGE(1.0)
-!abortCrit=DOT_PRODUCT(F,F)*epsMapping
-!DO WHILE ((SUM(F*F).GT.abortCrit).AND.(NewtonIter.LT.50))
-!@DO WHILE ((DOT_PRODUCT(F,F).GT.abortCrit).AND.(NewtonIter.LT.100))
-DO WHILE((deltaXi2.GT.epsMapping).AND.(NewtonIter.LT.100))
-  NewtonIter=NewtonIter+1
-  ! 
-  ! caution, dXCL_NGeo is transposed of required matrix
-  Jac=0.
-  DO k=0,NGeo
-    DO j=0,NGeo
-      buff=Lag(2,j)*Lag(3,k)
-      DO i=0,NGeo
-        buff2=Lag(1,i)*buff
-        Jac(1,1:3)=Jac(1,1:3)+dXCL_NGeo(1:3,1,i,j,k,iElem)*buff2
-        Jac(2,1:3)=Jac(2,1:3)+dXCL_NGeo(1:3,2,i,j,k,iElem)*buff2
-        Jac(3,1:3)=Jac(3,1:3)+dXCL_NGeo(1:3,3,i,j,k,iElem)*buff2
-      END DO !i=0,NGeo
-    END DO !j=0,NGeo
-  END DO !k=0,NGeo
-  
-
-  ! Compute inverse of Jacobian
-  sdetJac=getDet(Jac)
-  IF(sdetJac.GT.0.) THEN
-   sdetJac=1./sdetJac
-  ELSE !shit
-   ! Newton has not converged !?!?
-   Xi(1)=HUGE(1.0)
-   Xi(2)=Xi(1)
-   Xi(3)=Xi(1)
-   EXIT
-   !IPWRITE(*,*) ' GlobalElemID ', OffSetElem+iElem
-   !IPWRITE(*,*) ' PartPos ', X_in
-   !CALL abort(__STAMP__, &
-   !     'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
-  ENDIF 
-  sJac=getInv(Jac,sdetJac)
-  
-  ! Iterate Xi using Newton step
-  ! Use FAIL
-  deltaXi=MATMUL(sJac,F)
-  Xi = Xi - deltaXI!MATMUL(sJac,F)
-  deltaXi2=DOT_PRODUCT(deltaXi,deltaXi)
-
-  !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
-  IF(ANY(ABS(Xi).GT.1.8))THEN
-!    IF(PRESENT(PartID)) THEN
-!      IPWRITE(UNIT_stdOut,*) 'ParticleID', PartID
-!      IPWRITE(UNIT_stdOut,*) ' Particle not inside of element!!!'
-!      IPWRITE(UNIT_stdOut,*) ' Element', iElem
-!      IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1)
-!      IPWRITE(UNIT_stdOut,*) ' eta ', xi(2)
-!      IPWRITE(UNIT_stdOut,*) ' zeta', xi(3)
-!      IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
-!      !CALL abort(__STAMP__, &
-!      !    'Particle Not inSide of Element')
-!    ELSE
-      EXIT
-!    END IF
-  END IF
-  
-  ! Compute function value
-  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
-  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
-  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
-  ! F(xi) = x(xi) - x_in
-  F=-x_in ! xRp
-  DO k=0,NGeo
-    DO j=0,NGeo
-      buff=Lag(2,j)*Lag(3,k)
-      DO i=0,NGeo
-        buff2=Lag(1,i)*buff
-        F=F+XCL_NGeo(:,i,j,k,iElem)*buff2
-        !F=F+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*Lag(2,j)*Lag(3,k)
-      END DO !l=0,NGeo
-    END DO !i=0,NGeo
-  END DO !j=0,NGeo
-END DO !newton
-
-
-!IF(MAXVAL(ABS(Xi)).GT.1.0) THEN
-! ! IF(PRESENT(PartID).AND.PartID.EQ.813) THEN
-!  IPWRITE(UNIT_stdOut,*) ' Particle not inside of element!!!'
-!  IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) 'ParticleID', PartID
-!  IPWRITE(UNIT_stdOut,*) ' Element', iElem
-!  IPWRITE(UNIT_stdOut,*) ' xi  ', xi(:)
-!  !  IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
-!  !END IF
-!END IF
-!
 
 END SUBROUTINE eval_xyz_elemcheck
 
@@ -568,7 +320,7 @@ END DO ! k=0,N_In
 END SUBROUTINE Eval_xyz_poly
 
 
-SUBROUTINE eval_xyz_part2(xi_in,NVar,N_in,U_In,U_Out,iElem)
+SUBROUTINE eval_xyz_part2(xi_in,NVar,N_in,U_In,U_Out,ElemID)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! hoewver, particle is already mapped to reference space -1|1
@@ -584,7 +336,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)        :: NVar                                  ! 6 (Ex, Ey, Ez, Bx, By, Bz) 
 INTEGER,INTENT(IN)        :: N_In                                  ! usually PP_N
-INTEGER,INTENT(IN)        :: iElem                                 ! elem index
+INTEGER,INTENT(IN)        :: ElemID                                 ! elem index
 REAL,INTENT(IN)           :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
 REAL,INTENT(IN)           :: xi_in(3)                              ! reference space position of particle 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -595,7 +347,6 @@ REAL,INTENT(OUT)          :: U_Out(1:NVar)  ! Interpolated state
 INTEGER             :: i,j,k
 !REAL                :: X3D_Buf1(1:NVar,0:N_In,0:N_In)  ! first intermediate results from 1D interpolations
 !REAL                :: X3D_Buf2(1:NVar,0:N_In) ! second intermediate results from 1D interpolations
-REAL                :: F(1:3)!,Lag(1:3,0:NGeo)
 REAL                :: L_xi(3,0:N_in), L_eta_zeta
 !REAL                :: buff,buff2
 ! h5-external e,b field
@@ -654,14 +405,14 @@ IF(useBGField)THEN
   CALL LagrangeInterpolationPolys(xi_in(3),NBG,BGField_xGP,BGField_wBary,L_xi_BGField(3,:))
   
   U_BGField(:)=0
-  DO k=0,N_in
-    DO j=0,N_in
+  DO k=0,NBG
+    DO j=0,NBG
       L_eta_zeta=L_xi_BGField(2,j)*L_xi_BGField(3,k)
-      DO i=0,N_in
-        U_BGField = U_BGField + BGField(:,i,j,k,iElem)*L_xi_BGField(1,i)*L_Eta_Zeta
-      END DO ! i=0,N_In
-    END DO ! j=0,N_In
-  END DO ! k=0,N_In
+      DO i=0,NBG
+        U_BGField = U_BGField + BGField(:,i,j,k,ElemID)*L_xi_BGField(1,i)*L_Eta_Zeta
+      END DO ! i=0,NBG
+    END DO ! j=0,NBG
+  END DO ! k=0,NBG
 
 
   !! 2.2) do the tensor product thing 
@@ -670,7 +421,7 @@ IF(useBGField)THEN
   !DO k=0,NBG
   !  DO j=0,NBG
   !    DO i=0,NBG
-  !      X3D_tmp1(:,j,k)=X3D_tmp1(:,j,k)+L_xi_BGField(1,i)*BGField(:,i,j,k,iElem)
+  !      X3D_tmp1(:,j,k)=X3D_tmp1(:,j,k)+L_xi_BGField(1,i)*BGField(:,i,j,k,ElemID)
   !    END DO
   !  END DO
   !END DO
@@ -699,6 +450,134 @@ END IF ! useBGField
 
 
 END SUBROUTINE eval_xyz_part2
+
+
+SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo,dXCL_NGeo,N_In,ElemID,Mode)
+!=================================================================================================================================
+! Netwon for finding the position inside the reference element [-1,1] for an arbitrary physical point
+!=================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
+USE MOD_Particle_Mesh_Vars,      ONLY:epsMapping!,ElemRadiusNGeo
+USE MOD_Mesh_Vars,               ONLY:offsetElem
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)               :: N_In,ElemID
+INTEGER,INTENT(IN)               :: Mode
+REAL,INTENT(IN)                  :: X_in(3) ! position in physical space 
+REAL,INTENT(IN)                  :: XiCL_NGeo(0:N_In)               ! position of CL points in reference space
+REAL,INTENT(IN)                  ::  XCL_NGeo(3,0:N_In,0:N_in,0:N_In) ! position of CL points in physical space
+REAL,INTENT(IN)                  :: dXCL_NGeo(3,3,0:N_In,0:N_in,0:N_In) ! derivation of CL points
+REAL,INTENT(IN)                  :: wBaryCL_NGeo(0:N_In) ! derivation of CL points
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)               :: Xi(3) ! position in reference element
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: Lag(1:3,0:N_In), F(1:3)
+INTEGER                          :: NewTonIter,i,j,k
+REAL                             :: deltaXi(1:3),deltaXi2
+REAL                             :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
+REAL                             :: buff,buff2
+!===================================================================================================================================
+
+
+! initial guess
+CALL LagrangeInterpolationPolys(Xi(1),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+CALL LagrangeInterpolationPolys(Xi(2),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+CALL LagrangeInterpolationPolys(Xi(3),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+! F(xi) = x(xi) - x_in
+F=-x_in ! xRp
+DO k=0,N_In
+  DO j=0,N_In
+    DO i=0,N_In
+      F=F+XCL_NGeo(:,i,j,k)*Lag(1,i)*Lag(2,j)*Lag(3,k)
+      !print*,'XCL',i,j,k,XCL_NGeo(:,i,j,k,ElemID)
+    END DO !l=0,N_In
+  END DO !i=0,N_In
+END DO !j=0,N_In
+
+NewtonIter=0
+!abortCrit=ElemRadiusNGeo(ElemID)*ElemRadiusNGeo(ElemID)*epsMapping
+deltaXi2=HUGE(1.0)
+DO WHILE((deltaXi2.GT.epsMapping).AND.(NewtonIter.LT.100))
+  NewtonIter=NewtonIter+1
+
+  ! caution, dXCL_NGeo is transposed of required matrix
+  Jac=0.
+  DO k=0,N_In
+    DO j=0,N_In
+      buff=Lag(2,j)*Lag(3,k)
+      DO i=0,N_In
+        buff2=Lag(1,i)*buff
+        Jac(1,1:3)=Jac(1,1:3)+dXCL_NGeo(1:3,1,i,j,k)*buff2
+        Jac(2,1:3)=Jac(2,1:3)+dXCL_NGeo(1:3,2,i,j,k)*buff2
+        Jac(3,1:3)=Jac(3,1:3)+dXCL_NGeo(1:3,3,i,j,k)*buff2
+      END DO !i=0,N_In
+    END DO !j=0,N_In
+  END DO !k=0,N_In
+  
+  ! Compute inverse of Jacobian
+  sdetJac=getDet(Jac)
+  IF(sdetJac.GT.0.) THEN
+   sdetJac=1./sdetJac
+  ELSE !shit
+   ! Newton has not converged !?!?
+   IF(Mode.EQ.1)THEN
+    CALL abort(__STAMP__, &
+         'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
+   ELSE
+     Xi(1)=HUGE(1.0)
+     Xi(2)=Xi(1)
+     Xi(3)=Xi(1)
+     RETURN
+   END IF
+  ENDIF 
+  sJac=getInv(Jac,sdetJac)
+
+  ! Iterate Xi using Newton step
+  ! Use FAIL
+  !Xi = Xi - MATMUL(sJac,F)
+  deltaXi=MATMUL(sJac,F)
+  Xi = Xi - deltaXI!MATMUL(sJac,F)
+  deltaXi2=DOT_PRODUCT(deltaXi,deltaXi)
+
+
+  IF(ANY(ABS(Xi).GT.1.8)) THEN
+    IF(Mode.EQ.1)THEN
+      IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, force!!!'
+      IPWRITE(UNIT_stdOut,*) ' Newton-Iter', NewtonIter
+      IPWRITE(UNIT_stdOut,*) ' xi  ', xi(1:3)
+      IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
+      IPWRITE(UNIT_stdOut,*) ' ElemID', ElemID+offSetElem
+      !IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
+      CALL abort(__STAMP__, &
+          'Particle Not inSide of Element, ElemID,',ElemID)
+    ELSE
+      EXIT
+    END IF
+  END IF
+  
+  ! Compute function value
+  CALL LagrangeInterpolationPolys(Xi(1),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  ! F(xi) = x(xi) - x_in
+  F=-x_in ! xRp
+  DO k=0,N_In
+    DO j=0,N_In
+      buff=Lag(2,j)*Lag(3,k)
+      DO i=0,N_In
+        buff2=Lag(1,i)*buff
+        F=F+XCL_NGeo(:,i,j,k)*buff2
+      END DO !l=0,N_In
+    END DO !i=0,N_In
+  END DO !j=0,N_In
+END DO !newton
+
+END SUBROUTINE RefElemNewton
 
 
 FUNCTION getDet(Mat)

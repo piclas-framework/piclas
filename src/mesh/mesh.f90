@@ -694,6 +694,7 @@ USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm
 USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
 #ifdef PARTICLES
+USE MOD_Mesh_Vars,               ONLY: wBaryCL_NGeo1
 USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_Bezier,sVdm_Bezier
 USE MOD_Basis,                   ONLY: BuildBezierVdm
 #endif
@@ -711,6 +712,7 @@ REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP
 REAL,DIMENSION(0:N_in)                     :: XiCL_N,wBaryCL_N
 REAL,DIMENSION(0:NGeo_in)                  :: wBary_NGeo!: XiCL_NGeo,!,wBaryCL_NGeo,wBary_NGeo
 #ifdef PARTICLES
+REAL,DIMENSION(0:1)                        :: XiCL_NGeo1
 !REAL,DIMENSION(0:NGeo_in)                  :: XiEquiPartCurved
 #endif
 INTEGER                                    :: i
@@ -745,6 +747,15 @@ CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,xGP      ,Vdm_
 CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,XiCL_N   ,Vdm_CLNGeo_CLN   )
 CALL InitializeVandermonde(NGeo_in,NGeo_in,wBary_NGeo  ,Xi_NGeo  ,XiCL_NGeo,Vdm_NGeo_CLNGeo  )
 #ifdef PARTICLES
+! small wBaryCL_NGEO
+ALLOCATE(wBaryCL_NGeo1(0:1))
+IF(NGEO_in.EQ.1)THEN
+  wBaryCL_NGeo1=wBaryCL_NGeo
+ELSE
+  CALL ChebyGaussLobNodesAndWeights(1,XiCL_NGeo1)
+  CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo)
+END IF
+
 ! new for curved particle sides
 ALLOCATE(Vdm_Bezier(0:NGeo_in,0:NGeo_in),sVdm_Bezier(0:NGeo_in,0:NGeo_in))
 ! initialize vandermonde for super-sampled surfaces (particle tracking with curved elements)

@@ -3,6 +3,9 @@ MODULE MOD_DSMC_Vars
 ! Contains the DSMC variables
 !===================================================================================================================================
 ! MODULES
+#ifdef MPI
+USE MOD_Particle_MPI_Vars, ONLY: tPartMPIConnect
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -313,5 +316,57 @@ INTEGER(KIND=8)                   :: iter_loc, iter_macvalout, istep
 INTEGER                           :: nSurfSample             ! polynomial degree of surface supersampling
 REAL,ALLOCATABLE                  :: XiEq_Surf(:)            ! position of equidistant interpolation points on surface
 REAL                              :: deltaXiEQ_Surf              ! delta of equidistant surface sampling
+
+TYPE tSampleCartmesh_VolWe
+  REAL                                  :: BGMdeltas(3)       ! Backgroundmesh size in x,y,z
+  REAL                                  :: FactorBGM(3)       ! Divider for BGM (to allow real numbers)
+  REAL                                  :: BGMVolume          ! Volume of a BGM Cell
+  INTEGER,ALLOCATABLE               :: GaussBGMIndex(:,:,:,:,:) ! Background mesh index of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
+  REAL,ALLOCATABLE                  :: GaussBGMFactor(:,:,:,:,:) ! BGM factor of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
+  INTEGER                               :: BGMminX            ! Local minimum BGM Index in x
+  INTEGER                               :: BGMminY            ! Local minimum BGM Index in y
+  INTEGER                               :: BGMminZ            ! Local minimum BGM Index in z
+  INTEGER                               :: BGMmaxX            ! Local maximum BGM Index in x
+  INTEGER                               :: BGMmaxY            ! Local maximum BGM Index in y
+  INTEGER                               :: BGMmaxZ            ! Local maximum BGM Index in z
+  INTEGER, ALLOCATABLE                  :: PeriodicBGMVectors(:,:)           ! = periodic vectors in backgroundmesh coords
+  LOGICAL                               :: SelfPeriodic
+  REAL, ALLOCATABLE                    :: BGMVolumes(:,:,:)
+  REAL, ALLOCATABLE                    :: BGMVolumes2(:,:,:)
+  LOGICAL, ALLOCATABLE                 :: isBoundBGCell(:,:,:)
+  INTEGER                               :: OrderVolInt
+  REAL, ALLOCATABLE                    :: x_VolInt(:)
+  REAL, ALLOCATABLE                    :: w_VolInt(:)
+#ifdef MPI
+  TYPE(tPartMPIConnect)        , ALLOCATABLE :: MPIConnect(:)             ! MPI connect for each process
+#endif
+END TYPE
+
+TYPE (tSampleCartmesh_VolWe) DSMCSampVolWe
+
+TYPE tDSMCSampNearInt
+  REAL,ALLOCATABLE                      :: GaussBorder(:)     ! 1D coords of gauss points in -1|1 space
+END TYPE
+
+TYPE (tDSMCSampNearInt) DSMCSampNearInt
+
+TYPE tDSMCSampCellVolW
+  REAL,ALLOCATABLE                      :: xGP(:)     
+END TYPE
+
+TYPE (tDSMCSampCellVolW) DSMCSampCellVolW
+
+TYPE tHODSMC
+  LOGICAL                 :: HODSMCOutput         !High Order DSMC Output
+  INTEGER                 :: nOutputDSMC          !HO DSMC output order
+  REAL,ALLOCATABLE        :: DSMC_xGP(:,:,:,:,:)  ! XYZ positions (first index 1:3) of the volume Gauss Point
+  REAL,ALLOCATABLE        :: DSMC_wGP(:)
+  CHARACTER(LEN=256)      :: SampleType
+  CHARACTER(LEN=256)      :: NodeType
+  REAL,ALLOCATABLE        :: sJ(:,:,:,:)
+END TYPE tHODSMC
+
+TYPE(tHODSMC)             :: HODSMC
+REAL,ALLOCATABLE          :: DSMC_HOSolution(:,:,:,:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

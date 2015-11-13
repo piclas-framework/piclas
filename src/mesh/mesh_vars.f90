@@ -37,6 +37,9 @@ REAL,ALLOCATABLE :: sJ(:,:,:,:)               ! 1/DetJac for each Gauss Point
 ! PIC - for Newton localisation of particles in curved Elements
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE :: wBaryCL_NGeo(:)
+#ifdef PARTICLES
+REAL,ALLOCATABLE :: wBaryCL_NGeo1(:)
+#endif /*PARTICLES*/
 REAL,ALLOCATABLE :: XiCL_NGeo(:)
 REAL,ALLOCATABLE :: XCL_NGeo(:,:,:,:,:)
 REAL,ALLOCATABLE :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo

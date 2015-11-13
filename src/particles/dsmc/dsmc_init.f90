@@ -43,7 +43,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,  ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
 USE MOD_PARTICLE_Vars,         ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, useVTKFileBGG
-USE MOD_DSMC_Analyze,          ONLY: WriteOutputMesh
+USE MOD_DSMC_Analyze,          ONLY: InitHODSMC
 USE MOD_TimeDisc_Vars,         ONLY: TEnd
 USE MOD_DSMC_ChemInit,         ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel,  ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly, DSMC_SetInternalEnr_PolyFast 
@@ -74,11 +74,6 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
 ! reading/writing OutputMesh stuff
   DSMC%OutputMeshInit = GETLOGICAL('Particles-DSMC-OutputMeshInit','.FALSE.')
   DSMC%OutputMeshSamp = GETLOGICAL('Particles-DSMC-OutputMeshSamp','.FALSE.')
-  IF (DSMC%OutputMeshInit) THEN
-    SWRITE(UNIT_stdOut,'(A)')' WRITING OUTPUT-MESH...'
-    CALL WriteOutputMesh()
-    SWRITE(UNIT_stdOut,'(A)')' WRITING OUTPUT-MESH DONE!'
-  END IF
 ! reading and reset general DSMC values
   CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
   DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant', '0.5')
@@ -109,18 +104,18 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
   DSMC%NumPolyatomMolecs = 0
 ! definition of DSMC sampling values
   DSMC%SampNum = 0
-  ALLOCATE(SampDSMC(nElems,nSpecies))
-  SampDSMC(1:nElems,1:nSpecies)%PartV(1)  = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartV(2)  = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartV(3)  = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartV2(1) = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartV2(2) = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartV2(3) = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartNum   = 0
-  SampDSMC(1:nElems,1:nSpecies)%SimPartNum= 0
-  SampDSMC(1:nElems,1:nSpecies)%ERot      = 0
-  SampDSMC(1:nElems,1:nSpecies)%EVib      = 0
-  SampDSMC(1:nElems,1:nSpecies)%EElec     = 0
+  HODSMC%HODSMCOutput = .TRUE. !GETLOGICAL('Particles-DSMC-HighOrderOutput','.FALSE.')
+  HODSMC%SampleType = GETSTR('DSMC-HOSampling-Type','cell_mean')
+  IF (TRIM(HODSMC%SampleType).EQ.'cell_mean') THEN
+    HODSMC%nOutputDSMC = 1
+    WRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
+  ELSE
+    HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
+  END IF     
+  ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))         
+  DSMC_HOSolution = 0.0
+  CALL InitHODSMC()
+   ! should remove SampDSMC
   ALLOCATE(DSMC%CollProbSamp(nElems))
   DSMC%CollProbSamp(1:nElems) = 0.0
   ALLOCATE(DSMC%CollProbOut(nElems,2))

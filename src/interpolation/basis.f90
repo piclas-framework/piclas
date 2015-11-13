@@ -37,8 +37,8 @@ INTERFACE BernSteinPolynomial
    MODULE PROCEDURE BernSteinPolynomial
 END INTERFACE
 
-INTERFACE BuildBernSteinVdm
-   MODULE PROCEDURE BuildBernSteinVdm
+INTERFACE ComputeBernSteinCoeff
+   MODULE PROCEDURE ComputeBernSteinCoeff
 END INTERFACE
 !#endif /*PARTICLES*/
 
@@ -84,7 +84,7 @@ PUBLIC::BuildLegendreVdm
 PUBLIC::BuildBezierVdm
 PUBLIC::DeCasteljauInterpolation
 PUBLIC::BernSteinPolynomial
-PUBLIC::BuildBernSteinVdm
+PUBLIC::ComputeBernSteinCoeff
 !#endif /*PARTICLES*/
 PUBLIC::InitializeVandermonde
 PUBLIC::LegGaussLobNodesAndWeights
@@ -146,7 +146,7 @@ END IF
 END FUNCTION INV
 
 !#ifdef PARTICLES
-SUBROUTINE BuildBernSteinVdm(N_In) !,xi_In)
+SUBROUTINE ComputeBernSteinCoeff(N_In) !,xi_In)
 !===================================================================================================================================
 ! required for deposition
 ! build a 1D Vandermonde matrix using the Bezier basis functions of degree N_In
@@ -158,7 +158,6 @@ SUBROUTINE BuildBernSteinVdm(N_In) !,xi_In)
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:abort
 USE MOD_Interpolation_Vars,     ONLY:NChooseK
-!USE MOD_PICDepo_Vars,           ONLY:Vdm_BernSteinN_GaussN,sVDM_BernSteinN_GaussN
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -191,7 +190,7 @@ DO i=0,N_In
   END DO !i
 END DO !j
 
-END SUBROUTINE BuildBernSteinVdm
+END SUBROUTINE ComputeBernSteinCoeff
 
 
 SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
