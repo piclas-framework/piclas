@@ -39,6 +39,7 @@ REAL,ALLOCATABLE :: sJ(:,:,:,:)               ! 1/DetJac for each Gauss Point
 REAL,ALLOCATABLE    :: wBaryCL_NGeo(:)
 #ifdef PARTICLES
 REAL,ALLOCATABLE    :: wBaryCL_NGeo1(:)
+REAL,ALLOCATABLE    :: XiCL_NGeo1(:)
 REAL,ALLOCATABLE    :: Vdm_CLNGeo1_CLNGeo(:,:)
 LOGICAL,ALLOCATABLE :: CurvedElem(:)
 #endif /*PARTICLES*/

@@ -57,6 +57,7 @@ USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_N
 USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
+USE MOD_Mesh_Vars,               ONLY:CurvedElem,wBaryCL_NGeo1,XiCL_NGeo1
 !USE MOD_Particle_Vars,           ONLY:PartPosRef
 !USE MOD_Mesh_Vars,ONLY: X_CP
 ! IMPLICIT VARIABLE HANDLING
@@ -84,51 +85,78 @@ INTEGER             :: iDir
 !REAL                :: Lag(1:3,0:NGeo)
 REAL                :: L_xi(3,0:PP_N), L_eta_zeta
 REAL                :: Ptild(1:3),XiLinear(1:6)
+REAL                :: XCL_NGeo1(1:3,0:1,0:1,0:1)
+REAL                :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
 ! h5-external e,b field
 REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 !===================================================================================================================================
 
 ! get initial guess by nearest GP search ! simple guess
-SELECT CASE(MappingGuess)
-CASE(1)
-  Ptild=X_in - ElemBaryNGeo(:,ElemID)
-  ! plus coord system (1-3) and minus coord system (4-6)
-  DO iDir=1,6
-    XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,ElemID))*slenXiEtaZetaBasis(iDir,ElemID)
-  END DO
-  ! compute guess as average value
-  DO iDir=1,3
-    Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
-  END DO 
-  !IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=0.
-  IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
-CASE(2) 
-  ! compute distance on Gauss Points
-  Winner_Dist=HUGE(1.)
-  DO i=0,N_in; DO j=0,N_in; DO k=0,N_in
-    Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,ElemID))*(x_in(:)-Elem_xGP(:,i,j,k,ElemID)))
-    IF (Dist.LT.Winner_Dist) THEN
-      Winner_Dist=Dist
-      Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
-    END IF
-  END DO; END DO; END DO
-CASE(3) 
-  ! compute distance on XCL Points
-  Winner_Dist=HUGE(1.)
-  DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
-    Dist=SUM((x_in(:)-XCL_NGeo(:,i,j,k,ElemID))*(x_in(:)-XCL_NGeo(:,i,j,k,ElemID)))
-    IF (Dist.LT.Winner_Dist) THEN
-      Winner_Dist=Dist
-      Xi(:)=(/XiCL_NGeo(i),XiCL_NGeo(j),XiCL_NGeo(k)/) ! start value
-    END IF
-  END DO; END DO; END DO
-CASE(4)
-  ! trival guess 
-  xi=0.
-END SELECT
+IF(CurvedElem(ElemID))THEN
+  CALL RefElemBisection(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),NGeo)
+ELSE
+  SELECT CASE(MappingGuess)
+  CASE(1)
+    Ptild=X_in - ElemBaryNGeo(:,ElemID)
+    ! plus coord system (1-3) and minus coord system (4-6)
+    DO iDir=1,6
+      XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,ElemID))*slenXiEtaZetaBasis(iDir,ElemID)
+    END DO
+    ! compute guess as average value
+    DO iDir=1,3
+      Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
+    END DO 
+    !IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=0.
+    IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
+  CASE(2) 
+    ! compute distance on Gauss Points
+    Winner_Dist=HUGE(1.)
+    DO i=0,N_in; DO j=0,N_in; DO k=0,N_in
+      Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,ElemID))*(x_in(:)-Elem_xGP(:,i,j,k,ElemID)))
+      IF (Dist.LT.Winner_Dist) THEN
+        Winner_Dist=Dist
+        Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
+      END IF
+    END DO; END DO; END DO
+  CASE(3) 
+    ! compute distance on XCL Points
+    Winner_Dist=HUGE(1.)
+    DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
+      Dist=SUM((x_in(:)-XCL_NGeo(:,i,j,k,ElemID))*(x_in(:)-XCL_NGeo(:,i,j,k,ElemID)))
+      IF (Dist.LT.Winner_Dist) THEN
+        Winner_Dist=Dist
+        Xi(:)=(/XiCL_NGeo(i),XiCL_NGeo(j),XiCL_NGeo(k)/) ! start value
+      END IF
+    END DO; END DO; END DO
+  CASE(4)
+    ! trival guess 
+    xi=0.
+  END SELECT
+END IF
 
-
-CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=1)
+IF(CurvedElem(ElemID))THEN
+  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=1)
+ELSE
+  ! fill dummy XCL_NGeo1
+  XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
+  XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,ElemID)
+  XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  ,ElemID)
+  XCL_NGeo1(1:3,1,1,0) = XCL_NGeo(1:3,NGeo,NGeo, 0  ,ElemID)
+  XCL_NGeo1(1:3,0,0,1) = XCL_NGeo(1:3, 0  , 0  ,NGeo,ElemID)
+  XCL_NGeo1(1:3,1,0,1) = XCL_NGeo(1:3,NGeo, 0  ,NGeo,ElemID)
+  XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo,ElemID)
+  XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,ElemID)
+  ! fill dummy dXCL_NGeo1
+  dXCL_NGeo1(1:3,1:3,0,0,0) = dXCL_NGeo(1:3,1:3, 0  , 0  , 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,0,0) = dXCL_NGeo(1:3,1:3,NGeo, 0  , 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,1,0) = dXCL_NGeo(1:3,1:3, 0  ,NGeo, 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,1,0) = dXCL_NGeo(1:3,1:3,NGeo,NGeo, 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,0,1) = dXCL_NGeo(1:3,1:3, 0  , 0  ,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
+  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=1)
+END IF
 
 ! IF(ANY(ABS(Xi).GT.1.1)) THEN
 ! !IF((NewtonIter.GE.4).AND.(ANY(ABS(Xi).GT.1.5)))THEN
@@ -209,6 +237,7 @@ USE MOD_Interpolation_Vars,      ONLY:xGP
 USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess,epsMapping
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis!,ElemRadiusNGeo
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo,NGeo
+USE MOD_Mesh_Vars,               ONLY:CurvedElem,wBaryCL_NGeo1,XiCL_NGeo1
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -227,49 +256,76 @@ REAL                       :: epsOne
 REAL                       :: Winner_Dist,Dist
 INTEGER                    :: idir
 REAL                       :: Ptild(1:3),XiLinear(1:6)
+REAL                       :: XCL_NGeo1(1:3,0:1,0:1,0:1)
+REAL                       :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
 !===================================================================================================================================
 
 epsOne=1.0+epsMapping
 IF(.NOT.PRESENT(DoReUseMap))THEN
-  SELECT CASE(MappingGuess)
-  CASE(1)
-    Ptild=X_in - ElemBaryNGeo(:,ElemID)
-    ! plus coord system (1-3) and minus coord system (4-6)
-    DO iDir=1,6
-      XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,ElemID))*slenXiEtaZetaBasis(iDir,ElemID)
-    END DO
-    ! compute guess as average value
-    DO iDir=1,3
-      Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
-    END DO 
-    IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
-  CASE(2)
-    Winner_Dist=HUGE(1.)
-    DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
-      Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,ElemID))*(x_in(:)-Elem_xGP(:,i,j,k,ElemID)))
-      IF (Dist.LT.Winner_Dist) THEN
-        Winner_Dist=Dist
-        Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
-      END IF
-    END DO; END DO; END DO
-  CASE(3) 
-    ! compute distance on XCL Points
-    Winner_Dist=HUGE(1.)
-    DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
-      Dist=SUM((x_in(:)-XCL_NGeo(:,i,j,k,ElemID))*(x_in(:)-XCL_NGeo(:,i,j,k,ElemID)))
-      IF (Dist.LT.Winner_Dist) THEN
-        Winner_Dist=Dist
-        Xi(:)=(/XiCL_NGeo(i),XiCL_NGeo(j),XiCL_NGeo(k)/) ! start value
-      END IF
-    END DO; END DO; END DO
-  CASE(4)
-    ! trival guess, cell mean point
-    xi=0.
-  END SELECT
+  IF(CurvedElem(ElemID))THEN
+    CALL RefElemBisection(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),NGeo)
+  ELSE
+    SELECT CASE(MappingGuess)
+    CASE(1)
+      Ptild=X_in - ElemBaryNGeo(:,ElemID)
+      ! plus coord system (1-3) and minus coord system (4-6)
+      DO iDir=1,6
+        XiLinear(iDir)=DOT_PRODUCT(Ptild,XiEtaZetaBasis(:,iDir,ElemID))*slenXiEtaZetaBasis(iDir,ElemID)
+      END DO
+      ! compute guess as average value
+      DO iDir=1,3
+        Xi(iDir)=0.5*(XiLinear(iDir)-XiLinear(iDir+3))
+      END DO 
+      IF(MAXVAL(ABS(Xi)).GT.epsOne) Xi=LimitXi(Xi)
+    CASE(2)
+      Winner_Dist=HUGE(1.)
+      DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
+        Dist=SUM((x_in(:)-Elem_xGP(:,i,j,k,ElemID))*(x_in(:)-Elem_xGP(:,i,j,k,ElemID)))
+        IF (Dist.LT.Winner_Dist) THEN
+          Winner_Dist=Dist
+          Xi(:)=(/xGP(i),xGP(j),xGP(k)/) ! start value
+        END IF
+      END DO; END DO; END DO
+    CASE(3) 
+      ! compute distance on XCL Points
+      Winner_Dist=HUGE(1.)
+      DO i=0,NGeo; DO j=0,NGeo; DO k=0,NGeo
+        Dist=SUM((x_in(:)-XCL_NGeo(:,i,j,k,ElemID))*(x_in(:)-XCL_NGeo(:,i,j,k,ElemID)))
+        IF (Dist.LT.Winner_Dist) THEN
+          Winner_Dist=Dist
+          Xi(:)=(/XiCL_NGeo(i),XiCL_NGeo(j),XiCL_NGeo(k)/) ! start value
+        END IF
+      END DO; END DO; END DO
+    CASE(4)
+      ! trival guess, cell mean point
+      xi=0.
+    END SELECT
+  END IF
 END IF
 
-CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=2)
-
+IF(CurvedElem(ElemID))THEN
+  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=2)
+ELSE
+  ! fill dummy XCL_NGeo1
+  XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
+  XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,ElemID)
+  XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  ,ElemID)
+  XCL_NGeo1(1:3,1,1,0) = XCL_NGeo(1:3,NGeo,NGeo, 0  ,ElemID)
+  XCL_NGeo1(1:3,0,0,1) = XCL_NGeo(1:3, 0  , 0  ,NGeo,ElemID)
+  XCL_NGeo1(1:3,1,0,1) = XCL_NGeo(1:3,NGeo, 0  ,NGeo,ElemID)
+  XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo,ElemID)
+  XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,ElemID)
+  ! fill dummy dXCL_NGeo1
+  dXCL_NGeo1(1:3,1:3,0,0,0) = dXCL_NGeo(1:3,1:3, 0  , 0  , 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,0,0) = dXCL_NGeo(1:3,1:3,NGeo, 0  , 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,1,0) = dXCL_NGeo(1:3,1:3, 0  ,NGeo, 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,1,0) = dXCL_NGeo(1:3,1:3,NGeo,NGeo, 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,0,1) = dXCL_NGeo(1:3,1:3, 0  , 0  ,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
+  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=2)
+END IF
 
 END SUBROUTINE eval_xyz_elemcheck
 
@@ -579,6 +635,79 @@ END DO !newton
 
 END SUBROUTINE RefElemNewton
 
+
+SUBROUTINE RefElemBisection(XiOut,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo,N_In)
+!===================================================================================================================================
+! bisection algorithm in reference-element to get initial guess
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)               :: N_In
+REAL,INTENT(IN)                  :: X_in(3) ! position in physical space 
+REAL,INTENT(IN)                  :: XiCL_NGeo(0:N_In)               ! position of CL points in reference space
+REAL,INTENT(IN)                  :: XCL_NGeo(3,0:N_In,0:N_in,0:N_In) ! position of CL points in physical space
+REAL,INTENT(IN)                  :: wBaryCL_NGeo(0:N_In) ! derivation of CL points
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)               :: XiOut(3) ! position in reference element
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: Lag(1:3,0:N_In), F(1:3,1:2), Lag2(1:3,0:N_In)
+REAL                             :: Xi(1:3,2)
+INTEGER                          :: iter,i,j,k
+!===================================================================================================================================
+
+Xi(:,1)=-1.1
+Xi(:,2)= 1.1
+
+DO iter=1,3
+  ! Xi
+  XiOut=0.5*(Xi(:,1)+Xi(:,2))
+  ! compute f(a) 
+  CALL LagrangeInterpolationPolys(Xi(1,1),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2,1),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3,1),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  ! f(c)
+  CALL LagrangeInterpolationPolys(XiOut(1),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag2(1,:))
+  CALL LagrangeInterpolationPolys(XiOut(2),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag2(2,:))
+  CALL LagrangeInterpolationPolys(XiOut(3),N_In,XiCL_NGeo,wBaryCL_NGeo,Lag2(3,:))
+  F(:,1)=-X_in
+  F(:,2)=-X_in
+  DO k=0,N_In
+    DO j=0,N_In
+      DO i=0,N_In
+        F(:,1)=F(:,1)+XCL_NGeo(:,i,j,k)*Lag (1,i)*Lag (2,j)*Lag (3,k)
+        F(:,2)=F(:,2)+XCL_NGeo(:,i,j,k)*Lag2(1,i)*Lag2(2,j)*Lag2(3,k)
+      END DO !l=0,N_In
+    END DO !i=0,N_In
+  END DO !j=0,N_In
+  ! besection in each direction
+  IF(F(1,1)*F(1,2).GT.0)THEN
+    Xi(1,1)=XiOut(1)
+  ELSE
+    Xi(1,2)=XiOut(1)
+  END IF
+  IF(F(2,1)*F(2,2).GT.0)THEN
+    Xi(2,1)=XiOut(2)
+  ELSE
+    Xi(2,2)=XiOut(2)
+  END IF
+  IF(F(3,1)*F(3,2).GT.0)THEN
+    Xi(3,1)=XiOut(3)
+  ELSE
+    Xi(3,2)=XiOut(3)
+  END IF
+END DO ! iter=1,3
+
+XiOut=0.5*(Xi(:,1)+Xi(:,2))
+
+END SUBROUTINE RefElemBisection
 
 FUNCTION getDet(Mat)
 !=================================================================================================================================

@@ -522,7 +522,7 @@ USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,Buil
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo!,DoRefMapping
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
@@ -553,6 +553,7 @@ CALL InitHaloMesh()
 CALL AddHALOCellsToFIBGM()
 #endif /*MPI*/
 
+! sort element faces by type - linear, bilinear, curved
 IF(DoRefMapping) THEN
   CALL GetBCSideType()
 ELSE
@@ -586,6 +587,8 @@ END IF
 nCurvedElemsTot=nCurvedElems
 #endif /*MPI*/
 
+! and add number of curved elems
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of (bi-)linear elems: ', nGlobalElems-nCurvedElemsTot
 SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved      elems: ', nCurvedElemsTot
 SWRITE(UNIT_StdOut,'(132("-"))')
 

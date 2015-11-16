@@ -635,7 +635,7 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 !  DeltaXi_NGeo=2./NGeo_in
 !ENDIF
 !
-!ALLOCATE(Vdm_NGP_NSurfEQ(0:PP_N,0:NSurfSample) & 
+!ALLOCATE(Vdm_NGP_NSurfEQ(0:NSurfSample,0:PP_N) & 
 !        ,wBary_NSurfSample(0:NSurfSample)      &
 !        ,SurfMesh%SideToSurfID(1:nTotalSides)  )
 !

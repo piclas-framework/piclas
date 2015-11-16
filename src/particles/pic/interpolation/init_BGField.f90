@@ -135,7 +135,7 @@ IF(NBG.EQ.N_IN)THEN
   ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
   CALL ReadArray('BGField',5,(/BGdatasize,N_in+1,N_in+1,N_in+1,PP_nElems/),OffsetElem,5,RealArray=BGField)
 ELSE
-  ALLOCATE(BGField_tmp(1:BGDataSize,N_in+1,N_in+1,N_in+1,1:PP_nElems))
+  ALLOCATE(BGField_tmp(1:BGDataSize,0:N_in,0:N_in,0:N_in,1:PP_nElems))
   ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
   CALL ReadArray('BGField',5,(/BGdatasize,N_in+1,N_in+1,N_in+1,PP_nElems/),OffsetElem,5,RealArray=BGField_tmp)
 END IF
@@ -161,7 +161,7 @@ IF(NBG.NE.N_In)THEN
   IF(NBG.GT.N_IN) THEN
     SWRITE(UNIT_stdOut,'(A)')' WARNING: BG-Field is used with higher polynomial degree than given!'
   END IF
-  ALLOCATE( Vdm_BGFieldIn_BGField(0:N_IN,0:NBG) &
+  ALLOCATE( Vdm_BGFieldIn_BGField(0:NBG,0:N_IN) &
           , wGP_tmp(0:N_in)                     &
           , xGP_tmp(0:N_in)                     &
           , wBary_tmp(0:N_in)                   )
