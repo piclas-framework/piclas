@@ -108,7 +108,7 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
   HODSMC%SampleType = GETSTR('DSMC-HOSampling-Type','cell_mean')
   IF (TRIM(HODSMC%SampleType).EQ.'cell_mean') THEN
     HODSMC%nOutputDSMC = 1
-    WRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
+    SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
   ELSE
     HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
   END IF     
@@ -1203,6 +1203,7 @@ SDEALLOCATE(SampWall)
 SDEALLOCATE(MacroSurfaceVal)
 SDEALLOCATE(VibQuantsPar)
 SDEALLOCATE(XiEq_Surf)
+SDEALLOCATE(DSMC_HOSolution)
 
 END SUBROUTINE FinalizeDSMC
 
