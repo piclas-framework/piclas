@@ -213,6 +213,7 @@ SDEALLOCATE(XiEtaZetaBasis)
 SDEALLOCATE(slenXiEtaZetaBasis)
 SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemRadiusNGeo)
+SDEALLOCATE(ElemRadius2NGeo)
 
 ParticleMeshInitIsDone=.FALSE.
 
@@ -521,7 +522,7 @@ USE MOD_ReadInTools,                        ONLY:GetRealArray
 USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
-USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo!,DoRefMapping
+USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
@@ -562,6 +563,7 @@ END IF
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
+        ,ElemRadius2NGeo(1:nTotalElems)        &
         ,ElemBaryNGeo(1:3,1:nTotalElems)       )
 CALL BuildElementBasis()
 CALL MapElemToFIBGM()
@@ -1979,7 +1981,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D
 USE MOD_Basis,                    ONLY:DeCasteljauInterpolation
-USE MOD_Particle_Mesh_Vars,       ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,       ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
@@ -2195,7 +2197,10 @@ DO iElem=1,nTotalElems
       END DO !j=0,NGeo
     END DO ! ilocSide
   END IF
+  !ElemRadiusNGeo(iElem)=Radius
+  ! elem radius containts 2% tolerance
   ElemRadiusNGeo(iElem)=Radius
+  ElemRadius2NGeo(iElem)=Radius*Radius*1.0404
 
 END DO ! iElem
 

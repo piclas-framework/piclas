@@ -146,7 +146,7 @@ END IF
 END FUNCTION INV
 
 !#ifdef PARTICLES
-SUBROUTINE ComputeBernSteinCoeff(N_In) !,xi_In)
+SUBROUTINE ComputeBernSteinCoeff(N_In,NChooseK)
 !===================================================================================================================================
 ! required for deposition
 ! build a 1D Vandermonde matrix using the Bezier basis functions of degree N_In
@@ -157,7 +157,6 @@ SUBROUTINE ComputeBernSteinCoeff(N_In) !,xi_In)
 !USE nr,                        ONLY : gaussj
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:abort
-USE MOD_Interpolation_Vars,     ONLY:NChooseK
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -166,6 +165,7 @@ INTEGER,INTENT(IN) :: N_In
 !REAL,INTENT(IN)    :: xi_In(0:N_In)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,INTENT(OUT)    :: NchooseK(0:N_In,0:N_In) 
 !REAL,INTENT(OUT)   :: Vdm_Bezier(0:N_In,0:N_In),sVdm_Bezier(0:N_In,0:N_In)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
@@ -174,7 +174,7 @@ INTEGER            :: i,j!,errorflag
 !REAL               :: Matrix(0:N_In,0:N_In)
 !===================================================================================================================================
 ! store the coefficients
-ALLOCATE(NchooseK(0:N_In,0:N_In))
+!ALLOCATE(NchooseK(0:N_In,0:N_In))
 NchooseK(:,:) = 0.
 
 !Vandermonde on xi_In

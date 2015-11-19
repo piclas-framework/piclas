@@ -185,8 +185,8 @@ USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 USE MOD_PIC_Analyze,           ONLY: CalcDepositedCharge
-USE MOD_LoadBalance_Vars,      ONLY: tCurrent
 #ifdef MPI
+USE MOD_LoadBalance_Vars,      ONLY: tCurrent
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
 #if (PP_TimeDiscMethod ==1000)

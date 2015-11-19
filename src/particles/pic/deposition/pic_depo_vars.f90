@@ -1,6 +1,6 @@
-MODULE MOD_PICDepo_Vars
+MODULE MOD_PICDepo_Vars 
 !===================================================================================================================================
-! Contains the constant Advection Velocity Vector used for the linear scalar advection equation
+! Contains the variables for the particle deposition
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -26,6 +26,14 @@ REAL                                  :: w_sf               ! shapefuntion weigh
 REAL                                  :: r_sf0              ! minimal shape function radius
 REAL                                  :: r_sf_scale         ! scaling of shape function radius
 REAL                                  :: BetaFac            ! betafactor of shape-function || integral =1
+INTEGER                               :: NDepo              ! polynomial degree of delta distri
+REAL,ALLOCATABLE                      :: NDepoChooseK(:,:)               ! array n over n
+REAL,ALLOCATABLE                      :: wBaryNDepo(:)      ! barycentric weights for deposition
+REAL,ALLOCATABLE                      :: swGPNDepo(:)       ! integration weights for deposition
+REAL,ALLOCATABLE                      :: sJNDepo(:,:,:,:)   ! sj on ndepo
+REAL,ALLOCATABLE                      :: XiNDepo(:)         ! gauss position of barycenters
+REAL,ALLOCATABLE                      :: Vdm_NDepo_GaussN(:,:) ! VdM between different polynomial degrees
+LOGICAL                               :: DoChangeBasis      ! Change polynomial degree
 LOGICAL                               :: DoSFEqui           ! use equidistant points for SF
 REAL,ALLOCATABLE                      :: ElemDepo_xGP(:,:,:,:,:)  ! element xGPs for deposition 
 REAL,ALLOCATABLE                      :: Vdm_EquiN_GaussN(:,:)  ! Vdm from equidistant points to Gauss Points

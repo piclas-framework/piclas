@@ -36,11 +36,12 @@ USE MOD_Globals
 USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_inv
 USE MOD_Particle_Vars ! crazy??
 USE MOD_Globals_Vars,           ONLY:PI
-USE MOD_Mesh_Vars,              ONLY:nElems, XCL_NGeo,Elem_xGP
-USE MOD_Particle_Mesh_Vars,     ONLY:Geo,ElemRadiusNGeo
+USE MOD_Mesh_Vars,              ONLY:nElems, XCL_NGeo,Elem_xGP, sJ
+USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Interpolation_Vars,     ONLY:xGP,wBary
 USE MOD_Basis,                  ONLY:ComputeBernsteinCoeff
 USE MOD_Basis,                  ONLY:BarycentricWeights,InitializeVandermonde
+USE MOD_Basis,                  ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
 USE MOD_PreProc,                ONLY:PP_N,PP_nElems
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY
@@ -58,7 +59,8 @@ USE MOD_Particle_MPI_Vars,      ONLY:DoExternalParts
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE          :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:),Vdm_GaussN_EquiN(:,:)
+REAL,ALLOCATABLE          :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDepo(:,:)
+REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t
 REAL                      :: Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
 REAL                      :: auxiliary(0:3),weight(1:3,0:3)
@@ -232,19 +234,21 @@ CASE('delta_distri')
     ,' Cannot allocate partposref!')
   END IF
   DeltaType = GETINT('PIC-DeltaType','3')
+  NDepo     = GETINT('PIC-DeltaType-N','1')
   SELECT CASE(DeltaType)
   CASE(1)
     SWRITE(UNIT_stdOut,'(A)') ' Lagrange-Polynomial'
   CASE(2)
     SWRITE(UNIT_stdOut,'(A)') ' Bernstein-Polynomial'
     !CALL BuildBernSteinVdm(PP_N,xGP)
-    CALL ComputeBernsteinCoeff(PP_N)
+    ALLOCATE(NDepochooseK(0:NDepo,0:NDepo))
+    CALL ComputeBernsteinCoeff(NDepo,NDepoChooseK)
   CASE(3)
     SWRITE(UNIT_stdOut,'(A)') ' Uniform B-Spline '
-    NKnots=(PP_N+1)*2-1
+    NKnots=(NDepo+1)*2-1
     ALLOCATE( Knots(0:NKnots)  )
     ! knots distance is 2 [-1,1)
-    X0=-1-PP_N*2.0
+    X0=-1.-REAL(NDepo)*2.0
     DO i=0,nKnots
       Knots(i) =X0+2.0*REAL(i)
     END DO ! i
@@ -252,6 +256,44 @@ CASE('delta_distri')
     CALL abort(__STAMP__, &
         ' Wrong Delta-Type')
   END SELECT
+  IF(NDepo.GT.PP_N) CALL abort(&
+    __STAMP__&
+    ,' NDepo must be smaller than N!')
+  DoChangeBasis=.FALSE.
+  IF(NDepo.NE.PP_N) DoChangeBasis=.TRUE.
+  ALLOCATE( Vdm_NDepo_GaussN(0:PP_N,0:NDepo)             &
+          , Vdm_GaussN_NDepo(0:NDepo,0:PP_N)             &
+          , dummy(1,0:PP_N,0:PP_N,0:PP_N)                &
+          , dummy2(1,0:NDepo,0:NDepo,0:NDepo)            &
+          , XiNDepo(0:NDepo)                             &
+          , swGPNDepo(0:NDepo)                           &
+          , sjNDepo(0:NDepo,0:NDepo,0:NDepo,0:PP_nElems) &
+          , wBaryNDepo(0:NDepo)                          )
+#if (PP_NodeType==1)
+    CALL LegendreGaussNodesAndWeights(NDepo,XiNDepo,swGPNDepo)
+#elif (PP_NodeType==2)
+    CALL LegGaussLobNodesAndWeights(NDepo,XiNDepo,swGPNDepo)
+#endif
+  CALL BarycentricWeights(NDepo,XiNDepo,wBaryNDepo)
+  IF(DoChangeBasis)THEN
+    CALL InitializeVandermonde(NDepo,PP_N,wBaryNDepo,XiNDepo,xGP,Vdm_NDepo_GaussN)
+    !CALL InitializeVandermonde(N_Restart_in,N_in,wBary_Restart,xGP_Restart,xGP,Vdm_GaussNRestart_GaussN)
+  ELSE
+    DEALLOCATE(Vdm_NDepo_GaussN)
+  END IF
+  ! and inverse
+  DO i=0,NDepo
+    swGPNDepo(i)=1.0/swGPNDepo(i)
+  END DO ! i=0,PP_N
+  CALL InitializeVandermonde(PP_N,NDepo,wBary,xGP,xiNDepo,Vdm_GaussN_NDepo)
+  DO iElem=1,PP_nElems
+    !CALL ChangeBasis3D(1,PP_N,NDepo,Vdm_GaussN_NDepo,sJ(:,:,:,iElem),sjNDepo(:,:,:,iElem))
+    dummy(1,:,:,:)=sJ(:,:,:,iElem)
+    CALL ChangeBasis3D(1,PP_N,NDepo,Vdm_GaussN_NDepo,dummy,dummy2)
+    sJNDepo(:,:,:,iElem) = dummy2(1,:,:,:)
+  END DO ! iElem=1,PP_nElems
+  DEALLOCATE(Vdm_GaussN_NDepo)
+  DEALLOCATE(dummy,dummy2)
 
 CASE('cartmesh_volumeweighting')
 
@@ -487,7 +529,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP, sJ
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
-USE MOD_Interpolation_Vars,     ONLY:wGP,swGP,NChooseK
+USE MOD_Interpolation_Vars,     ONLY:wGP,swGP
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
@@ -528,7 +570,7 @@ REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(
 REAL                             :: alpha1, alpha2, alpha3
 INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
 INTEGER                          :: foundDOF
-REAL,DIMENSION(3,0:PP_N)         :: L_xi
+REAL,DIMENSION(3,0:NDepo)        :: L_xi
 REAL                             :: DeltaIntCoeff,prefac
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
 #ifdef MPI
@@ -1209,37 +1251,35 @@ CASE('delta_distri')
           SELECT CASE(DeltaType)
           CASE(1)
             ! xi   -direction
-            CALL LagrangeInterpolationPolys(PartPosRef(1,iPart),PP_N,xGP,wBary,L_xi(1,:))
+            CALL LagrangeInterpolationPolys(PartPosRef(1,iPart),NDepo,XiNDepo,wBaryNDepo,L_xi(1,:))
             ! eta  -direction                                 
-            CALL LagrangeInterpolationPolys(PartPosRef(2,iPart),PP_N,xGP,wBary,L_xi(2,:))
+            CALL LagrangeInterpolationPolys(PartPosRef(2,iPart),NDepo,XiNDepo,wBaryNDepo,L_xi(2,:))
             ! zeta -direction                                 
-            CALL LagrangeInterpolationPolys(PartPosRef(3,iPart),PP_N,xGP,wBary,L_xi(3,:))
+            CALL LagrangeInterpolationPolys(PartPosRef(3,iPart),NDepo,XiNDepo,wBaryNDepo,L_xi(3,:))
           CASE(2)
-            DO i=0,PP_N
+            DO i=0,NDepo
               ! xi   -direction
-               CALL BernsteinPolynomial(PP_N,i,PartPosRef(1,iPart),L_xi(1,i),NChooseK)
+               CALL BernsteinPolynomial(NDepo,i,PartPosRef(1,iPart),L_xi(1,i),NDepoChooseK)
               ! eta  -direction                                  
-               CALL BernsteinPolynomial(PP_N,i,PartPosRef(2,iPart),L_xi(2,i),NChooseK)
+               CALL BernsteinPolynomial(NDepo,i,PartPosRef(2,iPart),L_xi(2,i),NDepoChooseK)
               ! zeta  -direction                                 
-               CALL BernsteinPolynomial(PP_N,i,PartPosRef(3,iPart),L_xi(3,i),NChooseK)
+               CALL BernsteinPolynomial(NDepo,i,PartPosRef(3,iPart),L_xi(3,i),NDepoChooseK)
             END DO ! i
           CASE(3)
             ! xi - direction
-            CALL DeBoorRef(PP_N,NKnots,Knots,PartPosRef(1,iPart),L_xi(1,:))
+            CALL DeBoorRef(NDepo,NKnots,Knots,PartPosRef(1,iPart),L_xi(1,:))
             ! eta - direction                                  
-            CALL DeBoorRef(PP_N,NKnots,Knots,PartPosRef(2,iPart),L_xi(2,:))
+            CALL DeBoorRef(NDepo,NKnots,Knots,PartPosRef(2,iPart),L_xi(2,:))
             ! zeta - direction                                 
-            CALL DeBoorRef(PP_N,NKnots,Knots,PartPosRef(3,iPart),L_xi(3,:))
+            CALL DeBoorRef(NDepo,NKnots,Knots,PartPosRef(3,iPart),L_xi(3,:))
           END SELECT
-          DO k=0,PP_N
-            DO j=0,PP_N
-              DO i=0,PP_N
+          DO k=0,NDepo
+            DO j=0,NDepo
+              DO i=0,NDepo
            !     print*,'i,j,k,L',i,j,k,L_xi(1,i)* L_xi(2,j)* L_xi(3,k)
                 DeltaIntCoeff = L_xi(1,i)* L_xi(2,j)* L_xi(3,k)*prefac 
-!#if (PP_nVar==8)
                 source(1:3,i,j,k,iElem) = source(1:3,i,j,k,iElem) + DeltaIntCoeff*PartState(iPart,4:6)
-!#endif
-              source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) + DeltaIntCoeff
+                source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) + DeltaIntCoeff
               END DO ! i
             END DO ! j
           END DO ! k
@@ -1251,32 +1291,39 @@ CASE('delta_distri')
     ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
 #endif /*MPI*/
   END DO ! iElem
-#ifdef MPI
   IF(.NOT.DoInnerParts)THEN
-#endif /*MPI*/
     DO iElem=1,PP_nElems
 #ifdef MPI
       tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-      DO k=0,PP_N
-        DO j=0,PP_N
-          DO i=0,PP_N
-!#if (PP_nVar==8)
-            source( : ,i,j,k,iElem) = source( : ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
-!#else
-!            source( 4 ,i,j,k,iElem) = source( 4 ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
-!#endif
+      DO k=0,NDepo
+        DO j=0,NDepo
+          DO i=0,NDepo
+            source( : ,i,j,k,iElem) = source( : ,i,j,k,iElem) *sJNDepo(i,j,k,iElem)*swGPNDepo(i)*swGPNDepo(j)*swGPNDepo(k)
           END DO ! i
         END DO ! j
       END DO ! k
+      IF(DoChangeBasis)THEN
+        CALL ChangeBasis3D(4,NDepo,PP_N,Vdm_NDepo_GaussN,source(1:4,0:NDepo,0:NDepo,0:NDepo,iElem)&
+                                                        ,source(1:4,0:PP_N ,0:PP_N ,0:PP_N, iElem))
+      END IF
+!      IF(DoChangeBasis)THEN
+!        CALL ChangeBasis3D(4,NDepo,PP_N,Vdm_NDepo_GaussN,source(:,0:NDepo,0:NDepo,0:NDepo,iElem)&
+!                                                        ,source(:,0:PP_N ,0:PP_N ,0:PP_N, iElem))
+!      END IF
+!      DO k=0,PP_N
+!        DO j=0,PP_N
+!          DO i=0,PP_N
+!            source( : ,i,j,k,iElem) = source( : ,i,j,k,iElem) *sJ(i,j,k,iElem)*swGP(i)*swGP(j)*swGP(k)
+!          END DO ! i
+!        END DO ! j
+!      END DO ! k
 #ifdef MPI
       tLBEnd = LOCALTIME() ! LB Time End
       ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
 #endif /*MPI*/
     END DO ! loop over all elems
-#ifdef MPI
   END IF ! DoInnerParts
-#endif /*MPI*/
 CASE('nearest_gausspoint')
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   SAVE_GAUSS = .FALSE.
@@ -2385,6 +2432,13 @@ SDEALLOCATE(GEO%PeriodicBGMVectors)
 SDEALLOCATE(BGMSource)
 SDEALLOCATE(GPWeight)
 SDEALLOCATE(ElemRadius2_sf)
+SDEALLOCATE(Vdm_NDepo_GaussN)
+SDEALLOCATE(sJNDepo)
+SDEALLOCATE(XiNDepo)
+SDEALLOCATE(swGPNDepo)
+SDEALLOCATE(wBaryNDepo)
+SDEALLOCATE(NDepochooseK)
+
 END SUBROUTINE FinalizeDeposition
 
 END MODULE MOD_PICDepo

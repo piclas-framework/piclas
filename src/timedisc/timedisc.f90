@@ -167,9 +167,10 @@ USE MOD_Particle_MPI_Vars,     ONLY: PartMPIExchange
 #ifdef PP_POIS
 USE MOD_Equation,              ONLY: EvalGradient
 #endif /*PP_POIS*/
+USE MOD_LoadBalance_Vars,      ONLY: nSkipAnalyze
 #ifdef MPI
 USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeightAndLoad,ComputeElemLoad
-USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance,nSkipAnalyze
+USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -492,7 +493,7 @@ DO !iter_t=0,MaxIter
 #ifdef MPI
     IF(iAnalyze.EQ.nSkipAnalyze .OR. PerformLoadBalance .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #else
-    IF( PerformLoadBalance .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
+    IF( iAnalyze.EQ.nSkipAnalyze .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #endif /*MPI*/
       IF(MPIroot)THEN
         ! Get calculation time per DOF
@@ -513,9 +514,9 @@ DO !iter_t=0,MaxIter
       IF(DoPML) CALL TransformPMLVars()
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
-#ifdef MPI
+!#ifdef MPI
       IF(iAnalyze.EQ.nSkipAnalyze) iAnalyze=0
-#endif /*MPI*/
+!#endif /*MPI*/
       SWRITE(UNIT_StdOut,'(132("-"))')
     END IF
     iAnalyze=iAnalyze+1

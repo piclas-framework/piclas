@@ -407,7 +407,7 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:ClipHit
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsInCell,epsOneCell
 USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToSide,PartSideToElem,nTotalBCSides,PartBCSideLIst
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo,ElemRadius2NGeo
 USE MOD_TimeDisc_Vars,           ONLY:iter
 USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
 USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
@@ -606,10 +606,14 @@ DO iPart=1,PDM%ParticleVecLength
     IF(ElemID.EQ.OldElemID)THEN
       Distance(iBGMElem)=-1.0
     ELSE
-      Distance(iBGMElem)=SQRT((PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))  &
+      !Distance(iBGMElem)=SQRT((PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))  &
+      !                       +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
+      !                       +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) )
+      Distance(iBGMElem)=    ((PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
                              +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
                              +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) )
-      IF(Distance(iBGMElem).GT.ElemRadiusNGeo(ElemID))THEN
+
+      IF(Distance(iBGMElem).GT.ElemRadius2NGeo(ElemID))THEN
         Distance(iBGMElem)=-1.0
       END IF
     END IF
@@ -1295,7 +1299,7 @@ USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,lastpartpos
 USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
 USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,epsInCell,epsOneCell,ElemRadiusNGeo,ElemBaryNGeo,BCElem
+USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,epsInCell,epsOneCell,ElemRadius2NGeo,ElemBaryNGeo,BCElem
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
@@ -1453,10 +1457,10 @@ ELSE
     IF(ElemID.EQ.OldElemID)THEN
       Distance(iBGMElem)=-1.0
     ELSE
-      Distance(iBGMElem)=SQRT((PartState(PartID,1)-ElemBaryNGeo(1,ElemID))*(PartState(PartID,1)-ElemBaryNGeo(1,ElemID))  &
+      Distance(iBGMElem)=    ((PartState(PartID,1)-ElemBaryNGeo(1,ElemID))*(PartState(PartID,1)-ElemBaryNGeo(1,ElemID)) &
                              +(PartState(PartID,2)-ElemBaryNGeo(2,ElemID))*(PartState(PartID,2)-ElemBaryNGeo(2,ElemID)) &
                              +(PartState(PartID,3)-ElemBaryNGeo(3,ElemID))*(PartState(PartID,3)-ElemBaryNGeo(3,ElemID)) )
-      IF(Distance(iBGMElem).GT.ElemRadiusNGeo(ElemID))THEN
+      IF(Distance(iBGMElem).GT.ElemRadius2NGeo(ElemID))THEN
         Distance(iBGMElem)=-1.0
       END IF
     END IF
