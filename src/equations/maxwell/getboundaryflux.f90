@@ -413,7 +413,8 @@ ELSE
   DO iElem=1,PP_nElems
     CALL ChangeBasis3D(PP_nVar,N_HDF5,PP_N,Vdm_NHDF5_N,U_local(:,:,:,:,iElem),U_N(:,:,:,:,iElem))
   END DO
-  !DEALLOCATE(U_local,Vdm_NHDF5_N)
+  DEALLOCATE(U_local,Vdm_NHDF5_N)
+  DEALLOCATE(wGP_tmp, xGP_tmp,wBary_tmp)
 END IF
 CALL CloseDataFile() 
 

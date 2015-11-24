@@ -808,7 +808,7 @@ CASE('shape_function')
                       !-- calculate charge and current density at ip point using a shape function
                       !-- currently only one shapefunction available, more to follow (including structure change)
                       IF (radius2 .LT. r2_sf) THEN
-                        S = 1 - r2_sf_inv * radius2
+                        S = 1. - r2_sf_inv * radius2
                         !IF(S.LT.0.) print*,'dist neg '
                       !radius2=GaussDistance(k,l,m)
                       !IF (radius2 .LT. 1.0) THEN
@@ -1100,7 +1100,7 @@ CASE('cylindrical_shape_function')
                     !-- calculate charge and current density at ip point using a shape function
                     !-- currently only one shapefunction available, more to follow (including structure change)
                     IF (radius2 .LT. local_r2_sf) THEN
-                      S = 1 - local_r2_sf_inv * radius2
+                      S = 1. - local_r2_sf_inv * radius2
                     !radius2=GaussDistance(k,l,m)
                     !IF (radius2 .LT. 1.0) THEN
                     !  S = 1 -  radius2
@@ -1193,7 +1193,7 @@ CASE('cylindrical_shape_function')
                       !-- calculate charge and current density at ip point using a shape function
                       !-- currently only one shapefunction available, more to follow (including structure change)
                       IF (radius2 .LT. local_r2_sf) THEN
-                        S = 1 - local_r2_sf_inv * radius2
+                        S = 1. - local_r2_sf_inv * radius2
                         !IF(S.LT.0.) print*,'dist neg '
                       !radius2=GaussDistance(k,l,m)
                       !IF (radius2 .LT. 1.0) THEN

@@ -138,9 +138,12 @@ ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape)
                 * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
 
 !Init PHI
+SDEALLOCATE(Phi)
 ALLOCATE(Phi(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 Phi=0.
 ! the time derivative computed with the DG scheme
+
+SDEALLOCATE(Phit)
 ALLOCATE(Phit(4,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 nTotalPhi=4*(PP_N+1)*(PP_N+1)*(PP_N+1)*PP_nElems
 
@@ -152,18 +155,23 @@ nTotalPhi=4*(PP_N+1)*(PP_N+1)*(PP_N+1)*PP_nElems
 Phit=0.
 
 ! We store the interior data at the each element face
+SDEALLOCATE(Phi_Minus)
 ALLOCATE(Phi_Minus(4,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
+SDEALLOCATE(Phi_Plus)
 ALLOCATE(Phi_Plus(4,0:PP_N,0:PP_N,sideID_plus_lower:sideID_plus_upper))
 Phi_Minus=0.
 Phi_Plus=0.
 
 ! unique flux per side
+SDEALLOCATE(FluxPhi)
 ALLOCATE(FluxPhi(4,0:PP_N,0:PP_N,1:nSides))
 FluxPhi=0.
 
 !ElectricField as grad Phi
+SDEALLOCATE(E)
 ALLOCATE(E(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 E=0.
+SDEALLOCATE(D)
 ALLOCATE(D(0:PP_N,0:PP_N))
 D=0.
 CALL PolynomialDerivativeMatrix(N,xGP,D)

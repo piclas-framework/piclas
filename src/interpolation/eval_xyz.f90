@@ -94,18 +94,18 @@ REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 !===================================================================================================================================
 
 ! get initial guess by nearest GP search ! simple guess
-IF(CurvedElem(ElemID))THEN
-  Xi=0.
-  !XiA=-1.05
-  !XiB=1.05
-  !CALL RefElemBisection(Xi(1),XiA,XiB,X_In(1),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(1,:,:,:,ElemID),NGeo,Found)
-  !XiA=-1.05
-  !XiB=1.05
-  !CALL RefElemBisection(Xi(2),XiA,XiB,X_In(2),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(2,:,:,:,ElemID),NGeo,Found)
-  !XiA=-1.05
-  !XiB=1.05
-  !CALL RefElemBisection(Xi(3),XiA,XiB,X_In(3),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(3,:,:,:,ElemID),NGeo,Found)
-ELSE
+!IF(CurvedElem(ElemID))THEN
+!  Xi=0.
+!  !XiA=-1.05
+!  !XiB=1.05
+!  !CALL RefElemBisection(Xi(1),XiA,XiB,X_In(1),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(1,:,:,:,ElemID),NGeo,Found)
+!  !XiA=-1.05
+!  !XiB=1.05
+!  !CALL RefElemBisection(Xi(2),XiA,XiB,X_In(2),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(2,:,:,:,ElemID),NGeo,Found)
+!  !XiA=-1.05
+!  !XiB=1.05
+!  !CALL RefElemBisection(Xi(3),XiA,XiB,X_In(3),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(3,:,:,:,ElemID),NGeo,Found)
+!ELSE
   SELECT CASE(MappingGuess)
   CASE(1)
     Ptild=X_in - ElemBaryNGeo(:,ElemID)
@@ -143,7 +143,7 @@ ELSE
     ! trival guess 
     xi=0.
   END SELECT
-END IF
+!END IF
 
 IF(CurvedElem(ElemID))THEN
   CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=1)
@@ -276,23 +276,23 @@ LOGICAL             :: Found
 
 epsOne=1.0+epsMapping
 IF(.NOT.PRESENT(DoReUseMap))THEN
-  IF(CurvedElem(ElemID))THEN
-    Xi=0.
-    !print*,'partpois',x_in
-    !XiA=-1.05
-    !XiB=1.05
-    !print*,'x'
-    !CALL RefElemBisection(Xi(1),XiA,XiB,X_In(1),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(1,:,:,:,ElemID),NGeo,Found)
-    !XiA=-1.05
-    !XiB=1.05
-    !print*,'y'
-    !CALL RefElemBisection(Xi(2),XiA,XiB,X_In(2),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(2,:,:,:,ElemID),NGeo,Found)
-    !XiA=-1.05
-    !XiB=1.05
-    !print*,'z'
-    !CALL RefElemBisection(Xi(3),XiA,XiB,X_In(3),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(3,:,:,:,ElemID),NGeo,Found)
-    !print*,'guess',xi
-  ELSE
+  !IF(CurvedElem(ElemID))THEN
+  !  Xi=0.
+  !  !print*,'partpois',x_in
+  !  !XiA=-1.05
+  !  !XiB=1.05
+  !  !print*,'x'
+  !  !CALL RefElemBisection(Xi(1),XiA,XiB,X_In(1),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(1,:,:,:,ElemID),NGeo,Found)
+  !  !XiA=-1.05
+  !  !XiB=1.05
+  !  !print*,'y'
+  !  !CALL RefElemBisection(Xi(2),XiA,XiB,X_In(2),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(2,:,:,:,ElemID),NGeo,Found)
+  !  !XiA=-1.05
+  !  !XiB=1.05
+  !  !print*,'z'
+  !  !CALL RefElemBisection(Xi(3),XiA,XiB,X_In(3),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(3,:,:,:,ElemID),NGeo,Found)
+  !  !print*,'guess',xi
+  !ELSE
     SELECT CASE(MappingGuess)
     CASE(1)
       Ptild=X_in - ElemBaryNGeo(:,ElemID)
@@ -328,7 +328,7 @@ IF(.NOT.PRESENT(DoReUseMap))THEN
       ! trival guess, cell mean point
       xi=0.
     END SELECT
-  END IF
+  !END IF
 END IF
 
 IF(CurvedElem(ElemID))THEN

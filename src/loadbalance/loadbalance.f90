@@ -443,29 +443,29 @@ END IF
 
 DO iElem=1,PP_nElems
   ElemTime(iElem) = ElemTime(iElem) + tDG
-  IF(ElemTime(iElem).GT.1000) THEN
-    IPWRITE(*,*) 'ElemTime already above 1000'
-  END IF
+  !IF(ElemTime(iElem).GT.1000) THEN
+  !  IPWRITE(*,*) 'ElemTime already above 1000'
+  !END IF
   IF(DoPML)THEN
     IF(ElemToPML(iElem).GT.0 ) ElemTime(iElem) = ElemTime(iElem) + tPML
   END IF
 #ifdef PARTICLES
-  IF(tParts * nPartsPerElem(iElem)*sTotalParts.GT.1000)THEN
-    IPWRITE(*,*) 'tParts above 1000',tParts * nPartsPerElem(iElem)*sTotalParts,nPartsPerElem(iElem),sTotalParts,1.0/sTotalParts
-  END IF
-  IF(tTracking * nTracksPerElem(iElem)*sTotalTracks.GT.1000)THEN
-    IPWRITE(*,*) 'tTracking above 1000',tTracking * nTracksPerElem(iElem)*sTotalTracks,&
-                                       nTracksPerElem(iElem),sTotalTracks,1.0/sTotalTracks
-  END IF
+  !IF(tParts * nPartsPerElem(iElem)*sTotalParts.GT.1000)THEN
+  !  IPWRITE(*,*) 'tParts above 1000',tParts * nPartsPerElem(iElem)*sTotalParts,nPartsPerElem(iElem),sTotalParts,1.0/sTotalParts
+  !END IF
+  !IF(tTracking * nTracksPerElem(iElem)*sTotalTracks.GT.1000)THEN
+  !  IPWRITE(*,*) 'tTracking above 1000',tTracking * nTracksPerElem(iElem)*sTotalTracks,&
+  !                                     nTracksPerElem(iElem),sTotalTracks,1.0/sTotalTracks
+  !END IF
   ElemTime(iElem) = ElemTime(iElem)                              &
                   + tParts * nPartsPerElem(iElem)*sTotalParts    &
                   + tCartMesh * nPartsPerElem(iElem)*sTotalParts &
                   + tTracking * nTracksPerElem(iElem)*sTotalTracks
   IF((TRIM(DepositionType).EQ.'shape_function') .OR. (TRIM(DepositionType).EQ.'cylindrical_shape_function')) THEN
-    IF(tTotal(7) * nDeposPerElem(iElem)*sTotalDepos.GT.1000)THEN
-      IPWRITE(*,*) 'deposition above 1000',tTotal(7) * nDeposPerElem(iElem)*sTotalDepos,nDeposPerElem(iElem)& 
-                                          ,sTotalDepos,1.0/sTotalDepos
-    END IF
+    !IF(tTotal(7) * nDeposPerElem(iElem)*sTotalDepos.GT.1000)THEN
+    !  IPWRITE(*,*) 'deposition above 1000',tTotal(7) * nDeposPerElem(iElem)*sTotalDepos,nDeposPerElem(iElem)& 
+    !                                      ,sTotalDepos,1.0/sTotalDepos
+    !END IF
     ElemTime(iElem) = ElemTime(iElem)                              &
                     + tTotal(7) * nDeposPerElem(iElem)*stotalDepos 
   END IF
@@ -561,7 +561,8 @@ END IF
 LastImbalance=NewImBalance
 
 #ifdef PARTICLES
-IF (DepositionType.EQ."shape_function") THEN
+IF((DepositionType.EQ."shape_function") .OR. &
+   (DepositionType.EQ."cylindrical_shape_function")) THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
   ! send number of particles
