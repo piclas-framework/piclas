@@ -2832,7 +2832,7 @@ IMPLICIT NONE
 #endif /*PP_TimeDiscMethod*/
 
 #if (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==5) || (PP_TimeDiscMethod==200)||(PP_TimeDiscMethod==201)||(PP_TimeDiscMethod==1)
-IF(PP_N.GT.10) CALL abort(&
+IF(PP_N.GT.15) CALL abort(&
   __STAMP__,&
   'Polynomial degree is to high!',PP_N,999.)
 CFLScale=CFLScale*CFLScaleAlpha(PP_N)
