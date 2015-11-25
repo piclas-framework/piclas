@@ -1708,7 +1708,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList
 USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
-USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1720,8 +1720,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT
 INTEGER           :: iSide,nPeriodicSides,nOldBCSides,newBCSideID,BCInc
-REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummySlabNormals                  ! normal vectors of bounding slab box
-REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummySlabIntervalls               ! intervalls beta1, beta2, beta3
+REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummySideSlabNormals                  ! normal vectors of bounding slab box
+REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummySideSlabIntervals               ! intervalls beta1, beta2, beta3
 LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)                                
 !===================================================================================================================================
@@ -1749,22 +1749,22 @@ DEALLOCATE(BezierControlPoints3D)
 ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
-! SlabNormals
-ALLOCATE(DummySlabNormals(1:3,1:3,1:nOldBCSides))
-IF (.NOT.ALLOCATED(DummySlabNormals)) CALL abort(__STAMP__,& !wunderschoen!!!
+! SideSlabNormals
+ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldBCSides))
+IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
-DummySlabNormals=SlabNormals
-DEALLOCATE(SlabNormals)
-ALLOCATE(SlabNormals(1:3,1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
+DummySideSlabNormals=SideSlabNormals
+DEALLOCATE(SideSlabNormals)
+ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
-! SlabIntervalls
-ALLOCATE(DummySlabIntervalls(1:6,1:nOldBCSides))
-IF (.NOT.ALLOCATED(DummySlabIntervalls)) CALL abort(__STAMP__,& !wunderschoen!!!
+! SideSlabIntervals
+ALLOCATE(DummySideSlabIntervals(1:6,1:nOldBCSides))
+IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
-DummySlabIntervalls=SlabIntervalls
-DEALLOCATE(SlabIntervalls)
-ALLOCATE(SlabIntervalls(1:6,1:nTotalBCSides),STAT=ALLOCSTAT)
+DummySideSlabIntervals=SideSlabIntervals
+DEALLOCATE(SideSlabIntervals)
+ALLOCATE(SideSlabIntervals(1:6,1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 ! BoundingBoxIsEmpty
@@ -1783,8 +1783,8 @@ BCInc=0
 DO iSide=1,nBCSides
   newBCSideID=iSide
   BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
-  SlabNormals          (1:3,1:3,          newBCSideID) =DummySlabNormals         (1:3,1:3,           iSide)
-  SlabIntervalls       (1:6,              newBCSideID) =DummySlabIntervalls      (1:6,               iSide)
+  SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
+  SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
 END DO ! iSide
 ! with periodic as bc sides
@@ -1799,8 +1799,8 @@ END DO ! iSide
 !      PartBCSideList(iSide)=newBCSideID
 !    END IF
 !    BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
-!    SlabNormals          (1:3,1:3,          newBCSideID) =DummySlabNormals         (1:3,1:3,           iSide)
-!    SlabIntervalls       (1:6,              newBCSideID) =DummySlabIntervalls      (1:6,               iSide)
+!    SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
+!    SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
 !    BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
 !  END IF
 !END DO ! iSide
@@ -1809,8 +1809,8 @@ END DO ! iSide
 
 ! deallocate dummy buffer
 DEALLOCATE(DummyBezierControlPoints3D)
-DEALLOCATE(DummySlabNormals)
-DEALLOCATE(DummySlabIntervalls)
+DEALLOCATE(DummySideSlabNormals)
+DEALLOCATE(DummySideSlabIntervals)
 DEALLOCATE(DummyBoundingBoxIsEmpty)
 
 

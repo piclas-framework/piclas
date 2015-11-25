@@ -203,8 +203,8 @@ SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
 !USE nr,                        ONLY : gaussj
 USE MOD_Globals,                ONLY: abort
 USE MOD_PreProc
-USE MOD_Particle_Surfaces_Vars, ONLY: arrayNchooseK,FacNchooseK
-
+USE MOD_Particle_Surfaces_Vars, ONLY: arrayNchooseK,FacNchooseK,BezierElevation,ElevationMatrix
+USE MOD_ReadInTools,            ONLY: GETINT
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -216,7 +216,7 @@ REAL,INTENT(IN)    :: xi_In(0:N_In)
 REAL,INTENT(OUT)   :: Vdm_Bezier(0:N_In,0:N_In),sVdm_Bezier(0:N_In,0:N_In)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER            :: i,j, errorflag,IPIV(1:N_in+1)
+INTEGER            :: i,j, errorflag,IPIV(1:N_in+1),jStart,jEnd
 REAL               :: dummy 
 REAL               :: dummy_vec(0:N_In)
 !===================================================================================================================================
@@ -229,21 +229,48 @@ REAL               :: dummy_vec(0:N_In)
 ALLOCATE(arrayNchooseK(0:N_In,0:N_In))
 ALLOCATE(FacNchooseK(0:N_In,0:N_In))
 FacNchooseK(:,:) = 0.
+BezierElevation = GETINT('BezierElevation','0')
+ALLOCATE(ElevationMatrix(0:N_In+BezierElevation,0:N_In))
+ElevationMatrix(:,:) = 0.
+
+
 !Vandermonde on xi_In
 DO i=0,N_In
   DO j=0,N_In
+    ! 1.) evaluate the berstein polynomial at xi_in -> build vandermonde
     CALL BernsteinPolynomial(N_In,j,xi_in(i),Vdm_Bezier(i,j)) 
-    ! array with binomial coeffs for bezier clipping
+    ! 2.) build array with binomial coeffs for bezier clipping
     IF(i.GE.j)THEN!only calculate LU (for n >= k, else 0)
       arrayNchooseK(i,j)=REAL(CHOOSE(i,j))
       FacNchooseK(i,j) = (1.0/(2.0**REAL(i)))*ArrayNchooseK(i,j)
     ELSE
       arrayNchooseK(i,j)=0.
     END IF
-!    print*,'i,j',i,j,arrayNChooseK(i,j),FacNChooseK(i,j),'komisch',REAL(1.0/(2.0**Real(i)))
-!    read*
   END DO !i
 END DO !j
+! 3.) build array with binomial coeffs (fractions) for elevation
+IF(N_In+BezierElevation.GE.66) CALL Abort(__STAMP__,&
+  'Bezier elevation to polynomial degrees greater/equal 66 is forbiddon! exit.',66,REAL(N_In+BezierElevation))
+ElevationMatrix(0,0) = 1.
+ElevationMatrix(N_In+BezierElevation,N_In) = 1.
+DO i=1,N_In+BezierElevation-1 ! from 0+1 to p_new-1 -> remove the edge points
+  jStart = MAX(0,i-BezierElevation)
+  jEnd   = MIN(N_In,i)
+  DO j=jStart,jEnd 
+    ElevationMatrix(i,j)=REAL(CHOOSE(N_In,j))*REAL(CHOOSE(BezierElevation,i-j)) / REAL(CHOOSE(N_In+BezierElevation,i))
+  END DO
+  IF(ABS(SUM(ElevationMatrix(i,:))-1)>1e-10) CALL Abort(&
+    __STAMP__,&
+    'The line of the elevation matrix does not sum to unity! exit.',1,ABS(SUM(ElevationMatrix(i,:))))
+END DO
+!print*,"BezierElevation",N_In,'+',BezierElevation
+!DO i=0,N_In+BezierElevation
+  !!write(*,"(I8,5F10.4)") i,ElevationMatrix(i,:)
+  !write(*,"(I3)", ADVANCE = "NO")    i
+  !write(*,"(12F10.4)", ADVANCE = "NO") ElevationMatrix(i,:)
+  !write(*,"(F13.4)")                  SUM(ElevationMatrix(i,:))
+!END DO
+!STOP
 !print*,arrayNchooseK !CHANGETAG
 !Inverse of the Vandermonde
 dummy_vec=0.
@@ -892,21 +919,31 @@ IMPLICIT NONE
 INTEGER,INTENT(IN) :: N_in,k   
 !-----------------------------------------------------------------------------------------------------------------------------------
 !output parameters
-INTEGER            :: CHOOSE
+INTEGER(KIND=8)            :: CHOOSE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !local variables
 !===================================================================================================================================
 IF((k.EQ.0).OR.(N_in.EQ.k))THEN
   CHOOSE = 1
 ELSE
-  CHOOSE = FACTORIAL(N_in) / (FACTORIAL(k) * FACTORIAL(N_in-k))
+  IF(N_in.GE.20)THEN
+    ! genauer
+    CHOOSE = INT(CHOOSELARGE(N_in,k),8)
+    ! weniger genau
+    !CHOOSE = INT(FACTORIALLARGE(REAL(N_in)) / (FACTORIALLARGE(REAL(k)) * FACTORIALLARGE(REAL(N_in-k))),8)
+  ELSE
+    CHOOSE = INT(FACTORIAL(N_in) / (FACTORIAL(k) * FACTORIAL(N_in-k)),8)
+  END IF
 END IF
+!IF(CHOOSE.LT.0) CALL abort(__STAMP__,&
+  !'CHOOSE is negative. This is not allowed! ',999,REAL(CHOOSE))
 END FUNCTION CHOOSE
+
 
 FUNCTION FACTORIAL(N_in)
 !===================================================================================================================================
-! In mathematics, the factorial of a non-negative integer n, denoted by n!, is the product of all positive integers less than or
-! equal to n.
+! "In mathematics, the factorial of a non-negative integer n, denoted by n!, is the product of all positive integers less than or
+! equal to n."
 !===================================================================================================================================
 USE MOD_Globals
 USE MOD_PreProc
@@ -916,20 +953,52 @@ IMPLICIT NONE
 INTEGER,INTENT(IN) :: N_in 
 !-----------------------------------------------------------------------------------------------------------------------------------
 !output parameters
-INTEGER            :: FACTORIAL
+INTEGER(KIND=8)    :: FACTORIAL
 !-----------------------------------------------------------------------------------------------------------------------------------
 !local variables
 INTEGER            :: I
 !===================================================================================================================================
-
 IF(N_in.LT.0) CALL abort(__STAMP__,&
-                'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
+  'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 IF(N_in.EQ.0)THEN
   FACTORIAL = 1 !! debug, should be one!!!!
 ELSE
   FACTORIAL = PRODUCT((/(I, I = 1, N_in)/))
 END IF
+IF(FACTORIAL.LT.0) CALL abort(__STAMP__,&
+  'FACTORIAL is negative. This is not allowed! ',999,REAL(FACTORIAL))
 END FUNCTION FACTORIAL
+
+real function factorialLARGE(x)
+implicit none
+real, intent(in) :: x
+factorialLARGE = gamma(x + 1.0)
+end function factorialLARGE
+
+
+RECURSIVE FUNCTION CHOOSELARGE(N_in,k) RESULT(X)
+!===================================================================================================================================
+! For large numbers, when N_in>20 this function is needed
+!===================================================================================================================================
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!input parameters
+INTEGER, INTENT(IN) :: N_in,k
+!-----------------------------------------------------------------------------------------------------------------------------------
+!local variables
+REAL(KIND=8)        :: X
+!===================================================================================================================================
+!IF(N_in.LT.0) CALL abort(__STAMP__,&
+  !'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
+IF(k==0)THEN
+  X=1.
+ELSE IF(N_in==0.AND.k>0)THEN
+  X=0.
+ELSE
+  X=(REAL(N_in)/k)*CHOOSELARGE(N_in-1,k-1)
+END IF
+END FUNCTION CHOOSELARGE
+
 
 SUBROUTINE LagrangeInterpolationPolys(x,N_in,xGP,wBary,L)
 !============================================================================================================================

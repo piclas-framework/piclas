@@ -14,8 +14,10 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: BiLinearCoeff                ! contains the bi-linear coefficients for each side
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: BezierControlPoints3D        ! Bezier basis control points of degree equal to NGeo
-REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: SlabNormals                  ! normal vectors of bounding slab box
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: SlabIntervalls               ! intervalls beta1, beta2, beta3
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: BezierControlPoints3DElevated! Bezier basis control points of degree equal to NGeo
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElevationMatrix              ! array for binomial coefficients used for Bezier Elevation
+REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: SideSlabNormals              ! normal vectors of bounding slab box
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideSlabIntervals            ! intervalls beta1, beta2, beta3
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_Bezier,sVdm_Bezier       ! Vdm from/to Bezier Polynomial from BC representation
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: arrayNchooseK                ! array for binomial coefficients
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: FacNchooseK                  ! array for binomial coefficients times prefactor
@@ -37,6 +39,7 @@ REAL                                    :: ClipTolerance                 ! toler
 REAL                                    :: SplitLimit                    ! clip if remaining area after clip is > clipforce %
 INTEGER                                 :: ClipMaxInter                  ! maximal possible intersections for Bezier clipping
 INTEGER                                 :: ClipMaxIter                   ! maximal iterations per intersections
+INTEGER                                 :: BezierElevation               ! elevate polynomial degree to NGeo+BezierElevation
 REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta         ! position of trajectory-patch
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray              ! xi and eta history for computation of intersection
 !LOGICAL                                 :: MultipleBCs                   ! allow for multiple BC during one tracking step

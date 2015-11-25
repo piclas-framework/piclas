@@ -87,7 +87,8 @@ USE MOD_DebugMesh,          ONLY:writeDebugMesh
 USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
 #ifdef PARTICLES
 USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes ! new
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,BezierControlPoints3DElevated,SideSlabNormals,SideSlabIntervals
+USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty,BezierElevation
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #endif
 #ifdef MPI
@@ -267,9 +268,11 @@ ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
 #ifdef PARTICLES
 ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) ) 
 BezierControlPoints3D=0.
-ALLOCATE(SlabNormals(1:3,1:3,1:nSides),SlabIntervalls(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
-SlabNormals=0.
-SlabIntervalls=0.
+ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) )
+BezierControlPoints3DElevated=0.
+ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
+SideSlabNormals=0.
+SideSlabIntervals=0.
 BoundingBoxIsEmpty=.TRUE.
 #endif /*PARTICLES*/
 
@@ -774,7 +777,7 @@ SUBROUTINE FinalizeMesh()
 USE MOD_Globals
 USE MOD_Mesh_Vars
 #ifdef PARTICLES
-!USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
+!USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

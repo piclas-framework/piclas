@@ -1249,7 +1249,7 @@ USE MOD_MPI_Vars
 USE MOD_PreProc
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
-USE MOD_Particle_Surfaces,          ONLY:GetSlabNormalsAndIntervalls
+USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Mesh_Vars,                  ONLY:NGeo,nSides,SideID_minus_Upper,NGeo
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloToProc
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry,ExchangeMappedHaloGeometry
@@ -1304,7 +1304,7 @@ IF(.NOT.DoRefMapping)THEN
   END DO !iProc=1,nNBProcs
 
   DO iSide=sideID_minus_upper+1,nSides
-    CALL GetSlabNormalsAndIntervalls(NGeo,iSide)
+    CALL GetSideSlabNormalsAndIntervals(NGeo,iSide)
   END DO
 END IF ! DoRefMapping
 
@@ -1910,7 +1910,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Surfaces_Vars, ONLY:SlabNormals,SlabIntervalls,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1975,15 +1975,15 @@ IF(DoRefMapping)THEN
         END DO ! iVar=1,3
       END DO ! j=0,nGeo
     END DO ! k=0,nGeo
-    ! Slabnormals & SlabIntervals
+    ! Slabnormals & SideSlabIntervals
     DO iVar=1,3
       DO iVar2=1,3
-        IF(SlabNormals(iVar2,iVar,iSide).NE.SlabNormals(iVar2,iVar,iSide)) CALL abort(&
+        IF(SideSlabNormals(iVar2,iVar,iSide).NE.SideSlabNormals(iVar2,iVar,iSide)) CALL abort(&
             __STAMP__, ' Error in PartHaloToProc')
       END DO ! iVar2=1,PP_nVar
     END DO ! iVar=1,PP_nVar
     DO ilocSide=1,6
-      IF(SlabIntervalls(ilocSide,iSide).NE.SlabIntervalls(ilocSide,iSide)) CALL abort(&
+      IF(SideSlabIntervals(ilocSide,iSide).NE.SideSlabIntervals(ilocSide,iSide)) CALL abort(&
          __STAMP__, ' Error in SlabInvervalls')
     END DO ! ilocSide=1,6
     IF(BoundingBoxIsEmpty(iSide).NEQV.BoundingBoxIsEmpty(iSide)) CALL abort(&
