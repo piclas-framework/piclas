@@ -955,7 +955,7 @@ INTEGER,INTENT(IN) :: N_in
 INTEGER(KIND=8)    :: FACTORIAL
 !-----------------------------------------------------------------------------------------------------------------------------------
 !local variables
-INTEGER            :: I
+INTEGER(KIND=8)    :: I
 !===================================================================================================================================
 IF(N_in.LT.0) CALL abort(__STAMP__,&
   'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))

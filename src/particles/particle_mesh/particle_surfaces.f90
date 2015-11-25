@@ -1474,7 +1474,7 @@ DO i=1,NGeo+BezierElevation-1
   jStart = MAX(0,i-BezierElevation)
   jEnd   = MIN(NGeo,i)
   DO j=jStart,jEnd 
-    ElevateBezierPolynomial(:,i)=ElevateBezierPolynomial(:,i)+ElevationMatrix(i,j)*BezierPolynomial(:,i)
+    ElevateBezierPolynomial(:,i)=ElevateBezierPolynomial(:,i)+ElevationMatrix(i,j)*BezierPolynomial(:,j)
   END DO
 END DO
 END FUNCTION ElevateBezierPolynomial
