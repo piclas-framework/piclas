@@ -991,7 +991,8 @@ SUBROUTINE GetSideSlabNormalsAndIntervals(NGeo,SideID)
 USE MOD_Globals
 !USE MOD_Globals_Vars,    ONLY:EpsMach
 USE MOD_Preproc
-USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3DElevated,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BezierControlPoints3DElevated,BezierElevation
 USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1012,7 +1013,11 @@ LOGICAL            :: SideIsPlanar
 LOGICAL            :: SideIsCritical
 !===================================================================================================================================
 
+IF(BezierElevation.EQ.0)THEN
+  BezierControlPoints3DElevated=BezierControlPoints3D
+ELSE
 CALL GetBezierControlPoints3DElevated(NGeo,SideID)
+END IF
 
 !BezierControlPoints(:,:,:,SideID)
 !SideSlabNormals( x y z,1 2 3 , SideID)
@@ -1418,19 +1423,24 @@ INTEGER            :: p,q
 REAL               :: temp(3,0:NGeo+BezierElevation,0:NGeo)
 !===================================================================================================================================
 !BezierControlPoints3D(:,NGeo,0,SideID)
-
+!print*,"1"
+!read*
 DO q=0,NGeo
-  temp(:,:,q)=ElevateBezierPolynomial(NGeo,NGeo+BezierElevation,BezierControlPoints3D(:,:,q,SideID))
+  !print*,BezierControlPoints3D(:,:,q,SideID)
+  temp(:,:,q)=ElevateBezierPolynomial(NGeo,BezierControlPoints3D(:,:,q,SideID))
 END DO
 
+!print*,"2"
+!read*
 DO p=0,NGeo+BezierElevation
-  BezierControlPoints3DElevated(:,p,:,SideID)=ElevateBezierPolynomial(NGeo+BezierElevation,NGeo+BezierElevation,temp(:,p,:))
+  !print*,temp(:,p,:)
+  BezierControlPoints3DElevated(:,p,:,SideID)=ElevateBezierPolynomial(NGeo,temp(:,p,:))
 END DO
-
+!jread*
 END SUBROUTINE GetBezierControlPoints3DElevated
 
 
-FUNCTION ElevateBezierPolynomial(N_In,N_elev,BezierPolynomial)
+FUNCTION ElevateBezierPolynomial(NGeo,BezierPolynomial)
 !===================================================================================================================================
 ! this function creates a new equidistantly distributed set of control
 ! points (bézier polynomial basis coefficients) based on the control points
@@ -1443,12 +1453,11 @@ USE MOD_Particle_Surfaces_Vars,   ONLY:BezierElevation,ElevationMatrix
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: N_In
-INTEGER,INTENT(IN) :: N_elev
-REAL,INTENT(IN)    :: BezierPolynomial(3,0:N_In)
+INTEGER,INTENT(IN) :: NGeo
+REAL,INTENT(IN)    :: BezierPolynomial(3,0:NGeo)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL               :: ElevateBezierPolynomial(3,0:N_elev)
+REAL               :: ElevateBezierPolynomial(3,0:NGeo+BezierElevation)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 !REAL            :: length
@@ -1457,13 +1466,13 @@ INTEGER            :: i,j,jStart,jEnd
 ! algorithm originally from "The NURBS Book" by Les Piegl, Wayne Tiller (p.205)
 ! the first and last points remain the same!
 ! edge points remain: P_0 and P_p
-ElevateBezierPolynomial(:,0)                 = BezierPolynomial(:,0)
-ElevateBezierPolynomial(:,N_elev) = BezierPolynomial(:,N_In)
+ElevateBezierPolynomial(:,0)                    = BezierPolynomial(:,0)
+ElevateBezierPolynomial(:,NGeo+BezierElevation) = BezierPolynomial(:,NGeo)
 
 ! inner points change: P_1,...,P_p-1
-DO i=1,N_elev-1
+DO i=1,NGeo+BezierElevation-1
   jStart = MAX(0,i-BezierElevation)
-  jEnd   = MIN(N_In,i)
+  jEnd   = MIN(NGeo,i)
   DO j=jStart,jEnd 
     ElevateBezierPolynomial(:,i)=ElevateBezierPolynomial(:,i)+ElevationMatrix(i,j)*BezierPolynomial(:,i)
   END DO

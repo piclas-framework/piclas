@@ -204,7 +204,6 @@ SUBROUTINE BuildBezierVdm(N_In,xi_In,Vdm_Bezier,sVdm_Bezier)
 USE MOD_Globals,                ONLY: abort
 USE MOD_PreProc
 USE MOD_Particle_Surfaces_Vars, ONLY: arrayNchooseK,FacNchooseK,BezierElevation,ElevationMatrix
-USE MOD_ReadInTools,            ONLY: GETINT
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -229,7 +228,7 @@ REAL               :: dummy_vec(0:N_In)
 ALLOCATE(arrayNchooseK(0:N_In,0:N_In))
 ALLOCATE(FacNchooseK(0:N_In,0:N_In))
 FacNchooseK(:,:) = 0.
-BezierElevation = GETINT('BezierElevation','0')
+
 ALLOCATE(ElevationMatrix(0:N_In+BezierElevation,0:N_In))
 ElevationMatrix(:,:) = 0.
 

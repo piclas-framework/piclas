@@ -305,11 +305,15 @@ DO iElem=1,nElems
   CALL CalcSurfMetrics(JaCL_N,XCL_N,iElem)
 #ifdef PARTICLES
   CALL GetBezierControlPoints3D(XCL_NGeo(:,:,:,:,iElem),iElem)
-  CALL GetElemSlabNormalsAndIntervals(NGeo,iElem)
 #endif /*PARTICLES*/
 END DO !iElem=1,nElems
 
-
+! first communicate the bezierControlPoints (slave information is missing)
+!DO iElem=1,nElems
+!#ifdef PARTICLES
+  !CALL GetElemSlabNormalsAndIntervals(NGeo,iElem)
+!#endif /*PARTICLES*/
+!END DO !iElem=1,nElems
 
 #ifdef PARTICLES
 SWRITE(UNIT_stdOut,'(A)') ' '

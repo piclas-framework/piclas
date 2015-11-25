@@ -268,8 +268,7 @@ ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))
 #ifdef PARTICLES
 ALLOCATE(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:nSides) ) 
 BezierControlPoints3D=0.
-ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) )
-BezierControlPoints3DElevated=0.
+
 ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),BoundingBoxIsEmpty(1:nSides) )
 SideSlabNormals=0.
 SideSlabIntervals=0.
