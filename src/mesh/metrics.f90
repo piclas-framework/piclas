@@ -75,7 +75,7 @@ USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_h
 USE MOD_Mesh_Vars,               ONLY:nElems,sideID_minus_upper,nBCSides
 #ifdef PARTICLES
 !USE MOD_Particle_Surfaces,       ONLY:GetSuperSampledSurface,GetBezierControlPoints3D!,GetSideType
-USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D!,GetSideType
+USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D,GetElemSlabNormalsAndIntervals!,GetSideType
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #endif /*PARTICLES*/
@@ -305,6 +305,7 @@ DO iElem=1,nElems
   CALL CalcSurfMetrics(JaCL_N,XCL_N,iElem)
 #ifdef PARTICLES
   CALL GetBezierControlPoints3D(XCL_NGeo(:,:,:,:,iElem),iElem)
+  CALL GetElemSlabNormalsAndIntervals(NGeo,iElem)
 #endif /*PARTICLES*/
 END DO !iElem=1,nElems
 
@@ -329,7 +330,6 @@ SWRITE(UNIT_stdOut,'(A)') ' '
 !#ifdef PARTICLES
 !  CALL GetSideType()
 !#endif /*PARTICLES*/
-
 END SUBROUTINE CalcMetrics 
 
 

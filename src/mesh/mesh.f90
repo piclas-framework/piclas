@@ -88,7 +88,7 @@ USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
 #ifdef PARTICLES
 USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes ! new
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,BezierControlPoints3DElevated,SideSlabNormals,SideSlabIntervals
-USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty,BezierElevation
+USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty,BezierElevation,ElemSlabNormals,ElemSlabIntervals
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #endif
 #ifdef MPI
@@ -274,6 +274,9 @@ ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),Boundin
 SideSlabNormals=0.
 SideSlabIntervals=0.
 BoundingBoxIsEmpty=.TRUE.
+ALLOCATE(ElemSlabNormals(1:3,1:3,1:nElems),ElemSlabIntervals(1:6,nElems) )
+ElemSlabNormals=0.
+ElemSlabIntervals=0.
 #endif /*PARTICLES*/
 
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')

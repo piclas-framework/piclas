@@ -61,9 +61,14 @@ INTERFACE GetSideSlabNormalsAndIntervals
   MODULE PROCEDURE GetSideSlabNormalsAndIntervals
 END INTERFACE
 
+INTERFACE GetElemSlabNormalsAndIntervals
+  MODULE PROCEDURE GetElemSlabNormalsAndIntervals
+END INTERFACE
+
 
 PUBLIC::GetSideType, InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, &!GetSuperSampledSurface, &
-        GetBezierControlPoints3D,CalcBiLinearNormVecBezier,CalcNormVecBezier, GetSideSlabNormalsAndIntervals
+        GetBezierControlPoints3D,CalcBiLinearNormVecBezier,CalcNormVecBezier,GetSideSlabNormalsAndIntervals,&
+        GetElemSlabNormalsAndIntervals
 
 PUBLIC::GetBCSideType,CalcBiLinearNormAndTang, CalcNormAndTangBezier
 
@@ -984,7 +989,7 @@ SUBROUTINE GetSideSlabNormalsAndIntervals(NGeo,SideID)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,    ONLY:EpsMach
+!USE MOD_Globals_Vars,    ONLY:EpsMach
 USE MOD_Preproc
 USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3DElevated,BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear
@@ -1028,11 +1033,11 @@ SideSlabNormals(:,1,SideID)=SideSlabNormals(:,1,SideID)/SQRT(DOT_PRODUCT(SideSla
 SideSlabNormals(:,2,SideID)=BezierControlPoints3DElevated(:,0,NGeo,SideID)   -BezierControlPoints3DElevated(:,0,0,SideID)+&
                         BezierControlPoints3DElevated(:,NGeo,NGeo,SideID)-BezierControlPoints3DElevated(:,NGeo,0,SideID)
 
-print*,"length(SideSlabNormals(:,1,SideID))",DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,1,SideID))
+!print*,"length(SideSlabNormals(:,1,SideID))",DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,1,SideID))
 !fehlt das?
 !SideSlabNormals(:,2,SideID)=SideSlabNormals(:,2,SideID)/SQRT(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID)))
 SideSlabNormals(:,2,SideID)=CROSSNORM(SideSlabNormals(:,1,SideID),SideSlabNormals(:,2,SideID))
-print*,"length(SideSlabNormals(:,2,SideID))",DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID))
+!print*,"length(SideSlabNormals(:,2,SideID))",DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID))
 
 !b                      =BezierControlPoints3DElevated(:,0,NGeo,SideID)   -BezierControlPoints3DElevated(:,0,0,SideID)+&
                         !BezierControlPoints3DElevated(:,NGeo,NGeo,SideID)-BezierControlPoints3DElevated(:,NGeo,0,SideID)
@@ -1062,7 +1067,7 @@ print*,"length(SideSlabNormals(:,2,SideID))",DOT_PRODUCT(SideSlabNormals(:,2,Sid
 !SideSlabNormals(:,2,SideID)=SideSlabNormals(:,2,SideID)/SQRT(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID)))
 ! n_3=n_1 x n_2
 SideSlabNormals(:,3,SideID)=CROSSNORM(SideSlabNormals(:,2,SideID),SideSlabNormals(:,1,SideID))
-print*,"length(SideSlabNormals(:,3,SideID))",DOT_PRODUCT(SideSlabNormals(:,3,SideID),SideSlabNormals(:,3,SideID))
+!print*,"length(SideSlabNormals(:,3,SideID))",DOT_PRODUCT(SideSlabNormals(:,3,SideID),SideSlabNormals(:,3,SideID))
 !SideSlabNormals(1,3,SideID)=SideSlabNormals(2,2,SideID)*SideSlabNormals(3,2,SideID) -&
 !SideSlabNormals(3,2,SideID)*SideSlabNormals(2,1,SideID)
 !SideSlabNormals(2,3,SideID)=SideSlabNormals(3,2,SideID)*SideSlabNormals(1,2,SideID) -&
@@ -1073,6 +1078,27 @@ print*,"length(SideSlabNormals(:,3,SideID))",DOT_PRODUCT(SideSlabNormals(:,3,Sid
 !print*,"slab normal vector length: ",SQRT(DOT_PRODUCT(SideSlabNormals(1,:,SideID),SideSlabNormals(1,:,SideID))),&
 !                                     SQRT(DOT_PRODUCT(SideSlabNormals(2,:,SideID),SideSlabNormals(2,:,SideID))),&
 !                                     SQRT(DOT_PRODUCT(SideSlabNormals(3,:,SideID),SideSlabNormals(3,:,SideID)))
+! check vector length=1
+IF((ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,1,SideID))-1.)).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Side slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,1,SideID)))
+IF((ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID))-1.)).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Side slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID)))
+IF((ABS(DOT_PRODUCT(SideSlabNormals(:,3,SideID),SideSlabNormals(:,3,SideID))-1.)).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Side slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,3,SideID),SideSlabNormals(:,3,SideID)))
+
+! check perpendicularity
+IF((ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,2,SideID)))).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Side slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,2,SideID))))
+IF((ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,3,SideID)))).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Side slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,3,SideID))))
+IF((ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,3,SideID)))).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Side slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,3,SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 2.) slab box intervalls beta_1, beta_2, beta_3
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1240,6 +1266,124 @@ IF(.NOT.SideIsPlanar)THEN
 END IF
 
 END SUBROUTINE GetSideSlabNormalsAndIntervals
+
+
+SUBROUTINE GetElemSlabNormalsAndIntervals(NGeo,ElemID)
+!===================================================================================================================================
+! computes the oriented-slab box for each bezier basis surface (i.e. 3 slab normals + 3 intervalls)
+! of each element. This routine must be called after GetSideSlabNormalsAndIntervals(...), because the elevation takes place there
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide
+USE MOD_Particle_Surfaces_Vars,   ONLY:ElemSlabNormals,ElemSlabIntervals,BezierControlPoints3DElevated
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: ElemID,NGeo
+!REAL,INTENT(IN)    :: XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: p,q,iLocSide,SideID
+REAL               :: skalprod(3),dx,dy,dz
+!===================================================================================================================================
+
+!BezierControlPoints(:,:,:,ElemID)
+!ElemSlabNormals( x y z,1 2 3 , ElemID)
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 0.) check if side is planar
+!-----------------------------------------------------------------------------------------------------------------------------------
+!ElemIsPlanar=.FALSE.
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 1.) slab normal vectors (use the first local element side)
+!-----------------------------------------------------------------------------------------------------------------------------------
+SideID=PartElemToSide(E2S_SIDE_ID,1,ElemID)
+! n_1=V_1+V_2 (V: corner vectors in xi-direction)
+ElemSlabNormals(:,1,ElemID)=BezierControlPoints3DElevated(:,NGeo,0,SideID)   -BezierControlPoints3DElevated(:,0,0,SideID)+&
+                            BezierControlPoints3DElevated(:,NGeo,NGeo,SideID)-BezierControlPoints3DElevated(:,0,NGeo,SideID)
+ElemSlabNormals(:,1,ElemID)=ElemSlabNormals(:,1,ElemID)/SQRT(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID)))
+! n_2=n_1 x (U_1+U_2) (U: corner vectors in eta-direction)
+ElemSlabNormals(:,2,ElemID)=BezierControlPoints3DElevated(:,0,NGeo,SideID)   -BezierControlPoints3DElevated(:,0,0,SideID)+&
+                            BezierControlPoints3DElevated(:,NGeo,NGeo,SideID)-BezierControlPoints3DElevated(:,NGeo,0,SideID)
+ElemSlabNormals(:,2,ElemID)=CROSSNORM(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID))
+! n_3=n_1 x n_2
+ElemSlabNormals(:,3,ElemID)=CROSSNORM(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,1,ElemID))
+
+! check vector length=1
+IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID))-1.)).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Element slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID)))
+IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID))-1.)).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Element slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID)))
+IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID))-1.)).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Element slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID)))
+
+! check perpendicularity
+IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID)))).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Element slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID))))
+IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID)))).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Element slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID))))
+IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID)))).GT.1.E-6) CALL Abort(&
+  __STAMP__,&
+  'Element slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID))))
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 2.) slab box intervalls beta_1, beta_2, beta_3
+!-----------------------------------------------------------------------------------------------------------------------------------
+!ElemSlabIntervals(x- x+ y- y+ z- z+, ElemID)
+
+ElemSlabIntervals(:,ElemID)=0
+DO iLocSide=1,6
+  SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+  DO q=0,NGeo
+    DO p=0,NGeo
+      IF((p.EQ.0).AND.(q.EQ.0))CYCLE
+      skalprod(1)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
+                              BezierControlPoints3DElevated(:,0,0,SideID),ElemSlabNormals(:,1,ElemID))
+      skalprod(2)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
+                              BezierControlPoints3DElevated(:,0,0,SideID),ElemSlabNormals(:,2,ElemID))
+      skalprod(3)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
+                              BezierControlPoints3DElevated(:,0,0,SideID),ElemSlabNormals(:,3,ElemID))
+      IF    (skalprod(1).LT.0.)THEN
+        ElemSlabIntervals(1, ElemID)=MIN(ElemSlabIntervals(1,ElemID),skalprod(1))
+      ELSEIF(skalprod(1).GT.0.)THEN
+        ElemSlabIntervals(2, ElemID)=MAX(ElemSlabIntervals(2,ElemID),skalprod(1))
+      END IF
+      IF    (skalprod(2).LT.0.)THEN
+        ElemSlabIntervals(3, ElemID)=MIN(ElemSlabIntervals(3,ElemID),skalprod(2))
+      ELSEIF(skalprod(2).GT.0.)THEN
+        ElemSlabIntervals(4, ElemID)=MAX(ElemSlabIntervals(4,ElemID),skalprod(2))
+      END IF
+      IF    (skalprod(3).LT.0.)THEN
+        ElemSlabIntervals(5, ElemID)=MIN(ElemSlabIntervals(5,ElemID),skalprod(3))
+      ELSEIF(skalprod(3).GT.0.)THEN
+        ElemSlabIntervals(6, ElemID)=MAX(ElemSlabIntervals(6,ElemID),skalprod(3))
+      END IF
+    END DO !p
+  END DO !q
+END DO !iLocSide=1:6
+dx=ABS(ABS(ElemSlabIntervals(2, ElemID))-ABS(ElemSlabIntervals(1, ElemID)))
+dy=ABS(ABS(ElemSlabIntervals(4, ElemID))-ABS(ElemSlabIntervals(3, ElemID)))
+dz=ABS(ABS(ElemSlabIntervals(6, ElemID))-ABS(ElemSlabIntervals(5, ElemID)))
+IF(dx*dy*dz.LT.0) CALL Abort(&
+  __STAMP__,&
+  'The bounding box (for elements) is negative!?.',1,(dx*dy*dz))
+IF(ALMOSTZERO(dx*dy*dz)) CALL Abort(&
+  __STAMP__,&
+  'The bounding box (for elements) is zero.',1,dx*dy*dz)
+END SUBROUTINE GetElemSlabNormalsAndIntervals
+
 
 
 
