@@ -1420,21 +1420,21 @@ REAL               :: temp(3,0:NGeo+BezierElevation,0:NGeo)
 !BezierControlPoints3D(:,NGeo,0,SideID)
 
 DO q=0,NGeo
-  temp(:,:,q)=ElevateBezierPolynomial(NGeo,BezierControlPoints3D(:,:,q,SideID))
+  temp(:,:,q)=ElevateBezierPolynomial(NGeo,NGeo+BezierElevation,BezierControlPoints3D(:,:,q,SideID))
 END DO
 
-DO p=0,NGeo
-  BezierControlPoints3DElevated(:,p,:,SideID)=ElevateBezierPolynomial(NGeo,BezierControlPoints3D(:,p,:,SideID))
+DO p=0,NGeo+BezierElevation
+  BezierControlPoints3DElevated(:,p,:,SideID)=ElevateBezierPolynomial(NGeo+BezierElevation,NGeo+BezierElevation,temp(:,p,:))
 END DO
 
 END SUBROUTINE GetBezierControlPoints3DElevated
 
 
-FUNCTION ElevateBezierPolynomial(p,BezierPolynomial)
+FUNCTION ElevateBezierPolynomial(N_In,N_elev,BezierPolynomial)
 !===================================================================================================================================
 ! this function creates a new equidistantly distributed set of control
 ! points (bézier polynomial basis coefficients) based on the control points
-! "BezierPolynomial" with order "p" and elevates them to "ElevateBezierPolynomial" on
+! "BezierPolynomial" with order "N" and elevates them to "ElevateBezierPolynomial" on
 ! "Xi_NGeo_elevated" with order "p+BezierElevation"
 !===================================================================================================================================
 ! MODULES
@@ -1443,11 +1443,12 @@ USE MOD_Particle_Surfaces_Vars,   ONLY:BezierElevation,ElevationMatrix
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: p
-REAL,INTENT(IN)    :: BezierPolynomial(3,0:p)
+INTEGER,INTENT(IN) :: N_In
+INTEGER,INTENT(IN) :: N_elev
+REAL,INTENT(IN)    :: BezierPolynomial(3,0:N_In)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL               :: ElevateBezierPolynomial(3,0:p+BezierElevation)
+REAL               :: ElevateBezierPolynomial(3,0:N_elev)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 !REAL            :: length
@@ -1457,12 +1458,12 @@ INTEGER            :: i,j,jStart,jEnd
 ! the first and last points remain the same!
 ! edge points remain: P_0 and P_p
 ElevateBezierPolynomial(:,0)                 = BezierPolynomial(:,0)
-ElevateBezierPolynomial(:,p+BezierElevation) = BezierPolynomial(:,p)
+ElevateBezierPolynomial(:,N_elev) = BezierPolynomial(:,N_In)
 
 ! inner points change: P_1,...,P_p-1
-DO i=1,p+BezierElevation-1
+DO i=1,N_elev-1
   jStart = MAX(0,i-BezierElevation)
-  jEnd   = MIN(p,i)
+  jEnd   = MIN(N_In,i)
   DO j=jStart,jEnd 
     ElevateBezierPolynomial(:,i)=ElevateBezierPolynomial(:,i)+ElevationMatrix(i,j)*BezierPolynomial(:,i)
   END DO
