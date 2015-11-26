@@ -54,14 +54,27 @@ INTERFACE CountPartsPerElem
   MODULE PROCEDURE CountPartsPerElem
 END INTERFACE
 
-INTERFACE CheckIfCurvedElem
-  MODULE PROCEDURE CheckIfCurvedElem
-END INTERFACE
+!INTERFACE CheckIfCurvedElem
+!  MODULE PROCEDURE CheckIfCurvedElem
+!END INTERFACE
 
 INTERFACE InitElemBoundingBox
   MODULE PROCEDURE InitElemBoundingBox
 END INTERFACE
 
+INTERFACE GetSideType
+  MODULE PROCEDURE GetSideType
+END INTERFACE
+
+INTERFACE GetBCSideType
+  MODULE PROCEDURE GetBCSideType
+END INTERFACE
+
+INTERFACE GetElemAndSideType
+  MODULE PROCEDURE GetElemAndSideType
+END INTERFACE
+
+PUBLIC::GetBCSideType,GetSideType
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
@@ -528,11 +541,10 @@ SUBROUTINE InitFIBGM()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools,                        ONLY:GetRealArray
-USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
+!USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
@@ -546,7 +558,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: iElem, nCurvedElems,nCurvedElemsTot
 !=================================================================================================================================
 
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -566,23 +577,12 @@ CALL AddHALOCellsToFIBGM()
 ! remove inner BezierControlPoints3D and SlabNormals, usw.
 IF(DoRefMapping) CALL ReshapeBezierSides()
 
-ALLOCATE(CurvedElem(1:nTotalElems))
-CurvedElem=.FALSE.
-nCurvedElems=0
-
-DO iElem=1,nTotalElems
-  CALL CheckIfCurvedElem(CurvedElem(iElem),XCL_NGeo(:,:,:,:,iElem))
-  IF(iElem.LE.PP_nElems)THEN
-    IF(CurvedElem(iElem)) nCurvedElems=nCurvedElems+1
-  END IF
-END DO ! iElem=1,nTotalElems
-
-! sort element faces by type - linear, bilinear, curved
-IF(DoRefMapping) THEN
-  CALL GetBCSideType()
-ELSE
-  CALL GetSideType()
-END IF
+CALL GetElemAndSideType() 
+!! sort element faces by type - linear, bilinear, curved
+!IF(DoRefMapping) THEN !  CALL GetBCSideType()
+!ELSE
+!  CALL GetSideType()
+!END IF
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
@@ -590,22 +590,6 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemBaryNGeo(1:3,1:nTotalElems)       )
 CALL BuildElementBasis()
 !CALL MapElemToFIBGM()
-
-
-#ifdef MPI
-IF(MPIRoot) THEN
-  CALL MPI_REDUCE(nCurvedElems,nCurvedElemsTot,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
-ELSE ! no Root
-  CALL MPI_REDUCE(nCurvedElems,nCurvedElemsTot,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
-END IF
-#else
-nCurvedElemsTot=nCurvedElems
-#endif /*MPI*/
-
-! and add number of curved elems
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of (bi-)linear elems: ', nGlobalElems-nCurvedElemsTot
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved      elems: ', nCurvedElemsTot
-SWRITE(UNIT_StdOut,'(132("-"))')
 
 
 END SUBROUTINE InitFIBGM
@@ -2409,7 +2393,7 @@ LOGICAL              :: IsCurved
 ! LOCAL VARIABLES
 REAL                 :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                 :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
-INTEGER              :: i,j,k
+INTEGER              :: i,j,k, NGeo3,NGeo2
 !===================================================================================================================================
 
 IsCurved=.FALSE.
@@ -2425,22 +2409,49 @@ XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo)
 XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo)
 
 CALL ChangeBasis3D(3,1,NGeo,Vdm_CLNGeo1_CLNGeo,XCL_NGeo1,XCL_NGeoNew)
+NGeo3=(NGeo+1)*(NGeo+1)*(NGeo+1)
 
-DO k=0,NGeo
-  DO j=0,NGeo
-    DO i=0,NGeo
-      IF( ABS(XCL_NGeoNew(1,i,j,k)-XCL_NGeo(1,i,j,k)).GT.1e-14 .OR. & 
-          ABS(XCL_NGeoNew(2,i,j,k)-XCL_NGeo(2,i,j,k)).GT.1e-14 .OR. & 
-          ABS(XCL_NGeoNew(3,i,j,k)-XCL_NGeo(3,i,j,k)).GT.1e-14 ) THEN
-        IsCurved=.TRUE.
-        RETURN
-      END IF
-    END DO ! i=0,NGeo
-  END DO ! j=0,NGeo
-END DO ! k=0,NGeo
+! check 3D points
+CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeo,IsCurved)
+
+IF(.NOT.IsCurved)THEN
+  ! set all elem sides to blabla
+END IF
 
 END SUBROUTINE CheckIfCurvedElem
 
+
+SUBROUTINE PointsEqual(N,Points1,Points2,IsNotEqual) 
+!===================================================================================================================================
+! compute the distance between two data sets
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)        :: N
+REAL,INTENT(IN)           :: Points1(1:3,1:N)
+REAL,INTENT(IN)           :: Points2(1:3,1:N)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+LOGICAL                   :: IsNotEqual
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: i
+!===================================================================================================================================
+
+IsNotEqual=.FALSE.
+
+DO i=1,N
+  IF( ABS(Points1(1,i)-Points2(1,i)).GT.1e-14 .OR. & 
+      ABS(Points1(2,i)-Points2(2,i)).GT.1e-14 .OR. & 
+      ABS(Points1(3,i)-Points2(3,i)).GT.1e-14 ) THEN
+    IsNotEqual=.TRUE.
+    RETURN
+  END IF
+END DO ! i=0,N
+
+END SUBROUTINE PointsEqual
 
 SUBROUTINE InitElemBoundingBox() 
 !===================================================================================================================================
@@ -2477,6 +2488,950 @@ END DO !iElem=1,nElems
 
 
 END SUBROUTINE InitElemBoundingBox
+
+
+SUBROUTINE GetBCSideType()
+!================================================================================================================================
+! select the side type for each side 
+! check if points on edges are linear. if linear, the cross product of the vector between two vertices and a vector between a 
+! vercites and a edge point has to be zero
+! SideType
+! 0 - planar
+! 1 - bilinear
+! 2 - curved
+!================================================================================================================================
+USE MOD_Globals!,                  ONLY:CROSS
+USE MOD_Mesh_Vars,                ONLY:nSides,NGeo,Xi_NGeo,Sideid_minus_upper,nBCSides
+USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,epsilontol,SideType,SideNormVec,SideDistance
+USE MOD_Particle_Mesh_Vars,       ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
+USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,BCElem,PartSideToElem
+USE MOD_Particle_Mesh_Vars,       ONLY:PartBCSideList,nTotalBCSides
+USE MOD_Particle_MPI_Vars,        ONLY:halo_eps,halo_eps2
+USE MOD_Mesh_Vars,                ONLY:CurvedElem,XCL_NGeo,nGlobalElems
+#ifdef MPI
+USE MOD_Particle_MPI_HALO,        ONLY:WriteParticleMappingPartitionInformation
+#endif /*MPI*/
+#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
+USE MOD_Mesh_Vars,                ONLY:XCL_NGeo
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy,SideID,iElem,ilocSide,nBCElems
+INTEGER                     :: nSideCount, BCSideID, BCSideID2, s,r
+INTEGER,ALLOCATABLE         :: SideIndex(:)
+REAL,DIMENSION(1:3)         :: v1,v2,NodeX
+REAL                        :: length,eps
+LOGICAL                     :: isLinear,leave
+#ifdef MPI  
+INTEGER                     :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
+#endif /*MPI*/
+#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
+REAL,DIMENSION(1:3,0:NGeo,0:NGeo) :: xNodes
+#endif
+!================================================================================================================================
+
+! allocated here,!!! should be moved?
+!ALLOCATE( SideType(nSides)        &
+!        , SideDistance(nSides)    &
+!        , SideNormVec(1:3,nSides) )
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(A)') ' Get Side Type incl. HALO-Sides...'
+
+ALLOCATE( SideType(nTotalBCSides)        &
+        , SideDistance(nTotalBCSides)    &
+        , isBCElem(nTotalElems)          &
+        , SideNormVec(1:3,nTotalBCSides) )
+
+SideDistance=0.
+SideNormVec=0.
+
+eps=1e-8
+nPlanar=0
+nBilinear=0
+nCurved=0
+nBCElems=0
+#ifdef MPI
+nPlanarTot=0
+nBilinearTot=0
+nCurvedTot=0
+nBCElemsTot=0
+#endif /*MPI*/
+DO iSide=1,nTotalSides
+  isLinear=.TRUE.
+  SideID  =PartBCSideList(iSide)
+  IF(SideID.EQ.-1) CYCLE
+  ! all four edges
+  !IF(iSide.GT.nSides) IPWRITE(UNIT_stdOut,*) BezierControlPOints3D(:,:,:,iSide)
+  IF(SUM(ABS(BezierControlPoints3D(:,:,:,SideID))).LT.1e-10) IPWRITE(UNIT_stdOut,*) 'missing side',SideID
+  q=0
+  v1=BezierControlPoints3D(:,NGeo,q,SideID)-BezierControlPoints3D(:,0,q,SideID)
+  DO p=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,SideID)-BezierControlPoints3D(:,0,q,SideID)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! p
+  q=NGeo
+  v1=BezierControlPoints3D(:,NGeo,q,SideID)-BezierControlPoints3D(:,0,q,SideID)
+  DO p=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,SideID)-BezierControlPoints3D(:,0,q,SideID)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! p
+  p=0
+  v1=BezierControlPoints3D(:,p,NGeo,SideID)-BezierControlPoints3D(:,p,0,SideID)
+  DO q=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,SideID)-BezierControlPoints3D(:,p,0,SideID)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! q
+  p=NGeo
+  v1=BezierControlPoints3D(:,p,NGeo,SideID)-BezierControlPoints3D(:,p,0,SideID)
+  DO q=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,SideID)-BezierControlPoints3D(:,p,0,SideID)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! q
+  IF(isLinear)THEN
+    IF(BoundingBoxIsEmpty(SideID))THEN
+      SideType(SideID)=PLANAR
+      IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+      IF(SideID.GT.SideID_Minus_Upper) nPlanartot=nPlanartot+1
+#endif /*MPI*/
+      ! compute the norm vec of side and distance from origin
+      v1=BezierControlPoints3D(:,NGeo,0,SideID)-BezierControlPoints3D(:,0,0,SideID)
+      v2=BezierControlPoints3D(:,0,NGeo,SideID)-BezierControlPoints3D(:,0,0,SideID)
+      SideNormVec(:,SideID) = CROSSNORM(v1,v2)
+!      length=SQRT(v2(1)*v2(1)+v1(2)*v1(2)+v1(3)*v1(3))
+!      SideNormVec(:,iSide) =SideNormVec(:,iSide)/length
+      !      xNodes(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)
+      !      xNodes(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)
+      !      xNodes(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)
+      !      xNodes(:,4)=SuperSampledNodes(1:3,p  ,q+1,SideID)
+      v1=0.25*(BezierControlPoints3D(:,0,0,SideID)     &
+              +BezierControlPoints3D(:,NGeo,0,SideID)  &
+              +BezierControlPoints3D(:,0,NGeo,SideID)  &
+              +BezierControlPoints3D(:,NGeo,NGeo,SideID))
+      SideDistance(SideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
+!      IF(SideID.EQ.8)THEN
+!        print*,'v1',v1
+!        print*,'SideDistance',SideDistance(SideID)
+!        read*
+!      END IF
+    ELSE
+      SideType(SideID)=BILINEAR
+      IF(SideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
+#ifdef MPI
+      IF(SideID.GT.SideID_Minus_Upper) nBilinearTot=nBilinearTot+1
+#endif /*MPI*/
+    END IF ! BoundingBoxIsEmpty
+  ELSE ! non-linear sides
+    SideType(SideID)=CURVED
+    IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+    IF(SideID.GT.SideID_Minus_Upper) nCurvedTot=nCurvedTot+1
+#endif /*MPI*/
+    IF(BoundingBoxIsEmpty(SideID))THEN
+      v1=BezierControlPoints3D(:,NGeo,0,SideID)-BezierControlPoints3D(:,0,0,SideID)
+      v2=BezierControlPoints3D(:,0,NGeo,SideID)-BezierControlPoints3D(:,0,0,SideID)
+      SideNormVec(:,SideID) = CROSSNORM(v1,v2)
+      v1=0.25*(BezierControlPoints3D(:,0,0,SideID)     &
+              +BezierControlPoints3D(:,NGeo,0,SideID)  &
+              +BezierControlPoints3D(:,0,NGeo,SideID)  &
+              +BezierControlPoints3D(:,NGeo,NGeo,SideID))
+      SideDistance(SideID)=DOT_PRODUCT(v1,SideNormVec(:,SideID))
+    END IF ! BoundingBoxIsEmpty
+  END IF ! isLinear
+END DO ! iSide
+
+! mark elements as bc element
+IsBCElem=.FALSE.
+nTotalBCElems=0
+DO iElem=1,nTotalElems
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF (SideID.EQ.-1) CYCLE
+    IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
+      IF(.NOT.isBCElem(iElem))THEN
+        IsBCElem(iElem)=.TRUE.
+        nTotalBCElems=nTotalBCElems+1
+        IF(SideID.LE.nBCSides)THEN
+          nBCElems=nBCElems+1
+        END IF
+      END IF ! count only single
+    END IF
+  END DO ! ilocSide
+END DO ! iElem
+
+! build list with elements in halo-eps vicinity around bc-elements
+ALLOCATE( BCElem(1:nTotalElems) )
+ALLOCATE( SideIndex(1:nTotalSides) )
+! number of element local BC-Sides
+DO iElem=1,nTotalElems
+  BCElem(iElem)%nInnerSides=0
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+  IF(.NOT.isBCElem(iElem)) CYCLE
+#endif
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF(SideID.EQ.-1) CYCLE
+    IF(PartBCSideList(SideID).EQ.-1) CYCLE
+    BCElem(iElem)%nInnerSides = BCElem(iElem)%nInnerSides+1
+    !END IF
+  END DO ! ilocSide
+  BCElem(iElem)%lastSide=BCElem(iElem)%nInnerSides
+  ! loop over all sides
+  SideIndex=0
+  DO iSide=1,nTotalSides
+    ! ignore sides of the same element
+    IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
+    BCSideID  =PartBCSideList(iSide)
+    IF(BCSideID.EQ.-1) CYCLE
+    ! next, get all sides in halo-eps vicinity
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF(SideID.EQ.-1) CYCLE
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+      BCSideID2 =PartBCSideList(SideID)
+      IF(BCSideID2.EQ.-1) CYCLE
+      leave=.FALSE.
+      ! all points of bc side
+      DO q=0,NGeo
+        DO p=0,NGeo
+          NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+          ! all nodes of current side
+          DO s=0,NGeo
+            DO r=0,NGeo
+              IF(SQRT(DOT_Product(BezierControlPoints3D(:,r,s,BCSideID2)-NodeX &
+                                 ,BezierControlPoints3D(:,r,s,BCSideID2)-NodeX )).LE.halo_eps)THEN
+                IF(SideIndex(iSide).EQ.0)THEN
+                  BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                  SideIndex(iSide)=BCElem(iElem)%lastSide
+                  leave=.TRUE.
+                  EXIT
+                END IF
+              END IF
+            END DO ! r
+            IF(leave) EXIT
+          END DO ! s
+          IF(leave) EXIT
+        END DO ! p
+        IF(leave) EXIT
+      END DO ! q
+#else /* no LSERK */
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS)
+        xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
+      CASE(XI_PLUS)
+        xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
+      CASE(ETA_MINUS)
+        xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
+      CASE(ETA_PLUS)
+        xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
+      CASE(ZETA_MINUS)
+        xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
+      CASE(ZETA_PLUS)
+        xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
+      END SELECT
+      leave=.FALSE.
+      ! all points of bc side
+      DO q=0,NGeo
+        DO p=0,NGeo
+          NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+          ! all nodes of current side
+          DO s=0,NGeo
+            DO r=0,NGeo
+              IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
+                                 ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
+                IF(SideIndex(iSide).EQ.0)THEN
+                  BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                  SideIndex(iSide)=BCElem(iElem)%lastSide
+                  leave=.TRUE.
+                  EXIT
+                END IF
+              END IF
+            END DO ! r
+            IF(leave) EXIT
+          END DO ! s
+          IF(leave) EXIT
+        END DO ! p
+        IF(leave) EXIT
+      END DO ! q
+#endif
+      IF(leave) EXIT
+    END DO ! ilocSide
+  END DO ! iSide
+  ! finally, allocate the bc side list
+  IF(BCElem(iElem)%lastSide.EQ.0) CYCLE
+  ! set true, only required for elements without an own bc side
+  IF(.NOT.isBCElem(iElem)) nBCElems=nBCElems+1
+  isBCElem(iElem)=.TRUE.
+  ! allocate complete side list
+  ALLOCATE( BCElem(iElem)%BCSideID(BCElem(iElem)%lastSide) )
+  ! 1) inner sides
+  nSideCount=0
+  IF(BCElem(iElem)%nInnerSides.GT.0)THEN
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF(SideID.EQ.-1) CYCLE
+      BCSideID=PartBCSideList(SideID)
+      IF(BCSideID.EQ.-1) CYCLE
+     ! IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
+      nSideCount=nSideCount+1
+      !BCElem(iElem)%BCSideID(nSideCount)= BCSideID
+      BCElem(iElem)%BCSideID(nSideCount)= SideID
+      !END IF
+    END DO ! ilocSide
+  END IF ! nInnerSides.GT.0
+  ! 2) outer sides
+  DO iSide=1,nTotalSides
+    IF(SideIndex(iSide).GT.0)THEN
+      nSideCount=nSideCount+1
+      BCSideID=PartBCSideList(iSide)
+      !BCElem(iElem)%BCSideID(nSideCount)=BCSideID
+      BCElem(iElem)%BCSideID(nSideCount)=iSide
+    END IF
+  END DO  ! iSide
+END DO ! iElem
+
+#ifdef MPI
+nPlanarTot=nPlanar+nPlanarTot
+nBilinearTot=nBilinear+nBilinearTot
+nCurvedTot=nCurved+nCurvedTot
+IF(MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,nPlanar  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nBilinear,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nCurved  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nBCElems ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+ELSE ! no Root
+  CALL MPI_REDUCE(nPlanar  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nBilinear,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nCurved  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nBCElems  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+END IF
+#endif /*MPI*/
+
+
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of BC-adjoined elems: ', nBCElems
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar      faces: ', nPlanar
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear   faces: ', nBilinear
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved      faces: ', nCurved
+
+#ifdef MPI
+CALL  WriteParticleMappingPartitionInformation(nPlanarTot,nBilinearTot,nCurvedTot,nTotalBCElems)
+#endif
+
+END SUBROUTINE GetBCSideType
+
+
+SUBROUTINE GetSideType()
+!================================================================================================================================
+! select the side type for each side 
+! check if points on edges are linear. if linear, the cross product of the vector between two vertices and a vector between a 
+! vercites and a edge point has to be zero
+! SideType
+! 0 - planar
+! 1 - bilinear
+! 2 - curved
+!================================================================================================================================
+USE MOD_Globals!,                  ONLY:CROSS
+USE MOD_Mesh_Vars,                ONLY:nSides,NGeo,Xi_NGeo,Sideid_minus_upper
+USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,epsilontol,SideType,SideNormVec,SideDistance
+!USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear
+USE MOD_Particle_Mesh_Vars,       ONLY:nTotalSides
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI
+#ifdef MPI
+USE MOD_Particle_MPI_HALO,        ONLY:WriteParticlePartitionInformation
+#endif /*MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy
+REAL,DIMENSION(1:3)         :: v1,v2
+REAL                        :: length,eps
+LOGICAL                     :: isLinear
+#ifdef MPI  
+INTEGER                     :: nPlanarTot,nBilinearTot,nCurvedTot
+#endif /*MPI*/
+!================================================================================================================================
+
+! allocated here,!!! should be moved?
+!ALLOCATE( SideType(nSides)        &
+!        , SideDistance(nSides)    &
+!        , SideNormVec(1:3,nSides) )
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(A)') ' Get Side Type incl. HALO-Sides...'
+
+ALLOCATE( SideType(nTotalSides)        &
+        , SideDistance(nTotalSides)    &
+        , SideNormVec(1:3,nTotalSides) )
+
+SideDistance=0.
+SideNormVec=0.
+
+eps=1e-8
+nPlanar=0
+nBilinear=0
+nCurved=0
+#ifdef MPI
+nPlanarTot=0
+nBilinearTot=0
+nCurvedTot=0
+#endif /*MPI*/
+DO iSide=1,nTotalSides
+  isLinear=.TRUE.
+  ! all four edges
+  !IF(iSide.GT.nSides) IPWRITE(UNIT_stdOut,*) BezierControlPOints3D(:,:,:,iSide)
+  IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10) &
+   CALL abort(__STAMP__, &
+        ' no BezierControlPoints',PartMPI%MyRank)
+  q=0
+  v1=BezierControlPoints3D(:,NGeo,q,iSide)-BezierControlPoints3D(:,0,q,iSide)
+  DO p=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,iSide)-BezierControlPoints3D(:,0,q,iSide)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! p
+  q=NGeo
+  v1=BezierControlPoints3D(:,NGeo,q,iSide)-BezierControlPoints3D(:,0,q,iSide)
+  DO p=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,iSide)-BezierControlPoints3D(:,0,q,iSide)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! p
+  p=0
+  v1=BezierControlPoints3D(:,p,NGeo,iSide)-BezierControlPoints3D(:,p,0,iSide)
+  DO q=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,iSide)-BezierControlPoints3D(:,p,0,iSide)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! q
+  p=NGeo
+  v1=BezierControlPoints3D(:,p,NGeo,iSide)-BezierControlPoints3D(:,p,0,iSide)
+  DO q=1,NGeo-1
+    v2=BezierControlPoints3D(:,p,q,iSide)-BezierControlPoints3D(:,p,0,iSide)
+    v2=CROSS(v1,v2)
+    length=SQRT(v2(1)*v2(1)+v2(2)*v2(2)+v2(3)*v2(3))
+    IF(length.GT.eps) isLinear=.FALSE.
+  END DO ! q
+  IF(isLinear)THEN
+    IF(BoundingBoxIsEmpty(iSide))THEN
+    !v0= BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)     &
+    !   -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide)  
+    !IF(VECNORM(v0).LT.epsilontol)THEN
+    !IF(VECNORM(v0).LT.epsilonbilinear)THEN
+      SideType(iSide)=PLANAR
+      IF(iSide.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+      IF(iSide.GT.SideID_Minus_Upper) nPlanartot=nPlanartot+1
+#endif /*MPI*/
+      ! compute the norm vec of side and distance from origin
+      !v1=BezierControlPoints3D(:,NGeo,0,iSide)-BezierControlPoints3D(:,0,0,iSide)
+      !v2=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,0,0,iSide)
+      v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+          -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+      
+      v2=(-BezierControlPoints3D(:,0,0   ,iSide)-BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+          +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+
+      SideNormVec(:,iSide) = CROSSNORM(v1,v2)
+!      length=SQRT(v2(1)*v2(1)+v1(2)*v1(2)+v1(3)*v1(3))
+!      SideNormVec(:,iSide) =SideNormVec(:,iSide)/length
+      !      xNodes(:,1)=SuperSampledNodes(1:3,p  ,q  ,SideID)
+      !      xNodes(:,2)=SuperSampledNodes(1:3,p+1,q  ,SideID)
+      !      xNodes(:,3)=SuperSampledNodes(1:3,p+1,q+1,SideID)
+      !      xNodes(:,4)=SuperSampledNodes(1:3,p  ,q+1,SideID)
+      v1=0.25*(BezierControlPoints3D(:,0,0,iSide)     &
+              +BezierControlPoints3D(:,NGeo,0,iSide)  &
+              +BezierControlPoints3D(:,0,NGeo,iSide)  &
+              +BezierControlPoints3D(:,NGeo,NGeo,iSide))
+      SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+!      IF(iSide.EQ.8)THEN
+!        print*,'v1',v1
+!        print*,'SideDistance',SideDistance(iSide)
+!        read*
+!      END IF
+    ELSE
+      !IPWRITE(UNIT_stdOut,*) 'Boundingboxisempty',boundingboxisempty(iside)
+      SideType(iSide)=BILINEAR
+      IF(iSide.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
+#ifdef MPI
+      IF(iSide.GT.SideID_Minus_Upper) nBilinearTot=nBilinearTot+1
+#endif /*MPI*/
+    END IF ! BoundingBoxIsEmpty
+  ELSE ! non-linear sides
+    SideType(iSide)=CURVED
+    IF(iSide.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+    IF(iSide.GT.SideID_Minus_Upper) nCurvedTot=nCurvedTot+1
+#endif /*MPI*/
+    IF(BoundingBoxIsEmpty(iSide))THEN
+      v1=BezierControlPoints3D(:,NGeo,0,iSide)-BezierControlPoints3D(:,0,0,iSide)
+      v2=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,0,0,iSide)
+      SideNormVec(:,iSide) = CROSSNORM(v1,v2)
+      v1=0.25*(BezierControlPoints3D(:,0,0,iSide)     &
+              +BezierControlPoints3D(:,NGeo,0,iSide)  &
+              +BezierControlPoints3D(:,0,NGeo,iSide)  &
+              +BezierControlPoints3D(:,NGeo,NGeo,iSide))
+      SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+    END IF ! BoundingBoxIsEmpty
+  END IF ! isLinear
+END DO ! iSide
+
+#ifdef MPI
+nPlanarTot=nPlanar+nPlanarTot
+nBilinearTot=nBilinear+nBilinearTot
+nCurvedTot=nCurved+nCurvedTot
+IF(MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,nPlanar  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nBilinear,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nCurved  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+ELSE ! no Root
+  CALL MPI_REDUCE(nPlanar  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nBilinear,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nCurved  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+END IF
+#endif /*MPI*/
+
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar    faces: ', nPlanar
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear faces: ', nBilinear
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved    faces: ', nCurved
+SWRITE(UNIT_StdOut,'(132("-"))')
+
+
+#ifdef MPI
+CALL  WriteParticlePartitionInformation(nPlanarTot,nBilinearTot,nCurvedTot)
+#endif
+
+END SUBROUTINE GetSideType
+
+SUBROUTINE GetElemAndSideType() 
+!===================================================================================================================================
+! get the element and side type of each element,depending on the 
+! used tracking method
+! 1) Get Elem Type
+! 2) Get Side Type
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,SideID_minus_upper,NGeo,nBCSides
+USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
+USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides
+USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,Vdm_CLNGeo1_CLNGeo
+USE MOD_ChangeBasis,                        ONLY:changeBasis3D
+#ifdef MPI
+USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticleMappingPartitionInformation
+USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticlePartitionInformation
+#endif /*MPI*/
+#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
+USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
+#endif
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                  :: iElem, nCurvedElems,nCurvedElemsTot
+INTEGER                                  :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy,SideID,TrueSideID,ilocSide,nBCElems
+INTEGER                                  :: nSideCount, BCSideID, BCSideID2, s,r
+INTEGER,ALLOCATABLE                      :: SideIndex(:)
+REAL,DIMENSION(1:3)                      :: v1,v2,NodeX
+REAL                                     :: length,eps
+LOGICAL                                  :: isLinear,leave
+#ifdef MPI  
+INTEGER                                  :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
+#endif /*MPI*/
+#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
+REAL,DIMENSION(1:3,0:NGeo,0:NGeo) :: xNodes
+#endif
+LOGICAL,ALLOCATABLE                     :: SideIsDone(:)
+REAL                                    :: XCL_NGeo1(1:3,0:1,0:1,0:1)
+REAL                                    :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
+INTEGER                                 :: i,j,k, NGeo3,NGeo2
+REAL                                    :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
+REAL                                    :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
+LOGICAL                                 :: isCurvedSide
+!===================================================================================================================================
+
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_StdOut,'(A)') ' Get Element and Side Type incl. HALO-Sides...'
+
+! elements
+ALLOCATE(CurvedElem(1:nTotalElems))
+CurvedElem=.FALSE.
+nCurvedElems=0
+
+! sides
+IF(DoRefMapping)THEN
+  ALLOCATE( SideType(nTotalBCSides)        &
+          , SideDistance(nTotalBCSides)    &
+          , isBCElem(nTotalElems)          &
+          , SideIsDone(nTotalSides)        &
+          , SideNormVec(1:3,nTotalBCSides) )
+ELSE
+  ALLOCATE( SideType(nTotalSides)        &
+          , SideDistance(nTotalSides)    &
+          , SideIsDone(nTotalSides)        &
+          , SideNormVec(1:3,nTotalSides) )
+END IF
+SideIsDone=.FALSE.
+
+SideDistance=0.
+SideNormVec=0.
+
+eps=1e-8
+nPlanar=0
+nBilinear=0
+nCurved=0
+nBCElems=0
+#ifdef MPI
+nPlanarTot=0
+nBilinearTot=0
+nCurvedTot=0
+nBCElemsTot=0
+#endif /*MPI*/
+
+NGeo2=(NGeo+1)*(NGeo+1)
+NGeo3=NGeo2*(NGeo+1)
+DO iElem=1,nTotalElems
+  ! 1) check if elem is curved
+  !   a) map coordinates to compute bilinear mapping
+  ! fill dummy
+  XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,iElem)
+  XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,iElem)
+  XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  ,iElem)
+  XCL_NGeo1(1:3,1,1,0) = XCL_NGeo(1:3,NGeo,NGeo, 0  ,iElem)
+  XCL_NGeo1(1:3,0,0,1) = XCL_NGeo(1:3, 0  , 0  ,NGeo,iElem)
+  XCL_NGeo1(1:3,1,0,1) = XCL_NGeo(1:3,NGeo, 0  ,NGeo,iElem)
+  XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo,iElem)
+  XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,iElem)
+
+  CALL ChangeBasis3D(3,1,NGeo,Vdm_CLNGeo1_CLNGeo,XCL_NGeo1,XCL_NGeoNew)
+
+  ! check 3D points
+  CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeo,CurvedElem(iElem))
+  IF(iElem.LE.PP_nElems)THEN
+    IF(CurvedElem(iElem)) nCurvedElems=nCurvedElems+1
+  END IF
+
+  ! 2) check sides
+  DO ilocSide=1,6
+    SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    IF (SideID.EQ.-1) CYCLE
+    IF(DoRefMapping)THEN
+      TrueSideID=PartBCSideList(SideID)
+      IF(TrueSideID.EQ.-1)CYCLE
+    ELSE
+      TrueSideID=SideID
+    END IF
+    IF (SideIsDone(TrueSideID)) CYCLE
+    IF(.NOT.CurvedElem(iElem))THEN
+      ! linear element
+      IF(BoundingBoxIsEmpty(TrueSideID))THEN
+        SideType(TrueSideID)=PLANAR
+        IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+        IF(TrueSideID.GT.SideID_Minus_Upper) nPlanartot=nPlanartot+1
+#endif /*MPI*/
+        v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+            -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        
+        v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+            +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+        SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
+        v1=0.25*(BezierControlPoints3D(:,0,0,TrueSideID)     &
+                +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
+                +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
+                +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+        SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+      ELSE
+        SideType(TrueSideID)=BILINEAR
+        IF(TrueSideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
+#ifdef MPI
+        IF(TrueSideID.GT.SideID_Minus_Upper) nBilinearTot=nBilinearTot+1
+#endif /*MPI*/
+      END IF
+    ELSE
+      ! possible curved face
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,0,0:NGeo,0:NGeo,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0,0:NGeo,0:NGeo)
+      CASE(XI_PLUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,NGeo,0:NGeo,0:NGeo,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,NGeo,0:NGeo,0:NGeo)
+      CASE(ETA_MINUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,0:NGeo,0,0:NGeo,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0:NGeo,0,0:NGeo)
+      CASE(ETA_PLUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,0:NGeo,NGeo,0:NGeo,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0:NGeo,NGeo,0:NGeo)
+      CASE(ZETA_MINUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,0:NGeo,0:NGeo,0,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0)
+      CASE(ZETA_PLUS)
+        XCL_NGeoSideOld=XCL_NGeo   (1:3,0:NGeo,0:NGeo,NGeo,iElem)
+        XCL_NGeoSideNew=XCL_NGeoNEw(1:3,0:NGeo,0:NGeo,NGeo)
+      END SELECT
+      CALL PointsEqual(NGeo2,XCL_NGeoSideNew,XCL_NGeoSideOld,isCurvedSide)
+      IF(isCurvedSide)THEn
+        SideType(TrueSideID)=CURVED
+        IF(iSide.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+        IF(iSide.GT.SideID_Minus_Upper) nCurvedTot=nCurvedTot+1
+#endif /*MPI*/
+      ELSE
+        IF(BoundingBoxIsEmpty(TrueSideID))THEN
+          SideType(TrueSideID)=PLANAR
+          IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+          IF(TrueSideID.GT.SideID_Minus_Upper) nPlanartot=nPlanartot+1
+#endif /*MPI*/
+          v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          
+          v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
+          v1=0.25*(BezierControlPoints3D(:,0,0,TrueSideID)     &
+                  +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
+                  +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
+                  +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+          SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+        ELSE
+          SideType(TrueSideID)=BILINEAR
+          IF(TrueSideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
+#ifdef MPI
+          IF(TrueSideID.GT.SideID_Minus_Upper) nBilinearTot=nBilinearTot+1
+#endif /*MPI*/
+        END IF
+      END IF
+    END IF
+    SideIsDone(SideID)=.TRUE.
+  END DO ! ilocSide=1,6
+END DO ! iElem=1,nTotalElems
+
+IF(DoRefMapping)THEN
+  ! mark elements as bc element
+  IsBCElem=.FALSE.
+  nTotalBCElems=0
+  DO iElem=1,nTotalElems
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF (SideID.EQ.-1) CYCLE
+      IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
+        IF(.NOT.isBCElem(iElem))THEN
+          IsBCElem(iElem)=.TRUE.
+          nTotalBCElems=nTotalBCElems+1
+          IF(SideID.LE.nBCSides)THEN
+            nBCElems=nBCElems+1
+          END IF
+        END IF ! count only single
+      END IF
+    END DO ! ilocSide
+  END DO ! iElem
+  
+  ! build list with elements in halo-eps vicinity around bc-elements
+  ALLOCATE( BCElem(1:nTotalElems) )
+  ALLOCATE( SideIndex(1:nTotalSides) )
+  ! number of element local BC-Sides
+  DO iElem=1,nTotalElems
+    BCElem(iElem)%nInnerSides=0
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+    IF(.NOT.isBCElem(iElem)) CYCLE
+#endif
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF(SideID.EQ.-1) CYCLE
+      IF(PartBCSideList(SideID).EQ.-1) CYCLE
+      BCElem(iElem)%nInnerSides = BCElem(iElem)%nInnerSides+1
+      !END IF
+    END DO ! ilocSide
+    BCElem(iElem)%lastSide=BCElem(iElem)%nInnerSides
+    ! loop over all sides
+    SideIndex=0
+    DO iSide=1,nTotalSides
+      ! ignore sides of the same element
+      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
+      BCSideID  =PartBCSideList(iSide)
+      IF(BCSideID.EQ.-1) CYCLE
+      ! next, get all sides in halo-eps vicinity
+      DO ilocSide=1,6
+        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+        IF(SideID.EQ.-1) CYCLE
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+        BCSideID2 =PartBCSideList(SideID)
+        IF(BCSideID2.EQ.-1) CYCLE
+        leave=.FALSE.
+        ! all points of bc side
+        DO q=0,NGeo
+          DO p=0,NGeo
+            NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+            ! all nodes of current side
+            DO s=0,NGeo
+              DO r=0,NGeo
+                IF(SQRT(DOT_Product(BezierControlPoints3D(:,r,s,BCSideID2)-NodeX &
+                                   ,BezierControlPoints3D(:,r,s,BCSideID2)-NodeX )).LE.halo_eps)THEN
+                  IF(SideIndex(iSide).EQ.0)THEN
+                    BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                    SideIndex(iSide)=BCElem(iElem)%lastSide
+                    leave=.TRUE.
+                    EXIT
+                  END IF
+                END IF
+              END DO ! r
+              IF(leave) EXIT
+            END DO ! s
+            IF(leave) EXIT
+          END DO ! p
+          IF(leave) EXIT
+        END DO ! q
+#else /* no LSERK */
+        SELECT CASE(ilocSide)
+        CASE(XI_MINUS)
+          xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
+        CASE(XI_PLUS)
+          xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
+        CASE(ETA_MINUS)
+          xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
+        CASE(ETA_PLUS)
+          xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
+        CASE(ZETA_MINUS)
+          xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
+        CASE(ZETA_PLUS)
+          xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
+        END SELECT
+        leave=.FALSE.
+        ! all points of bc side
+        DO q=0,NGeo
+          DO p=0,NGeo
+            NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+            ! all nodes of current side
+            DO s=0,NGeo
+              DO r=0,NGeo
+                IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
+                                   ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
+                  IF(SideIndex(iSide).EQ.0)THEN
+                    BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                    SideIndex(iSide)=BCElem(iElem)%lastSide
+                    leave=.TRUE.
+                    EXIT
+                  END IF
+                END IF
+              END DO ! r
+              IF(leave) EXIT
+            END DO ! s
+            IF(leave) EXIT
+          END DO ! p
+          IF(leave) EXIT
+        END DO ! q
+#endif
+        IF(leave) EXIT
+      END DO ! ilocSide
+    END DO ! iSide
+    ! finally, allocate the bc side list
+    IF(BCElem(iElem)%lastSide.EQ.0) CYCLE
+    ! set true, only required for elements without an own bc side
+    IF(.NOT.isBCElem(iElem)) nBCElems=nBCElems+1
+    isBCElem(iElem)=.TRUE.
+    ! allocate complete side list
+    ALLOCATE( BCElem(iElem)%BCSideID(BCElem(iElem)%lastSide) )
+    ! 1) inner sides
+    nSideCount=0
+    IF(BCElem(iElem)%nInnerSides.GT.0)THEN
+      DO ilocSide=1,6
+        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+        IF(SideID.EQ.-1) CYCLE
+        BCSideID=PartBCSideList(SideID)
+        IF(BCSideID.EQ.-1) CYCLE
+       ! IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
+        nSideCount=nSideCount+1
+        !BCElem(iElem)%BCSideID(nSideCount)= BCSideID
+        BCElem(iElem)%BCSideID(nSideCount)= SideID
+        !END IF
+      END DO ! ilocSide
+    END IF ! nInnerSides.GT.0
+    ! 2) outer sides
+    DO iSide=1,nTotalSides
+      IF(SideIndex(iSide).GT.0)THEN
+        nSideCount=nSideCount+1
+        BCSideID=PartBCSideList(iSide)
+        !BCElem(iElem)%BCSideID(nSideCount)=BCSideID
+        BCElem(iElem)%BCSideID(nSideCount)=iSide
+      END IF
+    END DO  ! iSide
+  END DO ! iElem
+END IF
+
+#ifdef MPI
+nPlanarTot=nPlanar+nPlanarTot
+nBilinearTot=nBilinear+nBilinearTot
+nCurvedTot=nCurved+nCurvedTot
+IF(MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,nPlanar  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nBilinear,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,nCurved  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nCurvedElems,nCurvedElemsTot,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(DoRefMapping) CALL MPI_REDUCE(MPI_IN_PLACE,nBCElems ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+ELSE ! no Root
+  CALL MPI_REDUCE(nPlanar  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nBilinear,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nCurved  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nCurvedElems,nCurvedElemsTot,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(DoRefMapping) CALL MPI_REDUCE(nBCElems  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+END IF
+#else
+nCurvedElemsTot=nCurvedElems
+#endif /*MPI*/
+
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar     faces: ', nPlanar
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear  faces: ', nBilinear
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved     faces: ', nCurved
+! and add number of curved elems
+IF(DoRefMapping)THEN
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of BC-adjoined elems: ', nBCElems
+END IF
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of (bi-)linear elems: ', nGlobalElems-nCurvedElemsTot
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved      elems: ', nCurvedElemsTot
+SWRITE(UNIT_StdOut,'(132("-"))')
+
+#ifdef MPI
+IF(DoRefMapping)THEN
+  CALL  WriteParticleMappingPartitionInformation(nPlanarTot,nBilinearTot,nCurvedTot,nTotalBCElems)
+ELSE
+  CALL  WriteParticlePartitionInformation(nPlanarTot,nBilinearTot,nCurvedTot)
+END IF
+#endif
+
+END SUBROUTINE GetElemAndSideType
 
 
 END MODULE MOD_Particle_Mesh

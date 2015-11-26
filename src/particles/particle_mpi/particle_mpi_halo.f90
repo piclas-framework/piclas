@@ -989,6 +989,7 @@ END DO
 dataSize=3*(NGeo+1)*(NGeo+1)
 dataSize2=3*(NGeo+1)*(NGeo+1)*(NGeo+1)
 dataSize3=9*(NGeo+1)*(NGeo+1)*(NGeo+1)
+
 IF (PartMPI%MyRank.LT.iProc) THEN
   ! Send:
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%ElemToSide,SendMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,IERROR)
@@ -1043,13 +1044,13 @@ IF (PartMPI%MyRank.LT.iProc) THEN
       CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,MPISTATUS,IERROR)
   IF(DoRefMapping)THEN
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_SEND(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
+        CALL MPI_RECV(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_SEND(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
+        CALL MPI_RECV(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_SEND(RecvMsg%ElemSlabNormals,RecvMsg%nElems*9,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
+        CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*9,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_SEND(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
+        CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
 
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
@@ -1077,13 +1078,13 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
       CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,MPISTATUS,IERROR)
   IF(DoRefMapping)THEN
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_SEND(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,IERROR)
+        CALL MPI_RECV(RecvMsg%XCL_NGeo,RecvMsg%nElems*datasize2,MPI_DOUBLE_PRECISION,iProc,1114,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_SEND(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
+        CALL MPI_RECV(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_SEND(RecvMsg%ElemSlabNormals,RecvMsg%nElems*9,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
+        CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*9,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_SEND(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
+        CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
 
   ! Send:
