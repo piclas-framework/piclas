@@ -55,9 +55,14 @@ INTERFACE BoxInProc
   MODULE PROCEDURE BoxInProc
 END INTERFACE
 
+INTERFACE ExchangeBezierControlPoints3D
+  MODULE PROCEDURE ExchangeBezierControlPoints3D
+END INTERFACE
+
 PUBLIC :: InitParticleMPI,FinalizeParticleMPI,InitHaloMesh, InitParticleCommSize, IRecvNbOfParticles, MPIParticleSend
 PUBLIC :: MPIParticleRecv
 PUBLIC :: InitEmissionComm
+PUBLIC :: ExchangeBezierControlPoints3D
 #else
 PUBLIC :: InitParticleMPI
 #endif /*MPI*/
@@ -1237,6 +1242,67 @@ ParticleMPIInitIsDone=.FALSE.
 END SUBROUTINE FinalizeParticleMPI
 
 
+SUBROUTINE ExchangeBezierControlPoints3D() 
+!===================================================================================================================================
+! exchange all beziercontrolpoints at MPI interfaces
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_MPI_Vars
+USE MOD_Mesh_Vars,                  ONLY:NGeo,nSides,SideID_minus_Upper,NGeo
+USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
+USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 ::BezierSideSize,SendID, iSide
+INTEGER                 ::iMPINeighbor
+!===================================================================================================================================
+
+! funny: should not be required, as sides are build for master and slave sides??
+! communicate the MPI Master Sides to Slaves
+! all processes have now filled sides and can compute the particles inside the proc region
+SendID=1
+BezierSideSize=3*(NGeo+1)*(NGeo+1)
+DO iNbProc=1,nNbProcs
+  ! Start receive face data
+  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+    nRecVal     =BezierSideSize*nMPISides_rec(iNbProc,SendID)
+    SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
+    SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
+    CALL MPI_IRECV(BezierControlPoints3D(:,:,:,SideID_start:SideID_end),nRecVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest_Flux(iNbProc),iError)
+  END IF
+  ! Start send face data
+  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+    nSendVal    =BezierSideSize*nMPISides_send(iNbProc,SendID)
+    SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
+    SideID_end  =OffsetMPISides_send(iNbProc,SendID)
+    CALL MPI_ISEND(BezierControlPoints3D(:,:,:,SideID_start:SideID_end),nSendVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest_Flux(iNbProc),iError)
+  END IF
+END DO !iProc=1,nNBProcs
+
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest_Flux(iNbProc) ,MPIStatus,iError)
+END DO !iProc=1,nNBProcs
+! Check send operations
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest_Flux(iNbProc),MPIStatus,iError)
+END DO !iProc=1,nNBProcs
+
+DO iSide=sideID_minus_upper+1,nSides
+  CALL GetSideSlabNormalsAndIntervals(NGeo,iSide)
+END DO
+
+END SUBROUTINE ExchangeBezierControlPoints3D
+
 SUBROUTINE InitHaloMesh()
 !===================================================================================================================================
 ! communicate all direct neighbor sides from master to slave
@@ -1248,9 +1314,8 @@ USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_PreProc
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
+USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
-USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
-USE MOD_Mesh_Vars,                  ONLY:NGeo,nSides,SideID_minus_Upper,NGeo
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloToProc
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry,ExchangeMappedHaloGeometry
 USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
@@ -1270,43 +1335,9 @@ LOGICAL                 :: TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
 !===================================================================================================================================
 
-! funny: should not be required, as sides are build for master and slave sides??
-! communicate the MPI Master Sides to Slaves
-! all processes have now filled sides and can compute the particles inside the proc region
-IF(.NOT.DoRefMapping)THEN
-  SendID=1
-  BezierSideSize=3*(NGeo+1)*(NGeo+1)
-  DO iNbProc=1,nNbProcs
-    ! Start receive face data
-    IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
-      nRecVal     =BezierSideSize*nMPISides_rec(iNbProc,SendID)
-      SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
-      SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
-      CALL MPI_IRECV(BezierControlPoints3D(:,:,:,SideID_start:SideID_end),nRecVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest_Flux(iNbProc),iError)
-    END IF
-    ! Start send face data
-    IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
-      nSendVal    =BezierSideSize*nMPISides_send(iNbProc,SendID)
-      SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
-      SideID_end  =OffsetMPISides_send(iNbProc,SendID)
-      CALL MPI_ISEND(BezierControlPoints3D(:,:,:,SideID_start:SideID_end),nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest_Flux(iNbProc),iError)
-    END IF
-  END DO !iProc=1,nNBProcs
-  
-  DO iNbProc=1,nNbProcs
-    IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest_Flux(iNbProc) ,MPIStatus,iError)
-  END DO !iProc=1,nNBProcs
-  ! Check send operations
-  DO iNbProc=1,nNbProcs
-    IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest_Flux(iNbProc),MPIStatus,iError)
-  END DO !iProc=1,nNBProcs
 
-  DO iSide=sideID_minus_upper+1,nSides
-    CALL GetSideSlabNormalsAndIntervals(NGeo,iSide)
-  END DO
-END IF ! DoRefMapping
+! dirty hack
+!nTotalBCSides=nSides
 
 ALLOCATE(SideIndex(1:nSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
@@ -1327,13 +1358,13 @@ DO iProc=0,PartMPI%nProcs-1
   LOGWRITE(*,*)'    ...Done'
 
   LOGWRITE(*,*)'  - Exchange Geometry of MPI-Neighborhood...'
-  IF(.NOT.DoRefMapping)THEN
+  !IF(.NOT.DoRefMapping)THEN
     !CALL ExchangeHaloGeometry(iProc,SideIndex,ElemIndex)
     CALL ExchangeHaloGeometry(iProc,ElemIndex)
-  ELSE
-    !CALL ExchangeMappedHaloGeometry(iProc,SideIndex,ElemIndex)
-    CALL ExchangeMappedHaloGeometry(iProc,ElemIndex)
-  END IF
+  !ELSE
+  !  !CALL ExchangeMappedHaloGeometry(iProc,SideIndex,ElemIndex)
+  !  CALL ExchangeMappedHaloGeometry(iProc,ElemIndex)
+  !END IF
   LOGWRITE(*,*)'    ...Done'
   SideIndex(:)=0
   ElemIndex(:)=0

@@ -146,7 +146,7 @@ USE MOD_MPI,                ONLY:InitMPIvars
 #ifdef PARTICLES
 USE MOD_ParticleInit,       ONLY:InitParticles
 USE MOD_Particle_Surfaces,  ONLY:InitParticleSurfaces
-USE MOD_Particle_Mesh,      ONLY:InitParticleMesh
+USE MOD_Particle_Mesh,      ONLY:InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze,   ONLY:InitParticleAnalyze
 USE MOD_Particle_MPI,       ONLY:InitParticleMPI
 #endif
@@ -181,6 +181,7 @@ CALL InitMPIVars()
 #ifdef PARTICLES
 !#ifdef MPI
 CALL InitParticleMPI
+CALL InitElemBoundingBox()
 !#endif /*MPI*/
 CALL InitParticleSurfaces()
 !CALL InitParticleMesh()

@@ -133,7 +133,7 @@ IF(DoRefMapping)THEN
   DO iSide=1,nBCSides
     PartBCSideList(iSide)=iSide
   END DO 
-  nTotalBCSides=nBCSides
+  !nTotalBCSides=nBCSides
  ! iBCSide=nBCSides
  ! DO iSide=nBCSides+1,nSides
  !   IF(BC(iSide).EQ.1) THEN
@@ -1019,6 +1019,7 @@ ELSE
 CALL GetBezierControlPoints3DElevated(NGeo,SideID)
 END IF
 
+
 !BezierControlPoints(:,:,:,SideID)
 !SideSlabNormals( x y z,1 2 3 , SideID)
 
@@ -1294,7 +1295,7 @@ INTEGER,INTENT(IN) :: ElemID,NGeo
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: p,q,iLocSide,SideID
+INTEGER            :: p,q,iLocSide,SideID,SideIDOrigin
 REAL               :: skalprod(3),dx,dy,dz
 !===================================================================================================================================
 
@@ -1309,14 +1310,16 @@ REAL               :: skalprod(3),dx,dy,dz
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) slab normal vectors (use the first local element side)
 !-----------------------------------------------------------------------------------------------------------------------------------
-SideID=PartElemToSide(E2S_SIDE_ID,1,ElemID)
+SideIDOrigin=PartElemToSide(E2S_SIDE_ID,1,ElemID)
 ! n_1=V_1+V_2 (V: corner vectors in xi-direction)
-ElemSlabNormals(:,1,ElemID)=BezierControlPoints3DElevated(:,NGeo,0,SideID)   -BezierControlPoints3DElevated(:,0,0,SideID)+&
-                            BezierControlPoints3DElevated(:,NGeo,NGeo,SideID)-BezierControlPoints3DElevated(:,0,NGeo,SideID)
+ElemSlabNormals(:,1,ElemID)= &
+                BezierControlPoints3DElevated(:,NGeo,0,SideIDOrigin)   -BezierControlPoints3DElevated(:,0,0,SideIDOrigin)+&
+                BezierControlPoints3DElevated(:,NGeo,NGeo,SideIDOrigin)-BezierControlPoints3DElevated(:,0,NGeo,SideIDOrigin)
 ElemSlabNormals(:,1,ElemID)=ElemSlabNormals(:,1,ElemID)/SQRT(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID)))
 ! n_2=n_1 x (U_1+U_2) (U: corner vectors in eta-direction)
-ElemSlabNormals(:,2,ElemID)=BezierControlPoints3DElevated(:,0,NGeo,SideID)   -BezierControlPoints3DElevated(:,0,0,SideID)+&
-                            BezierControlPoints3DElevated(:,NGeo,NGeo,SideID)-BezierControlPoints3DElevated(:,NGeo,0,SideID)
+ElemSlabNormals(:,2,ElemID)= &
+                BezierControlPoints3DElevated(:,0,NGeo,SideIDOrigin)   -BezierControlPoints3DElevated(:,0,0,SideIDOrigin)+&
+                BezierControlPoints3DElevated(:,NGeo,NGeo,SideIDOrigin)-BezierControlPoints3DElevated(:,NGeo,0,SideIDOrigin)
 ElemSlabNormals(:,2,ElemID)=CROSSNORM(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID))
 ! n_3=n_1 x n_2
 ElemSlabNormals(:,3,ElemID)=CROSSNORM(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,1,ElemID))
@@ -1348,18 +1351,18 @@ IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID)))).G
 !-----------------------------------------------------------------------------------------------------------------------------------
 !ElemSlabIntervals(x- x+ y- y+ z- z+, ElemID)
 
-ElemSlabIntervals(:,ElemID)=0
+ElemSlabIntervals(:,ElemID)=0.
 DO iLocSide=1,6
   SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
   DO q=0,NGeo
     DO p=0,NGeo
       IF((p.EQ.0).AND.(q.EQ.0))CYCLE
       skalprod(1)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
-                              BezierControlPoints3DElevated(:,0,0,SideID),ElemSlabNormals(:,1,ElemID))
+                              BezierControlPoints3DElevated(:,0,0,SideIDOrigin),ElemSlabNormals(:,1,ElemID))
       skalprod(2)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
-                              BezierControlPoints3DElevated(:,0,0,SideID),ElemSlabNormals(:,2,ElemID))
+                              BezierControlPoints3DElevated(:,0,0,SideIDOrigin),ElemSlabNormals(:,2,ElemID))
       skalprod(3)=DOT_PRODUCT(BezierControlPoints3DElevated(:,p,q,SideID)-&
-                              BezierControlPoints3DElevated(:,0,0,SideID),ElemSlabNormals(:,3,ElemID))
+                              BezierControlPoints3DElevated(:,0,0,SideIDOrigin),ElemSlabNormals(:,3,ElemID))
       IF    (skalprod(1).LT.0.)THEN
         ElemSlabIntervals(1, ElemID)=MIN(ElemSlabIntervals(1,ElemID),skalprod(1))
       ELSEIF(skalprod(1).GT.0.)THEN
@@ -1388,8 +1391,6 @@ IF(ALMOSTZERO(dx*dy*dz)) CALL Abort(&
   __STAMP__,&
   'The bounding box (for elements) is zero.',1,dx*dy*dz)
 END SUBROUTINE GetElemSlabNormalsAndIntervals
-
-
 
 
 SUBROUTINE GetBezierControlPoints3DElevated(NGeo,SideID)
@@ -1425,8 +1426,8 @@ REAL               :: temp(3,0:NGeo+BezierElevation,0:NGeo)
 !BezierControlPoints3D(:,NGeo,0,SideID)
 !print*,"1"
 !read*
+temp=0.
 DO q=0,NGeo
-  !print*,BezierControlPoints3D(:,:,q,SideID)
   temp(:,:,q)=ElevateBezierPolynomial(NGeo,BezierControlPoints3D(:,:,q,SideID))
 END DO
 

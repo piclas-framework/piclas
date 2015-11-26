@@ -58,6 +58,10 @@ INTERFACE CheckIfCurvedElem
   MODULE PROCEDURE CheckIfCurvedElem
 END INTERFACE
 
+INTERFACE InitElemBoundingBox
+  MODULE PROCEDURE InitElemBoundingBox
+END INTERFACE
+
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
@@ -99,6 +103,7 @@ IF(ParticleMeshInitIsDone) CALL abort(__STAMP__&
      , ' Particle-Mesh is already initialized.')
 ! allocate and duplicate partElemToside
 nTotalSides=nSides
+nTotalBCSides=nSides
 nTotalElems=nElems
 ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalSides)    &
         ,PartSideToElem(1:5,1:nTotalSides)        &
@@ -558,6 +563,20 @@ CALL InitHaloMesh()
 CALL AddHALOCellsToFIBGM()
 #endif /*MPI*/
 
+! remove inner BezierControlPoints3D and SlabNormals, usw.
+IF(DoRefMapping) CALL ReshapeBezierSides()
+
+ALLOCATE(CurvedElem(1:nTotalElems))
+CurvedElem=.FALSE.
+nCurvedElems=0
+
+DO iElem=1,nTotalElems
+  CALL CheckIfCurvedElem(CurvedElem(iElem),XCL_NGeo(:,:,:,:,iElem))
+  IF(iElem.LE.PP_nElems)THEN
+    IF(CurvedElem(iElem)) nCurvedElems=nCurvedElems+1
+  END IF
+END DO ! iElem=1,nTotalElems
+
 ! sort element faces by type - linear, bilinear, curved
 IF(DoRefMapping) THEN
   CALL GetBCSideType()
@@ -570,18 +589,8 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadius2NGeo(1:nTotalElems)        &
         ,ElemBaryNGeo(1:3,1:nTotalElems)       )
 CALL BuildElementBasis()
-CALL MapElemToFIBGM()
+!CALL MapElemToFIBGM()
 
-ALLOCATE(CurvedElem(1:nTotalElems))
-CurvedElem=.FALSE.
-nCurvedElems=0
-
-DO iElem=1,nTotalElems
-  CALL CheckIfCurvedElem(CurvedElem(iElem),XCL_NGeo(:,:,:,:,iElem))
-  IF(iElem.LE.PP_nElems)THEN
-    IF(CurvedElem(iElem)) nCurvedElems=nCurvedElems+1
-  END IF
-END DO ! iElem=1,nTotalElems
 
 #ifdef MPI
 IF(MPIRoot) THEN
@@ -642,7 +651,7 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
 !REAL                  :: localXmin,localXmax,localymin,localymax,localzmin,localzmax
 INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax
 REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
-INTEGER                          :: iBGM,jBGM,kBGM,iElem!,ilocSide
+INTEGER                          :: iBGM,jBGM,kBGM,iElem,ilocSide,iSide,SideID
 INTEGER                          :: BGMCellXmax,BGMCellXmin
 INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin
@@ -689,23 +698,24 @@ zmax =-HUGE(1.0)
 
 ! serch for min,max of BezierControlPoints, e.g. the convec hull of the domain
 ! more accurate, XCL_NGeo
-DO iElem=1,nTotalElems
-  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
-  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
-  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
-  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
-  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
-  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
-END DO ! iElem
+!DO iElem=1,nTotalElems
+!  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
+!  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
+!  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
+!  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
+!  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
+!  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
+!END DO ! iElem
 
-!  DO iSide=1,nTotalSides
-!    xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
-!    xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,iSide)))
-!    ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,iSide)))
-!    ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,iSide)))
-!    zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,iSide)))
-!    zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,iSide)))
-!  END DO ! iSide
+! bounding box!!
+DO iSide=1,nTotalSides
+  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
+  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,iSide)))
+  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,iSide)))
+  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,iSide)))
+  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,iSide)))
+  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,iSide)))
+END DO ! iSide
 
 GEO%xmin=xmin
 GEO%xmax=xmax
@@ -737,7 +747,8 @@ GEO%zmax=zmax
 #endif   
 
   CALL InitPeriodicBC()
-  IF(DoRefMapping) CALL ReshapeBezierSides()
+  ! reduce beziercontrolpoints to boundary sides
+  !IF(DoRefMapping) CALL ReshapeBezierSides()
   !CALL InitializeInterpolation() ! not any more required ! has to be called earliear
   CALL InitializeDeposition()     ! has to remain here, because domain can have changed
   !CALL InitPIC()                 ! does not depend on domain
@@ -849,22 +860,22 @@ DO iElem=1,nTotalElems
   zmax =-HUGE(1.0)
 
   ! use XCL_NGeo of each element :)
-  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
-  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
-  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
-  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
-  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
-  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
-  !! get min,max of BezierControlPoints of Element
-  !DO iLocSide = 1,6
-  !  SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, iElem)
-  !  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,SideID)))
-  !  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,SideID)))
-  !  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,SideID)))
-  !  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,SideID)))
-  !  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,SideID)))
-  !  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,SideID)))
-  !END DO ! ilocSide
+  !xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
+  !xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
+  !ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
+  !ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
+  !zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
+  !zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
+  !! get min,max of BezierControlPoints of Element ! bounding box
+  DO iLocSide = 1,6
+    SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, iElem)
+    xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,SideID)))
+    xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,SideID)))
+    ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,SideID)))
+    ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,SideID)))
+    zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,SideID)))
+    zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,SideID)))
+  END DO ! ilocSide
   !--- find minimum and maximum BGM cell for current element
   BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
   BGMCellXmax = MIN(BGMCellXmax,BGMimax)
@@ -908,22 +919,22 @@ DO iElem=1,nTotalElems
   zmax =-HUGE(1.0)
 
   ! use XCL_NGeo of each element :)
-  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
-  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
-  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
-  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
-  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
-  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
+  !xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
+  !xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
+  !ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
+  !ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
+  !zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
+  !zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
   !! get min,max of BezierControlPoints of Element
-  !DO iLocSide = 1,6
-  !  SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, iElem)
-  !  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,SideID)))
-  !  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,SideID)))
-  !  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,SideID)))
-  !  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,SideID)))
-  !  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,SideID)))
-  !  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,SideID)))
-  !END DO ! ilocSide
+  DO iLocSide = 1,6
+    SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, iElem)
+    xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,SideID)))
+    xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,SideID)))
+    ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,SideID)))
+    ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,SideID)))
+    zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,SideID)))
+    zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,SideID)))
+  END DO ! ilocSide
 
   ! same as above
   BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
@@ -1708,7 +1719,7 @@ SUBROUTINE ReShapeBezierSides()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides
 USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
@@ -1723,7 +1734,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT
-INTEGER           :: iSide,nPeriodicSides,nOldBCSides,newBCSideID,BCInc
+INTEGER           :: iSide,nPeriodicSides,nOldBCSides,newBCSideID,BCInc,nHaloBCSides
 REAL,ALLOCATABLE,DIMENSION(:,:,:)  :: DummySideSlabNormals                  ! normal vectors of bounding slab box
 REAL,ALLOCATABLE,DIMENSION(:,:)    :: DummySideSlabIntervals               ! intervalls beta1, beta2, beta3
 LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
@@ -1738,7 +1749,9 @@ nPeriodicSides=0
 
 ! now, shrink partbcsidelist
 nOldBCSides  =nTotalBCSides
-nTotalBCSides=nTotalBCSides!+nPeriodicSides
+nTotalBCSides=nTotalBCSides-nSides+nBCSides
+nTotalSides  =nTotalBCSides-nBCSides+nSides
+
 
 IF(nTotalBCSides.EQ.0) RETURN
 
@@ -1791,6 +1804,31 @@ DO iSide=1,nBCSides
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
 END DO ! iSide
+
+newBCSideID=nBCSides
+DO iSide=nSides+1,nOldBCSides
+  newBCSideID=newBCSideID+1
+  BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
+  SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
+  SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
+  BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
+END DO ! iSide
+
+! create new mapping
+SDEALLOCATE(PartBCSideList)
+ALLOCATE(PartBCSideList(1:nTotalSides))
+PartBCSideList=-1
+
+DO iSide=1,nBCSides
+  PartBCSideList(iSide)=iSide
+END DO
+
+nHaloBCSides=nBCSides
+DO iSide=nSides+1,nTotalSides
+  nHaloBCSides=nHaloBCSides+1
+  PartBCSideList(iSide)=nHaloBCSides
+END DO
+
 ! with periodic as bc sides
 !BCInc=0
 !DO iSide=1,nSides
@@ -1808,8 +1846,6 @@ END DO ! iSide
 !    BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
 !  END IF
 !END DO ! iSide
-
-
 
 ! deallocate dummy buffer
 DEALLOCATE(DummyBezierControlPoints3D)
@@ -2404,5 +2440,43 @@ DO k=0,NGeo
 END DO ! k=0,NGeo
 
 END SUBROUTINE CheckIfCurvedElem
+
+
+SUBROUTINE InitElemBoundingBox() 
+!===================================================================================================================================
+! init of tight elem bounding box, constructed via beziercontrolpoints
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Mesh_Vars,               ONLY:nElems,NGeo
+USE MOD_Particle_Surfaces,       ONLY:GetElemSlabNormalsAndIntervals
+#ifdef MPI
+USE MOD_Particle_MPI,            ONLY:ExchangeBezierControlPoints3d
+#endif /*MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iElem
+!===================================================================================================================================
+
+#ifdef PARTICLES
+#ifdef MPI
+! first communicate the bezierControlPoints (slave information is missing)
+CALL ExchangeBezierControlPoints3D()
+#endif /*MPI*/
+DO iElem=1,nElems
+ CALL GetElemSlabNormalsAndIntervals(NGeo,iElem)
+END DO !iElem=1,nElems
+#endif /*PARTICLES*/
+
+
+END SUBROUTINE InitElemBoundingBox
+
 
 END MODULE MOD_Particle_Mesh

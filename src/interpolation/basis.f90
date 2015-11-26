@@ -258,18 +258,21 @@ DO i=1,N_In+BezierElevation-1 ! from 0+1 to p_new-1 -> remove the edge points
   DO j=jStart,jEnd 
     ElevationMatrix(i,j)=REAL(CHOOSE(N_In,j))*REAL(CHOOSE(BezierElevation,i-j)) / REAL(CHOOSE(N_In+BezierElevation,i))
   END DO
-  IF(ABS(SUM(ElevationMatrix(i,:))-1)>1e-10) CALL Abort(&
+  IF(ABS(SUM(ElevationMatrix(i,:))-1.0)>1e-10) CALL Abort(&
     __STAMP__,&
     'The line of the elevation matrix does not sum to unity! exit.',1,ABS(SUM(ElevationMatrix(i,:))))
 END DO
-!print*,"BezierElevation",N_In,'+',BezierElevation
-!DO i=0,N_In+BezierElevation
-  !!write(*,"(I8,5F10.4)") i,ElevationMatrix(i,:)
-  !write(*,"(I3)", ADVANCE = "NO")    i
-  !write(*,"(12F10.4)", ADVANCE = "NO") ElevationMatrix(i,:)
-  !write(*,"(F13.4)")                  SUM(ElevationMatrix(i,:))
-!END DO
-!STOP
+
+! debug
+! print*,"BezierElevation",N_In,'+',BezierElevation
+! DO i=0,N_In+BezierElevation
+!  write(*,"(I8,5F10.4)") i,ElevationMatrix(i,:)
+!  write(*,"(I3)", ADVANCE = "NO")    i
+!  write(*,"(12F10.4)", ADVANCE = "NO") ElevationMatrix(i,:)
+!  write(*,"(F13.4)")                  SUM(ElevationMatrix(i,:))
+! END DO
+! STOP
+
 !print*,arrayNchooseK !CHANGETAG
 !Inverse of the Vandermonde
 dummy_vec=0.
