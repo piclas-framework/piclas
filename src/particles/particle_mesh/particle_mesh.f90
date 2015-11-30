@@ -2224,7 +2224,7 @@ DO iElem=1,nTotalElems
   !ElemRadiusNGeo(iElem)=Radius
   ! elem radius containts 2% tolerance
   ElemRadiusNGeo(iElem)=Radius
-  ElemRadius2NGeo(iElem)=Radius*Radius*1.0404
+  ElemRadius2NGeo(iElem)=(Radius*1.10)*(Radius*1.10)
 
 END DO ! iElem
 
@@ -3208,6 +3208,19 @@ DO iElem=1,nTotalElems
 #ifdef MPI
         IF(iSide.GT.SideID_Minus_Upper) nCurvedTot=nCurvedTot+1
 #endif /*MPI*/
+        IF(BoundingBoxIsEmpty(TrueSideID))THEN
+          v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          
+          v2=(-BezierControlPoints3D(:,0,0   ,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
+              +BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
+          SideNormVec(:,TrueSideID) = CROSSNORM(v1,v2)
+          v1=0.25*(BezierControlPoints3D(:,0,0,TrueSideID)     &
+                  +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
+                  +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
+                  +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+          SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+        END IF
       ELSE
         IF(BoundingBoxIsEmpty(TrueSideID))THEN
           SideType(TrueSideID)=PLANAR

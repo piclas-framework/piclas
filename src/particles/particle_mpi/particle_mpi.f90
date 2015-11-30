@@ -395,7 +395,7 @@ IF(DoExternalParts)THEN
               'Particle outside BGM! Err2')
         END IF
       ELSE
-        IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM!'
+        IPWRITE(UNIT_errOut,*)'Warning in SendNbOfParticles: Particle outside BGM!'
         IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
@@ -406,9 +406,27 @@ IF(DoExternalParts)THEN
           IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartXi=',PartPosRef(1,iPart),',PartEta=',PartPosRef(2,iPart),',PartZeta=',&
                   PartPosRef(3,iPart)
         END IF
-        CALL Abort(&
-             __STAMP__,&
-            'Particle outside BGM!')
+        IPWRITE(UNIT_errOut,*)'Remap particle!'
+
+        CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+        CellX = MIN(GEO%FIBGMimax,CellX)
+        CellX = MAX(GEO%FIBGMimin,CellX)
+        CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+        CellY = MIN(GEO%FIBGMjmax,CellY)
+        CellY = MAX(GEO%FIBGMjmin,CellY)
+        CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+        CellZ = MIN(GEO%FIBGMkmax,CellZ)
+        CellZ = MAX(GEO%FIBGMkmin,CellZ)
+        IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'New-CellX=',CellX,',New-CellY=',CellY,',New-CellZ=',CellZ
+        ! nothing to do, because of tolerance, particle could be outside
+        !IF ((CellX.GT.GEO%FIBGMimax).OR.(CellX.LT.GEO%FIBGMimin) .OR. &
+        !    (CellY.GT.GEO%FIBGMjmax).OR.(CellY.LT.GEO%FIBGMjmin) .OR. &
+        !    (CellZ.GT.GEO%FIBGMkmax).OR.(CellZ.LT.GEO%FIBGMkmin)) THEN
+ 
+        !  CALL Abort(&
+        !       __STAMP__,&
+        !      'Particle outside BGM!')
+        !END IF
       END IF ! GEO%nPeriodicVectors
     END IF ! PartInBGM
     nDepoProcs=GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1)
@@ -750,6 +768,18 @@ DO iProc=1, PartMPI%nMPINeighbors
                 'Particle outside BGM! Err2')
           END IF
         ELSE
+          IPWRITE(UNIT_errOut,*)'Remap particle!'
+
+          CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+          CellX = MIN(GEO%FIBGMimax,CellX)
+          CellX = MAX(GEO%FIBGMimin,CellX)
+          CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+          CellY = MIN(GEO%FIBGMjmax,CellY)
+          CellY = MAX(GEO%FIBGMjmin,CellY)
+          CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+          CellZ = MIN(GEO%FIBGMkmax,CellZ)
+          CellZ = MAX(GEO%FIBGMkmin,CellZ)
+          IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'New-CellX=',CellX,',New-CellY=',CellY,',New-CellZ=',CellZ
           IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM!'
           IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
           IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
@@ -757,9 +787,9 @@ DO iProc=1, PartMPI%nMPINeighbors
           IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
           IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',PartState(iPart,1),',PartY=',PartState(iPart,2),',PartZ=',&
                   PartState(iPart,3)
-          CALL Abort(&
-               __STAMP__,&
-              'Particle outside BGM!')
+          !CALL Abort(&
+          !     __STAMP__,&
+          !    'Particle outside BGM!')
         END IF ! GEO%nPeriodicVectors
       END IF ! PartInBGM
       nDepoProcs=GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs(1)

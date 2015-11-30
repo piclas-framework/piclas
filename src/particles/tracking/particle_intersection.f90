@@ -146,6 +146,7 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Vars,           ONLY:time
+USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_TimeDisc_Vars,           ONLY:iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -303,8 +304,7 @@ CASE DEFAULT
 !  CALL BubbleSortID(locAlpha,locID,nIntersections)
   CALL InsertionSort(locAlpha,locID,nIntersections)
   
-  IF(SideID.LE.nBCSides)THEN
-    ! requires first hit with BC
+  IF(DoRefMapping)THEN
     DO iInter=1,nInterSections 
       IF(locAlpha(iInter).GT.-1.0)THEN
         alpha=locAlpha(iInter)
@@ -315,29 +315,42 @@ CASE DEFAULT
       END IF
     END DO ! iInter
   ELSE
-    realnInter=1
-    !ALLOCATE(RealInterID(1:nInterSections))
-    !print*,MOD(nInterSections,2)
-    DO iInter=2,nInterSections
-      IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
-      .AND.(locAlpha(1)/locAlpha(iInter).GT.1.002))THEN
-          realNInter=realnInter+1
-      END IF
-    END DO
-    IF(MOD(realNInter,2).EQ.0) THEN
-      DEALLOCATE(locID)
-      !print*,'fuck here'
-      RETURN ! leave and enter a cell multiple times
+    IF(SideID.LE.nBCSides)THEN
+      ! requires first hit with BC
+      DO iInter=1,nInterSections 
+        IF(locAlpha(iInter).GT.-1.0)THEN
+          alpha=locAlpha(iInter)
+          xi =locXi (locID(iInter))
+          eta=loceta(locID(iInter))
+          SDEALLOCATE(locID)
+          RETURN 
+        END IF
+      END DO ! iInter
     ELSE
-      !print*,'inter hit'
-      alpha=locAlpha(nInterSections)
-      xi =locXi (locID(nInterSections))
-      eta=loceta(locID(nInterSections))
-      DEALLOCATE(locID)
-      RETURN
+      realnInter=1
+      !ALLOCATE(RealInterID(1:nInterSections))
+      !print*,MOD(nInterSections,2)
+      DO iInter=2,nInterSections
+        IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
+        .AND.(locAlpha(1)/locAlpha(iInter).GT.1.002))THEN
+            realNInter=realnInter+1
+        END IF
+      END DO
+      IF(MOD(realNInter,2).EQ.0) THEN
+        DEALLOCATE(locID)
+        !print*,'fuck here'
+        RETURN ! leave and enter a cell multiple times
+      ELSE
+        !print*,'inter hit'
+        alpha=locAlpha(nInterSections)
+        xi =locXi (locID(nInterSections))
+        eta=loceta(locID(nInterSections))
+        DEALLOCATE(locID)
+        RETURN
+      END IF
     END IF
   END IF
-  DEALLOCATE(locID)
+  SDEALLOCATE(locID)
 END SELECT
 
 
@@ -349,6 +362,7 @@ RECURSIVE SUBROUTINE BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,l
 !================================================================================================================================
 ! Performes the de-Casteljau alogrithm with Clipping to find the intersection between trajectory and surface
 !================================================================================================================================
+!USE MOD_Globals,                 ONLY:MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
 USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter,SplitLimit,ClipHit
@@ -884,6 +898,22 @@ IF(DoCheck)THEN
   tmpEta=Eta
   Xi=0.5*(Xi+1)
   Eta=0.5*(Eta+1)
+
+!  IF(MyRank.EQ.39)THEN
+!    IF(iter.GT.290)THEN
+!      IF(iPart.EQ.15322)THEN
+!        WRITE(*,*) ' -------------------'
+!        WRITE(*,*) ' xi,eta',xi,eta
+!      END IF
+!    END IF
+!  END IF
+
+
+  IF((ABS(eta).GT.ClipHit).OR.(ABS(xi).GT.ClipHit))THEN
+    RETURN
+  END IF
+
+
   MinusXi =1.0-Xi
   MinusEta=1.0-Eta
   
@@ -917,14 +947,24 @@ IF(DoCheck)THEN
   ! funny hard coded tolerance :), obtained by numerical experiments
   !IF((alpha/lengthPartTrajectory.LE.1.0000464802767983).AND.(alpha.GT.Mepsilontol))THEN
   alphaNorm=alpha/lengthPartTrajectory
+
+! IF(MyRank.EQ.39)THEN
+!   IF(iter.GT.290)THEN
+!     IF(iPart.EQ.15322)THEN
+!       WRITE(*,*) ' -------------------'
+!       WRITE(*,*) ' alpha',alphaNorm
+!     END IF
+!   END IF
+! END IF
+
   IF((alphaNorm.LE.ClipHit).AND.(alphaNorm.GT.Mepsilontol))THEN
     ! found additional intersection point
-    nInterSections=nIntersections+1
-    IF(nInterSections.GT.ClipMaxInter)THEN
-      nInterSections=0
-      locAlpha=-1
+    IF(nInterSections.GE.ClipMaxInter)THEN
+      !nInterSections=nInterSections-1
+      !locAlpha=-1
       RETURN
     END IF
+    nInterSections=nIntersections+1
     locAlpha(nInterSections)=alpha
     locXi (nInterSections)=tmpXi
     locEta(nInterSections)=tmpEta

@@ -509,7 +509,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
         ! particle can hit outside bc due to tolerance
         LastPos=PartState(iPart,1:3)
-        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsLowOne) THEN ! particle can be outside
+        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.0.9) THEN ! particle can be outside
           CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,ParticleFound(iPart))
           IF(ParticleFound(iPart)) CYCLE
           IF(GEO%nPeriodicVectors.GT.0)THEN
@@ -663,7 +663,7 @@ DO iPart=1,PDM%ParticleVecLength
       oldElemID=NewElemID
     END IF
 
-    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell) THEN
+    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.05) THEN
       ! check in which dimension the particle left the cell
       ! backtraze
       oldXi=ABS(PartPosRef(1:3,iPart))
