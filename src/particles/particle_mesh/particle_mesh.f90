@@ -1832,6 +1832,7 @@ IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
 DummyBezierControlPoints3d=BezierControlPoints3d
 DEALLOCATE(BezierControlPoints3D)
 ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
+BezierControlPoints3d=0.
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 ! SideSlabNormals
@@ -1843,6 +1844,7 @@ DEALLOCATE(SideSlabNormals)
 ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
+SideSlabNormals=0.
 ! SideSlabIntervals
 ALLOCATE(DummySideSlabIntervals(1:6,1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(__STAMP__,& !wunderschoen!!!
@@ -1852,6 +1854,7 @@ DEALLOCATE(SideSlabIntervals)
 ALLOCATE(SideSlabIntervals(1:6,1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
+SideSlabIntervals=0.
 ! BoundingBoxIsEmpty
 ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
@@ -1862,18 +1865,20 @@ DEALLOCATE(BoundingBoxIsEmpty)
 ALLOCATE(BoundingBoxIsEmpty(1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
+BoundingBoxIsEmpty=.FALSE.
 
 BCInc=0
 !DO iSide=1,nSides
+newBCSideID=0
 DO iSide=1,nBCSides
-  newBCSideID=iSide
+  newBCSideID=newBCSideID+1
   BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)
   SideSlabNormals          (1:3,1:3,          newBCSideID) =DummySideSlabNormals         (1:3,1:3,           iSide)
   SideSlabIntervals       (1:6,              newBCSideID) =DummySideSlabIntervals      (1:6,               iSide)
   BoundingBoxIsEmpty   (                  newBCSideID) =DummyBoundingBoxIsEmpty  (                   iSide)
 END DO ! iSide
 
-newBCSideID=nBCSides
+!newBCSideID=nBCSides
 DO iSide=nSides+1,nOldBCSides
   newBCSideID=newBCSideID+1
   BezierControlPoints3d(1:3,0:NGeo,0:NGeo,newBCSideID) =DummyBezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)

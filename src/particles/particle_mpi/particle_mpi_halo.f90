@@ -660,6 +660,8 @@ DO iElem=1,nElems
   END IF ! Element is marked to send
 END DO ! iElem
 
+!IPWRITE(*,*) 'sideindex,nsides',SideIndex(:),SendMsg%nSides
+
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 !WRITE(*,*) "Nodes:", SendMsg%nNodes,"Sides:",SendMsg%nSides,"elems:",SendMsg%nElems,"iProc",PMPIVAR%iProc
 !--- Communicate number of sides (trias,quads), elems (tets,hexas) and nodes to each MPI proc
@@ -887,7 +889,8 @@ DO iElem = 1,nElems
     END IF
     DO iLocSide = 1,6
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-      IF(isSide(SideID))THEN
+      !IF(isSide(SideID))THEN
+      IF(SideIndex(SideID).GT.0)THEN
         SendMsg%ElemToSide(1,iLocSide,ElemIndex(iElem)) = &
                  SideIndex(ElemToSide(E2S_SIDE_ID,iLocSide,iElem))
              ! CAUTION DEBUG correct sideid????
@@ -897,10 +900,10 @@ DO iElem = 1,nElems
     END DO
   END IF
 END DO
-! SideToElem Mapping & BezierControlPoints3D
+! SideToElem Mapping & BezierControloints3D
 DO iSide = 1,nSides
-  !IF (SideIndex(iSide).NE.0) THEN
-  IF(isSide(iSide))THEN
+  IF (SideIndex(iSide).GT.0) THEN
+  !IF(isSide(iSide))THEN
     DO iIndex = 1,2   ! S2E_ELEM_ID, S2E_NB_ELEM_ID
       IF (SideToElem(iIndex,iSide).GT.0) THEN
          SendMsg%SideToElem(iIndex,SideIndex(iSide)) = &
@@ -929,6 +932,12 @@ DO iSide = 1,nSides  ! no need to go through all side since BC(1:nBCSides)
     SendMsg%BC(SideIndex(iSide)) = BC(iSide)
   END IF
 END DO
+
+!DO iSide=1,SendMsg%nSides
+!  IF(SUM(ABS(SendMsg%SideSlabIntervals(:,iSide))).EQ.0)THEN
+!    IPWRITE(*,*) 'error sending slabnormal',iSide
+!  END IF
+!END DO
 
 
 !! CAUTION & DEBUG Do we need this????
@@ -1003,9 +1012,9 @@ IF (PartMPI%MyRank.LT.iProc) THEN
 !  END IF
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%SideBCType,SendMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
-      CALL MPI_SEND(SendMsg%SideSlabNormals,SendMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,IERROR)
+      CALL MPI_SEND(SendMsg%SideSlabNormals,SendMsg%nSides*9,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
-      CALL MPI_SEND(SendMsg%SideSlabIntervals,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
+      CALL MPI_SEND(SendMsg%SideSlabIntervals,SendMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BoundingBoxIsEmpty,SendMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
   IF(DoRefMapping)THEN
@@ -1037,9 +1046,9 @@ IF (PartMPI%MyRank.LT.iProc) THEN
   !END IF
   IF (RecvMsg%nSides.GT.0) CALL MPI_RECV(RecvMsg%SideBCType,RecvMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
-      CALL MPI_RECV(RecvMsg%SideSlabNormals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,MPISTATUS,IERROR)
+      CALL MPI_RECV(RecvMsg%SideSlabNormals,RecvMsg%nSides*9,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
-      CALL MPI_RECV(RecvMsg%SideSlabIntervals,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,MPISTATUS,IERROR)
+      CALL MPI_RECV(RecvMsg%SideSlabIntervals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,MPISTATUS,IERROR)
   IF(DoRefMapping)THEN
@@ -1071,9 +1080,9 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   !END IF
   IF (RecvMsg%nSides.GT.0) CALL MPI_RECV(RecvMsg%SideBCType,RecvMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
-      CALL MPI_RECV(RecvMsg%SideSlabNormals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,MPISTATUS,IERROR)
+      CALL MPI_RECV(RecvMsg%SideSlabNormals,RecvMsg%nSides*9,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
-      CALL MPI_RECV(RecvMsg%SideSlabIntervals,RecvMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,MPISTATUS,IERROR)
+      CALL MPI_RECV(RecvMsg%SideSlabIntervals,RecvMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,MPISTATUS,IERROR)
   IF (RecvMsg%nSides.GT.0) &
       CALL MPI_RECV(RecvMsg%BoundingBoxIsEmpty,RecvMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,MPISTATUS,IERROR)
   IF(DoRefMapping)THEN
@@ -1099,9 +1108,9 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   !END IF
   IF (SendMsg%nSides.GT.0) CALL MPI_SEND(SendMsg%SideBCType,SendMsg%nSides,MPI_INTEGER,iProc,1110,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
-      CALL MPI_SEND(SendMsg%SideSlabNormals,SendMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,IERROR)
+      CALL MPI_SEND(SendMsg%SideSlabNormals,SendMsg%nSides*9,MPI_DOUBLE_PRECISION,iProc,1111,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
-      CALL MPI_SEND(SendMsg%SideSlabIntervals,SendMsg%nSides*3,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
+      CALL MPI_SEND(SendMsg%SideSlabIntervals,SendMsg%nSides*6,MPI_DOUBLE_PRECISION,iProc,1112,PartMPI%COMM,IERROR)
   IF (SendMsg%nSides.GT.0) &
       CALL MPI_SEND(SendMsg%BoundingBoxIsEmpty,SendMsg%nSides,MPI_LOGICAL,iProc,1113,PartMPI%COMM,IERROR)
 
@@ -1126,6 +1135,13 @@ IF ((RecvMsg%nElems.EQ.0) .AND. (RecvMsg%nSides.GT.0))THEN
 END IF
 
 DEALLOCATE(isElem,isSide,ElemIndex,SideIndex)
+
+!DO iSide=1,RecvMsg%nSides
+!  IF(SUM(ABS(RecvMsg%SideSlabIntervals(:,iSide))).EQ.0)THEN
+!    IPWRITE(*,*) 'error recv slabnormal',iSide
+!  END IF
+!END DO
+
 
 !IPWRITE(UNIT_stdOut,*) " Recive stuff"
 IF(DoRefMapping)THEN
@@ -1176,12 +1192,15 @@ IF(DoRefMapping)THEN
     END DO ! iHaloSide
     
     ! new number of sides
+    !IPWRITE(*,*) 'nTotalSides,ntotBCSides,ntotalelems',nTotalSides,nTotalBCSides,nTotalElems
     tmpnSides    =nTotalSides
     tmpnElems    =nTotalElems
     tmpBCSides   =nTotalBCSides
     nTotalSides  =nTotalSides+RecvMsg%nSides-nDoubleSides
     nTotalBCSides=nTotalBCSides+RecvMsg%nSides-nDoubleSides
     nTotalElems  =nTotalElems+RecvMsg%nElems
+    !tmpnSides    =nTotalSides
+    !IPWRITE(*,*) 'NewnTotalSides,Newntotalbcsides,Newntotalelesm',nTotalSides,nTotalBCSides,nTotalElems
     CALL ResizeParticleMeshData(tmpnSides,tmpnElems,nTotalSides,nTotalElems,tmpBCSides,nTotalBCSides)
     !print*,'MyRank after resize', PartMPI%MyRank
   
@@ -1419,6 +1438,12 @@ IF(DoRefMapping)THEN
     DEALLOCATE(isSide)
     DEALLOCATE(isDone)
     DEALLOCATE(HaloInc)
+    DO iSide=1,nTotalSides
+      IF(SUM(ABS(SideSlabNormals(:,:,iSide))).EQ.0)THEN
+        IPWRITE(*,*) 'error'
+        STOP
+      END IF
+    END DO 
   END IF ! RecvMsg%nSides>0
 
 ELSE
@@ -1677,6 +1702,8 @@ LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 
 ! reallocate shapes
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+IPWRITE(*,*) 'oldSides,oldElems,totalSides,TotalElems,oldBCSides,bcsides',nOldSides,nOldElems,nTotalSides &
+                                                                          ,ntotalElems,noldBCSides,nTotalBCSides
 !print*,'rank, in reshape',myrank
 !print*,'rank, in reshape',myrank, nOldSides,nOldElems,nTotalSides,nTotalElems
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)

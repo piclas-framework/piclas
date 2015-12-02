@@ -1282,7 +1282,7 @@ USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_Mesh_Vars,                  ONLY:NGeo,nSides,SideID_minus_Upper,NGeo
 USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
-USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1329,6 +1329,13 @@ END DO !iProc=1,nNBProcs
 
 DO iSide=sideID_minus_upper+1,nSides
   CALL GetSideSlabNormalsAndIntervals(NGeo,iSide)
+END DO
+
+DO iSide=1,nSides
+  IF(SUM(ABS(SideSlabIntervals(:,iSide))).EQ.0)THEN
+    IPWRITE(*,*) ' Zero bounding box found!'
+    STOP
+  END IF
 END DO
 
 END SUBROUTINE ExchangeBezierControlPoints3D
