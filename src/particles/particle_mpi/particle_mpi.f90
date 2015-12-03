@@ -1295,7 +1295,7 @@ INTEGER                 ::BezierSideSize,SendID, iSide
 INTEGER                 ::iMPINeighbor
 !===================================================================================================================================
 
-! funny: should not be required, as sides are build for master and slave sides??
+! funny: should not be required, as sides are built for master and slave sides??
 ! communicate the MPI Master Sides to Slaves
 ! all processes have now filled sides and can compute the particles inside the proc region
 SendID=1
@@ -1327,8 +1327,9 @@ DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest_Flux(iNbProc),MPIStatus,iError)
 END DO !iProc=1,nNBProcs
 
+! build my slave sides (your master are already built)
 DO iSide=sideID_minus_upper+1,nSides
-  CALL GetSideSlabNormalsAndIntervals(NGeo,iSide)
+  CALL GetSideSlabNormalsAndIntervals(NGeo,iSide) ! elevation occurs within this routine
 END DO
 
 DO iSide=1,nSides

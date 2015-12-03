@@ -216,7 +216,7 @@ REAL,INTENT(OUT)   :: Vdm_Bezier(0:N_In,0:N_In),sVdm_Bezier(0:N_In,0:N_In)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER            :: i,j, errorflag,IPIV(1:N_in+1),jStart,jEnd
-REAL               :: dummy 
+REAL               :: dummy,eps 
 REAL               :: dummy_vec(0:N_In)
 !===================================================================================================================================
 ! set NPartCurved to N_In (NGeo)
@@ -247,31 +247,38 @@ DO i=0,N_In
     END IF
   END DO !i
 END DO !j
+
 ! 3.) build array with binomial coeffs (fractions) for elevation
 IF(N_In+BezierElevation.GE.66) CALL Abort(__STAMP__,&
   'Bezier elevation to polynomial degrees greater/equal 66 is forbiddon! exit.',66,REAL(N_In+BezierElevation))
 ElevationMatrix(0,0) = 1.
 ElevationMatrix(N_In+BezierElevation,N_In) = 1.
+print*,"BezierElevation",N_In,'+',BezierElevation
+print*,0," eps= ",0.
 DO i=1,N_In+BezierElevation-1 ! from 0+1 to p_new-1 -> remove the edge points
   jStart = MAX(0,i-BezierElevation)
   jEnd   = MIN(N_In,i)
   DO j=jStart,jEnd 
     ElevationMatrix(i,j)=REAL(CHOOSE(N_In,j))*REAL(CHOOSE(BezierElevation,i-j)) / REAL(CHOOSE(N_In+BezierElevation,i))
   END DO
-  IF(ABS(SUM(ElevationMatrix(i,:))-1.0)>1e-10) CALL Abort(&
+  eps=ABS(SUM(ElevationMatrix(i,:))-1.0)
+  print*,i," eps= ",eps
+  !print*,"------- next ------"
+  IF(eps>1e-0) CALL Abort(&
     __STAMP__,&
-    'The line of the elevation matrix does not sum to unity! exit.',1,ABS(SUM(ElevationMatrix(i,:))))
+    'The line of the elevation matrix does not sum to unity! 1-1=',0,eps)
 END DO
-
+print*,N_In+BezierElevation," eps= ",0.
+STOP
 ! debug
-! print*,"BezierElevation",N_In,'+',BezierElevation
-! DO i=0,N_In+BezierElevation
-!  write(*,"(I8,5F10.4)") i,ElevationMatrix(i,:)
-!  write(*,"(I3)", ADVANCE = "NO")    i
-!  write(*,"(12F10.4)", ADVANCE = "NO") ElevationMatrix(i,:)
-!  write(*,"(F13.4)")                  SUM(ElevationMatrix(i,:))
-! END DO
-! STOP
+ print*,"BezierElevation",N_In,'+',BezierElevation
+ DO i=0,N_In+BezierElevation
+  write(*,"(I8,10F10.4)") i,ElevationMatrix(i,:)
+  write(*,"(I3)", ADVANCE = "NO")    i
+  write(*,"(12F10.4)", ADVANCE = "NO") ElevationMatrix(i,:)
+  write(*,"(F13.4)")                  SUM(ElevationMatrix(i,:))
+ END DO
+ STOP
 
 !print*,arrayNchooseK !CHANGETAG
 !Inverse of the Vandermonde
@@ -915,6 +922,8 @@ FUNCTION CHOOSE(N_in,k)
 ! The binomial coefficient ( n  k ) is often read as "n choose k".
 !===================================================================================================================================
 USE MOD_PreProc
+USE MOD_Mesh_Vars,                ONLY:NGeo
+USE MOD_Particle_Surfaces_Vars,   ONLY:BezierElevation
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !input parameters
@@ -928,13 +937,17 @@ INTEGER(KIND=8)            :: CHOOSE
 IF((k.EQ.0).OR.(N_in.EQ.k))THEN
   CHOOSE = 1
 ELSE
-  IF(N_in.GE.20)THEN
+  !IF(NGeo+BezierElevation.GE.20)THEN
+  IF(N_in.GE.21)THEN
     ! genauer
+    !print*,"N_in.GE.21"
     CHOOSE = INT(CHOOSELARGE(N_in,k),8)
+    !PRINT*,CHOOSE
     ! weniger genau
     !CHOOSE = INT(FACTORIALLARGE(REAL(N_in)) / (FACTORIALLARGE(REAL(k)) * FACTORIALLARGE(REAL(N_in-k))),8)
   ELSE
-    CHOOSE = INT(FACTORIAL(N_in) / (FACTORIAL(k) * FACTORIAL(N_in-k)),8)
+    !print*,"else"
+    CHOOSE = FACTORIAL(N_in) / (FACTORIAL(k) * FACTORIAL(N_in-k))
   END IF
 END IF
 !IF(CHOOSE.LT.0) CALL abort(__STAMP__,&
@@ -946,6 +959,7 @@ FUNCTION FACTORIAL(N_in)
 !===================================================================================================================================
 ! "In mathematics, the factorial of a non-negative integer n, denoted by n!, is the product of all positive integers less than or
 ! equal to n."
+! CAUTION: THIS FUNCTION CAN ONLY HANDLE FACTORIALS UP TO N_in=20 !
 !===================================================================================================================================
 USE MOD_Globals
 USE MOD_PreProc
@@ -960,6 +974,8 @@ INTEGER(KIND=8)    :: FACTORIAL
 !local variables
 INTEGER(KIND=8)    :: I
 !===================================================================================================================================
+!print*,"stop"
+!stop
 IF(N_in.LT.0) CALL abort(__STAMP__,&
   'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 IF(N_in.EQ.0)THEN
@@ -971,16 +987,10 @@ IF(FACTORIAL.LT.0) CALL abort(__STAMP__,&
   'FACTORIAL is negative. This is not allowed! ',999,REAL(FACTORIAL))
 END FUNCTION FACTORIAL
 
-real function factorialLARGE(x)
-implicit none
-real, intent(in) :: x
-factorialLARGE = gamma(x + 1.0)
-end function factorialLARGE
-
 
 RECURSIVE FUNCTION CHOOSELARGE(N_in,k) RESULT(X)
 !===================================================================================================================================
-! For large numbers, when N_in>20 this function is needed
+! For large numbers, when NGeo+BezierElevation>18 this function is needed
 !===================================================================================================================================
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -997,9 +1007,16 @@ IF(k==0)THEN
 ELSE IF(N_in==0.AND.k>0)THEN
   X=0.
 ELSE
-  X=(REAL(N_in)/k)*CHOOSELARGE(N_in-1,k-1)
+  X=(REAL(N_in,8)/k)*CHOOSELARGE(N_in-1,k-1)
 END IF
 END FUNCTION CHOOSELARGE
+
+
+REAL FUNCTION factorialLARGE(x)
+implicit none
+real, intent(in) :: x
+factorialLARGE = gamma(x + 1.0)
+END FUNCTION factorialLARGE
 
 
 SUBROUTINE LagrangeInterpolationPolys(x,N_in,xGP,wBary,L)

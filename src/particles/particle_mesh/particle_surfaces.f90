@@ -1008,7 +1008,7 @@ LOGICAL            :: SideIsCritical
 IF(BezierElevation.EQ.0)THEN
   BezierControlPoints3DElevated=BezierControlPoints3D
 ELSE
-CALL GetBezierControlPoints3DElevated(NGeo,SideID)
+  CALL GetBezierControlPoints3DElevated(NGeo,SideID)
 END IF
 
 
@@ -1224,43 +1224,52 @@ END IF
 ! "delta",ABS(SideSlabIntervals(6, SideID))-ABS(SideSlabIntervals(5, SideID))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 3.) Is Side critical? (particle path parallel to the larger surface, therefore numerous intersections are possilbe)
+! from Wang et al. 2001 An Efficient and Stable ray tracing algorithm for parametric surfaces
+! critical sides: dy << dz <= dx
 !-----------------------------------------------------------------------------------------------------------------------------------
 RETURN
 
 
-IF(.NOT.SideIsPlanar)THEN
-  IF(dx.EQ.dMin)THEN
-    h=dx
-    IF(dy.GE.dz)THEN
-      l=dy
-      w=dz
-    ELSE
-      l=dz
-      w=dy
-    END IF
-  END IF
+IF(.NOT.SideIsPlanar)THEN ! side is not flat/planar
+  !IF(dx.EQ.dMin)THEN
+    !h=dx
+    !IF(dy.GE.dz)THEN
+      !l=dy
+      !w=dz
+    !ELSE
+      !l=dz
+      !w=dy
+    !END IF
+  !END IF
 
-  IF(dy.EQ.dMin)THEN
-    h=dy
-    IF(dx.GE.dz)THEN
-      l=dx
-      w=dz
-    ELSE
-      l=dz
-      w=dx
-    END IF
-  END IF
+  !IF(dy.EQ.dMin)THEN
+    !h=dy
+    !IF(dx.GE.dz)THEN
+      !l=dx
+      !w=dz
+    !ELSE
+      !l=dz
+      !w=dx
+    !END IF
+  !END IF
 
-  IF(dz.EQ.dMin)THEN
-  h=dz
-    IF(dy.GE.dz)THEN
-      l=dy
-      w=dz
-    ELSE
-      l=dz
-      w=dy
-    END IF
+  !IF(dz.EQ.dMin)THEN
+  !h=dz
+    !IF(dy.GE.dz)THEN
+      !l=dy
+      !w=dz
+    !ELSE
+      !l=dz
+      !w=dy
+    !END IF
+  !END IF
+
+  IF((dy.LT.dz).AND.(dz.LE.dx))THEN ! 
+    
   END IF
+ELSE ! side is flat/planar
+  dy=0.0
+
 END IF
 
 END SUBROUTINE GetSideSlabNormalsAndIntervals
