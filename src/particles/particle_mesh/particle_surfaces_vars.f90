@@ -28,7 +28,7 @@ LOGICAL,ALLOCATABLE,DIMENSION(:)        :: BoundingBoxIsEmpty           ! logica
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideNormVec                  ! normal Vector of planar sides
 REAL,ALLOCATABLE,DIMENSION(:)           :: SideDistance                 ! distance of planar base from origin 
 INTEGER,ALLOCATABLE,DIMENSION(:)        :: gElemBCSides                 ! number of BC-Sides of element
-REAL                                    :: epsilonbilinear              ! bi-linear tolerance for the bi-linear - planar decision
+REAL                                    :: BezierEpsilonBilinear        ! bi-linear tolerance for the bi-linear - planar decision
 REAL                                    :: epsilonOne                   ! epsilone for setting the boundary tolerance
 REAL                                    :: hitEpsBi 
 REAL                                    :: OneMepsilon

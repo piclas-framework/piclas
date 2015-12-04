@@ -82,7 +82,7 @@ SUBROUTINE InitParticleMesh()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilonbilinear,BezierElevation,BezierControlPoints3DElevated
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic
 USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem,NGeo
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL
@@ -138,7 +138,7 @@ IF(DoRefMapping .AND. MappingGuess.EQ.2) THEN
        ' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',MappingGuess)
 END IF
 
-epsilonbilinear = GETREAL('eps-bilinear','1e-6')
+BezierEpsilonBilinear = GETREAL('BezierEpsilonBilinear','1e-6')
 
 BezierElevation = GETINT('BezierElevation','0')
 ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) )

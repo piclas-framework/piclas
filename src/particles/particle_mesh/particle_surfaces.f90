@@ -236,7 +236,7 @@ END SUBROUTINE FinalizeParticleSurfaces
 !USE MOD_Preproc
 !USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide
 !USE MOD_Particle_Vars,            ONLY:GEO
-!USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear, SideIsPlanar,BiLinearCoeff, SideNormVec, SideDistance
+!USE MOD_Particle_Surfaces_Vars,   ONLY:BezierEpsilonBilinear, SideIsPlanar,BiLinearCoeff, SideNormVec, SideDistance
 !! IMPLICIT VARIABLE HANDLING
 !IMPLICIT NONE
 !! INPUT VARIABLES
@@ -294,7 +294,7 @@ END SUBROUTINE FinalizeParticleSurfaces
 !      Displacement = BiLinearCoeff(1,1,SideID)*BiLinearCoeff(1,1,SideID) &
 !                   + BiLinearCoeff(2,1,SideID)*BiLinearCoeff(2,1,SideID) &
 !                   + BiLinearCoeff(3,1,SideID)*BiLinearCoeff(3,1,SideID) 
-!      IF(Displacement.LT.epsilonbilinear)THEN
+!      IF(Displacement.LT.BezierEpsilonBilinear)THEN
 !        SideIsPlanar(SideID)=.TRUE.
 !print*,"SideIsPlanar(",SideID,")=",SideIsPlanar(SideID)
 !        nPlanar=nPlanar+1
@@ -985,7 +985,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BezierControlPoints3DElevated,BezierElevation
-USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear
+USE MOD_Particle_Surfaces_Vars,   ONLY:BezierEpsilonBilinear
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1101,8 +1101,8 @@ IF((ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,3,SideID)))).G
 ! 2.) slab box intervalls beta_1, beta_2, beta_3
 !-----------------------------------------------------------------------------------------------------------------------------------
 !SideSlabIntervals(x- x+ y- y+ z- z+, SideID)
-SideIsPlanar=.FALSE.
-SideIsCritical=.FALSE.
+
+
 ! Intervall beta_1
 !print*,"SideID",SideID
 SideSlabIntervals(:, SideID)=0.
@@ -1177,37 +1177,64 @@ END DO !q
 dx=ABS(ABS(SideSlabIntervals(2, SideID))-ABS(SideSlabIntervals(1, SideID)))
 dy=ABS(ABS(SideSlabIntervals(4, SideID))-ABS(SideSlabIntervals(3, SideID)))
 dz=ABS(ABS(SideSlabIntervals(6, SideID))-ABS(SideSlabIntervals(5, SideID)))
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 3.) Is Side critical? (particle path parallel to the larger surface, therefore numerous intersections are possilbe)
+! from Wang et al. 2001 An Efficient and Stable ray tracing algorithm for parametric surfaces
+! critical sides: h << w <= l
+! h: height
+! w: width (short side)
+! l: length (long side)
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+h=dy
+w=MIN(dx,dz)
+l=MAX(dx,dz)
+
+IF((h.LT.w*1.E-2).AND.(w.LE.l))THEN ! critical case possible
+  SideIsCritical=.TRUE.
+ELSE
+  SideIsCritical=.FALSE.
+END IF
+
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! 4.) determine is "SideIsPlanar" and "BoundingBoxIsEmpty(SideID)"
+!     this results also in the decision whether a side is also considered flat or bilinear! 
+!-----------------------------------------------------------------------------------------------------------------------------------
+
 dMax=MAX(dx,dy,dz)
 dMin=MIN(dx,dy,dz)
-!print*,dx
-!IF(dx/dMax.LT.1.E-3)THEN
-IF(dx/dMax.LT.epsilonbilinear)THEN
+IF(dx/dMax.LT.BezierEpsilonBilinear)THEN
   SideSlabIntervals(1:2, SideID)=0.
   dx=0.
+  CALL Abort(__STAMP__,&
+  'Bezier side length is degenerated. dx/dMax.LT.BezierEpsilonBilinear ->',0,dx/dMax)
 END IF
-!print*,dy
-!IF(dy/dMax.LT.1.E-3)THEN
-IF(dy/dMax.LT.epsilonbilinear)THEN
+IF(dy/dMax.LT.BezierEpsilonBilinear)THEN
   SideSlabIntervals(3:4, SideID)=0.
   dy=0.
 END IF
-!print*,dz
-!IF(dz/dMax.LT.1.E-3)THEN
-IF(dz/dMax.LT.epsilonbilinear)THEN
+print*,"dy/dMax",dy/dMax
+IF(dz/dMax.LT.BezierEpsilonBilinear)THEN
   SideSlabIntervals(5:6, SideID)=0.
   dz=0.
+  CALL Abort(__STAMP__,&
+  'Bezier side length is degenerated. dz/dMax.LT.BezierEpsilonBilinear ->',0,dz/dMax)
 END IF
 
 IF(dx*dy*dz.LT.0) THEN
   IPWRITE(UNIT_stdOut,*) ' Warning, no bounding box'
+  IF(dx*dy*dz.LT.0) CALL Abort(&
+  __STAMP__,&
+  'A bounding box (for sides) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
 END IF
 
-!IF(dx*dy*dz.EQ.0.)THEN
-IF(ALMOSTZERO(dx*dy*dz))THEN
-!IF(ABS(dx*dy*dz).LT.2.0*epsMach)THEN
+IF(ALMOSTZERO(dx*dy*dz))THEN ! bounding box volume is approx zeros
   SideIsPlanar=.TRUE.
   BoundingBoxIsEmpty(SideID)=.TRUE.
 ELSE
+  SideIsPlanar=.FALSE.
   BoundingBoxIsEmpty(SideID)=.FALSE.
 END IF
 
@@ -1222,56 +1249,6 @@ END IF
 ! print*,"SideSlabNormals(:,3,SideID)",SideSlabNormals(:,3,SideID),"beta3 ",&
 ! SideSlabIntervals(5, SideID),SideSlabIntervals(6, SideID),&
 ! "delta",ABS(SideSlabIntervals(6, SideID))-ABS(SideSlabIntervals(5, SideID))
-!-----------------------------------------------------------------------------------------------------------------------------------
-! 3.) Is Side critical? (particle path parallel to the larger surface, therefore numerous intersections are possilbe)
-! from Wang et al. 2001 An Efficient and Stable ray tracing algorithm for parametric surfaces
-! critical sides: dy << dz <= dx
-!-----------------------------------------------------------------------------------------------------------------------------------
-RETURN
-
-
-IF(.NOT.SideIsPlanar)THEN ! side is not flat/planar
-  !IF(dx.EQ.dMin)THEN
-    !h=dx
-    !IF(dy.GE.dz)THEN
-      !l=dy
-      !w=dz
-    !ELSE
-      !l=dz
-      !w=dy
-    !END IF
-  !END IF
-
-  !IF(dy.EQ.dMin)THEN
-    !h=dy
-    !IF(dx.GE.dz)THEN
-      !l=dx
-      !w=dz
-    !ELSE
-      !l=dz
-      !w=dx
-    !END IF
-  !END IF
-
-  !IF(dz.EQ.dMin)THEN
-  !h=dz
-    !IF(dy.GE.dz)THEN
-      !l=dy
-      !w=dz
-    !ELSE
-      !l=dz
-      !w=dy
-    !END IF
-  !END IF
-
-  IF((dy.LT.dz).AND.(dz.LE.dx))THEN ! 
-    
-  END IF
-ELSE ! side is flat/planar
-  dy=0.0
-
-END IF
-
 END SUBROUTINE GetSideSlabNormalsAndIntervals
 
 
@@ -1387,7 +1364,7 @@ dy=ABS(ABS(ElemSlabIntervals(4, ElemID))-ABS(ElemSlabIntervals(3, ElemID)))
 dz=ABS(ABS(ElemSlabIntervals(6, ElemID))-ABS(ElemSlabIntervals(5, ElemID)))
 IF(dx*dy*dz.LT.0) CALL Abort(&
   __STAMP__,&
-  'The bounding box (for elements) is negative!?.',1,(dx*dy*dz))
+  'A bounding box (for elements) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
 IF(ALMOSTZERO(dx*dy*dz)) CALL Abort(&
   __STAMP__,&
   'The bounding box (for elements) is zero.',1,dx*dy*dz)
@@ -1403,7 +1380,7 @@ SUBROUTINE GetBezierControlPoints3DElevated(NGeo,SideID)
 !USE MOD_Globals_Vars,    ONLY:EpsMach
 !USE MOD_Preproc
 !USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D,BoundingBoxIsEmpty
-!USE MOD_Particle_Surfaces_Vars,   ONLY:epsilonbilinear
+!USE MOD_Particle_Surfaces_Vars,   ONLY:BezierEpsilonBilinear
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BezierControlPoints3DElevated,BezierElevation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

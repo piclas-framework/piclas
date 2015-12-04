@@ -140,7 +140,7 @@ SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 USE MOD_Globals,                 ONLY:Cross,abort
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance
+USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,ClipTolerance,ClipMaxInter,ClipMaxIter
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
@@ -1198,7 +1198,7 @@ USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
 !USE MOD_Equations_Vars,          ONLY:epsMach
@@ -1381,7 +1381,7 @@ USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
@@ -2255,7 +2255,7 @@ USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonbilinear,BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
