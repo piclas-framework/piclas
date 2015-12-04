@@ -101,6 +101,11 @@ c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
 
+! planar wave input
+WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
+WaveVector(1:3)= GETREALARRAY('WaveVector',3,'0.,0.,0.')
+WaveVector=UNITVECTOR(WaveVector)
+
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
 BCStateFile=GETSTR('BCStateFile','')
@@ -139,7 +144,8 @@ USE nr,only:bessj
 USE nrtype,only:SP
 USE MOD_Globals
 USE MOD_Globals_Vars,ONLY:PI
-USE MOD_Equation_Vars,ONLY:c,c2,eps0!,c_inv
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
+USE MOD_Equation_Vars,           ONLY:c,c2,eps0,WaveVector,WaveLength, c_inv
 # if (PP_TimeDiscMethod==1)
 USE MOD_TimeDisc_vars,ONLY:dt
 # endif
@@ -170,6 +176,8 @@ REAL                            :: Er,Br,Ephi,Bphi,Bz              ! aux. Variab
 REAL, PARAMETER                 :: B0G=1.0,g=3236.706462           ! aux. Constants for Gyrotron
 REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Constants for Gyrotron
 REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
+REAL                            :: E_0(1:3), omegaW                ! electric field and omega for plane wave
+REAL                            :: WaveNumber                      ! wavenumber
 INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 !===================================================================================================================================
 Cent=x
@@ -357,6 +365,22 @@ CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), doma
   resu(5)=(COS(t)-1.)*resu(5)
   resu(6)=(COS(t)-1.)*resu(6)
 
+CASE(13) ! planar wave test case
+  resu(:)=0.
+
+  ! construct perpendicular electric field
+  IF(ABS(WaveVector(3)).LT.epsilontol)THEN
+    E_0=(/ -WaveVector(2)-WaveVector(3)  , WaveVector(1) ,WaveVector(1) /)
+  ELSE
+    E_0=(/ WaveVector(3) , WaveVector(3) , -WaveVector(1)-WaveVector(2) /)
+  END IF
+  ! normalize E-field
+  E_0=UNITVECTOR(E_0)
+  WaveNumber=2.*PI/WaveLength
+  omegaW=WaveNumber*c
+  resu(1:3)=E_0*cos(WaveNumber*DOT_PRODUCT(WaveVector,x)-omegaW*t)
+  resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
+
 CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   eps=1e-10
   IF ((ExactFunction.EQ.51).AND.(x(3).GT.eps)) RETURN
@@ -519,6 +543,8 @@ CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), doma
                                                             +SIN(pi*x(1))*SIN(pi*x(2)) )
     END DO; END DO; END DO
   END DO
+
+CASE(13) ! nothing to do
 
 
 CASE(41) ! Dipole via temporal Gausspuls

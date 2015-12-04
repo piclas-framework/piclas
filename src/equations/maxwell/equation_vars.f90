@@ -32,6 +32,8 @@ REAL              :: tPulse
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff
+REAL              :: WaveVector(1:3)
+REAL              :: WaveLength
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)
 INTEGER,ALLOCATABLE  :: nBCByType(:)
