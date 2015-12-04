@@ -18,9 +18,9 @@
 #                      BLUEGENE  (Juelich Juqueen cluster)
 #=================================================================================================================================#
 INIFILE=$(MAINDIR)ini/particles.ini
-COMPILER=INTEL
+#COMPILER=INTEL
 #COMPILER=INTEL_DEBUG
-#COMPILER=GNU_DEBUG
+COMPILER=GNU_DEBUG
 #COMPILER=GNU
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
 
@@ -51,6 +51,7 @@ MPI            =
 POIS           =
 OPTIMIZED      =
 BLAS_LAPACK    = T
+IMEX           = 
 HDF5_F90       =
 
 # Filter rule
@@ -76,6 +77,20 @@ ifeq ($(EQNSYS),electrostatic_pois)
   NVAR = 4
   POIS = T
 endif
+# select timediscrange for imex
+ifeq ($(TIMEDISCMETHOD),100)
+  IMEX=T
+endif
+ifeq ($(TIMEDISCMETHOD),101)
+  IMEX=T
+endif
+ifeq ($(TIMEDISCMETHOD),102)
+  IMEX=T
+endif
+ifeq ($(TIMEDISCMETHOD),103)
+  IMEX=T
+endif
+
 #=================================================================================================================================#
 # GET MACHINE ENVIRONMENT AND SET FILESYSTEM
 #=================================================================================================================================#
@@ -108,6 +123,9 @@ endif
 # PREPROCESSOR-DIRECTIVES                                                                                                         #
 #=================================================================================================================================#
 PREPROC  =-DPP_TimeDiscMethod=$(TIMEDISCMETHOD)
+ifneq ($(IMEX),)
+  PREPROC +=-DIMEX
+endif
 PREPROC +=-DPP_NodeType=$(NODETYPE)
 PREPROC +=-DPP_Riemann=$(RIEMANN)
 PREPROC +=-DPP_nVar=$(NVAR)
@@ -119,6 +137,7 @@ endif
 ifneq ($(FILESYSTEM),)
   PREPROC +=-D$(FILESYSTEM)
 endif
+PREPROC +=-D$(EQNSYS)
 ifneq ($(HDF5_F90),)
   PREPROC +=-DHDF5_F90=$(HDF5_F90)
 endif
@@ -209,14 +228,16 @@ TECBIN_LIBS = -ltecio -lstdc++
 #---------------------------------------------------------------------------------------------------------------------------------#
 # all these setup options assume a pre-installed library
 ifneq ($(BLAS_LAPACK),)
-  ifeq ($(findstring MKL,$(BLAS_LAPACK)),MKL)
-    BLAS_LAPACK_INC  = -mkl=sequential
-    BLAS_LAPACK_LIB  =
-    BLAS_LAPACK_LIBS = -mkl=sequential
-  else
-    BLAS_LAPACK_INC  =
-    BLAS_LAPACK_LIB  = -L$(BLAS_LAPACK)
-    BLAS_LAPACK_LIBS = -llapack -lblas
+  ifneq ($(findstring CRAY,$(MACHINE)),CRAY)
+    ifeq ($(findstring MKL,$(BLAS_LAPACK)),MKL)
+      BLAS_LAPACK_INC  = -mkl=sequential
+      BLAS_LAPACK_LIB  =
+      BLAS_LAPACK_LIBS = -mkl=sequential
+    else
+      BLAS_LAPACK_INC  =
+      BLAS_LAPACK_LIB  = -L$(BLAS_LAPACK)
+      BLAS_LAPACK_LIBS = -llapack -lblas
+    endif
   endif
 endif
 #---------------------------------------------------------------------------------------------------------------------------------#
@@ -297,11 +318,16 @@ ifeq ($(findstring GNU,$(ENVIRONMENT)),GNU)
   FLFLAGS  = -fdefault-real-8 -fbackslash  -Wall # don't change
 
   ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
-    FCFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace -fsanitize=address,undefined -fno-omit-frame-pointer
-    FLFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace -fsanitize=address,undefined -fno-omit-frame-pointer
+    FCFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
+    FLFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
+    GNU_VER_GT48 = $(shell echo `gfortran -dumpversion | cut -f1-2 -d.` \>= 4.9 | bc )
+    ifeq ($(GNU_VER_GT48),1)
+	    FCFLAGS  += -fsanitize=address,undefined -fno-omit-frame-pointer -Wc-binding-type
+  	  FLFLAGS  += -fsanitize=address,undefined -fno-omit-frame-pointer -Wc-binding-type
+    endif
 		# -Wc-binding-type - check for interoperability with iso c 
-		#-fsanitize=address,thread,undefined
-
+		#  additional sanitize checks
+		# -fsanitize=address,thread,undefined
   else
 	  # -03(=general optlevel) -march=native(adapt to current system) -flto(=interprocedural optimizations) 
     FCFLAGS  += -O3 $(INSTRUCTION) 
