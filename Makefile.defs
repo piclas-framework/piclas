@@ -314,9 +314,11 @@ ifeq ($(findstring GNU,$(ENVIRONMENT)),GNU)
   endif
   PREPROC +=-DGNU
 
-  FCFLAGS  = -xf95-cpp-input -cpp -fdefault-real-8 -fdefault-double-8 -fbackslash -DGNU -Wall# don't change
-  FLFLAGS  = -fdefault-real-8 -fbackslash  -Wall # don't change
-
+  FCFLAGS  = -xf95-cpp-input -cpp -fdefault-real-8 -fdefault-double-8 -fbackslash -DGNU -Wall \
+						 -ffree-line-length-132 -Werror=line-truncation # don't change
+  FLFLAGS  = -fdefault-real-8 -fbackslash  -Wall \
+						 -ffree-line-length-132 -Werror=line-truncation # don't change
+  FLFLAGS  = -fdefault-real-8 -fbackslash  -Wall
   ifeq ($(findstring DEBUG,$(ENVIRONMENT)),DEBUG)
     FCFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace
     FLFLAGS  += -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace

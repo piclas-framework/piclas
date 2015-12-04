@@ -210,7 +210,10 @@ SDEALLOCATE(BezierControlPoints3D)
 !SDEALLOCATE(SuperSampledBiLinearCoeff)
 SDEALLOCATE(SideSlabNormals)
 SDEALLOCATE(SideSlabIntervals)
+SDEALLOCATE(ElemSlabNormals)
+SDEALLOCATE(ElemSlabIntervals)
 SDEALLOCATE(BoundingBoxIsEmpty)
+SDEALLOCATE(ElevationMatrix)
 SDEALLOCATE(locAlpha)
 SDEALLOCATE(locXi)
 SDEALLOCATE(locEta)
@@ -219,6 +222,7 @@ SDEALLOCATE(EtaArray)
 SDEALLOCATE(Vdm_Bezier)
 SDEALLOCATE(sVdm_Bezier)
 SDEALLOCATE(arrayNChooseK)
+SDEALLOCATE(BezierControlPoints3DElevated)
 SDEALLOCATE(FacNchooseK)
 SDEALLOCATE(SideType)
 !SDEALLOCATE(gElemBCSide)
@@ -1457,10 +1461,5 @@ DO i=1,NGeo+BezierElevation-1
   END DO
 END DO
 END FUNCTION ElevateBezierPolynomial
-
-
-
-
-
 
 END MODULE MOD_Particle_Surfaces
