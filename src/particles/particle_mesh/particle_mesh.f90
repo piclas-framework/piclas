@@ -141,6 +141,7 @@ END IF
 BezierEpsilonBilinear = GETREAL('BezierEpsilonBilinear','1e-6')
 
 BezierElevation = GETINT('BezierElevation','0')
+SDEALLOCATE(BezierControlPoints3DElevated)
 ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) )
 BezierControlPoints3DElevated=0.
 !--- Initialize Periodic Side Info
@@ -248,11 +249,13 @@ USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo,IsBCElem
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_PICDepo_Vars,           ONLY:DepositionType
+USE MOD_Particle_Intersection,  ONLY:PartInElemCheck
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -326,6 +329,12 @@ DO iBGMElem=1,nBGMElems
   IF(.NOT.DoHALO)THEN
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
+
+  IF(IsBCElem(ElemID))THEN
+    CALL PartInElemCheck(iPart,ElemID,InElementCheck)
+    IF(.NOT.InElementCheck) CYCLE
+  END IF
+
   CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
   IF(MAXVAL(ABS(Xi)).LE.1.0) THEN ! particle inside
     InElementCheck=.TRUE.

@@ -62,8 +62,10 @@ SUBROUTINE PartInElemCheck(PartID,ElemID,Check)
 USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,BezierControlPoints3D,SideType
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,BezierControlPoints3D,SideType,ClipHit&
+                                    ,BezierControlPoints3D
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,IsBCElem,PartBCSideList
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -75,7 +77,7 @@ INTEGER,INTENT(IN)                       :: ElemID,PartID
 LOGICAL,INTENT(OUT)                      :: Check
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: ilocSide,flip,SideID
+INTEGER                                  :: ilocSide,flip,SideID,BCSideID
 REAL                                     :: PartTrajectory(1:3)
 REAL                                     :: lengthPartTrajectory,tmpPos(3),xNodes(1:3,1:4),tmpLastPartPos(1:3)
 LOGICAL                                  :: isHit
@@ -98,28 +100,60 @@ DO ilocSide=1,6
   !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
   SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
   flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
+  IF(DoRefMapping)THEN
+    IF(SideID.LT.1) CYCLE
+    BCSideID=SideID
+    SideID=PartBCSideList(BCSideID)
+    IF(SideID.LT.1) CYCLE
+  END IF
+  
   SELECT CASE(SideType(SideID))
+!  CASE(PLANAR)
+!    CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta  &
+!                                                                            ,PartID,flip,SideID)
+!  CASE(BILINEAR)
+!    xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
+!    xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
+!    xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
+!    xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
+!    CALL ComputeBiLinearIntersectionSuperSampled2(ishit,xNodes &
+!                                                        ,PartTrajectory,lengthPartTrajectory,Alpha &
+!                                                                                      ,xi                       &
+!                                                                                      ,eta                ,PartID,flip,SideID)
+!  CASE(CURVED)
+!    CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
+!                                                                            ,xi                 &
+!                                                                            ,eta                ,PartID,SideID)
+
+
+
   CASE(PLANAR)
-    CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta  &
-                                                                            ,PartID,flip,SideID)
+    CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
+                                                                                  ,xi             &
+                                                                                  ,eta   ,PartID,flip,SideID)
   CASE(BILINEAR)
     xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
     xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
     xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
     xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
-    CALL ComputeBiLinearIntersectionSuperSampled2(ishit,xNodes &
-                                                        ,PartTrajectory,lengthPartTrajectory,Alpha &
-                                                                                      ,xi                       &
-                                                                                      ,eta                ,PartID,flip,SideID)
+    CALL ComputeBiLinearIntersectionRobust(isHit,xNodes &
+                                                 ,PartTrajectory,lengthPartTrajectory,Alpha &
+                                                                                     ,xi       &
+                                                                                     ,eta      &
+                                                                                     ,PartID,flip,SideID)
+
   CASE(CURVED)
     CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
-                                                                            ,xi                 &
-                                                                            ,eta                ,PartID,SideID)
+                                                                            ,xi       &
+                                                                            ,eta      ,PartID,SideID)
+
   END SELECT
   IF(alpha.GT.-1.0) THEN
-    IF((ABS(xi).GT.1.0).OR.(ABS(eta).GT.1.0)) THEN
-      isHit=.FALSE.
-    END IF
+    !IF((ABS(xi).GT.1.0).OR.(ABS(eta).GT.1.0)) THEN
+    !IF((ABS(xi).GT.ClipHit).OR.(ABS(eta).GT.ClipHit)) THEN
+    !  isHit=.FALSE.
+    !END IF
+    isHit=.TRUE.
   END IF
   IF(isHit) EXIT
 END DO ! ilocSide
@@ -137,7 +171,7 @@ SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,                 ONLY:Cross,abort
+USE MOD_Globals,                 ONLY:Cross,abort,MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance
@@ -366,8 +400,8 @@ RECURSIVE SUBROUTINE BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,l
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
 USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter,SplitLimit,ClipHit
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,mEpsilontol
-USE MOD_Particle_Vars,           ONLY:LastPartPos,Time
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,mEpsilontol,epsilontol
+ USE MOD_Particle_Vars,           ONLY:LastPartPos,Time
 USE MOD_TimeDisc_Vars,               ONLY:iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -396,6 +430,7 @@ REAL                                 :: BezierControlPoints2D_temp2(2,0:NGeo,0:N
 INTEGER                              :: p,q,l,iDeCasteljau
 REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,alpha
 REAL                                 :: ZeroDistance,ClipTolerance2
+INTEGER                              :: ElemID
 LOGICAL                              :: DoXiClip,DoEtaClip,DoCheck
 INTEGER                              :: iClip
 REAL                                 :: alphaNorm
@@ -957,7 +992,7 @@ IF(DoCheck)THEN
 !   END IF
 ! END IF
 
-  IF((alphaNorm.LE.ClipHit).AND.(alphaNorm.GT.Mepsilontol))THEN
+  IF((alphaNorm.LE.ClipHit).AND.(alphaNorm.GT.-epsilontol))THEN
     ! found additional intersection point
     IF(nInterSections.GE.ClipMaxInter)THEN
       !nInterSections=nInterSections-1

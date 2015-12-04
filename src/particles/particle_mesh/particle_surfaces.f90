@@ -214,6 +214,7 @@ SDEALLOCATE(ElemSlabNormals)
 SDEALLOCATE(ElemSlabIntervals)
 SDEALLOCATE(BoundingBoxIsEmpty)
 SDEALLOCATE(ElevationMatrix)
+SDEALLOCATE(BezierControlPoints3DElevated)
 SDEALLOCATE(locAlpha)
 SDEALLOCATE(locXi)
 SDEALLOCATE(locEta)
@@ -1253,6 +1254,7 @@ END IF
 ! print*,"SideSlabNormals(:,3,SideID)",SideSlabNormals(:,3,SideID),"beta3 ",&
 ! SideSlabIntervals(5, SideID),SideSlabIntervals(6, SideID),&
 ! "delta",ABS(SideSlabIntervals(6, SideID))-ABS(SideSlabIntervals(5, SideID))
+
 END SUBROUTINE GetSideSlabNormalsAndIntervals
 
 

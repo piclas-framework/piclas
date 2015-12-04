@@ -408,6 +408,7 @@ USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsInCell,epsOneCell
 USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToSide,PartSideToElem,nTotalBCSides,PartBCSideLIst
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo,ElemRadius2NGeo
+USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement
 USE MOD_TimeDisc_Vars,           ONLY:iter
 USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
 USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
@@ -434,8 +435,8 @@ INTEGER,ALLOCATABLE         :: ListDistance(:)
 #ifdef MPI
 INTEGER                     :: InElem
 #endif
-INTEGER                     :: SideID,BCSideID,ilocSide
-LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength)
+INTEGER                     :: SideID,BCSideID,ilocSide,TestElem
+LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength),PartisDone
 !LOGICAL                     :: HitBC(1:PDM%ParticleVecLength)
 
 ! load balance
@@ -517,8 +518,8 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
           END IF
         ELSE ! only external faces
           !nlocSides=BCElem(ElemID)%lastSide-BCElem(ElemID)%nInnerSides
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
-          IF(ParticleFound(iPart)) CYCLE
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
+          IF(PartIsDone) CYCLE
           IF(GEO%nPeriodicVectors.GT.0)THEN
             CALL PeriodicMovement(iPart)
           END IF
@@ -528,8 +529,8 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
             .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
           LastPos=PartState(iPart,1:3)
           ! unfortunately, here all sides
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
-          IF(ParticleFound(iPart)) EXIT
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
+          IF(PartIsDone) EXIT
           IF(GEO%nPeriodicVectors.GT.0)THEN
             ! call here function for mapping of partpos and lastpartpos
             CALL PeriodicMovement(iPart)
@@ -589,13 +590,14 @@ DO iPart=1,PDM%ParticleVecLength
   CellY = MAX(MIN(GEO%FIBGMjmax,CellY),GEO%FIBGMjmin)
   CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
   CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
-
         
   ! check all cells associated with this beckground mesh cell
   nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+  SDEALLOCATE( Distance)
+  SDEALLOCATE( ListDistance)
   ALLOCATE( Distance(1:nBGMElems) &
           , ListDistance(1:nBGMElems) )
-
+ 
   ! get closest element barycenter
   Distance=0.
   ListDistance=0
@@ -644,12 +646,6 @@ DO iPart=1,PDM%ParticleVecLength
       newElemID=ElemID
     END IF
   END DO ! iBGMElem
-  !IF(iPart.EQ.1) print*,'pos,elem',PartPosRef(:,ipart),ElemID
-  !IF((iPart.EQ.85).AND.(iter.GE.30))THEN
-  !  WRITE(*,*) 'Re-Found?', ParticleFound(iPart)
-  !  WRITE(*,*) 'OldXi',PartPosRef(1:3,iPart)
-  !  WRITE(*,*) 'best-xi',NewXi
-  !END IF
 
   IF(.NOT.ParticleFound(iPart))THEN
     ! use best xi
@@ -662,234 +658,87 @@ DO iPart=1,PDM%ParticleVecLength
       PEM%Element(iPart)=NewElemID
       oldElemID=NewElemID
     END IF
-
-    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.05) THEN
-      ! check in which dimension the particle left the cell
-      ! backtraze
-      oldXi=ABS(PartPosRef(1:3,iPart))
-      locSideID=-1
-      DO ilocSide=1,6
-        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,PEM%Element(iPart))
-        IF (SideID.EQ.-1) CYCLE
-        BCSideID=PartBCSideList(SideID)
-        IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
-          SELECT CASE(ilocSide)
-          CASE(XI_MINUS)
-            IF(PartPosRef(1,iPart).LT.-1.0) THEN
-              locSideID=ilocSide
-              !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
-              Xi =PartPosRef(3,iPart)
-              Eta=PartPosRef(2,iPart)
-              PartPosRef(1,iPart)=-1.0
-              EXIT
-            END IF
-          CASE(XI_PLUS)
-            IF(PartPosRef(1,iPart).GT.1.0) THEN
-              locSideID=ilocSide
-              Xi =PartPosRef(2,iPart)
-              Eta=PartPosRef(3,iPart)
-              PartPosRef(1,iPart)= 1.0
-              EXIT
-            END IF
-          CASE(ETA_MINUS)
-            IF(PartPosRef(2,iPart).LT.-1.0) THEN
-              locSideID=ilocSide
-               Xi =PartPosRef(1,iPart)
-               Eta=PartPosRef(3,iPart)
-               PartPosRef(2,iPart)=-1.0
-              EXIT
-            END IF
-          CASE(ETA_PLUS)
-            IF(PartPosRef(2,iPart).GT.1.0) THEN
-              locSideID=ilocSide
-              Xi =-PartPosRef(1,iPart)
-              Eta=PartPosRef(3 ,iPart)
-              PartPosRef(2,iPart)= 1.0
-              EXIT
-            END IF
-          CASE(ZETA_MINUS)
-            IF(PartPosRef(3,iPart).LT.-1.0) THEN
-              locSideID=ilocSide
-              Xi =PartPosRef(2,iPart)
-              Eta=PartPosRef(1,iPart)
-              PartPosRef(3,iPart)=-1.0
-              EXIT
-            END IF
-          CASE(ZETA_PLUS)
-            IF(PartPosRef(3,iPart).GT.1.0) THEN
-              locSideID=ilocSide
-              Xi =PartPosRef(1,iPart)
-              Eta=PartPosRef(2,iPart)
-              PartPosRef(3,iPart)= 1.0
-              EXIT
-            END IF
-          END SELECT
-        END IF ! BCSideID
-      END DO ! ilocSide
-
-      !IF( oldXI(1).GT.oldXI(2) .AND. OldXi(1) .GT. oldXI(3))THEN
-      !  tmplocSideID=1
-      !ELSEIF( oldXI(2).GT.oldXI(1) .AND. OldXi(2) .GT. oldXI(3))THEN
-      !  tmplocSideID=2
-      !ELSE
-      !  tmplocSideID=3
-      !END IF
-      !tmpLocSideID=MAXLOC(oldXi)
-      !SELECT CASE(tmpLocSideID)
-      !CASE(1)
-      !  IF(PartPosRef(tmpLocSideID,iPart).GT.0)THEN
-      !    LocSideID=XI_PLUS
-      !  ELSE
-      !    LocSideID=XI_MINUS
-      !  END IF
-      !CASE(2)
-      !  IF(PartPosRef(tmpLocSideID,iPart).GT.0)THEN
-      !    LocSideID=ETA_PLUS
-      !  ELSE
-      !    LocSideID=ETA_MINUS
-      !  END IF
-      !CASE(3)
-      !  IF(PartPosRef(tmpLocSideID,iPart).GT.0)THEN
-      !    LocSideID=ZETA_PLUS
-      !  ELSE
-      !    LocSideID=ZETA_MINUS
-      !  END IF
-      !END SELECT
-
-      !SideID=PartElemToSide(E2S_SIDE_ID,locSideID,PEM%Element(iPart))
-      !BCSideID=PartBCSideList(SideID)
-
-      !IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
-      IF(locSideID.GT.0)THEN
-        !IF(HitBC(iPart))THEN
- !  CALL Eval_xyz_Poly(PartPosRef(:,iPart),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,PEM%Element(iPart)),PartState(iPart,1:3))
-        !ELSE
-          CALL ReComputeParticleBCInteraction(xi,eta,LocSideID,SideID,BCSideID,iPart) 
-        !END IF
-      ELSE ! If no BC SideID
-        IF(OldElemID.NE.PEM%Element(iPart))THEN
-          ! backtraze
-          !oldXi=ABS(PartPosRef(1:3,iPart))
-          locSideID2=-1
-          DO ilocSide=1,6
-            SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,oldElemID)
-            IF (SideID.EQ.-1) CYCLE
-            BCSideID=PartBCSideList(SideID)
-            IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
-              SELECT CASE(ilocSide)
-              CASE(XI_MINUS)
-                IF(PartPosRef(1,iPart).LT.-1.0) THEN
-                  locSideID2=ilocSide
-                  !BezierControlPoints3D(1:3,p,q,sideID)=tmp(:,q,p)
-                  Xi =PartPosRef(3,iPart)
-                  Eta=PartPosRef(2,iPart)
-                  PartPosRef(1,iPart)=-1.0
-                  EXIT
-                END IF
-              CASE(XI_PLUS)
-                IF(PartPosRef(1,iPart).GT.1.0) THEN
-                  locSideID2=ilocSide
-                  Xi =PartPosRef(2,iPart)
-                  Eta=PartPosRef(3,iPart)
-                  PartPosRef(1,iPart)= 1.0
-                  EXIT
-                END IF
-              CASE(ETA_MINUS)
-                IF(PartPosRef(2,iPart).LT.-1.0) THEN
-                  locSideID2=ilocSide
-                  Xi =PartPosRef(1,iPart)
-                  Eta=PartPosRef(3,iPart)
-                  PartPosRef(2,iPart)=-1.0
-                  EXIT
-                END IF
-              CASE(ETA_PLUS)
-                IF(PartPosRef(2,iPart).GT.1.0) THEN
-                  locSideID2=ilocSide
-                  Xi =-PartPosRef(1,iPart)
-                  Eta=PartPosRef(3 ,iPart)
-                  PartPosRef(2,iPart)= 1.0
-                  EXIT
-                END IF
-              CASE(ZETA_MINUS)
-                IF(PartPosRef(3,iPart).LT.-1.0) THEN
-                  locSideID2=ilocSide
-                  Xi =PartPosRef(2,iPart)
-                  Eta=PartPosRef(1,iPart)
-                  PartPosRef(3,iPart)=-1.0
-                  EXIT
-                END IF
-              CASE(ZETA_PLUS)
-                IF(PartPosRef(3,iPart).GT.1.0) THEN
-                  locSideID2=ilocSide
-                  Xi =PartPosRef(1,iPart)
-                  Eta=PartPosRef(2,iPart)
-                  PartPosRef(3,iPart)= 1.0
-                  EXIT
-                END IF
-              END SELECT
-            END IF ! BCSideID
-          END DO ! ilocSide
-          IF(locSideID2.GT.0) THEN
-            !IF(HitBC(iPart))THEN
-         !  CALL Eval_xyz_Poly(PartPosRef(:,iPart),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(:,:,:,:,oldElemID),PartState(iPart,1:3))
-            !ELSE
-              CALL ReComputeParticleBCInteraction(xi,eta,LocSideID2,SideID,BCSideID,iPart)
-            !END IF
-          ELSE
-            IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
-            IPWRITE(UNIT_stdOut,*) ' epsOneCell  ', epsOneCell
-            IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldXi
-            IPWRITE(UNIT_stdOut,*) ' newxi       ', newXi
-            IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
+  
+    !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.05) THEN
+    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell) THEN
+      TestElem=PEM%Element(iPart)
+      IF(.NOT.IsBCElem(TestElem))THEN
+        ! ausgabe
+        IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
+        IPWRITE(UNIT_stdOut,*) ' epsOneCell  ', epsOneCell
+        IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldXi
+        IPWRITE(UNIT_stdOut,*) ' newxi       ', newXi
+        IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
 #ifdef MPI
-            InElem=PEM%Element(iPart)
-            IF(InElem.LE.PP_nElems)THEN
-            IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
+        InElem=PEM%Element(iPart)
+        IF(InElem.LE.PP_nElems)THEN
+          IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
+        ELSE
+          IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloToProc(NATIVE_PROC_ID,InElem)) &
+                                                 + PartHaloToProc(NATIVE_ELEM_ID,InElem)
+        END IF
+#else
+        IPWRITE(UNIT_stdOut,*) ' ElemID       ', PEM%Element(iPart)+offSetElem
+#endif
+        CALL abort(&
+            __STAMP__, &
+            'Particle Not inSide of Element, iPart',iPart)
+      ELSE ! BCElem
+        CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,ParticleFound(iPart))
+        LastPos=PartState(iPart,1:3)
+        CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+        ! check inner sides
+        DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
+            .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
+            .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
+          LastPos=PartState(iPart,1:3)
+          ! unfortunately, here all sides
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+          IF(ParticleFound(iPart)) EXIT
+          IF(GEO%nPeriodicVectors.GT.0)THEN
+            ! call here function for mapping of partpos and lastpartpos
+            CALL PeriodicMovement(iPart)
+          END IF
+        END DO ! While
+        IF(ParticleFound(iPart)) CYCLE
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+        ! false, reallocate particle
+        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell)THEN
+          CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.)                                                             
+          IF(.NOT.PDM%ParticleInside(iPart)) THEN
+            IPWRITE(UNIT_stdOut,*) ' xi          ', partposref(1:3,ipart)
+            IPWRITE(UNIT_stdOut,*) ' epsonecell  ', epsonecell
+            IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldxi
+            IPWRITE(UNIT_stdOut,*) ' newxi       ', newxi
+            IPWRITE(UNIT_stdOut,*) ' particlepos ', partstate(ipart,1:3)
+#ifdef MPI
+            inelem=PEM%Element(ipart)
+            IF(inelem.LE.PP_nElems)THEN
+              IPWRITE(UNIT_stdout,*) ' elemid       ', inelem+offsetelem
             ELSE
-              IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloToProc(NATIVE_PROC_ID,InElem)) &
-                                                     + PartHaloToProc(NATIVE_ELEM_ID,InElem)
+              IPWRITE(UNIT_stdOut,*) ' elemid       ', offsetelemmpi(PartHalotoProc(NATIVE_PROC_ID,inelem)) &
+                                                       + PartHaloToProc(NATIVE_ELEM_ID,inelem)
             END IF
 #else
-            IPWRITE(UNIT_stdOut,*) ' ElemID       ', PEM%Element(iPart)+offSetElem
+            IPWRITE(UNIt_stdOut,*) ' elemid       ', pem%element(ipart)+offsetelem
 #endif
             CALL abort(&
-                __STAMP__, &
-                'Particle Not inSide of Element, iPart',iPart)
-            END IF
-        ELSE
-          IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
-          IPWRITE(UNIT_stdOut,*) ' epsOneCell  ', epsOneCell
-          IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldXi
-          IPWRITE(UNIT_stdOut,*) ' newxi       ', newXi
-          IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
-#ifdef MPI
-          InElem=PEM%Element(iPart)
-          IF(InElem.LE.PP_nElems)THEN
-          IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
-          ELSE
-            IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloToProc(NATIVE_PROC_ID,InElem)) &
-                                                   + PartHaloToProc(NATIVE_ELEM_ID,InElem)
-          END IF
-#else
-          IPWRITE(UNIT_stdOut,*) ' ElemID       ', PEM%Element(iPart)+offSetElem
-#endif
-          CALL abort(&
               __STAMP__, &
-              'Particle Not inSide of Element, iPart',iPart)
-        END IF ! BCSideID
-      END IF
-    END IF
-
-    ParticleFound(iPart)=.TRUE.
-    !WRITE(*,*) ' iPart  :   ', iPart
-    !WRITE(*,*) ' PartPos:   ', PartState(iPart,1:3)
-    !WRITE(*,*) ' oldxi:     ', oldXi
-    !WRITE(*,*) ' bestxi:    ', newXi
-    !WRITE(*,*) ' oldelemid: ', oldElemID
-    !WRITE(*,*) ' bestelemid ', NewElemID
-!    CALL abort(__STAMP__,&
-!      ' particle lost !! ')
-  END IF
+              'particle noT inside of element, ipart',ipart)
+          END IF ! inside
+        END IF ! epsCell
+      END IF ! BCElem
+    END IF ! inner eps to large
+  END IF ! not found
+  ParticleFound(iPart)=.TRUE.
+  !WRITE(*,*) ' iPart  :   ', iPart
+  !WRITE(*,*) ' PartPos:   ', PartState(iPart,1:3)
+  !WRITE(*,*) ' oldxi:     ', oldXi
+  !WRITE(*,*) ' bestxi:    ', newXi
+  !WRITE(*,*) ' oldelemid: ', oldElemID
+  !WRITE(*,*) ' bestelemid ', NewElemID
+ !    CALL abort(__STAMP__,&
+ !      ' particle lost !! ')
   DEALLOCATE( Distance)
   DEALLOCATE( ListDistance)
 
@@ -898,7 +747,6 @@ END DO ! iPart
 tLBEnd = LOCALTIME() ! LB Time End
 tTracking = tTracking +tLBEnd-tLBStart
 #endif /*MPI*/
-
 
 END SUBROUTINE ParticleRefTracking
 
@@ -1530,5 +1378,150 @@ ELSE
 END IF
 
 END SUBROUTINE ReComputeParticleBCInteraction
+
+
+SUBROUTINE ComputeFaceIntersection(ElemID,firstSide,LastSide,nlocSides,PartID,PartIsDone)
+!===================================================================================================================================
+! read required parameters
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+USE MOD_Mesh_Vars,                   ONLY:nBCSides,NGeo!,NormVec
+USE MOD_Particle_Vars,               ONLY:PEM,PDM
+USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
+USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne
+USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D,BoundingBoxIsEmpty
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems,PartBCSideList,nTotalBCSides
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem,ElemBaryNGeo
+USE MOD_TimeDisc_Vars,               ONLY:iter
+USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
+USE MOD_Particle_Vars,               ONLY:time
+USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacement,BCElem
+USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
+USE MOD_Particle_Tracking_Vars,      ONLY:ntracks
+USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
+                                         ,ComputePlanarIntersectionBezier,ComputePlanarIntersectionBezierRobust2
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
+#ifdef MPI
+USE MOD_Mesh_Vars,                   ONLY:BC,nSides
+#endif /*MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: PartID,ElemID,firstSide,LastSide,nlocSides
+LOGICAL,INTENT(INOUT)         :: PartisDone
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide), hitlocSide
+LOGICAL                       :: dolocSide(firstSide:lastSide),ishit
+REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
+INTEGER                       :: nInter,flip,BCSideID
+REAL                          :: tmpPos(3), tmpLastPartPos(3),tmpVec(3)
+REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
+!===================================================================================================================================
+
+
+tmpPos=PartState(PartID,1:3)
+tmpLastPartPos(1:3)=LastPartPos(PartID,1:3)
+
+LastPartPos(PartID,1:3)=PartState(PartID,1:3)
+PartState(PartID,1:3)=ElemBaryNGeo(:,ElemID)
+PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+tmpVec=PartTrajectory
+lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                         +PartTrajectory(2)*PartTrajectory(2) &
+                         +PartTrajectory(3)*PartTrajectory(3) )
+PartTrajectory=PartTrajectory/lengthPartTrajectory
+
+
+locAlpha=-1.0
+nInter=0
+dolocSide=.TRUE.
+!nlocSides=lastSide-firstSide+1
+DO iLocSide=firstSide,LastSide
+  ! track particle vector until the final particle position is achieved
+  SideID=BCElem(ElemID)%BCSideID(ilocSide)
+  BCSideID=PartBCSideList(SideID)
+  locSideList(ilocSide)=ilocSide
+  ! get correct flip
+  flip  = 0 
+  SELECT CASE(SideType(BCSideID))
+  CASE(PLANAR)
+    !CALL ComputePlanarIntersectionBezier(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+    CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                  ,xi (ilocSide)            &
+                                                                                  ,eta(ilocSide)   ,PartID,flip,BCSideID)
+
+!    CALL ComputePlanarIntersectionBezierRobust2(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+!                                                                                  ,xi (ilocSide)      &
+!                                                                                  ,eta(ilocSide)   ,PartID,flip,BCSideID)
+!
+!                                                                            !,eta(ilocSide)   ,PartID,ilocSide,SideID,ElemID)
+  CASE(BILINEAR)
+    xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
+    xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
+    xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
+    xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,BCSideID)
+    !CALL ComputeBiLinearIntersectionSuperSampled2(isHit,xNodes &
+    CALL ComputeBiLinearIntersectionRobust(isHit,xNodes &
+                                                 ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                     ,xi (ilocSide)      &
+                                                                                     ,eta(ilocSide)      &
+                                                                                     ,PartID,flip,BCSideID)
+
+    !CALL ComputeBiLinearIntersectionSuperSampled2(isHit,[BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
+    !                                                    ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
+    !                                                    ,BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &
+    !                                                    ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
+    !                                                    ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+    !                                                                                        ,xi (ilocSide)      &
+    !                                                                                        ,eta(ilocSide)  ,PartID,flip,SideID)
+!    CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+!                                                                      ,xi (ilocSide)      &
+!                                                                      ,eta(ilocSide)      ,PartID,SideID)
+
+  CASE(CURVED)
+    CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                            ,xi (ilocSide)      &
+                                                                            ,eta(ilocSide)      ,PartID,BCSideID)
+  END SELECT
+  IF(locAlpha(ilocSide).GT.-1.0)THEN
+    nInter=nInter+1
+  END IF
+END DO ! ilocSide
+
+IF(nInter.EQ.0) THEN
+  ! crash
+  RETURN
+ELSE
+  ! take first possible intersection
+  !CALL BubbleSortID(locAlpha,locSideList,6)
+  CALL InsertionSort(locAlpha,locSideList,nlocSides)
+  DO ilocSide=firstSide,LastSide
+    IF(locAlpha(ilocSide).GT.-1.0)THEN
+      hitlocSide=locSideList(ilocSide)
+      !SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
+      SideID=BCElem(ElemID)%BCSideID(hitlocSide)
+      BCSideID=PartBCSideList(SideID)
+      LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+locAlpha(ilocSide)*PartTrajectory
+      !PartState(PartID,1:3)  =PartState(PartID,1:3)+locAlpha(ilocSide)*PartTrajectory
+      PartState(PartID,1:3)  =LastPartPos(PartID,1:3)+tmpVec
+      locAlpha(ilocSide)=0.
+      CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                        ,xi(hitlocSide)     &
+                                                                        ,eta(hitlocSide)    &
+                                                                        ,PartId,SideID,ElemID)
+      IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
+    END IF ! locAlpha>-1.0
+  END DO ! ilocSide
+END IF ! nInter>0
+
+END SUBROUTINE ComputeFaceIntersection
+
 
 END MODULE MOD_Particle_Tracking
