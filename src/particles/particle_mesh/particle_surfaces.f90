@@ -1005,7 +1005,7 @@ INTEGER,INTENT(IN) :: SideID,NGeo
 INTEGER            :: p,q
 !REAL                              :: tmp(3,0:NGeo,0:NGeo)  
 REAL               :: skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
-LOGICAL            :: SideIsPlanar
+!LOGICAL            :: SideIsPlanar
 LOGICAL            :: SideIsCritical
 !===================================================================================================================================
 
@@ -1203,15 +1203,15 @@ END IF
 
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-! 4.) determine is "SideIsPlanar" and "BoundingBoxIsEmpty(SideID)"
+! 4.) determine is side is planar -> "BoundingBoxIsEmpty(SideID)"
 !     this results also in the decision whether a side is also considered flat or bilinear! 
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 dMax=MAX(dx,dy,dz)
 dMin=MIN(dx,dy,dz)
 IF(dx/dMax.LT.BezierEpsilonBilinear)THEN
-  SideSlabIntervals(1:2, SideID)=0.
-  dx=0.
+  !SideSlabIntervals(1:2, SideID)=0.
+  !dx=0.
   CALL Abort(__STAMP__,&
   'Bezier side length is degenerated. dx/dMax.LT.BezierEpsilonBilinear ->',0,dx/dMax)
 END IF
@@ -1219,10 +1219,10 @@ IF(dy/dMax.LT.BezierEpsilonBilinear)THEN
   SideSlabIntervals(3:4, SideID)=0.
   dy=0.
 END IF
-print*,"dy/dMax",dy/dMax
+
 IF(dz/dMax.LT.BezierEpsilonBilinear)THEN
-  SideSlabIntervals(5:6, SideID)=0.
-  dz=0.
+  !SideSlabIntervals(5:6, SideID)=0.
+  !dz=0.
   CALL Abort(__STAMP__,&
   'Bezier side length is degenerated. dz/dMax.LT.BezierEpsilonBilinear ->',0,dz/dMax)
 END IF
@@ -1235,10 +1235,10 @@ IF(dx*dy*dz.LT.0) THEN
 END IF
 
 IF(ALMOSTZERO(dx*dy*dz))THEN ! bounding box volume is approx zeros
-  SideIsPlanar=.TRUE.
+  !SideIsPlanar=.TRUE.
   BoundingBoxIsEmpty(SideID)=.TRUE.
 ELSE
-  SideIsPlanar=.FALSE.
+  !SideIsPlanar=.FALSE.
   BoundingBoxIsEmpty(SideID)=.FALSE.
 END IF
 
@@ -1403,32 +1403,25 @@ INTEGER            :: p,q
 !REAL               :: skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
 !LOGICAL            :: SideIsPlanar
 !LOGICAL            :: SideIsCritical
-REAL               :: temp(3,0:NGeo+BezierElevation,0:NGeo)
+REAL               :: temp(1:3,0:NGeo+BezierElevation,0:NGeo)
 !===================================================================================================================================
-!BezierControlPoints3D(:,NGeo,0,SideID)
-!print*,"1"
-!read*
 temp=0.
+! p-direction
 DO q=0,NGeo
   temp(:,:,q)=ElevateBezierPolynomial(NGeo,BezierControlPoints3D(:,:,q,SideID))
 END DO
-
-!print*,"2"
-!read*
+! q-direction
 DO p=0,NGeo+BezierElevation
-  !print*,temp(:,p,:)
   BezierControlPoints3DElevated(:,p,:,SideID)=ElevateBezierPolynomial(NGeo,temp(:,p,:))
 END DO
-!jread*
 END SUBROUTINE GetBezierControlPoints3DElevated
 
 
 FUNCTION ElevateBezierPolynomial(NGeo,BezierPolynomial)
 !===================================================================================================================================
-! this function creates a new equidistantly distributed set of control
-! points (bézier polynomial basis coefficients) based on the control points
-! "BezierPolynomial" with order "N" and elevates them to "ElevateBezierPolynomial" on
-! "Xi_NGeo_elevated" with order "p+BezierElevation"
+! this function creates a new equidistantly distributed set of control points (bézier polynomial basis coefficients) based on the 
+! control points "BezierPolynomial" with order "N" and elevates them to "ElevateBezierPolynomial" on "Xi_NGeo_elevated" with order 
+! "p+BezierElevation"
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierElevation,ElevationMatrix
@@ -1437,21 +1430,21 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN) :: NGeo
-REAL,INTENT(IN)    :: BezierPolynomial(3,0:NGeo)
+REAL,INTENT(IN)    :: BezierPolynomial(1:3,0:NGeo)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL               :: ElevateBezierPolynomial(3,0:NGeo+BezierElevation)
+REAL               :: ElevateBezierPolynomial(1:3,0:NGeo+BezierElevation)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 !REAL            :: length
 INTEGER            :: i,j,jStart,jEnd
 !===================================================================================================================================
 ! algorithm originally from "The NURBS Book" by Les Piegl, Wayne Tiller (p.205)
+ElevateBezierPolynomial = 0.
 ! the first and last points remain the same!
 ! edge points remain: P_0 and P_p
 ElevateBezierPolynomial(:,0)                    = BezierPolynomial(:,0)
 ElevateBezierPolynomial(:,NGeo+BezierElevation) = BezierPolynomial(:,NGeo)
-
 ! inner points change: P_1,...,P_p-1
 DO i=1,NGeo+BezierElevation-1
   jStart = MAX(0,i-BezierElevation)
@@ -1461,5 +1454,6 @@ DO i=1,NGeo+BezierElevation-1
   END DO
 END DO
 END FUNCTION ElevateBezierPolynomial
+
 
 END MODULE MOD_Particle_Surfaces
