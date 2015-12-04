@@ -103,7 +103,7 @@ eta_c     = (c_corr-1.)*c
 
 ! planar wave input
 WaveLength     = GETREAL('WaveLength','1.') ! f=100 MHz default
-WaveVector(1:3)= GETREALARRAY('WaveVector',3,'0.,0.,0.')
+WaveVector(1:3)= GETREALARRAY('WaveVector',3,'0.,0.,1.')
 WaveVector=UNITVECTOR(WaveVector)
 
 ! Read in boundary parameters
