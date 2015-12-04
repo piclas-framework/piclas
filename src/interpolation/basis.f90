@@ -262,7 +262,7 @@ DO i=1,N_In+BezierElevation-1 ! from 0+1 to p_new-1 -> remove the edge points
     !ElevationMatrix(i,j)=REAL(CHOOSE(N_In,j))*REAL(CHOOSE(BezierElevation,i-j)) / REAL(CHOOSE(N_In+BezierElevation,i))
     ElevationMatrix(i,j)=CHOOSE_large(N_In,j)*CHOOSE_large(BezierElevation,i-j) / CHOOSE_large(N_In+BezierElevation,i)
   END DO
-  !eps=ABS(SUM(ElevationMatrix(i,:))-1.0)
+  eps=ABS(SUM(ElevationMatrix(i,:))-1.0)
   !print*,i," eps= ",eps
   !print*,"------- next ------"
   IF(eps>1e-12) CALL Abort(&
