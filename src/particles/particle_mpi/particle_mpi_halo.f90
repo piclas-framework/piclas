@@ -56,7 +56,7 @@ USE MOD_Particle_Mesh_Vars,         ONLY:GEO
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
 USE MOD_Particle_Surfaces_Vars,     ONLY:BezierControlPoints3D
 !USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                  ONLY:NGeo,ElemToSide,nElems,nInnerSides,nBCSides,nSides,XCL_NGeo
+USE MOD_Mesh_Vars,                  ONLY:NGeo,ElemToSide,nElems,nInnerSides,nBCSides,nSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -277,7 +277,7 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,El
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,nSides,XCL_NGeo
+USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,nSides!,XCL_NGeo
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix
 USE MOD_Particle_MPI_Vars,         ONLY:halo_eps
 USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D
@@ -296,7 +296,7 @@ INTEGER, INTENT(INOUT)   :: ElemIndex(PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                  :: iSide, NbOfSides,p,q,ElemID,ilocSide,SideID,r,s,iBGMElem,iCase,NbOfElems
-REAL                     :: NodeX(1:3),xNodes(1:3,0:NGeo,0:NGeo)
+REAL                     :: NodeX(1:3)!,xNodes(1:3,0:NGeo,0:NGeo)
 INTEGER                  :: iBGM,jBGM,kBGM,iPBGM,jPBGM,kPBGM
 LOGICAL                  :: leave
 REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3)
@@ -1702,8 +1702,8 @@ LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 
 ! reallocate shapes
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-IPWRITE(*,*) 'oldSides,oldElems,totalSides,TotalElems,oldBCSides,bcsides',nOldSides,nOldElems,nTotalSides &
-                                                                          ,ntotalElems,noldBCSides,nTotalBCSides
+!IPWRITE(*,*) 'oldSides,oldElems,totalSides,TotalElems,oldBCSides,bcsides',nOldSides,nOldElems,nTotalSides &
+!                                                                          ,ntotalElems,noldBCSides,nTotalBCSides
 !print*,'rank, in reshape',myrank
 !print*,'rank, in reshape',myrank, nOldSides,nOldElems,nTotalSides,nTotalElems
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)

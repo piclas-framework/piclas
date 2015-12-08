@@ -76,10 +76,9 @@ SUBROUTINE InitParticleSurfaces()
 USE MOD_Globals
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,SideToElem,NGeo,nBCSides,BC,nSides
+USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,NGeo,nBCSides,nSides
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
-USE MOD_Particle_Vars,              ONLY:PDM
-USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList,nTotalBCSides
+USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList
 USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
 !USE MOD_Particle_SFC_Vars,          ONLY:whichBoundBox
 ! IMPLICIT VARIABLE HANDLING
@@ -434,7 +433,6 @@ REAL,INTENT(OUT)                       :: nVec(3), tang1(3), tang2(3)
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(3)                      :: a,b
-REAL                                   :: nlength
 !================================================================================================================================
 
 
@@ -476,7 +474,6 @@ REAL,DIMENSION(3),INTENT(OUT)          :: nVec,tang1,tang2
 ! LOCAL VARIABLES
 REAL,DIMENSION(3)                      :: v,u!,nVec
 INTEGER                                :: p,q,m
-!REAL                                   :: nlength
 REAL                                   :: MinusXi,PlusXI,MinusEta,PlusEta
 REAL                                   :: xiup(0:NGeo),etaup(0:NGeo),xidown(0:NGeo),etadown(0:NGeo)
 !================================================================================================================================
@@ -549,7 +546,7 @@ FUNCTION CalcNormVecBezier(xi,eta,SideID)
 !================================================================================================================================
 USE MOD_Mesh_Vars,                            ONLY:NGeo
 USE MOD_Globals,                              ONLY:CROSSNORM,CROSS
-USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D,facNchooseK,ArrayNchooseK,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D,facNchooseK,BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -666,10 +663,9 @@ SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide,SideToElem,NGeo
+USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,sVdm_Bezier
-USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                ONLY:nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+USE MOD_Mesh_Vars,                ONLY:nBCSides,nInnerSides,nMPISides_MINE
 USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

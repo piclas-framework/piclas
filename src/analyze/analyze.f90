@@ -337,7 +337,7 @@ SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,             ONLY: nElems,MeshFile
+USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 USE MOD_RecordPoints,          ONLY: RecordPoints
@@ -349,10 +349,10 @@ USE MOD_TimeDisc_Vars,         ONLY: dt
 USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt
 #endif
 #ifdef PARTICLES
-USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum,nSpecies, Time
+USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum, Time
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
-USE MOD_DSMC_Vars,             ONLY: SampDSMC,nOutput,DSMC,useDSMC, iter_macvalout,SurfMesh,SampWall
+USE MOD_DSMC_Vars,             ONLY: nOutput,DSMC,useDSMC, iter_macvalout,SurfMesh
 USE MOD_DSMC_Vars,             ONLY: realtime, HODSMC, DSMC_HOSolution
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
@@ -384,7 +384,6 @@ LOGICAL,INTENT(IN),OPTIONAL   :: LastIter
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef PARTICLES
-INTEGER                       :: iSampWallAlloc
 #ifdef MPI
 INTEGER                       :: RECI
 REAL                          :: RECR

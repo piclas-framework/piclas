@@ -41,7 +41,7 @@ USE MOD_Mesh_Vars,                   ONLY:nBCSides,NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne
-USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem,GEO
 USE MOD_TimeDisc_Vars,               ONLY:iter
@@ -262,7 +262,7 @@ USE MOD_Mesh_Vars,                   ONLY:nBCSides,NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne
-USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems,PartBCSideList,nTotalBCSides
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem
 USE MOD_TimeDisc_Vars,               ONLY:iter
@@ -518,8 +518,8 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
           END IF
         ELSE ! only external faces
           !nlocSides=BCElem(ElemID)%lastSide-BCElem(ElemID)%nInnerSides
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
-          IF(PartIsDone) CYCLE
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+          IF(ParticleFound(iPart)) CYCLE
           IF(GEO%nPeriodicVectors.GT.0)THEN
             CALL PeriodicMovement(iPart)
           END IF
@@ -529,8 +529,8 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
             .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
           LastPos=PartState(iPart,1:3)
           ! unfortunately, here all sides
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
-          IF(PartIsDone) EXIT
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+          IF(ParticleFound(iPart)) EXIT
           IF(GEO%nPeriodicVectors.GT.0)THEN
             ! call here function for mapping of partpos and lastpartpos
             CALL PeriodicMovement(iPart)
@@ -661,6 +661,7 @@ DO iPart=1,PDM%ParticleVecLength
   
     !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.05) THEN
     IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell) THEN
+      PartIsDone=.FALSE.
       TestElem=PEM%Element(iPart)
       IF(.NOT.IsBCElem(TestElem))THEN
         ! ausgabe
@@ -684,23 +685,23 @@ DO iPart=1,PDM%ParticleVecLength
             __STAMP__, &
             'Particle Not inSide of Element, iPart',iPart)
       ELSE ! BCElem
-        CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,ParticleFound(iPart))
+        CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,PartIsDone)
         LastPos=PartState(iPart,1:3)
-        CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+        CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
         ! check inner sides
         DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
             .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
             .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
           LastPos=PartState(iPart,1:3)
           ! unfortunately, here all sides
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
-          IF(ParticleFound(iPart)) EXIT
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
+          IF(PartIsDone) EXIT
           IF(GEO%nPeriodicVectors.GT.0)THEN
             ! call here function for mapping of partpos and lastpartpos
             CALL PeriodicMovement(iPart)
           END IF
         END DO ! While
-        IF(ParticleFound(iPart)) CYCLE
+        IF(PartIsDone) CYCLE
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
         ! false, reallocate particle
         IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell)THEN
@@ -1391,7 +1392,7 @@ USE MOD_Mesh_Vars,                   ONLY:nBCSides,NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne
-USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems,PartBCSideList,nTotalBCSides
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem,ElemBaryNGeo
 USE MOD_TimeDisc_Vars,               ONLY:iter

@@ -150,7 +150,7 @@ USE MOD_Equation_vars,  ONLY:c,c_inv
 USE MOD_Mesh_Vars    ,  ONLY:nBCSides,nBCs,BoundaryType
 USE MOD_Equation_Vars,  ONLY:nBCByType,BCSideID
 USE MOD_Equation_Vars,  ONLY:BCData,nBCByType,BCSideID
-USE MOD_Equation_Vars,  ONLY:IniExactFunc! richtig with particles???
+!USE MOD_Equation_Vars,  ONLY:IniExactFunc! richtig with particles???
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -167,7 +167,7 @@ REAL,INTENT(IN)                      :: BCFace_xGP(        3,0:PP_N,0:PP_N,1:nBC
 REAL,INTENT(OUT)                     :: Flux(        PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: iBC,iSide,iVar,p,q,SideID
+INTEGER                              :: iBC,iSide,p,q,SideID
 INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: n_loc(3),resul(PP_nVar),epsBC
 REAL                                 :: U_Face_loc(PP_nVar,0:PP_N,0:PP_N)

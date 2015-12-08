@@ -163,14 +163,13 @@ SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv,doSource)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
-USE MOD_DG_Vars,          ONLY:U,Ut,nTotalU,U_Plus,U_Minus,Flux
+USE MOD_DG_Vars,          ONLY:U,Ut,U_Plus,U_Minus,Flux !,nTotalU
 USE MOD_SurfInt,          ONLY:SurfInt
 USE MOD_VolInt,           ONLY:VolInt
 USE MOD_ProlongToFace,    ONLY:ProlongToFace
 USE MOD_FillFlux,         ONLY:FillFlux
-USE MOD_Mesh_Vars,        ONLY:sJ,Elem_xGP,nSides,nInnerSides
+USE MOD_Mesh_Vars,        ONLY:nSides
 USE MOD_Equation,         ONLY:CalcSource
-USE MOD_Equation_Vars,    ONLY:IniExactFunc
 USE MOD_Interpolation,    ONLY:ApplyJacobian
 #ifdef MPI
 USE MOD_MPI_Vars
@@ -304,7 +303,7 @@ USE MOD_Preproc
 USE MOD_Vector
 USE MOD_Equation,      ONLY: VolInt_Pois,FillFlux_Pois,ProlongToFace_Pois, SurfInt_Pois
 USE MOD_GetBoundaryFlux, ONLY: FillFlux_BC_Pois
-USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides,nInnerSides
+USE MOD_Mesh_Vars,     ONLY: sJ,Elem_xGP,nSides
 USE MOD_Equation,      ONLY: CalcSource_Pois
 USE MOD_Equation_Vars, ONLY: IniExactFunc,Phi,Phit,Phi_Minus,Phi_Plus,FluxPhi,nTotalPhi
 USE MOD_Interpolation, ONLY: ApplyJacobian

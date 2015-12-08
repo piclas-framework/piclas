@@ -129,6 +129,9 @@ IF (.NOT.DoRestart) THEN
         PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
         CALL UpdateNextFreePosition()
       ELSE IF (Species(i)%Init(iInit)%UseForInit) THEN ! no special emissiontype to be used
+        IF(Species(i)%Init(iInit)%initialParticleNumber.GT.HUGE(1)) CALL abort(&
+          __STAMP__,&
+          ' Integer to large!')
         NbrOfParticle = Species(i)%Init(iInit)%initialParticleNumber
 #ifdef MPI
         CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
