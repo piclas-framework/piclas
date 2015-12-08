@@ -240,7 +240,7 @@ END SUBROUTINE FinalizeParticleSurfaces
 !USE MOD_Preproc
 !USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide
 !USE MOD_Particle_Vars,            ONLY:GEO
-!USE MOD_Particle_Surfaces_Vars,   ONLY:BezierEpsilonBilinear, SideIsPlanar,BiLinearCoeff, SideNormVec, SideDistance
+!USE MOD_Particle_Surfaces_Vars,   ONLY:BezierEpsilonBilinear, BiLinearCoeff, SideNormVec, SideDistance
 !! IMPLICIT VARIABLE HANDLING
 !IMPLICIT NONE
 !! INPUT VARIABLES
@@ -299,8 +299,6 @@ END SUBROUTINE FinalizeParticleSurfaces
 !                   + BiLinearCoeff(2,1,SideID)*BiLinearCoeff(2,1,SideID) &
 !                   + BiLinearCoeff(3,1,SideID)*BiLinearCoeff(3,1,SideID) 
 !      IF(Displacement.LT.BezierEpsilonBilinear)THEN
-!        SideIsPlanar(SideID)=.TRUE.
-!print*,"SideIsPlanar(",SideID,")=",SideIsPlanar(SideID)
 !        nPlanar=nPlanar+1
 !      ELSE
 !        nBilinear=nBilinear+1
@@ -1002,7 +1000,6 @@ INTEGER,INTENT(IN) :: SideID,NGeo
 INTEGER            :: p,q
 !REAL                              :: tmp(3,0:NGeo,0:NGeo)  
 REAL               :: skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
-!LOGICAL            :: SideIsPlanar
 LOGICAL            :: SideIsCritical
 !===================================================================================================================================
 
@@ -1019,7 +1016,6 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 0.) check if side is planar
 !-----------------------------------------------------------------------------------------------------------------------------------
-!SideIsPlanar=.FALSE.
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) slab normal vectors
@@ -1207,8 +1203,6 @@ END IF
 dMax=MAX(dx,dy,dz)
 dMin=MIN(dx,dy,dz)
 IF(dx/dMax.LT.BezierEpsilonBilinear)THEN
-  !SideSlabIntervals(1:2, SideID)=0.
-  !dx=0.
   CALL Abort(__STAMP__,&
   'Bezier side length is degenerated. dx/dMax.LT.BezierEpsilonBilinear ->',0,dx/dMax)
 END IF
@@ -1216,10 +1210,7 @@ IF(dy/dMax.LT.BezierEpsilonBilinear)THEN
   SideSlabIntervals(3:4, SideID)=0.
   dy=0.
 END IF
-
 IF(dz/dMax.LT.BezierEpsilonBilinear)THEN
-  !SideSlabIntervals(5:6, SideID)=0.
-  !dz=0.
   CALL Abort(__STAMP__,&
   'Bezier side length is degenerated. dz/dMax.LT.BezierEpsilonBilinear ->',0,dz/dMax)
 END IF
@@ -1232,14 +1223,11 @@ IF(dx*dy*dz.LT.0) THEN
 END IF
 
 IF(ALMOSTZERO(dx*dy*dz))THEN ! bounding box volume is approx zeros
-  !SideIsPlanar=.TRUE.
   BoundingBoxIsEmpty(SideID)=.TRUE.
 ELSE
-  !SideIsPlanar=.FALSE.
   BoundingBoxIsEmpty(SideID)=.FALSE.
 END IF
 
-! print*,"SideIsPlanar(",SideID,")",SideIsPlanar
 ! print*,"BezierControlPoints3DElevated(:,0,0,SideID)",BezierControlPoints3DElevated(:,0,0,SideID)
 ! print*,"SideSlabNormals(:,1,SideID)",SideSlabNormals(:,1,SideID),"beta1 ",&
 ! SideSlabIntervals(1, SideID),SideSlabIntervals(2,SideID),&
@@ -1399,7 +1387,6 @@ INTEGER,INTENT(IN) :: SideID,NGeo
 INTEGER            :: p,q
 !REAL                              :: tmp(3,0:NGeo,0:NGeo)  
 !REAL               :: skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
-!LOGICAL            :: SideIsPlanar
 !LOGICAL            :: SideIsCritical
 REAL               :: temp(1:3,0:NGeo+BezierElevation,0:NGeo)
 !===================================================================================================================================
