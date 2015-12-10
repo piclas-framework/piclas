@@ -1429,11 +1429,12 @@ REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes
 
 tmpPos=PartState(PartID,1:3)
 tmpLastPartPos(1:3)=LastPartPos(PartID,1:3)
+PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+tmpVec=PartTrajectory
 
 LastPartPos(PartID,1:3)=PartState(PartID,1:3)
 PartState(PartID,1:3)=ElemBaryNGeo(:,ElemID)
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-tmpVec=PartTrajectory
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
@@ -1512,6 +1513,11 @@ ELSE
       LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+locAlpha(ilocSide)*PartTrajectory
       !PartState(PartID,1:3)  =PartState(PartID,1:3)+locAlpha(ilocSide)*PartTrajectory
       PartState(PartID,1:3)  =LastPartPos(PartID,1:3)+tmpVec
+      PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+      lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                               +PartTrajectory(2)*PartTrajectory(2) &
+                               +PartTrajectory(3)*PartTrajectory(3) )
+      PartTrajectory=PartTrajectory/lengthPartTrajectory
       locAlpha(ilocSide)=0.
       CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                         ,xi(hitlocSide)     &
