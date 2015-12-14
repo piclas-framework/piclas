@@ -211,8 +211,6 @@ Xi   = 2.0
 Eta  = 2.0
 isHit=.FALSE.
 
-
-
 !!!! DEBUGGG fix side ID
 !print*,'sideid',sideid
 ! If side is flat, than check if particle vector is perpenticular to side. if true, then particle moves parallel to or in side
@@ -1136,17 +1134,20 @@ LOGICAL                              :: InsideBoundingBox
 REAL                                 :: x,y,z,P(3)
 !================================================================================================================================
 P=ParticlePosition-BezierControlPoints3D(1:3,0,0,SideID)
-x=DOT_PRODUCT(P,SideSlabNormals(:,1,SideID))
+! y is perpendicular to xi & eta directions --> check first, smallest intervall
 y=DOT_PRODUCT(P,SideSlabNormals(:,2,SideID))
-z=DOT_PRODUCT(P,SideSlabNormals(:,3,SideID))
-IF((x.LT.SideSlabIntervals(1,SideID)-epsilontol).OR.(x.GT.SideSlabIntervals(2,SideID)+epsilontol))THEN
-  InsideBoundingBox=.FALSE.
-  RETURN
-END IF
 IF((y.LT.SideSlabIntervals(3,SideID)-epsilontol).OR.(y.GT.SideSlabIntervals(4,SideID)+epsilontol))THEN
   InsideBoundingBox=.FALSE.
   RETURN
 END IF
+! than xi
+x=DOT_PRODUCT(P,SideSlabNormals(:,1,SideID))
+IF((x.LT.SideSlabIntervals(1,SideID)-epsilontol).OR.(x.GT.SideSlabIntervals(2,SideID)+epsilontol))THEN
+  InsideBoundingBox=.FALSE.
+  RETURN
+END IF
+! than eta
+z=DOT_PRODUCT(P,SideSlabNormals(:,3,SideID))
 IF((z.LT.SideSlabIntervals(5,SideID)-epsilontol).OR.(z.GT.SideSlabIntervals(6,SideID)+epsilontol))THEN
   InsideBoundingBox=.FALSE.
   RETURN
