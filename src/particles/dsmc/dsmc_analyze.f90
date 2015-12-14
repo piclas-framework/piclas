@@ -9,16 +9,8 @@ MODULE MOD_DSMC_Analyze
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE DSMC_data_sampling
-  MODULE PROCEDURE DSMC_data_sampling
-END INTERFACE
-
 INTERFACE WriteDSMCToHDF5
   MODULE PROCEDURE WriteDSMCToHDF5
-END INTERFACE
-
-INTERFACE DSMC_output_calc
-  MODULE PROCEDURE DSMC_output_calc
 END INTERFACE
 
 INTERFACE CalcTVib
@@ -46,253 +38,12 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_data_sampling,  DSMCHO_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
-PUBLIC :: DSMC_output_calc, CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, InitHODSMC, WriteDSMCHOToHDF5
+PUBLIC :: DSMCHO_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
+PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, InitHODSMC, WriteDSMCHOToHDF5
 
 !===================================================================================================================================
 
 CONTAINS
-
-SUBROUTINE DSMC_data_sampling()
-!===================================================================================================================================
-! Sampling of variables velocity and energy for DSMC
-!===================================================================================================================================
-! MODULES
-  USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, PartStateIntEn, CollisMode, SpecDSMC, useDSMC
-  USE MOD_Particle_Vars,          ONLY : PEM, PDM, PartSpecies, PartState, PartMPF, usevMPF
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER                       :: iPart, iElem
-!===================================================================================================================================
-  DSMC%SampNum = DSMC%SampNum + 1
-  DO iPart = 1, PDM%ParticleVecLength
-    IF (PDM%ParticleInside(ipart)) THEN
-      iElem = PEM%Element(iPart)
-      IF (usevMPF) THEN
-        SampDSMC(iElem,PartSpecies(iPart))%PartV(1:3)  = SampDSMC(iElem,PartSpecies(iPart))%PartV(1:3) &
-                                                       + PartState(iPart,4:6) * PartMPF(iPart)
-        SampDSMC(iElem,PartSpecies(iPart))%PartV2(1:3) = SampDSMC(iElem,PartSpecies(iPart))%PartV2(1:3) &
-                                                       + PartState(iPart,4:6)**2 * PartMPF(iPart)
-        SampDSMC(iElem,PartSpecies(iPart))%PartNum     = SampDSMC(iElem,PartSpecies(iPart))%PartNum + PartMPF(iPart)
-        SampDSMC(iElem,PartSpecies(iPart))%SimPartNum  = SampDSMC(iElem,PartSpecies(iPart))%SimPartNum + 1
-        ! real number of particles in SampDSMC(iElem,PartSpecies(iPart))%PartNum for vMPF
-        IF (useDSMC) THEN
-          IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.2)) THEN
-            SampDSMC(iElem,PartSpecies(iPart))%EVib      = SampDSMC(iElem,PartSpecies(iPart))%EVib &
-                                                         + PartStateIntEn(iPart,1) * PartMPF(iPart)
-            SampDSMC(iElem,PartSpecies(iPart))%ERot      = SampDSMC(iElem,PartSpecies(iPart))%ERot &
-                                                         + PartStateIntEn(iPart,2) * PartMPF(iPart)
-          END IF
-          IF (DSMC%ElectronicState) THEN
-            SampDSMC(iElem,PartSpecies(iPart))%EElec     = SampDSMC(iElem,PartSpecies(iPart))%EElec &
-              + PartStateIntEn(iPart,3) * PartMPF(iPart)
-          END IF
-        END IF
-      ELSE ! normal sampling without weighting
-        SampDSMC(iElem,PartSpecies(iPart))%PartV(1:3)  = SampDSMC(iElem,PartSpecies(iPart))%PartV(1:3) &
-                                                       + PartState(iPart,4:6)
-        SampDSMC(iElem,PartSpecies(iPart))%PartV2(1:3) = SampDSMC(iElem,PartSpecies(iPart))%PartV2(1:3) &
-                                                       + PartState(iPart,4:6)**2
-        SampDSMC(iElem,PartSpecies(iPart))%PartNum     = SampDSMC(iElem,PartSpecies(iPart))%PartNum + 1
-        IF (useDSMC) THEN
-          IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-            IF (SpecDSMC(PartSpecies(iPart))%InterID.EQ.2) THEN
-              SampDSMC(iElem,PartSpecies(iPart))%EVib      = SampDSMC(iElem,PartSpecies(iPart))%EVib &
-                                                           + PartStateIntEn(iPart,1)
-              SampDSMC(iElem,PartSpecies(iPart))%ERot      = SampDSMC(iElem,PartSpecies(iPart))%ERot &
-                                                           + PartStateIntEn(iPart,2)
-            END IF
-          END IF
-          IF (DSMC%ElectronicState) THEN
-            SampDSMC(iElem,PartSpecies(iPart))%EElec     = SampDSMC(iElem,PartSpecies(iPart))%EElec &
-                                                         + PartStateIntEn(iPart,3)
-          END IF
-        END IF
-      END IF
-    END IF
-  END DO
-END SUBROUTINE DSMC_data_sampling
-
-
-SUBROUTINE DSMC_output_calc
-!===================================================================================================================================
-! Compute the macroscopic values from samples
-!===================================================================================================================================
-  USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, MacroDSMC, CollisMode, SpecDSMC, realtime, useDSMC
-  USE MOD_Mesh_Vars,              ONLY : nElems,MeshFile
-  USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species, usevMPF
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-  USE MOD_Particle_Vars,          ONLY : Time
-  USE MOD_TimeDisc_Vars,          ONLY : TEnd, iter, dt
-  USE MOD_Restart_Vars,           ONLY : RestartTime
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES     
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                        :: iElem, iSpec
-REAL                           :: TVib_TempFac, MolecPartNum, HeavyPartNum     
-!===================================================================================================================================
-
-  ALLOCATE(MacroDSMC(nElems,nSpecies + 1))
-  MacroDSMC(1:nElems,1:nSpecies+1)%PartV(1)  = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%PartV(2)  = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%PartV(3)  = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%PartV(4)  = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%PartV2(1) = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%PartV2(2) = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%PartV2(3) = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%Temp(1)   = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%Temp(2)   = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%Temp(3)   = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%Temp(4)   = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%PartNum   = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%NumDens   = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%TVib      = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%TRot      = 0
-  MacroDSMC(1:nElems,1:nSpecies+1)%TElec     = 0
-  IF (useDSMC) DSMC%CollProbOut(1:nElems,2) = 0.0       ! resetting the time-averaged mean collision probability
-
-  DO iSpec = 1, nSpecies
-    DO iElem = 1, nElems ! element/cell main loop    
-      IF(SampDSMC(iElem,iSpec)%PartNum.gt. 0) THEN
-! compute flow velocity
-        MacroDSMC(iElem,iSpec)%PartV(1) = SampDSMC(iElem,iSpec)%PartV(1) / SampDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,iSpec)%PartV(2) = SampDSMC(iElem,iSpec)%PartV(2) / SampDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,iSpec)%PartV(3) = SampDSMC(iElem,iSpec)%PartV(3) / SampDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,iSpec)%PartV(4) = SQRT( MacroDSMC(iElem,iSpec)%PartV(1)**2 &
-                                              + MacroDSMC(iElem,iSpec)%PartV(2)**2 &
-                                              + MacroDSMC(iElem,iSpec)%PartV(3)**2 )
-! compute flow Temperature
-        MacroDSMC(iElem,iSpec)%PartV2(1) = SampDSMC(iElem,iSpec)%PartV2(1) / SampDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,iSpec)%PartV2(2) = SampDSMC(iElem,iSpec)%PartV2(2) / SampDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,iSpec)%PartV2(3) = SampDSMC(iElem,iSpec)%PartV2(3) / SampDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,iSpec)%Temp(1:3) = Species(iSpec)%MassIC / BoltzmannConst &
-                                             * (MacroDSMC(iElem,iSpec)%PartV2(1:3) - MacroDSMC(iElem,iSpec)%PartV(1:3)**2)
-        MacroDSMC(iElem,iSpec)%Temp(4) = (MacroDSMC(iElem,iSpec)%Temp(1) &
-                                        + MacroDSMC(iElem,iSpec)%Temp(2) &
-                                        + MacroDSMC(iElem,iSpec)%Temp(3)) / 3
-! compute density
-        MacroDSMC(iElem,iSpec)%PartNum = SampDSMC(iElem,iSpec)%PartNum / REAL(DSMC%SampNum)
-        ! if usevMPF MacroDSMC(iElem,iSpec)%PartNum == real number of particles
-        IF (usevMPF) THEN
-          MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum / GEO%Volume(iElem)
-        ELSE 
-          MacroDSMC(iElem,iSpec)%NumDens = MacroDSMC(iElem,iSpec)%PartNum * Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
-        END IF
-! compute internal energies / has to be changed for vfd 
-        IF (useDSMC) THEN
-          IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-            IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
-              IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-                TVib_TempFac=SampDSMC(iElem,iSpec)%EVib / (SampDSMC(iElem,iSpec)%PartNum*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-                IF (TVib_TempFac.LE.DSMC%GammaQuant) THEN
-                  MacroDSMC(iElem,iSpec)%TVib = 0.0
-                ELSE
-                  MacroDSMC(iElem,iSpec)%TVib = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac-DSMC%GammaQuant))
-                END IF
-              ELSE                                            ! TSHO-model
-                MacroDSMC(iElem,iSpec)%TVib = CalcTVib(SpecDSMC(iSpec)%CharaTVib &
-                  , SampDSMC(iElem,iSpec)%EVib/SampDSMC(iElem,iSpec)%PartNum, SpecDSMC(iSpec)%MaxVibQuant)
-              END IF
-              MacroDSMC(iElem,iSpec)%TRot = SampDSMC(iElem, iSpec)%ERot/(BoltzmannConst*SampDSMC(iElem,iSpec)%PartNum)
-              IF (DSMC%ElectronicState) THEN
-                MacroDSMC(iElem,iSpec)%TElec= CalcTelec( SampDSMC(iElem,iSpec)%EElec/SampDSMC(iElem,iSpec)%PartNum, iSpec)
-              END IF
-            END IF
-          END IF
-        END IF
-      END IF
-    END DO
-  END DO
-! compute total values
-  DO iElem = 1, nElems ! element/cell main loop 
-    MolecPartNum = 0
-    HeavyPartNum = 0
-    DO iSpec = 1, nSpecies
-      IF(SampDSMC(iElem,iSpec)%PartNum.GT. 0) THEN
-        MacroDSMC(iElem,nSpecies + 1)%PartV(1) = MacroDSMC(iElem,nSpecies + 1)%PartV(1) &
-                                               + MacroDSMC(iElem,iSpec)%PartV(1) * MacroDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,nSpecies + 1)%PartV(2) = MacroDSMC(iElem,nSpecies + 1)%PartV(2) &
-                                               + MacroDSMC(iElem,iSpec)%PartV(2) * MacroDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,nSpecies + 1)%PartV(3) = MacroDSMC(iElem,nSpecies + 1)%PartV(3) &
-                                               + MacroDSMC(iElem,iSpec)%PartV(3) * MacroDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,nSpecies + 1)%Temp(1)  = MacroDSMC(iElem,nSpecies + 1)%Temp(1) &
-                                               + MacroDSMC(iElem,iSpec)%Temp(1) * MacroDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,nSpecies + 1)%Temp(2)  = MacroDSMC(iElem,nSpecies + 1)%Temp(2) &
-                                               + MacroDSMC(iElem,iSpec)%Temp(2) * MacroDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,nSpecies + 1)%Temp(3)  = MacroDSMC(iElem,nSpecies + 1)%Temp(3) &
-                                               + MacroDSMC(iElem,iSpec)%Temp(3) * MacroDSMC(iElem,iSpec)%PartNum
-        MacroDSMC(iElem,nSpecies + 1)%PartNum  = MacroDSMC(iElem,nSpecies + 1)%PartNum + MacroDSMC(iElem,iSpec)%PartNum
-        IF (useDSMC) THEN
-          IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-            IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
-              MacroDSMC(iElem,nSpecies + 1)%TVib = MacroDSMC(iElem,nSpecies + 1)%TVib &
-                                                 + MacroDSMC(iElem,iSpec)%TVib * MacroDSMC(iElem,iSpec)%PartNum
-              MacroDSMC(iElem,nSpecies + 1)%TRot = MacroDSMC(iElem,nSpecies + 1)%TRot &
-                                                 + MacroDSMC(iElem,iSpec)%TRot * MacroDSMC(iElem,iSpec)%PartNum
-              MolecPartNum                       = MolecPartNum + MacroDSMC(iElem,iSpec)%PartNum
-            END IF
-            IF ( DSMC%ElectronicState .AND. (SpecDSMC(iSpec)%InterID.NE.4) ) THEN
-              MacroDSMC(iElem,nSpecies + 1)%TElec = MacroDSMC(iElem, nSpecies+1)%TElec &
-                                                  + MacroDSMC(iElem,iSpec)%TElec * MacroDSMC(iElem,iSpec)%PartNum
-              HeavyPartNum                        = HeavyPartNum + MacroDSMC(iElem,iSpec)%PartNum
-            END IF
-          END IF
-        END IF
-      END IF
-    END DO
-    IF(MacroDSMC(iElem,nSpecies + 1)%PartNum.GT. 0) THEN
-      MacroDSMC(iElem,nSpecies + 1)%PartV(1) = MacroDSMC(iElem,nSpecies + 1)%PartV(1) / MacroDSMC(iElem,nSpecies + 1)%PartNum
-      MacroDSMC(iElem,nSpecies + 1)%PartV(2) = MacroDSMC(iElem,nSpecies + 1)%PartV(2) / MacroDSMC(iElem,nSpecies + 1)%PartNum
-      MacroDSMC(iElem,nSpecies + 1)%PartV(3) = MacroDSMC(iElem,nSpecies + 1)%PartV(3) / MacroDSMC(iElem,nSpecies + 1)%PartNum
-      MacroDSMC(iElem,nSpecies + 1)%Temp(1)  = MacroDSMC(iElem,nSpecies + 1)%Temp(1)  / MacroDSMC(iElem,nSpecies + 1)%PartNum
-      MacroDSMC(iElem,nSpecies + 1)%Temp(2)  = MacroDSMC(iElem,nSpecies + 1)%Temp(2)  / MacroDSMC(iElem,nSpecies + 1)%PartNum
-      MacroDSMC(iElem,nSpecies + 1)%Temp(3)  = MacroDSMC(iElem,nSpecies + 1)%Temp(3)  / MacroDSMC(iElem,nSpecies + 1)%PartNum
-      IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
-            (MolecPartNum.GT. 0)) THEN
-                MacroDSMC(iElem,nSpecies + 1)%TVib = MacroDSMC(iElem,nSpecies + 1)%TVib / MolecPartNum
-                MacroDSMC(iElem,nSpecies + 1)%TRot = MacroDSMC(iElem,nSpecies + 1)%TRot / MolecPartNum
-      END IF
-      IF ( DSMC%ElectronicState) THEN
-        MacroDSMC(iElem,nSpecies + 1)%TElec = MacroDSMC(iElem, nSpecies+1)%TElec / HeavyPartNum
-      END IF
-    END IF
-    MacroDSMC(iElem,nSpecies + 1)%PartV(4) = SQRT(MacroDSMC(iElem,nSpecies + 1)%PartV(1)**2 &
-                                            + MacroDSMC(iElem,nSpecies + 1)%PartV(2)**2 &
-                                            + MacroDSMC(iElem,nSpecies + 1)%PartV(3)**2)
-    MacroDSMC(iElem,nSpecies + 1)%Temp(4)  = (MacroDSMC(iElem,nSpecies + 1)%Temp(1) &
-                                            + MacroDSMC(iElem,nSpecies + 1)%Temp(2) &
-                                            + MacroDSMC(iElem,nSpecies + 1)%Temp(3)) /3
-    MacroDSMC(iElem,nSpecies + 1)%NumDens = MacroDSMC(iElem,nSpecies + 1)%PartNum * Species(1)%MacroParticleFactor & 
-                                   / GEO%Volume(iElem) ! the calculation is limitied for MPF = const.
-    IF (usevMPF) THEN
-      MacroDSMC(iElem,nSpecies + 1)%PartNum = 0
-      DO iSpec = 1, nSpecies
-        MacroDSMC(iElem,iSpec)%PartNum = SampDSMC(iElem,iSpec)%SimPartNum / REAL(DSMC%SampNum)
-        MacroDSMC(iElem,nSpecies + 1)%PartNum = MacroDSMC(iElem,nSpecies + 1)%PartNum + MacroDSMC(iElem,iSpec)%PartNum
-      END DO
-    END IF
-    IF (useDSMC) THEN
-      IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
-        DSMC%CollProbOut(iElem,2) = DSMC%CollProbSamp(iElem) / iter
-      ELSE
-        DSMC%CollProbOut(iElem,2) = DSMC%CollProbSamp(iElem)*dt / (Time-(1-DSMC%TimeFracSamp)*TEnd)
-      END IF
-    END IF
-  END DO
-  CALL WriteDSMCToHDF5(TRIM(MeshFile),realtime)
-  DEALLOCATE(MacroDSMC)
-END SUBROUTINE DSMC_output_calc
 
 
 SUBROUTINE WriteDSMCSurfToHDF5(MeshFileName,OutputTime)
@@ -1178,7 +929,7 @@ SUBROUTINE DSMCHO_data_sampling()
 !===================================================================================================================================
 ! MODULES
   USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, DSMCSampVolWe, DSMC, CollisMode, SpecDSMC, HODSMC, DSMC_HOSolution
-  USE MOD_DSMC_Vars,              ONLY:DSMCSampNearInt, DSMCSampCellVolW
+  USE MOD_DSMC_Vars,              ONLY:DSMCSampNearInt, DSMCSampCellVolW, useDSMC
   USE MOD_Particle_Vars,          ONLY:PartState, PDM, PartSpecies, Species, nSpecies, PEM,PartPosRef
   USE MOD_Mesh_Vars,              ONLY:nElems
   USE MOD_Particle_Mesh_Vars,     ONLY:Geo
@@ -1223,16 +974,20 @@ SELECT CASE(TRIM(HODSMC%SampleType))
       TSource(1:3) = PartState(i,4:6)
       TSource(4:6) = PartState(i,4:6)**2
       TSource(7) = 1.0  !density
-      IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
-          (SpecDSMC(PartSpecies(i))%InterID.EQ.2)) THEN
-        TSource(8:9)      =  PartStateIntEn(i,1:2)
+      IF(useDSMC)THEN
+        IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
+            (SpecDSMC(PartSpecies(i))%InterID.EQ.2)) THEN
+          TSource(8:9)      =  PartStateIntEn(i,1:2)
+        ELSE
+          TSource(8:9) = 0.0
+        END IF
+        IF (DSMC%ElectronicState) THEN
+          TSource(10)     =  PartStateIntEn(i,3)
+        ELSE
+          TSource(10) = 0.0
+        END IF
       ELSE
-        TSource(8:9) = 0.0
-      END IF
-      IF (DSMC%ElectronicState) THEN
-        TSource(10)     =  PartStateIntEn(i,3)
-      ELSE
-        TSource(10) = 0.0
+        TSource(8:10)=0.
       END IF
       TSource(11) = 1.0 
 
@@ -1365,12 +1120,16 @@ CASE('nearest_gausspoint')
       Source(1:3,k,l,m,iElem, iSpec) = Source(1:3,k,l,m,iElem, iSpec) + PartState(i,4:6)
       Source(4:6,k,l,m,iElem, iSpec) = Source(4:6,k,l,m,iElem, iSpec) + PartState(i,4:6)**2
       Source(7,k,l,m,iElem, iSpec) = Source(7,k,l,m,iElem, iSpec) + 1.0  !density
-      IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
-          (SpecDSMC(PartSpecies(i))%InterID.EQ.2)) THEN
-        Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(i,1:2)
-      END IF
-      IF (DSMC%ElectronicState) THEN
-        Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
+      IF(useDSMC)THEN
+        IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
+            (SpecDSMC(PartSpecies(i))%InterID.EQ.2)) THEN
+          Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(i,1:2)
+        END IF
+        IF (DSMC%ElectronicState) THEN
+          Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
+        END IF
+      ELSE
+        Source(8:10,k,l,m,iElem,iSpec)=0.
       END IF
       Source(11,k,l,m,iElem, iSpec) = Source(11,k,l,m,iElem, iSpec) + 1.0 
     END IF
@@ -1391,12 +1150,16 @@ CASE('cell_mean')
         Source(1:3,kk,ll,mm,iElem, iSpec) = Source(1:3,kk,ll,mm,iElem, iSpec) + PartState(i,4:6)
         Source(4:6,kk,ll,mm,iElem, iSpec) = Source(4:6,kk,ll,mm,iElem, iSpec) + PartState(i,4:6)**2
         Source(7,kk,ll,mm,iElem, iSpec) = Source(7,kk,ll,mm,iElem, iSpec) + 1.0  !density
-        IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
-            (SpecDSMC(PartSpecies(i))%InterID.EQ.2)) THEN
-          Source(8:9,kk,ll,mm,iElem, iSpec) = Source(8:9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,1:2)
-        END IF
-        IF (DSMC%ElectronicState) THEN
-          Source(10,kk,ll,mm,iElem, iSpec) = Source(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
+        IF(useDSMC)THEN
+          IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
+              (SpecDSMC(PartSpecies(i))%InterID.EQ.2)) THEN
+            Source(8:9,kk,ll,mm,iElem, iSpec) = Source(8:9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,1:2)
+          END IF
+          IF (DSMC%ElectronicState) THEN
+            Source(10,kk,ll,mm,iElem, iSpec) = Source(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
+          END IF
+        ELSE
+          Source(8:10,kk,ll,mm,iElem,iSpec)=0.
         END IF
         Source(11,kk,ll,mm,iElem, iSpec) = Source(11,kk,ll,mm,iElem, iSpec) + 1.0 
       END DO; END DO; END DO
@@ -1422,16 +1185,20 @@ CASE('cell_volweight')
     TSource(1:3) = PartState(iPart,4:6)
     TSource(4:6) = PartState(iPart,4:6)**2
     TSource(7) = 1.0  !density
-    IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
-        (SpecDSMC(PartSpecies(iPart))%InterID.EQ.2)) THEN
-      TSource(8:9)      =  PartStateIntEn(iPart,1:2)
+    IF(useDSMC)THEN
+      IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
+          (SpecDSMC(PartSpecies(iPart))%InterID.EQ.2)) THEN
+        TSource(8:9)      =  PartStateIntEn(iPart,1:2)
+      ELSE
+        TSource(8:9) = 0.0
+      END IF
+      IF (DSMC%ElectronicState) THEN
+        TSource(10)     =  PartStateIntEn(iPart,3)
+      ELSE
+        TSource(10) = 0.0
+      END IF
     ELSE
-      TSource(8:9) = 0.0
-    END IF
-    IF (DSMC%ElectronicState) THEN
-      TSource(10)     =  PartStateIntEn(iPart,3)
-    ELSE
-      TSource(10) = 0.0
+      TSource(8:10)=0.
     END IF
     TSource(11) = 1.0 
     alpha1=(PartPosRef(1,iPart)+1.0)/2.0
@@ -1523,7 +1290,7 @@ SUBROUTINE WriteDSMCHOToHDF5(MeshFileName,OutputTime, FutureTime)
 ! Is used for postprocessing and for restart
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,            ONLY:HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC
+USE MOD_DSMC_Vars,            ONLY:HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC,useDSMC
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Output_Vars,          ONLY:ProjectName
@@ -1611,23 +1378,27 @@ DO iSpec = 1, nSpecies
         !         Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
         !      END IF
         ! compute internal energies / has to be changed for vfd 
-        IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
-          (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
-          IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-            TVib_TempFac(kk,ll,mm)=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-            IF (TVib_TempFac(kk,ll,mm).LE.DSMC%GammaQuant) THEN
-              DSMC_MacroVal(8,kk,ll,mm, iElem) = 0.0           
-            ELSE
-              DSMC_MacroVal(8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac(kk,ll,mm)-DSMC%GammaQuant))
+        IF(useDSMC)THEN
+          IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
+            (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
+            IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
+              TVib_TempFac(kk,ll,mm)=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+              IF (TVib_TempFac(kk,ll,mm).LE.DSMC%GammaQuant) THEN
+                DSMC_MacroVal(8,kk,ll,mm, iElem) = 0.0           
+              ELSE
+                DSMC_MacroVal(8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac(kk,ll,mm)-DSMC%GammaQuant))
+              END IF
+            ELSE                                            ! TSHO-model
+              DSMC_MacroVal(8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
+                  , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec), SpecDSMC(iSpec)%MaxVibQuant) 
+            END IF       
+            DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec)/(BoltzmannConst)
+            IF (DSMC%ElectronicState) THEN
+              DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec), iSpec)
             END IF
-          ELSE                                            ! TSHO-model
-            DSMC_MacroVal(8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
-                , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec), SpecDSMC(iSpec)%MaxVibQuant) 
-          END IF       
-          DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec)/(BoltzmannConst)
-          IF (DSMC%ElectronicState) THEN
-            DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec), iSpec)
           END IF
+        ELSE
+          DSMC_MacroVal(8:10,kk,ll,mm,iElem)=0.
         END IF
         DSMC_MacroVal(11,kk,ll,mm, iElem) = DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) 
       CASE('nearest_gausspoint') 
@@ -1650,27 +1421,31 @@ DO iSpec = 1, nSpecies
           !         Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
           !      END IF
           ! compute internal energies / has to be changed for vfd 
-          IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
-            (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
-            IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-              TVib_TempFac(kk,ll,mm)=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) &
-                    *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-              IF (TVib_TempFac(kk,ll,mm).LE.DSMC%GammaQuant) THEN
-                DSMC_MacroVal(8,kk,ll,mm, iElem) = 0.0           
-              ELSE
-                DSMC_MacroVal(8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac(kk,ll,mm)-DSMC%GammaQuant))
+          IF(useDSMC)THEN
+            IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
+              (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
+              IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
+                TVib_TempFac(kk,ll,mm)=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) &
+                      *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+                IF (TVib_TempFac(kk,ll,mm).LE.DSMC%GammaQuant) THEN
+                  DSMC_MacroVal(8,kk,ll,mm, iElem) = 0.0           
+                ELSE
+                  DSMC_MacroVal(8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac(kk,ll,mm)-DSMC%GammaQuant))
+                END IF
+              ELSE                                            ! TSHO-model
+                DSMC_MacroVal(8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
+                    , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec) &
+                    /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec),SpecDSMC(iSpec)%MaxVibQuant)
+              END IF       
+              DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
+                 /(DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
+              IF (DSMC%ElectronicState) THEN
+                DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
+                    /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
               END IF
-            ELSE                                            ! TSHO-model
-              DSMC_MacroVal(8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
-                  , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec) &
-                  /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec),SpecDSMC(iSpec)%MaxVibQuant)
-            END IF       
-            DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
-               /(DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
-            IF (DSMC%ElectronicState) THEN
-              DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
-                  /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
             END IF
+          ELSE
+            DSMC_MacroVal(8:10,kk,ll,mm, iElem) = 0.0
           END IF
         ELSE
           DSMC_MacroVal(1:10,kk,ll,mm, iElem) = 0.0
@@ -1696,27 +1471,31 @@ DO iSpec = 1, nSpecies
           !         Species(iSpec)%MacroParticleFactor / GEO%Volume(iElem)
           !      END IF
           ! compute internal energies / has to be changed for vfd 
-          IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
-            (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
-            IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-              TVib_TempFac(kk,ll,mm)=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) &
-                    *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-              IF (TVib_TempFac(kk,ll,mm).LE.DSMC%GammaQuant) THEN
-                DSMC_MacroVal(8,kk,ll,mm, iElem) = 0.0           
-              ELSE
-                DSMC_MacroVal(8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac(kk,ll,mm)-DSMC%GammaQuant))
+          IF(useDSMC)THEN
+            IF (((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.&
+              (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
+              IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
+                TVib_TempFac(kk,ll,mm)=DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)/ (DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) &
+                      *BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+                IF (TVib_TempFac(kk,ll,mm).LE.DSMC%GammaQuant) THEN
+                  DSMC_MacroVal(8,kk,ll,mm, iElem) = 0.0           
+                ELSE
+                  DSMC_MacroVal(8,kk,ll,mm, iElem) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(TVib_TempFac(kk,ll,mm)-DSMC%GammaQuant))
+                END IF
+              ELSE                                            ! TSHO-model
+                DSMC_MacroVal(8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
+                    , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)&
+                    /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec),SpecDSMC(iSpec)%MaxVibQuant)
+              END IF       
+              DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
+                 /(DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
+              IF (DSMC%ElectronicState) THEN
+                DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
+                    /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
               END IF
-            ELSE                                            ! TSHO-model
-              DSMC_MacroVal(8,kk,ll,mm, iElem)  = CalcTVib(SpecDSMC(iSpec)%CharaTVib & 
-                  , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec)&
-                  /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec),SpecDSMC(iSpec)%MaxVibQuant)
-            END IF       
-            DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
-               /(DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
-            IF (DSMC%ElectronicState) THEN
-              DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
-                  /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
             END IF
+          ELSE
+            DSMC_MacroVal(8:10,kk,ll,mm, iElem) = 0.0
           END IF
         ELSE
           DSMC_MacroVal(1:10,kk,ll,mm, iElem) = 0.0
@@ -1726,7 +1505,7 @@ DO iSpec = 1, nSpecies
     END DO; END DO; END DO
   END DO
       
-  WRITE(H5_Name,'(A,I3.3)') 'DSMCHO_Spec',iSpec
+  WRITE(H5_Name,'(A,I4.3)') 'DSMCHO_Spec',iSpec
   CALL WriteArrayToHDF5(DataSetName=H5_Name, rank=5,&
                       nValGlobal=(/11,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,nGlobalElems/),&
                       nVal=      (/11,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,HODSMC%nOutputDSMC+1,PP_nElems/),&

@@ -36,10 +36,11 @@ USE MOD_Globals!,       ONLY: MPIRoot,UNIT_STDOUT
 USE MOD_ReadInTools
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone, WriteMacroValues, nSpecies
 USE MOD_part_emission,              ONLY: InitializeParticleEmission
+USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
 USE MOD_LD_Init,                    ONLY: InitLD
 USE MOD_LD_Vars,                    ONLY: useLD
-USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, SampDSMC
+USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, SampDSMC,DSMC_HOSolution,HODSMC
 USE MOD_Mesh_Vars,                  ONLY : nElems
 USE MOD_InitializeBackgroundField,  ONLY:InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField
@@ -74,23 +75,26 @@ CALL InitializeParticleEmission()
 IF (useDSMC) THEN
   CALL  InitDSMC()
   IF (useLD) CALL InitLD
-ELSE IF (WriteMacroValues) THEN
+END IF
+
+IF(useDSMC .OR. WriteMacroValues) THEN
+! definition of DSMC sampling values
   DSMC%SampNum = 0
+  HODSMC%SampleType = GETSTR('DSMC-HOSampling-Type','cell_mean')
+  IF (TRIM(HODSMC%SampleType).EQ.'cell_mean') THEN
+    HODSMC%nOutputDSMC = 1
+    SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
+  ELSE
+    HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
+  END IF     
+  ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))         
+  DSMC_HOSolution = 0.0
+  CALL InitHODSMC()
+
   DSMC%CalcSurfaceVal  = .FALSE.
   DSMC%ElectronicState = .FALSE.
   DSMC%OutputMeshInit  = .FALSE.
   DSMC%OutputMeshSamp  = .FALSE.
-  ALLOCATE(SampDSMC(nElems,nSpecies))
-  SampDSMC(1:nElems,1:nSpecies)%PartV(1)   = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartV(2)   = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartV(3)   = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartV2(1)  = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartV2(2)  = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartV2(3)  = 0
-  SampDSMC(1:nElems,1:nSpecies)%PartNum    = 0
-  SampDSMC(1:nElems,1:nSpecies)%SimPartNum = 0
-  SampDSMC(1:nElems,1:nSpecies)%ERot       = 0
-  SampDSMC(1:nElems,1:nSpecies)%EVib       = 0
 END IF
 
 ParticlesInitIsDone=.TRUE.

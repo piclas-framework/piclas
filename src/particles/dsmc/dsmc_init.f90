@@ -102,24 +102,6 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
     DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
   END IF
   DSMC%NumPolyatomMolecs = 0
-! definition of DSMC sampling values
-  DSMC%SampNum = 0
-  HODSMC%HODSMCOutput = .TRUE. !GETLOGICAL('Particles-DSMC-HighOrderOutput','.FALSE.')
-  HODSMC%SampleType = GETSTR('DSMC-HOSampling-Type','cell_mean')
-  IF (TRIM(HODSMC%SampleType).EQ.'cell_mean') THEN
-    HODSMC%nOutputDSMC = 1
-    SWRITE(*,*) 'DSMCHO output order is set to 1 for sampling type cell_mean!'
-  ELSE
-    HODSMC%nOutputDSMC = GETINT('Particles-DSMC-OutputOrder','1')
-  END IF     
-  ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))         
-  DSMC_HOSolution = 0.0
-  CALL InitHODSMC()
-   ! should remove SampDSMC
-  ALLOCATE(DSMC%CollProbSamp(nElems))
-  DSMC%CollProbSamp(1:nElems) = 0.0
-  ALLOCATE(DSMC%CollProbOut(nElems,2))
-  DSMC%CollProbOut(1:nElems,1:2) = 0.0
 
 ! definition of DSMC particle values
   ALLOCATE(DSMC_RHS(PDM%maxParticleNumber,3))

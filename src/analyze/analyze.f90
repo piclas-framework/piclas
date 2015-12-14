@@ -355,7 +355,7 @@ USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: nOutput,DSMC,useDSMC, iter_macvalout,SurfMesh
 USE MOD_DSMC_Vars,             ONLY: realtime, HODSMC, DSMC_HOSolution
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
-USE MOD_DSMC_Analyze,          ONLY: DSMC_output_calc, DSMC_data_sampling, CalcSurfaceValues
+USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues
 USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
 #if (PP_TimeDiscMethod!=42)
 USE MOD_LD_Vars,               ONLY: useLD
@@ -506,12 +506,10 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
     CALL WriteDSMCHOToHDF5(TRIM(MeshFile),realtime)
     IF (DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
 #endif
-    IF (HODSMC%HODSMCOutput) THEN
-      nOutput = nOutput + 1
-      iter_macvalout = 0
-      DSMC%SampNum = 0
-      DSMC_HOSolution = 0.0
-    END IF
+    nOutput = nOutput + 1
+    iter_macvalout = 0
+    DSMC%SampNum = 0
+    DSMC_HOSolution = 0.0
   END IF
 END IF
 

@@ -30,12 +30,12 @@ SUBROUTINE DSMC_main()
 ! MODULES
   USE MOD_Globals,               ONLY : LocalTime
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
-  USE MOD_Mesh_Vars,             ONLY : nElems
+  USE MOD_Mesh_Vars,             ONLY : nElems,MeshFile
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-  USE MOD_DSMC_Vars,             ONLY : ChemReac
+  USE MOD_DSMC_Vars,             ONLY : ChemReac,RealTime
   USE MOD_Particle_Vars,         ONLY : PEM, Time, PDM, usevMPF
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
-  USE MOD_DSMC_Analyze,          ONLY : DSMC_data_sampling,DSMC_output_calc,CalcSurfaceValues
+  USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5
   USE MOD_TimeDisc_Vars,         ONLY : TEnd
   USE MOD_DSMC_ChemReact,        ONLY : SetMeanVibQua
   USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical
@@ -154,14 +154,15 @@ SUBROUTINE DSMC_main()
   IF (.NOT.WriteMacroValues) THEN
 #endif
     IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
-      CALL DSMC_data_sampling()  ! Data sampling for output
+      CALL DSMCHO_data_sampling()
       IF(DSMC%NumOutput.NE.0) THEN
         nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1
         IF(Time.GE.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * nOutput)) THEN
           DSMC%NumOutput = DSMC%NumOutput - 1
           ! Skipping outputs immediately after the first few iterations
           IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN 
-            CALL DSMC_output_calc
+            ! 
+            CALL WriteDSMCHOToHDF5(TRIM(MeshFile),realtime)
             IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
           END IF
         END IF

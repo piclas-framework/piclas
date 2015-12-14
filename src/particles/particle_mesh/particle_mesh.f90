@@ -1780,7 +1780,7 @@ ELSE ! no Root
 END IF
 #endif /*MPI*/
 
-SWRITE(UNIT_StdOut,'(A,F12.6)') ' Total Volume of Mesh: ', Volume
+SWRITE(UNIT_StdOut,'(A,E18.8)') ' Total Volume of Mesh: ', Volume
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 

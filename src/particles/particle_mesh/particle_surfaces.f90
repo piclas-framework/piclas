@@ -1355,9 +1355,9 @@ dz=ABS(ABS(ElemSlabIntervals(6, ElemID))-ABS(ElemSlabIntervals(5, ElemID)))
 IF(dx*dy*dz.LT.0) CALL Abort(&
   __STAMP__,&
   'A bounding box (for elements) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
-IF(ALMOSTZERO(dx*dy*dz)) CALL Abort(&
-  __STAMP__,&
-  'The bounding box (for elements) is zero.',1,dx*dy*dz)
+!IF(ALMOSTZERO(dx*dy*dz)) CALL Abort(&
+!  __STAMP__,&
+!  'The bounding box (for elements) is zero.',1,dx*dy*dz)
 END SUBROUTINE GetElemSlabNormalsAndIntervals
 
 

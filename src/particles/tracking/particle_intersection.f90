@@ -2315,7 +2315,7 @@ LOGICAL,INTENT(OUT)               :: isHit
 REAL,DIMENSION(1:3)               :: P0,P1,P2
 REAL                              :: NormVec(1:3),locDistance,Inter1(1:3), alphaNorm
 REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
-REAL,DIMENSION(2:3)               :: a1,a2
+REAL,DIMENSION(2:4)               :: a1,a2
 REAL                              :: a,b,c
 REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3)
 !INTEGER                           :: flip
