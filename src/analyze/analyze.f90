@@ -367,6 +367,9 @@ USE MOD_LD_DSMC_TOOLS
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume
+#endif /*CODE_ANALYZE*/
 #ifdef MPI
 USE MOD_LoadBalance_Vars,      ONLY: tCurrent
 #endif /*MPI*/
@@ -393,6 +396,9 @@ REAL                          :: RECR
 ! load balance
 REAL                          :: tLBStart,tLBEnd
 #endif /*MPI*/
+#ifdef CODE_ANALYZE
+REAL                          :: TotalSideBoundingBoxVolume,rDummy
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 
 ! not for first iteration
@@ -559,6 +565,142 @@ tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
 #endif /*MPI*/
 #endif /*PARTICLES*/
 
+!----------------------------------------------------------------------------------------------------------------------------------
+! Code Analyze
+!----------------------------------------------------------------------------------------------------------------------------------
+
+#ifdef CODE_ANALYZE
+! particle analyze
+IF (DoAnalyze)  THEN
+  IF(forceAnalyze)THEN
+    CALL CodeAnalyzeOutput(t)
+  ELSE
+    IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL CodeAnalyzeOutput(t) 
+  END IF
+  IF(PRESENT(LastIter) .AND. LastIter)THEN
+    CALL CodeAnalyzeOutput(t) 
+    SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
+    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
+    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
+    TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
+#ifdef MPI
+    IF(MPIRoot) THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE,TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+    ELSE ! no Root
+      CALL MPI_REDUCE(TotalSideBoundingBoxVolume,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+    END IF
+#endif /* MPI */
+    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
+  END IF
+END IF
+#endif /*CODE_ANALYZE*/
+
 END SUBROUTINE PerformAnalyze
+
+#ifdef CODE_ANALYZE
+SUBROUTINE CodeAnalyzeOutput(TIME)
+!===================================================================================================================================
+! output of code_analyze stuff
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars   ,ONLY:DoAnalyze, IsRestart
+USE MOD_Restart_Vars            ,ONLY:DoRestart
+USE MOD_Particle_Surfaces_Vars  ,ONLY:rBoundingBoxChecks,rPerformBezierClip,rTotalBBChecks,rTotalBezierClips
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)     :: Time
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                :: rDummy
+LOGICAL             :: isOpen, FileExists                                          !
+CHARACTER(LEN=350)  :: outfile                                                      !
+INTEGER             :: unit_index, OutputCounter
+REAL                :: WEl, WMag
+!===================================================================================================================================
+
+IF ( DoRestart ) THEN
+  isRestart = .true.
+END IF
+IF (DoAnalyze) THEN
+  !SWRITE(UNIT_StdOut,'(132("-"))')
+  !SWRITE(UNIT_stdOut,'(A)') ' PERFORMING PARTICLE ANALYZE...'
+  OutputCounter = 2
+  unit_index = 555
+#ifdef MPI
+  IF(MPIROOT)THEN
+#endif    /* MPI */
+   INQUIRE(UNIT   = unit_index , OPENED = isOpen)
+   IF (.NOT.isOpen) THEN
+     outfile = 'CodeAnalyze.csv'
+     INQUIRE(file=TRIM(outfile),EXIST=FileExists)
+     IF (isRestart .and. FileExists) THEN
+        OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
+        !CALL FLUSH (unit_index)
+     ELSE
+        OPEN(unit_index,file=TRIM(outfile))
+        !CALL FLUSH (unit_index)
+        !--- insert header
+      
+        WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-nBBChecks     '
+          OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A12)',ADVANCE='NO') OutputCounter,'-nBezierClips   '
+          OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A14)') ' ' 
+     END IF
+   END IF
+#ifdef MPI
+  END IF
+#endif    /* MPI */
+  
+ ! MPI Communication
+#ifdef MPI
+  IF(MPIRoot) THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,rBoundingBoxChecks , 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE,rPerformBezierClip, 1 , MPI_DOUBLE_PRECISION, MPI_SUM,0, MPI_COMM_WORLD, IERROR)
+  ELSE ! no Root
+    CALL MPI_REDUCE(rBoundingBoxChecks,rDummy  ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+    CALL MPI_REDUCE(rPerformBezierClip,rDummy,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD, IERROR)
+  END IF
+#endif /* MPI */
+  
+#ifdef MPI
+   IF(MPIROOT)THEN
+#endif    /* MPI */
+     WRITE(unit_index,104,ADVANCE='NO') Time
+     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+     WRITE(unit_index,104,ADVANCE='NO') rBoundingBoxChecks
+     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+     WRITE(unit_index,104,ADVANCE='NO') rPerformBezierClip
+     WRITE(unit_index,'(A1)') ' ' 
+#ifdef MPI
+   END IF
+#endif    /* MPI */
+  
+104    FORMAT (e25.14)
+
+!SWRITE(UNIT_stdOut,'(A)')' PARTCILE ANALYZE DONE!'
+!SWRITE(UNIT_StdOut,'(132("-"))')
+ELSE
+!SWRITE(UNIT_stdOut,'(A)')' NO PARTCILE ANALYZE TO DO!'
+!SWRITE(UNIT_StdOut,'(132("-"))')
+END IF ! DoAnalyze
+
+! nullify and save total number
+rTotalBBChecks=rTotalBBChecks+REAL(rBoundingBoxChecks,16)
+rBoundingBoxChecks=0.
+rTotalBezierClips=rTotalBezierClips+REAL(rPerformBezierClip,16)
+rPerformBezierClip=0.
+
+END SUBROUTINE CodeAnalyzeOutput
+#endif /*CODE_ANALYZE*/
 
 END MODULE MOD_Analyze

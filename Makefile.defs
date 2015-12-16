@@ -20,8 +20,8 @@
 INIFILE=$(MAINDIR)ini/particles.ini
 #COMPILER=INTEL
 #COMPILER=INTEL_DEBUG
-COMPILER=GNU_DEBUG
-#COMPILER=GNU
+#COMPILER=GNU_DEBUG
+COMPILER=GNU
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
 
 #=================================================================================================================================#
@@ -38,6 +38,7 @@ INIVARS += MPI
 INIVARS += POIS 
 INIVARS += OPTIMIZED
 INIVARS += HDF5_F90
+INIVARS += CODE_ANALYZE
 
 # Defaults
 EQNSYS         = maxwell
@@ -53,6 +54,7 @@ OPTIMIZED      =
 BLAS_LAPACK    = T
 IMEX           = 
 HDF5_F90       =
+CODE_ANALYZE   =
 
 # Filter rule
 define PARSE
@@ -140,6 +142,9 @@ endif
 PREPROC +=-D$(EQNSYS)
 ifneq ($(HDF5_F90),)
   PREPROC +=-DHDF5_F90=$(HDF5_F90)
+endif
+ifneq ($(CODE_ANALYZE),)
+  PREPROC +=-DCODE_ANALYZE=$(CODE_ANALYZE)
 endif
 
 # Cut compiler for use with DEBUG-flags

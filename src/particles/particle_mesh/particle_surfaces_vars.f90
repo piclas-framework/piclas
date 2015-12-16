@@ -37,15 +37,22 @@ REAL                                    :: Mepsilontol
 REAL                                    :: ClipHit                      ! value for clip hit
 LOGICAL                                 :: ParticleSurfaceInitIsDone=.FALSE.
 ! settings for Bezier-Clipping and definition of maximal number of intersections
-REAL                                    :: ClipTolerance                 ! tolerance for root of bezier clipping
-REAL                                    :: SplitLimit                    ! clip if remaining area after clip is > clipforce %
-INTEGER                                 :: ClipMaxInter                  ! maximal possible intersections for Bezier clipping
-INTEGER                                 :: ClipMaxIter                   ! maximal iterations per intersections
-INTEGER                                 :: BezierElevation               ! elevate polynomial degree to NGeo+BezierElevation
-REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta         ! position of trajectory-patch
-REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray              ! xi and eta history for computation of intersection
-!LOGICAL                                 :: MultipleBCs                   ! allow for multiple BC during one tracking step
-                                                                         ! only for do-ref-mapping required
+REAL                                    :: ClipTolerance                ! tolerance for root of bezier clipping
+REAL                                    :: SplitLimit                   ! clip if remaining area after clip is > clipforce %
+INTEGER                                 :: ClipMaxInter                 ! maximal possible intersections for Bezier clipping
+INTEGER                                 :: ClipMaxIter                  ! maximal iterations per intersections
+INTEGER                                 :: BezierElevation              ! elevate polynomial degree to NGeo+BezierElevation
+REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta        ! position of trajectory-patch
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray             ! xi and eta history for computation of intersection
+!LOGICAL                                 :: MultipleBCs                  ! allow for multiple BC during one tracking step
+                                                                        ! only for do-ref-mapping required
+#ifdef CODE_ANALYZE
+REAL                                    :: rBoundingBoxChecks           ! number of bounding box checks
+REAL(KIND=16)                           :: rTotalBBChecks               ! total number of bounding box checks
+REAL                                    :: rPerformBezierClip           ! number of performed bezier clips
+REAL(KIND=16)                           :: rTotalBezierClips            ! total number of performed bezier clips
+REAL,ALLOCATABLE,DIMENSION(:)           :: SideBoundingBoxVolume        ! Bounding Box volume
+#endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Surfaces_Vars

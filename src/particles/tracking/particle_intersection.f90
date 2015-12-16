@@ -182,6 +182,9 @@ USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Vars,           ONLY:time
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_TimeDisc_Vars,           ONLY:iter
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -218,7 +221,9 @@ IF(BoundingBoxIsEmpty(SideID))THEN
   IF(ABS(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID))).LT.epsilontol) RETURN
 END IF ! BoundingBoxIsEmpty
 
-
+#ifdef CODE_ANALYZE
+rBoundingBoxChecks=rBoundingBoxChecks+1.
+#endif /*CODE_ANALYZE*/
   
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
 IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
@@ -227,6 +232,10 @@ IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle
                                                                                               ! bounding box
   END IF
 END IF
+
+#ifdef CODE_ANALYZE
+rPerformBezierClip=rPerformBezierClip+1.
+#endif /*CODE_ANALYZE*/
 
 !IF(time.GT.28.07)THEN
 !  print*,'boundingbox hit- do clipping'

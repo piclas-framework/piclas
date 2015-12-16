@@ -1744,7 +1744,7 @@ USE MOD_Particle_MPI_Vars,  ONLY:PartMPI
 INTEGER           :: iElem
 INTEGER           :: i,j,k
 INTEGER           :: ALLOCSTAT
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N), VOLUME, RECBIM
+REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N), RECBIM
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes)...'
@@ -1771,16 +1771,15 @@ DO iElem=1,nElems
   END DO; END DO; END DO
 END DO
 
-Volume=SUM(GEO%Volume)
+GEO%LocalVolume=SUM(GEO%Volume)
 #ifdef MPI
-IF(MPIRoot) THEN
-   CALL MPI_REDUCE(MPI_IN_PLACE,Volume,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-ELSE ! no Root
-  CALL MPI_REDUCE(Volume,RECBIM,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-END IF
+CALL MPI_ALLREDUCE(GEO%LocalVolume,GEO%MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,IERROR)
+#else
+GEO%MeshVolume=GEO%LocalVolume
 #endif /*MPI*/
 
-SWRITE(UNIT_StdOut,'(A,E18.8)') ' Total Volume of Mesh: ', Volume
+SWRITE(UNIT_StdOut,'(A,E18.8)') ' |           Total Volume of Mesh |                ', GEO%MeshVolume
+
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 

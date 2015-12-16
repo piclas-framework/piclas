@@ -80,6 +80,9 @@ USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,NGeo,nBCSides,nSides
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList
 USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars,     ONLY:rBoundingBoxChecks,rPerformBezierClip
+#endif /*CODE_ANALYZE*/
 !USE MOD_Particle_SFC_Vars,          ONLY:whichBoundBox
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -135,6 +138,12 @@ IF(DoRefMapping)THEN
  ! nTotalBCSides=iBCSide
 END IF
 
+#ifdef CODE_ANALYZE
+rBoundingBoxChecks=0.
+rPerformBezierClip=0.
+rTotalBBChecks    =0.
+rTotalBezierClips =0.
+#endif /*CODE_ANALYZE*/
 !! ElemBaryNGeo are required for particle mapping| SingleParticleToExactElem
 !IF(.NOT.DoRefMapping)THEN
 !!   ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:PP_nElems) &
@@ -982,9 +991,12 @@ SUBROUTINE GetSideSlabNormalsAndIntervals(NGeo,SideID)
 USE MOD_Globals
 !USE MOD_Globals_Vars,    ONLY:EpsMach
 USE MOD_Preproc
-USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
-USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BezierControlPoints3DElevated,BezierElevation
-USE MOD_Particle_Surfaces_Vars,   ONLY:BezierEpsilonBilinear
+USE MOD_Particle_Surfaces_Vars,   ONLY: SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,   ONLY: BezierControlPoints3D,BezierControlPoints3DElevated,BezierElevation
+USE MOD_Particle_Surfaces_Vars,   ONLY: BezierEpsilonBilinear
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars,   ONLY: SideBoundingBoxVolume
+#endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1003,7 +1015,6 @@ REAL               :: skalprod(3),dx,dy,dz,dMax,dMin,w,h,l
 LOGICAL            :: SideIsCritical
 !===================================================================================================================================
 
-BezierElevation=0
 
 IF(BezierElevation.EQ.0)THEN
   BezierControlPoints3DElevated=BezierControlPoints3D
@@ -1155,6 +1166,9 @@ ELSE
   BoundingBoxIsEmpty(SideID)=.FALSE.
 END IF
 
+#ifdef CODE_ANALYZE
+SideBoundingBoxVolume(SideID)=dx*dy*dz
+#endif /*CODE_ANALYZE*/
 END SUBROUTINE GetSideSlabNormalsAndIntervals
 
 

@@ -76,15 +76,15 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars
 USE MOD_HDF5_Input
-USE MOD_Interpolation_Vars, ONLY:xGP,InterpolationInitIsDone
+USE MOD_Interpolation_Vars,     ONLY:xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------
-USE MOD_Mesh_ReadIn,        ONLY:readMesh
-USE MOD_Prepare_Mesh,       ONLY:setLocalSideIDs,fillMeshInfo
-USE MOD_ReadInTools,        ONLY:GETLOGICAL,GETSTR,GETREAL
-USE MOD_ChangeBasis,        ONLY:ChangeBasis3D
-USE MOD_Metrics,            ONLY:CalcMetrics
-USE MOD_DebugMesh,          ONLY:writeDebugMesh
-USE MOD_Analyze_Vars,       ONLY:CalcPoyntingInt
+USE MOD_Mesh_ReadIn,            ONLY:readMesh
+USE MOD_Prepare_Mesh,           ONLY:setLocalSideIDs,fillMeshInfo
+USE MOD_ReadInTools,            ONLY:GETLOGICAL,GETSTR,GETREAL
+USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
+USE MOD_Metrics,                ONLY:CalcMetrics
+USE MOD_DebugMesh,              ONLY:writeDebugMesh
+USE MOD_Analyze_Vars,           ONLY:CalcPoyntingInt
 #ifdef PARTICLES
 USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes ! new
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,BezierControlPoints3DElevated,SideSlabNormals,SideSlabIntervals
@@ -92,9 +92,12 @@ USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty,BezierElevation,ElemSlab
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #endif
 #ifdef MPI
-USE MOD_Prepare_Mesh,       ONLY:exchangeFlip
-USE MOD_MPI_Vars,           ONLY:offsetSurfElemMPI
+USE MOD_Prepare_Mesh,           ONLY:exchangeFlip
+USE MOD_MPI_Vars,               ONLY:offsetSurfElemMPI
 #endif
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
+#endif /*CODE_ANALYZE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -277,6 +280,10 @@ ALLOCATE(ElemSlabNormals(1:3,1:3,1:nElems),ElemSlabIntervals(1:6,nElems) )
 ElemSlabNormals=0.
 ElemSlabIntervals=0.
 #endif /*PARTICLES*/
+#ifdef CODE_ANALYZE
+ALLOCATE(SideBoundingBoxVolume(1:nSides))
+SideBoundingBoxVolume=0.
+#endif /*CODE_ANALYZE*/
 
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."

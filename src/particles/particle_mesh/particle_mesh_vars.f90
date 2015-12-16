@@ -122,6 +122,8 @@ TYPE tGeometry
   INTEGER,ALLOCATABLE                    :: ElemToFIBGM(:,:)                  ! range of FIGMB cells per element
                                                                               ! 1:6,1:nTotalElems, xmin,max,yminmax,...
   REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter
+  REAL                                   :: MeshVolume                        ! Total Volume of mesh
+  REAL                                   :: LocalVolume                       ! Volume of proc 
   REAL, ALLOCATABLE                      :: DeltaEvMPF(:)                     ! Energy difference due to particle merge
   INTEGER, ALLOCATABLE                   :: ElemToRegion(:)                   ! ElemToRegion(1:nElems)
 

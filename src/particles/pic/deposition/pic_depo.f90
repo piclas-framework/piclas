@@ -36,7 +36,7 @@ USE MOD_Globals
 USE MOD_PICDepo_Vars!,  ONLY : DepositionType, source, r_sf, w_sf, r2_sf, r2_sf_inv
 USE MOD_Particle_Vars ! crazy??
 USE MOD_Globals_Vars,           ONLY:PI
-USE MOD_Mesh_Vars,              ONLY:nElems, XCL_NGeo,Elem_xGP, sJ
+USE MOD_Mesh_Vars,              ONLY:nElems, XCL_NGeo,Elem_xGP, sJ,nGlobalElems
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Interpolation_Vars,     ONLY:xGP,wBary
 USE MOD_Basis,                  ONLY:ComputeBernsteinCoeff
@@ -63,7 +63,7 @@ REAL,ALLOCATABLE          :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:),Vdm_GaussN_EquiN
 REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t
 REAL                      :: Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
-REAL                      :: auxiliary(0:3),weight(1:3,0:3)
+REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
@@ -141,6 +141,16 @@ CASE('shape_function')
                         * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
   r2_sf = r_sf * r_sf 
   r2_sf_inv = 1./r2_sf
+  VolumeShapeFunction=4./3.*PI*r_sf*r2_sf
+  nTotalDOF=REAL(nGlobalElems)*REAL((PP_N+1)**3)
+  IF(MPIRoot)THEN
+    IF(VolumeShapeFunction.GT.GEO%MeshVolume) &
+      CALL abort(__STAMP__, &
+      'ShapeFunctionVolume > MeshVolume')
+  END IF
+  
+  SWRITE(UNIT_stdOut,'(A,F12.6)') ' | Average DOFs in Shape-Function |                      ' , &
+      nTotalDOF*VolumeShapeFunction/GEO%MeshVolume
 
   ALLOCATE(ElemDepo_xGP(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
