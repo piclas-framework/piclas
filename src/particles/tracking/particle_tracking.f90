@@ -234,7 +234,7 @@ DO iPart=1,PDM%ParticleVecLength
     END DO ! PartisDone=.FALSE.
 #ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
-    ElemTime(PEM%Element(iPart))=ElemTime(PEM%Element(iPart))+tLBEnd-tLBStart
+    IF(PEM%Element(iPart).LE.PP_nElems) ElemTime(PEM%Element(iPart))=ElemTime(PEM%Element(iPart))+tLBEnd-tLBStart
 #endif /*MPI*/
 !    IF(markTol)THEN
 !      CALL PartInElemCheck(iPart,ElemID,isHit)
