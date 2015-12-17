@@ -658,15 +658,14 @@ END FUNCTION CalcMeanFreePath
 SUBROUTINE InitHODSMC()
 !===================================================================================================================================
 ! Calculates macroscopic surface values from samples
+! Call position: after FIBGM
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars,          ONLY:nElems, Elem_xGP, sJ, nBCSides, SideToElem,XCL_NGeo
 USE MOD_DSMC_Vars,          ONLY:DSMCSampVolWe, HODSMC,DSMCSampNearInt, DSMCSampCellVolW
 USE MOD_Globals
 USE MOD_ReadInTools
-#ifndef MPI
 USE MOD_Particle_Mesh_Vars, ONLY:GEO
-#endif /*NOT MPI*/
 USE MOD_PreProc,            ONLY:PP_N
 USE MOD_ChangeBasis,        ONLY:ChangeBasis3D
 USE MOD_Basis,              ONLY:LegendreGaussNodesAndWeights, LegGaussLobNodesAndWeights
@@ -738,21 +737,15 @@ CASE('cartmesh_volumeweighting')
   ALLOCATE(DSMCSampVolWe%x_VolInt(0:DSMCSampVolWe%OrderVolInt),DSMCSampVolWe%w_VolInt(0:DSMCSampVolWe%OrderVolInt))
   CALL LegendreGaussNodesAndWeights(DSMCSampVolWe%OrderVolInt,DSMCSampVolWe%x_VolInt,DSMCSampVolWe%w_VolInt)  
 
-  ! calc min and max coordinates for local mesh
-  xmin = 1.0E200
-  ymin = 1.0E200
-  zmin = 1.0E200
-  xmax = -1.0E200
-  ymax = -1.0E200
-  zmax = -1.0E200
-  DO iElem = 1, nElems
-    xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
-    xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
-    ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
-    ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
-    zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
-    zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
-  END DO
+  ! reuse local min max coordinates of local mesh
+  ! has to be called after InitFIBGM
+  xmin = GEO%xmin 
+  ymin = GEO%ymin 
+  zmin = GEO%zmin 
+  xmax = GEO%xmax 
+  ymax = GEO%ymax 
+  zmax = GEO%zmax 
+
   ! define minimum and maximum backgroundmesh index, compute volume
   DSMCSampVolWe%BGMVolume = DSMCSampVolWe%BGMdeltas(1)*DSMCSampVolWe%BGMdeltas(2)*DSMCSampVolWe%BGMdeltas(3)
   DSMCSampVolWe%BGMminX = FLOOR(xmin/DSMCSampVolWe%BGMdeltas(1)-0.0001)

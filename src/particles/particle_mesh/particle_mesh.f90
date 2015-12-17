@@ -1733,21 +1733,6 @@ DO iElem=1,nTotalElems
   END DO ! iBGM
 END DO ! iElem
 
-    IPWRITE(UNIT_stdOut,*) ' FIBGM , iElem'
-    IPWRITE(UNIT_stdOut,*) 'xmin',GEO%xmin,xmin
-    IPWRITE(UNIT_stdOut,*) 'xmax',GEO%xmax,xmax
-    IPWRITE(UNIT_stdOut,*) 'ymin',GEO%ymin,ymin
-    IPWRITE(UNIT_stdOut,*) 'ymax',GEO%ymax,ymax
-    IPWRITE(UNIT_stdOut,*) 'zmin',GEO%zmin,zmin
-    IPWRITE(UNIT_stdOut,*) 'zmax',GEO%zmax,zmax
-    IPWRITE(UNIT_stdOut,*) ' BGM , iBGM'
-    IPWRITE(UNIT_stdOut,*) 'xmin', BGMimin,CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    IPWRITE(UNIT_stdOut,*) 'xmax', BGMimax,CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    IPWRITE(UNIT_stdOut,*) 'ymin', BGMjmin,CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    IPWRITE(UNIT_stdOut,*) 'ymax', BGMjmax,CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    IPWRITE(UNIT_stdOut,*) 'zmin', BGMkmin,CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    IPWRITE(UNIT_stdOut,*) 'zmax', BGMkmax,CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    
 
 DO iElem=1,nTotalElems
   IF(.NOT.ElementFound(iElem))THEN
