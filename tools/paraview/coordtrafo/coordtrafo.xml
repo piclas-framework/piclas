@@ -1,0 +1,100 @@
+<ServerManagerConfiguration>
+  <ProxyGroup name="filters">
+    <SourceProxy name="Coordinate Trafo" class="vtkPythonProgrammableFilter" label="Coordinate Trafo">
+
+      <Documentation
+        long_help="Computes vectors in cylindrical or spherical coordinates"
+        short_help="Computes vectors in cylindrical or spherical coordinates">
+      </Documentation>
+
+
+      <InputProperty
+        name="Input"
+        command="SetInputConnection">
+          <ProxyGroupDomain name="groups">
+            <Group name="sources"/>
+            <Group name="filters"/>
+          </ProxyGroupDomain>
+
+          <DataTypeDomain name="input_type">
+            <DataType value="vtkDataObject"/>
+          </DataTypeDomain>
+      </InputProperty>
+
+
+      <IntVectorProperty
+        name="Trafo"
+        label="Trafo"
+        initial_string="Trafo"
+        command="SetParameter"
+        animateable="1"
+        default_values="0"
+        number_of_elements="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Cylindrical coord"/>
+          <Entry value="1" text="Spherical coord"/>
+        </EnumerationDomain>
+        <Documentation></Documentation>
+      </IntVectorProperty>
+
+
+      <IntVectorProperty
+        name="WhichField"
+        label="Field"
+        initial_string="WhichField"
+        command="SetParameter"
+        animateable="1"
+        default_values="0"
+        number_of_elements="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="ElectricField"/>
+          <Entry value="1" text="MagneticField"/>
+          <Entry value="2" text="Velocity"/>
+        </EnumerationDomain>
+        <Documentation></Documentation>
+      </IntVectorProperty>
+
+
+      <!-- Output data type: "Same as input" -->
+      <IntVectorProperty command="SetOutputDataSetType"
+                         default_values="8"
+                         name="OutputDataSetType"
+                         number_of_elements="1"
+                         panel_visibility="never">
+        <Documentation>The value of this property determines the dataset type
+        for the output of the programmable filter.</Documentation>
+      </IntVectorProperty>
+
+
+      <StringVectorProperty
+        name="Script"
+        command="SetScript"
+        number_of_elements="1"
+        default_values="import math&#xA;import numpy&#xA;import paraview&#xA;import vtk.numpy_interface.dataset_adapter&#xA;import vtk.numpy_interface.algorithms&#xA;# -- this will import vtkMultiProcessController and vtkMPI4PyCommunicator&#xA;pdi = self.GetInput()&#xA;pdo = self.GetOutput()&#xA;numPoints = pdi.GetNumberOfPoints()&#xA;newField=vtk.vtkDoubleArray()&#xA;if WhichField == 0:&#xA;    VarName    = &quot;ElectricField&quot;&#xA;elif WhichField == 1:&#xA;    VarName    = &quot;MagneticField&quot;&#xA;elif WhichField == 2:&#xA;    VarName    = &quot;Velocity&quot;&#xA;newField.SetNumberOfComponents(3)&#xA;if Trafo == 0:&#xA;    # cylindrical coord&#xA;    VarNameOut=''.join([VarName,''])&#xA;    newField.SetComponentName(0,'r')&#xA;    newField.SetComponentName(1,'theta')&#xA;    newField.SetComponentName(2,'z')&#xA;else:&#xA;    # spherical coord&#xA;    VarNameOut=''.join([VarName,''])&#xA;    newField.SetComponentName(0,'r')&#xA;    newField.SetComponentName(1,'theta')&#xA;    newField.SetComponentName(2,'phi')&#xA;newField.SetName(VarNameOut)&#xA;newField.SetNumberOfTuples(numPoints)&#xA;pdo.GetPointData().AddArray(newField)&#xA;if Trafo == 0:&#xA;    # computes trafo in cylindrical coordinates&#xA;    for i in range(0, numPoints):&#xA;        coord = pdi.GetPoint(i)&#xA;        x, y, z  = coord[:3]&#xA;        FieldX = pdi.GetPointData().GetArray(VarName).GetValue(3*i  )&#xA;        FieldY = pdi.GetPointData().GetArray(VarName).GetValue(3*i+1)&#xA;        FieldZ = pdi.GetPointData().GetArray(VarName).GetValue(3*i+2)&#xA;        theta=math.atan2(y,x)&#xA;        FieldTheta=-FieldX*math.sin(theta)+FieldY*math.cos(theta)&#xA;        FieldR    = FieldX*math.cos(theta)+FieldY*math.sin(theta)&#xA;        #newData.InsertNextValue(theta)&#xA;        newField.SetValue(3*i  ,FieldR)&#xA;        newField.SetValue(3*i+1,FieldTheta)&#xA;        newField.SetValue(3*i+2,FieldZ)&#xA;else:&#xA;    # spherical coord &#xA;    for i in range(0, numPoints):&#xA;        coord = pdi.GetPoint(i)&#xA;        x, y, z  = coord[:3]&#xA;        FieldX = pdi.GetPointData().GetArray(VarName).GetValue(3*i  )&#xA;        FieldY = pdi.GetPointData().GetArray(VarName).GetValue(3*i+1)&#xA;        FieldZ = pdi.GetPointData().GetArray(VarName).GetValue(3*i+2)&#xA;        rho=math.sqrt(x*x+y*y+z*z)&#xA;        theta=math.acos(z/rho)&#xA;        phi=math.atan2(y,x)&#xA;        FieldRho=math.sin(theta)*math.cos(phi)*FieldX+math.sin(theta)*math.sin(phi)*FieldY+math.cos(theta)*FieldZ&#xA;        FieldTheta=math.cos(theta)*math.cos(phi)*FieldX+math.cos(theta)*math.sin(phi)*FieldY-math.sin(theta)*FieldZ&#xA;        FieldPhi=-math.sin(phi)*FieldX+math.cos(phi)*FieldY&#xA;        #newData.InsertNextValue(theta)&#xA;        newField.SetValue(3*i  ,FieldRho)&#xA;        newField.SetValue(3*i+1,FieldTheta)&#xA;        newField.SetValue(3*i+2,FieldPhi)&#xA;"
+        panel_visibility="advanced">
+        <Hints>
+         <Widget type="multi_line"/>
+       </Hints>
+      <Documentation>This property contains the text of a python program that
+      the programmable source runs.</Documentation>
+      </StringVectorProperty>
+
+      <StringVectorProperty
+        name="InformationScript"
+        label="RequestInformation Script"
+        command="SetInformationScript"
+        number_of_elements="1"
+        default_values="from paraview import util&#xA;pdi = self.GetInput()&#xA;"
+        panel_visibility="advanced">
+        <Hints>
+          <Widget type="multi_line" />
+        </Hints>
+        <Documentation>This property is a python script that is executed during
+        the RequestInformation pipeline pass. Use this to provide information
+        such as WHOLE_EXTENT to the pipeline downstream.</Documentation>
+      </StringVectorProperty>
+
+
+    </SourceProxy>
+ </ProxyGroup>
+</ServerManagerConfiguration>

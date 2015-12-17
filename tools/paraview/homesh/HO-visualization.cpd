@@ -1,0 +1,59 @@
+<CustomFilterDefinitions>
+  <CustomProxyDefinition name="HO-visualization" group="filters">
+    <CompoundSourceProxy id="7000" servers="1">
+      <Proxy group="filters" type="DataSetSurfaceFilter" id="6822" servers="1" compound_name="ExtractSurface">
+        <Property name="Input" id="6822.Input" number_of_elements="1">
+          <Domain name="groups" id="6822.Input.groups"/>
+          <Domain name="input_type" id="6822.Input.input_type"/>
+        </Property>
+        <Property name="NonlinearSubdivisionLevel" id="6822.NonlinearSubdivisionLevel" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="range" id="6822.NonlinearSubdivisionLevel.range"/>
+        </Property>
+        <Property name="PieceInvariant" id="6822.PieceInvariant" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="bool" id="6822.PieceInvariant.bool"/>
+        </Property>
+      </Proxy>
+      <Proxy group="filters" type="FeatureEdges" id="6911" servers="1" compound_name="FeatureEdges">
+        <Property name="BoundaryEdges" id="6911.BoundaryEdges" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="bool" id="6911.BoundaryEdges.bool"/>
+        </Property>
+        <Property name="Coloring" id="6911.Coloring" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="6911.Coloring.bool"/>
+        </Property>
+        <Property name="FeatureAngle" id="6911.FeatureAngle" number_of_elements="1">
+          <Element index="0" value="30"/>
+          <Domain name="range" id="6911.FeatureAngle.range"/>
+        </Property>
+        <Property name="FeatureEdges" id="6911.FeatureEdges" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="bool" id="6911.FeatureEdges.bool"/>
+        </Property>
+        <Property name="Input" id="6911.Input" number_of_elements="1">
+          <Proxy value="6822" output_port="0"/>
+          <Domain name="groups" id="6911.Input.groups"/>
+          <Domain name="input_type" id="6911.Input.input_type"/>
+        </Property>
+        <Property name="ManifoldEdges" id="6911.ManifoldEdges" number_of_elements="1">
+          <Element index="0" value="0"/>
+          <Domain name="bool" id="6911.ManifoldEdges.bool"/>
+        </Property>
+        <Property name="NonManifoldEdges" id="6911.NonManifoldEdges" number_of_elements="1">
+          <Element index="0" value="1"/>
+          <Domain name="bool" id="6911.NonManifoldEdges.bool"/>
+        </Property>
+      </Proxy>
+      <ExposedProperties>
+        <Property name="Input" proxy_name="ExtractSurface" exposed_name="Input"/>
+      </ExposedProperties>
+      <OutputPort name="HO-surfaces" proxy="ExtractSurface" port_index="0"/>
+      <OutputPort name="HO-edges" proxy="FeatureEdges" port_index="0"/>
+      <Hints>
+        <ShowInMenu/>
+      </Hints>
+    </CompoundSourceProxy>
+  </CustomProxyDefinition>
+</CustomFilterDefinitions>
