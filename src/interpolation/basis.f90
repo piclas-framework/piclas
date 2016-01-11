@@ -133,7 +133,9 @@ n = size(A,1)
 CALL DGETRF(n, n, Ainv, n, ipiv, info)
 
 IF(info.NE.0)THEN
-   STOP 'Matrix is numerically singular!'
+    CALL abort(&
+    __STAMP__&
+    ,' Matrix is numerically singular!')
 END IF
 
 ! DGETRI computes the inverse of a matrix using the LU factorization
@@ -141,7 +143,9 @@ END IF
 CALL DGETRI(n, Ainv, n, ipiv, work, n, info)
 
 IF(info.NE.0)THEN
-   STOP 'Matrix inversion failed!'
+    CALL abort(&
+    __STAMP__&
+    ,' Matrix inversion failed!')
 END IF
 END FUNCTION INV
 
@@ -434,7 +438,9 @@ REAL               :: WORK(dim1*dim1)
   CALL DGETRF(dim1, dim1, Ainv, dim1, IPIV, INFO)
 
   IF (INFO /= 0) THEN
-    STOP 'MATRIX IS NUMERICALLY SINGULAR!'
+    CALL abort(&
+    __STAMP__&
+    ,' Matrix is numerically singular!')
   END IF
 
   ! DGETRI computes the inverse of a matrix using the LU factorization
@@ -443,7 +449,9 @@ REAL               :: WORK(dim1*dim1)
   CALL DGETRI(dim1, Ainv, dim1, IPIV, WORK, lwork , INFO)
 
   IF (INFO /= 0) THEN
-    STOP 'MATRIX INVERSION FAILED!'
+    CALL abort(&
+    __STAMP__&
+    ,' Matrix inversion failed!')
   END IF
 END FUNCTION GetInverse
 

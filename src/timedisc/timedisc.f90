@@ -309,8 +309,9 @@ ELSE ! .NO. ManualTimeStep
 #ifdef PARTICLES
 #if (PP_TimeDiscMethod==200)
   ! this will not work if particles have velocity of zero
-  SWRITE(UNIT_StdOut, '(A)')'ERROR: with Static computations, a maximum delta t (=ManualTimeStep) needs to be given'
-  STOP
+   CALL abort(&
+   __STAMP__&
+   ,' Error in static computations, a maximum delta t (=ManualTimeStep) needs to be set!')
 #endif
 END IF ! useManualTimestep
 

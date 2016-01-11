@@ -413,7 +413,9 @@ USE MOD_PICInterpolation_Vars    ,ONLY:FileNameCurvedExternalField,CurvedExterna
       IF(ABS(diff_comp-diff_check).GE.1E-10)THEN
         SWRITE(UNIT_stdOut,'(A)') "ERROR: No equidistant points were used." 
         SWRITE(UNIT_stdOut,'(A)') diff_comp, diff_check
-        STOP
+        CALL abort(&
+            __STAMP__&
+          ,' Error in dataset!')
       END IF  
     END IF
   END DO

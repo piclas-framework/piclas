@@ -210,7 +210,9 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
 
   IF (useVTKFileBGG) THEN
     IF (Species(BGGas%BGGasSpecies)%Init(0)%velocityDistribution.NE.'maxwell_lpn') & !(use always Init 0 for BGG !!!)
-      STOP "only maxwell_lpn is implemened as velocity-distribution for BGG from VTK-File!"
+    CALL abort(&
+    __STAMP__&
+    ,'only maxwell_lpn is implemened as velocity-distribution for BGG from VTK-File!')
     CALL ReadinVTKFileBGG()
   END IF
 
@@ -648,8 +650,11 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 !DEALLOCATE(Vdm_NGP_NSurfEQ, wBary_NSurfSample)
 !
 
+      !  STOP
 
-  STOP
+    CALL abort(&
+    __STAMP__&
+    ,' Subroutine not implemented!')
 
 !  ALLOCATE(TempBCSurfNodes(4*nBCSides))
 !  ALLOCATE(TempSideSurfNodeMap(1:4,1:nBCSides))
@@ -742,7 +747,9 @@ SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping()
 !  INTEGER                 :: iSide, iSampWallAlloc
 !===================================================================================================================================
 
-  STOP
+    CALL abort(&
+    __STAMP__&
+    ,' Subroutine not implemented!')
   !ALLOCATE(SurfMesh%HaloSideIDToSurfSideMap(SIZE(MPIGEO%BC,2)))
   !SurfMesh%HaloSideIDToSurfSideMap(1:SIZE(MPIGEO%BC,2))=0
   !SurfMesh%nHaloSurfaceBCSides = 0
@@ -812,7 +819,9 @@ SUBROUTINE ReadinVTKFileBGG
 !  LOGICAL                :: InElementCheck
 !===================================================================================================================================
 
-  STOP
+    CALL abort(&
+    __STAMP__&
+    ,' Subroutine not implemented!')
 
 
 !  SWRITE(UNIT_stdOut,'(132("~"))')

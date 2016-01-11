@@ -183,8 +183,9 @@ SUBROUTINE CalcSurfaceValues
   REAL                               :: TimeSample
   INTEGER, ALLOCATABLE               :: CounterTotal(:), SumCounterTotal(:)              ! Total Wall-Collision counter
 !===================================================================================================================================
- 
-STOP
+CALL abort(&
+__STAMP__&
+,' Subroutine not adapted!')
  
 #ifdef MPI
   CALL MPISurfaceValuesSend()  
@@ -292,7 +293,10 @@ SUBROUTINE MPISurfaceValuesSend()
 !  RecvMsgSurfs(0:PartMPI%nProcs-1) = 0
 
 !---- calculation of send-massages number for each proc
-STOP
+CALL abort(&
+__STAMP__&
+,' Subroutine not adapted!')
+
 !  DO iSide = 1, SIZE(MPIGEO%BC,2)  !---- loop over all halosides that are defined as BC
 !    IF(SurfMesh%HaloSideIDToSurfSideMap(iSide).NE.0) THEN  !---- only surfaces (=wall-sides)   
 !      ! get halo cells ElemID. Not quite sure if ELEM_ID or NB_ELEM_ID. 

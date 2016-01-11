@@ -644,7 +644,8 @@ IF((DebugMatrix.GE.4).OR.(DebugMatrix.LT.0))THEN
   END IF
   IF(dummy.NE. dummy) THEN  !NAN
     IPWRITE(UNIT_stdOut,*)'WARNING!!! NAN problem in with preconditioner inverse..',dummy
-    STOP
+    CALL abort(__STAMP__&
+        ,' NAN! Problem with preconditioner inverse.')
   END IF
   CALL CPU_TIME(Time2)
   WRITE(UNIT_stdOut,'(A,F11.3,A)')'      ... Check invert done. time=[',Time2-Time1,' ]'

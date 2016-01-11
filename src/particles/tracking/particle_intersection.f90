@@ -1369,15 +1369,17 @@ C2=P0(2)+P0(3)
 IF(ABS(B1).GE.ABS(B2))THEN
   xi = A2-B2/B1*A1
   IF(ABS(xi).LT.epsilontol)THEN
-    print*,'blabla'
-    STOP
+    CALL abort(&
+    __STAMP__&
+    ,' Division by zero! Xi')
   END IF
   xi = (B2/B1*C1-C2)/xi
 ELSE
   xi = A1-B1/B2*A2
   IF(ABS(xi).LT.epsilontol)THEN
-    print*,'blabla'
-    STOP
+    CALL abort(&
+    __STAMP__&
+    ,' Division by zero! Xi')
   END IF
   xi = (B1/B2*C2-C1)/xi
 END IF
@@ -1597,15 +1599,17 @@ C2=P0(2)+P0(3)
 IF(ABS(B1).GE.ABS(B2))THEN
   xi = A2-B2/B1*A1
   IF(ABS(xi).LT.epsilontol)THEN
-    print*,'blabla'
-    STOP
+    CALL abort(&
+    __STAMP__&
+    ,' Division by zero! Xi')
   END IF
   xi = (B2/B1*C1-C2)/xi
 ELSE
   xi = A1-B1/B2*A2
   IF(ABS(xi).LT.epsilontol)THEN
-    print*,'blabla'
-    STOP
+    CALL abort(&
+    __STAMP__&
+    ,' Division by zero! Xi')
   END IF
   xi = (B1/B2*C2-C1)/xi
 END IF
@@ -2443,8 +2447,9 @@ B = a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
 
 IF(ABS(C).LT.epsilontol)THEN
-  print*,'blabla'
-  STOP
+  CALL abort(&
+   __STAMP__&
+   ,' Negative coefficient! error!')
 END IF
 
 eta=-C/B

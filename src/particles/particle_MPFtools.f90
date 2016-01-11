@@ -1863,6 +1863,7 @@ REAL FUNCTION CalcRelaBeta(energy,randvecin, mpf, SpecID, DeltaE, OldMomentum)
 ! calculates relativistic beta for energy conservation
 !===================================================================================================================================
 ! MODULES
+  USE MOD_Globals
   USE MOD_Equation_Vars,          ONLY : c2
   USE MOD_Particle_Vars,          ONLY : Species
 !--------------------------------------------------------------------------------------------------!
@@ -1927,9 +1928,8 @@ REAL FUNCTION CalcRelaBeta(energy,randvecin, mpf, SpecID, DeltaE, OldMomentum)
   DO WHILE (ABS(LowerVal-UpperVal).GT.eps_prec)                      !  Let's search the zero point by bisection
     MiddleVal = 0.5*(LowerVal+UpperVal)
     IF ((LowerVal.GT.MaxPosiVal).OR.(MiddleVal.GT.MaxPosiVal)) THEN
-      WRITE(*,*) 'Cannot find zero point in E-Relativistic Calculation Function!'
-      WRITE(*,*) 'System stopped!'
-      STOP
+      CALL abort(__STAMP__&
+          ,' Cannot find zero point in E-relativistic calcualtion function!')
     END IF
     ! decision of direction of bisection
     IF (ZeroVal1*ZeroVal2.LT.0) THEN
@@ -1949,6 +1949,7 @@ REAL FUNCTION CalcRelaBeta2(energy,randvecin, mpf, SpecID, DeltaE, OldMomentum)
 ! calculates relativistic beta for energy conservation
 !===================================================================================================================================
 ! MODULES
+  USE MOD_Globals
   USE MOD_Equation_Vars,          ONLY : c2
   USE MOD_Particle_Vars,          ONLY : Species
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2013,9 +2014,8 @@ REAL FUNCTION CalcRelaBeta2(energy,randvecin, mpf, SpecID, DeltaE, OldMomentum)
 
   DO WHILE (ABS(LowerVal-UpperVal).GT.eps_prec)                      !  Let's search the zero point by bisection
     IF ((ZeroLow*ZeroUp).GT.0.0) THEN
-      WRITE(*,*) 'Cannot find zero point in E-Relativistic Calculation Function!'
-      WRITE(*,*) 'System stopped!'
-      STOP
+      CALL abort(__STAMP__&
+          ,' Cannot find zero point in E-relativistic calcualtion function!')
     END IF
     MiddleVal = 0.5*(LowerVal+UpperVal)
     OldMomentumMapPos(1:3) = OldMomentum(1:3)/(2.0*mpf*Species(SpecID)%MassIC)+MiddleVal*randvec

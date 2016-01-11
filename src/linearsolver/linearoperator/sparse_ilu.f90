@@ -229,9 +229,9 @@ END DO ! kk
 DO kk=1,nDOFElem
   DO ii=1,nDOFElem
     IF(ILU0(ii,kk).NE.ILU0(ii,kk))THEN
-      WRITE(*,*) "NAAAAN"
-      WRITE(*,*) kk,ii
-      STOP
+      CALL abort(&
+      __STAMP__&
+      ,' NAN! kk,ii',kk,REAL(ii))
     END IF
   END DO
 END DO

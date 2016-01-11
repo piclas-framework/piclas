@@ -383,8 +383,8 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   END DO
   ! if ParticleVecLength GT maxParticleNumber: Stop
   IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
-    WRITE(*,*) 'ERROR: Number of Particles in Restart higher than MaxParticleNumber'
-    STOP
+    CALL abort(__STAMP__,&
+       ' Number of Particles in Restart higher than MaxParticleNumber!')
   END IF
 
   ! Since the elementside-local node number are NOT persistant and dependent on the location

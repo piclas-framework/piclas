@@ -405,8 +405,6 @@ END DO ! iSide
 
 !--- if there are periodic boundaries, they need to be taken into account as well:
 IF (GEO%nPeriodicVectors.GT.0) THEN
-  !WRITE(*,*) 'ups, something missing'
-  !STOP
   Vec1(1:3) = 0.
   Vec2(1:3) = 0.
   Vec3(1:3) = 0.
@@ -1440,8 +1438,9 @@ IF(DoRefMapping)THEN
     DEALLOCATE(HaloInc)
     DO iSide=1,nTotalSides
       IF(SUM(ABS(SideSlabNormals(:,:,iSide))).EQ.0)THEN
-        IPWRITE(*,*) 'error'
-        STOP
+        CALL abort(&
+            __STAMP__&
+          ,' SideSlabNormals is zero!')
       END IF
     END DO 
   END IF ! RecvMsg%nSides>0

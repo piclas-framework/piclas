@@ -1334,8 +1334,8 @@ END DO
 
 DO iSide=1,nSides
   IF(SUM(ABS(SideSlabIntervals(:,iSide))).EQ.0)THEN
-    IPWRITE(*,*) ' Zero bounding box found!'
-    STOP
+    CALL abort(__STAMP__&
+    ,'  Zero bounding box found!')
   END IF
 END DO
 

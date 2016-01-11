@@ -417,7 +417,9 @@ DO iter=1,maxIter_LinearSolver
 END DO !iter
 SWRITE(*,*)'No Convergence: maxIter,last,initial residual',iter,Norm_R,Norm_R0
 SWRITE(*,*)'flummi',Norm_R,eps_LinearSolver,Norm_R0
-STOP
+CALL abort(&
+__STAMP__&
+,' No convergence!')
 END SUBROUTINE LinearSolver_BiCGSTAB
 
 

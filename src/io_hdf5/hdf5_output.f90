@@ -665,8 +665,9 @@ INTEGER                        :: minnParts
       END DO
       iPart = PartInt(iElem_glob,2)
     ELSE
-      WRITE(*,*) "ERROR: Particle HDF5-Output method not supported! PEM%pNumber not associated"
-      STOP
+      CALL abort(&
+      __STAMP__&
+      , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
     END IF
     PartInt(iElem_glob,2)=iPart
   END DO 

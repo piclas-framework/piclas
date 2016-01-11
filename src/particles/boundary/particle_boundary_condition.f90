@@ -111,8 +111,6 @@ CASE(2) !PartBound%ReflectiveBC)
   ! intersection point with surface
   LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
 
-!  print*,'intersection',lastpartpos(ipart,1:3)
-!  stop
   ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
   !v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
   !v_aux                  = -2*((1-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc

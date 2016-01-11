@@ -99,6 +99,7 @@ INTEGER(HID_T)                 :: Plist_ID
 #ifdef MPI
 INTEGER                        :: comm
 #endif
+LOGICAL                        :: fileExists
 !===================================================================================================================================
 LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "',TRIM(FileString),'" ...'
 
@@ -118,13 +119,21 @@ IF(.NOT.single)  CALL H5PSET_FAPL_MPIO_F(Plist_ID, comm, MPIInfo, iError)
 
 ! Open the file collectively.
 IF(create)THEN
- CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, access_prp = Plist_ID)
+  CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, access_prp = Plist_ID)
 ELSE !read-only ! and write (added later)
- CALL H5FOPEN_F(TRIM(FileString), H5F_ACC_RDWR_F, File_ID, iError, access_prp = Plist_ID)
- IF(iError.EQ.-1) THEN
-    WRITE(*,*) "ERROR: Can't open file: ", TRIM(FileString)
-    STOP
- END IF      
+  IF(MPIRoot)THEN
+    INQUIRE(FILE=TRIM(FileString),EXIST=fileExists)
+    IF(.NOT.fileExists) CALL abort(&
+      __STAMP__,&
+      'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
+  END IF
+  CALL H5FOPEN_F(TRIM(FileString), H5F_ACC_RDWR_F, File_ID, iError, access_prp = Plist_ID)
+  IF(iError.EQ.-1) THEN
+    SWRITE(UNIT_stdOut,*) "Can't open file: ",TRIM(FileString)
+    CALL abort(&
+    __STAMP__&
+    ,' Cannot open file!')
+  END IF      
 END IF
 CALL H5PCLOSE_F(Plist_ID, iError)
 LOGWRITE(*,*)'...DONE!'

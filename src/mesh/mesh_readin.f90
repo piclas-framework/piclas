@@ -227,6 +227,10 @@ CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
 IF(HSize(1).NE.6) &
   CALL abort(__STAMP__,'ERROR: Wrong size of ElemInfo, should be 6')
 nGlobalElems=INT(HSize(2),4) !global number of elements
+IF(MPIRoot)THEN
+  IF(nGlobalElems.LT.nProcessors) CALL abort(&
+   __STAMP__,' Cannot use more processes than elements!')
+END IF
 DEALLOCATE(HSize)
 #ifdef MPI
 !simple partition: nGlobalelems/nprocs, do this on proc 0

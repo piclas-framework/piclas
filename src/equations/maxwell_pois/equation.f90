@@ -104,7 +104,9 @@ IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   SWRITE(*,*) "mu:", mu0
   SWRITE(*,*) "eps:", eps0
   SWRITE(*,*) "1/sqrt(eps*mu):", c_test
-  STOP
+  CALL abort(&
+      __STAMP__&
+      ,' Speed of light coefficients does not match!')
 END IF
 
 c2     = c*c 
@@ -266,22 +268,26 @@ CASE(3) ! Resonator
   !time parameters
   l=5.; m=4.; n=3.; B0=1.
   IF(a.eq.0)THEN
-    ERRWRITE(*,*)'ERROR: a eq 0!'
-    STOP
+    CALL abort(&
+      __STAMP__&
+      ,' Parameter a of resonator is zero!')
   END IF
   IF(b.eq.0)THEN
-    ERRWRITE(*,*)'ERROR: b eq 0!'
-    STOP
+    CALL abort(&
+      __STAMP__&
+      ,' Parameter b of resonator is zero!')
   END IF
   IF(d.eq.0)THEN
-    ERRWRITE(*,*)'ERROR: d eq 0!'
-    STOP
+    CALL abort(&
+      __STAMP__&
+      ,' Parameter d of resonator is zero!')
   END IF
   omega = Pi*c*sqrt((m/a)**2+(n/b)**2+(l/d)**2)
   gamma = sqrt((omega/c)**2-(l*pi/d)**2)
   IF(gamma.eq.0)THEN
-    ERRWRITE(*,*)'ERROR: gamma eq 0!'
-    STOP
+    CALL abort(&
+    __STAMP__&
+    ,' gamma is computed to zero!')
   END IF
   Psi      =   B0          * cos((m*pi/a)*x(1)) * cos((n*pi/b)*x(2))
   GradPsiX = -(B0*(m*pi/a) * sin((m*pi/a)*x(1)) * cos((n*pi/b)*x(2)))

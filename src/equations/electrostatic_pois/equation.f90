@@ -105,7 +105,9 @@ IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   SWRITE(*,*) "mu:", mu0
   SWRITE(*,*) "eps:", eps0
   SWRITE(*,*) "1/sqrt(eps*mu):", c_test
-  STOP
+  CALL abort(&
+      __STAMP__&
+      ,' Speed of light coefficients does not match!')
 END IF
 
 c2     = c*c 
