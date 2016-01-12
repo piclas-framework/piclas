@@ -571,7 +571,7 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 ! Perform mapping for surface output
 !===================================================================================================================================
 ! MODULES
-! USE MOD_Globals
+ USE MOD_Globals
 ! USE MOD_Preproc
 ! USE MOD_Particle_Tracking_vars, ONLY:DoRefMapping
 ! USE MOD_Mesh_Vars,              ONLY:SurfElem
@@ -731,6 +731,7 @@ SUBROUTINE DSMC_BuildHaloSurfaceOutputMapping()
 ! Perform mapping for halo surface output of MPI case
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 !  USE MOD_Particle_Vars,      ONLY : nSpecies
 !  USE MOD_DSMC_Vars,          ONLY : SampWallHaloCell
 !  USE MOD_DSMC_Vars,          ONLY : SurfMesh
@@ -790,7 +791,7 @@ SUBROUTINE ReadinVTKFileBGG
 ! Readin of custom VTK file for non-constant background gas distribution
 !===================================================================================================================================
 ! MODULES
-!  USE MOD_Globals
+  USE MOD_Globals
 !  USE MOD_ReadInTools
 #ifndef MPI
 !  USE MOD_Mesh_Vars,              ONLY : nNodes

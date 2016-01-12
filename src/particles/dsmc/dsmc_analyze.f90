@@ -260,7 +260,7 @@ SUBROUTINE MPISurfaceValuesSend()
 ! MODULES
 !  USE MOD_part_MPI_Vars, ONLY : PartMPI, MPIGEO
   USE mpi
-!  USE MOD_Globals,           ONLY:IERROR, MPISTATUS
+  USE MOD_Globals
 !  USE MOD_DSMC_Vars,         ONLY:SurfMesh, SampWall, SampWallHaloCell
 !  USE MOD_Mesh_Vars,         ONLY:ElemToSide
 !  USE MOD_Particle_Vars,     ONLY:nSpecies

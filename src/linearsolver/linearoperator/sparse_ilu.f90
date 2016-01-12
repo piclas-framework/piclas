@@ -86,6 +86,7 @@ SUBROUTINE BuildILU0(ILU0,iElem)
 ! Build the ILU0 per Block
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Basis                      ,ONLY:GetInverse
 USE MOD_LinearSolver_Vars          ,ONLY:nDOFelem
