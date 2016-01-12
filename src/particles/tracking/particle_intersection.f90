@@ -1017,10 +1017,11 @@ END IF ! docheck
 END SUBROUTINE BezierClip
 
 
-SUBROUTINE calcLineNormVec(BezierControlPoints2D,LineNormVec,a,b,isParallel)
+SUBROUTINE calcLineNormVec(BezierControlPoints2D,LineNormVec,a,b,DoCheck)
 !================================================================================================================================
 ! Calculate the normal vector for the line Ls (with which the distance of a point to the line Ls is determined)
 !================================================================================================================================
+USE MOD_Globals
 USE MOD_Mesh_Vars,               ONLY:NGeo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1031,7 +1032,7 @@ INTEGER,INTENT(IN)                   :: a,b
 !--------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                     :: LineNormVec(1:2)
-LOGICAL,INTENT(INOUT)                :: isParallel
+LOGICAL,INTENT(INOUT)                :: DoCheck
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: Length
@@ -1040,7 +1041,10 @@ LineNormVec=(BezierControlPoints2D(:,a,b)-BezierControlPoints2D(:,0,0))+&
             (BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,b,a))
 Length=SQRT(DOT_PRODUCT(LineNormVec,LineNormVec))
 IF(Length.EQ.0)THEN
-  isParallel=.FALSE.
+  DoCheck=.FALSE.
+  ! DEBUG: is the complete IF statement dispensable?
+  CALL abort(__STAMP__,&
+      'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF
 LineNormVec=LineNormVec/Length
