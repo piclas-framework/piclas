@@ -371,6 +371,23 @@ CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), doma
   resu(5)=(COS(t)-1.)*resu(5)
   resu(6)=(COS(t)-1.)*resu(6)
 
+CASE(12) ! plane wave (Issam)
+  ! initial E vector
+  !IF(ALMOSTZERO(WaveVector(3)))THEN
+    !E_0=(/ -WaveVector(2)-WaveVector(3)  , WaveVector(1) ,WaveVector(1) /)
+  !ELSE
+    !E_0=(/ WaveVector(3) , WaveVector(3) , -WaveVector(1)-WaveVector(2) /)
+  !END IF
+  !E_0=E_0/SQRT(DOT_PRODUCT(E_0,E_0))  
+  !n= 2*pi/WaveLength
+  !ome=n*c  
+  !resu(1:3)=E_0*cos(n*DOT_PRODUCT(WaveVector,x)-ome*t)
+  !resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3))  
+                                  
+  !resu(7)= 0.0
+  !resu(8)= 0.0
+
+
 CASE(13) ! planar wave test case
   resu(:)=0.
 
@@ -386,6 +403,27 @@ CASE(13) ! planar wave test case
   omegaW=WaveNumber*c
   resu(1:3)=E_0*cos(WaveNumber*DOT_PRODUCT(WaveVector,x)-omegaW*t)
   resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
+
+
+CASE(14) ! planar wave test case
+  resu(:)=0.
+
+  ! construct perpendicular electric field
+  IF(ABS(WaveVector(3)).LT.epsilontol)THEN
+    E_0=(/ -WaveVector(2)-WaveVector(3)  , WaveVector(1) ,WaveVector(1) /)
+  ELSE
+    E_0=(/ WaveVector(3) , WaveVector(3) , -WaveVector(1)-WaveVector(2) /)
+  END IF
+  ! normalize E-field
+  E_0=UNITVECTOR(E_0)
+  WaveNumber=2.*PI/WaveLength
+  omegaW=WaveNumber*c
+  resu(1:3)=E_0*cos(WaveNumber*DOT_PRODUCT(WaveVector,x)-omegaW*t)&
+            *EXP(-4*(x(2)-1.00)**2)&
+            *EXP(-4*(x(3)-1.00)**2)
+            !*EXP(-10*(x(1)-0.50)**2)&
+  resu(4:6)=c_inv*CROSS(WaveVector,resu(1:3))
+
 
 CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   eps=1e-10
@@ -550,8 +588,11 @@ CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), doma
     END DO; END DO; END DO
   END DO
 
+CASE(12) ! plane wave (Issam)
+
 CASE(13) ! nothing to do
 
+CASE(14) ! nothing to do
 
 CASE(41) ! Dipole via temporal Gausspuls
 !t0=TEnd/5, w=t0/4 ! for pulsed Dipole (t0=offset and w=width of pulse)
