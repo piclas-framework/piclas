@@ -1057,6 +1057,7 @@ SUBROUTINE CalcSminSmax(minmax,Smin,Smax)
 !================================================================================================================================
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Mesh_Vars,               ONLY:NGeo,Xi_NGeo,DeltaXi_NGeo
+USE MOD_Particle_Surfaces_Vars,  ONLY:ClipHit,ClipTolerance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1123,6 +1124,12 @@ INTEGER                              :: l
     tmp =  1.0
     Smax=MAX(tmp,Smax)
   END IF
+  
+  IF(Smax.GT.-1.5)THEN
+    Smin=Smin-(Smin+ClipHit)*20*ClipTolerance
+    Smax=Smax+(ClipHit-Smax)*20*ClipTolerance
+  END IF
+
 END SUBROUTINE calcSminSmax
 
 
