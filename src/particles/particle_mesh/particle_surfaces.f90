@@ -550,6 +550,13 @@ END SUBROUTINE CalcNormAndTangBezier
 FUNCTION CalcNormVecBezier(xi,eta,SideID)
 !================================================================================================================================
 ! function to compute the normal vector of a bi-linear surface
+! book:
+! author = {Farin, Gerald},
+! title = {Curves and Surfaces for CAGD: A Practical Guide},
+! year = {2002},
+! 1) computation of Bezier Polynomial is from Farin, Chap. 5, p. 57, EQ. 1
+!    precompute t^i (1-t)^(n-i) by means of Horner Schema and store values direcly sorted 
+! 2) evaluate gradients
 !================================================================================================================================
 USE MOD_Mesh_Vars,                            ONLY:NGeo
 USE MOD_Globals,                              ONLY:CROSSNORM,CROSS
@@ -639,11 +646,11 @@ ELSE ! no flat side
   v=0
   DO q=0,NGeo
     DO p=0,M
-      ! derivative in xi
+      ! derivative in xi: d/dxi = u
       u=u+(BezierControlPoints3D(:,p+1,q,SideID)-BezierControlPoints3D(:,p,q,SideID)) &
           *facNchooseK(M,p)*xiup(p)*xidown(p)     &
           *facNChooseK(NGeo,q)*etaup(q)*etadown(q)
-      ! derivative in eta ! caution - exchange indicies
+      ! derivative in eta: d/deta = v ! caution - exchange indicies
       v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID)) &
           *facNchooseK(NGeo,q)*xiup(q)*xidown(q)  &
           *facNChooseK(M,p)*etaup(p)*etadown(p)
