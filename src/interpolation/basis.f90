@@ -935,8 +935,8 @@ FUNCTION CHOOSE(N_in,k)
 ! The binomial coefficient ( n  k ) is often read as "n choose k".
 !===================================================================================================================================
 USE MOD_PreProc
-USE MOD_Mesh_Vars,                ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,   ONLY:BezierElevation
+!USE MOD_Mesh_Vars,                ONLY:NGeo
+!USE MOD_Particle_Surfaces_Vars,   ONLY:BezierElevation
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !input parameters
@@ -974,8 +974,8 @@ FUNCTION CHOOSE_large(N_in,k)
 ! The binomial coefficient ( n  k ) is often read as "n choose k".
 !===================================================================================================================================
 USE MOD_PreProc
-USE MOD_Mesh_Vars,                ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,   ONLY:BezierElevation
+!USE MOD_Mesh_Vars,                ONLY:NGeo
+!USE MOD_Particle_Surfaces_Vars,   ONLY:BezierElevation
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !input parameters

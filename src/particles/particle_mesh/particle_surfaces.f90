@@ -57,6 +57,10 @@ INTERFACE GetElemSlabNormalsAndIntervals
   MODULE PROCEDURE GetElemSlabNormalsAndIntervals
 END INTERFACE
 
+INTERFACE EvaluateBezierPolynimialAndGradient
+  MODULE PROCEDURE EvaluateBezierPolynimialAndGradient
+END INTERFACE
+  
 
 PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, &!GetSuperSampledSurface, &
         GetBezierControlPoints3D,CalcBiLinearNormVecBezier,CalcNormVecBezier,GetSideSlabNormalsAndIntervals,&
@@ -573,94 +577,18 @@ INTEGER,INTENT(IN)                     :: SideID
 REAL,DIMENSION(3)                      :: CalcNormVecBezier
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(3)                      :: v,u!,nVec
-INTEGER                                :: p,q,m
-!REAL                                   :: nlength
-REAL                                   :: MinusXi,PlusXI,MinusEta,PlusEta
-REAL                                   :: xiup(0:NGeo),etaup(0:NGeo),xidown(0:NGeo),etadown(0:NGeo)
+REAL,DIMENSION(2,3)                    :: gradXiEta
+REAL,DIMENSION(2)                      :: XiOut(2)
 !================================================================================================================================
 
 IF(BoundingBoxIsEmpty(SideID))THEN
   CalcNormVecBezier=SideNormVec(1:3,SideID)
 ELSE ! no flat side
   ! compute norm vec
-  ! caution we require the formula in [0;1]
-  M=nGeo-1
-  MinusXi=1.0-xi
-  PlusXi=1.0+xi
-  !PlusXi=xi
-  MinusEta=1.0-eta
-  PlusEta=1.0+eta
-  !PlusEta=eta
-  
-  !! compute the required stuff
-  xiup(0)=1.0
-  etaup(0)=1.0
-  ! caution, here the indicies are switched from n-j to j 
-  xidown(NGeo)=1.0
-  etadown(NGeo)=1.0
-  DO p=1,NGeo
-    xiup(p)=xiup(p-1)*PlusXi
-    etaup(p)=etaup(p-1)*PlusEta
-    xidown(NGeo-p)=xidown(NGeo-p+1)*MinusXi
-    etadown(NGeo-p)=etadown(NGeo-p+1)*MinusEta
-  END DO ! p
-  
-  ! B = (1./(2**N_in))*REAL(CHOOSE(N_in,j))*((x+1.)**j)*((1.-x)**(N_in-j))
-  ! complete form
-  !u=0.
-  !v=0.
-  !DO q=0,NGeo
-  !  DO p=0,M
-  !    ! derivative in xi
-  !!   BezierControlPoints2D_temp(:,q,p)=&
-  !!   BezierControlPoints2D_temp(:,q,p)+&
-  !!   !BezierControlPoints2D(:,l,q)*B(p,l,Smax)
-  !!   BezierControlPoints2D     (:,q,l)*(1./(2.**p))       &
-  !!                         *arrayNchooseK(p,l) &
-  !!                         *(1.+Etamax)**l       &
-  !!                         *(1.-Etamax)**(p-l)
-  !
-  !    u=u+(BezierControlPoints3D(:,p+1,q,SideID)-BezierControlPoints3D(:,p,q,SideID))        &
-  !        *facNchooseK(M,p)*(PlusXi**p)*(MinusXi**(M-p)) &
-  !        *facNChooseK(NGeo,q)*(PlusEta**q)*(MinusEta**(NGeo-q))
-  !
-  !    v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID))        &
-  !        *facNchooseK(NGeo,q)*(PlusXi**q)*(MinusXi**(NGeo-q)) &
-  !                                            *facNChooseK(M,p)*(PlusEta**p)*(MinusEta**(M-p))
-  !
-  !!    u=u+(BezierControlPoints3D(:,p+1,q,SideID)-BezierControlPoints3D(:,p,q,SideID))        &
-  !!        *BezierControlPoints3D(:,p,q,SideID)*facNchooseK(M,p)*(PlusXi**p)*(MinusXi**(M-p)) &
-  !!                                            *facNChooseK(NGeo,q)*(PlusEta**q)*(MinusEta**(NGeo-q))
-  !
-  !!    v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID))        &
-  !!        *BezierControlPoints3D(:,q,p,SideID)*facNchooseK(NGeo,q)*(PlusXi**q)*(MinusXi**(NGeo-q)) &
-  !!                                            *facNChooseK(M,p)*(PlusEta**p)*(MinusEta**(M-p))
-  !
-  !  END DO ! p
-  !END DO ! q
-  !u=u!*NGeo
-  !v=v!*NGeo
-  
-  u=0
-  v=0
-  DO q=0,NGeo
-    DO p=0,M
-      ! derivative in xi: d/dxi = u
-      u=u+(BezierControlPoints3D(:,p+1,q,SideID)-BezierControlPoints3D(:,p,q,SideID)) &
-          *facNchooseK(M,p)*xiup(p)*xidown(p)     &
-          *facNChooseK(NGeo,q)*etaup(q)*etadown(q)
-      ! derivative in eta: d/deta = v ! caution - exchange indicies
-      v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID)) &
-          *facNchooseK(NGeo,q)*xiup(q)*xidown(q)  &
-          *facNChooseK(M,p)*etaup(p)*etadown(p)
-  
-    END DO ! p
-  END DO ! q
-  !u=u*NGeo
-  !v=v*NGeo
-  
-  CalcNormVecBezier=CROSSNORM(u,v)
+  XiOut(1)=Xi
+  XiOut(2)=Eta
+  CALL EvaluateBezierPolynimialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),gradient=gradXiEta) 
+  CalcNormVecBezier=CROSSNORM(gradXiEta(1,1:3),gradXiEta(2,1:3))
   !nVec=CROSS(u,v)
   !nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
   !nlength=SQRT(nlength)
@@ -668,6 +596,124 @@ ELSE ! no flat side
 END IF ! BoundingBoxIsEmpty
 
 END FUNCTION CalcNormVecBezier
+
+
+SUBROUTINE EvaluateBezierPolynimialAndGradient(Xi,N_in,iSize,BezierControlPoints,Point,Gradient) 
+!===================================================================================================================================
+! evaluate the BezierPolynomial and/or gradient by means of direct evaluation and help of a pseudo-horner scheme
+! faster for the evaluation of gradients
+! results depend on mode
+! mode=1 compute Point value
+! mode=2 compute gradient
+! mode=3 point and gradient
+! book:
+! author = {Farin, Gerald},
+! title = {Curves and Surfaces for CAGD: A Practical Guide},
+! year = {2002},
+! 1) computation of Bezier Polynomial is from Farin, Chap. 5, p. 57, EQ. 1
+!    precompute t^i (1-t)^(n-i) by means of Horner Schema and store values direcly sorted 
+! 2) point value
+! 3) evaluate gradients
+! optimized in terms of floating point operations
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Surfaces_Vars,               ONLY:facNchooseK
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+REAL,INTENT(IN)            :: Xi(2)    ! value of the plane (u,v)
+INTEGER,INTENT(IN)         :: N_in
+INTEGER,INTENT(IN)         :: iSize    ! depending if two or three dimensional
+REAL,INTENT(IN)            :: BezierControlPoints(1:iSize,0:N_in,0:N_in)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(OUT),OPTIONAL  :: Point(1:iSize) ! point value
+REAL,INTENT(OUT),OPTIONAL  :: Gradient(1:2,1:iSize) ! gradient in u,v
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                    :: Mode,iMode
+INTEGER                    :: p,q,m
+REAL                       :: MinusXi,PlusXI,MinusEta,PlusEta
+REAL                       :: xiup(0:N_in),etaup(0:N_in),xidown(0:N_in),etadown(0:N_in)
+REAL                       :: xitild(0:N_in), etatild(0:N_in)
+!===================================================================================================================================
+
+Mode=0
+IF(PRESENT(Point)) Mode=1
+iMode=0
+IF(Present(Gradient)) iMode=2
+Mode=Mode+iMode
+
+! map to [0,1]
+M=N_in-1
+MinusXi=1.0-xi(1)
+PlusXi=1.0+xi(1)
+!PlusXi=xi
+MinusEta=1.0-xi(2)
+PlusEta=1.0+xi(2)
+!PlusEta=eta
+
+! compute the required stuff || pseudo Horner or precomputation
+xiup(0)=1.0
+etaup(0)=1.0
+! caution, here the indicies are switched from n-j to j  for **down
+xidown(N_in)=1.0
+etadown(N_in)=1.0
+DO p=1,N_in
+  xiup(p)=xiup(p-1)*PlusXi
+  etaup(p)=etaup(p-1)*PlusEta
+  xidown(N_in-p)=xidown(N_in-p+1)*MinusXi
+  etadown(N_in-p)=etadown(N_in-p+1)*MinusEta
+END DO ! p
+
+! only once
+DO p=0,N_in
+  xitild (p)=xiup (p)*xidown (p)
+  etatild(p)=etaup(p)*etadown(p)
+END DO ! p=0,N_in
+
+IF((Mode.EQ.1).OR.(Mode.EQ.3))THEN
+  Point=0.
+  DO q=0,N_in
+    DO p=0,N_in
+      ! derivative in xi: d/dxi = u
+      !Point(:)=Point(:)+BezierControlPoints(:,p,q)              &
+      !                 *facNchooseK(N_In,p)*xiup(p) *xidown(p)  &
+      !                 *facNChooseK(N_In,q)*etaup(q)*etadown(q)
+      Point(:)=Point(:)+BezierControlPoints(:,p,q)     &
+                       *facNchooseK(N_In,p)*xitild(p)  &
+                       *facNChooseK(N_In,q)*etatild(q)
+    END DO ! p
+  END DO ! q
+END IF
+
+IF(Mode.GE.2)THEN ! gradient
+  gradient=0.
+  DO q=0,N_in
+    DO p=0,N_in
+      ! derivative in xi: d/dxi = u
+      !gradient(1,:)=gradient(1,:)+(BezierControlPoints(:,p+1,q)-BezierControlPoints(:,p,q)) &
+      !                           *facNchooseK(M,p)*xiup(p)*xidown(p)                        &
+      !                           *facNChooseK(N_in,q)*etaup(q)*etadown(q)
+      gradient(1,:)=gradient(1,:)+(BezierControlPoints(:,p+1,q)-BezierControlPoints(:,p,q)) &
+                                 *facNchooseK(M,p)*xitild(p)                                &
+                                 *facNChooseK(N_in,q)*etatild(q)
+      ! derivative in eta: d/deta = v ! caution - exchange indicies
+      !gradient(2,:)=gradient(2,:)+(BezierControlPoints(:,q,p+1)-BezierControlPoints(:,q,p)) &
+      !                           *facNchooseK(N_in,q)*xiup(q)*xidown(q)                     &
+      !                           *facNChooseK(M,p)*etaup(p)*etadown(p)
+      gradient(2,:)=gradient(2,:)+(BezierControlPoints(:,q,p+1)-BezierControlPoints(:,q,p)) &
+                                 *facNchooseK(N_in,q)*xitild(q)                             &
+                                 *facNChooseK(M,p)*etatild(p)
+    END DO ! p
+  END DO ! q
+  gradient=N_in*gradient
+END IF
+
+END SUBROUTINE EvaluateBezierPolynimialAndGradient
 
 
 SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,iElem)
