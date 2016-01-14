@@ -101,7 +101,7 @@ IF(ParticleSurfaceInitIsDone) RETURN
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES ...!'
 
-epsilontol      = GETREAL('epsOne','1e-12')
+epsilontol      = GETREAL('epsOne','1e-10')
 hitepsbi        = GETREAL('hitepsbi','1e-12')
 hitepsbi=1.0+hitepsbi
 !hitepsbi=1.0+SQRT(EPSILON(0.0))
@@ -109,12 +109,12 @@ hitepsbi=1.0+hitepsbi
 Mepsilontol     = -epsilontol
 epsilonOne      = 1.0 + epsilontol
 OneMepsilon     = 1.0 - epsilontol
-ClipTolerance   = GETREAL('ClipTolerance','1e-4')
-SplitLimit      = GETREAL('SplitLimit','0.4')
+ClipTolerance   = GETREAL('ClipTolerance','1e-8')
+SplitLimit      = GETREAL('SplitLimit','0.6')
 SplitLimit      =2.*SplitLimit
-ClipMaxIter     = GETINT('ClipMaxIter','10')
+ClipMaxIter     = GETINT('ClipMaxIter','100')
 
-ClipHit         = GETREAL('ClipHit','1e-7')
+ClipHit         = GETREAL('ClipHit','1e-6')
 ClipHit =1.0+ClipHit
 tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp

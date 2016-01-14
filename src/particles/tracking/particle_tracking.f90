@@ -665,6 +665,7 @@ DO iPart=1,PDM%ParticleVecLength
       TestElem=PEM%Element(iPart)
       IF(.NOT.IsBCElem(TestElem))THEN
         ! ausgabe
+        IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with internal element '
         IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
         IPWRITE(UNIT_stdOut,*) ' epsOneCell  ', epsOneCell
         IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldXi
@@ -707,6 +708,7 @@ DO iPart=1,PDM%ParticleVecLength
         IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell)THEN
           CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.)                                                             
           IF(.NOT.PDM%ParticleInside(iPart)) THEN
+            IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element '
             IPWRITE(UNIT_stdOut,*) ' xi          ', partposref(1:3,ipart)
             IPWRITE(UNIT_stdOut,*) ' epsonecell  ', epsonecell
             IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldxi

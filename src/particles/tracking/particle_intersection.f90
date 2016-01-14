@@ -1127,11 +1127,11 @@ INTEGER                              :: l
   
   IF(Smax.GT.-1.5)THEN
     !Smax=MIN(Smax+20.*ClipTolerance,1.0)
-    Smax=MIN(Smax+20.*ClipTolerance,ClipHit)
+    Smax=MIN(Smax+10.*ClipTolerance,ClipHit)
   END IF
   IF(Smin.LT.1.5)THEN
     !Smin=MAX(Smin-20.*ClipTolerance,-1.0)
-    Smin=MAX(Smin-20.*ClipTolerance,-ClipHit)
+    Smin=MAX(Smin-10.*ClipTolerance,-ClipHit)
   END IF
 
 END SUBROUTINE calcSminSmax
