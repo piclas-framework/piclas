@@ -498,6 +498,7 @@ DO iClipIter=iClipIter,ClipMaxIter
 !                                               *arrayNchooseK(p,l) &
 !                                               *PlusXi**l        &
 !                                               *MinusXi**(p-l)
+              !DEBUG: optimize this !
               BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
                                                +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
                                                *(PlusXi**l)*(MinusXi**(p-l))
@@ -528,6 +529,7 @@ DO iClipIter=iClipIter,ClipMaxIter
             !                                      *arrayNchooseK(p,l)                  &
             !                                      *PlusXi**l &
             !                                      *MinusXi**(p-l)
+            !DEBUG: optimize this !
             BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)             &
                                              +BezierControlPoints2D_temp  (:,NGeo-l,q)*FacNchooseK(p,l) &
                                              *(PlusXi**l)*(MinusXi**(p-l))
@@ -558,6 +560,7 @@ DO iClipIter=iClipIter,ClipMaxIter
             !                                 *arrayNchooseK(p,l) &
             !                                 *(1+XiSplit)**l        &
             !                                 *(1-XiSplit)**(p-l)
+            !DEBUG: optimize this !
             BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
                                              +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
                                              *(PlusXi**l)*(MinusXi**(p-l))
@@ -586,7 +589,7 @@ DO iClipIter=iClipIter,ClipMaxIter
         !                                            *arrayNchooseK(p,l)                  &
         !                                            *(1.+2*((XiMin+1.)/(XiSplit+1.)))**(l-1) &
         !                                            *(1.-2*((XiMin+1.)/(XiSplit+1.)))**(p-l)
-
+              !DEBUG: optimize this !
               BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)             &
                                                +BezierControlPoints2D_temp  (:,NGeo-l,q)*FacNchooseK(p,l) &
                                                *(PlusXi**l)*(MinusXi**(p-l))
@@ -623,6 +626,7 @@ DO iClipIter=iClipIter,ClipMaxIter
               !                                 *arrayNchooseK(p,l) &
               !                                 *(1+XiMax)**l        &
               !                                 *(1-XiMax)**(p-l)
+              !DEBUG: optimize this !
               BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
                                                +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
                                                *(PlusXi**l)*(MinusXi**(p-l))
@@ -652,6 +656,7 @@ DO iClipIter=iClipIter,ClipMaxIter
               !                                      *arrayNchooseK(p,l)                  &
               !                                      *(1.+2*((XiMin+1.)/(XiMax+1.)))**(l-1) &
               !                                      *(1.-2*((XiMin+1.)/(XiMax+1.)))**(p-l)
+              !DEBUG: optimize this !
              BezierControlPoints2D_temp(:,NGeo-p,q)=BezierControlPoints2D_temp(:,NGeo-p,q)             &
                                               +BezierControlPoints2D  (:,NGeo-l,q)*FacNchooseK(p,l) &
                                               *(PlusXi**l)*(MinusXi**(p-l))
@@ -725,6 +730,7 @@ DO iClipIter=iClipIter,ClipMaxIter
 !                                               *arrayNchooseK(p,l) &
 !                                               *(1.+Etamax)**l       &
 !                                               *(1.-Etamax)**(p-l)
+              !DEBUG: optimize this !
               BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
                                                +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
                                                *(PlusEta**l)*(MinusEta**(p-l))
@@ -755,6 +761,7 @@ DO iClipIter=iClipIter,ClipMaxIter
             !                                      *arrayNchooseK(p,l)               &
             !                                      *(1+2*((EtaMin+1)/(EtaMax+1)))**(l-1) &
             !                                      *(1-2*((EtaMin+1)/(EtaMax+1)))**(p-l)
+              !DEBUG: optimize this !
             BezierControlPoints2D_temp2(:,q,NGeo-p)=BezierControlPoints2D_temp2(:,q,NGeo-p)             &
                                              +BezierControlPoints2D_temp  (:,q,NGeo-l)*FacNchooseK(p,l) &
                                              *(PlusEta**l)*(MinusEta**(p-l))
@@ -784,7 +791,7 @@ DO iClipIter=iClipIter,ClipMaxIter
             !                                 *arrayNchooseK(p,l) &
             !                                 *(1.+EtaSplit)**l       &
             !                                 *(1.-EtaSplit)**(p-l)
-
+            !DEBUG: optimize this !
             BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
                                              +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
                                              *(PlusEta**l)*(MinusEta**(p-l))
@@ -812,7 +819,7 @@ DO iClipIter=iClipIter,ClipMaxIter
             !                                        *arrayNchooseK(p,l)               &
             !                                        *(1+2*((EtaMin+1)/(EtaMax+1)))**(l-1) &
             !                                        *(1-2*((EtaMin+1)/(EtaMax+1)))**(p-l)
-
+            !DEBUG: optimize this !
               BezierControlPoints2D_temp2(:,q,NGeo-p)=BezierControlPoints2D_temp2(:,q,NGeo-p)             &
                                                +BezierControlPoints2D_temp  (:,q,NGeo-l)*FacNchooseK(p,l) &
                                                *(PlusEta**l)*(MinusEta**(p-l))
@@ -848,7 +855,7 @@ DO iClipIter=iClipIter,ClipMaxIter
 !                                               *arrayNchooseK(p,l) &
 !                                               *(1.+Etamax)**l       &
 !                                               *(1.-Etamax)**(p-l)
-
+             !DEBUG: optimize this !
               BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
                                                +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
                                                *(PlusEta**l)*(MinusEta**(p-l))
@@ -879,7 +886,7 @@ DO iClipIter=iClipIter,ClipMaxIter
               !                                      *arrayNchooseK(p,l)               &
               !                                      *(1+2*((EtaMin+1)/(EtaMax+1)))**(l-1) &
               !                                      *(1-2*((EtaMin+1)/(EtaMax+1)))**(p-l)
-
+              !DEBUG: optimize this !
               BezierControlPoints2D_temp(:,q,NGeo-p)=BezierControlPoints2D_temp(:,q,NGeo-p)        &
                                                +BezierControlPoints2D(:,q,NGeo-l)*FacNchooseK(p,l) &
                                                *(PlusEta**l)*(MinusEta**(p-l))
@@ -959,6 +966,10 @@ IF(DoCheck)THEN
   MinusXi =1.0-Xi
   MinusEta=1.0-Eta
   
+  ! BEGIN DECASTELJAU ------------------------------------
+  ! Wikipedia: "Although the algorithm is slower for most architectures 
+  !             when compared with the direct approach, it is more numerically stable."
+  ! DEBUG: keep decastejau or implement horner for direct evaluation
   ReducedBezierControlPoints=BezierControlPoints3D(:,:,:,SideID)
   l=NGeo-1
   DO iDeCasteljau=1,NGeo
@@ -984,6 +995,8 @@ IF(DoCheck)THEN
   
   ! resulting point is ReducedBezierControlPoints(:,1,1)
   IntersectionVector=ReducedBezierControlPoints(:,0,0)-LastPartPos(iPart,1:3)
+  ! END DECASTELJAU ------------------------------------
+
   alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
 
   ! funny hard coded tolerance :), obtained by numerical experiments
