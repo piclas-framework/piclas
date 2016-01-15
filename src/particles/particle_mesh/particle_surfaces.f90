@@ -719,6 +719,8 @@ END SUBROUTINE EvaluateBezierPolynimialAndGradient
 SUBROUTINE GetBezierControlPoints3D(XCL_NGeo,iElem)
 !===================================================================================================================================
 ! computes the nodes for Bezier Control Points for [P][I][C] [A]daptive [S]uper [S]ampled Surfaces [O]perations
+! the control points (coeffs for bezier basis) are calculated using the change basis subroutine that interpolates the points 
+! from the curved lagrange basis geometry (pre-computed inverse of vandermonde is required)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1039,6 +1041,14 @@ END SUBROUTINE GetBezierControlPoints3D
 SUBROUTINE GetSideSlabNormalsAndIntervals(NGeo,SideID)
 !===================================================================================================================================
 ! computes the oriented-slab box for each bezier basis surface (i.e. 3 slab normals + 3 intervalls)
+! see article:  
+!    author = {Shyue-wu Wang and Zen-chung Shih and Ruei-chuan Chang},                    
+!    title = {An Efficient and Stable Ray Tracing Algorithm for Parametric Surfaces},     
+!    year = {2001},
+! original article: oriented-slab box (cartesian bounding box)
+!   author = {Yen, Jonathan and Spach, Susan and Smith, Mark and Pulleyblank, Ron},       
+!   title = {Parallel Boxing in B-Spline Intersection},                                   
+!   issue_date = {January 1991},
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1229,6 +1239,14 @@ SUBROUTINE GetElemSlabNormalsAndIntervals(NGeo,ElemID)
 !===================================================================================================================================
 ! computes the oriented-slab box for each bezier basis surface (i.e. 3 slab normals + 3 intervalls)
 ! of each element. This routine must be called after GetSideSlabNormalsAndIntervals(...), because the elevation takes place there
+! see article:  
+!    author = {Shyue-wu Wang and Zen-chung Shih and Ruei-chuan Chang},                                                              
+!    title = {An Efficient and Stable Ray Tracing Algorithm for Parametric Surfaces},                                               
+!    year = {2001},
+! original article: oriented-slab box (cartesian bounding box)
+!   author = {Yen, Jonathan and Spach, Susan and Smith, Mark and Pulleyblank, Ron},                                                 
+!   title = {Parallel Boxing in B-Spline Intersection},                                                                             
+!   issue_date = {January 1991},
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1360,6 +1378,7 @@ END SUBROUTINE GetElemSlabNormalsAndIntervals
 SUBROUTINE GetBezierControlPoints3DElevated(NGeo,SideID)
 !===================================================================================================================================
 ! compute the elevated bezier control points (use pre-computed ElevationMatrix with binomial coefficicents)
+! uses the tensor-product basis and combines two 1-D elevation steps
 !===================================================================================================================================
 ! MODULES
 !USE MOD_Globals
@@ -1403,6 +1422,14 @@ FUNCTION ElevateBezierPolynomial(NGeo,BezierPolynomial)
 ! this function creates a new equidistantly distributed set of control points (bézier polynomial basis coefficients) based on the 
 ! control points "BezierPolynomial" with order "N" and elevates them to "ElevateBezierPolynomial" on "Xi_NGeo_elevated" with order 
 ! "p+BezierElevation"
+! book: single step procedure (1D)
+!   author = {Piegl, Les and Tiller, Wayne},                                                                       
+!   title = {The NURBS Book (2Nd Ed.)},                                                                            
+!   year = {1997},
+! book: see also for general remarks
+! author = {Farin, Gerald},
+! title = {Curves and Surfaces for CAGD: A Practical Guide},
+! year = {2002},
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierElevation,ElevationMatrix
