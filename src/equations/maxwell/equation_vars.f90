@@ -20,6 +20,7 @@ INTEGER           :: IniExactFunc
 INTEGER           :: BCType(6)=-999
 INTEGER           :: BoundaryCondition(6,2)
 LOGICAL           :: EquationInitIsDone=.FALSE.
+LOGICAL           :: DoParabolicDamping
 REAL              :: c
 REAL              :: c_inv
 REAL              :: c2      ! c^2

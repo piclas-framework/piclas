@@ -79,6 +79,7 @@ eps0               = GETREAL('eps','1.')
 mu0                = GETREAL('mu','1.')
 smu0               = 1./mu0
 fDamping           = GETREAL('fDamping','0.99')
+DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
 !scr            = 1./ GETREAL('c_r','0.18')  !constant for damping
 DipoleOmega        = GETREAL('omega','6.28318E08') ! f=100 MHz default
 tPulse             = GETREAL('tPulse','30e-9')     ! half length of pulse
@@ -522,6 +523,11 @@ USE MOD_PICDepo_Vars,  ONLY : Source
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 !USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
+#ifdef LSERK
+USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage  
+USE MOD_DG_Vars,       ONLY : U
+#endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -608,6 +614,14 @@ CASE(50,51) ! TE_34,19 Mode - no sources
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
+
+#ifdef LSERK
+IF(.NOT.DoParabolicDamping)THEN
+  !Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFL1/RK_b(iStage)*U(7:8,:,:,:,:)
+  Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFL1*U(7:8,:,:,:,:)
+END IF
+#endif /*LSERK*/
+
 !source fo divcorr damping!
 !Ut(7:8,:,:,:,:)=Ut(7:8,:,:,:,:)-(c_corr*scr)*U(7:8,:,:,:,:)
 END SUBROUTINE CalcSource
@@ -621,7 +635,7 @@ SUBROUTINE DivCleaningDamping()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : U
-USE MOD_Equation_Vars, ONLY : fDamping
+USE MOD_Equation_Vars, ONLY : fDamping,DoParabolicDamping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -632,6 +646,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
+IF(DoParabolicDamping) RETURN
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
     !  Get source from Particles

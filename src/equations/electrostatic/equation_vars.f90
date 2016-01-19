@@ -20,6 +20,7 @@ INTEGER           :: IniExactFunc
 INTEGER           :: BCType(6)=-999
 INTEGER           :: BoundaryCondition(6,2)
 LOGICAL           :: EquationInitIsDone=.FALSE.
+LOGICAL           :: DoParabolicDamping
 REAL              :: c
 REAL              :: c_inv
 REAL              :: c2      ! c^2
@@ -35,10 +36,10 @@ REAL,ALLOCATABLE     :: BCData(:,:,:,:)
 INTEGER,ALLOCATABLE  :: nBCByType(:)
 INTEGER,ALLOCATABLE  :: BCSideID(:,:)
 ! can specify BC state
-CHARACTER(LEN=255):: BCStateFile
-CHARACTER(LEN=255),DIMENSION(4),PARAMETER :: StrVarNames(4)=(/ CHARACTER(LEN=255) :: 'ElectricFieldX', &
-                                                                                     'ElectricFieldY', &
-                                                                                     'ElectricFieldZ', &
+  CHARACTER(LEN=255):: BCStateFile
+  CHARACTER(LEN=255),DIMENSION(4),PARAMETER :: StrVarNames(4)=(/ CHARACTER(LEN=255) :: 'ElectricFieldX', &
+                                                                                       'ElectricFieldY', &
+                                                                                       'ElectricFieldZ', &
                                                                                      'Psi           ' /)
 !===================================================================================================================================
 END MODULE MOD_Equation_Vars

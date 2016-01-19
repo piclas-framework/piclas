@@ -20,6 +20,7 @@ INTEGER           :: IniExactFunc
 INTEGER           :: BCType(6)=-999
 INTEGER           :: BoundaryCondition(6,2)
 LOGICAL           :: EquationInitIsDone=.FALSE.
+LOGICAL           :: DoParabolicDamping
 REAL              :: c
 REAL              :: c_inv
 REAL              :: c2      ! c^2
@@ -43,8 +44,8 @@ CHARACTER(LEN=255),DIMENSION(8),PARAMETER :: StrVarNames(8)=(/ CHARACTER(LEN=255
                                                                                      'MagneticFieldX', &
                                                                                      'MagneticFieldY', &
                                                                                      'MagneticFieldZ', &
-                                                                                     'Phi'           , &
-                                                                                     'Psi           ' /)
+                                                                                     'Phi_LMP'       , &
+                                                                                     'Potential'     /)
 
 REAL,SAVE,ALLOCATABLE                 :: D(:,:) !D Matrix Kopriva, derivative matrix
 REAL,ALLOCATABLE                      :: E(:,:,:,:,:)

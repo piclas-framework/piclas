@@ -124,7 +124,7 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
-USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,IterDisplayStepUser
+USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,IterDisplayStepUser,sdtCFLOne,CFLtoOne
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
 USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
 USE MOD_Analyze,               ONLY: CalcError,PerformAnalyze
@@ -285,6 +285,8 @@ IF(useManualTimeStep)THEN
 #if (PP_TimeDiscMethod==200)
   dt_max_particles = ManualTimeStep
   dt_maxwell = CALCTIMESTEP()
+  sdtCFLOne  = 1.0/(dt_maxwell*CFLtoOne)
+
   NextTimeStepAdjustmentIter = 0
   MaxwellIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) &
                  / (c * dt_maxwell))
@@ -303,6 +305,7 @@ ELSE ! .NO. ManualTimeStep
   ! time step is calculated by the solver
   ! first Maxwell time step for explicit LSRK
   dt_Min=CALCTIMESTEP()
+  sdtCFLOne  = 1.0/(dt_Min*CFLtoOne)
   dt=dt_Min
   ! calculate time step for sub-cycling of divergence correction
   ! automatic particle time step of quasi-stationary time integration is not implemented
@@ -317,6 +320,7 @@ END IF ! useManualTimestep
 
 #if (PP_TimeDiscMethod==201)
 dt_maxwell = CALCTIMESTEP()
+sdtCFLOne  = 1.0/(dt_Maxwell*CFLtoOne)
 MaximumIterNum = INT(MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob) &
                / (c * dt_maxwell))
 IF(MPIroot)THEN
@@ -2806,7 +2810,7 @@ SUBROUTINE FillCFL_DFL()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY:CFLScale
+USE MOD_TimeDisc_Vars,ONLY:CFLScale,CFLtoOne
 #if (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==5) || (PP_TimeDiscMethod==200) || (PP_TimeDiscMethod==201)
 USE MOD_TimeDisc_Vars,ONLY:CFLScaleAlpha
 #endif
@@ -2822,6 +2826,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 ! CFL in DG depends on the polynomial degree
 
+CFLToOne=1.0/CFLScale
 #if (PP_TimeDiscMethod==3)
 #  if (PP_NodeType==1)
   !Gauss  Taylor DG Timeorder=SpaceOrder

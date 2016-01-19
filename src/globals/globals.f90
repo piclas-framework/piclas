@@ -20,9 +20,12 @@ LOGICAL           ::Logging
 CHARACTER(LEN=255)::ErrorFileName='NOT_SET'
 INTEGER           ::iError
 REAL              ::StartTime
-INTEGER           ::myRank
-INTEGER           ::nProcessors
-LOGICAL           ::MPIRoot
+INTEGER           ::myRank,myLocalRank,myLeaderRank,myWorkerRank
+INTEGER           ::nProcessors,nLocalProcs,nLeaderProcs,nWorkerProcs
+INTEGER           ::MPI_COMM_NODE    ! local node subgroup
+INTEGER           ::MPI_COMM_LEADERS ! all node masters
+INTEGER           ::MPI_COMM_WORKERS ! all non-master nodes
+LOGICAL           ::MPIRoot,MPILocalRoot
 #ifdef MPI
 !#include "mpif.h"
 INTEGER           :: MPIStatus(MPI_STATUS_SIZE)

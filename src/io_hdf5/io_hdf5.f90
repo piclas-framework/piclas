@@ -12,6 +12,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+LOGICAL                  :: gatheredWrite
 INTEGER(HID_T)           :: File_ID
 INTEGER(HSIZE_T),POINTER :: HSize(:)
 INTEGER                  :: nDims
@@ -49,6 +50,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+gatheredWrite=.FALSE.
+IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')
 #ifdef MPI
   CALL MPI_Info_Create(MPIInfo, iError)
 
@@ -121,20 +124,14 @@ IF(.NOT.single)  CALL H5PSET_FAPL_MPIO_F(Plist_ID, comm, MPIInfo, iError)
 IF(create)THEN
   CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, access_prp = Plist_ID)
 ELSE !read-only ! and write (added later)
-  IF(MPIRoot)THEN
-    INQUIRE(FILE=TRIM(FileString),EXIST=fileExists)
-    IF(.NOT.fileExists) CALL abort(&
-      __STAMP__,&
-      'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
-  END IF
-  CALL H5FOPEN_F(TRIM(FileString), H5F_ACC_RDWR_F, File_ID, iError, access_prp = Plist_ID)
-  IF(iError.EQ.-1) THEN
-    SWRITE(UNIT_stdOut,*) "Can't open file: ",TRIM(FileString)
-    CALL abort(&
-    __STAMP__&
-    ,' Cannot open file!')
-  END IF      
+  INQUIRE(FILE=TRIM(FileString),EXIST=fileExists)
+  IF(.NOT.fileExists) CALL abort(__STAMP__,&
+    'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
+  CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDWR_F,  File_ID, iError, access_prp = Plist_ID)
 END IF
+IF(iError.NE.0) CALL abort(__STAMP__,&
+  'ERROR: Could not open or create file '//TRIM(FileString)) 
+
 CALL H5PCLOSE_F(Plist_ID, iError)
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE OpenHDF5File

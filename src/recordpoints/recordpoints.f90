@@ -416,7 +416,7 @@ IF(iSample.GT.0)THEN
                         resizeDim= (/.FALSE.  ,.FALSE.  ,.TRUE./),&
                         chunkSize= (/PP_nVar+1,1        ,1/),&
                         RealArray=RP_Data(:,:,1:iSample),&
-                        collective=.TRUE., existing=RP_fileExists)
+                        collective=.TRUE.)!, existing=RP_fileExists)
   lastSample=RP_Data(:,:,iSample)
 END IF
 ! Reset buffer

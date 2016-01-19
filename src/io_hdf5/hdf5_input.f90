@@ -21,6 +21,10 @@ INTERFACE GetHDF5NextFileName
   MODULE PROCEDURE GetHDF5NextFileName
 END INTERFACE
 
+INTERFACE DatasetExists
+  MODULE PROCEDURE DatasetExists
+END INTERFACE
+
 INTERFACE GetDataSize
   MODULE PROCEDURE GetHDF5DataSize
 END INTERFACE
@@ -42,7 +46,7 @@ PUBLIC :: ISVALIDHDF5FILE,GetDataSize,GetDataProps,GetHDF5NextFileName
 PUBLIC :: ReadArray,ReadAttribute
 PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
 PUBLIC :: OpenDataFile,CloseDataFile ! Subroutines that need to be public
-
+PUBLIC :: DatasetExists
 !===================================================================================================================================
 
 CONTAINS
@@ -78,9 +82,8 @@ IF(PRESENT(FileVersionOpt)) FileVersionRef=FileVersionOpt
 CALL H5ESET_AUTO_F(0, iError)
 ! Initialize FORTRAN predefined datatypes
 CALL H5OPEN_F(iError)
-IF(iError.NE.0)THEN
-  CALL Abort(__STAMP__,'ERROR: COULD NOT OPEN FILE!',999,999.)
-END IF
+IF(iError.NE.0)&
+  CALL Abort(__STAMP__,'ERROR: COULD NOT OPEN FILE!')
 
 ! Open HDF5 file
 CALL H5FOPEN_F(TRIM(FileName), H5F_ACC_RDONLY_F, File_ID, iError,access_prp = Plist_ID)
@@ -148,6 +151,45 @@ CALL H5SCLOSE_F(FileSpace, iError)
 CALL H5DCLOSE_F(DSet_ID, iError)
 END SUBROUTINE GetHDF5DataSize
 
+
+SUBROUTINE DatasetExists(Loc_ID,DSetName,Exists,attrib)
+!===================================================================================================================================
+! Subroutine to check wheter a dataset on the hdf5 file exists
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*)                     :: DSetName
+INTEGER(HID_T),INTENT(IN)            :: Loc_ID
+LOGICAL,INTENT(IN),OPTIONAL          :: attrib
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)                  :: Exists
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER(HID_T)                       :: DSet_ID
+INTEGER                              :: hdferr
+!===================================================================================================================================
+! we have no "h5dexists_f", so we use the error given by h5dopen_f.
+! this produces hdf5 error messages even if everything is ok, so we turn the error msgs off 
+! during this operation.
+! auto error messages off
+CALL h5eset_auto_f(0, hdferr)
+! Open the dataset with default properties.
+IF(PRESENT(attrib).AND.attrib)THEN
+  CALL H5AOPEN_F(Loc_ID, TRIM(DSetName), DSet_ID, iError)
+  CALL H5ACLOSE_F(DSet_ID, iError)
+ELSE
+  CALL H5DOPEN_F(Loc_ID, TRIM(DSetName), DSet_ID, iError)
+  CALL H5DCLOSE_F(DSet_ID, iError)
+END IF
+Exists=.TRUE.
+IF(iError.LT.0) Exists=.FALSE.
+! auto error messages on
+CALL h5eset_auto_f(1, hdferr)
+END SUBROUTINE DatasetExists
 
 
 SUBROUTINE GetHDF5DataProps(nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5)
@@ -450,6 +492,4 @@ END IF
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE GetHDF5NextFileName
 
-
-!===================================================================================================================================
 END MODULE MOD_HDF5_Input

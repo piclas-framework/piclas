@@ -20,6 +20,7 @@ INTEGER           :: IniExactFunc
 INTEGER           :: BCType(6)=-999
 INTEGER           :: BoundaryCondition(6,2)
 LOGICAL           :: EquationInitIsDone=.FALSE.
+LOGICAL           :: DoParabolicDamping
 REAL              :: c
 REAL              :: c_inv
 REAL              :: c2      ! c^2
@@ -37,9 +38,9 @@ INTEGER,ALLOCATABLE  :: BCSideID(:,:)
 ! can specify BC state
 CHARACTER(LEN=255):: BCStateFile
 CHARACTER(LEN=255),DIMENSION(4),PARAMETER :: StrVarNames(4)=(/ CHARACTER(LEN=255) :: 'Phi', &
-                                                                                     'ThetaX', &
-                                                                                     'ThetaY', &
-                                                                                     'ThetaZ' /)
+                                                                                     'ElectricFieldX', &
+                                                                                     'ElectricFieldY', &
+                                                                                     'ElectricFieldZ' /)
 
 REAL,SAVE,ALLOCATABLE                 :: D(:,:) !D Matrix Kopriva, derivative matrix
 REAL,ALLOCATABLE                      :: E(:,:,:,:,:)

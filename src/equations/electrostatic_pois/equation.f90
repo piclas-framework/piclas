@@ -98,6 +98,7 @@ eps0               = GETREAL('eps','1.')
 mu0                = GETREAL('mu','1.')
 fDamping           = GETREAL('fDamping','0.99')
 fDamping_pois      = GETREAL('fDamping_pois','0.99')
+DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
 c_test = 1./SQRT(eps0*mu0)
 IF ( ABS(c-c_test)/c.GT.10E-8) THEN
   SWRITE(*,*) "ERROR: c does not equal 1/sqrt(eps*mu)!"
@@ -265,6 +266,11 @@ USE MOD_Particle_Mesh_Vars, ONLY : NbrOfRegions,GEO
 USE MOD_Particle_Vars,      ONLY : RegionElectronRef
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars,          ONLY : Elem_xGP ! Elem_xGP: xyz of Gauss points for shape func., NbrOfRegions: for boltzm. rel.
+#ifdef LSERK
+USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage  
+USE MOD_DG_Vars,       ONLY : U
+#endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -316,6 +322,12 @@ CASE(1) ! Constant          - no sources
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
+#ifdef LSERK
+IF(.NOT.DoParabolicDamping)THEN
+  !Ut(4,:,:,:,:) = Ut(4,:,:,:,:) - (1.0-fDamping)*sdtCFL1/RK_b(iStage)*U(4,:,:,:,:)
+  Ut(4,:,:,:,:) = Ut(4,:,:,:,:) - (1.0-fDamping)*sdtCFL1*U(4,:,:,:,:)
+END IF
+#endif /*LSERK*/
 END SUBROUTINE CalcSource
 
 SUBROUTINE CalcSource_Pois(t)
@@ -325,11 +337,15 @@ SUBROUTINE CalcSource_Pois(t)
 ! MODULES
 USE MOD_Globals,       ONLY : abort
 USE MOD_PreProc
-USE MOD_Equation_Vars, ONLY : Phit
+USE MOD_Equation_Vars, ONLY : Phit,Phi
 USE MOD_DG_Vars,       ONLY: U
 USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc
 USE MOD_PICDepo_Vars,  ONLY : Source
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
+#ifdef LSERK
+USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage  
+#endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -362,6 +378,12 @@ CASE(1) ! Constant          - no sources
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
+#ifdef LSERK
+IF(.NOT.DoParabolicDamping)THEN
+  !Phit(2:4,:,:,:,:) = Phit(2:4,:,:,:,:) - (1.0-fDamping)*sdtCFL1/RK_b(iStage)*Phi(2:4,:,:,:,:)
+  Phit(2:4,:,:,:,:) = Phit(2:4,:,:,:,:) - (1.0-fDamping)*sdtCFL1*Phi(2:4,:,:,:,:)
+END IF
+#endif /*LSERK*/
 END SUBROUTINE CalcSource_Pois
 
 SUBROUTINE DivCleaningDamping()
@@ -372,7 +394,12 @@ SUBROUTINE DivCleaningDamping()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : U
-USE MOD_Equation_Vars, ONLY : fDamping
+USE MOD_Equation_Vars, ONLY : fDamping,DoParabolicDamping
+#ifdef LSERK
+USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFL1  
+USE MOD_DG_Vars,       ONLY : U
+#endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -383,6 +410,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
+
+  IF(DoParabolicDamping) RETURN
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles
@@ -400,7 +429,10 @@ SUBROUTINE DivCleaningDamping_Pois()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Equation_Vars,       ONLY : Phi
-USE MOD_Equation_Vars, ONLY : fDamping_pois
+USE MOD_Equation_Vars, ONLY : fDamping_pois,DoParabolicDamping
+#ifdef LSERK
+USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
+#endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -411,6 +443,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES 
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
+  IF(DoParabolicDamping) RETURN
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       !  Get source from Particles

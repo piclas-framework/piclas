@@ -16,6 +16,8 @@ REAL             :: TAnalyze
 REAL             :: TLoadBalance
 REAL             :: dt
 REAL             :: CFLScale 
+REAL             :: CFLtoOne      ! scaling factor to scale CFL to one
+REAL             :: sdtCFLOne     ! inverse of dt of CFLOne
 !REAL             :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver
 !INTEGER          :: maxIter_LinearSolver
 INTEGER          :: iStage
@@ -30,6 +32,7 @@ REAL             :: TimeDG, TimeParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==1)
 ! Low-storage Runge-Kutta 3, 3 stages, Kopriva,Algorithm 42 
+CHARACTER(LEN=255),PARAMETER :: TimeDiscName = 'STANDARD RK3-3'
 INTEGER,PARAMETER  :: nRKStages=3
 REAL,PARAMETER  :: RK3_a2= 5./9. 
 REAL,PARAMETER  :: RK3_a3= 153./128.

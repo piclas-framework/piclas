@@ -65,17 +65,19 @@ IMPLICIT NONE
 #ifdef MPI
 CALL MPI_INIT(iError)
 IF(iError .NE. 0) &
-  CALL Abort(__STAMP__,'Error in MPI_INIT',iError,999.)
+  CALL Abort(__STAMP__,'Error in MPI_INIT',iError)
 
 CALL MPI_COMM_RANK(MPI_COMM_WORLD, myRank     , iError)
 CALL MPI_COMM_SIZE(MPI_COMM_WORLD, nProcessors, iError)
 IF(iError .NE. 0) &
-  CALL Abort(__STAMP__,'Could not get rank and number of processors',iError,999.)
+  CALL Abort(__STAMP__,'Could not get rank and number of processors',iError)
 MPIRoot=(myRank .EQ. 0)
 #else  /*MPI*/
 myRank      = 0 
+myLocalRank = 0
 nProcessors = 1 
 MPIRoot     =.TRUE.
+MPILocalRoot=.TRUE.
 #endif  /*MPI*/
 
 ! At this point the initialization is not completed. We first have to create a new MPI communicator. MPIInitIsDone will be set
@@ -93,6 +95,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
 USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
+USE MOD_Readintools,       ONLY:GETINT
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -101,6 +104,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER :: color,groupsize
 !===================================================================================================================================
 IF(.NOT.InterpolationInitIsDone)THEN
   CALL Abort(__STAMP__,'InitMPITypes called before InitInterpolation')
@@ -144,6 +148,53 @@ nMPISides_send(:,2)     =nMPISides_YOUR_Proc
 OffsetMPISides_send(:,2)=OffsetMPISides_YOUR
 nMPISides_rec(:,2)      =nMPISides_MINE_Proc
 OffsetMPISides_rec(:,2) =OffsetMPISides_MINE
+
+
+! split communicator into smaller groups (e.g. for local nodes)
+GroupSize=GETINT('GroupSize','0')
+IF(GroupSize.LT.1)THEN ! group procs by node
+#ifdef MPI3
+  ! MPI3 directly gives you shared memory groups
+  CALL MPI_INFO_CREATE(info,iError)
+  CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,myRank,info,MPI_COMM_NODE,iError)
+#else
+  ! TODO: Build own node communicator
+  !CALL MPI_Get_processor_name(procname,length,iError)
+  ! Now generate hash from string
+  ! TODO: find good hash function, but beware hash collisions may occur!
+  ! Maybe use two different hash functions and check if resulting groups are identical
+  !CALL GetHashesFromString(procname,color1,color2) ! beware, hash collisions may occur, check results TODO: find good hash function
+  !CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color1,myRank,MPI_COMM_NODE1,iError)
+  !CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color2,myRank,MPI_COMM_NODE2,iError)
+  ! Compare ...
+
+  ! Fallback:
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,myRank,MPI_COMM_NODE,iError)
+#endif
+ELSE ! use groupsize
+  color=myRank/GroupSize
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,myRank,MPI_COMM_NODE,iError)
+END IF
+CALL MPI_COMM_RANK(MPI_COMM_NODE,myLocalRank,iError)
+CALL MPI_COMM_SIZE(MPI_COMM_NODE,nLocalProcs,iError)
+MPILocalRoot=(myLocalRank .EQ. 0)
+
+! now split global communicator into small group leaders and the others
+MPI_COMM_LEADERS=MPI_COMM_NULL
+MPI_COMM_WORKERS=MPI_COMM_NULL
+myLeaderRank=-1
+myWorkerRank=-1
+IF(myLocalRank.EQ.0)THEN
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,0,myRank,MPI_COMM_LEADERS,iError)
+  CALL MPI_COMM_RANK( MPI_COMM_LEADERS,myLeaderRank,iError)
+  CALL MPI_COMM_SIZE( MPI_COMM_LEADERS,nLeaderProcs,iError)
+  nWorkerProcs=nProcessors-nLeaderProcs
+ELSE
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,1,myRank,MPI_COMM_WORKERS,iError)
+  CALL MPI_COMM_RANK( MPI_COMM_WORKERS,myWorkerRank,iError)
+  CALL MPI_COMM_SIZE( MPI_COMM_WORKERS,nWorkerProcs,iError)
+  nLeaderProcs=nProcessors-nWorkerProcs
+END IF
 END SUBROUTINE InitMPIvars
 
 
