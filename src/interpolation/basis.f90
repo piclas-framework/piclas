@@ -29,6 +29,10 @@ INTERFACE BuildBezierVdm
    MODULE PROCEDURE BuildBezierVdm
 END INTERFACE
 
+INTERFACE BuildBezierDMat
+   MODULE PROCEDURE BuildBezierDMat
+END INTERFACE
+
 INTERFACE DeCasteljauInterpolation
    MODULE PROCEDURE DeCasteljauInterpolation
 END INTERFACE
@@ -82,6 +86,7 @@ PUBLIC::INV
 PUBLIC::BuildLegendreVdm
 !#ifdef PARTICLES
 PUBLIC::BuildBezierVdm
+PUBLIC::BuildBezierDMat
 PUBLIC::DeCasteljauInterpolation
 PUBLIC::BernSteinPolynomial
 PUBLIC::ComputeBernSteinCoeff
@@ -328,6 +333,74 @@ dummy=SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))-REAL(N_In+1)
 IF(ABS(dummy).GT.1.E-13) CALL abort(__STAMP__,&
 'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)
 END SUBROUTINE BuildBezierVdm
+
+
+SUBROUTINE BuildBezierDMat(N_In,xi_In,DMat)
+!===================================================================================================================================
+! build a 1D D matrix using the Bezier basis functions of degree N_In
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Particle_Surfaces_Vars, ONLY: FacNchooseK
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: N_In
+REAL,INTENT(IN)    :: xi_In(0:N_In)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)   :: DMat(0:N_In,0:N_In)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER            :: i,j
+REAL               :: XiPlus,XiMinus
+!REAL               :: rtmp1,rtmp2
+!===================================================================================================================================
+
+DMat=0.
+! for j=0
+! (n over 0) (t+1)^0 (1-t)^n
+DO i=0,N_in
+  DMat(i,0) = -facNchooseK(N_in,0)*REAL(N_in)*(1-Xi_In(i))**(N_in-1)
+END DO ! i=0,N_in
+! for j=N_in
+DO i=0,N_in
+  DMat(i,N_in) = facNchooseK(N_in,N_in)*REAL(N_in)*(Xi_In(i)+1)**(N_in-1)
+END DO ! i=0,N_in
+
+! all inner values
+DO j=1,N_in-1
+  DO i=0,N_in
+    XiPlus  =Xi_In(i)+1.0
+    XiMinus =1.0-Xi_In(i)
+    DMat(i,j) =facNchooseK(N_In,j)*(REAL(j)  *(XiPlus**(j-1))*XiMinus**(N_in-j)   &
+                                   -REAL(N_in-j)*(XiPlus**j    )*XiMinus**(N_in-j-1) )
+  END DO ! i=0,N_in
+END DO ! j=0,N_in
+
+! via diff, compare wiki, farin, etc
+! caution, a 1/2 is missing in facNchooseK .oO
+! DMat=0.
+! DO j=0,N_in
+!   DO i=0,N_in
+!     XiPlus  =Xi_In(i)+1.0
+!     XiMinus =1.0-Xi_In(i)
+!     IF((j-1).EQ.-1)THEN
+!       rTmp1=0.
+!     ELSE
+!       rTmp1=0.5*facNchooseK(N_in-1,j-1)*XiPlus**(j-1)*XiMinus**(N_in-j)
+!     END IF
+!     IF((j).EQ.N_In)THEN
+!       rTmp2=0.
+!     ELSE
+!       rTmp2=0.5*facNchooseK(N_in-1,j)*XiPlus**(j)*XiMinus**(N_in-1-j)
+!     END IF
+!     DMat(i,j) = N_in*(rtmp1-rtmp2)
+!   END DO ! i=0,N_in
+! END DO ! j=0,N_in
+
+END SUBROUTINE BuildBezierDmat
 
 
 SUBROUTINE DeCasteljauInterpolation(N_In,xi_In,SideID,xPoint)

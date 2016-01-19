@@ -21,6 +21,7 @@ REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideSlabIntervals            ! interv
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: ElemSlabNormals              ! normal vectors of bounding slab box (Elements)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemSlabIntervals            ! intervalls beta1, beta2, beta3 (Elements)
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: Vdm_Bezier,sVdm_Bezier       ! Vdm from/to Bezier Polynomial from BC representation
+REAL,ALLOCATABLE,DIMENSION(:,:)         :: D_Bezier                     ! D-Matrix of Bezier Polynomial from BC representation
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: arrayNchooseK                ! array for binomial coefficients
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: FacNchooseK                  ! array for binomial coefficients times prefactor
 INTEGER,ALLOCATABLE,DIMENSION(:)        :: SideType                     ! integer array with side type - planar - bilinear - curved

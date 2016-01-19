@@ -181,7 +181,7 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Vars,           ONLY:time
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-USE MOD_TimeDisc_Vars,           ONLY:iter
+!USE MOD_TimeDisc_Vars,           ONLY:iter
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip
 #endif /*CODE_ANALYZE*/
@@ -206,6 +206,8 @@ REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGe
 INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID!,realInterID
 LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter
+!REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
+!REAL                                     :: XiNewton(2)
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
@@ -298,6 +300,9 @@ END DO
 !END IF
 
 
+! backup for newton
+!BezierControlPoints2D_tmp=BezierControlPoints2D
+
 
 
 !  this part in a new function or subroutine
@@ -310,19 +315,12 @@ firstClip=.TRUE.
 CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
                ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
-
-!IF(ipart.EQ.1899)THEN
-!  IF(nInterSections.GT.0)THEN
-!    print*,'nintersections',nintersections
-!    print*,'alpha ',localpha
-!  END IF
-!   !read*
-!END IF
-!IF(ipart.EQ.214)THEN
-!  print*,'ninter ',nintersections
-!  read*
-!END IF
-
+! how to call the newton          
+!XiNewton=0.
+!!CALL BezierNewton(locAlpha(1),(/locXi(1),loceta(1)/),BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+!CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+!locXi (1)=XiNewton(1)
+!locEta(1)=XiNewton(2)
 
 
 SELECT CASE(nInterSections)
@@ -416,8 +414,10 @@ USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
 USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter,SplitLimit,ClipHit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,mEpsilontol,epsilontol
- USE MOD_Particle_Vars,           ONLY:LastPartPos,Time
+USE MOD_Particle_Vars,           ONLY:LastPartPos,Time
 USE MOD_TimeDisc_Vars,               ONLY:iter
+
+USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -451,6 +451,7 @@ INTEGER                              :: iClip
 REAL                                 :: alphaNorm
 REAL                                 :: PlusXi,MinusXi,PlusEta,MinusEta,tmpXi,tmpEta
 INTEGER                              :: tmpnClip,tmpnXi,tmpnEta
+REAL:: xInt(3)
 !================================================================================================================================
 
 PatchDOF2D=1.0/REAL((NGeo+1)*(NGeo+1))
@@ -981,18 +982,10 @@ IF(DoCheck)THEN
   ! Calculate intersection value in 3D (De Casteljau)
   tmpXi=XI
   tmpEta=Eta
+
+
   Xi=0.5*(Xi+1)
   Eta=0.5*(Eta+1)
-
-!  IF(MyRank.EQ.39)THEN
-!    IF(iter.GT.290)THEN
-!      IF(iPart.EQ.15322)THEN
-!        WRITE(*,*) ' -------------------'
-!        WRITE(*,*) ' xi,eta',xi,eta
-!      END IF
-!    END IF
-!  END IF
-
 
   IF((ABS(eta).GT.ClipHit).OR.(ABS(xi).GT.ClipHit))THEN
     RETURN
@@ -1029,10 +1022,10 @@ IF(DoCheck)THEN
     l=l-1
   END DO
   
+
   ! resulting point is ReducedBezierControlPoints(:,1,1)
   IntersectionVector=ReducedBezierControlPoints(:,0,0)-LastPartPos(iPart,1:3)
   ! END DECASTELJAU ------------------------------------
-
   alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
 
   ! funny hard coded tolerance :), obtained by numerical experiments
@@ -1064,6 +1057,127 @@ IF(DoCheck)THEN
 END IF ! docheck
 
 END SUBROUTINE BezierClip
+
+
+SUBROUTINE BezierNewton(alpha,Xi,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+!===================================================================================================================================
+! Newton to find root in projected plane for curved tracking
+! whole Newton operates in [-1,1]
+! output: [-1,1]
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Mesh_Vars,               ONLY:NGeo
+USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipHit,ClipMaxIter,BezierControlPoints3D,epsilontol
+USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
+USE MOD_Particle_Surfaces_Vars,  ONLY:facNchooseK,D_Bezier
+USE MOD_TimeDisc_Vars,           ONLY:iter
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+REAL,INTENT(IN)    :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
+REAL,INTENT(IN)    :: PartTrajectory(3),lengthPartTrajectory
+INTEGER,INTENT(IN) :: iPart
+INTEGER,INTENT(IN) :: SideID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT) :: Xi(2)
+REAL,INTENT(OUT)   :: alpha
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: dXi(2),sdet,dXi2,alphaNorm
+REAL               :: dBezierControlPoints2D(2,2,0:NGeo,0:NGeo)
+REAL               :: P(2),gradXi(2,2),InterP(3)
+REAL               :: ClipTolerance2
+REAL               :: IntersectionVector(3)
+INTEGER            :: nIter
+INTEGER            :: dd,nn,l,i,j
+INTEGER            :: CycIJ(2),Cyc(2)
+!===================================================================================================================================
+
+ClipTolerance2=ClipTolerance**2
+nIter=1
+alpha=-1.0
+dXi2=1.0
+! compute gradient at each control point and use D-matrix
+dBezierControlPoints2D=0.
+DO nn=1,2
+  DO dd=1,2 !iSize
+    DO j=0,NGeo
+      CycIJ(2)=j
+      DO i=0,NGeo
+        CycIJ(1)=i
+        ! Matrix-vector multiplication
+        Cyc=CycIJ
+        DO l=0,NGeo
+          Cyc(dd)=l  ! d/dxi_dd
+          dBezierControlPoints2D(dd,nn,i,j) = dBezierControlPoints2D(dd,nn,i,j) + &
+                                              D_Bezier(CycIJ(dd),l)*BezierControlPoints2D(nn,Cyc(1),Cyc(2))
+        END DO ! l=0,NGeo
+      END DO ! j=0,NGeo
+    END DO ! i=0,NGeo
+  END DO ! dd=1,2
+END DO ! nn=1,2
+
+
+DO WHILE((dXi2.GT.ClipTolerance2).AND.(nIter.LE.ClipMaxIter))
+  ! compute f(xi) and df(xi)/dxi
+  CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,2, BezierControlPoints2D(1:2,    0:NGeo,0:NGeo) &
+                                                    ,dBezierControlPoints2D(1:2,1:2,0:NGeo,0:NGeo),Point=P,Gradient=gradXi)
+  ! caution with index
+  sdet=gradXi(1,1)*gradXi(2,2)-gradXi(1,2)*gradXi(2,1)
+
+  IF(sdet.GT.0.) THEN
+    sdet=1./sdet
+  ELSE !shit
+    alpha=-1.0
+    Xi=1.5
+    EXIT
+    !CALL abort(__STAMP__, &
+    !   'Bezier-Netwton singular. iter,sdetJac',nIter,sDet)
+  END IF
+
+  ! build 2x2 inverse and multiply by vector
+  dXi(1) = gradXi(2,2)*P(1)-gradXi(2,1)*P(2)
+  dXi(2) =-gradXi(1,2)*P(1)+gradXi(1,1)*P(2)
+
+  dXi    = sdet*dXi
+  dXi2   = dXi(1)*dXi(1)+dXi(2)*dXi(2)  
+
+  ! update to new position
+  Xi = Xi - dXi
+
+  IF(ANY(ABS(Xi).GT.1.5)) THEN
+    ! no intersection of ray and bezier patch
+    Xi=1.5
+    EXIT
+  END IF
+  nIter=nIter+1
+END DO
+
+
+IF(nIter.GT.ClipMaxIter) CALL abort(__STAMP__,&
+    ' Bezier-Newton does not yield root! ')
+
+! check if found Xi,Eta are in parameter range
+IF(ABS(xi(1)).GT.ClipHit) RETURN
+IF(ABS(xi(2)).GT.ClipHit) RETURN
+
+! compute 3D intersection
+CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=InterP) 
+IntersectionVector=InterP-LastPartPos(iPart,1:3)
+
+alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
+
+alphaNorm=alpha/lengthPartTrajectory
+
+IF((alphaNorm.LE.ClipHit).AND.(alphaNorm.GT.-epsilontol)) RETURN
+alpha=-1.0
+ 
+END SUBROUTINE BezierNewton
 
 
 SUBROUTINE calcLineNormVec(BezierControlPoints2D,LineNormVec,a,b,DoCheck)

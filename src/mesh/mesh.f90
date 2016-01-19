@@ -707,8 +707,8 @@ USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobN
 USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
 #ifdef PARTICLES
 USE MOD_Mesh_Vars,               ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1
-USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_Bezier,sVdm_Bezier
-USE MOD_Basis,                   ONLY: BuildBezierVdm
+USE MOD_Particle_Surfaces_Vars,  ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
+USE MOD_Basis,                   ONLY: BuildBezierVdm,BuildBezierDMat
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -773,6 +773,8 @@ ALLOCATE(Vdm_Bezier(0:NGeo_in,0:NGeo_in),sVdm_Bezier(0:NGeo_in,0:NGeo_in))
 !END DO
 ! initialize vandermonde for bezier basis surface representation (particle tracking with curved elements)
 CALL BuildBezierVdm(NGeo_in,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
+ALLOCATE(D_Bezier(0:NGeo_in,0:NGeo_in))
+CALL BuildBezierDMat(NGeo_in,Xi_NGeo,D_Bezier)
 #endif
 
 END SUBROUTINE InitMeshBasis
