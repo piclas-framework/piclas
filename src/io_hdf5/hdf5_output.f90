@@ -194,7 +194,11 @@ IF(OutPutRank)THEN
   ALLOCATE(LocalStrVarNames(1:nVar))
   LocalStrVarNames(1)='MyRank'
   IF(MPIRoot)THEN
+#ifdef MPI
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
     CALL WriteAttributeToHDF5(File_ID,'VarNamesRank',nVar,StrArray=LocalStrVarnames)
     CALL CloseDataFile()
   END IF
@@ -226,7 +230,11 @@ IF(OutPutSource) THEN
   LocalStrVarNames(3)='CurrentDensityZ'
   LocalStrVarNames(4)='ChargeDensity'
   IF(MPIRoot)THEN
+#ifdef MPI
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
     CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',nVar,StrArray=LocalStrVarnames)
     CALL CloseDataFile()
   END IF
@@ -294,7 +302,11 @@ ALLOCATE(StrVarNames(nVar))
 StrVarNames(1)='ElemWeight'
 
 IF(MPIRoot)THEN
+#ifdef MPI
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
   CALL WriteAttributeToHDF5(File_ID,'VarNamesLB',nVar,StrArray=StrVarNames)
   CALL CloseDataFile()
 END IF
@@ -361,7 +373,11 @@ IF(DoPML)THEN
   END DO ! iPML
 
   IF(MPIRoot)THEN
+#ifdef MPI
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
     CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',nVar,StrArray=StrVarNames)
     CALL CloseDataFile()
   END IF
@@ -628,7 +644,11 @@ INTEGER                        :: minnParts
   !CALL WriteAttributeToHDF5(File_ID,'VarNamesPartInt',2,StrArray=StrVarNames)
 
   IF(MPIRoot)THEN
+#ifdef MPI
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
     CALL WriteAttributeToHDF5(File_ID,'VarNamesPartInt',nVar,StrArray=StrVarNames)
     CALL CloseDataFile()
   END IF
@@ -742,7 +762,11 @@ INTEGER                        :: minnParts
   END IF
 
   IF(MPIRoot)THEN
+#ifdef MPI
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+#else
+    CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
     CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',PartDataSize,StrArray=StrVarNames)
     CALL CloseDataFile()
   END IF
@@ -1332,7 +1356,11 @@ IF(gatheredWrite)THEN
   SDEALLOCATE(UStr)
 ELSE
 #endif
-  CALL OpenDataFile(FileName,create=create,single=.FALSE.)
+#ifdef MPI
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                offset,collective,RealArray=RealArray)
   IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
