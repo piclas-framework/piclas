@@ -98,15 +98,15 @@ RestartFile=Filename
 ! PO:
 ! excahnge PP_N through Nout
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
-#ifdef MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-#endif
-
-#ifdef MPI
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
-#else
-CALL OpenDataFile(FileName,create=.FALSE.)
-#endif
+!#ifdef MPI
+!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+!#endif
+!
+!#ifdef MPI
+!CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+!#else
+!CALL OpenDataFile(FileName,create=.FALSE.)
+!#endif
 
 ! Reopen file and write DG solution
 #ifdef MPI
@@ -1387,8 +1387,8 @@ IF(gatheredWrite)THEN
   ENDIF
   
   ! Gather small arrays on IO nodes
-  IF(PRESENT(RealArray)) CALL MPI_GATHERV(RealArray,nDOFLocal,MPI_DOUBLE,&
-                                          UReal,nDOFPerNode,offsetNode,MPI_DOUBLE,0,MPI_COMM_NODE,iError)
+  IF(PRESENT(RealArray)) CALL MPI_GATHERV(RealArray,nDOFLocal,MPI_DOUBLE_PRECISION,&
+                                          UReal,nDOFPerNode,offsetNode,MPI_DOUBLE_PRECISION,0,MPI_COMM_NODE,iError)
   IF(PRESENT(IntegerArray))  CALL MPI_GATHERV(IntegerArray, nDOFLocal,MPI_INTEGER,&
                                           UInt, nDOFPerNode,offsetNode,MPI_INTEGER,0,MPI_COMM_NODE,iError)
   !IF(PRESENT(StrArray))  CALL MPI_GATHERV(RealArray,nDOFLocal,MPI_DOUBLE,&
