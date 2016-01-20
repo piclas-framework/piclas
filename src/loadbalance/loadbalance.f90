@@ -80,7 +80,6 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 DoLoadBalance= GETLOGICAL('Static-LoadBalance','F')
 DeviationThreshold  = GETREAL('Load-DeviationTreshold','0.10')
 DeviationThreshold  = 1.0+DeviationThreshold
-OutputRank= GETLOGICAL('OutputRank','F')
 nLoadBalance = 0
 
 ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')

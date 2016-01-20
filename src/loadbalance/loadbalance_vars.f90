@@ -20,7 +20,6 @@ REAL(KIND=8)                        :: nTotalParts                              
 INTEGER                             :: nLoadIter                                  ! number of load iter 
 !INTEGER                             :: nCurrentParts                              ! number of current particles
 INTEGER                             :: nLoadBalance                               ! number of load balances
-LOGICAL                             :: OutputRank                                 ! output rank
 REAL,ALLOCATABLE                    :: LoadDistri(:)                              ! Weighted load distribution of all procs
 INTEGER,ALLOCATABLE                 :: PartDistri(:)                              ! Part distribution of all procs
 INTEGER                             :: PartWeightMethod                           ! method to compute the particle weight

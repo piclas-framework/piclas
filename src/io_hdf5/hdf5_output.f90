@@ -50,7 +50,6 @@ USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
 USE MOD_Output_Vars,          ONLY:ProjectName
 USE MOD_Mesh_Vars,            ONLY:offsetElem,nGlobalElems
-USE MOD_LoadBalance_Vars,     ONLY:OutPutRank
 USE MOD_Equation_Vars,        ONLY:StrVarNames
 USE MOD_Restart_Vars,         ONLY:RestartFile
 #ifdef PARTICLES
@@ -185,39 +184,6 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
 #endif
                    
 
-! output of additional data 
-
-! output of rank 
-! todo: in the future per element
-IF(OutPutRank)THEN
-  nVar=1
-  ALLOCATE(LocalStrVarNames(1:nVar))
-  LocalStrVarNames(1)='MyRank'
-  IF(MPIRoot)THEN
-#ifdef MPI
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
-#else
-    CALL OpenDataFile(FileName,create=.FALSE.)
-#endif
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesRank',nVar,StrArray=LocalStrVarnames)
-    CALL CloseDataFile()
-  END IF
-  ALLOCATE(Utemp(1:nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-  DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
-      Utemp(nVar,i,j,k,iElem)        =  REAL(MyRank)
-    END DO; END DO; END DO
-  END DO
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='DG_Rank', rank=2,  &
-                          nValGlobal=(/nVar,nGlobalElems/),&
-                          nVal=      (/nVar,PP_nElems   /),&
-                          offset=    (/0,   offsetElem  /),&
-                          collective=.TRUE.,RealArray=Source)
-  DEALLOCATE(Utemp)
-  DEALLOCATE(LocalStrVarNames)
-END IF
-
 #ifdef PARTICLES
 ! output of last source term
 IF(OutPutSource) THEN
@@ -253,6 +219,8 @@ CALL WriteParticleToHDF5(FileName)
 #endif /*Particles*/
 
 CALL WriteAdditionalDataToHDF5(FileName)
+
+CALL WritePMLDataToHDF5(FileName)
 
 #ifdef MPI
 IF(DoLoadBalance) CALL WriteElemWeightToHDF5(FileName)
@@ -333,6 +301,93 @@ END SUBROUTINE WriteElemWeightToHDF5
 SUBROUTINE WriteAdditionalDataToHDF5(FileName)
 !===================================================================================================================================
 ! Write additional (elementwise scalar) data to HDF5
+! 1-Rank
+! 2-isPMLElem
+! 3-hasParticle
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems
+USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,nPMLElems
+#ifdef PARTICLES
+USE MOD_Particle_Vars ,ONLY:PDM,PEM
+#endif /*PARTICLES*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+REAL,ALLOCATABLE               :: ElemData(:,:)
+INTEGER                        :: nVar,iElem
+#ifdef PARTICLES
+INTEGER                        :: iPart
+#endif /*PARTICLES*/
+!===================================================================================================================================
+
+nVar=3
+ALLOCATE(StrVarNames(nVar))
+ALLOCATE(ElemData(nVar,PP_nElems))
+
+
+StrVarNames(1)='MyRank'
+StrVarNames(2)='PMLElement'
+StrVarNames(3)='PartElem'
+
+! fill ElemData
+ElemData=0.
+! MPI-Rank
+DO iElem=1,PP_nElems
+  ElemData(1,iElem)=REAL(MyRank)
+END DO
+! PML Info
+IF(DoPML)THEN
+  DO iElem=1,nPMLElems
+    ElemData(2,PMLToElem(iElem))=1.0
+  END DO ! iElem=1,nPMLElems
+END IF
+! hasParticles
+#ifdef PARTICLES
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    iElem=PEM%Element(iPart)
+    IF(ElemData(3,iElem).EQ.0.) ElemData(3,iElem)=1.0
+  END IF ! ParticleInside
+END DO ! iPart
+#endif /*PARTICLES*/
+  
+
+! output of rank 
+IF(MPIRoot)THEN
+#ifdef MPI
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarnames)
+  CALL CloseDataFile()
+END IF
+
+CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                        DataSetName='ElemData', rank=2,  &
+                        nValGlobal=(/nVar,nGlobalElems/),&
+                        nVal=      (/nVar,PP_nElems   /),&
+                        offset=    (/0,   offsetElem  /),&
+                        collective=.TRUE.,RealArray=ElemData)
+DEALLOCATE(ElemData,StrVarNames)
+
+
+END SUBROUTINE WriteAdditionalDataToHDF5
+
+
+SUBROUTINE WritePMLDataToHDF5(FileName)
+!===================================================================================================================================
+! Write additional (elementwise scalar) data to HDF5
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -401,7 +456,7 @@ IF(DoPML)THEN
 END IF ! DoPML
 #endif
 
-END SUBROUTINE WriteAdditionalDataToHDF5
+END SUBROUTINE WritePMLDataToHDF5
 
 #ifdef PARTICLES
 SUBROUTINE WriteParticleToHDF5(FileName)
