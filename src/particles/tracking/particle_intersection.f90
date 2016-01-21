@@ -315,10 +315,12 @@ firstClip=.TRUE.
 CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
                ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 
-! how to call the newton          
 !XiNewton=0.
 !!CALL BezierNewton(locAlpha(1),(/locXi(1),loceta(1)/),BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
-!CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+!!CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+!CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+!nInterSections=0
+!IF(locAlpha(1).GT.-1) nInterSections=1
 !locXi (1)=XiNewton(1)
 !locEta(1)=XiNewton(2)
 
@@ -451,7 +453,8 @@ INTEGER                              :: iClip
 REAL                                 :: alphaNorm
 REAL                                 :: PlusXi,MinusXi,PlusEta,MinusEta,tmpXi,tmpEta
 INTEGER                              :: tmpnClip,tmpnXi,tmpnEta
-REAL:: xInt(3)
+REAL                                 :: xiup(0:NGeo),etaup(0:NGeo),xidown(0:NGeo),etadown(0:NGeo)
+REAL                                 :: XiBuf(0:NGeo,0:NGeo),EtaBuf(0:NGeo,0:NGeo)
 !================================================================================================================================
 
 PatchDOF2D=1.0/REAL((NGeo+1)*(NGeo+1))
@@ -506,6 +509,20 @@ DO iClipIter=iClipIter,ClipMaxIter
       IF(XiMax.NE.1.0)THEN
         PlusXi=1.0+XiMax
         MinusXi=1.0-XiMax
+        ! compute the required stuff || pseudo Horner or precomputation
+        xiup(0)=1.0
+        ! caution, here the indicies are switched from n-j to j  for **down
+        xidown(0)=1.0
+        DO l=1,NGeo
+          xiup   (l)     =xiup   (l-1)*PlusXi
+          xidown (l)     =xidown (l-1)*MinusXi
+        END DO ! l=0,NGeo
+        DO p=0,NGeo
+          DO l=0,p
+            XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
+          END DO ! l=0,p
+        END DO ! p=0,NGeo
+
         DO q=0,NGeo
           DO p=0,NGeo
             DO l=0,p
@@ -517,10 +534,16 @@ DO iClipIter=iClipIter,ClipMaxIter
 !                                               *PlusXi**l        &
 !                                               *MinusXi**(p-l)
               !DEBUG: optimize this !
-              BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
-                                               +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
-                                               *(PlusXi**l)*(MinusXi**(p-l))
+              !BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
+              !                                 +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
+              !                                 *(PlusXi**l)*(MinusXi**(p-l))
+              ! not Horner!
+              !BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
+              !                                 +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
+              !                                 *xiup(l)*XiDown(p-l)
 
+              BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
+                                               +BezierControlPoints2D     (:,l,q)*XiBuf(p,l)
             END DO
           END DO
         END DO
@@ -537,6 +560,20 @@ DO iClipIter=iClipIter,ClipMaxIter
       MinusXi=2.0*PlusXi
       ! PlusXi=1+ 2.0*(1-s)-1
       PlusXi=2.0-2.0*PlusXi
+      ! compute the required stuff || pseudo Horner or precomputation
+      xiup(0)=1.0
+      ! caution, here the indicies are switched from n-j to j  for **down
+      xidown(0)=1.0
+      DO l=1,NGeo
+        xiup   (l)     =xiup   (l-1)*PlusXi
+        xidown (l)     =xidown (l-1)*MinusXi
+      END DO ! l=0,NGeo
+      DO p=0,NGeo
+        DO l=0,p
+          XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
+        END DO ! l=0,p
+      END DO ! p=0,NGeo
+
       DO q=0,NGeo
         DO p=0,NGeo
           DO l=0,p
@@ -548,9 +585,11 @@ DO iClipIter=iClipIter,ClipMaxIter
             !                                      *PlusXi**l &
             !                                      *MinusXi**(p-l)
             !DEBUG: optimize this !
-            BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)             &
-                                             +BezierControlPoints2D_temp  (:,NGeo-l,q)*FacNchooseK(p,l) &
-                                             *(PlusXi**l)*(MinusXi**(p-l))
+            !BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)             &
+            !                                 +BezierControlPoints2D_temp  (:,NGeo-l,q)*FacNchooseK(p,l) &
+            !                                 *(PlusXi**l)*(MinusXi**(p-l))
+            BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)                  &
+                                                   +BezierControlPoints2D_temp(:,NGeo-l,q)*XiBuf(p,l)
           END DO
         END DO
       END DO
@@ -568,6 +607,20 @@ DO iClipIter=iClipIter,ClipMaxIter
       BezierControlPoints2D_temp=0.
       PlusXi=1.0+XiSplit
       MinusXi=1.0-XiSplit
+      ! compute the required stuff || pseudo Horner or precomputation
+      xiup(0)=1.0
+      ! caution, here the indicies are switched from n-j to j  for **down
+      xidown(0)=1.0
+      DO l=1,NGeo
+        xiup   (l)     =xiup   (l-1)*PlusXi
+        xidown (l)     =xidown (l-1)*MinusXi
+      END DO ! l=0,NGeo
+      DO p=0,NGeo
+        DO l=0,p
+          XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
+        END DO ! l=0,p
+      END DO ! p=0,NGeo
+
       DO q=0,NGeo
         DO p=0,NGeo
           DO l=0,p
@@ -579,10 +632,12 @@ DO iClipIter=iClipIter,ClipMaxIter
             !                                 *(1+XiSplit)**l        &
             !                                 *(1-XiSplit)**(p-l)
             !DEBUG: optimize this !
-            BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
-                                             +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
-                                             *(PlusXi**l)*(MinusXi**(p-l))
+            !BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
+            !                                 +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
+            !                                 *(PlusXi**l)*(MinusXi**(p-l))
 
+            BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
+                                             +BezierControlPoints2D     (:,l,q)*XiBuf(p,l)
           END DO
         END DO
       END DO
@@ -597,6 +652,20 @@ DO iClipIter=iClipIter,ClipMaxIter
         MinusXi=2.0*PlusXi
         ! PlusXi=1+ 2.0*(1-s)-1
         PlusXi=2.0-2.0*PlusXi
+        ! compute the required stuff || pseudo Horner or precomputation
+        xiup(0)=1.0
+        ! caution, here the indicies are switched from n-j to j  for **down
+        xidown(0)=1.0
+        DO l=1,NGeo
+          xiup   (l)     =xiup   (l-1)*PlusXi
+          xidown (l)     =xidown (l-1)*MinusXi
+        END DO ! l=0,NGeo
+        DO p=0,NGeo
+          DO l=0,p
+            XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
+          END DO ! l=0,p
+        END DO ! p=0,NGeo
+
         DO q=0,NGeo
           DO p=0,NGeo
             DO l=0,p
@@ -608,9 +677,11 @@ DO iClipIter=iClipIter,ClipMaxIter
         !                                            *(1.+2*((XiMin+1.)/(XiSplit+1.)))**(l-1) &
         !                                            *(1.-2*((XiMin+1.)/(XiSplit+1.)))**(p-l)
               !DEBUG: optimize this !
-              BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)             &
-                                               +BezierControlPoints2D_temp  (:,NGeo-l,q)*FacNchooseK(p,l) &
-                                               *(PlusXi**l)*(MinusXi**(p-l))
+              !BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)             &
+              !                                 +BezierControlPoints2D_temp  (:,NGeo-l,q)*FacNchooseK(p,l) &
+              !                                 *(PlusXi**l)*(MinusXi**(p-l))
+              BezierControlPoints2D_temp2(:,NGeo-p,q)=BezierControlPoints2D_temp2(:,NGeo-p,q)                  &
+                                                     +BezierControlPoints2D_temp(:,NGeo-l,q)*XiBuf(p,l)
             END DO
           END DO
         END DO
@@ -634,6 +705,20 @@ DO iClipIter=iClipIter,ClipMaxIter
         BezierControlPoints2D_temp=0.
         PlusXi=1.0+XiMax
         MinusXi=1.0-XiMax
+        ! compute the required stuff || pseudo Horner or precomputation
+        xiup(0)=1.0
+        ! caution, here the indicies are switched from n-j to j  for **down
+        xidown(0)=1.0
+        DO l=1,NGeo
+          xiup   (l)     =xiup   (l-1)*PlusXi
+          xidown (l)     =xidown (l-1)*MinusXi
+        END DO ! l=0,NGeo
+        DO p=0,NGeo
+          DO l=0,p
+            XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
+          END DO ! l=0,p
+        END DO ! p=0,NGeo
+
         DO q=0,NGeo
           DO p=0,NGeo
             DO l=0,p
@@ -645,9 +730,11 @@ DO iClipIter=iClipIter,ClipMaxIter
               !                                 *(1+XiMax)**l        &
               !                                 *(1-XiMax)**(p-l)
               !DEBUG: optimize this !
+              !BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
+              !                                 +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
+              !                                 *(PlusXi**l)*(MinusXi**(p-l))
               BezierControlPoints2D_temp(:,p,q)=BezierControlPoints2D_temp(:,p,q)                  &
-                                               +BezierControlPoints2D     (:,l,q)*FacNchooseK(p,l) &
-                                               *(PlusXi**l)*(MinusXi**(p-l))
+                                               +BezierControlPoints2D     (:,l,q)*XiBuf(p,l)
             END DO
           END DO
         END DO
@@ -664,6 +751,20 @@ DO iClipIter=iClipIter,ClipMaxIter
         MinusXi=2.0*PlusXi
         ! PlusXi=1+ 2.0*(1-s)-1
         PlusXi=2.0-2.0*PlusXi
+        ! compute the required stuff || pseudo Horner or precomputation
+        xiup(0)=1.0
+        ! caution, here the indicies are switched from n-j to j  for **down
+        xidown(0)=1.0
+        DO l=1,NGeo
+          xiup   (l)     =xiup   (l-1)*PlusXi
+          xidown (l)     =xidown (l-1)*MinusXi
+        END DO ! l=0,NGeo
+        DO p=0,NGeo
+          DO l=0,p
+            XiBuf(p,l)=XiUp(l)*XiDown(p-l)*FacNchooseK(p,l)
+          END DO ! l=0,p
+        END DO ! p=0,NGeo
+
         DO q=0,NGeo
           DO p=0,NGeo
             DO l=0,p
@@ -675,9 +776,11 @@ DO iClipIter=iClipIter,ClipMaxIter
               !                                      *(1.+2*((XiMin+1.)/(XiMax+1.)))**(l-1) &
               !                                      *(1.-2*((XiMin+1.)/(XiMax+1.)))**(p-l)
               !DEBUG: optimize this !
-             BezierControlPoints2D_temp(:,NGeo-p,q)=BezierControlPoints2D_temp(:,NGeo-p,q)             &
-                                              +BezierControlPoints2D  (:,NGeo-l,q)*FacNchooseK(p,l) &
-                                              *(PlusXi**l)*(MinusXi**(p-l))
+              !BezierControlPoints2D_temp(:,NGeo-p,q)=BezierControlPoints2D_temp(:,NGeo-p,q)             &
+              !                                +BezierControlPoints2D  (:,NGeo-l,q)*FacNchooseK(p,l) &
+              !                                *(PlusXi**l)*(MinusXi**(p-l))
+              BezierControlPoints2D_temp(:,NGeo-p,q)=BezierControlPoints2D_temp(:,NGeo-p,q)                  &
+                                                    +BezierControlPoints2D(:,NGeo-l,q)*XiBuf(p,l)
             END DO
           END DO
         END DO
@@ -750,6 +853,20 @@ DO iClipIter=iClipIter,ClipMaxIter
           BezierControlPoints2D_temp=0.
           PlusEta=1.0+EtaMax
           MinusEta=1.0-EtaMax
+          ! compute the required stuff || pseudo Horner or precomputation
+          Etaup(0)=1.0
+          ! caution, here the indicies are switched from n-j to j  for **down
+          Etadown(0)=1.0
+          DO l=1,NGeo
+            Etaup   (l)     =Etaup   (l-1)*PlusEta
+            Etadown (l)     =Etadown (l-1)*MinusEta
+          END DO ! l=0,NGeo
+          DO p=0,NGeo
+            DO l=0,p
+              EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
+            END DO ! l=0,p
+          END DO ! p=0,NGeo
+
           DO q=0,NGeo
             DO p=0,NGeo
               DO l=0,p
@@ -761,10 +878,12 @@ DO iClipIter=iClipIter,ClipMaxIter
 !                                                 *(1.+Etamax)**l       &
 !                                                 *(1.-Etamax)**(p-l)
                 !DEBUG: optimize this !
-                BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
-                                                 +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
-                                                 *(PlusEta**l)*(MinusEta**(p-l))
+!                BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
+!                                                 +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
+!                                                 *(PlusEta**l)*(MinusEta**(p-l))
 
+                BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
+                                                 +BezierControlPoints2D     (:,q,l)*EtaBuf(p,l)
               END DO
             END DO
           END DO
@@ -781,6 +900,20 @@ DO iClipIter=iClipIter,ClipMaxIter
         MinusEta=2.0*PlusEta
         ! PlusXi=1+ 2.0*(1-s)-1
         PlusEta=2.0-2.0*PlusEta
+        ! compute the required stuff || pseudo Horner or precomputation
+        Etaup(0)=1.0
+        ! caution, here the indicies are switched from n-j to j  for **down
+        Etadown(0)=1.0
+        DO l=1,NGeo
+          Etaup   (l)     =Etaup   (l-1)*PlusEta
+          Etadown (l)     =Etadown (l-1)*MinusEta
+        END DO ! l=0,NGeo
+        DO p=0,NGeo
+          DO l=0,p
+            EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
+          END DO ! l=0,p
+        END DO ! p=0,NGeo
+
         DO q=0,NGeo
           DO p=0,NGeo
             DO l=0,p
@@ -791,10 +924,12 @@ DO iClipIter=iClipIter,ClipMaxIter
               !                                      *arrayNchooseK(p,l)               &
               !                                      *(1+2*((EtaMin+1)/(EtaMax+1)))**(l-1) &
               !                                      *(1-2*((EtaMin+1)/(EtaMax+1)))**(p-l)
-                !DEBUG: optimize this !
+              !  !DEBUG: optimize this !
+              !BezierControlPoints2D_temp2(:,q,NGeo-p)=BezierControlPoints2D_temp2(:,q,NGeo-p)             &
+              !                                 +BezierControlPoints2D_temp  (:,q,NGeo-l)*FacNchooseK(p,l) &
+              !                                 *(PlusEta**l)*(MinusEta**(p-l))
               BezierControlPoints2D_temp2(:,q,NGeo-p)=BezierControlPoints2D_temp2(:,q,NGeo-p)             &
-                                               +BezierControlPoints2D_temp  (:,q,NGeo-l)*FacNchooseK(p,l) &
-                                               *(PlusEta**l)*(MinusEta**(p-l))
+                                                     +BezierControlPoints2D_temp(:,q,NGeo-l)*EtaBuf(p,l)
             END DO
           END DO
         END DO
@@ -811,6 +946,20 @@ DO iClipIter=iClipIter,ClipMaxIter
         BezierControlPoints2D_temp=0.
         PlusEta=1.0+EtaSplit
         MinusEta=1.0-EtaSplit
+        ! compute the required stuff || pseudo Horner or precomputation
+        Etaup(0)=1.0
+        ! caution, here the indicies are switched from n-j to j  for **down
+        Etadown(0)=1.0
+        DO l=1,NGeo
+          Etaup   (l)     =Etaup   (l-1)*PlusEta
+          Etadown (l)     =Etadown (l-1)*MinusEta
+        END DO ! l=0,NGeo
+        DO p=0,NGeo
+          DO l=0,p
+            EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
+          END DO ! l=0,p
+        END DO ! p=0,NGeo
+
         DO q=0,NGeo
           DO p=0,NGeo
             DO l=0,p
@@ -822,9 +971,12 @@ DO iClipIter=iClipIter,ClipMaxIter
               !                                 *(1.+EtaSplit)**l       &
               !                                 *(1.-EtaSplit)**(p-l)
               !DEBUG: optimize this !
+!              BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
+!                                               +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
+!                                               *(PlusEta**l)*(MinusEta**(p-l))
+!
               BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
-                                               +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
-                                               *(PlusEta**l)*(MinusEta**(p-l))
+                                               +BezierControlPoints2D     (:,q,l)*EtaBuf(p,l)
             END DO
           END DO
         END DO
@@ -839,6 +991,20 @@ DO iClipIter=iClipIter,ClipMaxIter
           MinusEta=2.0*PlusEta
           ! PlusXi=1+ 2.0*(1-s)-1
           PlusEta=2.0-2.0*PlusEta
+          ! compute the required stuff || pseudo Horner or precomputation
+          Etaup(0)=1.0
+          ! caution, here the indicies are switched from n-j to j  for **down
+          Etadown(0)=1.0
+          DO l=1,NGeo
+            Etaup   (l)     =Etaup   (l-1)*PlusEta
+            Etadown (l)     =Etadown (l-1)*MinusEta
+          END DO ! l=0,NGeo
+          DO p=0,NGeo
+            DO l=0,p
+              EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
+            END DO ! l=0,p
+          END DO ! p=0,NGeo
+
           DO q=0,NGeo
             DO p=0,NGeo
               DO l=0,p
@@ -850,9 +1016,11 @@ DO iClipIter=iClipIter,ClipMaxIter
               !                                        *(1+2*((EtaMin+1)/(EtaMax+1)))**(l-1) &
               !                                        *(1-2*((EtaMin+1)/(EtaMax+1)))**(p-l)
               !DEBUG: optimize this !
+                !BezierControlPoints2D_temp2(:,q,NGeo-p)=BezierControlPoints2D_temp2(:,q,NGeo-p)             &
+                !                                 +BezierControlPoints2D_temp  (:,q,NGeo-l)*FacNchooseK(p,l) &
+                !                                 *(PlusEta**l)*(MinusEta**(p-l))
                 BezierControlPoints2D_temp2(:,q,NGeo-p)=BezierControlPoints2D_temp2(:,q,NGeo-p)             &
-                                                 +BezierControlPoints2D_temp  (:,q,NGeo-l)*FacNchooseK(p,l) &
-                                                 *(PlusEta**l)*(MinusEta**(p-l))
+                                                       +BezierControlPoints2D_temp(:,q,NGeo-l)*EtaBuf(p,l)
               END DO
             END DO
           END DO
@@ -875,6 +1043,20 @@ DO iClipIter=iClipIter,ClipMaxIter
           BezierControlPoints2D_temp=0.
           PlusEta=1.0+EtaMax
           MinusEta=1.0-EtaMax
+          ! compute the required stuff || pseudo Horner or precomputation
+          Etaup(0)=1.0
+          ! caution, here the indicies are switched from n-j to j  for **down
+          Etadown(0)=1.0
+          DO l=1,NGeo
+            Etaup   (l)     =Etaup   (l-1)*PlusEta
+            Etadown (l)     =Etadown (l-1)*MinusEta
+          END DO ! l=0,NGeo
+          DO p=0,NGeo
+            DO l=0,p
+              EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
+            END DO ! l=0,p
+          END DO ! p=0,NGeo
+
           DO q=0,NGeo
             DO p=0,NGeo
               DO l=0,p
@@ -886,9 +1068,12 @@ DO iClipIter=iClipIter,ClipMaxIter
 !                                                 *(1.+Etamax)**l       &
 !                                                 *(1.-Etamax)**(p-l)
                !DEBUG: optimize this !
+!                BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
+!                                                 +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
+!                                                 *(PlusEta**l)*(MinusEta**(p-l))
+!
                 BezierControlPoints2D_temp(:,q,p)=BezierControlPoints2D_temp(:,q,p)                  &
-                                                 +BezierControlPoints2D     (:,q,l)*FacNchooseK(p,l) &
-                                                 *(PlusEta**l)*(MinusEta**(p-l))
+                                                 +BezierControlPoints2D     (:,q,l)*EtaBuf(p,l)
               END DO
             END DO
           END DO
@@ -905,6 +1090,19 @@ DO iClipIter=iClipIter,ClipMaxIter
           MinusEta=2.0*PlusEta
           ! PlusXi=1+ 2.0*(1-s)-1
           PlusEta=2.0-2.0*PlusEta
+          ! compute the required stuff || pseudo Horner or precomputation
+          Etaup(0)=1.0
+          ! caution, here the indicies are switched from n-j to j  for **down
+          Etadown(0)=1.0
+          DO l=1,NGeo
+            Etaup   (l)     =Etaup   (l-1)*PlusEta
+            Etadown (l)     =Etadown (l-1)*MinusEta
+          END DO ! l=0,NGeo
+          DO p=0,NGeo
+            DO l=0,p
+              EtaBuf(p,l)=EtaUp(l)*EtaDown(p-l)*FacNchooseK(p,l)
+            END DO ! l=0,p
+          END DO ! p=0,NGeo
 
           DO q=0,NGeo
             DO p=0,NGeo
@@ -917,9 +1115,11 @@ DO iClipIter=iClipIter,ClipMaxIter
                 !                                      *(1+2*((EtaMin+1)/(EtaMax+1)))**(l-1) &
                 !                                      *(1-2*((EtaMin+1)/(EtaMax+1)))**(p-l)
                 !DEBUG: optimize this !
-                BezierControlPoints2D_temp(:,q,NGeo-p)=BezierControlPoints2D_temp(:,q,NGeo-p)        &
-                                                 +BezierControlPoints2D(:,q,NGeo-l)*FacNchooseK(p,l) &
-                                                 *(PlusEta**l)*(MinusEta**(p-l))
+                !BezierControlPoints2D_temp(:,q,NGeo-p)=BezierControlPoints2D_temp(:,q,NGeo-p)        &
+                !                                 +BezierControlPoints2D(:,q,NGeo-l)*FacNchooseK(p,l) &
+                !                                 *(PlusEta**l)*(MinusEta**(p-l))
+                BezierControlPoints2D_temp(:,q,NGeo-p)=BezierControlPoints2D_temp(:,q,NGeo-p)             &
+                                                       +BezierControlPoints2D     (:,q,NGeo-l)*EtaBuf(p,l)
               END DO
             END DO
           END DO
