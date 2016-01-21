@@ -142,7 +142,10 @@ BezierEpsilonBilinear = GETREAL('BezierEpsilonBilinear','1e-6')
 
 BezierElevation = GETINT('BezierElevation','0')
 SDEALLOCATE(BezierControlPoints3DElevated)
-ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) )
+ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) &
+        ,STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+ ,'  Cannot allocate BezierControlPoints3DElevated!')
 BezierControlPoints3DElevated=0.
 !--- Initialize Periodic Side Info
 !ALLOCATE(SidePeriodicType(1:nSides)) 
@@ -1532,28 +1535,29 @@ DO iElem=1,nTotalElems
         END SELECT
       END IF
     ELSE ! pure tracing
-      IF(SideID.LE.nSides)THEN
-        IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
-          BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-        ELSE
-          SELECT CASE(ilocSide)
-          CASE(XI_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-          CASE(XI_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ETA_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ETA_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ZETA_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-          CASE(ZETA_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-          END SELECT
-        END IF
-      ELSE
-        BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-      END IF
+      BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+      !IF(SideID.LE.nSides)THEN
+      !  IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
+      !    BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+      !  ELSE
+      !    SELECT CASE(ilocSide)
+      !    CASE(XI_MINUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
+      !    CASE(XI_PLUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
+      !    CASE(ETA_MINUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
+      !    CASE(ETA_PLUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
+      !    CASE(ZETA_MINUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
+      !    CASE(ZETA_PLUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
+      !    END SELECT
+      !  END IF
+      !ELSE
+      !  BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+      !END IF
     END IF
     xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
     xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
@@ -1662,28 +1666,29 @@ DO iElem=1,nTotalElems
         END SELECT
       END IF
     ELSE ! pure tracing
-      IF(SideID.LE.nSides)THEN
-        IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
+      BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+      !IF(SideID.LE.nSides)THEN
+      !  IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
           BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-        ELSE
-          SELECT CASE(ilocSide)
-          CASE(XI_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-          CASE(XI_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ETA_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ETA_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ZETA_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-          CASE(ZETA_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-          END SELECT
-        END IF
-      ELSE
-        BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-      END IF
+      !  ELSE
+      !    SELECT CASE(ilocSide)
+      !    CASE(XI_MINUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
+      !    CASE(XI_PLUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
+      !    CASE(ETA_MINUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
+      !    CASE(ETA_PLUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
+      !    CASE(ZETA_MINUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
+      !    CASE(ZETA_PLUS)
+      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
+      !    END SELECT
+      !  END IF
+      !ELSE
+      !  BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+      !END IF
     END IF
     xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
     xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
