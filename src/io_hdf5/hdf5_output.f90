@@ -313,6 +313,9 @@ USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,nPMLElems
 #ifdef PARTICLES
 USE MOD_Particle_Vars ,ONLY:PDM,PEM
 #endif /*PARTICLES*/
+#ifdef MPI
+USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,nLoadBalance,ElemWeight
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -330,10 +333,18 @@ INTEGER                        :: iPart
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
+
+#ifdef MPI
+IF(DoLoadBalance)THEN
+  nVar=4
+ELSE
+  nVar=3
+END IF
+#else
 nVar=3
+#endif /*MPI*/
 ALLOCATE(StrVarNames(nVar))
 ALLOCATE(ElemData(nVar,PP_nElems))
-
 
 StrVarNames(1)='MyRank'
 StrVarNames(2)='PMLElement'
@@ -361,6 +372,18 @@ DO iPart=1,PDM%ParticleVecLength
 END DO ! iPart
 #endif /*PARTICLES*/
   
+#ifdef MPI
+IF(DoLoadBalance)THEN
+  StrVarNames(4)='ElemTime'
+  IF(ALLOCATED(ElemWeight))THEN
+    DO iElem=1,PP_nElems
+      ElemData(4,iElem)=ElemWeight(iElem)
+    END DO ! iElem =1,PP_nElems
+  ELSE
+    ElemData(4,:)=0.
+  END IF
+END IF
+#endif /*MPI*/
 
 ! output of rank 
 IF(MPIRoot)THEN
