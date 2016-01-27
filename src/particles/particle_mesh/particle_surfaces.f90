@@ -105,6 +105,8 @@ IF(ParticleSurfaceInitIsDone) RETURN
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES ...!'
 
+BezierPureNewton      = GETLOGICAL('BezierPureNewton',".FALSE.")
+
 epsilontol            = GETREAL('epsilontol','1e-10')
 BezierHitEpsBi        = GETREAL('BezierHitEpsBi','1e-12')
 BezierHitEpsBi        = 1.0+BezierHitEpsBi

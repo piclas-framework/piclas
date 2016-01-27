@@ -174,7 +174,7 @@ SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 USE MOD_Globals,                 ONLY:Cross,abort,MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance
+USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierPureNewton
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,BezierClipTolerance,BezierClipMaxIntersec,BezierClipMaxIter
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
@@ -207,7 +207,7 @@ INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID!,realInterID
 LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter
 !REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
-!REAL                                     :: XiNewton(2)
+REAL                                     :: XiNewton(2)
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
@@ -304,26 +304,27 @@ END DO
 !BezierControlPoints2D_tmp=BezierControlPoints2D
 
 
-
-!  this part in a new function or subroutine
-locAlpha=-1.0
-iClipIter=1
-nXiClip=0
-nEtaClip=0
-nInterSections=0
-firstClip=.TRUE.
-CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
-               ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
-
-!XiNewton=0.
-!!CALL BezierNewton(locAlpha(1),(/locXi(1),loceta(1)/),BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
-!!CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
-!CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID)
-!nInterSections=0
-!IF(locAlpha(1).GT.-1) nInterSections=1
-!locXi (1)=XiNewton(1)
-!locEta(1)=XiNewton(2)
-
+IF(.NOT.BezierPureNewton)THEN
+  !  this part in a new function or subroutine
+  locAlpha=-1.0
+  iClipIter=1
+  nXiClip=0
+  nEtaClip=0
+  nInterSections=0
+  firstClip=.TRUE.
+  ! CALL recursive Bezier clipping algorithm
+  CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
+                 ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+ELSE!BezierPureNewton
+  XiNewton=0.
+  !CALL BezierNewton(locAlpha(1),(/locXi(1),loceta(1)/),BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+  !CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+  CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+  nInterSections=0
+  IF(locAlpha(1).GT.-1) nInterSections=1
+  locXi (1)=XiNewton(1)
+  locEta(1)=XiNewton(2)
+END IF
 
 SELECT CASE(nInterSections)
 CASE(0)

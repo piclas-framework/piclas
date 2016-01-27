@@ -37,8 +37,9 @@ REAL                                    :: OnePlusEps                   ! 1 + ep
 REAL                                    :: MinusEps                     ! - eps: epsilontol
 LOGICAL                                 :: ParticleSurfaceInitIsDone=.FALSE.
 ! settings for Bezier-Clipping and definition of maximal number of intersections
-REAL                                    :: BezierClipHit                      ! value for clip hit
-REAL                                    :: BezierClipTolerance                ! tolerance for root of bezier clipping
+LOGICAL                                 :: BezierPureNewton             ! switch for pure newton trace instead of bezier clip
+REAL                                    :: BezierClipHit                ! value for clip hit
+REAL                                    :: BezierClipTolerance          ! tolerance for root of bezier clipping
 REAL                                    :: BezierSplitLimit             ! clip if remaining area after clip is > clipforce %
 INTEGER                                 :: BezierClipMaxIntersec        ! maximal possible intersections for Bezier clipping
 INTEGER                                 :: BezierClipMaxIter            ! maximal iterations per intersections
