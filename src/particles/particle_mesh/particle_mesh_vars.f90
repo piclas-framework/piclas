@@ -57,9 +57,9 @@ REAL,ALLOCATABLE,DIMENSION(:,:)         :: slenXiEtaZetaBasis                   
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: ElemBaryNGeo                                   ! element local basis: origin
 REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadiusNGeo                                 ! radius of element 
 REAL,ALLOCATABLE,DIMENSION(:)           :: ElemRadius2NGeo                                ! radius of element + 2% tolerance
-INTEGER                                 :: MappingGuess                                   ! select guess for mapping into reference
+INTEGER                                 :: RefMappingGuess                                ! select guess for mapping into reference
                                                                                           ! element
-REAL                                    :: epsMapping                                     ! tolerance for Netwton to get xi from X
+REAL                                    :: RefMappingEps                                  ! tolerance for Netwton to get xi from X
 REAL                                    :: epsInCell                                      ! tolerance for eps for particle 
                                                                                           ! inside of ref element
 REAL                                    :: epsOneCell                                     ! tolerance for particle in 

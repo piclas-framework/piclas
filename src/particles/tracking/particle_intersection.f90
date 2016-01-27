@@ -62,7 +62,7 @@ SUBROUTINE PartInElemCheck(PartID,ElemID,Check)
 USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,BezierControlPoints3D,SideType,ClipHit&
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OnePlusEps,BezierControlPoints3D,SideType,BezierClipHit&
                                     ,BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,IsBCElem,PartBCSideList
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
@@ -150,7 +150,7 @@ DO ilocSide=1,6
   END SELECT
   IF(alpha.GT.-1.0) THEN
     !IF((ABS(xi).GT.1.0).OR.(ABS(eta).GT.1.0)) THEN
-    !IF((ABS(xi).GT.ClipHit).OR.(ABS(eta).GT.ClipHit)) THEN
+    !IF((ABS(xi).GT.BezierClipHit).OR.(ABS(eta).GT.BezierClipHit)) THEN
     !  isHit=.FALSE.
     !END IF
     isHit=.TRUE.
@@ -174,8 +174,8 @@ SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 USE MOD_Globals,                 ONLY:Cross,abort,MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,ClipTolerance,ClipMaxInter,ClipMaxIter
+USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,BezierClipTolerance,BezierClipMaxIntersec,BezierClipMaxIter
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
@@ -414,8 +414,8 @@ RECURSIVE SUBROUTINE BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,l
 !USE MOD_Globals,                 ONLY:MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
-USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipMaxIter,ArrayNchooseK,FacNchooseK,ClipMaxInter,SplitLimit,ClipHit
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,mEpsilontol,epsilontol
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipMaxIter,ArrayNchooseK,FacNchooseK,BezierClipMaxIntersec
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,MinusEps,epsilontol,BezierClipHit,BezierSplitLimit
 USE MOD_Particle_Vars,           ONLY:LastPartPos,Time
 USE MOD_TimeDisc_Vars,               ONLY:iter
 
@@ -446,7 +446,7 @@ REAL                                 :: BezierControlPoints2D_temp(2,0:NGeo,0:NG
 REAL                                 :: BezierControlPoints2D_temp2(2,0:NGeo,0:NGeo)
 INTEGER                              :: p,q,l,iDeCasteljau
 REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,alpha
-REAL                                 :: ZeroDistance,ClipTolerance2
+REAL                                 :: ZeroDistance,BezierClipTolerance2
 INTEGER                              :: ElemID
 LOGICAL                              :: DoXiClip,DoEtaClip,DoCheck
 INTEGER                              :: iClip
@@ -458,7 +458,7 @@ REAL                                 :: XiBuf(0:NGeo,0:NGeo),EtaBuf(0:NGeo,0:NGe
 !================================================================================================================================
 
 PatchDOF2D=1.0/REAL((NGeo+1)*(NGeo+1))
-ClipTolerance2=ClipTolerance*ClipTolerance
+BezierClipTolerance2=BezierClipTolerance*BezierClipTolerance
 
 ! 3.) Bezier intersection: solution Newton's method or Bezier clipping
 ! outcome: no intersection, single intersection, multiple intersection with patch
@@ -471,7 +471,7 @@ END IF
 DoEtaClip=.TRUE.
 DoCheck=.TRUE.
 
-DO iClipIter=iClipIter,ClipMaxIter
+DO iClipIter=iClipIter,BezierClipMaxIter
   ! a) xi-direction
   IF(DoXiClip)THEN
     CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck)
@@ -489,7 +489,7 @@ DO iClipIter=iClipIter,ClipMaxIter
     !      AUTHOR = {Efremov, Alexander and Havran, Vlastimil and Seidel, Hans-Peter},                                  
     !      TITLE = {Robust and Numerically Stable Bezier Clipping Method for Ray Tracing NURBS Surfaces},               
     !      YEAR = {2005},
-    ! IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.ClipHit)THEN ! which tolerance is best used?
+    ! IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.BezierClipHit)THEN ! which tolerance is best used?
     !   DoEtaClip=.FALSE.
     !   BREAK
     ! END IF
@@ -500,7 +500,7 @@ DO iClipIter=iClipIter,ClipMaxIter
     IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))RETURN
     nXiClip=nXiClip+1
     ! 1.) CLIPPING xi
-    IF((XiMax-XiMin).GT.SplitLimit)THEN ! two possible intersections: split the clipped patch at 50%
+    IF((XiMax-XiMin).GT.BezierSplitLimit)THEN ! two possible intersections: split the clipped patch at 50%
       XiSplit=0.5*(XiMax+XiMin)
       ! first split
       XiArray(:,nXiClip)=(/XiSplit,XiMax/)
@@ -791,7 +791,7 @@ DO iClipIter=iClipIter,ClipMaxIter
        ! check via mean value
       !x=SUM(BezierControlPoints2D(1,:,:))*PatchDOF2D
       !y=SUM(BezierControlPoints2D(2,:,:))*PatchDOF2D
-      !IF(SQRT(x*x+y*y).LT.ClipTolerance)EXIT
+      !IF(SQRT(x*x+y*y).LT.BezierClipTolerance)EXIT
       ! check via distance
       ZeroDistance=0.
       DO q=0,NGeo                                                                                   
@@ -801,10 +801,10 @@ DO iClipIter=iClipIter,ClipMaxIter
         END DO
       END DO
       ZeroDistance=ZeroDistance*PatchDOF2D ! divide by number of points
-      !IF(ZeroDistance.LT.ClipTolerance2) EXIT
-      IF(SQRT(ZeroDistance).LT.ClipTolerance) EXIT
+      !IF(ZeroDistance.LT.BezierClipTolerance2) EXIT
+      IF(SQRT(ZeroDistance).LT.BezierClipTolerance) EXIT
 
-      IF(ABS(XiMax-XiMin).LT.ClipTolerance) DoXiClip=.FALSE.
+      IF(ABS(XiMax-XiMin).LT.BezierClipTolerance) DoXiClip=.FALSE.
 
 
     END IF ! check clip size
@@ -831,11 +831,11 @@ DO iClipIter=iClipIter,ClipMaxIter
     !      AUTHOR = {Efremov, Alexander and Havran, Vlastimil and Seidel, Hans-Peter},                                 
     !      TITLE = {Robust and Numerically Stable Bezier Clipping Method for Ray Tracing NURBS Surfaces},              
     !      YEAR = {2005},
-!    IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.ClipTolerance)THEN ! which tolerance is best used?
+!    IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.BezierClipTolerance)THEN ! which tolerance is best used?
 !      DoEtaClip=.FALSE. ! stop considering this direction
-      !print*,"IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.ClipTolerance)THEN"
+      !print*,"IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.BezierClipTolerance)THEN"
       !print*,MAXVAL(minmax(1,:))-MINVAL(minmax(2,:))
-      !print*,"ClipTolerance",ClipTolerance
+      !print*,"BezierClipTolerance",BezierClipTolerance
       !read*
       !print*,"1"
 !    ELSE
@@ -844,7 +844,7 @@ DO iClipIter=iClipIter,ClipMaxIter
       IF((EtaMin.EQ.1.5).OR.(EtaMax.EQ.-1.5))RETURN
       nEtaClip=nEtaClip+1
       ! 2.) CLIPPING eta
-      IF((EtaMax-EtaMin).GT.SplitLimit)THEN ! two possible intersections: split the clipped patch at 50%
+      IF((EtaMax-EtaMin).GT.BezierSplitLimit)THEN ! two possible intersections: split the clipped patch at 50%
         EtaSplit=0.5*(EtaMax+EtaMin)
         ! first clip
         EtaArray(:,nEtaClip)=(/EtaSplit,EtaMax/)
@@ -1128,7 +1128,7 @@ DO iClipIter=iClipIter,ClipMaxIter
          ! check via mean value
          !x=SUM(BezierControlPoints2D(1,:,:))*PatchDOF2D
          !y=SUM(BezierControlPoints2D(2,:,:))*PatchDOF2D
-         !IF(SQRT(x*x+y*y).LT.ClipTolerance)EXIT
+         !IF(SQRT(x*x+y*y).LT.BezierClipTolerance)EXIT
          ! check via distance
          ZeroDistance=0.
          DO q=0,NGeo
@@ -1138,24 +1138,24 @@ DO iClipIter=iClipIter,ClipMaxIter
            END DO
          END DO
          ZeroDistance=ZeroDistance*PatchDOF2D ! divide by number of points
-         !IF(ZeroDistance.LT.ClipTolerance2) EXIT
-         IF(SQRT(ZeroDistance).LT.ClipTolerance) EXIT
+         !IF(ZeroDistance.LT.BezierClipTolerance2) EXIT
+         IF(SQRT(ZeroDistance).LT.BezierClipTolerance) EXIT
 
-         IF(ABS(EtaMax-EtaMin).LT.ClipTolerance) DoEtaClip=.FALSE.
+         IF(ABS(EtaMax-EtaMin).LT.BezierClipTolerance) DoEtaClip=.FALSE.
 
         END IF ! EtaMin.NE.-1.0
-      END IF ! (EtaMax-EtaMin).GT.SplitLimit 
-!    END IF ! MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.ClipTolerance
+      END IF ! (EtaMax-EtaMin).GT.BezierSplitLimit 
+!    END IF ! MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.BezierClipTolerance
   END IF ! DoEtaClip 
-  !IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.ClipTolerance)THEN ! which tolerance is best used?
+  !IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.BezierClipTolerance)THEN ! which tolerance is best used?
     !print*,"2"
   !END IF
-END DO ! iClipIter=iClipIter,ClipMaxIter
-  !IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.ClipTolerance)THEN ! which tolerance is best used?
+END DO ! iClipIter=iClipIter,BezierClipMaxIter
+  !IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.BezierClipTolerance)THEN ! which tolerance is best used?
     !print*,"3"
   !END IF
 
-IF(iClipIter.GE.ClipMaxIter)THEN
+IF(iClipIter.GE.BezierClipMaxIter)THEN
   WRITE(*,*) 'Bezier Clipping not converged!'
 END IF
 
@@ -1187,7 +1187,7 @@ IF(DoCheck)THEN
   Xi=0.5*(Xi+1)
   Eta=0.5*(Eta+1)
 
-  IF((ABS(eta).GT.ClipHit).OR.(ABS(xi).GT.ClipHit))THEN
+  IF((ABS(eta).GT.BezierClipHit).OR.(ABS(xi).GT.BezierClipHit))THEN
     RETURN
   END IF
 
@@ -1229,7 +1229,7 @@ IF(DoCheck)THEN
   alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
 
   ! funny hard coded tolerance :), obtained by numerical experiments
-  !IF((alpha/lengthPartTrajectory.LE.1.0000464802767983).AND.(alpha.GT.Mepsilontol))THEN
+  !IF((alpha/lengthPartTrajectory.LE.1.0000464802767983).AND.(alpha.GT.MinusEps))THEN
   alphaNorm=alpha/lengthPartTrajectory
 
 ! IF(MyRank.EQ.39)THEN
@@ -1241,9 +1241,9 @@ IF(DoCheck)THEN
 !   END IF
 ! END IF
 
-  IF((alphaNorm.LE.ClipHit).AND.(alphaNorm.GT.-epsilontol))THEN
+  IF((alphaNorm.LE.BezierClipHit).AND.(alphaNorm.GT.-epsilontol))THEN
     ! found additional intersection point
-    IF(nInterSections.GE.ClipMaxInter)THEN
+    IF(nInterSections.GE.BezierClipMaxIntersec)THEN
       !nInterSections=nInterSections-1
       !locAlpha=-1
       RETURN
@@ -1269,7 +1269,7 @@ SUBROUTINE BezierNewton(alpha,Xi,BezierControlPoints2D,PartTrajectory,lengthPart
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipHit,ClipMaxIter,BezierControlPoints3D,epsilontol
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipHit,BezierClipMaxIter,BezierControlPoints3D,epsilontol
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars,  ONLY:facNchooseK,D_Bezier
@@ -1291,14 +1291,14 @@ REAL,INTENT(OUT)   :: alpha
 REAL               :: dXi(2),sdet,dXi2,alphaNorm
 REAL               :: dBezierControlPoints2D(2,2,0:NGeo,0:NGeo)
 REAL               :: P(2),gradXi(2,2),InterP(3)
-REAL               :: ClipTolerance2
+REAL               :: BezierClipTolerance2
 REAL               :: IntersectionVector(3)
 INTEGER            :: nIter
 INTEGER            :: dd,nn,l,i,j
 INTEGER            :: CycIJ(2),Cyc(2)
 !===================================================================================================================================
 
-ClipTolerance2=ClipTolerance**2
+BezierClipTolerance2=BezierClipTolerance**2
 nIter=1
 alpha=-1.0
 dXi2=1.0
@@ -1323,7 +1323,7 @@ DO nn=1,2
 END DO ! nn=1,2
 
 
-DO WHILE((dXi2.GT.ClipTolerance2).AND.(nIter.LE.ClipMaxIter))
+DO WHILE((dXi2.GT.BezierClipTolerance2).AND.(nIter.LE.BezierClipMaxIter))
   ! compute f(xi) and df(xi)/dxi
   CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,2, BezierControlPoints2D(1:2,    0:NGeo,0:NGeo) &
                                                     ,dBezierControlPoints2D(1:2,1:2,0:NGeo,0:NGeo),Point=P,Gradient=gradXi)
@@ -1359,12 +1359,12 @@ DO WHILE((dXi2.GT.ClipTolerance2).AND.(nIter.LE.ClipMaxIter))
 END DO
 
 
-IF(nIter.GT.ClipMaxIter) CALL abort(__STAMP__,&
+IF(nIter.GT.BezierClipMaxIter) CALL abort(__STAMP__,&
     ' Bezier-Newton does not yield root! ')
 
 ! check if found Xi,Eta are in parameter range
-IF(ABS(xi(1)).GT.ClipHit) RETURN
-IF(ABS(xi(2)).GT.ClipHit) RETURN
+IF(ABS(xi(1)).GT.BezierClipHit) RETURN
+IF(ABS(xi(2)).GT.BezierClipHit) RETURN
 
 ! compute 3D intersection
 CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=InterP) 
@@ -1374,7 +1374,7 @@ alpha=DOT_PRODUCT(IntersectionVector,PartTrajectory)
 
 alphaNorm=alpha/lengthPartTrajectory
 
-IF((alphaNorm.LE.ClipHit).AND.(alphaNorm.GT.-epsilontol)) RETURN
+IF((alphaNorm.LE.BezierClipHit).AND.(alphaNorm.GT.-epsilontol)) RETURN
 alpha=-1.0
  
 END SUBROUTINE BezierNewton
@@ -1425,7 +1425,7 @@ SUBROUTINE CalcSminSmax(minmax,Smin,Smax)
 !================================================================================================================================
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Mesh_Vars,               ONLY:NGeo,Xi_NGeo,DeltaXi_NGeo
-USE MOD_Particle_Surfaces_Vars,  ONLY:ClipTolerance,ClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipHit
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1496,12 +1496,12 @@ INTEGER                              :: l
   ! adjust Smin and Smax to increase the current range
   ! adapted from: 2005, A. Efremov, Robust and numerically stable bezier clipping method for ray tracing nurbs surfaces
   IF(Smax.GT.-1.5)THEN
-    !Smax=MIN(Smax+20.*ClipTolerance,1.0)
-    Smax=MIN(Smax+10.*ClipTolerance,ClipHit)
+    !Smax=MIN(Smax+20.*BezierClipTolerance,1.0)
+    Smax=MIN(Smax+10.*BezierClipTolerance,BezierClipHit)
   END IF
   IF(Smin.LT.1.5)THEN
-    !Smin=MAX(Smin-20.*ClipTolerance,-1.0)
-    Smin=MAX(Smin-10.*ClipTolerance,-ClipHit)
+    !Smin=MAX(Smin-20.*BezierClipTolerance,-1.0)
+    Smin=MAX(Smin-10.*BezierClipTolerance,-BezierClipHit)
   END IF
 
 END SUBROUTINE calcSminSmax
@@ -1628,11 +1628,11 @@ USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
-USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierClipHit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
 !USE MOD_Equations_Vars,          ONLY:epsMach
-!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+!USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1784,14 +1784,14 @@ ELSE
   END IF
 END IF
 
-IF(ABS(xi).GT.ClipHit)THEN
-!IF(ABS(xi).GT.epsilonOne)THEN
+IF(ABS(xi).GT.BezierClipHit)THEN
+!IF(ABS(xi).GT.OnePlusEps)THEN
   alpha=-1.0
   RETURN
 END IF
 
 eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-IF(ABS(eta).GT.ClipHit)THEN
+IF(ABS(eta).GT.BezierClipHit)THEN
   alpha=-1.0
   RETURN
 END IF
@@ -1813,11 +1813,11 @@ USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
-USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierClipHit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
-!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+!USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1925,8 +1925,8 @@ END IF
 
 alphaNorm=alpha/lengthPartTrajectory
 !IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
-IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LT.-epsilontol))THEN
-!IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LE.0.))THEN
+IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
+!IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LE.0.))THEN
 !IF((alphaNorm.GE.1.0) .OR.(alphaNorm.LT.0.))THEN
   alpha=-1.0
   RETURN
@@ -2014,14 +2014,14 @@ ELSE
   END IF
 END IF
 
-IF(ABS(xi).GT.ClipHit)THEN
-!IF(ABS(xi).GT.epsilonOne)THEN
+IF(ABS(xi).GT.BezierClipHit)THEN
+!IF(ABS(xi).GT.OnePlusEps)THEN
   alpha=-1.0
   RETURN
 END IF
 
 eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-IF(ABS(eta).GT.ClipHit)THEN
+IF(ABS(eta).GT.BezierClipHit)THEN
   alpha=-1.0
   RETURN
 END IF
@@ -2039,9 +2039,9 @@ SUBROUTINE ComputeBiLinearIntersectionSuperSampled2(isHit,xNodes,PartTrajectory,
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,epsilonOne,hitepsbi,cliphit
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,BezierHitEpsBi,BezierClipHit
 USE MOD_Particle_Vars,ONLY:PartState
-!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+!USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2123,18 +2123,18 @@ IF (nRoot.EQ.1) THEN
 !    IPWRITE(UNIT_stdOut,*) 'a/l',t(1)/lengthPartTrajectory
 !  END IF
 
-  !IF(ABS(eta(1)).LT.epsilonOne)THEN
-  IF(ABS(eta(1)).LT.ClipHit)THEN
-  !IF(ABS(eta(1)).LT.hitepsbi)THEN
+  !IF(ABS(eta(1)).LT.OnePlusEps)THEN
+  IF(ABS(eta(1)).LT.BezierClipHit)THEN
+  !IF(ABS(eta(1)).LT.BezierHitEpsBi)THEN
     ! as paper ramsay
     xi(1)=ComputeXi(a1,a2,eta(1))
 
-   ! IF(ABS(xi(1)).LT.hitepsbi)THEN
-    !IF(ABS(xi(1)).LT.epsilonOne)THEN
-    IF(ABS(xi(1)).LT.ClipHit)THEN
+   ! IF(ABS(xi(1)).LT.BezierHitEpsBi)THEN
+    !IF(ABS(xi(1)).LT.OnePlusEps)THEN
+    IF(ABS(xi(1)).LT.BezierClipHit)THEN
       !q1=xi(1)*eta(1)*BilinearCoeff(:,1)+xi(1)*BilinearCoeff(:,2)+eta(1)*BilinearCoeff(:,3)+BilinearCoeff(:,4)-lastPartState
       t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
-      !IF((t(1).GE.-epsilontol).AND.(t(1).LE.epsilonOne))THEN
+      !IF((t(1).GE.-epsilontol).AND.(t(1).LE.OnePlusEps))THEN
       IF((t(1).GE.-epsilontol).AND.(t(1).LE.lengthPartTrajectory))THEN
         alpha=t(1)!/LengthPartTrajectory
         xitild=xi(1)
@@ -2146,10 +2146,10 @@ IF (nRoot.EQ.1) THEN
       END IF
     ELSE ! xi not in range
       RETURN
-    END IF ! xi .lt. epsilonOne
+    END IF ! xi .lt. OnePlusEps
   ELSE ! eta not in reange
     RETURN 
-  END IF ! eta .lt. epsilonOne
+  END IF ! eta .lt. OnePlusEps
 ELSE 
   nInter=0
   t=-1.
@@ -2163,15 +2163,15 @@ ELSE
 !    IPWRITE(UNIT_stdOut,*) 'a/l',t(1)/lengthPartTrajectory
 !  END IF
 
-  !IF(ABS(eta(1)).LT.hitepsbi)THEN
-  !IF(ABS(eta(1)).LT.epsilonOne)THEN
-  IF(ABS(eta(1)).LT.ClipHit)THEN
+  !IF(ABS(eta(1)).LT.BezierHitEpsBi)THEN
+  !IF(ABS(eta(1)).LT.OnePlusEps)THEN
+  IF(ABS(eta(1)).LT.BezierClipHit)THEN
     ! as paper ramsay
     xi(1)=ComputeXi(a1,a2,eta(1))
 
-    !IF(ABS(xi(1)).LT.hitepsbi)THEN
-    !IF(ABS(xi(1)).LT.epsilonOne)THEN
-    IF(ABS(xi(1)).LT.Cliphit)THEN
+    !IF(ABS(xi(1)).LT.BezierHitEpsBi)THEN
+    !IF(ABS(xi(1)).LT.OnePlusEps)THEN
+    IF(ABS(xi(1)).LT.BezierCliphit)THEN
       t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
       IF((t(1).LT.-epsilontol).OR.(t(1).GT.lengthPartTrajectory))THEN
         t(1)=-1.0
@@ -2190,15 +2190,15 @@ ELSE
 !    IPWRITE(UNIT_stdOut,*) 'a/l',t(2)/lengthPartTrajectory
 !  END IF
 
- !IF(ABS(eta(2)).LT.hitepsbi)THEN
- !IF(ABS(eta(2)).LT.epsilonOne)THEN
- IF(ABS(eta(2)).LT.ClipHit)THEN
+ !IF(ABS(eta(2)).LT.BezierHitEpsBi)THEN
+ !IF(ABS(eta(2)).LT.OnePlusEps)THEN
+ IF(ABS(eta(2)).LT.BezierClipHit)THEN
     ! as paper ramsay
     xi(2)=ComputeXi(a1,a2,eta(2))
 
-    !IF(ABS(xi(2)).LT.hitepsbi)THEN
-    !IF(ABS(xi(2)).LT.epsilonOne)THEN
-    IF(ABS(xi(2)).LT.ClipHit)THEN
+    !IF(ABS(xi(2)).LT.BezierHitEpsBi)THEN
+    !IF(ABS(xi(2)).LT.OnePlusEps)THEN
+    IF(ABS(xi(2)).LT.BezierClipHit)THEN
       t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
       IF((t(2).LT.-epsilontol).OR.(t(2).GT.lengthPartTrajectory))THEN
         !print*,'here'
@@ -2251,11 +2251,11 @@ SUBROUTINE ComputeBiLinearIntersectionRobust(isHit,xNodes,PartTrajectory,lengthP
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,epsilonOne,hitepsbi,cliphit
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,BezierHitEpsBi,Beziercliphit
 USE MOD_Particle_Vars,ONLY:PartState
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList,nTotalBCSides
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier
-!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+!USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2354,15 +2354,15 @@ IF (nRoot.EQ.1) THEN
   !  isHit=.TRUE.
   !  RETURN
   !END IF
-  !IF(ABS(eta(1)).LT.epsilonOne)THEN
-  IF(ABS(eta(1)).LT.ClipHit)THEN
-  !IF(ABS(eta(1)).LT.hitepsbi)THEN
+  !IF(ABS(eta(1)).LT.OnePlusEps)THEN
+  IF(ABS(eta(1)).LT.BezierClipHit)THEN
+  !IF(ABS(eta(1)).LT.BezierHitEpsBi)THEN
     ! as paper ramsay
    ! xi(1)=ComputeXi(a1,a2,eta(1))
-    IF(ABS(xi(1)).LT.ClipHit)THEN
+    IF(ABS(xi(1)).LT.BezierClipHit)THEN
       alphaNorm=t(1)/lengthPartTrajectory
-      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GT.-epsilontol))THEN
-      !IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
+      IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
+      !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
       !IF((t(1).GE.-epsilontol).AND.(t(1).LE.lengthPartTrajectory))THEN
         alpha=t(1)!/LengthPartTrajectory
         xitild=xi(1)
@@ -2374,10 +2374,10 @@ IF (nRoot.EQ.1) THEN
       END IF
     ELSE ! xi not in range
       RETURN
-    END IF ! xi .lt. epsilonOne
+    END IF ! xi .lt. OnePlusEps
   ELSE ! eta not in reange
     RETURN 
-  END IF ! eta .lt. epsilonOne
+  END IF ! eta .lt. OnePlusEps
 ELSE 
   nInter=0
   t=-1.
@@ -2391,8 +2391,8 @@ ELSE
 !    IPWRITE(UNIT_stdOut,*) 'a/l',t(1)/lengthPartTrajectory
 !  END IF
 
-  !IF(ABS(eta(1)).LT.hitepsbi)THEN
-  !IF(ABS(eta(1)).LT.epsilonOne)THEN
+  !IF(ABS(eta(1)).LT.BezierHitEpsBi)THEN
+  !IF(ABS(eta(1)).LT.OnePlusEps)THEN
   xi(1)=ComputeXi(a1,a2,eta(1))
   t(1)=ComputeSurfaceDistance2(BiLinearCoeff,xi(1),eta(1),PartTrajectory,iPart)
   !IF(flip.EQ.0)THEN
@@ -2416,12 +2416,12 @@ ELSE
   !  RETURN
   !END IF
 
-  IF(ABS(eta(1)).LT.ClipHit)THEN
+  IF(ABS(eta(1)).LT.BezierClipHit)THEN
     ! as paper ramsay
-    IF(ABS(xi(1)).LT.Cliphit)THEN
+    IF(ABS(xi(1)).LT.BezierCliphit)THEN
       alphaNorm=t(1)/lengthPartTrajectory
-      !IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
-      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GT.-epsilontol))THEN
+      !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
+      IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
         nInter=nInter+1
         t(1)=t(1)
       ELSE
@@ -2455,13 +2455,13 @@ ELSE
   !IF((DOT_PRODUCT(normVec,PartTrajectory)).LT.epsilontol) t(2)=-1.0
 
 
- !IF(ABS(eta(2)).LT.epsilonOne)THEN
- IF(ABS(eta(2)).LT.ClipHit)THEN
-    !IF(ABS(xi(2)).LT.epsilonOne)THEN
-    IF(ABS(xi(2)).LT.ClipHit)THEN
+ !IF(ABS(eta(2)).LT.OnePlusEps)THEN
+ IF(ABS(eta(2)).LT.BezierClipHit)THEN
+    !IF(ABS(xi(2)).LT.OnePlusEps)THEN
+    IF(ABS(xi(2)).LT.BezierClipHit)THEN
       alphaNorm=t(2)/lengthPartTrajectory
-      !IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GE.0.))THEN
-      IF((alphaNorm.LT.epsilonOne) .AND.(alphaNorm.GT.-epsilontol))THEN
+      !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
+      IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
         t(2)=t(2)!/lengthPartTrajectory
         nInter=nInter+1
       ELSE
@@ -2689,12 +2689,12 @@ USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
-USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,epsilonOne,SideDistance,ClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierClipHit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
 !USE MOD_Equations_Vars,          ONLY:epsMach
-!USE MOD_Particle_Surfaces_Vars,  ONLY:epsilonOne,SideIsPlanar,BiLinearCoeff,SideNormVec
+!USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2801,8 +2801,8 @@ END IF
 
 alphaNorm=alpha/lengthPartTrajectory
 !IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
-IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LT.-epsilontol))THEN
-!IF((alphaNorm.GT.epsilonOne) .OR.(alphaNorm.LE.0.))THEN
+IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
+!IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LE.0.))THEN
   alpha=-1.0
   RETURN
 END IF
@@ -2838,7 +2838,7 @@ IF(ABS(C).LT.epsilontol)THEN
 END IF
 
 eta=-C/B
-IF(ABS(eta).GT.ClipHit)THEN
+IF(ABS(eta).GT.BezierClipHit)THEN
   alpha=-1.0
   RETURN
 END IF
@@ -2851,7 +2851,7 @@ ELSE
   xi=(-eta*a2(3) -a2(2))/a
 END IF
 
-IF(ABS(xi).GT.ClipHit)THEN
+IF(ABS(xi).GT.BezierClipHit)THEN
   alpha=-1.0
   RETURN
 END IF

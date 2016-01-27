@@ -105,24 +105,24 @@ IF(ParticleSurfaceInitIsDone) RETURN
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES ...!'
 
-epsilontol      = GETREAL('epsOne','1e-10')
-hitepsbi        = GETREAL('hitepsbi','1e-12')
-hitepsbi=1.0+hitepsbi
-!hitepsbi=1.0+SQRT(EPSILON(0.0))
-!hitepsbi=1.000800
-Mepsilontol     = -epsilontol
-epsilonOne      = 1.0 + epsilontol
-OneMepsilon     = 1.0 - epsilontol
-ClipTolerance   = GETREAL('ClipTolerance','1e-8')
-SplitLimit      = GETREAL('SplitLimit','0.6')
-SplitLimit      =2.*SplitLimit
-ClipMaxIter     = GETINT('ClipMaxIter','100')
+epsilontol            = GETREAL('epsilontol','1e-10')
+BezierHitEpsBi        = GETREAL('BezierHitEpsBi','1e-12')
+BezierHitEpsBi        = 1.0+BezierHitEpsBi
+!BezierHitEpsBi=1.0+SQRT(EPSILON(0.0))
+!BezierHitEpsBi=1.000800
+MinusEps              = -epsilontol
+OnePlusEps            = 1.0 + epsilontol
+OneMinusEps           = 1.0 - epsilontol
+BezierClipTolerance   = GETREAL('BezierClipTolerance','1e-8')
+BezierSplitLimit      = GETREAL('BezierSplitLimit','0.6')
+BezierSplitLimit      = 2.*BezierSplitLimit
+BezierClipMaxIter     = GETINT('BezierClipMaxIter','100')
 
-ClipHit         = GETREAL('ClipHit','1e-6')
-ClipHit =1.0+ClipHit
+BezierClipHit         = GETREAL('BezierClipHit','1e-6')
+BezierClipHit         = 1.0+BezierClipHit
 tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp
-ClipMaxInter    = GETINT('ClipMaxInter',dummy)
+BezierClipMaxIntersec = GETINT('BezierClipMaxIntersec',dummy)
 
 IF(DoRefMapping)THEN
   !MultipleBCs    = GETLOGICAL('MultibleBCs',".FALSE.")
@@ -159,11 +159,11 @@ rTotalBezierClips =0.
 !  !whichBoundBox = GETINT('PartSFC-BoundBox','1')
 !END IF
 
-ALLOCATE( locAlpha(1:ClipMaxInter) &
-        , locXi   (1:ClipMaxInter) &
-        , locEta  (1:ClipMaxInter) )
-ALLOCATE( XiArray (1:2,1:ClipMaxIter) &
-        , EtaArray(1:2,1:ClipMaxIter) )
+ALLOCATE( locAlpha(1:BezierClipMaxIntersec) &
+        , locXi   (1:BezierClipMaxIntersec) &
+        , locEta  (1:BezierClipMaxIntersec) )
+ALLOCATE( XiArray (1:2,1:BezierClipMaxIter) &
+        , EtaArray(1:2,1:BezierClipMaxIter) )
 
 
 ! moved into mesh init

@@ -40,7 +40,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars,                   ONLY:nBCSides,NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne
+USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,OnePlusEps
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem,GEO
@@ -261,7 +261,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars,                   ONLY:nBCSides,NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne
+USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,OnePlusEps
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems,PartBCSideList,nTotalBCSides
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem
@@ -403,7 +403,7 @@ USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,lastpartpos
 USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,nCurrentParts
-USE MOD_Particle_Surfaces_Vars,  ONLY:ClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipHit
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsInCell,epsOneCell
 USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToSide,PartSideToElem,nTotalBCSides,PartBCSideLIst
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
@@ -547,7 +547,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
 #endif
       END IF ! initial check
       !IF(iPart.EQ.1) print*,'pos,elem',PartPosRef(:,ipart),ElemID
-      !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
+      !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.BezierClipHit) THEN ! particle inside
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.1.0) THEN ! particle inside
         PEM%Element(iPart)  = ElemID
         ParticleFound(iPart)=.TRUE.
@@ -635,7 +635,7 @@ DO iPart=1,PDM%ParticleVecLength
     IF(ElemID.LE.PP_nElems) nTracksPerElem(ElemID)=nTracksPerElem(ElemID)+1
 #endif /*MPI*/
     CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
-    !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
+    !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.BezierClipHit) THEN ! particle inside
     IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.1.0) THEN ! particle inside
       PEM%Element(iPart) = ElemID
       ParticleFound(iPart)=.TRUE.
@@ -1327,7 +1327,7 @@ ELSE
     IF(ALMOSTEQUAL(Distance(iBGMELem),-1.0)) CYCLE
     ElemID=ListDistance(iBGMElem)
     CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
-    !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.ClipHit) THEN ! particle inside
+    !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.BezierClipHit) THEN ! particle inside
     IF(MAXVAL(ABS(PartPosRef(1:3,PartID))).LE.1.0) THEN ! particle inside
       PEM%Element(PartID) = ElemID
       PDM%ParticleInside(PartID)=.TRUE.
@@ -1393,7 +1393,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars,                   ONLY:nBCSides,NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,epsilonOne
+USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,OnePlusEps
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems,PartBCSideList,nTotalBCSides
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem,ElemBaryNGeo

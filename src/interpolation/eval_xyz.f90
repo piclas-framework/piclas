@@ -54,7 +54,7 @@ USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:xGP,wBary
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo
-USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess
+USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis
 USE MOD_PICInterpolation_Vars,   ONLY:NBG,BGField,useBGField,BGDataSize,BGField_wBary, BGField_xGP,BGType
 USE MOD_Mesh_Vars,               ONLY:CurvedElem,wBaryCL_NGeo1,XiCL_NGeo1
@@ -106,7 +106,7 @@ REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 !  !XiB=1.05
 !  !CALL RefElemBisection(Xi(3),XiA,XiB,X_In(3),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(3,:,:,:,ElemID),NGeo,Found)
 !ELSE
-  SELECT CASE(MappingGuess)
+  SELECT CASE(RefMappingGuess)
   CASE(1)
     Ptild=X_in - ElemBaryNGeo(:,ElemID)
     ! plus coord system (1-3) and minus coord system (4-6)
@@ -245,7 +245,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:xGP
-USE MOD_Particle_Mesh_Vars,      ONLY:MappingGuess,epsMapping
+USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingGuess,RefMappingEps
 USE MOD_Particle_Mesh_Vars,      ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis!,ElemRadiusNGeo
 USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,Elem_xGP,XCL_NGeo,NGeo,wBaryCL_NGeo,XiCL_NGeo,NGeo
 USE MOD_Mesh_Vars,               ONLY:CurvedElem,wBaryCL_NGeo1,XiCL_NGeo1
@@ -273,7 +273,7 @@ REAL                       :: XiA,XiB
 !===================================================================================================================================
 
 
-epsOne=1.0+epsMapping
+epsOne=1.0+RefMappingEps
 IF(.NOT.PRESENT(DoReUseMap))THEN
   !IF(CurvedElem(ElemID))THEN
   !  Xi=0.
@@ -292,7 +292,7 @@ IF(.NOT.PRESENT(DoReUseMap))THEN
   !  !CALL RefElemBisection(Xi(3),XiA,XiB,X_In(3),wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(3,:,:,:,ElemID),NGeo,Found)
   !  !print*,'guess',xi
   !ELSE
-    SELECT CASE(MappingGuess)
+    SELECT CASE(RefMappingGuess)
     CASE(1)
       Ptild=X_in - ElemBaryNGeo(:,ElemID)
       ! plus coord system (1-3) and minus coord system (4-6)
@@ -545,7 +545,7 @@ SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo,dXCL_NGeo,N_In,
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Particle_Mesh_Vars,      ONLY:epsMapping!,ElemRadiusNGeo
+USE MOD_Particle_Mesh_Vars,      ONLY:RefMappingEps!,ElemRadiusNGeo
 USE MOD_Mesh_Vars,               ONLY:offsetElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -586,9 +586,9 @@ DO k=0,N_In
 END DO !j=0,N_In
 
 NewtonIter=0
-!abortCrit=ElemRadiusNGeo(ElemID)*ElemRadiusNGeo(ElemID)*epsMapping
+!abortCrit=ElemRadiusNGeo(ElemID)*ElemRadiusNGeo(ElemID)*RefMappingEps
 deltaXi2=HUGE(1.0)
-DO WHILE((deltaXi2.GT.epsMapping).AND.(NewtonIter.LT.100))
+DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
   NewtonIter=NewtonIter+1
 
   ! caution, dXCL_NGeo is transposed of required matrix

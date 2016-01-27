@@ -125,17 +125,17 @@ MeasureTrackTime = GETLOGICAL('MeasureTrackTime','.FALSE.')
 FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 
 ! method from xPhysic to parameter space
-MappingGuess    = GETINT('MappingGuess','1')
-epsMapping      = GETREAL('epsMapping','1e-8')
-epsInCell       = SQRT(3.0*epsMapping)
+RefMappingGuess = GETINT('RefMappingGuess','1')
+RefMappingEps   = GETREAL('RefMappingEps','1e-8')
+epsInCell       = SQRT(3.0*RefMappingEps)
 epsOneCell      = 1.0+epsInCell
-IF((MappingGuess.LT.1).OR.(MappingGuess.GT.4))THEN
+IF((RefMappingGuess.LT.1).OR.(RefMappingGuess.GT.4))THEN
    CALL abort(__STAMP__, &
-        'Wrong guessing method for mapping from physical space in reference space.',MappingGuess,999.)
+        'Wrong guessing method for mapping from physical space in reference space.',RefMappingGuess,999.)
 END IF
-IF(DoRefMapping .AND. MappingGuess.EQ.2) THEN
+IF(DoRefMapping .AND. RefMappingGuess.EQ.2) THEN
    CALL abort(__STAMP__, &
-       ' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',MappingGuess)
+       ' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
 END IF
 
 BezierEpsilonBilinear = GETREAL('BezierEpsilonBilinear','1e-6')
@@ -250,7 +250,7 @@ USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
 USE MOD_TimeDisc_Vars,          ONLY:dt
 USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo,IsBCElem
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
@@ -394,7 +394,7 @@ USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,LastPartPos
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne,BezierControlPoints3D,SideType
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,BezierControlPoints3D,SideType
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarInterSectionBezier,ComputeBilinearIntersectionSuperSampled2
 USE MOD_Particle_Intersection,  ONLY:ComputeBezierIntersection
@@ -2116,7 +2116,7 @@ USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
 USE MOD_TimeDisc_Vars,          ONLY:dt
 USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OneMepsilon,epsilonOne
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo

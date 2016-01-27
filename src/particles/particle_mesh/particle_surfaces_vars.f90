@@ -30,18 +30,18 @@ REAL,ALLOCATABLE,DIMENSION(:,:)         :: SideNormVec                  ! normal
 REAL,ALLOCATABLE,DIMENSION(:)           :: SideDistance                 ! distance of planar base from origin 
 INTEGER,ALLOCATABLE,DIMENSION(:)        :: gElemBCSides                 ! number of BC-Sides of element
 REAL                                    :: BezierEpsilonBilinear        ! bi-linear tolerance for the bi-linear - planar decision
-REAL                                    :: epsilonOne                   ! epsilone for setting the boundary tolerance
-REAL                                    :: hitEpsBi 
-REAL                                    :: OneMepsilon
-REAL                                    :: epsilontol                   ! epsilone for setting the tolerance
-REAL                                    :: Mepsilontol               
-REAL                                    :: ClipHit                      ! value for clip hit
+REAL                                    :: BezierHitEpsBi               ! epsilon tolerance for bi-linear faces
+REAL                                    :: epsilontol                   ! epsilon for setting the tolerance
+REAL                                    :: OneMinusEps                  ! 1 - eps: epsilontol
+REAL                                    :: OnePlusEps                   ! 1 + eps: epsilontol for setting the boundary tolerance
+REAL                                    :: MinusEps                     ! - eps: epsilontol
 LOGICAL                                 :: ParticleSurfaceInitIsDone=.FALSE.
 ! settings for Bezier-Clipping and definition of maximal number of intersections
-REAL                                    :: ClipTolerance                ! tolerance for root of bezier clipping
-REAL                                    :: SplitLimit                   ! clip if remaining area after clip is > clipforce %
-INTEGER                                 :: ClipMaxInter                 ! maximal possible intersections for Bezier clipping
-INTEGER                                 :: ClipMaxIter                  ! maximal iterations per intersections
+REAL                                    :: BezierClipHit                      ! value for clip hit
+REAL                                    :: BezierClipTolerance                ! tolerance for root of bezier clipping
+REAL                                    :: BezierSplitLimit             ! clip if remaining area after clip is > clipforce %
+INTEGER                                 :: BezierClipMaxIntersec        ! maximal possible intersections for Bezier clipping
+INTEGER                                 :: BezierClipMaxIter            ! maximal iterations per intersections
 INTEGER                                 :: BezierElevation              ! elevate polynomial degree to NGeo+BezierElevation
 REAL,ALLOCATABLE,DIMENSION(:)           :: locAlpha,locXi,locEta        ! position of trajectory-patch
 REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray             ! xi and eta history for computation of intersection
