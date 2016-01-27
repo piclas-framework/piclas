@@ -105,7 +105,7 @@ IF(ParticleSurfaceInitIsDone) RETURN
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES ...!'
 
-BezierPureNewton      = GETLOGICAL('BezierPureNewton',".FALSE.")
+BezierNewtonAngle     = GETREAL('BezierNewtonAngle','1.570796326')! 1°=0.01754 (in rad)
 
 epsilontol            = GETREAL('epsilontol','1e-10')
 BezierHitEpsBi        = GETREAL('BezierHitEpsBi','1e-12')
@@ -1220,7 +1220,7 @@ h=dy
 w=MIN(dx,dz)
 l=MAX(dx,dz)
 
-IF((h.LT.w*1.E-2).AND.(w.LE.l))THEN ! critical case possible
+IF((h.LT.w*1.E-2))THEN!.AND.(w.LE.l))THEN ! critical case possible: second condition is obsolete
   SideIsCritical=.TRUE.
 ELSE
   SideIsCritical=.FALSE.

@@ -174,10 +174,11 @@ SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 USE MOD_Globals,                 ONLY:Cross,abort,MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierPureNewton
+USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierNewtonAngle
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,BezierClipTolerance,BezierClipMaxIntersec,BezierClipMaxIter
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,  ONLY:SideSlabNormals
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Vars,           ONLY:time
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
@@ -208,6 +209,7 @@ LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter
 !REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
 REAL                                     :: XiNewton(2)
+REAL                                     :: PartFaceAngle
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
@@ -303,8 +305,17 @@ END DO
 ! backup for newton
 !BezierControlPoints2D_tmp=BezierControlPoints2D
 
-
-IF(.NOT.BezierPureNewton)THEN
+! calculate angle between particle path and slab normal plane of face
+! angle2=abs(90-RadianToDegree*acos(scalar_product/(VECTOR_LENGTH(t)*VECTOR_LENGTH(n2))))
+PartFaceAngle=ABS(1.570796326794897 - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
+  !IF(PartFaceAngle*180/ACOS(-1.).GE.90)THEN
+    !print*,PartFaceAngle*180/ACOS(-1.)
+  !ELSE
+  
+  !END IF
+!IF(.NOT.BezierNewtonAngle)THEN
+IF(PartFaceAngle.LT.BezierNewtonAngle)THEN ! 1° = 0.01745rad: critical side at the moment need: 0.57° angle
+  !print*,"bezier"
   !  this part in a new function or subroutine
   locAlpha=-1.0
   iClipIter=1
@@ -315,7 +326,11 @@ IF(.NOT.BezierPureNewton)THEN
   ! CALL recursive Bezier clipping algorithm
   CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
                  ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
-ELSE!BezierPureNewton
+ELSE!BezierNewtonAngle
+  !print*,"newton"
+#ifdef CODE_ANALYZE
+rPerformBezierClip=rPerformBezierClip-1.
+#endif /*CODE_ANALYZE*/
   XiNewton=0.
   !CALL BezierNewton(locAlpha(1),(/locXi(1),loceta(1)/),BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
   !CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
