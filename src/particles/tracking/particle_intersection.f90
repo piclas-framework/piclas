@@ -171,6 +171,7 @@ SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
 !===================================================================================================================================
 ! MODULES
+USE MOD_Global_Vars,             ONLY:PI
 USE MOD_Globals,                 ONLY:Cross,abort,MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
@@ -307,11 +308,14 @@ END DO
 
 ! calculate angle between particle path and slab normal plane of face
 ! angle2=abs(90-RadianToDegree*acos(scalar_product/(VECTOR_LENGTH(t)*VECTOR_LENGTH(n2))))
-PartFaceAngle=ABS(1.570796326794897 - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
+PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
   !IF(PartFaceAngle*180/ACOS(-1.).GE.90)THEN
     !print*,PartFaceAngle*180/ACOS(-1.)
   !ELSE
-  
+#ifdef CODE_ANALYZE
+rPerformBezierClip=rPerformBezierClip-1.
+#endif /*CODE_ANALYZE*/
+ 
   !END IF
 !IF(.NOT.BezierNewtonAngle)THEN
 IF(PartFaceAngle.LT.BezierNewtonAngle)THEN ! 1° = 0.01745rad: critical side at the moment need: 0.57° angle
@@ -328,9 +332,6 @@ IF(PartFaceAngle.LT.BezierNewtonAngle)THEN ! 1° = 0.01745rad: critical side at 
                  ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 ELSE!BezierNewtonAngle
   !print*,"newton"
-#ifdef CODE_ANALYZE
-rPerformBezierClip=rPerformBezierClip-1.
-#endif /*CODE_ANALYZE*/
   XiNewton=0.
   !CALL BezierNewton(locAlpha(1),(/locXi(1),loceta(1)/),BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
   !CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
