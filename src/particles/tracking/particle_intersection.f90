@@ -185,7 +185,7 @@ USE MOD_Particle_Vars,           ONLY:time
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !USE MOD_TimeDisc_Vars,           ONLY:iter
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip
+USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
 #endif /*CODE_ANALYZE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -237,10 +237,6 @@ IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle
                                                                                               ! bounding box
   END IF
 END IF
-
-#ifdef CODE_ANALYZE
-rPerformBezierClip=rPerformBezierClip+1.
-#endif /*CODE_ANALYZE*/
 
 !IF(time.GT.28.07)THEN
 !  print*,'boundingbox hit- do clipping'
@@ -309,16 +305,16 @@ END DO
 ! calculate angle between particle path and slab normal plane of face
 ! angle2=abs(90-RadianToDegree*acos(scalar_product/(VECTOR_LENGTH(t)*VECTOR_LENGTH(n2))))
 PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
-  !IF(PartFaceAngle*180/ACOS(-1.).GE.90)THEN
-    !print*,PartFaceAngle*180/ACOS(-1.)
-  !ELSE
-#ifdef CODE_ANALYZE
-rPerformBezierClip=rPerformBezierClip-1.
-#endif /*CODE_ANALYZE*/
+  IF(PartFaceAngle*180/ACOS(-1.).LE.0)THEN
+    print*,PartFaceAngle*180/ACOS(-1.)
+  ELSE
  
-  !END IF
+  END IF
 !IF(.NOT.BezierNewtonAngle)THEN
 IF(PartFaceAngle.LT.BezierNewtonAngle)THEN ! 1° = 0.01745rad: critical side at the moment need: 0.57° angle
+#ifdef CODE_ANALYZE
+rPerformBezierClip=rPerformBezierClip+1.
+#endif /*CODE_ANALYZE*/
   !print*,"bezier"
   !  this part in a new function or subroutine
   locAlpha=-1.0
@@ -331,6 +327,9 @@ IF(PartFaceAngle.LT.BezierNewtonAngle)THEN ! 1° = 0.01745rad: critical side at 
   CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
                  ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 ELSE!BezierNewtonAngle
+#ifdef CODE_ANALYZE
+rPerformBezierNewton=rPerformBezierNewton+1.
+#endif /*CODE_ANALYZE*/
   !print*,"newton"
   XiNewton=0.
   !CALL BezierNewton(locAlpha(1),(/locXi(1),loceta(1)/),BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)

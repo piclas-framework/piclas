@@ -85,7 +85,7 @@ USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList
 USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars,     ONLY:rBoundingBoxChecks,rPerformBezierClip
+USE MOD_Particle_Surfaces_Vars,     ONLY:rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
 #endif /*CODE_ANALYZE*/
 !USE MOD_Particle_SFC_Vars,          ONLY:whichBoundBox
 ! IMPLICIT VARIABLE HANDLING
@@ -147,6 +147,7 @@ END IF
 #ifdef CODE_ANALYZE
 rBoundingBoxChecks=0.
 rPerformBezierClip=0.
+rPerformBezierNewton=0.
 rTotalBBChecks    =0.
 rTotalBezierClips =0.
 #endif /*CODE_ANALYZE*/

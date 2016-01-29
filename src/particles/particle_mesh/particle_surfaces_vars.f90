@@ -53,6 +53,7 @@ REAL,ALLOCATABLE,DIMENSION(:,:)         :: XiArray,EtaArray             ! xi and
 REAL                                    :: rBoundingBoxChecks           ! number of bounding box checks
 REAL(KIND=16)                           :: rTotalBBChecks               ! total number of bounding box checks
 REAL                                    :: rPerformBezierClip           ! number of performed bezier clips
+REAL                                    :: rPerformBezierNewton         ! number of performed bezier newton intersections
 REAL(KIND=16)                           :: rTotalBezierClips            ! total number of performed bezier clips
 REAL,ALLOCATABLE,DIMENSION(:)           :: SideBoundingBoxVolume        ! Bounding Box volume
 #endif /*CODE_ANALYZE*/
