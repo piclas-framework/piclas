@@ -171,7 +171,7 @@ SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
 !===================================================================================================================================
 ! MODULES
-USE MOD_Global_Vars,             ONLY:PI
+USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Globals,                 ONLY:Cross,abort,MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
