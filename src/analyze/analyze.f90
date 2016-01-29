@@ -368,7 +368,7 @@ USE MOD_LD_DSMC_TOOLS
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume
+USE MOD_Particle_Surfaces_Vars,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
 #endif /*CODE_ANALYZE*/
 #ifdef MPI
 USE MOD_LoadBalance_Vars,      ONLY: tCurrent
@@ -582,6 +582,7 @@ IF (DoAnalyze)  THEN
     SWRITE(UNIT_stdOut,'(A51)') 'CODE_ANALYZE: Following output has been accumulated'
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
     SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
+    SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierNewton: ' , rTotalBezierNewton
     TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
 #ifdef MPI
     IF(MPIRoot) THEN
@@ -608,6 +609,7 @@ USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars   ,ONLY:DoAnalyze, IsRestart
 USE MOD_Restart_Vars            ,ONLY:DoRestart
 USE MOD_Particle_Surfaces_Vars  ,ONLY:rBoundingBoxChecks,rPerformBezierClip,rTotalBBChecks,rTotalBezierClips,rPerformBezierNewton
+USE MOD_Particle_Surfaces_Vars  ,ONLY:rTotalBezierNewton
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -682,7 +684,7 @@ IF (DoAnalyze) THEN
      WRITE(unit_index,104,ADVANCE='NO') rBoundingBoxChecks
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
      WRITE(unit_index,104,ADVANCE='NO') rPerformBezierClip
-     WRITE(unit_index,'(A1)') ' ' 
+     WRITE(unit_index,'(A1)',ADVANCE='NO') ',' 
      WRITE(unit_index,104,ADVANCE='NO') rPerformBezierNewton
      WRITE(unit_index,'(A1)') ' ' 
 #ifdef MPI
@@ -703,6 +705,8 @@ rTotalBBChecks=rTotalBBChecks+REAL(rBoundingBoxChecks,16)
 rBoundingBoxChecks=0.
 rTotalBezierClips=rTotalBezierClips+REAL(rPerformBezierClip,16)
 rPerformBezierClip=0.
+rTotalBezierNewton=rTotalBezierNewton+REAL(rPerformBezierNewton,16)
+rPerformBezierNewton=0.
 
 END SUBROUTINE CodeAnalyzeOutput
 #endif /*CODE_ANALYZE*/

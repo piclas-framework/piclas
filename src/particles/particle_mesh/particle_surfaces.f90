@@ -150,6 +150,7 @@ rPerformBezierClip=0.
 rPerformBezierNewton=0.
 rTotalBBChecks    =0.
 rTotalBezierClips =0.
+rTotalBezierNewton=0.
 #endif /*CODE_ANALYZE*/
 !! ElemBaryNGeo are required for particle mapping| SingleParticleToExactElem
 !IF(.NOT.DoRefMapping)THEN

@@ -55,6 +55,7 @@ REAL(KIND=16)                           :: rTotalBBChecks               ! total 
 REAL                                    :: rPerformBezierClip           ! number of performed bezier clips
 REAL                                    :: rPerformBezierNewton         ! number of performed bezier newton intersections
 REAL(KIND=16)                           :: rTotalBezierClips            ! total number of performed bezier clips
+REAL(KIND=16)                           :: rTotalBezierNewton           ! total number of performed bezier newton intersections
 REAL,ALLOCATABLE,DIMENSION(:)           :: SideBoundingBoxVolume        ! Bounding Box volume
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
