@@ -93,10 +93,6 @@ SUBROUTINE DSMC_main()
       IF(BGGas%BGGasSpecies.NE.0) THEN
         CALL DSMC_pairing_bggas(iElem)
       ELSE IF (DSMC%UseOctree) THEN
-
- 
-print*,"DSMC%ElectronicState",DSMC%ElectronicState
-read*
         CALL DSMC_pairing_octree(iElem)
       ELSE
         CALL DSMC_pairing_statistical(iElem)  ! pairing of particles per cell
