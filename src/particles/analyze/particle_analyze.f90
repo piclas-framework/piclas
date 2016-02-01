@@ -766,6 +766,7 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
         END IF
       END IF
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      print*,'size(CollProbOut)',size(DSMC%CollProbOut)
       WRITE(unit_index,104,ADVANCE='NO') DSMC%CollProbOut(1,1)
       DO iCase=1, CollInf%NumCase +1 
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','

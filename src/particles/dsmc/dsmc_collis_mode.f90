@@ -1343,7 +1343,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
       ! searching third collison partner
       IF(ChemReac%RecombParticle.EQ. 0) THEN
         IF(ChemReac%nPairForRec.GT. 1) THEN
-            CALL RANDOM_NUMBER(iRan)
+          CALL RANDOM_NUMBER(iRan)
           PairForRec = iPair + 1 + INT(iRan * ChemReac%nPairForRec)
           Coll_pData(PairForRec)%NeedForRec = .TRUE.
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
