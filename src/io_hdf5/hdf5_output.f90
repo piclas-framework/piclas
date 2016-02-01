@@ -206,10 +206,11 @@ IF(OutPutSource) THEN
   END IF
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
                           DataSetName='DG_Source', rank=2,  &
-                          nValGlobal=(/nVar,nGlobalElems/),&
-                          nVal=      (/nVar,PP_nElems   /),&
-                          offset=    (/0,   offsetElem  /),&
+                          nValGlobal=(/nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                          nVal=      (/nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+                          offset=    (/0,      0,     0,     0,     offsetElem/),&
                           collective=.TRUE.,RealArray=Source)
+
   DEALLOCATE(LocalStrVarNames)
 END IF
 #endif /*PARTICLES*/

@@ -44,7 +44,7 @@ USE MOD_DG_Vars,            ONLY:U,Ut
 USE MOD_DG,                 ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver_Vars,  ONLY:mass
 USE MOD_Equation_Vars,      ONLY:DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,      ONLY:RK_B, iStage  ,dt,sdtCFLOne
+USE MOD_TimeDisc_Vars,      ONLY:dt,sdtCFLOne
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -90,7 +90,7 @@ USE MOD_Equation,          ONLY:CalcSource
 USE MOD_Equation,          ONLY:DivCleaningDamping
 USE MOD_LinearSolver_Vars, ONLY:ImplicitSource, LinSolverRHS,mass
 USE MOD_Equation_Vars,     ONLY:DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,     ONLY:RK_B, iStage  ,dt,sdtCFLOne
+USE MOD_TimeDisc_Vars,     ONLY:dt,sdtCFLOne
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
