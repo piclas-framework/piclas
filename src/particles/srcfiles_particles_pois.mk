@@ -88,6 +88,8 @@ particles/tracking/particle_tracking.f90
 particles/tracking/particle_tracking_vars.f90
 particles/tracking/particle_intersection.f90
 particles/boundary/particle_boundary_condition.f90
+particles/boundary/particle_boundary_vars.f90
+particles/boundary/particle_boundary_sampling.f90
 particles/particle_mesh/particle_mesh.f90
 particles/particle_mesh/particle_mesh_vars.f90
 particles/particle_mesh/particle_periodic_bc.f90

@@ -352,7 +352,8 @@ USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt
 USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum, Time
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
-USE MOD_DSMC_Vars,             ONLY: nOutput,DSMC,useDSMC, iter_macvalout,SurfMesh
+USE MOD_DSMC_Vars,             ONLY: nOutput,DSMC,useDSMC, iter_macvalout
+USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh
 USE MOD_DSMC_Vars,             ONLY: realtime, HODSMC, DSMC_HOSolution
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues

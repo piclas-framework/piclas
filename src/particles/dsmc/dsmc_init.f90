@@ -37,17 +37,18 @@ SUBROUTINE InitDSMC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,             ONLY : nElems
-USE MOD_Globals_Vars,          ONLY:PI
+USE MOD_Mesh_Vars,                  ONLY : nElems
+USE MOD_Globals_Vars,               ONLY:PI
 USE MOD_ReadInTools
-USE MOD_DSMC_ElectronicModel,  ONLY: ReadSpeciesLevel
+USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
-USE MOD_PARTICLE_Vars,         ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, useVTKFileBGG
-USE MOD_DSMC_Analyze,          ONLY: InitHODSMC
-USE MOD_TimeDisc_Vars,         ONLY: TEnd
-USE MOD_DSMC_ChemInit,         ONLY: DSMC_chemical_init
-USE MOD_DSMC_PolyAtomicModel,  ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly, DSMC_SetInternalEnr_PolyFast 
-USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
+USE MOD_PARTICLE_Vars,              ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, useVTKFileBGG
+USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
+USE MOD_TimeDisc_Vars,              ONLY: TEnd
+USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init
+USE MOD_DSMC_PolyAtomicModel,       ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly, DSMC_SetInternalEnr_PolyFast 
+USE MOD_DSMC_PolyAtomicModel,       ONLY: DSMC_SetInternalEnr_PolyFastPart2
+USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -468,10 +469,8 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
 !-----------------------------------------------------------------------------------------------------------------------------------
   DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.')
   IF (DSMC%CalcSurfaceVal) THEN
-  CALL DSMC_BuildSurfaceOutputMapping()
-#ifdef MPI
-  CALL DSMC_BuildHaloSurfaceOutputMapping()
-#endif
+    DSMC%CalcSurfaceTime = GETLOGICAL('Particles-DSMC-CalcSurfaceTime','.FALSE.')
+    CALL InitParticleBoundarySampling()
   END IF
   ! Species-dependent calculations
   ALLOCATE(DSMC%CalcSurfCollis_SpeciesFlags(1:nSpecies))
@@ -575,7 +574,6 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 ! Perform mapping for surface output
 !===================================================================================================================================
 ! MODULES
- USE MOD_Globals
 ! USE MOD_Preproc
 ! USE MOD_Particle_Tracking_vars, ONLY:DoRefMapping
 ! USE MOD_Mesh_Vars,              ONLY:SurfElem
@@ -630,15 +628,6 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 !!CALL BarycentricWeights(NSurfSample,XiEQ_Surf,wBary_NSurfSample)
 !CALL InitializeVandermonde(PP_N,NSurfSample,wBary,xGP,XiEQ_Surf,Vdm_NGP_NSurfEQ)
 !
-!! first, get number of bc sides
-!SurfMesh%nSurfaceBCSides = 0
-!DO iSide=1,nTotalSides
-!  IF(BC(iSide).LE.1) CYCLE
-!  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
-!    SurfMesh%nSurfaceBCSides = SurfMesh%nSurfaceBCSides + 1
-!    SurfMesh%SideToSurfID(iSide) = SurfMesh%nSurfaceBCSides
-!  END IF
-!END DO ! iSide=1,nTotalSides
 !
 !!CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:),tmp)
 !
@@ -656,10 +645,10 @@ SUBROUTINE DSMC_BuildSurfaceOutputMapping()
 
       !  STOP
 
-    CALL abort(&
-    __STAMP__&
-    ,' Subroutine not implemented!')
-
+!    CALL abort(&
+!    __STAMP__&
+!    ,' Subroutine not implemented!')
+!
 !  ALLOCATE(TempBCSurfNodes(4*nBCSides))
 !  ALLOCATE(TempSideSurfNodeMap(1:4,1:nBCSides))
 !  ALLOCATE(SurfMesh%GlobSideToSurfSideMap(nBCSides))

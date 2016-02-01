@@ -244,7 +244,8 @@ USE MOD_Globals,               ONLY : abort
 USE MOD_LD_Vars
 USE MOD_TimeDisc_Vars,         ONLY : dt
 USE MOD_Mesh_Vars,             ONLY : ElemToSide, nBCSides, BC
-USE MOD_Particle_Mesh_Vars,    ONLY : PartBound, SidePeriodicType
+USE MOD_Particle_Mesh_Vars,    ONLY : SidePeriodicType
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 !--------------------------------------------------------------------------------------------------!
 ! calculation of LD-cell temperatur
 !--------------------------------------------------------------------------------------------------!

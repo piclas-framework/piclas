@@ -42,7 +42,7 @@ USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
 USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos,PEM
-USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 !USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
@@ -198,7 +198,7 @@ USE MOD_PreProc
 USE MOD_Globals!,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
 USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos,PEM
-USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 !USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
@@ -356,7 +356,7 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
@@ -474,14 +474,14 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals,                ONLY:CROSS,abort
 USE MOD_Globals_Vars,           ONLY:PI
-USE MOD_Particle_Mesh_Vars,     ONLY:PartBound
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormAndTang,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,time,Species,BoltzmannConst,PartSpecies
 USE MOD_DSMC_Vars,              ONLY:SpecDSMC,CollisMode
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol,BezierControlPoints3D
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC,nSides,NGEO
-USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,SpecDSMC, DSMC, SampWall, SurfMesh, useDSMC, CollisMode
+USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,SpecDSMC, DSMC, SampWall,  useDSMC, CollisMode
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt

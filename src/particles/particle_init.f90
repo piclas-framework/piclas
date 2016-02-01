@@ -112,7 +112,8 @@ USE MOD_Globals!, ONLY:MPIRoot,UNIT_STDOUT,myRank,nProcessors
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
-USE MOD_Particle_Mesh_Vars,    ONLY: PartBound,nPartBound, NbrOfRegions,RegionBounds
+USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound
+USE MOD_Particle_Mesh_Vars    ,ONLY: NbrOfRegions,RegionBounds
 USE MOD_Mesh_Vars,             ONLY: nElems, BoundaryName,BoundaryType, nBCs
 USE MOD_DSMC_Vars,             ONLY: useDSMC
 USE MOD_Particle_Output_Vars,  ONLY: WriteFieldsToVTK, OutputMesh
@@ -943,6 +944,7 @@ SUBROUTINE FinalizeParticles()
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Boundary_Vars
 !USE MOD_DSMC_Vars,                  ONLY: SampDSMC
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE

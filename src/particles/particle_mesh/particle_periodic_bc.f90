@@ -24,11 +24,12 @@ SUBROUTINE InitPeriodicBC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools,        ONLY:GETINT,GETREALARRAY
-USE MOD_Particle_Mesh_Vars, ONLY:GEO,PartBound,NbrOfCases,casematrix
+USE MOD_ReadInTools,            ONLY:GETINT,GETREALARRAY
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO,NbrOfCases,casematrix
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 #ifdef MPI
-USE MOD_Particle_Vars,      ONLY:PDM
-USE MOD_Particle_MPI_Vars,  ONLY: PartShiftVector
+USE MOD_Particle_Vars,          ONLY:PDM
+USE MOD_Particle_MPI_Vars,      ONLY: PartShiftVector
 #endif /*MPI*/
 !USE MOD_Particle_Vars,      ONLY:PartBound
 !USE MOD_Particle_MPI_Vars,  ONLY:NbrOfCases, casematrix!, partShiftVector

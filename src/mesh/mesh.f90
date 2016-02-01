@@ -93,7 +93,6 @@ USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 #endif
 #ifdef MPI
 USE MOD_Prepare_Mesh,           ONLY:exchangeFlip
-USE MOD_MPI_Vars,               ONLY:offsetSurfElemMPI
 #endif
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
@@ -187,45 +186,6 @@ CALL fillMeshInfo()
 CALL InitParticleMesh()
 !CALL InitElemVolumes()
 #endif
-
-! calculating offset of surface elements for DSMC surface output
-
-#ifdef MPI
-
-IF(ALLOCATED(offsetSurfElemMPI))DEALLOCATE(offsetSurfElemMPI)
-ALLOCATE(offsetSurfElemMPI(0:nProcessors))
-offsetSurfElemMPI=0
-
-countSurfElem=0
-
-DO iSide=1,nBCSides
-  IF (BoundaryType(BC(iSide),1).EQ.4) THEN
-    countSurfElem = countSurfElem + 1
-  END IF
-END DO
-
-!IF (MPIroot) THEN
-ALLOCATE(countSurfElemMPI(0:nProcessors-1))
-countSurfElemMPI=0
-!END IF
-
-CALL MPI_GATHER(countSurfElem,1,MPI_INTEGER,countSurfElemMPI,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
-
-IF (MPIroot) THEN
-DO iProc=1,nProcessors-1
-  offsetSurfElemMPI(iProc)=SUM(countSurfElemMPI(0:iProc-1))
-END DO
-offsetSurfElemMPI(nProcessors)=SUM(countSurfElemMPI(:))
-END IF
-
-CALL MPI_BCAST (offsetSurfElemMPI,size(offsetSurfElemMPI),MPI_INTEGER,0,MPI_COMM_WORLD,iError)
-
-offsetSurfElem=offsetSurfElemMPI(myRank)
-
-DEALLOCATE(countSurfElemMPI)
-#else /* MPI */
-offsetSurfElem=0          ! offset is the index of first entry, hdf5 array starts at 0-.GT. -1 
-#endif /* MPI */
 
 
 ! dealloacte pointers

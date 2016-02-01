@@ -110,6 +110,8 @@ TYPE tDSMC
   INTEGER                       :: PartNumOctreeNode        ! Max Number of Particles per Octree Node
   LOGICAL                       :: UseOctree                ! Flag for Octree
   LOGICAL                       :: CalcSurfaceVal           ! Flag for calculation of surfacevalues like heatflux or force at walls
+  LOGICAL                       :: CalcSurfaceTime          ! Flag for sampling in time-domain or iterations
+  REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
   INTEGER                       :: CalcSurfCollis_NbrOfSpecies     ! Nbr. of Species to be counted for wall collisions (def. 0: all)
   LOGICAL,ALLOCATABLE           :: CalcSurfCollis_SpeciesFlags(:)  ! Species counted for wall collisions (def.: all species=T)
   LOGICAL                       :: CalcSurfCollis_OnlySwaps        ! count only wall collisions being SpeciesSwaps (def. F)
@@ -283,13 +285,6 @@ END TYPE
 
 TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
 
-TYPE tSurfaceMesh
-  INTEGER                         :: nSurfaceBCSides        ! Number of Sides on Surface (reflective)
-  INTEGER,ALLOCATABLE             :: SideIDToSurfaceID(:)   ! Mapping form the SideID to shorter side list
-  REAL, ALLOCATABLE               :: SurfaceArea(:,:,:)     ! Area of Surface 
-END TYPE
-
-TYPE (tSurfaceMesh)               :: SurfMesh
  
 REAL                              :: realtime               ! realtime of simulation
 
