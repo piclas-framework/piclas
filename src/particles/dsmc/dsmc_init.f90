@@ -102,6 +102,10 @@ USE MOD_DSMC_PolyAtomicModel,  ONLY: DSMC_SetInternalEnr_PolyFastPart2
     DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
   END IF
   DSMC%NumPolyatomMolecs = 0
+  ALLOCATE(DSMC%CollProbSamp(nElems))
+  DSMC%CollProbSamp(1:nElems) = 0.0
+  ALLOCATE(DSMC%CollProbOut(nElems,2))
+  DSMC%CollProbOut(1:nElems,1:2) = 0.0
 
 ! definition of DSMC particle values
   ALLOCATE(DSMC_RHS(PDM%maxParticleNumber,3))

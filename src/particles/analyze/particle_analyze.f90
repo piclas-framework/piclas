@@ -766,7 +766,6 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
         END IF
       END IF
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      print*,'size(CollProbOut)',size(DSMC%CollProbOut)
       WRITE(unit_index,104,ADVANCE='NO') DSMC%CollProbOut(1,1)
       DO iCase=1, CollInf%NumCase +1 
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1092,42 +1091,39 @@ IF (nEkin .GT. 1 ) THEN
         END IF
       ENDIF
       partV2 = PartState(i,4) * PartState(i,4) &
-              + PartState(i,5) * PartState(i,5) &
-              + PartState(i,6) * PartState(i,6)
+             + PartState(i,5) * PartState(i,5) &
+             + PartState(i,6) * PartState(i,6)
       IF ( partV2 .LT. 1e6) THEN  ! |v| < 1000
-  !       Ekin = Ekin + 0.5 *  Species(PartSpecies(i))%MassIC * partV2 &
-  !                     * PartMPF(i)            
+  !       Ekin = Ekin + 0.5 *  Species(PartSpecies(i))%MassIC * partV2 * PartMPF(i)            
         IF(usevMPF) THEN
-          Ekin(nSpecies+1) = Ekin(nSpecies+1) + 0.5 *  Species(PartSpecies(i))%MassIC * partV2 &
-                                            * PartMPF(i)            
-          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + 0.5 *  Species(PartSpecies(i))%MassIC * partV2 &
-                                            * PartMPF(i)            
+          Ekin(nSpecies+1)     = Ekin(nSpecies+1)     + 0.5 * Species(PartSpecies(i))%MassIC * partV2 * PartMPF(i)
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + 0.5 * Species(PartSpecies(i))%MassIC * partV2 * PartMPF(i)
         ELSE
-          Ekin(nSpecies+1) = Ekin(nSpecies+1) + 0.5 *  Species(PartSpecies(i))%MassIC * partV2 &
-                                            *  Species(PartSpecies(i))%MacroParticleFactor
-          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + 0.5 *  Species(PartSpecies(i))%MassIC * partV2 &
-                                            *  Species(PartSpecies(i))%MacroParticleFactor
+          Ekin(nSpecies+1)     = Ekin(nSpecies+1)     + 0.5 * Species(PartSpecies(i))%MassIC * partV2 * &
+                                                              Species(PartSpecies(i))%MacroParticleFactor
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + 0.5 * Species(PartSpecies(i))%MassIC * partV2 * &
+                                                              Species(PartSpecies(i))%MacroParticleFactor
         END IF != usevMPF
       ELSE ! partV2 > 1e6
   !       Ekin = Ekin + (gamma - 1) * mass * MPF *c^2
         Gamma = partV2*c2_inv
         Gamma = 1./SQRT(1.-Gamma)
         IF(usevMPF) THEN
-          Ekin(nSpecies+1) = Ekin(nSpecies+1) + PartMPF(i) * (Gamma-1.) &
-                        * Species(PartSpecies(i))%MassIC * c2
-          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + PartMPF(i) * (Gamma-1.) &
-                        * Species(PartSpecies(i))%MassIC * c2
+          Ekin(nSpecies+1)     = Ekin(nSpecies+1)     + PartMPF(i) * (Gamma-1.) * Species(PartSpecies(i))%MassIC * c2
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + PartMPF(i) * (Gamma-1.) * Species(PartSpecies(i))%MassIC * c2
         ELSE
-          Ekin(nSpecies+1) = Ekin(nSpecies+1) + (Gamma-1.) &
-                        * Species(PartSpecies(i))%MassIC &
-                        * Species(PartSpecies(i))%MacroParticleFactor * c2
-          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + (Gamma-1.) &
-                        * Species(PartSpecies(i))%MassIC &
-                        * Species(PartSpecies(i))%MacroParticleFactor * c2
+          Ekin(nSpecies+1)     = Ekin(nSpecies+1)     + (Gamma-1.) * Species(PartSpecies(i))%MassIC &
+                                                                   * Species(PartSpecies(i))%MacroParticleFactor * c2
+          Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + (Gamma-1.) * Species(PartSpecies(i))%MassIC &
+                                                                   * Species(PartSpecies(i))%MacroParticleFactor * c2
         END IF !=usevMPF
       END IF ! partV2
-    END IF
-  END DO
+    END IF ! (PDM%ParticleInside(i))
+  END DO ! i=1,PDM%ParticleVecLength
+!print*,"nSpecies+1",nSpecies+1
+!print*,"Ekin(nSpecies+1)",Ekin(nSpecies+1),"sum=",Ekin(1)+Ekin(2)+Ekin(3),"Difference=",Ekin(nSpecies+1)-(Ekin(1)+Ekin(2)+Ekin(3))
+!print*,"Ekin",Ekin
+!!read*
 ELSE ! nEkin = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN

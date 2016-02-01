@@ -75,6 +75,11 @@ CALL InitializeParticleEmission()
 IF (useDSMC) THEN
   CALL  InitDSMC()
   IF (useLD) CALL InitLD
+ELSE IF (WriteMacroValues) THEN
+  DSMC%CalcSurfaceVal  = .FALSE.
+  DSMC%ElectronicState = .FALSE.
+  DSMC%OutputMeshInit  = .FALSE.
+  DSMC%OutputMeshSamp  = .FALSE.
 END IF
 
 IF(useDSMC .OR. WriteMacroValues) THEN
@@ -90,11 +95,6 @@ IF(useDSMC .OR. WriteMacroValues) THEN
   ALLOCATE(DSMC_HOSolution(1:11,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems,1:nSpecies))         
   DSMC_HOSolution = 0.0
   CALL InitHODSMC()
-
-  DSMC%CalcSurfaceVal  = .FALSE.
-  DSMC%ElectronicState = .FALSE.
-  DSMC%OutputMeshInit  = .FALSE.
-  DSMC%OutputMeshSamp  = .FALSE.
 END IF
 
 ParticlesInitIsDone=.TRUE.
