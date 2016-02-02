@@ -60,7 +60,7 @@ CHARACTER(2)                :: hilf
  
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 WRITE(UNIT=hilf,FMT='(I2)') NGeo
-nSurfSample = GETINT('DSMC-nSurfSample',hilf)
+!nSurfSample = GETINT('DSMC-nSurfSample',hilf)
  
 ALLOCATE(XiEQ_SurfSample(0:nSurfSample))
 

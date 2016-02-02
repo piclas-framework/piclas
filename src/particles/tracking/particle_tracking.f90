@@ -101,7 +101,6 @@ DO iPart=1,PDM%ParticleVecLength
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
-      !IF((iPart.EQ.238).AND.(iter.GE.182)) WRITE(*,*) 'ElemID',ElemID
       locAlpha=-1.
       nInterSections=0
       markTol=.FALSE.
@@ -113,7 +112,6 @@ DO iPart=1,PDM%ParticleVecLength
         flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
         SELECT CASE(SideType(SideID))
         CASE(PLANAR)
-          !IF(iPart.EQ.40) WRITE(*,*) 'planar'
           CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                         ,xi (ilocSide)      &
                                                                                         ,eta(ilocSide)   ,iPart,flip,SideID)
@@ -123,8 +121,8 @@ DO iPart=1,PDM%ParticleVecLength
 !                                                                                        ,eta(ilocSide)   ,iPart,flip,SideID)
 !                                                                              !,doTest=.TRUE.)
 !                                                                                  !,eta(ilocSide)   ,iPart,ilocSide,SideID,ElemID)
+
         CASE(BILINEAR)
-          !IF(iPart.EQ.40) WRITE(*,*) 'bilinear'
           xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
           xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
           xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -153,6 +151,7 @@ DO iPart=1,PDM%ParticleVecLength
 !                                                                            ,xi (ilocSide)      &
 !                                                                            ,eta(ilocSide)      ,iPart,SideID)
 !
+
         CASE(CURVED)
           CALL ComputeBezierIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
@@ -474,9 +473,6 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
   DO iPart=1,PDM%ParticleVecLength
     IF(PDM%ParticleInside(iPart))THEN
       ElemID = PEM%lastElement(iPart)
-      !IF(ElemID.GT.PP_nElems) IPWRITE(*,*) 'too large',ElemID,PP_nElems
-      !IF(ElemID.LT.1)         IPWRITE(*,*) 'too small',ElemID,1
-      !IF(ElemID.EQ.-888)      IPWRITE(*,*) 'not set',ElemID
       IF(ElemID.NE.iElem) CYCLE
       nTracks=nTracks+1
       ! sanity check

@@ -128,9 +128,12 @@ DO ilocSide=1,6
 
 
   CASE(PLANAR)
-    CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
-                                                                                  ,xi             &
-                                                                                  ,eta   ,PartID,flip,SideID)
+
+    CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,alpha &
+                                                                              ,xi,eta ,PartID,flip,SideID)
+    !CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
+    !                                                                              ,xi             &
+    !                                                                              ,eta   ,PartID,flip,SideID)
   CASE(BILINEAR)
     xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
     xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
@@ -262,12 +265,6 @@ n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) &
        , PartTrajectory(1)*n1(2)-PartTrajectory(2)*n1(1) /)
 n2=n2/SQRT(DOT_PRODUCT(n2,n2))
 
-!WRITE(*,'(A,2x,F12.8,2x,F12.8,2x,F12.8)') 'plane-n1',n1
-!WRITE(*,'(A,2x,F12.8,2x,F12.8,2x,F12.8)') 'plane-n2',n2
-!print*,'test n1*PartTrajectory',DOT_PRODUCT(PartTrajectory,n1)
-!print*,'test n2*PartTrajectory',DOT_PRODUCT(PartTrajectory,n2)
-!print*,'test n1*n2',DOT_PRODUCT(n1,n2)
-!read*!CHANGETAG
 DO q=0,NGeo
   DO p=0,NGeo
 !    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8,2x,F12.8)') &
@@ -1248,15 +1245,6 @@ IF(DoCheck)THEN
   !IF((alpha/lengthPartTrajectory.LE.1.0000464802767983).AND.(alpha.GT.MinusEps))THEN
   alphaNorm=alpha/lengthPartTrajectory
 
-! IF(MyRank.EQ.39)THEN
-!   IF(iter.GT.290)THEN
-!     IF(iPart.EQ.15322)THEN
-!       WRITE(*,*) ' -------------------'
-!       WRITE(*,*) ' alpha',alphaNorm
-!     END IF
-!   END IF
-! END IF
-
   IF((alphaNorm.LE.BezierClipHit).AND.(alphaNorm.GT.-epsilontol))THEN
     ! found additional intersection point
     IF(nInterSections.GE.BezierClipMaxIntersec)THEN
@@ -1670,7 +1658,8 @@ REAL                              :: Inter1(1:3)
 REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
 !REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
 REAL                              :: a1,a2,b1,b2,c1,c2
-REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3)
+REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3),alphaNorm
+REAL                              :: sdet
 !INTEGER                           :: flip
 !===================================================================================================================================
 
@@ -1735,12 +1724,12 @@ ELSE
   alpha=locSideDistance/coeffA
 END IF ! SidePeriodicType
 
+alphaNorm=alpha/lengthPartTrajectory
 
-IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-100*epsMach*coeffA))THEN
+IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
   alpha=-1.0
   RETURN
 END IF
-
 
 
 P1=(-locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)   &
@@ -1767,46 +1756,55 @@ B2=P2(2)+P2(3)
 C2=P0(2)+P0(3)
 
 
-IF(ABS(B1).GE.ABS(B2))THEN
-  xi = A2-B2/B1*A1
-  IF(ABS(xi).LT.epsilontol)THEN
-    CALL abort(&
-    __STAMP__&
-    ,' Division by zero! Xi')
-  END IF
-  xi = (B2/B1*C1-C2)/xi
-ELSE
-  xi = A1-B1/B2*A2
-  IF(ABS(xi).LT.epsilontol)THEN
-    CALL abort(&
-    __STAMP__&
-    ,' Division by zero! Xi')
-  END IF
-  xi = (B1/B2*C2-C1)/xi
-END IF
-IF(ABS(B1).GT.epsilontol)THEN
-  xi = A2-B2/B1*A1
-  IF(ABS(xi).LT.epsilontol)THEN
-    xi=0.
-  ELSE
-    xi = (B2/B1*C1-C2)/xi
-  END IF
-ELSE
-  xi = A1-B1/B2*A2
-  IF(ABS(xi).LT.epsilontol)THEN
-    xi=0.
-  ELSE
-    xi = (B1/B2*C2-C1)/xi
-  END IF
-END IF
+!IF(ABS(B1).GE.ABS(B2))THEN
+!  xi = A2-B2/B1*A1
+!  IF(ABS(xi).LT.epsilontol)THEN
+!    CALL abort(&
+!    __STAMP__&
+!    ,' Division by zero! Xi')
+!  END IF
+!  xi = (B2/B1*C1-C2)/xi
+!ELSE
+!  xi = A1-B1/B2*A2
+!  IF(ABS(xi).LT.epsilontol)THEN
+!    CALL abort(&
+!    __STAMP__&
+!    ,' Division by zero! Xi')
+!  END IF
+!  xi = (B1/B2*C2-C1)/xi
+!END IF
+!IF(ABS(B1).GT.epsilontol)THEN
+!  xi = A2-B2/B1*A1
+!  IF(ABS(xi).LT.epsilontol)THEN
+!    xi=0.
+!  ELSE
+!    xi = (B2/B1*C1-C2)/xi
+!  END IF
+!ELSE
+!  xi = A1-B1/B2*A2
+!  IF(ABS(xi).LT.epsilontol)THEN
+!    xi=0.
+!  ELSE
+!    xi = (B1/B2*C2-C1)/xi
+!  END IF
+!END IF
 
+sdet=A1*B2-A2*B1
+IF(ABS(sdet).EQ.0)THEN
+  STOP 'error'
+END IF
+sdet=1.0/sdet
+
+
+xi=(-b2*c1+b1*c2)*sdet
 IF(ABS(xi).GT.BezierClipHit)THEN
 !IF(ABS(xi).GT.OnePlusEps)THEN
   alpha=-1.0
   RETURN
 END IF
 
-eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
+!eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
+eta=(+a2*c1-a1*c2)*sdet
 IF(ABS(eta).GT.BezierClipHit)THEN
   alpha=-1.0
   RETURN
@@ -1926,18 +1924,14 @@ ELSE
  locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
 END IF
 
-!IF(locSideDistance.LT.0)THEN
 IF(locSideDistance.LT.-100*epsMach)THEN
   ! particle is located outside of element, THEREFORE, an intersection were not detected
-  alpha=0.
+  alpha=-1. ! here, alpha was set to zero? why?
   isHit=.TRUE.
   RETURN
   ! do I have to compute the xi and eta value? first try: do not re-check new element!
 END IF
 
-!IF(iPart.EQ.238.AND.iter.GE.182) IPWRITE(UNIT_stdOut,*) 'a/l',alpha/lengthPartTrajectory
-!IF(alpha.GT.lengthPartTrajectory) THEN !.OR.(alpha.LT.-epsilontol))THEN
-!IF((alpha.GT.lengthPartTrajectory+epsilontol) .OR.(alpha.LT.-epsilontol))THEN
 
 alphaNorm=alpha/lengthPartTrajectory
 !IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
@@ -1995,7 +1989,6 @@ C2=P0(2)+P0(3)
 !    xi=-(P0(2)-P2(2)/P2(3)*P0(3))/xi2
 !  END IF
 !END IF
-
 
 IF(ABS(B1).GE.ABS(B2))THEN
   xi = A2-B2/B1*A1
@@ -2266,13 +2259,16 @@ SUBROUTINE ComputeBiLinearIntersectionRobust(isHit,xNodes,PartTrajectory,lengthP
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Mesh_Vars,               ONLY:nBCSides
+USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,BezierHitEpsBi,Beziercliphit
 USE MOD_Particle_Vars,ONLY:PartState
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList,nTotalBCSides
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
+#ifdef MPI
+USE MOD_Mesh_Vars,               ONLY:BC
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2328,6 +2324,7 @@ C = a1(4)*a2(2)-a1(2)*a2(4)
 !IF((iPart.EQ.238).AND.(iter.GT.78))THEN
 !  IPWRITE(UNIT_stdOut,*) 'a,b,c',a,b,c
 !END IF
+
 
 CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
 
@@ -2446,6 +2443,7 @@ ELSE
     END IF
   END IF ! eta(1)
 
+
   xi(2)=ComputeXi(a1,a2,eta(2))
   t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
   !IF(flip.EQ.0)THEN
@@ -2479,15 +2477,16 @@ ELSE
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
       IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
         t(2)=t(2)!/lengthPartTrajectory
-        nInter=nInter+1
+        nInter=nInter+2
       ELSE
         t(2)=-1.0
       END IF
     END IF
   END IF
+
   IF(nInter.EQ.0) RETURN
   isHit=.TRUE.
-  IF(ALLOCATED(PartBCSideList))THEN
+  IF(ALLOCATED(PartBCSideList))THEN ! correspond to DoRefMapping
     !BCSideID=PartBCSideList(SideID)
     !IF((BCSideID.GE.1).AND.(BCSideID.LE.nTotalBCSides))THEN
     IF(ABS(t(1)).LT.ABS(t(2)))THEN
@@ -2499,32 +2498,91 @@ ELSE
       xitild=xi(2)
       etatild=eta(2)
     END IF
-  ELSE
-    IF(SideID.LE.nBCSides)THEN
-      IF(ABS(t(1)).LT.ABS(t(2)))THEN
-        alpha=t(1)
-        xitild=xi(1)
-        etatild=eta(1)
-      ELSE
-        alpha=t(2)
-        xitild=xi(2)
-        etatild=eta(2)
-      END IF
-    ELSE ! no BC Side
-      ! if two intersections, return, particle re-enters element
-      IF(nInter.EQ.2) RETURN
-      IF(ABS(t(1)).LT.ABS(t(2)))THEN
-        alpha=t(1)
-        xitild=xi(1)
-        etatild=eta(1)
-      ELSE
-        alpha=t(2)
-        xitild=xi(2)
-        etatild=eta(2)
-      END IF
-    END IF ! SideID.LT.nCBSides
+    RETURN
   END IF
- !print*,'xi,eta,t',xitild,etatild,t(2)
+  ! no refmapping 
+  IF(SideID.LE.nSides)THEN
+    IF(SideID.LE.nBCSides)THEN
+      ! take closest
+      SELECT CASE(nInter)
+      CASE(1)
+        alpha=t(1)
+        xitild=xi(1)
+        etatild=eta(1)
+      CASE(2)
+        alpha=t(2)
+        xitild=xi(2)
+        etatild=eta(2)
+      CASE(3)
+        IF(ABS(t(1)).LT.ABS(t(2)))THEN
+          alpha=t(1)
+          xitild=xi(1)
+          etatild=eta(1)
+        ELSE
+          alpha=t(2)
+          xitild=xi(2)
+          etatild=eta(2)
+        END IF
+      END SELECT
+    ELSE
+      SELECT CASE(nInter)
+      CASE(1)
+        alpha=t(1)
+        xitild=xi(1)
+        etatild=eta(1)
+      CASE(2)
+        alpha=t(2)
+        xitild=xi(2)
+        etatild=eta(2)
+      CASE(3) ! double intersection leaves and entries element
+        alpha=-1.0
+        xitild=0.
+        etatild=0.
+      END SELECT
+    END IF
+#ifdef MPI
+  ELSE
+    ! halo side
+    IF(BC(SideID).GT.0)THEN ! BC Sides
+      ! take closest
+      SELECT CASE(nInter)
+      CASE(1)
+        alpha=t(1)
+        xitild=xi(1)
+        etatild=eta(1)
+      CASE(2)
+        alpha=t(2)
+        xitild=xi(2)
+        etatild=eta(2)
+      CASE(3)
+        IF(ABS(t(1)).LT.ABS(t(2)))THEN
+          alpha=t(1)
+          xitild=xi(1)
+          etatild=eta(1)
+        ELSE
+          alpha=t(2)
+          xitild=xi(2)
+          etatild=eta(2)
+        END IF
+      END SELECT
+    ELSE
+      SELECT CASE(nInter)
+      CASE(1)
+        alpha=t(1)
+        xitild=xi(1)
+        etatild=eta(1)
+      CASE(2)
+        alpha=t(2)
+        xitild=xi(2)
+        etatild=eta(2)
+      CASE(3) ! double intersection leaves and entries element
+        alpha=-1.0
+        xitild=0.
+        etatild=0.
+      END SELECT
+    END IF
+#endif /*MPI*/
+  END IF
 END IF ! nRoot
 
 END SUBROUTINE ComputeBiLinearIntersectionRobust
