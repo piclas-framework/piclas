@@ -13,7 +13,6 @@ INTERFACE ComputeBezierIntersection
   MODULE PROCEDURE ComputeBezierIntersection
 END INTERFACE
 
-
 INTERFACE PartInElemCheck
   MODULE PROCEDURE PartInElemCheck
 END INTERFACE
@@ -214,6 +213,7 @@ INTEGER                                  :: realnInter
 !REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
 REAL                                     :: XiNewton(2)
 REAL                                     :: PartFaceAngle
+REAL                                     :: Interval1D,dInterVal1D
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
@@ -225,9 +225,14 @@ isHit=.FALSE.
 !!!! DEBUGGG fix side ID
 !print*,'sideid',sideid
 ! If side is flat, than check if particle vector is perpenticular to side. if true, then particle moves parallel to or in side
-IF(BoundingBoxIsEmpty(SideID))THEN
-  IF(ABS(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID))).LT.epsilontol) RETURN
-END IF ! BoundingBoxIsEmpty
+!IF(BoundingBoxIsEmpty(SideID))THEN
+!  IF(ABS(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID))).LT.epsilontol) RETURN
+!  !IF(flip.EQ.0)THEN
+!  !  IF(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)).LT.-epsilontol) RETURN
+!  !ELSE
+!  !  IF(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)).LT.epsilontol) RETURN
+!  !END IF
+!END IF ! BoundingBoxIsEmpty
 
 #ifdef CODE_ANALYZE
 rBoundingBoxChecks=rBoundingBoxChecks+1.
@@ -301,12 +306,14 @@ END DO
 
 ! calculate angle between particle path and slab normal plane of face
 ! angle2=abs(90-RadianToDegree*acos(scalar_product/(VECTOR_LENGTH(t)*VECTOR_LENGTH(n2))))
-PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
+!IF(BoundingBoxIsEmpty(SideID))THEN
+!  PartFaceAngle=BezierNewtonAngle+1.0
+!ELSE
+  PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
   IF(PartFaceAngle*180/ACOS(-1.).LE.0)THEN
     print*,PartFaceAngle*180/ACOS(-1.)
-  ELSE
- 
   END IF
+!END IF
 !IF(.NOT.BezierNewtonAngle)THEN
 IF(PartFaceAngle.LT.BezierNewtonAngle)THEN ! 1° = 0.01745rad: critical side at the moment need: 0.57° angle
 #ifdef CODE_ANALYZE
@@ -328,7 +335,14 @@ ELSE!BezierNewtonAngle
 rPerformBezierNewton=rPerformBezierNewton+1.
 #endif /*CODE_ANALYZE*/
   !print*,"newton"
-  XiNewton=0.
+!  XiNewton=0.
+
+  dInterVal1D =MINVAL(BezierControlPoints2D(1,:,:))
+  InterVal1D  =MAXVAL(BezierControlPoints2D(1,:,:))-InterVal1D
+  XiNewton(1) =MIN(-1.0+InterVal1D/InterVal1D,1.0)
+  InterVal1D  =MINVAL(BezierControlPoints2D(2,:,:))
+  InterVal1D  =MAXVAL(BezierControlPoints2D(2,:,:))-InterVal1D
+  XiNewton(2) =MIN(-1.0+InterVal1D/InterVal1D,1.0)
   !CALL BezierNewton(locAlpha(1),(/locXi(1),loceta(1)/),BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
   !CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
   CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID)
@@ -1927,7 +1941,7 @@ END IF
 IF(locSideDistance.LT.-100*epsMach)THEN
   ! particle is located outside of element, THEREFORE, an intersection were not detected
   alpha=-1. ! here, alpha was set to zero? why?
-  isHit=.TRUE.
+  isHit=.FALSE.
   RETURN
   ! do I have to compute the xi and eta value? first try: do not re-check new element!
 END IF
@@ -2436,6 +2450,7 @@ ELSE
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
       IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
         nInter=nInter+1
+        isHit=.TRUE.
         t(1)=t(1)
       ELSE
         t(1)=-1.0
@@ -2477,6 +2492,7 @@ ELSE
       !IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GE.0.))THEN
       IF((alphaNorm.LT.OnePlusEps) .AND.(alphaNorm.GT.-epsilontol))THEN
         t(2)=t(2)!/lengthPartTrajectory
+        isHit=.TRUE.
         nInter=nInter+2
       ELSE
         t(2)=-1.0
