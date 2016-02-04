@@ -595,10 +595,6 @@ ELSE ! no flat side
 
   CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Gradient=gradXiEta)
   CalcNormVecBezier=CROSSNORM(gradXiEta(1,1:3),gradXiEta(2,1:3))
-  !nVec=CROSS(u,v)
-  !nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
-  !nlength=SQRT(nlength)
-  !CalcNormVecBezier=nVec/nlength
 END IF ! BoundingBoxIsEmpty
 
 END FUNCTION CalcNormVecBezier

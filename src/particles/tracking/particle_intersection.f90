@@ -313,6 +313,7 @@ END DO
   IF(PartFaceAngle*180/ACOS(-1.).LE.0)THEN
     print*,PartFaceAngle*180/ACOS(-1.)
   END IF
+
 !END IF
 !IF(.NOT.BezierNewtonAngle)THEN
 IF(PartFaceAngle.LT.BezierNewtonAngle)THEN ! 1° = 0.01745rad: critical side at the moment need: 0.57° angle
@@ -1868,6 +1869,7 @@ REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
 !REAL,DIMENSION(2:4)               :: a1,a2  ! array dimension from 2:4 according to bi-linear surface
 REAL                              :: a1,a2,b1,b2,c1,c2
 REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3)
+REAL                              :: sdet
 !INTEGER                           :: flip
 !===================================================================================================================================
 
@@ -2004,46 +2006,69 @@ C2=P0(2)+P0(3)
 !  END IF
 !END IF
 
-IF(ABS(B1).GE.ABS(B2))THEN
-  xi = A2-B2/B1*A1
-  IF(ABS(xi).LT.epsilontol)THEN
-    CALL abort(&
-    __STAMP__&
-    ,' Division by zero! Xi')
-  END IF
-  xi = (B2/B1*C1-C2)/xi
-ELSE
-  xi = A1-B1/B2*A2
-  IF(ABS(xi).LT.epsilontol)THEN
-    CALL abort(&
-    __STAMP__&
-    ,' Division by zero! Xi')
-  END IF
-  xi = (B1/B2*C2-C1)/xi
-END IF
-IF(ABS(B1).GT.epsilontol)THEN
-  xi = A2-B2/B1*A1
-  IF(ABS(xi).LT.epsilontol)THEN
-    xi=0.
-  ELSE
-    xi = (B2/B1*C1-C2)/xi
-  END IF
-ELSE
-  xi = A1-B1/B2*A2
-  IF(ABS(xi).LT.epsilontol)THEN
-    xi=0.
-  ELSE
-    xi = (B1/B2*C2-C1)/xi
-  END IF
-END IF
+!IF(ABS(B1).GE.ABS(B2))THEN
+!  xi = A2-B2/B1*A1
+!  IF(ABS(xi).LT.epsilontol)THEN
+!    CALL abort(&
+!    __STAMP__&
+!    ,' Division by zero! Xi')
+!  END IF
+!  xi = (B2/B1*C1-C2)/xi
+!ELSE
+!  xi = A1-B1/B2*A2
+!  IF(ABS(xi).LT.epsilontol)THEN
+!    CALL abort(&
+!    __STAMP__&
+!    ,' Division by zero! Xi')
+!  END IF
+!  xi = (B1/B2*C2-C1)/xi
+!END IF
+!IF(ABS(B1).GT.epsilontol)THEN
+!  xi = A2-B2/B1*A1
+!  IF(ABS(xi).LT.epsilontol)THEN
+!    xi=0.
+!  ELSE
+!    xi = (B2/B1*C1-C2)/xi
+!  END IF
+!ELSE
+!  xi = A1-B1/B2*A2
+!  IF(ABS(xi).LT.epsilontol)THEN
+!    xi=0.
+!  ELSE
+!    xi = (B1/B2*C2-C1)/xi
+!  END IF
+!END IF
+!
+!IF(ABS(xi).GT.BezierClipHit)THEN
+!!IF(ABS(xi).GT.OnePlusEps)THEN
+!  alpha=-1.0
+!  RETURN
+!END IF
+!
+!eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
+!IF(ABS(eta).GT.BezierClipHit)THEN
+!  alpha=-1.0
+!  RETURN
+!END IF
+!isHit=.TRUE.
 
+
+sdet=A1*B2-A2*B1
+IF(ABS(sdet).EQ.0)THEN
+  STOP 'error'
+END IF
+sdet=1.0/sdet
+
+
+xi=(-b2*c1+b1*c2)*sdet
 IF(ABS(xi).GT.BezierClipHit)THEN
 !IF(ABS(xi).GT.OnePlusEps)THEN
   alpha=-1.0
   RETURN
 END IF
 
-eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
+!eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
+eta=(+a2*c1-a1*c2)*sdet
 IF(ABS(eta).GT.BezierClipHit)THEN
   alpha=-1.0
   RETURN
