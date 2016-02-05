@@ -40,7 +40,7 @@ USE MOD_PreProc
 USE MOD_Riemann_Pois,      ONLY:Riemann_Pois
 USE MOD_Equation,          ONLY:ExactFunc
 USE MOD_Equation_Vars,     ONLY:c,c_inv
-USE MOD_Particle_Mesh_Vars,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars,ONLY: PartBound
 USE MOD_Mesh_Vars,         ONLY:BC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
