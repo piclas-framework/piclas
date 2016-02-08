@@ -207,10 +207,10 @@ REAL                                     :: n1(3),n2(3)
 INTEGER                                  :: nInterSections,iInter,p,q
 INTEGER                                  :: iClipIter,nXiClip,nEtaClip
 REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
+!REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
 INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID!,realInterID
 LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter
-!REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
 REAL                                     :: XiNewton(2)
 REAL                                     :: PartFaceAngle
 REAL                                     :: Interval1D,dInterVal1D
@@ -221,18 +221,6 @@ alpha=-1.0
 Xi   = 2.0
 Eta  = 2.0
 isHit=.FALSE.
-
-!!!! DEBUGGG fix side ID
-!print*,'sideid',sideid
-! If side is flat, than check if particle vector is perpenticular to side. if true, then particle moves parallel to or in side
-!IF(BoundingBoxIsEmpty(SideID))THEN
-!  IF(ABS(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID))).LT.epsilontol) RETURN
-!  !IF(flip.EQ.0)THEN
-!  !  IF(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)).LT.-epsilontol) RETURN
-!  !ELSE
-!  !  IF(DOT_PRODUCT(PartTrajectory,SideNormVec(1:3,SideID)).LT.epsilontol) RETURN
-!  !END IF
-!END IF ! BoundingBoxIsEmpty
 
 #ifdef CODE_ANALYZE
 rBoundingBoxChecks=rBoundingBoxChecks+1.
@@ -246,18 +234,6 @@ IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle
   END IF
 END IF
 
-!IF(time.GT.28.07)THEN
-!  print*,'boundingbox hit- do clipping'
-!  print*,'SideID',SideID
-!  read*
-!END IF
-
-!IF(ipart.EQ.223)THEN
-!  print*,'hello '
-!END IF
-
-
-!
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
 IF(ABS(PartTrajectory(3)).LT.epsilontol)THEN
   n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /)
@@ -272,37 +248,10 @@ n2=n2/SQRT(DOT_PRODUCT(n2,n2))
 
 DO q=0,NGeo
   DO p=0,NGeo
-!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8,2x,F12.8)') &
-!    'Bezier3D',p,q,BezierControlPoints3D(1,p,q,SideID),BezierControlPoints3d(2,p,q,SideID),BezierControlPoints3d(3,p,q,SideID)
     BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(iPart,1:3),n1)
     BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID)-LastPartPos(iPart,1:3),n2)
-!j    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D(1,p,q),BezierControlPoints2d(2,p,q)
-!j    read*
   END DO
 END DO
-
-!print*,'init 3d patch'
-!DO q=0,NGeo
-!  DO p=0,NGeo
-!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8,2x,F12.8)') &
-!    'Bezier3D',p,q,BezierControlPoints3D(1,p,q,SideID),BezierControlPoints3d(2,p,q,SideID),BezierControlPoints3d(3,p,q,SideID)
-!  END DO
-!END DO
-
-!print*,'init 2d patch'
-!DO q=0,NGeo
-!  DO p=0,NGeo
-!    WRITE(*,'(A,2x,I2.2,2x,I2.2,2x,F12.8,2x,F12.8)') 'Bezier2D',p,q,BezierControlPoints2D(1,p,q),BezierControlPoints2d(2,p,q)
-!  END DO
-!END DO
-
-!IF(ipart.EQ.223)THEN
-!  print*,'do check intersection'
-!END IF
-
-
-! backup for newton
-!BezierControlPoints2D_tmp=BezierControlPoints2D
 
 ! calculate angle between particle path and slab normal plane of face
 ! angle2=abs(90-RadianToDegree*acos(scalar_product/(VECTOR_LENGTH(t)*VECTOR_LENGTH(n2))))
@@ -313,7 +262,6 @@ END DO
   IF(PartFaceAngle*180/ACOS(-1.).LE.0)THEN
     print*,PartFaceAngle*180/ACOS(-1.)
   END IF
-
 !END IF
 !IF(.NOT.BezierNewtonAngle)THEN
 IF(PartFaceAngle.LT.BezierNewtonAngle)THEN ! 1° = 0.01745rad: critical side at the moment need: 0.57° angle
@@ -335,16 +283,22 @@ ELSE!BezierNewtonAngle
 #ifdef CODE_ANALYZE
 rPerformBezierNewton=rPerformBezierNewton+1.
 #endif /*CODE_ANALYZE*/
-  !print*,"newton"
-!  XiNewton=0.
-
-  dInterVal1D =MINVAL(BezierControlPoints2D(1,:,:))
-  InterVal1D  =MAXVAL(BezierControlPoints2D(1,:,:))-InterVal1D
-  XiNewton(1) =MIN(-1.0+InterVal1D/InterVal1D,1.0)
-  InterVal1D  =MINVAL(BezierControlPoints2D(2,:,:))
-  InterVal1D  =MAXVAL(BezierControlPoints2D(2,:,:))-InterVal1D
-  XiNewton(2) =MIN(-1.0+InterVal1D/InterVal1D,1.0)
-  !CALL BezierNewton(locAlpha(1),(/locXi(1),loceta(1)/),BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
+  !BezierControlPoints2D_tmp=BezierControlPoints2D
+  !locAlpha=-1.0
+  !iClipIter=1
+  !nXiClip=0
+  !nEtaClip=0
+  !nInterSections=0
+  !firstClip=.TRUE.
+  !CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
+  !               ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+  !dInterVal1D =MINVAL(BezierControlPoints2D(1,:,:))
+  !InterVal1D  =MAXVAL(BezierControlPoints2D(1,:,:))-dInterVal1D
+  !XiNewton(1) =MIN(-1.0+ABS(dInterVal1D)/InterVal1D,1.0)
+  !InterVal1D  =MINVAL(BezierControlPoints2D(2,:,:))
+  !InterVal1D  =MAXVAL(BezierControlPoints2D(2,:,:))-dInterVal1D
+  !XiNewton(2) =MIN(-1.0+ABS(dInterVal1D)/InterVal1D,1.0)
+  XiNewton=0.
   !CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory,iPart,SideID)
   CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID)
   nInterSections=0
@@ -397,8 +351,6 @@ CASE DEFAULT
       END DO ! iInter
     ELSE
       realnInter=1
-      !ALLOCATE(RealInterID(1:nInterSections))
-      !print*,MOD(nInterSections,2)
       DO iInter=2,nInterSections
         IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
         .AND.(locAlpha(1)/locAlpha(iInter).GT.1.002))THEN
@@ -407,10 +359,8 @@ CASE DEFAULT
       END DO
       IF(MOD(realNInter,2).EQ.0) THEN
         DEALLOCATE(locID)
-        !print*,'fuck here'
         RETURN ! leave and enter a cell multiple times
       ELSE
-        !print*,'inter hit'
         alpha=locAlpha(nInterSections)
         xi =locXi (locID(nInterSections))
         eta=loceta(locID(nInterSections))
@@ -1341,15 +1291,17 @@ DO nn=1,2
   END DO ! dd=1,2
 END DO ! nn=1,2
 
-
 DO WHILE((dXi2.GT.BezierClipTolerance2).AND.(nIter.LE.BezierClipMaxIter))
   ! compute f(xi) and df(xi)/dxi
   CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,2, BezierControlPoints2D(1:2,    0:NGeo,0:NGeo) &
                                                     ,dBezierControlPoints2D(1:2,1:2,0:NGeo,0:NGeo),Point=P,Gradient=gradXi)
   ! caution with index
   sdet=gradXi(1,1)*gradXi(2,2)-gradXi(1,2)*gradXi(2,1)
+  !CALL EvaluateBezierPolynomialAndGradient(Xi,NGeo,2, BezierControlPoints2D(1:2,    0:NGeo,0:NGeo) &
+  !                                                  , Point=P,Gradient=gradXi)
+  ! caution with index
 
-  IF(sdet.GT.0.) THEN
+  IF(ABS(sdet).GT.epsilon(0.)) THEN
     sdet=1./sdet
   ELSE !shit
     alpha=-1.0
@@ -1376,7 +1328,6 @@ DO WHILE((dXi2.GT.BezierClipTolerance2).AND.(nIter.LE.BezierClipMaxIter))
   END IF
   nIter=nIter+1
 END DO
-
 
 IF(nIter.GT.BezierClipMaxIter) CALL abort(__STAMP__,&
     ' Bezier-Newton does not yield root! ')
@@ -1679,7 +1630,6 @@ REAL                              :: sdet
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
-!print*,PartTrajectory
 alpha=-1.0
 xi=-2.
 eta=-2.
@@ -1874,7 +1824,6 @@ REAL                              :: sdet
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
-!print*,PartTrajectory
 alpha=-1.0
 xi=-2.
 eta=-2.
@@ -2142,10 +2091,6 @@ a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
 A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
-!print*,'A,B,C', A,B,C
-!IF((iPart.EQ.238).AND.(iter.GT.78))THEN
-!  IPWRITE(UNIT_stdOut,*) 'a,b,c',a,b,c
-!END IF
 
 CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
 
@@ -2249,10 +2194,8 @@ ELSE
     IF(ABS(xi(2)).LT.BezierClipHit)THEN
       t(2)=ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PartTrajectory,iPart)
       IF((t(2).LT.-epsilontol).OR.(t(2).GT.lengthPartTrajectory))THEN
-        !print*,'here'
         t(2)=-1.0
       ELSE
-        !print*,'why'
         t(2)=t(2)!/lengthPartTrajectory
         nInter=nInter+1
       END IF
@@ -2283,7 +2226,6 @@ ELSE
       etatild=eta(2)
     END IF
   END IF ! SideID.LT.nCBSides
- !print*,'xi,eta,t',xitild,etatild,t(2)
 END IF ! nRoot
 
 END SUBROUTINE ComputeBiLinearIntersectionSuperSampled2
@@ -2359,11 +2301,6 @@ a2(4)=(BilinearCoeff(2,4)-LastPartPos(iPart,2))*PartTrajectory(3) &
 A = a2(1)*a1(3)-a1(1)*a2(3)
 B = a2(1)*a1(4)-a1(1)*a2(4)+a2(2)*a1(3)-a1(2)*a2(3)
 C = a1(4)*a2(2)-a1(2)*a2(4)
-!print*,'A,B,C', A,B,C
-!IF((iPart.EQ.238).AND.(iter.GT.78))THEN
-!  IPWRITE(UNIT_stdOut,*) 'a,b,c',a,b,c
-!END IF
-
 
 CALL QuatricSolver(A,B,C,nRoot,Eta(1),Eta(2))
 
@@ -2836,7 +2773,6 @@ REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3)
 !===================================================================================================================================
 
 ! set alpha to minus 1, asume no intersection
-!print*,PartTrajectory
 alpha=-1.0
 xi=-2.
 eta=-2.

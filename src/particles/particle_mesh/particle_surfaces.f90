@@ -710,16 +710,16 @@ IF(Mode.GE.2)THEN ! gradient
       DO p=0,M
         ! derivative in xi: d/dxi = u
         gradient(1,:)=gradient(1,:)+(BezierControlPoints(:,p+1,q)-BezierControlPoints(:,p,q)) &
-                                   *facNchooseK(M,p)*xitild(p)                                &
+                                   *facNchooseK(M,p)*xiup(p)*xidown(p+1)                      &
                                    *facNChooseK(N_in,q)*etatild(q)
         ! derivative in eta: d/deta = v ! caution - exchange indicies
         gradient(2,:)=gradient(2,:)+(BezierControlPoints(:,q,p+1)-BezierControlPoints(:,q,p)) &
                                    *facNchooseK(N_in,q)*xitild(q)                             &
-                                   *facNChooseK(M,p)*etatild(p)
+                                   *facNchooseK(M,p)*etaup(p)*etadown(p+1) 
       END DO ! p
     END DO ! q
     ! caution, maybe one 1/(b-a) missing??
-    gradient=REAL(N_in)*gradient
+    gradient=0.5*REAL(N_in)*gradient
   END IF
   ! apply gradient
   !dBezierControlPoints=0.
