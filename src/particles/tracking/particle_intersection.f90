@@ -174,7 +174,7 @@ SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,MyRank
+USE MOD_Globals,                 ONLY:Cross,abort,MyRank,UNIT_stdOut
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierNewtonAngle
@@ -207,7 +207,9 @@ REAL                                     :: n1(3),n2(3)
 INTEGER                                  :: nInterSections,iInter,p,q
 INTEGER                                  :: iClipIter,nXiClip,nEtaClip
 REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
-!REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
+#ifdef CODE_ANALYZE
+REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo),dXi
+#endif /*CODE_ANALYZE*/
 INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID!,realInterID
 LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter
@@ -282,16 +284,20 @@ rPerformBezierClip=rPerformBezierClip+1.
 ELSE!BezierNewtonAngle
 #ifdef CODE_ANALYZE
 rPerformBezierNewton=rPerformBezierNewton+1.
+BezierControlPoints2D_tmp=BezierControlPoints2D
+locAlpha=-1.0
+iClipIter=1
+nXiClip=0
+nEtaClip=0
+nInterSections=0
+firstClip=.TRUE.
+CALL BezierClip(firstClip,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory&
+               ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
+IF(nInterSections.GT.1)THEN
+  CALL abort(__STAMP__, &
+     ' More then one intersection! Cannot use Newton!' ,nInterSections)
+END IF
 #endif /*CODE_ANALYZE*/
-  !BezierControlPoints2D_tmp=BezierControlPoints2D
-  !locAlpha=-1.0
-  !iClipIter=1
-  !nXiClip=0
-  !nEtaClip=0
-  !nInterSections=0
-  !firstClip=.TRUE.
-  !CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
-  !               ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
   !dInterVal1D =MINVAL(BezierControlPoints2D(1,:,:))
   !InterVal1D  =MAXVAL(BezierControlPoints2D(1,:,:))-dInterVal1D
   !XiNewton(1) =MIN(-1.0+ABS(dInterVal1D)/InterVal1D,1.0)
@@ -303,6 +309,20 @@ rPerformBezierNewton=rPerformBezierNewton+1.
   CALL BezierNewton(locAlpha(1),XiNewton,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory,iPart,SideID)
   nInterSections=0
   IF(locAlpha(1).GT.-1) nInterSections=1
+#ifdef CODE_ANALYZE
+  IF(nInterSections.EQ.1)THEN
+    dXi=ABS(locXi(1)-XiNewton(1))/(200*BezierClipTolerance)
+    IF(dXi.GT.1.0) THEN
+      CALL abort(__STAMP__, &
+       ' Wrong intersection in Xi! Clip/Newton=',nInterSections,dXi)
+    END IF
+    dXi=ABS(locEta(1)-XiNewton(2))/(200*BezierClipTolerance)
+    IF(dXi.GT.1.0)THEN
+      CALL abort(__STAMP__, &
+       ' Wrong intersection in Eta! Clip/Newton=',nInterSections, dXi)
+    END IF
+  END IF
+#endif /*CODE_ANALYZE*/
   locXi (1)=XiNewton(1)
   locEta(1)=XiNewton(2)
 END IF
