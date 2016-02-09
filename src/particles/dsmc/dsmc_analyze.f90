@@ -50,14 +50,15 @@ SUBROUTINE CalcSurfaceValues
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceCounter, DSMC, realtime!,SampWall
+  USE MOD_Timedisc_Vars,              ONLY:time
+  USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceCounter, DSMC !,SampWall
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall
   USE MOD_Particle_Boundary_Sampling, ONLY:WriteSurfSampleToHDF5
 #ifdef MPI
   USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
   USE MOD_Particle_Boundary_Sampling, ONLY:ExchangeSurfData
 #endif
-  USE MOD_Particle_Vars,              ONLY:Time, WriteMacroValues, nSpecies, MacroValSampTime
+  USE MOD_Particle_Vars,              ONLY:WriteMacroValues, nSpecies, MacroValSampTime
   USE MOD_TimeDisc_Vars,              ONLY:TEnd
   USE MOD_Mesh_Vars,                  ONLY:MeshFile
   USE MOD_Restart_Vars,               ONLY:RestartTime  
@@ -141,7 +142,7 @@ SUBROUTINE CalcSurfaceValues
     DEALLOCATE(SumCounterTotal)
   END IF
 
-  CALL WriteSurfSampleToHDF5(TRIM(MeshFile),realtime)
+  CALL WriteSurfSampleToHDF5(TRIM(MeshFile),time)
 
   DEALLOCATE(MacroSurfaceVal,MacroSurfaceCounter)
 

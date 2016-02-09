@@ -200,7 +200,6 @@ END TYPE
 TYPE (tParticleDataManagement)           :: PDM
 
 REAL                                     :: DelayTime
-REAL                                     :: Time                              ! Simulation Time
 
 
 LOGICAL                                  :: WriteMacroValues                  ! Output of macroscopic values

@@ -63,7 +63,6 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_LoadBalance_Vars
 USE MOD_ReadInTools,          ONLY:GETLOGICAL, GETREAL, GETINT
-USE MOD_Analyze_Vars,         ONLY:Analyze_dt
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -509,7 +508,6 @@ USE MOD_LoadBalance_Vars,      ONLY:DeviationThreshold,LastImbalance,ElemWeight
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,          ONLY:DepositionType
 USE MOD_Particle_MPI,          ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,     ONLY:PartMPIExchange
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE

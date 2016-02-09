@@ -40,7 +40,7 @@ USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
 USE MOD_LD_Init,                    ONLY: InitLD
 USE MOD_LD_Vars,                    ONLY: useLD
-USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, SampDSMC,DSMC_HOSolution,HODSMC
+USE MOD_DSMC_Vars,                  ONLY: useDSMC, DSMC, DSMC_HOSolution,HODSMC
 USE MOD_Mesh_Vars,                  ONLY : nElems
 USE MOD_InitializeBackgroundField,  ONLY:InitializeBackgroundField
 USE MOD_PICInterpolation_Vars,      ONLY: useBGField

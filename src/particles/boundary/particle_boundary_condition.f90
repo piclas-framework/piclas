@@ -41,18 +41,17 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos,PEM
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 !USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
-USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC
 !USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
-USE MOD_TimeDisc_Vars,          ONLY:RK_a,iStage
+USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
+USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -84,10 +83,8 @@ SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF(CalcPartBalance) THEN
-    !IF(MOD(iter+1,PartAnalyzeStep).EQ.0)THEN ! caution if correct
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-    !END IF ! iter+1
   END IF ! CalcPartBalance
   PDM%ParticleInside(iPart) = .FALSE.
   alpha=-1.
@@ -140,10 +137,7 @@ CASE(2) !PartBound%ReflectiveBC)
 
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
   ! correction for Runge-Kutta (correct position!!)
-  !print*,'Pt_temp',Pt_temp(iPart,1:3)
   ! get length of Pt_temp(iPart,1:3) || equals summed velocity change ! only exact for linear movement
-!  print*,'acceleration_old',Pt_temp(iPart,4:6)
-!  read*
   absPt_temp=SQRT(Pt_temp(iPart,1)*Pt_temp(iPart,1)+Pt_temp(iPart,2)*Pt_temp(iPart,2)+Pt_temp(iPart,3)*Pt_temp(iPart,3))
   ! scale PartTrajectory to new Pt_temp
   Pt_temp(iPart,1:3)=absPt_temp*PartTrajectory(1:3)
@@ -197,13 +191,11 @@ SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,x
 USE MOD_PreProc
 USE MOD_Globals!,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos,PEM
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
-USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 !USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
-USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 ! IMPLICIT VARIABLE HANDLING
@@ -235,10 +227,8 @@ CASE(1) !PartBound%OpenBC)
 !CASE(PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF(CalcPartBalance) THEN
-    !IF(MOD(iter+1,PartAnalyzeStep).EQ.0)THEN ! caution if correct
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
-    !END IF ! iter+1
   END IF ! CalcPartBalance
   !BCSideID=PartBCSideList(SideID)
   PDM%ParticleInside(iPart) = .FALSE.
@@ -361,12 +351,10 @@ USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
-USE MOD_TimeDisc_Vars,          ONLY:iter
-USE MOD_Mesh_Vars,              ONLY:BC,nSides
-USE MOD_Globals_Vars,    ONLY:EpsMach
+USE MOD_Mesh_Vars,              ONLY:BC
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
-USE MOD_TimeDisc_Vars,          ONLY:RK_a,iStage
+USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
+USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -476,19 +464,18 @@ USE MOD_Globals,                ONLY:CROSS,abort
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormAndTang,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,time,Species,BoltzmannConst,PartSpecies
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannConst,PartSpecies
 USE MOD_DSMC_Vars,              ONLY:SpecDSMC,CollisMode
-USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol,BezierControlPoints3D
-USE MOD_TimeDisc_Vars,          ONLY:iter
-USE MOD_Mesh_Vars,              ONLY:BC,nSides,NGEO
+USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,BezierControlPoints3D
+USE MOD_Mesh_Vars,              ONLY:BC,NGEO
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,SpecDSMC, DSMC, useDSMC, CollisMode
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
-USE MOD_TimeDisc_Vars,          ONLY:RK_a,iStage
+!USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
+USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
 USE MOD_Particle_Vars,          ONLY:WriteMacroValues
-USE MOD_TImeDisc_Vars,          ONLY:dt,tend
+USE MOD_TImeDisc_Vars,          ONLY:dt,tend,time
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample,nSurfSample,SurfMesh,SampWall
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -503,10 +490,9 @@ INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: locBCID, vibQuant, vibQuantNew, VibQuantWall
-REAL                                 :: v_2(1:3),v_aux(1:3)
 REAL                                 :: VibQuantNewR                                                !
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-REAL                                 :: absPt_temp
+!REAL                                 :: absPt_temp
 #endif
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 REAL                                 :: oneMinus                
@@ -591,8 +577,8 @@ IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%Calc
 ! has to be corrected to new scheme
   SurfSideID=SurfMesh%SideIDToSurfID(SideID)
   ! compute p and q
-  p=MIN(MOD(Xi -1.0,dXiEQ_SurfSample),REAL(nSurfSample))
-  q=MIN(MOD(Eta-1.0,dXiEQ_SurfSample),REAL(nSurfSample))
+  p=MIN(INT((Xi -1.0)/dXiEQ_SurfSample),nSurfSample)
+  q=MIN(INT((Eta-1.0)/dXiEQ_SurfSample),nSurfSample)
 
   SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraOld &
                                    *Species(PartSpecies(PartID))%MacroParticleFactor

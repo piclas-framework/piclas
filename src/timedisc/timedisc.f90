@@ -124,11 +124,12 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
-USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt,tAnalyze,iter,IterDisplayStep,DoDisplayIter,IterDisplayStepUser,sdtCFLOne,CFLtoOne
+USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter &
+                                     ,IterDisplayStep,DoDisplayIter,sdtCFLOne,CFLtoOne
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
 USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
 USE MOD_Analyze,               ONLY: CalcError,PerformAnalyze
-USE MOD_Analyze_Vars,          ONLY: Analyze_dt,CalcPoyntingInt
+USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 #ifdef PARTICLES
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 #else
@@ -146,7 +147,7 @@ USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
 USE MOD_PICDepo,               ONLY: Deposition!, DepositionMPF
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
-USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, Time, useManualTimestep, WriteMacroValues, MacroValSampTime
+USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, useManualTimestep, WriteMacroValues, MacroValSampTime
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum,NextTimeStepAdjustmentIter
@@ -158,10 +159,9 @@ USE MOD_PARTICLE_Vars,         ONLY: PDM,Pt,PartState
 #endif /*(PP_TimeDiscMethod==201)*/
 USE MOD_PARTICLE_Vars,         ONLY : doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars,             ONLY: realtime,nOutput, Iter_macvalout
+USE MOD_DSMC_Vars,             ONLY: nOutput, Iter_macvalout
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,     ONLY: PartMPIExchange
 #endif /*MPI*/
 #endif /*PARTICLES*/
 #ifdef PP_POIS
@@ -178,7 +178,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                         :: t,tFuture,tZero
+REAL                         :: tFuture,tZero
 INTEGER(KIND=8)              :: nAnalyze
 INTEGER                      :: iAnalyze
 REAL                         :: dt_Min, tEndDiff, tAnalyzeDiff
@@ -201,26 +201,16 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 #ifdef PARTICLES
 iter_macvalout=0
 nOutput = 1
-IF(.NOT.DoRestart)THEN
-  t=0.
-  realtime=0.
-  time=0.
-ELSE
-  t=RestartTime
-  realtime=RestartTime
-  Time = RestartTime
-END IF
 IF (WriteMacroValues) MacroValSampTime = Time
-#else
+#endif /*PARTICLES*/
 IF(.NOT.DoRestart)THEN
-  t=0.
+  time=0.
   SWRITE(UNIT_StdOut,*)'INITIAL PROJECTION:'
 ELSE
-  t=RestartTime
+  time=RestartTime
   SWRITE(UNIT_StdOut,*)'REWRITING SOLUTION:'
 END IF
-#endif /*PARTICLES*/
-tZero=t
+tZero=time
 nAnalyze=1
 iAnalyze=1
 tAnalyze=MIN(tZero+Analyze_dt,tEnd)
@@ -231,13 +221,13 @@ SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs      : ',REAL(nGlobalElems*(PP_N+1)**3)
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#Procs     : ',REAL(nProcessors)
 
 ! Determine next analyze time, since it will be written into output file
-tFuture=MIN(t+Analyze_dt,tEnd)
+tFuture=MIN(time+Analyze_dt,tEnd)
 !Evaluate Gradients to get Potential in case of Restart and Poisson Calc
 #ifdef PP_POIS
 IF(DoRestart) CALL EvalGradient()
 #endif /*PP_POIS*/
 ! Write the state at time=0, i.e. the initial condition
-CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
+CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 
 ! if measurement of particle tracking time
 #ifdef PARTICLES
@@ -249,7 +239,7 @@ END IF
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!
-IF(t.EQ.tEnd)RETURN
+IF(time.EQ.tEnd)RETURN
 
 #ifdef PARTICLES
 #ifdef MPI
@@ -343,7 +333,7 @@ iter_loc=0
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.) 
 
 ! fill initial analyze stuff
-CALL PerformAnalyze(t,iter,0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
+CALL PerformAnalyze(time,iter,0.,forceAnalyze=.TRUE.,OutPut=.FALSE.)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! iterations starting up from here
@@ -414,8 +404,8 @@ DO !iter_t=0,MaxIter
   END IF
 #endif /*PARTICLES*/
 
-  tAnalyzeDiff=tAnalyze-t    ! time to next analysis, put in extra variable so number does not change due to numerical errors
-  tEndDiff=tEnd-t            ! dito for end time
+  tAnalyzeDiff=tAnalyze-time    ! time to next analysis, put in extra variable so number does not change due to numerical errors
+  tEndDiff=tEnd-time            ! dito for end time
   dt=MINVAL((/dt_Min,tAnalyzeDiff,tEndDiff/))
   IF (tAnalyzeDiff-dt.LT.dt/100.0) dt = tAnalyzeDiff
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
@@ -427,57 +417,54 @@ DO !iter_t=0,MaxIter
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
-  CALL TimeStepByLSERK(t,iter,tEndDiff)
+  CALL TimeStepByLSERK(time,iter,tEndDiff)
 #elif (PP_TimeDiscMethod==2)
-  CALL TimeStepByLSERK(t,iter,tEndDiff)
+  CALL TimeStepByLSERK(time,iter,tEndDiff)
 #elif (PP_TimeDiscMethod==3)
-  CALL TimeStepByTAYLOR(t)
+  CALL TimeStepByTAYLOR(time)
 #elif (PP_TimeDiscMethod==4)
-  CALL TimeStep_DSMC(t)
+  CALL TimeStep_DSMC(time)
 #elif (PP_TimeDiscMethod==5)
-  CALL TimeStepByRK4EulerExpl(t)
+  CALL TimeStepByRK4EulerExpl(time)
 #elif (PP_TimeDiscMethod==6)
-  CALL TimeStepByLSERK(t,iter,tEndDiff)
+  CALL TimeStepByLSERK(time,iter,tEndDiff)
 #elif (PP_TimeDiscMethod==42)
-  CALL TimeStep_DSMC_Debug(t) ! Reservoir and Debug
+  CALL TimeStep_DSMC_Debug(time) ! Reservoir and Debug
 #elif (PP_TimeDiscMethod==100)
-  CALL TimeStepByEulerImplicit(t) ! O1 Euler Implicit
+  CALL TimeStepByEulerImplicit(time) ! O1 Euler Implicit
 #elif (PP_TimeDiscMethod==101)
-  CALL TimeStepByIMEXRK(t) ! ) O3 ERK Particles + ESDIRK Field 
+  CALL TimeStepByIMEXRK(time) ! ) O3 ERK Particles + ESDIRK Field 
 #elif (PP_TimeDiscMethod==102)
-  CALL TimeStepByIMEXRK(t) ! O4 ERK Particles + ESDIRK Field 
+  CALL TimeStepByIMEXRK(time) ! O4 ERK Particles + ESDIRK Field 
 #elif (PP_TimeDiscMethod==103)
-  CALL TimeStepByIMEXRK(t) ! ) O3 ERK Particles + ESDIRK Field 
+  CALL TimeStepByIMEXRK(time) ! ) O3 ERK Particles + ESDIRK Field 
 #elif (PP_TimeDiscMethod==104)
-  CALL TimeStepByEulerNewton(t) ! O1 Euler Implicit
+  CALL TimeStepByEulerNewton(time) ! O1 Euler Implicit
 #elif (PP_TimeDiscMethod==200)
-  CALL TimeStepByEulerStaticExp(t) ! O1 Euler Static Explicit
+  CALL TimeStepByEulerStaticExp(time) ! O1 Euler Static Explicit
 #elif (PP_TimeDiscMethod==201)
-  CALL TimeStepByEulerStaticExpAdapTS(t) ! O1 Euler Static Explicit with adaptive TimeStep
+  CALL TimeStepByEulerStaticExpAdapTS(time) ! O1 Euler Static Explicit with adaptive TimeStep
 #elif (PP_TimeDiscMethod==1000)
-  CALL TimeStep_LD(t)
+  CALL TimeStep_LD(time)
 #elif (PP_TimeDiscMethod==1001)
-  CALL TimeStep_LD_DSMC(t)
+  CALL TimeStep_LD_DSMC(time)
 #endif
 #ifdef MPI
   CALL LoadMeasure()
 #endif /*MPI*/
   iter=iter+1
   iter_loc=iter_loc+1
-  t=t+dt
-#ifdef PARTICLES
-  realtime=realtime+dt
-#endif /*PARTICLES*/
+  time=time+dt
   IF(MPIroot) THEN
     IF(DoDisplayIter)THEN
       IF(MOD(iter,IterDisplayStep).EQ.0) THEN
-         SWRITE(*,*) "iter:", iter,"t:",t
+         SWRITE(*,*) "iter:", iter,"time:",time
       END IF
     END IF
   END IF
 #if (PP_TimeDiscMethod!=1) &&  (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6)
   ! calling the analyze routines
-  CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
+  CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 #endif
   ! output of state file
   !IF ((dt.EQ.tAnalyzeDiff).OR.(dt.EQ.tEndDiff)) THEN   ! timestep is equal to time to analyze or end
@@ -512,10 +499,10 @@ DO !iter_t=0,MaxIter
         WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
       END IF !MPIroot
       ! Analyze for output
-      CALL PerformAnalyze(t,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
+      CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
       ! Write state to file
       IF(DoPML) CALL BacktransformPMLVars()
-      CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
+      CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
       IF(DoPML) CALL TransformPMLVars()
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
@@ -529,18 +516,18 @@ DO !iter_t=0,MaxIter
     tAnalyze=tZero+REAL(nAnalyze)*Analyze_dt
     IF (tAnalyze > tEnd) tAnalyze = tEnd
 #ifdef MPI
-    IF(DoLoadBalance .AND. t.LT.tEnd)THEN
-      RestartTime=t
+    IF(DoLoadBalance .AND. time.LT.tEnd)THEN
+      RestartTime=time
       CALL LoadBalance(CurrentImbalance,PerformLoadBalance)
       dt_Min=CALCTIMESTEP()
       dt=dt_Min
-      CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.TRUE.,OutPut=.FALSE.)
-      ! CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture) ! not sure if required
+      CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.TRUE.,OutPut=.FALSE.)
+      ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
     END IF
 #endif /*MPI*/
     CalcTimeStart=BOLTZPLATZTIME()
   ENDIF   
-  IF(t.GE.tEnd) THEN  ! done, worst case: one additional time step
+  IF(time.GE.tEnd) THEN  ! done, worst case: one additional time step
     EXIT
   END IF
 END DO ! iter_t
@@ -564,8 +551,8 @@ USE MOD_Vector
 USE MOD_Analyze,                 ONLY: PerformAnalyze
 USE MOD_TimeDisc_Vars,           ONLY: dt,iStage
 USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
-USE MOD_DG_Vars,                 ONLY: U,Ut,nTotalU
-USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML,nTotalPML
+USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
+USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML
 USE MOD_PML,                     ONLY: PMLTimeDerivative,CalcPMLSource
 USE MOD_Filter,                  ONLY: Filter
 USE MOD_Equation,                ONLY: DivCleaningDamping
@@ -584,15 +571,13 @@ USE MOD_Equation_Vars,           ONLY: Phi,Phit,nTotalPhi
 USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 USE MOD_PICDepo,                 ONLY: Deposition!, DepositionMPF
 USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
-USE MOD_PIC_Vars,                ONLY: PIC
-USE MOD_Particle_Vars,           ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF, & 
+USE MOD_Particle_Vars,           ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, & 
                                         doParticleMerge,PartPressureCell
-USE MOD_Particle_Vars,           ONLY: nTotalPart,nTotalHalfPart
 USE MOD_part_RHS,                ONLY: CalcPartRHS
 USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
 USE MOD_part_emission,           ONLY: ParticleInserting
 USE MOD_DSMC,                    ONLY: DSMC_main
-USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS, DSMC
+USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools,           ONLY: StartParticleMerge
 USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
@@ -634,7 +619,6 @@ END DO
 iStage=1
 
 #ifdef PARTICLES
-Time=t
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/

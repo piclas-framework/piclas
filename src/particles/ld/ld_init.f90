@@ -28,7 +28,7 @@ SUBROUTINE InitLD()
 ! MODULES
 USE MOD_Globals
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,             ONLY : nElems, nSides,  Elem_xGP,NGEO
+USE MOD_Mesh_Vars,             ONLY : nElems, nSides,  NGEO
 !USE MOD_Mesh_Vars,             ONLY : nNodes    !!! nur für "Tetra-Methode"
 USE MOD_Particle_Vars,         ONLY : PDM, Species, PartSpecies, nSpecies
 USE nr,                        ONLY : gaussj 
@@ -36,7 +36,7 @@ USE MOD_DSMC_Init,             ONLY : InitDSMC
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC, CollisMode
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars,ONLY: DoRefMapping
-USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToElem,GEO,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,    ONLY: PartElemToElem,ElemBaryNGeo!,Geo
 #ifdef MPI
 USE MOD_MPI_Vars
 #endif
@@ -48,10 +48,9 @@ USE MOD_MPI_Vars
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, trinum, iLocSide, iPart, iInit, iSpec, Elem2,flip
-REAL                    :: CellCenterLocal(3)
+INTEGER                 :: iElem, trinum, iLocSide, iPart, iInit, iSpec, Elem2
 #ifdef MPI
-INTEGER                 :: Element,  SumOfMPISides, EndOfMPINeighbor, iProc, OffsetInnerAndBCSides
+INTEGER                 :: SumOfMPISides, EndOfMPINeighbor, iProc, OffsetInnerAndBCSides
 #endif
 CHARACTER(32)           :: hilf
 !===================================================================================================================================
@@ -217,7 +216,7 @@ REAL FUNCTION CalcDegreeOfFreedom(iPart)
 ! MODULES
   USE MOD_LD_Vars
   USE MOD_DSMC_Vars,          ONLY : SpecDSMC, CollisMode, PartStateIntEn, DSMC
-  USE MOD_Particle_Vars,      ONLY : Species, PartSpecies, BoltzmannConst
+  USE MOD_Particle_Vars,      ONLY : PartSpecies, BoltzmannConst
   USE MOD_DSMC_Analyze,       ONLY : CalcTVib
 !--------------------------------------------------------------------------------------------------!
 ! perform chemical init
@@ -554,9 +553,6 @@ SUBROUTINE SetMeanSurfValues(iLocSide, Element)
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration  
-  REAL                        :: xNod1, xNod2, xNod3, xNod4
-  REAL                        :: yNod1, yNod2, yNod3, yNod4 
-  REAL                        :: zNod1, zNod2, zNod3, zNod4 
   REAL                        :: Vector1(3), Vector2(3),BaseVectorS(3),nVectest
   REAL                        :: SideCoord(1:3,0:1,0:1)!,SideCenter(1:3)
 !--------------------------------------------------------------------------------------------------!

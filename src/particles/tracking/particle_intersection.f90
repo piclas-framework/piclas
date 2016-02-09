@@ -197,7 +197,6 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
 USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideSlabNormals
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
-USE MOD_Particle_Vars,           ONLY:time
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !USE MOD_TimeDisc_Vars,           ONLY:iter
 #ifdef CODE_ANALYZE
@@ -428,7 +427,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipMaxIter,ArrayNchooseK,FacNchooseK,BezierClipMaxIntersec
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,MinusEps,epsilontol,BezierClipHit,BezierSplitLimit
-USE MOD_Particle_Vars,           ONLY:LastPartPos,Time
+USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_TimeDisc_Vars,           ONLY:iter
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
 ! IMPLICIT VARIABLE HANDLING

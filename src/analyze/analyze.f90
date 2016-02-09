@@ -349,12 +349,11 @@ USE MOD_TimeDisc_Vars,         ONLY: dt
 USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt
 #endif
 #ifdef PARTICLES
-USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum, Time
+USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: nOutput,DSMC,useDSMC, iter_macvalout
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh
-USE MOD_DSMC_Vars,             ONLY: realtime, HODSMC, DSMC_HOSolution
+USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues
 USE MOD_Particle_Tracking_vars,ONLY: ntracks,tTracking,tLocalization,MeasureTrackTime
@@ -493,7 +492,6 @@ END IF
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-Time = t
 ! write DSMC macroscopic values 
 IF ((WriteMacroValues).AND.(.NOT.Output))THEN
 #if (PP_TimeDiscMethod==1000)
@@ -510,7 +508,7 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
 #elif(PP_TimeDiscMethod==1001)
     CALL LD_DSMC_output_calc()
 #else
-    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),realtime)
+    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
     IF (DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
 #endif
     nOutput = nOutput + 1
@@ -523,13 +521,13 @@ END IF
 IF(OutPut)THEN
 #if (PP_TimeDiscMethod==42)
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
-    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),realtime)
+    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
   END IF
 #else
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
     nOutput = INT((DSMC%TimeFracSamp * TEnd) / DSMC%DeltaTimeOutput)
     IF (.NOT. useLD) THEN
-      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),realtime)
+      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
     END IF
     IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
   END IF
@@ -624,7 +622,6 @@ REAL                :: rDummy
 LOGICAL             :: isOpen, FileExists                                          !
 CHARACTER(LEN=350)  :: outfile                                                      !
 INTEGER             :: unit_index, OutputCounter
-REAL                :: WEl, WMag
 !===================================================================================================================================
 
 IF ( DoRestart ) THEN

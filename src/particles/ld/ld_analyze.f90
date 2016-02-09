@@ -85,7 +85,8 @@ SUBROUTINE LD_output_calc()
 ! Calculation of outputdata on the basis of sampled values
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, MacroDSMC, CollisMode, SpecDSMC, realtime
+  USE MOD_Timedisc_Vars,          ONLY : time
+  USE MOD_DSMC_Vars,              ONLY : DSMC, SampDSMC, MacroDSMC, CollisMode, SpecDSMC
   USE MOD_Mesh_Vars,              ONLY : nElems,MeshFile
   USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst, Species,  usevMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
@@ -278,7 +279,7 @@ REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum
   END IF
 
 
-  CALL WriteDSMCToHDF5(TRIM(MeshFile),realtime)
+  CALL WriteDSMCToHDF5(TRIM(MeshFile),time)
   DEALLOCATE(MacroDSMC)
   
 END SUBROUTINE LD_output_calc
@@ -291,7 +292,7 @@ SUBROUTINE LD_ResidualOutout
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Particle_Vars,         ONLY : Time
+  USE MOD_TimeDisc_Vars,         ONLY : Time
   USE MOD_LD_Vars,               ONLY : LD_Residual
   USE MOD_Mesh_Vars,             ONLY : nElems
 !--------------------------------------------------------------------------------------------------!

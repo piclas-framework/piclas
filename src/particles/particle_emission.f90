@@ -132,7 +132,7 @@ IF (.NOT.DoRestart) THEN
         IF(Species(i)%Init(iInit)%initialParticleNumber.GT.HUGE(1)) CALL abort(&
           __STAMP__,&
           ' Integer to large!')
-        NbrOfParticle = Species(i)%Init(iInit)%initialParticleNumber
+        NbrOfParticle = INT(Species(i)%Init(iInit)%initialParticleNumber,4)
 #ifdef MPI
         CALL SetParticlePosition(i,iInit,NbrOfParticle,1)
         CALL SetParticlePosition(i,iInit,NbrOfParticle,2)
@@ -204,7 +204,7 @@ SUBROUTINE ParticleInserting()
 !===================================================================================================================================
 ! Modules
 USE MOD_Globals
-USE MOD_Timedisc_Vars         , ONLY : dt
+USE MOD_Timedisc_Vars         , ONLY : dt,time
 #if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Timedisc_Vars         , ONLY : iter
 #endif

@@ -37,16 +37,13 @@ SUBROUTINE ParticleTrackingCurved()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mesh_Vars,                   ONLY:nBCSides,NGeo!,NormVec
+USE MOD_Mesh_Vars,                   ONLY:NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,OnePlusEps
+USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem,GEO
-USE MOD_TimeDisc_Vars,               ONLY:iter
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
-USE MOD_Particle_Vars,               ONLY:time
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap
@@ -55,7 +52,6 @@ USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLin
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
 #ifdef MPI
 USE MOD_LoadBalance_Vars,            ONLY:ElemTime
-USE MOD_Mesh_Vars,                   ONLY:BC,nSides
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -257,25 +253,18 @@ SUBROUTINE ParticleBCTracking(ElemID,firstSide,LastSide,nlocSides,PartId,PartisD
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mesh_Vars,                   ONLY:nBCSides,NGeo!,NormVec
+USE MOD_Mesh_Vars,                   ONLY:NGeo!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,OnePlusEps
+USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems,PartBCSideList,nTotalBCSides
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem
-USE MOD_TimeDisc_Vars,               ONLY:iter
+USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
-USE MOD_Particle_Vars,               ONLY:time
-USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacement,BCElem
+USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Tracking_Vars,      ONLY:ntracks
 USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
                                          ,ComputePlanarIntersectionBezier,ComputePlanarIntersectionBezierRobust2
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
-#ifdef MPI
-USE MOD_Mesh_Vars,                   ONLY:BC,nSides
-#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -398,19 +387,15 @@ SUBROUTINE ParticleRefTracking()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
-USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,lastpartpos
+USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef
 USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,nCurrentParts
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipHit
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsInCell,epsOneCell
-USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToSide,PartSideToElem,nTotalBCSides,PartBCSideLIst
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo,ElemRadius2NGeo
 USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement
-USE MOD_TimeDisc_Vars,           ONLY:iter
 USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
-USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 #ifdef MPI
 USE MOD_MPI_Vars,                ONLY:offsetElemMPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
@@ -426,18 +411,17 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: iPart, ElemID,oldElemID,iElem, newElemID
-INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems,nLocSides,locSideID,locSideID2,tmplocSideID
+INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems
 REAL,ALLOCATABLE            :: Distance(:)
-REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne,xi,eta
+REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne
 INTEGER,ALLOCATABLE         :: ListDistance(:)
 !REAL                        :: epsOne
 #ifdef MPI
 INTEGER                     :: InElem
 #endif
-INTEGER                     :: SideID,BCSideID,ilocSide,TestElem
+INTEGER                     :: TestElem
 LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength),PartisDone
 !LOGICAL                     :: HitBC(1:PDM%ParticleVecLength)
-
 ! load balance
 #ifdef MPI
 REAL                          :: tLBStart,tLBEnd
@@ -761,7 +745,7 @@ USE MOD_Globals
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Mesh_Vars,                   ONLY:nBCSides
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem
 USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacement
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos,PDM
@@ -1146,11 +1130,10 @@ USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,lastpartpos
 USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
 USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
-USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,epsInCell,epsOneCell,ElemRadius2NGeo,ElemBaryNGeo,BCElem
+USE MOD_Particle_Mesh_Vars,      ONLY:Geo,epsOneCell,ElemRadius2NGeo,ElemBaryNGeo,BCElem
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
-USE MOD_Particle_Tracking_Vars,  ONLY:nTracks
 #ifdef MPI
 USE MOD_MPI_Vars,                ONLY:offsetElemMPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
@@ -1178,7 +1161,7 @@ REAL                        :: PartTrajectory(1:3),lengthPartTrajectory
 LOGICAL                     :: ParticleFound
 INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems
 REAL,ALLOCATABLE            :: Distance(:)
-REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne,OldestPos(3),blubb(3), n_loc(3)
+REAL                        :: oldXi(3),newXi(3), LastPos(3),OldestPos(3),blubb(3), n_loc(3)
 INTEGER,ALLOCATABLE         :: ListDistance(:)
 #ifdef MPI
 INTEGER                     :: inElem
@@ -1386,25 +1369,19 @@ SUBROUTINE ComputeFaceIntersection(ElemID,firstSide,LastSide,nlocSides,PartID,Pa
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mesh_Vars,                   ONLY:nBCSides,NGeo!,NormVec
-USE MOD_Particle_Vars,               ONLY:PEM,PDM
+USE MOD_Mesh_Vars,                   ONLY:NGeo!,NormVec
+USE MOD_Particle_Vars,               ONLY:PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:epsilontol,SideType,OnePlusEps
+USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,PartSideToElem,nTotalSides,nTotalElems,PartBCSideList,nTotalBCSides
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToElem,ElemBaryNGeo
-USE MOD_TimeDisc_Vars,               ONLY:iter
+USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
+USE MOD_Particle_Mesh_Vars,          ONLY:ElemBaryNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
-USE MOD_Particle_Vars,               ONLY:time
-USE MOD_Particle_Mesh_Vars,          ONLY:SidePeriodicType, SidePeriodicDisplacement,BCElem
+USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Tracking_Vars,      ONLY:ntracks
 USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
                                          ,ComputePlanarIntersectionBezier,ComputePlanarIntersectionBezierRobust2
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
-#ifdef MPI
-USE MOD_Mesh_Vars,                   ONLY:BC,nSides
-#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES

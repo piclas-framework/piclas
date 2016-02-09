@@ -54,11 +54,13 @@ SUBROUTINE InitParticleBoundarySampling()
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides
 USE MOD_ReadInTools             ,ONLY:GETINT
-USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,offSetSurfSide
+USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides
 USE MOD_Particle_Vars           ,ONLY:nSpecies
 #ifdef MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
+#else
+USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
 #endif /*MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -68,7 +70,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: p,q,iSide,SurfSideID
+INTEGER                     :: q,iSide,SurfSideID
 !CHARACTER(2)                :: hilf
 !===================================================================================================================================
  
@@ -275,7 +277,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                           :: isMPINeighbor(0:PartMPI%nMPINeighbors)
-INTEGER                           :: MessageSize,nDOF,ALLOCSTAT,SideID
+INTEGER                           :: nDOF,ALLOCSTAT,SideID
 INTEGER                           :: iProc, GlobalProcID,iSide,ElemID,SurfSideID,LocalProcID,iSendSide,iRecvSide,iPos
 INTEGER,ALLOCATABLE               :: recv_status_list(:,:)
 !===================================================================================================================================
@@ -480,7 +482,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID
-INTEGER                         :: iPos,p,q,iVal,iProc
+INTEGER                         :: iPos,p,q,iProc
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 

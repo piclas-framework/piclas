@@ -28,12 +28,13 @@ SUBROUTINE DSMC_main()
 ! Performs DSMC routines (containing loop over all cells)
 !===================================================================================================================================
 ! MODULES
+  USE MOD_TimeDisc_Vars,         ONLY : time
   USE MOD_Globals,               ONLY : LocalTime
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
   USE MOD_Mesh_Vars,             ONLY : nElems,MeshFile
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-  USE MOD_DSMC_Vars,             ONLY : ChemReac,RealTime
-  USE MOD_Particle_Vars,         ONLY : PEM, Time, PDM, usevMPF
+  USE MOD_DSMC_Vars,             ONLY : ChemReac
+  USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
   USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5
   USE MOD_TimeDisc_Vars,         ONLY : TEnd
@@ -162,7 +163,7 @@ SUBROUTINE DSMC_main()
           ! Skipping outputs immediately after the first few iterations
           IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN 
             ! 
-            CALL WriteDSMCHOToHDF5(TRIM(MeshFile),realtime)
+            CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
             IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
           END IF
         END IF

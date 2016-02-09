@@ -14,6 +14,7 @@ SAVE
 REAL             :: TEnd
 REAL             :: TAnalyze
 REAL             :: TLoadBalance
+REAL             :: Time                              ! Simulation Time
 REAL             :: dt
 REAL             :: CFLScale 
 REAL             :: CFLtoOne      ! scaling factor to scale CFL to one

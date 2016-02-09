@@ -32,6 +32,7 @@ SUBROUTINE LD_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_LD_Vars
+USE MOD_TimeDisc_Vars,         ONLY : time
 USE MOD_Mesh_Vars,             ONLY : nElems, nSides
 USE MOD_Particle_Vars,         ONLY : PDM, PEM
 USE MOD_LD_mean_cell,          ONLY : CalcMacCellLDValues
@@ -39,7 +40,7 @@ USE MOD_LD_lag_velo,           ONLY : CalcSurfLagVelo
 USE MOD_LD_reassign_part_prop, ONLY : LD_reassign_prop
 USE MOD_LD_part_treat,         ONLY : LDPartTreament
 #if (PP_TimeDiscMethod!=1001)
-USE MOD_Particle_Vars,         ONLY : Time, WriteMacroValues
+USE MOD_Particle_Vars,         ONLY : WriteMacroValues
 USE MOD_TimeDisc_Vars,         ONLY : TEnd
 USE MOD_DSMC_Vars,             ONLY : DSMC
 #endif
@@ -123,7 +124,7 @@ SUBROUTINE LD_reposition
 ! MODULES
   USE MOD_Particle_Vars,         ONLY : PartState, PEM
   USE MOD_Mesh_Vars,             ONLY : nElems
-  USE MOD_Particle_Mesh_Vars,    ONLY : GEO
+  !USE MOD_Particle_Mesh_Vars,    ONLY : GEO
   USE MOD_Eval_xyz,              ONLY : Eval_XYZ_Poly
   USE MOD_Mesh_Vars,             ONLY : NGeo,XCL_NGeo,XiCL_Ngeo,wBaryCL_NGeo
   USE MOD_LD_Vars,               ONLY : LD_RepositionFak
@@ -137,7 +138,7 @@ SUBROUTINE LD_reposition
 ! argument list declaration                                                                        !
 ! Local variable declaration  
 INTEGER               :: iElem
-INTEGER               :: iPart, iNode,iPartIndx,nPart
+INTEGER               :: iPart, iPartIndx,nPart
 REAL                  :: RandVec(3), iRan
 !--------------------------------------------------------------------------------------------------!
 
@@ -260,8 +261,8 @@ SUBROUTINE LD_SetParticlePosition(chunkSize,particle_positions_Temp,iSpec,iInit)
 ! Local variable declaration                                                                       !
 !--------------------------------------------------------------------------------------------------!
 INTEGER               :: iElem, ichunkSize
-INTEGER               :: iPart, iNode, nPart
-REAL                  :: RandVec(3), iRan, RandomPos(3),xi(3)
+INTEGER               :: iPart, nPart
+REAL                  :: RandVec(3), iRan, RandomPos(3)
 REAL                  :: PartDens, FractNbr
 !--------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
