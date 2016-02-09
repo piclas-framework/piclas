@@ -474,8 +474,8 @@ SUBROUTINE CalcNormAndTangBezier(nVec,tang1,tang2,xi,eta,SideID)
 ! function to compute the normal vector of a bi-linear surface
 !================================================================================================================================
 USE MOD_Mesh_Vars,                            ONLY:NGeo
-USE MOD_Globals,                              ONLY:CROSSNORM,CROSS
-USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D,facNchooseK,ArrayNchooseK,BoundingBoxIsEmpty
+USE MOD_Globals,                              ONLY:CROSSNORM
+USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -488,70 +488,14 @@ INTEGER,INTENT(IN)                     :: SideID
 REAL,DIMENSION(3),INTENT(OUT)          :: nVec,tang1,tang2
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(3)                      :: v,u!,nVec
-INTEGER                                :: p,q,m
-REAL                                   :: MinusXi,PlusXI,MinusEta,PlusEta
-REAL                                   :: xiup(0:NGeo),etaup(0:NGeo),xidown(0:NGeo),etadown(0:NGeo)
+REAL,DIMENSION(2,3)                    :: gradXiEta
 !================================================================================================================================
 
-IF(BoundingBoxIsEmpty(SideID))THEN
-  nVec=SideNormVec(1:3,SideID)
-  u=xi*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0  ,SideID)  & 
-            +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) ) &
-     +0.25*(-BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0  ,SideID)   &
-            +BezierControlPoints3D(:,NGeo,NGeo,SideID)+BezierControlPoints3D(:,0   ,NGeo,SideID) )
-  
-  v=eta*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)   &
-             +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) ) &
-      +0.25*(-BezierControlPoints3D(:,0   ,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
-             +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) )
-  
-  tang1=u/DOT_PRODUCT(u,u)
-  tang2=v/DOT_PRODUCT(v,v)
-ELSE ! no flat side
-  ! compute norm vec
-  ! caution we require the formula in [0;1]
-  M=nGeo-1
-  MinusXi=1.0-xi
-  PlusXi=1.0+xi
-  !PlusXi=xi
-  MinusEta=1.0-eta
-  PlusEta=1.0+eta
-  !PlusEta=eta
-  
-  !! compute the required stuff
-  xiup(0)=1.0
-  etaup(0)=1.0
-  ! caution, here the indicies are switched from n-j to j 
-  xidown(NGeo)=1.0
-  etadown(NGeo)=1.0
-  DO p=1,NGeo
-    xiup(p)=xiup(p-1)*PlusXi
-    etaup(p)=etaup(p-1)*PlusEta
-    xidown(NGeo-p)=xidown(NGeo-p+1)*MinusXi
-    etadown(NGeo-p)=etadown(NGeo-p+1)*MinusEta
-  END DO ! p
-  
-  u=0
-  v=0
-  DO q=0,NGeo
-    DO p=0,M
-      ! derivative in xi
-      u=u+(BezierControlPoints3D(:,p+1,q,SideID)-BezierControlPoints3D(:,p,q,SideID)) &
-          *facNchooseK(M,p)*xiup(p)*xidown(p)     &
-          *facNChooseK(NGeo,q)*etaup(q)*etadown(q)
-      ! derivative in eta ! caution - exchange indicies
-      v=v+(BezierControlPoints3D(:,q,p+1,SideID)-BezierControlPoints3D(:,q,p,SideID)) &
-          *facNchooseK(NGeo,q)*xiup(q)*xidown(q)  &
-          *facNChooseK(M,p)*etaup(p)*etadown(p)
-  
-    END DO ! p
-  END DO ! q
-
-  tang1=u/DOT_PRODUCT(u,u)
-  tang2=v/DOT_PRODUCT(v,v)
-  nVec =CROSSNORM(u,v)
-END IF ! BoundingBoxIsEmpty
+! caution we require the formula in [0;1]
+CALL EvaluateBezierPolynomialAndGradient((/xi,eta/),NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Gradient=gradXiEta)
+tang1=gradXiEta(1,:)/DOT_PRODUCT(gradXiEta(1,:),gradXiEta(1,:))
+tang2=gradXiEta(2,:)/DOT_PRODUCT(gradXiEta(2,:),gradXiEta(2,:))
+nVec =CROSSNORM(gradXiEta(1,:),gradXiEta(2,:))
 
 END SUBROUTINE CalcNormAndTangBezier
 

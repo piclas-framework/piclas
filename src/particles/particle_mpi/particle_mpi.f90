@@ -267,7 +267,7 @@ SUBROUTINE SendNbOfParticles()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartSendBuf,PartRecvBuf,PartTargetProc
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloElemToProc, PartSendBuf,PartRecvBuf,PartTargetProc
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,Species,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
 USE MOD_Particle_Mesh_Vars,       ONLY:GEO
@@ -304,9 +304,9 @@ DO iPart=1,PDM%ParticleVecLength
   IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
   ElemID=PEM%Element(iPart)
   IF(ElemID.GT.PP_nElems) THEN
-    PartMPIExchange%nPartsSend(1,PartHaloToProc(LOCAL_PROC_ID,ElemID))=             &
-                                        PartMPIExchange%nPartsSend(1,PartHaloToProc(LOCAL_PROC_ID,ElemID))+1
-    PartTargetProc(iPart)=PartHaloToProc(LOCAL_PROC_ID,ElemID)
+    PartMPIExchange%nPartsSend(1,PartHaloElemToProc(LOCAL_PROC_ID,ElemID))=             &
+                                        PartMPIExchange%nPartsSend(1,PartHaloElemToProc(LOCAL_PROC_ID,ElemID))+1
+    PartTargetProc(iPart)=PartHaloElemToProc(LOCAL_PROC_ID,ElemID)
   END IF
 END DO ! iPart
 
@@ -437,7 +437,7 @@ IF(DoExternalParts)THEN
       IF(ProcID.EQ.PartMPI%MyRank) CYCLE
       ! if shapeproc is target proc, to net send
       !ElemID=PEM%Element(iPart)
-      !IF(PartHaloToProc(NATIVE_PROC_ID,ElemID).EQ.ProcID) CYCLE
+      !IF(PartHaloElemToProc(NATIVE_PROC_ID,ElemID).EQ.ProcID) CYCLE
       ! short version
       LocalProcID=PartMPI%GlobalToLocal(ProcID)
       IF(PartTargetProc(iPart).EQ.LocalProcID) CYCLE
@@ -493,7 +493,8 @@ SUBROUTINE MPIParticleSend()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize,PartSendBuf, PartRecvBuf,PartTargetProc
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloElemToProc, PartCommSize,PartSendBuf, PartRecvBuf &
+                                      ,PartTargetProc
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,Species,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
 USE MOD_Particle_Mesh_Vars,       ONLY:GEO
@@ -540,8 +541,8 @@ PartCommSize=PartCommSize0+(iStage-1)*6
 ! DO iPart=1,PDM%ParticleVecLength
 !   IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
 !   ElemID=PEM%Element(iPart)
-!   IF(ElemID.GT.PP_nElems)  PartMPIExchange%nPartsSend(PartHaloToProc(LOCAL_PROC_ID,ElemID))=             &
-!                                         PartMPIExchange%nPartsSend(PartHaloToProc(LOCAL_PROC_ID,ElemID))+1
+!   IF(ElemID.GT.PP_nElems)  PartMPIExchange%nPartsSend(PartHaloElemToProc(LOCAL_PROC_ID,ElemID))=             &
+!                                         PartMPIExchange%nPartsSend(PartHaloElemToProc(LOCAL_PROC_ID,ElemID))+1
 ! END DO ! iPart
 
 ! external particles add to same message
@@ -623,8 +624,8 @@ DO iProc=1, PartMPI%nMPINeighbors
   DO iPart=1,PDM%ParticleVecLength
     !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
     !IF(ElemID.GT.PP_nElems) THEN
-    !  !IF(PartHaloToProc(NATIVE_PROC_ID,ElemID).NE.PartMPI%MPINeighbor(iProc))THEN
-    !  IF(PartHaloToProc(LOCAL_PROC_ID,ElemID).NE.iProc) CYCLE
+    !  !IF(PartHaloElemToProc(NATIVE_PROC_ID,ElemID).NE.PartMPI%MPINeighbor(iProc))THEN
+    !  IF(PartHaloElemToProc(LOCAL_PROC_ID,ElemID).NE.iProc) CYCLE
     IF(nSendParticles.EQ.0) EXIT
     IF(PartTargetProc(iPart).EQ.iProc) THEN
       !iPos=iPos+1
@@ -657,8 +658,8 @@ DO iProc=1, PartMPI%nMPINeighbors
       ENDIF
 #endif /*no IMEX */
 
-      !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
-      PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
+      !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
+      PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       IF(.NOT.UseLD) THEN   
         IF (useDSMC.AND.(CollisMode.NE.1)) THEN
           IF (usevMPF .AND. DSMC%ElectronicState) THEN
@@ -963,7 +964,7 @@ SUBROUTINE MPIParticleRecv()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloToProc, PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloElemToProc, PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
 USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
@@ -1247,7 +1248,7 @@ END IF
 CALL MPI_COMM_FREE(PartMPI%COMM,iERROR)
 
 
-SDEALLOCATE( PartHaloToProc)
+SDEALLOCATE( PartHaloElemToProc)
 SDEALLOCATE( PartMPI%isMPINeighbor)
 SDEALLOCATE( PartMPI%MPINeighbor )
 SDEALLOCATE( PartMPI%GlobalToLocal )
@@ -1354,7 +1355,7 @@ USE MOD_PreProc
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloToProc
+USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry,ExchangeMappedHaloGeometry
 USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
 ! IMPLICIT VARIABLE HANDLING
@@ -1437,7 +1438,7 @@ DO iProc=0,PartMPI%nProcs-1
 END DO
 
 
-! fill list with neighbor proc id and add local neighbor id to PartHaloToProc
+! fill list with neighbor proc id and add local neighbor id to PartHaloElemToProc
 ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors) &
         , PartMPI%GlobalToLocal(0:PartMPI%nProcs-1)  )
 iMPINeighbor=0
@@ -1452,7 +1453,7 @@ DO iProc=0,PartMPI%nProcs-1
     PartMPI%MPINeighbor(iMPINeighbor)=iProc
     PartMPI%GlobalToLocal(iProc)     =iMPINeighbor
     DO iElem=PP_nElems+1,nTotalElems
-      IF(iProc.EQ.PartHaloToProc(NATIVE_PROC_ID,iElem)) PartHaloToProc(LOCAL_PROC_ID,iElem)=iMPINeighbor
+      IF(iProc.EQ.PartHaloElemToProc(NATIVE_PROC_ID,iElem)) PartHaloElemToProc(LOCAL_PROC_ID,iElem)=iMPINeighbor
     END DO ! iElem
   END IF
 END DO
@@ -1463,11 +1464,11 @@ IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
 
 
 IF(PartMPI%nMPINeighbors.GT.0)THEN
-  IF(ANY(PartHaloToProc(LOCAL_PROC_ID,:).EQ.-1)) IPWRITE(UNIT_stdOut,*) ' Local proc id not found'
-  IF(MAXVAL(PartHaloToProc(LOCAL_PROC_ID,:)).GT.PartMPI%nMPINeighbors) IPWRITE(UNIT_stdOut,*) ' Local proc id too high.'
-  IF(MINVAL(PartHaloToProc(NATIVE_ELEM_ID,:)).LT.1) IPWRITE(UNIT_stdOut,*) ' native elem id too low'
-  IF(MINVAL(PartHaloToProc(NATIVE_PROC_ID,:)).LT.0) IPWRITE(UNIT_stdOut,*) ' native proc id not found'
-  IF(MAXVAL(PartHaloToProc(NATIVE_PROC_ID,:)).GT.PartMPI%nProcs-1) IPWRITE(UNIT_stdOut,*) ' native proc id too high.'
+  IF(ANY(PartHaloElemToProc(LOCAL_PROC_ID,:).EQ.-1)) IPWRITE(UNIT_stdOut,*) ' Local proc id not found'
+  IF(MAXVAL(PartHaloElemToProc(LOCAL_PROC_ID,:)).GT.PartMPI%nMPINeighbors) IPWRITE(UNIT_stdOut,*) ' Local proc id too high.'
+  IF(MINVAL(PartHaloElemToProc(NATIVE_ELEM_ID,:)).LT.1) IPWRITE(UNIT_stdOut,*) ' native elem id too low'
+  IF(MINVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).LT.0) IPWRITE(UNIT_stdOut,*) ' native proc id not found'
+  IF(MAXVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).GT.PartMPI%nProcs-1) IPWRITE(UNIT_stdOut,*) ' native proc id too high.'
 END IF
 !IPWRITE(UNIT_stdOut,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
 
@@ -1973,7 +1974,7 @@ SUBROUTINE CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartHaloToProc
+USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem
@@ -2048,7 +2049,7 @@ IF(DoRefMapping)THEN
     DO iVar=1,3
       DO iVar2=1,3
         IF(SideSlabNormals(iVar2,iVar,iSide).NE.SideSlabNormals(iVar2,iVar,iSide)) CALL abort(&
-            __STAMP__, ' Error in PartHaloToProc')
+            __STAMP__, ' Error in PartHaloElemToProc')
       END DO ! iVar2=1,PP_nVar
     END DO ! iVar=1,PP_nVar
     DO ilocSide=1,6
@@ -2059,11 +2060,11 @@ IF(DoRefMapping)THEN
        __STAMP__, ' Error in BoundingBoxIsEmpty')
   END DO ! iSide=1,nTotalBCSides
 END IF ! DoRefMapping
-! PartHaloToProc
+! PartHaloElemToProc
 DO iElem=PP_nElems+1,nTotalElems
   DO iVar=1,3
-    IF(PartHaloToProc(iVar,iElem).NE.PartHaloToProc(iVar,iElem)) CALL abort(&
-        __STAMP__, ' Error in PartHaloToProc')
+    IF(PartHaloElemToProc(iVar,iElem).NE.PartHaloElemToProc(iVar,iElem)) CALL abort(&
+        __STAMP__, ' Error in PartHaloElemToProc')
   END DO ! iVar=1,3
 END DO ! iElem=PP_nElems+1,nTotalElems
 DO iSide = 1,nTotalSides

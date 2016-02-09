@@ -80,7 +80,6 @@ INTEGER,ALLOCATABLE :: BoundaryType(:,:) ! BCType    = BoundaryType(BC(SideID),B
 INTEGER          :: nGlobalElems=0      ! number of elements in mesh
 INTEGER          :: nElems=0            ! number of local elements
 INTEGER          :: offsetElem=0        ! for MPI, until now=0 Elems pointer array range: [offsetElem+1:offsetElem+nElems]
-INTEGER          :: offsetSurfElem=0        !
 INTEGER          :: nSides=0            ! =nInnerSides+nBCSides+nMPISides
 INTEGER          :: nInnerSides=0       ! InnerSide index range: sideID \in [nBCSides+1:nBCSides+nInnerSides]
 INTEGER          :: nBCSides=0          ! BCSide index range: sideID \in [1:nBCSides]

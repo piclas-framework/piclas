@@ -14,10 +14,17 @@ SAVE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
-INTEGER,ALLOCATABLE :: PartHaloToProc(:,:)                                   ! containing native elemid and native proc id
+INTEGER,ALLOCATABLE :: PartHaloElemToProc(:,:)                               ! containing native elemid and native proc id
                                                                              ! 1 - Native_Elem_ID
                                                                              ! 2 - Rank of Proc
                                                                              ! 3 - local neighbor id
+
+INTEGER,ALLOCATABLE :: PartHaloSideToProc(:,:)                               ! containing native sideid and native proc id
+                                                                             ! 1 - Native_Side_ID
+                                                                             ! 3 - Rank of Proc
+                                                                             ! 4 - local neighbor id
+
+
 INTEGER             :: myRealKind
 LOGICAL                                  :: ParticleMPIInitIsDone=.FALSE.
 INTEGER                                  :: iMessage                         ! Number of MPI-Messages for Debug purpose
@@ -91,6 +98,9 @@ END TYPE
 TYPE(tMPIMessage),ALLOCATABLE  :: PartRecvBuf(:)                             ! PartRecvBuf with all required types
 TYPE(tMPIMessage),ALLOCATABLE  :: PartSendBuf(:)                             ! PartSendBuf with all requried types
 
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfRecvBuf(:)                             ! PartRecvBuf with all required types
+TYPE(tMPIMessage),ALLOCATABLE  :: SurfSendBuf(:)                             ! PartSendBuf with all requried types
+
 TYPE tParticleMPIExchange
   INTEGER,ALLOCATABLE            :: nPartsSend(:,:)     ! only mpi neighbors
   INTEGER,ALLOCATABLE            :: nPartsRecv(:,:)     ! only mpi neighbors
@@ -115,8 +125,17 @@ TYPE tParticleMPIExchange2
   TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)   ! message, required for particle emission
 END TYPE
 
+TYPE tSurfMPIExchange
+  INTEGER,ALLOCATABLE            :: nSidesSend(:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: nSidesRecv(:)     ! only mpi neighbors
+  INTEGER,ALLOCATABLE            :: SendRequest(:)   ! send requirest message handle 1 - Number, 2-Message
+  INTEGER,ALLOCATABLE            :: RecvRequest(:)   ! recv request message handle,  1 - Number, 2-Message
+END TYPE
+
+
 TYPE (tParticleMPIExchange2)             :: PartMPIInsert 
 TYPE (tParticleMPIExchange)              :: PartMPIExchange
+TYPE (tSurfMPIExchange)                  :: SurfExchange
 
 INTEGER,ALLOCATABLE                      :: PartTargetProc(:)                ! local proc id for communication
 LOGICAL,ALLOCATABLE                      :: PartMPIDepoSend(:)               ! index of part number, if particle has to be send

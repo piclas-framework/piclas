@@ -54,7 +54,6 @@ USE MOD_Equation_Vars,        ONLY:StrVarNames
 USE MOD_Restart_Vars,         ONLY:RestartFile
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,         ONLY:OutputSource,Source
-USE MOD_Equation_Vars,        ONLY:c_corr,eps0
 #endif /*PARTICLES*/
 #ifdef MPI
 USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance
@@ -80,11 +79,9 @@ INTEGER                        :: nVar
 #ifdef MPI
 REAL                           :: StartT,EndT
 #endif
+#ifndef maxwell
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
-INTEGER                        :: iElem,i,j,k
-#ifdef PARTICLES
-REAL                            :: eps0inv
-#endif /*PARTICLES*/
+#endif
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
@@ -315,7 +312,7 @@ USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,nPMLElems
 USE MOD_Particle_Vars ,ONLY:PDM,PEM
 #endif /*PARTICLES*/
 #ifdef MPI
-USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,nLoadBalance,ElemWeight
+USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,ElemWeight
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

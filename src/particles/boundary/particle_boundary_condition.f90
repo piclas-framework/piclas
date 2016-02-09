@@ -481,13 +481,15 @@ USE MOD_DSMC_Vars,              ONLY:SpecDSMC,CollisMode
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol,BezierControlPoints3D
 USE MOD_TimeDisc_Vars,          ONLY:iter
 USE MOD_Mesh_Vars,              ONLY:BC,nSides,NGEO
-USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,SpecDSMC, DSMC, SampWall,  useDSMC, CollisMode
+USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,SpecDSMC, DSMC, useDSMC, CollisMode
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,Pt
 USE MOD_TimeDisc_Vars,          ONLY:RK_a,iStage
 #endif
+USE MOD_Particle_Vars,          ONLY:WriteMacroValues
 USE MOD_TImeDisc_Vars,          ONLY:dt,tend
+USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample,nSurfSample,SurfMesh,SampWall
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -514,6 +516,7 @@ REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibAC
 REAL                                 :: n_loc(1:3), tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
 REAL                                 :: WallTransACC
+INTEGER                              :: p,q, SurfSideID
 !===================================================================================================================================
 
 OneMinus=1.0-epsInCell
@@ -553,7 +556,8 @@ ELSE
   END SELECT 
 END IF
 
-!IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)   CALL abort(__STAMP__,&
+IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  RETURN
+!CALL abort(__STAMP__,&
 !  ' parttrajectory inverse to n_loc')
 
 ! substract tolerance from length
@@ -582,19 +586,21 @@ VeloCx  = Cmr * VeloCrad * COS(Phi)
 VeloCy  = Cmr * VeloCrad * SIN(Phi)
 VeloCz  = Cmr * VeloCz
 
-! IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
-! !----  Sampling for energy (translation) accommodation at walls
-! ! has to be corrected to new scheme, at output a mpi_reduce has to be called
-! !  SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(1) = &
-! !    SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(1) + &
-! !    EtraOld * Species(PartSpecies(i))%MacroParticleFactor  
-! !  SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(2) = &
-! !    SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(2) + &
-! !    EtraWall * Species(PartSpecies(i))%MacroParticleFactor 
-! !  SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(3) = &
-! !    SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(3) + & 
-! !    EtraNew * Species(PartSpecies(i))%MacroParticleFactor  
-! END IF
+IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+!----  Sampling for energy (translation) accommodation at walls
+! has to be corrected to new scheme
+  SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+  ! compute p and q
+  p=MIN(MOD(Xi -1.0,dXiEQ_SurfSample),REAL(nSurfSample))
+  q=MIN(MOD(Eta-1.0,dXiEQ_SurfSample),REAL(nSurfSample))
+
+  SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraOld &
+                                   *Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q)+EtraWall      &
+                                   *Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(3,p,q)= SampWall(SurfSideID)%State(3,p,q)+EtraNew       &
+                                   *Species(PartSpecies(PartID))%MacroParticleFactor
+END IF
  
 !   Transformation local distribution -> global coordinates
 ! from flux comutaion
@@ -605,6 +611,7 @@ VeloCz  = Cmr * VeloCz
 ! NewVelo(3) = tang1(3)*VeloCx + (n_loc(2)*tang1(1)-n_loc(1)*tang1(2))*VeloCy - n_loc(3)*VeloCz
 NewVelo = VeloCx*tang1+CROSS(n_loc,tang1)*VeloCy-VeloCz*n_loc
 
+! travel rest of particle vector
 PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1. - alpha) * dt * NewVelo(1:3)
 
 ! Internal energy accommodation
@@ -618,23 +625,19 @@ IF (useDSMC) THEN
       ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
       ErotNew  = PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
     
-!       IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
-! !    !----  Sampling for internal energy accommodation at walls
-! !    
-! !        SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(4) = &
-! !          SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(4) &
-! !          + PartStateIntEn(i,2) * Species(PartSpecies(i))%MacroParticleFactor   
-! !        SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(5) = &
-! !          SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(5) &
-! !          + ErotWall * Species(PartSpecies(i))%MacroParticleFactor  
-! !        SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(6) = &
-! !          SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(6) &
-! !          + ErotNew * Species(PartSpecies(i))%MacroParticleFactor 
-!       END IF 
+      IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+        !----  Sampling for internal energy accommodation at walls
+        SampWall(SurfSideID)%State(4,p,q)=SampWall(SurfSideID)%State(4,p,q)+PartStateIntEn(PartID,2) &
+                                                                           *Species(PartSpecies(PartID))%MacroParticleFactor
+        SampWall(SurfSideID)%State(5,p,q)=SampWall(SurfSideID)%State(5,p,q)+ErotWall &
+                                                                           * Species(PartSpecies(PartID))%MacroParticleFactor
+        SampWall(SurfSideID)%State(6,p,q)=SampWall(SurfSideID)%State(6,p,q)+ErotNew &
+                                                                           * Species(PartSpecies(PartID))%MacroParticleFactor
+      END IF 
     
       PartStateIntEn(PartID,2) = ErotNew
     
-    !---- Vibrational energy accommodation
+     !---- Vibrational energy accommodation
     
       VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib) &
                    - DSMC%GammaQuant)
@@ -653,44 +656,33 @@ IF (useDSMC) THEN
         EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib
       END IF
     
-!       IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
-! !     !----  Sampling for internal energy accommodation at walls
-! !     
-! !         SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(7) = &
-! !           SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(7) & 
-! !                             + (VibQuant + DSMC%GammaQuant) &
-! !                             * BoltzmannConst * SpecDSMC(PartSpecies(i))%CharaTVib * Species(PartSpecies(i))%MacroParticleFactor
-! !         SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(8) = &
-! !           SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(8) + VibQuantWall &
-! !                             * BoltzmannConst * SpecDSMC(PartSpecies(i))%CharaTVib * Species(PartSpecies(i))%MacroParticleFactor
-! !         SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(9) = &
-! !           SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Energy(9) &
-! !                             + EvibNew * Species(PartSpecies(i))%MacroParticleFactor
-!       END IF
-    
+      IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+        !----  Sampling for internal energy accommodation at walls
+        SampWall(SurfSideID)%State(7,p,q)= SampWall(SurfSideID)%State(7,p,q) + (VibQuant + DSMC%GammaQuant) &
+                 * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib * Species(PartSpecies(PartID))%MacroParticleFactor
+        SampWall(SurfSideID)%State(8,p,q)= SampWall(SurfSideID)%State(8,p,q) + VibQuantWall &
+                 * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib * Species(PartSpecies(PartID))%MacroParticleFactor
+        SampWall(SurfSideID)%State(9,p,q)= SampWall(SurfSideID)%State(9,p,q) + &
+                                           EvibNew * Species(PartSpecies(PartID))%MacroParticleFactor
+      END IF
       PartStateIntEn(PartID,1) = EvibNew
     END IF
   END IF
 END IF
 
-! IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
-! ! !----  Sampling force at walls
-! !   SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Force(1) = &
-! !     SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Force(1) + &
-! !     Species(PartSpecies(i))%MassIC * (PartState(i,4) - VelX) * Species(PartSpecies(i))%MacroParticleFactor
-! !   SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Force(2) = &
-! !     SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Force(2) + &
-! !     Species(PartSpecies(i))%MassIC * (PartState(i,5) - VelY) * Species(PartSpecies(i))%MacroParticleFactor
-! !   SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Force(3) = &
-! !     SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Force(3) + &
-! !     Species(PartSpecies(i))%MassIC * (PartState(i,6) - VelZ) * Species(PartSpecies(i))%MacroParticleFactor
-! ! !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
-! !   IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps) THEN
-! !     SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Counter(PartSpecies(i)) = &
-! !       SampWallHaloCell(SurfMesh%HaloSideIDToSurfSideMap(MPIGEO%ElemToSide(1,iLocSide,Element)))%Counter(PartSpecies(i)) + 1
-! !   END IF
-! END IF
-
+IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+!----  Sampling force at walls
+  SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) &
+      + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,4) - NewVelo(1)) * Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) &
+      + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,5) - NewVelo(2)) * Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
+      + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,6) - NewVelo(3)) * Species(PartSpecies(PartID))%MacroParticleFactor
+ !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
+  IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps) THEN
+    SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) +1
+  END IF
+END IF
 !----  saving new particle velocity
 PartState(PartID,4:6)   = NewVelo(1:3) + WallVelo(1:3)
 

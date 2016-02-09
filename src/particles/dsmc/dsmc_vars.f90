@@ -262,29 +262,6 @@ TYPE tTreeNode
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
-
-TYPE tSampWall             ! DSMC sample for Wall                                             
-  REAL                           :: Energy(9)               ! 1-3 E_tra (pre, wall, re),
-                                                            ! 4-6 E_rot (pre, wall, re),
-                                                            ! 7-9 E_vib (pre, wall, re)
-  REAL                           :: Force(3)                ! x, y, z direction
-  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter
-END TYPE
-
-TYPE(tSampWall), ALLOCATABLE     :: SampWall(:)             ! Wall sample array (number of BC-Sides)
-#ifdef MPI
-TYPE(tSampWall), ALLOCATABLE     :: SampWallHaloCell(:)     ! Wall sample array (number of BC-HALO-Sides)
-#endif
-
-TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall    
-  REAL                           :: Heatflux                ! 
-  REAL                           :: Force(3)                ! x, y, z direction
-  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
-  REAL                           :: CounterOut              ! Wall-Collision counter for Output
-END TYPE
-
-TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
-
  
 REAL                              :: realtime               ! realtime of simulation
 
@@ -304,6 +281,17 @@ TYPE tPolyatomMolVibQuant !DSMC Species Param
 END TYPE
 
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
+
+REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)          ! variables,p,q,sides
+REAL,ALLOCATABLE                  :: MacroSurfaceCounter(:,:,:,:)   ! variables,p,q,sides
+!TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall    
+!  REAL                           :: Heatflux                ! 
+!  REAL                           :: Force(3)                ! x, y, z direction
+!  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
+!  REAL                           :: CounterOut              ! Wall-Collision counter for Output
+!END TYPE
+!
+!TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
 
 INTEGER                           :: nOutput                 ! output counter for DSMC
 INTEGER(KIND=8)                   :: iter_loc, iter_macvalout, istep

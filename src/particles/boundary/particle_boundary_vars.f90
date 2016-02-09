@@ -14,16 +14,69 @@ SAVE
 INTEGER                                 :: NSurfSample                   ! polynomial degree of particle BC sampling   
 REAL,ALLOCATABLE                        :: XiEQ_SurfSample(:)            ! position of XiEQ_SurfSample
 REAL                                    :: dXiEQ_SurfSample              ! deltaXi in [-1,1]
-INTEGER,ALLOCATABLE                     :: OffSetParticleBCSampling(:)   ! integer offset for particle boundary sampling            
+INTEGER                                 :: OffSetSurfSide                ! offset of local surf side
+#ifdef MPI
+INTEGER,ALLOCATABLE                     :: OffSetSurfSideMPI(:)          ! integer offset for particle boundary sampling            
+#endif /*MPI*/
+
+#ifdef MPI
+TYPE tSurfaceSendList
+  INTEGER                               :: NativeProcID
+  INTEGER,ALLOCATABLE                   :: SendList(:)                   ! list containing surfsideid of sides to send to proc
+  INTEGER,ALLOCATABLE                   :: RecvList(:)                   ! list containing surfsideid of sides to recv from proc
+END TYPE
+#endif /*MPI*/
+
+TYPE tSurfaceCOMM
+  LOGICAL                               :: MPIRoot                       ! if root of mpi communicator
+  INTEGER                               :: MyRank                        ! local rank in new group
+  INTEGER                               :: COMM                          ! communicator
+#ifdef MPI
+  INTEGER                               :: nProcs                        ! number of processes
+  INTEGER                               :: nMPINeighbors                 ! number of processes to communicate with
+  TYPE(tSurfaceSendList),ALLOCATABLE    :: MPINeighbor(:)                ! list containing all mpi neighbors
+#endif /*MPI*/
+END TYPE
+TYPE (tSurfaceCOMM)                     :: SurfCOMM
 
 TYPE tSurfaceMesh
-  LOGICAL                               :: SurfSampOnProc                ! flag if reflective boundary condition is on proc
-  INTEGER                               :: nSurfaceBCSides               ! Number of Sides on Surface (reflective)
-  INTEGER,ALLOCATABLE                   :: SideIDToSurfaceID(:)          ! Mapping form the SideID to shorter side list
+  INTEGER                               :: SampSize                      ! integer of sampsize
+  LOGICAL                               :: SurfOnProc                    ! flag if reflective boundary condition is on proc
+  INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
+  INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
+  INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
+  INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping form the SideID to shorter side list
   REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface 
 END TYPE
 
 TYPE (tSurfaceMesh)                     :: SurfMesh
+
+TYPE tSampWall             ! DSMC sample for Wall                                             
+  ! easier to communicate
+  REAL,ALLOCATABLE                      :: State(:,:,:)                ! 1-3   E_tra (pre, wall, re),
+                                                                       ! 4-6   E_rot (pre, wall, re),
+                                                                       ! 7-9   E_vib (pre, wall, re)
+                                                                       ! 10-12 x, y, z direction
+                                                                       ! 13-12+nSpecies Wall-Collision counter
+  !REAL, ALLOCATABLE                    :: Energy(:,:,:)               ! 1-3 E_tra (pre, wall, re),
+  !                                                                    ! 4-6 E_rot (pre, wall, re),
+  !                                                                    ! 7-9 E_vib (pre, wall, re)
+  !REAL, ALLOCATABLE                    :: Force(:,:,:)                ! x, y, z direction
+  !REAL, ALLOCATABLE                    :: Counter(:,:,:)              ! Wall-Collision counter
+END TYPE
+TYPE(tSampWall), ALLOCATABLE           :: SampWall(:)             ! Wall sample array (number of BC-Sides)
+
+
+TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall    
+  REAL                           :: Heatflux                ! 
+  REAL                           :: Force(3)                ! x, y, z direction
+  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
+  REAL                           :: CounterOut              ! Wall-Collision counter for Output
+END TYPE
+
+TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
+
+
 
 TYPE tPartBoundary
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition

@@ -532,7 +532,7 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloToProc
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, nInnerSides, ElemToSide, BC,nGeo,SideToElem
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem,GEO,nTotalBCSides
@@ -1321,8 +1321,8 @@ IF(DoRefMapping)THEN
         PartElemToSide(E2S_FLIP,ilocSide,newElemId)=RecvMsg%ElemToSide(2,ilocSide,iElem)
       END DO ! ilocSide
       ! set native elemID
-      PartHaloToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
-      PartHaloToProc(NATIVE_PROC_ID,newElemId)=iProc
+      PartHaloElemToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
+      PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
       XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
       dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
       ElemSlabNormals(1:3,1:3,newElemID) = RecvMsg%ElemSlabNormals(1:3,1:3,iElem)
@@ -1617,8 +1617,8 @@ ELSE
        PartElemToSide(2,ilocSide,newElemId)=RecvMsg%ElemToSide(2,ilocSide,iElem)
      END DO ! ilocSide
      ! set native elemID
-     PartHaloToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
-     PartHaloToProc(NATIVE_PROC_ID,newElemId)=iProc
+     PartHaloElemToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
+     PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
    END DO ! iElem
    ! build rest: PartElemToElem, PartLocSideID
    DO iElem=PP_nElems+1,nTotalElems
@@ -1664,7 +1664,7 @@ SUBROUTINE ResizeParticleMeshData(nOldSides,nOldElems,nTotalSides,nTotalElems,nO
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartHaloToProc
+USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem
@@ -1790,28 +1790,28 @@ END IF
 !print*,' done elem to side',myrank
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! HaloToProc
-IF(.NOT.ALLOCATED(PartHaloToProc))THEN
+IF(.NOT.ALLOCATED(PartHaloElemToProc))THEN
   !print*,'both here',myrank,nElems,nElems+1,nTotalElems
   !print*,'myrank',myrank,allocstat
   nLower=nElems+1
-  ALLOCATE(PartHaloToProc(1:3,nLower:nTotalElems),STAT=ALLOCSTAT)                                 
+  ALLOCATE(PartHaloElemToProc(1:3,nLower:nTotalElems),STAT=ALLOCSTAT)                                 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate PartHaloToProc')
-  PartHaloToProc=-1
+    'Could not allocate PartHaloElemToProc')
+  PartHaloElemToProc=-1
   !print*,'lower,upper',PP_nElems+1,nTotalElems
 ELSE
   nLower=nElems+1
   ALLOCATE(DummyHaloToProc(1:3,nLower:nOldElems))                                 
   IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate DummyPartHaloToProc')
-  DummyHaloToProc=PartHaloToProc
-  DEALLOCATE(PartHaloToProc)
-  ALLOCATE(PartHaloToProc(1:3,nLower:nTotalElems),STAT=ALLOCSTAT)                                 
+    'Could not allocate DummyPartHaloElemToProc')
+  DummyHaloToProc=PartHaloElemToProc
+  DEALLOCATE(PartHaloElemToProc)
+  ALLOCATE(PartHaloElemToProc(1:3,nLower:nTotalElems),STAT=ALLOCSTAT)                                 
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
-    'Could not allocate PartHaloToProc')
+    'Could not allocate PartHaloElemToProc')
   ! copy array to new
-  PartHaloToProc=-1
-  PartHaloToProc(1:3,PP_nElems+1:nOldElems)    =DummyHaloToProc(1:3,PP_nElems+1:nOldElems)
+  PartHaloElemToProc=-1
+  PartHaloElemToProc(1:3,PP_nElems+1:nOldElems)    =DummyHaloToProc(1:3,PP_nElems+1:nOldElems)
   DEALLOCATE(DummyHaloToProc)
 END IF
 !print*,' done halotoproc',myrank
@@ -1993,7 +1993,7 @@ SUBROUTINE ExchangeMappedHaloGeometry(iProc,ElemList)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloToProc
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, ElemToSide, BC,nGeo,SideToElem,nInnerSides
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList,nTotalBCSides,GEO
@@ -2703,8 +2703,8 @@ IF (RecvMsg%nElems.GT.0) THEN
       PartElemToSide(E2S_FLIP,ilocSide,newElemId)=RecvMsg%ElemToSide(2,ilocSide,iElem)
     END DO ! ilocSide
     ! set native elemID
-    PartHaloToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
-    PartHaloToProc(NATIVE_PROC_ID,newElemId)=iProc
+    PartHaloElemToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
+    PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
     XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
     dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
   END DO ! iElem

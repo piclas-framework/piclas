@@ -27,7 +27,6 @@ INTEGER,ALLOCATABLE   :: nMPISides_YOUR_Proc(:)
 INTEGER,ALLOCATABLE   :: offsetMPISides_MINE(:)! gives position of send/recv block in *_MINE arrays,allocated from 0:nNbProcs
 INTEGER,ALLOCATABLE   :: offsetMPISides_YOUR(:)! gives position of send/recv block in *_YOUR arrays,allocated from 0:nNbProcs
 INTEGER,ALLOCATABLE   :: offsetElemMPI(:)      ! gives offsetposotion of elements of all procs
-INTEGER,ALLOCATABLE   :: offsetSurfElemMPI(:)  ! gives offsetposotion of surface elements of all procs
 INTEGER,ALLOCATABLE   :: nMPISides_send(:,:),nMPISides_rec(:,:)
 INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
 #endif /*MPI*/

@@ -62,8 +62,9 @@ USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OnePlusEps,BezierControlPoints3D,SideType,BezierClipHit&
-                                    ,BezierControlPoints3D
+                                    ,BezierControlPoints3D,SideNormVec
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,IsBCElem,PartBCSideList
+USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -77,7 +78,7 @@ LOGICAL,INTENT(OUT)                      :: Check
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                  :: ilocSide,flip,SideID,BCSideID
-REAL                                     :: PartTrajectory(1:3)
+REAL                                     :: PartTrajectory(1:3),NormVec(1:3)
 REAL                                     :: lengthPartTrajectory,tmpPos(3),xNodes(1:3,1:4),tmpLastPartPos(1:3)
 LOGICAL                                  :: isHit
 REAL                                     :: alpha,eta,xi
@@ -150,6 +151,19 @@ DO ilocSide=1,6
                                                                             ,eta      ,PartID,SideID)
 
   END SELECT
+  IF(DoRefMapping)THEN
+    IF(alpha.GT.-1)THEN
+      SELECT CASE(SideType(SideID))
+      CASE(PLANAR)
+        NormVec=SideNormVec(1:3,SideID)
+      CASE(BILINEAR)
+        NormVec=CalcBiLinearNormVecBezier(xi,eta,SideID)
+      CASE(CURVED)
+        NormVec=CalcNormVecBezier(xi,eta,SideID)
+      END SELECT 
+      IF(DOT_PRODUCT(NormVec,PartState(PartID,4:6)).LT.0.) alpha=-1.0
+    END IF
+  END IF
   IF(alpha.GT.-1.0) THEN
     !IF((ABS(xi).GT.1.0).OR.(ABS(eta).GT.1.0)) THEN
     !IF((ABS(xi).GT.BezierClipHit).OR.(ABS(eta).GT.BezierClipHit)) THEN
@@ -415,8 +429,7 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipMaxIter,ArrayNchooseK,FacNchooseK,BezierClipMaxIntersec
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,MinusEps,epsilontol,BezierClipHit,BezierSplitLimit
 USE MOD_Particle_Vars,           ONLY:LastPartPos,Time
-USE MOD_TimeDisc_Vars,               ONLY:iter
-
+USE MOD_TimeDisc_Vars,           ONLY:iter
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

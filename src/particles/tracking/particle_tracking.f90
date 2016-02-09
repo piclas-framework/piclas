@@ -413,7 +413,7 @@ USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
 USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 #ifdef MPI
 USE MOD_MPI_Vars,                ONLY:offsetElemMPI
-USE MOD_Particle_MPI_Vars,       ONLY:PartHaloToProc
+USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
 USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nTracksPerElem,tTracking
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -672,8 +672,8 @@ DO iPart=1,PDM%ParticleVecLength
         IF(InElem.LE.PP_nElems)THEN
           IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
         ELSE
-          IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloToProc(NATIVE_PROC_ID,InElem)) &
-                                                 + PartHaloToProc(NATIVE_ELEM_ID,InElem)
+          IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
         END IF
 #else
         IPWRITE(UNIT_stdOut,*) ' ElemID       ', PEM%Element(iPart)+offSetElem
@@ -715,8 +715,8 @@ DO iPart=1,PDM%ParticleVecLength
             IF(inelem.LE.PP_nElems)THEN
               IPWRITE(UNIT_stdout,*) ' elemid       ', inelem+offsetelem
             ELSE
-              IPWRITE(UNIT_stdOut,*) ' elemid       ', offsetelemmpi(PartHalotoProc(NATIVE_PROC_ID,inelem)) &
-                                                       + PartHaloToProc(NATIVE_ELEM_ID,inelem)
+              IPWRITE(UNIT_stdOut,*) ' elemid       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
+                                                       + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
             END IF
 #else
             IPWRITE(UNIt_stdOut,*) ' elemid       ', pem%element(ipart)+offsetelem
@@ -1153,12 +1153,12 @@ USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks
 #ifdef MPI
 USE MOD_MPI_Vars,                ONLY:offsetElemMPI
-USE MOD_Particle_MPI_Vars,       ONLY:PartHaloToProc
+USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
 #endif
 USE MOD_Mesh_Vars,               ONLY:OffSetElem
 #ifdef MPI
 USE MOD_MPI_Vars,                ONLY:offsetElemMPI
-USE MOD_Particle_MPI_Vars,       ONLY:PartHaloToProc
+USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -1362,8 +1362,8 @@ ELSE
       IF(InElem.LE.PP_nElems)THEN
       IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
       ELSE
-        IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloToProc(NATIVE_PROC_ID,InElem)) &
-                                               + PartHaloToProc(NATIVE_ELEM_ID,InElem)
+        IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+                                               + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
       END IF
 #else
       IPWRITE(UNIT_stdOut,*) ' ElemID       ', PEM%Element(PartID)+offSetElem
