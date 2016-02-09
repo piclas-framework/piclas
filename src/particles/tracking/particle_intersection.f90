@@ -275,7 +275,8 @@ END DO
 !ELSE
   PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
   IF(PartFaceAngle*180/ACOS(-1.).LE.0)THEN
-    print*,PartFaceAngle*180/ACOS(-1.)
+    !print*,PartFaceAngle*180/ACOS(-1.)
+    PartFaceAngle=BezierNewTonAngle-0.2
   END IF
 !END IF
 !IF(.NOT.BezierNewtonAngle)THEN
@@ -483,8 +484,11 @@ DoCheck=.TRUE.
 
 DO iClipIter=iClipIter,BezierClipMaxIter
   ! a) xi-direction
+  IF(iClipIter.EQ.1)THEN
+    CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoXiClip)
+  END IF
   IF(DoXiClip)THEN
-    CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck)
+    IF(iClipIter.GT.1) CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck)
     IF(.NOT.DoCheck) EXIT
     DO q=0,NGeo 
       DO p=0,NGeo
@@ -821,12 +825,15 @@ DO iClipIter=iClipIter,BezierClipMaxIter
   END IF!DoXiClip
 
   ! b) eta-direction
+  IF(iClipIter.EQ.1)THEN
+    CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo,DoEtaClip)
+  END IF
   IF(DoEtaClip)THEN
     IF(.NOT.FirstClip)THEN
       DoXiClip=.TRUE.
       FirstClip=.TRUE.
     END IF
-    CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo,DoCheck)
+    IF(iClipIter.GT.1) CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo,DoCheck)
     IF(.NOT.DoCheck) EXIT
     DO q=0,NGeo
       DO p=0,NGeo
@@ -1412,8 +1419,8 @@ Length=SQRT(DOT_PRODUCT(LineNormVec,LineNormVec))
 IF(Length.EQ.0)THEN
   DoCheck=.FALSE.
   ! DEBUG: is the complete IF statement dispensable?
-  CALL abort(__STAMP__,&
-      'Bezier Clipping -> LineNormVec is Null vector!')
+  !CALL abort(__STAMP__,&
+  !    'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF
 LineNormVec=LineNormVec/Length

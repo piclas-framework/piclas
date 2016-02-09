@@ -601,7 +601,7 @@ SUBROUTINE DivCleaningDamping()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY : U
-USE MOD_Equation_Vars, ONLY : fDamping
+USE MOD_Equation_Vars, ONLY : fDamping,DoParabolicDamping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

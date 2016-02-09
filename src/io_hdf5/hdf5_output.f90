@@ -202,7 +202,7 @@ IF(OutPutSource) THEN
     CALL CloseDataFile()
   END IF
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='DG_Source', rank=2,  &
+                          DataSetName='DG_Source', rank=5,  &
                           nValGlobal=(/nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
                           nVal=      (/nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
                           offset=    (/0,      0,     0,     0,     offsetElem/),&
