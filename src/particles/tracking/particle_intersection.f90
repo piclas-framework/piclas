@@ -189,7 +189,7 @@ SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
 USE MOD_Globals,                 ONLY:Cross,abort,MyRank,UNIT_stdOut
-USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides
+USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides,nSides,BC
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierNewtonAngle
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,BezierClipTolerance,BezierClipMaxIntersec,BezierClipMaxIter
@@ -350,7 +350,6 @@ CASE(1)
   eta=loceta(1)
   isHit=.TRUE.
 CASE DEFAULT
-  isHit=.TRUE.
   ! more than one intersection
   !ALLOCATE(locID(nInterSections))
   ALLOCATE(locID(nInterSections))
@@ -368,22 +367,64 @@ CASE DEFAULT
         xi =locXi (locID(iInter))
         eta=loceta(locID(iInter))
         SDEALLOCATE(locID)
+        isHit=.TRUE.
         RETURN 
       END IF
     END DO ! iInter
   ELSE
-    IF(SideID.LE.nBCSides)THEN
-      ! requires first hit with BC
+    ! no ref mapping
+    IF(SideID.LE.nSides)THEN
+      IF(SideID.LE.nBCSides)THEN
+        ! requires first hit with BC
+        ! take closest
+        DO iInter=1,nInterSections 
+          IF(locAlpha(iInter).GT.-1.0)THEN
+            alpha=locAlpha(iInter)
+            xi =locXi (locID(iInter))
+            eta=loceta(locID(iInter))
+            SDEALLOCATE(locID)
+            isHit=.TRUE.
+            RETURN 
+          END IF
+        END DO ! iInter
+      ELSE ! inner side
+        realnInter=1
+        DO iInter=2,nInterSections
+          IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
+          .AND.(locAlpha(1)/locAlpha(iInter).GT.1.002))THEN
+              realNInter=realnInter+1
+          END IF
+        END DO
+        IF(MOD(realNInter,2).EQ.0) THEN
+          DEALLOCATE(locID)
+          alpha=-1.0
+          isHit=.FALSE.
+          RETURN ! leave and enter a cell multiple times
+        ELSE
+          alpha=locAlpha(nInterSections)
+          xi =locXi (locID(nInterSections))
+          eta=loceta(locID(nInterSections))
+          isHit=.TRUE.
+          DEALLOCATE(locID)
+          RETURN
+        END IF
+      END IF ! inner Side
+    END IF ! SideID.LE.nSides
+#ifdef MPI
+    ! halo side
+    IF(BC(SideID).GT.0)THEN ! BC Sides
+      ! take closest
       DO iInter=1,nInterSections 
         IF(locAlpha(iInter).GT.-1.0)THEN
           alpha=locAlpha(iInter)
           xi =locXi (locID(iInter))
           eta=loceta(locID(iInter))
           SDEALLOCATE(locID)
+          isHit=.TRUE.
           RETURN 
         END IF
       END DO ! iInter
-    ELSE
+    ELSE ! no BC Side
       realnInter=1
       DO iInter=2,nInterSections
         IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
@@ -393,15 +434,19 @@ CASE DEFAULT
       END DO
       IF(MOD(realNInter,2).EQ.0) THEN
         DEALLOCATE(locID)
+        alpha=-1.0
+        isHit=.FALSE.
         RETURN ! leave and enter a cell multiple times
       ELSE
         alpha=locAlpha(nInterSections)
         xi =locXi (locID(nInterSections))
         eta=loceta(locID(nInterSections))
+        isHit=.TRUE.
         DEALLOCATE(locID)
         RETURN
       END IF
-    END IF
+    END IF ! inner Side
+#endif /*MPI*/
   END IF
   SDEALLOCATE(locID)
 END SELECT
