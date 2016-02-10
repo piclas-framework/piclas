@@ -251,9 +251,9 @@ END IF
 
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
 IF(ABS(PartTrajectory(3)).LT.epsilontol)THEN
-  n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /)
+  n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /) +epsilontol
 ELSE
-  n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /)
+  n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /) +epsilontol
 END IF
 n1=n1/SQRT(DOT_PRODUCT(n1,n1))
 n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) &
@@ -484,11 +484,11 @@ DoCheck=.TRUE.
 
 DO iClipIter=iClipIter,BezierClipMaxIter
   ! a) xi-direction
-  IF(iClipIter.EQ.1)THEN
-    CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoXiClip)
-  END IF
+  !IF(iClipIter.EQ.1)THEN
+  !  CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoXiClip)
+  !END IF
   IF(DoXiClip)THEN
-    IF(iClipIter.GT.1) CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck)
+    CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck)
     IF(.NOT.DoCheck) EXIT
     DO q=0,NGeo 
       DO p=0,NGeo
@@ -825,15 +825,15 @@ DO iClipIter=iClipIter,BezierClipMaxIter
   END IF!DoXiClip
 
   ! b) eta-direction
-  IF(iClipIter.EQ.1)THEN
-    CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo,DoEtaClip)
-  END IF
+  !IF(iClipIter.EQ.1)THEN
+  !  CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo,DoEtaClip)
+  !END IF
   IF(DoEtaClip)THEN
     IF(.NOT.FirstClip)THEN
       DoXiClip=.TRUE.
       FirstClip=.TRUE.
     END IF
-    IF(iClipIter.GT.1) CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo,DoCheck)
+    CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo,DoCheck)
     IF(.NOT.DoCheck) EXIT
     DO q=0,NGeo
       DO p=0,NGeo
@@ -1419,8 +1419,8 @@ Length=SQRT(DOT_PRODUCT(LineNormVec,LineNormVec))
 IF(Length.EQ.0)THEN
   DoCheck=.FALSE.
   ! DEBUG: is the complete IF statement dispensable?
-  !CALL abort(__STAMP__,&
-  !    'Bezier Clipping -> LineNormVec is Null vector!')
+  CALL abort(__STAMP__,&
+      'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF
 LineNormVec=LineNormVec/Length

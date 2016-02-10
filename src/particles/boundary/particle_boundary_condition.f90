@@ -193,7 +193,7 @@ USE MOD_Globals!,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
 USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
-!USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
@@ -210,7 +210,7 @@ INTEGER,INTENT(IN)                   :: ElemID
 REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: RanNum
+REAL                                 :: RanNum,n_loc(1:3)
 INTEGER                              :: BCSideID
 !===================================================================================================================================
 
@@ -226,6 +226,21 @@ SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 CASE(1) !PartBound%OpenBC)
 !CASE(PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
+
+  IF(alpha.LE.0.)THEN ! if particle is close to BC, it encounters the BC only if it leaves the element/grid
+    BCSideID=PartBCSideList(SideID)
+    SELECT CASE(SideType(BCSideID))
+    CASE(PLANAR)
+      n_loc=SideNormVec(1:3,BCSideID)
+    CASE(BILINEAR)
+      n_loc=CalcBiLinearNormVecBezier(xi,eta,BCSideID)
+    CASE(CURVED)
+      n_loc=CalcNormVecBezier(xi,eta,BCSideID)
+    !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
+    END SELECT 
+    IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
+  END IF
+
   IF(CalcPartBalance) THEN
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
