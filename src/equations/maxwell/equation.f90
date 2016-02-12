@@ -185,13 +185,12 @@ INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Consta
 !===================================================================================================================================
 Cent=x
 SELECT CASE (ExactFunction)
-#ifdef PARTICLES
 CASE(0) ! Particles
   Resu=0.
-  !resu(1:3)= x(1:3)!*x(1) 
-#endif
 CASE(1) ! Constant 
-  Resu=1.
+  Resu(1:3)=1.
+  resu(4:6)=c_inv*resu(1:3)
+  Resu(7:8)=0.
   Resu_t=0.
   Resu_tt=0.
 CASE(2) ! Coaxial Waveguide
