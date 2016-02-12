@@ -26,6 +26,7 @@ REAL                                  :: w_sf               ! shapefuntion weigh
 REAL                                  :: r_sf0              ! minimal shape function radius
 REAL                                  :: r_sf_scale         ! scaling of shape function radius
 REAL                                  :: BetaFac            ! betafactor of shape-function || integral =1
+INTEGER                               :: sf1d_dir           ! direction of 1D shape function 
 INTEGER                               :: NDepo              ! polynomial degree of delta distri
 REAL,ALLOCATABLE                      :: NDepoChooseK(:,:)               ! array n over n
 REAL,ALLOCATABLE                      :: wBaryNDepo(:)      ! barycentric weights for deposition

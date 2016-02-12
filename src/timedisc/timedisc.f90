@@ -1715,15 +1715,15 @@ SUBROUTINE TimeStepByEulerImplicit(t)
 ! Solve Linear System 
 !===================================================================================================================================
 ! MODULES
-USE MOD_TimeDisc_Vars,ONLY:dt
-USE MOD_DG_Vars                 ,ONLY:U,Ut
-USE MOD_DG                      ,ONLY:DGTimeDerivative_weakForm
+USE MOD_DG_Vars,          ONLY:U,Ut
+USE MOD_DG,               ONLY:DGTimeDerivative_weakForm
+USE MOD_TimeDisc_Vars,    ONLY:dt,time
 USE MOD_LinearSolver,     ONLY : LinearSolver
 #ifdef PARTICLES
 USE MOD_PICDepo,          ONLY : Deposition!, DepositionMPF
 USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
 USE MOD_PIC_Vars,         ONLY : PIC
-USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
+USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF
 USE MOD_part_RHS,         ONLY : CalcPartRHS
 USE MOD_part_emission,    ONLY : ParticleInserting
 USE MOD_DSMC,             ONLY : DSMC_main
@@ -1743,7 +1743,6 @@ REAL,INTENT(IN)    :: t
 REAL               :: tstage,coeff
 !===================================================================================================================================
 
-Time = t
 ! one Euler implicit step
 ! time for source is t + dt 
 tstage = t + dt
@@ -1848,7 +1847,7 @@ SUBROUTINE TimeStepByIMEXRK(t)
 USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY: dt,iter,iStage, nRKStages
+USE MOD_TimeDisc_Vars,           ONLY: dt,iter,iStage, nRKStages,time
 USE MOD_TimeDisc_Vars,           ONLY: ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs
 USE MOD_DG_Vars,                 ONLY: U,Ut
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
@@ -1869,7 +1868,7 @@ USE MOD_PICDepo,                 ONLY: Deposition
 USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
 USE MOD_PIC_Vars,                ONLY: PIC
 USE MOD_Particle_Vars,           ONLY: PartStateN,PartStage
-USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos, DelayTime, Time, PEM, PDM, usevMPF
+USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF
 USE MOD_part_RHS,                ONLY: CalcPartRHS
 USE MOD_part_emission,           ONLY: ParticleInserting
 USE MOD_DSMC,                    ONLY: DSMC_main
@@ -1912,7 +1911,6 @@ IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
 !END IF
 #endif /*maxwell*/
 
-Time=t
 Un = U
 FieldSource=0.
 ! prediction with embadded scheme
