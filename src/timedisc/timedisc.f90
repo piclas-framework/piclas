@@ -1591,7 +1591,7 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,ONLY: dt
 USE MOD_Filter,ONLY:Filter
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, Time, PDM,PEM, Species, PartSpecies
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM,PEM, Species, PartSpecies
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, Debug_Energy,PartStateIntEn
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1613,7 +1613,6 @@ REAL,INTENT(IN)       :: t
 INTEGER               :: i
 REAL                  :: timeStart, timeEnd
 !===================================================================================================================================
-Time = t
 
 IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
   CALL UpdateNextFreePosition()
