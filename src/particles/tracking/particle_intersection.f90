@@ -188,7 +188,7 @@ SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,MyRank,UNIT_stdOut
+USE MOD_Globals,                 ONLY:Cross,abort,MyRank,UNIT_stdOut,AlmostZero
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides,nSides,BC
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierNewtonAngle
@@ -221,13 +221,13 @@ INTEGER                                  :: nInterSections,iInter,p,q
 INTEGER                                  :: iClipIter,nXiClip,nEtaClip
 REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
 #ifdef CODE_ANALYZE
-REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo),dXi
+REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
 #endif /*CODE_ANALYZE*/
 INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID!,realInterID
 LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter
 REAL                                     :: XiNewton(2)
-REAL                                     :: PartFaceAngle
+REAL                                     :: PartFaceAngle,dXi,dEta
 REAL                                     :: Interval1D,dInterVal1D
 !===================================================================================================================================
 
@@ -251,10 +251,17 @@ END IF
 
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
 IF(ABS(PartTrajectory(3)).LT.epsilontol)THEN
-  n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /) +epsilontol
+  n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /)
 ELSE
-  n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /) +epsilontol
+  n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /)
 END IF
+
+! compute angle to bouondingbox
+PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
+IF(ALMOSTZERO(PartFaceAngle*180/ACOS(-1.)))THEN
+  n1=n1 +epsilontol
+END IF
+
 n1=n1/SQRT(DOT_PRODUCT(n1,n1))
 n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) &
        , PartTrajectory(3)*n1(1)-PartTrajectory(1)*n1(3) &
@@ -273,11 +280,6 @@ END DO
 !IF(BoundingBoxIsEmpty(SideID))THEN
 !  PartFaceAngle=BezierNewtonAngle+1.0
 !ELSE
-  PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
-  IF(PartFaceAngle*180/ACOS(-1.).LE.0)THEN
-    !print*,PartFaceAngle*180/ACOS(-1.)
-    PartFaceAngle=BezierNewTonAngle-0.2
-  END IF
 !END IF
 !IF(.NOT.BezierNewtonAngle)THEN
 IF(PartFaceAngle.LT.BezierNewtonAngle)THEN ! 1° = 0.01745rad: critical side at the moment need: 0.57° angle
@@ -292,6 +294,9 @@ rPerformBezierClip=rPerformBezierClip+1.
   nEtaClip=0
   nInterSections=0
   firstClip=.TRUE.
+  dXi =MAXVAL(BezierControlPoints2D(1,:,:))-MINVAL(BezierControlPoints2D(1,:,:))
+  dEta=MAXVAL(BezierControlPoints2D(2,:,:))-MINVAL(BezierControlPoints2D(2,:,:))
+  IF(dXi.LT.dEta) firstClip=.FALSE.
   ! CALL recursive Bezier clipping algorithm
   CALL BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,lengthPartTrajectory&
                  ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
@@ -325,12 +330,12 @@ END IF
   IF(locAlpha(1).GT.-1) nInterSections=1
 #ifdef CODE_ANALYZE
   IF(nInterSections.EQ.1)THEN
-    dXi=ABS(locXi(1)-XiNewton(1))/(200*BezierClipTolerance)
+    dXi=ABS(locXi(1)-XiNewton(1))/(200.*BezierClipTolerance)
     IF(dXi.GT.1.0) THEN
       CALL abort(__STAMP__, &
        ' Wrong intersection in Xi! Clip/Newton=',nInterSections,dXi)
     END IF
-    dXi=ABS(locEta(1)-XiNewton(2))/(200*BezierClipTolerance)
+    dXi=ABS(locEta(1)-XiNewton(2))/(200.*BezierClipTolerance)
     IF(dXi.GT.1.0)THEN
       CALL abort(__STAMP__, &
        ' Wrong intersection in Eta! Clip/Newton=',nInterSections, dXi)
@@ -534,6 +539,7 @@ DO iClipIter=iClipIter,BezierClipMaxIter
   !END IF
   IF(DoXiClip)THEN
     CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck)
+    !CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck,Mode=1)
     IF(.NOT.DoCheck) EXIT
     DO q=0,NGeo 
       DO p=0,NGeo
@@ -555,8 +561,17 @@ DO iClipIter=iClipIter,BezierClipMaxIter
 
     ! calc Smin and Smax and check boundaries
     CALL CalcSminSmax(minmax,XiMin,XiMax)
-
+    IF(nXiClip.EQ.0)THEN
+      XiMin=MIN(-1.0,XiMin)
+      XiMax=Max( 1.0,XiMax)
+    END IF
     IF((XiMin.EQ.1.5).OR.(XiMax.EQ.-1.5))RETURN
+    IF(XiMin.GT.XiMax)THEN
+      tmpXi=XiMax
+      XiMax=XiMin
+      XiMin=tmpXi
+    END IF
+
     nXiClip=nXiClip+1
     ! 1.) CLIPPING xi
     IF((XiMax-XiMin).GT.BezierSplitLimit)THEN ! two possible intersections: split the clipped patch at 50%
@@ -879,6 +894,7 @@ DO iClipIter=iClipIter,BezierClipMaxIter
       FirstClip=.TRUE.
     END IF
     CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo,DoCheck)
+    !CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck,Mode=2)
     IF(.NOT.DoCheck) EXIT
     DO q=0,NGeo
       DO p=0,NGeo
@@ -903,7 +919,14 @@ DO iClipIter=iClipIter,BezierClipMaxIter
 !    ELSE
       ! calc Smin and Smax and check boundaries
       CALL CalcSminSmax(minmax,Etamin,Etamax)
+      IF(nEtaClip.EQ.0)THEN
+        EtaMin=MIN(-1.0,EtaMin)
+        EtaMax=Max( 1.0,EtaMax)
+      END IF
       IF((EtaMin.EQ.1.5).OR.(EtaMax.EQ.-1.5))RETURN
+      IF(EtaMin.GT.EtaMax)THEN
+        print*,'swwwaaaaaaaap etta'
+      END IF
       nEtaClip=nEtaClip+1
       ! 2.) CLIPPING eta
       IF((EtaMax-EtaMin).GT.BezierSplitLimit)THEN ! two possible intersections: split the clipped patch at 50%
@@ -1434,6 +1457,127 @@ alpha=-1.0
 END SUBROUTINE BezierNewton
 
 
+SUBROUTINE calcLineNormVec2(BezierControlPoints2D,LineNormVec,a,b,DoCheck,Mode)
+!================================================================================================================================
+! Calculate the normal vector for the line Ls (with which the distance of a point to the line Ls is determined)
+!================================================================================================================================
+USE MOD_Globals
+USE MOD_Globals_Vars
+USE MOD_Mesh_Vars,               ONLY:NGeo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                      :: BezierControlPoints2D(2,0:NGeo,0:NGeo)
+INTEGER,INTENT(IN)                   :: a,b,Mode
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                     :: LineNormVec(1:2)
+LOGICAL,INTENT(INOUT)                :: DoCheck
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: Length,alpha(2),dalpha, doPro,dcorr
+REAL,DIMENSION(2)                    :: LXi, Leta, M,N
+!================================================================================================================================
+
+LXi=(BezierControlPoints2D(:,a,b)-BezierControlPoints2D(:,0,0))+&
+    (BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,b,a))
+Length=SQRT(DOT_PRODUCT(LXi,LXi))
+
+IF(Length.EQ.0)THEN
+  DoCheck=.FALSE.
+  ! DEBUG: is the complete IF statement dispensable?
+  CALL abort(__STAMP__,&
+      'Bezier Clipping -> LineNormVec is Null vector!')
+  RETURN
+END IF
+LXi=LXi/Length
+
+Leta=(BezierControlPoints2D(:,b,a)-BezierControlPoints2D(:,0,0))+&
+     (BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,a,b))
+Length=SQRT(DOT_PRODUCT(Leta,Leta))
+IF(Length.EQ.0)THEN
+  DoCheck=.FALSE.
+  ! DEBUG: is the complete IF statement dispensable?
+  CALL abort(__STAMP__,&
+      'Bezier Clipping -> LineNormVec is Null vector!')
+  RETURN
+END IF
+Leta=Leta/Length
+
+
+! if Lxi and Leta are orientated in opposite directions
+doPro=DOT_PRODUCT(Lxi,Leta) ! can be negative
+
+IF(ABS(doPro).GT.0.5)THEN
+  ! only required here
+  alpha(1)=atan2(Lxi (2),Lxi (1))
+  alpha(2)=atan2(Leta(2),Leta(1))
+  
+  IF(alpha(1).LT.0) alpha(1)=alpha(1)+2.*PI
+  IF(alpha(2).LT.0) alpha(2)=alpha(2)+2.*PI
+  
+  dalpha=alpha(1)-alpha(2)
+
+  IF(dalpha.LT.0)THEN
+    ! alpha2.GT.alpha1
+    IF(dalpha.LT.-PI)THEN
+      IF(dalpha.LT.-1.5*PI)THEN
+        ! dcorr=2*PI+dalpha
+        dcorr=2*PI+dalpha
+      ELSE
+        dcorr=dalpha+PI
+      END IF
+    ELSE
+      IF(dalpha.LT.-0.5*PI)THEN
+        ! dcorr=2*PI+dalpha
+        dcorr=PI+dalpha
+      ELSE
+        dcorr=dalpha !+0.5*PI
+      END IF
+    END IF
+  ELSE
+    ! angle angle2.LT.angle1
+    IF(dalpha.GT.PI)THEN
+      IF(dalpha.GT.1.5*PI)THEN
+        dcorr=-2*PI+dalpha
+      ELSE
+        dcorr=-PI+dalpha
+      END IF
+    ELSE
+      IF(dalpha.GT.0.5*PI)THEN
+        dcorr=-PI+dalpha
+      ELSE
+        dcorr=dalpha
+      END IF
+    END IF
+  END IF 
+  dcorr=dcorr*0.5
+  IF(Mode.EQ.1)THEN
+    alpha(1)=alpha(1)+dcorr
+    LineNormVec(1)=COS(alpha(1))
+    LineNormVec(2)=SIN(alpha(1))
+  ELSE
+    alpha(2)=alpha(2)-dcorr
+    LineNormVec(1)=COS(alpha(2))
+    LineNormVec(2)=SIN(alpha(2))
+  END IF
+ELSE
+  IF(Mode.EQ.1)THEN
+    LineNormVec=Lxi
+  ELSE
+    LineNormVec=Leta
+  END IF
+END IF
+
+! DEBUG: fix from (could become zero)
+!      AUTHOR = {Efremov, Alexander and Havran, Vlastimil and Seidel, Hans-Peter},                                   
+!      TITLE = {Robust and Numerically Stable Bezier Clipping Method for Ray Tracing NURBS Surfaces},                
+!      YEAR = {2005},
+END SUBROUTINE calcLineNormVec2
+
+
+
 SUBROUTINE calcLineNormVec(BezierControlPoints2D,LineNormVec,a,b,DoCheck)
 !================================================================================================================================
 ! Calculate the normal vector for the line Ls (with which the distance of a point to the line Ls is determined)
@@ -1565,7 +1709,8 @@ FUNCTION InsideBoundingBox(ParticlePosition,SideID)
 !================================================================================================================================
 ! check is the particles is inside the bounding box, return TRUE/FALSE
 !================================================================================================================================
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,BiLinearCoeff
+USE MOD_Globals_Vars
+USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff!,epsilontol
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
 ! IMPLICIT VARIABLE HANDLING
@@ -1584,19 +1729,22 @@ REAL                                 :: x,y,z,P(3)
 P=ParticlePosition-BezierControlPoints3D(1:3,0,0,SideID)
 ! y is perpendicular to xi & eta directions --> check first, smallest intervall
 y=DOT_PRODUCT(P,SideSlabNormals(:,2,SideID))
-IF((y.LT.SideSlabIntervals(3,SideID)-epsilontol).OR.(y.GT.SideSlabIntervals(4,SideID)+epsilontol))THEN
+!IF((y.LT.SideSlabIntervals(3,SideID)-epsilontol).OR.(y.GT.SideSlabIntervals(4,SideID)+epsilontol))THEN
+IF((y.LT.SideSlabIntervals(3,SideID)-100.*epsMach).OR.(y.GT.SideSlabIntervals(4,SideID)+100.*epsMach))THEN
   InsideBoundingBox=.FALSE.
   RETURN
 END IF
 ! than xi
 x=DOT_PRODUCT(P,SideSlabNormals(:,1,SideID))
-IF((x.LT.SideSlabIntervals(1,SideID)-epsilontol).OR.(x.GT.SideSlabIntervals(2,SideID)+epsilontol))THEN
+!IF((x.LT.SideSlabIntervals(1,SideID)-epsilontol).OR.(x.GT.SideSlabIntervals(2,SideID)+epsilontol))THEN
+IF((x.LT.SideSlabIntervals(1,SideID)-100.*epsMach).OR.(x.GT.SideSlabIntervals(2,SideID)+100.*epsMach))THEN
   InsideBoundingBox=.FALSE.
   RETURN
 END IF
 ! than eta
 z=DOT_PRODUCT(P,SideSlabNormals(:,3,SideID))
-IF((z.LT.SideSlabIntervals(5,SideID)-epsilontol).OR.(z.GT.SideSlabIntervals(6,SideID)+epsilontol))THEN
+!IF((z.LT.SideSlabIntervals(5,SideID)-epsilontol).OR.(z.GT.SideSlabIntervals(6,SideID)+epsilontol))THEN
+IF((z.LT.SideSlabIntervals(5,SideID)-100.*epsMach).OR.(z.GT.SideSlabIntervals(6,SideID)+100.*epsMach))THEN
   InsideBoundingBox=.FALSE.
   RETURN
 END IF
@@ -1608,7 +1756,9 @@ FUNCTION BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideI
 !================================================================================================================================
 ! check if the particle trajectory penetrates the bounding box, return TRUE/FALSE
 !================================================================================================================================
-USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol,BiLinearCoeff
+USE MOD_Globals_Vars
+!USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol,BiLinearCoeff
+USE MOD_Particle_Surfaces_Vars,   ONLY:BiLinearCoeff
 USE MOD_Particle_Vars,            ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
 USE MOD_TimeDisc_Vars,               ONLY:iter
@@ -1634,8 +1784,9 @@ INTEGER                              :: i
 DO i=1,3!x,y,z direction
   !dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(i,:,SideID))
   dnk=DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,i,SideID))
-  IF(ABS(dnk).LT.epsilontol)THEN
-    dnk=epsilontol ! ÜBERPRÜFEN OB SIGN sinn macht
+  !IF(ABS(dnk).LT.epsilontol)THEN
+  IF(ABS(dnk).LT.100.*epsMach)THEN
+    dnk=100.*epsMach ! ÜBERPRÜFEN OB SIGN sinn macht
   END IF
   IF(dnk.LT.0.)THEN
     alpha(1,i)=( DOT_PRODUCT(BezierControlPoints3D(:,0,0,SideID)-LastPartPos(iPart,:),SideSlabNormals(:,i,SideID))&
@@ -1656,8 +1807,11 @@ END DO!i
 maxvalue=MAXVAL(alpha(1,:))
 minvalue=MINVAL(alpha(2,:))
 
+
+
 IF(maxvalue.LE.minvalue)THEN!smallest interval exists with atleast one point
-  IF((maxvalue.LT.lengthPartTrajectory+epsilontol).AND.(maxvalue+epsilontol.GT.0.))THEN
+  !IF((maxvalue.LT.lengthPartTrajectory+epsilontol).AND.(maxvalue+epsilontol.GT.0.))THEN
+  IF((maxvalue.LT.lengthPartTrajectory+100.*epsMach).AND.(maxvalue+100.*epsMach.GT.0.))THEN
   !the first intersection is less than lengthPartTrajectory and greater 0
     BoundingBoxIntersection=.TRUE.
   ELSE
@@ -2120,7 +2274,7 @@ SUBROUTINE ComputeBiLinearIntersectionSuperSampled2(isHit,xNodes,PartTrajectory,
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,BezierHitEpsBi,BezierClipHit
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,BezierClipHit
 USE MOD_Particle_Vars,ONLY:PartState
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
@@ -2325,7 +2479,7 @@ SUBROUTINE ComputeBiLinearIntersectionRobust(isHit,xNodes,PartTrajectory,lengthP
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,BezierHitEpsBi,Beziercliphit
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,Beziercliphit
 USE MOD_Particle_Vars,ONLY:PartState
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList,nTotalBCSides
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier

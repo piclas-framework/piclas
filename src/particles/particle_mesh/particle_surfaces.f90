@@ -107,20 +107,23 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES ...!'
 
 BezierNewtonAngle     = GETREAL('BezierNewtonAngle','1.570796326')! 1°=0.01754 (in rad)
 
-epsilontol            = GETREAL('epsilontol','1e-10')
-BezierHitEpsBi        = GETREAL('BezierHitEpsBi','1e-12')
-BezierHitEpsBi        = 1.0+BezierHitEpsBi
+!BezierHitEpsBi        = GETREAL('BezierHitEpsBi','1e-12')
+!BezierHitEpsBi        = 1.0+BezierHitEpsBi
 !BezierHitEpsBi=1.0+SQRT(EPSILON(0.0))
 !BezierHitEpsBi=1.000800
-MinusEps              = -epsilontol
-OnePlusEps            = 1.0 + epsilontol
-OneMinusEps           = 1.0 - epsilontol
 BezierClipTolerance   = GETREAL('BezierClipTolerance','1e-8')
 BezierSplitLimit      = GETREAL('BezierSplitLimit','0.6')
 BezierSplitLimit      = 2.*BezierSplitLimit
 BezierClipMaxIter     = GETINT('BezierClipMaxIter','100')
 
-BezierClipHit         = GETREAL('BezierClipHit','1e-6')
+epsilontol            = GETREAL('epsilontol','0.')
+IF(ALMOSTZERO(epsilontol)) epsilontol=100.*BezierClipTolerance
+MinusEps              = -epsilontol
+OnePlusEps            = 1.0 + epsilontol
+OneMinusEps           = 1.0 - epsilontol
+
+BezierClipHit         = GETREAL('BezierClipHit','0.')
+IF(ALMOSTZERO(BezierClipHit)) BezierClipHit=100.*BezierClipTolerance
 BezierClipHit         = 1.0+BezierClipHit
 tmp=2*(NGeo+1)
 WRITE(dummy,'(I2.2)') tmp

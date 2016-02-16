@@ -1340,7 +1340,7 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,ONLY: dt
 USE MOD_Filter,ONLY:Filter
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, Time, PDM,PEM
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos,  PDM,PEM
 USE MOD_DSMC_Vars,        ONLY : DSMC_RHS
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
@@ -1361,7 +1361,6 @@ REAL,INTENT(IN)       :: t
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 !===================================================================================================================================
-Time = t
 
   LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
   LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
