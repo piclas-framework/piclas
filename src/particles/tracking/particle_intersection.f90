@@ -330,16 +330,22 @@ END IF
   IF(locAlpha(1).GT.-1) nInterSections=1
 #ifdef CODE_ANALYZE
   IF(nInterSections.EQ.1)THEN
-    dXi=ABS(locXi(1)-XiNewton(1))/(200.*BezierClipTolerance)
+    dXi =ABS(locXi(1)-XiNewton(1)) !/(400.*BezierClipTolerance)
+    dEta=ABS(locEta(1)-XiNewton(2))!/(400.*BezierClipTolerance)
+    dXi =dXi*dXi+dEta*dEta
+    dXi =SQRT(dXi)/(400.*BezierClipTolerance)
     IF(dXi.GT.1.0) THEN
-      CALL abort(__STAMP__, &
-       ' Wrong intersection in Xi! Clip/Newton=',nInterSections,dXi)
+      IPWRITE(UNIT_stdout,*) ': Difference between Intersections > Tolerance'
+      IPWRITE(UNIT_stdout,*) ': xi-clip,   xi-newton', locXi(1), XiNewton(1)
+      IPWRITE(UNIT_stdout,*) ': eta-clip, eta-newton', loceta(1), XiNewton(2)
+      !CALL abort(__STAMP__, &
+      ! ' Wrong intersection in Xi! Clip/Newton=',nInterSections,dXi)
     END IF
-    dXi=ABS(locEta(1)-XiNewton(2))/(200.*BezierClipTolerance)
-    IF(dXi.GT.1.0)THEN
-      CALL abort(__STAMP__, &
-       ' Wrong intersection in Eta! Clip/Newton=',nInterSections, dXi)
-    END IF
+    !IF(dXi.GT.1.0)THEN
+    !  IPWRITE(UNIT_stdout,*) ' eta-clip, eta-newton', loceta(1), XiNewton(2)
+    !  CALL abort(__STAMP__, &
+    !   ' Wrong intersection in Eta! Clip/Newton=',nInterSections, dXi)
+    !END IF
   END IF
 #endif /*CODE_ANALYZE*/
   locXi (1)=XiNewton(1)
