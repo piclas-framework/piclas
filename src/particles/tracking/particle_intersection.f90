@@ -256,7 +256,7 @@ ELSE
   n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /)
 END IF
 
-! compute angle to bouondingbox
+! check angle to boundingbox (height normal vector)
 PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
 IF(ALMOSTZERO(PartFaceAngle*180/ACOS(-1.)))THEN
   n1=n1 +epsilontol

@@ -117,6 +117,9 @@ BezierSplitLimit      = 2.*BezierSplitLimit
 BezierClipMaxIter     = GETINT('BezierClipMaxIter','100')
 
 epsilontol            = GETREAL('epsilontol','0.')
+! if nothing is entered, than a default value is used
+! for tolerance issuses see, e.g. Haselbxxx PIC Tracking Paper
+! epsilon approx 100*tolerance of the algorithm
 IF(ALMOSTZERO(epsilontol)) epsilontol=100.*BezierClipTolerance
 MinusEps              = -epsilontol
 OnePlusEps            = 1.0 + epsilontol
