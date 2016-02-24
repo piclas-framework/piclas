@@ -37,7 +37,7 @@ SUBROUTINE DSMC_main()
   USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
   USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5
-  USE MOD_TimeDisc_Vars,         ONLY : TEnd
+  USE MOD_TimeDisc_Vars,         ONLY : TEnd,dt
   USE MOD_DSMC_ChemReact,        ONLY : SetMeanVibQua
   USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical
   USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
@@ -163,7 +163,7 @@ SUBROUTINE DSMC_main()
           ! Skipping outputs immediately after the first few iterations
           IF(RestartTime.LT.((1-DSMC%TimeFracSamp)*TEnd + DSMC%DeltaTimeOutput * REAL(nOutput))) THEN 
             ! 
-            CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time)
+            CALL WriteDSMCHOToHDF5(TRIM(MeshFile),time+dt)
             IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
           END IF
         END IF

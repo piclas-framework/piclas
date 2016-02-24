@@ -48,6 +48,7 @@ USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
 USE MOD_Mesh_Vars,              ONLY:BC
+USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 !USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
@@ -66,6 +67,7 @@ REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTraj
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3)
+INTEGER                              :: BCSideID
 #if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 REAL                                 :: absPt_temp
 #endif
@@ -82,6 +84,21 @@ SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
+
+  IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
+    BCSideID=PartBCSideList(SideID)
+    SELECT CASE(SideType(BCSideID))
+    CASE(PLANAR)
+      n_loc=SideNormVec(1:3,BCSideID)
+    CASE(BILINEAR)
+      n_loc=CalcBiLinearNormVecBezier(xi,eta,BCSideID)
+    CASE(CURVED)
+      n_loc=CalcNormVecBezier(xi,eta,BCSideID)
+    !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
+    END SELECT 
+    IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
+  END IF
+
   IF(CalcPartBalance) THEN
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
@@ -193,7 +210,7 @@ USE MOD_Globals!,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
 USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
-USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec
+USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
@@ -226,8 +243,7 @@ SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 CASE(1) !PartBound%OpenBC)
 !CASE(PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-
-  IF(alpha.LE.0.)THEN ! if particle is close to BC, it encounters the BC only if it leaves the element/grid
+  IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
     BCSideID=PartBCSideList(SideID)
     SELECT CASE(SideType(BCSideID))
     CASE(PLANAR)
@@ -516,7 +532,7 @@ REAL                                 :: EtraWall, EtraNew
 REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
 REAL                                 :: n_loc(1:3), tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
-REAL                                 :: WallTransACC
+!REAL                                 :: WallTransACC
 INTEGER                              :: p,q, SurfSideID
 !===================================================================================================================================
 
@@ -527,7 +543,7 @@ locBCID=PartBound%MapToPartBC(BC(SideID))
 ! get BC values
 WallVelo     = PartBound%WallVelo(1:3,locBCID)
 WallTemp     = PartBound%WallTemp(locBCID)
-WallTransACC = PartBound%TransACC(locBCID)
+TransACC = PartBound%TransACC(locBCID)
 VibACC       = PartBound%VibACC(locBCID)
 RotACC       = PartBound%RotACC(locBCID)
 

@@ -85,7 +85,9 @@ USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic
 USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem,NGeo
-USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL
+USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi,BezierSampledAreasInitIsDone
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleProjection,BezierSampleProjectionVec
 USE MOD_LoadBalance_Vars,       ONLY:nTracksPerElem
 !USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
 ! IMPLICIT VARIABLE HANDLING
@@ -147,6 +149,17 @@ ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierE
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
  ,'  Cannot allocate BezierControlPoints3DElevated!')
 BezierControlPoints3DElevated=0.
+
+! SurfMesh stuff:
+BezierSampledAreasInitIsDone=.FALSE.
+BezierSampleProjection   =GETLOGICAL('BezierSampleProjection','.FALSE.') !dummy so far, to be changed for final surfaceflux
+IF (BezierSampleProjection) THEN
+  BezierSampleProjectionVec=GETREALARRAY('BezierSampleProjectionVec',3,'1. , 0. , 0.')
+  BezierSampleProjectionVec=BezierSampleProjectionVec/SQRT(DOT_PRODUCT(BezierSampleProjectionVec,BezierSampleProjectionVec))
+END IF
+BezierSampleN = GETINT('BezierSampleN','0')
+ALLOCATE(BezierSampleXi(0:BezierSampleN))!,STAT=ALLOCSTAT)
+
 !--- Initialize Periodic Side Info
 !ALLOCATE(SidePeriodicType(1:nSides)) 
 !SidePeriodicType=0

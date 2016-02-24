@@ -47,6 +47,8 @@ USE MOD_PICInterpolation_Vars,      ONLY: useBGField
 #ifdef MPI
 USE MOD_Particle_MPI,               ONLY:InitParticleCommSize
 #endif
+USE MOD_Particle_Surfaces,          ONLY:GetBezierSampledAreas
+USE MOD_Particle_Surfaces_Vars,     ONLY:BezierSampleN, BezierSampleProjection
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -70,6 +72,13 @@ CALL InitializeVariables()
 CALL InitParticleCommSize()
 #endif
 IF(useBGField) CALL InitializeBackgroundField()
+
+! sample the bezier face
+IF (BezierSampleN.GT.0) THEN
+  CALL GetBezierSampledAreas()
+  IF (BezierSampleProjection) CALL GetBezierSampledAreas(BezierSampleProjection)
+END IF
+
 CALL InitializeParticleEmission()
 
 IF (useDSMC) THEN

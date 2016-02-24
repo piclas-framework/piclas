@@ -508,7 +508,7 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
 #elif(PP_TimeDiscMethod==1001)
     CALL LD_DSMC_output_calc()
 #else
-    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
     IF (DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
 #endif
     nOutput = nOutput + 1
@@ -521,13 +521,13 @@ END IF
 IF(OutPut)THEN
 #if (PP_TimeDiscMethod==42)
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.DSMC%ReservoirSimu)) THEN
-    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+    CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
   END IF
 #else
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
     nOutput = INT((DSMC%TimeFracSamp * TEnd) / DSMC%DeltaTimeOutput)
     IF (.NOT. useLD) THEN
-      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t)
+      CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
     END IF
     IF(DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
   END IF
