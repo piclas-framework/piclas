@@ -57,6 +57,10 @@ USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides
 USE MOD_Particle_Vars           ,ONLY:nSpecies
+USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
+USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
+USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D
+USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList
 #ifdef MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
@@ -70,7 +74,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: q,iSide,SurfSideID
+INTEGER                                :: p,q,iSide,SurfSideID,SideID
+INTEGER                                :: iSample,jSample
+REAL,DIMENSION(2,3)                    :: gradXiEta3D
+REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
+REAL                                   :: tmpI1,tmpJ1,tmpI2,tmpJ2,XiOut(1:2),E,F,G,D,tmp1
 !CHARACTER(2)                :: hilf
 !===================================================================================================================================
  
@@ -145,7 +153,7 @@ ALLOCATE(SampWall(1:SurfMesh%nTotalSides))
 
 SurfMesh%SampSize=9+3+nSpecies ! Energy + Force + nSpecies
 DO iSide=1,SurfMesh%nTotalSides
-  ALLOCATE(SampWall(iSide)%State(1:SurfMesh%SampSize,0:nSurfSample,0:nSurfSample))
+  ALLOCATE(SampWall(iSide)%State(1:SurfMesh%SampSize,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%State=0.
   !ALLOCATE(SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         &
   !        ,SampWall(iSide)%Force(1:9,0:nSurfSample,0:nSurfSample)          &
@@ -156,16 +164,44 @@ DO iSide=1,SurfMesh%nTotalSides
   !SampWall(iSide)%Counter(1:nSpecies,0:nSurfSample,0:nSurfSample) = 0.
 END DO
 
-ALLOCATE(SurfMesh%SurfaceArea(0:nSurfSample,0:nSurfSample,1:SurfMesh%nTotalSides)) 
+ALLOCATE(SurfMesh%SurfaceArea(1:nSurfSample,1:nSurfSample,1:SurfMesh%nTotalSides)) 
 SurfMesh%SurfaceArea=0.
 
+
+ALLOCATE(Xi_NGeo( 0:NGeo)  &
+        ,wGP_NGeo(0:NGeo) )
+CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
+
 ! compute area of sub-faces
+tmp1=dXiEQ_SurfSample/2.0 !(b-a)/2
 DO iSide=1,nTotalSides
   SurfSideID=SurfMesh%SideIDToSurfID(iSide)
   IF(SurfSideID.EQ.-1) CYCLE
+  SideID=PartBCSideList(iSide)
   ! call here stephens algorithm to compute area 
-  ! missing
+  DO jSample=1,nSurfSample
+    DO iSample=1,nSurfSample
+      tmpI2=(XiEQ_SurfSample(iSample-1)+XiEQ_SurfSample(iSample))/2. ! (a+b)/2
+      tmpJ2=(XiEQ_SurfSample(jSample-1)+XiEQ_SurfSample(jSample))/2. ! (a+b)/2
+      DO q=0,NGeo
+        DO p=0,NGeo
+          XiOut(1)=tmp1*Xi_NGeo(p)+tmpI2
+          XiOut(2)=tmp1*Xi_NGeo(q)+tmpJ2
+          CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+                                                  ,Gradient=gradXiEta3D)
+          ! calculate first fundamental form
+          E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
+          F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
+          G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
+          D=SQRT(E*G-F*F)
+          SurfMesh%SurfaceArea(iSample,jSample,SurfSideID)=tmp1*tmp1*D*wGP_NGeo(p)*wGP_NGeo(q)      
+        END DO
+      END DO
+    END DO ! iSample=1,nSurfSample
+  END DO ! jSample=1,nSurfSample
 END DO ! iSide=1,nTotalSides
+
+DEALLOCATE(Xi_NGeo,wGP_NGeo)
 
 SWRITE(UNIT_stdOut,'(A)') ' ... DONE.'
 
@@ -282,7 +318,7 @@ INTEGER                           :: iProc, GlobalProcID,iSide,ElemID,SurfSideID
 INTEGER,ALLOCATABLE               :: recv_status_list(:,:)
 !===================================================================================================================================
 
-nDOF=(nSurfSample+1)*(nSurfSample+1)
+nDOF=(nSurfSample)*(nSurfSample)
 
 IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
   ALLOCATE(PartHaloSideToProc(1:4,SurfMesh%nSides+1:SurfMesh%nTotalSides))
@@ -486,7 +522,7 @@ INTEGER                         :: iPos,p,q,iProc
 INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
 
-nValues=SurfMesh%SampSize*(nSurfSample+1)**2
+nValues=SurfMesh%SampSize*(nSurfSample)**2
 !
 ! open receive buffer
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -506,8 +542,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   iPos=0
   DO iSurfSide=1,SurfExchange%nSidesSend(iProc)
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%SendList(iSurfSide)
-    DO q=0,nSurfSample
-      DO p=0,nSurfSample
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
         SurfSendBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)= SampWall(SurfSideID)%State(:,p,q)
         iPos=iPos+SurfMesh%SampSize
       END DO ! p=0,nSurfSample
@@ -545,8 +581,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   iPos=0
   DO iSurfSide=1,SurfExchange%nSidesRecv(iProc)
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
-    DO q=0,nSurfSample
-      DO p=0,nSurfSample
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample
         SampWall(SurfSideID)%State(:,p,q)=SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)
         iPos=iPos+SurfMesh%SampSize
       END DO ! p=0,nSurfSample
@@ -604,7 +640,7 @@ Statedummy = 'DSMCSurfState'
 CALL WriteHDF5Header(Statedummy,File_ID)
 
 
-CALL WriteAttributeToHDF5(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample)
+CALL WriteAttributeToHDF5(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample-1)
 CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
 CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
 CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
@@ -620,10 +656,10 @@ StrVarnames(3)='ForceZ'
 StrVarnames(4)='HeatFlux'
 StrVarnames(5)='Counter'
 
-CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=5,&
-                    nValGlobal=(/5,nSurfSample+1,nSurfSample+1,nSurfSample+1,SurfMesh%nGlobalSides/),&
-                    nVal=      (/5,nSurfSample+1,nSurfSample+1,nSurfSample+1,SurfMesh%nSides/),&
-                    offset=    (/0,      0,     0,     0,     offsetSurfSide/),&
+CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=4,&
+                    nValGlobal=(/5,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
+                    nVal=      (/5,nSurfSample,nSurfSample,SurfMesh%nSides/),&
+                    offset=    (/0,          0,          0,offsetSurfSide/),&
                     collective=.TRUE., RealArray=MacroSurfaceVal)
 CALL CloseDataFile()
 

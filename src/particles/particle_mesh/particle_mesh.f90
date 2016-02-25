@@ -101,6 +101,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT
 INTEGER           :: iElem, ilocSide,SideID,flip,iSide
+CHARACTER(LEN=2)  :: hilf
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -157,7 +158,9 @@ IF (BezierSampleProjection) THEN
   BezierSampleProjectionVec=GETREALARRAY('BezierSampleProjectionVec',3,'1. , 0. , 0.')
   BezierSampleProjectionVec=BezierSampleProjectionVec/SQRT(DOT_PRODUCT(BezierSampleProjectionVec,BezierSampleProjectionVec))
 END IF
-BezierSampleN = GETINT('BezierSampleN','0')
+
+WRITE( hilf, '(I2.2)') NGeo
+BezierSampleN = GETINT('BezierSampleN',hilf)
 ALLOCATE(BezierSampleXi(0:BezierSampleN))!,STAT=ALLOCSTAT)
 
 !--- Initialize Periodic Side Info

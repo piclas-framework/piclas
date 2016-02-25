@@ -532,6 +532,7 @@ REAL                                 :: EtraWall, EtraNew
 REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
 REAL                                 :: n_loc(1:3), tang1(1:3),tang2(1:3), NewVelo(3)
 REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
+REAL                                 :: Xitild,EtaTild
 !REAL                                 :: WallTransACC
 INTEGER                              :: p,q, SurfSideID
 !===================================================================================================================================
@@ -608,8 +609,11 @@ IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%Calc
 ! has to be corrected to new scheme
   SurfSideID=SurfMesh%SideIDToSurfID(SideID)
   ! compute p and q
-  p=MIN(INT((Xi -1.0)/dXiEQ_SurfSample),nSurfSample)
-  q=MIN(INT((Eta-1.0)/dXiEQ_SurfSample),nSurfSample)
+  ! correction of xi and eta, can only be applied if xi & eta are not used later!
+  Xitild =MIN(MAX(-1.,XI ),1.0)
+  Etatild=MIN(MAX(-1.,Eta),1.0)
+  p=INT((Xitild -1.0)/dXiEQ_SurfSample)+1
+  q=INT((Etatild-1.0)/dXiEQ_SurfSample)+1
 
   SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraOld &
                                    *Species(PartSpecies(PartID))%MacroParticleFactor
