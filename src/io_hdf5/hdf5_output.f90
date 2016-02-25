@@ -492,6 +492,9 @@ USE MOD_Particle_Vars,      ONLY:PDM, PEM, PartState, PartSpecies, PartMPF, usev
 USE MOD_part_tools,         ONLY:UpdateNextFreePosition
 USE MOD_DSMC_Vars,          ONLY:UseDSMC, CollisMode,PartStateIntEn, DSMC
 USE MOD_LD_Vars,            ONLY:UseLD, PartStateBulkValues
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,  ONLY:PartMPI
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -847,38 +850,13 @@ INTEGER                        :: minnParts
     CALL CloseDataFile()
   END IF
 
-!  SWRITE(*,*) 'minnparts',minnparts
-#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-  IF(minnParts.EQ.0)THEN
-!    CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
-!                          nValGlobal=(/nPart_glob,PartDataSize/),&
-!                          nVal=      (/locnPart,PartDataSize  /),&
-!                          offset=    (/offsetnPart , 0  /),&
-!                          collective=.FALSE., existing=.FALSE., RealArray=PartData)
-   CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                           DataSetName='PartData', rank=2,&
-                           nValGlobal=(/nPart_glob,PartDataSize/),&
-                           nVal=      (/locnPart,PartDataSize  /),&
-                           offset=    (/offsetnPart,0/),&
-                           collective=.FALSE.,RealArray=PartData)
-
-  ELSE
-#endif /* HDF5_F90 */
-  !CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
-  !                        nValGlobal=(/nPart_glob,PartDataSize/),&
-  !                        nVal=      (/locnPart,PartDataSize  /),&
-  !                        offset=    (/offsetnPart , 0  /),&
-  !                        collective=.TRUE., existing=.FALSE., RealArray=PartData)
-   CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                           DataSetName='PartData', rank=2,&
-                           nValGlobal=(/nPart_glob,PartDataSize/),&
-                           nVal=      (/locnPart,PartDataSize  /),&
-                           offset=    (/offsetnPart,0/),&
-                           collective=.TRUE.,RealArray=PartData)
-
-#ifdef HDF5_F90 /* HDF5 compiled without fortran2003 flag */
-  END IF
-#endif /* HDF5_F90 */
+   CALL DistributedWriteArray(FileName,create=.FALSE.,&
+                              DataSetName='PartData', rank=2         ,&
+                              nValGlobal=(/nPart_glob,PartDataSize/) ,&
+                              nVal=      (/locnPart,PartDataSize/)   ,&
+                              offset=    (/offsetnPart,0/)           ,&
+                              collective=.FALSE.,offSetDim=1         ,&
+                              communicator=PartMPI%COMM,RealArray=PartData)
 
   ! reswitch
   IF(reSwitch) gatheredWrite=.TRUE.
@@ -1449,5 +1427,89 @@ END IF
 #endif
 
 END SUBROUTINE GatheredWriteArray
+
+
+SUBROUTINE DistributedWriteArray(FileName,create,DataSetName,rank,nValGlobal,nVal,offset,collective,&
+                                 offSetDim,communicator,RealArray,IntegerArray,StrArray)
+!===================================================================================================================================
+! Write distributed data to proc, e.g. particles which are not hosted by each proc
+! a new output-communicator is build and afterwards killed
+! offset is in the last dimension
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)    :: FileName,DataSetName
+LOGICAL,INTENT(IN)             :: create,collective
+INTEGER,INTENT(IN)             :: offSetDim,communicator
+INTEGER,INTENT(IN)             :: rank,nVal(rank),nValGlobal(rank),offset(rank)
+REAL              ,INTENT(IN),OPTIONAL,TARGET :: RealArray(PRODUCT(nVal))
+INTEGER           ,INTENT(IN),OPTIONAL,TARGET :: IntegerArray( PRODUCT(nVal))
+CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray( PRODUCT(nVal))
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#ifdef MPI
+INTEGER                        :: Color, OutPutCOMM,nOutPutProcs,MyOutputRank
+LOGICAL                        :: DataOnProc, DoNotSplit
+!===================================================================================================================================
+
+DataOnProc=.FALSE.
+IF(nVal(offSetDim).GT.0) DataOnProc=.TRUE.
+CALL MPI_ALLREDUCE(DataOnProc,DoNotSplit, 1, MPI_LOGICAL, MPI_LAND, COMMUNICATOR, IERROR)
+
+
+IF(.NOT.DoNotSplit)THEN
+  color=MPI_UNDEFINED
+  IF(DataOnProc) color=87
+  MyOutputRank=0
+
+  CALL MPI_COMM_SPLIT(COMMUNICATOR, color, MyOutputRank, OutputCOMM,iError)
+  IF(DataOnProc) THEN
+    CALL MPI_COMM_SIZE(OutputCOMM, nOutPutProcs,iError)
+    IF(nOutPutProcs.EQ.1)THEN
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,communicatorOpt=OutputCOMM)
+      IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
+                                                   offset,collective=.FALSE.,RealArray=RealArray)
+      IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
+                                                   offset,collective=.FALSE.,IntegerArray =IntegerArray)
+      IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
+                                                   offset,collective=.FALSE.,StrArray =StrArray)
+    ELSE 
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,communicatorOpt=OutputCOMM)
+      IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
+                                                   offset,collective,RealArray=RealArray)
+      IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
+                                                   offset,collective,IntegerArray =IntegerArray)
+      IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
+                                                   offset,collective,StrArray =StrArray)
+    END IF
+    CALL CloseDataFile()
+    CALL MPI_COMM_FREE(OutputCOMM,iERROR)
+  END IF
+  ! MPI Barrier is requried, that the other procs don't open the datafile while this procs are still writring
+  CALL MPI_BARRIER(COMMUNICATOR,IERROR)
+  OutputCOMM=MPI_UNDEFINED
+ELSE
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+#else
+  CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
+  IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
+                                               offset,collective,RealArray=RealArray)
+  IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
+                                               offset,collective,IntegerArray =IntegerArray)
+  IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
+                                               offset,collective,StrArray =StrArray)
+  CALL CloseDataFile()
+#ifdef MPI
+END IF
+#endif
+
+END SUBROUTINE DistributedWriteArray
 
 END MODULE MOD_HDF5_output

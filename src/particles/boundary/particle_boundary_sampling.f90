@@ -573,6 +573,9 @@ USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide
 USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal , CollisMode
 USE MOD_Particle_Vars,              ONLY:nSpecies
 USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
+#ifdef MPI
+USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -592,7 +595,7 @@ SWRITE(*,*) ' WRITE DSMCSurfSTATE TO HDF5 FILE...'
 FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString=TRIM(FileName)//'.h5'
 #ifdef MPI
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.)
+  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.,communicatorOpt=SurfCOMM%COMM)
 #else
   CALL OpenDataFile(FileString,create=.TRUE.)
 #endif
