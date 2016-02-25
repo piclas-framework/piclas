@@ -181,7 +181,7 @@ LastPartPos(PartID,1:3) = tmpLastPartPos
 END SUBROUTINE PartInElemCheck
 
 
-SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectoryOrig,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
 !===================================================================================================================================
 ! Compute the intersection with a Bezier surface
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
@@ -207,7 +207,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN),DIMENSION(1:3)           :: PartTrajectoryOrig
+REAL,INTENT(IN),DIMENSION(1:3)           :: PartTrajectory
 REAL,INTENT(IN)                          :: lengthPartTrajectory
 INTEGER,INTENT(IN)                       :: iPart,SideID
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -229,9 +229,8 @@ INTEGER                                  :: realnInter
 REAL                                     :: XiNewton(2)
 REAL                                     :: PartFaceAngle,dXi,dEta
 REAL                                     :: Interval1D,dInterVal1D
-REAL                                     :: PartTrajectory(3)
 !===================================================================================================================================
-PartTrajectory = PartTrajectoryOrig
+!PartTrajectory = PartTrajectory
 ! set alpha to minus 1, asume no intersection
 alpha=-1.0
 Xi   = 2.0
@@ -251,7 +250,7 @@ IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle
 END IF
 
 ! 2.) Bezier intersection: transformation of bezier patch 3D->2D
-PartTrajectory = PartTrajectoryOrig + epsilontol !move minimal in arb. dir. for preventing collapsing BezierControlPoints2D
+!PartTrajectory = PartTrajectoryOrig + epsilontol !move minimal in arb. dir. for preventing collapsing BezierControlPoints2D
 IF(ABS(PartTrajectory(3)).LT.epsilontol)THEN
   n1=(/ -PartTrajectory(2)-PartTrajectory(3)  , PartTrajectory(1) ,PartTrajectory(1) /)
 ELSE
@@ -269,7 +268,7 @@ n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) &
        , PartTrajectory(3)*n1(1)-PartTrajectory(1)*n1(3) &
        , PartTrajectory(1)*n1(2)-PartTrajectory(2)*n1(1) /)
 n2=n2/SQRT(DOT_PRODUCT(n2,n2))
-PartTrajectory = PartTrajectoryOrig !set back for preventing angles > 90 deg (0.5pi+eps)
+!PartTrajectory = PartTrajectoryOrig !set back for preventing angles > 90 deg (0.5pi+eps)
 
 DO q=0,NGeo
   DO p=0,NGeo
