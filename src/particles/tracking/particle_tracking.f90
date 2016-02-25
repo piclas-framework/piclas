@@ -429,21 +429,21 @@ REAL                          :: tLBStart,tLBEnd
 !===================================================================================================================================
 
 
-! sanity check
-DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    nCurrentParts=nCurrentParts+1
-    IF(PartState(iPart,1).NE.PartState(iPart,1)) CALL abort(&
-        __STAMP__,&
-        ' x-pos is nan of ipart',iPart)
-    IF(PartState(iPart,2).NE.PartState(iPart,2)) CALL abort(&
-        __STAMP__,&
-        ' y-pos is nan of ipart',iPart)
-    IF(PartState(iPart,3).NE.PartState(iPart,3)) CALL abort(&
-        __STAMP__,&
-        ' z-pos is nan of ipart',iPart)
-  END IF
-END DO ! iPart=1,,PDM%ParticleVecLength
+!! sanity check
+!DO iPart=1,PDM%ParticleVecLength
+!  IF(PDM%ParticleInside(iPart))THEN
+!    nCurrentParts=nCurrentParts+1
+!    IF(PartState(iPart,1).NE.PartState(iPart,1)) CALL abort(&
+!        __STAMP__,&
+!        ' x-pos is nan of ipart',iPart)
+!    IF(PartState(iPart,2).NE.PartState(iPart,2)) CALL abort(&
+!        __STAMP__,&
+!        ' y-pos is nan of ipart',iPart)
+!    IF(PartState(iPart,3).NE.PartState(iPart,3)) CALL abort(&
+!        __STAMP__,&
+!        ' z-pos is nan of ipart',iPart)
+!  END IF
+!END DO ! iPart=1,,PDM%ParticleVecLength
 
 !epsOne=1.0+epsInCell
 ParticleFound=.FALSE.
@@ -486,54 +486,118 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
 !            .OR..NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
 !            .OR..NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) ) HitBC(iPart)=.TRUE.
         IF(ParticleFound(iPart)) CYCLE
-        ! check if particle is still in element
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
-        ! particle can hit outside bc due to tolerance
-        LastPos=PartState(iPart,1:3)
-        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.0.9) THEN ! particle can be outside
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,ParticleFound(iPart))
-          IF(ParticleFound(iPart)) CYCLE
-          IF(GEO%nPeriodicVectors.GT.0)THEN
-            CALL PeriodicMovement(iPart)
+
+        IF (      ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
+            .AND. ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
+            .AND. ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) ) THEN
+          ! check if particle is still in element
+          CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+          IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.0.95) THEN ! particle is inside 
+            ParticleFound(iPart)=.TRUE.
+            CYCLE
+          ELSE
+            IF(GEO%nPeriodicVectors.GT.0)THEN
+              ! call here function for mapping of partpos and lastpartpos
+              CALL PeriodicMovement(iPart)
+            END IF
+            ! her
+            CALL ParticleBCTracking(ElemID,BCElem(ElemID)%nInnerSides+1,BCElem(ElemID)%lastSide, &
+                                           BCElem(ElemID)%lastSide-BCElem(ElemID)%nInnerSides,iPart,ParticleFound(iPart))
+            IF(ParticleFound(iPart)) CYCLE
+            DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
+                .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
+                .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
+              LastPos=PartState(iPart,1:3)
+              ! unfortunately, here all sides
+              CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+              IF(ParticleFound(iPart)) EXIT
+              IF(GEO%nPeriodicVectors.GT.0)THEN
+                ! call here function for mapping of partpos and lastpartpos
+                CALL PeriodicMovement(iPart)
+              END IF
+            END DO
+            IF(ParticleFound(iPart)) CYCLE
+            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+            IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN 
+              ParticleFound(iPart)=.TRUE.
+            END IF
+            CYCLE
           END IF
-        ELSE ! only external faces
-          !nlocSides=BCElem(ElemID)%lastSide-BCElem(ElemID)%nInnerSides
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
-          IF(ParticleFound(iPart)) CYCLE
-          IF(GEO%nPeriodicVectors.GT.0)THEN
-            CALL PeriodicMovement(iPart)
-          END IF
-        END IF
-        DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
-            .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
-            .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
+        ELSE ! not finished
+          ! particle can hit outside bc due to tolerance
           LastPos=PartState(iPart,1:3)
-          ! unfortunately, here all sides
-          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
-          IF(ParticleFound(iPart)) EXIT
           IF(GEO%nPeriodicVectors.GT.0)THEN
             ! call here function for mapping of partpos and lastpartpos
             CALL PeriodicMovement(iPart)
           END IF
-        END DO
-        IF(ParticleFound(iPart)) CYCLE
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
-
+          CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+          IF(ParticleFound(iPart)) CYCLE
+          DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
+              .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
+              .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
+            LastPos=PartState(iPart,1:3)
+            ! unfortunately, here all sides
+            CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+            IF(ParticleFound(iPart)) EXIT
+            IF(GEO%nPeriodicVectors.GT.0)THEN
+              ! call here function for mapping of partpos and lastpartpos
+              CALL PeriodicMovement(iPart)
+            END IF
+          END DO
+          IF(ParticleFound(iPart)) CYCLE
+          CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+          IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN 
+            ParticleFound(iPart)=.TRUE.
+          END IF
+          CYCLE
+        END IF
+        ! old
+        !! particle can hit outside bc due to tolerance
+        !LastPos=PartState(iPart,1:3)
+        !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.0.9) THEN ! particle can be outside
+        !  CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,ParticleFound(iPart))
+        !  IF(ParticleFound(iPart)) CYCLE
+        !  IF(GEO%nPeriodicVectors.GT.0)THEN
+        !    CALL PeriodicMovement(iPart)
+        !  END IF
+        !ELSE ! only external faces
+        !  !nlocSides=BCElem(ElemID)%lastSide-BCElem(ElemID)%nInnerSides
+        !  CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+        !  IF(ParticleFound(iPart)) CYCLE
+        !  IF(GEO%nPeriodicVectors.GT.0)THEN
+        !    CALL PeriodicMovement(iPart)
+        !  END IF
+        !END IF
+        !DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
+        !    .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
+        !    .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
+        !  LastPos=PartState(iPart,1:3)
+        !  ! unfortunately, here all sides
+        !  CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
+        !  IF(ParticleFound(iPart)) EXIT
+        !  IF(GEO%nPeriodicVectors.GT.0)THEN
+        !    ! call here function for mapping of partpos and lastpartpos
+        !    CALL PeriodicMovement(iPart)
+        !  END IF
+        !END DO
+        !IF(ParticleFound(iPart)) CYCLE
+        !CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
       ELSE ! no bc elem, therefore, no bc ineraction possible
 #if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
 #else
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
 #endif
+        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle inside
+          PEM%Element(iPart)  = ElemID
+          ParticleFound(iPart)=.TRUE.
+        !ELSE IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.5) THEN
+        !  IPWRITE(UNIT_stdOut,*) ' partposref to large!',iPart
+        END IF
       END IF ! initial check
       !IF(iPart.EQ.1) print*,'pos,elem',PartPosRef(:,ipart),ElemID
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.BezierClipHit) THEN ! particle inside
-      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.1.0) THEN ! particle inside
-        PEM%Element(iPart)  = ElemID
-        ParticleFound(iPart)=.TRUE.
-      !ELSE IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.5) THEN
-      !  IPWRITE(UNIT_stdOut,*) ' partposref to large!',iPart
-      END IF
+      !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.1.0) THEN ! particle inside
       !IF((iPart.EQ.85).AND.(iter.GE.30))THEN
       !  WRITE(*,*) ' PartPosRef', PartPosRef(1:3,iPart)
       !  WRITE(*,*) ' max val',MAXVAL(ABS(PartPosRef(1:3,iPart)))
