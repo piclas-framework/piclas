@@ -53,6 +53,7 @@ POIS           =
 OPTIMIZED      =
 BLAS_LAPACK    = T
 IMEX           = 
+IMPA           = 
 HDF5_F90       =
 CODE_ANALYZE   =
 
@@ -79,7 +80,18 @@ ifeq ($(EQNSYS),electrostatic_pois)
   NVAR = 4
   POIS = T
 endif
-# select timediscrange for imex
+# explicit RK || explicit particles with LSERK push and communication
+ifeq ($(TIMEDISCMETHOD),1)
+  LSERK=T
+endif
+ifeq ($(TIMEDISCMETHOD),2)
+  LSERK=T
+endif
+ifeq ($(TIMEDISCMETHOD),6)
+  LSERK=T
+endif
+
+# select timediscrange for imex || normal, n-stage RK scheme
 ifeq ($(TIMEDISCMETHOD),100)
   IMEX=T
 endif
@@ -92,6 +104,18 @@ endif
 ifeq ($(TIMEDISCMETHOD),103)
   IMEX=T
 endif
+
+# implicit particle treatment || normal, n-stage DIRK communication
+ifeq ($(TIMEDISCMETHOD),110)
+  IMPA=T
+endif
+ifeq ($(TIMEDISCMETHOD),111)
+  IMPA=T
+endif
+ifeq ($(TIMEDISCMETHOD),112)
+  IMPA=T
+endif
+
 
 #=================================================================================================================================#
 # GET MACHINE ENVIRONMENT AND SET FILESYSTEM
@@ -127,6 +151,12 @@ endif
 PREPROC  =-DPP_TimeDiscMethod=$(TIMEDISCMETHOD)
 ifneq ($(IMEX),)
   PREPROC +=-DIMEX
+endif
+ifneq ($(IMPA),)
+  PREPROC +=-DIMPA
+endif
+ifneq ($(LSERK),)
+  PREPROC +=-DLSERK
 endif
 PREPROC +=-DPP_NodeType=$(NODETYPE)
 PREPROC +=-DPP_Riemann=$(RIEMANN)
