@@ -26,7 +26,7 @@ INTERFACE VectorDotProduct
   MODULE PROCEDURE VectorDotProduct
 END INTERFACE
 
-#ifdef PARTICLES
+#if defined(PARTICES) && defined(IMPA)
 INTERFACE PartVectorDotProduct
   MODULE PROCEDURE PartVectorDotProduct
 END INTERFACE
@@ -38,7 +38,7 @@ END INTERFACE
 
 
 PUBLIC:: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL
-#ifdef PARTICLES
+#if defined(PARTICES) && defined(IMPA)
 PUBLIC:: PartVectorDotProduct,PartMatrixVector
 #endif
 !===================================================================================================================================
@@ -176,7 +176,7 @@ END DO
 
 END SUBROUTINE VectorDotProduct
 
-#ifdef PARTICLES
+#if defined(PARTICES) && defined(IMPA)
 SUBROUTINE PartVectorDotProduct(a,b,resu)
 !===================================================================================================================================
 ! Computes Dot Product for vectors a and b: resu=a.b

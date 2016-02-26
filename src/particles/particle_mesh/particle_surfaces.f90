@@ -1234,7 +1234,7 @@ SUBROUTINE GetElemSlabNormalsAndIntervals(NGeo,ElemID)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,GEO,PartBCSideList
+USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,GEO,PartBCSideList,RefMappingEps 
 USE MOD_Particle_Surfaces_Vars,   ONLY:ElemSlabNormals,ElemSlabIntervals,BezierControlPoints3DElevated,BezierElevation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1268,6 +1268,7 @@ END IF
 ! 1.) slab normal vectors (use the first local element side)
 !-----------------------------------------------------------------------------------------------------------------------------------
 SideIDOrigin=PartElemToSide(E2S_SIDE_ID,1,ElemID)
+ElemSlabNormals(:,0,ElemID)=SideIDOrigin
 ! n_1=V_1+V_2 (V: corner vectors in xi-direction)
 ElemSlabNormals(:,1,ElemID)= &
                 BezierControlPoints3DElevated(:,NGeo+BezierElevation,0,SideIDOrigin)- &
@@ -1345,6 +1346,12 @@ END DO !iLocSide=1:6
 dx=ABS(ABS(ElemSlabIntervals(2, ElemID))-ABS(ElemSlabIntervals(1, ElemID)))
 dy=ABS(ABS(ElemSlabIntervals(4, ElemID))-ABS(ElemSlabIntervals(3, ElemID)))
 dz=ABS(ABS(ElemSlabIntervals(6, ElemID))-ABS(ElemSlabIntervals(5, ElemID)))
+ElemSlabIntervals(1,ElemID)=ElemSlabInterVals(1,ElemID)-RefMappingEps 
+ElemSlabIntervals(2,ElemID)=ElemSlabInterVals(2,ElemID)+RefMappingEps 
+ElemSlabIntervals(3,ElemID)=ElemSlabInterVals(3,ElemID)-RefMappingEps 
+ElemSlabIntervals(4,ElemID)=ElemSlabInterVals(4,ElemID)+RefMappingEps 
+ElemSlabIntervals(5,ElemID)=ElemSlabInterVals(5,ElemID)-RefMappingEps 
+ElemSlabIntervals(6,ElemID)=ElemSlabInterVals(6,ElemID)+RefMappingEps 
 IF(dx*dy*dz.LT.0) CALL Abort(&
   __STAMP__,&
   'A bounding box (for elements) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))

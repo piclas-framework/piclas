@@ -62,6 +62,10 @@ INTERFACE InitElemBoundingBox
   MODULE PROCEDURE InitElemBoundingBox
 END INTERFACE
 
+INTERFACE InsideElemBoundingBox
+  MODULE PROCEDURE InsideElemBoundingBox
+END INTERFACE
+
 INTERFACE GetElemAndSideType
   MODULE PROCEDURE GetElemAndSideType
 END INTERFACE
@@ -70,6 +74,7 @@ PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
 PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
+PUBLIC::InsideElemBoundingBox
 !===================================================================================================================================
 !
 CONTAINS
@@ -2773,6 +2778,50 @@ END DO !iElem=1,nElems
 
 END SUBROUTINE InitElemBoundingBox
 
+
+SUBROUTINE InsideElemBoundingBox(ParticlePosition,ElemID,InSide)
+!================================================================================================================================
+! check is the particles is inside the bounding box, return TRUE/FALSE
+!================================================================================================================================
+USE MOD_Globals_Vars
+USE MOD_Particle_Surfaces_Vars,  ONLY:ElemSlabNormals,ElemSlabIntervals,BezierControlPoints3D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,DIMENSION(3),INTENT(IN)         :: ParticlePosition
+INTEGER,INTENT(IN)                   :: ElemID
+!--------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)                  :: Inside
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                 :: x,y,z,P(3)
+!================================================================================================================================
+P=ParticlePosition-ElemSlabNormals(1:3,0,ElemID)
+! y is perpendicular to xi & eta directions --> check first, smallest intervall
+y=DOT_PRODUCT(P,ElemSlabNormals(:,2,ElemID))
+!IF((y.LT.ElemSlabIntervals(3,ElemID)-epsilontol).OR.(y.GT.ElemSlabIntervals(4,ElemID)+epsilontol))THEN
+IF((y.LT.ElemSlabIntervals(3,ElemID)).OR.(y.GT.ElemSlabIntervals(4,ElemID)))THEN
+  Inside=.FALSE.
+  RETURN
+END IF
+! than xi
+x=DOT_PRODUCT(P,ElemSlabNormals(:,1,ElemID))
+!IF((x.LT.ElemSlabIntervals(1,ElemID)-epsilontol).OR.(x.GT.ElemSlabIntervals(2,ElemID)+epsilontol))THEN
+IF((x.LT.ElemSlabIntervals(1,ElemID)).OR.(x.GT.ElemSlabIntervals(2,ElemID)))THEN
+  Inside=.FALSE.
+  RETURN
+END IF
+! than eta
+z=DOT_PRODUCT(P,ElemSlabNormals(:,3,ElemID))
+!IF((z.LT.ElemSlabIntervals(5,ElemID)-epsilontol).OR.(z.GT.ElemSlabIntervals(6,ElemID)+epsilontol))THEN
+IF((z.LT.ElemSlabIntervals(5,ElemID)).OR.(z.GT.ElemSlabIntervals(6,ElemID)))THEN
+  Inside=.FALSE.
+  RETURN
+END IF
+Inside=.TRUE.
+END SUBROUTINE InsideElemBoundingBox
 
 SUBROUTINE GetElemAndSideType() 
 !===================================================================================================================================

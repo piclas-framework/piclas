@@ -236,7 +236,7 @@ ALLOCATE(SideSlabNormals(1:3,1:3,1:nSides),SideSlabIntervals(1:6,nSides),Boundin
 SideSlabNormals=0.
 SideSlabIntervals=0.
 BoundingBoxIsEmpty=.TRUE.
-ALLOCATE(ElemSlabNormals(1:3,1:3,1:nElems),ElemSlabIntervals(1:6,nElems) )
+ALLOCATE(ElemSlabNormals(1:3,0:3,1:nElems),ElemSlabIntervals(1:6,nElems) )
 ElemSlabNormals=0.
 ElemSlabIntervals=0.
 #endif /*PARTICLES*/

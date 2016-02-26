@@ -14,7 +14,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#ifdef PARTICLES
+#if defined(PARTICES) && defined(IMPA)
 INTERFACE ParticleNewton
   MODULE PROCEDURE ParticleNewton
 END INTERFACE
@@ -30,7 +30,7 @@ PUBLIC:: ParticleNewton
 
 CONTAINS
 
-#ifdef PARTICLES
+#if defined(PARTICES) && defined(IMPA)
 SUBROUTINE InitPartSolver() 
 !===================================================================================================================================
 ! read in and allocation of required global variables for implicit particle treatment

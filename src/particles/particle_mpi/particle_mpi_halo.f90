@@ -736,13 +736,13 @@ IF(DoRefMapping)THEN
 
   ! ElemSlabNormals for exchange
   IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
-    ALLOCATE(SendMsg%ElemSlabNormals(1:3,1:3,1:SendMsg%nElems),STAT=ALLOCSTAT) 
+    ALLOCATE(SendMsg%ElemSlabNormals(1:3,0:3,1:SendMsg%nElems),STAT=ALLOCSTAT) 
     IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
       'Could not allocate SendMsg%ElemSlabNormals',SendMsg%nElems)
     SendMsg%XCL_NGeo(:,:,:,:,:)=0
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
-    ALLOCATE(RecvMsg%ElemSlabNormals(1:3,1:3,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
+    ALLOCATE(RecvMsg%ElemSlabNormals(1:3,0:3,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
     IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
       'Could not allocate RecvMsg%ElemSlabNormals',RecvMsg%nElems)
     RecvMsg%XCL_NGeo(:,:,:,:,:)=0
@@ -1021,7 +1021,7 @@ IF (PartMPI%MyRank.LT.iProc) THEN
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%dXCL_NGeo,SendMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
     IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%ElemSlabNormals,SendMsg%nElems*9,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
+        CALL MPI_SEND(SendMsg%ElemSlabNormals,SendMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
   END IF
@@ -1055,7 +1055,7 @@ IF (PartMPI%MyRank.LT.iProc) THEN
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*9,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
+        CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
@@ -1089,7 +1089,7 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%dXCL_NGeo,RecvMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
-        CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*9,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
+        CALL MPI_RECV(RecvMsg%ElemSlabNormals,RecvMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,MPISTATUS,IERROR)
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
@@ -1118,7 +1118,7 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%dXCL_NGeo,SendMsg%nElems*datasize3,MPI_DOUBLE_PRECISION,iProc,1115,PartMPI%COMM,IERROR)
     IF (SendMsg%nElems.GT.0) &
-        CALL MPI_SEND(SendMsg%ElemSlabNormals,SendMsg%nElems*9,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
+        CALL MPI_SEND(SendMsg%ElemSlabNormals,SendMsg%nElems*12,MPI_DOUBLE_PRECISION,iProc,1116,PartMPI%COMM,IERROR)
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
   END IF
@@ -1325,7 +1325,7 @@ IF(DoRefMapping)THEN
       PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
       XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
       dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
-      ElemSlabNormals(1:3,1:3,newElemID) = RecvMsg%ElemSlabNormals(1:3,1:3,iElem)
+      ElemSlabNormals(1:3,0:3,newElemID) = RecvMsg%ElemSlabNormals(1:3,0:3,iElem)
       ElemSlabIntervals(1:6,newElemID) = RecvMsg%ElemSlabIntervals(1:6,iElem)
     END DO ! iElem
     ! missing connection info to MPI-Neighbor-ElemID
@@ -1759,17 +1759,17 @@ IF(DoRefMapping)THEN
   PartBCSideList(1:nOldSides) =DummyPartBCSideList(1:nOldSides)
   DEALLOCATE(DummyPartBCSideList)
   ! ElemSlabNormals
-  ALLOCATE(DummyElemSlabNormals(1:3,1:3,1:nOldElems))
+  ALLOCATE(DummyElemSlabNormals(1:3,0:3,1:nOldElems))
   IF (.NOT.ALLOCATED(DummyElemSlabNormals)) CALL abort(&
       __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummyElemSlabNormals=ElemSlabNormals
   DEALLOCATE(ElemSlabNormals)
-  ALLOCATE(ElemSlabNormals(1:3,1:3,1:nTotalElems),STAT=ALLOCSTAT)
+  ALLOCATE(ElemSlabNormals(1:3,0:3,1:nTotalElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   ElemSlabNormals=0
-  ElemSlabNormals(1:3,1:3,1:nOldElems) =DummyElemSlabNormals(1:3,1:3,1:nOldElems)
+  ElemSlabNormals(1:3,0:3,1:nOldElems) =DummyElemSlabNormals(1:3,0:3,1:nOldElems)
   DEALLOCATE(DummyElemSlabNormals)
   ! ElemSlabIntervals
   ALLOCATE(DummyElemSlabIntervals(1:6,1:nOldElems))
