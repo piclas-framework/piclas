@@ -165,7 +165,8 @@ LOGICAL                       :: exitTrue
 
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
+!#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
+#if defined(LSERK)
 !print*, "SFSDRWE#"
 ALLOCATE(Pt_temp(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
@@ -175,7 +176,7 @@ END IF
 Pt_temp=0.
 #endif 
 
-#ifdef IMEX
+#if defined(IMEX) 
 ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
 !ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
@@ -188,6 +189,29 @@ IF (ALLOCSTAT.NE.0) THEN
   ,'ERROR in particle_init.f90: Cannot allocate PartStateN arrays!')
 END IF
 #endif /* IMEX */
+
+#ifdef IMPA
+#if (PP_TimeDiscMethod!=110)
+ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
+!ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+  ,'ERROR in particle_init.f90: Cannot allocate ParStage arrays!')
+END IF
+ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+  ,'ERROR in particle_init.f90: Cannot allocate PartStateN arrays!')
+END IF
+#endif
+ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+!ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+  ,'ERROR in particle_init.f90: Cannot allocate PartQ arrays!')
+END IF
+#endif /* IMPA */
+
 
 IF(DoRefMapping)THEN
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
@@ -963,8 +987,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
+#if defined(LSERK)
+!#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
 SDEALLOCATE( Pt_temp)
 #endif
 !SDEALLOCATE(SampDSMC)

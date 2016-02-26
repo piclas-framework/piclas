@@ -31,11 +31,15 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
                                                                              ! is the velocity. Thus we can take 
                                                                              ! PartState(:,4:6) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
-#ifdef IMEX
+#if defined(IMEX) || defined(IMPA)
 REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! ERK4 additional function values
 REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! PartilceState at t^n
 #endif /*IMEX*/
+#ifdef IMPA
+REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n
+#endif
 REAL    , ALLOCATABLE :: Pt_temp(:,:)                                        ! LSERK4 additional derivative of PartState
+
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
 REAL    , ALLOCATABLE :: LastPartPos(:,:)                                    ! (1:NParts,1:3) with 2nd index: x,y,z
 INTEGER , ALLOCATABLE :: PartSpecies(:)                                      ! (1:NParts) 

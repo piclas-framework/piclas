@@ -205,8 +205,10 @@ SUBROUTINE ParticleInserting()
 ! Modules
 USE MOD_Globals
 USE MOD_Timedisc_Vars         , ONLY : dt,time
-#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if defined(LSERK)
+#if defined(LSERK) || defined(IMEX) || defined(IMPA)
 USE MOD_Timedisc_Vars         , ONLY : iter
+USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
 #endif
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
@@ -218,9 +220,6 @@ USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
-#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
-#endif
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_part_pressure          ,ONLY: ParticlePressure, ParticlePressureRem
 ! IMPLICIT VARIABLE HANDLING
@@ -385,7 +384,7 @@ DO i=1,nSpecies
     END IF
     ! compute number of input particles and energy
     IF(CalcPartBalance) THEN
-#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK) || defined(IMEX) || defined(IMPA)
       IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
         nPartInTmp(i)=nPartInTmp(i) + NBrofParticle
         DO iPart=1,NbrOfparticle

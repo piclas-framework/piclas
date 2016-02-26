@@ -180,8 +180,8 @@ ELSE
 END IF
 IF(DoRefMapping) PartCommSize=PartCommSize+3
 
-#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
-#ifdef IMEX
+#if !defined(LSERK) 
+#if defined(IMEX) || defined(IMPA)
     ! if iStage=0, then the PartStateN is not communicated
     !PartCommSize = PartCommSize + (iStage-1)*6
     PartCommSize0=PartCommSize
@@ -502,7 +502,7 @@ USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,PartShiftVector, ExtPartCommSize, PartMPIDepoSend
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF, ExtPartToFIBGM, NbrOfExtParticles
-#ifdef IMEX
+#if defined(IMEX) || defined(IMPA)
 USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
@@ -526,12 +526,12 @@ INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1), nDepoProcs, 
 REAL                          :: ShiftedPart(1:3)
 LOGICAL                       :: PartInBGM
 INTEGER                       :: nTotalSendParticles
-#ifdef IMEX
+#if defined(IMEX) || defined(IMPA)
 INTEGER                       :: iCounter
 #endif /*IMEX*/
 !===================================================================================================================================
 
-#ifdef IMEX
+#if defined(IMEX) || defined(IMPA)
 PartCommSize=PartCommSize0+(iStage-1)*6
 #endif /*IMEX*/
 
@@ -643,11 +643,11 @@ DO iProc=1, PartMPI%nMPINeighbors
       !IPWRITE(UNIT_stdOut,*) ' send state',PartState(iPart,1:6)
       PartSendBuf(iProc)%content(       7+jPos) = REAL(PartSpecies(iPart),KIND=8)
       !IF(PartSpecies(ipart).EQ.0) IPWRITE(*,*) 'part species zero',ipart
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+#if defined(LSERK)
       PartSendBuf(iProc)%content(8+jPos:13+jPos) = Pt_temp(iPart,1:6)
       jPos=jPos+6
 #endif
-#ifdef IMEX
+#if defined(IMEX) || defined(IMPA)
       ! send iStage - 1 messages
       IF(iStage.GT.0)THEN
         PartSendBuf(iProc)%content(8+jpos:13+jpos)        = PartStateN(iPart,1:6)
@@ -861,7 +861,7 @@ DO iPart=1,PDM%ParticleVecLength
   IF(PartTargetProc(iPart).EQ.-1) CYCLE
   PartState(iPart,1:6)=0.
   PartSpecies(iPart)=0
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+#if defined(LSERK)
   Pt_temp(iPart,1:6)=0.
 #endif
 END DO ! iPart=1,PDM%ParticleVecLength 
@@ -971,7 +971,7 @@ USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,ExtPartCommSize
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
-#ifdef IMEX
+#if defined(IMEX) || defined(IMPA)
 USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
@@ -993,7 +993,7 @@ INTEGER                       :: MessageSize, nRecvParticles, nRecvExtParticles
 ! shape function 
 REAL                          :: ShiftedPart(1:3)
 INTEGER                       :: iExtPart
-#ifdef IMEX
+#if defined(IMEX) || defined(IMPA)
 INTEGER                       :: iCounter
 #endif /*IMEX*/
 !===================================================================================================================================
@@ -1005,7 +1005,7 @@ INTEGER                       :: iCounter
 !                        , 'source proc', PartMPI%MPINeighbor(iProc)
 !END DO
 
-#ifdef IMEX
+#if defined(IMEX) || defined(IMPA)
 PartCommSize=PartCommSize0+(iStage-1)*6
 #endif /*IMEX*/
 
@@ -1051,11 +1051,11 @@ DO iProc=1,PartMPI%nMPINeighbors
     !IPWRITE(UNIT_stdOut,*) ' recv  state',PartState(PartID,1:6)
     PartSpecies(PartID)     = INT(PartRecvBuf(iProc)%content( 7+jPos),KIND=4)
     ! IF(PartSpecies(PartID).EQ.0) IPWRITE(*,*) 'part species zero',PartID
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
+#if defined(LSERK)
     Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 8+jPos:13+jPos)
     jPos=jPos+6
 #endif
-#ifdef IMEX
+#if defined(IMEX) || defined(IMPA)
     IF(iStage.GT.0)THEN
       PartStateN(PartID,1:6)     = PartRecvBuf(iProc)%content(jpos+8:jpos+13)
       DO iCounter=1,iStage-1

@@ -50,7 +50,8 @@ USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartA
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 !USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
@@ -152,7 +153,8 @@ CASE(2) !PartBound%ReflectiveBC)
 !  PEM%lastElement(iPart) = ElemID
 !  print*,' newElemID', ElemID
 
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK)
   ! correction for Runge-Kutta (correct position!!)
   ! get length of Pt_temp(iPart,1:3) || equals summed velocity change ! only exact for linear movement
   absPt_temp=SQRT(Pt_temp(iPart,1)*Pt_temp(iPart,1)+Pt_temp(iPart,2)*Pt_temp(iPart,2)+Pt_temp(iPart,3)*Pt_temp(iPart,3))
@@ -383,7 +385,8 @@ USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
 USE MOD_Mesh_Vars,              ONLY:BC
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
@@ -400,7 +403,8 @@ INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3)
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK)
 REAL                                 :: absPt_temp
 #endif
 !REAL,PARAMETER                       :: oneMinus=0.99999999
@@ -469,7 +473,8 @@ IF((DOT_PRODUCT(v_aux,v_aux)).GT.epsReflect)THEN
   PartTrajectory=PartTrajectory/lengthPartTrajectory
   lengthPartTrajectory=lengthPartTrajectory!+epsilontol
   
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK)
+!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
   ! correction for Runge-Kutta (correct position!!)
   absPt_temp=SQRT(Pt_temp(PartID,1)*Pt_temp(PartID,1)+Pt_temp(PartID,2)*Pt_temp(PartID,2)+Pt_temp(PartID,3)*Pt_temp(PartID,3))
   ! scale PartTrajectory to new Pt_temp
@@ -501,7 +506,8 @@ USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,BezierControlPoints3D
 USE MOD_Mesh_Vars,              ONLY:BC,NGEO
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,SpecDSMC, DSMC, useDSMC, CollisMode
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK)
+!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 !USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
@@ -522,7 +528,8 @@ INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 ! LOCAL VARIABLES
 INTEGER                              :: locBCID, vibQuant, vibQuantNew, VibQuantWall
 REAL                                 :: VibQuantNewR                                                !
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK)
 !REAL                                 :: absPt_temp
 #endif
 !REAL,PARAMETER                       :: oneMinus=0.99999999

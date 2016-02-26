@@ -28,6 +28,19 @@ INTEGER              :: nDOFLine
 INTEGER              :: maxIter_LinearSolver
 INTEGER              :: totalIterLinearSolver,nInnerIter
 INTEGER              :: ldim
+#if defined(PARTICLES)
+#if defined(IMPA) || (PP_TimeDiscMethod==110)
+INTEGER              :: totalPartIterLinearSolver,nPartInnerIter
+INTEGER              :: nPartNewton
+INTEGER              :: nPartNewtonIter
+REAL                 :: Eps2PartNewton
+LOGICAL              :: EisenstatWalker
+REAL                 :: PartgammaEW
+REAL                 :: rEps0,srEps0
+REAL,ALLOCATABLE     :: PartXK(:,:)
+REAL,ALLOCATABLE     :: R_PartXK(:,:)
+#endif
+#endif /*PARTICLES*/
 #if (PP_TimeDiscMethod==104)
 INTEGER              :: nNewton
 INTEGER              :: nNewtonIter

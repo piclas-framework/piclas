@@ -526,7 +526,7 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 #ifdef LSERK
-IF(.NOT.DoParabolicDamping)THEN
+IF(DoParabolicDamping)THEN
   !Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFL1/RK_b(iStage)*U(7:8,:,:,:,:)
   Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFL1*U(7:8,:,:,:,:)
 END IF
@@ -586,7 +586,7 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 #ifdef LSERK
-IF(.NOT.DoParabolicDamping)THEN
+IF(DoParabolicDamping)THEN
   !Phit(2:4,:,:,:,:) = Phit(2:4,:,:,:,:) - (1.0-fDamping)*sdtCFL1/RK_b(iStage)*Phi(2:4,:,:,:,:)
   Phit(2:4,:,:,:,:) = Phit(2:4,:,:,:,:) - (1.0-fDamping)*sdtCFL1*Phi(2:4,:,:,:,:)
 END IF

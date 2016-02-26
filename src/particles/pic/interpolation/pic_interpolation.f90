@@ -9,6 +9,7 @@ PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: InterpolateFieldToParticle, InitializeInterpolation !, Calc_inv, &
 PUBLIC :: InterpolateCurvedExternalField                                  
+PUBLIC :: InterpolateFieldToSingleParticle
 !===================================================================================================================================
 INTERFACE InitializeInterpolation
   MODULE PROCEDURE InitializeInterpolation
@@ -24,6 +25,11 @@ END INTERFACE
 
 INTERFACE InterpolateCurvedExternalField
   MODULE PROCEDURE InterpolateCurvedExternalField
+END INTERFACE
+
+
+INTERFACE InterpolateFieldToSingleParticle
+  MODULE PROCEDURE InterpolateFieldToSingleParticle
 END INTERFACE
 !===================================================================================================================================
 
@@ -362,6 +368,227 @@ END IF
     
 RETURN
 END SUBROUTINE InterpolateFieldToParticle
+
+
+SUBROUTINE InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
+!===================================================================================================================================
+! interpolates field to particles
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Particle_Vars,           ONLY:PartPosRef,PDM,PartState,PEM,PartPosGauss
+USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+USE MOD_DG_Vars,                 ONLY:U
+USE MOD_PIC_Vars!,      ONLY: 
+USE MOD_PICInterpolation_Vars,   ONLY:usecurvedExternalField,externalField,DoInterpolation,InterpolationType
+USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
+USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
+USE MOD_Particle_Mesh_Vars,      ONLY:epsOneCell
+#ifdef PP_POIS
+USE MOD_Equation_Vars,           ONLY:E
+#endif
+!----------------------------------------------------------------------------------------------------------------------------------
+  IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: PartID
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)             :: FieldAtParticle(1:6)
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES                                                                    
+REAL                         :: Pos(3),Field(1:6)
+INTEGER                      :: ElemID
+! for Nearest GaussPoint
+INTEGER                      :: a,b,k,ii,l,m
+#ifdef PP_POIS
+REAL                         :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
+#endif
+!===================================================================================================================================
+
+FieldAtParticle=0.
+IF(usecurvedExternalField) THEN ! used curved external Bz
+  FieldAtParticle(:) = 0.
+  FieldAtParticle(1) = externalField(1)
+  FieldAtParticle(2) = externalField(2)
+  FieldAtParticle(3) = externalField(3)
+#if (PP_nVar==8)
+  FieldAtParticle(4) = externalField(4)
+  FieldAtParticle(5) = externalField(5)
+#endif            firstPart:lastPart
+  ! Bz field strenfirstPart:lastPartgth at particle position
+  FieldAtparticle(6) = InterpolateCurvedExternalField(PartState(PartID,3))
+ELSE ! usecurvedExternalField
+  FieldAtParticle(:) = 0.
+  FieldAtParticle(1) = externalField(1)
+  FieldAtParticle(2) = externalField(2)
+  FieldAtParticle(3) = externalField(3)
+#if (PP_nVar==8)
+  FieldAtParticle(4) = externalField(4)
+  FieldAtParticle(5) = externalField(5)
+  FieldAtParticle(6) = externalField(6)
+#endif
+END IF ! use constant external field
+
+IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
+  ElemID=PEM%Element(PartID)
+  SELECT CASE(TRIM(InterpolationType))
+  CASE('nearest_blurrycenter')
+    ! add fields to fields at particle position
+    ! should nearest_blurrycenter not require to
+    ! a) evaluate the polynomial at Xi=0??
+    ! b) require the mean value of the field
+    !m = INT(PP_N/2)+1
+#if (PP_nVar==8)
+#ifdef PP_POIS
+    HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+    HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
+    CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field,ElemID)
+#else
+    CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,ElemID),field,ElemID)
+#endif /*PP_POIS*/
+#else 
+#ifdef PP_POIS
+    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field,ElemID)
+#else
+    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,ElemID),field,ElemID)
+#endif /*PP_POIS*/
+#endif /*PP_nVar*/
+    FieldAtParticle(:) = FieldAtParticle(:) + field
+  CASE('particle_position_slow')
+    Pos = PartState(PartID,1:3)
+    !--- evaluate at Particle position
+#if (PP_nVar==8)
+#ifdef PP_POIS
+    HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+    HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
+    CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field,ElemID)
+#else
+    CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field,ElemID,PartID)
+#endif
+#else
+#ifdef PP_POIS
+    CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field,ElemID)
+#else
+    CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field,ElemID)
+#endif         
+#endif
+    FieldAtParticle(:) = FieldAtParticle(:) + field
+  CASE('particle_position')
+    IF(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint')THEN
+      ! particles have already been mapped in deposition, other eval routine used
+      IF(.NOT.DoRefMapping)THEN
+        CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID,PartID)
+      END IF
+      !--- evaluate at Particle position
+#if (PP_nVar==8)
+#ifdef PP_POIS
+      HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+      HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
+      CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,HelperU,field,ElemID)
+#else
+      CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,U(1:6,:,:,:,ElemID),field,ElemID)
+#endif
+#else
+#ifdef PP_POIS
+      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field,ElemID)     
+#else
+      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,U(1:3,:,:,:,ElemID),field,ElemID)
+#endif
+#endif
+      FieldAtParticle(:) = FieldAtParticle(:) + field
+    ELSE ! particles are not yet mapped
+      Pos = PartState(PartID,1:3)
+      !--- evaluate at Particle position
+#if (PP_nVar==8)
+#ifdef PP_POIS
+      HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+      HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
+      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field,ElemID)
+#else
+      CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field,ElemID,PartID)
+#endif
+#else
+#ifdef PP_POIS
+      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field,ElemID)
+#else
+      CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field,ElemID)
+#endif         
+#endif
+      FieldAtParticle(:) = FieldAtParticle(:) + field
+    END IF ! DoRefMapping .or. Depositiontype=nearest_gausspoint
+  CASE('nearest_gausspoint')
+    ! particles have already been mapped in deposition
+    IF(MOD(PP_N,2).EQ.0) THEN
+      a = PP_N/2
+      b = a
+    ELSE
+      a = (PP_N+1)/2
+      b = a-1
+    END IF
+    IF(.NOT.DoRefMapping)THEN
+      CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID,PartID)
+    END IF
+    ! compute exact k,l,m
+    !! x-direction
+    k = a
+    DO ii = 0,b-1
+      IF(ABS(PartPosRef(1,PartID)).GE.GaussBorder(PP_N-ii))THEN
+        k = PP_N-ii
+        EXIT
+      END IF
+    END DO
+    k = NINT((PP_N+SIGN(2.0*k-PP_N,PartPosRef(1,PartID)))/2)
+    !! y-direction
+    l = a
+    DO ii = 0,b-1
+      IF(ABS(PartPosRef(2,PartID)).GE.GaussBorder(PP_N-ii))THEN
+        l = PP_N-ii
+        EXIT
+      END IF
+    END DO
+    l = NINT((PP_N+SIGN(2.0*l-PP_N,PartPosRef(2,PartID)))/2)
+    !! z-direction
+    m = a
+    DO ii = 0,b-1
+      IF(ABS(PartPosRef(3,PartID)).GE.GaussBorder(PP_N-ii))THEN
+        m = PP_N-ii
+        EXIT
+      END IF
+    END DO
+    m = NINT((PP_N+SIGN(2.0*m-PP_N,PartPosRef(3,PartID)))/2)
+    PartPosGauss(PartID,1) = k
+    PartPosGauss(PartID,2) = l
+    PartPosGauss(PartID,3) = m
+    !--- evaluate at Particle position
+#if (PP_nVar==8)
+#ifdef PP_POIS
+    field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
+    field(4:6) = U(4:6,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
+    FieldAtParticle(:) = FieldAtParticle(:) + field
+#else
+    field = U(1:6,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
+    FieldAtParticle(:) = FieldAtParticle(:) + field
+#endif
+#else
+#ifdef PP_POIS
+    field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
+    FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)
+#else
+    field(1:3) = U(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
+    FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)
+#endif
+#endif
+  CASE DEFAULT
+    CALL abort(__STAMP__, &
+        'ERROR: Unknown InterpolationType!')
+  END SELECT
+END IF
+    
+RETURN
+END SUBROUTINE InterpolateFieldToSingleParticle
 
 
 SUBROUTINE read_curved_external_Field()

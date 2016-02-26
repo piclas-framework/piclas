@@ -116,7 +116,8 @@ IF(CalcEpot) DoAnalyze = .TRUE.
    nPartOut=0
    PartEkinOut=0.
    PartEkinIn=0.
-#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK) || defined(IMEX) || defined(IMPA)
+!!#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
     SDEALLOCATE( nPartInTmp)
     SDEALLOCATE( PartEkinInTmp)
     ALLOCATE( nPartInTmp(nSpecies)     &
@@ -1025,7 +1026,8 @@ SUBROUTINE CalcParticleBalance()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars,      ONLY : nPartIn,nPartOut,PartEkinIn,PartEkinOut
-#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK) || defined(IMEX) || defined(IMPA)
+!!#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 USE MOD_Particle_Analyze_Vars,      ONLY : nPartInTmp,PartEkinInTmp
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -1038,7 +1040,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK) || defined(IMEX) || defined(IMPA)
+!!#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 nPartIn=nPartInTmp
 nPartOut=0
 PartEkinIn=PartEkinInTmp

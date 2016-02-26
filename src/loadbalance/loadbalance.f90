@@ -587,7 +587,11 @@ USE MOD_Preproc
 USE MOD_LoadBalance_Vars,       ONLY:tCurrent,LoadSum,tTotal,nLoadIter,nTotalParts
 USE MOD_Particle_Tracking_Vars, ONLY:nCurrentParts
 USE MOD_PML_Vars,               ONLY:DoPML,nPMLElems
+#if defined(LSERK) || defined(IMPA) || defined(IMEX)
+#if (PP_TimeDiscMethod!=110)
 USE MOD_TimeDisc_Vars,          ONLY:nRKStages
+#endif
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 

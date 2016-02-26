@@ -26,7 +26,21 @@ INTERFACE VectorDotProduct
   MODULE PROCEDURE VectorDotProduct
 END INTERFACE
 
+#ifdef PARTICLES
+INTERFACE PartVectorDotProduct
+  MODULE PROCEDURE PartVectorDotProduct
+END INTERFACE
+
+INTERFACE PartMatrixVector
+  MODULE PROCEDURE PartMatrixVector
+END INTERFACE
+#endif
+
+
 PUBLIC:: MatrixVector, MatrixVectorSource, VectorDotProduct, ElementVectorDotProduct, DENSE_MATMUL
+#ifdef PARTICLES
+PUBLIC:: PartVectorDotProduct,PartMatrixVector
+#endif
 !===================================================================================================================================
 
 CONTAINS
@@ -70,7 +84,6 @@ ELSE
   Y = mass*(U - Coeff*Ut)
 END IF
 END SUBROUTINE MatrixVector
-
 
 
 SUBROUTINE MatrixVectorSource(t,Coeff,Y)
@@ -163,6 +176,91 @@ END DO
 
 END SUBROUTINE VectorDotProduct
 
+#ifdef PARTICLES
+SUBROUTINE PartVectorDotProduct(a,b,resu)
+!===================================================================================================================================
+! Computes Dot Product for vectors a and b: resu=a.b
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)   :: a(1:6)
+REAL,INTENT(IN)   :: b(1:6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)  :: resu
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iVar
+!===================================================================================================================================
+
+resu=0.
+DO iVar=1,6
+  resu=resu + a(iVar)*b(iVar)
+END DO
+
+END SUBROUTINE PartVectorDotProduct
+
+
+SUBROUTINE PartMatrixVector(t,Coeff,PartID,X,Y)
+!===================================================================================================================================
+! Computes Matrix Vector Product y=A*x for linear Equations only
+! Matrix A = I - Coeff*R
+! Attention: Vector x is always U 
+! Attention: Result y is always stored in Ut
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals_Vars,       ONLY:epsMach
+USE MOD_DG_Vars,            ONLY:U,Ut
+USE MOD_DG,                 ONLY:DGTimeDerivative_weakForm
+USE MOD_LinearSolver_Vars,  ONLY:reps0,PartXK,R_PartXK
+USE MOD_Equation_Vars,      ONLY:DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars,      ONLY:dt,sdtCFLOne
+USE MOD_Particle_Vars,      ONLY:PartState, PartLorentzType
+USE MOD_Part_RHS,           ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
+USE MOD_PICInterpolation,   ONLY:InterpolateFieldToSingleParticle
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: t,Coeff
+INTEGER,INTENT(IN) :: PartID
+REAL,INTENT(IN)    :: X(1:6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)   :: Y(1:6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: X_abs,epsFD
+REAL               :: PartT(1:6)
+REAL               :: FieldAtParticle(1:6)
+!===================================================================================================================================
+
+CALL PartVectorDotProduct(X,X,X_abs)
+EpsFD= rEps0/SQRT(X_abs)
+
+PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
+! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
+CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
+PartT(1:3)=PartState(PartID,4:6)
+SELECT CASE(PartLorentzType)
+CASE(1)
+  PartT(4:6) = SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle(1:6))
+CASE(2)
+  PartT(4:6) = FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle(1:6))
+END SELECT
+! or frozen version
+! Part(4:6)=Pt(PartID,1:3)
+
+Y = (X - (coeff/EpsFD)*(PartT - R_PartXk(:,PartID)))
+
+END SUBROUTINE PartMatrixVector
+#endif
 
 SUBROUTINE ElementVectorDotProduct(a,b,resu)
 !===================================================================================================================================

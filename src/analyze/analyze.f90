@@ -436,7 +436,8 @@ IF (CalcPoyntingInt) THEN
 END IF
 
 ! fill recordpoints buffer
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(LSERK) || defined(IMEX) || defined(IMPA) || (PP_TimeDiscMethod==110)
 IF(RP_onProc) THEN
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start

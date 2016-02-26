@@ -522,7 +522,7 @@ USE MOD_PICDepo_Vars,  ONLY : Source
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xyz position of the Gauss points
 !USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
-#ifdef LSERK
+#if defined(LSERK) ||  defined(IMEX) || defined(IMPA)
 USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage  
 USE MOD_DG_Vars,       ONLY : U
@@ -614,10 +614,10 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 
-#ifdef LSERK
-IF(.NOT.DoParabolicDamping)THEN
-  !Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFL1/RK_b(iStage)*U(7:8,:,:,:,:)
-  Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFL1*U(7:8,:,:,:,:)
+#if defined(LSERK) ||  defined(IMEX) || defined(IMPA)
+IF(DoParabolicDamping)THEN
+  !Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFLOne/RK_b(iStage)*U(7:8,:,:,:,:)
+  Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFLOne*U(7:8,:,:,:,:)
 END IF
 #endif /*LSERK*/
 

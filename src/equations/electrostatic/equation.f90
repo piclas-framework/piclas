@@ -250,7 +250,7 @@ CASE DEFAULT
 END SELECT ! ExactFunction
 
 #ifdef LSERK
-IF(.NOT.DoParabolicDamping)THEN
+IF(DoParabolicDamping)THEN
   !Ut(4,:,:,:,:) = Ut(4,:,:,:,:) - (1.0-fDamping)*sdtCFL1*/RK_b(iStage)*U(4,:,:,:,:)
   Ut(4,:,:,:,:) = Ut(4,:,:,:,:) - (1.0-fDamping)*sdtCFL1*U(4,:,:,:,:)
 END IF
