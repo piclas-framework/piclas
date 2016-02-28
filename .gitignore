@@ -1,0 +1,10 @@
+*.s
+*.o
+*.i90
+*.mod
+*.swp
+src/deplist.mk
+src/srcfiles_pp.mk
+bin/*
+ini/*
+lib/*
