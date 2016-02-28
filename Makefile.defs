@@ -217,7 +217,7 @@ ifeq ($(MACHINE),)
     HDF5_BASE = $(HDF5_DIR)
   endif
   ifneq ($(BUILD_HDF5),)
-    HDF5_VERSION = 1.8.14
+    HDF5_VERSION = 1.8.16
     HDF5_BASE = ../share/$(SHARECOMP)/hdf5-$(HDF5_VERSION)/hdf5
   endif
 endif
