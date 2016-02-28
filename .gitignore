@@ -8,3 +8,4 @@ src/srcfiles_pp.mk
 bin/*
 ini/*
 lib/*
+src/preprocflags.f90
