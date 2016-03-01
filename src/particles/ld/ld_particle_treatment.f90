@@ -29,7 +29,7 @@ USE MOD_TimeDisc_Vars,         ONLY : dt
 USE MOD_Particle_Vars,         ONLY : PEM, PartState,PartPosRef
 USE MOD_Eval_xyz,              ONLY : Eval_XYZ_Poly
 USE MOD_Mesh_Vars,             ONLY : NGeo
-USE nr,                        ONLY : gaussj 
+USE MOD_Basis,                 ONLY:GetInverse
 USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
 !--------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -41,6 +41,7 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
   INTEGER                       :: nPart, iPart, iPartIndx
   REAL                          :: PartNewPos(3)
   REAL                          :: Matrix(3,3)
+  REAL                          :: MatrixInv(3,3)
   REAL                          :: Vector(3,1)
   REAL                          :: NewNodePos(3,8),XCL_NGEO_tmp(1:3,0:NGeo,0:NGeo,0:NGeo)
   REAL                          :: ChosenMeanBaseD1, ChosenMeanBaseD2, ChosenMeanBaseD3
@@ -123,7 +124,9 @@ USE MOD_Mesh_Vars,             ONLY: wBaryCL_NGeo,XiCL_NGeo
     !print*,matrix(1,:)
     !print*,matrix(2,:)
     !print*,matrix(3,:)
-    CALL gaussj(Matrix,Vector)
+    MatrixInv=getInverse(3,Matrix)
+    Vector(:,1)=MATMUL(MatrixInv,Vector(:,1))
+    !CALL gaussj(Matrix,Vector)
     !print*,'vector',vector(:,1)
     !read*
     NewNodePos(1,iNode) = Vector(1,1)

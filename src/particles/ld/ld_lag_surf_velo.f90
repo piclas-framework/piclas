@@ -143,10 +143,12 @@ USE MOD_Mesh_Vars,             ONLY : nInnerSides
               IsStationary = .TRUE.
             ELSE IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%SymmetryBC) THEN
               IsStationary = .TRUE.
-              CALL abort(__STAMP__,&
+              CALL abort(&
+                  __STAMP__,&
                    'SymmetryBC is not implemented for LD!')
             ELSE
-              CALL abort(__STAMP__,&
+              CALL abort(&
+                  __STAMP__,&
                    'ERROR in PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID)))')
             END IF
           ELSE
@@ -160,7 +162,8 @@ USE MOD_Mesh_Vars,             ONLY : nInnerSides
                 CASE (3)
                   iLocSide2 = 5
                 CASE DEFAULT
-                  CALL abort(__STAMP__,&
+                  CALL abort(&
+                      __STAMP__,&
                        'ERROR in LocSides for periodic Element')
               END SELECT
               Velo2 = BulkValues(iElem)%CellV
@@ -203,10 +206,12 @@ USE MOD_Mesh_Vars,             ONLY : nInnerSides
               IsStationary = .TRUE.
             ELSE IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%SymmetryBC) THEN
               IsStationary = .TRUE.
-              CALL abort(__STAMP__,&
+              CALL abort(&
+                  __STAMP__,&
                    'SymmetryBC is not implemented for LD!')
             ELSE
-              CALL abort(__STAMP__,&
+              CALL abort(&
+                  __STAMP__,&
                    'ERROR in PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID)))')
             END IF
           ELSE
@@ -255,7 +260,8 @@ USE MOD_Mesh_Vars,             ONLY : nInnerSides
               IF (IterForSecant .GT. LD_SecantMeth%MaxIter) THEN
                 SWRITE(UNIT_StdOut,'(132("-"))')
                 SWRITE(UNIT_StdOut,'(A)') 'Max. number of iterations for LAGRANGian cell'
-                CALL abort(__STAMP__,&
+                CALL abort(&
+                    __STAMP__,&
                      'exceeded. Change something and restart run...')
               END IF
               IterForSecant = IterForSecant + 1                                   ! increase local iteration counter
