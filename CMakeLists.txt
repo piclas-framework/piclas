@@ -97,7 +97,7 @@ ENDIF()
 # =========================================================================
 
 IF(BOLTZPLATZ_PARTICLES)
-  ADD_DEFINITIONS(-DPARTICLE)
+  ADD_DEFINITIONS(-DPARTICLES)
 ENDIF(BOLTZPLATZ_PARTICLES)
 
 # =========================================================================

@@ -74,7 +74,9 @@ INTEGER   :: dir, VeloDirs_hilf(4)
 #ifdef PARTICLES  
 
 IF (ParticleAnalyzeInitIsDone) THEN
-  CALL abort(__STAMP__,'InitParticleAnalyse already called.',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'InitParticleAnalyse already called.',999,999.)
   RETURN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -138,7 +140,9 @@ IF(CalcEpot) DoAnalyze = .TRUE.
     END DO
     IF ((.NOT. VeloDirs(1)) .AND. (.NOT. VeloDirs(2)) .AND. &
         (.NOT. VeloDirs(3)) .AND. (.NOT. VeloDirs(4))) THEN
-      CALL abort(__STAMP__,'No VelocityDirections set in CalcVelos!')
+      CALL abort(&
+          __STAMP__&
+          ,'No VelocityDirections set in CalcVelos!')
     END IF
   END IF
   TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
