@@ -183,8 +183,6 @@ SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE nr,only:bessj
-USE nrtype,only:SP
 USE MOD_Globals
 USE MOD_Equation_Vars,ONLY:c,c2,eps0
 USE MOD_Globals_Vars,ONLY:PI
@@ -480,7 +478,7 @@ FUNCTION beta(z,w)
    USE nr
    IMPLICIT NONE
    REAL beta, w, z                                                                                                  
-   beta = exp(gammln(z)+gammln(w)-gammln(z+w))                                                                    
+   beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
 END FUNCTION beta 
 
 SUBROUTINE FinalizeEquation()

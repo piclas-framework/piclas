@@ -143,8 +143,6 @@ SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE nr,only:bessj
-USE nrtype,only:SP
 USE MOD_Globals
 USE MOD_Globals_Vars,ONLY:PI
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
@@ -315,20 +313,20 @@ CASE(5) ! Initialization and BC Gyrotron Mode Converter
     phi = 0.0                                                                                     ! Vorsicht: phi ist hier undef!
   END IF
   z = x(3)
-  Er  =-B0G*mG*omegaG/(r*g**2)*bessj(mG,REAL(g*r,SP))                             * &
+  Er  =-B0G*mG*omegaG/(r*g**2)*BESSEL_JN(mG,REAL(g*r))                             * &
                                                                  ( cos(h*z+mG*phi)*cos(omegaG*t)+sin(h*z+mG*phi)*sin(omegaG*t))
-  Ephi= B0G*omegaG/h      *0.5*(bessj(mG-1,REAL(g*r,SP))-bessj(mG+1,REAL(g*r,SP)))* &
+  Ephi= B0G*omegaG/h      *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
                                                                  (-cos(h*z+mG*phi)*sin(omegaG*t)+sin(h*z+mG*phi)*cos(omegaG*t))
-  Br  =-B0G*h/g           *0.5*(bessj(mG-1,REAL(g*r,SP))-bessj(mG+1,REAL(g*r,SP)))* &
+  Br  =-B0G*h/g           *0.5*(BESSEL_JN(mG-1,REAL(g*r))-BESSEL_JN(mG+1,REAL(g*r)))* &
                                                                  (-cos(h*z+mG*phi)*sin(omegaG*t)+sin(h*z+mG*phi)*cos(omegaG*t))
-  Bphi=-B0G*mG*h/(r*g**2)     *bessj(mG,REAL(g*r,SP))                             * &
+  Bphi=-B0G*mG*h/(r*g**2)     *BESSEL_JN(mG,REAL(g*r))                             * &
                                                                  ( cos(h*z+mG*phi)*cos(omegaG*t)+sin(h*z+mG*phi)*sin(omegaG*t))
   resu(1)= cos(phi)*Er - sin(phi)*Ephi
   resu(2)= sin(phi)*Er + cos(phi)*Ephi
   resu(3)= 0.0
   resu(4)= cos(phi)*Br - sin(phi)*Bphi
   resu(5)= sin(phi)*Br + cos(phi)*Bphi
-  resu(6)= B0G*bessj(mG,REAL(g*r,SP))*cos(h*z+mG*phi-omegaG*t)
+  resu(6)= B0G*BESSEL_JN(mG,REAL(g*r))*cos(h*z+mG*phi-omegaG*t)
   resu(7)= 0.0
   resu(8)= 0.0
 
@@ -442,9 +440,9 @@ CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
   END IF
   z = x(3)
   a = h*z+mG*phi
-  b0 = bessj(mG,REAL(g*r,SP))
-  b1 = bessj(mG-1,REAL(g*r,SP))
-  b2 = bessj(mG+1,REAL(g*r,SP))
+  b0 = BESSEL_JN(mG,REAL(g*r))
+  b1 = BESSEL_JN(mG-1,REAL(g*r))
+  b2 = BESSEL_JN(mG+1,REAL(g*r))
   SELECT CASE(MOD(tDeriv,4))
     CASE(0)
       c1  =  omegaG**tDeriv * cos(a-omegaG*t)
@@ -679,10 +677,9 @@ FUNCTION shapefunc(r)
 END FUNCTION shapefunc
 
 FUNCTION beta(z,w)                                                                                                
-   USE nr
    IMPLICIT NONE
    REAL beta, w, z                                                                                                  
-   beta = exp(gammln(z)+gammln(w)-gammln(z+w))                                                                    
+   beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)                                                                    
 END FUNCTION beta 
 
 SUBROUTINE FinalizeEquation()
