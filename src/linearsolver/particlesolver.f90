@@ -14,7 +14,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#if defined(PARTICES) && defined(IMPA)
+#if defined(PARTICLES) && defined(IMPA)
 INTERFACE ParticleNewton
   MODULE PROCEDURE ParticleNewton
 END INTERFACE
@@ -30,7 +30,7 @@ PUBLIC:: ParticleNewton
 
 CONTAINS
 
-#if defined(PARTICES) && defined(IMPA)
+#if defined(PARTICLES) && defined(IMPA)
 SUBROUTINE InitPartSolver() 
 !===================================================================================================================================
 ! read in and allocation of required global variables for implicit particle treatment
@@ -69,11 +69,13 @@ rEps0=scaleps*SQRT(EPSILON(0.0))
 srEps0=1./rEps0
 
 ALLOCATE(PartXK(1:6,1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, &
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__, &
   'Cannot allocate PartXK')
 
 ALLOCATE(R_PartXK(1:6,1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, &
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__, &
   'Cannot allocate R_PartXK')
 
 END SUBROUTINE InitPartSolver
@@ -260,7 +262,8 @@ END DO
 nPartNewton=nPartNewton+nInnerPartNewton
 IF (nInnerPartNewton.EQ.nPartNewtonIter) THEN
   WRITE(*,*) Eps2PartNewton
-  CALL abort(__STAMP__, &
+  CALL abort(&
+      __STAMP__, &
   'NEWTON NOT CONVERGED WITH NEWTON ITERATIONS',nInnerPartNewton)
 END IF
 
@@ -406,7 +409,8 @@ DO WHILE (Restart<nRestarts)
   Gam(1)=Norm_R0
 END DO ! Restart
 
-CALL abort(__STAMP__, &
+CALL abort(&
+    __STAMP__, &
      'GMRES_M NOT CONVERGED WITH RESTARTS AND GMRES ITERATIONS:',Restart,REAL(nPartInnerIter))
 
 END SUBROUTINE Particle_GMRES
