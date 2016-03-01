@@ -61,7 +61,8 @@ IMPLICIT NONE
 INTEGER    :: i,j,k,iElem
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.LinearSolverInitIsDone)THEN
-   CALL abort(__STAMP__,&
+   CALL abort(&
+       __STAMP__,&
        'InitImplicit not ready to be called or already called.',999,999.)
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -145,7 +146,8 @@ CASE(7)
   maxIter_LinearSolver=maxIter_LinearSolver/ldim+1
   SWRITE(*,'(A,I4)') ' New number of max. Iterations: ', maxIter_LinearSolver
 CASE DEFAULT
-  CALL abort(__STAMP__, &
+  CALL abort(&
+      __STAMP__, &
       'WRONG TYPE OF LINEAR SOLVER:',LinSolver,999.)
 END SELECT
 
@@ -325,7 +327,8 @@ END DO ! while chance < 2
 
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
-IF(MPIROOT) CALL abort(__STAMP__, &
+IF(MPIROOT) CALL abort(&
+    __STAMP__, &
      'CGS NOT CONVERGED WITH RESTARTS AND CGS ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 END SUBROUTINE LinearSolver_CGS
 
@@ -341,7 +344,6 @@ SUBROUTINE LinearSolver_BiCGStab(t,Coeff)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,        ONLY: U
-USE MOD_PICDepo_Vars,   ONLY: Source
 USE MOD_LinearSolver_Vars,  ONLY: eps_LinearSolver,maxIter_LinearSolver!,epsTilde_LinearSolver
 USE MOD_LinearSolver_Vars,  ONLY: LinSolverRHS,ImplicitSource
 USE MOD_LinearOperator, ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -731,7 +733,8 @@ END DO ! while chance < 2
 
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
-IF(MPIRoot) CALL abort(__STAMP__, &
+IF(MPIRoot) CALL abort(&
+    __STAMP__, &
      'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTAB_PM
@@ -747,7 +750,6 @@ SUBROUTINE LinearSolver_StabBiCGSTAB(t,Coeff)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,       ONLY:U
-USE MOD_PICDepo_Vars,  ONLY:Source
 USE MOD_LinearSolver_Vars, ONLY:eps_LinearSolver,maxIter_LinearSolver!,epsTilde_LinearSolver
 USE MOD_Equation_Vars, ONLY:eps0,c_corr
 USE MOD_LinearSolver_Vars, ONLY:LinSolverRHS,ImplicitSource
@@ -1032,7 +1034,8 @@ END DO ! while
 
 SWRITE(*,*)'Norm_R        : ',Norm_R
 SWRITE(*,*)'Norm_R0       : ',Norm_R0
-IF(MPIRoot) CALL abort(__STAMP__, &
+IF(MPIRoot) CALL abort(&
+    __STAMP__, &
      'StabBiCGSTAB_P NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',chance,REAL(iter))
 
 END SUBROUTINE LinearSolver_StabBiCGSTAB_P
@@ -1195,7 +1198,8 @@ DO WHILE (Restart<nRestarts)
   Gam(1)=Norm_R0
 END DO ! Restart
 
-IF(MPIRoot) CALL abort(__STAMP__, &
+IF(MPIRoot) CALL abort(&
+    __STAMP__, &
      'GMRES_M NOT CONVERGED WITH RESTARTS AND GMRES ITERATIONS:',Restart,REAL(nInnerIter))
 
 END SUBROUTINE LinearSolver_GMRES_P
@@ -1368,7 +1372,8 @@ END DO ! while chance < 2
 
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
-IF(MPIRoot) CALL abort(__STAMP__, &
+IF(MPIRoot) CALL abort(&
+    __STAMP__, &
      'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTAB_LRP
@@ -1533,7 +1538,8 @@ END DO ! while chance < 2
 
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
-IF(MPIRoot) CALL abort(__STAMP__, &
+IF(MPIRoot) CALL abort(&
+    __STAMP__, &
      'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTAB_LP
@@ -1705,7 +1711,8 @@ END DO ! while chance < 2
 
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
-IF(MPIRoot) CALL abort(__STAMP__, &
+IF(MPIRoot) CALL abort(&
+    __STAMP__, &
      'BiCGSTAB(l) NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTABl

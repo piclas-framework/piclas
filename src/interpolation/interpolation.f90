@@ -60,7 +60,9 @@ IMPLICIT NONE
 !local variables
 !============================================================================================================================
 IF (InterpolationInitIsDone) THEN
-  CALL abort(__STAMP__,'InitInterpolation already called.',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'InitInterpolation already called.',999,999.)
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT INTERPOLATION...'
@@ -122,7 +124,9 @@ ALLOCATE(L_PlusMinus(0:N_in,6))
     READ(*,*)
 #else
     SWRITE(UNIT_stdOut,'(A)') ' NodeType NOT implemented'
-    CALL abort(__STAMP__,'Code stopped!',999,999.)
+    CALL abort(&
+        __STAMP__&
+        ,'Code stopped!',999,999.)
 #endif
 
 CALL BarycentricWeights(N_in,xGP,wBary)

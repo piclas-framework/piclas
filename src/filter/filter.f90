@@ -48,7 +48,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 IF(FilterInitIsDone.OR.(.NOT.InterpolationInitIsDone))THEN
-   CALL abort(__STAMP__,'InitFilter not ready to be called or already called.',999,999.)
+   CALL abort(&
+       __STAMP__&
+       ,'InitFilter not ready to be called or already called.',999,999.)
    RETURN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')

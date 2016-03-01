@@ -50,13 +50,13 @@ USE MOD_Particle_Analyze,          ONLY:FinalizeParticleAnalyze
 USE MOD_PICDepo,                   ONLY:FinalizeDeposition
 USE MOD_ParticleInit,              ONLY:FinalizeParticles
 USE MOD_DSMC_Init,                 ONLY:FinalizeDSMC
+USE MOD_Particle_Vars,             ONLY:ParticlesInitIsDone
 #ifdef MPI
 USE MOD_Particle_MPI,              ONLY:FinalizeParticleMPI
+USE MOD_Particle_MPI_Vars,         ONLY:ParticleMPIInitisdone
 #endif /*MPI*/
 #endif /*PARTICLES*/
 USE MOD_ReadinTools,               ONLY: Readindone
-USE MOD_Particle_MPI_Vars,         ONLY: ParticleMPIInitisdone
-USE MOD_Particle_Vars,             ONLY: ParticlesInitIsDone
 #if (PP_TimeDiscMethod==104)
 USE MOD_LinearSolver_Vars,ONLY:nNewton
 #endif
@@ -99,14 +99,18 @@ CALL FinalizeParticleMPI()
 CALL FinalizeDSMC()
 CALL FinalizeParticles()
 CALL FinalizeBackGroundField()
-#endif
+#endif /*PARTICLES*/
 #ifdef MPI
 CALL FinalizeMPI()
 #endif /*MPI*/
 
 ReadInDone=.FALSE.
-ParticleMPIInitIsDone=.FALSE.
+#ifdef PARTICLES
 ParticlesInitIsDone=.FALSE.  
+#ifdef MPI
+ParticleMPIInitIsDone=.FALSE.
+#endif /*MPI*/
+#endif /*PARTICLES*/
 
 END SUBROUTINE FinalizeBoltzplatz
 

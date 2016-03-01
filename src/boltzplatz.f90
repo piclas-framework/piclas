@@ -184,7 +184,9 @@ Time=BOLTZPLATZTIME()
 CALL FinalizeLoadBalance()
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) &
-  CALL abort(__STAMP__,'MPI finalize error',iError,999.)
+  CALL abort(&
+  __STAMP__&
+  ,'MPI finalize error',iError,999.)
 #endif
 #ifdef IMEX
 SWRITE(UNIT_stdOut,'(132("="))')

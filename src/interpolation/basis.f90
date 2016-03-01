@@ -259,7 +259,8 @@ DO i=0,N_In
 END DO !j
 
 ! 3.) build array with binomial coeffs (fractions) for elevation
-IF(N_In+BezierElevation.GE.171) CALL Abort(__STAMP__,&
+IF(N_In+BezierElevation.GE.171) CALL Abort(&
+    __STAMP__,&
   'Bezier elevation to polynomial degrees greater/equal 171 is forbiddon! exit.',171,REAL(N_In+BezierElevation))
 ElevationMatrix(0,0) = 1.
 ElevationMatrix(N_In+BezierElevation,N_In) = 1.
@@ -306,10 +307,12 @@ dummy_vec=0.
 ! Invert A: Caution!!! From now on A=A^(-1) 
 sVdm_Bezier=Vdm_Bezier
 CALL DGETRF(N_In+1,N_In+1,sVdm_Bezier,N_In+1,IPIV,errorflag)
-IF (errorflag .NE. 0) CALL Abort(__STAMP__, &
+IF (errorflag .NE. 0) CALL Abort(&
+    __STAMP__, &
                'LU factorisation of matrix crashed',999,999.)
 CALL DGETRI(N_In+1,sVdm_Bezier,N_In+1,IPIV,dummy_vec,N_In+1,errorflag)
-IF (errorflag .NE. 0) CALL Abort(__STAMP__, &
+IF (errorflag .NE. 0) CALL Abort(&
+    __STAMP__, &
                'Solver crashed',999,999.)
 !print*,"Matrix inverted"
 !DO i=0,N_In
@@ -330,7 +333,8 @@ IF (errorflag .NE. 0) CALL Abort(__STAMP__, &
 dummy=SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))-REAL(N_In+1)
 !print*,dummy,PP_RealTolerance
 !read*
-IF(ABS(dummy).GT.1.E-13) CALL abort(__STAMP__,&
+IF(ABS(dummy).GT.1.E-13) CALL abort(&
+    __STAMP__,&
 'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)
 END SUBROUTINE BuildBezierVdm
 
@@ -581,7 +585,8 @@ DO i=0,N_In
 END DO !j
 !check (Vdm_Leg)^(-1)*Vdm_Leg := I 
 dummy=SUM((ABS(MATMUL(sVdm_Leg,Vdm_Leg)))-(N_In+1))
-IF(dummy.GT. PP_RealTolerance) CALL abort(__STAMP__,&
+IF(dummy.GT. PP_RealTolerance) CALL abort(&
+    __STAMP__,&
                                           'problems in MODAL<->NODAL Vandermonde ',999,dummy)
 
 END SUBROUTINE buildLegendreVdm
@@ -779,7 +784,8 @@ ELSE ! N_in>1
         xGP(iGP)=xGP(iGP)+dx
         IF(abs(dx).LT.Tol*abs(xGP(iGP))) EXIT
       END DO !iter
-      CALL abort(__STAMP__,&
+      CALL abort(&
+          __STAMP__,&
                  'Code stopped!',999,999.)
     END IF ! (iter.GT.nIter)
     CALL LegendrePolynomialAndDerivative(N_in+1,xGP(iGP),L_Np1,Lder_Np1)
@@ -897,7 +903,8 @@ IF(N_in.GT.1)THEN
         xGP(iGP)=xGP(iGP)+dx
         IF(abs(dx).LT.Tol*abs(xGP(iGP))) EXIT
       END DO ! iter
-      CALL abort(__STAMP__,&
+      CALL abort(&
+          __STAMP__,&
                  'Code stopped!',999,999.)
     END IF ! (iter.GT.nIter)
     CALL qAndLEvaluation(N_in,xGP(iGP),q,qder,L)
@@ -1135,13 +1142,15 @@ INTEGER         :: I
 !===================================================================================================================================
 !print*,"stop"
 !stop
-IF(N_in.LT.0) CALL abort(__STAMP__,&
+IF(N_in.LT.0) CALL abort(&
+    __STAMP__,&
   'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 FACTORIAL_REAL=1.
 DO I=2,N_in
   FACTORIAL_REAL=FACTORIAL_REAL*REAL(I,8)
 END DO
-IF(FACTORIAL_REAL.LT.0) CALL abort(__STAMP__,&
+IF(FACTORIAL_REAL.LT.0) CALL abort(&
+    __STAMP__,&
   'FACTORIAL is negative. This is not allowed! ',999,FACTORIAL_REAL)
 END FUNCTION FACTORIAL_REAL
 

@@ -459,7 +459,9 @@ CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
     CASE DEFAULT
       c1  = 0.0
       s1  = 0.0
-      CALL abort(__STAMP__,'What is that weired tDeriv you gave me?',999,999.)
+      CALL abort(&
+          __STAMP__&
+          ,'What is that weired tDeriv you gave me?',999,999.)
   END SELECT
 
   Er  =-B0G*mG*omegaG/(r*g**2)*b0     *c1
@@ -498,7 +500,9 @@ CASE(2)
   Resu=Resu + 0.75*dt*Resu_t+5./16.*dt*dt*Resu_tt
 CASE DEFAULT
   ! Stop, works only for 3 Stage O3 LS RK
-  CALL abort(__STAMP__,'Exactfuntion works only for 3 Stage O3 LS RK!',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'Exactfuntion works only for 3 Stage O3 LS RK!',999,999.)
 END SELECT
 #endif
 END SUBROUTINE ExactFunc
@@ -609,7 +613,9 @@ CASE(41) ! Dipole via temporal Gausspuls
 
 CASE(50,51) ! TE_34,19 Mode - no sources
 CASE DEFAULT
-  CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 
 #if defined(LSERK) ||  defined(IMEX) || defined(IMPA)

@@ -83,7 +83,9 @@ CALL H5ESET_AUTO_F(0, iError)
 ! Initialize FORTRAN predefined datatypes
 CALL H5OPEN_F(iError)
 IF(iError.NE.0)&
-  CALL Abort(__STAMP__,'ERROR: COULD NOT OPEN FILE!')
+  CALL Abort(&
+  __STAMP__&
+  ,'ERROR: COULD NOT OPEN FILE!')
 
 ! Open HDF5 file
 CALL H5FOPEN_F(TRIM(FileName), H5F_ACC_RDONLY_F, File_ID, iError,access_prp = Plist_ID)

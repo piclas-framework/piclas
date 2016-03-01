@@ -83,7 +83,9 @@ DO iElem=1,PP_nElems
   IF(locTimeStepConv.NE.locTimeStepConv)THEN
     ERRWRITE(*,'(A,I0,A,I0,A,I0,A,I0)')'Convective timestep NaN on proc ',myRank,' at global position (iElem): ',iElem
     ERRWRITE(*,*)'dt_conv=',locTimeStepConv
-    CALL abort(__STAMP__,'Convective timestep NaN!',999,999.)
+    CALL abort(&
+        __STAMP__&
+        ,'Convective timestep NaN!',999,999.)
   END IF
 END DO ! iElem
 #ifdef MPI

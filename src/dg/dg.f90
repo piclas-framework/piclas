@@ -67,7 +67,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES 
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.DGInitIsDone)THEN
-   CALL abort(__STAMP__,'InitDG not ready to be called or already called.',999,999.)
+   CALL abort(&
+       __STAMP__&
+       ,'InitDG not ready to be called or already called.',999,999.)
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT DG...'

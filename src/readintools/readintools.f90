@@ -176,7 +176,9 @@ IF (CntStr.EQ.0) THEN
     CntStr=IntProposal
   ELSE
     SWRITE(UNIT_StdOut,*) 'Inifile missing necessary keyword item : ',TRIM(TmpKey)
-    CALL abort(__STAMP__,'Code stopped!',999,999.)
+    CALL abort(&
+        __STAMP__&
+        ,'Code stopped!',999,999.)
   END IF
 END IF
 END FUNCTION CNTSTR
@@ -465,7 +467,9 @@ IF(MPIRoot)THEN
        ACCESS = 'SEQUENTIAL',  &
        IOSTAT = stat)
   IF(stat.NE.0) THEN
-    CALL abort(__STAMP__,"Could not open ini file.")
+    CALL abort(&
+        __STAMP__&
+        ,"Could not open ini file.")
   ELSE
     stat=0
     DO
@@ -541,7 +545,9 @@ IF (useDSMC) THEN
          ACCESS = 'SEQUENTIAL',&
          IOSTAT = stat)
     IF(stat.NE.0) THEN
-      CALL abort(__STAMP__,"Could not open ini file.")
+      CALL abort(&
+          __STAMP__&
+          ,"Could not open ini file.")
     ELSE
       nLines=0
       stat=0
@@ -808,7 +814,8 @@ Str1=>FirstString
 DO WHILE(.NOT.Found)
   IF (.NOT.ASSOCIATED(Str1)) THEN
     IF (.NOT.PRESENT(Proposal)) THEN
-      CALL abort(__STAMP__,  &
+      CALL abort(&
+          __STAMP__,  &
            'Inifile missing necessary keyword item : '//TRIM(TmpKey)//' - Code stopped!',999,999.)
     ELSE ! Return default value
       CALL LowCase(TRIM(Proposal),Str)

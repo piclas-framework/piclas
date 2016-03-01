@@ -65,7 +65,9 @@ IMPLICIT NONE
 CHARACTER(LEN=40)                :: DefStr
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
-  CALL abort(__STAMP__,'InitAnalyse not ready to be called or already called.',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'InitAnalyse not ready to be called or already called.',999,999.)
   RETURN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')

@@ -53,7 +53,9 @@ LOGICAL                        :: WriteErrorFiles
 CHARACTER(LEN=40)              :: DefStr
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.OutputInitIsDone) THEN
-  CALL abort(__STAMP__,'InitOutput not ready to be called or already called.',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'InitOutput not ready to be called or already called.',999,999.)
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT OUTPUT...'

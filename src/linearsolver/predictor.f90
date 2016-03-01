@@ -54,7 +54,8 @@ CASE(5)
   ALLOCATE(Upast(1:PP_nVar,0:PP_nVar,0:PP_nVar,0:PP_nVar,1:PP_nElems,-2:0))
   upast=0.
 CASE DEFAULT
-  CALL abort(__STAMP__, &
+  CALL abort(&
+      __STAMP__, &
     'PredictorType not implemented!',PredictorType,999.)
 END SELECT
 
@@ -112,7 +113,9 @@ SELECT CASE(PredictorType)
               *(FieldStage (:,:,:,:,:,iCounter) + FieldSource(:,:,:,:,:,iCounter))
     END DO
 #else
-   CALL abort(__STAMP__,'No Predictor for this timedisc!',999,999.)
+   CALL abort(&
+       __STAMP__&
+       ,'No Predictor for this timedisc!',999,999.)
 #endif
   CASE(3)
 #if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105)
@@ -125,7 +128,9 @@ SELECT CASE(PredictorType)
               *(FieldStage (:,:,:,:,:,iCounter) + FieldSource(:,:,:,:,:,iCounter))
     END DO
 #else
-   CALL abort(__STAMP__,'No Predictor for this timedisc!',999,999.)
+   CALL abort(&
+       __STAMP__&
+       ,'No Predictor for this timedisc!',999,999.)
 #endif
   CASE(4)
     U=2.*Upast(:,:,:,:,:,0)-Upast(:,:,:,:,:,-1)

@@ -84,7 +84,8 @@ nLoadBalance = 0
 ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
 IF (ParticleMPIWeight.LT.0) THEN
   CALL abort(&
-    __STAMP__,' ERROR: Particle weight cannot be negative!')
+    __STAMP__&
+    ,' ERROR: Particle weight cannot be negative!')
 END IF
 
 PartWeightMethod  = GETINT('Particles-WeightMethod','1')
@@ -290,7 +291,8 @@ IF(MPIRoot)THEN
   !CASE(3)
   CASE DEFAULT
     CALL abort(&
-      __STAMP__,' No valid PartWeightMethod defined!')
+      __STAMP__&
+      ,' No valid PartWeightMethod defined!')
   END SELECT
 END IF
 
@@ -585,7 +587,9 @@ SUBROUTINE LoadMeasure()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_LoadBalance_Vars,       ONLY:tCurrent,LoadSum,tTotal,nLoadIter,nTotalParts
+#ifdef PARTICLES
 USE MOD_Particle_Tracking_Vars, ONLY:nCurrentParts
+#endif /*PARTICLES*/
 USE MOD_PML_Vars,               ONLY:DoPML,nPMLElems
 #if defined(LSERK) || defined(IMPA) || defined(IMEX)
 #if (PP_TimeDiscMethod!=110)
@@ -605,13 +609,16 @@ REAL                :: nLocalParts
 nloadIter=nloaditer+1
 tTotal=tTotal+tCurrent
 
+#ifdef PARTICLES
 #if ((PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
   nLocalParts=REAL(nCurrentParts)/REAL(nRKStages) ! parts per stage
 #else
   nLocalParts=REAL(nCurrentParts)
 #endif /*TimeDiscMethod*/
-
 nTotalParts=nTotalParts+nLocalParts
+#else
+  nlocalParts=0
+#endif /*PARTICLES*/
 
 ! compute load sum
 ! dg
@@ -630,7 +637,9 @@ END IF
 
 ! last operation
 tCurrent=0.
+#ifdef PARTICLES
 nCurrentParts=0
+#endif /*PARTICLES*/
 
 END SUBROUTINE LoadMeasure
 

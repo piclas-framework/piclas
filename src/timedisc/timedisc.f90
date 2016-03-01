@@ -570,7 +570,6 @@ USE MOD_Equation,                ONLY: CalcSource
 USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
 #ifdef MPI
 USE MOD_LoadBalance_Vars,        ONLY: tCurrent
-USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
 #endif /*MPI*/
 #ifdef PP_POIS
 USE MOD_Equation,                ONLY: DivCleaningDamping_Pois,EvalGradient
@@ -593,6 +592,7 @@ USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
 USE MOD_part_tools,              ONLY: UpdateNextFreePosition
 #ifdef MPI
+USE MOD_Particle_Mesh,           ONLY: CountPartsPerElem
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 #endif /*MPI*/
@@ -648,6 +648,7 @@ tCurrent(4)=tCurrent(4)+tLBEnd-tLBStart
 #ifdef MPI
 CALL CountPartsPerElem()
 #endif /*MPI*/
+
 
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start

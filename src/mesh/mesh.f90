@@ -113,7 +113,9 @@ INTEGER           :: iSide,countSurfElem,iProc
 INTEGER,ALLOCATABLE :: countSurfElemMPI(:)
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
-  CALL abort(__STAMP__,'InitMesh not ready to be called or already called.',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'InitMesh not ready to be called or already called.',999,999.)
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
@@ -304,7 +306,9 @@ DO f = 0, 4
       ijk = SideToVolA(:,0,p,q,f,s)
       pq = VolToSideA(:,ijk(1),ijk(2),ijk(3),f,s)
       IF ((pq(1).NE.p).OR.(pq(2).NE.q)) THEN
-        CALL abort(__STAMP__,'SideToVol does not fit to VolToSideA')
+        CALL abort(&
+            __STAMP__&
+            ,'SideToVol does not fit to VolToSideA')
       END IF
     END DO; END DO 
   END DO ! s = 1, 6

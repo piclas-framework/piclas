@@ -90,7 +90,8 @@ IF(nUserBCs .GT. 0)THEN
   END DO
 END IF
 DO iUserBC=1,nUserBCs
-  IF(.NOT.UserBCFound(iUserBC)) CALL Abort(__STAMP__,&
+  IF(.NOT.UserBCFound(iUserBC)) CALL Abort(&
+      __STAMP__,&
     'Boundary condition specified in parameter file has not been found: '//TRIM(BoundaryName(iUserBC)))
 END DO
 DEALLOCATE(UserBCFound)
@@ -107,7 +108,9 @@ IF(nUserBCs .GT. 0)THEN
   DO iBC=1,nBCs
     IF(BCMapping(iBC) .NE. 0)THEN
       IF((BoundaryType(BCMapping(iBC),1).EQ.1).AND.(BCType(1,iBC).NE.1)) &
-        CALL abort(__STAMP__,'Remapping non-periodic to periodic BCs is not possible!')
+        CALL abort(&
+        __STAMP__&
+        ,'Remapping non-periodic to periodic BCs is not possible!')
       SWRITE(Unit_StdOut,'(A,A)')    ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC))
       SWRITE(Unit_StdOut,'(A,I2,I2)')' |                            was | ',BCType(1,iBC),BCType(3,iBC)
       SWRITE(Unit_StdOut,'(A,I2,I2)')' |                      is set to | ',BoundaryType(BCMapping(iBC),1:2)
@@ -209,7 +212,8 @@ LOGICAL                        :: Dexist
 IF(MESHInitIsDone) RETURN
 IF(MPIRoot)THEN
   INQUIRE (FILE=TRIM(FileString), EXIST=fileExists)
-  IF(.NOT.FileExists)  CALL abort(__STAMP__, &
+  IF(.NOT.FileExists)  CALL abort(&
+      __STAMP__, &
           'readMesh from data file "'//TRIM(FileString)//'" does not exist')
 END IF
 
@@ -225,11 +229,14 @@ CALL OpenDataFile(FileString,create=.FALSE.)
 
 CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
 IF(HSize(1).NE.6) &
-  CALL abort(__STAMP__,'ERROR: Wrong size of ElemInfo, should be 6')
+  CALL abort(&
+  __STAMP__&
+  ,'ERROR: Wrong size of ElemInfo, should be 6')
 nGlobalElems=INT(HSize(2),4) !global number of elements
 IF(MPIRoot)THEN
   IF(nGlobalElems.LT.nProcessors) CALL abort(&
-   __STAMP__,' Cannot use more processes than elements!')
+   __STAMP__&
+   ,' Cannot use more processes than elements!')
 END IF
 DEALLOCATE(HSize)
 #ifdef MPI
@@ -362,7 +369,8 @@ IF (DoRestart) THEN
           ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
           ! sanity check
           IF(ElemDistri(iProc).LE.0) CALL abort(&
-          __STAMP__,' Process received zero elements during load distribution',iProc)
+          __STAMP__&
+          ,' Process received zero elements during load distribution',iProc)
         END DO ! iPRoc
         IF(Dexist)THEN
           IF(ElemDistri(nProcessors-1).EQ.1)THEN
@@ -392,7 +400,8 @@ IF (DoRestart) THEN
         END IF         
         IF(ABS(WeightSum-SUM(LoadDistri)).GT.0.5) THEN
            CALL abort(&
-          __STAMP__,' Lost Elements and/or Particles during load distribution!')
+          __STAMP__&
+          ,' Lost Elements and/or Particles during load distribution!')
         END IF
       END DO
     END IF
@@ -401,7 +410,8 @@ IF (DoRestart) THEN
     SWRITE(*,*) 'done'
   CASE(2)
      CALL abort(&
-     __STAMP__,' error in load distritubion. please fix me!')
+     __STAMP__&
+     ,' error in load distritubion. please fix me!')
     ! 1: last Proc receives the least load
     ! 2: Root receives the least load
     IF(MPIRoot)THEN
@@ -461,7 +471,8 @@ IF (DoRestart) THEN
           ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
           ! sanity check
           IF(ElemDistri(iProc).LE.0) CALL abort(&
-          __STAMP__,' Process received zero elements during load distribution',iProc)
+          __STAMP__&
+          ,' Process received zero elements during load distribution',iProc)
         END DO ! iPRoc
         IF(DExist)THEN
           LoadDistri(0)=SUM(ElemWeight(1:offSetElemMPI(1)))
@@ -477,7 +488,8 @@ IF (DoRestart) THEN
           FoundDistribution=.TRUE.
         END IF
         IF(iDistriIter.EQ.nProcessors) CALL abort(&
-          __STAMP__,&
+          __STAMP__&
+          ,&
           'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!')
         IF(ABS(WeightSum-SUM(LoadDistri)).GT.0.5) THEN
            WRITE(*,*) WeightSum-SUM(LoadDistri)
@@ -485,7 +497,8 @@ IF (DoRestart) THEN
            WRITE(*,*) ElemDistri
            WRITE(*,*) LoadDistri
            CALL abort(&
-          __STAMP__,' Lost Elements and/or Particles during load distribution!')
+          __STAMP__&
+          ,' Lost Elements and/or Particles during load distribution!')
         END IF
       END DO
     END IF
@@ -543,7 +556,8 @@ IF (DoRestart) THEN
       ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
       ! sanity check
       IF(ElemDistri(iProc).LE.0) CALL abort(&
-      __STAMP__,' Process received zero elements during load distribution',iProc)
+      __STAMP__&
+      ,' Process received zero elements during load distribution',iProc)
     END DO ! iPRoc
     ! redistribute element weight
     DO iProc=1,nProcessors
@@ -592,7 +606,8 @@ IF (DoRestart) THEN
       ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
       ! sanity check
       IF(ElemDistri(iProc).LE.0) CALL abort(&
-      __STAMP__,' Process received zero elements during load distribution',iProc)
+      __STAMP__&
+      ,' Process received zero elements during load distribution',iProc)
     END DO ! iPRoc
     ! redistribute element weight
     DO iProc=1,nProcessors
@@ -613,7 +628,8 @@ IF (DoRestart) THEN
       IF(OffSetElemMPI(nProcessors).NE.nGlobalElems) ErrorCode=ErrorCode+10
       IF(SUM(ElemDistri).NE.nGlobalElems) ErrorCode=ErrorCode+1
       IF(ErrorCode.NE.0) CALL abort(&
-      __STAMP__,' Error during re-distribution! ErrorCode:', ErrorCode)
+      __STAMP__&
+      ,' Error during re-distribution! ErrorCode:', ErrorCode)
     END DO ! jProc=0,nProcessors
   ! compute load distri
     LoadDistri=0.
@@ -664,7 +680,7 @@ END IF
 CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.)
 #else
 CALL OpenDataFile(FileString,create=.FALSE.)
-#endif                                                     SDEALLOCATE(ElemTime)
+#endif 
 SDEALLOCATE(ElemTime)
 ALLOCATE(ElemTime(1:nElems))
 ElemTime=0.
@@ -765,12 +781,15 @@ DO iElem=FirstElemInd,LastElemInd
     IF((elemID.LE.LastElemInd).AND.(elemID.GE.FirstElemInd))THEN !local
       nbLocSide=Sideinfo(SIDE_Flip,iSide)/10
       IF((nbLocSide.LT.1).OR.(nbLocSide.GT.6))&
-        CALL abort(__STAMP__,'SideInfo: Index of local side must be between 1 and 6!')
+        CALL abort(&
+        __STAMP__&
+        ,'SideInfo: Index of local side must be between 1 and 6!')
       bSide=>Elems(elemID)%ep%Side(nbLocSide)%sp
       aSide%connection=>bSide
       bSide%connection=>aSide
       IF(bSide%ind.NE.aSide%ind)&
-        CALL abort(__STAMP__,&
+        CALL abort(&
+        __STAMP__,&
         'SideInfo: Index of side and neighbor side have to be identical!')
     ELSE !MPI
 #ifdef MPI
@@ -779,7 +798,8 @@ DO iElem=FirstElemInd,LastElemInd
       aSide%connection%Elem=>GETNEWELEM()
       aSide%NbProc = ELEMIPROC(elemID)
 #else
-      CALL abort(__STAMP__, &
+      CALL abort(&
+          __STAMP__, &
         ' elemID of neighbor not in global Elem list ')
 #endif
     END IF

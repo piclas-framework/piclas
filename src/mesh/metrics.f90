@@ -176,7 +176,9 @@ DO iElem=1,nElems
   scaledJac(2)=MINVAL(detJacGauss_N(1,:,:,:))/MAXVAL(detJacGauss_N(1,:,:,:))
   IF(ANY(scaledJac.LT.0.01)) THEN
     WRITE(Unit_StdOut,*) 'Too small scaled Jacobians found (Jac/element):', scaledJac,iElem
-    CALL abort(__STAMP__,'Scaled Jacobian lower then tolerance!',iElem)
+    CALL abort(&
+        __STAMP__&
+        ,'Scaled Jacobian lower then tolerance!',iElem)
   END IF
   ! check for negative Jacobians
   DO k=0,PP_N
@@ -185,12 +187,16 @@ DO iElem=1,nElems
         IF(detJacCL_N(1,i,j,k).LE.0.)THEN
           WRITE(Unit_StdOut,*) 'Negative Jacobian found in element on CL points. Coords:', XCL_NGeo_loc(:,i,j,k)
           WRITE(Unit_StdOut,*) 'Jacobian is:', detJacCL_N(1,i,j,k)
-          CALL abort(__STAMP__,'Negative Jacobian found! Elem:',iElem)
+          CALL abort(&
+              __STAMP__&
+              ,'Negative Jacobian found! Elem:',iElem)
         END IF
         IF(detJacGauss_N(1,i,j,k).LE.0.)THEN
           WRITE(Unit_StdOut,*) 'Negative Jacobian found in element on Gauss points. Coords:', XCL_N(:,i,j,k)
           WRITE(Unit_StdOut,*) 'Jacobian is:', detJacGauss_N(1,i,j,k)
-          CALL abort(__STAMP__,'Negative Jacobian found! Elem:', iElem)
+          CALL abort(&
+              __STAMP__&
+              ,'Negative Jacobian found! Elem:', iElem)
         END IF
       END DO !i=0,N
     END DO !j=0,N

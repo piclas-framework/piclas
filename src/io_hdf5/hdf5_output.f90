@@ -900,7 +900,7 @@ USE MOD_Globals
 USE MOD_Output_Vars,ONLY: ProjectName
 USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
 USE MOD_ReadInTools,ONLY: GetParameters
-USE MOD_PreProcFlags
+!USE MOD_PreProcFlags
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -958,7 +958,7 @@ CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
 ! Write ini file parameters and compile flags
 CALL GetParameters(params)
 CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
-CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
+!CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
 DEALLOCATE(params)
 
 CALL CloseDataFile()
@@ -1135,7 +1135,8 @@ END IF
 IF(PRESENT(resizeDim))THEN
   IF(.NOT.PRESENT(chunkSize))&
     CALL abort(&
-    __STAMP__,'Chunk size has to be specified when using resizable arrays.')
+    __STAMP__&
+    ,'Chunk size has to be specified when using resizable arrays.')
   nValMax = MERGE(H5S_UNLIMITED_F,nValMax,resizeDim)
 END IF
 
@@ -1362,7 +1363,9 @@ INTEGER,DIMENSION(nLocalProcs) :: nDOFPerNode,offsetNode
 !===================================================================================================================================
 IF(gatheredWrite)THEN
   IF(ANY(offset(1:rank-1).NE.0)) &
-    CALL abort(__STAMP__,'Offset only allowed in last dimension for gathered IO.')
+    CALL abort(&
+    __STAMP__&
+    ,'Offset only allowed in last dimension for gathered IO.')
   
   ! Get last dim of each array on IO nodes
   nDOFLocal=PRODUCT(nVal)

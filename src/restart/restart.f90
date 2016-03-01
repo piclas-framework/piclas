@@ -55,7 +55,9 @@ INTEGER            :: nArgs
 INTEGER            :: maxNArgs
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
-   CALL abort(__STAMP__,'InitRestart not ready to be called or already called.',999,999.)
+   CALL abort(&
+       __STAMP__&
+       ,'InitRestart not ready to be called or already called.',999,999.)
    RETURN
 END IF
 
@@ -383,7 +385,8 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
   END DO
   ! if ParticleVecLength GT maxParticleNumber: Stop
   IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
-    CALL abort(__STAMP__,&
+    CALL abort(&
+        __STAMP__,&
        ' Number of Particles in Restart higher than MaxParticleNumber!')
   END IF
 

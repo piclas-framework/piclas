@@ -186,7 +186,9 @@ CASE(1)
   Resu=Resu + dt/3.*Resu_t
 CASE DEFAULT
   ! Stop, works only for 3 Stage O3 LS RK
-  CALL abort(__STAMP__,'Exactfuntion works only for 3 Stage O3 LS RK!',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'Exactfuntion works only for 3 Stage O3 LS RK!',999,999.)
 END SELECT
 #endif
 END SUBROUTINE ExactFunc
@@ -244,7 +246,9 @@ CASE(0) ! Particles
 #endif /*PARTICLES*/
 CASE(1) ! Constant          - no sources
 CASE DEFAULT
-  CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 
 #ifdef LSERK

@@ -121,7 +121,9 @@ SELECT CASE(PrecondType)
     !CALL InitJacDG()
     CALL InitILU()
   CASE DEFAULT
-    CALL abort(__STAMP__,'Preconditioner not implemented!',999,999.)
+    CALL abort(&
+        __STAMP__&
+        ,'Preconditioner not implemented!',999,999.)
 END SELECT
 
 #else
@@ -644,7 +646,8 @@ IF((DebugMatrix.GE.4).OR.(DebugMatrix.LT.0))THEN
   END IF
   IF(dummy.NE. dummy) THEN  !NAN
     IPWRITE(UNIT_stdOut,*)'WARNING!!! NAN problem in with preconditioner inverse..',dummy
-    CALL abort(__STAMP__&
+    CALL abort(&
+        __STAMP__&
         ,' NAN! Problem with preconditioner inverse.')
   END IF
   CALL CPU_TIME(Time2)

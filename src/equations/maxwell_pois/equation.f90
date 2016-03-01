@@ -413,7 +413,9 @@ CASE(50,51)            ! Initialization and BC Gyrotron - including derivatives
       c1  = -omegaG**tDeriv * sin(a-omegaG*t)
       s1  =  omegaG**tDeriv * cos(a-omegaG*t)
     CASE DEFAULT
-      CALL abort(__STAMP__, &
+      CALL abort(&
+          __STAMP__&
+          , &
         'What is that weird tDeriv you gave me?',999,999.)
   END SELECT
 
@@ -449,7 +451,9 @@ CASE(2)
   Resu=Resu + 0.75*dt*Resu_t+5./16.*dt*dt*Resu_tt
 CASE DEFAULT
   ! Stop, works only for 3 Stage O3 LS RK
-  CALL abort(__STAMP__,'Exactfuntion works only for 3 Stage O3 LS RK!',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'Exactfuntion works only for 3 Stage O3 LS RK!',999,999.)
 END SELECT
 #endif
 END SUBROUTINE ExactFunc
@@ -521,7 +525,9 @@ CASE(4) ! Dipole
 CASE(5) ! TE_34,19 Mode     - no sources
 CASE(50,51) ! TE_34,19 Mode - no sources
 CASE DEFAULT
-  CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 #ifdef LSERK
 IF(DoParabolicDamping)THEN
@@ -581,7 +587,9 @@ CASE(0) ! Particles
   END DO
 CASE(1) ! Constant          - no sources
 CASE DEFAULT
-  CALL abort(__STAMP__,'Exactfunction not specified!',999,999.)
+  CALL abort(&
+      __STAMP__&
+      ,'Exactfunction not specified!',999,999.)
 END SELECT ! ExactFunction
 #ifdef LSERK
 IF(DoParabolicDamping)THEN
