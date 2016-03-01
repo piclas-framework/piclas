@@ -315,7 +315,8 @@ firstClip=.TRUE.
 CALL BezierClip(firstClip,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTrajectory&
                ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 IF(nInterSections.GT.1)THEN
-  CALL abort(__STAMP__, &
+  CALL abort(&
+      __STAMP__, &
      ' More then one intersection! Cannot use Newton!' ,nInterSections)
 END IF
 #endif /*CODE_ANALYZE*/
@@ -1444,7 +1445,8 @@ DO WHILE((dXi2.GT.BezierClipTolerance2).AND.(nIter.LE.BezierClipMaxIter))
   nIter=nIter+1
 END DO
 
-IF(nIter.GT.BezierClipMaxIter) CALL abort(__STAMP__,&
+IF(nIter.GT.BezierClipMaxIter) CALL abort(&
+    __STAMP__,&
     ' Bezier-Newton does not yield root! ')
 
 ! check if found Xi,Eta are in parameter range
@@ -1495,7 +1497,8 @@ Length=SQRT(DOT_PRODUCT(LXi,LXi))
 IF(Length.EQ.0)THEN
   DoCheck=.FALSE.
   ! DEBUG: is the complete IF statement dispensable?
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
       'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF
@@ -1507,7 +1510,8 @@ Length=SQRT(DOT_PRODUCT(Leta,Leta))
 IF(Length.EQ.0)THEN
   DoCheck=.FALSE.
   ! DEBUG: is the complete IF statement dispensable?
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
       'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF
@@ -1616,7 +1620,8 @@ Length=SQRT(DOT_PRODUCT(LineNormVec,LineNormVec))
 IF(Length.EQ.0)THEN
   DoCheck=.FALSE.
   ! DEBUG: is the complete IF statement dispensable?
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
       'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF

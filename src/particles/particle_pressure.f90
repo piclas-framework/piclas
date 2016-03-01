@@ -76,11 +76,13 @@ SUBROUTINE ParticlePressureIni()
   LOGICAL              :: InElementCheck,Marked
 !===================================================================================================================================
 
-  IF(.NOT.DoRefMapping) CALL abort(__STAMP__,&
+  IF(.NOT.DoRefMapping) CALL abort(&
+      __STAMP__,&
               ' Particle pressure is only possible with tracking via reference element mapping!')
   
 
-   CALL abort(__STAMP__,&
+   CALL abort(&
+       __STAMP__,&
               ' GEO has to be exchanged by XCL_NGeo!' )
   !epsi = 100.*epsilon(epsi)
   ! accuracy of mapping into ref element
@@ -654,11 +656,13 @@ SUBROUTINE ParticlePressureCellIni()
   INTEGER              :: i,j,k
   LOGICAL              :: InElementCheck,Marked
 !===================================================================================================================================
-  IF(.NOT.DoRefMapping) CALL abort(__STAMP__,&
+  IF(.NOT.DoRefMapping) CALL abort(&
+      __STAMP__,&
               ' Particle pressure is only possible with tracking via reference element mapping!')
   
 
-   CALL abort(__STAMP__,&
+   CALL abort(&
+       __STAMP__,&
               ' GEO has to be exchanged by XCL_NGeo!' )
   !epsi = 100.*epsilon(epsi)
   ! accuracy of mapping into ref element

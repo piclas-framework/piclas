@@ -63,7 +63,8 @@ SWRITE(UNIT_stdOut,'(A)')' INIT BackGround-Field'
 
 BGFileName = GETSTR('PIC-BGFileName','blubb')
 IF(TRIM(BGFileName).EQ.'blubb')THEN 
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
   'ERROR: No Filename for Background-Field defined!')
 END IF 
 
@@ -123,7 +124,8 @@ IF(Dims(1).EQ.3)THEN
   ELSE IF(TRIM(VarNames(1)).EQ.'BG-MagneticFieldX') THEN
     BGType=2
   ELSE
-    CALL abort(__STAMP__,&
+    CALL abort(&
+        __STAMP__,&
     'Wrong input file for BG-Field.')
   END IF
 ELSE
@@ -147,7 +149,8 @@ CALL LegendreGaussNodesAndWeights(NBG,BGField_xGP,BGField_wGP)
 CASE("GAUSS-LOBATTO")
 CALL LegGaussLobNodesAndWeights(NBG,BGField_xGP,BGField_wGP)
 CASE DEFAULT
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
       ' Nodetype for BackGround-Field is not implemented! Use Gauss or Gauss-Lobatto.')
 END SELECT
 CALL BarycentricWeights(NBG,BGField_xGP,BGField_wBary)
@@ -172,7 +175,8 @@ IF(NBG.NE.N_In)THEN
   CASE("GAUSS-LOBATTO")
     CALL LegGaussLobNodesAndWeights(N_In,xGP_tmp,wGP_tmp)
   CASE DEFAULT
-    CALL abort(__STAMP__,&
+    CALL abort(&
+        __STAMP__,&
         ' Not type of BackGround-Field is not implemented!')
   END SELECT
   CALL BarycentricWeights(N_In,xGP_tmp,wBary_tmp)

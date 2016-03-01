@@ -1159,7 +1159,7 @@ DO iPart=1,PDM%ParticleVecLength
               IPWRITE(UNIt_stdOut,*) ' elemid       ', pem%element(ipart)+offsetelem
 #endif
               CALL abort(&
-                __STAMP__, &
+    __STAMP__, &
                 'particle noT inside of element, ipart',ipart)
             END IF ! inside
           ELSE

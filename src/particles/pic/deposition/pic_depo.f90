@@ -343,7 +343,8 @@ CASE('delta_distri')
       Knots(i) =X0+2.0*REAL(i)
     END DO ! i
   CASE DEFAULT
-    CALL abort(__STAMP__, &
+    CALL abort(&
+        __STAMP__, &
         ' Wrong Delta-Type')
   END SELECT
   IF(NDepo.GT.PP_N) CALL abort(&
@@ -392,7 +393,8 @@ CASE('cartmesh_volumeweighting')
   FactorBGM(1:3) = GETREALARRAY('PIC-FactorBGM',3,'1. , 1. , 1.')
   BGMdeltas(1:3) = 1./FactorBGM(1:3)*BGMdeltas(1:3)
   IF (ANY(BGMdeltas.EQ.0.0)) THEN
-    CALL abort(__STAMP__, &
+    CALL abort(&
+        __STAMP__, &
       'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.')
   END IF
   ! calc min and max coordinates for local mesh
@@ -421,12 +423,14 @@ CASE('cartmesh_volumeweighting')
   ! mapping from gausspoints to BGM
   ALLOCATE(GaussBGMIndex(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__, &
+    CALL abort(&
+        __STAMP__, &
       'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!') 
   END IF
   ALLOCATE(GaussBGMFactor(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__, &
+    CALL abort(&
+        __STAMP__, &
       'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
   END IF
   DO iElem = 1, nElems
@@ -450,23 +454,27 @@ CASE('cartmesh_volumeweighting')
     ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
     ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
     IF (allocStat .NE. 0) THEN
-      CALL abort(__STAMP__, &
+      CALL abort(&
+          __STAMP__, &
       'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
     END IF
     DO i = 1, GEO%nPeriodicVectors
       GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
       IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__, &
+        CALL abort(&
+            __STAMP__, &
       'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
       IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__, &
+        CALL abort(&
+            __STAMP__, &
       'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
       IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__, &
+        CALL abort(&
+            __STAMP__, &
       'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
     END DO
@@ -478,7 +486,8 @@ CASE('cartmesh_splines')
   FactorBGM(1:3) = GETREALARRAY('PIC-FactorBGM',3,'1. , 1. , 1.')
   BGMdeltas(1:3) = 1./FactorBGM(1:3)*BGMdeltas(1:3)
   IF (ANY(BGMdeltas.EQ.0)) THEN
-    CALL abort(__STAMP__, &
+    CALL abort(&
+        __STAMP__, &
       'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.')
   END IF
   ! calc min and max coordinates for local mesh
@@ -507,12 +516,14 @@ CASE('cartmesh_splines')
   ! mapping from gausspoints to BGM
   ALLOCATE(GaussBGMIndex(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__, &
+    CALL abort(&
+        __STAMP__, &
       'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!')
   END IF
   ALLOCATE(GaussBGMFactor(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__, &
+    CALL abort(&
+        __STAMP__, &
       'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
   END IF
   DO iElem = 1, nElems
@@ -529,7 +540,8 @@ CASE('cartmesh_splines')
   ! pre-build weights for BGM to gausspoint interpolation
   ALLOCATE(GPWeight(1:nElems,0:PP_N,0:PP_N,0:PP_N,1:4,1:4,1:4),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__, &
+    CALL abort(&
+        __STAMP__, &
       'ERROR in pic_depo.f90: Cannot allocate GPWeight!')
   END IF
   DO iElem = 1, nElems
@@ -566,23 +578,27 @@ CASE('cartmesh_splines')
     ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
     ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
     IF (allocStat .NE. 0) THEN
-      CALL abort(__STAMP__, &
+      CALL abort(&
+          __STAMP__, &
       'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
     END IF
     DO i = 1, GEO%nPeriodicVectors
       GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
       IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__,  &
+        CALL abort(&
+            __STAMP__,  &
       'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
       IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__, &
+        CALL abort(&
+            __STAMP__, &
       'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
       IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
-        CALL abort(__STAMP__, &
+        CALL abort(&
+            __STAMP__, &
       'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
     END DO
@@ -590,7 +606,8 @@ CASE('cartmesh_splines')
 #endif
   ALLOCATE(BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4))
 CASE DEFAULT
-  CALL abort(__STAMP__, &
+  CALL abort(&
+      __STAMP__, &
       'Unknown DepositionType in pic_depo.f90')
 END SELECT
 
@@ -2115,7 +2132,8 @@ CASE('cartmesh_splines')
   END DO !iElem
  !DEALLOCATE(BGMSource)
 CASE DEFAULT
-  CALL abort(__STAMP__, &
+  CALL abort(&
+      __STAMP__, &
        'Unknown DepositionType in pic_depo.f90')
 END SELECT
 
@@ -2230,12 +2248,14 @@ DO iProc = 0,PartMPI%nProcs-1
    IF((PartMPI%DepoBGMConnect(iProc)%isBGMNeighbor).OR.(PartMPI%DepoBGMConnect(iProc)%isBGMPeriodicNeighbor))THEN
       ALLOCATE(send_message(iProc)%content_log(1:MsgLength(iProc)), STAT=allocStat)
       IF (allocStat .NE. 0) THEN
-         CALL abort(__STAMP__, &
+         CALL abort(&
+             __STAMP__, &
             'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
       END IF
       ALLOCATE(recv_message(iProc)%content_log(1:MsgLength(iProc)), STAT=allocStat)
       IF (allocStat .NE. 0) THEN
-         CALL abort(__STAMP__, &
+         CALL abort(&
+             __STAMP__, &
             'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
       END IF
    END IF
@@ -2312,7 +2332,8 @@ END IF
         (PartMPI%DepoBGMConnect(iProc)%isBGMPeriodicNeighbor)).AND.(SourceLength(iProc).GT.0)) THEN
       ALLOCATE(send_message(iProc)%content(1:SourceLength(iProc)*4), STAT=allocStat)
       IF (allocStat .NE. 0) THEN
-         CALL abort(__STAMP__, &
+         CALL abort(&
+             __STAMP__, &
             'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
       END IF
    END IF
@@ -2368,7 +2389,8 @@ DO iProc = 0,PartMPI%nProcs-1
       IF (RecvLength(iProc).GT.0) THEN
          ALLOCATE(recv_message(iProc)%content(1:Counter*4), STAT=allocStat)
          IF (allocStat .NE. 0) THEN
-            CALL abort(__STAMP__, &
+            CALL abort(&
+                __STAMP__, &
               'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
          END IF
       END IF
@@ -2407,13 +2429,15 @@ DO iProc = 0,PartMPI%nProcs-1
    IF ((PartMPI%DepoBGMConnect(iProc)%isBGMNeighbor).OR.(PartMPI%DepoBGMConnect(iProc)%isBGMPeriodicNeighbor)) THEN
       DEALLOCATE(send_message(iProc)%content_log, STAT=allocStat)
       IF (allocStat .NE. 0) THEN
-         CALL abort(__STAMP__, &
+         CALL abort(&
+             __STAMP__, &
             'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
       END IF
       IF (SourceLength(iProc).GT.0) THEN
          DEALLOCATE(send_message(iProc)%content, STAT=allocStat)
          IF (allocStat .NE. 0) THEN
-            CALL abort(__STAMP__, &
+            CALL abort(&
+                __STAMP__, &
               'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
          END IF
       END IF
@@ -2487,7 +2511,8 @@ DO iProc = 0,PartMPI%nProcs-1
       IF ((PartMPI%DepoBGMConnect(iProc)%isBGMPeriodicNeighbor).OR.(PartMPI%DepoBGMConnect(iProc)%isBGMNeighbor)) THEN
          DEALLOCATE(recv_message(iProc)%content, STAT=allocStat)
          IF (allocStat .NE. 0) THEN
-            CALL abort(__STAMP__, &
+            CALL abort(&
+                __STAMP__, &
               'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
          END IF
       END IF
@@ -2495,7 +2520,8 @@ DO iProc = 0,PartMPI%nProcs-1
    IF ((PartMPI%DepoBGMConnect(iProc)%isBGMPeriodicNeighbor).OR.(PartMPI%DepoBGMConnect(iProc)%isBGMNeighbor)) THEN
       DEALLOCATE(recv_message(iProc)%content_log, STAT=allocStat)
       IF (allocStat .NE. 0) THEN
-         CALL abort(__STAMP__, &
+         CALL abort(&
+             __STAMP__, &
           'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
       END IF
    END IF
@@ -2538,23 +2564,27 @@ IF(GEO%nPeriodicVectors.GT.0)THEN
   ! Compute PeriodicBGMVectors (from PeriodicVectors and BGMdeltas)
   ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
   IF (allocStat .NE. 0) THEN
-    CALL abort(__STAMP__, &
+    CALL abort(&
+        __STAMP__, &
        'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
   END IF
   DO iProc = 1, GEO%nPeriodicVectors
     GEO%PeriodicBGMVectors(1,iProc) = NINT(GEO%PeriodicVectors(1,iProc)/BGMdeltas(1))
     IF(ABS(GEO%PeriodicVectors(1,iProc)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,iProc))).GT.1E-10)THEN
-      CALL abort(__STAMP__, &
+      CALL abort(&
+          __STAMP__, &
        'ERROR: Periodic Vector ist not multiple of background mesh delta')
     END IF
     GEO%PeriodicBGMVectors(2,iProc) = NINT(GEO%PeriodicVectors(2,iProc)/BGMdeltas(2))
     IF(ABS(GEO%PeriodicVectors(2,iProc)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,iProc))).GT.1E-10)THEN
-      CALL abort(__STAMP__, &
+      CALL abort(&
+          __STAMP__, &
        'ERROR: Periodic Vector ist not multiple of background mesh delta')
     END IF
     GEO%PeriodicBGMVectors(3,iProc) = NINT(GEO%PeriodicVectors(3,iProc)/BGMdeltas(3))
     IF(ABS(GEO%PeriodicVectors(3,iProc)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,iProc))).GT.1E-10)THEN
-      CALL abort(__STAMP__, &
+      CALL abort(&
+          __STAMP__, &
        'ERROR: Periodic Vector ist not multiple of background mesh delta')
     END IF
   END DO
@@ -2611,7 +2641,8 @@ CALL MPI_ALLGATHER(localminmax,6,MPI_INTEGER,completeminmax,6,MPI_INTEGER,PartMP
 SDEALLOCATE(PartMPI%DepoBGMConnect)
 ALLOCATE(PartMPI%DepoBGMConnect(0:PartMPI%nProcs-1),STAT=allocStat)
 IF (allocStat .NE. 0) THEN
-  CALL abort(__STAMP__, &
+  CALL abort(&
+      __STAMP__, &
     ' Cannot allocate PartMPI%DepoBGMConnect')
 END IF
 
@@ -2638,7 +2669,8 @@ DO iProc=0,PartMPI%nProcs-1
       SDEALLOCATE(PartMPI%DepoBGMConnect(iProc)%BGMBorder)
       ALLOCATE(PartMPI%DepoBGMConnect(iProc)%BGMBorder(1:2,1:3),STAT=allocStat)
       IF (allocStat .NE. 0) THEN
-         CALL abort(__STAMP__, &
+         CALL abort(&
+             __STAMP__, &
           ' Cannot allocate PartMPI%DepoMPIConnect%BGMBorder')
       END IF
       PartMPI%DepoBGMConnect(iProc)%BGMBorder(1:2,1:3) = TempBorder(1:2,1:3)
@@ -2719,13 +2751,15 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
       PartMPI%DepoBGMConnect(iProc)%BGMPeriodicBorderCount = NeighCount
       ALLOCATE(PartMPI%DepoBGMConnect(iProc)%Periodic(1:PartMPI%DepoBGMConnect(iProc)%BGMPeriodicBorderCount),STAT=allocStat)
       IF (allocStat .NE. 0) THEN
-        CALL abort(__STAMP__,  &
+        CALL abort(&
+            __STAMP__,  &
           'ERROR in MPIBackgroundMeshInit: cannot allocate PartMPI%DepoBGMConnect')
       END IF
       DO k = 1,NeighCount
         ALLOCATE(PartMPI%DepoBGMConnect(iProc)%Periodic(k)%BGMPeriodicBorder(1:2,1:3),STAT=allocStat)
         IF (allocStat .NE. 0) THEN
-          CALL abort(__STAMP__, &
+          CALL abort(&
+              __STAMP__, &
             'ERROR in MPIBackgroundMeshInit: cannot allocate PartMPI%DepoBGMConnect')
         END IF
         PartMPI%DepoBGMConnect(iProc)%Periodic(k)%BGMPeriodicBorder(1:2,1:3) = TempPeriBord(k,1:2,1:3)

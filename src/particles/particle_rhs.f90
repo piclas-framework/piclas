@@ -68,7 +68,8 @@ SELECT CASE(PartLorentzType)
         velosq = PartState(iPart,4) * PartState(iPart,4) &
                + PartState(iPart,5) * PartState(iPart,5) &
                + PartState(iPart,6) * PartState(iPart,6)  
-        IF(velosq.GT.c2) CALL abort(__STAMP__,&
+        IF(velosq.GT.c2) CALL abort(&
+            __STAMP__,&
           'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',iPart,velosq/c2)
           ! MPF in ChargeIC and MassIC cancels out.
         qmt = Species(PartSpecies(iPart))%ChargeIC/Species(PartSpecies(iPart))%MassIC
@@ -126,7 +127,8 @@ SELECT CASE(PartLorentzType)
       END IF
     END DO
   CASE DEFAULT
-    CALL abort(__STAMP__,&
+    CALL abort(&
+        __STAMP__,&
       'This Type of Lorentz-force calculation is not implemented:.',PartLorentzType,999.)
 END SELECT
 
@@ -160,7 +162,8 @@ velosq = PartState(PartID,4) * PartState(PartID,4) &
        + PartState(PartID,5) * PartState(PartID,5) &
        + PartState(PartID,6) * PartState(PartID,6)  
 
-IF(velosq.GT.c2) CALL abort(__STAMP__,&
+IF(velosq.GT.c2) CALL abort(&
+    __STAMP__,&
   'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
 
 ! MPF in ChargeIC and MassIC cancels out.
@@ -218,7 +221,8 @@ v2s = v2*v2
 v3s = v3*v3
 velosq = v1s+v2s+v3s
 IF(velosq.GT.c2) THEN
- CALL abort(__STAMP__,&
+ CALL abort(&
+     __STAMP__,&
  'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
 END IF
 

@@ -404,10 +404,12 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
   ! 4) Finish Received number of particles
   DO iProc=1,SurfCOMM%nMPINeighbors
     CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+        __STAMP__&
             ,' MPI Communication error', IERROR)
     CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+        __STAMP__&
             ,' MPI Communication error', IERROR)
   END DO ! iProc
 
@@ -465,10 +467,12 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
   ! 4) Finish Received number of particles
   DO iProc=1,SurfCOMM%nMPINeighbors
     CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+        __STAMP__&
             ,' MPI Communication error', IERROR)
     CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+        __STAMP__&
             ,' MPI Communication error', IERROR)
   END DO ! iProc
 
@@ -568,10 +572,12 @@ END DO ! iProc
 ! 4) Finish Received number of particles
 DO iProc=1,SurfCOMM%nMPINeighbors
   CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+      __STAMP__&
           ,' MPI Communication error', IERROR)
   CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+      __STAMP__&
           ,' MPI Communication error', IERROR)
 END DO ! iProc
 

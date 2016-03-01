@@ -50,7 +50,8 @@ SUBROUTINE DSMC_chemical_init()
   ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions','0')
   IF(CollisMode.EQ.3)THEN
     IF(ChemReac%NumOfReact.EQ.0)THEN
-      CALL Abort(__STAMP__,&
+      CALL Abort(&
+          __STAMP__,&
           ' Collisions with chemical reactions require chemical reaction database! ',CollisMode,REAL(ChemReac%NumOfReact))
     END IF
   END IF
@@ -104,24 +105,28 @@ SUBROUTINE DSMC_chemical_init()
       ! Proof of reactant definition
       IF((ChemReac%ReactType(iReac).EQ.'R').OR.(ChemReac%ReactType(iReac).EQ.'r')) THEN
         IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)*ChemReac%DefinedReact(iReac,1,3)).EQ.0) THEN
-          CALL abort(__STAMP__,&
+          CALL abort(&
+              __STAMP__,&
           'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       ELSE 
         IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)).EQ.0) THEN
-          CALL abort(__STAMP__,&
+          CALL abort(&
+              __STAMP__,&
           'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       END IF
       ! Proof of product definition
       IF ((ChemReac%ReactType(iReac).EQ.'i').OR.(ChemReac%ReactType(iReac).EQ.'D')) THEN
         IF ((ChemReac%DefinedReact(iReac,2,1)*ChemReac%DefinedReact(iReac,2,2)*ChemReac%DefinedReact(iReac,2,3)).EQ.0) THEN
-          CALL abort(__STAMP__,&
+          CALL abort(&
+              __STAMP__,&
           'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       ELSE 
         IF ((ChemReac%DefinedReact(iReac,2,1)*ChemReac%DefinedReact(iReac,2,2)).EQ.0) THEN
-          CALL abort(__STAMP__,&
+          CALL abort(&
+              __STAMP__,&
           'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       END IF
@@ -135,7 +140,8 @@ SUBROUTINE DSMC_chemical_init()
     DO iReac = 1, ChemReac%NumOfReact
       IF ((ChemReac%ReactType(iReac).EQ.'r').AND.(.NOT.YetDefined_Help(iReac))) THEN
         IF(.NOT.(ChemReac%QKProcedure(iReac))) &
-          CALL abort(__STAMP__,&
+          CALL abort(&
+          __STAMP__,&
           'Ion-Recombination has to be a QK Reaction!',iReac,999.)
           Reactant1 = ChemReac%DefinedReact(iReac,1,1)
           Reactant2 = ChemReac%DefinedReact(iReac,1,2)
@@ -491,7 +497,8 @@ SUBROUTINE Calc_Arrhenius_Factors()
       iQuaMax1 = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxVibQuant
       iQuaMax2 = SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%MaxVibQuant
       IF (iQuaMax2.NE.0) THEN
-        CALL abort(__STAMP__,&
+        CALL abort(&
+            __STAMP__,&
         'ERROR: The second partner of an exchange reaction must be an atom! ReactNum:',iReac)
       END IF
       iQuaMax1_temp = 100

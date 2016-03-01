@@ -95,7 +95,8 @@ INTEGER                         :: color
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
 IF(ParticleMPIInitIsDone) &
-  CALL abort(__STAMP__&
+  CALL abort(&
+    __STAMP__&
   ,' Particle MPI already initialized!')
 
 #ifdef MPI
@@ -104,7 +105,8 @@ color = 999
 CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,PartMPI%MyRank,PartMPI%COMM,iERROR)
 CALL MPI_COMM_SIZE (PartMPI%COMM,PartMPI%nProcs ,iError)
 !PartMPI%COMM   = MPI_COMM_WORLD
-IF(PartMPI%nProcs.NE.nProcessors) CALL abort(__STAMP__&
+IF(PartMPI%nProcs.NE.nProcessors) CALL abort(&
+    __STAMP__&
     ,' MPI Communicater-size does not match!', IERROR)
 PartCommSize   = 0  
 IF(PartMPI%MyRank.EQ.0) THEN
@@ -458,7 +460,8 @@ DO iProc=1,PartMPI%nMPINeighbors
                 , PartMPI%COMM                                               &
                 , PartMPIExchange%SendRequest(1,iProc)                       &
                 , IERROR )
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+      __STAMP__&
           ,' MPI Communication error', IERROR)
 
 !  CALL MPI_ISEND( PartMPIExchange%nPartsSend(iProc)                          &
@@ -618,7 +621,8 @@ DO iProc=1, PartMPI%nMPINeighbors
     MessageSize=nSendParticles*PartCommSize
   END IF
   ALLOCATE(PartSendBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
   ,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
   ! fill message
   DO iPart=1,PDM%ParticleVecLength
@@ -817,10 +821,12 @@ END DO ! iProc
 ! 4) Finish Received number of particles
 DO iProc=1,PartMPI%nMPINeighbors
   CALL MPI_WAIT(PartMPIExchange%SendRequest(1,iProc),MPIStatus,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+      __STAMP__&
           ,' MPI Communication error', IERROR)
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+      __STAMP__&
           ,' MPI Communication error', IERROR)
 END DO ! iProc
 
@@ -838,12 +844,14 @@ IF(DoExternalParts) THEN
           ,ExtPartSpecies(1:NbrOfExtParticles)     &
           !,ExtPartToFIBGM(1:6,1:NbrOfExtParticles) &
           ,STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__&
   ,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank)
   IF (usevMPF) THEN
     ALLOCATE(ExtPartMPF (1:NbrOfExtParticles) &
             ,STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+        __STAMP__&
     ,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank)
   END IF
   ! map alt state to ext
@@ -881,7 +889,8 @@ DO iProc=1,PartMPI%nMPINeighbors
   IF (ALLOCSTAT.NE.0) THEN
     IPWRITE(*,*) 'sum of total received particles            ', SUM(PartMPIExchange%nPartsRecv(1,:))
     IPWRITE(*,*) 'sum of total received deposition particles ', SUM(PartMPIExchange%nPartsRecv(2,:))
-    CALL abort(__STAMP__&
+    CALL abort(&
+        __STAMP__&
   ,'  Cannot allocate PartRecvBuf, local source ProcId, Allocstat',iProc,REAL(ALLOCSTAT))
   END IF
   CALL MPI_IRECV( PartRecvBuf(iProc)%content                                 &
@@ -892,7 +901,8 @@ DO iProc=1,PartMPI%nMPINeighbors
                 , PartMPI%COMM                                               &
                 , PartMPIExchange%RecvRequest(2,iProc)                       &
                 , IERROR )
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+      __STAMP__&
           ,' MPI Communication error', IERROR)
 
 !  CALL MPI_IRECV( PartRecvBuf(iProc)%content                                 &
@@ -926,7 +936,8 @@ DO iProc=1,PartMPI%nMPINeighbors
                 , PartMPI%COMM                                               &
                 , PartMPIExchange%SendRequest(2,iProc)                       &
                 , IERROR )
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+      __STAMP__&
           ,' MPI Communication error', IERROR)
 !  CALL MPI_ISEND( SendBuf(iProc)%content                                     &
 !                , MessageSize                                                &
@@ -1013,7 +1024,8 @@ PartCommSize=PartCommSize0+(iStage-1)*6
 DO iProc=1,PartMPI%nMPINeighbors
   IF(SUM(PartMPIExchange%nPartsSend(:,iProc)).EQ.0) CYCLE
   CALL MPI_WAIT(PartMPIExchange%SendRequest(2,iProc),MPIStatus,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__&
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+      __STAMP__&
           ,' MPI Communication error', IERROR)
 END DO ! iProc
 
@@ -1039,7 +1051,8 @@ DO iProc=1,PartMPI%nMPINeighbors
     IF(nRecvParticles.EQ.0) EXIT
     nRecv=nRecv+1
     PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
-    IF(PartID.EQ.0)  CALL abort(__STAMP__&
+    IF(PartID.EQ.0)  CALL abort(&
+        __STAMP__&
           ,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
     PartState(PartID,1:6)   = PartRecvBuf(iProc)%content( 1+iPos: 6+iPos)
     IF(DoRefMapping)THEN
@@ -1335,7 +1348,8 @@ END DO
 
 DO iSide=1,nSides
   IF(SUM(ABS(SideSlabIntervals(:,iSide))).EQ.0)THEN
-    CALL abort(__STAMP__&
+    CALL abort(&
+        __STAMP__&
     ,'  Zero bounding box found!')
   END IF
 END DO
@@ -1379,11 +1393,13 @@ INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
 !nTotalBCSides=nSides
 
 ALLOCATE(SideIndex(1:nSides),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
 ,'  Cannot allocate SideIndex!')
 SideIndex=0
 ALLOCATE(ElemIndex(1:PP_nElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
 ,'  Cannot allocate ElemIndex!')
 ElemIndex=0
 
@@ -1410,7 +1426,8 @@ DO iProc=0,PartMPI%nProcs-1
 END DO 
 DEALLOCATE(SideIndex,STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
                        'Could not deallocate SideIndex')
 END IF
 
@@ -1631,7 +1648,8 @@ DO iSpec=1,nSpecies
       lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-         CALL abort(__STAMP__,&
+         CALL abort(&
+             __STAMP__,&
            'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
@@ -1660,7 +1678,8 @@ DO iSpec=1,nSpecies
       lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-         CALL abort(__STAMP__,&
+         CALL abort(&
+             __STAMP__,&
            'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
@@ -1694,7 +1713,8 @@ DO iSpec=1,nSpecies
       lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-         CALL abort(__STAMP__,&
+         CALL abort(&
+             __STAMP__,&
            'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
@@ -1719,7 +1739,8 @@ DO iSpec=1,nSpecies
       lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-         CALL abort(__STAMP__,&
+         CALL abort(&
+             __STAMP__,&
            'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
@@ -1745,7 +1766,8 @@ DO iSpec=1,nSpecies
     CASE('LD_insert')
       RegionOnProc=.TRUE.
     CASE('cuboid_equal')
-      CALL abort(__STAMP__,&
+      CALL abort(&
+          __STAMP__,&
           'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
     CASE ('cuboid_with_equidistant_distribution') 
        xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
@@ -1760,7 +1782,8 @@ DO iSpec=1,nSpecies
        IF ((xlen.NE.Species(iSpec)%Init(iInit)%BaseVector1IC(1)).OR. &
            (ylen.NE.Species(iSpec)%Init(iInit)%BaseVector2IC(2)).OR. &
            (zlen.NE.Species(iSpec)%Init(iInit)%CuboidHeightIC)) THEN
-          CALL abort(__STAMP__,&
+          CALL abort(&
+              __STAMP__,&
             'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition')
        END IF
        DO iNode=1,8
@@ -1781,7 +1804,8 @@ DO iSpec=1,nSpecies
             (Species(iSpec)%Init(iInit)%maxParticleNumberX * Species(iSpec)%Init(iInit)%maxParticleNumberY &
             * Species(iSpec)%Init(iInit)%maxParticleNumberZ)) THEN
          SWRITE(*,*) 'for species ',iSpec,' does not match number of particles in each direction!'
-         CALL abort(__STAMP__,&
+         CALL abort(&
+             __STAMP__,&
             'ERROR: Number of particles in init / emission region',iInit)
        END IF
        xlen = abs(GEO%xmaxglob  - GEO%xminglob)  
@@ -1799,7 +1823,8 @@ DO iSpec=1,nSpecies
        xCoords(2,8)   = xCoords(2,5) + ylen
        RegionOnProc=BoxInProc(xCoords,8)
     CASE DEFAULT
-      CALL abort(__STAMP__,&
+      CALL abort(&
+          __STAMP__,&
           'not implemented')
     END SELECT
     ! create new communicator
@@ -2000,7 +2025,8 @@ DO iElem=1,nTotalElems
   DO ilocSide=1,6
     DO iVar=1,2
       IF(PartElemToSide(iVar,ilocSide,iElem).NE.PartElemToSide(iVar,ilocSide,iElem)) CALL abort(&
-          __STAMP__, ' Error in PartElemToSide')
+          __STAMP__&
+          , ' Error in PartElemToSide')
     END DO ! iVar=1,2
   END DO ! ilocSide=1,6
   IF(DoRefMapping)THEN
@@ -2010,10 +2036,12 @@ DO iElem=1,nTotalElems
         DO i=0,NGeo
           DO iVar=1,3
             IF(XCL_NGeo(iVar,i,j,k,iElem).NE.XCL_NGeo(iVar,i,j,k,iElem)) CALL abort(&
-                __STAMP__, ' Error in XCL_NGeo')
+                __STAMP__&
+                , ' Error in XCL_NGeo')
             DO iVar2=1,3
               IF(dXCL_NGeo(iVar2,iVar,i,j,k,iElem).NE.dXCL_NGeo(iVar2,iVar,i,j,k,iElem)) CALL abort(&
-                  __STAMP__, ' Error in dXCL_NGeo')
+                  __STAMP__&
+                  , ' Error in dXCL_NGeo')
             END DO ! iVar2=1,3
           END DO ! iVar=1,3
         END DO ! i=0,NGeo
@@ -2023,16 +2051,19 @@ DO iElem=1,nTotalElems
   ! PartElemToElem 
   DO ilocSide=1,6
     IF(PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)) CALL abort(&
-       __STAMP__, ' Error in PartElemToElem')
+       __STAMP__&
+       , ' Error in PartElemToElem')
     IF(PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)) CALL abort(&
-       __STAMP__, ' Error in PartElemToElem')
+       __STAMP__&
+       , ' Error in PartElemToElem')
   END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
 IF(DoRefMapping)THEN
   ! PartBCSideList
   DO iSide = 1,nTotalSides
     IF(PartBCSideList(iSide).NE.PartBCSideList(iSide)) CALL abort(&
-        __STAMP__, ' Error in dXCL_NGeo')
+        __STAMP__&
+        , ' Error in dXCL_NGeo')
   END DO ! iSide=1,nTotalSides
   ! BezierControlPoints3D
   DO iSide=1,nTotalBCSides
@@ -2041,7 +2072,8 @@ IF(DoRefMapping)THEN
         DO iVar=1,3
           IF(BezierControlPoints3D(iVar,j,k,iSide) &
          .NE.BezierControlPoints3D(iVar,j,k,iSide)) CALL abort(&
-              __STAMP__, ' Error in dXCL_NGeo')
+              __STAMP__&
+              , ' Error in dXCL_NGeo')
         END DO ! iVar=1,3
       END DO ! j=0,nGeo
     END DO ! k=0,nGeo
@@ -2049,33 +2081,40 @@ IF(DoRefMapping)THEN
     DO iVar=1,3
       DO iVar2=1,3
         IF(SideSlabNormals(iVar2,iVar,iSide).NE.SideSlabNormals(iVar2,iVar,iSide)) CALL abort(&
-            __STAMP__, ' Error in PartHaloElemToProc')
+            __STAMP__&
+            , ' Error in PartHaloElemToProc')
       END DO ! iVar2=1,PP_nVar
     END DO ! iVar=1,PP_nVar
     DO ilocSide=1,6
       IF(SideSlabIntervals(ilocSide,iSide).NE.SideSlabIntervals(ilocSide,iSide)) CALL abort(&
-         __STAMP__, ' Error in SlabInvervalls')
+         __STAMP__&
+         , ' Error in SlabInvervalls')
     END DO ! ilocSide=1,6
     IF(BoundingBoxIsEmpty(iSide).NEQV.BoundingBoxIsEmpty(iSide)) CALL abort(&
-       __STAMP__, ' Error in BoundingBoxIsEmpty')
+       __STAMP__&
+       , ' Error in BoundingBoxIsEmpty')
   END DO ! iSide=1,nTotalBCSides
 END IF ! DoRefMapping
 ! PartHaloElemToProc
 DO iElem=PP_nElems+1,nTotalElems
   DO iVar=1,3
     IF(PartHaloElemToProc(iVar,iElem).NE.PartHaloElemToProc(iVar,iElem)) CALL abort(&
-        __STAMP__, ' Error in PartHaloElemToProc')
+        __STAMP__&
+        , ' Error in PartHaloElemToProc')
   END DO ! iVar=1,3
 END DO ! iElem=PP_nElems+1,nTotalElems
 DO iSide = 1,nTotalSides
   DO iVar=1,5
     IF(PartSideToElem(iVar,iSide).NE.PartSideToElem(iVar,iSide)) CALL abort(&
-        __STAMP__, ' Error in PartSideToElem')
+        __STAMP__&
+        , ' Error in PartSideToElem')
   END DO ! iVar=1,5
   IF(SidePeriodicType(iSide).NE.SidePeriodicType(iSide)) CALL abort(&
-      __STAMP__, ' Error in BCSideType')
+      __STAMP__&
+      , ' Error in BCSideType')
   IF(BC(iSide).NE.BC(iSide)) CALL abort(&
-      __STAMP__, ' Error in BC')
+      __STAMP__&
+      , ' Error in BC')
 END DO ! iSide=1,nTotalSides
 
 

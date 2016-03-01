@@ -622,7 +622,8 @@ ElecTransfer = 0.
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
   IF (PositionNbr.EQ.0) THEN
-    CALL abort(__STAMP__,&
+    CALL abort(&
+        __STAMP__,&
     'New Particle Number greater max Part Num in MolecDiss. Reaction: ',iReac)
   END IF
 
@@ -817,7 +818,8 @@ USE MOD_Particle_Tracking_Vars, ONLY:DoRefmapping
       DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
       NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       IF (NonReacPart.EQ.0) THEN
-        CALL abort(__STAMP__,&
+        CALL abort(&
+            __STAMP__,&
         'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
       END IF
     ! Copy molecule data for non-reacting particle part
@@ -840,7 +842,8 @@ USE MOD_Particle_Tracking_Vars, ONLY:DoRefmapping
       DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
       NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       IF (NonReacPart.EQ.0) THEN
-        CALL abort(__STAMP__,&
+        CALL abort(&
+            __STAMP__,&
         'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
       END IF
     ! Copy molecule data for non-reacting particle part

@@ -31,7 +31,6 @@ USE MOD_LD_Vars
 USE MOD_Mesh_Vars,             ONLY : nElems, nSides,  NGEO
 !USE MOD_Mesh_Vars,             ONLY : nNodes    !!! nur für "Tetra-Methode"
 USE MOD_Particle_Vars,         ONLY : PDM, Species, PartSpecies, nSpecies
-USE nr,                        ONLY : gaussj 
 USE MOD_DSMC_Init,             ONLY : InitDSMC
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC, CollisMode
 USE MOD_ReadInTools
@@ -58,9 +57,11 @@ CHARACTER(32)           :: hilf
   SWRITE(UNIT_StdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)') ' LD INIT ...'
 
-  IF(.NOT.DoRefMapping) CALL abort(__STAMP__,&
+  IF(.NOT.DoRefMapping) CALL abort(&
+      __STAMP__,&
           ' LD requires ref-mapping tracking.')
-  IF(NGeo.NE.1) CALL abort(__STAMP__,&
+  IF(NGeo.NE.1) CALL abort(&
+      __STAMP__,&
           ' LD requires a linear mesh (NGeo=1)!')
 
   LD_SecantMeth%Guess = GETREAL('LD-InitialGuess','10')
@@ -119,19 +120,19 @@ CHARACTER(32)           :: hilf
   SurfLagValues(1:6,1:nElems,1:2)%LagTangVec(2,2) = 0.0
   SurfLagValues(1:6,1:nElems,1:2)%LagTangVec(2,3) = 0.0
 
-  ALLOCATE(MeanSurfValues(6,nElems))
-  MeanSurfValues(1:6,1:nElems)%MeanLagVelo     = 0.0
-  MeanSurfValues(1:6,1:nElems)%MeanBaseD       = 0.0
-  MeanSurfValues(1:6,1:nElems)%MeanBaseD2      = 0.0
-  MeanSurfValues(1:6,1:nElems)%MeanNormVec(1)  = 0.0
-  MeanSurfValues(1:6,1:nElems)%MeanNormVec(2)  = 0.0
-  MeanSurfValues(1:6,1:nElems)%MeanNormVec(3)  = 0.0
-  MeanSurfValues(1:6,1:nElems)%MeanBulkVelo(1) = 0.0
-  MeanSurfValues(1:6,1:nElems)%MeanBulkVelo(2) = 0.0
-  MeanSurfValues(1:6,1:nElems)%MeanBulkVelo(3) = 0.0
-  MeanSurfValues(1:6,1:nElems)%CellCentDist(1) = 0.0
-  MeanSurfValues(1:6,1:nElems)%CellCentDist(2) = 0.0
-  MeanSurfValues(1:6,1:nElems)%CellCentDist(3) = 0.0
+  !ALLOCATE(MeanSurfValues(6,nElems))
+  !MeanSurfValues(1:6,1:nElems)%MeanLagVelo     = 0.0
+  !MeanSurfValues(1:6,1:nElems)%MeanBaseD       = 0.0
+  !MeanSurfValues(1:6,1:nElems)%MeanBaseD2      = 0.0
+  !MeanSurfValues(1:6,1:nElems)%MeanNormVec(1)  = 0.0
+  !MeanSurfValues(1:6,1:nElems)%MeanNormVec(2)  = 0.0
+  !MeanSurfValues(1:6,1:nElems)%MeanNormVec(3)  = 0.0
+  !MeanSurfValues(1:6,1:nElems)%MeanBulkVelo(1) = 0.0
+  !MeanSurfValues(1:6,1:nElems)%MeanBulkVelo(2) = 0.0
+  !MeanSurfValues(1:6,1:nElems)%MeanBulkVelo(3) = 0.0
+  !MeanSurfValues(1:6,1:nElems)%CellCentDist(1) = 0.0
+  !MeanSurfValues(1:6,1:nElems)%CellCentDist(2) = 0.0
+  !MeanSurfValues(1:6,1:nElems)%CellCentDist(3) = 0.0
 
 !!!!  ALLOCATE(NewNodePosIndx(1:3,nNodes))  !!! nur für "Tetra-Methode"
 

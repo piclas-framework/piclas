@@ -144,7 +144,8 @@ END IF
 IF (SendMsg%nMPISides.GT.0) THEN
   ALLOCATE(SendMsg%BezierSides3D(1:3,0:NGeo,0:nGEO,1:SendMsg%nMPISides), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__,&
+    CALL abort(&
+        __STAMP__,&
                          'Could not allocate SendMessage%BezierSides3D ',SendMsg%nMPISides)
   END IF
   SendMsg%BezierSides3D=0.
@@ -152,7 +153,8 @@ END IF
 IF (RecvMsg%nMPISides.GT.0) THEN
   ALLOCATE(RecvMsg%BezierSides3D(1:3,0:NGeo,0:NGeo,1:RecvMsg%nMPISides), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__,&
+    CALL abort(&
+        __STAMP__,&
                          'Could not allocate RecvMessage%BezierSides3D ',RecvMsg%nMPISides)
   END IF
   RecvMsg%BezierSides3D=0.
@@ -252,14 +254,16 @@ END IF
 IF (SendMsg%nMPISides.GT.0) THEN
   DEALLOCATE(SendMsg%BezierSides3D, STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__,&
+    CALL abort(&
+        __STAMP__,&
                          'Could not deallocate SendMessage%BezierSides3D proc ',iProc)
   END IF
 END IF
 IF (RecvMsg%nMPISides.GT.0) THEN
   DEALLOCATE(RecvMsg%BezierSides3D, STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__,&
+    CALL abort(&
+        __STAMP__,&
                          'Could not deallocate RecvMessage%BezierSides3D proc ',iProc)
   END IF
 END IF
@@ -588,22 +592,26 @@ INTEGER                     :: ElemID,ElemID2,hostElemId,idisplace,locsideid,new
 !===================================================================================================================================
 
 ALLOCATE(isElem(1:nElems))
-IF (.NOT.ALLOCATED(isElem)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(isElem)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate isElem')
 isElem(:) = .FALSE.
 
 ALLOCATE(isSide(1:nSides))
-IF (.NOT.ALLOCATED(isSide)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(isSide)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate isSide')
 isSide(:) = .FALSE.
 
 ALLOCATE(ElemIndex(1:nElems))
-IF (.NOT.ALLOCATED(ElemIndex)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(ElemIndex)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 ElemIndex(:) = 0
 
 ALLOCATE(SideIndex(1:nSides))
-IF (.NOT.ALLOCATED(SideIndex)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(SideIndex)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate SideIndex')
 SideIndex(:) = 0
 
@@ -680,13 +688,15 @@ END IF
 ! ElemToSide Mapping 
 IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
   ALLOCATE(SendMsg%ElemToSide(1:2,1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%ElemToSide',SendMsg%nElems)
   SendMsg%ElemToSide(:,:,:)=0
 END IF
 IF (RecvMsg%nElems.GT.0) THEN
   ALLOCATE(RecvMsg%ElemToSide(1:2,1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%ElemToSide',RecvMsg%nElems)
   RecvMsg%ElemToSide(:,:,:)=0
 END IF
@@ -694,13 +704,15 @@ END IF
 ! BezierControlPoints3D for exchange
 IF (SendMsg%nSides.GT.0) THEN       ! Beziercontrolpoints3d
   ALLOCATE(SendMsg%BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%BezierControlPoints3D',SendMsg%nSides)
   SendMsg%BezierControlPoints3D=0.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%BezierControlPoints3D',RecvMsg%nSides)
   RecvMsg%BezierControlPoints3D=0.
 END IF
@@ -709,13 +721,15 @@ IF(DoRefMapping)THEN
   ! XCL_NGeo for exchange
   IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
     ALLOCATE(SendMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+        __STAMP__,&
       'Could not allocate SendMsg%XCL_NGeo',SendMsg%nElems)
     SendMsg%XCL_NGeo(:,:,:,:,:)=0
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
     ALLOCATE(RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+        __STAMP__,&
       'Could not allocate RecvMsg%XCL_NGeo',RecvMsg%nElems)
     RecvMsg%XCL_NGeo(:,:,:,:,:)=0
   END IF
@@ -723,13 +737,15 @@ IF(DoRefMapping)THEN
   ! DXCL_NGeo for exchange
   IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
     ALLOCATE(SendMsg%DXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+        __STAMP__,&
       'Could not allocate SendMsg%DXCL_NGeo',SendMsg%nElems)
     SendMsg%DXCL_NGeo(:,:,:,:,:,:)=0
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
     ALLOCATE(RecvMsg%DXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+        __STAMP__,&
       'Could not allocate RecvMsg%ElemToSide',RecvMsg%nElems)
     RecvMsg%DXCL_NGeo(:,:,:,:,:,:)=0
   END IF
@@ -737,13 +753,15 @@ IF(DoRefMapping)THEN
   ! ElemSlabNormals for exchange
   IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
     ALLOCATE(SendMsg%ElemSlabNormals(1:3,0:3,1:SendMsg%nElems),STAT=ALLOCSTAT) 
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+        __STAMP__,&
       'Could not allocate SendMsg%ElemSlabNormals',SendMsg%nElems)
     SendMsg%XCL_NGeo(:,:,:,:,:)=0
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
     ALLOCATE(RecvMsg%ElemSlabNormals(1:3,0:3,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+        __STAMP__,&
       'Could not allocate RecvMsg%ElemSlabNormals',RecvMsg%nElems)
     RecvMsg%XCL_NGeo(:,:,:,:,:)=0
   END IF
@@ -751,13 +769,15 @@ IF(DoRefMapping)THEN
   ! ElemSlabIntervals for exchange
   IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
     ALLOCATE(SendMsg%ElemSlabIntervals(1:6,1:SendMsg%nElems),STAT=ALLOCSTAT) 
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+        __STAMP__,&
       'Could not allocate SendMsg%ElemSlabIntervals',SendMsg%nElems)
     SendMsg%DXCL_NGeo(:,:,:,:,:,:)=0
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
     ALLOCATE(RecvMsg%ElemSlabIntervals(1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT) 
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+    IF (ALLOCSTAT.NE.0) CALL abort(&
+        __STAMP__,&
       'Could not allocate RecvMsg%ElemSlabIntervals',RecvMsg%nElems)
     RecvMsg%DXCL_NGeo(:,:,:,:,:,:)=0
   END IF
@@ -766,13 +786,15 @@ END IF
 ! SideToElem Mapping
 IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides) 
   ALLOCATE(SendMsg%SideToElem(1:5,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%SideToElem',SendMsg%nSides)
   SendMsg%SideToElem(:,:)=0
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SideToElem(1:5,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides)
   RecvMsg%SideToElem(:,:)=0
 END IF
@@ -785,78 +807,90 @@ END IF
 ! 4:SIDE_ID-MPI_Offset(NBProc)  
 IF (SendMsg%nSides.GT.0) THEN       
   ALLOCATE(SendMsg%BC(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%BC',SendMsg%nSides,999.)
   SendMsg%BC(:)=0
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%BC(1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%BC',RecvMsg%nSides,999.)
   RecvMsg%BC(:)=0
 END IF
 ! SideBCType
 IF (SendMsg%nSides.GT.0) THEN       
   ALLOCATE(SendMsg%SideBCType(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%SideBCType',SendMsg%nSides,999.)
   SendMsg%SideBCType(:)=0
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SideBCType(1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%SideBCType',RecvMsg%nSides,999.)
   RecvMsg%SideBCType(:)=0
 END IF
 ! NativeElemID 
 IF (SendMsg%nElems.GT.0) THEN 
   ALLOCATE(SendMsg%NativeElemID(1:SendMsg%nElems),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%NativeElemID',SendMsg%nElems,999.)
   SendMsg%NativeElemID(:)=0
 END IF
 IF (RecvMsg%nElems.GT.0) THEN
   ALLOCATE(RecvMsg%NativeElemID(1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%NativeElemID',RecvMsg%nElems,999.)
   RecvMsg%NativeElemID(:)=0
 END IF
 ! SideSlabNormals Mapping
 IF (SendMsg%nSides.GT.0) THEN       
   ALLOCATE(SendMsg%SideSlabNormals(1:3,1:3,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%SideSlabNormals',SendMsg%nSides)
   SendMsg%SideSlabNormals(:,:,:)=0.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SideSlabNormals(1:3,1:3,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%SideSlabNormals',RecvMsg%nSides)
   RecvMsg%SideSlabNormals(:,:,:)=0.
 END IF
 ! SideSlabIntervals Mapping
 IF (SendMsg%nSides.GT.0) THEN       ! SideSlabIntervals(1:2,1:nSides) 
   ALLOCATE(SendMsg%SideSlabIntervals(1:6,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%SideSlabIntervals',SendMsg%nSides)
   SendMsg%SideSlabIntervals(:,:)=0.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SideSlabIntervals(1:6,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%SideSlabIntervals',RecvMsg%nSides)
   RecvMsg%SideSlabIntervals(:,:)=0.
 END IF
 ! BoundingBoxIsEmpty Mapping
 IF (SendMsg%nSides.GT.0) THEN       ! BoundingBoxIsEmpty(1:2,1:nSides) 
   ALLOCATE(SendMsg%BoundingBoxIsEmpty(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%BoundingBoxIsEmpty',SendMsg%nSides)
   SendMsg%BoundingBoxIsEmpty(:)=.FALSE.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%BoundingBoxIsEmpty(1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%BoundingBoxIsEmpty',RecvMsg%nSides)
   RecvMsg%BoundingBoxIsEmpty(:)=.FALSE.
 END IF
@@ -1244,8 +1278,9 @@ IF(DoRefMapping)THEN
           IF(oldElemID.EQ.-1)THEN
             ! get elemid
             IF(PartSideToElem(S2E_ELEM_ID,newSideID).EQ.-1) &
-              CALL abort(__STAMP__,&
-              'Critical error in domain reconstrution.')
+              CALL abort(&
+__STAMP__&
+              ,'Critical error in domain reconstrution.')
               PartSideToElem(S2E_NB_ELEM_ID,newSideID)     = newElemID
               PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) = ilocSide
               ! nothing to do, is already filled
@@ -1261,7 +1296,8 @@ IF(DoRefMapping)THEN
               PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,newElemID) = PartSideToElem(S2E_LOC_SIDE_ID,newSideID)
           ELSE ! SE2_NB_ELEM_ID=DEFINED
             IF(PartSideToElem(S2E_ELEM_ID,newSideID).NE.-1) &
-              CALL abort(__STAMP__,&
+              CALL abort(&
+__STAMP__,&
               'Critical error in domain reconstrution.')
             PartSideToElem(S2E_ELEM_ID       ,newSideID) = newElemID !root Element
             PartSideToElem(S2E_LOC_SIDE_ID   ,newSideID) = iLocSide
@@ -1292,7 +1328,8 @@ IF(DoRefMapping)THEN
             PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) =ilocSide
             PartSideToElem(S2E_FLIP      ,newSideID) =RecvMsg%SideToElem(S2E_FLIP,haloSideID)
           ELSE ! should be found, because there should be halo sides without any connection
-            CALL abort(__STAMP__,&
+            CALL abort(&
+__STAMP__,&
                 'Non-Critical error in domain reconstrution. IF NOT encountered, something is terrible wrong.')
           END IF
           !BC(1:4,newSideID)=RecvMsg%BC(1:4,haloSideID)
@@ -1439,7 +1476,7 @@ IF(DoRefMapping)THEN
     DO iSide=1,nTotalSides
       IF(SUM(ABS(SideSlabNormals(:,:,iSide))).EQ.0)THEN
         CALL abort(&
-            __STAMP__&
+__STAMP__&
           ,' SideSlabNormals is zero!')
       END IF
     END DO 
@@ -1541,7 +1578,8 @@ ELSE
          IF(oldElemID.EQ.-1)THEN
            ! get elemid
            IF(PartSideToElem(S2E_ELEM_ID,newSideID).EQ.-1) &
-             CALL abort(__STAMP__,&
+             CALL abort(&
+__STAMP__,&
              'Critical error in domain reconstrution.')
              PartSideToElem(S2E_NB_ELEM_ID,newSideID)     = newElemID
              PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) = ilocSide
@@ -1561,7 +1599,8 @@ ELSE
            !  IF(PartSideToElem(S2E_ELEM_ID,newSideID).EQ.-1) IPWRITE(UNIT_stdOut,*) 'warning'
          ELSE ! SE2_NB_ELEM_ID=DEFINED
            IF(PartSideToElem(S2E_ELEM_ID,newSideID).NE.-1) &
-             CALL abort(__STAMP__,&
+             CALL abort(&
+__STAMP__,&
              'Critical error in domain reconstrution.')
            PartSideToElem(S2E_ELEM_ID       ,newSideID) = newElemID !root Element
            PartSideToElem(S2E_LOC_SIDE_ID   ,newSideID) = iLocSide
@@ -1591,7 +1630,8 @@ ELSE
            PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) =ilocSide
            PartSideToElem(S2E_FLIP      ,newSideID) =RecvMsg%SideToElem(S2E_FLIP,haloSideID)
          ELSE ! should be found, because there should be halo sides without any connection
-           CALL abort(__STAMP__,&
+           CALL abort(&
+__STAMP__,&
                'Non-Critical error in domain reconstrution. IF NOT encountered, something is terrible wrong.')
          END IF
          !BC(1:4,newSideID)=RecvMsg%BC(1:4,haloSideID)
@@ -1708,13 +1748,15 @@ LOGICAL,ALLOCATABLE,DIMENSION(:)   :: DummyBoundingBoxIsEmpty
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! PartElemToSide
 ALLOCATE(DummyElemToSide(1:2,1:6,1:nOldElems))
-IF (.NOT.ALLOCATED(DummyElemToSide)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(DummyElemToSide)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 DummyElemToSide=PartElemToSide
 !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
 DEALLOCATE(PartElemToSide)
 ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate PartElemToSide')
 PartElemToSide=-1
 PartElemToSide(:,:,1:nOldElems) =DummyElemToSide(:,:,1:nOldElems)
@@ -1722,38 +1764,44 @@ DEALLOCATE(DummyElemToSide)
 IF(DoRefMapping)THEN
   ! XCL_NGeo
   ALLOCATE(DummyXCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems))
-  IF (.NOT.ALLOCATED(DummyXCL_NGeo)) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (.NOT.ALLOCATED(DummyXCL_NGeo)) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummyXCL_NGeo=XCL_NGeo
   !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
   DEALLOCATE(XCL_NGeo)
   ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate XCL_NGeo')
   XCL_NGeo=0.
   XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems) =DummyXCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems)
   DEALLOCATE(DummyXCL_NGeo)
   ! dXCL_NGeo
   ALLOCATE(DummydXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems))
-  IF (.NOT.ALLOCATED(DummydXCL_NGeo)) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (.NOT.ALLOCATED(DummydXCL_NGeo)) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   DummydXCL_NGeo=dXCL_NGeo
   !IPWRITE(UNIT_stdOut,*)"not allocated partelemtoside",ALLOCATED(PartElemToSide)
   DEALLOCATE(dXCL_NGeo)
   ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nTotalElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate dXCL_NGeo')
   dXCL_NGeo=0.
   dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems) =DummydXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nOldElems)
   DEALLOCATE(DummydXCL_NGeo)
   ! PartBCSideList
   ALLOCATE(DummyPartBCSideList(1:nOldSides))
-  IF (.NOT.ALLOCATED(DummyPartBCSideList)) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (.NOT.ALLOCATED(DummyPartBCSideList)) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate PartBCSideList')
   DummyPartBCSideList(1:nOldSides)=PartBCSideList(1:nOldSides)
   DEALLOCATE(PartBCSideList)
   ALLOCATE(PartBCSideList(1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   PartBCSideList=-1 !HUGE(1)
   PartBCSideList(1:nOldSides) =DummyPartBCSideList(1:nOldSides)
@@ -1766,7 +1814,8 @@ IF(DoRefMapping)THEN
   DummyElemSlabNormals=ElemSlabNormals
   DEALLOCATE(ElemSlabNormals)
   ALLOCATE(ElemSlabNormals(1:3,0:3,1:nTotalElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   ElemSlabNormals=0
   ElemSlabNormals(1:3,0:3,1:nOldElems) =DummyElemSlabNormals(1:3,0:3,1:nOldElems)
@@ -1779,7 +1828,8 @@ IF(DoRefMapping)THEN
   DummyElemSlabIntervals=ElemSlabIntervals
   DEALLOCATE(ElemSlabIntervals)
   ALLOCATE(ElemSlabIntervals(1:6,1:nTotalElems),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   ElemSlabIntervals=0
   ElemSlabIntervals(1:6,1:nOldElems) =DummyElemSlabIntervals(1:6,1:nOldElems)
@@ -1795,19 +1845,22 @@ IF(.NOT.ALLOCATED(PartHaloElemToProc))THEN
   !print*,'myrank',myrank,allocstat
   nLower=nElems+1
   ALLOCATE(PartHaloElemToProc(1:3,nLower:nTotalElems),STAT=ALLOCSTAT)                                 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate PartHaloElemToProc')
   PartHaloElemToProc=-1
   !print*,'lower,upper',PP_nElems+1,nTotalElems
 ELSE
   nLower=nElems+1
   ALLOCATE(DummyHaloToProc(1:3,nLower:nOldElems))                                 
-  IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (.NOT.ALLOCATED(DummyHaloToProc)) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate DummyPartHaloElemToProc')
   DummyHaloToProc=PartHaloElemToProc
   DEALLOCATE(PartHaloElemToProc)
   ALLOCATE(PartHaloElemToProc(1:3,nLower:nTotalElems),STAT=ALLOCSTAT)                                 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate PartHaloElemToProc')
   ! copy array to new
   PartHaloElemToProc=-1
@@ -1820,12 +1873,14 @@ END IF
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! PartSideToElem
 ALLOCATE(DummySideToElem(1:5,1:nOldSides))
-IF (.NOT.ALLOCATED(DummySideToElem)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(DummySideToElem)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 DummySideToElem=PartSideToElem
 DEALLOCATE(PartSideToElem)
 ALLOCATE(PartSideToElem(1:5,1:nTotalSides),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate PartSideToElem')
 PartSideToElem=-1
 PartSideToElem(:,1:nOldSides  )              =DummySideToElem(:,1:nOldSides)
@@ -1833,12 +1888,14 @@ DEALLOCATE(DummySideToElem)
 !print*,' done side to elem',myrank
 ! PartElemToElem
 ALLOCATE(DummyElemToElem(1:2,1:6,1:nOldElems))
-IF (.NOT.ALLOCATED(DummyElemToElem)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(DummyElemToElem)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 DummyElemToElem=PartElemToElem
 DEALLOCATE(PartElemToElem)
 ALLOCATE(PartElemToElem(1:2,1:6,1:nTotalElems),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 PartElemToElem=-1
 PartElemToElem(1:2,1:6,1:nOldElems)            =DummyElemToElem(1:2,1:6,1:nOldElems)
@@ -1852,7 +1909,8 @@ IF(DoRefMapping)THEN
   DummyBezierControlPoints3d=BezierControlPoints3d
   DEALLOCATE(BezierControlPoints3D)
   ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   BezierControlPoints3d(:,:,:,1:nOldBCSides) =DummyBezierControlPoints3D(:,:,:,1:nOldBCSides)
   DEALLOCATE(DummyBezierControlPoints3D)
@@ -1864,7 +1922,8 @@ IF(DoRefMapping)THEN
   DummySideSlabNormals=SideSlabNormals
   DEALLOCATE(SideSlabNormals)
   ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   SideSlabNormals=0
   SideSlabNormals(1:3,1:3,1:nOldBCSides) =DummySideSlabNormals(1:3,1:3,1:nOldBCSides)
@@ -1877,7 +1936,8 @@ IF(DoRefMapping)THEN
   DummySideSlabIntervals=SideSlabIntervals
   DEALLOCATE(SideSlabIntervals)
   ALLOCATE(SideSlabIntervals(1:6,1:nTotalBCSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   SideSlabIntervals=0
   SideSlabIntervals(1:6,1:nOldBCSides) =DummySideSlabIntervals(1:6,1:nOldBCSides)
@@ -1890,7 +1950,8 @@ IF(DoRefMapping)THEN
   DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
   DEALLOCATE(BoundingBoxIsEmpty)
   ALLOCATE(BoundingBoxIsEmpty(1:nTotalBCSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   BoundingBoxIsEmpty(1:nOldBCSides) =DummyBoundingBoxIsEmpty(1:nOldBCSides)
   DEALLOCATE(DummyBoundingBoxIsEmpty)
@@ -1904,7 +1965,8 @@ ELSE ! no mapping
   DummyBezierControlPoints3d=BezierControlPoints3d
   DEALLOCATE(BezierControlPoints3D)
   ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   BezierControlPoints3d(:,:,:,1:nOldSides) =DummyBezierControlPoints3D(:,:,:,1:nOldSides)
   DEALLOCATE(DummyBezierControlPoints3D)
@@ -1916,7 +1978,8 @@ ELSE ! no mapping
   DummySideSlabNormals=SideSlabNormals
   DEALLOCATE(SideSlabNormals)
   ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   SideSlabNormals=0
   SideSlabNormals(1:3,1:3,1:nOldSides) =DummySideSlabNormals(1:3,1:3,1:nOldSides)
@@ -1929,7 +1992,8 @@ ELSE ! no mapping
   DummySideSlabIntervals=SideSlabIntervals
   DEALLOCATE(SideSlabIntervals)
   ALLOCATE(SideSlabIntervals(1:6,1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   SideSlabIntervals=0
   SideSlabIntervals(1:6,1:nOldSides) =DummySideSlabIntervals(1:6,1:nOldSides)
@@ -1942,19 +2006,22 @@ ELSE ! no mapping
   DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
   DEALLOCATE(BoundingBoxIsEmpty)
   ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,& !wunderschoen!!!
     'Could not allocate ElemIndex')
   BoundingBoxIsEmpty(1:nOldSides) =DummyBoundingBoxIsEmpty(1:nOldSides)
   DEALLOCATE(DummyBoundingBoxIsEmpty)
 END IF
 ! SideBCType
 ALLOCATE(DummySideBCType(1:nOldSides))
-IF (.NOT.ALLOCATED(DummySideBCType)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(DummySideBCType)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 DummySideBCType(1:nOldSides)=SidePeriodicType(1:nOldSides)
 DEALLOCATE(SidePeriodicType)
 ALLOCATE(SidePeriodicType(1:nTotalSides),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 SidePeriodicType=-1
 SidePeriodicType(1:nOldSides) =DummySideBCType(1:nOldSides)
@@ -1971,7 +2038,8 @@ IF (.NOT.ALLOCATED(DummyBC)) CALL abort(&
 DummyBC(1:nOldSides)=BC(1:nOldSides)
 DEALLOCATE(BC)
 ALLOCATE(BC(1:nTotalSides),STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 BC=0
 BC(1:nOldSides) =DummyBC(1:nOldSides)
@@ -2043,22 +2111,26 @@ INTEGER                     :: datasize,datasize2,datasize3
 
 
 ALLOCATE(isElem(1:nElems))
-IF (.NOT.ALLOCATED(isElem)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(isElem)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate isElem')
 isElem(:) = .FALSE.
 
 ALLOCATE(isSide(1:nSides))
-IF (.NOT.ALLOCATED(isElem)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(isElem)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate isSide')
 isSide(:) = .FALSE.
 
 ALLOCATE(ElemIndex(1:nElems))
-IF (.NOT.ALLOCATED(ElemIndex)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(ElemIndex)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate ElemIndex')
 ElemIndex(:) = 0
 
 ALLOCATE(SideIndex(1:nSides))
-IF (.NOT.ALLOCATED(SideIndex)) CALL abort(__STAMP__,& !wunderschoen!!!
+IF (.NOT.ALLOCATED(SideIndex)) CALL abort(&
+    __STAMP__,& !wunderschoen!!!
   'Could not allocate SideIndex')
 SideIndex(:) = 0
 
@@ -2134,13 +2206,15 @@ END IF
 ! ElemToSide Mapping 
 IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
   ALLOCATE(SendMsg%ElemToSide(1:2,1:6,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%ElemToSide',SendMsg%nElems)
   SendMsg%ElemToSide(:,:,:)=0
 END IF
 IF (RecvMsg%nElems.GT.0) THEN
   ALLOCATE(RecvMsg%ElemToSide(1:2,1:6,1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%ElemToSide',RecvMsg%nElems)
   RecvMsg%ElemToSide(:,:,:)=0
 END IF
@@ -2148,13 +2222,15 @@ END IF
 ! BezierControlPoints3D for exchange
 IF (SendMsg%nSides.GT.0) THEN       ! Beziercontrolpoints3d
   ALLOCATE(SendMsg%BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%BezierControlPoints3D',SendMsg%nSides)
   SendMsg%BezierControlPoints3D=0.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%BezierControlPoints3D(1:3,0:NGeo,0:NGeo,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%BezierControlPoints3D',RecvMsg%nSides)
   RecvMsg%BezierControlPoints3D=0.
 END IF
@@ -2162,13 +2238,15 @@ END IF
 ! XCL_NGeo for exchange
 IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
   ALLOCATE(SendMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%XCL_NGeo',SendMsg%nElems)
   SendMsg%XCL_NGeo(:,:,:,:,:)=0
 END IF
 IF (RecvMsg%nElems.GT.0) THEN
   ALLOCATE(RecvMsg%XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%XCL_NGeo',RecvMsg%nElems)
   RecvMsg%XCL_NGeo(:,:,:,:,:)=0
 END IF
@@ -2176,13 +2254,15 @@ END IF
 ! DXCL_NGeo for exchange
 IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
   ALLOCATE(SendMsg%DXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:SendMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%DXCL_NGeo',SendMsg%nElems)
   SendMsg%DXCL_NGeo(:,:,:,:,:,:)=0
 END IF
 IF (RecvMsg%nElems.GT.0) THEN
   ALLOCATE(RecvMsg%DXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%ElemToSide',RecvMsg%nElems)
   RecvMsg%DXCL_NGeo(:,:,:,:,:,:)=0
 END IF
@@ -2190,13 +2270,15 @@ END IF
 ! SideToElem Mapping
 IF (SendMsg%nSides.GT.0) THEN       ! SideToElem(1:2,1:nSides) 
   ALLOCATE(SendMsg%SideToElem(1:5,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%SideToElem',SendMsg%nSides)
   SendMsg%SideToElem(:,:)=0
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SideToElem(1:5,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%SideToElem',RecvMsg%nSides)
   RecvMsg%SideToElem(:,:)=0
 END IF
@@ -2209,78 +2291,90 @@ END IF
 ! 4:SIDE_ID-MPI_Offset(NBProc)  
 IF (SendMsg%nSides.GT.0) THEN       
   ALLOCATE(SendMsg%BC(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%BC',SendMsg%nSides,999.)
   SendMsg%BC(:)=0
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%BC(1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%BC',RecvMsg%nSides,999.)
   RecvMsg%BC(:)=0
 END IF
 ! SideBCType
 IF (SendMsg%nSides.GT.0) THEN       
   ALLOCATE(SendMsg%SideBCType(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%SideBCType',SendMsg%nSides,999.)
   SendMsg%SideBCType(:)=0
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SideBCType(1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%SideBCType',RecvMsg%nSides,999.)
   RecvMsg%SideBCType(:)=0
 END IF
 ! NativeElemID 
 IF (SendMsg%nElems.GT.0) THEN 
   ALLOCATE(SendMsg%NativeElemID(1:SendMsg%nElems),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%NativeElemID',SendMsg%nElems,999.)
   SendMsg%NativeElemID(:)=0
 END IF
 IF (RecvMsg%nElems.GT.0) THEN
   ALLOCATE(RecvMsg%NativeElemID(1:RecvMsg%nElems),STAT=ALLOCSTAT)  ! Save E2S_SIDE_ID, E2S_FLIP
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%NativeElemID',RecvMsg%nElems,999.)
   RecvMsg%NativeElemID(:)=0
 END IF
 ! SideSlabNormals Mapping
 IF (SendMsg%nSides.GT.0) THEN       
   ALLOCATE(SendMsg%SideSlabNormals(1:3,1:3,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%SideSlabNormals',SendMsg%nSides)
   SendMsg%SideSlabNormals(:,:,:)=0.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SideSlabNormals(1:3,1:3,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%SideSlabNormals',RecvMsg%nSides)
   RecvMsg%SideSlabNormals(:,:,:)=0.
 END IF
 ! SideSlabIntervals Mapping
 IF (SendMsg%nSides.GT.0) THEN       ! SideSlabIntervals(1:2,1:nSides) 
   ALLOCATE(SendMsg%SideSlabIntervals(1:6,1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%SideSlabIntervals',SendMsg%nSides)
   SendMsg%SideSlabIntervals(:,:)=0.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%SideSlabIntervals(1:6,1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%SideSlabIntervals',RecvMsg%nSides)
   RecvMsg%SideSlabIntervals(:,:)=0.
 END IF
 ! BoundingBoxIsEmpty Mapping
 IF (SendMsg%nSides.GT.0) THEN       ! BoundingBoxIsEmpty(1:2,1:nSides) 
   ALLOCATE(SendMsg%BoundingBoxIsEmpty(1:SendMsg%nSides),STAT=ALLOCSTAT)  ! see boltzplatz.h 
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate SendMsg%BoundingBoxIsEmpty',SendMsg%nSides)
   SendMsg%BoundingBoxIsEmpty(:)=.FALSE.
 END IF
 IF (RecvMsg%nSides.GT.0) THEN
   ALLOCATE(RecvMsg%BoundingBoxIsEmpty(1:RecvMsg%nSides),STAT=ALLOCSTAT)  
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,&
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+      __STAMP__,&
     'Could not allocate RecvMsg%BoundingBoxIsEmpty',RecvMsg%nSides)
   RecvMsg%BoundingBoxIsEmpty(:)=.FALSE.
 END IF
@@ -2626,7 +2720,8 @@ IF (RecvMsg%nElems.GT.0) THEN
         IF(oldElemID.EQ.-1)THEN
           ! get elemid
           IF(PartSideToElem(S2E_ELEM_ID,newSideID).EQ.-1) &
-            CALL abort(__STAMP__,&
+            CALL abort(&
+            __STAMP__,&
             'Critical error in domain reconstrution.')
             PartSideToElem(S2E_NB_ELEM_ID,newSideID)     = newElemID
             PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) = ilocSide
@@ -2643,7 +2738,8 @@ IF (RecvMsg%nElems.GT.0) THEN
             PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,newElemID) = PartSideToElem(S2E_LOC_SIDE_ID,newSideID)
         ELSE ! SE2_NB_ELEM_ID=DEFINED
           IF(PartSideToElem(S2E_ELEM_ID,newSideID).NE.-1) &
-            CALL abort(__STAMP__,&
+            CALL abort(&
+            __STAMP__,&
             'Critical error in domain reconstrution.')
           PartSideToElem(S2E_ELEM_ID       ,newSideID) = newElemID !root Element
           PartSideToElem(S2E_LOC_SIDE_ID   ,newSideID) = iLocSide
@@ -2674,7 +2770,8 @@ IF (RecvMsg%nElems.GT.0) THEN
           PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) =ilocSide
           PartSideToElem(S2E_FLIP      ,newSideID) =RecvMsg%SideToElem(S2E_FLIP,haloSideID)
         ELSE ! should be found, because there should be halo sides without any connection
-          CALL abort(__STAMP__,&
+          CALL abort(&
+__STAMP__,&
               'Non-Critical error in domain reconstrution. IF NOT encountered, something is terrible wrong.')
         END IF
         !BC(1:4,newSideID)=RecvMsg%BC(1:4,haloSideID)

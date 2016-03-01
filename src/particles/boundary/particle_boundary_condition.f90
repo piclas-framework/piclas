@@ -75,7 +75,8 @@ REAL                                 :: absPt_temp
 !===================================================================================================================================
 
 IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
   ' ERROR: PartBound not allocated!.',999,999.)
 END IF
 
@@ -171,25 +172,30 @@ CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! new implementation, nothing to due :)
   ! however, never checked
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%PeriodicBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(5) !PartBound%SimpleCathodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(6) !PartBound%MPINeighborhoodBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
 CASE DEFAULT
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
 ' ERROR: PartBound not associated!. (unknown case)',999,999.)
 END SELECT !PartBound%MapToPartBC(BC(SideID)
 
@@ -234,7 +240,8 @@ INTEGER                              :: BCSideID
 !===================================================================================================================================
 
 IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
   ' ERROR: PartBound not allocated!.',999,999.)
 END IF
 
@@ -334,25 +341,29 @@ CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! new implementation, nothing to due :)
   ! however, never checked
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%PeriodicBC)',999,999.)
   !compute new bc
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
 !CASE(PartBound%SimpleAnodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(5) !PartBound%SimpleCathodeBC)
 !CASE(PartBound%SimpleCathodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(6) !PartBound%MPINeighborhoodBC)
 !CASE(PartBound%MPINeighborhoodBC)
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
@@ -365,7 +376,8 @@ CASE(10)
 
 
 CASE DEFAULT
-  CALL abort(__STAMP__,&
+  CALL abort(&
+      __STAMP__,&
 ' ERROR: PartBound not associated!. BC(SideID)',BC(SideID),REAL(SideID/nSides))
 END SELECT !PartBound%MapToPartBC(BC(SideID)
 

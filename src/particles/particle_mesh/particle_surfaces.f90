@@ -1187,7 +1187,8 @@ END IF
 dMax=MAX(dx,dy,dz)
 dMin=MIN(dx,dy,dz)
 IF(dx/dMax.LT.BezierEpsilonBilinear)THEN
-  CALL Abort(__STAMP__,&
+  CALL Abort(&
+      __STAMP__,&
   'Bezier side length is degenerated. dx/dMax.LT.BezierEpsilonBilinear ->',0,dx/dMax)
 END IF
 IF(dy/dMax.LT.BezierEpsilonBilinear)THEN
@@ -1195,7 +1196,8 @@ IF(dy/dMax.LT.BezierEpsilonBilinear)THEN
   dy=0.
 END IF
 IF(dz/dMax.LT.BezierEpsilonBilinear)THEN
-  CALL Abort(__STAMP__,&
+  CALL Abort(&
+      __STAMP__,&
   'Bezier side length is degenerated. dz/dMax.LT.BezierEpsilonBilinear ->',0,dz/dMax)
 END IF
 

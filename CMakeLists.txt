@@ -199,7 +199,8 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/utils/*.f90 )
 
 FILE(GLOB mainF90 ./src/boltzplatz.f90)
-FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90)
+FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
+                               ./src/interpolation/eval_xyz.f90)
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90 
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90)
 LIST(APPEND boltzplatzF90 ${mainF90})

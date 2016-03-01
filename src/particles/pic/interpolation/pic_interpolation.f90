@@ -74,7 +74,8 @@ END IF
 SDEALLOCATE(FieldAtParticle)
 ALLOCATE(FieldAtParticle(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT) 
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__, &
+  CALL abort(&
+      __STAMP__, &
       'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
 END IF
 
@@ -86,7 +87,8 @@ CASE('particle_position_slow')
 CASE('particle_position')
 CASE('nearest_gausspoint')
 CASE DEFAULT
-  CALL abort(__STAMP__, &
+  CALL abort(&
+      __STAMP__, &
       'Unknown InterpolationType in pic_init.f90')
 END SELECT
 END SUBROUTINE InitializeInterpolation
@@ -361,8 +363,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
   CASE DEFAULT
-    CALL abort(__STAMP__, &
-        'ERROR: Unknown InterpolationType!')
+    CALL abort(&
+__STAMP__&
+       , 'ERROR: Unknown InterpolationType!')
   END SELECT
 END IF
     
@@ -417,7 +420,7 @@ IF(usecurvedExternalField) THEN ! used curved external Bz
 #if (PP_nVar==8)
   FieldAtParticle(4) = externalField(4)
   FieldAtParticle(5) = externalField(5)
-#endif            firstPart:lastPart
+#endif          
   ! Bz field strenfirstPart:lastPartgth at particle position
   FieldAtparticle(6) = InterpolateCurvedExternalField(PartState(PartID,3))
 ELSE ! usecurvedExternalField
@@ -582,8 +585,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #endif
 #endif
   CASE DEFAULT
-    CALL abort(__STAMP__, &
-        'ERROR: Unknown InterpolationType!')
+    CALL abort(&
+__STAMP__&
+    , 'ERROR: Unknown InterpolationType!')
   END SELECT
 END IF
     
@@ -641,7 +645,7 @@ USE MOD_PICInterpolation_Vars    ,ONLY:FileNameCurvedExternalField,CurvedExterna
         SWRITE(UNIT_stdOut,'(A)') "ERROR: No equidistant points were used." 
         SWRITE(UNIT_stdOut,'(A)') diff_comp, diff_check
         CALL abort(&
-            __STAMP__&
+__STAMP__&
           ,' Error in dataset!')
       END IF  
     END IF
@@ -649,7 +653,9 @@ USE MOD_PICInterpolation_Vars    ,ONLY:FileNameCurvedExternalField,CurvedExterna
   CLOSE (unit_index_CEF)
 
   IF (CurvedExternalField(1,1) .NE.0) THEN
-    CALL abort(__STAMP__,  &
+    CALL abort(&
+__STAMP__&
+,  &
         "ERROR: Points have to start at 0.")
   END IF
   IF(ncounts.GT.1) THEN
@@ -659,7 +665,9 @@ USE MOD_PICInterpolation_Vars    ,ONLY:FileNameCurvedExternalField,CurvedExterna
       SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
     END IF
   ELSE 
-    CALL abort(__STAMP__, &
+    CALL abort(&
+__STAMP__&
+, &
         " ERROR: not enough data points in curved external field file!")
   END IF
   SWRITE(UNIT_stdOut,'(A,I4.0,A)')'Found', ncounts,' data points.'
@@ -691,7 +699,8 @@ iPos = 0
 iPos = INT(POS/DeltaExternalField) + 1
 IF (iPos.GE.nIntPoints) THEN
   IPWRITE(UNIT_stdOut,'(A,F8.5,I10.2)')"Position and Position index, ",POS,iPos
-  CALL abort(__STAMP__, &
+  CALL abort(&
+__STAMP__, &
         "ERROR: particle out of data point region for external curved field interpolation!")
 END IF
 !  Linear Interpolation between iPos and iPos+1 B point
