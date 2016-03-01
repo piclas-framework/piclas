@@ -11,13 +11,13 @@ all: boltzplatz
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 
 boltzplatz: shared
-	cd src && touch deplist.mk && $(MAKE) -j #create deplist.mk for builddebs to prevent errors if not existing
+	mkdir -p bin && cd src && touch deplist.mk && $(MAKE) -j #create deplist.mk for builddebs to prevent errors if not existing
 
 shared:
-	cd share && $(MAKE) -j
+	mkdir -p lib && cd share && $(MAKE) -j
 
 shared_teclib:
-	cd share && $(MAKE) -j teclib
+	mkdir -p lib && cd share && $(MAKE) -j teclib
 	
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 	@echo ' SUCCESS: ALL TESTS GENERATED!'

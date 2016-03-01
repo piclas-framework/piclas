@@ -43,6 +43,9 @@ hdf5: dir
 		echo "===============================================================";\
 		if [ ! -f hdf5-$(HDF5_VERSION).tar.bz2 ] ; then \
 		  wget -N http://www.hdfgroup.org/ftp/HDF5/prev-releases/hdf5-$(HDF5_VERSION)/src/hdf5-$(HDF5_VERSION).tar.bz2 ; \
+		  if [ "$?" != "0" ] ; then \
+			  echo "wget failed. Trying normal releases..." && wget -N http://www.hdfgroup.org/ftp/HDF5/releases/hdf5-$(HDF5_VERSION)/src/hdf5-$(HDF5_VERSION).tar.bz2 ; \
+		  fi ; \
 		fi ; \
 		if [ ! -d $(SHARECOMP)/hdf5-$(HDF5_VERSION) ] ; then \
 			cd $(SHARECOMP)/ && tar -xvjf ../hdf5-$(HDF5_VERSION).tar.bz2 1>/dev/null && cd .. ; \
