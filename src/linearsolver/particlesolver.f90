@@ -63,17 +63,17 @@ EisenstatWalker=GETLOGICAL('EisenstatWalker','.FALSE.')
 PartgammaEW    =GETREAL('PartgammaEW','0.9')
 nPartNewton    =0
 
-scaleps=GETREAL('scaleps')
+scaleps=GETREAL('scaleps','1.')
 ! rEps0 = scaleps * 1.E-8
 rEps0=scaleps*SQRT(EPSILON(0.0))
 srEps0=1./rEps0
 
-ALLOCATE(PartXK(1:6,1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
+ALLOCATE(PartXK(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__, &
   'Cannot allocate PartXK')
 
-ALLOCATE(R_PartXK(1:6,1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
+ALLOCATE(R_PartXK(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__, &
   'Cannot allocate R_PartXK')
@@ -195,6 +195,7 @@ DO WHILE(ANY(DoParticle) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe c
   DO iPart=1,PDM%ParticleVecLength
     IF(DoParticle(iPart))THEN
       ! set abort crit      
+      print*,'nInnteriter',nInnerPartNewton
       IF (nInnerPartNewton.EQ.0) THEN
         AbortCritLinSolver=0.999
         Norm2_F_PartXK_Old(iPart)=Norm2_F_PartXk(iPart)
@@ -409,6 +410,7 @@ DO WHILE (Restart<nRestarts)
   Gam(1)=Norm_R0
 END DO ! Restart
 
+IPWRITE(*,*) 'Gam(1+1)',Gam(m),AbortCrit
 CALL abort(&
     __STAMP__, &
      'GMRES_M NOT CONVERGED WITH RESTARTS AND GMRES ITERATIONS:',Restart,REAL(nPartInnerIter))

@@ -45,11 +45,6 @@ USE MOD_Interpolation_Vars,   ONLY:InterpolationInitIsDone
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL,GETLOGICAL
 USE MOD_Precond,              ONLY:InitPrecond
 USE MOD_Predictor,            ONLY:InitPredictor
-#if defined(PARTICLES)
-#if defined(IMPA) || (PP_TimeDiscMethod==110)
-USE MOD_ParticleSolver,       ONLY:InitPartSolver
-#endif
-#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -158,12 +153,6 @@ CALL InitPredictor()
 ! init preconditoner
 CALL InitPrecond()
 
-
-#if defined(PARTICLES)
-#if defined(IMPA) || (PP_TimeDiscMethod==110)
-CALL InitPartSolver()
-#endif
-#endif /*PARTICLES*/
 
 END SUBROUTINE InitLinearSolver
 

@@ -138,8 +138,10 @@ USE MOD_Filter,             ONLY:InitFilter
 USE MOD_Output,             ONLY:InitOutput
 USE MOD_Analyze,            ONLY:InitAnalyze
 USE MOD_RecordPoints,       ONLY:InitRecordPoints
-#ifdef IMEX
+#if defined(IMEX) || defined(IMPA)
 USE MOD_LinearSolver,       ONLY:InitLinearSolver
+#endif /*IMEX*/
+#ifdef IMEX
 USE MOD_CSR,                ONLY:InitCSR
 #endif /*IMEX*/
 !USE MOD_TimeDisc,           ONLY:InitTimeDisc
@@ -153,6 +155,9 @@ USE MOD_Particle_Surfaces,  ONLY:InitParticleSurfaces
 USE MOD_Particle_Mesh,      ONLY:InitParticleMesh, InitElemBoundingBox
 USE MOD_Particle_Analyze,   ONLY:InitParticleAnalyze
 USE MOD_Particle_MPI,       ONLY:InitParticleMPI
+#if defined(IMPA) || (PP_TimeDiscMethod==110)
+USE MOD_ParticleSolver,       ONLY:InitPartSolver
+#endif
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -199,12 +204,17 @@ CALL InitPML()
 CALL InitDG()
 CALL InitFilter()
 !CALL InitTimeDisc()
-#ifdef IMEX
+#if defined(IMEX) || defined(IMPA)
 CALL InitLinearSolver()
+#endif /*IMEX*/
+#if defined(IMEX)
 CALL InitCSR()
 #endif /*IMEX*/
 #ifdef PARTICLES
 CALL InitParticles()
+#if defined(IMPA) 
+CALL InitPartSolver()
+#endif
 !CALL GetSideType
 #endif
 CALL InitAnalyze()
