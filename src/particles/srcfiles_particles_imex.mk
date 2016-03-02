@@ -57,6 +57,7 @@ loadbalance/loadbalance.f90
 loadbalance/loadbalance_vars.f90
 loadbalance/loaddistribution.f90
 linearsolver/linearsolver.f90
+linearsolver/particlesolver.f90
 linearsolver/linearsolver_vars.f90
 linearsolver/newton.f90
 linearsolver/predictor.f90
