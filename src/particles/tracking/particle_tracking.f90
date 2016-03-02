@@ -18,8 +18,8 @@ INTERFACE ParticleTrackingCurved
 END INTERFACE
 
 INTERFACE ParticleRefTracking
-  MODULE PROCEDURE ParticleRefTrackingFast
-  !MODULE PROCEDURE ParticleRefTrackingSLOW
+  !MODULE PROCEDURE ParticleRefTrackingFast
+  MODULE PROCEDURE ParticleRefTrackingSLOW
 END INTERFACE
 
 !PUBLIC::ParticleTracking,ParticleTrackingCurved
@@ -1069,7 +1069,8 @@ DO iPart=1,PDM%ParticleVecLength
 !#  endif /*MPI*/
       CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.BezierClipHit) THEN ! particle inside
-      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.1.0) THEN ! particle inside
+      !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.1.0) THEN ! particle inside
+      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.epsOneCell) THEN ! particle inside
         PEM%Element(iPart) = ElemID
         PartIsDone=.TRUE.
         EXIT
