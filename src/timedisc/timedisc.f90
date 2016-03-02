@@ -2359,7 +2359,12 @@ U=U+dt*Ut
 #ifdef PARTICLES
 IF (t.GE.DelayTime) THEN
   tstage=t+dt
-  PartQ=PartState
+  PartQ(1,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,1)
+  PartQ(2,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,2)
+  PartQ(3,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,3)
+  PartQ(4,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,4)
+  PartQ(5,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,5)
+  PartQ(6,1:PDM%ParticleVecLength)=PartState(1:PDM%ParticleVecLength,6)
   ! frozen matrix, e.g. no communication during stage?
   LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
   LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)

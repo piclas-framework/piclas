@@ -216,6 +216,7 @@ SUBROUTINE PartMatrixVector(t,Coeff,PartID,X,Y)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals_Vars,       ONLY:epsMach
+USE MOD_Globals,            ONLY:Abort
 USE MOD_DG_Vars,            ONLY:U,Ut
 USE MOD_DG,                 ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver_Vars,  ONLY:reps0,PartXK,R_PartXK
@@ -251,12 +252,15 @@ PartT(1:3)=PartState(PartID,4:6)
 SELECT CASE(PartLorentzType)
 CASE(1)
   PartT(4:6) = SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle(1:6))
-CASE(2)
+CASE(3)
   PartT(4:6) = FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle(1:6))
+CASE DEFAULT
+CALL abort(&
+__STAMP__, &
+  ' Given PartLorentzType does not exist!',PartLorentzType)
 END SELECT
 ! or frozen version
 ! Part(4:6)=Pt(PartID,1:3)
-
 Y = (X - (coeff/EpsFD)*(PartT - R_PartXk(:,PartID)))
 
 END SUBROUTINE PartMatrixVector

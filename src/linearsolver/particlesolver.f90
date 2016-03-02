@@ -118,12 +118,15 @@ INTEGER                      :: nInnerPartNewton = 0
 REAL                         :: AbortCritLinSolver,gammaA,gammaB
 ! required GLOBAL variables
 REAL                         :: Pt_tmp(1:6)
+! to move to global variables for MPI :(
 REAL                         :: F_PartX0(1:6,1:PDM%ParticleVecLength)
 REAL                         :: F_PartXk(1:6,1:PDM%ParticleVecLength)
 REAL                         :: Norm2_F_PartX0    (1:PDM%ParticleVecLength)
 REAL                         :: Norm2_F_PartXK    (1:PDM%ParticleVecLength)
 REAL                         :: Norm2_F_PartXK_Old(1:PDM%ParticleVecLength)
+! maybeeee
 REAL                         :: DeltaX(1:6)
+! and thats maybe local???
 LOGICAL                      :: DoParticle(1:PDM%ParticleVecLength)
 !===================================================================================================================================
 
@@ -140,8 +143,7 @@ CALL CalcPartRHS()
 
 ! whole pt array
 
-! euler implicit PartQ
-
+DoParticle=.TRUE.
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     ! PartStateN has to be exchanged by PartQ
@@ -151,20 +153,30 @@ DO iPart=1,PDM%ParticleVecLength
     Pt_tmp(4) = Pt(iPart,1) 
     Pt_tmp(5) = Pt(iPart,2) 
     Pt_tmp(6) = Pt(iPart,3)
+    print*,'old partpos',PartState(iPart,1:3)
     F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(iPart,1:6)-coeff*Pt_tmp
     PartXK(:,iPart)     =   PartState(iPart,:)
     R_PartXK(:,iPart)   =   Pt_tmp(:)
     F_PartXK(:,iPart)   =   F_PartX0(:,iPart)
+    print*,'F_partx0',F_PartX0(1:6,iPart)
+    print*,'PartXK',PartXK(1:6,iPart)
+    print*,'R_PartKX',R_PartXK(1:6,iPart)
+    print*,'F_PartKX',F_PartXK(1:6,iPart)
+  ELSE
+    DoParticle(iPart)=.FALSE.
   END IF ! ParticleInside
 END DO ! iPart
 
-DoParticle=.TRUE.
 ! compute norm for each particle
 DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
+  IF(DoParticle(iPart))THEN
     CALL PartVectorDotProduct(F_PartX0(:,iPart),F_PartX0(:,iPart),Norm2_F_PartX0(iPart))
-  ELSE
-      DoParticle(iPart)=.FALSE.
+    print*,'Norm2_F_PartX0',Norm2_F_PartX0(iPart)
+    IF (Norm2_F_PartX0(iPart).LE.(1.E-8)**2*6) THEN ! do not iterate, as U is already the implicit solution
+      Norm2_F_PartXk(iPart)=TINY(1.)
+    ELSE ! we need iterations
+      Norm2_F_PartXk(iPart)=Norm2_F_PartX0(iPart)
+    END IF
   END IF ! ParticleInside
 END DO ! iPart
 
@@ -182,14 +194,12 @@ ELSE
       IF(Norm2_F_PartX0(iPart).LE.(1.E-8)**2*6)THEN ! do not iterate
         DoParticle(iPart)=.FALSE.
       END IF
-    ELSE
-      DoParticle(iPart)=.FALSE.
     END IF ! ParticleInside
   END DO ! iPart
 END IF
 
 ! newton per particle 
-nInnerPartNewton=0
+nInnerPartNewton=-1
 DO WHILE(ANY(DoParticle) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
   nInnerPartNewton=nInnerPartNewton+1
   DO iPart=1,PDM%ParticleVecLength
@@ -198,7 +208,6 @@ DO WHILE(ANY(DoParticle) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe c
       print*,'nInnteriter',nInnerPartNewton
       IF (nInnerPartNewton.EQ.0) THEN
         AbortCritLinSolver=0.999
-        Norm2_F_PartXK_Old(iPart)=Norm2_F_PartXk(iPart)
       ELSE
         gammaA = PartgammaEW*(Norm2_F_PartXk(iPart))/(Norm2_F_PartXk_old(iPart))
         IF (PartgammaEW*AbortCritLinSolver*AbortCritLinSolver < 0.1) THEN
@@ -207,12 +216,17 @@ DO WHILE(ANY(DoParticle) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe c
           gammaB = min(0.999, max(gammaA,PartgammaEW*AbortCritLinSolver*AbortCritLinSolver))
         ENDIF
         AbortCritLinSolver = min(0.999,max(gammaB,0.5*SQRT(Eps2PartNewton)/SQRT(Norm2_F_PartXk(iPart))))
-        Norm2_F_PartXk_old(iPart)=Norm2_F_PartXk(iPart)
       END IF 
-      CALL Particle_GMRES(t,coeff,iPart,-PartXK(:,iPart),SQRT(Norm2_F_PartXk(iPart)),AbortCritLinSolver,DeltaX)
+      Norm2_F_PartXk_old(iPart)=Norm2_F_PartXk(iPart)
+      print*,'AbortCrit',AbortCritLinSolver
+      print*,'Norm2_old',Norm2_F_PartXK(iPart)
+      print*,'enter GMRS'
+      CALL Particle_GMRES(t,coeff,iPart,-F_PartXK(:,iPart),SQRT(Norm2_F_PartXk(iPart)),AbortCritLinSolver,DeltaX)
       ! update to new partstate during Newton iteration
+      print*,'deltaX',deltaX
       PartXK(:,iPart)=PartXK(:,iPart)+DeltaX
       PartState(iPart,:)=PartXK(:,iPart)
+      print*,'newpartstate',PartState(iPart,:)
   !    ! compute d Part/ dt
   !    ! correct version!!, relaxating verion, do not compute!
   !    ! here, for single particle or do particle?  ! here a situation to communicate :)
@@ -245,6 +259,7 @@ DO WHILE(ANY(DoParticle) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe c
   ! finish communication
   CALL MPIParticleRecv()
 #endif
+  ! correspond to call DGTimeDerivative
   CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
   CALL CalcPartRHS()
   DO iPart=1,PDM%ParticleVecLength
@@ -254,7 +269,9 @@ DO WHILE(ANY(DoParticle) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe c
       !F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*Part_tmp(:,iPart)
       F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*R_PartXK(:,iPart)
       ! vector dot product 
+      print*,'F_PartXK',F_PartXK(:,iPart)
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_F_PartXK(iPart))
+      print*,'Norm2_F_PartXK',Norm2_F_PartXK(iPart),Eps2PartNewton*Norm2_F_PartX0(iPart)
       IF(Norm2_F_PartXK(iPart).LT.Eps2PartNewton*Norm2_F_PartX0(iPart)) DoParticle(iPart)=.FALSE.
     END IF
   END DO
@@ -304,8 +321,6 @@ REAL              :: Norm_R0,Resu,Temp,Bet
 INTEGER           :: Restart
 INTEGER           :: m,nn,o
 ! preconditoner + Vt
-REAL              :: Vt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nKDim)
-REAL              :: Vt2(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #ifdef DLINANALYZE
 REAL              :: tS,tE, tS2,tE2,t1,t2
 real              :: tstart,tend,tPMV
@@ -336,6 +351,11 @@ DeltaX=0.
 
 V(:,1)=R0/Norm_R0
 Gam(1)=Norm_R0
+print*,'AbortCrit',AbortCrit
+print*,R0
+print*,Norm_B
+print*,'v1',V(:,1)
+print*,'gam1',gam(1)
 
 DO WHILE (Restart<nRestarts)
   DO m=1,nKDim
@@ -343,8 +363,10 @@ DO WHILE (Restart<nRestarts)
 #ifdef DLINANALYZE
     CALL CPU_TIME(tStart)
 #endif /* DLINANALYZE */
+    print*,'bevor MV', V(:,m)
     ! matrix vector
     CALL PartMatrixVector(t,coeff,PartID,V(:,m),W)
+    print*,'after',W
 #ifdef DLINANALYZE
     CALL CPU_TIME(tend)
     tPMV=tPMV+tend-tStart
@@ -378,6 +400,7 @@ DO WHILE (Restart<nRestarts)
       END DO !nn
       DO nn=1,m
         DeltaX=DeltaX+Alp(nn)*V(:,nn)
+        print*,'GMRES-detla',DeltaX
       END DO !nn
       IF (ABS(Gam(m+1)).LE.AbortCrit) THEN !converged
         totalPartIterLinearSolver=totalPartIterLinearSolver+nPartInnerIter
