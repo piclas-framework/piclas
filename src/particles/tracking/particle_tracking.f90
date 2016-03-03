@@ -653,8 +653,8 @@ DO iPart=1,PDM%ParticleVecLength
         
   ! check all cells associated with this beckground mesh cell
   nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
-  SDEALLOCATE( Distance)
-  SDEALLOCATE( ListDistance)
+  !SDEALLOCATE( Distance)
+  !SDEALLOCATE( ListDistance)
   ALLOCATE( Distance(1:nBGMElems) &
           , ListDistance(1:nBGMElems) )
  
@@ -696,7 +696,7 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*MPI*/
     CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
     !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.BezierClipHit) THEN ! particle inside
-    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.1.0) THEN ! particle inside
+    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.epsOneCell) THEN ! particle inside
       PEM%Element(iPart) = ElemID
       ParticleFound(iPart)=.TRUE.
       EXIT
@@ -762,7 +762,11 @@ DO iPart=1,PDM%ParticleVecLength
             CALL PeriodicMovement(iPart)
           END IF
         END DO ! While
-        IF(PartIsDone) CYCLE
+        IF(PartIsDone) THEN
+          DEALLOCATE( Distance)
+          DEALLOCATE( ListDistance)
+          CYCLE
+        END IF
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
         ! false, reallocate particle
         IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell)THEN
