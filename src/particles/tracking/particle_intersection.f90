@@ -553,8 +553,8 @@ DO iClipIter=iClipIter,BezierClipMaxIter
   !  CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoXiClip)
   !END IF
   IF(DoXiClip)THEN
-    CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck)
-    !CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck,Mode=1)
+    !CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck)
+    CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck,Mode=1)
     IF(.NOT.DoCheck) EXIT
     DO q=0,NGeo 
       DO p=0,NGeo
@@ -908,8 +908,8 @@ DO iClipIter=iClipIter,BezierClipMaxIter
       DoXiClip=.TRUE.
       FirstClip=.TRUE.
     END IF
-    CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo,DoCheck)
-    !CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck,Mode=2)
+    !CALL CalcLineNormVec(BezierControlPoints2D(:,:,:),LineNormVec,0,NGeo,DoCheck)
+    CALL CalcLineNormVec2(BezierControlPoints2D(:,:,:),LineNormVec,NGeo,0,DoCheck,Mode=2)
     IF(.NOT.DoCheck) EXIT
     DO q=0,NGeo
       DO p=0,NGeo
@@ -1714,11 +1714,11 @@ INTEGER                              :: l
   ! adapted from: 2005, A. Efremov, Robust and numerically stable bezier clipping method for ray tracing nurbs surfaces
   IF(Smax.GT.-1.5)THEN
     !Smax=MIN(Smax+20.*BezierClipTolerance,1.0)
-    Smax=MIN(Smax+10.*BezierClipTolerance,BezierClipHit)
+    Smax=MIN(Smax+100.*BezierClipTolerance,BezierClipHit)
   END IF
   IF(Smin.LT.1.5)THEN
     !Smin=MAX(Smin-20.*BezierClipTolerance,-1.0)
-    Smin=MAX(Smin-10.*BezierClipTolerance,-BezierClipHit)
+    Smin=MAX(Smin-100.*BezierClipTolerance,-BezierClipHit)
   END IF
 
 END SUBROUTINE calcSminSmax
