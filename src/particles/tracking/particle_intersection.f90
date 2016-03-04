@@ -58,6 +58,7 @@ SUBROUTINE PartInElemCheck(PartID,ElemID,Check)
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals,                ONLY:Almostzero
 USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
@@ -94,6 +95,11 @@ PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
+IF(ALMOSTZERO(lengthPartTrajectory))THEN
+  Check=.TRUE.
+  PartState(PartID,1:3)   = tmpPos
+  LastPartPos(PartID,1:3) = tmpLastPartPos
+END IF
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 isHit=.FALSE.
 DO ilocSide=1,6

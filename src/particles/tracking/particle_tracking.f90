@@ -746,7 +746,8 @@ DO iPart=1,PDM%ParticleVecLength
             __STAMP__, &
             'Particle Not inSide of Element, iPart',iPart)
       ELSE ! BCElem
-        CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,PartIsDone)
+        !CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,PartIsDone)
+        CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
         LastPos=PartState(iPart,1:3)
         CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
         ! check inner sides
@@ -1123,7 +1124,8 @@ DO iPart=1,PDM%ParticleVecLength
               __STAMP__, &
               'Particle Not inSide of Element, iPart',iPart)
         ELSE ! BCElem
-          CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,PartIsDone)
+         ! CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,PartIsDone)
+          CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
           LastPos=PartState(iPart,1:3)
           CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
           ! check inner sides
@@ -1924,6 +1926,8 @@ DO iLocSide=firstSide,LastSide
 END DO ! ilocSide
 
 IF(nInter.EQ.0) THEN
+  PartState(PartID,1:3)=tmpPos
+  LastPartPos(PartID,1:3)=tmpLastPartPos(1:3)
   ! crash
   RETURN
 ELSE
