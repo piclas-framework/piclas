@@ -454,6 +454,7 @@ SUBROUTINE FinalizePartSolver()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 USE MOD_LinearSolver_Vars
+USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -466,7 +467,14 @@ IMPLICIT NONE
 
 SDEALLOCATE(PartXK)
 SDEALLOCATE(R_PartXK)
-
+! variables of particle_vars.f90
+SDEALLOCATE(PartQ)
+SDEALLOCATE(F_PartX0)
+SDEALLOCATE(F_PartXk)
+SDEALLOCATE(Norm2_F_PartX0)
+SDEALLOCATE(Norm2_F_PartXK)
+SDEALLOCATE(Norm2_F_PartXK_old)
+SDEALLOCATE(DoPartInNewton)
 END SUBROUTINE FinalizePartSolver
 #endif /*PARTICLES*/
 
