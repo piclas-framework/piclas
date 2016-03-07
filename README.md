@@ -18,20 +18,37 @@ For a smooth building step ensure that the following environement variables are 
 The following libraries are installed locally within Boltzplatz and build automatically (in case the Boltzplatz needs  in case they are not found on the system):
 
 * [HDF5][hdf5]: Library for efficient I/O on large scale systems (always needed)
-* Manual HDF5-Installation
-   Download HDF5
-   tar xvf hdf5-version.tar.gz
-   cd hdf-version && mkdir -p build
-   cmake -DBUILD_TESTING=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_BUILD_CPP_LIB=OFF -DHDF5_BUILD_EXAMPLES=OFF -DHDF5_ENABLE_PARALLEL=ON -DHDF5_BUILD_HL_LIB=ON -DHDF5_BUILD_TOOLS=ON -DHDF5_ENABLE_F2003=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/hdf5/1.X.X ..
-   make && make install
 
-* [Tecplot IO Library][tecio]: Library to write the proprietary Tecplot binary data format (not needed for the ParaView Plugin)
-* Manual Tecio-installation
-   New Folder
-   git clone git@129.69.43.151:libs/TECPLOT.git  TECPLOT
-   cd TECPLOT && ./Runmake linuxg27x64.24 -tecio 
-   mkdir -p /opt/tecio-2013
-   mv * /opt/tecio-2013
+  Manual HDF5-Installation
+
+*  Download HDF5
+
+         tar xvf hdf5-version.tar.gz
+*  Create Build folder
+
+         cd hdf-version && mkdir -p build
+* Configure and make HDF5
+
+         cmake -DBUILD_TESTING=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_BUILD_CPP_LIB=OFF -DHDF5_BUILD_EXAMPLES=OFF -DHDF5_ENABLE_PARALLEL=ON -DHDF5_BUILD_HL_LIB=ON -DHDF5_BUILD_TOOLS=ON -DHDF5_ENABLE_F2003=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/hdf5/1.X.X ..
+* Make 
+         make && make install
+
+* [Tecplot IO Library][tecio]: Library to write the proprietary Tecplot binary data format
+
+  Manual Tecio-installation
+  
+* Create new folder and clone  TECIO
+
+         git clone git@129.69.43.151:libs/TECPLOT.git  TECPLOT
+        
+* Build tecio
+
+         cd TECPLOT && ./Runmake linuxg27x64.24 -tecio 
+
+* Move tecio to be found by cmake
+
+         mkdir -p /opt/tecio-2013
+         mv * /opt/tecio-2013
    
 
 The Tools are known to work with the following software versions:
