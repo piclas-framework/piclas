@@ -121,17 +121,17 @@ USE MOD_Globals!, ONLY:MPIRoot,UNIT_STDOUT,myRank,nProcessors
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars!, ONLY: 
-USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound
-USE MOD_Particle_Mesh_Vars    ,ONLY: NbrOfRegions,RegionBounds
-USE MOD_Mesh_Vars,             ONLY: nElems, BoundaryName,BoundaryType, nBCs
-USE MOD_DSMC_Vars,             ONLY: useDSMC
-USE MOD_Particle_Output_Vars,  ONLY: WriteFieldsToVTK, OutputMesh
-USE MOD_part_MPFtools,         ONLY: DefinePolyVec, DefineSplitVec
-USE MOD_PICInterpolation,      ONLY: InitializeInterpolation
-USE MOD_PICInit,               ONLY: InitPIC
-USE MOD_Particle_Mesh,         ONLY: InitFIBGM,MapRegionToElem
-USE MOD_Particle_Tracking_Vars,ONLY: DoRefMapping
-USE MOD_Particle_MPI_Vars,     ONLY: SafetyFactor,halo_eps_velo,PartMPI
+USE MOD_Particle_Boundary_Vars,ONLY:PartBound,nPartBound
+USE MOD_Particle_Mesh_Vars    ,ONLY:NbrOfRegions,RegionBounds
+USE MOD_Mesh_Vars,             ONLY:nElems, BoundaryName,BoundaryType, nBCs
+USE MOD_DSMC_Vars,             ONLY:useDSMC
+USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK, OutputMesh
+USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
+USE MOD_PICInterpolation,      ONLY:InitializeInterpolation
+USE MOD_PICInit,               ONLY:InitPIC
+USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem
+USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
+USE MOD_Particle_MPI_Vars,     ONLY:SafetyFactor,halo_eps_velo,PartMPI
 USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
 #ifdef IMEX
 USE MOD_TimeDisc_Vars,         ONLY: nRKStages
@@ -193,25 +193,55 @@ END IF
 #ifdef IMPA
 #if (PP_TimeDiscMethod!=110)
 ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
-!ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate ParStage arrays!')
+  ,' Cannot allocate ParStage arrays!')
 END IF
 ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate PartStateN arrays!')
+  ,' Cannot allocate PartStateN arrays!')
 END IF
 #endif
 ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
-!ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate PartQ arrays!')
+  ,'Cannot allocate PartQ arrays!')
+END IF
+! particle function values at X0
+ALLOCATE(F_PartX0(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+  ,'Cannot allocate F_PartX0 arrays!')
+END IF
+! particle function values at Xk
+ALLOCATE(F_PartXk(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+  ,'Cannot allocate F_PartXk arrays!')
+END IF
+! and the required norms
+ALLOCATE(Norm2_F_PartX0(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+  ,'Cannot allocate Norm2_F_PartX0 arrays!')
+END IF
+ALLOCATE(Norm2_F_PartXk(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+  ,'Cannot allocate Norm2_F_PartXk arrays!')
+END IF
+ALLOCATE(Norm2_F_PartXk_old(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+  ,'Cannot allocate Norm2_F_PartXk_old arrays!')
+END IF
+ALLOCATE(DoPartInNewton(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(__STAMP__&
+      ,'Cannot allocate DoPartInNewton arrays!')
 END IF
 #endif /* IMPA */
-
 
 IF(DoRefMapping)THEN
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)

@@ -36,7 +36,15 @@ REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! E
 REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! PartilceState at t^n
 #endif /*IMEX*/
 #ifdef IMPA
-REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n
+REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n or state at RK-level 0
+! Newton iteration
+REAL    , ALLOCATABLE :: F_PartX0(:,:)                                       ! Particle function evaluated at t^0
+REAL    , ALLOCATABLE :: F_PartXK(:,:)                                       ! Particle function evaluated at iteration step k
+REAL    , ALLOCATABLE :: Norm2_F_PartX0    (:)                               ! and the corresponding L2 norm
+REAL    , ALLOCATABLE :: Norm2_F_PartXK    (:)                               ! and the corresponding L2 norm
+REAL    , ALLOCATABLE :: Norm2_F_PartXK_Old(:)                               ! and the corresponding L2 norm
+LOGICAL , ALLOCATABLE :: DoPartInNewton(:)                                   ! particle is treated implicitly && Newtons method
+                                                                             ! is performed on it
 #endif
 REAL    , ALLOCATABLE :: Pt_temp(:,:)                                        ! LSERK4 additional derivative of PartState
 
