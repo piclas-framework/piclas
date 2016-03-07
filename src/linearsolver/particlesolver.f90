@@ -156,16 +156,11 @@ DO iPart=1,PDM%ParticleVecLength
     Pt_tmp(4) = Pt(iPart,1) 
     Pt_tmp(5) = Pt(iPart,2) 
     Pt_tmp(6) = Pt(iPart,3)
-    print*,'old partpos',PartState(iPart,1:3)
     F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(1:6,iPart)-coeff*Pt_tmp
     PartXK(:,iPart)     =   PartState(iPart,:)
     R_PartXK(:,iPart)   =   Pt_tmp(:)
     F_PartXK(:,iPart)   =   F_PartX0(:,iPart)
     DoPartInNewton(iPart)=.TRUE.
-    print*,'F_partx0',F_PartX0(1:6,iPart)
-    print*,'PartXK',PartXK(1:6,iPart)
-    print*,'R_PartKX',R_PartXK(1:6,iPart)
-    print*,'F_PartKX',F_PartXK(1:6,iPart)
   END IF ! ParticleInside
 END DO ! iPart
 
@@ -173,7 +168,6 @@ END DO ! iPart
 DO iPart=1,PDM%ParticleVecLength
   IF(DoPartInNewton(iPart))THEN
     CALL PartVectorDotProduct(F_PartX0(:,iPart),F_PartX0(:,iPart),Norm2_F_PartX0(iPart))
-    print*,'Norm2_F_PartX0',Norm2_F_PartX0(iPart)
     IF (Norm2_F_PartX0(iPart).LT.6E-16) THEN ! do not iterate, as U is already the implicit solution
       Norm2_F_PartXk(iPart)=TINY(1.)
       DoPartInNewton(iPart)=.FALSE.
@@ -190,7 +184,6 @@ DO WHILE(ANY(DoPartInNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! may
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! set abort crit      
-      print*,'nInnteriter',nInnerPartNewton
       IF (nInnerPartNewton.EQ.0) THEN
         AbortCritLinSolver=0.999
       ELSE
@@ -203,16 +196,10 @@ DO WHILE(ANY(DoPartInNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! may
         AbortCritLinSolver = min(0.999,max(gammaB,0.5*SQRT(Eps2PartNewton)/SQRT(Norm2_F_PartXk(iPart))))
       END IF 
       Norm2_F_PartXk_old(iPart)=Norm2_F_PartXk(iPart)
-      print*,'AbortCrit',AbortCritLinSolver
-      print*,'Norm2_old',Norm2_F_PartXK(iPart)
-      print*,'enter GMRS'
       CALL Particle_GMRES(t,coeff,iPart,-F_PartXK(:,iPart),SQRT(Norm2_F_PartXk(iPart)),AbortCritLinSolver,DeltaX)
       ! update to new partstate during Newton iteration
-      print*,'deltaX',deltaX
       PartXK(:,iPart)=PartXK(:,iPart)+DeltaX
       PartState(iPart,:)=PartXK(:,iPart)
-      print*,'newpartstate',PartState(iPart,:)
-      !read*
   !    ! compute d Part/ dt
   !    ! correct version!!, relaxating verion, do not compute!
   !    ! here, for single particle or do particle?  ! here a situation to communicate :)
@@ -268,10 +255,7 @@ DO WHILE(ANY(DoPartInNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! may
       !F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*Part_tmp(:,iPart)
       F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*R_PartXK(:,iPart)
       ! vector dot product 
-      print*,'F_PartXK',F_PartXK(:,iPart)
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_F_PartXK(iPart))
-      print*,'Norm2_F_PartXK',Norm2_F_PartXK(iPart),Eps2PartNewton*Norm2_F_PartX0(iPart)
-      !read*
       IF(Norm2_F_PartXK(iPart).LT.Eps2PartNewton*Norm2_F_PartX0(iPart)) DoPartInNewton(iPart)=.FALSE.
     END IF
   END DO
@@ -351,14 +335,6 @@ DeltaX=0.
 
 V(:,1)=R0/Norm_R0
 Gam(1)=Norm_R0
-print*,'------------------------------------'
-print*,'GMRES'
-print*,'AbortCrit',AbortCrit
-print*,R0
-print*,Norm_B
-print*,'v1',V(:,1)
-print*,'gam1',gam(1)
-print*,'nKDIm',nkDIM
 
 DO WHILE (Restart<nRestarts)
   DO m=1,nKDim
@@ -366,10 +342,8 @@ DO WHILE (Restart<nRestarts)
 #ifdef DLINANALYZE
     CALL CPU_TIME(tStart)
 #endif /* DLINANALYZE */
-    print*,'bevor MV', V(:,m)
     ! matrix vector
     CALL PartMatrixVector(t,coeff,PartID,V(:,m),W)
-    print*,'after',W
 #ifdef DLINANALYZE
     CALL CPU_TIME(tend)
     tPMV=tPMV+tend-tStart
@@ -393,7 +367,6 @@ DO WHILE (Restart<nRestarts)
     H(m,m)=Bet
     Gam(m+1)=-S(m)*Gam(m)
     Gam(m)=C(m)*Gam(m)
-    print*,'Gam+,AbortCrit',ABS(Gam(m+1)),AbortCrit
     IF ((ABS(Gam(m+1)).LE.AbortCrit) .OR. (m.EQ.nKDim)) THEN !converge or max Krylov reached
       DO nn=m,1,-1
          Alp(nn)=Gam(nn) 
@@ -404,12 +377,9 @@ DO WHILE (Restart<nRestarts)
       END DO !nn
       DO nn=1,m
         DeltaX=DeltaX+Alp(nn)*V(:,nn)
-        print*,'GMRES-detla',DeltaX
       END DO !nn
       IF (ABS(Gam(m+1)).LE.AbortCrit) THEN !converged
         totalPartIterLinearSolver=totalPartIterLinearSolver+nPartInnerIter
-        print*,'Done'
-        !read*
         ! already back transformed,...more storage...but its ok
 #ifdef DLINANALYZE
         CALL CPU_TIME(tE)

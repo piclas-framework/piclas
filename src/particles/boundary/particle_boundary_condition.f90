@@ -324,7 +324,6 @@ CASE(2) !PartBound%ReflectiveBC)
 !  !print*,'Pt_temp',Pt_temp(iPart,1:3)
 !  ! get length of Pt_temp(iPart,1:3) || equals summed velocity change ! only exact for linear movement
 !!  print*,'acceleration_old',Pt_temp(iPart,4:6)
-!!  read*
 !  absPt_temp=SQRT(Pt_temp(iPart,1)*Pt_temp(iPart,1)+Pt_temp(iPart,2)*Pt_temp(iPart,2)+Pt_temp(iPart,3)*Pt_temp(iPart,3))
 !  ! scale PartTrajectory to new Pt_temp
 !  Pt_temp(iPart,1:3)=absPt_temp*PartTrajectory(1:3)
@@ -402,6 +401,10 @@ USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
+#ifdef IMPA
+USE MOD_Particle_Vars,          ONLY:PartQ,F_PartX0
+USE MOD_LinearSolver_Vars,      ONLY:PartXk
+#endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -419,6 +422,10 @@ REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3)
 #if defined(LSERK)
 REAL                                 :: absPt_temp
 #endif
+#if IMPA
+REAL                                 :: absVec
+REAL                                 :: PartDiff(3)
+#endif /*IMPA*/
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 !REAL                                 :: oneMinus!=0.99999999
 REAL                                  :: epsLength,epsReflect
@@ -494,7 +501,23 @@ IF((DOT_PRODUCT(v_aux,v_aux)).GT.epsReflect)THEN
   ! deleate force history
   Pt_temp(PartID,4:6)=0.
   ! what happens with force term || acceleration?
-#endif 
+#endif  /*LSERK*/
+#ifdef IMPA
+  ! at least EulerImplicit
+  ! F_PartX0
+  absVec = SQRT(DOT_PRODUCT(F_PartX0(1:3,PartID),F_PartX0(1:3,PartID)))
+  F_PartX0(1:3,PartID)=absVec*PartTrajectory(1:3)
+  absVec = SQRT(DOT_PRODUCT(F_PartX0(4:6,PartID),F_PartX0(4:6,PartID)))
+  F_PartX0(4:6,PartID)=absVec*PartTrajectory
+  ! PartXK
+  PartXK(:,PartID) = PartState(PartID,:) 
+  ! rewrite history
+  PartDiff=PartState(PartID,1:3) - PartQ(1:3,PartID)
+  absVec = SQRT(DOT_PRODUCT(PartDiff(1:3),PartDiff(1:3)))
+  PartQ(1:3,PartID)=PartState(PartID,1:3) +absVec*PartTrajectory(1:3)
+  !absVec = SQRT(DOT_PRODUCT(PartDiff(4:6),PartDiff(4:6)))
+  PartQ(4:6,PartID)=PartState(PartID,4:6) !+absVec*PartTrajectory(1:3)
+#endif /*IMPA*/
 END IF
 
 END SUBROUTINE PerfectReflection
