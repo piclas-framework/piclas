@@ -510,6 +510,10 @@ USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
 #endif /*IMEX*/
+#if defined(IMPA)
+USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
+USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
+#endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -534,10 +538,16 @@ INTEGER                       :: iCounter
 #endif /*IMEX*/
 !===================================================================================================================================
 
-#if defined(IMEX) || defined(IMPA)
+#if defined(IMEX)
 PartCommSize=PartCommSize0+(iStage-1)*6
 #endif /*IMEX*/
-
+#if defined (IMPA)
+#if (PP_TimeDiscMethod==110)
+PartCommSize=PartCommSize0+ 34 ! PartXk,R_PartXK
+#else
+PartCommSize=PartCommSize0+(iStage-1)*6 +34 ! PartXk,R_PartXK
+#endif
+#endif /*IMEX*/
 
 ! ! 1) get number of send particles
 ! PartMPIExchange%nPartsSend=0
@@ -652,6 +662,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       jPos=jPos+6
 #endif
 #if defined(IMEX) || defined(IMPA)
+#if (PP_TimeDiscMethod!=110)
       ! send iStage - 1 messages
       IF(iStage.GT.0)THEN
         PartSendBuf(iProc)%content(8+jpos:13+jpos)        = PartStateN(iPart,1:6)
@@ -660,8 +671,30 @@ DO iProc=1, PartMPI%nMPINeighbors
         END DO
         jPos=jPos+(iStage)*6
       ENDIF
+#endif /*PP_TimeDiscMethod!=110*/
 #endif /*no IMEX */
-
+#if defined(IMPA)
+      ! required for particle newton && closed particle description
+      PartSendBuf(iProc)%content(jPos+8:jPos+13) = PartXK(1:6,iPart)
+      jPos=jPos+6
+      PartSendBuf(iProc)%content(jPos+8:jPos+13) = R_PartXK(1:6,iPart)
+      jPos=jPos+6
+      PartSendBuf(iProc)%content(jPos+8:jPos+13) = PartQ(1:6,iPart)
+      jPos=jPos+6
+      PartSendBuf(iProc)%content(jPos+8:jPos+13) = F_PartX0(1:6,iPart)
+      jPos=jPos+6
+      PartSendBuf(iProc)%content(jPos+8:jPos+13) = F_PartXk(1:6,iPart)
+      jPos=jPos+6
+      PartSendBuf(iProc)%content(jPos+8)  = Norm2_F_PartX0    (iPart)
+      PartSendBuf(iProc)%content(jPos+9)  = Norm2_F_PartXK    (iPart)
+      PartSendBuf(iProc)%content(jPos+10) = Norm2_F_PartXK_old(iPart)
+      IF(DoPartInNewton(iPart))THEN
+        PartSendBuf(iProc)%content(jPos+11) = 1.0
+      ELSE
+        PartSendBuf(iProc)%content(jPos+11) = 0.0
+      END IF
+      jPos=jPos+4
+#endif /*IMPA*/
       !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       IF(.NOT.UseLD) THEN   
@@ -987,6 +1020,10 @@ USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
 #endif /*IMEX*/
+#if defined(IMPA)
+USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
+USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
+#endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1016,8 +1053,15 @@ INTEGER                       :: iCounter
 !                        , 'source proc', PartMPI%MPINeighbor(iProc)
 !END DO
 
-#if defined(IMEX) || defined(IMPA)
+#if defined(IMEX) 
 PartCommSize=PartCommSize0+(iStage-1)*6
+#endif /*IMEX*/
+#if defined (IMPA)
+#if (PP_TimeDiscMethod==110)
+PartCommSize=PartCommSize0+ 34 ! PartXk,R_PartXK
+#else
+PartCommSize=PartCommSize0+(iStage-1)*6 +34 ! PartXk,R_PartXK
+#endif
 #endif /*IMEX*/
 
 
@@ -1069,6 +1113,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     jPos=jPos+6
 #endif
 #if defined(IMEX) || defined(IMPA)
+#if (PP_TimeDiscMethod!=110)
     IF(iStage.GT.0)THEN
       PartStateN(PartID,1:6)     = PartRecvBuf(iProc)%content(jpos+8:jpos+13)
       DO iCounter=1,iStage-1
@@ -1076,7 +1121,29 @@ DO iProc=1,PartMPI%nMPINeighbors
       END DO
       jPos=jPos+(iStage)*6
     END IF
+#endif /*PP_TimeDiscMethod!=110*/
 #endif /*IMEX*/ 
+#if defined(IMPA)
+    PartXK(1:6,PartID)         = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
+    jPos=jPos+6
+    R_PartXK(1:6,PartID)       = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
+    jPos=jPos+6
+    PartQ(1:6,PartID)          = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
+    jPos=jPos+6
+    F_PartX0(1:6,PartID)       = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
+    jPos=jPos+6
+    F_PartXk(1:6,PartID)       = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
+    jPos=jPos+6
+    Norm2_F_PartX0    (PartID) = PartRecvBuf(iProc)%content(jPos+8 )
+    Norm2_F_PartXk    (PartID) = PartRecvBuf(iProc)%content(jPos+9 )
+    Norm2_F_PartXk_Old(PartID) = PartRecvBuf(iProc)%content(jPos+10)
+    IF(PartRecvBuf(iProc)%content(11).EQ.1.0)THEN
+      DoPartInNewton(PartID) = .TRUE.
+    ELSE
+      DoPartInNewton(PartID) = .FALSE.
+    END IF
+    jPos=jPos+4
+#endif /*IMPA*/
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     IF(.NOT.UseLD) THEN
       IF (useDSMC.AND.(CollisMode.NE.1)) THEN

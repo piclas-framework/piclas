@@ -88,12 +88,12 @@ SUBROUTINE ParticleNewton(t,coeff)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
 USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF,PartLorentzType
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_LinearOperator,          ONLY:PartVectorDotProduct
-USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_Part_RHS,                ONLY:CalcPartRHS
