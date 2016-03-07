@@ -164,6 +164,11 @@ if (NOT CMAKE_BUILD_TYPE)
    SET (CMAKE_BUILD_TYPE Debug CACHE STRING
       "Choose the type of build, options are: None Debug Release Profile."
       FORCE)
+   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+     SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile SANI)
+   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+     SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile)
+   ENDIF()
 endif (NOT CMAKE_BUILD_TYPE)
 
 # =========================================================================
