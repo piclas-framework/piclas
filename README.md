@@ -7,7 +7,7 @@ The following steps are needed to build Boltzplatz. Be sure that you have instal
 * MPI installation, e.g. [Open-MPI][openmpi]
 * [CMake][cmake]
 
-### Builing steps
+### Building steps
 
 For a smooth building step ensure that the following environement variables are set (if the libraries are installed globally on the system):
 
@@ -33,9 +33,10 @@ The following libraries are installed locally within Boltzplatz and build automa
 * Make 
          make && make install
 
-* Setting of the variables
+* Setting variables
          
-         export HDF5_ROOT = /opt/hdf5/1.X.X/
+         installed with config script: export HDF5_DIR = /opt/hdf5/1.X.X/
+         installed with cmake: export HDF5_DIR = /opt/hdf5/1.X.X/shared/cmake/XXX
 
 * [Tecplot IO Library][tecio]: Library to write the proprietary Tecplot binary data format
 
@@ -43,7 +44,7 @@ The following libraries are installed locally within Boltzplatz and build automa
   
 * Create new folder and clone  TECIO
 
-         git clone git@129.69.43.151:libs/TECPLOT.git  TECPLOT
+         git clone git@129.69.43.151:libs/TECPLOT.git TECPLOT
          
 * Unzip archive with
 
@@ -59,7 +60,7 @@ The following libraries are installed locally within Boltzplatz and build automa
          mv * /opt/tecio-2013
    
 
-The Tools are known to work with the following software versions:
+The tools are known to work with the following software versions:
 
 * OpenMPI > 1.8
 * HDF5 > 1.8.13
