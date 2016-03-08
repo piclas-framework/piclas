@@ -33,6 +33,10 @@ The following libraries are installed locally within Boltzplatz and build automa
 * Make 
          make && make install
 
+* Setting of the variables
+         
+         export HDF5_ROOT = /opt/hdf5/1.X.X/
+
 * [Tecplot IO Library][tecio]: Library to write the proprietary Tecplot binary data format
 
   Manual Tecio-installation
@@ -40,10 +44,14 @@ The following libraries are installed locally within Boltzplatz and build automa
 * Create new folder and clone  TECIO
 
          git clone git@129.69.43.151:libs/TECPLOT.git  TECPLOT
+         
+* Unzip archive with
+
+         cd TECPLOT && tar xvf tecio-2013.tar.bz2
         
 * Build tecio
 
-         cd TECPLOT && ./Runmake linuxg27x64.24 -tecio 
+         cd tecio-2013 && ./Runmake linuxg27x64.24 -tecio 
 
 * Move tecio to be found by cmake
 
