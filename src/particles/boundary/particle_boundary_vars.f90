@@ -30,9 +30,9 @@ END TYPE
 TYPE tSurfaceCOMM
   LOGICAL                               :: MPIRoot                       ! if root of mpi communicator
   INTEGER                               :: MyRank                        ! local rank in new group
-  INTEGER                               :: COMM                          ! communicator
-#ifdef MPI
   INTEGER                               :: nProcs                        ! number of processes
+#ifdef MPI
+  INTEGER                               :: COMM                          ! communicator
   INTEGER                               :: nMPINeighbors                 ! number of processes to communicate with
   TYPE(tSurfaceSendList),ALLOCATABLE    :: MPINeighbor(:)                ! list containing all mpi neighbors
 #endif /*MPI*/

@@ -850,13 +850,21 @@ INTEGER                        :: minnParts
     CALL CloseDataFile()
   END IF
 
-   CALL DistributedWriteArray(FileName,create=.FALSE.,&
-                              DataSetName='PartData', rank=2         ,&
-                              nValGlobal=(/nPart_glob,PartDataSize/) ,&
-                              nVal=      (/locnPart,PartDataSize/)   ,&
-                              offset=    (/offsetnPart,0/)           ,&
-                              collective=.FALSE.,offSetDim=1         ,&
-                              communicator=PartMPI%COMM,RealArray=PartData)
+#ifdef MPI
+ CALL DistributedWriteArray(FileName,create=.FALSE.,&
+                            DataSetName='PartData', rank=2         ,&
+                            nValGlobal=(/nPart_glob,PartDataSize/) ,&
+                            nVal=      (/locnPart,PartDataSize/)   ,&
+                            offset=    (/offsetnPart,0/)           ,&
+                            collective=.FALSE.,offSetDim=1         ,&
+                            communicator=PartMPI%COMM,RealArray=PartData)
+#else
+  CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
+                        nValGlobal=(/nPart_glob,PartDataSize/),&
+                        nVal=      (/locnPart,PartDataSize  /),&
+                        offset=    (/offsetnPart , 0  /),&
+                        collective=.TRUE., RealArray=PartData)
+#endif /*MPI*/                          
 
   ! reswitch
   IF(reSwitch) gatheredWrite=.TRUE.
@@ -1431,7 +1439,7 @@ END IF
 
 END SUBROUTINE GatheredWriteArray
 
-
+#ifdef MPI
 SUBROUTINE DistributedWriteArray(FileName,create,DataSetName,rank,nValGlobal,nVal,offset,collective,&
                                  offSetDim,communicator,RealArray,IntegerArray,StrArray)
 !===================================================================================================================================
@@ -1504,7 +1512,7 @@ ELSE
 #endif
   IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                offset,collective,RealArray=RealArray)
-  IF(PRESENT(IntegerArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
+  IF(PRESENT(IntegerArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                offset,collective,IntegerArray =IntegerArray)
   IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                offset,collective,StrArray =StrArray)
@@ -1514,5 +1522,6 @@ END IF
 #endif
 
 END SUBROUTINE DistributedWriteArray
+#endif /*MPI*/
 
 END MODULE MOD_HDF5_output

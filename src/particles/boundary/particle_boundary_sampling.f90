@@ -64,7 +64,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList
 #ifdef MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
-USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide
+USE MOD_Particle_Boundary_Vars  ,ONLY:offSetSurfSide,SurfCOMM
 #endif /*MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
