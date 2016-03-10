@@ -473,9 +473,10 @@ a=eta*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NG
            +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) )
 
 tang1=a/DOT_PRODUCT(a,a)
-tang2=b/DOT_PRODUCT(b,b)
-nVec=CROSSNORM(tang1,tang2)
+nVec=CROSSNORM(tang1,b)
 
+tang2=CROSSNORM(nVec,tang1)
+!tang2=b/DOT_PRODUCT(b,b)
 END SUBROUTINE CalcBiLinearNormAndTang
 
 
@@ -504,8 +505,9 @@ REAL,DIMENSION(2,3)                    :: gradXiEta
 ! caution we require the formula in [0;1]
 CALL EvaluateBezierPolynomialAndGradient((/xi,eta/),NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Gradient=gradXiEta)
 tang1=gradXiEta(1,:)/DOT_PRODUCT(gradXiEta(1,:),gradXiEta(1,:))
-tang2=gradXiEta(2,:)/DOT_PRODUCT(gradXiEta(2,:),gradXiEta(2,:))
+!tang2=gradXiEta(2,:)/DOT_PRODUCT(gradXiEta(2,:),gradXiEta(2,:))
 nVec =CROSSNORM(gradXiEta(1,:),gradXiEta(2,:))
+tang2=CROSSNORM(nVec,tang1)
 
 END SUBROUTINE CalcNormAndTangBezier
 
