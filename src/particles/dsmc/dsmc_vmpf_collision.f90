@@ -48,7 +48,7 @@ SUBROUTINE DSMC_vmpf_prob(iElem, iPair, NodeVolume)
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
 INTEGER                             :: iPType, SpecToExec
-INTEGER                             :: SpecNum1, SpecNum2
+REAL                                :: SpecNum1, SpecNum2
 REAL                                :: Volume
 REAL                                :: MaxMPF, BGGasDensity_new
 !--------------------------------------------------------------------------------------------------!
@@ -142,9 +142,11 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
           __STAMP__,&
            'ERROR in DSMC_collis: Wrong iPType case! =', iPType)
   END SELECT
-  DSMC%CollProbOut(iElem,1) = MAX(Coll_pData(iPair)%Prob, DSMC%CollProbOut(iElem,1))
-  DSMC%CollMean = DSMC%CollMean + Coll_pData(iPair)%Prob
-  DSMC%CollMeanCount = DSMC%CollMeanCount + 1
+  IF(DSMC%CalcQualityFactors) THEN
+    DSMC%CollProbMax = MAX(Coll_pData(iPair)%Prob, DSMC%CollProbMax)
+    DSMC%CollProbMean = DSMC%CollProbMean + Coll_pData(iPair)%Prob
+    DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
+  END IF
 END SUBROUTINE DSMC_vmpf_prob
 
 !--------------------------------------------------------------------------------------------------!
@@ -417,7 +419,7 @@ IMPLICIT NONE                                                                   
                 * SpecDSMC(PartSpecies(React1Inx))%CharaTVib 
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React1Inx,1)+ MPartStateVibEnOrg
 ! X particle
-  IF(SpecDSMC(PartSpecies(iPart_p3))%InterID.EQ. 2) THEN
+  IF((SpecDSMC(PartSpecies(iPart_p3))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart_p3))%InterID.EQ.20)) THEN
     MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*SpecDSMC(PartSpecies(iPart_p3))%CharaTVib)  &
               - DSMC%GammaQuant
     iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(iPart_p3))%MaxVibQuant)
@@ -463,7 +465,7 @@ IMPLICIT NONE                                                                   
   CALL RANDOM_NUMBER(iRan)
   PartStateIntEn(React1Inx,2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React1Inx,2)
-  IF(SpecDSMC(PartSpecies(iPart_p3))%InterID.EQ. 2) THEN
+  IF((SpecDSMC(PartSpecies(iPart_p3))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart_p3))%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
     IF (PartMPF(iPart_p3).GT.ReacMPF) THEN
       Phi = ReacMPF / PartMPF(iPart_p3)
@@ -588,7 +590,7 @@ SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
   Xi = Xi_rel ! Xi are all DOF in the collision
 
 !--------------------------------------------------------------------------------------------------! 
-! Decition if Relaxation of particles is performed
+! Decision if Relaxation of particles is performed
 !--------------------------------------------------------------------------------------------------! 
 
   IF ( DSMC%ElectronicState ) THEN
@@ -601,7 +603,7 @@ SUBROUTINE DSMC_RelaxForNonReacPart(Part_1, Part_2, iElem)
     END IF
   END IF
 
-  IF(SpecDSMC(PartSpec2)%InterID.EQ.2) THEN
+  IF((SpecDSMC(PartSpec2)%InterID.EQ.2).OR.(SpecDSMC(PartSpec2)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
     IF(SpecDSMC(PartSpec2)%RotRelaxProb.GT.iRan) THEN
       DoRot2 = .TRUE.

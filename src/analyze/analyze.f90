@@ -354,7 +354,7 @@ USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt
 USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
-USE MOD_DSMC_Vars,             ONLY: nOutput,DSMC,useDSMC, iter_macvalout
+USE MOD_DSMC_Vars,             ONLY: DSMC,useDSMC, iter_macvalout
 USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
 USE MOD_DSMC_Analyze,          ONLY: CalcSurfaceValues
@@ -514,7 +514,6 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
     CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
     IF (DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
 #endif
-    nOutput = nOutput + 1
     iter_macvalout = 0
     DSMC%SampNum = 0
     DSMC_HOSolution = 0.0
@@ -528,7 +527,6 @@ IF(OutPut)THEN
   END IF
 #else
   IF((dt.EQ.tEndDiff).AND.(useDSMC).AND.(.NOT.WriteMacroValues)) THEN
-    nOutput = INT((DSMC%TimeFracSamp * TEnd) / DSMC%DeltaTimeOutput)
     IF (.NOT. useLD) THEN
       CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
     END IF

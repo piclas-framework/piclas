@@ -128,9 +128,11 @@ particles/dsmc/dsmc_bg_gas.f90
 particles/dsmc/dsmc_particle_pairing.f90
 particles/dsmc/dsmc_collision_prob.f90
 particles/dsmc/dsmc_polyatomic_model.f90
+particles/dsmc/dsmc_steady_state.f90
 particles/dsmc/dsmc_vmpf_collision.f90
 particles/particle_MPFtools.f90
 particles/num_tools/leven_marq.f90
+particles/num_tools/zig3.f90
 particles/particle_pressure.f90
 particles/ld/ld_vars.f90
 particles/ld/ld_init.f90

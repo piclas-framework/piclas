@@ -315,7 +315,7 @@ DO i=1,nSpecies
          DO WHILE (iPart .le. NbrOfParticle)
            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
            IF (PositionNbr .ne. 0) THEN
-             CALL DSMC_SetInternalEnr_LauxVFD(i, iInit, PositionNbr)
+!             CALL DSMC_SetInternalEnr_LauxVFD(i, iInit, PositionNbr)
            END IF
            iPart = iPart + 1
          END DO
@@ -359,7 +359,7 @@ DO i=1,nSpecies
         DO WHILE (iPart .le. NbrOfParticle)
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) THEN
-            CALL DSMC_SetInternalEnr_LauxVFD(i, iInit, PositionNbr)
+!            CALL DSMC_SetInternalEnr_LauxVFD(i, iInit, PositionNbr)
           END IF
           iPart = iPart + 1
         END DO

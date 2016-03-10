@@ -28,21 +28,24 @@ SUBROUTINE DSMC_main()
 ! Performs DSMC routines (containing loop over all cells)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_TimeDisc_Vars,         ONLY : time
-  USE MOD_Globals,               ONLY : LocalTime
+  USE MOD_TimeDisc_Vars,         ONLY : time, iter, TEnd, dt
+  USE MOD_Globals
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
   USE MOD_Mesh_Vars,             ONLY : nElems,MeshFile
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
-  USE MOD_DSMC_Vars,             ONLY : ChemReac
-  USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF
+  USE MOD_DSMC_Vars,             ONLY : ChemReac, realtime, HODSMC, SpecDSMC, SelectionProc
+  USE MOD_DSMC_Vars,             ONLY : UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
+  USE MOD_DSMC_SteadyState,      ONLY : QCrit_evaluation, SteadyStateDetection_main
+  USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF, PartState, BoltzmannConst, Species, nSpecies, WriteMacroValues
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
-  USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5
-  USE MOD_TimeDisc_Vars,         ONLY : TEnd,dt
+  USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
   USE MOD_DSMC_ChemReact,        ONLY : SetMeanVibQua
   USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical
   USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
   USE MOD_vmpf_collision,        ONLY : DSMC_vmpf_prob
+  USE MOD_Particle_Vars,         ONLY : KeepWallParticles
+  USE MOD_DSMC_PolyAtomicModel,  ONLY : Calc_XiVib_Poly
 #if (PP_TimeDiscMethod==1001)
   USE MOD_LD_Vars,               ONLY : BulkValues, LD_DSMC_RHS
 #endif
@@ -75,7 +78,7 @@ SUBROUTINE DSMC_main()
   DSMC_RHS(1:PDM%ParticleVecLength,1) = 0
   DSMC_RHS(1:PDM%ParticleVecLength,2) = 0
   DSMC_RHS(1:PDM%ParticleVecLength,3) = 0
-  DSMCSumOfFormedParticles =0
+  DSMCSumOfFormedParticles = 0
 
   IF(BGGas%BGGasSpecies.NE.0) CALL DSMC_InitBGGas 
   DO iElem = 1, nElems ! element/cell main loop
@@ -85,12 +88,22 @@ SUBROUTINE DSMC_main()
 #if (PP_TimeDiscMethod==1001)
     IF((BulkValues(iElem)%CellType.EQ.1).OR.(BulkValues(iElem)%CellType.EQ.2)) THEN  ! --- DSMC Cell ?
 #endif
-    DSMC%CollMean = 0.0
-    DSMC%CollMeanCount = 0
+    IF(DSMC%CalcQualityFactors) THEN
+      DSMC%CollProbMax = 0.0 
+      DSMC%CollProbMean = 0.0
+      DSMC%CollProbMeanCount = 0
+      DSMC%CollSepDist = 0.0
+      DSMC%CollSepCount = 0
+    END IF
 #if (PP_TimeDiscMethod==42)
-    IF (ChemReac%NumOfReact.GT.0) ChemReac%ReacCount = 0
+    IF (ChemReac%NumOfReact.GT.0) THEN
+      ChemReac%ReacCount = 0
+      ChemReac%ReacCollMean = 0.0
+      ChemReac%ReacCollMeanCount = 0
+    END IF
 #endif
     IF (CollisMode.NE.0) THEN
+      ChemReac%nPairForRec = 0
       IF(BGGas%BGGasSpecies.NE.0) THEN
         CALL DSMC_pairing_bggas(iElem)
       ELSE IF (DSMC%UseOctree) THEN
@@ -103,11 +116,16 @@ SUBROUTINE DSMC_main()
         !Calc the mean evib per cell and iter, necessary for dissociation probability
         IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) THEN
           CALL SetMeanVibQua()
+          IF(DSMC%NumPolyatomMolecs.GT.0) CALL Calc_XiVib_Poly
         END IF
-        
-        nPart = PEM%pNumber(iElem)
-        nPair = int(nPart/2)
-        
+
+        IF (KeepWallParticles) THEN
+          nPart = PEM%pNumber(iElem)-PEM%wNumber(iElem)
+        ELSE
+          nPart = PEM%pNumber(iElem)
+        END IF
+        nPair = INT(nPart/2)
+
         DO iPair = 1, nPair
           IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
             IF (usevMPF.AND.(BGGas%BGGasSpecies.EQ.0)) THEN            ! calculation of collision prob
@@ -128,12 +146,20 @@ SUBROUTINE DSMC_main()
               CALL DSMC_perform_collision(iPair,iElem)
             END IF
           END IF
-          ChemReac%nPairForRec = ChemReac%nPairForRec - 1
         END DO
         DEALLOCATE(Coll_pData)
-      END IF                                                                                     ! no end octree
-      IF(Time.ge.(1-DSMC%TimeFracSamp)*TEnd) THEN ! mean collision probability of all collision pairs
-        IF (DSMC%CollMeanCount.GT.0) DSMC%CollProbSamp(iElem) = DSMC%CollProbSamp(iElem) + DSMC%CollMean / REAL(DSMC%CollMeanCount)
+      END IF                                                                                     ! end no octree
+      IF(DSMC%CalcQualityFactors) THEN
+        IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
+            ! mean collision probability of all collision pairs
+            IF(DSMC%CollProbMeanCount.GT.0) THEN
+              DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax
+              DSMC%QualityFacSamp(iElem,2) = DSMC%QualityFacSamp(iElem,2) + DSMC%CollProbMean / REAL(DSMC%CollProbMeanCount)
+            END IF
+            ! mean collision separation distance of actual collisions
+            IF(DSMC%CollSepCount.GT.0) DSMC%QualityFacSamp(iElem,3) = DSMC%QualityFacSamp(iElem,3) &
+                                                                            + DSMC%CollSepDist / REAL(DSMC%CollSepCount)
+        END IF
       END IF
     END IF  ! --- CollisMode.NE.0
 #if (PP_TimeDiscMethod==1001)
@@ -154,7 +180,41 @@ SUBROUTINE DSMC_main()
 #else
   IF (.NOT.WriteMacroValues) THEN
 #endif
-    IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
+    IF(UseQCrit) THEN
+      ! Use QCriterion (Burt,Boyd) for steady - state detection
+      IF((.NOT.SamplingActive).AND.(iter-QCritLastTest.EQ.QCritTestStep)) THEN
+        CALL QCrit_evaluation()
+        QCritLastTest=iter
+        IF(SamplingActive) THEN
+          SWRITE(*,*)'Sampling active'
+          ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
+          DSMC%TimeFracSamp = (TEnd-Time)/TEnd
+          DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+        ENDIF
+      ENDIF
+    ELSEIF(UseSSD) THEN
+      ! Use SSD for steady - state detection
+      IF((.NOT.SamplingActive)) THEN
+        CALL SteadyStateDetection_main()
+        IF(SamplingActive) THEN
+          SWRITE(*,*)'Sampling active'
+          ! Set TimeFracSamp and DeltaTimeOutput -> correct number of outputs
+          DSMC%TimeFracSamp = (TEnd-Time)/TEnd
+          DSMC%DeltaTimeOutput = (DSMC%TimeFracSamp * TEnd) / REAL(DSMC%NumOutput)
+        ENDIF
+      ENDIF
+    ELSE
+      ! Use user given TimeFracSamp
+      IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).AND.(.NOT.SamplingActive))  THEN
+        SamplingActive=.TRUE.
+        SWRITE(*,*)'Sampling active'
+      ENDIF
+    ENDIF
+    !
+    ! Calculate Entropy using Theorem of Boltzmann
+    !CALL EntropyCalculation()
+    !
+    IF(SamplingActive) THEN
       CALL DSMCHO_data_sampling()
       IF(DSMC%NumOutput.NE.0) THEN
         nOutput = INT((DSMC%TimeFracSamp * TEnd)/DSMC%DeltaTimeOutput)-DSMC%NumOutput + 1

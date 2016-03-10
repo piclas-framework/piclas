@@ -34,31 +34,42 @@ PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSp
 !===================================================================================================================================
 CONTAINS
 
-SUBROUTINE InitElectronShell(iSpecies,iPart,iInit)
+SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 !===================================================================================================================================
 ! init electronic shell
 !===================================================================================================================================
+  USE MOD_Globals,                ONLY : abort
   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, PartElecQua
   USE MOD_Particle_Vars,          ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE                                                                                    
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPart, iSpecies,iInit                                                
+  INTEGER, INTENT(IN)           :: iPart, iSpecies, iInit, init_or_sf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: iQua                                                        
-  REAL                          :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2      
+  REAL                          :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2
+  REAL                        :: Telec                      ! electronic temperature
 !===================================================================================================================================
+  SELECT CASE (init_or_sf)
+  CASE(1) !iInit
+    Telec=SpecDSMC(iSpecies)%Init(iInit)%Telec
+  CASE(2) !SurfaceFlux
+    Telec=SpecDSMC(iSpecies)%Surfaceflux(iInit)%Telec
+  CASE DEFAULT
+    CALL abort(__STAMP__,&
+      'neither iInit nor Surfaceflux defined as reference!')
+  END SELECT
 
   ElectronicPartition  = 0.
   ElectronicPartitionTemp = 0.
   ! calculate sum over all energy levels == qartition function for temperature Telec
   DO iQua = 0, SpecDSMC(iSpecies)%MaxElecQuant - 1
     ElectronicPartitionTemp = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-            EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / SpecDSMC(iSpecies)%Init(iInit)%Telec)
+            EXP ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec)
     IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
       ElectronicPartition = ElectronicPartitionTemp
     END IF
@@ -70,7 +81,7 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit)
     CALL RANDOM_NUMBER(iRan)
     iQua = int( ( SpecDSMC(iSpecies)%MaxElecQuant ) * iRan)
     ElectronicPartitionTemp  = SpecDSMC(iSpecies)%ElectronicState(1,iQua) * &
-             exp ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / SpecDSMC(iSpecies)%Init(iInit)%Telec)
+             exp ( - SpecDSMC(iSpecies)%ElectronicState(2,iQua) / Telec)
     CALL RANDOM_NUMBER(iRan2)
   END DO
 #if ( PP_TimeDiscMethod == 42 )
