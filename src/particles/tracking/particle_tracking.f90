@@ -362,20 +362,31 @@ ELSE
   ! take first possible intersection
   !CALL BubbleSortID(locAlpha,locSideList,6)
   CALL InsertionSort(locAlpha,locSideList,nlocSides)
-  DO ilocSide=firstSide,LastSide
-    IF(locAlpha(ilocSide).GT.-1.0)THEN
-      hitlocSide=locSideList(ilocSide)
-      !SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
-      SideID=BCElem(ElemID)%BCSideID(hitlocSide)
-      BCSideID=PartBCSideList(SideID)
-      CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                        ,xi(hitlocSide)     &
-                                                                        ,eta(hitlocSide)    &
-                                                                        ,PartId,SideID,ElemID)
-      IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
-      RETURN
-    END IF ! locAlpha>-1.0
-  END DO ! ilocSide
+  ilocSide=LastSide-nInter+1
+  hitlocSide=locSideList(ilocSide)
+  SideID=BCElem(ElemID)%BCSideID(hitlocSide)
+  BCSideID=PartBCSideList(SideID)
+  CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                    ,xi(hitlocSide)     &
+                                                                    ,eta(hitlocSide)    &
+                                                                    ,PartId,SideID,ElemID)
+  IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
+  RETURN
+  !DO ilocSide=firstSide,LastSide
+  !DO ilocSide=LastSide
+  !  IF(locAlpha(ilocSide).GT.-1.0)THEN
+  !    hitlocSide=locSideList(ilocSide)
+  !    !SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
+  !    SideID=BCElem(ElemID)%BCSideID(hitlocSide)
+  !    BCSideID=PartBCSideList(SideID)
+  !    CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+  !                                                                      ,xi(hitlocSide)     &
+  !                                                                      ,eta(hitlocSide)    &
+  !                                                                      ,PartId,SideID,ElemID)
+  !    IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
+  !    RETURN
+  !  END IF ! locAlpha>-1.0
+  !END DO ! ilocSide
 END IF ! nInter>0
 
 END SUBROUTINE ParticleBCTracking
