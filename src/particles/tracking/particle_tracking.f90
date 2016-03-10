@@ -298,7 +298,7 @@ IF(ALMOSTZERO(lengthPartTrajectory))THEN
 END IF
 
 PartTrajectory=PartTrajectory/lengthPartTrajectory
-lengthPartTrajectory=lengthPartTrajectory!+epsilontol
+!lengthPartTrajectory=lengthPartTrajectory!+epsilontol
 
 locAlpha=-1.0
 nInter=0
@@ -373,6 +373,7 @@ ELSE
                                                                         ,eta(hitlocSide)    &
                                                                         ,PartId,SideID,ElemID)
       IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
+      RETURN
     END IF ! locAlpha>-1.0
   END DO ! ilocSide
 END IF ! nInter>0

@@ -2077,6 +2077,7 @@ REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
 REAL                              :: a1,a2,b1,b2,c1,c2
 REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3)
 REAL                              :: sdet
+REAL                              :: epsLoc
 !INTEGER                           :: flip
 !===================================================================================================================================
 
@@ -2160,6 +2161,7 @@ alphaNorm=alpha/lengthPartTrajectory
 IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
 !IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LE.0.))THEN
 !IF((alphaNorm.GE.1.0) .OR.(alphaNorm.LT.0.))THEN
+  ishit=.FALSE.
   alpha=-1.0
   RETURN
 END IF
@@ -2264,18 +2266,21 @@ IF(ABS(sdet).EQ.0)THEN
   STOP 'error'
 END IF
 sdet=1.0/sdet
+epsLoc=1.0+100.*epsMach
 
 
-xi=(-b2*c1+b1*c2)*sdet
-IF(ABS(xi).GT.BezierClipHit)THEN
+xi=(b2*c1-b1*c2)*sdet
+!IF(ABS(xi).GT.BezierClipHit)THEN
+IF(ABS(xi).GT.epsLoc)THEN
 !IF(ABS(xi).GT.OnePlusEps)THEN
   alpha=-1.0
   RETURN
 END IF
 
 !eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-eta=(+a2*c1-a1*c2)*sdet
-IF(ABS(eta).GT.BezierClipHit)THEN
+eta=(-a2*c1+a1*c2)*sdet
+!IF(ABS(eta).GT.BezierClipHit)THEN
+IF(ABS(eta).GT.epsLoc)THEN
   alpha=-1.0
   RETURN
 END IF
