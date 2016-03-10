@@ -793,61 +793,59 @@ DO iPart=1,PDM%ParticleVecLength
             __STAMP__, &
             'Particle Not inSide of Element, iPart',iPart)
       ELSE ! BCElem
-        PDM%ParticleInside(iPart)=.FALSE.
-        print*,'jjaojasdasdfsdagfasdgf'
-!        !CALL ComputeFaceIntersection(TestElem,1,BCElem(TestElem)%nInnerSides,BCElem(TestElem)%nInnerSides,iPart,PartIsDone)
-!        CALL ComputeFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone)
-!        LastPos=PartState(iPart,1:3)
-!        CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone)
-!        ! check inner sides
-!        DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
-!            .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
-!            .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
-!          LastPos=PartState(iPart,1:3)
-!          ! unfortunately, here all sides
-!          CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone)
-!          IF(PartIsDone) EXIT
-!          IF(GEO%nPeriodicVectors.GT.0)THEN
-!            ! call here function for mapping of partpos and lastpartpos
-!            CALL PeriodicMovement(iPart)
-!          END IF
-!        END DO ! While
-!        IF(PartIsDone) THEN
-!          DEALLOCATE( Distance)
-!          DEALLOCATE( ListDistance)
-!          CYCLE
-!        END IF
-!        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),TestElem)
-!        ! false, reallocate particle
-!        !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.0)THEN
-!        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell)THEN
-!          IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element, relocating!! '
-!          CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.)                                                             
-!          IF(.NOT.PDM%ParticleInside(iPart)) THEN
-!            IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element '
-!            IPWRITE(UNIT_stdOut,*) ' xi          ', partposref(1:3,ipart)
-!            IPWRITE(UNIT_stdOut,*) ' epsonecell  ', epsonecell
-!            IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldxi
-!            IPWRITE(UNIT_stdOut,*) ' newxi       ', newxi
-!            IPWRITE(UNIT_stdOut,*) ' particlepos ', partstate(ipart,1:3)
-!            IPWRITE(UNIT_stdOut,*) ' velocity    ', partstate(ipart,4:6)
-!            IPWRITE(UNIT_stdOut,*) ' lastpartpos ', LastPartPos(ipart,1:3)
-!#ifdef MPI
-!            inelem=PEM%Element(ipart)
-!            IF(inelem.LE.PP_nElems)THEN
-!              IPWRITE(UNIT_stdout,*) ' elemid       ', inelem+offsetelem
-!            ELSE
-!              IPWRITE(UNIT_stdOut,*) ' elemid       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
-!                                                       + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
-!            END IF
-!#else
-!            IPWRITE(UNIt_stdOut,*) ' elemid       ', pem%element(ipart)+offsetelem
-!#endif
-!            CALL abort(&
-!              __STAMP__, &
-!              ' Particle not inside of element, ipart',ipart)
-!          END IF ! inside
-!        END IF ! epsCell
+        !CALL ComputeFaceIntersection(TestElem,1,BCElem(TestElem)%nInnerSides,BCElem(TestElem)%nInnerSides,iPart,PartIsDone)
+        CALL ComputeFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone)
+        LastPos=PartState(iPart,1:3)
+        CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone)
+        ! check inner sides
+        DO WHILE ( .NOT.ALMOSTEQUAL(LastPos(1),PartState(iPart,1)) &
+            .OR.   .NOT.ALMOSTEQUAL(LastPos(2),PartState(iPart,2)) &
+            .OR.   .NOT.ALMOSTEQUAL(LastPos(3),PartState(iPart,3)) )
+          LastPos=PartState(iPart,1:3)
+          ! unfortunately, here all sides
+          CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone)
+          IF(PartIsDone) EXIT
+          IF(GEO%nPeriodicVectors.GT.0)THEN
+            ! call here function for mapping of partpos and lastpartpos
+            CALL PeriodicMovement(iPart)
+          END IF
+        END DO ! While
+        IF(PartIsDone) THEN
+          DEALLOCATE( Distance)
+          DEALLOCATE( ListDistance)
+          CYCLE
+        END IF
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),TestElem)
+        ! false, reallocate particle
+        !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.0)THEN
+        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell)THEN
+          IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element, relocating!! '
+          CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.)                                                             
+          IF(.NOT.PDM%ParticleInside(iPart)) THEN
+            IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element '
+            IPWRITE(UNIT_stdOut,*) ' xi          ', partposref(1:3,ipart)
+            IPWRITE(UNIT_stdOut,*) ' epsonecell  ', epsonecell
+            IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldxi
+            IPWRITE(UNIT_stdOut,*) ' newxi       ', newxi
+            IPWRITE(UNIT_stdOut,*) ' particlepos ', partstate(ipart,1:3)
+            IPWRITE(UNIT_stdOut,*) ' velocity    ', partstate(ipart,4:6)
+            IPWRITE(UNIT_stdOut,*) ' lastpartpos ', LastPartPos(ipart,1:3)
+#ifdef MPI
+            inelem=PEM%Element(ipart)
+            IF(inelem.LE.PP_nElems)THEN
+              IPWRITE(UNIT_stdout,*) ' elemid       ', inelem+offsetelem
+            ELSE
+              IPWRITE(UNIT_stdOut,*) ' elemid       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
+                                                       + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
+            END IF
+#else
+            IPWRITE(UNIt_stdOut,*) ' elemid       ', pem%element(ipart)+offsetelem
+#endif
+            CALL abort(&
+              __STAMP__, &
+              ' Particle not inside of element, ipart',ipart)
+          END IF ! inside
+        END IF ! epsCell
       END IF ! BCElem
     END IF ! inner eps to large
   END IF ! not found
