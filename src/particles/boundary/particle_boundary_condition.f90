@@ -543,7 +543,7 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals,                ONLY:CROSS,abort
+USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh
 USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormAndTang,CalcNormAndTangBezier
@@ -561,9 +561,6 @@ USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 USE MOD_Particle_Vars,          ONLY:WriteMacroValues
 USE MOD_TImeDisc_Vars,          ONLY:dt,tend,time
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample,nSurfSample,SurfMesh,SampWall
-
-
-USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -594,8 +591,7 @@ REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, Ve
 REAL                                 :: Xitild,EtaTild
 !REAL                                 :: WallTransACC
 INTEGER                              :: p,q, SurfSideID
-
-REAL :: refSpace(3)
+REAL                                 :: POI_fak, TildPos(3),TildTrajectory(3)
 !===================================================================================================================================
 
 !OneMinus=1.0-epsInCell
@@ -613,8 +609,8 @@ IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
   CASE(PLANAR)
     n_loc=SideNormVec(1:3,BCSideID)
-    tang1=BezierControlPoints3D(:,NGeo,0,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID)
-    tang2=CROSS(n_loc,tang1)
+    tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID))
+    tang2=CROSSNORM(n_loc,tang1)
     !tang2=BezierControlPoints3D(:,0,NGeo,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID)
   CASE(BILINEAR)
     CALL CalcBiLinearNormAndTang(n_loc,tang1,tang2,xi,eta,BCSideID)
@@ -626,8 +622,8 @@ ELSE
   SELECT CASE(SideType(SideID))
   CASE(PLANAR)
     n_loc=SideNormVec(1:3,SideID)
-    tang1=BezierControlPoints3D(:,NGeo,0,SideID)-BezierControlPoints3D(:,0,0,SideID)
-    tang2=CROSS(n_loc,tang1)
+    tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,SideID)-BezierControlPoints3D(:,0,0,SideID))
+    tang2=CROSSNORM(n_loc,tang1)
     !tang2=BezierControlPoints3D(:,0,NGeo,SideID)-BezierControlPoints3D(:,0,0,SideID)
   CASE(BILINEAR)
     CALL CalcBiLinearNormAndTang(n_loc,tang1,tang2,xi,eta,SideID)
@@ -702,16 +698,15 @@ ElemID=PartSideToElem(S2E_ELEM_ID,SideID)
 v_help=LastPartPos(PartID,1:3)-ElemBaryNGeo(1:3,ElemID)
 !LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*MAX(1.0-epsInCell/SQRT(DOT_PRODUCT(v_help,v_help)),0.)
 LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*(1.0-epsInCell)
-CALL Eval_xyz_ElemCheck(LastPartPos(PartID,1:3),refSpace,ElemID)
-IF(ANY(ABS(RefSpace).GT.1.0))THEN
-  print*,'blubbbbbberfish',RefSpace
-  !stop
-END IF
 
+! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
+!TildPos       =PartState(PartID,1:3)-dt*PartState(PartID,4:6)
+TildTrajectory=dt*PartState(PartID,4:6)
+POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
 ! travel rest of particle vector
-PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alpha/lengthPartTrajectory) * dt * NewVelo(1:3)
-!CALL RANDOM_NUMBER(RanNum)
-!PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alpha/lengthPartTrajectory) *RanNum* dt * NewVelo(1:3)
+!PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alpha/lengthPartTrajectory) * dt * NewVelo(1:3)
+!CALL RANDOM_NUMBER(POI_fak)
+PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt * NewVelo(1:3)
 
 ! Internal energy accommodation
 IF (useDSMC) THEN
