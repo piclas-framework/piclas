@@ -165,7 +165,7 @@ USE MOD_PARTICLE_Vars,         ONLY: PDM,Pt,PartState
 #endif /*(PP_TimeDiscMethod==201)*/
 USE MOD_PARTICLE_Vars,         ONLY : doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars,             ONLY: nOutput, Iter_macvalout
+USE MOD_DSMC_Vars,             ONLY: Iter_macvalout
 #ifdef MPI
 USE MOD_Particle_MPI,          ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*MPI*/
@@ -206,7 +206,6 @@ LOGICAL                      :: finalIter
 SWRITE(UNIT_StdOut,'(132("-"))')
 #ifdef PARTICLES
 iter_macvalout=0
-nOutput = 1
 IF (WriteMacroValues) MacroValSampTime = Time
 #endif /*PARTICLES*/
 IF(.NOT.DoRestart)THEN

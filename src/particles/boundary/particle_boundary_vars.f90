@@ -76,8 +76,6 @@ END TYPE
 
 TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
 
-
-
 TYPE tPartBoundary
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
@@ -108,13 +106,11 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: AmbientDens(:)
   REAL    , ALLOCATABLE                  :: AmbientDynamicVisc(:)               ! dynamic viscousity
   REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
+  LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries
 TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
-
-
-
 
 !===================================================================================================================================
 

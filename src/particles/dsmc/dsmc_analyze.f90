@@ -33,13 +33,22 @@ INTERFACE CalcMeanFreePath
   MODULE PROCEDURE CalcMeanFreePath
 END INTERFACE
 
+INTERFACE CalcGammaVib
+  MODULE PROCEDURE CalcGammaVib
+END INTERFACE
+
+INTERFACE CalcInstantTransTemp
+  MODULE PROCEDURE CalcInstantTransTemp
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMCHO_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
-PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, InitHODSMC, WriteDSMCHOToHDF5
+PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, InitHODSMC, WriteDSMCHOToHDF5, CalcGammaVib
+PUBLIC :: CalcInstantTransTemp
 !===================================================================================================================================
 
 CONTAINS
@@ -296,7 +305,7 @@ REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
   ! upper limit: highest possible temperature
   JToEv = 1.602176565E-19  
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-  IF ( MeanEVib .GT. 0 ) THEN
+  IF ( MeanEVib .GT. PolyatomMolDSMC(iPolyatMole)%EZeroPoint ) THEN
     LowerTemp = 1.0
     UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*JToEv/BoltzmannConst
     DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
@@ -360,22 +369,30 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
     omega=opt_omega
     Temp = opt_temp
     DO iSpec = 1, nSpecies
-      MFP_Tmp = 0.0
-      DO jSpec = 1, nSpecies
-        MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*REAL(SpecPartNum(jSpec))*Species(jSpec)%MacroParticleFactor / Volume &
-                                * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
-                                * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
-      END DO
-      CalcMeanFreePath = CalcMeanFreePath + REAL(SpecPartNum(iSpec)) / REAL(nPart) / MFP_Tmp
+        MFP_Tmp = 0.0
+        IF(SpecPartNum(iSpec).GT.0) THEN ! skipping species not present in the cell
+        DO jSpec = 1, nSpecies
+          IF(SpecPartNum(jSpec).GT.0) THEN ! skipping species not present in the cell
+          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*REAL(SpecPartNum(jSpec))*Species(jSpec)%MacroParticleFactor / Volume &
+                                  * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
+                                  * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+          END IF
+        END DO
+        CalcMeanFreePath = CalcMeanFreePath + REAL(SpecPartNum(iSpec)) / REAL(nPart) / MFP_Tmp
+      END IF
     END DO
   ELSE
     DO iSpec = 1, nSpecies
       MFP_Tmp = 0.0
-      DO jSpec = 1, nSpecies
-        MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*REAL(SpecPartNum(jSpec))*Species(jSpec)%MacroParticleFactor / Volume &
-                                * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
-      END DO
-      CalcMeanFreePath = CalcMeanFreePath + REAL(SpecPartNum(iSpec)) / REAL(nPart) / MFP_Tmp
+      IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+        DO jSpec = 1, nSpecies
+          IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*REAL(SpecPartNum(jSpec))*Species(jSpec)%MacroParticleFactor / Volume &
+                                  * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+          END IF
+        END DO
+        CalcMeanFreePath = CalcMeanFreePath + REAL(SpecPartNum(iSpec)) / REAL(nPart) / MFP_Tmp
+      END IF
     END DO
   END IF
   RETURN
@@ -383,6 +400,117 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
 END FUNCTION CalcMeanFreePath
 
 
+SUBROUTINE CalcGammaVib()
+!===================================================================================================================================
+! calculate Gamma_vib factor necessary for correction of vibrational relaxation according to Gimelshein et al.
+! -> 'Vibrational Relaxation Rates in the DSMC Method', Physics of Fluids V14 No12, 2002
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars,      ONLY : nSpecies
+USE MOD_DSMC_Vars,          ONLY : SpecDSMC, PolyatomMolDSMC, DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iSpec, iDOF, iPolyatMole
+!===================================================================================================================================
+
+  ! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
+  DO iSpec = 1, nSpecies
+    IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+        IF (DSMC%PolySingleMode) THEN
+          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+            PolyatomMolDSMC(iPolyatMole)%GammaVib(iDOF) =                                                        &
+                (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)              &
+                *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
+                * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
+          END DO
+        ELSE
+          SpecDSMC(iSpec)%GammaVib = 0.0
+          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+            SpecDSMC(iSpec)%GammaVib = SpecDSMC(iSpec)%GammaVib &
+                + (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (DSMC%InstantTransTemp(iSpec)            &
+                *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
+                * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / DSMC%InstantTransTemp(iSpec)) / 2.
+          END DO
+        END IF
+      ELSE
+        SpecDSMC(iSpec)%GammaVib = (2.*SpecDSMC(iSpec)%CharaTVib / (DSMC%InstantTransTemp(iSpec)               &
+                                    *(EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec))-1.)))**2.  &
+                                    * EXP(SpecDSMC(iSpec)%CharaTVib / DSMC%InstantTransTemp(iSpec)) / 2.
+      END IF
+    END IF
+  END DO
+
+END SUBROUTINE CalcGammaVib
+
+
+SUBROUTINE CalcInstantTransTemp(iPartIndx,PartNum)
+!===================================================================================================================================
+! Calculation of the instantaneous translational temperature for the cell
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+  USE MOD_Preproc
+  USE MOD_DSMC_Vars,          ONLY : DSMC, CollInf
+  USE MOD_Particle_Vars,      ONLY : PartState, PartSpecies, Species, PDM, PEM, nSpecies, BoltzmannConst, PartMPF, usevMPF
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)                  :: PartNum
+  INTEGER, INTENT(IN)                  :: iPartIndx(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER               :: iSpec, iPart
+  REAL                  :: PartV(nSpecies,3), PartV2(nSpecies,3)
+  REAL                  :: MeanPartV_2(nSpecies,3), Mean_PartV2(nSpecies,3), TempDirec(nSpecies,3)
+!===================================================================================================================================
+
+  ! Sum up velocity
+  PartV = 0
+  PartV2 = 0
+  DO iPart=1,PartNum
+    IF (usevMPF) THEN 
+      PartV(PartSpecies(iPartIndx(iPart)),1:3) = PartV(PartSpecies(iPartIndx(iPart)),1:3)   &
+                                                      + PartState(iPartIndx(iPart),4:6) * PartMPF(iPartIndx(iPart))
+      PartV2(PartSpecies(iPartIndx(iPart)),1:3) = PartV2(PartSpecies(iPartIndx(iPart)),1:3) &
+                                                      + PartState(iPartIndx(iPart),4:6)**2 * PartMPF(iPartIndx(iPart)) 
+    ELSE
+      PartV(PartSpecies(iPartIndx(iPart)),1:3) = PartV(PartSpecies(iPartIndx(iPart)),1:3)   &
+                                                      + PartState(iPartIndx(iPart),4:6)
+      PartV2(PartSpecies(iPartIndx(iPart)),1:3) = PartV2(PartSpecies(iPartIndx(iPart)),1:3) &
+                                                      + PartState(iPartIndx(iPart),4:6)**2
+    END IF
+  END DO
+  DO iSpec=1, nSpecies
+    IF(CollInf%Coll_SpecPartNum(iSpec).NE.0) THEN
+      ! Compute velocity averages
+      MeanPartV_2(iSpec,1:3)  = (PartV(iSpec,1:3) / CollInf%Coll_SpecPartNum(iSpec))**2       ! < |v| >**2
+      Mean_PartV2(iSpec,1:3)  = PartV2(iSpec,1:3) / CollInf%Coll_SpecPartNum(iSpec)           ! < |v|**2 >
+    ELSE
+      MeanPartV_2(iSpec,1:3) = 0.
+      Mean_PartV2(iSpec,1:3) = 0.
+    END IF
+    ! Compute temperatures
+    TempDirec(iSpec,1:3) = Species(iSpec)%MassIC * (Mean_PartV2(iSpec,1:3) - MeanPartV_2(iSpec,1:3)) &
+                          / BoltzmannConst ! Temp calculation is limitedt to one species
+    DSMC%InstantTransTemp(iSpec) = (TempDirec(iSpec,1) + TempDirec(iSpec,2) + TempDirec(iSpec,3)) / 3.
+    DSMC%InstantTransTemp(nSpecies + 1) = DSMC%InstantTransTemp(nSpecies + 1)   &
+                                          + DSMC%InstantTransTemp(iSpec)*CollInf%Coll_SpecPartNum(iSpec)
+  END DO
+  DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies + 1) / SUM(CollInf%Coll_SpecPartNum)
+
+END SUBROUTINE CalcInstantTransTemp
 
 SUBROUTINE InitHODSMC()
 !===================================================================================================================================
@@ -2277,11 +2405,13 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
                         offset=    (/offsetElem, 0  /),&
                         collective=.TRUE., RealArray=MacroDSMC(:,:)%PartNum)
 
-  IF (useDSMC) CALL WriteArrayToHDF5(DataSetName='DSMC_collprob', rank=2,&
-                        nValGlobal=(/nGlobalElems, nSpecies+1/),&
-                        nVal=      (/PP_nElems,    nSpecies+1/),&
+  IF (DSMC%CalcQualityFactors) THEN
+    CALL WriteArrayToHDF5(DataSetName='DSMC_quality', rank=2,&
+                        nValGlobal=(/nGlobalElems, 3/),&
+                        nVal=      (/PP_nElems,    3/),&
                         offset=    (/offsetElem, 0  /),&
-                        collective=.TRUE., RealArray=DSMC%CollProbOut(:,:))
+                        collective=.TRUE., RealArray=DSMC%QualityFactors(:,:))
+  END IF
 
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
     CALL WriteArrayToHDF5(DataSetName='DSMC_tvib', rank=2,&

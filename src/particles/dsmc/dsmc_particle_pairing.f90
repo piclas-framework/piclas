@@ -268,7 +268,6 @@ SUBROUTINE FindNearestNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   END DO
 
   IF (CollisMode.EQ.3) THEN
-    ChemReac%nPartForRec = PartNum
     ChemReac%nPairForRec = PairNum_Node - 1
   END IF
   ALLOCATE(Coll_pData(PairNum_Node))
@@ -415,7 +414,6 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     iPart = PEM%pNext(iPart)    
   END DO
   IF (CollisMode.EQ.3) THEN
-    ChemReac%nPartForRec = nPart
     ChemReac%nPairForRec = nPair - 1
   END IF
 

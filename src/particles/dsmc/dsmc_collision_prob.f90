@@ -35,6 +35,9 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   USE MOD_TimeDisc_Vars,          ONLY : dt
 !  USE MOD_Equation_Vars,          ONLY : c2              ! da muss noch was getan werden (s.u.)
   USE MOD_DSMC_SpecXSec
+#if (PP_TimeDiscMethod==42)
+  USE MOD_Particle_Vars,          ONLY : nSpecies
+#endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -50,6 +53,9 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   REAL                                :: aCEX, bCEX, aMEX, bMEX, BGGasDensity_new
   REAL(KIND=8)                        :: Volume
   LOGICAL                             :: DoSimpleElectronColl
+#if (PP_TimeDiscMethod==42)
+  INTEGER                             :: iReac, iSpec
+#endif
 !===================================================================================================================================
   
   iPType = SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID &
@@ -62,7 +68,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   END IF
   SELECT CASE(iPType)
 
-    CASE(2,3,4,11) !Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion
+    CASE(2,3,4,11,12,21,22)
+    ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
       SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
       SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
       IF (BGGas%BGGasSpecies.NE.0) THEN       
@@ -135,7 +142,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 
       SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
       SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
-      IF(DoSimpleElectronColl)THEN
+      ! generally this is only a HS calculation of the prob
+      IF (DoSimpleElectronColl) THEN
         ! copy & past from above (atom, molecular,etc.)
         IF (BGGas%BGGasSpecies.NE.0) THEN
             Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  & 
@@ -156,10 +164,14 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
                   * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
         END IF
       ELSE ! collision probability with polarization
-        ! generally this is only a HS calculation of the prob
         IF (BGGas%BGGasSpecies.NE.0) THEN
           IF (usevMPF) THEN
-            Coll_pData(iPair)%Prob = BGGas%BGGasDensity * GEO%Volume(iElem)      &
+            IF (useVTKFileBGG) THEN
+              BGGasDensity_new=BGGdataAtElem(7,iElem)
+            ELSE
+              BGGasDensity_new=BGGas%BGGasDensity
+            END IF
+            Coll_pData(iPair)%Prob = BGGasDensity_new * GEO%Volume(iElem)      &
                    /(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  & 
                           ! weighting Fact, here only one MPF is used!!!      
                   * SQRT(Coll_pData(iPair)%CRela2)*Coll_pData(iPair)%Sigma(0) &
@@ -254,6 +266,12 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       Coll_pData(iPair)%Prob = 0
     CASE(20) !Atomic Ion - Atomic Ion
       Coll_pData(iPair)%Prob = 0
+    CASE(24) !Molecular Ion - Electron
+      Coll_pData(iPair)%Prob = 0
+    CASE(30) !Atomic Ion - Molecular Ion
+      Coll_pData(iPair)%Prob = 0
+    CASE(40) !Molecular Ion - Molecular Ion
+      Coll_pData(iPair)%Prob = 0    
     CASE DEFAULT
       CALL Abort(&
            __STAMP__,&
@@ -265,9 +283,23 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
          __STAMP__,&
         'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
   END IF
-  DSMC%CollProbOut(iElem,1) = MAX(Coll_pData(iPair)%Prob, DSMC%CollProbOut(iElem,1))
-  DSMC%CollMean = DSMC%CollMean + Coll_pData(iPair)%Prob
-  DSMC%CollMeanCount = DSMC%CollMeanCount + 1
+  IF(DSMC%CalcQualityFactors) THEN
+    DSMC%CollProbMax = MAX(Coll_pData(iPair)%Prob, DSMC%CollProbMax)
+    DSMC%CollProbMean = DSMC%CollProbMean + Coll_pData(iPair)%Prob
+    DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
+  END IF
+#if (PP_TimeDiscMethod==42)
+  ! Sum of collision probabilities for the collision pair and the corresponding reaction, required for the correct reaction rate
+  IF(ChemReac%NumOfReact.GT.0) THEN
+    DO iSpec=1, nSpecies
+      iReac=ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2),iSpec)
+      IF (iReac.NE.0) THEN
+        ChemReac%ReacCollMean(iReac) = ChemReac%ReacCollMean(iReac) + Coll_pData(iPair)%Prob
+        ChemReac%ReacCollMeanCount(iReac) = ChemReac%ReacCollMeanCount(iReac) + 1
+      END IF
+    END DO
+  END IF
+#endif
 END SUBROUTINE DSMC_prob_calc
 
 END MODULE MOD_DSMC_CollisionProb
