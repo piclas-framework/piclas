@@ -65,7 +65,7 @@ USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OnePlusEps,BezierControlPoints3D,SideType,BezierClipHit&
                                     ,BezierControlPoints3D,SideNormVec
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,IsBCElem,PartBCSideList
-USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -163,9 +163,9 @@ DO ilocSide=1,6
       CASE(PLANAR)
         NormVec=SideNormVec(1:3,SideID)
       CASE(BILINEAR)
-        NormVec=CalcBiLinearNormVecBezier(xi,eta,SideID)
+        CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
       CASE(CURVED)
-        NormVec=CalcNormVecBezier(xi,eta,SideID)
+        CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
       END SELECT 
       IF(DOT_PRODUCT(NormVec,PartState(PartID,4:6)).LT.0.) alpha=-1.0
     END IF
@@ -2506,7 +2506,6 @@ USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,Beziercliphit
 USE MOD_Particle_Vars,ONLY:PartState
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList,nTotalBCSides
-USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
 #ifdef MPI

@@ -40,7 +40,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
-USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
@@ -93,10 +93,9 @@ CASE(1) !PartBound%OpenBC)
     CASE(PLANAR)
       n_loc=SideNormVec(1:3,BCSideID)
     CASE(BILINEAR)
-      n_loc=CalcBiLinearNormVecBezier(xi,eta,BCSideID)
+      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
     CASE(CURVED)
-      n_loc=CalcNormVecBezier(xi,eta,BCSideID)
-    !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
+      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
     END SELECT 
     IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
   END IF
@@ -118,59 +117,6 @@ CASE(2) !PartBound%ReflectiveBC)
   ELSE
     CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
   END IF
-
-!  SELECT CASE(SideType(SideID))
-!  CASE(PLANAR)
-!    n_loc=SideNormVec(1:3,SideID)
-!  CASE(BILINEAR)
-!    n_loc=CalcBiLinearNormVecBezier(xi,eta,SideID)
-!  CASE(CURVED)
-!    n_loc=CalcNormVecBezier(xi,eta,SideID)
-!!    CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
-!  END SELECT 
-!!  ead*
-!  ! substract tolerance from length
-!  LengthPartTrajectory=LengthPartTrajectory-epsilontol
-!  ! intersection point with surface
-!  LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha
-!
-!  ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
-!  !v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
-!  !v_aux                  = -2*((1-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
-!  v_aux                  = -2*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
-!  !PartState(iPart,1:3)   = PartState(iPart,1:3)+PartTrajectory(1:3)+v_aux
-!  PartState(iPart,1:3)   = PartState(iPart,1:3)+v_aux
-!  ! new velocity vector 
-!  !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
-!  v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
-!  PartState(iPart,4:6)   = SQRT(DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6)))*&
-!                           (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2                         +&
-!                           PartBound%WallVelo(1:3,BC(SideID))
-!  PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
-!  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-!                           +PartTrajectory(2)*PartTrajectory(2) &
-!                           +PartTrajectory(3)*PartTrajectory(3) )
-!  PartTrajectory=PartTrajectory/lengthPartTrajectory
-!  ! move particle eps along line to prevent a detection of alpha=zero
-!  LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3)+1.0e-8*PartTrajectory
-!  lengthPartTrajectory=lengthPartTrajectory+epsilontol-1.0e-8
-!  ! get new element ID
-!!  CALL SingleParticleToExactElement(iPart)
-!!  ElemID=PEM%Element(iPart)
-!!  PEM%lastElement(iPart) = ElemID
-!
-!!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-!#if defined(LSERK)
-!  ! correction for Runge-Kutta (correct position!!)
-!  ! get length of Pt_temp(iPart,1:3) || equals summed velocity change ! only exact for linear movement
-!  absPt_temp=SQRT(Pt_temp(iPart,1)*Pt_temp(iPart,1)+Pt_temp(iPart,2)*Pt_temp(iPart,2)+Pt_temp(iPart,3)*Pt_temp(iPart,3))
-!  ! scale PartTrajectory to new Pt_temp
-!  Pt_temp(iPart,1:3)=absPt_temp*PartTrajectory(1:3)
-!  ! deleate force history
-!  Pt_temp(iPart,4:6)=0.
-!  ! what happens with force term || acceleration?
-!#endif 
-
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
@@ -220,7 +166,7 @@ SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,x
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals!,                ONLY:Abort
-USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,epsilontol
@@ -263,10 +209,9 @@ CASE(1) !PartBound%OpenBC)
     CASE(PLANAR)
       n_loc=SideNormVec(1:3,BCSideID)
     CASE(BILINEAR)
-      n_loc=CalcBiLinearNormVecBezier(xi,eta,BCSideID)
+      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
     CASE(CURVED)
-      n_loc=CalcNormVecBezier(xi,eta,BCSideID)
-    !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
+      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
     END SELECT 
     IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
   END IF
@@ -280,7 +225,6 @@ CASE(1) !PartBound%OpenBC)
   alpha=-1.
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
-!CASE(PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL RANDOM_NUMBER(RanNum)
   BCSideID=PartBCSideList(SideID)
@@ -290,53 +234,6 @@ CASE(2) !PartBound%ReflectiveBC)
   ELSE
     CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,BCSideID)
   END IF
-
-!  SELECT CASE(SideType(SideID))
-!  CASE(PLANAR)
-!    n_loc=SideNormVec(1:3,SideID)
-!  CASE(BILINEAR)
-!    n_loc=CalcBiLinearNormVecBezier(xi,eta,SideID)
-!  CASE(CURVED)
-!    n_loc=CalcNormVecBezier(xi,eta,SideID)
-!!    CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
-!  END SELECT 
-!  ! substract tolerance from length
-!  LengthPartTrajectory=LengthPartTrajectory-epsilontol
-!  ! intersection point with surface
-!  LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + PartTrajectory(1:3)*alpha*oneMinus
-!
-!  ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
-!  !v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
-!  !v_aux                  = -2*((1-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
-!  v_aux                  = -2*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
-!  !PartState(iPart,1:3)   = PartState(iPart,1:3)+PartTrajectory(1:3)+v_aux
-!  PartState(iPart,1:3)   = PartState(iPart,1:3)+v_aux
-!  ! new velocity vector 
-!  !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
-!  v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
-!  PartState(iPart,4:6)   = SQRT(DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6)))*&
-!                           (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2                         +&
-!                           PartBound%WallVelo(1:3,BC(SideID))
-!  PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
-!  lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-!                           +PartTrajectory(2)*PartTrajectory(2) &
-!                           +PartTrajectory(3)*PartTrajectory(3) )
-!  PartTrajectory=PartTrajectory/lengthPartTrajectory
-!  lengthPartTrajectory=lengthPartTrajectory+epsilontol
-!
-!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-!  ! correction for Runge-Kutta (correct position!!)
-!  !print*,'Pt_temp',Pt_temp(iPart,1:3)
-!  ! get length of Pt_temp(iPart,1:3) || equals summed velocity change ! only exact for linear movement
-!!  print*,'acceleration_old',Pt_temp(iPart,4:6)
-!  absPt_temp=SQRT(Pt_temp(iPart,1)*Pt_temp(iPart,1)+Pt_temp(iPart,2)*Pt_temp(iPart,2)+Pt_temp(iPart,3)*Pt_temp(iPart,3))
-!  ! scale PartTrajectory to new Pt_temp
-!  Pt_temp(iPart,1:3)=absPt_temp*PartTrajectory(1:3)
-!  ! deleate force history
-!  Pt_temp(iPart,4:6)=0.
-!  ! what happens with force term || acceleration?
-!#endif 
-
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
@@ -396,7 +293,7 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
-USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,ElemBaryNGeo,PartSideToElem
@@ -445,35 +342,24 @@ IF(PRESENT(BCSideID))THEN
   CASE(PLANAR)
     n_loc=SideNormVec(1:3,BCSideID)
   CASE(BILINEAR)
-    n_loc=CalcBiLinearNormVecBezier(xi,eta,BCSideID)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
   CASE(CURVED)
-    n_loc=CalcNormVecBezier(xi,eta,BCSideID)
-  !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
   END SELECT 
 ELSE
   SELECT CASE(SideType(SideID))
   CASE(PLANAR)
     n_loc=SideNormVec(1:3,SideID)
   CASE(BILINEAR)
-    n_loc=CalcBiLinearNormVecBezier(xi,eta,SideID)
+    CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   CASE(CURVED)
-    n_loc=CalcNormVecBezier(xi,eta,SideID)
-  !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
+    CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   END SELECT 
 END IF
 
 IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) RETURN
 
-
-!IF(ALMOSTZERO(alpha))THEN
-!  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha)
-!ELSE
-!  LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*(alpha-epsLength)
-!END IF
-
 ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
-!v_aux = - 2*((1-alpha)*<T,n>)*n     (auxiliary variable, used twice)
-!v_aux                  = -2.0*((LengthPartTrajectory-alpha+epsLength)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
 v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
 
 !epsReflect=epsilontol*lengthPartTrajectory
@@ -546,7 +432,7 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh
-USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormAndTang,CalcNormAndTangBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannConst,PartSpecies
 USE MOD_DSMC_Vars,              ONLY:SpecDSMC,CollisMode
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,BezierControlPoints3D
@@ -613,7 +499,7 @@ IF(PRESENT(BCSideID))THEN
     tang2=CROSSNORM(n_loc,tang1)
     !tang2=BezierControlPoints3D(:,0,NGeo,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID)
   CASE(BILINEAR)
-    CALL CalcBiLinearNormAndTang(n_loc,tang1,tang2,xi,eta,BCSideID)
+    CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
   CASE(CURVED)
     CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
   !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
@@ -626,7 +512,7 @@ ELSE
     tang2=CROSSNORM(n_loc,tang1)
     !tang2=BezierControlPoints3D(:,0,NGeo,SideID)-BezierControlPoints3D(:,0,0,SideID)
   CASE(BILINEAR)
-    CALL CalcBiLinearNormAndTang(n_loc,tang1,tang2,xi,eta,SideID)
+    CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,SideID)
   CASE(CURVED)
     CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,SideID)
   !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
@@ -634,11 +520,6 @@ ELSE
 END IF
 
 IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  RETURN
-!CALL abort(__STAMP__,&
-!  ' parttrajectory inverse to n_loc')
-
-! substract tolerance from length
-!LengthPartTrajectory=LengthPartTrajectory!-epsilontol
 
 ! calculate new velocity vector (Extended Maxwellian Model)
 VeloReal = SQRT(PartState(PartID,4) * PartState(PartID,4) + &
@@ -684,10 +565,6 @@ END IF
 ! from flux comutaion
 ! v = nv*u+t1*v+t2*f3
 
-! NewVelo(1) = tang1(1)*VeloCx + (n_loc(3)*tang1(2)-n_loc(2)*tang1(3))*VeloCy - n_loc(1)*VeloCz
-! NewVelo(2) = tang1(2)*VeloCx + (n_loc(1)*tang1(3)-n_loc(3)*tang1(1))*VeloCy - n_loc(2)*VeloCz
-! NewVelo(3) = tang1(3)*VeloCx + (n_loc(2)*tang1(1)-n_loc(1)*tang1(2))*VeloCy - n_loc(3)*VeloCz
-! should be back rotation?
 !NewVelo = VeloCx*tang1+CROSS(-n_loc,tang1)*VeloCy-VeloCz*n_loc
 NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*n_loc
 

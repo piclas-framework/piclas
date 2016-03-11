@@ -1502,7 +1502,7 @@ SUBROUTINE ReComputeParticleBCInteraction(xi,eta,locSideID,SideID,BCSideID,PartI
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,lastpartpos
@@ -1586,9 +1586,9 @@ SELECT CASE(SideType(BCSideID))
 CASE(PLANAR)
   n_loc=SideNormVec(1:3,BCSideID)
 CASE(BILINEAR)
-  n_loc=CalcBiLinearNormVecBezier(xi,eta,BCSideID)
+  CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
 CASE(CURVED)
-  n_loc=CalcNormVecBezier(xi,eta,BCSideID)
+  CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
 !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
 END SELECT 
 
