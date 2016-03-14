@@ -26,7 +26,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitDSMC, DSMC_SetInternalEnr_LauxVFD,FinalizeDSMC
+PUBLIC :: InitDSMC, DSMC_SetInternalEnr_LauxVFD, FinalizeDSMC
 !===================================================================================================================================
 
 CONTAINS
@@ -137,6 +137,13 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 
   ALLOCATE(HValue(nElems))
   HValue(1:nElems) = 0.0
+
+  IF(DSMC%CalcQualityFactors) THEN
+    ALLOCATE(DSMC%QualityFacSamp(nElems,3))
+    DSMC%QualityFacSamp(1:nElems,1:3) = 0.0
+    ALLOCATE(DSMC%QualityFactors(nElems,3))
+    DSMC%QualityFactors(1:nElems,1:3) = 0.0
+  END IF
 
 ! definition of DSMC particle values
   ALLOCATE(DSMC_RHS(PDM%maxParticleNumber,3))
@@ -611,7 +618,6 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 ! Source: Pfeiffer, M., Mirza, A. and Fasoulas, S. (2013). A grid-independent particle pairing strategy for DSMC.
 ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
 !-----------------------------------------------------------------------------------------------------------------------------------
-  DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree','.FALSE.')
   ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
   DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
@@ -1172,8 +1178,10 @@ SDEALLOCATE(PartStateIntEn)
 SDEALLOCATE(SpecDSMC)
 SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%CalcSurfCollis_SpeciesFlags)
-SDEALLOCATE(DSMC%QualityFacSamp)
-SDEALLOCATE(DSMC%QualityFactors)
+IF(DSMC%CalcQualityFactors) THEN
+  SDEALLOCATE(DSMC%QualityFacSamp)
+  SDEALLOCATE(DSMC%QualityFactors)
+END IF
 SDEALLOCATE(Coll_pData)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)
