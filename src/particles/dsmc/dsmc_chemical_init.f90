@@ -122,18 +122,21 @@ SUBROUTINE DSMC_chemical_init()
       ! Filling up ChemReac-Array with forward rate coeff., switching reactants with products and setting new energies
       IF(DSMC%BackwardReacRate) THEN
         IF(ChemReac%QKProcedure(iReac)) THEN
-          CALL abort(__STAMP__,&
+          CALL abort(&
+              __STAMP__,&
           'Automatic calculation of backward reaction rate not supported with Q-K reaction:',iReac)
         END IF
         IF(iReac.GT.(ChemReac%NumOfReact/2)) THEN
           IF(TRIM(ChemReac%ReactType(iReac-ChemReac%NumOfReact/2)).EQ.'D') ChemReac%ReactType(iReac) = 'R'
           IF(TRIM(ChemReac%ReactType(iReac-ChemReac%NumOfReact/2)).EQ.'E') ChemReac%ReactType(iReac) = 'E'
           IF(TRIM(ChemReac%ReactType(iReac-ChemReac%NumOfReact/2)).EQ.'i') THEN
-            CALL abort(__STAMP__,&
+            CALL abort(&
+                __STAMP__,&
           'Automatic calculation of backward reaction rate not supported with ionization reactions:',iReac)
           END IF
           IF(TRIM(ChemReac%ReactType(iReac-ChemReac%NumOfReact/2)).EQ.'x') THEN
-            CALL abort(__STAMP__,&
+            CALL abort(&
+                __STAMP__,&
           'Automatic calculation of backward reaction rate not supported with CEX/MEX reactions:',iReac)
           END IF
           ChemReac%DefinedReact(iReac,1,:)      = ChemReac%DefinedReact(iReac-ChemReac%NumOfReact/2,2,:)
@@ -801,7 +804,8 @@ SUBROUTINE Calc_Arrhenius_Factors()
           iQuaMax1 = SpecDSMC(ChemReac%DefinedReact(iReac,1,1))%MaxVibQuant
           iQuaMax2 = SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%MaxVibQuant
           IF(iQuaMax1.EQ.0) THEN
-            CALL Abort(__STAMP__,&
+            CALL Abort(&
+                __STAMP__,&
               'ERROR in DSMCSpecies.ini: The first defined particle in exchange reaction has to be a molecule', iReac)
           END IF
           iQuaMax1_temp = 100
