@@ -1198,7 +1198,7 @@ LOGICAL,INTENT(IN),OPTIONAL            :: BezierSampleProjection_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: p,q
-INTEGER                                :: I,J,Isample,Jsample
+INTEGER                                :: I,J,K,Isample,Jsample
 REAL                                   :: areaTotal,areaTotalAbs,area,deltaXi,tmp1,tmp2,E,F,G,D,totalArea,totalAreaAbs
 REAL                                   :: tmpI1,tmpJ1,tmpI2,tmpJ2
 REAL                                   :: BezierControlPoints2D(1:2,0:NGeo,0:NGeo)
@@ -1251,10 +1251,16 @@ IF (BezierSampleProjection) THEN  !dummy so far, to be changed for final surface
 ELSE
   ALLOCATE(SurfMeshSubSideData(1:BezierSampleN,1:BezierSampleN,1:nBCSides))
   ALLOCATE(SurfMeshSideAreas(1:nBCSides))
-  SurfMeshSubSideData%vec_nOut=0.
-  SurfMeshSubSideData%vec_t1=0.
-  SurfMeshSubSideData%vec_t2=0.
-  SurfMeshSubSideData%area=0.
+  DO K=0,nBCSides
+    DO J=0,BezierSampleN
+      DO I=0,BezierSampleN
+        SurfMeshSubSideData(I,J,K)%vec_nOut=0.
+        SurfMeshSubSideData(I,J,K)%vec_t1=0.
+        SurfMeshSubSideData(I,J,K)%vec_t2=0.
+        SurfMeshSubSideData(I,J,K)%area=0.
+      END DO
+    END DO
+  END DO
   SurfMeshSideAreas=0.
 END IF
 DO BCSideID=1,nBCSides
