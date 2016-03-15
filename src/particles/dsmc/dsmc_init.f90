@@ -393,6 +393,9 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
           END IF
         END DO !Inits
         ALLOCATE(SpecDSMC(iSpec)%Surfaceflux(1:Species(iSpec)%nSurfacefluxBCs))
+        !!!! DEBUG set to ZERO
+        !! PO dummy
+        Species(iSpec)%nSurfacefluxBCs=0
         DO iInit = 1, Species(iSpec)%nSurfacefluxBCs
           IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
             WRITE(UNIT=hilf2,FMT='(I2)') iInit
