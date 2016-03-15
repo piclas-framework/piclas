@@ -1183,7 +1183,7 @@ SUBROUTINE GetBezierSampledAreas(BezierSampleProjection_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,BezierControlPoints3D,BezierSampleN,BezierSampleXi
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampledAreasInitIsDone,SurfMeshSubSideAreas,SurfMeshSideAreas
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampledAreasInitIsDone,SurfMeshSubSideData,SurfMeshSideAreas
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleProjectionVec,SurfMeshProjSubSideAreas,SurfMeshProjSideAreas
 USE MOD_Basis,                  ONLY:LegendreGaussNodesAndWeights
 USE MOD_Mesh_Vars,              ONLY:NGeo
@@ -1206,7 +1206,7 @@ REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,DIMENSION(2,2)                    :: gradXiEta2D
 REAL,DIMENSION(2)                      :: XiOut(2)
 REAL,DIMENSION(2)                      :: Xi
-REAL,DIMENSION(3)                      :: VecBezier,n1,n2,SampleNormVec
+REAL,DIMENSION(3)                      :: VecBezier,n1,n2
 REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
 INTEGER                                :: SideID,iLocSide,iElem,BCSideID,ElemID
 LOGICAL                                :: BezierSampleProjection
@@ -1249,9 +1249,12 @@ IF (BezierSampleProjection) THEN  !dummy so far, to be changed for final surface
   SurfMeshProjSubSideAreas=0.
   SurfMeshProjSideAreas=0.
 ELSE
-  ALLOCATE(SurfMeshSubSideAreas(1:BezierSampleN,1:BezierSampleN,1:nBCSides))
+  ALLOCATE(SurfMeshSubSideData(1:BezierSampleN,1:BezierSampleN,1:nBCSides))
   ALLOCATE(SurfMeshSideAreas(1:nBCSides))
-  SurfMeshSubSideAreas=0.
+  SurfMeshSubSideData%vec_nOut=0.
+  SurfMeshSubSideData%vec_t1=0.
+  SurfMeshSubSideData%vec_t2=0.
+  SurfMeshSubSideData%area=0.
   SurfMeshSideAreas=0.
 END IF
 DO BCSideID=1,nBCSides
@@ -1329,17 +1332,21 @@ DO BCSideID=1,nBCSides
       END DO
       ! ---------------------------------------
       !!!IPWRITE(*,*)'area', area
+      CALL CalcNormAndTangBezier(nVec=SurfMeshSubSideData(Jsample,Isample,BCSideID)%vec_nOut,&
+                                 tang1=SurfMeshSubSideData(Jsample,Isample,BCSideID)%vec_t1,&
+                                 tang2=SurfMeshSubSideData(Jsample,Isample,BCSideID)%vec_t2,&
+                                 xi=tmpI2,eta=tmpJ2,SideID=SideID)
       IF(BezierSampleProjection)THEN
-        CALL CalcNormAndTangBezier(nVec=SampleNormVec,xi=tmpI2,eta=tmpJ2,SideID=SideID)
-        !!!IPWRITE(*,*) 'SampleNormVec', SampleNormVec
+        !!!IPWRITE(*,*) 'vec_nOut', SurfMeshSubSideData(Jsample,Isample,BCSideID)%vec_nOut
         ! add facing sides and deduct non-facing sides
         SurfMeshProjSubSideAreas(Jsample,Isample,BCSideID) = &
-          MAX(SIGN(area,-DOT_PRODUCT(BezierSampleProjectionVec,SampleNormVec)),0.) !so far cut off at zero!!!
+          MAX(SIGN(area,-DOT_PRODUCT(BezierSampleProjectionVec,&
+                                     SurfMeshSubSideData(Jsample,Isample,BCSideID)%vec_nOut)),0.) !so far cut off at zero!!!
         !!!IPWRITE(*,*)'sign-area', SurfMeshProjSubSideAreas(Jsample,Isample,BCSideID)
         areaTotal=areaTotal+SurfMeshProjSubSideAreas(Jsample,Isample,BCSideID)
       ELSE
-        SurfMeshSubSideAreas(Jsample,Isample,BCSideID) = area
-        areaTotal=areaTotal+SurfMeshSubSideAreas(Jsample,Isample,BCSideID)
+        SurfMeshSubSideData(Jsample,Isample,BCSideID)%area = area
+        areaTotal=areaTotal+SurfMeshSubSideData(Jsample,Isample,BCSideID)%area
       END IF
       areaTotalAbs=areaTotalAbs+area
       !!!IPWRITE(*,*)"areaTotal",areaTotal
