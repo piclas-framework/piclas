@@ -33,9 +33,17 @@ INTERFACE SetParticleMPF
   MODULE PROCEDURE SetParticleMPF
 END INTERFACE
 
+INTERFACE InitializeParticleSurfaceflux
+  MODULE PROCEDURE InitializeParticleSurfaceflux
+END INTERFACE
+
+INTERFACE ParticleSurfaceflux
+  MODULE PROCEDURE ParticleSurfaceflux
+END INTERFACE
+
 !----------------------------------------------------------------------------------------------------------------------------------
 
-PUBLIC         :: InitializeParticleEmission, ParticleInserting &
+PUBLIC         :: InitializeParticleEmission, InitializeParticleSurfaceflux, ParticleSurfaceflux, ParticleInserting &
                 , SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF                              
 !===================================================================================================================================
                                                                                                   
@@ -102,11 +110,11 @@ IF (.NOT.DoRestart) THEN
       !END IF
       IF (((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 6)) .AND. &
            (Species(i)%Init(iInit)%UseForInit)) THEN ! Special emission type: constant density in cell, + to be used for init
-          !CALL abort(__STAMP__,&
-          !      ' particle pressure not moved to picasso!')
+          CALL abort(__STAMP__,&
+                ' particle pressure not moved to picasso!')
         IF (Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4) THEN
           CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
-          CALL SetParticleVelocity(i,iInit,NbrOfParticle)
+          CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
         ELSE !emission type 6 (constant pressure outflow)
           CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
         END IF
@@ -139,7 +147,7 @@ IF (.NOT.DoRestart) THEN
 #else
         CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif /*MPI*/
-        CALL SetParticleVelocity(i,iInit,NbrOfParticle)
+        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
         CALL SetParticleChargeAndMass(i,NbrOfParticle)
         IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
         IF (useDSMC) THEN
@@ -160,8 +168,8 @@ IF (.NOT.DoRestart) THEN
         CALL UpdateNextFreePosition()
         ! constant pressure condition
         IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
-!          CALL abort(__STAMP__,&
-!                ' particle pressure not moved in picasso!')
+          CALL abort(__STAMP__,&
+                ' particle pressure not moved in picasso!')
           CALL ParticleInsideCheck(i, iInit, nPartInside, TempInside, EInside)
           IF (Species(i)%Init(iInit)%ParticleEmission .GT. nPartInside) THEN
             NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
@@ -172,7 +180,7 @@ IF (.NOT.DoRestart) THEN
 #else
             CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif
-            CALL SetParticleVelocity(i,iInit,NbrOfParticle)
+            CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
             CALL SetParticleChargeAndMass(i,NbrOfParticle)
             IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
             !IF (useDSMC) CALL SetParticleIntEnergy(i,NbrOfParticle)
@@ -203,18 +211,25 @@ SUBROUTINE ParticleInserting()
 ! Particle Inserting
 !===================================================================================================================================
 ! Modules
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,     ONLY : PartMPI
+#endif /* MPI*/
 USE MOD_Globals
 USE MOD_Timedisc_Vars         , ONLY : dt,time
-!#if defined(LSERK)
 #if defined(LSERK) || defined(IMEX) || defined(IMPA)
 USE MOD_Timedisc_Vars         , ONLY : iter
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
 #endif
+USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition  
-USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode
+USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, DSMC, SpecDSMC
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
+#if (PP_TimeDiscMethod==300)
+!USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
+#endif
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
@@ -234,10 +249,11 @@ INTEGER, OPTIONAL                :: mode_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Local variable declaration                                                                       
-INTEGER                          :: i , iPart, PositionNbr, iInit                                                          
+INTEGER                          :: i , iPart, PositionNbr, iInit, IntSample
 INTEGER                , SAVE    :: NbrOfParticle=0                                             
 INTEGER(KIND=8)                 :: inserted_Particle_iter,inserted_Particle_time               
 INTEGER(KIND=8)                 :: inserted_Particle_diff  
+REAL                             :: PartIns, RandVal1
 #ifdef MPI
 INTEGER                          :: mode                                            
 #endif
@@ -257,7 +273,7 @@ ELSE
   mode=0
 END IF
 #endif
-!---  Emission at time step (initial emission see pic_init.f90, InitParticles)
+!---  Emission at time step (initial emission see particle_init.f90: InitializeParticleEmission)
 DO i=1,nSpecies
   DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
     IF (((Species(i)%Init(iInit)%ParticleEmissionType .NE. 4).AND.(Species(i)%Init(iInit)%ParticleEmissionType .NE. 6)) .AND. &
@@ -267,33 +283,64 @@ DO i=1,nSpecies
 #endif
         SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
         CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
+          PartIns=Species(i)%Init(iInit)%ParticleEmission * dt*RKdtFrac
           IF (Species(i)%Init(iInit)%VirtPreInsert .AND. Species(i)%Init(iInit)%PartDensity.GT.0.) THEN
             NbrOfParticle = 0 ! calculated within SetParticlePosition itself!
-          ELSE
-            inserted_Particle_iter = INT(Species(i)%Init(iInit)%ParticleEmission * dt,8)
-            inserted_Particle_time = INT(Species(i)%Init(iInit)%ParticleEmission * (Time + dt),8)
-            inserted_Particle_diff = INT(inserted_Particle_time - Species(i)%Init(iInit)%InsertedParticle &
-              - inserted_Particle_iter,8)
-            NbrOfParticle = INT(inserted_Particle_iter + inserted_Particle_diff,4)
-            ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
+          ELSE IF (.NOT.DoPoissonRounding) THEN
+            inserted_Particle_iter = INT(PartIns,8)
+            PartIns=Species(i)%Init(iInit)%ParticleEmission * (Time + dt*RKdtFracTotal)
+            CALL RANDOM_NUMBER(RandVal1)
+            !-- random-round the inserted_Particle_time for preventing periodicity
+            IF (inserted_Particle_iter.GE.1) THEN
+              CALL RANDOM_NUMBER(RandVal1)
+              inserted_Particle_time = INT(PartIns + RandVal1,8)
+            ELSE IF (inserted_Particle_iter.GE.0) THEN !needed, since InsertedParticleSurplus can increase
+                                                       !and _iter>1 needs to be possible for preventing periodicity
+              IF (ALMOSTEQUAL(PartIns,0.)) THEN !dummy
+                inserted_Particle_time = INT(PartIns,8)
+              ELSE !poisson-distri of PartIns-INT(PartIns)
+                CALL SamplePoissonDistri( PartIns-INT(PartIns) , IntSample )
+                inserted_Particle_time = INT(INT(PartIns)+IntSample,8) !INT(PartIns) + POISDISTRI( PartIns-INT(PartIns) )
+              END IF
+            ELSE !dummy
+              inserted_Particle_time = INT(PartIns,8)
+            END IF
+            !-- evaluate inserted_Particle_time and inserted_Particle_iter
+            inserted_Particle_diff = inserted_Particle_time - Species(i)%Init(iInit)%InsertedParticle &
+              - inserted_Particle_iter - Species(i)%Init(iInit)%InsertedParticleSurplus
+            Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0))
+            NbrOfParticle = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
+            !-- if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
             IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
               IF (NbrOfParticle.LT.5) NbrOfParticle=0
             END IF
-            Species(i)%Init(iInit)%InsertedParticle = Species(i)%Init(iInit)%InsertedParticle + INT(NbrOfParticle,8)
+          ELSE !DoPoissonRounding
+            CALL RANDOM_NUMBER(RandVal1)
+            IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
+              IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
+              NbrOfParticle = INT(PartIns + RandVal1)
+              DoPoissonRounding = .FALSE.
+            ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
+              CALL SamplePoissonDistri( PartIns , NbrOfParticle , DoPoissonRounding)
+            END IF
           END IF
+#ifdef MPI
+          CALL MPI_BCAST(NbrOfParticle, 1, MPI_INTEGER,0,PartMPI%COMM,IERROR) !NbrOfParticle based on RandVals!
+#endif
+          Species(i)%Init(iInit)%InsertedParticle = Species(i)%Init(iInit)%InsertedParticle + INT(NbrOfParticle,8)
         CASE(2)    ! Emission Type: Particles per Iteration
           NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission)
         CASE(3)
-!          CALL abort(__STAMP__,&
-!                ' particle pressure not moved in picasso!')
+          CALL abort(__STAMP__,&
+                ' particle pressure not moved in picasso!')
           CALL ParticlePressure (i, iInit, NbrOfParticle)
           ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
           IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
             IF (NbrOfParticle.LT.5) NbrOfParticle=0
           END IF
         CASE(5) ! removal of all parts in pressure area and re-insertion
-         ! CALL abort(__STAMP__,&
-         !       ' particle pressure not moved in picasso!')
+          CALL abort(__STAMP__,&
+                ' particle pressure not moved in picasso!')
           CALL ParticlePressureRem (i, iInit, NbrOfParticle)
         CASE DEFAULT
           NbrOfParticle = 0
@@ -306,7 +353,7 @@ DO i=1,nSpecies
 #else
         CALL SetParticlePosition(i,iInit,NbrOfParticle)
 #endif
-       CALL SetParticleVelocity(i,iInit,NbrOfParticle)
+       CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
        CALL SetParticleChargeAndMass(i,NbrOfParticle)
        IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
        ! define molecule stuff
@@ -315,7 +362,19 @@ DO i=1,nSpecies
          DO WHILE (iPart .le. NbrOfParticle)
            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
            IF (PositionNbr .ne. 0) THEN
-!             CALL DSMC_SetInternalEnr_LauxVFD(i, iInit, PositionNbr)
+             IF (SpecDSMC(i)%PolyatomicMol) THEN
+#if (PP_TimeDiscMethod==300)
+!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
+#else
+               CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
+#endif
+             ELSE
+#if (PP_TimeDiscMethod==300)
+!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
+#else
+               CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
+#endif
+             END IF
            END IF
            iPart = iPart + 1
          END DO
@@ -345,10 +404,10 @@ DO i=1,nSpecies
     ELSE IF (Species(i)%Init(iInit)%UseForEmission) THEN ! Constant Pressure in Cell Emission (type 4 or 6)
       IF (Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4) THEN
         CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
-        CALL SetParticleVelocity(i,iInit,NbrOfParticle)
+        CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
       ELSE !emission type 6 (constant pressure outflow)
-        !  CALL abort(__STAMP__,&
-        !        ' particle pressure not moved in picasso!')
+          CALL abort(__STAMP__,&
+                ' particle pressure not moved in picasso!')
         CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
       END IF
       CALL SetParticleChargeAndMass(i,NbrOfParticle)
@@ -359,8 +418,20 @@ DO i=1,nSpecies
         DO WHILE (iPart .le. NbrOfParticle)
           PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr .ne. 0) THEN
-!            CALL DSMC_SetInternalEnr_LauxVFD(i, iInit, PositionNbr)
-          END IF
+            IF (SpecDSMC(i)%PolyatomicMol) THEN
+#if (PP_TimeDiscMethod==300)
+!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
+#else
+              CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
+#endif
+            ELSE
+#if (PP_TimeDiscMethod==300)
+!               CALL SetInternalEnr_InitFP(i,iInit,PositionNbr,1)
+#else
+               CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
+#endif
+            END IF
+        END IF
           iPart = iPart + 1
         END DO
       END IF
@@ -421,11 +492,13 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 USE MOD_Particle_MPI_Vars,     ONLY:PartMPI,PartMPIInsert
 #endif /* MPI*/
 USE MOD_Globals
+USE MOD_Particle_Vars,         ONLY:DoPoissonRounding
 USE MOD_PIC_Vars
 USE MOD_Particle_Vars,         ONLY:Species,BoltzmannConst,PDM,PartState,OutputVpiWarnings
 USE MOD_Particle_Mesh_Vars,    ONLY:GEO
 USE MOD_Globals_Vars,          ONLY:PI, TwoepsMach
 USE MOD_Timedisc_Vars,         ONLY:dt, DoDisplayEmissionWarnings
+USE MOD_Timedisc_Vars,         ONLY : RKdtFrac
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_Timedisc_Vars,         ONLY:dt, iter, DoDisplayEmissionWarnings,IterDisplayStep, DoDisplayIter
 #endif
@@ -471,7 +544,7 @@ REAL                                     :: radius, argumentTheta
 REAL                                     :: rgyrate, Bintpol, pilen                    
 REAL                                     :: x_step, y_step, z_step,  x_pos , y_pos                      
 REAL                                     :: xlen, ylen, zlen                                            
-INTEGER                                  :: iPart                                               
+INTEGER                                  :: iPart                                             
 REAL,ALLOCATABLE                         :: particle_positions_Temp(:) 
 REAL                                     :: Vec3D(3), l_ins, v_line, delta_l, v_drift_line, A_ins, PartIns
 REAL                                     :: v_drift_BV(2), lrel_ins_BV(4), BV_lengths(2), v_BV(2), delta_lBV(2)
@@ -484,6 +557,7 @@ INTEGER                                  :: InitGroup
 #endif                        
 !===================================================================================================================================
 
+! emission group communicator
 #ifdef MPI
 InitGroup=Species(FractNbr)%Init(iInit)%InitCOMM
 IF(PartMPI%InitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
@@ -522,7 +596,7 @@ IF(Species(FractNbr)%Init(iInit)%VirtPreInsert) THEN ! (SpaceIC.EQ.'cuboid_vpi')
   v_drift_line = Species(FractNbr)%Init(iInit)%VeloIC * &
     ( Species(FractNbr)%Init(iInit)%VeloVecIC(1)*lineVector(1) + Species(FractNbr)%Init(iInit)%VeloVecIC(2)*lineVector(2) &
     + Species(FractNbr)%Init(iInit)%VeloVecIC(3)*lineVector(3) ) !lineVector component of drift-velocity
-  l_ins=dt * ( v_drift_line + Species(FractNbr)%Init(iInit)%NSigma & !virt. insertion height
+  l_ins=dt*RKdtFrac * ( v_drift_line + Species(FractNbr)%Init(iInit)%NSigma & !virt. insertion height
     * SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC) )
   IF( (TRIM(Species(FractNbr)%Init(iInit)%vpiDomainType).EQ.'freestream') .OR. &
       (TRIM(Species(FractNbr)%Init(iInit)%vpiDomainType).EQ.'orifice') ) THEN
@@ -555,7 +629,7 @@ IF(Species(FractNbr)%Init(iInit)%VirtPreInsert) THEN ! (SpaceIC.EQ.'cuboid_vpi')
         ,' Something is wrong with the Basis of the current SpaceIC!')
     END IF
     IF ( TRIM(Species(FractNbr)%Init(iInit)%SpaceIC) .EQ. 'cuboid_vpi' ) THEN
-      lrel_ins_BV=dt * ( (/v_drift_BV(1),-v_drift_BV(1),v_drift_BV(2),-v_drift_BV(2)/) + Species(FractNbr)%Init(iInit)%NSigma &
+      lrel_ins_BV=dt*RKdtFrac*( (/v_drift_BV(1),-v_drift_BV(1),v_drift_BV(2),-v_drift_BV(2)/)+Species(FractNbr)%Init(iInit)%NSigma &
         * SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC) )!rel. virt. insertion height:
       lrel_ins_BV(1:2)=lrel_ins_BV(1:2)/BV_lengths(1)                                                        !... in -BV1/+BV1 dir.
       lrel_ins_BV(3:4)=lrel_ins_BV(3:4)/BV_lengths(2)                                                        !... in -BV2/+BV2 dir.
@@ -563,7 +637,7 @@ IF(Species(FractNbr)%Init(iInit)%VirtPreInsert) THEN ! (SpaceIC.EQ.'cuboid_vpi')
         IF (.NOT.Species(FractNbr)%Init(iInit)%vpiBVBuffer(i)) lrel_ins_BV(i)=0.
       END DO
     ELSE IF ( TRIM(Species(FractNbr)%Init(iInit)%SpaceIC) .EQ. 'orifice' ) THEN !cylinder-orifice
-      lrel_ins_BV(1:4)=dt * ( SQRT(v_drift_BV(1)**2+v_drift_BV(2)**2) + Species(FractNbr)%Init(iInit)%NSigma &
+      lrel_ins_BV(1:4)=dt*RKdtFrac * ( SQRT(v_drift_BV(1)**2+v_drift_BV(2)**2) + Species(FractNbr)%Init(iInit)%NSigma &
         * SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC) ) &
         / Species(FractNbr)%Init(iInit)%RadiusIC !rel. virt. insertion height is a single, maximum value for whole circumference
     END IF
@@ -642,9 +716,8 @@ ELSE
   DimSend=3 !save (and send) only positions
 END IF
 
-
 IF ( (NbrOfParticle .LE. 0).AND.(PartIns .LE. 0.).AND. (AlmostEqual(Species(FractNbr)%Init(iInit)%PartDensity,0.)) ) &
-      RETURN !0<Partins<1: statistical handling of exact REAL-INT-conv. below!
+  RETURN !0<Partins<1: statistical handling of exact REAL-INT-conv. below!
 
 nChunks = 1                   ! Standard: Nicht-MPI
 sumOfMatchedParticles = 0
@@ -663,17 +736,22 @@ IF(( (nbrOfParticle.LE.PartMPI%InitGroup(InitGroup)%nProcs                      
 ELSE
    nChunks = 1
 END IF
-
 IF (mode.EQ.1) THEN
   chunkSize = INT(nbrOfParticle/nChunks)
   IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
     IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
       ! statistical handling of exact REAL-INT-conversion -> values in send(1)- and receive(2)-mode might differ for VPI+PartDens
       ! (NbrOf Particle can differ from root to other procs and, thus, need to be communicated of calculated later again)
-      PartInsRest = PartIns - INT(PartIns)
       CALL RANDOM_NUMBER(RandVal1)
-      IF(PartInsRest.GT.RandVal1) PartIns = PartIns + 1.0
-      NbrOfParticle = INT(PartIns)
+      IF (.NOT.DoPoissonRounding) THEN
+        NbrOfParticle = INT(PartIns + RandVal1)
+      ELSE IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
+        IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
+        NbrOfParticle = INT(PartIns + RandVal1)
+        DoPoissonRounding = .FALSE.
+      ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
+        CALL SamplePoissonDistri( PartIns , NbrOfParticle , DoPoissonRounding)
+      END IF
     END IF
     chunkSize = chunkSize + ( nbrOfParticle - (nChunks*chunkSize) )
   END IF
@@ -894,7 +972,7 @@ IF (mode.EQ.1) THEN
                                            + RandVal1 * Species(FractNbr)%Init(iInit)%CuboidHeightIC
          ELSE
            particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3) &
-                                           + RandVal1 * dt & 
+                                           + RandVal1 * dt*RKdtFrac & 
                                            * Species(FractNbr)%Init(iInit)%VeloIC/Species(FractNbr)%Init(iInit)%alpha 
          END IF
 
@@ -985,7 +1063,7 @@ IF (mode.EQ.1) THEN
          Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%BaseVector1IC * RandVal(1)
          Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BaseVector2IC * RandVal(2)
          IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
-           Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt * RandVal(3)
+           Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
          ELSE
 #if (PP_TimeDiscMethod==201)
 !           !scaling due to variable time step (for inlet-condition, but already fixed when %CalcHeightFromDt is used!!!)
@@ -1039,7 +1117,7 @@ IF (mode.EQ.1) THEN
          END DO
          Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BasePointIC
          IF (Species(FractNbr)%Init(iInit)%CalcHeightFromDt) THEN !directly calculated by timestep
-           Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt * RandVal(3)
+           Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%VeloIC * dt*RKdtFrac * RandVal(3)
          ELSE
 #if (PP_TimeDiscMethod==201)
 !           !scaling due to variable time step (for inlet-condition, but already fixed when %CalcHeightFromDt is used!!!)
@@ -1073,7 +1151,7 @@ IF (mode.EQ.1) THEN
         CALL CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D)
         CALL RANDOM_NUMBER(RandVal)
         v_line = Vec3D(1)*lineVector(1) + Vec3D(2)*lineVector(2) + Vec3D(3)*lineVector(3) !lineVector component of velocity
-        delta_l = dt * v_line - l_ins * RandVal(3)
+        delta_l = dt*RKdtFrac * v_line - l_ins * RandVal(3)
         IF (delta_l .LT. 0.) THEN
           IF (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) i=i+1
           CYCLE !particle would not reach comp. domain -> try new velo
@@ -1093,7 +1171,7 @@ IF (mode.EQ.1) THEN
                   + Vec3D(2)*Species(FractNbr)%Init(iInit)%BaseVector2IC(2) &
                   + Vec3D(3)*Species(FractNbr)%Init(iInit)%BaseVector2IC(3)
           v_BV(2) = v_BV(2) / BV_lengths(2) !BV2 component of velocity
-          delta_lBV = dt * v_BV
+          delta_lBV = dt*RKdtFrac * v_BV
           delta_lBV(1) = delta_lBV(1) + BV_lengths(1) * ( RandVal(1)*(lrel_ins_BV(1)+1.0+lrel_ins_BV(2)) - lrel_ins_BV(1) )
           delta_lBV(2) = delta_lBV(2) + BV_lengths(2) * ( RandVal(2)*(lrel_ins_BV(3)+1.0+lrel_ins_BV(4)) - lrel_ins_BV(3) )
           IF ( (delta_lBV(1).LT.0.) .OR. (delta_lBV(1).GT.BV_lengths(1)) ) THEN
@@ -1119,7 +1197,7 @@ IF (mode.EQ.1) THEN
                   + Vec3D(2)*Species(FractNbr)%Init(iInit)%BaseVector2IC(2) &
                   + Vec3D(3)*Species(FractNbr)%Init(iInit)%BaseVector2IC(3)
           v_BV(2) = v_BV(2) / BV_lengths(2) !BV2 component of velocity
-          delta_lBV = dt * v_BV
+          delta_lBV = dt*RKdtFrac * v_BV
           delta_lBV(1) = delta_lBV(1) + BV_lengths(1) * ( RandVal(1)*(lrel_ins_BV(1)+1.0+lrel_ins_BV(2)) - lrel_ins_BV(1) )
           delta_lBV(2) = delta_lBV(2) + BV_lengths(2) * ( RandVal(2)*(lrel_ins_BV(3)+1.0+lrel_ins_BV(4)) - lrel_ins_BV(3) )
           Particle_pos = Species(FractNbr)%Init(iInit)%BaseVector1IC/BV_lengths(1) * delta_lBV(1) &
@@ -1184,7 +1262,7 @@ IF (mode.EQ.1) THEN
         CALL CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D)
         CALL RANDOM_NUMBER(RandVal)
         v_line = Vec3D(1)*lineVector(1) + Vec3D(2)*lineVector(2) + Vec3D(3)*lineVector(3) !lineVector component of velocity
-        delta_l = dt * v_line - l_ins * RandVal(3)
+        delta_l = dt*RKdtFrac * v_line - l_ins * RandVal(3)
         IF (delta_l .LT. 0.) THEN
           IF (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) i=i+1
           CYCLE !particle would not reach comp. domain -> try new velo
@@ -1213,7 +1291,7 @@ IF (mode.EQ.1) THEN
                            Particle_pos(2) * Particle_pos(2) + &
                            Particle_pos(3) * Particle_pos(3) )
           END DO
-          Particle_pos = Particle_pos + dt * Vec3D - lineVector * (dt * v_line - delta_l) !get old RandVal(3) for l_ins * RandVal(3)
+          Particle_pos = Particle_pos + dt*RKdtFrac*Vec3D - lineVector*(dt*RKdtFrac*v_line-delta_l) !get old RandVal(3) for l_ins*R3
           
           IntersecPoint = Particle_pos - Vec3D * delta_l/v_line !Vector from BP to Intersec point of virt. path with orifice plane
           orifice_delta = (IntersecPoint(1)*Species(FractNbr)%Init(iInit)%BaseVector1IC(1) &
@@ -1290,6 +1368,7 @@ IF (mode.EQ.1) THEN
             ELSE
                PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
             END IF
+            IF (PDM%ParticleInside(ParticleIndexNbr)) PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
          ELSE
             CALL abort(__STAMP__,&
                 'ERROR in SetParticlePosition: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
@@ -1300,8 +1379,8 @@ IF (mode.EQ.1) THEN
       nbrOfParticle = NbrOfParticle - sumOfMatchedParticles
       IF (nbrOfParticle .NE. 0) THEN
         IPWRITE(UNIT_stdOut,*)'ERROR in ParticleEmission_parallel:'
-        IPWRITE(UNIT_stdOut,'(A,I8,A)')'matched ', sumOfMatchedParticles, ' particles'
-        IPWRITE(UNIT_stdOut,'(A,I8,A)')'when ', NbrOfParticle+sumOfMatchedParticles, ' particles were required!'
+        IPWRITE(UNIT_stdOut,'(I4,A,I8,A)')'matched ', sumOfMatchedParticles, ' particles'
+        IPWRITE(UNIT_stdOut,'(I4,A,I8,A)')'when ', NbrOfParticle+sumOfMatchedParticles, ' particles were required!'
         CALL abort(__STAMP__,&
             'ERROR in ParticleEmission_parallel')
       END IF
@@ -1397,7 +1476,6 @@ IF (mode.EQ.1) THEN
  ELSE !no mpi root, nchunks=1
    chunkSize=0
  END IF
-
  IF(nChunks.GT.1) THEN
    ALLOCATE( PartMPIInsert%nPartsSend  (0:PartMPI%InitGroup(InitGroup)%nProcs-1), STAT=allocStat )
    ALLOCATE( PartMPIInsert%nPartsRecv  (0:PartMPI%InitGroup(InitGroup)%nProcs-1), STAT=allocStat )
@@ -1430,7 +1508,7 @@ IF (mode.EQ.1) THEN
               PartMPIInsert%nPartsSend(PartMPI%InitGroup(InitGroup)%MyRank)+1
      ELSE
        DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-!         IF (iProc.EQ.PMPIVAR%iProc) CYCLE
+!         IF (iProc.EQ.PartMPI%iProc) CYCLE
          PartMPIInsert%nPartsSend(iProc)=PartMPIInsert%nPartsSend(iProc)+1
        END DO
      END IF
@@ -1486,7 +1564,7 @@ IF (mode.EQ.1) THEN
                                                                           particle_positions(DimSend*(i-1)+1:DimSend*i)
       ELSE
         DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
- !         IF (iProc.EQ.PMPIVAR%iProc) CYCLE
+ !         IF (iProc.EQ.PartMPI%iProc) CYCLE
           PartMPIInsert%nPartsSend(iProc)=PartMPIInsert%nPartsSend(iProc)+1
           k=PartMPIInsert%nPartsSend(iProc)
           PartMPIInsert%send_message(iProc)%content(DimSend*(k-1)+1:DimSend*k)=particle_positions(DimSend*(i-1)+1:DimSend*i)
@@ -1556,7 +1634,7 @@ ELSE ! mode.NE.1:
 #endif
    ! each process checks which particle can be matched to its elements, counting the elements inside (local particles)
 !   WRITE(*,*)'locating',chunkSize,'*',nChunks,' particles...'
-!   WRITE(UNIT=debugFileName,FMT='(A,I2.2)')'prtcls_',PMPIVAR%iProc
+!   WRITE(UNIT=debugFileName,FMT='(A,I2.2)')'prtcls_',PartMPI%iProc
 !   OPEN(UNIT=130+PMPIVAR%iProc,FILE=debugFileName)
 !   DO i=1,chunkSize*nChunks
 !      WRITE(130+PMPIVAR%iProc,'(3(ES15.8))')particle_positions(i*3-2:i*3)
@@ -1579,11 +1657,11 @@ ELSE ! mode.NE.1:
        END IF
        !CALL SingleParticleToExactElement(ParticleIndexNbr)
        IF (PDM%ParticleInside(ParticleIndexNbr)) THEN
-          !IPWRITE(UNIT_stdOut,*) 'partpos',PartState(ParticleIndexNbr,1:3)
           mySumOfMatchedParticles = mySumOfMatchedParticles + 1
        ELSE
           PDM%ParticleInside(ParticleIndexNbr) = .FALSE.
        END IF
+       IF (PDM%ParticleInside(ParticleIndexNbr)) PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
     ELSE
        CALL abort(__STAMP__,&
             'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
@@ -1606,36 +1684,36 @@ ELSE ! mode.NE.1:
     IF( Species(FractNbr)%Init(iInit)%VirtPreInsert .AND. (Species(FractNbr)%Init(iInit)%PartDensity .GT. 0.) ) THEN
       IF ((nbrOfParticle .NE. sumOfMatchedParticles).AND.OutputVpiWarnings) THEN
         IF(DoDisplayEmissionWarnings)THEN
-          WRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
-          WRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-          WRITE(UNIT_StdOut,'(I8,A)') sumOfMatchedParticles, ' particles reached the domain when'
-          WRITE(UNIT_StdOut,'(I8,A)') NbrOfParticle, '(+1) velocities were calculated with vpi+PartDens'
+          SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
+          SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
+          SWRITE(UNIT_StdOut,'(I8,A)') sumOfMatchedParticles, ' particles reached the domain when'
+          SWRITE(UNIT_StdOut,'(I8,A)') NbrOfParticle, '(+1) velocities were calculated with vpi+PartDens'
         END IF
       END IF
     ELSE
       IF (nbrOfParticle .GT. sumOfMatchedParticles) THEN
         IF(DoDisplayEmissionWarnings)THEN
-          WRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
-          WRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-          WRITE(UNIT_StdOut,'(A,I8,A)')'matched only ', sumOfMatchedParticles, ' particles'
-          WRITE(UNIT_StdOut,'(A,I8,A)')'when ', NbrOfParticle, ' particles were required!'
+          SWRITE(UNIT_StdOut,'(A)')'WARNING in ParticleEmission_parallel:'
+          SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
+          SWRITE(UNIT_StdOut,'(A,I8,A)')'matched only ', sumOfMatchedParticles, ' particles'
+          SWRITE(UNIT_StdOut,'(A,I8,A)')'when ', NbrOfParticle, ' particles were required!'
         END IF
       ELSE IF (nbrOfParticle .LT. sumOfMatchedParticles) THEN
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
        IF(DoDisplayIter)THEN
          IF(MOD(iter,IterDisplayStep).EQ.0) THEN
 #endif
-            WRITE(UNIT_StdOut,'(A)')'ERROR in ParticleEmission_parallel:'
-            WRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
-            WRITE(UNIT_StdOut,'(A,I8,A)')'matched ', sumOfMatchedParticles, ' particles'
-            WRITE(UNIT_StdOut,'(A,I8,A)')'when ', NbrOfParticle, ' particles were required!'
+            SWRITE(UNIT_StdOut,'(A)')'ERROR in ParticleEmission_parallel:'
+            SWRITE(UNIT_StdOut,'(A,I0)')'Fraction Nbr: ', FractNbr
+            SWRITE(UNIT_StdOut,'(A,I8,A)')'matched ', sumOfMatchedParticles, ' particles'
+            SWRITE(UNIT_StdOut,'(A,I8,A)')'when ', NbrOfParticle, ' particles were required!'
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
          END IF
        END IF
 #endif
 #if (PP_TimeDiscMethod!=1000) && (PP_TimeDiscMethod!=1001)
-!j        CALL abort(__STAMP__,&
-!j          'selected timedisk does not allow num of inserted part .gt. required')
+!        CALL abort(__STAMP__,&
+!          'selected timedisk does not allow num of inserted part .gt. required')
 #endif
       ELSE IF (nbrOfParticle .EQ. sumOfMatchedParticles) THEN
         !IF(DoDisplayEmissionWarnings)THEN
@@ -1663,7 +1741,7 @@ END IF ! mode 1/2
 
 END SUBROUTINE SetParticlePosition
 
-SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle,Is_BGGas_opt)
+SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle,init_or_sf,Is_BGGas_opt)
 !===================================================================================================================================
 ! Determine the particle velocity of each inserted particle
 !===================================================================================================================================
@@ -1673,11 +1751,12 @@ USE MOD_Timedisc_Vars, ONLY : dt
 USE MOD_Equation_Vars, ONLY : c,c2
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
+!USE Ziggurat,          ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr,iInit                                                   
+INTEGER,INTENT(IN)               :: FractNbr,iInit,init_or_sf                                                  
 LOGICAL, OPTIONAL                :: Is_BGGas_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1693,6 +1772,22 @@ REAL                             :: r1,r2,x_1,x_2,y_1,y_2,a,b,e,g,x_01,x_02,y_01
 REAL                             :: Velosq, v_sum(3), v2_sum, maxwellfac
 LOGICAL                          :: Is_BGGas
 REAL                             :: sigma(3), ftl, PartVelo 
+REAL                             :: RandN_save
+LOGICAL                          :: RandN_in_Mem
+CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
+REAL                                   :: RadiusIC                         ! Radius for IC circle
+REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
+REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
+REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
+REAL                                   :: VeloIC                           ! velocity for inital Data
+REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
+REAL                                   :: WeibelVeloPar                    ! Parrallel velocity component for Weibel
+REAL                                   :: WeibelVeloPer                    ! Perpendicular velocity component for Weibel
+REAL                                   :: OneDTwoStreamVelo                ! Stream Velocity for the Two Stream Instability
+REAL                                   :: OneDTwoStreamTransRatio          ! Ratio between perpendicular and parallel velocity
+REAL                                   :: Alpha                            ! WaveNumber for sin-deviation initiation.
+REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
+REAL                                   :: MJRatio(3)                       ! momentum to temperature ratio
 ! Maxwell-Juettner
 REAL                             :: eps, anta, BesselK2,  gamm_k, max_val, qq, u_max, value, velabs, xixi, f_gamm
 !===================================================================================================================================
@@ -1704,13 +1799,48 @@ ELSE
 END IF
 
 IF(NbrOfParticle.lt.1) RETURN
-IF(Species(FractNbr)%Init(iInit)%VirtPreInsert) RETURN !velocities already set in SetParticlePosition!
- 
-!   IF(NbrOfParticle.gt.PIC%maxParticleNumber)THEN
-!      NbrOfParticle = PIC%maxParticleNumber
-!   END IF
+   IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
+      CALL abort(__STAMP__,&
+              'NbrOfParticle > PIC%maxParticleNumber!')
+   END IF
+RandN_in_Mem=.FALSE.
+SELECT CASE (init_or_sf)
+CASE(1) !iInit
+  IF(Species(FractNbr)%Init(iInit)%VirtPreInsert) RETURN !velocities already set in SetParticlePosition!
 
-SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%velocityDistribution))
+  velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
+  VeloVecIC=Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
+  VeloIC=Species(FractNbr)%Init(iInit)%VeloIC
+  BasePointIC=Species(FractNbr)%Init(iInit)%BasePointIC(1:3)
+  NormalIC=Species(FractNbr)%Init(iInit)%NormalIC(1:3)
+  RadiusIC=Species(FractNbr)%Init(iInit)%RadiusIC
+  Alpha=Species(FractNbr)%Init(iInit)%alpha
+  RadiusICGyro=Species(FractNbr)%Init(iInit)%RadiusICGyro
+  MWTemperatureIC=Species(FractNbr)%Init(iInit)%MWTemperatureIC
+  WeibelVeloPar=Species(FractNbr)%Init(iInit)%WeibelVeloPar
+  WeibelVeloPer=Species(FractNbr)%Init(iInit)%WeibelVeloPer
+  OneDTwoStreamVelo=Species(FractNbr)%Init(iInit)%OneDTwoStreamVelo
+  OneDTwoStreamTransRatio=Species(FractNbr)%Init(iInit)%OneDTwoStreamTransRatio
+  MJRatio(1)=Species(FractNbr)%Init(iInit)%MJxRatio
+  MJRatio(2)=Species(FractNbr)%Init(iInit)%MJyRatio
+  MJRatio(3)=Species(FractNbr)%Init(iInit)%MJzRatio
+CASE(2) !SurfaceFlux
+  IF (TRIM(Species(FractNbr)%Surfaceflux(iInit)%velocityDistribution).EQ.'constant') THEN
+    velocityDistribution=Species(FractNbr)%Surfaceflux(iInit)%velocityDistribution
+  ELSE
+    CALL abort(__STAMP__,&
+      'only constant velo-distri implemented in SetParticleVelocity for surfaceflux!') !other distris in SetSurfacefluxVelocities!!!
+  END IF
+  VeloVecIC=Species(FractNbr)%Surfaceflux(iInit)%VeloVecIC(1:3)
+  VeloIC=Species(FractNbr)%Surfaceflux(iInit)%VeloIC
+  MWTemperatureIC=Species(FractNbr)%Surfaceflux(iInit)%MWTemperatureIC
+
+CASE DEFAULT
+  CALL abort(__STAMP__,&
+    'neither iInit nor Surfaceflux defined as reference!')
+END SELECT
+
+SELECT CASE(TRIM(velocityDistribution))
 CASE('random')
   i = 1
   DO WHILE (i .le. NbrOfParticle)
@@ -1719,7 +1849,7 @@ CASE('random')
       CALL RANDOM_NUMBER(RandVal)
       RandVal(:) = RandVal(:) - 0.5
       RandVal(:) = RandVal(:)/SQRT(RandVal(1)**2+RandVal(2)**2+RandVal(3)**2)
-      PartState(PositionNbr,4:6) = RandVal(1:3) * Species(FractNbr)%Init(iInit)%VeloIC
+      PartState(PositionNbr,4:6) = RandVal(1:3) * VeloIC
     END IF
     i = i + 1
   END DO
@@ -1748,7 +1878,7 @@ CASE('constant')
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
-        PartState(PositionNbr,4:6) = Species(FractNbr)%Init(iInit)%VeloVecIC(1:3) * Species(FractNbr)%Init(iInit)%VeloIC
+        PartState(PositionNbr,4:6) = VeloVecIC(1:3) * VeloIC
      END IF
      i = i + 1
   END DO
@@ -1757,11 +1887,11 @@ CASE('radial_constant')
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
-        Radius(1:3) = PartState(PositionNbr,1:3) - Species(FractNbr)%Init(iInit)%BasePointIC(1:3)
+        Radius(1:3) = PartState(PositionNbr,1:3) - BasePointIC(1:3)
         !  Unity radius
-        !Radius(1:3) = Radius(1:3) / Species(FractNbr)%Init(iInit)%RadiusIC
+        !Radius(1:3) = Radius(1:3) / RadiusIC
         Radius(1:3) = Radius(1:3) / SQRT(Radius(1)**2+Radius(2)**2+Radius(3)**2) 
-        PartState(PositionNbr,4:6) = Radius(1:3) * Species(FractNbr)%Init(iInit)%VeloIC
+        PartState(PositionNbr,4:6) = Radius(1:3) * VeloIC
      END IF
      i = i + 1
   END DO
@@ -1770,12 +1900,12 @@ CASE('tangential_constant')
   DO WHILE (i .le. NbrOfParticle)
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
-        Radius(1:3) = PartState(PositionNbr,1:3) - Species(FractNbr)%Init(iInit)%BasePointIC(1:3)
+        Radius(1:3) = PartState(PositionNbr,1:3) - BasePointIC(1:3)
         !  Normal Vector of circle
-        n_vec(1:3) = Species(FractNbr)%Init(iInit)%NormalIC(1:3)
+        n_vec(1:3) = NormalIC(1:3)
         ! If we're doing Leapfrog, then use velocities from half-timestep before
         IF (ParticlePushMethod.EQ.'boris_leap_frog_scheme') THEN
-          Angle = 0.5 * dt * Species(FractNbr)%Init(iInit)%VeloIC / Species(FractNbr)%Init(iInit)%RadiusIC ! 0.5*dt*(v/r)
+          Angle = 0.5 * dt * VeloIC / RadiusIC ! 0.5*dt*(v/r)
           JJ(1,1:3) = (/   0.,-n_vec(3), n_vec(2)/)
           JJ(2,1:3) = (/ n_vec(3),   0.,-n_vec(1)/)
           JJ(3,1:3) = (/-n_vec(2), n_vec(1),   0./)
@@ -1792,13 +1922,13 @@ CASE('tangential_constant')
         tan_vec(2) = Radius(3)*n_vec(1) - Radius(1)*n_vec(3)
         tan_vec(3) = Radius(1)*n_vec(2) - Radius(2)*n_vec(1)
         ! If Gyrotron resonator: Add velocity in normal direction!
-        IF (Species(FractNbr)%Init(iInit)%alpha .gt. 0.) THEN 
-          n_vec = n_vec * ( 1 / Species(FractNbr)%Init(iInit)%alpha )
+        IF (Alpha .gt. 0.) THEN 
+          n_vec = n_vec * ( 1 / Alpha )
         ELSE 
           n_vec = 0
         END IF
         !  And finally the velocities
-        PartState(PositionNbr,4:6) = (tan_vec(1:3) + n_vec(1:3)) * Species(FractNbr)%Init(iInit)%VeloIC
+        PartState(PositionNbr,4:6) = (tan_vec(1:3) + n_vec(1:3)) * VeloIC
      END IF
      i = i + 1
   END DO
@@ -1810,8 +1940,8 @@ CASE('gyrotron_circle')
      !! Position of particle on gyro circle changed in SetParticlePosition.F90: Problem
      !! We don't have the radius-vector any more. Thus transport the radius vector from there to here.
      ! Or do Alternative way: Hack the radius by intersecting two circles (big IC and small gyro circle)
-       r1 = Species(FractNbr)%Init(iInit)%RadiusIC
-       r2 = Species(FractNbr)%Init(iInit)%RadiusICGyro
+       r1 = RadiusIC
+       r2 = RadiusICGyro
        x_1 = 0.
        y_1 = 0.
        x_2 = PartState(PositionNbr,1)
@@ -1856,7 +1986,7 @@ CASE('gyrotron_circle')
                     & Radius too big after intersection."
         END IF
         !  Normal Vector of circle
-        n_vec(1:3) = Species(FractNbr)%Init(iInit)%NormalIC(1:3)
+        n_vec(1:3) = NormalIC(1:3)
 
         ! If we're doing Leapfrog, then use velocities from half-timestep before. This only applies in 
         ! x- and y-direction. z has allways same velo. 
@@ -1879,24 +2009,20 @@ CASE('gyrotron_circle')
            tan_vec(2) = Radius(3)*n_vec(1) - Radius(1)*n_vec(3) *PIC%GyroVecDirSIGN
            tan_vec(3) = Radius(1)*n_vec(2) - Radius(2)*n_vec(1)
            ! If Gyrotron resonator: Add velocity in normal direction!
-           IF (Species(FractNbr)%Init(iInit)%alpha .gt. 0.) THEN 
-             n_vec = n_vec * ( 1. / Species(FractNbr)%Init(iInit)%alpha )
+           IF (Alpha .gt. 0.) THEN 
+             n_vec = n_vec * ( 1. / Alpha )
            ELSE 
              n_vec = 0.
            END IF
            !  And finally the velocities
-           PartState(PositionNbr,4:6) = (tan_vec(1:3) + n_vec(1:3)) * Species(FractNbr)%Init(iInit)%VeloIC
+           PartState(PositionNbr,4:6) = (tan_vec(1:3) + n_vec(1:3)) * VeloIC
            IF (ABS(SQRT(PartState(PositionNbr,4)*PartState(PositionNbr,4) &
                       + PartState(PositionNbr,5)*PartState(PositionNbr,5))&
-                      - Species(FractNbr)%Init(iInit)%VeloIC) .GT. 10.) THEN
+                      - VeloIC) .GT. 10.) THEN
              SWRITE(*,'(A,3(E21.14,X))') 'Velocity=', PartState(PositionNbr,4:6)
              CALL abort(__STAMP__,&
                 'ERROR in gyrotron_circle spaceIC!')
            END If
-!           IF(SQRT(DOT_PRODUCT(PartState(PositionNbr,4:6),PartState(PositionNbr,4:6))).GT.c)THEN
-!             CALL abort(__STAMP__,&
-!                'particle faster than speed of light!')
-!           END IF
            IF (PartState(PositionNbr,4).NE.PartState(PositionNbr,4) .OR. &
                PartState(PositionNbr,5).NE.PartState(PositionNbr,5) .OR. &
                PartState(PositionNbr,6).NE.PartState(PositionNbr,6)     ) THEN
@@ -1917,6 +2043,14 @@ CASE('maxwell_lpn')
        PartState(PositionNbr,4:6) = Vec3D(1:3)
     END IF
   END DO
+CASE('emmert')
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr .NE. 0) THEN
+      CALL CalcVelocity_emmert(FractNbr, iInit, Vec3D)
+    END IF
+    PartState(PositionNbr,4:6) = Vec3D(1:3)
+  END DO
 CASE('maxwell')
   v_sum(1:3) = 0.0
   v2_sum = 0.0
@@ -1926,18 +2060,29 @@ CASE('maxwell')
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
         DO distnum = 1, 3
-          CALL RANDOM_NUMBER(RandVal)
-          Velo1 = 2.0*RandVal(1)-1.0
-          Velo2 = 2.0*RandVal(2)-1.0
-          Velosq= Velo1**2+Velo2**2
-          DO WHILE ((Velosq.LE.0).OR.(Velosq.GE.1))
-            CALL RANDOM_NUMBER(RandVal)
-            Velo1 = 2.0*RandVal(1)-1.0
-            Velo2 = 2.0*RandVal(2)-1.0
-            Velosq= Velo1**2+Velo2**2
-          END DO
-          Vec3D(distnum) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
-        END DO                    
+!          IF (.NOT.DoZigguratSampling) THEN !polar method
+            IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
+              Vec3D(distnum) = RandN_save
+              RandN_in_Mem=.FALSE.
+            ELSE
+              CALL RANDOM_NUMBER(RandVal)
+              Velo1 = 2.0*RandVal(1)-1.0
+              Velo2 = 2.0*RandVal(2)-1.0
+              Velosq= Velo1**2+Velo2**2
+              DO WHILE ((Velosq.LE.0).OR.(Velosq.GE.1))
+                CALL RANDOM_NUMBER(RandVal)
+                Velo1 = 2.0*RandVal(1)-1.0
+                Velo2 = 2.0*RandVal(2)-1.0
+                Velosq= Velo1**2+Velo2**2
+              END DO
+              Vec3D(distnum) = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
+              RandN_save = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
+              RandN_in_Mem=.TRUE.
+            END IF
+!          ELSE !ziggurat method
+!            Vec3D(distnum)=rnor()
+!          END IF
+        END DO
         PartState(PositionNbr,4:6) = Vec3D(1:3)
         v_sum(1:3) = v_sum(1:3) + Vec3D(1:3)
         v2_sum = v2_sum + Vec3D(1)**2+Vec3D(2)**2+Vec3D(3)**2
@@ -1946,7 +2091,7 @@ CASE('maxwell')
   END DO
   v_sum(1:3) = v_sum(1:3) / NbrOfParticle
   v2_sum = v2_sum / NbrOfParticle
-  maxwellfac = SQRT(3. * BoltzmannConst * Species(FractNbr)%Init(iInit)%MWTemperatureIC / &              ! velocity of maximum
+  maxwellfac = SQRT(3. * BoltzmannConst * MWTemperatureIC / &              ! velocity of maximum
                  (Species(FractNbr)%MassIC*v2_sum))
 
   i = 1
@@ -1954,25 +2099,25 @@ CASE('maxwell')
      PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
      IF (PositionNbr .ne. 0) THEN
        PartState(PositionNbr,4:6) = (PartState(PositionNbr,4:6) - v_sum(1:3)) * maxwellfac &
-                                    + Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)        
+                                    + VeloIC *VeloVecIC(1:3)        
      END IF
      i = i + 1
   END DO
   
 CASE('maxwell-juettner')
   xixi = Species(FractNbr)%MassIC*c2/ &
-         (BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC)
+         (BoltzmannConst*MWTemperatureIC)
   BesselK2 = BessK(2,xixi)
   
   ! Find initial value for Newton Algorithm
   IF (xixi .LT. 4.d0) THEN
-    gamm_k = 5.d0 * BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/ &
+    gamm_k = 5.d0 * BoltzmannConst*MWTemperatureIC/ &
                     (Species(FractNbr)%MassIC*c2)
   ELSE
-    gamm_k = 1.d0 + BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/ &
+    gamm_k = 1.d0 + BoltzmannConst*MWTemperatureIC/ &
                     (Species(FractNbr)%MassIC*c2)
   END IF  
-  f_gamm = DEVI(Species(FractNbr)%MassIC, Species(FractNbr)%Init(iInit)%MWTemperatureIC, gamm_k)
+  f_gamm = DEVI(Species(FractNbr)%MassIC, MWTemperatureIC, gamm_k)
   
   ! Newton Algorithm to find maximum value of distribution function
   ! (valid for both the relativistic and quasi relativistic distribution)
@@ -1981,7 +2126,7 @@ CASE('maxwell-juettner')
   DO WHILE (abs(f_gamm) .GT. eps )
     i = i+1
     gamm_k = gamm_k - f_gamm/(xixi*(3._8*gamm_k**2._8-1._8)-10._8*gamm_k)
-    f_gamm = DEVI(Species(FractNbr)%MassIC, Species(FractNbr)%Init(iInit)%MWTemperatureIC, gamm_k)
+    f_gamm = DEVI(Species(FractNbr)%MassIC, MWTemperatureIC, gamm_k)
     IF(i.EQ.101) &
           CALL abort(__STAMP__,&
            ' Newton Algorithm to find maximum value of Maxwell-Juettner distribution has not been successfull!')
@@ -1989,10 +2134,10 @@ CASE('maxwell-juettner')
   
   u_max = sqrt(1.d0-1.d0/(gamm_k*gamm_k))*c
   IF (xixi .LT. 692.5_8) THEN                  ! due to numerical precision
-        max_val = SYNGE(u_max, Species(FractNbr)%Init(iInit)%MWTemperatureIC, &
+        max_val = SYNGE(u_max, MWTemperatureIC, &
                               Species(FractNbr)%MassIC, BesselK2)
       ELSE 
-        max_val = QUASIREL(u_max, Species(FractNbr)%Init(iInit)%MWTemperatureIC, &
+        max_val = QUASIREL(u_max, MWTemperatureIC, &
                                  Species(FractNbr)%MassIC)
       END IF
   
@@ -2008,10 +2153,10 @@ CASE('maxwell-juettner')
       velabs = velabs*c
       anta = anta*max_val
       IF (xixi .LT. 692.5_8) THEN
-        value = SYNGE(velabs, Species(FractNbr)%Init(iInit)%MWTemperatureIC, &
+        value = SYNGE(velabs, MWTemperatureIC, &
                               Species(FractNbr)%MassIC, BesselK2)
       ELSE 
-        value = QUASIREL(velabs, Species(FractNbr)%Init(iInit)%MWTemperatureIC, &
+        value = QUASIREL(velabs, MWTemperatureIC, &
                                  Species(FractNbr)%MassIC)
       END IF
     END DO
@@ -2025,8 +2170,8 @@ CASE('maxwell-juettner')
       qq = RandVal(1)*RandVal(1) + RandVal(2)*RandVal(2)
     END DO
     qq = sqrt(-2._8*log(qq)/qq)
-    Vec3D(1) = RandVal(1)*qq*Species(FractNbr)%Init(iInit)%MJxRatio
-    Vec3D(2) = RandVal(2)*qq*Species(FractNbr)%Init(iInit)%MJyRatio
+    Vec3D(1) = RandVal(1)*qq*MJRatio(1)
+    Vec3D(2) = RandVal(2)*qq*MJRatio(2)
     
     ! polar method for velocity's z direction
     qq = 2._8
@@ -2036,7 +2181,7 @@ CASE('maxwell-juettner')
       qq = RandVal(1)*RandVal(1) + RandVal(2)*RandVal(2)
     END DO
     qq = sqrt(-2._8*log(qq)/qq)
-    Vec3D(3) = RandVal(1)*qq*Species(FractNbr)%Init(iInit)%MJzRatio
+    Vec3D(3) = RandVal(1)*qq*MJRatio(3)
     
     Velosq  = sqrt(Vec3D(1)*Vec3D(1)+Vec3D(2)*Vec3D(2)+Vec3D(3)*Vec3D(3))
     PartState(PositionNbr,4:6) = velabs/Velosq*Vec3D
@@ -2050,25 +2195,37 @@ CASE('weibel')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
-      Velosq = 2.
-      DO WHILE ((Velosq .GT. 1.) .OR. (Velosq .EQ. 0.))
-        CALL RANDOM_NUMBER(RandVal)     
-        RandVal(:) = 2*RandVal(:)-1
-        Velosq = RandVal(1)**2 + RandVal(2)**2
-      END DO
-      Velosq = sqrt(-2*log(Velosq)/Velosq)
-      Vec3D(1) = RandVal(1)*Velosq
-      Vec3D(2) = RandVal(2)*Velosq
-      
-      Velosq = 2.
-      DO WHILE ((Velosq .GT. 1.) .OR. (Velosq .EQ. 0.))
-        CALL RANDOM_NUMBER(RandVal)     
-        RandVal(:) = 2*RandVal(:)-1
-        Velosq = RandVal(1)**2 + RandVal(2)**2
-      END DO
-      Velosq = sqrt(-2*log(Velosq)/Velosq)
-      Vec3D(3) = RandVal(1)*Velosq
-      
+!      IF (.NOT.DoZigguratSampling) THEN !polar method
+        Velosq = 2.
+        DO WHILE ((Velosq .GT. 1.) .OR. (Velosq .EQ. 0.))
+          CALL RANDOM_NUMBER(RandVal)
+          RandVal(:) = 2*RandVal(:)-1
+          Velosq = RandVal(1)**2 + RandVal(2)**2
+        END DO
+        Velosq = sqrt(-2*log(Velosq)/Velosq)
+        Vec3D(1) = RandVal(1)*Velosq
+        Vec3D(2) = RandVal(2)*Velosq
+        
+        IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
+          Vec3D(3) = RandN_save
+          RandN_in_Mem=.FALSE.
+        ELSE
+          Velosq = 2.
+          DO WHILE ((Velosq .GT. 1.) .OR. (Velosq .EQ. 0.))
+            CALL RANDOM_NUMBER(RandVal)
+            RandVal(:) = 2*RandVal(:)-1
+            Velosq = RandVal(1)**2 + RandVal(2)**2
+          END DO
+          Velosq = sqrt(-2*log(Velosq)/Velosq)
+          Vec3D(3) = RandVal(1)*Velosq
+          RandN_save = RandVal(2)*Velosq
+          RandN_in_Mem=.TRUE.
+        END IF
+!      ELSE !ziggurat method
+!        Vec3D(1) = rnor()
+!        Vec3D(2) = rnor()
+!        Vec3D(3) = rnor()
+!      END IF
       v_sum(:) = v_sum(:)  + Vec3D(:)
       sigma(:)   = sigma(:)    + Vec3D(:)**2
       PartState(PositionNbr,4:6) = Vec3D(1:3)
@@ -2106,39 +2263,52 @@ CASE('weibel')
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
       PartState(PositionNbr,4)   = (PartState(PositionNbr,4)  -v_sum(1)) * &
-                                    SQRT(Species(FractNbr)%Init(iInit)%WeibelVeloPar**2/sigma(1)) *c
+                                    SQRT(WeibelVeloPar**2/sigma(1)) *c
       PartState(PositionNbr,5:6) = (PartState(PositionNbr,5:6)-v_sum(2:3)) * & 
-                                    SQRT(Species(FractNbr)%Init(iInit)%WeibelVeloPer**2/sigma(2:3)) *c
+                                    SQRT(WeibelVeloPer**2/sigma(2:3)) *c
       PartVelo = SQRT(PartState(PositionNbr,4)**2+PartState(PositionNbr,5)**2+PartState(PositionNbr,6)**2)
       
       DO WHILE (PartVelo .GE. c)
         ftl = ftl+1
         IPWRITE(UNIT_stdOut,*) 'Number of Particles FTL:', ftl
-! 	      PartState(PositionNbr,4:6) = PartState(PositionNbr,4:6) * ((1.-0.00001)/PartVelo)
-        Velosq = 2.
-        DO WHILE ((Velosq .GT. 1.) .OR. (Velosq .EQ. 0.))
-          CALL RANDOM_NUMBER(RandVal)     
-          RandVal(:) = 2*RandVal(:)-1
-          Velosq = RandVal(1)**2 + RandVal(2)**2
-        END DO
-        Velosq = sqrt(-2*log(Velosq)/Velosq)
-        Vec3D(1) = RandVal(1)*Velosq
-        Vec3D(2) = RandVal(2)*Velosq
+!        IF (.NOT.DoZigguratSampling) THEN !polar method
+          Velosq = 2.
+          DO WHILE ((Velosq .GT. 1.) .OR. (Velosq .EQ. 0.))
+            CALL RANDOM_NUMBER(RandVal)
+            RandVal(:) = 2*RandVal(:)-1
+            Velosq = RandVal(1)**2 + RandVal(2)**2
+          END DO
+          Velosq = sqrt(-2*log(Velosq)/Velosq)
+          Vec3D(1) = RandVal(1)*Velosq
+          Vec3D(2) = RandVal(2)*Velosq
+          
+          IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
+            Vec3D(3) = RandN_save
+            RandN_in_Mem=.FALSE.
+          ELSE
+            Velosq = 2.
+            DO WHILE ((Velosq .GT. 1.) .OR. (Velosq .EQ. 0.))
+              CALL RANDOM_NUMBER(RandVal)
+              RandVal(:) = 2*RandVal(:)-1
+              Velosq = RandVal(1)**2 + RandVal(2)**2
+            END DO
+            Velosq = sqrt(-2*log(Velosq)/Velosq)
+            Vec3D(3) = RandVal(1)*Velosq
+            RandN_save = RandVal(2)*Velosq
+            RandN_in_Mem=.TRUE.
+          END IF
+!        ELSE !ziggurat method
+!          Vec3D(1) = rnor()
+!          Vec3D(2) = rnor()
+!          Vec3D(3) = rnor()
+!        END IF
         
-        Velosq = 2.
-        DO WHILE ((Velosq .GT. 1.) .OR. (Velosq .EQ. 0.))
-          CALL RANDOM_NUMBER(RandVal)     
-          RandVal(:) = 2*RandVal(:)-1
-          Velosq = RandVal(1)**2 + RandVal(2)**2
-        END DO
-        Velosq = sqrt(-2*log(Velosq)/Velosq)
-        Vec3D(3) = RandVal(1)*Velosq
         PartState(PositionNbr,4:6) = Vec3D(1:3)
         
         PartState(PositionNbr,4)   = (Vec3D(1)  -v_sum(1)) * &
-            SQRT(Species(FractNbr)%Init(iInit)%WeibelVeloPar**2/sigma(1)) *c
+            SQRT(WeibelVeloPar**2/sigma(1)) *c
         PartState(PositionNbr,5:6) = (Vec3D(2:3)-v_sum(2:3)) * & 
-            SQRT(Species(FractNbr)%Init(iInit)%WeibelVeloPer**2/sigma(2:3)) *c
+            SQRT(WeibelVeloPer**2/sigma(2:3)) *c
         PartVelo = SQRT(PartState(PositionNbr,4)**2+PartState(PositionNbr,5)**2+PartState(PositionNbr,6)**2)
       END DO
     END IF
@@ -2148,22 +2318,30 @@ CASE('OneD-twostreaminstabilty')
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
-      PartState(PositionNbr,4) = Species(FractNbr)%Init(iInit)%OneDTwoStreamVelo
-      PartState(PositionNbr,5:6) = Species(FractNbr)%Init(iInit)%OneDTwoStreamTransRatio
-      
-      Velosq = 2.
-      DO WHILE ((Velosq .GT. 1.) .OR. (Velosq .EQ. 0.))
-        CALL RANDOM_NUMBER(RandVal)     
-        RandVal(:) = 2*RandVal(:)-1
-        Velosq = RandVal(1)**2 + RandVal(2)**2
-      END DO
-      Velosq = sqrt(-2*log(Velosq)/Velosq)
-      PartState(PositionNbr,5) = RandVal(1)*Velosq*Species(FractNbr)%Init(iInit)%OneDTwoStreamTransRatio* &
-                                                   Species(FractNbr)%Init(iInit)%OneDTwoStreamVelo
-      PartState(PositionNbr,6) = RandVal(2)*Velosq*Species(FractNbr)%Init(iInit)%OneDTwoStreamTransRatio* &
-                                                   Species(FractNbr)%Init(iInit)%OneDTwoStreamVelo
+      PartState(PositionNbr,4) = OneDTwoStreamVelo
+      PartState(PositionNbr,5:6) = OneDTwoStreamTransRatio
+!      IF (.NOT.DoZigguratSampling) THEN !polar method
+        Velosq = 2.
+        DO WHILE ((Velosq .GT. 1.) .OR. (Velosq .EQ. 0.))
+          CALL RANDOM_NUMBER(RandVal)
+          RandVal(:) = 2*RandVal(:)-1
+          Velosq = RandVal(1)**2 + RandVal(2)**2
+        END DO
+        RandVal(1:2) = RandVal(1:2)*sqrt(-2*log(Velosq)/Velosq)
+!      ELSE
+!        RandVal(1) = rnor()
+!        RandVal(2) = rnor()
+!      END IF
+      PartState(PositionNbr,5) = RandVal(1)*OneDTwoStreamTransRatio* &
+                                                   OneDTwoStreamVelo
+      PartState(PositionNbr,6) = RandVal(2)*OneDTwoStreamTransRatio* &
+                                                   OneDTwoStreamVelo
     END IF  
   END DO
+
+CASE DEFAULT
+  CALL abort(__STAMP__,&
+    'wrong velo-distri!')
 
 END SELECT
 
@@ -2480,7 +2658,7 @@ INTEGER,INTENT(INOUT) :: NbrPartsInCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iPart, iPartIndx
-REAL                  :: MPFSum, WeightFak, kappa_part, AvogadroConst, RandVal, RealnumberNewParts, RealnumberNewPartsRest
+REAL                  :: MPFSum, WeightFak, kappa_part, AvogadroConst, RandVal, RealnumberNewParts
 REAL                  :: Samp_V2(3), Samp_Temp(4), OldConstPressureSamp(6)
 !===================================================================================================================================
 
@@ -2513,7 +2691,7 @@ IF (NbrPartsInCell .GT. 1) THEN ! Are there more than one particle
   END DO
 
   !Calculation of specific heat ratio (no vibrational DOF -> only at low temperatures !!!)
-  IF(SpecDSMC(PartSpecies(iPartIndx))%InterID.EQ.2) THEN
+  IF((SpecDSMC(PartSpecies(iPartIndx))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPartIndx))%InterID.EQ.20)) THEN
     kappa_part=1.4
   ELSE IF(SpecDSMC(PartSpecies(iPartIndx))%InterID.EQ.1) THEN
     kappa_part=5.0/3.0
@@ -2546,11 +2724,9 @@ IF (NbrPartsInCell .GT. 1) THEN ! Are there more than one particle
        + (Species(iSpec)%Init(iInit)%ConstantPressure - Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,5)) &
        / (Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,6) * Species(iSpec)%MassIC)) &
        * GEO%Volume(iElem) / Species(iSpec)%MacroParticleFactor !!!not sure if MPF treatment is correct!!!
-  RealnumberNewPartsRest = RealnumberNewParts - INT(RealnumberNewParts)
-  IF(RealnumberNewParts.GT.0) THEN
+  IF(RealnumberNewParts.GT.0.) THEN
     CALL RANDOM_NUMBER(RandVal)
-    IF(RealnumberNewPartsRest.GT.RandVal) RealnumberNewParts = RealnumberNewParts + 1.0
-    NbrPartsInCell = INT(RealnumberNewParts)
+    NbrPartsInCell = INT(RealnumberNewParts+RandVal)
   ELSE
     NbrPartsInCell = 0
   END IF
@@ -2568,7 +2744,8 @@ SUBROUTINE CalcVelocity_maxwell_lpn(FractNbr, iInit, Vec3D, Element)
 ! Subroutine to sample current cell values (partly copied from 'LD_DSMC_Mean_Bufferzone_A_Val' and 'dsmc_analyze')
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species, BGGdataAtElem
+USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species, BGGdataAtElem!, DoZigguratSampling
+!USE Ziggurat,                   ONLY : rnor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2581,6 +2758,8 @@ REAL,INTENT(OUT)                 :: Vec3D(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                             :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
+REAL                             :: RandN_save
+LOGICAL                          :: RandN_in_Mem
 !===================================================================================================================================
 
 IF (PRESENT(Element)) THEN
@@ -2595,29 +2774,137 @@ ELSE
   v_drift=Species(FractNbr)%Init(iInit)%VeloIC *Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
 END IF
 
-Velosq = 2
-DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-  CALL RANDOM_NUMBER(RandVal)
-  Velo1 = 2.*RandVal(1) - 1.
-  Velo2 = 2.*RandVal(2) - 1.
-  Velosq = Velo1**2 + Velo2**2
-END DO
-Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*Tx/ &
-  Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !x-Komponente
-Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*Ty/ &
-  Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !y-Komponente
-Velosq = 2
-DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-  CALL RANDOM_NUMBER(RandVal)
-  Velo1 = 2.*RandVal(1) - 1.
-  Velo2 = 2.*RandVal(2) - 1.
-  Velosq = Velo1**2 + Velo2**2
-END DO
-Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Tz/ &
-  Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !z-Komponente
+RandN_in_Mem=.FALSE.
+
+!IF (.NOT.DoZigguratSampling) THEN !polar method
+  Velosq = 2
+  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+    CALL RANDOM_NUMBER(RandVal)
+    Velo1 = 2.*RandVal(1) - 1.
+    Velo2 = 2.*RandVal(2) - 1.
+    Velosq = Velo1**2 + Velo2**2
+  END DO
+  Vec3D(1) = Velo1*SQRT(-2*BoltzmannConst*Tx/ &
+    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !x-Komponente
+  Vec3D(2) = Velo2*SQRT(-2*BoltzmannConst*Ty/ &
+    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !y-Komponente
+  IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
+    Vec3D(3) = RandN_save*SQRT(BoltzmannConst*Tz/ &
+      Species(FractNbr)%MassIC)                                !z-Komponente
+    RandN_in_Mem=.FALSE.
+  ELSE
+    Velosq = 2
+    DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+      CALL RANDOM_NUMBER(RandVal)
+      Velo1 = 2.*RandVal(1) - 1.
+      Velo2 = 2.*RandVal(2) - 1.
+      Velosq = Velo1**2 + Velo2**2
+    END DO
+    Vec3D(3) = Velo1*SQRT(-2*BoltzmannConst*Tz/ &
+      Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !z-Komponente
+    RandN_save = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
+    RandN_in_Mem=.TRUE.
+  END IF
+!ELSE !ziggurat method
+!  Velo1 = rnor()
+!  Vec3D(1) = Velo1*SQRT(BoltzmannConst*Tx/Species(FractNbr)%MassIC)             !x-Komponente
+!  Velo1 = rnor()
+!  Vec3D(2) = Velo1*SQRT(BoltzmannConst*Ty/Species(FractNbr)%MassIC)             !y-Komponente
+!  Velo1 = rnor()
+!  Vec3D(3) = Velo1*SQRT(BoltzmannConst*Tz/Species(FractNbr)%MassIC)             !z-Komponente
+!END IF
 Vec3D(1:3) = Vec3D(1:3) + v_drift
 
 END SUBROUTINE CalcVelocity_maxwell_lpn
+
+
+SUBROUTINE CalcVelocity_emmert(FractNbr, iInit, Vec3D)
+!===================================================================================================================================
+! Subroutine to sample particle velos in VecIC from distri by Emmert et al. [Phys. Fluids 23, 803 (1980)] and in normal dir. from MB
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species!, DoZigguratSampling
+!USE Ziggurat,                   ONLY : rnor
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: FractNbr, iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: Vec3D(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: RandVal(3), Velo1, Velo2, Velosq, T, v_dir(3), vec_t1(3), vec_t2(3), v_d
+!===================================================================================================================================
+
+T=Species(FractNbr)%Init(iInit)%MWTemperatureIC
+v_dir=Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
+v_d=Species(FractNbr)%Init(iInit)%VeloIC
+
+!--build arbitrary vectors normal to v_dir
+IF (.NOT.ALMOSTEQUAL(v_dir(3),0.)) THEN
+  vec_t1(1) = 1.0
+  vec_t1(2) = 1.0
+  vec_t1(3) = -(v_dir(1)+v_dir(2))/v_dir(3)
+  vec_t2(1) = v_dir(2) * vec_t1(3) - v_dir(3)
+  vec_t2(2) = v_dir(3) - v_dir(1) * vec_t1(3)
+  vec_t2(3) = v_dir(1) - v_dir(2)
+  vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(3)*vec_t1(3))
+ELSE
+  IF (.NOT.ALMOSTEQUAL(v_dir(2),0.)) THEN
+    vec_t1(1) = 1.0
+    vec_t1(3) = 1.0
+    vec_t1(2) = -(v_dir(1)+v_dir(3))/v_dir(2)
+    vec_t2(1) = v_dir(2) - v_dir(3) * vec_t1(2)
+    vec_t2(2) = v_dir(3) - v_dir(1)
+    vec_t2(3) = v_dir(1) * vec_t1(2) - v_dir(2)
+    vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(2)*vec_t1(2))
+  ELSE
+    IF (.NOT.ALMOSTEQUAL(v_dir(1),0.)) THEN
+      vec_t1(2) = 1.0
+      vec_t1(3) = 1.0
+      vec_t1(1) = -(v_dir(2)+v_dir(3))/v_dir(1)
+      vec_t2(1) = v_dir(2) - v_dir(3)
+      vec_t2(2) = v_dir(3) * vec_t1(1) - v_dir(1)
+      vec_t2(3) = v_dir(1) - v_dir(2) * vec_t1(1)
+      vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(1)*vec_t1(1))
+    ELSE
+      CALL abort(__STAMP__,&
+        'Error in CalcVelocity_emmert, VeloVecIC is zero!')
+    END IF
+  END IF
+END IF
+vec_t2 = vec_t2 / SQRT(vec_t2(1)*vec_t2(1) + vec_t2(2)*vec_t2(2) + vec_t2(3)*vec_t2(3))
+
+!--sample velocities
+!IF (.NOT.DoZigguratSampling) THEN !polar method
+  Velosq = 2
+  DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
+    CALL RANDOM_NUMBER(RandVal)
+    Velo1 = 2.*RandVal(1) - 1.
+    Velo2 = 2.*RandVal(2) - 1.
+    Velosq = Velo1**2 + Velo2**2
+  END DO
+  Vec3D(1:3) =              vec_t1(1:3)*Velo1*SQRT(-2*BoltzmannConst*T/ &
+    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !n1-Komponente (maxwell_lpn)
+  Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3)*Velo2*SQRT(-2*BoltzmannConst*T/ &
+    Species(FractNbr)%MassIC*LOG(Velosq)/Velosq)                                !n2-Komponente (maxwell_lpn)
+!ELSE !ziggurat method
+!  Velo1=rnor()
+!  Vec3D(1:3) =              vec_t1(1:3)*Velo1*SQRT(BoltzmannConst*T/ &
+!    Species(FractNbr)%MassIC)                                !n1-Komponente (maxwell_lpn)
+!  Velo2=rnor()
+!  Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3)*Velo2*SQRT(BoltzmannConst*T/ &
+!    Species(FractNbr)%MassIC)                                !n2-Komponente (maxwell_lpn)
+!END IF
+Vec3D(1:3) = Vec3D(1:3) + v_dir(1:3)*SQRT(BoltzmannConst*T/Species(FractNbr)%MassIC)* &                ! (emmert)
+  sign(1.d0,RandVal(3)-0.5d0)*SQRT(-2*log(1-sign(1.d0,RandVal(3)-0.5d0)*(2*RandVal(3)-1)))
+
+Vec3D(1:3) = Vec3D(1:3) + v_dir(1:3)*v_d
+
+END SUBROUTINE CalcVelocity_emmert
 
 
 SUBROUTINE InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
@@ -2711,6 +2998,197 @@ END DO
 
 END SUBROUTINE InsideExcludeRegionCheck
 
+
+SUBROUTINE InitializeParticleSurfaceflux()                                                                     
+!===================================================================================================================================
+! Init Particle Inserting via Surface Flux
+!===================================================================================================================================
+RETURN
+
+END SUBROUTINE InitializeParticleSurfaceflux
+
+
+SUBROUTINE ParticleSurfaceflux()                                                                     
+!===================================================================================================================================
+! Particle Inserting via Surface Flux
+!===================================================================================================================================
+RETURN
+
+END SUBROUTINE ParticleSurfaceflux
+
+
+SUBROUTINE SetSurfacefluxVelocities(FractNbr,iSF,TriNum,iSide,SideID,NbrOfParticle,PartInsSide)
+!===================================================================================================================================
+! Determine the particle velocity of each inserted particle
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY : PI
+USE MOD_Particle_Vars
+USE MOD_Mesh_Vars,              ONLY : SideData
+!USE Ziggurat,                   ONLY : rnor
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: FractNbr,iSF,TriNum,iSide,SideID,NbrOfParticle,PartInsSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES           
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: i,PositionNbr,envelope,currentBC
+REAL                             :: Vec3D(3)
+REAL                             :: a,zstar,RandVal1,RandVal2(2),RandVal3(3),u,RandN,RandN_save,Velo1,Velo2,Velosq,T,beta,z
+LOGICAL                          :: RandN_in_Mem
+CHARACTER(30)                    :: velocityDistribution             ! specifying keyword for velocity distribution
+!===================================================================================================================================
+
+RETURN
+
+END SUBROUTINE SetSurfacefluxVelocities
+
+
+SUBROUTINE SamplePoissonDistri(RealTarget,IntSample,Flag_opt)
+!===================================================================================================================================
+! Sample IntSample from Poisson-Distri around RealTarget (if Flag present it will be turned off at sample limit, otherwise abort)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                :: RealTarget
+LOGICAL,INTENT(INOUT),OPTIONAL :: Flag_opt
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES      
+INTEGER,INTENT(OUT)            :: IntSample    
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL         :: Flag
+INTEGER         :: Npois
+REAL            :: Tpois, RandVal1
+!===================================================================================================================================
+
+IF (PRESENT(Flag_opt)) THEN
+  Flag=Flag_opt
+ELSE
+  Flag=.FALSE.
+END IF
+
+Npois=0
+Tpois=1.0
+CALL RANDOM_NUMBER(RandVal1)
+DO
+  Tpois=RandVal1*Tpois
+  IF (Tpois.LT.TINY(Tpois)) THEN
+    IF (Flag) THEN !Turn off Poisson Sampling and "sample" by random-rounding
+      IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
+      IntSample = INT(RealTarget + RandVal1)
+      Flag = .FALSE.
+      EXIT
+    ELSE !Turning off not allowed: abort (RealTarget must be decreased ot PoissonSampling turned off manually)
+      CALL abort(__STAMP__,&
+        'ERROR in SamplePoissonDistri: RealTarget (e.g. flux) is too large for poisson sampling!')
+    END IF
+  END IF
+  IF (Tpois.GT.EXP(-RealTarget)) THEN
+    Npois=Npois+1
+    CALL RANDOM_NUMBER(RandVal1)
+  ELSE
+    IntSample = Npois
+    EXIT
+  END IF
+END DO
+
+END SUBROUTINE SamplePoissonDistri
+
+
+SUBROUTINE IntegerDivide(Ntot,length,Ai,Ni)
+!===================================================================================================================================
+! Divide the Integer Ntot into separate Ni inside different "areas" Ai (attention: old Ni is counted up -> needs to be initialized!)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: Ntot, length
+REAL,INTENT(IN)                  :: Ai(1:length)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES      
+INTEGER,INTENT(INOUT)            :: Ni(1:length)     
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER         :: iN, iRan, Nitemp, Nrest, Ntot0
+REAL            :: Atot, Bi(0:length), RandVal1, A2i(1:length), A2tot !,Error,Nrel(1:length),Arel(1:length)
+!===================================================================================================================================
+
+IF(Ntot.EQ.0) RETURN
+
+Atot=0.
+Ntot0=0
+DO iN=1,length
+  Atot=Atot+Ai(iN)
+  Ntot0=Ntot0+Ni(iN)
+END DO
+!print*,Ai/Atot
+
+!-- divide into INT-parts
+Nrest=Ntot
+A2tot=0.
+Bi(:)=0.
+DO iN=1,length
+  Nitemp=INT(REAL(Ai(iN))/REAL(Atot)*Ntot) !INT-part
+  Ni(iN)=Ni(iN)+Nitemp
+  Nrest=Nrest-Nitemp !remaining number
+  A2i(iN)=REAL(Ai(iN))/REAL(Atot)*Ntot - Nitemp !elem weight for remaining number
+  A2tot=A2tot+A2i(iN)
+  Bi(iN)=A2tot !elem upper limit for remaining number
+END DO
+
+!-- distribute remaining number
+IF (Nrest.LT.0) THEN
+  CALL abort(__STAMP__,&
+    'ERROR 1 in IntegerDivide!')
+ELSE IF (Nrest.GT.0) THEN
+  DO iN=1,length
+    Bi(iN)=Bi(iN)/A2tot !normalized upper limit
+  END DO
+  DO iRan=1,Nrest
+    CALL RANDOM_NUMBER(RandVal1)
+    DO iN=1,length
+      IF( Bi(iN-1).LT.RandVal1 .AND. RandVal1.LE.Bi(iN) ) THEN
+        Ni(iN)=Ni(iN)+1
+        EXIT
+      END IF
+    END DO
+  END DO
+END IF
+
+!-- test if remaining number was distributed
+Nrest=Ntot+Ntot0
+DO iN=1,length
+  Nrest=Nrest-Ni(iN)
+END DO
+IF (Nrest.NE.0) THEN
+  IPWRITE(*,*) 'Ntot: ',Ntot
+  IPWRITE(*,*) 'Ntot0: ',Ntot0
+  IPWRITE(*,*) 'Nrest: ',Nrest
+  CALL abort(__STAMP__,&
+    'ERROR 2 in IntegerDivide!')
+END IF
+
+!Error=0
+!DO iN=1,length
+!  Nrel(iN)=REAL(Ni(iN))/REAL(Ntot)
+!  Arel(iN)=Ai(iN)      /Atot
+!  Error=Error+(Nrel(iN)-Arel(iN))**2
+!END DO
+!IPWRITE(*,*)'Error=',Error
+
+END SUBROUTINE IntegerDivide
 
 FUNCTION SYNGE(velabs, temp, mass, BK2)
 !===================================================================================================================================
@@ -2918,5 +3396,6 @@ INTEGER  :: kk, k0
   BessK = 2._8*(ord-1._8)*BessK1/arg + BessK0
   
 END FUNCTION BessK
+
 
 END MODULE MOD_part_emission

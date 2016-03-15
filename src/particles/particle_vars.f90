@@ -222,7 +222,7 @@ TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE    :: pEnd(:)           !     =>NULL()  ! End of Linked List for Particles in Element
                                                                !               ! pEnd(1:PIC%nElem)
   INTEGER                , ALLOCATABLE    :: pNext(:)          !     =>NULL()  ! Next Particle in same Element (Linked List)
-                                                                             ! pStart(1:PIC%maxParticleNumber)
+                                                                               ! pStart(1:PIC%maxParticleNumber)
 END TYPE
 
 TYPE(tParticleElementMapping)            :: PEM
@@ -285,7 +285,7 @@ LOGICAL                                  :: PartPressureCell                  ! 
 LOGICAL                                  :: PartPressAddParts                 ! Should Parts be added to reach wanted pressure?
 LOGICAL                                  :: PartPressRemParts                 ! Should Parts be removed to reach wanted pressure?
 INTEGER                                  :: NumRanVec      ! Number of predefined random vectors
-REAL  , ALLOCATABLE                      :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
+REAL, ALLOCATABLE                        :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
 REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)          ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
 LOGICAL                                  :: useVTKFileBGG                     ! Flag for BGG via VTK-File
 REAL, ALLOCATABLE                        :: BGGdataAtElem(:,:)                ! data for BGG via VTK-File

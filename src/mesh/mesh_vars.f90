@@ -146,10 +146,18 @@ TYPE tNode
   INTEGER                      :: ind=0         ! global unique node index
   REAL                         :: x(3)=0.
 END TYPE tNode
+
+TYPE tDataTria
+  REAL                                   :: vec_nIn(3)                       ! inwards normal of tria
+  REAL                                   :: vec_t1(3)                        ! first orth. vector in tria
+  REAL                                   :: vec_t2(3)                        ! second orth. vector in tria
+  REAL                                   :: area                             ! area of tria
+END TYPE tDataTria
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE(tElemPtr),POINTER         :: Elems(:)
 TYPE(tElem),POINTER            :: aElem
 TYPE(tSide),POINTER            :: aSide,bSide
+TYPE(tDataTria),ALLOCATABLE    :: SideData(:,:)   !data of triangulated Sides (e.g. normal+tang. vectors), (Tri1:Tri2,nBCSides+...)
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL          :: MeshInitIsDone =.FALSE.
 !===================================================================================================================================

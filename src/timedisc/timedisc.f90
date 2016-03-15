@@ -35,7 +35,7 @@ SUBROUTINE InitTimeDisc()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools,          ONLY:GetReal,GetInt, GETLOGICAL
-USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone
+USE MOD_TimeDisc_Vars,        ONLY:CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal
 USE MOD_TimeDisc_Vars,        ONLY:IterDisplayStep,DoDisplayIter,IterDisplayStepUser,DoDisplayEmissionWarnings
 USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
@@ -115,6 +115,8 @@ dt=HUGE(1.)
 #elif (PP_TimeDiscMethod==1001)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LD-DSMC'
 # endif
+RKdtFrac=1.
+RKdtFracTotal=1.
 TimediscInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT TIMEDISC DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -426,7 +428,7 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod==3)
   CALL TimeStepByTAYLOR(time)
 #elif (PP_TimeDiscMethod==4)
-  CALL TimeStep_DSMC(time)
+  CALL TimeStep_DSMC()
 #elif (PP_TimeDiscMethod==5)
   CALL TimeStepByRK4EulerExpl(time)
 #elif (PP_TimeDiscMethod==6)
@@ -1338,7 +1340,7 @@ END SUBROUTINE TimeStepByTAYLOR
 #endif
 
 #if (PP_TimeDiscMethod==4)
-SUBROUTINE TimeStep_DSMC(t)
+SUBROUTINE TimeStep_DSMC()
 !===================================================================================================================================
 ! Hesthaven book, page 64
 ! Low-Storage Runge-Kutta integration of degree 4 with 5 stages.
@@ -1347,14 +1349,16 @@ SUBROUTINE TimeStep_DSMC(t)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY: dt
+USE MOD_TimeDisc_Vars,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Filter,ONLY:Filter
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos,  PDM,PEM
-USE MOD_DSMC_Vars,        ONLY : DSMC_RHS
+USE MOD_Globals,          ONLY : abort
+USE MOD_Particle_Vars,    ONLY : KeepWallParticles
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroValues
+USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode, Adsorption
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting
+USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
 #ifdef MPI
@@ -1366,23 +1370,45 @@ USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
+INTEGER :: iPart
+REAL    :: RandVal, dtFrac
 !===================================================================================================================================
 
-  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-
-  PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) &
-                                         + PartState(1:PDM%ParticleVecLength,4) * dt
-  PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) &
-                                         + PartState(1:PDM%ParticleVecLength,5) * dt
-  PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
-                                         + PartState(1:PDM%ParticleVecLength,6) * dt
+  IF (DoSurfaceFlux) THEN
+    CALL ParticleSurfaceflux()
+    
+    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+    PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+    DO iPart=1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
+        IF (.NOT.PDM%dtFracPush(iPart)) THEN
+          PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
+          PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
+          PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
+        ELSE
+          CALL RANDOM_NUMBER(RandVal)
+          dtFrac = dt * RandVal
+          PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
+          PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
+          PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
+          PDM%dtFracPush(iPart) = .FALSE.
+        END IF
+      END IF
+    END DO
+  ELSE
+    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+    PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+    PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + PartState(1:PDM%ParticleVecLength,4) * dt
+    PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
+    PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
+  END IF
 
 #ifdef MPI
   ! open receive buffer for number of particles
@@ -1407,9 +1433,18 @@ REAL                  :: timeEnd, timeStart
   ! finish communication
   CALL MPIParticleRecv()
 #endif /*MPI*/
-
   CALL ParticleInserting()
-  CALL UpdateNextFreePosition()
+  IF (CollisMode.NE.0) THEN
+    CALL UpdateNextFreePosition()
+  ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
+            (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
+            WriteMacroValues ) THEN
+    CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
+  ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
+           PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
+    CALL abort(__STAMP__,&
+      'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
+  END IF
   CALL DSMC_main()
 
   PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &

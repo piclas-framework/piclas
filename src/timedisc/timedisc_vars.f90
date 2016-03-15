@@ -20,6 +20,7 @@ REAL             :: CFLScale
 REAL             :: CFLtoOne      ! scaling factor to scale CFL to one
 REAL             :: sdtCFLOne     ! inverse of dt of CFLOne
 !REAL             :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver
+REAL             :: RKdtFrac,RKdtFracTotal
 !INTEGER          :: maxIter_LinearSolver
 INTEGER          :: iStage
 INTEGER(KIND=8)  :: iter, IterDisplayStep, IterDisplayStepUser
