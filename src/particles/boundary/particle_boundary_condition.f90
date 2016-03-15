@@ -307,6 +307,9 @@ USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 USE MOD_Particle_Vars,          ONLY:PartQ,F_PartX0
 USE MOD_LinearSolver_Vars,      ONLY:PartXk
 #endif /*IMPA*/
+USE MOD_Particle_Vars,          ONLY:WriteMacroValues
+USE MOD_TImeDisc_Vars,          ONLY:dt,tend,time
+USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample,nSurfSample,SurfMesh,SampWall
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -319,7 +322,7 @@ INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3), v_help(3)
+REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), v_help(3)
 !#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 #if defined(LSERK)
 REAL                                 :: absPt_temp
@@ -370,6 +373,7 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
   !  particle is located eps in interior
   LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
   PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
+  v_old = PartState(PartID,4:6)
 
   ! move particle a bit in interior
   ElemID=PartSideToElem(S2E_ELEM_ID,SideID)
@@ -389,6 +393,29 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
                            +PartTrajectory(3)*PartTrajectory(3) )
   PartTrajectory=PartTrajectory/lengthPartTrajectory
   lengthPartTrajectory=lengthPartTrajectory!+epsilontol
+  
+  ! Wall sampling Macrovalues
+  IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+      SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+      ! compute p and q
+      ! correction of xi and eta, can only be applied if xi & eta are not used later!
+      Xitild =MIN(MAX(-1.,XI ),1.0)
+      Etatild=MIN(MAX(-1.,Eta),1.0)
+      p=INT((Xitild -1.0)/dXiEQ_SurfSample)+1
+      q=INT((Etatild-1.0)/dXiEQ_SurfSample)+1
+      
+      !----  Sampling Forces at walls
+!       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
+!                                           * (v_old(1:3) - PartState(PartID,4:6)) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                          * (v_old(1) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                          * (v_old(2) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
+                                          * (v_old(3) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+    END IF
+  END IF
   
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
@@ -553,11 +580,11 @@ IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%Calc
   p=INT((Xitild -1.0)/dXiEQ_SurfSample)+1
   q=INT((Etatild-1.0)/dXiEQ_SurfSample)+1
 
-  SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraOld &
+  SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraWall      &
                                    *Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q)+EtraWall      &
+  SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(2,p,q)+EtraWall      &
                                    *Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(3,p,q)= SampWall(SurfSideID)%State(3,p,q)+EtraNew       &
+  SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(3,p,q)+EtraNew       &
                                    *Species(PartSpecies(PartID))%MacroParticleFactor
 END IF
  

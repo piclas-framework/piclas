@@ -387,19 +387,6 @@ END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
 
-TYPE tSampWall             ! DSMC sample for Wall                                             
-  REAL                           :: Energy(9)               ! 1-3 E_tra (pre, wall, re),
-                                                            ! 4-6 E_rot (pre, wall, re),
-                                                            ! 7-9 E_vib (pre, wall, re)
-  REAL                           :: Force(3)                ! x, y, z direction
-  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter
-END TYPE
-
-TYPE(tSampWall), ALLOCATABLE     :: SampWall(:)             ! Wall sample array (number of BC-Sides)
-#ifdef MPI
-TYPE(tSampWall), ALLOCATABLE     :: SampWallHaloCell(:)     ! Wall sample array (number of BC-HALO-Sides)
-#endif
-
 TYPE tSurfaceMesh
   INTEGER                         :: nSurfaceNode           ! Number of Nodes on Surface (reflective)
   INTEGER                         :: nSurfaceBCSides        ! Number of Sides on Surface (reflective)
