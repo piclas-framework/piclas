@@ -146,8 +146,6 @@ TYPE tNode
   INTEGER                      :: ind=0         ! global unique node index
   REAL                         :: x(3)=0.
 END TYPE tNode
-
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE(tElemPtr),POINTER         :: Elems(:)
 TYPE(tElem),POINTER            :: aElem
