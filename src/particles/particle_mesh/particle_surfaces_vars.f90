@@ -53,11 +53,15 @@ INTEGER                                 :: BezierSampleN                ! equidi
 REAL,ALLOCATABLE,DIMENSION(:)           :: BezierSampleXi               ! ref coordinate for equidistant bezier surface sampling
 LOGICAL                                 :: BezierSampleProjection       ! do a projection in the direction of an asigned vector
 REAL,DIMENSION(3)                       :: BezierSampleProjectionVec    ! Projection vector
+
+! redundant?
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: SurfMeshSubSideAreas         ! areas of of sub-sides of surface mesh
                                                                         ! (1:BezierSampleN,1:BezierSampleN,1:nBCSides)
 REAL,ALLOCATABLE,DIMENSION(:)           :: SurfMeshSideAreas            ! areas of of sides of surface mesh (1:nBCSides)
 REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: SurfMeshProjSubSideAreas     ! projected areas of of sub-sides of surface mesh
 REAL,ALLOCATABLE,DIMENSION(:)           :: SurfMeshProjSideAreas        ! projected areas of of sides of surface mesh
+
+
 LOGICAL                                 :: BezierSampledAreasInitIsDone
 #ifdef CODE_ANALYZE
 REAL                                    :: rBoundingBoxChecks           ! number of bounding box checks
@@ -68,6 +72,22 @@ REAL(KIND=16)                           :: rTotalBezierClips            ! total 
 REAL(KIND=16)                           :: rTotalBezierNewton           ! total number of performed bezier newton intersections
 REAL,ALLOCATABLE,DIMENSION(:)           :: SideBoundingBoxVolume        ! Bounding Box volume
 #endif /*CODE_ANALYZE*/
+
+TYPE tDataSurfMeshSubSides
+  REAL                                   :: vec_nIn(3)                  ! inwards normal of sub-sides of surface mesh
+  REAL                                   :: vec_t1(3)                   ! first orth. vector in sub-sides of surface mesh
+  REAL                                   :: vec_t2(3)                   ! second orth. vector in sub-sides of surface mesh
+  REAL                                   :: area                        ! area of sub-sides of surface mesh
+END TYPE tDataSurfMeshSubSides
+TYPE(tDataSurfMeshSubSides),ALLOCATABLE  :: SurfMeshSubSidesData(:,:,:) ! data of sub-sides of surface mesh (e.g. normal+tang. 
+                                                                        ! vectors)
+TYPE tBCdata_auxSF
+  INTEGER                                :: SideNumber                  ! Number of Particles in Sides in SurfacefluxBC
+  INTEGER                , ALLOCATABLE   :: SideList(:)                 ! List of Sides in BC (1:SideNumber)
+END TYPE tBCdata_auxSF
+TYPE(tBCdata_auxSF),ALLOCATABLE          :: BCdata_auxSF(:) !aux. data of triangulated BCs for surfacefluxes, (1:nPartBound) (!!!)
+
+
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Surfaces_Vars

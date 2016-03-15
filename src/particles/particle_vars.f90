@@ -19,7 +19,7 @@ REAL                  :: dt_max_particles                                    ! M
 REAL                  :: dt_maxwell                                          ! timestep for field solver (for static fields only!)
 REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent  
                                                                              ! on particle velocity (for static fields only!)
-REAL                  :: dt_part_ratio
+REAL                  :: dt_part_ratio, overrelax_factor                     ! factors for td200/201 overrelaxation/subcycling
 INTEGER               :: NextTimeStepAdjustmentIter                          ! iteration of next timestep change
 INTEGER               :: MaxwellIterNum                                      ! number of iterations for the maxwell solver
 INTEGER               :: WeirdElems                                          ! Number of Weird Elements (=Elements which are folded
@@ -165,13 +165,13 @@ TYPE tInit                                                                   ! P
 #endif /*MPI*/
 END TYPE tInit
 
-TYPE tDataTriaSF
+TYPE tDataSurfMeshSubSides
   REAL                                   :: projFak                          ! VeloVecIC projected to inwards normal of tria
   REAL                                   :: a_nIn                            ! speed ratio projected to inwards normal of tria
   REAL                                   :: Velo_t1                          ! Velo comp. of first orth. vector in tria
   REAL                                   :: Velo_t2                          ! Velo comp. of second orth. vector in tria
   REAL                                   :: nVFR                             ! normal volume flow rate through tria
-END TYPE tDataTriaSF
+END TYPE tDataSurfMeshSubSides
 
 TYPE tSurfaceflux
   INTEGER                                :: BC                               ! PartBound to be emitted from
@@ -187,7 +187,7 @@ TYPE tSurfaceflux
   !REAL                                   :: VFR_frac                         ! Current Volumetric flow rate through surface
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
-  TYPE(tDataTriaSF)        , ALLOCATABLE :: DataTriaSF(:,:)                  ! SF-specific Data of Sides (1:2,1:SideNumber)
+  TYPE(tDataSurfMeshSubSides), ALLOCATABLE :: DataSurfMeshSubSides(:,:,:)                  ! SF-specific Data of Sides (1:2,1:SideNumber)
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -249,6 +249,7 @@ TYPE (tParticleDataManagement)           :: PDM
 
 REAL                                     :: DelayTime
 
+LOGICAL                                  :: ParticlesInitIsDone=.FALSE.
 
 LOGICAL                                  :: WriteMacroValues                  ! Output of macroscopic values
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling   
@@ -298,6 +299,6 @@ LOGICAL                                  :: FindNeighbourElems=.FALSE.
 INTEGER(8)                               :: nTotalPart
 INTEGER(8)                               :: nTotalHalfPart
 
-LOGICAL                                  :: ParticlesInitIsDone=.FALSE.
+
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars
