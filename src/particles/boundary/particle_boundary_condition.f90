@@ -292,12 +292,14 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound, SurfMesh, SampWall
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,ElemBaryNGeo,PartSideToElem
 USE MOD_Mesh_Vars,              ONLY:BC
+USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, SpecDSMC, DSMC, useDSMC
+USE MOD_DSMC_Vars,              ONLY:CollisMode, AnalyzeSurfCollis
 !#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
@@ -335,6 +337,8 @@ INTEGER                              :: ElemID
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 !REAL                                 :: oneMinus!=0.99999999
 REAL                                  :: epsLength,epsReflect
+REAL                                 :: Xitild,EtaTild
+INTEGER                              :: p,q, SurfSideID
 !===================================================================================================================================
 
 !OneMinus=1.0-MAX(epsInCell,epsilontol)
@@ -395,13 +399,13 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
   lengthPartTrajectory=lengthPartTrajectory!+epsilontol
   
   ! Wall sampling Macrovalues
-  IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN
+!   IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
       SurfSideID=SurfMesh%SideIDToSurfID(SideID)
       ! compute p and q
       ! correction of xi and eta, can only be applied if xi & eta are not used later!
-      Xitild =MIN(MAX(-1.,XI ),1.0)
-      Etatild=MIN(MAX(-1.,Eta),1.0)
+      Xitild =MIN(MAX(-1.,xi ),1.0)
+      Etatild=MIN(MAX(-1.,eta),1.0)
       p=INT((Xitild -1.0)/dXiEQ_SurfSample)+1
       q=INT((Etatild-1.0)/dXiEQ_SurfSample)+1
       
@@ -414,8 +418,43 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
                                           * (v_old(2) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
       SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
                                           * (v_old(3) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+      !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
+      IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps) THEN
+!       IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
+        SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) = SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
+!         IF (DSMC%AnalyzeSurfCollis) THEN
+!           AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
+!           AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
+!           IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
+!             CALL Abort(&
+!               __STAMP__,&
+!               'maxSurfCollisNumber reached!')
+!           END IF
+!           CALL IntersectionWithWall(PartID,iLocSide,Element,TriNum,IntersectionPos)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1) &
+!             = IntersectionPos(1)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),2) &
+!             = IntersectionPos(2)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),3) &
+!             = IntersectionPos(3)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
+!             = PartState(PartID,4)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
+!             = PartState(PartID,5)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
+!             = PartState(PartID,6)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
+!             = LastPartPos(PartID,1)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
+!             = LastPartPos(PartID,2)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
+!             = LastPartPos(PartID,3)
+!           AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
+!             = PartSpecies(PartID)
+!         END IF
+      END IF
     END IF
-  END IF
+!   END IF
   
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
@@ -465,6 +504,7 @@ USE MOD_DSMC_Vars,              ONLY:SpecDSMC,CollisMode
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,BezierControlPoints3D
 USE MOD_Mesh_Vars,              ONLY:BC,NGEO
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,SpecDSMC, DSMC, useDSMC, CollisMode
+USE MOD_DSMC_Vars,              ONLY:AnalyzeSurfCollis, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,ElemBaryNGeo,PartSideToElem
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
@@ -505,6 +545,13 @@ REAL                                 :: Xitild,EtaTild
 !REAL                                 :: WallTransACC
 INTEGER                              :: p,q, SurfSideID
 REAL                                 :: POI_fak, TildPos(3),TildTrajectory(3)
+! Polyatomic Molecules
+REAL, ALLOCATABLE                    :: RanNumPoly(:), VibQuantNewRPoly(:)
+INTEGER                              :: iPolyatMole, iDOF
+INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
+REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
+REAL, ALLOCATABLE                    :: EVPolyNewFP(:), EVPolyWallFP(:)
+REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
 !===================================================================================================================================
 
 !OneMinus=1.0-epsInCell
@@ -580,11 +627,11 @@ IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%Calc
   p=INT((Xitild -1.0)/dXiEQ_SurfSample)+1
   q=INT((Etatild-1.0)/dXiEQ_SurfSample)+1
 
-  SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraWall      &
+  SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraOld       &
                                    *Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(2,p,q)+EtraWall      &
+  SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q)+EtraWall      &
                                    *Species(PartSpecies(PartID))%MacroParticleFactor
-  SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(3,p,q)+EtraNew       &
+  SampWall(SurfSideID)%State(3,p,q)= SampWall(SurfSideID)%State(3,p,q)+EtraNew       &
                                    *Species(PartSpecies(PartID))%MacroParticleFactor
 END IF
  
@@ -612,61 +659,244 @@ POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTra
 !CALL RANDOM_NUMBER(POI_fak)
 PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt * NewVelo(1:3)
 
-! Internal energy accommodation
+!---- Internal energy accommodation
 IF (useDSMC) THEN
-  IF (CollisMode.GT.1) THEN
-    IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
+IF (CollisMode.GT.1) THEN
+IF ((SpecDSMC(PartSpecies(PartID))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(PartID))%InterID.EQ.20)) THEN
 
-    ! Rotational energy accommodation
-    
-      CALL RANDOM_NUMBER(RanNum)
-      ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
-      ErotNew  = PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
-    
-      IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
-        !----  Sampling for internal energy accommodation at walls
-        SampWall(SurfSideID)%State(4,p,q)=SampWall(SurfSideID)%State(4,p,q)+PartStateIntEn(PartID,2) &
-                                                                           *Species(PartSpecies(PartID))%MacroParticleFactor
-        SampWall(SurfSideID)%State(5,p,q)=SampWall(SurfSideID)%State(5,p,q)+ErotWall &
-                                                                           * Species(PartSpecies(PartID))%MacroParticleFactor
-        SampWall(SurfSideID)%State(6,p,q)=SampWall(SurfSideID)%State(6,p,q)+ErotNew &
-                                                                           * Species(PartSpecies(PartID))%MacroParticleFactor
-      END IF 
-    
-      PartStateIntEn(PartID,2) = ErotNew
-    
-     !---- Vibrational energy accommodation
-    
-      VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib) &
-                   - DSMC%GammaQuant)
-      CALL RANDOM_NUMBER(RanNum)
-      VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(PartSpecies(PartID))%CharaTVib)
-      DO WHILE (VibQuantWall.GE.SpecDSMC(PartSpecies(PartID))%MaxVibQuant)
+  !---- Rotational energy accommodation
+! #if (PP_TimeDiscMethod==300)
+!   IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
+!     iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray  
+!     IF (PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+!       ErotOld = PartStateIntEn(PartID,2)
+!       VeloCx  = rnor()                !normal distri
+!       VeloCy  = rnor()                !normal distri
+!       Fak_D       = VeloCx*VeloCx + VeloCy*VeloCy
+!       ErotWall    = BoltzmannConst * WallTemp * Fak_D
+!       ErotNew = ErotOld + RotACC * (ErotWall - ErotOld)
+!       Cmr     = SQRT(ErotNew / (PolyatomMolFP(iPolyatMole)%RotMomDOF(1)* Fak_D))
+!     ELSE
+!       ErotOldPoly(1)= 0.5*PolyatomMolFP(iPolyatMole)%RotMomDOF(1) & 
+!               *FPInnerVelos(PartID)%FP_RotVelo(1)*FPInnerVelos(PartID)%FP_RotVelo(1)
+!       ErotOldPoly(2)= 0.5*PolyatomMolFP(iPolyatMole)%RotMomDOF(2) & 
+!               *FPInnerVelos(PartID)%FP_RotVelo(2)*FPInnerVelos(PartID)%FP_RotVelo(3)
+!       ErotOldPoly(3)= 0.5*PolyatomMolFP(iPolyatMole)%RotMomDOF(3) & 
+!               *FPInnerVelos(PartID)%FP_RotVelo(3)*FPInnerVelos(PartID)%FP_RotVelo(3)
+!       VeloCx  = rnor()                !normal distri
+!       VeloCy  = rnor()                !normal distri
+!       VeloCz  = rnor()
+!       Fak_D       = PolyatomMolFP(iPolyatMole)%RotMomDOF(1)*VeloCx*VeloCx
+!       ErotWallPoly(1)    = BoltzmannConst * WallTemp * Fak_D
+!       ErotNewPoly(1) = ErotOldPoly(1) + RotACC * (ErotWallPoly(1) - ErotOldPoly(1))
+!       CmrRotPoly(1)     = SQRT(ErotNewPoly(1) / (Fak_D))
+!       Fak_D       = PolyatomMolFP(iPolyatMole)%RotMomDOF(2)*VeloCy*VeloCy
+!       ErotWallPoly(2)    = BoltzmannConst * WallTemp * Fak_D
+!       ErotNewPoly(2) = ErotOldPoly(2) + RotACC * (ErotWallPoly(2) - ErotOldPoly(2))
+!       CmrRotPoly(2)     = SQRT(ErotNewPoly(2) / (Fak_D))
+!       Fak_D       = PolyatomMolFP(iPolyatMole)%RotMomDOF(3)*VeloCz*VeloCz
+!       ErotWallPoly(3)    = BoltzmannConst * WallTemp * Fak_D
+!       ErotNewPoly(3) = ErotOldPoly(3) + RotACC * (ErotWallPoly(3) - ErotOldPoly(3))
+!       CmrRotPoly(3)     = SQRT(ErotNewPoly(3) / (Fak_D))
+!       ErotWall = ErotWallPoly(1) + ErotWallPoly(2) + ErotWallPoly(3)
+!       ErotNew = ErotNewPoly(1) + ErotNewPoly(2) + ErotNewPoly(3)
+!     END IF
+!   ELSE
+!      ErotOld = PartStateIntEn(PartID,2)
+!      VeloCx  = rnor()                !normal distri
+!      VeloCy  = rnor()                !normal distri
+!      Fak_D       = VeloCx*VeloCx + VeloCy*VeloCy
+!      ErotWall    = BoltzmannConst * WallTemp * Fak_D
+!      ErotNew = ErotOld + RotACC * (ErotWall - ErotOld)
+!      Cmr     = SQRT(ErotNew / (SpecFP(PartSpecies(PartID))%RotMomentum * Fak_D))
+!   END IF
+! #else
+    CALL RANDOM_NUMBER(RanNum)
+    ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
+    ErotNew  = PartStateIntEn(PartID,2) + RotACC *(ErotWall - PartStateIntEn(PartID,2))
+! #endif
+
+    IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+    !----  Sampling for internal energy accommodation at walls
+      SampWall(SurfSideID)%State(4,p,q)=SampWall(SurfSideID)%State(4,p,q)+PartStateIntEn(PartID,2) &
+                                                                          *Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(5,p,q)=SampWall(SurfSideID)%State(5,p,q)+ErotWall &
+                                                                          * Species(PartSpecies(PartID))%MacroParticleFactor
+      SampWall(SurfSideID)%State(6,p,q)=SampWall(SurfSideID)%State(6,p,q)+ErotNew &
+                                                                          * Species(PartSpecies(PartID))%MacroParticleFactor 
+     END IF  
+
+! #if (PP_TimeDiscMethod==300)
+!     IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
+!       iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray  
+!       IF (PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+!        FPInnerVelos(PartID)%FP_RotVelo(1) = Cmr * VeloCx
+!        FPInnerVelos(PartID)%FP_RotVelo(2) = Cmr * VeloCy
+!       ELSE
+!        FPInnerVelos(PartID)%FP_RotVelo(1) = CmrRotPoly(1) * VeloCx
+!        FPInnerVelos(PartID)%FP_RotVelo(2) = CmrRotPoly(2) * VeloCy
+!        FPInnerVelos(PartID)%FP_RotVelo(3) = CmrRotPoly(3) * VeloCz
+!       END IF
+!     ELSE
+!      FPInnerVelos(PartID)%FP_RotVelo(1) = Cmr * VeloCx
+!      FPInnerVelos(PartID)%FP_RotVelo(2) = Cmr * VeloCy
+!     END IF
+!     PartStateIntEn(PartID,2) = ErotNew   
+! #else
+    PartStateIntEn(PartID,2) = ErotNew
+! #endif
+
+! #if (PP_TimeDiscMethod==300)
+!     IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN              
+!        iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
+!        ALLOCATE(VecXVibPolyFP(PolyatomMolDSMC(iPolyatMole)%VibDOF), VecYVibPolyFP(PolyatomMolDSMC(iPolyatMole)%VibDOF),&
+!            CmrVibPolyFP(PolyatomMolDSMC(iPolyatMole)%VibDOF), EVPolyNewFP(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+!            EVPolyWallFP(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+!        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+!          EvibOld = 0.5*(FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +1)*FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +1) &
+!                     + FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +2)*FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +2))
+!          VecXVibPolyFP(iDOF)  = rnor()                !normal distri
+!          VecYVibPolyFP(iDOF)  = rnor()                !normal distri
+!          Fak_D       = VecXVibPolyFP(iDOF)*VecXVibPolyFP(iDOF) + VecYVibPolyFP(iDOF)*VecYVibPolyFP(iDOF)
+!          EVPolyWallFP(iDOF)   = (BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) &
+!             /(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/WallTemp)-1.)) * Fak_D
+!          EVPolyNewFP(iDOF) = EvibOld + VibACC * (EVPolyWallFP(iDOF) - EvibOld)
+!          CmrVibPolyFP(iDOF) = SQRT(EVPolyNewFP(iDOF) /Fak_D)
+!        END DO
+!     ELSE
+!        EvibOld = PartStateIntEn(PartID,1) - DSMC%GammaQuant*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
+!        VeloCx  = rnor()                !normal distri
+!        VeloCy  = rnor()                !normal distri
+!        Fak_D       = VeloCx*VeloCx + VeloCy*VeloCy
+!        EVibWall    = (BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib &
+!           /(EXP(SpecDSMC(PartSpecies(PartID))%CharaTVib/WallTemp)-1.)) * Fak_D
+!        EVibNew = EvibOld + VibACC * (EVibWall - EvibOld)
+!        Cmr     = SQRT(EvibNew /Fak_D)
+!     END IF
+! #else
+   !---- Vibrational energy accommodation
+      IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
+        EvibNew = 0.0
+        iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
+        ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+                 VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+                 VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+        CALL RANDOM_NUMBER(RanNumPoly)
+        VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+          CALL RANDOM_NUMBER(RanNumPoly)
+          VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        END DO
+        VibQuantNewRPoly(:) = VibQuantsPar(PartID)%Quants(:) + VibACC*(VibQuantWallPoly(:) - VibQuantsPar(PartID)%Quants(:))
+        VibQuantNewPoly = INT(VibQuantNewRPoly)
+        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+          CALL RANDOM_NUMBER(RanNum)
+          IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
+            EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
+                      * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+            VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
+          ELSE
+            EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
+                      * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+            VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
+          END IF
+        END DO
+      ELSE
+        VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib) &
+                    - DSMC%GammaQuant)
         CALL RANDOM_NUMBER(RanNum)
         VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(PartSpecies(PartID))%CharaTVib)
-      END DO
-      VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
-      VibQuantNew = INT(VibQuantNewR)
-      CALL RANDOM_NUMBER(RanNum)
-      IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-        EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib
-      ELSE
-        EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib
+        DO WHILE (VibQuantWall.GE.SpecDSMC(PartSpecies(PartID))%MaxVibQuant)
+          CALL RANDOM_NUMBER(RanNum)
+          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(PartSpecies(PartID))%CharaTVib)
+        END DO
+        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
+        VibQuantNew = INT(VibQuantNewR)
+        CALL RANDOM_NUMBER(RanNum)
+        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
+          EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib
+        ELSE
+          EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib
+        END IF
       END IF
-    
-      IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
-        !----  Sampling for internal energy accommodation at walls
-        SampWall(SurfSideID)%State(7,p,q)= SampWall(SurfSideID)%State(7,p,q) + (VibQuant + DSMC%GammaQuant) &
-                 * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib * Species(PartSpecies(PartID))%MacroParticleFactor
-        SampWall(SurfSideID)%State(8,p,q)= SampWall(SurfSideID)%State(8,p,q) + VibQuantWall &
-                 * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib * Species(PartSpecies(PartID))%MacroParticleFactor
+! #endif
+
+      IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
+   !----  Sampling for internal energy accommodation at walls
+! #if (PP_TimeDiscMethod==300)
+!         IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
+!           iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(7) = &
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(7)  &
+!                      + PartStateIntEn(PartID,1) * Species(PartSpecies(PartID))%MacroParticleFactor
+!           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+!             SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) = &
+!             SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) + &
+!                     EVPolyWallFP(iDOF)  * Species(PartSpecies(PartID))%MacroParticleFactor
+!             SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) = &
+!             SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) + &
+!                     EVPolyNewFP(iDOF) * Species(PartSpecies(PartID))%MacroParticleFactor
+!           END DO
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) = &
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) + &
+!                   PolyatomMolDSMC(iPolyatMole)%EZeroPoint * Species(PartSpecies(PartID))%MacroParticleFactor
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) = &
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) + &
+!                   PolyatomMolDSMC(iPolyatMole)%EZeroPoint * Species(PartSpecies(PartID))%MacroParticleFactor
+!         ELSE
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(7) = &
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(7)  &
+!                      + PartStateIntEn(PartID,1) * Species(PartSpecies(PartID))%MacroParticleFactor
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) = &
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(8) + (EVibWall + DSMC%GammaQuant &
+!                      * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib) * Species(PartSpecies(PartID))%MacroParticleFactor
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) = &
+!           SampWall(SurfMesh%GlobSideToSurfSideMap(ElemToSide(1,iLocSide,Element)))%Energy(9) &
+!                      + (EvibNew + DSMC%GammaQuant*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst) &
+!                     * Species(PartSpecies(PartID))%MacroParticleFactor
+!         END IF
+! #else
+        IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
+          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+            SampWall(SurfSideID)%State(7,p,q)= SampWall(SurfSideID)%State(7,p,q) &
+                    + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
+                    * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(PartSpecies(PartID))%MacroParticleFactor
+            SampWall(SurfSideID)%State(8,p,q)= SampWall(SurfSideID)%State(8,p,q) + VibQuantWall &
+                    * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib * Species(PartSpecies(PartID))%MacroParticleFactor
+          END DO
+        ELSE
+          SampWall(SurfSideID)%State(7,p,q)= SampWall(SurfSideID)%State(7,p,q) + (VibQuant + DSMC%GammaQuant) &
+                  * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib * Species(PartSpecies(PartID))%MacroParticleFactor
+          SampWall(SurfSideID)%State(8,p,q)= SampWall(SurfSideID)%State(8,p,q) + + VibQuantWallPoly(iDOF) * BoltzmannConst &
+                       * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(PartSpecies(PartID))%MacroParticleFactor
+        END IF
         SampWall(SurfSideID)%State(9,p,q)= SampWall(SurfSideID)%State(9,p,q) + &
-                                           EvibNew * Species(PartSpecies(PartID))%MacroParticleFactor
-      END IF
+                                            EvibNew * Species(PartSpecies(PartID))%MacroParticleFactor
+! #endif
+      END IF     
+! #if (PP_TimeDiscMethod==300)
+!      IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
+!        iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
+!        PartStateIntEn(PartID,1) = 0.0
+!        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+!         FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +1) = CmrVibPolyFP(iDOF) * VecXVibPolyFP(iDOF)
+!         FPInnerVelos(PartID)%FP_VibVelo((iDOF-1)*2 +2) = CmrVibPolyFP(iDOF) * VecYVibPolyFP(iDOF)
+!         PartStateIntEn(PartID,1) = PartStateIntEn(PartID,1) + EVPolyNewFP(iDOF)
+!        END DO
+!        PartStateIntEn(PartID,1) = PartStateIntEn(PartID,1) + PolyatomMolDSMC(iPolyatMole)%EZeroPoint
+!      ELSE
+!        FPInnerVelos(PartID)%FP_VibVelo(1) = Cmr * VeloCx
+!        FPInnerVelos(PartID)%FP_VibVelo(2) = Cmr * VeloCy
+!        PartStateIntEn(PartID,1) = EvibNew + DSMC%GammaQuant*SpecDSMC(PartSpecies(PartID))%CharaTVib*BoltzmannConst
+!      END IF
+! #else
+      IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) VibQuantsPar(PartID)%Quants(:) = VibQuantTemp(:)
       PartStateIntEn(PartID,1) = EvibNew
+! #endif
     END IF
-  END IF
-END IF
+    END IF ! CollisMode > 1
+    END IF ! useDSMC
 
 IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
 !----  Sampling force at walls
@@ -678,7 +908,38 @@ IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%Cal
       + Species(PartSpecies(PartID))%MassIC * (PartState(PartID,6) - NewVelo(3)) * Species(PartSpecies(PartID))%MacroParticleFactor
  !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
   IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps) THEN
+!   IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
     SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) +1
+!         IF (DSMC%AnalyzeSurfCollis) THEN
+!           AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
+!           AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
+!           IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
+!             CALL Abort(&
+!               __STAMP__,&
+!               'maxSurfCollisNumber reached!')
+!           END IF
+!           CALL IntersectionWithWall(PartID,iLocSide,Element,TriNum,IntersectionPos)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1) &
+!             = IntersectionPos(1)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),2) &
+!             = IntersectionPos(2)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),3) &
+!             = IntersectionPos(3)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
+!             = PartState(PartID,4)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
+!             = PartState(PartID,5)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
+!             = PartState(PartID,6)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
+!             = LastPartPos(PartID,1)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
+!             = LastPartPos(PartID,2)
+!           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
+!             = LastPartPos(PartID,3)
+!           AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
+!             = PartSpecies(PartID)
+!         END IF
   END IF
 END IF
 !----  saving new particle velocity
@@ -693,6 +954,5 @@ PartTrajectory=PartTrajectory/lengthPartTrajectory
 !lengthPartTrajectory=lengthPartTrajectory!+epsilontol
 
 END SUBROUTINE DiffuseReflection
-
 
 END MODULE MOD_Particle_Boundary_Condition
