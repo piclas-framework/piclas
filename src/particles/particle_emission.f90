@@ -3013,7 +3013,8 @@ USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding
 USE MOD_Particle_Mesh_Vars,    ONLY: GEO
-USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, SideData, BCdata_auxSF
+USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem
+USE MOD_Particle_Surface_Vars, ONLY: SurfFluxSubSidesGeo, BCdata_auxSF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3130,8 +3131,7 @@ END DO ! SideID
 DO iBC=1,nDataBC
   BCdata_auxSF(TmpMapToBC(iBC))%SideNumber=TmpSideNumber(iBC)
   IF (TmpSideNumber(iBC).EQ.0) CYCLE
-  ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%SideList(1:TmpSideNumber(iBC)) &
-          ,BCdata_auxSF(TmpMapToBC(iBC))%DataTria_auxSF(1:2,1:TmpSideNumber(iBC)) )
+  ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%SideList(1:TmpSideNumber(iBC)))
   DO iSpec=1,nSpecies
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF (TmpMapToBC(iBC).EQ.Species(iSpec)%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
@@ -3173,11 +3173,6 @@ DO iBC=1,nDataBC
       ndistVal = SQRT(ndist(1)*ndist(1) + ndist(2)*ndist(2) + ndist(3)*ndist(3))
       IF (ALMOSTEQUAL(ndistVal,0.)) CALL abort(__STAMP__&
         , 'Error 1 in ParticleSurfaceflux!')
-      !-- store SF-independent tria data in BCdata_auxSF
-      BCdata_auxSF(TmpMapToBC(iBC))%DataTria_auxSF(TriNum,iCount)%midpoint(1) = xNod + (Vector1(1)+Vector2(1))/2.
-      BCdata_auxSF(TmpMapToBC(iBC))%DataTria_auxSF(TriNum,iCount)%midpoint(2) = yNod + (Vector1(2)+Vector2(2))/2.
-      BCdata_auxSF(TmpMapToBC(iBC))%DataTria_auxSF(TriNum,iCount)%midpoint(3) = zNod + (Vector1(3)+Vector2(3))/2.
-      BCdata_auxSF(TmpMapToBC(iBC))%DataTria_auxSF(TriNum,iCount)%ndist(1:3) = ndist(1:3) / ndistVal
 
       !----- 3b: SF-specific data of Sides
       vec_nIn = SideData(TriNum,SideID)%vec_nIn
@@ -3459,8 +3454,6 @@ DO iSpec=1,nSpecies
         Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - zNod
         !Species(iSpec)%Surfaceflux(iSF)%VFR_frac = Species(iSpec)%Surfaceflux(iSF)%VFR_frac &
         !                                         + Species(iSpec)%Surfaceflux(iSF)%DataTriaSF(TriNum,iSide)%nVFR
-        midpoint(1:3) = BCdata_auxSF(currentBC)%DataTria_auxSF(TriNum,iSide)%midpoint(1:3)
-        ndist(1:3) = BCdata_auxSF(currentBC)%DataTria_auxSF(TriNum,iSide)%ndist(1:3)
 
 !----- 1.: set positions
         !-- compute number of to be inserted particles
