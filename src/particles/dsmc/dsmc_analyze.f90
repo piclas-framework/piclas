@@ -89,8 +89,8 @@ SUBROUTINE CalcSurfaceValues
   CALL ExchangeSurfData()  
 #endif
 
-  ALLOCATE(MacroSurfaceVal(5,0:nSurfSample,0:nSurfSample,SurfMesh%nSides))
-  ALLOCATE(MacroSurfaceCounter(1:nSpecies,0:nSurfSample,0:nSurfSample,SurfMesh%nSides))
+  ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+  ALLOCATE(MacroSurfaceCounter(1:nSpecies,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
   MacroSurfaceVal=0.
   MacroSurfaceCounter=0
   IF (DSMC%CalcSurfCollis_Output) THEN
@@ -110,8 +110,8 @@ SUBROUTINE CalcSurfaceValues
   END IF
  
   DO iSurfSide=1,SurfMesh%nSides
-    DO q=0,nSurfSample
-      DO p=0,nSurfSample 
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample 
         MacroSurfaceVal(1,p,q,iSurfSide) = SampWall(iSurfSide)%State(10,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         MacroSurfaceVal(2,p,q,iSurfSide) = SampWall(iSurfSide)%State(11,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         MacroSurfaceVal(3,p,q,iSurfSide) = SampWall(iSurfSide)%State(12,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
@@ -136,7 +136,10 @@ SUBROUTINE CalcSurfaceValues
   IF (DSMC%CalcSurfCollis_Output) THEN
 #ifdef MPI
     CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,iError)
+#else
+    SumCounterTotal=CounterTotal
 #endif
+    
     DO iSpec=1,nSpecies
       IF (DSMC%CalcSurfCollis_SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
         SumCounterTotal(nSpecies+1) = SumCounterTotal(nSpecies+1) + SumCounterTotal(iSpec)

@@ -78,7 +78,7 @@ INTEGER                                :: p,q,iSide,SurfSideID,SideID
 INTEGER                                :: iSample,jSample
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
-REAL                                   :: tmpI1,tmpJ1,tmpI2,tmpJ2,XiOut(1:2),E,F,G,D,tmp1
+REAL                                   :: tmpI1,tmpJ1,tmpI2,tmpJ2,XiOut(1:2),E,F,G,D,tmp1,area
 !CHARACTER(2)                :: hilf
 !===================================================================================================================================
  
@@ -95,7 +95,8 @@ DO q=0,nSurfSample
 END DO
 
 ! get number of BC-Sides
-ALLOCATE(SurfMesh%SideIDToSurfID(1:nTotalSides)) 
+ALLOCATE(SurfMesh%SideIDToSurfID(1:nTotalSides))
+SurfMesh%SideIDToSurfID(1:nTotalSides)=-1
 ! first own sides
 SurfMesh%nSides=0
 DO iSide=1,nBCSides
@@ -181,6 +182,7 @@ DO iSide=1,nTotalSides
   ! call here stephens algorithm to compute area 
   DO jSample=1,nSurfSample
     DO iSample=1,nSurfSample
+      area=0.
       tmpI2=(XiEQ_SurfSample(iSample-1)+XiEQ_SurfSample(iSample))/2. ! (a+b)/2
       tmpJ2=(XiEQ_SurfSample(jSample-1)+XiEQ_SurfSample(jSample))/2. ! (a+b)/2
       DO q=0,NGeo
@@ -194,9 +196,10 @@ DO iSide=1,nTotalSides
           F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
           G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
           D=SQRT(E*G-F*F)
-          SurfMesh%SurfaceArea(iSample,jSample,SurfSideID)=tmp1*tmp1*D*wGP_NGeo(p)*wGP_NGeo(q)      
+          area = area+tmp1*tmp1*D*wGP_NGeo(p)*wGP_NGeo(q)      
         END DO
       END DO
+      SurfMesh%SurfaceArea(iSample,jSample,SurfSideID) = area 
     END DO ! iSample=1,nSurfSample
   END DO ! jSample=1,nSurfSample
 END DO ! iSide=1,nTotalSides
