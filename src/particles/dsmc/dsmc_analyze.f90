@@ -139,7 +139,6 @@ SUBROUTINE CalcSurfaceValues
 #else
     SumCounterTotal=CounterTotal
 #endif
-    
     DO iSpec=1,nSpecies
       IF (DSMC%CalcSurfCollis_SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
         SumCounterTotal(nSpecies+1) = SumCounterTotal(nSpecies+1) + SumCounterTotal(iSpec)

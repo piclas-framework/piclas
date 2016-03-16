@@ -131,7 +131,7 @@ SurfMesh%nGlobalSides=SurfMesh%nSides
 
 SWRITE(UNIT_stdOut,'(A,I8)') ' nGlobalSurfSides ', SurfMesh%nGlobalSides
 
-
+SurfMesh%SampSize=9+3+nSpecies ! Energy + Force + nSpecies
 #ifdef MPI
 ! split communitator
 CALL InitSurfCommunicator()
@@ -152,8 +152,8 @@ IF(.NOT.SurfMesh%SurfOnProc) RETURN
 ! allocate everything
 ALLOCATE(SampWall(1:SurfMesh%nTotalSides))
 
-SurfMesh%SampSize=9+3+nSpecies ! Energy + Force + nSpecies
-DO iSide=1,SurfMesh%nTotalSides
+
+DO iSide=1,SurfMesh%nTotalSides ! caution: iSurfSideID
   ALLOCATE(SampWall(iSide)%State(1:SurfMesh%SampSize,1:nSurfSample,1:nSurfSample))
   SampWall(iSide)%State=0.
   !ALLOCATE(SampWall(iSide)%Energy(1:9,0:nSurfSample,0:nSurfSample)         &
@@ -324,7 +324,7 @@ INTEGER,ALLOCATABLE               :: recv_status_list(:,:)
 nDOF=(nSurfSample)*(nSurfSample)
 
 IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
-  ALLOCATE(PartHaloSideToProc(1:4,SurfMesh%nSides+1:SurfMesh%nTotalSides))
+  ALLOCATE(PartHaloSideToProc(1:4,nSides+1:nTotalSides))
   PartHaloSideToProc=-1
   ! get all MPI-neighbors to communicate with
   ! loop over all mpi neighbors
@@ -343,7 +343,7 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
           SurfCOMM%nMPINeighbors=SurfCOMM%nMPINeighbors+1
         END IF
         PartHaloSideToProc(NATIVE_PROC_ID,iSide)=GlobalProcID
-        PartHaloSideToProc(LOCAL_PROC_ID,iSide) =PartHaloElemToProc(LOCAL_PROC_ID,ElemID)
+        PartHaloSideToProc(LOCAL_PROC_ID,iSide) =SurfCOMM%nMPINeighbors
       END IF
     END DO ! iSide=nSides+1,nTotalSides
   END DO
@@ -373,10 +373,9 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
       SurfSideID=SurfMesh%SideIDToSurfID(iSide)
       IF(SurfSideID.EQ.-1) CYCLE
       ! get elemid
-      ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
-      IF(iProc.EQ.PartHaloElemToProc(LOCAL_PROC_ID,ElemID))THEN
+      IF(iProc.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
         SurfExchange%nSidesSend(iProc)=SurfExchange%nSidesSend(iProc)+1
-        PartHaloSideToProc(LOCAL_SEND_ID,SideID) =SurfExchange%nSidesSend(iProc)
+        PartHaloSideToProc(LOCAL_SEND_ID,iSide) =SurfExchange%nSidesSend(iProc)
       END IF
     END DO ! iSide=nSides+1,nTotalSides
   END DO
@@ -422,6 +421,7 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
   ALLOCATE(SurfRecvBuf(SurfCOMM%nMPINeighbors))
   DO iProc=1,SurfCOMM%nMPINeighbors
     ALLOCATE(SurfSendBuf(iProc)%content(2*SurfExchange%nSidesSend(iProc)),STAT=ALLOCSTAT)
+    SurfSendBuf(iProc)%Content=-1
     ALLOCATE(SurfRecvBuf(iProc)%content(2*SurfExchange%nSidesRecv(iProc)),STAT=ALLOCSTAT)
   END DO ! iProc=1,PartMPI%nMPINeighbors
  
@@ -429,7 +429,7 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     CALL MPI_IRECV( SurfRecvBuf(iProc)%content                   &
                   , 2*SurfExchange%nSidesRecv(iProc)             &
-                  , MPI_INTEGER                                  &
+                  , MPI_DOUBLE_PRECISION                         &
                   , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
                   , 1004                                         &
                   , SurfCOMM%COMM                                &
@@ -445,21 +445,27 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
       SurfSideID=SurfMesh%SideIDToSurfID(iSide)
       IF(SurfSideID.EQ.-1) CYCLE
       ! get elemid
-      ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
-      IF(iProc.EQ.PartHaloElemToProc(LOCAL_PROC_ID,ElemID))THEN
+      IF(iProc.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
+      !IF(iProc.EQ.PartHaloElemToProc(LOCAL_PROC_ID,ElemID))THEN
         iSendSide=iSendSide+1
-        SurfCOMM%MPINeighbor(iProc)%SendList(iSendSide)=iSide
-        SurfSendBuf(iProc)%content(iPos  )= PartHaloElemToProc(NATIVE_ELEM_ID,ElemID)
-        SurfSendBuf(iProc)%content(iPos+1)= PartSideToElem(S2E_LOC_SIDE_ID,iSide)
+        ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
+        SurfCOMM%MPINeighbor(iProc)%SendList(iSendSide)=SurfSideID
+        SurfSendBuf(iProc)%content(iPos  )= REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID))
+        SurfSendBuf(iProc)%content(iPos+1)= REAL(PartSideToElem(S2E_LOC_SIDE_ID,iSide))
+        iPos=iPos+2
       END IF
     END DO ! iSide=nSides+1,nTotalSides
+    IF(ANY(SurfSendBuf(iProc)%content.LE.0))THEN  
+      CALL abort(&
+        __STAMP__&
+            ,' Sent NATIVE_ELEM_ID or LOCSIDEID is zero!')
+    END IF
   END DO
-
 
   DO iProc=1,SurfCOMM%nMPINeighbors
     CALL MPI_ISEND( SurfSendBuf(iProc)%content               &
                   , 2*SurfExchange%nSidesSend(iProc)         & 
-                  , MPI_INTEGER                              &
+                  , MPI_DOUBLE_PRECISION                     &
                   , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
                   , 1004                                     &
                   , SurfCOMM%COMM                            &   
@@ -592,7 +598,8 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     SurfSideID=SurfCOMM%MPINeighbor(iProc)%RecvList(iSurfSide)
     DO q=1,nSurfSample
       DO p=1,nSurfSample
-        SampWall(SurfSideID)%State(:,p,q)=SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)
+        SampWall(SurfSideID)%State(:,p,q)=SampWall(SurfSideID)%State(:,p,q) &
+                                         +SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfMesh%SampSize)
         iPos=iPos+SurfMesh%SampSize
       END DO ! p=0,nSurfSample
     END DO ! q=0,nSurfSample
@@ -639,31 +646,48 @@ INTEGER                             :: nVar
 SWRITE(*,*) ' WRITE DSMCSurfSTATE TO HDF5 FILE...'
 FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString=TRIM(FileName)//'.h5'
+
+IF(SurfCOMM%MPIRoot)THEN
 #ifdef MPI
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.,communicatorOpt=SurfCOMM%COMM)
+  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.)
 #else
   CALL OpenDataFile(FileString,create=.TRUE.)
 #endif
 
-Statedummy = 'DSMCSurfState'
-CALL WriteHDF5Header(Statedummy,File_ID)
+  Statedummy = 'DSMCSurfState'  
+  
+  CALL WriteHDF5Header(Statedummy,File_ID)
+  
+  CALL WriteAttributeToHDF5(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample-1)
+  CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
+  CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
+  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
+  CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
 
+  nVar=5
+  ALLOCATE(StrVarNames(1:nVar))
+  StrVarnames(1)='ForceX'
+  StrVarnames(2)='ForceY'
+  StrVarnames(3)='ForceZ'
+  StrVarnames(4)='HeatFlux'
+  StrVarnames(5)='Counter'
 
-CALL WriteAttributeToHDF5(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample-1)
-CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
-CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
-CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
-CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
-CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
+  CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarnames)
+  CALL CloseDataFile()
+  DEALLOCATE(StrVarNames)
+END IF
 
+CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
 
-nVar=5
-ALLOCATE(StrVarNames(1:nVar))
-StrVarnames(1)='ForceX'
-StrVarnames(2)='ForceY'
-StrVarnames(3)='ForceZ'
-StrVarnames(4)='HeatFlux'
-StrVarnames(5)='Counter'
+#ifdef MPI
+  IF(SurfCOMM%nProcs.GT.1)THEN
+    CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,communicatorOpt=SurfCOMM%COMM)
+  ELSE
+    CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.)
+  END IF
+#else
+  CALL OpenDataFile(FileString,create=.FALSE.)
+#endif
 
 CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=4,&
                     nValGlobal=(/5,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
@@ -672,7 +696,6 @@ CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=4,&
                     collective=.TRUE., RealArray=MacroSurfaceVal)
 CALL CloseDataFile()
 
-DEALLOCATE(StrVarNames)
 
 END SUBROUTINE WriteSurfSampleToHDF5
 
