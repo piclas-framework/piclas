@@ -46,7 +46,7 @@ USE MOD_PARTICLE_Vars,              ONLY: nSpecies, BoltzmannConst, Species, PDM
 USE MOD_PARTICLE_Vars,              ONLY: KeepWallParticles, PEM
 USE MOD_Particle_Boundary_Vars,     ONLY:PartBound
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
-!USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
+USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState,           ONLY: DSMC_SteadyStateInit
 USE MOD_TimeDisc_Vars,              ONLY: TEnd
 USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init, InitPartitionFunction
@@ -629,7 +629,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
               'Particles-OctreePartNumNodeMin is less than 20')
   END IF
   IF(DSMC%UseOctree) THEN
-!    CALL DSMC_init_octree()
+    CALL DSMC_init_octree()
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set mean VibQua of BGGas for dissoc reaction
