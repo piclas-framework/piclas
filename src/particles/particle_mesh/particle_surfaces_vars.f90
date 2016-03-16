@@ -65,21 +65,13 @@ REAL,ALLOCATABLE,DIMENSION(:)           :: BezierSampleXi               ! ref co
 
 REAL,ALLOCATABLE,DIMENSION(:)           :: SurfMeshSideAreas            ! areas of of sides of surface mesh (1:nBCSides)
 TYPE tSurfMeshSubSideData
-  REAL                                   :: vec_nOut(3)                 ! outward directed normal of sub-sides of surface mesh
+  REAL                                   :: vec_nIn(3)                  ! inward directed normal of sub-sides of surface mesh
   REAL                                   :: vec_t1(3)                   ! first orth. vector in sub-sides of surface mesh
   REAL                                   :: vec_t2(3)                   ! second orth. vector in sub-sides of surface mesh
   REAL                                   :: area                        ! area of sub-sides of surface mesh
 END TYPE tSurfMeshSubSideData
 TYPE(tSurfMeshSubSideData),ALLOCATABLE   :: SurfMeshSubSideData(:,:,:)  ! areas of of sub-sides of surface mesh
                                                                         ! (1:BezierSampleN,1:BezierSampleN,1:nBCSides)
-TYPE tSurfFluxSubSidesGeo
-  REAL                                   :: vec_nIn(3)                  ! inward directed normal of sub-sides of sides
-  REAL                                   :: vec_t1(3)                   ! first orth. vector in sub-sides of sides
-  REAL                                   :: vec_t2(3)                   ! second orth. vector in sub-sides of sides
-  REAL                                   :: area                        ! area of sub-sides of sides
-END TYPE tSurfFluxSubSidesGeo
-TYPE(tSurfFluxSubSidesGeo),ALLOCATABLE   :: SurfFluxSubSidesGeo(:,:,:)  ! data of sub-sides of surface mesh (e.g. normal+tang. 
-                                                                        ! vectors)
 TYPE tBCdata_auxSF
   INTEGER                                :: SideNumber                  ! Number of Particles in Sides in SurfacefluxBC
   INTEGER                , ALLOCATABLE   :: SideList(:)                 ! List of Sides in BC (1:SideNumber)
