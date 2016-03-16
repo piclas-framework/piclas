@@ -166,11 +166,11 @@ TYPE tInit                                                                   ! P
 END TYPE tInit
 
 TYPE tSurfFluxSubSidesEmit
-  REAL                                   :: projFak                          ! VeloVecIC projected to inwards normal of tria
-  REAL                                   :: a_nIn                            ! speed ratio projected to inwards normal of tria
-  REAL                                   :: Velo_t1                          ! Velo comp. of first orth. vector in tria
-  REAL                                   :: Velo_t2                          ! Velo comp. of second orth. vector in tria
-  REAL                                   :: nVFR                             ! normal volume flow rate through tria
+  REAL                                   :: projFak                          ! VeloVecIC projected to inwards normal
+  REAL                                   :: a_nIn                            ! speed ratio projected to inwards normal
+  REAL                                   :: Velo_t1                          ! Velo comp. of first orth. vector
+  REAL                                   :: Velo_t2                          ! Velo comp. of second orth. vector
+  REAL                                   :: nVFR                             ! normal volume flow rate through subside
 END TYPE tSurfFluxSubSidesEmit
 
 TYPE tSurfaceflux
@@ -184,10 +184,9 @@ TYPE tSurfaceflux
   REAL                                   :: VFR_total                        ! Total Volumetric flow rate through surface
   REAL                     , ALLOCATABLE :: VFR_total_allProcs(:)            ! -''-, all values for root in ReduceNoise-case
   REAL                                   :: VFR_total_allProcsTotal          !     -''-, total
-  !REAL                                   :: VFR_frac                         ! Current Volumetric flow rate through surface
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
-  TYPE(tSurfFluxSubSidesEmit), ALLOCATABLE :: SurfFluxSubSidesEmit(:,:,:)                  ! SF-specific Data of Sides (1:2,1:SideNumber)
+  TYPE(tSurfFluxSubSidesEmit), ALLOCATABLE :: SurfFluxSubSidesEmit(:,:,:)    ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species

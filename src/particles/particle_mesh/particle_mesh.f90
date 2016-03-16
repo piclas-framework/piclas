@@ -91,8 +91,7 @@ USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,Bezie
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic
 USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem,NGeo
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi,BezierSampledAreasInitIsDone
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleProjection,BezierSampleProjectionVec
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
 USE MOD_LoadBalance_Vars,       ONLY:nTracksPerElem
 !USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
 ! IMPLICIT VARIABLE HANDLING
@@ -105,7 +104,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT
-INTEGER           :: iElem, ilocSide,SideID,flip,iSide
+INTEGER           :: iElem, ilocSide,SideID,flip,iSide,iSample
 CHARACTER(LEN=2)  :: hilf
 !===================================================================================================================================
 
@@ -161,17 +160,13 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
  ,'  Cannot allocate BezierControlPoints3DElevated!')
 BezierControlPoints3DElevated=0.
 
-! SurfMesh stuff:
-BezierSampledAreasInitIsDone=.FALSE.
-BezierSampleProjection   =GETLOGICAL('BezierSampleProjection','.FALSE.') !dummy so far, to be changed for final surfaceflux
-IF (BezierSampleProjection) THEN
-  BezierSampleProjectionVec=GETREALARRAY('BezierSampleProjectionVec',3,'1. , 0. , 0.')
-  BezierSampleProjectionVec=BezierSampleProjectionVec/SQRT(DOT_PRODUCT(BezierSampleProjectionVec,BezierSampleProjectionVec))
-END IF
-
+! BezierAreaSample stuff:
 WRITE( hilf, '(I2.2)') NGeo
 BezierSampleN = GETINT('BezierSampleN',hilf)
 ALLOCATE(BezierSampleXi(0:BezierSampleN))!,STAT=ALLOCSTAT)
+DO iSample=0,BezierSampleN
+  BezierSampleXi(iSample)=-1.+2.0/BezierSampleN*iSample
+END DO
 
 !--- Initialize Periodic Side Info
 !ALLOCATE(SidePeriodicType(1:nSides)) 

@@ -62,17 +62,8 @@ REAL,ALLOCATABLE,DIMENSION(:)           :: SideBoundingBoxVolume        ! Boundi
 ! Surface sampling
 INTEGER                                 :: BezierSampleN                ! equidistant sampling of bezier surface for emission
 REAL,ALLOCATABLE,DIMENSION(:)           :: BezierSampleXi               ! ref coordinate for equidistant bezier surface sampling
-LOGICAL                                 :: BezierSampleProjection       ! do a projection in the direction of an asigned vector
-REAL,DIMENSION(3)                       :: BezierSampleProjectionVec    ! Projection vector
-
-! redundant?
 
 REAL,ALLOCATABLE,DIMENSION(:)           :: SurfMeshSideAreas            ! areas of of sides of surface mesh (1:nBCSides)
-REAL,ALLOCATABLE,DIMENSION(:,:,:)       :: SurfMeshProjSubSideAreas     ! projected areas of of sub-sides of surface mesh
-REAL,ALLOCATABLE,DIMENSION(:)           :: SurfMeshProjSideAreas        ! projected areas of of sides of surface mesh
-
-LOGICAL                                 :: BezierSampledAreasInitIsDone
-
 TYPE tSurfMeshSubSideData
   REAL                                   :: vec_nOut(3)                 ! outward directed normal of sub-sides of surface mesh
   REAL                                   :: vec_t1(3)                   ! first orth. vector in sub-sides of surface mesh
@@ -93,7 +84,7 @@ TYPE tBCdata_auxSF
   INTEGER                                :: SideNumber                  ! Number of Particles in Sides in SurfacefluxBC
   INTEGER                , ALLOCATABLE   :: SideList(:)                 ! List of Sides in BC (1:SideNumber)
 END TYPE tBCdata_auxSF
-TYPE(tBCdata_auxSF),ALLOCATABLE          :: BCdata_auxSF(:) !aux. data of triangulated BCs for surfacefluxes, (1:nPartBound) (!!!)
+TYPE(tBCdata_auxSF),ALLOCATABLE          :: BCdata_auxSF(:)             !aux. data of BCs for surfacefluxes, (1:nPartBound) (!!!)
 
 
 !===================================================================================================================================
