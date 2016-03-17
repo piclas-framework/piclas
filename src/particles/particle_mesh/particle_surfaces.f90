@@ -1251,14 +1251,12 @@ IF(BezierSampleProjection)THEN
   END IF
   n1=n1/SQRT(DOT_PRODUCT(n1,n1))
   n2(:)=CROSSNORM(ProjectionVector,n1)
-  DO q=0,NGeo
-    DO p=0,NGeo
-      BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID),n1)
-      ! origin is (0,0,0)^T
-      BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID),n2)
-      ! origin is (0,0,0)^T
-    END DO
-  END DO
+  DO q=0,NGeo; DO p=0,NGeo
+    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID),n1)
+    ! origin is (0,0,0)^T
+    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID),n2)
+    ! origin is (0,0,0)^T
+  END DO; END DO
 END IF!(BezierSampleProjection)THEN
 
 ALLOCATE(Xi_NGeo( 0:NGeo)  &
@@ -1267,60 +1265,56 @@ CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
 
 areaTotal=0.
 areaTotalAbs=0.
-DO jSample=1,BezierSampleN
-  DO iSample=1,BezierSampleN
-    area=0.
-    tmpI2=(BezierSampleXi(iSample-1)+BezierSampleXi(iSample))/2. ! (a+b)/2
-    tmpJ2=(BezierSampleXi(jSample-1)+BezierSampleXi(jSample))/2. ! (a+b)/2
-    ! ---------------------------------------
-    ! calc integral
-    DO I=0,NGeo
-      DO J=0,NGeo
-        XiOut(1)=tmp1*Xi_NGeo(I)+tmpI2
-        XiOut(2)=tmp1*Xi_NGeo(J)+tmpJ2 
-        IF(BezierSampleProjection)THEN
-          ! get gradients
-          CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,2,BezierControlPoints2D(1:2,0:NGeo,0:NGeo),Gradient=gradXiEta2D)
-          ! calculate first fundamental form
-          E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
-          F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
-          G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
-        ELSE
-          CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
-                                                  ,Gradient=gradXiEta3D)
-          ! calculate first fundamental form
-          E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
-          F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
-          G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
-        END IF
-        D=SQRT(E*G-F*F)
-        area=area+tmp1*tmp1*D*wGP_NGeo(i)*wGP_NGeo(j)
-      END DO
-    END DO
-    ! ---------------------------------------
-    IF (BezierSampleProjection .OR. &
-        PRESENT(SurfMeshSubSideVec_nOut_opt) .OR. &
-        PRESENT(SurfMeshSubSideVec_t1_opt) .OR. &
-        PRESENT(SurfMeshSubSideVec_t2_opt) ) THEN
-      CALL CalcNormAndTangBezier( nVec=SurfMeshSubSideVec_nOut(:,iSample,jSample) &
-                                ,tang1=SurfMeshSubSideVec_t1(:,iSample,jSample) &
-                                ,tang2=SurfMeshSubSideVec_t2(:,iSample,jSample) &
-                                ,xi=tmpI2,eta=tmpJ2,SideID=SideID )
-    END IF
+DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+  area=0.
+  tmpI2=(BezierSampleXi(iSample-1)+BezierSampleXi(iSample))/2. ! (a+b)/2
+  tmpJ2=(BezierSampleXi(jSample-1)+BezierSampleXi(jSample))/2. ! (a+b)/2
+  ! ---------------------------------------
+  ! calc integral
+  DO I=0,NGeo; DO J=0,NGeo
+    XiOut(1)=tmp1*Xi_NGeo(I)+tmpI2
+    XiOut(2)=tmp1*Xi_NGeo(J)+tmpJ2
     IF(BezierSampleProjection)THEN
-      !!!IPWRITE(*,*) 'vec_nOut', SurfMeshSubSideVec_nOut(iSample,jSample)
-      ! add facing sides and substract non-facing sides
-      SurfMeshSubSideAreas(iSample,jSample) = SIGN(area,-DOT_PRODUCT(ProjectionVector,SurfMeshSubSideVec_nOut(:,iSample,jSample)))
-      !!!IPWRITE(*,*)'sign-area', SurfMeshSubSideAreas(iSample,jSample)
+      ! get gradients
+      CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,2,BezierControlPoints2D(1:2,0:NGeo,0:NGeo),Gradient=gradXiEta2D)
+      ! calculate first fundamental form
+      E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
+      F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
+      G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
     ELSE
-      SurfMeshSubSideAreas(iSample,jSample) = area
+      CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+                                              ,Gradient=gradXiEta3D)
+      ! calculate first fundamental form
+      E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
+      F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
+      G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
     END IF
-    areaTotal=areaTotal+SurfMeshSubSideAreas(iSample,jSample)
-    areaTotalAbs=areaTotalAbs+area
-    !!!IPWRITE(*,*)"areaTotal",areaTotal
-    !!!IPWRITE(*,*)"areaTotalAbs",areaTotalAbs
-  END DO !jSample=1,BezierSampleN
-END DO !iSample=1,BezierSampleN
+    D=SQRT(E*G-F*F)
+    area=area+tmp1*tmp1*D*wGP_NGeo(i)*wGP_NGeo(j)
+  END DO; END DO
+  ! ---------------------------------------
+  IF (BezierSampleProjection .OR. &
+      PRESENT(SurfMeshSubSideVec_nOut_opt) .OR. &
+      PRESENT(SurfMeshSubSideVec_t1_opt) .OR. &
+      PRESENT(SurfMeshSubSideVec_t2_opt) ) THEN
+    CALL CalcNormAndTangBezier( nVec=SurfMeshSubSideVec_nOut(:,iSample,jSample) &
+                              ,tang1=SurfMeshSubSideVec_t1(:,iSample,jSample) &
+                              ,tang2=SurfMeshSubSideVec_t2(:,iSample,jSample) &
+                              ,xi=tmpI2,eta=tmpJ2,SideID=SideID )
+  END IF
+  IF(BezierSampleProjection)THEN
+    !!!IPWRITE(*,*) 'vec_nOut', SurfMeshSubSideVec_nOut(iSample,jSample)
+    ! add facing sides and substract non-facing sides
+    SurfMeshSubSideAreas(iSample,jSample) = SIGN(area,-DOT_PRODUCT(ProjectionVector,SurfMeshSubSideVec_nOut(:,iSample,jSample)))
+    !!!IPWRITE(*,*)'sign-area', SurfMeshSubSideAreas(iSample,jSample)
+  ELSE
+    SurfMeshSubSideAreas(iSample,jSample) = area
+  END IF
+  areaTotal=areaTotal+SurfMeshSubSideAreas(iSample,jSample)
+  areaTotalAbs=areaTotalAbs+area
+  !!!IPWRITE(*,*)"areaTotal",areaTotal
+  !!!IPWRITE(*,*)"areaTotalAbs",areaTotalAbs
+END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
   
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
 
