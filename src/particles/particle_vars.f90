@@ -165,13 +165,13 @@ TYPE tInit                                                                   ! P
 #endif /*MPI*/
 END TYPE tInit
 
-TYPE tSurfFluxSubSidesEmit
+TYPE tSurfFluxSubSideData
   REAL                                   :: projFak                          ! VeloVecIC projected to inwards normal
   REAL                                   :: a_nIn                            ! speed ratio projected to inwards normal
   REAL                                   :: Velo_t1                          ! Velo comp. of first orth. vector
   REAL                                   :: Velo_t2                          ! Velo comp. of second orth. vector
   REAL                                   :: nVFR                             ! normal volume flow rate through subside
-END TYPE tSurfFluxSubSidesEmit
+END TYPE tSurfFluxSubSideData
 
 TYPE tSurfaceflux
   INTEGER                                :: BC                               ! PartBound to be emitted from
@@ -186,7 +186,7 @@ TYPE tSurfaceflux
   REAL                                   :: VFR_total_allProcsTotal          !     -''-, total
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
-  TYPE(tSurfFluxSubSidesEmit), ALLOCATABLE :: SurfFluxSubSidesEmit(:,:,:)    ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
+  TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)    ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species

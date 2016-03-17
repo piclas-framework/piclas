@@ -1202,7 +1202,7 @@ REAL,DIMENSION(1:3,1:BezierSampleN,1:BezierSampleN),INTENT(OUT),OPTIONAL :: Surf
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: p,q
-INTEGER                                :: I,J,Isample,Jsample
+INTEGER                                :: I,J,iSample,jSample
 REAL                                   :: areaTotal,areaTotalAbs,area,deltaXi,tmp1,E,F,G,D
 REAL                                   :: tmpI1,tmpJ1,tmpI2,tmpJ2
 REAL                                   :: BezierControlPoints2D(1:2,0:NGeo,0:NGeo)
@@ -1229,8 +1229,8 @@ Xi(1) =-SQRT(1./3.)
 Xi(2) = SQRT(1./3.)
 deltaXi=2.0/BezierSampleN
 tmp1=deltaXi/2.0 !(b-a)/2
-DO iSample=0,BezierSampleN
-  BezierSampleXi(iSample)=-1.+deltaXi*iSample
+DO jSample=0,BezierSampleN
+  BezierSampleXi(jSample)=-1.+deltaXi*jSample
 END DO
 
 !===================================================================================================================================
@@ -1267,11 +1267,11 @@ CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
 
 areaTotal=0.
 areaTotalAbs=0.
-DO Isample=1,BezierSampleN
-  DO Jsample=1,BezierSampleN
+DO jSample=1,BezierSampleN
+  DO iSample=1,BezierSampleN
     area=0.
-    tmpI2=(BezierSampleXi(ISample-1)+BezierSampleXi(ISample))/2. ! (a+b)/2
-    tmpJ2=(BezierSampleXi(JSample-1)+BezierSampleXi(JSample))/2. ! (a+b)/2
+    tmpI2=(BezierSampleXi(iSample-1)+BezierSampleXi(iSample))/2. ! (a+b)/2
+    tmpJ2=(BezierSampleXi(jSample-1)+BezierSampleXi(jSample))/2. ! (a+b)/2
     ! ---------------------------------------
     ! calc integral
     DO I=0,NGeo
@@ -1302,25 +1302,25 @@ DO Isample=1,BezierSampleN
         PRESENT(SurfMeshSubSideVec_nOut_opt) .OR. &
         PRESENT(SurfMeshSubSideVec_t1_opt) .OR. &
         PRESENT(SurfMeshSubSideVec_t2_opt) ) THEN
-      CALL CalcNormAndTangBezier( nVec=SurfMeshSubSideVec_nOut(:,Jsample,Isample) &
-                                ,tang1=SurfMeshSubSideVec_t1(:,Jsample,Isample) &
-                                ,tang2=SurfMeshSubSideVec_t2(:,Jsample,Isample) &
+      CALL CalcNormAndTangBezier( nVec=SurfMeshSubSideVec_nOut(:,iSample,jSample) &
+                                ,tang1=SurfMeshSubSideVec_t1(:,iSample,jSample) &
+                                ,tang2=SurfMeshSubSideVec_t2(:,iSample,jSample) &
                                 ,xi=tmpI2,eta=tmpJ2,SideID=SideID )
     END IF
     IF(BezierSampleProjection)THEN
-      !!!IPWRITE(*,*) 'vec_nOut', SurfMeshSubSideVec_nOut(Jsample,Isample)
+      !!!IPWRITE(*,*) 'vec_nOut', SurfMeshSubSideVec_nOut(iSample,jSample)
       ! add facing sides and substract non-facing sides
-      SurfMeshSubSideAreas(Jsample,Isample) = SIGN(area,-DOT_PRODUCT(ProjectionVector,SurfMeshSubSideVec_nOut(:,Jsample,Isample)))
-      !!!IPWRITE(*,*)'sign-area', SurfMeshSubSideAreas(Jsample,Isample)
+      SurfMeshSubSideAreas(iSample,jSample) = SIGN(area,-DOT_PRODUCT(ProjectionVector,SurfMeshSubSideVec_nOut(:,iSample,jSample)))
+      !!!IPWRITE(*,*)'sign-area', SurfMeshSubSideAreas(iSample,jSample)
     ELSE
-      SurfMeshSubSideAreas(Jsample,Isample) = area
+      SurfMeshSubSideAreas(iSample,jSample) = area
     END IF
-    areaTotal=areaTotal+SurfMeshSubSideAreas(Jsample,Isample)
+    areaTotal=areaTotal+SurfMeshSubSideAreas(iSample,jSample)
     areaTotalAbs=areaTotalAbs+area
     !!!IPWRITE(*,*)"areaTotal",areaTotal
     !!!IPWRITE(*,*)"areaTotalAbs",areaTotalAbs
-  END DO !Isample=1,BezierSampleN
-END DO !Jsample=1,BezierSampleN
+  END DO !jSample=1,BezierSampleN
+END DO !iSample=1,BezierSampleN
   
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
 

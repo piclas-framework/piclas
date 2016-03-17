@@ -3026,7 +3026,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Local variable declaration                                                                       
-INTEGER               :: iPartBound,iSpec,iSF,SideID,ElemID,iLocSide,Isample,Jsample,iBC,currentBC,iCount,iProc
+INTEGER               :: iPartBound,iSpec,iSF,SideID,ElemID,iLocSide,iSample,jSample,iBC,currentBC,iCount,iProc
 CHARACTER(32)         :: hilf, hilf2
 REAL                  :: xNod, zNod, yNod, Vector1(3), Vector2(3), nx, ny, nz, a, vSF
 REAL                  :: vec_nIn(3), nVFR, ndist(3), ndistVal, vec_t1(3), vec_t2(3)
@@ -3037,7 +3037,7 @@ INTEGER,ALLOCATABLE   :: TmpSideNumber(:)                    ! Number of Particl
 INTEGER,ALLOCATABLE   :: TmpSideEnd(:)                       ! End of Linked List for Sides in SurfacefluxBC
 INTEGER,ALLOCATABLE   :: TmpSideNext(:)                      ! Next Side in same SurfacefluxBC (Linked List)
 REAL                  :: totalArea
-INTEGER               :: BCSideID, I, J, K
+INTEGER               :: BCSideID
 REAL,DIMENSION(1:BezierSampleN,1:BezierSampleN)     :: tmp_SubSideAreas
 REAL,DIMENSION(1:3,1:BezierSampleN,1:BezierSampleN) :: tmp_Vec_nOut, tmp_Vec_t1, tmp_Vec_t2
 !===================================================================================================================================
@@ -3062,11 +3062,11 @@ DO BCSideID=1,nBCSides
     ,SurfMeshSubSideVec_t1_opt=tmp_Vec_t1 &
     ,SurfMeshSubSideVec_t2_opt=tmp_Vec_t2)
   totalArea=totalArea+SurfMeshSideAreas(BCSideID)
-  DO J=0,BezierSampleN; DO I=0,BezierSampleN
-    SurfMeshSubSideData(I,J,BCSideID)%vec_nIn=-tmp_Vec_nOut(:,I,J)
-    SurfMeshSubSideData(I,J,BCSideID)%vec_t1=tmp_Vec_t1(:,I,J)
-    SurfMeshSubSideData(I,J,BCSideID)%vec_t2=tmp_Vec_t2(:,I,J)
-    SurfMeshSubSideData(I,J,BCSideID)%area=tmp_SubSideAreas(I,J)
+  DO jSample=0,BezierSampleN; DO iSample=0,BezierSampleN
+    SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn=-tmp_Vec_nOut(:,iSample,jSample)
+    SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1=tmp_Vec_t1(:,iSample,jSample)
+    SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2=tmp_Vec_t2(:,iSample,jSample)
+    SurfMeshSubSideData(iSample,jSample,BCSideID)%area=tmp_SubSideAreas(iSample,jSample)
   END DO; END DO
 END DO
 #ifdef CODE_ANALYZE
@@ -3158,23 +3158,23 @@ DO iBC=1,nPartBound
   nDataBC=nDataBC+1
   TmpMapToBC(nDataBC)=iBC
 END DO
-DO SideID=1,nBCSides
+DO BCSideID=1,nBCSides
   currentBC=0
   DO iBC=1,nDataBC
-    IF (PartBound%MapToPartBC(BC(SideID)) .EQ. TmpMapToBC(iBC)) currentBC=iBC
+    IF (PartBound%MapToPartBC(BC(BCSideID)) .EQ. TmpMapToBC(iBC)) currentBC=iBC
   END DO
   IF (currentBC.EQ.0) CYCLE
   IF (TmpSideNumber(currentBC).EQ.0) THEN
-    TmpSideStart(currentBC) = SideID ! Start of Linked List for Sides
+    TmpSideStart(currentBC) = BCSideID ! Start of Linked List for Sides
   ELSE
-    TmpSideNext(TmpSideEnd(currentBC)) = SideID ! Next Side
+    TmpSideNext(TmpSideEnd(currentBC)) = BCSideID ! Next Side
   END IF
   !-- prepare for next entry in list
-  TmpSideEnd(currentBC) = SideID
+  TmpSideEnd(currentBC) = BCSideID
   TmpSideNumber(currentBC) = TmpSideNumber(currentBC) + 1  ! Number of Sides
-END DO ! SideID
+END DO ! BCSideID
 
-!-- 3.: store temp. Side lists and initialized data in BCdata_auxSF and SurfFluxSubSidesEmit
+!-- 3.: store temp. Side lists and initialized data in BCdata_auxSF and SurfFluxSubSideData
 DO iBC=1,nDataBC
   BCdata_auxSF(TmpMapToBC(iBC))%SideNumber=TmpSideNumber(iBC)
   IF (TmpSideNumber(iBC).EQ.0) CYCLE
@@ -3182,26 +3182,26 @@ DO iBC=1,nDataBC
   DO iSpec=1,nSpecies
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF (TmpMapToBC(iBC).EQ.Species(iSpec)%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
-        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSidesEmit(1:BezierSampleN,1:BezierSampleN,1:TmpSideNumber(iBC)) )
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(1:BezierSampleN,1:BezierSampleN,1:TmpSideNumber(iBC)) )
       END IF
     END DO
   END DO
-  SideID=TmpSideStart(iBC)
+  BCSideID=TmpSideStart(iBC)
   iCount=0
-  DO !follow SideID list seq. with iCount
+  DO !follow BCSideID list seq. with iCount
     iCount=iCount+1
-    BCdata_auxSF(TmpMapToBC(iBC))%SideList(iCount)=SideID
-    ElemID = SideToElem(1,SideID)
-    IF (ElemID.LT.1) THEN
-      ElemID = SideToElem(2,SideID)
-      iLocSide = SideToElem(4,SideID)
+    BCdata_auxSF(TmpMapToBC(iBC))%SideList(iCount)=BCSideID
+    ElemID = SideToElem(1,BCSideID)
+    IF (ElemID.LT.1) THEN !not sure if necessary
+      ElemID = SideToElem(2,BCSideID)
+      iLocSide = SideToElem(4,BCSideID)
     ELSE
-      iLocSide = SideToElem(3,SideID)
+      iLocSide = SideToElem(3,BCSideID)
     END IF
     xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,ElemID))
     yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,ElemID))
     zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,ElemID))
-    DO JSample = 1,BezierSampleN; DO JSample = 1,BezierSampleN
+    DO jSample = 1,BezierSampleN; DO iSample = 1,BezierSampleN
       !----- 3a: SF-independent Geo data
       Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
       Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
@@ -3222,9 +3222,9 @@ DO iBC=1,nDataBC
         , 'Error 1 in ParticleSurfaceflux!')
 
       !----- 3b: SF-specific data of Sides
-      vec_nIn = SideData(TriNum,SideID)%vec_nIn
-      vec_t1 = SideData(TriNum,SideID)%vec_t1
-      vec_t2 = SideData(TriNum,SideID)%vec_t2
+      vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
+      vec_t1 = SideData(TriNum,BCSideID)%vec_t1
+      vec_t2 = SideData(TriNum,BCSideID)%vec_t2
       DO iSpec=1,nSpecies
         DO iSF=1,Species(iSpec)%nSurfacefluxBCs
           IF (TmpMapToBC(iBC).EQ.Species(iSpec)%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
@@ -3245,15 +3245,15 @@ DO iBC=1,nDataBC
               a = Species(iSpec)%Surfaceflux(iSF)%VeloIC / vSF & !thermal speed ratio projected inwards (can be negative!)
                 * (nx*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1) &
                   +ny*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(2) &
-                  +nz*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(3)) / (2.*SideData(TriNum,SideID)%area) !(double area is correct!)
+                  +nz*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(3)) / (2.*SideData(TriNum,BCSideID)%area) !(double area is correct!)
               vSF = vSF / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity
-              nVFR = SideData(TriNum,SideID)%area * vSF !VFR projected to Side
+              nVFR = SideData(TriNum,BCSideID)%area * vSF !VFR projected to Side
               Species(iSpec)%Surfaceflux(iSF)%VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total + nVFR
             CASE DEFAULT
               CALL abort(__STAMP__,&
                 'wrong velo-distri for Surfaceflux!')
             END SELECT
-            !-- store SF-specific tria data in SurfFluxSubSidesEmit (incl. projected velos)
+            !-- store SF-specific tria data in SurfFluxSubSideData (incl. projected velos)
             Species(iSpec)%Surfaceflux(iSF)%DataTriaSF(TriNum,iCount)%nVFR = nVFR
             Species(iSpec)%Surfaceflux(iSF)%DataTriaSF(TriNum,iCount)%projFak &
               = (vec_nIn(1)*Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1) &
@@ -3276,7 +3276,7 @@ DO iBC=1,nDataBC
     END DO ! TriNum
 
     !-- next Side
-    IF (SideID .EQ. TmpSideEnd(iBC)) THEN
+    IF (BCSideID .EQ. TmpSideEnd(iBC)) THEN
       IF (TmpSideNumber(iBC).NE.iCount) THEN
         CALL abort(__STAMP__,&
           'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
@@ -3286,8 +3286,8 @@ DO iBC=1,nDataBC
         EXIT
       END IF
     END IF
-    SideID=TmpSideNext(SideID)
-  END DO ! SideID (iCount)
+    BCSideID=TmpSideNext(BCSideID)
+  END DO ! BCSideID (iCount)
 END DO !iBC
 DEALLOCATE(TmpMapToBC &
           ,TmpSideStart &
@@ -3375,7 +3375,7 @@ IMPLICIT NONE
 ! Local variable declaration                                                                       
 INTEGER                       :: iSpec , PositionNbr, iSF, iSide, currentBC
 INTEGER                       :: NbrOfParticle, ExtraParts
-INTEGER                       :: SideID, ElemID, iLocSide, TriNum, Node1, Node2, PartInsSide, iPart, iPartTotal, IntSample
+INTEGER                       :: BCSideID, ElemID, iLocSide, TriNum, Node1, Node2, PartInsSide, iPart, iPartTotal, IntSample
 INTEGER                       :: ParticleIndexNbr, allocStat
 REAL                          :: xNod,zNod,yNod,Vector1(3),Vector2(3),midpoint(3),PartIns,VFR_total
 REAL                          :: Particle_pos(3), RandVal1, RandVal2(2), ndist(3), PartDistance
@@ -3468,13 +3468,13 @@ DO iSpec=1,nSpecies
         'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
     END IF
     DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-      SideID=BCdata_auxSF(currentBC)%SideList(iSide)
-      ElemID = SideToElem(1,SideID)
-      IF (ElemID.LT.1) THEN
-        ElemID = SideToElem(2,SideID)
-        iLocSide = SideToElem(4,SideID)
+      BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+      ElemID = SideToElem(1,BCSideID)
+      IF (ElemID.LT.1) THEN !not sure if necessary
+        ElemID = SideToElem(2,BCSideID)
+        iLocSide = SideToElem(4,BCSideID)
       ELSE
-        iLocSide = SideToElem(3,SideID)
+        iLocSide = SideToElem(3,BCSideID)
       END IF
       xNod = GEO%NodeCoords(1,GEO%ElemSideNodeID(1,iLocSide,ElemID))
       yNod = GEO%NodeCoords(2,GEO%ElemSideNodeID(1,iLocSide,ElemID))
@@ -3487,7 +3487,7 @@ DO iSpec=1,nSpecies
             ExtraParts = 0
           END IF
         ELSE
-          ExtraParts = 0 !set here number of additional to-be-inserted particles in current SideID/Tria (e.g. desorption)
+          ExtraParts = 0 !set here number of additional to-be-inserted particles in current BCSideID/Tria (e.g. desorption)
         END IF
         !-- compute parallelogram of triangle (only simple 2 value adds/subs, other from init)
         Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
@@ -3570,7 +3570,7 @@ DO iSpec=1,nSpecies
         DEALLOCATE(particle_positions)
 !----- 2a.: set velocities if special for each tria
         IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'constant') THEN
-          CALL SetSurfacefluxVelocities(iSpec,iSF,TriNum,iSide,SideID,NbrOfParticle,PartInsSide)
+          CALL SetSurfacefluxVelocities(iSpec,iSF,TriNum,iSide,BCSideID,NbrOfParticle,PartInsSide)
         END IF
         
       END DO ! TriNum
@@ -3658,7 +3658,7 @@ END DO !iSpec
 END SUBROUTINE ParticleSurfaceflux
 
 
-SUBROUTINE SetSurfacefluxVelocities(FractNbr,iSF,TriNum,iSide,SideID,NbrOfParticle,PartInsSide)
+SUBROUTINE SetSurfacefluxVelocities(FractNbr,iSF,TriNum,iSide,BCSideID,NbrOfParticle,PartInsSide)
 !===================================================================================================================================
 ! Determine the particle velocity of each inserted particle
 !===================================================================================================================================
@@ -3672,7 +3672,7 @@ USE MOD_Mesh_Vars,              ONLY : SideData
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr,iSF,TriNum,iSide,SideID,NbrOfParticle,PartInsSide
+INTEGER,INTENT(IN)               :: FractNbr,iSF,TriNum,iSide,BCSideID,NbrOfParticle,PartInsSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES           
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3829,7 +3829,7 @@ CASE('maxwell_surfaceflux')
       END SELECT
       
 !-- 2.: sample normal directions and build complete velo-vector
-      Vec3D(1:3) = SideData(TriNum,SideID)%vec_nIn(1:3)*SQRT(2.*BoltzmannConst*T/Species(FractNbr)%MassIC)*(a-zstar)
+      Vec3D(1:3) = SideData(TriNum,BCSideID)%vec_nIn(1:3)*SQRT(2.*BoltzmannConst*T/Species(FractNbr)%MassIC)*(a-zstar)
 !      IF (.NOT.DoZigguratSampling) THEN !polar method
         Velosq = 2
         DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
@@ -3844,10 +3844,10 @@ CASE('maxwell_surfaceflux')
 !        Velo1=rnor()
 !        Velo2=rnor()
 !      END IF
-      Vec3D(1:3) = Vec3D(1:3) + SideData(TriNum,SideID)%vec_t1(1:3) &
+      Vec3D(1:3) = Vec3D(1:3) + SideData(TriNum,BCSideID)%vec_t1(1:3) &
         * ( Species(FractNbr)%Surfaceflux(iSF)%DataTriaSF(TriNum,iSide)%Velo_t1 &
            +Velo1*SQRT(BoltzmannConst*T/Species(FractNbr)%MassIC) )     !t1-Komponente (Gauss)
-      Vec3D(1:3) = Vec3D(1:3) + SideData(TriNum,SideID)%vec_t2(1:3) &
+      Vec3D(1:3) = Vec3D(1:3) + SideData(TriNum,BCSideID)%vec_t2(1:3) &
         * ( Species(FractNbr)%Surfaceflux(iSF)%DataTriaSF(TriNum,iSide)%Velo_t2 &
            +Velo2*SQRT(BoltzmannConst*T/Species(FractNbr)%MassIC) )     !t2-Komponente (Gauss)
 
