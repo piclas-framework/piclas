@@ -3351,11 +3351,11 @@ INTEGER                       :: iSpec , PositionNbr, iSF, iSide, currentBC
 INTEGER                       :: NbrOfParticle, ExtraParts
 INTEGER                       :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSide, iPart, iPartTotal, IntSample
 INTEGER                       :: ParticleIndexNbr, allocStat
-REAL                          :: xNod,zNod,yNod,Vector1(3),Vector2(3),midpoint(3),PartIns,VFR_total
-REAL                          :: Particle_pos(3), RandVal1, RandVal2(2), ndist(3), PartDistance
+REAL                          :: PartIns,VFR_total
+REAL                          :: Particle_pos(3), RandVal1, RandVal2(2)
 REAL,ALLOCATABLE              :: particle_positions(:)
 INTEGER(KIND=8)               :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
-INTEGER,ALLOCATABLE           :: PartInsProc(:),PartInsTria(:,:)
+INTEGER,ALLOCATABLE           :: PartInsProc(:),PartInsSubSides(:,:)
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
@@ -3420,17 +3420,18 @@ DO iSpec=1,nSpecies
 #endif  /*MPI*/
 !IPWRITE(*,*) 'B: ',iSpec,iSF,PartInsSide !!!!!!!!!!
 
-      !-- calc global to-be-inserted number of parts and distribute to trias (proc local)
-      SDEALLOCATE(PartInsTria)
-      ALLOCATE(PartInsTria(1:2,1:BCdata_auxSF(currentBC)%SideNumber))
-      PartInsTria=0
+      !-- calc global to-be-inserted number of parts and distribute to SubSides (proc local)
+      SDEALLOCATE(PartInsSubSides)
+      ALLOCATE(PartInsSubSides(1:BezierSampleN,1:BezierSampleN,1:BCdata_auxSF(currentBC)%SideNumber))
+      PartInsSubSides=0
       IF (BCdata_auxSF(currentBC)%SideNumber.LT.1) THEN
         IF (PartInsSide.NE.0) CALL abort(__STAMP__,&
           'ERROR in ParticleSurfaceflux: Someting is wrong with PartInsSide of BC ',currentBC)
       ELSE
         CALL IntegerDivide(PartInsSide,BCdata_auxSF(currentBC)%SideNumber*2 &
-          ,Species(iSpec)%Surfaceflux(iSF)%DataTriaSF(1:2,1:BCdata_auxSF(currentBC)%SideNumber)%nVFR &
-          ,PartInsTria(1:2,1:BCdata_auxSF(currentBC)%SideNumber) )
+          ,Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(1:BezierSampleN,1:BezierSampleN &
+                                                              ,1:BCdata_auxSF(currentBC)%SideNumber)%nVFR &
+          ,PartInsSubSides(1:BezierSampleN,1:BezierSampleN,1:BCdata_auxSF(currentBC)%SideNumber) )
       END IF
     END IF !.NOT.DoPoissonRounding
 
@@ -3455,33 +3456,24 @@ DO iSpec=1,nSpecies
       zNod = GEO%NodeCoords(3,GEO%ElemSideNodeID(1,iLocSide,ElemID))
       DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
         IF (useDSMC .AND. (.NOT. KeepWallParticles)) THEN
-          IF (DSMC%WallModel.GT.0) THEN
-            ExtraParts = Adsorption%SumDesorbPart(TriNum,SurfMesh%GlobSideToSurfSideMap(iSide),iSpec)
+          IF (DSMC%WallModel.GT.0) THEN !to be implemented/checked!!!
+            !ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%GlobSideToSurfSideMap(iSide),iSpec)
           ELSE
             ExtraParts = 0
           END IF
         ELSE
           ExtraParts = 0 !set here number of additional to-be-inserted particles in current BCSideID/Tria (e.g. desorption)
         END IF
-        !-- compute parallelogram of triangle (only simple 2 value adds/subs, other from init)
-        Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
-        Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-        Vector1(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - xNod
-        Vector1(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - yNod
-        Vector1(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node1,iLocSide,ElemID)) - zNod
-        Vector2(1) = GEO%NodeCoords(1,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - xNod
-        Vector2(2) = GEO%NodeCoords(2,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - yNod
-        Vector2(3) = GEO%NodeCoords(3,GEO%ElemSideNodeID(Node2,iLocSide,ElemID)) - zNod
 
 !----- 1.: set positions
         !-- compute number of to be inserted particles
         IF (.NOT.DoPoissonRounding) THEN
-          PartInsSide=PartInsTria(TriNum,iSide)
+          PartInsSide=PartInsSubSides(iSample,jSample,iSide)
 !IPWRITE(*,*) PartInsSide
 !read*
         ELSE !DoPoissonRounding
           PartIns = Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
-                  * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%DataTriaSF(TriNum,iSide)%nVFR
+                  * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR
           IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
             CALL abort(__STAMP__,&
               'ERROR in ParticleSurfaceflux: flux is too large for poisson sampling!')
@@ -3544,7 +3536,7 @@ DO iSpec=1,nSpecies
         DEALLOCATE(particle_positions)
 !----- 2a.: set velocities if special for each tria
         IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'constant') THEN
-          CALL SetSurfacefluxVelocities(iSpec,iSF,TriNum,iSide,BCSideID,NbrOfParticle,PartInsSide)
+          CALL SetSurfacefluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,NbrOfParticle,PartInsSide)
         END IF
         
       END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
@@ -3671,10 +3663,10 @@ RandN_in_Mem=.FALSE.
 envelope=-1
 T = Species(FractNbr)%Surfaceflux(iSF)%MWTemperatureIC
 currentBC = Species(FractNbr)%Surfaceflux(iSF)%BC
-a = Species(FractNbr)%Surfaceflux(iSF)%DataTriaSF(TriNum,iSide)%a_nIn
+a = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
 
 !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
-IF (ALMOSTEQUAL(Species(FractNbr)%Surfaceflux(iSF)%VeloIC*Species(FractNbr)%Surfaceflux(iSF)%DataTriaSF(TriNum,iSide)%projFak &
+IF (ALMOSTEQUAL(Species(FractNbr)%Surfaceflux(iSF)%VeloIC*Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak &
     ,0.)) THEN
 ! Rayleigh distri
   envelope = 0
@@ -3819,10 +3811,10 @@ CASE('maxwell_surfaceflux')
 !        Velo2=rnor()
 !      END IF
       Vec3D(1:3) = Vec3D(1:3) + SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1(1:3) &
-        * ( Species(FractNbr)%Surfaceflux(iSF)%DataTriaSF(TriNum,iSide)%Velo_t1 &
+        * ( Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 &
            +Velo1*SQRT(BoltzmannConst*T/Species(FractNbr)%MassIC) )     !t1-Komponente (Gauss)
       Vec3D(1:3) = Vec3D(1:3) + SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3) &
-        * ( Species(FractNbr)%Surfaceflux(iSF)%DataTriaSF(TriNum,iSide)%Velo_t2 &
+        * ( Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 &
            +Velo2*SQRT(BoltzmannConst*T/Species(FractNbr)%MassIC) )     !t2-Komponente (Gauss)
 
       PartState(PositionNbr,4:6) = Vec3D(1:3)
