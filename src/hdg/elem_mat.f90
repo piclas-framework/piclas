@@ -40,7 +40,7 @@ USE MOD_Equation_Vars     , ONLY: chitens
 USE MOD_Interpolation_Vars ,ONLY: xGP,wGP,L_minus,L_plus
 USE MOD_Mesh_Vars          ,ONLY: sJ, Metrics_fTilde, Metrics_gTilde,Metrics_hTilde
 USE MOD_Mesh_Vars          ,ONLY: SurfElem
-USE MOD_Mesh_Vars          ,ONLY: VolToSideA,VolToSideIJKA,ElemToSide
+USE MOD_Mesh_Vars          ,ONLY: VolToSideA,VolToSide2A,VolToSideIJKA,ElemToSide
 USE MOD_Basis              ,ONLY: getSPDInverse
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

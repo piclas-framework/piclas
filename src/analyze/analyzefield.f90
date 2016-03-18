@@ -581,6 +581,15 @@ USE MOD_Equation_Vars,      ONLY : smu0, eps0
 USE MOD_DG_Vars,            ONLY : U
 USE MOD_Mesh_Vars,          ONLY : Elem_xGP
 USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax,DoPML
+#ifdef PP_HDG
+#if PP_nVar==1
+USE MOD_Equation_Vars,        ONLY:E
+#elif PP_nVar==3
+USE MOD_Equation_Vars,        ONLY:B
+#else
+USE MOD_Equation_Vars,        ONLY:B,E
+#endif /*PP_nVar==1*/
+#endif /*PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -640,15 +649,32 @@ ELSE
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
   ! in electromagnetische felder by henke 2011 - springer
   ! WMag = 1/(2mu) * int_V B^2 dV 
-      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
-            + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
-            + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+
+#ifdef PP_HDG
+#if PP_nVar==1
+      E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+#elif PP_nVar==3
+      B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
+#else /*PP_nVar==4*/
+      E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+      B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
+#endif /*PP_nVar==1*/
+#else
+      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+#endif /*PP_HDG*/
+
 #if (PP_nVar==8)
-      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
-            + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
-            + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
+      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
 #endif /*PP_nVar=8*/        
+
       ! if x, y or z is in PML region
+#ifdef PP_HDG
+#if PP_nVar==3
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+#else /*PP_nVar==4*/
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+#endif /*PP_nVar==3*/
+#endif /*PP_HDG*/
       WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
 #if (PP_nVar==8)
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs

@@ -63,7 +63,7 @@ USE MOD_Equation_Vars,        ONLY:E,Phi
 #endif /*PP_POIS*/
 #ifdef PP_HDG
 USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh
-USE MOD_Mesh_Vars,            ONLY: nMPISides_YOUR, offsetSide, nSides
+USE MOD_Mesh_Vars,            ONLY: offsetSide, nSides,nGlobalUniqueSides,SideID_Minus_Upper
 USE MOD_HDG_Vars,             ONLY: lambda, nGP_face, nGP_vol, RHS_vol
 #if PP_nVar==1
 USE MOD_Equation_Vars,        ONLY:E
@@ -89,7 +89,8 @@ CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER                        :: nVar
 #ifdef MPI
 REAL                           :: StartT,EndT
-#endif
+#endif /*MPI*/
+
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #elif defined PP_HDG
@@ -97,13 +98,13 @@ REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #elif PP_nVar==3
 REAL                           :: Utemp(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-#else
+#else /*PP_nVar=4*/
 REAL                           :: Utemp(1:7,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-#endif /*PP_nVar*/
+#endif /*PP_nVar==1*/
 #else
 #ifndef maxwell
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
-#endif
+#endif /*not maxwell*/
 #endif /*PP_POIS*/
 !===================================================================================================================================
 
@@ -117,8 +118,7 @@ SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 RestartFile=Filename
-! PO:
-! excahnge PP_N through Nout
+
 #ifdef PP_HDG
 #if PP_nVar==1
 IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime,FutureTime)
@@ -209,10 +209,10 @@ DEALLOCATE(Utemp)
 #elif defined PP_HDG
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
                         DataSetName='DG_SolutionLambda', rank=3,&
-                        nValGlobal=(/PP_nVar,nGP_face,SurfMesh%nGlobalSides/),&
-                        nVal=      (/PP_nVar,nGP_face,nSides-nMPISides_YOUR/),&
+                        nValGlobal=(/PP_nVar,nGP_face,nGlobalUniqueSides/),&
+                        nVal=      (/PP_nVar,nGP_face,SideID_minus_upper/),&
                         offset=    (/0,      0,       offsetSide/),&
-                        collective=.TRUE., RealArray=lambda(:,:,1:nSides-nMPISides_YOUR))
+                        collective=.TRUE., RealArray=lambda(:,:,1:SideID_minus_upper))
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
                         DataSetName='DG_SolutionU', rank=5,&
                         nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
@@ -239,7 +239,7 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
                         nVal=      (/3,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
                         offset=    (/0,      0,     0,     0,     offsetElem/),&
                         collective=.TRUE., RealArray=Utemp)
-#else
+#else /*(PP_nVar==4)*/
 Utemp(1,:,:,:,:)=U(4,:,:,:,:)
 Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
 Utemp(5:7,:,:,:,:)=B(1:3,:,:,:,:)
@@ -292,9 +292,11 @@ IF(OutPutSource) THEN
 END IF
 #endif /*PARTICLES*/
 
+
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
 #endif /*Particles*/
+
 
 CALL WriteAdditionalDataToHDF5(FileName)
 
@@ -939,11 +941,13 @@ INTEGER                        :: minnParts
                             collective=.FALSE.,offSetDim=1         ,&
                             communicator=PartMPI%COMM,RealArray=PartData)
 #else
+  CALL OpenDataFile(FileName,create=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName='PartData', rank=2,&
                         nValGlobal=(/nPart_glob,PartDataSize/),&
                         nVal=      (/locnPart,PartDataSize  /),&
                         offset=    (/offsetnPart , 0  /),&
                         collective=.TRUE., RealArray=PartData)
+  CALL CloseDataFile()
 #endif /*MPI*/                          
 
   ! reswitch
