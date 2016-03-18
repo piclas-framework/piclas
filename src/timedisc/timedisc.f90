@@ -1349,8 +1349,7 @@ SUBROUTINE TimeStep_DSMC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY: dt, IterDisplayStep, iter, TEnd, Time
-USE MOD_Filter,ONLY:Filter
+USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : KeepWallParticles
@@ -1379,18 +1378,17 @@ REAL    :: RandVal, dtFrac
 
   IF (DoSurfaceFlux) THEN
     CALL ParticleSurfaceflux()
-    
-    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-    PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         IF (.NOT.PDM%dtFracPush(iPart)) THEN
+          LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+          LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+          LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+          PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
           PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
           PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
           PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
-        ELSE
+        ELSE !sf-fractPush: Last-values already set!
           CALL RANDOM_NUMBER(RandVal)
           dtFrac = dt * RandVal
           PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac

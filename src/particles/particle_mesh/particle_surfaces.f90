@@ -1010,7 +1010,7 @@ INTEGER,INTENT(IN) :: ElemID,NGeo
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: p,q,iLocSide,SideID,SideIDOrigin,tmpSideID
+INTEGER            :: p,q,iLocSide,SideID,SideIDOrigin
 REAL               :: skalprod(3),dx,dy,dz
 !===================================================================================================================================
 
@@ -1204,7 +1204,7 @@ REAL,DIMENSION(1:3,1:BezierSampleN,1:BezierSampleN),INTENT(OUT),OPTIONAL :: Surf
 INTEGER                                :: p,q
 INTEGER                                :: I,J,iSample,jSample
 REAL                                   :: areaTotal,areaTotalAbs,area,deltaXi,tmp1,E,F,G,D
-REAL                                   :: tmpI1,tmpJ1,tmpI2,tmpJ2
+REAL                                   :: tmpI2,tmpJ2
 REAL                                   :: BezierControlPoints2D(1:2,0:NGeo,0:NGeo)
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,DIMENSION(2,2)                    :: gradXiEta2D

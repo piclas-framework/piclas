@@ -110,8 +110,9 @@ IF (.NOT.DoRestart) THEN
       !END IF
       IF (((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 6)) .AND. &
            (Species(i)%Init(iInit)%UseForInit)) THEN ! Special emission type: constant density in cell, + to be used for init
-          CALL abort(__STAMP__,&
-                ' particle pressure not moved to picasso!')
+        CALL abort(&
+          __STAMP__,&
+          ' particle pressure not moved to picasso!')
         IF (Species(i)%Init(iInit)%ParticleEmissionType .EQ. 4) THEN
           CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
           CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
@@ -168,8 +169,9 @@ IF (.NOT.DoRestart) THEN
         CALL UpdateNextFreePosition()
         ! constant pressure condition
         IF ((Species(i)%Init(iInit)%ParticleEmissionType .EQ. 3).OR.(Species(i)%Init(iInit)%ParticleEmissionType .EQ. 5)) THEN
-          CALL abort(__STAMP__,&
-                ' particle pressure not moved in picasso!')
+          CALL abort(&
+            __STAMP__,&
+            ' particle pressure not moved in picasso!')
           CALL ParticleInsideCheck(i, iInit, nPartInside, TempInside, EInside)
           IF (Species(i)%Init(iInit)%ParticleEmission .GT. nPartInside) THEN
             NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission) - nPartInside
@@ -331,16 +333,18 @@ DO i=1,nSpecies
         CASE(2)    ! Emission Type: Particles per Iteration
           NbrOfParticle = INT(Species(i)%Init(iInit)%ParticleEmission)
         CASE(3)
-          CALL abort(__STAMP__,&
-                ' particle pressure not moved in picasso!')
+          CALL abort(&
+            __STAMP__,&
+            ' particle pressure not moved in picasso!')
           CALL ParticlePressure (i, iInit, NbrOfParticle)
           ! if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
           IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
             IF (NbrOfParticle.LT.5) NbrOfParticle=0
           END IF
         CASE(5) ! removal of all parts in pressure area and re-insertion
-          CALL abort(__STAMP__,&
-                ' particle pressure not moved in picasso!')
+          CALL abort(&
+            __STAMP__,&
+            ' particle pressure not moved in picasso!')
           CALL ParticlePressureRem (i, iInit, NbrOfParticle)
         CASE DEFAULT
           NbrOfParticle = 0
@@ -406,8 +410,9 @@ DO i=1,nSpecies
         CALL ParticleInsertingCellPressure(i,iInit,NbrofParticle)
         CALL SetParticleVelocity(i,iInit,NbrOfParticle,1)
       ELSE !emission type 6 (constant pressure outflow)
-          CALL abort(__STAMP__,&
-                ' particle pressure not moved in picasso!')
+        CALL abort(&
+          __STAMP__,&
+          ' particle pressure not moved in picasso!')
         CALL ParticleInsertingPressureOut(i,iInit,NbrofParticle)
       END IF
       CALL SetParticleChargeAndMass(i,NbrOfParticle)
@@ -552,7 +557,6 @@ REAL                                     :: intersecPoint(3), orifice_delta, lPe
 INTEGER                                  :: DimSend, orificePeriodic
 LOGICAL                                  :: orificePeriodicLog(2), insideExcludeRegion
 #ifdef MPI
-REAL                                     :: PartInsRest
 INTEGER                                  :: InitGroup
 #endif                        
 !===================================================================================================================================
@@ -587,8 +591,9 @@ IF(Species(FractNbr)%Init(iInit)%VirtPreInsert) THEN ! (SpaceIC.EQ.'cuboid_vpi')
   lineVector(3) = Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2) - &
     Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1)
   IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-    CALL abort(__STAMP__,&
-                'BaseVectors are parallel!')
+    CALL abort(&
+      __STAMP__,&
+      'BaseVectors are parallel!')
   ELSE
     A_ins = SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + lineVector(3) * lineVector(3))
     lineVector = lineVector / A_ins
@@ -618,14 +623,16 @@ IF(Species(FractNbr)%Init(iInit)%VirtPreInsert) THEN ! (SpaceIC.EQ.'cuboid_vpi')
       SWRITE(*,'(A72,2(x,I0),A1)') 'cross product and product of theirs lenghts for BaseVectors of Spec/Init',&
         FractNbr, iInit, ':'
       SWRITE(*,*) A_ins, BV_lengths(1)*BV_lengths(2)
-      CALL abort(__STAMP__&
+      CALL abort(&
+        __STAMP__&
         ,' BaseVectors of the current SpaceIC are not parallel?')
     END IF
     IF ( .NOT.AlmostEqual(SQRT(v_drift_BV(1)**2+v_drift_BV(2)**2+v_drift_line**2),ABS(Species(FractNbr)%Init(iInit)%VeloIC)) ) THEN
       SWRITE(*,'(A60,2(x,I0),A1)') 'v_drift_BV1, v_drift_BV2, v_drift_line, VeloIC for Spec/Init',&
         FractNbr, iInit, ':'
       SWRITE(*,*) v_drift_BV(1),v_drift_BV(2),v_drift_line,Species(FractNbr)%Init(iInit)%VeloIC
-      CALL abort(__STAMP__&
+      CALL abort(&
+        __STAMP__&
         ,' Something is wrong with the Basis of the current SpaceIC!')
     END IF
     IF ( TRIM(Species(FractNbr)%Init(iInit)%SpaceIC) .EQ. 'cuboid_vpi' ) THEN
@@ -663,27 +670,31 @@ IF(Species(FractNbr)%Init(iInit)%VirtPreInsert) THEN ! (SpaceIC.EQ.'cuboid_vpi')
           IF ( .NOT.(SQRT(ParaCheck(1)**2+ParaCheck(2)**2+ParaCheck(3)**2).GT.TwoepsMach) ) THEN
             orificePeriodic=2 !parallel with BV2
           ELSE
-            CALL abort(__STAMP__&
-               ,' PeriodicVector is not parallel to any orifice BV -> not implemented yet!')
+            CALL abort(&
+              __STAMP__&
+              ,' PeriodicVector is not parallel to any orifice BV -> not implemented yet!')
           END IF
         ELSE IF (orificePeriodic .EQ. 1) THEN
           !PerVec cannot be parallel with BV2, as BV1 already is
         ELSE
-          CALL abort(__STAMP__&
-             ,' Something is wrong with the PeriodicVector and the orifice BV!')
+          CALL abort(&
+            __STAMP__&
+            ,' Something is wrong with the PeriodicVector and the orifice BV!')
         END IF
         lPeri=SQRT(GEO%PeriodicVectors(1,1)**2+GEO%PeriodicVectors(2,1)**2+GEO%PeriodicVectors(3,1)**2)
         IF ( .NOT.AlmostEqual(lPeri,BV_lengths(orificePeriodic)) ) THEN
           SWRITE(*,'(A22,I1,x,A1)') 'lPeri and length of BV',orificePeriodic,':'
           SWRITE(*,'(G0,x,G0)') lPeri,BV_lengths(orificePeriodic)
-          CALL abort(__STAMP__&
-             ,' PeriodicVector and its parallel BV ar not of same length! ')
+          CALL abort(&
+            __STAMP__&
+            ,' PeriodicVector and its parallel BV ar not of same length! ')
         END IF
         orificePeriodicLog(1)=(orificePeriodic.EQ.1)
         orificePeriodicLog(2)=(orificePeriodic.EQ.2)
       CASE DEFAULT
-        CALL abort(__STAMP__&
-           ,' orifice region only implemented for 0 or 1 PeriodicVector!')
+        CALL abort(&
+          __STAMP__&
+          ,' orifice region only implemented for 0 or 1 PeriodicVector!')
       END SELECT
     END IF !cuboid-orifice
   END IF !freestream or orifice
@@ -702,8 +713,9 @@ IF(Species(FractNbr)%Init(iInit)%VirtPreInsert) THEN ! (SpaceIC.EQ.'cuboid_vpi')
         A_ins = BV_lengths(1)*(lrel_ins_BV(1)+1.0+lrel_ins_BV(2)) * BV_lengths(2)*(lrel_ins_BV(3)+1.0+lrel_ins_BV(4))
       END IF
     CASE DEFAULT
-      CALL abort(__STAMP__,&
-                'wrong SpaceIC for virtual Pre-Inserting region!')
+      CALL abort(&
+        __STAMP__,&
+        'wrong SpaceIC for virtual Pre-Inserting region!')
     END SELECT
     PartIns = Species(FractNbr)%Init(iInit)%PartDensity * l_ins * A_ins / (Species(FractNbr)%MacroParticleFactor)
     IF(PartIns.GT.0.) THEN
@@ -759,8 +771,9 @@ IF (mode.EQ.1) THEN
 #endif
     ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
     IF (allocStat .NE. 0) THEN
-      CALL abort(__STAMP__,&
-                'ERROR in SetParticlePosition: cannot allocate particle_positions!')
+      CALL abort(&
+        __STAMP__,&
+        'ERROR in SetParticlePosition: cannot allocate particle_positions!')
     END IF
 
     chunkSize2=chunkSize !will be changed during insertion for:
@@ -814,7 +827,8 @@ IF (mode.EQ.1) THEN
             lineVector(1) = -(Species(FractNbr)%Init(iInit)%NormalIC(2)+Species(FractNbr)%Init(iInit)%NormalIC(3))/ &
                  Species(FractNbr)%Init(iInit)%NormalIC(1)
           ELSE
-            CALL abort(__STAMP__,&
+            CALL abort(&
+              __STAMP__,&
               'Error in SetParticlePosition, NormalIC Vektor darf nicht Nullvektor sein')
           END IF
         END IF
@@ -871,7 +885,8 @@ IF (mode.EQ.1) THEN
                lineVector(1) = -(Species(FractNbr)%Init(iInit)%NormalIC(2)+Species(FractNbr)%Init(iInit)%NormalIC(3))/ &
                                  Species(FractNbr)%Init(iInit)%NormalIC(1)
             ELSE
-              CALL abort(__STAMP__,&
+              CALL abort(&
+                __STAMP__,&
                 'Error in SetParticlePosition, NormalIC should not be zero')
             END IF
          END IF
@@ -920,7 +935,8 @@ IF (mode.EQ.1) THEN
                lineVector(1) = -(Species(FractNbr)%Init(iInit)%NormalIC(2)+Species(FractNbr)%Init(iInit)%NormalIC(3))/ &
                                  Species(FractNbr)%Init(iInit)%NormalIC(1)
             ELSE
-              CALL abort(__STAMP__,&
+              CALL abort(&
+                __STAMP__,&
                 'Error in SetParticlePosition, NormalIC should not be zero')
             END IF
          END IF
@@ -1013,7 +1029,8 @@ IF (mode.EQ.1) THEN
                lineVector(1) = -(Species(FractNbr)%Init(iInit)%NormalIC(2)+Species(FractNbr)%Init(iInit)%NormalIC(3))/ &
                                  Species(FractNbr)%Init(iInit)%NormalIC(1)
             ELSE
-              CALL abort(__STAMP__,&
+              CALL abort(&
+                __STAMP__,&
                 'Error in SetParticlePosition, NormalIC should not be zero')
             END IF
          END IF
@@ -1050,7 +1067,8 @@ IF (mode.EQ.1) THEN
       lineVector(3) = Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2) - &
         Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-        CALL abort(__STAMP__,&
+        CALL abort(&
+          __STAMP__,&
           'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
@@ -1097,7 +1115,8 @@ IF (mode.EQ.1) THEN
       lineVector(3) = Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2) - &
         Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-        CALL abort(__STAMP__,&
+        CALL abort(&
+          __STAMP__,&
           'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
@@ -1234,8 +1253,9 @@ IF (mode.EQ.1) THEN
           END IF
           Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BasePointIC
         CASE DEFAULT
-          CALL abort(__STAMP__,&
-                'wrong vpiDomainType for virtual Pre-Inserting region!')
+          CALL abort(&
+            __STAMP__,&
+            'wrong vpiDomainType for virtual Pre-Inserting region!')
         END SELECT
         IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
           CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
@@ -1307,8 +1327,9 @@ IF (mode.EQ.1) THEN
             END IF
           Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BasePointIC
         CASE DEFAULT
-          CALL abort(__STAMP__,&
-                'wrong vpiDomainType for virtual Pre-Inserting region!')
+          CALL abort(&
+            __STAMP__,&
+            'wrong vpiDomainType for virtual Pre-Inserting region!')
         END SELECT
         IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
           CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
@@ -1331,7 +1352,8 @@ IF (mode.EQ.1) THEN
       CALL LD_SetParticlePosition(chunkSize2,particle_positions_Temp,FractNbr,iInit)
       DEALLOCATE( particle_positions, STAT=allocStat )
       IF (allocStat .NE. 0) THEN
-        CALL abort(__STAMP__,&
+        CALL abort(&
+          __STAMP__,&
           'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
       END IF
       NbrOfParticle=chunkSize2
@@ -1339,7 +1361,8 @@ IF (mode.EQ.1) THEN
       particle_positions(1:3*chunkSize2) = particle_positions_Temp(1:3*chunkSize2)
       DEALLOCATE( particle_positions_Temp, STAT=allocStat )
       IF (allocStat .NE. 0) THEN
-        CALL abort(__STAMP__,&
+        CALL abort(&
+          __STAMP__,&
           'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
       END IF
     CASE('cuboid_equal')
@@ -1370,8 +1393,9 @@ IF (mode.EQ.1) THEN
             END IF
             IF (PDM%ParticleInside(ParticleIndexNbr)) PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
          ELSE
-            CALL abort(__STAMP__,&
-                'ERROR in SetParticlePosition: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+           CALL abort(&
+             __STAMP__,&
+             'ERROR in SetParticlePosition: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
          END IF
       END DO
       CALL MPI_ALLREDUCE(mySumOfMatchedParticles, sumOfMatchedParticles, 1, MPI_INTEGER &
@@ -1381,14 +1405,16 @@ IF (mode.EQ.1) THEN
         IPWRITE(UNIT_stdOut,*)'ERROR in ParticleEmission_parallel:'
         IPWRITE(UNIT_stdOut,'(I4,A,I8,A)')'matched ', sumOfMatchedParticles, ' particles'
         IPWRITE(UNIT_stdOut,'(I4,A,I8,A)')'when ', NbrOfParticle+sumOfMatchedParticles, ' particles were required!'
-        CALL abort(__STAMP__,&
-            'ERROR in ParticleEmission_parallel')
+        CALL abort(&
+          __STAMP__,&
+          'ERROR in ParticleEmission_parallel')
       END IF
       NbrOfParticle = mySumOfMatchedParticles
       DEALLOCATE( particle_positions, STAT=allocStat )
       IF (allocStat .NE. 0) THEN
-        CALL abort(__STAMP__,&
-            'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
+        CALL abort(&
+          __STAMP__,&
+          'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
       END IF
       RETURN
 #else
@@ -1402,8 +1428,9 @@ IF (mode.EQ.1) THEN
             (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
             * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
          SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'
-         CALL abort(__STAMP__,&
-            'ERROR: Number of particles in init / emission region',iInit)
+         CALL abort(&
+           __STAMP__,&
+           'ERROR: Number of particles in init / emission region',iInit)
        END IF
        xlen = SQRT(Species(FractNbr)%Init(iInit)%BaseVector1IC(1)**2 &
             + Species(FractNbr)%Init(iInit)%BaseVector1IC(2)**2 &
@@ -1417,8 +1444,9 @@ IF (mode.EQ.1) THEN
        IF ((xlen.NE.Species(FractNbr)%Init(iInit)%BaseVector1IC(1)).OR. &
           (ylen.NE.Species(FractNbr)%Init(iInit)%BaseVector2IC(2)).OR. &
           (zlen.NE.Species(FractNbr)%Init(iInit)%CuboidHeightIC)) THEN
-          CALL abort(__STAMP__,&
-            'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition')
+         CALL abort(&
+           __STAMP__,&
+           'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition')
         END IF
        x_step = xlen/Species(FractNbr)%Init(iInit)%maxParticleNumberX
        y_step = ylen/Species(FractNbr)%Init(iInit)%maxParticleNumberY
@@ -1442,8 +1470,9 @@ IF (mode.EQ.1) THEN
             (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
             * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
          SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'
-         CALL abort(__STAMP__,&
-            'ERROR: Number of particles in init / emission region',iInit)
+         CALL abort(&
+           __STAMP__,&
+           'ERROR: Number of particles in init / emission region',iInit)
        END IF
        xlen = abs(GEO%xmaxglob  - GEO%xminglob)  
        ylen = abs(GEO%ymaxglob  - GEO%yminglob)
@@ -1663,8 +1692,9 @@ ELSE ! mode.NE.1:
        END IF
        IF (PDM%ParticleInside(ParticleIndexNbr)) PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
     ELSE
-       CALL abort(__STAMP__,&
-            'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+      CALL abort(&
+        __STAMP__,&
+        'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
     END IF
   END DO
  
@@ -1732,8 +1762,9 @@ ELSE ! mode.NE.1:
 
   DEALLOCATE( particle_positions, STAT=allocStat )
   IF (allocStat .NE. 0) THEN
-    CALL abort(__STAMP__,&
-              'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
+    CALL abort(&
+      __STAMP__,&
+      'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
   END IF
 #ifdef MPI
 END IF ! mode 1/2
@@ -1800,8 +1831,9 @@ END IF
 
 IF(NbrOfParticle.lt.1) RETURN
    IF(NbrOfParticle.gt.PDM%maxParticleNumber)THEN
-      CALL abort(__STAMP__,&
-              'NbrOfParticle > PIC%maxParticleNumber!')
+     CALL abort(&
+       __STAMP__,&
+       'NbrOfParticle > PIC%maxParticleNumber!')
    END IF
 RandN_in_Mem=.FALSE.
 SELECT CASE (init_or_sf)
@@ -1828,7 +1860,8 @@ CASE(2) !SurfaceFlux
   IF (TRIM(Species(FractNbr)%Surfaceflux(iInit)%velocityDistribution).EQ.'constant') THEN
     velocityDistribution=Species(FractNbr)%Surfaceflux(iInit)%velocityDistribution
   ELSE
-    CALL abort(__STAMP__,&
+    CALL abort(&
+      __STAMP__,&
       'only constant velo-distri implemented in SetParticleVelocity for surfaceflux!') !other distris in SetSurfacefluxVelocities!!!
   END IF
   VeloVecIC=Species(FractNbr)%Surfaceflux(iInit)%VeloVecIC(1:3)
@@ -1836,7 +1869,8 @@ CASE(2) !SurfaceFlux
   MWTemperatureIC=Species(FractNbr)%Surfaceflux(iInit)%MWTemperatureIC
 
 CASE DEFAULT
-  CALL abort(__STAMP__,&
+  CALL abort(&
+    __STAMP__,&
     'neither iInit nor Surfaceflux defined as reference!')
 END SELECT
 
@@ -2020,8 +2054,9 @@ CASE('gyrotron_circle')
                       + PartState(PositionNbr,5)*PartState(PositionNbr,5))&
                       - VeloIC) .GT. 10.) THEN
              SWRITE(*,'(A,3(E21.14,X))') 'Velocity=', PartState(PositionNbr,4:6)
-             CALL abort(__STAMP__,&
-                'ERROR in gyrotron_circle spaceIC!')
+             CALL abort(&
+               __STAMP__,&
+               'ERROR in gyrotron_circle spaceIC!')
            END If
            IF (PartState(PositionNbr,4).NE.PartState(PositionNbr,4) .OR. &
                PartState(PositionNbr,5).NE.PartState(PositionNbr,5) .OR. &
@@ -2128,8 +2163,9 @@ CASE('maxwell-juettner')
     gamm_k = gamm_k - f_gamm/(xixi*(3._8*gamm_k**2._8-1._8)-10._8*gamm_k)
     f_gamm = DEVI(Species(FractNbr)%MassIC, MWTemperatureIC, gamm_k)
     IF(i.EQ.101) &
-          CALL abort(__STAMP__,&
-           ' Newton Algorithm to find maximum value of Maxwell-Juettner distribution has not been successfull!')
+      CALL abort(&
+      __STAMP__,&
+      ' Newton Algorithm to find maximum value of Maxwell-Juettner distribution has not been successfull!')
   END DO
   
   u_max = sqrt(1.d0-1.d0/(gamm_k*gamm_k))*c
@@ -2340,7 +2376,8 @@ CASE('OneD-twostreaminstabilty')
   END DO
 
 CASE DEFAULT
-  CALL abort(__STAMP__,&
+  CALL abort(&
+    __STAMP__,&
     'wrong velo-distri!')
 
 END SELECT
@@ -2483,12 +2520,14 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
           PartPosRef(1:3,ParticleIndexNbr)=RandVal3
         END IF
         IF(.NOT.PDM%ParticleInside(ParticleIndexNbr))THEN
-          CALL abort(__STAMP__,&
-           ' Particle lost in own MPI region. Need to communicate!')
+          CALL abort(&
+            __STAMP__,&
+            ' Particle lost in own MPI region. Need to communicate!')
         END IF
       ELSE
-        CALL abort(__STAMP__,&
-             'ERROR in ParticleInsertingCellPressure: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+        CALL abort(&
+          __STAMP__,&
+          'ERROR in ParticleInsertingCellPressure: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
       END IF
     END DO
     NbrOfParticle = NbrOfParticle + NbrNewParts
@@ -2547,8 +2586,9 @@ IF (CollisMode.EQ.0) THEN
     "Free Molecular Flow (CollisMode=0) is not supported for const pressure outflow BC!")
 END IF
 IF (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).NE.'maxwell') THEN
-  CALL abort(__STAMP__,&
-                'Only maxwell implemented yet for const pressure outflow BC!')
+  CALL abort(&
+    __STAMP__,&
+    'Only maxwell implemented yet for const pressure outflow BC!')
 END IF
 DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
   Elem = Species(iSpec)%Init(iInit)%ConstPress%ElemTotalInside(iElem)
@@ -2586,8 +2626,9 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
           PartPosRef(1:3,ParticleIndexNbr)=RandVal3
         END IF
         IF(.NOT.PDM%ParticleInside(ParticleIndexNbr))THEN
-          CALL abort(__STAMP__,&
-           ' Particle lost in own MPI region. Need to communicate!')
+          CALL abort(&
+            __STAMP__,&
+            ' Particle lost in own MPI region. Need to communicate!')
         END IF
         ! Determine the particle velocity (maxwell, part 1)
         DO distnum = 1, 3
@@ -2607,8 +2648,9 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
         v_sum(1:3) = v_sum(1:3) + Vec3D(1:3)
         v2_sum = v2_sum + Vec3D(1)**2+Vec3D(2)**2+Vec3D(3)**2
       ELSE
-        CALL abort(__STAMP__,&
-                'ERROR in ParticleInsertingCellPressureOut: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+        CALL abort(&
+          __STAMP__,&
+          'ERROR in ParticleInsertingCellPressureOut: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
       END IF
     END DO
     v_sum(1:3) = v_sum(1:3) / (NbrPartsInCell+1) !+1 correct?
@@ -2696,8 +2738,9 @@ IF (NbrPartsInCell .GT. 1) THEN ! Are there more than one particle
   ELSE IF(SpecDSMC(PartSpecies(iPartIndx))%InterID.EQ.1) THEN
     kappa_part=5.0/3.0
   ELSE
-    CALL abort(__STAMP__,&
-            'Wrong PartSpecies for outflow BC!')
+    CALL abort(&
+      __STAMP__,&
+      'Wrong PartSpecies for outflow BC!')
   END IF
   ! Calculation of sampling values
   Species(iSpec)%Init(iInit)%ConstPress%ConstPressureSamp(ElemSamp,1:3) &
@@ -2732,8 +2775,9 @@ IF (NbrPartsInCell .GT. 1) THEN ! Are there more than one particle
   END IF
 
 ELSE ! no particles in cell!
-  CALL abort(__STAMP__,&
-      'YOU NEED MORE PARTICLES INSIDE THE OUTFLOW REGION!!!')
+  CALL abort(&
+    __STAMP__,&
+    'YOU NEED MORE PARTICLES INSIDE THE OUTFLOW REGION!!!')
 END IF
 
 END SUBROUTINE ParticleInsertingPressureOut_Sampling
@@ -2871,7 +2915,8 @@ ELSE
       vec_t2(3) = v_dir(1) - v_dir(2) * vec_t1(1)
       vec_t1 = vec_t1 / SQRT(2.0 + vec_t1(1)*vec_t1(1))
     ELSE
-      CALL abort(__STAMP__,&
+      CALL abort(&
+        __STAMP__,&
         'Error in CalcVelocity_emmert, VeloVecIC is zero!')
     END IF
   END IF
@@ -2991,7 +3036,8 @@ DO iExclude=1,Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions
       CYCLE
     END IF
   CASE DEFAULT
-    CALL abort(__STAMP__,&
+    CALL abort(&
+      __STAMP__,&
       'wrong SpaceIC for ExcludeRegion!')
   END SELECT
 END DO
@@ -3026,7 +3072,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Local variable declaration                                                                       
-INTEGER               :: iPartBound,iSpec,iSF,SideID,BCSideID,ElemID,iLocSide,iSample,jSample,iBC,currentBC,iCount,iProc
+INTEGER               :: iPartBound,iSpec,iSF,SideID,BCSideID,iSide,ElemID,iLocSide,iSample,jSample,iBC,currentBC,iCount,iProc
 CHARACTER(32)         :: hilf, hilf2
 REAL                  :: a, vSF
 REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3)
@@ -3099,8 +3145,9 @@ DO iSpec=1,nSpecies
     ! get surfaceflux data
     Species(iSpec)%Surfaceflux(iSF)%BC = GETINT('Part-Species'//TRIM(hilf2)//'-BC','0')
     IF (Species(iSpec)%Surfaceflux(iSF)%BC.LT.1 .OR. Species(iSpec)%Surfaceflux(iSF)%BC.GT.nPartBound) THEN
-      CALL abort(__STAMP__&
-      , 'SurfacefluxBCs must be between 1 and nPartBound!')
+      CALL abort(&
+        __STAMP__&
+        , 'SurfacefluxBCs must be between 1 and nPartBound!')
     ELSE IF (BCdata_auxSF(Species(iSpec)%Surfaceflux(iSF)%BC)%SideNumber.EQ. -1) THEN !not set yet
       BCdata_auxSF(Species(iSpec)%Surfaceflux(iSF)%BC)%SideNumber=0
       nDataBC=nDataBC+1
@@ -3109,8 +3156,9 @@ DO iSpec=1,nSpecies
     IF (TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'constant' .AND. &
         TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell' .AND. &
         TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution).NE.'maxwell_lpn') THEN
-      CALL abort(__STAMP__&
-      , 'Only constant or maxwell-like velodistri implemented for surfaceflux!')
+      CALL abort(&
+        __STAMP__&
+        , 'Only constant or maxwell-like velodistri implemented for surfaceflux!')
     END IF
     Species(iSpec)%Surfaceflux(iSF)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC','0.')
     Species(iSpec)%Surfaceflux(iSF)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'0. , 0. , 0.')
@@ -3186,7 +3234,8 @@ DO iBC=1,nDataBC
     !-- next Side
     IF (BCSideID .EQ. TmpSideEnd(iBC)) THEN
       IF (TmpSideNumber(iBC).NE.iCount) THEN
-        CALL abort(__STAMP__,&
+        CALL abort(&
+          __STAMP__,&
           'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
       ELSE
         IPWRITE(*,'(I4,I7,A53,I2)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
@@ -3211,7 +3260,8 @@ DO iSpec=1,nSpecies
     IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) THEN
       CYCLE
     ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
-      CALL abort(__STAMP__,&
+      CALL abort(&
+        __STAMP__,&
         'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
     END IF
     DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
@@ -3240,15 +3290,17 @@ DO iSpec=1,nSpecies
         CASE('maxwell','maxwell_lpn')
           vSF = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) !thermal speed
           IF ( ALMOSTEQUAL(vSF,0.)) THEN
-            CALL abort(__STAMP__,&
+            CALL abort(&
+              __STAMP__,&
               'Something is wrong with the Surfaceflux parameters!')
           END IF
           a = Species(iSpec)%Surfaceflux(iSF)%VeloIC / vSF & !thermal speed ratio projected inwards (can be negative!)
-             *tmp_SubSideAreas(iSample,jSample)/SurfMeshSubSideData(iSample,jSample,BCSideID)%area)
+             *tmp_SubSideAreas(iSample,jSample)/SurfMeshSubSideData(iSample,jSample,BCSideID)%area
           vSF = vSF / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity
           nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF !VFR projected to Side
         CASE DEFAULT
-          CALL abort(__STAMP__,&
+          CALL abort(&
+            __STAMP__,&
             'wrong velo-distri for Surfaceflux!')
         END SELECT
         Species(iSpec)%Surfaceflux(iSF)%VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total + nVFR
@@ -3329,12 +3381,19 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
 #endif
-USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
+USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars              ,ONLY: SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN
 USE MOD_Timedisc_Vars          ,ONLY: dt
+
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi
+USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell, ElemBaryNGeo
+USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck
+
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
@@ -3356,7 +3415,8 @@ REAL                        :: PartIns,VFR_total
 REAL                        :: Particle_pos(3), RandVal1, RandVal2(2)
 REAL,ALLOCATABLE            :: particle_positions(:)
 INTEGER(KIND=8)             :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
-INTEGER,ALLOCATABLE         :: PartInsProc(:),PartInsSubSides(:,:)
+INTEGER,ALLOCATABLE         :: PartInsProc(:),PartInsSubSides(:,:,:)
+REAL                        :: xiab(1:2,1:2),xi(2)
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
@@ -3426,7 +3486,8 @@ DO iSpec=1,nSpecies
       ALLOCATE(PartInsSubSides(1:BezierSampleN,1:BezierSampleN,1:BCdata_auxSF(currentBC)%SideNumber))
       PartInsSubSides=0
       IF (BCdata_auxSF(currentBC)%SideNumber.LT.1) THEN
-        IF (PartInsSF.NE.0) CALL abort(__STAMP__,&
+        IF (PartInsSF.NE.0) CALL abort(&
+          __STAMP__,&
           'ERROR in ParticleSurfaceflux: Someting is wrong with PartInsSF of BC ',currentBC)
       ELSE
         CALL IntegerDivide(PartInsSF,BCdata_auxSF(currentBC)%SideNumber*BezierSampleN*BezierSampleN &
@@ -3440,7 +3501,8 @@ DO iSpec=1,nSpecies
     IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) THEN
       CYCLE
     ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
-      CALL abort(__STAMP__,&
+      CALL abort(&
+        __STAMP__,&
         'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
     END IF
     DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
@@ -3474,7 +3536,8 @@ DO iSpec=1,nSpecies
           PartIns = Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
                   * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR
           IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
-            CALL abort(__STAMP__,&
+            CALL abort(&
+              __STAMP__,&
               'ERROR in ParticleSurfaceflux: flux is too large for poisson sampling!')
           ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
             CALL SamplePoissonDistri( PartIns , PartInsSubSide )
@@ -3482,7 +3545,8 @@ DO iSpec=1,nSpecies
         END IF !DoPoissonRounding
         !-- proceed with calculated to be inserted particles
         IF (PartInsSubSide.LT.0) THEN
-          CALL abort(__STAMP__,&
+          CALL abort(&
+            __STAMP__,&
             'ERROR in ParticleSurfaceflux: PartInsSubSide.LT.0!')
         ELSE IF (PartInsSubSide + ExtraParts.LE.0) THEN
           CYCLE
@@ -3491,7 +3555,8 @@ DO iSpec=1,nSpecies
         NbrOfParticle = NbrOfParticle + PartInsSubSide
         ALLOCATE( particle_positions(1:PartInsSubSide*3), STAT=allocStat )
         IF (allocStat .NE. 0) THEN
-          CALL abort(__STAMP__,&
+          CALL abort(&
+            __STAMP__,&
             'ERROR in ParticleSurfaceflux: cannot allocate particle_positions!')
         END IF
         !-- put particles in subside
@@ -3500,7 +3565,7 @@ DO iSpec=1,nSpecies
           CALL RANDOM_NUMBER(RandVal2)
           xiab(1,1:2)=(/BezierSampleXi(ISample-1),BezierSampleXi(ISample)/) !correct order?!?
           xiab(2,1:2)=(/BezierSampleXi(JSample-1),BezierSampleXi(JSample)/) !correct order?!?
-          xi=(xiab(:,2)-xiab(:,1))*RanNum2+xiab(:,1)
+          xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
           CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos)
           !-- save position:
           particle_positions(iPart*3-2) = Particle_pos(1)
@@ -3534,7 +3599,8 @@ DO iSpec=1,nSpecies
             PEM%lastElement(ParticleIndexNbr) = ElemID !needed when ParticlePush is not executed, e.g. "delay"
             iPartTotal = iPartTotal + 1
           ELSE
-            CALL abort(__STAMP__,&
+            CALL abort(&
+              __STAMP__,&
               'ERROR in ParticleSurfaceflux: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
           END IF
         END DO
@@ -3547,7 +3613,8 @@ DO iSpec=1,nSpecies
       END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
     END DO ! iSide
       
-    IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__&
+    IF (NbrOfParticle.NE.iPartTotal) CALL abort(&
+      __STAMP__&
       , 'Error 2 in ParticleSurfaceflux!')
       
 !----- 2b.: set remaining properties
@@ -3661,7 +3728,8 @@ IF (TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'maxwell' .
   TRIM(Species(FractNbr)%Surfaceflux(iSF)%velocityDistribution).EQ.'maxwell_lpn') THEN
   velocityDistribution='maxwell_surfaceflux'
 ELSE
-  CALL abort(__STAMP__,&
+  CALL abort(&
+    __STAMP__,&
     'wrong velo-distri!')
 END IF
 RandN_in_Mem=.FALSE.
@@ -3672,7 +3740,7 @@ a = Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide
 
 !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
 IF (ALMOSTZERO(Species(FractNbr)%Surfaceflux(iSF)%VeloIC &
-  *Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak) THEN
+  *Species(FractNbr)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak)) THEN
 ! Rayleigh distri
   envelope = 0
 ELSE IF (-0.4.LT.a .AND. a.LT.1.3) THEN
@@ -3795,7 +3863,8 @@ CASE('maxwell_surfaceflux')
           END IF
         END DO
       CASE DEFAULT
-        CALL abort(__STAMP__,&
+        CALL abort(&
+          __STAMP__,&
           'wrong enevelope in SetSurfacefluxVelocities!')
       END SELECT
       
@@ -3827,7 +3896,8 @@ CASE('maxwell_surfaceflux')
     END IF !PositionNbr .NE. 0
   END DO !i = ...NbrOfParticle
 CASE DEFAULT
-  CALL abort(__STAMP__,&
+  CALL abort(&
+    __STAMP__,&
     'wrong velo-distri!')
 END SELECT
 
@@ -3874,7 +3944,8 @@ DO
       Flag = .FALSE.
       EXIT
     ELSE !Turning off not allowed: abort (RealTarget must be decreased ot PoissonSampling turned off manually)
-      CALL abort(__STAMP__,&
+      CALL abort(&
+        __STAMP__,&
         'ERROR in SamplePoissonDistri: RealTarget (e.g. flux) is too large for poisson sampling!')
     END IF
   END IF
@@ -3936,7 +4007,8 @@ END DO
 
 !-- distribute remaining number
 IF (Nrest.LT.0) THEN
-  CALL abort(__STAMP__,&
+  CALL abort(&
+    __STAMP__,&
     'ERROR 1 in IntegerDivide!')
 ELSE IF (Nrest.GT.0) THEN
   DO iN=1,length
@@ -3962,7 +4034,8 @@ IF (Nrest.NE.0) THEN
   IPWRITE(*,*) 'Ntot: ',Ntot
   IPWRITE(*,*) 'Ntot0: ',Ntot0
   IPWRITE(*,*) 'Nrest: ',Nrest
-  CALL abort(__STAMP__,&
+  CALL abort(&
+    __STAMP__,&
     'ERROR 2 in IntegerDivide!')
 END IF
 
@@ -4149,8 +4222,9 @@ INTEGER  :: kk, k0
 ! Compute K_0(x)
 !==========================================================================================!
   IF (arg .LE. 0.) THEN
-    CALL abort(__STAMP__,&
-        ' mod. Bessel function of second kind requries pos arg:')
+    CALL abort(&
+      __STAMP__,&
+      ' mod. Bessel function of second kind requries pos arg:')
   ELSE IF (arg .LE. 9.) THEN
     kk = 1
     ct = -log(arg/2.)-EuMas
