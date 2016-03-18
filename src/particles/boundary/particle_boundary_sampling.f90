@@ -122,8 +122,6 @@ END DO
 SurfMesh%SurfOnProc=.FALSE.
 IF(SurfMesh%nSides.GT.0) SurfMesh%SurfOnProc=.TRUE.
 
-IPWRITE(*,*) 'SurfMesh%nSides',SurfMesh%nSides
-
 #ifdef MPI
 CALL MPI_ALLREDUCE(SurfMesh%nSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
 #else
@@ -664,7 +662,7 @@ IF(SurfCOMM%MPIRoot)THEN
   
   CALL WriteHDF5Header(Statedummy,File_ID)
   
-  CALL WriteAttributeToHDF5(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample-1)
+  CALL WriteAttributeToHDF5(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample)
   CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
   CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
@@ -679,6 +677,7 @@ IF(SurfCOMM%MPIRoot)THEN
   StrVarnames(5)='Counter'
 
   CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarnames)
+
   CALL CloseDataFile()
   DEALLOCATE(StrVarNames)
 END IF
@@ -696,8 +695,8 @@ CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
 #endif
 
 CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=4,&
-                    nValGlobal=(/nVar,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
-                    nVal=      (/nVar,nSurfSample,nSurfSample,SurfMesh%nSides/),&
+                    nValGlobal=(/5,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
+                    nVal=      (/5,nSurfSample,nSurfSample,SurfMesh%nSides/),&
                     offset=    (/0,          0,          0,offsetSurfSide/),&
                     collective=.TRUE., RealArray=MacroSurfaceVal)
 CALL CloseDataFile()
