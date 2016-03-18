@@ -37,7 +37,8 @@ SUBROUTINE InitDSMC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,                  ONLY : nElems, nBCSides, BC
+USE MOD_Preproc,                    ONLY : PP_N
+USE MOD_Mesh_Vars,                  ONLY : nElems, nBCSides, BC,NGEo
 USE MOD_Globals_Vars,               ONLY : Pi
 USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
@@ -634,6 +635,9 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
               'Particles-OctreePartNumNodeMin is less than 20')
   END IF
   IF(DSMC%UseOctree) THEN
+    IF(NGeo.GT.PP_N) CALL abort(&
+        __STAMP__,&
+        ' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
