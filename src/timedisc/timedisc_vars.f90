@@ -28,6 +28,9 @@ LOGICAL          :: DoDisplayEmissionWarnings
 LOGICAl          :: TimediscInitIsDone = .FALSE.
 REAL             :: TimeDG, TimeParticle
 
+#if (PP_TimeDiscMethod==100)
+INTEGER,PARAMETER  :: nRKStages=1
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! TIME INTEGRATION: RUNGE_KUTTA COEFFICIENTS AND STABILITY NUMBERS
 !-----------------------------------------------------------------------------------------------------------------------------------

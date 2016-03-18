@@ -1132,7 +1132,8 @@ EZeroTempToExec2 = 0.0
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
   IF (PositionNbr.EQ.0) THEN
-    CALL abort(__STAMP__,&
+    CALL abort(&
+        __STAMP__,&
     'New Particle Number greater max Part Num in MolecDissoc. Reaction: ',iReac)
   END IF  
 
