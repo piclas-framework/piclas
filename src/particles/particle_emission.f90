@@ -3586,7 +3586,7 @@ DO iSpec=1,nSpecies
               + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (1.0-epsInCell)
 #ifdef CODE_ANALYZE
           CALL Eval_xyz_ElemCheck(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID,ParticleIndexNbr)
-          IF (ANY(ABS(Particle_pos).GT.1.0) THEN !maybe 1+epsInCell would be enough...
+          IF (ANY(ABS(Particle_pos).GT.1.0)) THEN !maybe 1+epsInCell would be enough...
             CALL abort(&
               __STAMP__,&
               'CODE_ANALYZE: RefPos of LastPartPos is outside for ElemID. BC-cells are too deformed for surfaceflux!')
