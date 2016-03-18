@@ -100,7 +100,7 @@ SurfMesh%SideIDToSurfID(1:nTotalSides)=-1
 ! first own sides
 SurfMesh%nSides=0
 DO iSide=1,nBCSides
-  IF(BC(iSide).LE.1) CYCLE
+  IF(BC(iSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
     SurfMesh%nSides = SurfMesh%nSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
@@ -111,7 +111,7 @@ END DO
 ! halo sides
 SurfMesh%nTotalSides=SurfMesh%nSides
 DO iSide=nSides+1,nTotalSides
-  IF(BC(iSide).LE.1) CYCLE
+  IF(BC(iSide).EQ.0) CYCLE
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
     SurfMesh%nTotalSides = SurfMesh%nTotalSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nTotalSides
@@ -121,6 +121,8 @@ END DO
 
 SurfMesh%SurfOnProc=.FALSE.
 IF(SurfMesh%nSides.GT.0) SurfMesh%SurfOnProc=.TRUE.
+
+IPWRITE(*,*) 'SurfMesh%nSides',SurfMesh%nSides
 
 #ifdef MPI
 CALL MPI_ALLREDUCE(SurfMesh%nSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
@@ -641,9 +643,14 @@ REAL,INTENT(IN)                      :: OutputTime
 CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255),ALLOCATABLE      :: StrVarNames(:)
 INTEGER                             :: nVar
+REAL                                :: tstart,tend
 !===================================================================================================================================
+CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
+IF(SurfCOMM%MPIROOT)THEN
+  WRITE(*,*) ' WRITE DSMCSurfSTATE TO HDF5 FILE...'
+  tstart=LOCALTIME()
+END IF
 
-SWRITE(*,*) ' WRITE DSMCSurfSTATE TO HDF5 FILE...'
 FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString=TRIM(FileName)//'.h5'
 
@@ -653,7 +660,6 @@ IF(SurfCOMM%MPIRoot)THEN
 #else
   CALL OpenDataFile(FileString,create=.TRUE.)
 #endif
-
   Statedummy = 'DSMCSurfState'  
   
   CALL WriteHDF5Header(Statedummy,File_ID)
@@ -690,13 +696,17 @@ CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
 #endif
 
 CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=4,&
-                    nValGlobal=(/5,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
-                    nVal=      (/5,nSurfSample,nSurfSample,SurfMesh%nSides/),&
+                    nValGlobal=(/nVar,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
+                    nVal=      (/nVar,nSurfSample,nSurfSample,SurfMesh%nSides/),&
                     offset=    (/0,          0,          0,offsetSurfSide/),&
                     collective=.TRUE., RealArray=MacroSurfaceVal)
 CALL CloseDataFile()
 
-
+IF(SurfCOMM%MPIROOT)THEN
+  tend=LOCALTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',tend-tstart,'s]'
+  WRITE(*,*) ' DONE.'
+END IF
 END SUBROUTINE WriteSurfSampleToHDF5
 
 

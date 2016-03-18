@@ -129,8 +129,8 @@ SUBROUTINE CalcSurfaceValues
             MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) + MacroSurfaceCounter(iSpec,p,q,iSurfSide)
           END IF
         END DO ! iSpec=1,nSpecies
-      END DO ! q=0,nSurfSample
-    END DO ! p=0,nSurfSample 
+      END DO ! q=1,nSurfSample
+    END DO ! p=1,nSurfSample 
   END DO ! iSurfSide=1,SurfMesh%nSides
 
   IF (DSMC%CalcSurfCollis_Output) THEN

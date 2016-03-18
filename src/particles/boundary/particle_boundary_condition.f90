@@ -404,10 +404,10 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
       SurfSideID=SurfMesh%SideIDToSurfID(SideID)
       ! compute p and q
       ! correction of xi and eta, can only be applied if xi & eta are not used later!
-      Xitild =MIN(MAX(-1.,xi ),1.0)
-      Etatild=MIN(MAX(-1.,eta),1.0)
-      p=INT((Xitild -1.0)/dXiEQ_SurfSample)+1
-      q=INT((Etatild-1.0)/dXiEQ_SurfSample)+1
+      Xitild =MIN(MAX(-1.,xi ),0.99)
+      Etatild=MIN(MAX(-1.,eta),0.99)
+      p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+      q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
       
       !----  Sampling Forces at walls
 !       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
@@ -495,7 +495,7 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR
+USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR,myRank
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
@@ -622,10 +622,10 @@ IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%Calc
   SurfSideID=SurfMesh%SideIDToSurfID(SideID)
   ! compute p and q
   ! correction of xi and eta, can only be applied if xi & eta are not used later!
-  Xitild =MIN(MAX(-1.,XI ),1.0)
-  Etatild=MIN(MAX(-1.,Eta),1.0)
-  p=INT((Xitild -1.0)/dXiEQ_SurfSample)+1
-  q=INT((Etatild-1.0)/dXiEQ_SurfSample)+1
+  Xitild =MIN(MAX(-1.,XI ),0.99)
+  Etatild=MIN(MAX(-1.,Eta),0.99)
+  p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
+  q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
 
   SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q)+EtraOld       &
                                    *Species(PartSpecies(PartID))%MacroParticleFactor
