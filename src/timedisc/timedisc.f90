@@ -466,7 +466,7 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=506)
 #ifdef PP_HDG
 #if (PP_TimeDiscMethod==500)
-  CALL TimeStepPoisson(t) ! Euler Explicit, Poisson
+  CALL TimeStepPoisson(time) ! Euler Explicit, Poisson
 #else
   CALL TimeStepPoissonByLSERK(time,iter,tEndDiff) ! Runge Kutta Explicit, Poisson
 #endif
@@ -1479,11 +1479,11 @@ USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
-#endif
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
 #endif /*MPI*/
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3165,26 +3165,29 @@ USE MOD_DG_Vars,                 ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY: dt,iter
 USE MOD_HDG,                     ONLY: HDG
+USE MOD_Particle_Tracking_vars,  ONLY: DoRefMapping!,MeasureTrackTime
 #ifdef PARTICLES
-USE MOD_PICDepo,                 ONLY : Deposition
-USE MOD_PICInterpolation,        ONLY : InterpolateFieldToParticle
-USE MOD_Particle_Vars,           ONLY : PartState, Pt, LastPartPos,Time, PEM, PDM, usevMPF, doParticleMerge, DelayTime, PartPressureCell
-USE MOD_Particle_Vars,           ONLY : DoSurfaceFlux
-USE MOD_part_RHS,                ONLY : CalcPartRHS
+USE MOD_PICDepo,                 ONLY: Deposition
+USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
+USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos,PEM, PDM, usevMPF, doParticleMerge, DelayTime, PartPressureCell
+!USE MOD_Particle_Vars,           ONLY : Time
+USE MOD_Particle_Vars,           ONLY: DoSurfaceFlux
+USE MOD_part_RHS,                ONLY: CalcPartRHS
 !USE MOD_part_boundary,           ONLY : ParticleBoundary
-USE MOD_part_emission,           ONLY : ParticleInserting!, ParticleSurfaceflux
-USE MOD_DSMC,                    ONLY : DSMC_main
-USE MOD_DSMC_Vars,               ONLY : useDSMC, DSMC_RHS
-USE MOD_part_MPFtools,           ONLY : StartParticleMerge
+USE MOD_part_emission,           ONLY: ParticleInserting!, ParticleSurfaceflux
+USE MOD_DSMC,                    ONLY: DSMC_main
+USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
+USE MOD_part_MPFtools,           ONLY: StartParticleMerge
+USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 #ifdef MPI
+USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
-!USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
-#else
-!USE MOD_part_boundary,    ONLY : ParticleBoundary
 #endif
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
-USE MOD_part_tools,               ONLY : UpdateNextFreePosition
+USE MOD_part_tools,              ONLY: UpdateNextFreePosition
+USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping!,MeasureTrackTime
+USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3196,7 +3199,7 @@ REAL,INTENT(IN)       :: t
 INTEGER :: iPart
 REAL    :: RandVal, dtFrac
 !===================================================================================================================================
-Time = t
+!Time = t
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   ! because of emmision and UpdateParticlePosition
@@ -3351,13 +3354,14 @@ USE MOD_part_emission,    ONLY: ParticleInserting!, ParticleSurfaceflux
 USE MOD_DSMC,             ONLY: DSMC_main
 USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools,    ONLY: StartParticleMerge
+USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 #ifdef MPI
-!USE MOD_part_boundary,    ONLY: ParticleBoundary, Communicate_PIC
-#else /*No MPI*/
-!USE MOD_part_boundary,    ONLY: ParticleBoundary
+
 #endif /*MPI*/
-USE MOD_part_tools,       ONLY: UpdateNextFreePosition
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping!,MeasureTrackTime
+USE MOD_part_tools,             ONLY: UpdateNextFreePosition
+USE MOD_Particle_Tracking,      ONLY: ParticleTrackingCurved,ParticleRefTracking
 #endif /*PARTICLES*/
 USE MOD_HDG           ,ONLY: HDG
 ! IMPLICIT VARIABLE HANDLING
