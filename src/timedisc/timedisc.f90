@@ -1514,6 +1514,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
+  CALL Deposition(doInnerParts=.FALSE.)
 
 END IF
 

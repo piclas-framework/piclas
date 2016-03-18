@@ -64,6 +64,8 @@ REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t
 REAL                      :: Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
 REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction
+REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
+REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
@@ -88,6 +90,36 @@ SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
 CASE('nearest_blurycenter')
   DepositionType = 'nearest_blurrycenter'
+CASE('cell_volweight') 
+  ALLOCATE(CellVolWeightFac(0:PP_N))
+  ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
+  CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
+  CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
+  CALL LegendreGaussNodesAndWeights(1,xGP_tmp,wGP_tmp)
+  ALLOCATE( Vdm_tmp(0:1,0:PP_N))
+  CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_tmp,Vdm_tmp)
+  DO iElem=1, nElems
+    DO k=0,PP_N
+      DO j=0,PP_N
+        DO i=0,PP_N
+          DetLocal(1,i,j,k)=1./sJ(i,j,k,iElem)
+        END DO ! i=0,PP_N
+      END DO ! j=0,PP_N
+    END DO ! k=0,PP_N
+    CALL ChangeBasis3D(1,PP_N, 1,Vdm_tmp, DetLocal(:,:,:,:),DetJac(:,:,:,:))
+    DO k=0,PP_N
+      DO j=0,PP_N
+        DO i=0,PP_N
+          CellVolWeight_Volumes(i,j,k,iElem) = DetJac(1,i,j,k)*wGP_tmp(i)*wGP_tmp(j)*wGP_tmp(k)
+        END DO ! i=0,PP_N
+      END DO ! j=0,PP_N
+    END DO ! k=0,PP_N
+  END DO
+  DEALLOCATE(Vdm_tmp)
+CASE('epanechnikov') 
+  r_sf     = GETREAL('PIC-epanechnikov-radius','1.')
+  r2_sf = r_sf * r_sf 
+  ALLOCATE( tempcharge(1:nElems))
 CASE('nearest_gausspoint')
   ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
   ! only if NOT DoRefMapping
@@ -122,9 +154,6 @@ CASE('nearest_gausspoint')
     END IF
   END IF
 CASE('shape_function')
-  !IF(.NOT.DoRefMapping) CALL abort(&
-  !  __STAMP__&
-  !  ,' Shape function has to be used with ref element tracking.')
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
   !    __STAMP__, &
@@ -670,11 +699,12 @@ INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: ElemID, iCase, ind, N_in
 REAL                             :: radius2, S, S1, Fac(4)
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
+REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
 REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
 INTEGER                          :: a,b, ii, expo
 REAL                             :: ElemSource(nElems,1:4)
 REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
-REAL                             :: alpha1, alpha2, alpha3
+REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), alpha
 INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
 INTEGER                          :: foundDOF
 REAL,DIMENSION(3,0:NDepo)        :: L_xi
@@ -759,6 +789,178 @@ CASE('nearest_blurrycenter')
 #endif /*MPI*/
     END DO ! iElem=1,PP_nElems
   END IF ! .NOT. doInnerParts
+CASE('cell_volweight') 
+  ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:4))
+  BGMSourceCellVol(:,:,:,:,:) = 0.0
+  DO iPart = firstPart, lastPart
+    IF (PDM%ParticleInside(iPart)) THEN
+#ifdef MPI
+     tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+      IF (usevMPF) THEN
+        Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
+      ELSE
+        Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 
+      END IF ! usevMPF
+      iElem = PEM%Element(iPart)
+      IF(DoRefMapping)THEN
+        TempPartPos(1:3)=PartPosRef(1:3,iPart)
+      ELSE
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos,iElem,iPart)
+      END IF
+      TSource(:) = 0.0
+!#if (PP_nVar==8)
+      TSource(1) = PartState(iPart,4)*Charge
+      TSource(2) = PartState(iPart,5)*Charge
+      TSource(3) = PartState(iPart,6)*Charge
+!#endif
+      TSource(4) = Charge
+      alpha1=(TempPartPos(1)+1.0)/2.0
+      alpha2=(TempPartPos(2)+1.0)/2.0
+      alpha3=(TempPartPos(3)+1.0)/2.0
+      BGMSourceCellVol(0,0,0,iElem,1:4) = BGMSourceCellVol(0,0,0,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
+      BGMSourceCellVol(0,0,1,iElem,1:4) = BGMSourceCellVol(0,0,1,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(alpha3))
+      BGMSourceCellVol(0,1,0,iElem,1:4) = BGMSourceCellVol(0,1,0,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(1-alpha3))
+      BGMSourceCellVol(0,1,1,iElem,1:4) = BGMSourceCellVol(0,1,1,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(alpha3))
+      BGMSourceCellVol(1,0,0,iElem,1:4) = BGMSourceCellVol(1,0,0,iElem,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(1-alpha3))
+      BGMSourceCellVol(1,0,1,iElem,1:4) = BGMSourceCellVol(1,0,1,iElem,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(alpha3))
+      BGMSourceCellVol(1,1,0,iElem,1:4) = BGMSourceCellVol(1,1,0,iElem,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(1-alpha3))
+      BGMSourceCellVol(1,1,1,iElem,1:4) = BGMSourceCellVol(1,1,1,iElem,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(alpha3))   
+#ifdef MPI
+      tLBEnd = LOCALTIME() ! LB Time End
+      ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
+    END IF
+  END DO
+
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+  DO iElem=1, nElems
+    BGMSourceCellVol(0,0,0,iElem,:) = BGMSourceCellVol(0,0,0,iElem,1:4)/CellVolWeight_Volumes(0,0,0,iElem)
+    BGMSourceCellVol(0,0,1,iElem,:) = BGMSourceCellVol(0,0,1,iElem,1:4)/CellVolWeight_Volumes(0,0,1,iElem)
+    BGMSourceCellVol(0,1,0,iElem,:) = BGMSourceCellVol(0,1,0,iElem,1:4)/CellVolWeight_Volumes(0,1,0,iElem)
+    BGMSourceCellVol(0,1,1,iElem,:) = BGMSourceCellVol(0,1,1,iElem,1:4)/CellVolWeight_Volumes(0,1,1,iElem)
+    BGMSourceCellVol(1,0,0,iElem,:) = BGMSourceCellVol(1,0,0,iElem,1:4)/CellVolWeight_Volumes(1,0,0,iElem)
+    BGMSourceCellVol(1,0,1,iElem,:) = BGMSourceCellVol(1,0,1,iElem,1:4)/CellVolWeight_Volumes(1,0,1,iElem)
+    BGMSourceCellVol(1,1,0,iElem,:) = BGMSourceCellVol(1,1,0,iElem,1:4)/CellVolWeight_Volumes(1,1,0,iElem)
+    BGMSourceCellVol(1,1,1,iElem,:) = BGMSourceCellVol(1,1,1,iElem,1:4)/CellVolWeight_Volumes(1,1,1,iElem)   
+  END DO
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  ElemTime(:)=ElemTime(:)+(tLBEnd-tLBStart)/nElems
+#endif /*MPI*/
+
+  DO iElem = 1, nElems
+#ifdef MPI
+   tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+    DO kk = 0, PP_N
+      DO ll = 0, PP_N
+        DO mm = 0, PP_N
+         alpha1 = CellVolWeightFac(kk)
+         alpha2 = CellVolWeightFac(ll)
+         alpha3 = CellVolWeightFac(mm)
+         source(1:4,kk,ll,mm,iElem) =source(1:4,kk,ll,mm,iElem) +&
+              BGMSourceCellVol(0,0,0,iElem,1:4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(0,0,1,iElem,1:4) * (1-alpha1) * (1-alpha2) * (alpha3) + &
+              BGMSourceCellVol(0,1,0,iElem,1:4) * (1-alpha1) * (alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(0,1,1,iElem,1:4) * (1-alpha1) * (alpha2) * (alpha3) + &
+              BGMSourceCellVol(1,0,0,iElem,1:4) * (alpha1) * (1-alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(1,0,1,iElem,1:4) * (alpha1) * (1-alpha2) * (alpha3) + &
+              BGMSourceCellVol(1,1,0,iElem,1:4) * (alpha1) * (alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(1,1,1,iElem,1:4) * (alpha1) * (alpha2) * (alpha3)
+       END DO !mm
+     END DO !ll
+   END DO !kk
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
+ END DO !iEle
+ DEALLOCATE(BGMSourceCellVol)
+CASE('epanechnikov') 
+  ALLOCATE(tempsource(0:PP_N,0:PP_N,0:PP_N))
+  IF(DoInnerParts)  tempcharge= 0.0
+  DO iPart = firstPart, lastPart
+    IF (PDM%ParticleInside(iPart)) THEN
+#ifdef MPI
+      tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+!      Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
+      IF (usevMPF) THEN
+        Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
+      ELSE
+        Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 
+      END IF ! usevMPF
+      iElem = PEM%Element(iPart)
+      alpha = 0.0 
+      tempcharge(iElem) = tempcharge(iElem) + Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
+      DO kk = 0, PP_N
+        DO ll = 0, PP_N
+          DO mm = 0, PP_N
+            radius2 = (PartState(iPart,1) - Elem_xGP(1,kk,ll,mm,iElem)) * (PartState(iPart,1) - Elem_xGP(1,kk,ll,mm,iElem)) &
+                    + (PartState(iPart,2) - Elem_xGP(2,kk,ll,mm,iElem)) * (PartState(iPart,2) - Elem_xGP(2,kk,ll,mm,iElem)) &
+                    + (PartState(iPart,3) - Elem_xGP(3,kk,ll,mm,iElem)) * (PartState(iPart,3) - Elem_xGP(3,kk,ll,mm,iElem))
+           IF (radius2 .LT. r2_sf) THEN
+             tempsource(kk,ll,mm) = r2_sf - radius2
+             alpha = alpha + tempsource(kk,ll,mm)               
+           ELSE
+             tempsource(kk,ll,mm) = 0.0
+           END IF         
+         END DO !mm
+       END DO !ll
+      END DO !kk
+      DO kk = 0, PP_N
+        DO ll = 0, PP_N
+          DO mm = 0, PP_N
+           source(1:3,kk,ll,mm,iElem) = source(1:3,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm)*PartState(iPart,4:6) & 
+                                          * Species(PartSpecies(iPart))%ChargeIC &
+                                          * Species(PartSpecies(iPart))%MacroParticleFactor
+           source(4,kk,ll,mm,iElem) = source(4,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm) & 
+                                          * Species(PartSpecies(iPart))%ChargeIC &
+                                          * Species(PartSpecies(iPart))%MacroParticleFactor
+         END DO !mm
+       END DO !ll
+      END DO !kk
+#ifdef MPI
+      tLBEnd = LOCALTIME() ! LB Time End
+      ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
+    END IF
+  END DO
+
+  IF(.NOT.DoInnerParts)THEN
+#ifdef MPI
+     tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+    ALLOCATE(tempgridsource(1:nElems))
+    tempgridsource= 0.0
+    ! seemps to be finalize
+    DO iElem=1,nElems
+      DO kk = 0, PP_N
+        DO ll = 0, PP_N
+          DO mm = 0, PP_N
+            alpha = wGP(kk)*wGP(ll)*wGP(mm)/sJ(kk,ll,mm,iElem)
+            source(1:4,kk,ll,mm,iElem) = 1./SQRT(alpha) * source(1:4,kk,ll,mm,iElem)*(PP_N+1)**3/ (GEO%Volume(iElem))
+            tempgridsource(iElem) = tempgridsource(iElem) + source(4,kk,ll,mm,iElem)*alpha
+         END DO !mm
+       END DO !ll
+      END DO !kk
+      ! possible ABS???
+      !IF (tempgridsource(iElem).GT.0.0) THEN
+      IF (ABS(tempgridsource(iElem)).GT.0.0) THEN
+        alpha = tempcharge(iElem)/tempgridsource(iElem)
+        source(1:4,:,:,:,iElem) = source(1:4,:,:,:,iElem)*alpha
+      END IF
+#ifdef MPI
+      tLBEnd = LOCALTIME() ! LB Time End
+      ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
+    END DO
+    DEALLOCATE(tempgridsource)
+  END IF
+  DEALLOCATE(tempsource)
 CASE('shape_function')
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   Vec1(1:3) = 0.
@@ -2970,7 +3172,9 @@ SDEALLOCATE(XiNDepo)
 SDEALLOCATE(swGPNDepo)
 SDEALLOCATE(wBaryNDepo)
 SDEALLOCATE(NDepochooseK)
-
+SDEALLOCATE(tempcharge)
+SDEALLOCATE(CellVolWeightFac)
+SDEALLOCATE(CellVolWeight_Volumes)
 END SUBROUTINE FinalizeDeposition
 
 END MODULE MOD_PICDepo
