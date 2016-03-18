@@ -1694,7 +1694,6 @@ SUBROUTINE AtomRecomb(iReac, iPair, iPart_p3)
 !    + 0.5* Species(PartSpecies(React2Inx))%MassIC*(PartState(React2Inx,4)**2+PartState(React2Inx,5)**2+PartState(React2Inx,6)**2)&
 !    + 0.5* Species(PartSpecies(iPart_p3))%MassIC* (PartState(iPart_p3, 4)**2+PartState(iPart_p3, 5)**2+PartState(iPart_p3, 6)**2)
 
-  ! neu - anfang
   ! Calculation of the centre of mass of the product molecule
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(React1Inx), Coll_pData(iPair)%PairType)
   FracMassCent2 = CollInf%FracMassCent(PartSpecies(React2Inx), Coll_pData(iPair)%PairType)
@@ -1705,17 +1704,16 @@ SUBROUTINE AtomRecomb(iReac, iPair, iPart_p3)
          + FracMassCent2 * PartState(React2Inx, 5)
   VeloMz = FracMassCent1 * PartState(React1Inx, 6) &
          + FracMassCent2 * PartState(React2Inx, 6)  
-  ! neu - ende
 
   ! The input particle 1 is replaced by the product molecule, the
   !     second input particle is deleted
   PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,1)
   PDM%ParticleInside(React2Inx) = .FALSE.
-  ! neu - anfang
+
   PartState(React1Inx, 4) = VeloMx
   PartState(React1Inx, 5) = VeloMy
   PartState(React1Inx, 6) = VeloMz
-  ! neu - ende
+
   ! has to be calculated earlier because of setting of electronic energy
   Xi = 2.0 * (2.0 - SpecDSMC(PartSpecies(iPart_p3))%omegaVHS) + SpecDSMC(PartSpecies(iPart_p3))%Xi_Rot &
       + SpecDSMC(PartSpecies(React1Inx))%Xi_Rot

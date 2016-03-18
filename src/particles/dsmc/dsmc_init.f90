@@ -26,7 +26,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitDSMC, DSMC_SetInternalEnr_LauxVFD,FinalizeDSMC
+PUBLIC :: InitDSMC, DSMC_SetInternalEnr_LauxVFD, FinalizeDSMC
 !===================================================================================================================================
 
 CONTAINS
@@ -37,7 +37,8 @@ SUBROUTINE InitDSMC()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars,                  ONLY : nElems, nBCSides, BC
+USE MOD_Preproc,                    ONLY : PP_N
+USE MOD_Mesh_Vars,                  ONLY : nElems, nBCSides, BC,NGEo
 USE MOD_Globals_Vars,               ONLY : Pi
 USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
@@ -46,7 +47,7 @@ USE MOD_PARTICLE_Vars,              ONLY: nSpecies, BoltzmannConst, Species, PDM
 USE MOD_PARTICLE_Vars,              ONLY: KeepWallParticles, PEM
 USE MOD_Particle_Boundary_Vars,     ONLY:PartBound
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
-!USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
+USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState,           ONLY: DSMC_SteadyStateInit
 USE MOD_TimeDisc_Vars,              ONLY: TEnd
 USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init, InitPartitionFunction
@@ -138,6 +139,13 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
   ALLOCATE(HValue(nElems))
   HValue(1:nElems) = 0.0
 
+  IF(DSMC%CalcQualityFactors) THEN
+    ALLOCATE(DSMC%QualityFacSamp(nElems,3))
+    DSMC%QualityFacSamp(1:nElems,1:3) = 0.0
+    ALLOCATE(DSMC%QualityFactors(nElems,3))
+    DSMC%QualityFactors(1:nElems,1:3) = 0.0
+  END IF
+
 ! definition of DSMC particle values
   ALLOCATE(DSMC_RHS(PDM%maxParticleNumber,3))
   DSMC_RHS = 0
@@ -227,10 +235,15 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
       ELSE
         CollInf%KronDelta(iCase) = 0
       END IF
-      A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*(2-SpecDSMC(iSpec)%omegaVHS) &
-            * BoltzmannConst * SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omegaVHS*0.5)
-      A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*(2-SpecDSMC(jSpec)%omegaVHS) &
-            * BoltzmannConst * SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5)
+! Here, something strange is happen!
+!      A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*(2-SpecDSMC(iSpec)%omegaVHS) &
+!            * BoltzmannConst * SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omegaVHS*0.5)
+!      A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*(2-SpecDSMC(jSpec)%omegaVHS) &
+!            * BoltzmannConst * SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5)
+      A1 = 0.5 * SQRT(Pi) * SpecDSMC(iSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(iSpec)%TrefVHS)**(SpecDSMC(iSpec)%omegaVHS*0.5) &
+           /SQRT(GAMMA(2.0 - SpecDSMC(iSpec)%omegaVHS))
+      A2 = 0.5 * SQRT(Pi) * SpecDSMC(jSpec)%DrefVHS*(2*BoltzmannConst*SpecDSMC(jSpec)%TrefVHS)**(SpecDSMC(jSpec)%omegaVHS*0.5) &
+           /SQRT(GAMMA(2.0 - SpecDSMC(jSpec)%omegaVHS))
       CollInf%Cab(iCase) = (A1 + A2)**2 * ((Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
             / (Species(iSpec)%MassIC * Species(jSpec)%MassIC))**SpecDSMC(iSpec)%omegaVHS 
             !the omega should be the same for both in vhs!!!
@@ -614,7 +627,6 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 ! Source: Pfeiffer, M., Mirza, A. and Fasoulas, S. (2013). A grid-independent particle pairing strategy for DSMC.
 ! Journal of Computational Physics 246, 28–36. doi:10.1016/j.jcp.2013.03.018
 !-----------------------------------------------------------------------------------------------------------------------------------
-  DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
   DSMC%UseOctree = GETLOGICAL('Particles-DSMC-UseOctree','.FALSE.')
   ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour
   DSMC%PartNumOctreeNode = GETINT('Particles-OctreePartNumNode','80')
@@ -626,7 +638,10 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
               'Particles-OctreePartNumNodeMin is less than 20')
   END IF
   IF(DSMC%UseOctree) THEN
-!    CALL DSMC_init_octree()
+    IF(NGeo.GT.PP_N) CALL abort(&
+        __STAMP__,&
+        ' Set PP_N to NGeo, else, the volume is not computed correctly.')
+    CALL DSMC_init_octree()
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set mean VibQua of BGGas for dissoc reaction
@@ -1175,8 +1190,10 @@ SDEALLOCATE(PartStateIntEn)
 SDEALLOCATE(SpecDSMC)
 SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%CalcSurfCollis_SpeciesFlags)
-SDEALLOCATE(DSMC%QualityFacSamp)
-SDEALLOCATE(DSMC%QualityFactors)
+IF(DSMC%CalcQualityFactors) THEN
+  SDEALLOCATE(DSMC%QualityFacSamp)
+  SDEALLOCATE(DSMC%QualityFactors)
+END IF
 SDEALLOCATE(Coll_pData)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(MacroDSMC)

@@ -89,8 +89,8 @@ SUBROUTINE CalcSurfaceValues
   CALL ExchangeSurfData()  
 #endif
 
-  ALLOCATE(MacroSurfaceVal(5,0:nSurfSample,0:nSurfSample,SurfMesh%nSides))
-  ALLOCATE(MacroSurfaceCounter(1:nSpecies,0:nSurfSample,0:nSurfSample,SurfMesh%nSides))
+  ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+  ALLOCATE(MacroSurfaceCounter(1:nSpecies,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
   MacroSurfaceVal=0.
   MacroSurfaceCounter=0
   IF (DSMC%CalcSurfCollis_Output) THEN
@@ -110,8 +110,8 @@ SUBROUTINE CalcSurfaceValues
   END IF
  
   DO iSurfSide=1,SurfMesh%nSides
-    DO q=0,nSurfSample
-      DO p=0,nSurfSample 
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample 
         MacroSurfaceVal(1,p,q,iSurfSide) = SampWall(iSurfSide)%State(10,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         MacroSurfaceVal(2,p,q,iSurfSide) = SampWall(iSurfSide)%State(11,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         MacroSurfaceVal(3,p,q,iSurfSide) = SampWall(iSurfSide)%State(12,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
@@ -136,6 +136,8 @@ SUBROUTINE CalcSurfaceValues
   IF (DSMC%CalcSurfCollis_Output) THEN
 #ifdef MPI
     CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,iError)
+#else
+    SumCounterTotal=CounterTotal
 #endif
     DO iSpec=1,nSpecies
       IF (DSMC%CalcSurfCollis_SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
@@ -344,8 +346,7 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)                :: Volume
-  INTEGER, INTENT(IN)             :: SpecPartNum(:), nPart
+  REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
   REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -361,37 +362,37 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
   ! Calculation of mixture reference diameter
 
   DO iSpec = 1, nSpecies
-    DrefMixture = DrefMixture + REAL(SpecPartNum(iSpec))*SpecDSMC(iSpec)%DrefVHS / REAL(nPart)
+    DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
   END DO
   ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
   ! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
   IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
-    omega=opt_omega
+    omega = opt_omega
     Temp = opt_temp
-    DO iSpec = 1, nSpecies
+      DO iSpec = 1, nSpecies
         MFP_Tmp = 0.0
-        IF(SpecPartNum(iSpec).GT.0) THEN ! skipping species not present in the cell
-        DO jSpec = 1, nSpecies
-          IF(SpecPartNum(jSpec).GT.0) THEN ! skipping species not present in the cell
-          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*REAL(SpecPartNum(jSpec))*Species(jSpec)%MacroParticleFactor / Volume &
-                                  * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
-                                  * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
-          END IF
-        END DO
-        CalcMeanFreePath = CalcMeanFreePath + REAL(SpecPartNum(iSpec)) / REAL(nPart) / MFP_Tmp
-      END IF
-    END DO
+        IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+          DO jSpec = 1, nSpecies
+            IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+              MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
+                                    * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
+                                    * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+            END IF
+          END DO
+          CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
+        END IF
+      END DO
   ELSE
     DO iSpec = 1, nSpecies
       MFP_Tmp = 0.0
       IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
         DO jSpec = 1, nSpecies
           IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*REAL(SpecPartNum(jSpec))*Species(jSpec)%MacroParticleFactor / Volume &
+            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
                                   * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
           END IF
         END DO
-        CalcMeanFreePath = CalcMeanFreePath + REAL(SpecPartNum(iSpec)) / REAL(nPart) / MFP_Tmp
+        CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
       END IF
     END DO
   END IF
