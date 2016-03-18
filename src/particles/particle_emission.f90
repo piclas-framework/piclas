@@ -3107,7 +3107,7 @@ DO BCSideID=1,nBCSides
     ,SurfMeshSubSideVec_t1_opt=tmp_Vec_t1 &
     ,SurfMeshSubSideVec_t2_opt=tmp_Vec_t2)
   totalArea=totalArea+SurfMeshSideAreas(BCSideID)
-  DO jSample=0,BezierSampleN; DO iSample=0,BezierSampleN
+  DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
     SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn=-tmp_Vec_nOut(:,iSample,jSample)
     SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1=tmp_Vec_t1(:,iSample,jSample)
     SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2=tmp_Vec_t2(:,iSample,jSample)
