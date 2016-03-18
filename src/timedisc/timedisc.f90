@@ -3161,28 +3161,30 @@ SUBROUTINE TimeStepPoisson(t)
 ! the current time U(t) and returns the solution at the next time level.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,ONLY: U
+USE MOD_DG_Vars,                 ONLY: U
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,ONLY: dt,iter
-USE MOD_HDG           ,ONLY: HDG
+USE MOD_TimeDisc_Vars,           ONLY: dt,iter
+USE MOD_HDG,                     ONLY: HDG
 #ifdef PARTICLES
-!USE MOD_PICDepo,          ONLY : Deposition, DepositionMPF
-USE MOD_PICInterpolation, ONLY : InterpolateFieldToParticle
-USE MOD_Particle_Vars,    ONLY : PartState, Pt, LastPartPos,Time, PEM, PDM, usevMPF, doParticleMerge, DelayTime, PartPressureCell
-USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux
-USE MOD_part_RHS,         ONLY : CalcPartRHS
-!USE MOD_part_boundary,    ONLY : ParticleBoundary
-USE MOD_part_emission,    ONLY : ParticleInserting!, ParticleSurfaceflux
-USE MOD_DSMC,             ONLY : DSMC_main
-USE MOD_DSMC_Vars,        ONLY : useDSMC, DSMC_RHS
-USE MOD_part_MPFtools,    ONLY : StartParticleMerge
+USE MOD_PICDepo,                 ONLY : Deposition
+USE MOD_PICInterpolation,        ONLY : InterpolateFieldToParticle
+USE MOD_Particle_Vars,           ONLY : PartState, Pt, LastPartPos,Time, PEM, PDM, usevMPF, doParticleMerge, DelayTime, PartPressureCell
+USE MOD_Particle_Vars,           ONLY : DoSurfaceFlux
+USE MOD_part_RHS,                ONLY : CalcPartRHS
+!USE MOD_part_boundary,           ONLY : ParticleBoundary
+USE MOD_part_emission,           ONLY : ParticleInserting!, ParticleSurfaceflux
+USE MOD_DSMC,                    ONLY : DSMC_main
+USE MOD_DSMC_Vars,               ONLY : useDSMC, DSMC_RHS
+USE MOD_part_MPFtools,           ONLY : StartParticleMerge
+USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 #ifdef MPI
+USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 !USE MOD_part_boundary,    ONLY : ParticleBoundary, Communicate_PIC
 #else
 !USE MOD_part_boundary,    ONLY : ParticleBoundary
 #endif
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
-USE MOD_part_tools,       ONLY : UpdateNextFreePosition
+USE MOD_part_tools,               ONLY : UpdateNextFreePosition
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3197,18 +3199,24 @@ REAL    :: RandVal, dtFrac
 Time = t
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
-  IF (usevMPF) THEN 
-!    CALL DepositionMPF()
-  ELSE 
-!    CALL Deposition()
-  END IF
+  ! because of emmision and UpdateParticlePosition
+  CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+  ! here: finish deposition with delta kernal
+  !       maps source terms in physical space
+  ! ALWAYS require
+  PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+  CALL Deposition(doInnerParts=.FALSE.)
+  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 
 ! EM field
 CALL HDG(t,U,iter)
 
 IF (t.GE.DelayTime) THEN
-  CALL InterpolateFieldToParticle()
+  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
+  CALL InterpolateFieldToParticle(doInnerParts=.FALSE.)
   CALL CalcPartRHS()
 END IF
 
@@ -3258,10 +3266,22 @@ ELSE
 END IF
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
-!  CALL ParticleBoundary()
 #ifdef MPI
-!  CALL Communicate_PIC()
-!CALL UpdateNextFreePosition() ! only required for parallel communication
+  ! open receive buffer for number of particles
+  CALL IRecvNbofParticles()
+#endif
+  IF(DoRefMapping)THEN
+    CALL ParticleRefTracking()
+  ELSE
+    CALL ParticleTrackingCurved()
+  END IF
+#ifdef MPI
+  ! send number of particles
+  CALL SendNbOfParticles()
+  ! finish communication of number of particles and send particles
+  CALL MPIParticleSend()
+  ! finish communication
+  CALL MPIParticleRecv()
 #endif
 END IF
 
