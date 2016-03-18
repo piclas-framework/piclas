@@ -306,7 +306,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
     CRelaMax = MAX(CRelaMax, SQRT(Coll_pData(iPair)%CRela2))
     CRelaAv = CRelaAv + SQRT(Coll_pData(iPair)%CRela2)
   END DO
-  CRelaAv = CRelaAv / nPair
+  IF(nPair.NE.0)  CRelaAv = CRelaAv / nPair
   IF ((nPair.NE.0).AND.(CollisMode.EQ.3).AND.(MOD(nPart, nPair).NE.0)) THEN
     ChemReac%RecombParticle = iPartIndx(1)
   END IF
