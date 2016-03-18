@@ -82,6 +82,10 @@ INTERFACE GetInverse
    MODULE PROCEDURE GetInverse
 END INTERFACE
 
+INTERFACE GetSPDInverse
+   MODULE PROCEDURE GetSPDInverse
+END INTERFACE
+
 PUBLIC::INV
 PUBLIC::BuildLegendreVdm
 !#ifdef PARTICLES
@@ -100,7 +104,7 @@ PUBLIC::PolynomialDerivativeMatrix
 PUBLIC::BarycentricWeights
 PUBLIC::LagrangeInterpolationPolys
 PUBLIC::GetInverse
-
+PUBLIC::GetSPDInverse
 
 !===================================================================================================================================
 
@@ -535,6 +539,44 @@ REAL               :: WORK(dim1*dim1)
     ,' Matrix inversion failed!')
   END IF
 END FUNCTION GetInverse
+
+
+FUNCTION GetSPDInverse(dim1,A) RESULT(Ainv)
+!============================================================================================================================
+! invert a symmetric positive definite matrix (dependant in LAPACK Routines) 
+!============================================================================================================================
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------
+!input parameters
+INTEGER, INTENT(IN) :: dim1   !size of matrix a
+REAL,INTENT(IN)     :: A(dim1,dim1)
+!----------------------------------------------------------------------------------------------------------------------------
+!output parameters
+REAL                :: Ainv(dim1,dim1)
+!----------------------------------------------------------------------------------------------------------------------------
+!local variables
+INTEGER            :: INFO,i,j
+!============================================================================================================================
+! Store A in Ainv to prevent it from being overwritten by LAPACK
+   Ainv = A
+
+  ! DPOTRF computes the Cholesky decomposition of a symmetric positive definite matrix A
+  CALL DPOTRF('U',dim1,Ainv,dim1,INFO) 
+  IF (INFO /= 0) THEN
+    STOP 'SPD MATRIX INVERSION FAILED!'
+  END IF
+
+  ! DPOTRI computes the inverse of a matrix using the cholesky decomp.
+  CALL DPOTRI('U', dim1, Ainv, dim1, INFO )
+  IF (INFO /= 0) THEN
+    STOP 'SPD MATRIX INVERSION FAILED..!'
+  END IF
+  DO j=1,dim1
+    DO i=j+1,dim1
+      Ainv(i,j)=Ainv(j,i)
+    END DO
+  END DO
+END FUNCTION GetSPDInverse
 
 
 SUBROUTINE buildLegendreVdm(N_In,xi_In,Vdm_Leg,sVdm_Leg)

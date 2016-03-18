@@ -112,6 +112,15 @@ USE MOD_Particle_Mesh_Vars,ONLY:epsOneCell
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
 #endif
+#ifdef PP_HDG
+#if PP_nVar==1
+USE MOD_Equation_Vars,        ONLY:E
+#elif PP_nVar==3
+USE MOD_Equation_Vars,        ONLY:B
+#else
+USE MOD_Equation_Vars,        ONLY:B,E
+#endif /*PP_nVar==1*/
+#endif /*PP_HDG*/
 #ifdef MPI
 ! only required for shape function??
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPIExchange
@@ -133,10 +142,12 @@ REAL                             :: field(6)
 INTEGER                          :: iPart,iElem
 ! for Nearest GaussPoint
 INTEGER                          :: a,b,k,ii,l,m
-#ifdef PP_POIS
+#if defined PP_POIS || defined  PP_HDG
 REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-#endif
+#endif /*(PP_POIS||PP_HDG)*/
 !===================================================================================================================================
+! null field vector
+field=0.
 
 IF(doInnerParts)THEN
   firstPart=1
@@ -189,24 +200,34 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     !m = INT(PP_N/2)+1
     DO iElem=1,PP_nElems
 #if (PP_nVar==8)
-#ifdef PP_POIS
+#if PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-      CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field,iElem)
+      CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
 #else
-      CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,iElem),field,iElem)
+      CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
 #endif /*PP_POIS*/
 #else 
 #ifdef PP_POIS
-      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field,iElem)
+      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+#elif defined PP_HDG
+#if PP_nVar==1
+      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+#elif PP_nVar==3
+      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
 #else
-      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
+      HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+      HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
+      CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
+#endif /*PP_nVar==1*/
+#else
+      CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif /*PP_POIS*/
-#endif /*PP_nVar*/
+#endif /*(PP_nVar==8)*/
       DO iPart=firstPart,LastPart
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
         IF(PEM%Element(iPart).EQ.iElem)THEN
-          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
         END IF! Element(iPart).EQ.iElem
       END DO ! iPart
     END DO ! iElem
@@ -218,21 +239,31 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           Pos = PartState(iPart,1:3)
           !--- evaluate at Particle position
 #if (PP_nVar==8)
-#ifdef PP_POIS
+#if def PP_POIS
           HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
           HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-          CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field,iElem)
+          CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)
 #else
-          CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem,iPart)
-#endif
+          CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
+#endif /*PP_POIS*/
 #else
 #ifdef PP_POIS
-          CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field,iElem)
+          CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+#elif defined PP_HDG
+#if PP_nVar==1
+          CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+#elif PP_nVar==3
+          CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
 #else
-          CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
-#endif         
-#endif
-          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+          HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+          HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
+          CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)
+#endif /*PP_nVar*/
+#else
+          CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
+#endif /*PP_POIS*/
+#endif /*(PP_nVar==8)*/
+          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
         END IF ! Element(iPart).EQ.iElem
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
@@ -251,18 +282,28 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field,ielem)
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),ielem)
 #else
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),field,ielem)
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),ielem)
 #endif
 #else
 #ifdef PP_POIS
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field,iElem)     
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
+#elif defined PP_HDG
+#if PP_nVar==1
+            CALL eval_xyz_part2(PartPosRef(iPart,1:3),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
+#elif PP_nVar==3
+            CALL eval_xyz_part2(PartPosRef(iPart,1:3),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)     
 #else
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
+            HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+            HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
+            CALL eval_xyz_part2(PartPosRef(iPart,1:3),6,PP_N,HelperU,field(1:6),ielem)
+#endif
+#else
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif
 #endif
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
           END IF ! Element(iPart).EQ.iElem
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
@@ -277,18 +318,28 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field,iElem)
+            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)
 #else
-            CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field,iElem,iPart)
+            CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
 #endif
 #else
 #ifdef PP_POIS
-            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field,iElem)
+            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+#elif defined PP_HDG
+#if PP_nVar==1
+            CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
+#elif PP_nVar==3
+            CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)
 #else
-            CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field,iElem)
+            HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
+            HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
+            CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)
+#endif
+#else
+            CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif         
 #endif
-            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+            FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
           END IF ! Element(iPart).EQ.iElem
         END DO ! iPart
       END DO ! iElem=1,PP_nElems
@@ -345,15 +396,27 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
          field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
          field(4:6) = U(4:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-         FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+         FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
 #else
          field = U(1:6,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
-         FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field
+         FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
 #endif
 #else
 #ifdef PP_POIS
          field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
          FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
+#elif defined PP_HDG
+#if PP_nVar==1
+          field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+          FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)
+#elif PP_nVar==3
+          field(4:6) = B(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+          FieldAtParticle(iPart,4:6) = FieldAtParticle(iPart,4:6) + field(4:6)
+#else
+          field(1:3) = E(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+          field(4:6) = B(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
+          FieldAtParticle(iPart,:) = FieldAtParticle(iPart,:) + field(1:6)
+#endif
 #else
          field(1:3) = U(1:3,PartPosGauss(iPart,1),PartPosGauss(iPart,2),PartPosGauss(iPart,3), iElem)
          FieldAtParticle(iPart,1:3) = FieldAtParticle(iPart,1:3) + field(1:3)

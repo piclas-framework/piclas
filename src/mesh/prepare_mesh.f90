@@ -43,6 +43,11 @@ SUBROUTINE setLocalSideIDs()
 USE MOD_Globals
 USE MOD_Mesh_Vars,        ONLY: nElems,nInnerSides,nSides,nBCSides,offsetElem
 USE MOD_Mesh_Vars,        ONLY: aElem,aSide
+#ifdef PP_HDG
+#ifdef MPI
+USE MOD_Mesh_Vars,        ONLY: offsetSide
+#endif /*MPI*/
+#endif /*PP_HDG*/
 USE MOD_LoadBalance_Vars, ONLY: writePartitionInfo
 USE MOD_Mesh_Vars,        ONLY: Elems,nMPISides_MINE,nMPISides_YOUR,BoundaryType,nBCs
 USE MOD_LoadBalance_Vars, ONLY: DoLoadBalance,nLoadBalance, LoadDistri, PartDistri
@@ -59,7 +64,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER   :: iElem,FirstElemInd,LastElemInd
+INTEGER   :: iElem,FirstElemInd,LastElemInd, iProc
 INTEGER   :: iLocSide,iSide,iInnerSide,iBCSide
 INTEGER   :: i,j
 INTEGER   :: PeriodicBCMap(nBCs)       !connected periodic BCs
@@ -73,6 +78,11 @@ CHARACTER(LEN=10)     :: formatstr
 CHARACTER(LEN=64)     :: filename
 CHARACTER(LEN=4)      :: hilf
 !LOGICAL               :: writePartitionInfo
+#ifdef PP_HDG
+#ifdef MPI
+INTEGER, ALLOCATABLE         :: offsetSideMPI(:)
+#endif /*MPI*/
+#endif /*PP_HDG*/
 #endif
 !===================================================================================================================================
 FirstElemInd= offsetElem+1
@@ -223,6 +233,17 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 LOGWRITE(*,formatstr)'offsetMPISides_MINE:',offsetMPISides_MINE
 LOGWRITE(*,formatstr)'offsetMPISides_YOUR:',offsetMPISides_YOUR
 LOGWRITE(*,*)'-------------------------------------------------------'
+
+#ifdef PP_HDG
+#ifdef MPI
+IF(ALLOCATED(offsetSideMPI))DEALLOCATE(offsetSideMPI)
+ALLOCATE(offsetSideMPI(nProcessors))
+CALL MPI_ALLGATHER(nSides-nMPISides_YOUR,1,MPI_INTEGER,offsetSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
+DO iProc=1, myrank
+  offsetSide = offsetSide + offsetSideMPI(iProc)
+END DO
+#endif /*MPI*/
+#endif /*PP_HDG*/
 
 writePartitionInfo = GETLOGICAL('writePartitionInfo','.FALSE.')
 IF(DoLoadBalance)THEN

@@ -19,7 +19,7 @@ ENDIF()
 #include(ExternalProject)
 OPTION(BOLTZPLATZ_MPI "Compile SINGLE or MPI version" ON)
 SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
-SET_PROPERTY(CACHE BOLTZPLATZ_EQNSYSNAME PROPERTY STRINGS maxwell maxwell_pois electrostatic electrostatic_pois)
+SET_PROPERTY(CACHE BOLTZPLATZ_EQNSYSNAME PROPERTY STRINGS maxwell maxwell_pois electrostatic electrostatic_pois poisson)
 OPTION(BOLTZPLATZ_PARTICLES "Particles" ON)
 SET(BOLTZPLATZ_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR ParticleEuler-FieldEulerImplicit ParticleExplicit-FieldImplicitO3 ParticleExplicit-FieldImplicitO4 Ascher3 ParticleImplicit IPEF3 IPEF4 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
@@ -30,15 +30,16 @@ OPTION(BOLTZPLATZ_HDF5F90 "enable old HDF5 interface" OFF)
 OPTION(BOLTZPLATZ_MKL "use MKL libraries instead of BLAS/LAPACK" OFF)
 OPTION(BOLTZPLATZ_CODE_ANALYZE "Code Analyze" OFF)
 ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
+OPTION(BOLTZPLATZ_HDG "enable Hybridized Discontinuous Galerkin (HDG) depending on choice of TIMEDISCMETHOD" OFF)
 
 # =========================================================================
 # Machine environements and specific library paths
 # =========================================================================
 SITE_NAME(CMAKE_HOSTNAME)
-STRING(FIND "${CMAKE_HOSTNAME}" "eslogin" ONHORNET)
-IF (ONHORNET GREATER -1)
+STRING(FIND "${CMAKE_HOSTNAME}" "eslogin" ONHLRS)
+IF (ONHLRS GREATER -1)
   ADD_DEFINITIONS(-DLUSTRE -DHLRS)
-  MESSAGE(STATUS "Compiling on Hazelhen")
+  MESSAGE(STATUS "Compiling on HLRS system")
   SET(BOLTZPLATZ_HLRS ON)
 ENDIF()
 #STRING(COMPARE EQUAL ${CMAKEHOST} "juqueen" ONJUQUEEN)
@@ -81,15 +82,29 @@ SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DBASEDIR=\"\\\"${CMAKE_CURRENT_
 # =========================================================================
 # Equation system
 # =========================================================================
+
 IF(BOLTZPLATZ_EQNSYSNAME STREQUAL "maxwell")
   #SET(BOLTZPLATZ_C_PREPROC ${F2P_C_PREPROC} -Dmaxwell)
   ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell)
+  SET(BOLTZPLATZ_HDG OFF)
 ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "maxwell_pois")
   ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell_pois -DPOIS)
+  SET(BOLTZPLATZ_HDG OFF)
 ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "electrostatic_pois")
   ADD_DEFINITIONS(-DPP_nVar=4 -Delectostratic -DPOIS)
+  SET(BOLTZPLATZ_HDG OFF)
 ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "electrostatic")
-  ADD_DEFINITIONS(-DPP_nVar=4 -Delectrostatic_pois)
+  ADD_DEFINITIONS(-DPP_nVar=4 -Delectrostatic)
+  SET(BOLTZPLATZ_HDG OFF)
+ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "poisson")
+  ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
+  SET(BOLTZPLATZ_HDG ON)
+ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "magnetostatic")
+  ADD_DEFINITIONS(-DPP_nVar=3 -Dmagnetostatic)
+  SET(BOLTZPLATZ_HDG ON)
+ELSEIF(BOLTZPLATZ_EQNSYSNAME STREQUAL "magnetostatic_poisson")
+  ADD_DEFINITIONS(-DPP_nVar=4 -Dmagnetostatic_poisson)
+  SET(BOLTZPLATZ_HDG ON)
 ELSE()
    MESSAGE(ERROR "Unknown equation system.")
 ENDIF()
@@ -105,12 +120,30 @@ ENDIF(BOLTZPLATZ_PARTICLES)
 # =========================================================================
 # Timedisc method
 # =========================================================================
-IF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK3")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=1 -DLSERK)
+IF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
+   IF(BOLTZPLATZ_HDG)
+      ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=500)
+   ELSE()
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
+   ENDIF()
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK3")
+   IF(BOLTZPLATZ_HDG)
+      ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=501 -DLSERK)
+   ELSE()
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=1 -DLSERK)
+   ENDIF()
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK4")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=2 -DLSERK)
+   IF(BOLTZPLATZ_HDG)
+      ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=502 -DLSERK)
+   ELSE()
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=2 -DLSERK)
+   ENDIF()
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK14")
-   ADD_DEFINITIONS(-DPP_TimeDiscMethod=6 -DLSERK)
+   IF(BOLTZPLATZ_HDG)
+      ADD_DEFINITIONS(-DPP_HDG -DPP_TimeDiscMethod=506 -DLSERK)
+   ELSE()
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=6 -DLSERK)
+   ENDIF()
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ParticleEuler-FieldRK4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=5)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "DSMC")
@@ -142,6 +175,25 @@ ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "LD-DSMC")
 ELSE()
    MESSAGE(ERROR "Unknown timedisc method system.")
 ENDIF()
+
+# =========================================================================
+# HDG
+# =========================================================================
+
+IF(BOLTZPLATZ_HDG)
+   ADD_DEFINITIONS(-DPP_HDG)
+   IF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
+      MESSAGE(STATUS "use HDG with Euler-Explicit")
+   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK3")
+      MESSAGE(STATUS "use HDG with RK3")
+   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK4")
+      MESSAGE(STATUS "use HDG with RK4")
+   ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK14")
+      MESSAGE(STATUS "use HDG with RK14")
+   ELSE()
+      MESSAGE(ERROR ": Unknown timedisc method system for HDG.")
+   ENDIF()
+ENDIF(BOLTZPLATZ_HDG)
 
 # =========================================================================
 # Node type
@@ -186,6 +238,7 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90
+                                ./src/hdg/*.f90
                                 ./src/interpolation/basis.f90
                                 ./src/interpolation/interpolation.f90
                                 ./src/interpolation/interpolation_vars.f90
@@ -250,7 +303,7 @@ GET_FILENAME_COMPONENT (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   # gfortran
   #environment specific variables
-  IF(ONHORNET GREATER -1)
+  IF(ONHLRS GREATER -1)
     SET(BOLTZPLATZ_INSTRUCTION "-march=core-avx2")
   ELSE()
     SET(BOLTZPLATZ_INSTRUCTION "-march=native -finline-functions")
@@ -267,7 +320,7 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
 ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
    # ifort
    #environment specific variables
-   IF(ONHORNET)
+   IF(ONHLRS)
      SET(BOLTZPLATZ_INSTRUCTION "-xCORE-AVX2")
    ELSE()
      SET(BOLTZPLATZ_INSTRUCTION "-xHost")
@@ -290,7 +343,7 @@ ENDIF()
 # =========================================================================
 #HDF5
 SET(BOLTZPLATZ_HDF5_FOUND FALSE)
-#IF(ONHORNET GREATER -1)
+#IF(ONHLRS GREATER -1)
   #SET(HDF5_USE_STATIC_LIBRARIES TRUE)
 #ENDIF()
 FIND_PACKAGE (HDF5 NAMES hdf5 COMPONENTS Fortran static QUIET)

@@ -80,7 +80,7 @@ USE MOD_Interpolation_Vars,     ONLY:xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_Mesh_ReadIn,            ONLY:readMesh
 USE MOD_Prepare_Mesh,           ONLY:setLocalSideIDs,fillMeshInfo
-USE MOD_ReadInTools,            ONLY:GETLOGICAL,GETSTR,GETREAL
+USE MOD_ReadInTools,            ONLY:GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
 USE MOD_Metrics,                ONLY:CalcMetrics
 USE MOD_DebugMesh,              ONLY:writeDebugMesh
@@ -107,9 +107,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE  :: NodeCoords(:,:,:,:,:)
 REAL              :: x(3),PI,meshScale
-INTEGER           :: iElem,i,j,k,f,s,p,q, Flip(3), ijk(3),pq(3)
+INTEGER           :: iElem,i,j,k,iRegions,f,s,p,q, Flip(3), ijk(3),pq(3)
 LOGICAL           :: debugmesh
 INTEGER           :: iSide,countSurfElem,iProc
+CHARACTER(32)       :: hilf2
 INTEGER,ALLOCATABLE :: countSurfElemMPI(:)
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
@@ -176,12 +177,26 @@ BC          = 0
 !lower and upper index of U/gradUx/y/z _plus
 !lower and upper index of U/gradUx/y/z _plus
 sideID_minus_lower = 1
+#ifdef PP_HDG
+sideID_minus_upper = nBCSides+nInnerSides+nMPISides
+#else
 sideID_minus_upper = nBCSides+nInnerSides+nMPISides_MINE
+#endif /*PP_HDG*/
 sideID_plus_lower  = nBCSides+1
 sideID_plus_upper  = nBCSides+nInnerSides+nMPISides
 
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 CALL fillMeshInfo()
+
+!-- Read parameters for region mapping
+NbrOfRegions = GETINT('NbrOfRegions','0')
+IF (NbrOfRegions .GT. 0) THEN
+  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
+  DO iRegions=1,NbrOfRegions
+    WRITE(UNIT=hilf2,FMT='(I2)') iRegions
+    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
+  END DO
+END IF
 
 #ifdef PARTICLES
 ! save geometry information for particle tracking

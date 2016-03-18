@@ -162,6 +162,9 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_Mesh_Vars,               ONLY:offsetElem
+#ifdef PP_HDG
+USE MOD_Mesh_Vars,               ONLY:offsetSide,nSides,nMPISides_YOUR, offsetSide
+#endif /*PP_HDG*/
 USE MOD_Restart_Vars,            ONLY:Vdm_GaussNRestart_GaussN
 USE MOD_Restart_Vars,            ONLY:DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution
 USE MOD_ChangeBasis,             ONLY:ChangeBasis3D
@@ -184,6 +187,10 @@ USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 #endif
+#ifdef PP_HDG
+USE MOD_HDG_Vars,             ONLY: lambda, nGP_face, nGP_vol, RHS_vol
+USE MOD_HDG,                  ONLY: RestartHDG
+#endif /*PP_HDG*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -235,6 +242,10 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
     CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
 #endif
+#elif defined PP_HDG
+    CALL ReadArray('DG_SolutionLambda',3,(/PP_nVar,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
+    CALL ReadArray('DG_SolutionU',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+    CALL RestartHDG(U)
 #else
     CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
     IF(DoPML)THEN
@@ -277,6 +288,17 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     END DO
     DEALLOCATE(U_local)
 #endif
+#elif defined PP_HDG
+CALL abort(&
+        __STAMP__,&
+       ' Restart with changed polynomial degree not implemented for HDG!')
+!    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+!    CALL ReadArray('DG_SolutionLambda',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+!    DO iElem=1,PP_nElems
+!      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
+!    END DO
+!    DEALLOCATE(U_local)
+    !CALL RestartHDG(U)     
 #else
     ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
     CALL ReadArray('DG_Solution',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
