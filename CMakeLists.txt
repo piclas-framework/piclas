@@ -2,6 +2,19 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8.11)
 IF ("${CMAKE_VERSION}" VERSION_GREATER 3.0.0)
   cmake_policy (SET CMP0046 OLD)
 ENDIF()
+
+# =========================================================================
+# Detect machine environements
+# =========================================================================
+SITE_NAME(CMAKE_HOSTNAME)
+STRING(FIND "${CMAKE_HOSTNAME}" "eslogin" ONHORNET)
+# Set options that need to be enabled BEFORE ANY PROJECT OR LANGUAGE COMMAND
+IF (ONHORNET GREATER -1)
+  SET(CMAKE_C_COMPILER       cc)
+  SET(CMAKE_CXX_COMPILER     CC)
+  SET(CMAKE_Fortran_COMPILER ftn)
+ENDIF()
+
 PROJECT(Boltzplatz)
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 SET(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
@@ -39,7 +52,7 @@ STRING(FIND "${CMAKE_HOSTNAME}" "eslogin" ONHORNET)
 IF (ONHORNET GREATER -1)
   ADD_DEFINITIONS(-DLUSTRE -DHLRS)
   MESSAGE(STATUS "Compiling on Hazelhen")
-  SET(BOLTZPLATZ_HLRS ON)
+  SET(FLEXI_HLRS ON)
 ENDIF()
 #STRING(COMPARE EQUAL ${CMAKEHOST} "juqueen" ONJUQUEEN)
 #IF (ONJUQUEEN)
@@ -224,6 +237,7 @@ SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES LINKER_LANGUAGE Fortran)
 #define boltzplatzlib
 ADD_LIBRARY(boltzplatzlib STATIC $<TARGET_OBJECTS:boltzplatzlibF90>)
 SET_TARGET_PROPERTIES(boltzplatzlib PROPERTIES LINKER_LANGUAGE Fortran)
+TARGET_LINK_LIBRARIES(boltzplatzlib ${LINK_LIBS})
 
 
 # define boltzplatz executable
@@ -249,6 +263,10 @@ GET_FILENAME_COMPONENT (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
 
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   # gfortran
+  # set compiler
+  #IF (BOLTZPLATZ_MPI)
+  #   SET (CMAKE_Fortran_COMPILER mpif90)
+  #ENDIF()
   #environment specific variables
   IF(ONHORNET GREATER -1)
     SET(BOLTZPLATZ_INSTRUCTION "-march=core-avx2")
@@ -267,13 +285,16 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
 ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
    # ifort
    #environment specific variables
-   IF(ONHORNET)
+   IF(ONHORNET GREATER -1)
      SET(BOLTZPLATZ_INSTRUCTION "-xCORE-AVX2")
    ELSE()
-     SET(BOLTZPLATZ_INSTRUCTION "-xHost")
+      SET(BOLTZPLATZ_INSTRUCTION "-xHost")
+   ENDIF()
+   IF (BOLTZPLATZ_MPI AND ONHORNET LESS 0)
+      SET(CMAKE_Fortran_COMPILER mpif90)
    ENDIF()
    # set Flags
-   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -r8 -i4 -traceback -warn all -DINTEL")
+   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -r8 -i4 -traceback -warn all -shared-intel -DINTEL")
    SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O2 ${BOLTZPLATZ_INSTRUCTION} -vec-report0 -no-prec-div")
    SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O2 ${BOLTZPLATZ_INSTRUCTION} -vec-report0 -no-prec-div")
    SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit")
@@ -284,6 +305,23 @@ ELSE()
    MESSAGE(ERROR "Unknown compiler")
 ENDIF()
 
+# =========================================================================
+# MPI
+# =========================================================================
+IF(BOLTZPLATZ_MPI)
+  FIND_PACKAGE(MPI REQUIRED)
+  LIST(GET MPI_INCLUDE_PATH 0 MPI_INCLUDE_PATH)
+  INCLUDE_DIRECTORIES(${MPI_INCLUDE_PATH} ${MPI_INCLUDE_PATH}/../lib)
+  #INCLUDE_DIRECTORIES(${MPI_INCLUDE_PATH})
+  MESSAGE(STATUS "MPI include dir: " ${MPI_INCLUDE_PATH})
+  ADD_DEFINITIONS(-DMPI)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${MPI_INCLUDE_PATH}")
+  SET (LINK_LIBS ${LINK_LIBS} ${MPI_LIBRARIES})
+  TARGET_LINK_LIBRARIES(boltzplatzlib ${MPI_Fortran_LIBRARIES})
+  TARGET_LINK_LIBRARIES(boltzplatz       ${MPI_Fortran_LIBRARIES} ${MPI_Fortran_LIBRARIES})
+  MESSAGE(STATUS "Building boltzplatz with MPI")
+  MESSAGE(STATUS "MPI Compiler: " ${MPI_Fortran_COMPILER})
+ENDIF()
 
 # =========================================================================
 # HDF5 library
@@ -390,20 +428,6 @@ ELSE()
   TARGET_LINK_LIBRARIES(boltzplatz ${MKL_LIBRARY})
 ENDIF()
 
-# =========================================================================
-# MPI
-# =========================================================================
-IF(BOLTZPLATZ_MPI)
-  FIND_PACKAGE(MPI REQUIRED)
-  LIST(GET MPI_INCLUDE_PATH 0 MPI_INCLUDE_PATH)
-  INCLUDE_DIRECTORIES(${MPI_INCLUDE_PATH} ${MPI_INCLUDE_PATH}/../lib)
-  MESSAGE(STATUS "MPI include dir: " ${MPI_INCLUDE_PATH})
-  ADD_DEFINITIONS(-DMPI)
-  TARGET_LINK_LIBRARIES(boltzplatzlib ${MPI_Fortran_LIBRARIES})
-  TARGET_LINK_LIBRARIES(boltzplatz       ${MPI_Fortran_LIBRARIES} ${MPI_Fortran_LIBRARIES})
-  MESSAGE(STATUS "Building boltzplatz with MPI")
-  MESSAGE(STATUS "MPI Compiler: " ${MPI_Fortran_COMPILER})
-ENDIF()
 
 # =========================================================================
 # Userblock
