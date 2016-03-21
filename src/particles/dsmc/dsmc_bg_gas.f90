@@ -77,7 +77,7 @@ SUBROUTINE DSMC_InitBGGas()
       PEM%pNumber(PEM%Element(PositionNbr)) + 1
     END IF
   END DO
-  CALL SetParticleVelocity(BGGas%BGGasSpecies,0,iNewPart,.TRUE.) ! Properties of BG gas are stored in iInit=0
+  CALL SetParticleVelocity(BGGas%BGGasSpecies,0,iNewPart,1,.TRUE.) ! Properties of BG gas are stored in iInit=0
   PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart 
 

@@ -116,6 +116,14 @@ IF(BOLTZPLATZ_PARTICLES)
 ENDIF(BOLTZPLATZ_PARTICLES)
 
 # =========================================================================
+# CODE_ANALYZE
+# =========================================================================
+
+IF(BOLTZPLATZ_CODE_ANALYZE)
+  ADD_DEFINITIONS(-DCODE_ANALYZE)
+ENDIF(BOLTZPLATZ_CODE_ANALYZE)
+
+# =========================================================================
 # Timedisc method
 # =========================================================================
 IF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "RK3")
