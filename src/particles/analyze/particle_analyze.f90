@@ -590,9 +590,9 @@ IF (PartMPI%MPIRoot) THEN
 #endif /*MPI*/
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
-    CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PMPIVAR%COMM, IERROR)
-    CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
-    MeanCollProb = sumMeanCollProb / PMPIVAR%nProcs
+    CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+    MeanCollProb = sumMeanCollProb / PartMPI%nProcs
 #endif
 ELSE ! no Root
 #ifdef MPI 
@@ -616,8 +616,8 @@ ELSE ! no Root
 #endif /*MPI*/
 
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-    CALL MPI_REDUCE(MaxCollProb,RECBR,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PMPIVAR%COMM, IERROR)
-    CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(MaxCollProb,RECBR,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
 #endif
   END IF
 #ifdef MPI 

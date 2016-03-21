@@ -121,7 +121,7 @@ USE MOD_DG_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
 #ifdef MPI
 USE MOD_PreProc
 USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
-USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData
+USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,Face_xGP
 USE MOD_Mesh_Vars,     ONLY:nBCSides,nInnerSides,nMPISides_MINE
 USE MOD_Mesh_Vars,     ONLY:SideID_minus_upper,SideID_minus_lower
@@ -179,8 +179,9 @@ Geotemp(5:7,:,:,:)=TangVec1(:,:,:,SideID_minus_lower:SideID_minus_upper)
 Geotemp(8:10,:,:,:)=TangVec2(:,:,:,SideID_minus_lower:SideID_minus_upper)
 !Geotemp(11:13,:,:,:)=Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)
 
-CALL StartExchangeMPIDataHDG(10,Geotemp,SideID_minus_lower,SideID_minus_upper,SendRequest_Geo,RecRequest_Geo,SendID=1)
-CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1) 
+CALL StartReceiveMPIData(10,Geotemp,SideID_minus_lower,SideID_minus_upper,RecRequest_Geo ,SendID=1) ! Receive MINE
+CALL StartSendMPIData(   10,Geotemp,SideID_minus_lower,SideID_minus_upper,SendRequest_Geo,SendID=1) ! Send YOUR
+CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)                                 ! Send YOUR - receive MINE
 
 SurfElem(:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(1,:,:,:)
 NormVec(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(2:4,:,:,:)
@@ -212,7 +213,7 @@ USE MOD_Equation,         ONLY:CalcSource
 USE MOD_Interpolation,    ONLY:ApplyJacobian
 #ifdef MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,              ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI,              ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,        ONLY:SideID_plus_upper,SideID_plus_lower
 USE MOD_LoadBalance_Vars, ONLY:tCurrent
 #endif /*MPI*/

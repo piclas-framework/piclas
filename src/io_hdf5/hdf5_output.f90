@@ -129,15 +129,15 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputT
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
 #endif /*PP_HDG*/
-!#ifdef MPI
-!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-!#endif
-!
-!#ifdef MPI
-!CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
-!#else
-!CALL OpenDataFile(FileName,create=.FALSE.)
-!#endif
+#ifdef MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
+
+#ifdef MPI
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.)
+#endif
 
 ! Reopen file and write DG solution
 #ifdef MPI
