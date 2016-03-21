@@ -81,21 +81,19 @@ IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
 END IF
 
 ! Select the corresponding boundary condition and calculate particle treatment
-!SELECT CASE(PartBound%MapToPartBC(BC(SideID)))
 SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-
   IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
-    BCSideID=PartBCSideList(SideID)
-    SELECT CASE(SideType(BCSideID))
+    !BCSideID=PartBCSideList(SideID)
+    SELECT CASE(SideType(SideID))
     CASE(PLANAR)
-      n_loc=SideNormVec(1:3,BCSideID)
+      n_loc=SideNormVec(1:3,SideID)
     CASE(BILINEAR)
-      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+      CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
     CASE(CURVED)
-      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
+      CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
     END SELECT 
     IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.) RETURN
   END IF
@@ -109,7 +107,6 @@ CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-
   CALL RANDOM_NUMBER(RanNum)
   IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
     ! perfectly reflection, specular re-emission
@@ -144,13 +141,19 @@ CASE(6) !PartBound%MPINeighborhoodBC)
   CALL abort(&
       __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE(10) !PartBound%SymmetryBC
+!-----------------------------------------------------------------------------------------------------------------------------------
+  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+
+
 CASE DEFAULT
   CALL abort(&
       __STAMP__,&
 ' ERROR: PartBound not associated!. (unknown case)',999,999.)
 END SELECT !PartBound%MapToPartBC(BC(SideID)
 
-END SUBROUTINE GetBoundaryInteraction 
+END SUBROUTINE GetBoundaryInteraction
 
 
 SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID)
@@ -198,10 +201,8 @@ END IF
 
 ! Select the corresponding boundary condition and calculate particle treatment
 SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
-!SELECT CASE(PartBound%SideBCType(SideID))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(1) !PartBound%OpenBC)
-!CASE(PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
     BCSideID=PartBCSideList(SideID)
@@ -220,7 +221,6 @@ CASE(1) !PartBound%OpenBC)
       nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
       PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
   END IF ! CalcPartBalance
-  !BCSideID=PartBCSideList(SideID)
   PDM%ParticleInside(iPart) = .FALSE.
   alpha=-1.
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -237,8 +237,6 @@ CASE(2) !PartBound%ReflectiveBC)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
-!CASE(PartBound%PeriodicBC)
-
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! new implementation, nothing to due :)
   ! however, never checked
@@ -248,29 +246,24 @@ CASE(3) !PartBound%PeriodicBC)
   !compute new bc
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
-!CASE(PartBound%SimpleAnodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL abort(&
       __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(5) !PartBound%SimpleCathodeBC)
-!CASE(PartBound%SimpleCathodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL abort(&
       __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(6) !PartBound%MPINeighborhoodBC)
-!CASE(PartBound%MPINeighborhoodBC)
+!-----------------------------------------------------------------------------------------------------------------------------------
   CALL abort(&
       __STAMP__,&
   ' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
-
-!-----------------------------------------------------------------------------------------------------------------------------------
-!CASE(PartBound%SymmetryBC)
-CASE(10)
+CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   BCSideID=PartBCSideList(SideID)
   CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,BCSideID)

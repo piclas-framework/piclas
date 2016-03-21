@@ -488,6 +488,9 @@ Distance=-1.
 ListDistance=0
 DO iBGMElem = 1, nBGMElems
   ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+  IF(.NOT.DoHALO)THEN
+    IF(ElemID.GT.PP_nElems) CYCLE
+  END IF
   Distance2=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
            +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
            +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) 
