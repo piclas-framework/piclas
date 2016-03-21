@@ -3257,69 +3257,68 @@ DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
     !--- 3a: SF-specific data of Sides
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC !go through sides if present in proc...
-    IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) THEN
-      CYCLE
+    IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
+      DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+        BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+        ElemID = SideToElem(1,BCSideID)
+        IF (ElemID.LT.1) THEN !not sure if necessary
+          ElemID = SideToElem(2,BCSideID)
+          iLocSide = SideToElem(4,BCSideID)
+        ELSE
+          iLocSide = SideToElem(3,BCSideID)
+        END IF
+        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+        CALL GetBezierSampledAreas(SideID=SideID &
+                                  ,BezierSampleN=BezierSampleN &
+                                  ,ProjectionVector_opt=Species(iSpec)%Surfaceflux(iSF)%VeloVecIC &
+                                  ,SurfMeshSubSideAreas=tmp_SubSideAreas) !project VeloVecIV on SubSide-area
+        DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+          vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
+          vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
+          vec_t2 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2
+          !-- compute total volume flow rate through surface
+          SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
+          CASE('constant')
+            vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC
+            nVFR = MAX(tmp_SubSideAreas(iSample,jSample),0.) * vSF !VFR projected to Side (only positive parts!)
+          CASE('maxwell','maxwell_lpn')
+            vSF = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) !thermal speed
+            IF ( ALMOSTEQUAL(vSF,0.)) THEN
+              CALL abort(&
+                __STAMP__,&
+                'Something is wrong with the Surfaceflux parameters!')
+            END IF
+            a = Species(iSpec)%Surfaceflux(iSF)%VeloIC / vSF & !thermal speed ratio projected inwards (can be negative!)
+               *tmp_SubSideAreas(iSample,jSample)/SurfMeshSubSideData(iSample,jSample,BCSideID)%area
+            vSF = vSF / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity
+            nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF !VFR projected to Side
+          CASE DEFAULT
+            CALL abort(&
+              __STAMP__,&
+              'wrong velo-distri for Surfaceflux!')
+          END SELECT
+          Species(iSpec)%Surfaceflux(iSF)%VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total + nVFR
+          !-- store SF-specific SubSide data in SurfFluxSubSideData (incl. projected velos)
+          Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR = nVFR
+          Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak &
+            = DOT_PRODUCT(vec_nIn,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !VeloVecIC projected to inwards normal
+          Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn &
+            = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+            / SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) &
+            * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak !v-ratio normal to side
+          Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 &
+            = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+            * DOT_PRODUCT(vec_t1,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !v in t1-dir
+          Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 &
+            = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
+            * DOT_PRODUCT(vec_t2,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !v in t2-dir
+        END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
+      END DO ! iSide
     ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
       CALL abort(&
         __STAMP__,&
         'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
     END IF
-    DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-      BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
-      ElemID = SideToElem(1,BCSideID)
-      IF (ElemID.LT.1) THEN !not sure if necessary
-        ElemID = SideToElem(2,BCSideID)
-        iLocSide = SideToElem(4,BCSideID)
-      ELSE
-        iLocSide = SideToElem(3,BCSideID)
-      END IF
-      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-      CALL GetBezierSampledAreas(SideID=SideID &
-                                ,BezierSampleN=BezierSampleN &
-                                ,ProjectionVector_opt=Species(iSpec)%Surfaceflux(iSF)%VeloVecIC &
-                                ,SurfMeshSubSideAreas=tmp_SubSideAreas) !project VeloVecIV on SubSide-area
-      DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
-        vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
-        vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
-        vec_t2 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2
-        !-- compute total volume flow rate through surface
-        SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
-        CASE('constant')
-          vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC
-          nVFR = MAX(tmp_SubSideAreas(iSample,jSample),0.) * vSF !VFR projected to Side (only positive parts!)
-        CASE('maxwell','maxwell_lpn')
-          vSF = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) !thermal speed
-          IF ( ALMOSTEQUAL(vSF,0.)) THEN
-            CALL abort(&
-              __STAMP__,&
-              'Something is wrong with the Surfaceflux parameters!')
-          END IF
-          a = Species(iSpec)%Surfaceflux(iSF)%VeloIC / vSF & !thermal speed ratio projected inwards (can be negative!)
-             *tmp_SubSideAreas(iSample,jSample)/SurfMeshSubSideData(iSample,jSample,BCSideID)%area
-          vSF = vSF / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity
-          nVFR = SurfMeshSubSideData(iSample,jSample,BCSideID)%area * vSF !VFR projected to Side
-        CASE DEFAULT
-          CALL abort(&
-            __STAMP__,&
-            'wrong velo-distri for Surfaceflux!')
-        END SELECT
-        Species(iSpec)%Surfaceflux(iSF)%VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total + nVFR
-        !-- store SF-specific SubSide data in SurfFluxSubSideData (incl. projected velos)
-        Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR = nVFR
-        Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak &
-          = DOT_PRODUCT(vec_nIn,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !VeloVecIC projected to inwards normal
-        Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn &
-          = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
-          / SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) &
-          * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak !v-ratio normal to side
-        Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 &
-          = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
-          * DOT_PRODUCT(vec_t1,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !v in t1-dir
-        Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 &
-          = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
-          * DOT_PRODUCT(vec_t2,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !v in t2-dir
-      END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
-    END DO ! iSide
 
     !--- 3b: ReduceNoise initialization
     IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
