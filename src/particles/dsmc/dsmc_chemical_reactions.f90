@@ -66,9 +66,10 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_PolyAtomicModel,   ONLY : Calc_Beta_Poly
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, PolyatomMolDSMC
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, PolyatomMolDSMC, CollInf
   USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, BoltzmannConst, nSpecies
   USE MOD_DSMC_Analyze,           ONLY : CalcTVibPoly
+  USE MOD_Equation_Vars,          ONLY : Pi
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -85,6 +86,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
   REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, EReact 
   REAL                          :: Xi_vib1, Xi_vib2, Xi_vib3, Xi_Total
   REAL(KIND=8)                 :: BetaReaction, BackwardRate
+  REAL                          :: Rcoll, Tcoll
 !===================================================================================================================================
 
   IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
@@ -268,13 +270,26 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
     ! rate processes in the direct simulation Monte Carlo method", Phys. Fluids 19, 1261103 (2007)
     IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
       CALL CalcBackwardRate(iReac,DSMC%InstantTransTemp(nSpecies+1),BackwardRate)
-      BetaReaction = BetaReaction * BackwardRate &
-                / (ChemReac%Arrhenius_Prefactor(iReac) * DSMC%InstantTransTemp(nSpecies+1)**ChemReac%Arrhenius_Powerfactor(iReac))
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
+        BetaReaction = BetaReaction * BackwardRate &
+          / (ChemReac%Arrhenius_Prefactor(iReac) * DSMC%InstantTransTemp(nSpecies+1)**ChemReac%Arrhenius_Powerfactor(iReac))
+      END IF
     END IF
     ! Actual calculation of the reaction probability, different equation for recombination reaction
     IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-      ReactionProb = BetaReaction * (nPartNode*Species(PartSpecies(iPart_p3))%MacroParticleFactor/Volume)    &
-               * EReact**(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + SpecDSMC(PartSpecies(iPart_p3))%omegaVHS)
+      IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
+        ! Reaction probability after the QK-model
+        Tcoll = 2. * Coll_pData(iPair)%Ec / (BoltzmannConst * Xi_Total)
+        Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(PartSpecies(PartToExec),PartSpecies(PartReac2)))) &
+          * (SpecDSMC(PartSpecies(PartToExec))%DrefVHS/2. + SpecDSMC(PartSpecies(PartReac2))%DrefVHS/2.)**2 &
+          * (Tcoll / SpecDSMC(PartSpecies(PartToExec))%TrefVHS)**(0.5 - SpecDSMC(PartSpecies(PartToExec))%omegaVHS) &
+          * SQRT(2. * BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%TrefVHS &
+          / (CollInf%MassRed(CollInf%Coll_Case(PartSpecies(PartToExec), PartSpecies(PartReac2)))))
+        ReactionProb = BackwardRate / Rcoll * nPartNode / Volume * Species(PartSpecies(iPart_p3))%MacroParticleFactor
+      ELSE
+        ReactionProb = BetaReaction * (nPartNode*Species(PartSpecies(iPart_p3))%MacroParticleFactor/Volume)    &
+                 * EReact**(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + SpecDSMC(PartSpecies(iPart_p3))%omegaVHS)
+      END IF
     ELSE
       IF(SpecDSMC(PartSpecies(PartReac2))%PolyatomicMol.OR.SpecDSMC(PartSpecies(PartToExec))%PolyatomicMol) THEN
         ! Energy is multiplied by a factor to increase the resulting exponent and avoid floating overflows for high vibrational
