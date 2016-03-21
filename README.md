@@ -86,6 +86,25 @@ To build the Boltzplatz the following steps are needed:
 		make install
 
 * After this step the code can be used.
+ 
+### Building with ccmake on forhlr1
+
+For building on the forhlr1-cluster, the following steps are needed:
+
+* include in .bashrc:
+  
+		module unload mpi
+        module load mpi/openmpi/1.8.5_intel
+        module load lib/hdf5/1.8.15-openmpi-1.8.5_intel-intel-15.0
+        module add numlib/mkl
+
+* ccmake: as described above, but instead of building hdf5 include the following changes:
+
+        for using the loaded hdf5 module set (ignore the NOT-FOUND message for hdf5 in ccmake):
+            export HDF5_VERSION (not sure, if necessary)
+            export HDF5_DIR=$HDF5_HOME
+        
+        set HDF5F90 to TRUE
 
 [openmpi]: https://www.open-mpi.org/
 [paraview]: https://www.paraview.org
