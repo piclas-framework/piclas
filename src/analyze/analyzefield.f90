@@ -393,7 +393,7 @@ filename_PI  = 'Power.csv'
 unit_index_PI=273
 
 #ifdef MPI
- IF (MPIRoot) THEN
+IF(MPIRoot)THEN
 #endif    /* MPI */
 
 INQUIRE(UNIT   = unit_index_PI , OPENED = isOpen)

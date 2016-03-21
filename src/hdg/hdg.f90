@@ -315,7 +315,7 @@ USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
 USE MOD_Restart_Vars      ,ONLY: DoRestart,RestartTime
 #ifdef MPI
 USE MOD_MPI_Vars
-!USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData, StartExchangeMPIData
+USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData, StartExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
 #endif /*MPI*/ 
 #if (PP_nVar==1)
@@ -460,9 +460,9 @@ DO iVar=1, PP_nVar
   endbuf=nSides-nMPISides+nMPISides_MINE
   IF(nMPIsides_MINE.GT.0)RHS_face_buf(iVar,:,:)=RHS_face(iVar,:,startbuf:endbuf)
   ! Send YOUR - receive MINE
-!  CALL StartExchangeMPIDataHDG(1,RHS_face(iVar,:,:),1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
+  CALL StartExchangeMPIDataHDG(1,RHS_face(iVar,:,:),1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
   !CALL StartExchangeMPIData(RHS_face,1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
-!  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
   IF(nMPIsides_MINE.GT.0) RHS_face(iVar,:,startbuf:endbuf)=RHS_face(iVar,:,startbuf:endbuf)+RHS_face_buf(iVar,:,:)
   IF(nMPIsides_YOUR.GT.0) RHS_face(iVar,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 #endif /*MPI*/
@@ -588,7 +588,7 @@ USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
 USE MOD_Restart_Vars      ,ONLY: DoRestart,RestartTime
 #ifdef MPI
 USE MOD_MPI_Vars
-!USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData, StartExchangeMPIData
+USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData, StartExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
 #endif /*MPI*/ 
 #if (PP_nVar==1)
@@ -750,8 +750,8 @@ END DO
   IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
   ! Send YOUR - receive MINE
   !CALL StartExchangeMPIDataHDG(1,RHS_face,1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
-!  CALL StartExchangeMPIData(RHS_face,1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
-!  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
+  CALL StartExchangeMPIData(RHS_face,1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
   IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
   IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 #endif /*MPI*/
@@ -826,7 +826,7 @@ USE MOD_Elem_Mat          ,ONLY:PostProcessGradient, Elem_Mat,BuildPrecond
 USE MOD_Restart_Vars      ,ONLY: DoRestart,RestartTime
 #ifdef MPI
 USE MOD_MPI_Vars
-!USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData, StartExchangeMPIData
+USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData, StartExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
 #endif /*MPI*/ 
 #if (PP_nVar==1)
@@ -941,8 +941,8 @@ END DO
   endbuf=nSides-nMPISides+nMPISides_MINE
   IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
   ! Send YOUR - receive MINE
-!  CALL StartExchangeMPIData(RHS_face,1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
-!  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
+  CALL StartExchangeMPIData(RHS_face,1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
   IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
   IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 #endif /*MPI*/
@@ -1063,8 +1063,8 @@ DO iter=1,MaxIterFixPoint
   endbuf=nSides-nMPISides+nMPISides_MINE
   IF(nMPIsides_MINE.GT.0)RHS_face_buf=RHS_face(:,:,startbuf:endbuf)
   ! Send YOUR - receive MINE
-!  CALL StartExchangeMPIData(RHS_face,1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
-!  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
+  CALL StartExchangeMPIData(RHS_face,1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
   IF(nMPIsides_MINE.GT.0) RHS_face(:,:,startbuf:endbuf)=RHS_face(:,:,startbuf:endbuf)+RHS_face_buf
   IF(nMPIsides_YOUR.GT.0) RHS_face(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 #endif /*MPI*/
@@ -1330,7 +1330,7 @@ USE MOD_HDG_Vars           ,ONLY: nDirichletBCSides,DirichletBC
 USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide
 #ifdef MPI
 USE MOD_MPI_Vars
-!USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData
+USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
 #endif /*MPI*/ 
 ! IMPLICIT VARIABLE HANDLING
@@ -1354,7 +1354,7 @@ INTEGER :: startbuf,endbuf
 !===================================================================================================================================
 #ifdef MPI
 ! Send MINE - receive YOUR
-!CALL StartExchangeMPIDataHDG(1,lambda,1,nSides,SendRequest_U,RecRequest_U,SendID=1) 
+CALL StartExchangeMPIDataHDG(1,lambda,1,nSides,SendRequest_U,RecRequest_U,SendID=1) 
 #endif /*MPI*/
 
 
@@ -1399,7 +1399,7 @@ END DO ! SideID=1,nSides
 
 #ifdef MPI
 ! Finish lambda communication 
-!CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1) 
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1) 
 
 firstSideID=nSides-nMPIsides_YOUR+1
 lastSideID =nSides
@@ -1441,8 +1441,8 @@ startbuf=nSides-nMPISides+1
 endbuf=nSides-nMPISides+nMPISides_MINE
 IF(nMPIsides_MINE.GT.0)mvbuf=mv(:,startbuf:endbuf)
 ! Send YOUR - receive MINE
-!CALL StartExchangeMPIDataHDG(1,mv,1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
-!CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
+CALL StartExchangeMPIDataHDG(1,mv,1,nSides,SendRequest_U,RecRequest_U,SendID=2) 
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
 IF(nMPIsides_MINE.GT.0) mv(:,startbuf:endbuf)=mv(:,startbuf:endbuf)+mvbuf
 IF(nMPIsides_YOUR.GT.0) mv(:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 #endif /*MPI*/
@@ -1524,7 +1524,7 @@ USE MOD_Mesh_Vars          ,ONLY: nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC,nBCSides
 #ifdef MPI
 USE MOD_MPI_Vars
-!USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData
+USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
 #endif /*MPI*/ 
 
@@ -1623,7 +1623,6 @@ USE MOD_Restart_Vars      ,ONLY: DoRestart,RestartTime
 USE MOD_Basis              ,ONLY: getSPDInverse, GetInverse
 #ifdef MPI
 USE MOD_MPI_Vars
-!USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData, StartExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
 #endif /*MPI*/ 
 #if (PP_nVar==1)

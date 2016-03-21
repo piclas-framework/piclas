@@ -29,18 +29,18 @@ END INTERFACE
 INTERFACE CalcShapeEfficiencyR
   MODULE PROCEDURE CalcShapeEfficiencyR
 END INTERFACE
-#endif /*PARTICLES*/
-  
+
 INTERFACE CalcEkinPart
   MODULE PROCEDURE CalcEkinPart
 END INTERFACE
+#endif /*PARTICLES*/
 
 PUBLIC:: InitParticleAnalyze, FinalizeParticleAnalyze!, CalcPotentialEnergy
 PUBLIC :: CalcEkinPart
 #ifdef PARTICLES
 PUBLIC:: CalcKineticEnergy, AnalyzeParticles
 #if (PP_TimeDiscMethod == 42)
-  PUBLIC :: ElectronicTransition, WriteEletronicTransition
+PUBLIC :: ElectronicTransition, WriteEletronicTransition
 #endif
 #endif /*PARTICLES*/
 !===================================================================================================================================
@@ -54,7 +54,8 @@ SUBROUTINE InitParticleAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars  !,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin, CalcEpot, DoAnalyze
+USE MOD_Analyze_Vars            ,ONLY:DoAnalyze
+USE MOD_Particle_Analyze_Vars  !,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin
 USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY
 #ifdef PARTICLES
 USE MOD_Particle_Vars           ,ONLY: nSpecies
@@ -65,7 +66,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!CHARACTER(LEN=40)                :: DefStr
 #ifdef PARTICLES
 INTEGER   :: dir, VeloDirs_hilf(4)
 #endif /*PARTICLES*/
@@ -85,69 +85,67 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
 IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
 
-DoAnalyze = .FALSE.
-CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
-IF(CalcEpot) DoAnalyze = .TRUE.
 
-  DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
-  CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
-  IF(CalcCharge) DoAnalyze = .TRUE. 
-  CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
-  CalcTemp = GETLOGICAL('CalcTransTemp','.FALSE.')
-  IF (CalcTemp) CalcEkin = .TRUE.
-  IF(CalcEkin) THEN
-    DoAnalyze = .TRUE.
-    IF (nSpecies .GT. 1) THEN
-     nEkin = nSpecies + 1
-    ELSE
-     nEkin = 1
-    END IF
+DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
+CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
+IF(CalcCharge) DoAnalyze = .TRUE. 
+CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
+CalcTemp = GETLOGICAL('CalcTransTemp','.FALSE.')
+IF (CalcTemp) CalcEkin = .TRUE.
+IF(CalcEkin) THEN
+  DoAnalyze = .TRUE.
+  IF (nSpecies .GT. 1) THEN
+   nEkin = nSpecies + 1
+  ELSE
+   nEkin = 1
   END IF
-  CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
-  IF (CalcPartBalance) THEN
-    DoAnalyze = .TRUE.
-    SDEALLOCATE(nPartIn)
-    SDEALLOCATE(nPartOut)
-    SDEALLOCATE(PartEkinIn)
-    SDEALLOCATE(PartEkinOut)
-    ALLOCATE( nPartIn(nSpecies)     &
-            , nPartOut(nSpecies)    &
-            , PartEkinOut(nSpecies) &
-            , PartEkinIn(nSpecies)  )
-   nPartIn=0
-   nPartOut=0
-   PartEkinOut=0.
-   PartEkinIn=0.
+END IF
+CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
+IF (CalcPartBalance) THEN
+  DoAnalyze = .TRUE.
+  SDEALLOCATE(nPartIn)
+  SDEALLOCATE(nPartOut)
+  SDEALLOCATE(PartEkinIn)
+  SDEALLOCATE(PartEkinOut)
+  ALLOCATE( nPartIn(nSpecies)     &
+          , nPartOut(nSpecies)    &
+          , PartEkinOut(nSpecies) &
+          , PartEkinIn(nSpecies)  )
+ nPartIn=0
+ nPartOut=0
+ PartEkinOut=0.
+ PartEkinIn=0.
 #if defined(LSERK) || defined(IMEX) || defined(IMPA)
-!!#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
     SDEALLOCATE( nPartInTmp)
     SDEALLOCATE( PartEkinInTmp)
     ALLOCATE( nPartInTmp(nSpecies)     &
             , PartEkinInTmp(nSpecies)  )
-    PartEkinInTmp=0.
-    nPartInTmp=0
+  PartEkinInTmp=0.
+  nPartInTmp=0
 #endif
-  END IF
-  CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
-  IF (CalcVelos) THEN
-    DoAnalyze=.TRUE.
-    VeloDirs_hilf = GetIntArray('VelocityDirections',4,'0,0,0,0')
-    VeloDirs(:) = .FALSE.
-    DO dir = 1,4
-      IF (VeloDirs_hilf(dir) .EQ. 1) THEN
-        VeloDirs(dir) = .TRUE.
-      END IF
-    END DO
-    IF ((.NOT. VeloDirs(1)) .AND. (.NOT. VeloDirs(2)) .AND. &
-        (.NOT. VeloDirs(3)) .AND. (.NOT. VeloDirs(4))) THEN
-      CALL abort(&
-          __STAMP__&
-          ,'No VelocityDirections set in CalcVelos!')
+END IF
+CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
+IF (CalcVelos) THEN
+  DoAnalyze=.TRUE.
+  VeloDirs_hilf = GetIntArray('VelocityDirections',4,'0,0,0,0') ! x,y,z,abs -> 0/1 = T/F
+  VeloDirs(:) = .FALSE.
+  DO dir = 1,4
+    IF (VeloDirs_hilf(dir) .EQ. 1) THEN
+      VeloDirs(dir) = .TRUE.
     END IF
+  END DO
+  IF ((.NOT. VeloDirs(1)) .AND. (.NOT. VeloDirs(2)) .AND. &
+      (.NOT. VeloDirs(3)) .AND. (.NOT. VeloDirs(4))) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'No VelocityDirections set in CalcVelos!')
   END IF
+END IF
   TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
-  CalcNumSpec = GETLOGICAL('CalcNumSpec','.FALSE.')
-  IF(CalcNumSpec) DoAnalyze = .TRUE.
+  CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
+  CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
+  CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
+  IF(CalcNumSpec.OR.CalcCollRates.OR.CalcReacRates) DoAnalyze = .TRUE.
   CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency','.FALSE.')
   IF (CalcShapeEfficiency) THEN
     DoAnalyze = .TRUE.
@@ -184,18 +182,23 @@ SUBROUTINE AnalyzeParticles(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars!,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin, CalcEpot, DoAnalyze, IsRestart
+USE MOD_Analyze_Vars,          ONLY: CalcEpot, DoAnalyze
+USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
 USE MOD_PARTICLE_Vars,         ONLY: nSpecies
 USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_Restart_Vars,          ONLY: DoRestart
 USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod>=501)
+USE MOD_TimeDisc_Vars,         ONLY : iter
+#endif
 USE MOD_PIC_Analyze,           ONLY: CalcDepositedCharge
 #ifdef MPI
 USE MOD_LoadBalance_Vars,      ONLY: tCurrent
 USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
+USE MOD_DSMC_Vars,             ONLY: DSMC
 #if (PP_TimeDiscMethod ==1000)
-USE MOD_DSMC_Vars,             ONLY: DSMC, SpecDSMC
+USE MOD_DSMC_Vars,             ONLY: SpecDSMC
 #endif
 #if ( PP_TimeDiscMethod ==42)
 USE MOD_DSMC_Vars,             ONLY: DSMC, SpecDSMC
@@ -217,9 +220,11 @@ INTEGER             :: unit_index, iSpec
 REAL                :: WEl, WMag 
 REAL                :: Ekin(nSpecies + 1), Temp(nSpecies)
 INTEGER             :: NumSpec(nSpecies), OutputCounter
+REAL                :: MaxCollProb, MeanCollProb
 #ifdef MPI
 REAL                :: RECBR(nSpecies),RECBR2(nEkin),RECBR1
 INTEGER             :: RECBIM(nSpecies)
+REAL                :: sumMeanCollProb
 #endif /*MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==1000)
@@ -250,13 +255,13 @@ tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
 !SWRITE(UNIT_StdOut,'(132("-"))')
 !SWRITE(UNIT_stdOut,'(A)') ' PERFORMING PARTICLE ANALYZE...'
-IF (useDSMC) THEN
-  IF (CollisMode.NE.0) THEN
-    SDEALLOCATE(CRate)
-    ALLOCATE(CRate(CollInf%NumCase + 1))
-    IF (CollisMode.EQ.3) THEN
-      SDEALLOCATE(RRate)
-      ALLOCATE(RRate(ChemReac%NumOfReact))
+  IF (useDSMC) THEN
+    IF (CollisMode.NE.0) THEN
+      SDEALLOCATE(CRate)
+      ALLOCATE(CRate(CollInf%NumCase + 1))
+      IF (CollisMode.EQ.3) THEN
+        SDEALLOCATE(RRate)
+        ALLOCATE(RRate(ChemReac%NumOfReact))
       RRate = 0.0
     END IF
   END IF
@@ -265,238 +270,261 @@ OutputCounter = 2
 unit_index = 535
 #ifdef MPI
 !#ifdef PARTICLES
- IF (PartMPI%MPIRoot) THEN
+IF (PartMPI%MPIRoot) THEN
 #endif    /* MPI */
-    INQUIRE(UNIT   = unit_index , OPENED = isOpen)
-    IF (.NOT.isOpen) THEN
+  INQUIRE(UNIT   = unit_index , OPENED = isOpen)
+  IF (.NOT.isOpen) THEN
 #if (PP_TimeDiscMethod==42)
-      ! if only the reaction rate is desired (resevoir) the initial temperature
-      ! of the second species is added to the filename
-       IF (DSMC%ReservoirSimuRate) THEN
-        IF ( SpecDSMC(1)%InterID .EQ. 2 .OR. SpecDSMC(1)%InterID .EQ. 20 ) THEN
-          iTvib = INT(SpecDSMC(1)%Init(0)%Tvib)
-          WRITE( hilf, '(I5.5)') iTvib
-          outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
-        ELSE
-          !iTvib = INT(SpecDSMC(1)%Telec )
-          iTvib = INT(Species(1)%Init(0)%MWTemperatureIC) !wrong name, if MWTemp is defined in %Init!!!
-          WRITE( hilf, '(I5.5)') iTvib
-          outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
-        END IF
-       ELSE
-        outfile = 'Database.csv'
-       END IF
-#else
+    ! if only the reaction rate is desired (resevoir) the initial temperature
+    ! of the second species is added to the filename
+    IF (DSMC%ReservoirSimuRate) THEN
+      IF ( SpecDSMC(1)%InterID .EQ. 2 .OR. SpecDSMC(1)%InterID .EQ. 20 ) THEN
+        iTvib = INT(SpecDSMC(1)%Init(0)%Tvib)
+        WRITE( hilf, '(I5.5)') iTvib
+        outfile = 'Database_Tvib_'//TRIM(hilf)//'.csv'
+      ELSE
+        !iTvib = INT(SpecDSMC(1)%Telec )
+        iTvib = INT(Species(1)%Init(0)%MWTemperatureIC) !wrong name, if MWTemp is defined in %Init!!!
+        WRITE( hilf, '(I5.5)') iTvib
+        outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
+      END IF
+    ELSE
       outfile = 'Database.csv'
+    END IF
+#else
+    outfile = 'Database.csv'
 #endif
 
-       INQUIRE(file=TRIM(outfile),EXIST=FileExists)
-       IF (isRestart .and. FileExists) THEN
-          OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
-          !CALL FLUSH (unit_index)
-       ELSE
-          OPEN(unit_index,file=TRIM(outfile))
-          !CALL FLUSH (unit_index)
-          !--- insert header
-        
-          WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
-          IF (CalcNumSpec) THEN
-            DO iSpec = 1, nSpecies
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A12,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPart-Spec-', iSpec
-              OutputCounter = OutputCounter + 1
-            END DO              
-          END IF
-          IF (CalcCharge) THEN
+  INQUIRE(file=TRIM(outfile),EXIST=FileExists)
+  IF (isRestart .and. FileExists) THEN
+    OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
+    !CALL FLUSH (unit_index)
+  ELSE
+    OPEN(unit_index,file=TRIM(outfile))
+    !CALL FLUSH (unit_index)
+    !--- insert header
+    WRITE(unit_index,'(A6,A5)',ADVANCE='NO') 'TIME', ' '
+    IF (CalcNumSpec) THEN
+      DO iSpec = 1, nSpecies
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A12,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPart-Spec-', iSpec
+        OutputCounter = OutputCounter + 1
+      END DO
+      END IF
+      IF (CalcCharge) THEN
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A12,A5)',ADVANCE='NO') OutputCounter,'-Charge     '
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A16,A5)',ADVANCE='NO') OutputCounter,'-Charge-absError'
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A16,A5)',ADVANCE='NO') OutputCounter,'-Charge-relError'
+        OutputCounter = OutputCounter + 1
+      END IF
+      IF (CalcPartBalance) THEN
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A14,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartIn-Spec-',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A15,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartOut-Spec-',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+      END IF
+      IF (CalcEpot) THEN 
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-El      '
+          OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-Mag    '
+          OutputCounter = OutputCounter + 1
+      END IF
+      IF (CalcEkin) THEN
+        DO iSpec=1, nEkin
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Ekin-',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+        IF (CalcTemp) THEN
+          DO iSpec=1, nSpecies
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A12,A5)',ADVANCE='NO') OutputCounter,'-Charge     '
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Temp',iSpec,' '
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF
+      END IF
+      IF (CalcVelos) THEN
+        DO iSpec=1, nSpecies
+          IF (VeloDirs(1)) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Xtrans',iSpec,' '
             OutputCounter = OutputCounter + 1
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A16,A5)',ADVANCE='NO') OutputCounter,'-Charge-absError'
-            OutputCounter = OutputCounter + 1
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A16,A5)',ADVANCE='NO') OutputCounter,'-Charge-relError'
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Xtherm',iSpec,' '
             OutputCounter = OutputCounter + 1
           END IF
-          IF (CalcPartBalance) THEN
-            DO iSpec=1, nSpecies
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A14,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartIn-Spec-',iSpec,' '
-              OutputCounter = OutputCounter + 1
-            END DO
-            DO iSpec=1, nSpecies
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A15,I3.3,A5)',ADVANCE='NO') OutputCounter,'-nPartOut-Spec-',iSpec,' '
-              OutputCounter = OutputCounter + 1
-            END DO
-          END IF
-          IF (CalcEpot) THEN 
+          IF (VeloDirs(2)) THEN
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-El      '
-              OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Ytrans',iSpec,' '
+            OutputCounter = OutputCounter + 1
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A11)',ADVANCE='NO') OutputCounter,'-W-Mag    '
-              OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Ytherm',iSpec,' '
+            OutputCounter = OutputCounter + 1
           END IF
-          IF (CalcEkin) THEN
-            DO iSpec=1, nEkin
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-Ekin-',iSpec,' '
-              OutputCounter = OutputCounter + 1
-            END DO
-            IF (CalcTemp) THEN
-              DO iSpec=1, nSpecies
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Temp',iSpec,' '
-                OutputCounter = OutputCounter + 1
-              END DO
-            END IF
+          IF (VeloDirs(3)) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Ztrans',iSpec,' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Ztherm',iSpec,' '
+            OutputCounter = OutputCounter + 1
           END IF
-          IF (CalcVelos) THEN
-            DO iSpec=1, nSpecies
-              IF (VeloDirs(1)) THEN
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Xtrans',iSpec,' '
-                OutputCounter = OutputCounter + 1
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Xtherm',iSpec,' '
-                OutputCounter = OutputCounter + 1
-              END IF
-              IF (VeloDirs(2)) THEN
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Ytrans',iSpec,' '
-                OutputCounter = OutputCounter + 1
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Ytherm',iSpec,' '
-                OutputCounter = OutputCounter + 1
-              END IF
-              IF (VeloDirs(3)) THEN
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Ztrans',iSpec,' '
-                OutputCounter = OutputCounter + 1
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Velo_Ztherm',iSpec,' '
-                OutputCounter = OutputCounter + 1
-              END IF
-              IF (VeloDirs(4)) THEN
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' AbsVelo_trans',iSpec,' '
-                OutputCounter = OutputCounter + 1
-                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' AbsVelo_therm',iSpec,' '
-                OutputCounter = OutputCounter + 1
-              END IF
-            END DO
+          IF (VeloDirs(4)) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' AbsVelo_trans',iSpec,' '
+            OutputCounter = OutputCounter + 1
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' AbsVelo_therm',iSpec,' '
+            OutputCounter = OutputCounter + 1
           END IF
-          IF (CalcPartBalance) THEN
-            DO iSpec=1, nSpecies
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A8,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinIn-',iSpec,' '
-              OutputCounter = OutputCounter + 1
-            END DO
-            DO iSpec=1, nSpecies
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A9,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinOut-',iSpec,' '
-              OutputCounter = OutputCounter + 1
-            END DO
-          END IF
+        END DO
+      END IF
+
+      IF (CalcPartBalance) THEN
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A8,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinIn-',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A9,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EkinOut-',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+      END IF
+
+      IF(DSMC%CalcQualityFactors) THEN
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-Pmean',' '
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,'-Pmax',' '
+        OutputCounter = OutputCounter + 1
+      END IF
+
+
+
 #if (PP_TimeDiscMethod==1000)
-              IF (CollisMode.GT.1) THEN
-                DO iSpec=1, nSpecies         
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EVib',iSpec,' '
-                  OutputCounter = OutputCounter + 1
-                END DO
-                DO iSpec=1, nSpecies
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' ERot',iSpec,' '
-                  OutputCounter = OutputCounter + 1
-                END DO
-                IF ( DSMC%ElectronicState ) THEN
-                  DO iSpec = 1, nSpecies
-                    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                    WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EElec',iSpec,' '
-                    OutputCounter = OutputCounter + 1
-                  END DO
-                END IF
-                DO iSpec=1, nSpecies
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempVib',iSpec,' '
-                  OutputCounter = OutputCounter + 1
-                END DO
-                DO iSpec=1, nSpecies
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempRot',iSpec,' '
-                  OutputCounter = OutputCounter + 1
-                END DO
-              END IF
+      IF (CollisMode.GT.1) THEN
+        DO iSpec=1, nSpecies         
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EVib',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' ERot',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+        IF ( DSMC%ElectronicState ) THEN
+          DO iSpec = 1, nSpecies
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EElec',iSpec,' '
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempVib',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempRot',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+      END IF
 #endif
 #if (PP_TimeDiscMethod==42)
-              IF (CollisMode.GT.1) THEN
-                DO iSpec=1, nSpecies         
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EVib',iSpec,' '
-                  OutputCounter = OutputCounter + 1
-                END DO
-                DO iSpec=1, nSpecies
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' ERot',iSpec,' '
-                  OutputCounter = OutputCounter + 1
-                END DO
-                IF ( DSMC%ElectronicState ) THEN
-                  DO iSpec = 1, nSpecies
-                    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                    WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EElec',iSpec,' '
-                    OutputCounter = OutputCounter + 1
-                  END DO
-                END IF
-                DO iSpec=1, nSpecies
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempVib',iSpec,' '
-                  OutputCounter = OutputCounter + 1
-                END DO
-                DO iSpec=1, nSpecies
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempRot',iSpec,' '
-                  OutputCounter = OutputCounter + 1
-                END DO
-                IF ( DSMC%ElectronicState ) THEN
-                  DO iSpec=1, nSpecies
-                    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                    WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempElec',iSpec,' '
-                    OutputCounter = OutputCounter + 1
-                  END DO
-                END IF
-              END IF
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,' Pmax' ,' '
-              OutputCounter = OutputCounter + 1                       
-              DO iSpec = 1, nSpecies
-                DO jSpec = iSpec, nSpecies
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' CollRate', iSpec, '+', jSpec,' '
-                  OutputCounter = OutputCounter + 1
-                END DO
-              END DO
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,' TotalCollRate',' '
-              OutputCounter = OutputCounter + 1
-              IF (CollisMode.EQ.3) THEN
-                DO iCase=1, ChemReac%NumOfReact 
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Reaction', iCase,' '
-                  OutputCounter = OutputCounter + 1
-                END DO
-              END IF
+      IF (CollisMode.GT.1) THEN
+        DO iSpec=1, nSpecies         
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EVib',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' ERot',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+        IF ( DSMC%ElectronicState ) THEN
+          DO iSpec = 1, nSpecies
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EElec',iSpec,' '
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempVib',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempRot',iSpec,' '
+          OutputCounter = OutputCounter + 1
+        END DO
+        IF ( DSMC%ElectronicState ) THEN
+          DO iSpec=1, nSpecies
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' TempElec',iSpec,' '
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF 
+      IF(CalcCollRates) THEN
+        DO iSpec = 1, nSpecies
+          DO jSpec = iSpec, nSpecies
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' CollRate', iSpec, '+', jSpec,' '
+            OutputCounter = OutputCounter + 1
+          END DO
+        END DO
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A,A5)',ADVANCE='NO') OutputCounter,' TotalCollRate',' '
+        OutputCounter = OutputCounter + 1
+      END IF
+      IF(CalcReacRates) THEN
+        IF(CollisMode.EQ.3) THEN
+          DO iCase=1, ChemReac%NumOfReact
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Reaction', iCase,' '
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF
+      END IF
 #endif
-          WRITE(unit_index,'(A14)') ' ' 
-       END IF
+      WRITE(unit_index,'(A14)') ' '
     END IF
+  END IF
 #ifdef MPI
- END IF
+END IF
 #endif    /* MPI */
 
-
+! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+  MaxCollProb = DSMC%CollProbMax
+  MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
+ELSE
+  MaxCollProb = 0.0
+  MeanCollProb = 0.0
+END IF
+#endif
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Other Analyze Routines
 IF(CalcCharge)  CALL CalcDepositedCharge() ! mpi communication done in calcdepositedcharge
 IF(CalcNumSpec) CALL GetNumSpec(NumSpec)
 IF(CalcEkin)    CALL CalcKineticEnergy(Ekin)
@@ -560,6 +588,12 @@ IF (PartMPI%MPIRoot) THEN
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
 #endif /*MPI*/
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+    ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
+    CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PMPIVAR%COMM, IERROR)
+    MeanCollProb = sumMeanCollProb / PMPIVAR%nProcs
+#endif
 ELSE ! no Root
 #ifdef MPI 
   tLBStart = LOCALTIME() ! LB Time Start
@@ -580,6 +614,11 @@ ELSE ! no Root
     tLBEnd = LOCALTIME() ! LB Time End
     tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
 #endif /*MPI*/
+
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+    CALL MPI_REDUCE(MaxCollProb,RECBR,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PMPIVAR%COMM, IERROR)
+    CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PMPIVAR%COMM, IERROR)
+#endif
   END IF
 #ifdef MPI 
   tLBStart = LOCALTIME() ! LB Time Start
@@ -641,16 +680,16 @@ IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed in the file but directly in "out"
 
 #ifdef MPI
- IF (PartMPI%MPIROOT) THEN
+IF (PartMPI%MPIROOT) THEN
 #endif    /* MPI */
-   WRITE(unit_index,104,ADVANCE='NO') Time
-   IF (CalcNumSpec) THEN
-     DO iSpec=1, nSpecies
-       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-       WRITE(unit_index,'(I18.1)',ADVANCE='NO') NumSpec(iSpec)
-     END DO
-   END IF
-   IF (CalcCharge) THEN 
+  WRITE(unit_index,104,ADVANCE='NO') Time
+  IF (CalcNumSpec) THEN
+    DO iSpec=1, nSpecies
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,'(I18.1)',ADVANCE='NO') NumSpec(iSpec)
+    END DO
+  END IF
+  IF (CalcCharge) THEN 
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
      WRITE(unit_index,104,ADVANCE='NO') PartCharge(1)
      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -769,9 +808,19 @@ IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed
             WRITE(unit_index,104,ADVANCE='NO') IntTemp(iSpec,3)
           END DO
         END IF
-      END IF
+    END IF
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+    IF(DSMC%CalcQualityFactors) THEN
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') DSMC%CollProbOut(1,1)
+      WRITE(unit_index,104,ADVANCE='NO') MeanCollProb
+      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+      WRITE(unit_index,104,ADVANCE='NO') MaxCollProb
+    END IF
+#endif
+! alt
+!      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+!      WRITE(unit_index,104,ADVANCE='NO') DSMC%CollProbOut(1,1)
+
       DO iCase=1, CollInf%NumCase +1 
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,104,ADVANCE='NO') CRate(iCase)

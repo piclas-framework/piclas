@@ -275,13 +275,16 @@ ALLOCATE(PartState(1:PDM%maxParticleNumber,1:6)       , &
          Pt(1:PDM%maxParticleNumber,1:3)              , &
          PartSpecies(1:PDM%maxParticleNumber)         , &
          PDM%ParticleInside(1:PDM%maxParticleNumber)  , &
-         PDM%nextFreePosition(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+         PDM%nextFreePosition(1:PDM%maxParticleNumber), &
+         PDM%dtFracPush(1:PDM%maxParticleNumber)      , &
+         PDM%IsNewPart(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
-! always zero
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
+PDM%dtFracPush(1:PDM%maxParticleNumber) = .FALSE.
+PDM%IsNewPart(1:PDM%maxParticleNumber) = .FALSE.
 LastPartPos(1:PDM%maxParticleNumber,1:3)    = 0.
 PartState=0.
 Pt=0.

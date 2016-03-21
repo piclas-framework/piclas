@@ -3203,15 +3203,14 @@ REAL    :: RandVal, dtFrac
 !Time = t
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
-  ! because of emmision and UpdateParticlePosition
-  CALL Deposition(doInnerParts=.TRUE.)
+  CALL Deposition(doInnerParts=.TRUE.) ! because of emmision and UpdateParticlePosition
 #ifdef MPI
   ! here: finish deposition with delta kernal
   !       maps source terms in physical space
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
-  CALL Deposition(doInnerParts=.FALSE.)
+  CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 
@@ -3220,7 +3219,7 @@ CALL HDG(t,U,iter)
 
 IF (t.GE.DelayTime) THEN
   CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
-  CALL InterpolateFieldToParticle(doInnerParts=.FALSE.)
+  !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
   CALL CalcPartRHS()
 END IF
 
@@ -3271,8 +3270,7 @@ END IF
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
 #ifdef MPI
-  ! open receive buffer for number of particles
-  CALL IRecvNbofParticles()
+  CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
@@ -3280,12 +3278,9 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
     CALL ParticleTrackingCurved()
   END IF
 #ifdef MPI
-  ! send number of particles
-  CALL SendNbOfParticles()
-  ! finish communication of number of particles and send particles
-  CALL MPIParticleSend()
-  ! finish communication
-  CALL MPIParticleRecv()
+  CALL SendNbOfParticles() ! send number of particles
+  CALL MPIParticleSend()  ! finish communication of number of particles and send particles
+  CALL MPIParticleRecv()  ! finish communication
 #endif
 END IF
 
@@ -3338,28 +3333,30 @@ SUBROUTINE TimeStepPoissonByLSERK(t,iter,tEndDiff)
 ! the current time U(t) and returns the solution at the next time level.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,          ONLY: Abort
+USE MOD_Globals,               ONLY: Abort
 USE MOD_PreProc
-USE MOD_Analyze,          ONLY: PerformAnalyze
-USE MOD_TimeDisc_Vars,    ONLY: dt,iStage!,RKdtFrac,RKdtFracTotal
-USE MOD_TimeDisc_Vars,    ONLY: RK_a,RK_b,RK_c,nRKStages
-USE MOD_DG_Vars,          ONLY: U
+USE MOD_Analyze,               ONLY: PerformAnalyze
+USE MOD_TimeDisc_Vars,         ONLY: dt,iStage!,RKdtFrac,RKdtFracTotal
+USE MOD_TimeDisc_Vars,         ONLY: RK_a,RK_b,RK_c,nRKStages
+USE MOD_DG_Vars,               ONLY: U
+USE MOD_Particle_Tracking_vars,ONLY: DoRefMapping
 #ifdef PARTICLES
-!USE MOD_PICDepo,          ONLY: Deposition, DepositionMPF
-USE MOD_PICInterpolation, ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars,    ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, usevMPF, & 
-                                 doParticleMerge,PartPressureCell,DoSurfaceFlux!,Time
-USE MOD_part_RHS,         ONLY: CalcPartRHS
-!USE MOD_part_boundary,    ONLY: ParticleBoundary
-USE MOD_part_emission,    ONLY: ParticleInserting!, ParticleSurfaceflux
-USE MOD_DSMC,             ONLY: DSMC_main
-USE MOD_DSMC_Vars,        ONLY: useDSMC, DSMC_RHS
-USE MOD_part_MPFtools,    ONLY: StartParticleMerge
-USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
-!USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
+USE MOD_PICDepo,               ONLY: Deposition
+USE MOD_PICInterpolation,      ONLY: InterpolateFieldToParticle
+USE MOD_Particle_Vars,         ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, usevMPF, & 
+                                     doParticleMerge,PartPressureCell,DoSurfaceFlux!,Time
+USE MOD_part_RHS,              ONLY: CalcPartRHS
+USE MOD_part_emission,         ONLY: ParticleInserting!, ParticleSurfaceflux
+USE MOD_DSMC,                  ONLY: DSMC_main
+USE MOD_DSMC_Vars,             ONLY: useDSMC, DSMC_RHS
+USE MOD_part_MPFtools,         ONLY: StartParticleMerge
+USE MOD_PIC_Analyze,           ONLY: VerifyDepositedCharge
+USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 #ifdef MPI
-
-#endif /*MPI*/
+USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
+#endif
+!USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping!,MeasureTrackTime
 USE MOD_part_tools,             ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking,      ONLY: ParticleTrackingCurved,ParticleRefTracking
@@ -3398,13 +3395,15 @@ iStage=1
 !RKdtFracTotal=RKdtFrac
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
-  IF (usevMPF) THEN 
-!    CALL DepositionMPF()
-  ELSE 
-!    CALL Deposition()
-  END IF
-!  CALL CalcDepositedCharge()
-!  STOP
+  CALL Deposition(doInnerParts=.TRUE.) ! because of emmision and UpdateParticlePosition
+#ifdef MPI
+  ! here: finish deposition with delta kernal
+  !       maps source terms in physical space
+  ! ALWAYS require
+  PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+  CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
+  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 #endif /*PARTICLES*/
 
@@ -3412,8 +3411,8 @@ CALL HDG(t,U,iter)
 
 #ifdef PARTICLES
 IF (t.GE.DelayTime) THEN
-  ! forces on particle
-  !CALL InterpolateFieldToParticle()
+  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)   ! forces on particles
+  !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
   CALL CalcPartRHS()
 END IF
 #endif /*PARTICLES*/
@@ -3473,10 +3472,18 @@ IF (t.GE.DelayTime) THEN
 END IF
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
-!  CALL ParticleBoundary()
 #ifdef MPI
-!  CALL Communicate_PIC()
-  !CALL UpdateNextFreePosition() ! only required for parallel communication
+  CALL IRecvNbofParticles() ! open receive buffer for number of particles
+#endif
+  IF(DoRefMapping)THEN
+    CALL ParticleRefTracking()
+  ELSE
+    CALL ParticleTrackingCurved()
+  END IF
+#ifdef MPI
+  CALL SendNbOfParticles() ! send number of particles
+  CALL MPIParticleSend()   ! finish communication of number of particles and send particles
+  CALL MPIParticleRecv()   ! finish communication
 #endif
 END IF
 
@@ -3497,11 +3504,15 @@ DO iStage=2,nRKStages
 
   ! deposition 
   IF (t.GE.DelayTime) THEN
-    IF (usevMPF) THEN 
-!      CALL DepositionMPF()
-    ELSE 
-!      CALL Deposition()
-    END IF
+    CALL Deposition(doInnerParts=.TRUE.) ! because of emmision and UpdateParticlePosition
+#ifdef MPI
+    ! here: finish deposition with delta kernal
+    !       maps source terms in physical space
+    ! ALWAYS require
+    PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+    CALL Deposition(doInnerParts=.FALSE.) ! needed for closing communication
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
   END IF
 #endif /*PARTICLES*/
 
@@ -3510,7 +3521,8 @@ DO iStage=2,nRKStages
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
     ! forces on particle
-    !CALL InterpolateFieldToParticle()
+    CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)   ! forces on particles
+    !CALL InterpolateFieldToParticle(doInnerParts=.FALSE.) ! only needed when MPI communation changes the number of parts
     CALL CalcPartRHS()
 
     ! particle step
@@ -3564,10 +3576,18 @@ DO iStage=2,nRKStages
     END DO
 
     ! particle tracking
-!    CALL ParticleBoundary()
 #ifdef MPI
-!    CALL Communicate_PIC()
-!    CALL UpdateNextFreePosition() ! only required for parallel communication
+    CALL IRecvNbofParticles() ! open receive buffer for number of particles
+#endif
+    IF(DoRefMapping)THEN
+      CALL ParticleRefTracking()
+    ELSE
+      CALL ParticleTrackingCurved()
+    END IF
+#ifdef MPI
+    CALL SendNbOfParticles() ! send number of particles
+    CALL MPIParticleSend()   ! finish communication of number of particles and send particles
+    CALL MPIParticleRecv()   ! finish communication
 #endif
     CALL ParticleInserting()
   END IF
