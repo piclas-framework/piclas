@@ -41,9 +41,9 @@ USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Elem_Mat           ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides,SurfElem,SideToElem
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC,NbrOfRegions 
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
+USE MOD_Particle_Mesh_Vars, ONLY: GEO,NbrOfRegions
 USE MOD_Particle_Vars      ,ONLY :RegionElectronRef
-USE MOD_Particle_Mesh_Vars ,ONLY : GEO
 USE MOD_Equation_Vars      ,ONLY:eps0
 USE MOD_Restart_Vars,    ONLY:DoRestart
 ! IMPLICIT VARIABLE HANDLING

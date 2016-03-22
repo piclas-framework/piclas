@@ -115,12 +115,6 @@ LOGICAL,ALLOCATABLE :: isPoyntingIntSide(:)  ! number of all PoyntingInt sides
 INTEGER,ALLOCATABLE :: whichPoyntingPlane(:) ! number of plane used for calculation of poynting vector
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
-! mapping on defined regions on elements
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
-REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
-!-----------------------------------------------------------------------------------------------------------------------------------
-!-----------------------------------------------------------------------------------------------------------------------------------
 ! USER DEFINED TYPES 
 
 TYPE tNodePtr

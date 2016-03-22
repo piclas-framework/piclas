@@ -197,15 +197,16 @@ nGlobalUniqueSides=SideID_minus_upper
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 CALL fillMeshInfo()
 
-!-- Read parameters for region mapping
-NbrOfRegions = GETINT('NbrOfRegions','0')
-IF (NbrOfRegions .GT. 0) THEN
-  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
-  DO iRegions=1,NbrOfRegions
-    WRITE(UNIT=hilf2,FMT='(I2)') iRegions
-    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
-  END DO
-END IF
+! PO: is done in particle_Init
+!!-- Read parameters for region mapping
+!NbrOfRegions = GETINT('NbrOfRegions','0')
+!IF (NbrOfRegions .GT. 0) THEN
+!  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
+!  DO iRegions=1,NbrOfRegions
+!    WRITE(UNIT=hilf2,FMT='(I2)') iRegions
+!    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
+!  END DO
+!END IF
 
 #ifdef PARTICLES
 ! save geometry information for particle tracking
