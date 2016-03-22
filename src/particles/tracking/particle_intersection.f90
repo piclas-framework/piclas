@@ -231,7 +231,7 @@ REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0
 #endif /*CODE_ANALYZE*/
 INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID!,realInterID
 LOGICAL                                  :: firstClip
-INTEGER                                  :: realnInter
+INTEGER                                  :: realnInter,isInter
 REAL                                     :: XiNewton(2)
 REAL                                     :: PartFaceAngle,dXi,dEta
 REAL                                     :: Interval1D,dInterVal1D
@@ -365,10 +365,11 @@ SELECT CASE(nInterSections)
 CASE(0)
   RETURN
 CASE(1)
-  alpha=locAlpha(nInterSections)
+  alpha=locAlpha(1)
   xi =locXi (1)
   eta=loceta(1)
   isHit=.TRUE.
+  RETURN
 CASE DEFAULT
   ! more than one intersection
   !ALLOCATE(locID(nInterSections))
@@ -378,7 +379,7 @@ CASE DEFAULT
   END DO ! iInter
   ! sort intersection distance
 !  CALL BubbleSortID(locAlpha,locID,nIntersections)
-  CALL InsertionSort(locAlpha,locID,nIntersections)
+  CALL InsertionSort(locAlpha(1:nIntersections),locID,nIntersections)
   
   IF(DoRefMapping)THEN
     DO iInter=1,nInterSections 
@@ -386,7 +387,7 @@ CASE DEFAULT
         alpha=locAlpha(iInter)
         xi =locXi (locID(iInter))
         eta=loceta(locID(iInter))
-        SDEALLOCATE(locID)
+        DEALLOCATE(locID)
         isHit=.TRUE.
         RETURN 
       END IF
@@ -402,17 +403,19 @@ CASE DEFAULT
             alpha=locAlpha(iInter)
             xi =locXi (locID(iInter))
             eta=loceta(locID(iInter))
-            SDEALLOCATE(locID)
+            DEALLOCATE(locID)
             isHit=.TRUE.
             RETURN 
           END IF
         END DO ! iInter
       ELSE ! inner side
         realnInter=1
+        isInter=1
         DO iInter=2,nInterSections
           IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
           .AND.(locAlpha(1)/locAlpha(iInter).GT.1.002))THEN
               realNInter=realnInter+1
+              isInter=iInter
           END IF
         END DO
         IF(MOD(realNInter,2).EQ.0) THEN
@@ -421,9 +424,9 @@ CASE DEFAULT
           isHit=.FALSE.
           RETURN ! leave and enter a cell multiple times
         ELSE
-          alpha=locAlpha(nInterSections)
-          xi =locXi (locID(nInterSections))
-          eta=loceta(locID(nInterSections))
+          alpha=locAlpha(isInter)
+          xi =locXi (locID(isInter))
+          eta=loceta(locID(isInter))
           isHit=.TRUE.
           DEALLOCATE(locID)
           RETURN
@@ -439,17 +442,19 @@ CASE DEFAULT
           alpha=locAlpha(iInter)
           xi =locXi (locID(iInter))
           eta=loceta(locID(iInter))
-          SDEALLOCATE(locID)
+          DEALLOCATE(locID)
           isHit=.TRUE.
           RETURN 
         END IF
       END DO ! iInter
     ELSE ! no BC Side
       realnInter=1
+      isInter=1
       DO iInter=2,nInterSections
         IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
         .AND.(locAlpha(1)/locAlpha(iInter).GT.1.002))THEN
             realNInter=realnInter+1
+            isInter=iInter
         END IF
       END DO
       IF(MOD(realNInter,2).EQ.0) THEN
@@ -458,9 +463,9 @@ CASE DEFAULT
         isHit=.FALSE.
         RETURN ! leave and enter a cell multiple times
       ELSE
-        alpha=locAlpha(nInterSections)
-        xi =locXi (locID(nInterSections))
-        eta=loceta(locID(nInterSections))
+        alpha=locAlpha(isInter)
+        xi =locXi (locID(isInter))
+        eta=loceta(locID(isInter))
         isHit=.TRUE.
         DEALLOCATE(locID)
         RETURN
@@ -471,6 +476,8 @@ CASE DEFAULT
   SDEALLOCATE(locID)
 END SELECT
 
+CALL abort(__STAMP__, &
+   ' The code should never go here')
 
 END SUBROUTINE ComputeBezierIntersection
 
