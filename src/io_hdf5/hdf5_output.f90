@@ -63,7 +63,7 @@ USE MOD_Equation_Vars,        ONLY:E,Phi
 #endif /*PP_POIS*/
 #ifdef PP_HDG
 USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh
-USE MOD_Mesh_Vars,            ONLY: offsetSide, nSides,nGlobalUniqueSides,SideID_Minus_Upper
+USE MOD_Mesh_Vars,            ONLY: offsetSide, nSides,nGlobalUniqueSides,nUniqueSides
 USE MOD_HDG_Vars,             ONLY: lambda, nGP_face, nGP_vol, RHS_vol
 #if PP_nVar==1
 USE MOD_Equation_Vars,        ONLY:E
@@ -209,9 +209,9 @@ DEALLOCATE(Utemp)
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
                         DataSetName='DG_SolutionLambda', rank=3,&
                         nValGlobal=(/PP_nVar,nGP_face,nGlobalUniqueSides/),&
-                        nVal=      (/PP_nVar,nGP_face,SideID_minus_upper/),&
+                        nVal=      (/PP_nVar,nGP_face,nUniqueSides/),&
                         offset=    (/0,      0,       offsetSide/),&
-                        collective=.TRUE., RealArray=lambda(:,:,1:SideID_minus_upper))
+                        collective=.TRUE., RealArray=lambda(:,:,1:nUniqueSides))
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
                         DataSetName='DG_SolutionU', rank=5,&
                         nValGlobal=(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&

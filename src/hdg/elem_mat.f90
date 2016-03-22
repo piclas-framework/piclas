@@ -292,7 +292,7 @@ USE MOD_HDG_Vars
 USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide,nBCSides,nMPIsides_YOUR
 #ifdef MPI
 USE MOD_MPI_Vars
-!USE MOD_MPI,           ONLY:StartExchangeMPIDataHDG,FinishExchangeMPIData
+USE MOD_MPI,               ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_MINE
 #endif /*MPI*/ 
 
@@ -341,10 +341,9 @@ CASE(1)
   ALLOCATE(P_reshape(nGP_face,0:PP_N,0:PP_N,startbuf:nSides))
   endbuf=nSides-nMPISides+nMPISides_MINE
   P_reshape=RESHAPE(Precond(:,:,startbuf:nSides),(/nGP_face,PP_N+1,PP_N+1,nSides-startbuf+1/))
-  ! Send YOUR - receive MINE
-!  CALL StartExchangeMPIDataHDG(nGP_face,P_reshape &
-!       ,startbuf,nSides,SendRequest_U,RecRequest_U,SendID=2) 
-!  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
+  CALL StartReceiveMPIData(nGP_face,P_reshape,startbuf,nSides, RecRequest_U,SendID=2) ! Receive MINE
+  CALL StartSendMPIData(   nGP_face,P_reshape,startbuf,nSides,SendRequest_U,SendID=2) ! Send YOUR
+  CALL FinishExchangeMPIData(                    SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
   IF(nMPISides_MINE.GT.0)THEN
     Precond(:,:,startbuf:endbuf)=Precond(:,:,startbuf:endbuf) &
                                 +RESHAPE(P_reshape(:,:,:,startbuf:endbuf),(/nGP_face,nGP_face,endbuf-startbuf+1/))
@@ -391,10 +390,9 @@ CASE(2)
   ALLOCATE(P_reshape(1,0:PP_N,0:PP_N,startbuf:nSides))
   endbuf=nSides-nMPISides+nMPISides_MINE
   P_reshape=RESHAPE(InvPrecondDiag(:,startbuf:nSides),(/1,PP_N+1,PP_N+1,nSides-startbuf+1/))
-  ! Send YOUR - receive MINE
-!  CALL StartExchangeMPIDataHDG(1,P_reshape &
-!       ,startbuf,nSides,SendRequest_U,RecRequest_U,SendID=2) 
-!  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) 
+  CALL StartReceiveMPIData(nGP_face,P_reshape,startbuf,nSides, RecRequest_U,SendID=2) ! Receive MINE
+  CALL StartSendMPIData(   nGP_face,P_reshape,startbuf,nSides,SendRequest_U,SendID=2) ! Send YOUR
+  CALL FinishExchangeMPIData(                    SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
   IF(nMPISides_MINE.GT.0)THEN
     InvPrecondDiag(:,startbuf:endbuf)=InvPrecondDiag(:,startbuf:endbuf) &
                                 +RESHAPE(P_reshape(:,:,:,startbuf:endbuf),(/nGP_face,endbuf-startbuf+1/))

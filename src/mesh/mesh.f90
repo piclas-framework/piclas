@@ -176,13 +176,13 @@ BC          = 0
 
 !lower and upper index of U/gradUx/y/z _plus
 !lower and upper index of U/gradUx/y/z _plus
-!#ifdef PP_HDG
-!sideID_minus_upper = nBCSides+nInnerSides+nMPISides
-!#else
-!sideID_minus_upper = nBCSides+nInnerSides+nMPISides_MINE
-!#endif /*PP_HDG*/
-sideID_minus_lower = 1
+#ifdef PP_HDG
+sideID_minus_upper = nBCSides+nInnerSides+nMPISides
+#else
 sideID_minus_upper = nBCSides+nInnerSides+nMPISides_MINE
+#endif /*PP_HDG*/
+sideID_minus_lower = 1
+nUniqueSides       = nBCSides+nInnerSides+nMPISides_MINE
 sideID_plus_lower  = nBCSides+1
 sideID_plus_upper  = nBCSides+nInnerSides+nMPISides
 

@@ -24,13 +24,14 @@ INTERFACE InitMPIvars
   MODULE PROCEDURE InitMPIvars
 END INTERFACE
 
-INTERFACE StartReceiveMPIData
-  MODULE PROCEDURE StartReceiveMPIData
-END INTERFACE
+! don't create an interface because some vectors are mapped to arrays
+!INTERFACE StartReceiveMPIData
+!  MODULE PROCEDURE StartReceiveMPIData
+!END INTERFACE
 
-INTERFACE StartSendMPIData
-  MODULE PROCEDURE StartSendMPIData
-END INTERFACE
+!INTERFACE StartSendMPIData
+!  MODULE PROCEDURE StartSendMPIData
+!END INTERFACE
 
 
 INTERFACE FinishExchangeMPIData
@@ -42,7 +43,7 @@ INTERFACE FinalizeMPI
 END INTERFACE
 
 
-PUBLIC::InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData, FinalizeMPI
+PUBLIC::InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
 #endif
 !===================================================================================================================================
 

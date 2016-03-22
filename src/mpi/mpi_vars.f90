@@ -13,7 +13,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,ALLOCATABLE :: SendRequest_U(:),SendRequest_Flux(:),SendRequest_gradUx(:),SendRequest_gradUy(:),SendRequest_gradUz(:)
 INTEGER,ALLOCATABLE :: RecRequest_U(:),RecRequest_Flux(:),RecRequest_gradUx(:),RecRequest_gradUy(:),RecRequest_gradUz(:)
-!INTEGER,ALLOCATABLE :: SendRequest_UMinus(:),RecRequest_UMinus(:) 
 INTEGER,ALLOCATABLE :: SendRequest_Geo(:),RecRequest_Geo(:) 
 INTEGER             :: iNbProc
 INTEGER             :: nSendVal,nRecVal,DataSizeSide

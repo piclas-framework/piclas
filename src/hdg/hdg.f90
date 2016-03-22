@@ -37,7 +37,6 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Interpolation_Vars ,ONLY: xGP,wGP,L_minus,L_plus
 USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
-USE MOD_TimeDisc_Vars      ,ONLY: dt
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Elem_Mat           ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
@@ -232,7 +231,7 @@ ALLOCATE(Tau(PP_nElems))
 DO iElem=1,PP_nElems
   Tau(iElem)=2./((SUM(JwGP_vol(:,iElem)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
 END DO !iElem
-
+print*,"CALL Elem_Mat()"
 CALL Elem_Mat()
 
 ALLOCATE(Fdiag(nGP_face,nSides))
@@ -251,7 +250,7 @@ DO SideID=1,nSides
     Fdiag(:,SideID)=-Fdiag(:,SideID)*(Tau(iElem)+Tau(jElem))
   END IF
 END DO
-
+print*,"BuildPrecond()"
 CALL BuildPrecond()
 
 ALLOCATE(lambda(PP_nVar,nGP_face,nSides))
@@ -306,8 +305,8 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars,     ONLY:IniExactFunc
-USE MOD_Equation_Vars,     ONLY:chitens,chitens_face
-USE MOD_Mesh_Vars,         ONLY:Elem_xGP,Face_xGP,BCface_xGP,BoundaryType,nSides,BC
+USE MOD_Equation_Vars,     ONLY:chitens_face
+USE MOD_Mesh_Vars,         ONLY:Face_xGP,BCface_xGP,BoundaryType,nSides,BC!,Elem_xGP
 USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
@@ -315,7 +314,7 @@ USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
 USE MOD_Restart_Vars      ,ONLY: DoRestart,RestartTime
 #ifdef MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:FinishExchangeMPIData, StartReceiveMPIData,StartSendMPIData
+USE MOD_MPI,           ONLY:FinishExchangeMPIData,StartReceiveMPIData,StartSendMPIData
 USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
 #endif /*MPI*/ 
 #if (PP_nVar==1)
@@ -459,9 +458,9 @@ DO iVar=1, PP_nVar
   startbuf=nSides-nMPISides+1
   endbuf=nSides-nMPISides+nMPISides_MINE
   IF(nMPIsides_MINE.GT.0)RHS_face_buf(iVar,:,:)=RHS_face(iVar,:,startbuf:endbuf)
-  CALL StartReceiveMPIData(1,RHS_face,1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
-  CALL StartSendMPIData(   1,RHS_face,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-  CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2) ! Send YOUR - receive MINE
+  CALL StartReceiveMPIData(1,RHS_face(iVar,:,:),1,nSides,RecRequest_U ,SendID=2) ! Receive MINE
+  CALL StartSendMPIData(   1,RHS_face(iVar,:,:),1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+  CALL FinishExchangeMPIData(SendRequest_U,     RecRequest_U,SendID=2)           ! Send YOUR - receive MINE
   IF(nMPIsides_MINE.GT.0) RHS_face(iVar,:,startbuf:endbuf)=RHS_face(iVar,:,startbuf:endbuf)+RHS_face_buf(iVar,:,:)
   IF(nMPIsides_YOUR.GT.0) RHS_face(iVar,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
 #endif /*MPI*/
@@ -578,13 +577,12 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars,     ONLY:IniExactFunc
-USE MOD_Equation_Vars,     ONLY:chitens,chitens_face
-USE MOD_Mesh_Vars,         ONLY:Elem_xGP,Face_xGP,BCface_xGP,BoundaryType,nSides,BC
+USE MOD_Equation_Vars,     ONLY:chitens_face
+USE MOD_Mesh_Vars,         ONLY:Face_xGP,BCface_xGP,BoundaryType,nSides,BC!,Elem_xGP
 USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
-USE MOD_Restart_Vars      ,ONLY: DoRestart,RestartTime
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:FinishExchangeMPIData, StartReceiveMPIData,StartSendMPIData
@@ -607,11 +605,11 @@ REAL,INTENT(IN)     :: t !time
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: i,j,k,r,p,q,iElem, iter, iVar
+INTEGER :: i,j,k,r,p,q,iElem, iVar!,iter
 INTEGER :: BCsideID,BCType,BCstate,SideID,iLocSide
 REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
 REAL    :: rtmp(nGP_vol)
-LOGICAL :: converged
+!LOGICAL :: converged
 #ifdef MPI
 REAL    :: RHS_face_buf( PP_nVar,nGP_Face,nMPISides_MINE)
 INTEGER :: startbuf,endbuf
@@ -813,8 +811,8 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars,     ONLY:IniExactFunc, eps0
-USE MOD_Equation_Vars,     ONLY:chitens,chitens_face
-USE MOD_Mesh_Vars,         ONLY:Elem_xGP,Face_xGP,BCface_xGP,BoundaryType,nSides,BC
+USE MOD_Equation_Vars,     ONLY:chitens_face
+USE MOD_Mesh_Vars,         ONLY:BCface_xGP,BoundaryType,nSides,BC!,Elem_xGP,Face_xGP
 USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Vars     ,ONLY:  RegionElectronRef
@@ -845,7 +843,7 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 INTEGER :: i,j,k,r,p,q,iElem, iter,RegionID
 INTEGER :: BCsideID,BCType,BCstate,SideID,iLocSide
 REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
-REAL    :: rtmp(nGP_vol),Norm_r2,Norm_r2_old
+REAL    :: rtmp(nGP_vol),Norm_r2!,Norm_r2_old
 LOGICAL :: converged, beLinear
 #ifdef MPI
 REAL    :: RHS_face_buf( PP_nVar,nGP_Face,nMPISides_MINE)
@@ -1112,8 +1110,8 @@ SUBROUTINE CheckNonLinRes(RHS,lambda, converged,Norm_R2)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars           ,ONLY: nGP_face, nGP_vol
-USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType,EpsNonLinear
+USE MOD_HDG_Vars           ,ONLY: nGP_face
+USE MOD_HDG_Vars           ,ONLY: EpsNonLinear
 USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1128,10 +1126,6 @@ REAL, INTENT(OUT) :: Norm_r2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(nGP_face*nSides) :: R 
-REAL                            :: AbortCrit2
-REAL                            :: omega,rr,vz,rz1,rz2!,Norm_r2
-REAL                            :: timestartCG,timeendCG
-INTEGER                         :: iter
 INTEGER                         :: VecSize
 !===================================================================================================================================
 #ifdef MPI
@@ -1160,7 +1154,7 @@ SUBROUTINE CG_solver(RHS,lambda,iVar)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars           ,ONLY: nGP_face, nGP_vol
+USE MOD_HDG_Vars           ,ONLY: nGP_face
 USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType
 USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
 ! IMPLICIT VARIABLE HANDLING
@@ -1177,7 +1171,7 @@ INTEGER, INTENT(INOUT),OPTIONAL::iVar
 REAL,DIMENSION(nGP_face*nSides) :: V,Z,R 
 REAL                            :: AbortCrit2
 REAL                            :: omega,rr,vz,rz1,rz2,Norm_r2
-REAL                            :: timestartCG,timeendCG
+REAL                            :: timestartCG
 INTEGER                         :: iter
 INTEGER                         :: VecSize
 LOGICAL                         :: converged
@@ -1351,9 +1345,8 @@ INTEGER :: startbuf,endbuf
 #endif /*MPI*/ 
 !===================================================================================================================================
 #ifdef MPI
-! Send MINE - receive YOUR
-CALL StartReceiveMPIData(1,lambda,1,nSides,RecRequest_U,SendID=1) ! Receive MINE
-CALL StartSendMPIData(1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
+CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive MINE
+CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
 #endif /*MPI*/
 
 
@@ -1520,11 +1513,10 @@ SUBROUTINE ApplyPrecond(R, V)
 ! MODULES
 USE MOD_HDG_Vars           ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
 USE MOD_Mesh_Vars          ,ONLY: nSides
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC,nBCSides
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
+USE MOD_Mesh_Vars,     ONLY:nMPIsides_YOUR
 #endif /*MPI*/ 
 
 ! IMPLICIT VARIABLE HANDLING
@@ -1611,18 +1603,10 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
-USE MOD_Equation_Vars,     ONLY:IniExactFunc
-USE MOD_Equation_Vars,     ONLY:chitens,chitens_face
-USE MOD_Mesh_Vars,         ONLY:Elem_xGP,Face_xGP,BCface_xGP,BoundaryType,nSides,BC
-USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
-USE MOD_Interpolation_Vars,ONLY:wGP
-USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Elem_Mat          ,ONLY:PostProcessGradient
-USE MOD_Restart_Vars      ,ONLY: DoRestart,RestartTime
 USE MOD_Basis              ,ONLY: getSPDInverse, GetInverse
 #ifdef MPI
 USE MOD_MPI_Vars
-USE MOD_Mesh_Vars,     ONLY:nMPISides,nMPIsides_YOUR,nMPIsides_MINE
 #endif /*MPI*/ 
 #if (PP_nVar==1)
 USE MOD_Equation_Vars,     ONLY:E
@@ -1637,15 +1621,7 @@ IMPLICIT NONE
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: i,j,k,r,p,q,iElem, iter, iVar
-INTEGER :: BCsideID,BCType,BCstate,SideID,iLocSide
-REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
-REAL    :: rtmp(nGP_vol)
-LOGICAL :: converged
 #ifdef MPI
-REAL    :: RHS_face_buf( PP_nVar,nGP_Face,nMPISides_MINE)
-INTEGER :: startbuf,endbuf
-REAL    :: Dhat(nGP_vol,nGP_vol,PP_nElems), EhatInv(nGP_face,nGP_vol,6,PP_nElems)
 #endif /*MPI*/ 
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
