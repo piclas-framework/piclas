@@ -110,17 +110,17 @@ CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-!   IsSpeciesSwap=.FALSE.
-!   !---- swap species?
-!   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
-!     CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,GlobSideID,BCSideID,IsSpeciesSwap)
-!   END IF
+  IsSpeciesSwap=.FALSE.
+  !---- swap species?
+  IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
+    CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap)
+  END IF
   CALL RANDOM_NUMBER(RanNum)
   IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
     ! perfectly reflection, specular re-emission
-    CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+    CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
   ELSE
-    CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+    CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
   END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -193,6 +193,7 @@ REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTraj
 ! LOCAL VARIABLES
 REAL                                 :: RanNum,n_loc(1:3)
 INTEGER                              :: BCSideID
+LOGICAL                              :: IsSpeciesSwap
 !===================================================================================================================================
 
 IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
@@ -234,15 +235,15 @@ CASE(2) !PartBound%ReflectiveBC)
   IsSpeciesSwap=.FALSE.
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(GlobSideID))).gt.0) THEN
-    CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,GlobSideID,BCSideID,IsSpeciesSwap)
+    CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,BCSideID)
   END IF
   CALL RANDOM_NUMBER(RanNum)
   BCSideID=PartBCSideList(SideID)
   IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
     ! perfectly reflection, specular re-emission
-    CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,BCSideID,IsSpeciesSwap)
+    CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
   ELSE
-    CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,BCSideID,IsSpeciesSwap)
+    CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
   END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -511,7 +512,7 @@ USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannCons
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,BezierControlPoints3D
 USE MOD_Mesh_Vars,              ONLY:BC,NGEO
 USE MOD_DSMC_Vars,              ONLY:SpecDSMC,CollisMode
-USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,SpecDSMC, DSMC, useDSMC, CollisMode
+USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,DSMC, useDSMC
 USE MOD_DSMC_Vars,              ONLY:AnalyzeSurfCollis, PolyatomMolDSMC, VibQuantsPar
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
@@ -962,20 +963,14 @@ SUBROUTINE SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,G
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR,myRank
-USE MOD_Globals_Vars,           ONLY:PI
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,ElemBaryNGeo,PartSideToElem
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall
-USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample,nSurfSample
-USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannConst,PartSpecies
+USE MOD_Globals,                ONLY:abort
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies
 USE MOD_Particle_Vars,          ONLY:WriteMacroValues
-USE MOD_Particle_Surfaces_Vars, ONLY:SideNormVec,SideType,BezierControlPoints3D
-USE MOD_Mesh_Vars,              ONLY:BC,NGEO
-USE MOD_DSMC_Vars,              ONLY:SpecDSMC,CollisMode
-USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,SpecDSMC, DSMC, useDSMC, CollisMode
-USE MOD_DSMC_Vars,              ONLY:AnalyzeSurfCollis, PolyatomMolDSMC, VibQuantsPar
-USE MOD_TimeDisc_Vars,          ONLY:dt,tend,time
+USE MOD_Mesh_Vars,              ONLY:BC
+USE MOD_DSMC_Vars,              ONLY:DSMC
+USE MOD_DSMC_Vars,              ONLY:AnalyzeSurfCollis
+USE MOD_TimeDisc_Vars,          ONLY:TEnd,Time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -989,7 +984,7 @@ INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 LOGICAL,INTENT(INOUT)             :: IsSpeciesSwap
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: targetSpecies, iSwaps, PartID
+INTEGER                           :: targetSpecies, iSwaps
 !===================================================================================================================================
 
 CALL RANDOM_NUMBER(RanNum)
