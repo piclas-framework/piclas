@@ -67,8 +67,9 @@ IF(IterDisplayStep.GE.1) DoDisplayIter=.TRUE.
 
 #ifdef IMEX
 #ifndef maxwell
-CALL abort(__STAMP__,&
-  ' Preconditioner is only implemented for Maxwell!')
+CALL abort(&
+__STAMP__&
+,' Preconditioner is only implemented for Maxwell!')
 #endif /*maxwell*/
 #endif /*IMEX*/
 
@@ -425,8 +426,9 @@ DO !iter_t=0,MaxIter
   IF (tEndDiff-dt.LT.dt/100.0) dt = tEndDiff
   IF ( dt .LT. 0. ) THEN
     SWRITE(UNIT_StdOut,*)'*** ERROR: Is something wrong with the defined tEnd?!? ***'
-    CALL abort(__STAMP__,&
-      'Error in tEndDiff or tAnalyzeDiff!')
+    CALL abort(&
+    __STAMP__&
+    ,'Error in tEndDiff or tAnalyzeDiff!')
   END IF
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
@@ -473,8 +475,8 @@ DO !iter_t=0,MaxIter
 #endif
 #else
   CALL abort(&
-  __STAMP__,&
-  'Timedisc 50x only available for EQNSYS Poisson!',PP_N,999.)
+  __STAMP__&
+  ,'Timedisc 50x only available for EQNSYS Poisson!',PP_N,999.)
 #endif /*PP_HDG*/
 #elif (PP_TimeDiscMethod==1000)
   CALL TimeStep_LD(time)
@@ -1459,8 +1461,9 @@ REAL    :: RandVal, dtFrac
     CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
   ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
            PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
-    CALL abort(__STAMP__,&
-      'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
+    CALL abort(&
+    __STAMP__&
+    ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
   END IF
   CALL DSMC_main()
 
@@ -3489,8 +3492,8 @@ IF (t.GE.DelayTime) THEN
           PDM%dtFracPush(iPart) = .FALSE.
         ELSE
           CALL abort(&
-            __STAMP__,&
-            'Error in LSERK-HDG-Timedisc: This case should be impossible...')
+          __STAMP__&
+          ,'Error in LSERK-HDG-Timedisc: This case should be impossible...')
         END IF
         PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
         PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
@@ -3887,14 +3890,14 @@ CFLToOne=1.0/CFLScale
 
 #if (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==5) || (PP_TimeDiscMethod==200)||(PP_TimeDiscMethod==201)||(PP_TimeDiscMethod==1)
 IF(PP_N.GT.15) CALL abort(&
-  __STAMP__,&
-  'Polynomial degree is to high!',PP_N,999.)
+  __STAMP__&
+  ,'Polynomial degree is to high!',PP_N,999.)
 CFLScale=CFLScale*CFLScaleAlpha(PP_N)
 #endif
 #if (PP_TimeDiscMethod==6)
 IF(PP_N.GT.15) CALL abort(&
-  __STAMP__,&
-  'Polynomial degree is to high!',PP_N,999.)
+  __STAMP__&
+  ,'Polynomial degree is to high!',PP_N,999.)
 CFLScale=CFLScale*CFLScaleAlpha(PP_N)
 #endif
 !scale with 2N+1

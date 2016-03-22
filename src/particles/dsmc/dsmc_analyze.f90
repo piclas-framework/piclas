@@ -1762,8 +1762,8 @@ SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
              DEALLOCATE(recv_message(i)%content, STAT=allocStat)
              IF (allocStat .NE. 0) THEN
                 CALL abort(&
-                    __STAMP__, &
-                  'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
+__STAMP__ &
+                 ,'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
              END IF
           END IF
        END IF       
@@ -1996,8 +1996,8 @@ SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
              DEALLOCATE(recv_message(i)%content, STAT=allocStat)
              IF (allocStat .NE. 0) THEN
                 CALL abort(&
-                    __STAMP__, &
-                  'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
+__STAMP__  &
+                 ,'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
              END IF
           END IF
        END IF       

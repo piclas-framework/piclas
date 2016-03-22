@@ -322,8 +322,8 @@ CALL BezierClip(firstClip,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTra
                ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 IF(nInterSections.GT.1)THEN
   CALL abort(&
-      __STAMP__, &
-     ' More then one intersection! Cannot use Newton!' ,nInterSections)
+  __STAMP__&
+  ,' More then one intersection! Cannot use Newton!' ,nInterSections)
 END IF
 #endif /*CODE_ANALYZE*/
   !dInterVal1D =MINVAL(BezierControlPoints2D(1,:,:))
@@ -347,12 +347,12 @@ END IF
       IPWRITE(UNIT_stdout,*) ': Difference between Intersections > Tolerance'
       IPWRITE(UNIT_stdout,*) ': xi-clip,   xi-newton', locXi(1), XiNewton(1)
       IPWRITE(UNIT_stdout,*) ': eta-clip, eta-newton', loceta(1), XiNewton(2)
-      !CALL abort(__STAMP__, &
+      !CALL abort(__STAMP__ &
       ! ' Wrong intersection in Xi! Clip/Newton=',nInterSections,dXi)
     END IF
     !IF(dXi.GT.1.0)THEN
     !  IPWRITE(UNIT_stdout,*) ' eta-clip, eta-newton', loceta(1), XiNewton(2)
-    !  CALL abort(__STAMP__, &
+    !  CALL abort(__STAMP__ &
     !   ' Wrong intersection in Eta! Clip/Newton=',nInterSections, dXi)
     !END IF
   END IF
@@ -476,8 +476,9 @@ CASE DEFAULT
   SDEALLOCATE(locID)
 END SELECT
 
-CALL abort(__STAMP__, &
-   ' The code should never go here')
+CALL abort(&
+__STAMP__&
+,' The code should never go here')
 
 END SUBROUTINE ComputeBezierIntersection
 
@@ -1436,7 +1437,7 @@ DO WHILE((dXi2.GT.BezierClipTolerance2).AND.(nIter.LE.BezierClipMaxIter))
     alpha=-1.0
     Xi=1.5
     EXIT
-    !CALL abort(__STAMP__, &
+    !CALL abort(__STAMP__ &
     !   'Bezier-Netwton singular. iter,sdetJac',nIter,sDet)
   END IF
 
@@ -1459,8 +1460,8 @@ DO WHILE((dXi2.GT.BezierClipTolerance2).AND.(nIter.LE.BezierClipMaxIter))
 END DO
 
 IF(nIter.GT.BezierClipMaxIter) CALL abort(&
-    __STAMP__,&
-    ' Bezier-Newton does not yield root! ')
+    __STAMP__&
+    ,' Bezier-Newton does not yield root! ')
 
 ! check if found Xi,Eta are in parameter range
 IF(ABS(xi(1)).GT.BezierClipHit) RETURN
@@ -1511,8 +1512,8 @@ IF(Length.EQ.0)THEN
   DoCheck=.FALSE.
   ! DEBUG: is the complete IF statement dispensable?
   CALL abort(&
-      __STAMP__,&
-      'Bezier Clipping -> LineNormVec is Null vector!')
+  __STAMP__&
+  ,'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF
 LXi=LXi/Length
@@ -1524,8 +1525,8 @@ IF(Length.EQ.0)THEN
   DoCheck=.FALSE.
   ! DEBUG: is the complete IF statement dispensable?
   CALL abort(&
-      __STAMP__,&
-      'Bezier Clipping -> LineNormVec is Null vector!')
+  __STAMP__&
+  ,'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF
 Leta=Leta/Length
@@ -1634,8 +1635,8 @@ IF(Length.EQ.0)THEN
   DoCheck=.FALSE.
   ! DEBUG: is the complete IF statement dispensable?
   CALL abort(&
-      __STAMP__,&
-      'Bezier Clipping -> LineNormVec is Null vector!')
+  __STAMP__&
+  ,'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF
 LineNormVec=LineNormVec/Length

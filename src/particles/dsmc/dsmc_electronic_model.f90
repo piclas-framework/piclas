@@ -60,8 +60,9 @@ SUBROUTINE InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
   CASE(2) !SurfaceFlux
     Telec=SpecDSMC(iSpecies)%Surfaceflux(iInit)%Telec
   CASE DEFAULT
-    CALL abort(__STAMP__,&
-      'neither iInit nor Surfaceflux defined as reference!')
+    CALL abort(&
+    __STAMP__&
+    ,'neither iInit nor Surfaceflux defined as reference!')
   END SELECT
 
   ElectronicPartition  = 0.

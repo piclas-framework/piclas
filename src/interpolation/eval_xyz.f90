@@ -622,8 +622,9 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
   ELSE !shit
    ! Newton has not converged !?!?
    IF(Mode.EQ.1)THEN
-    CALL abort(__STAMP__, &
-         'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
+    CALL abort(&
+    __STAMP__&
+    , 'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sDetJac)
    ELSE
      Xi(1)=HUGE(1.0)
      Xi(2)=Xi(1)
@@ -649,8 +650,9 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
       IPWRITE(UNIT_stdOut,*) ' PartPos', X_in
       IPWRITE(UNIT_stdOut,*) ' ElemID', ElemID+offSetElem
       !IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' PartID', PartID
-      CALL abort(__STAMP__, &
-          'Particle Not inSide of Element, ElemID,',ElemID)
+      CALL abort(&
+      __STAMP__&
+      ,'Particle Not inSide of Element, ElemID,',ElemID)
     ELSE
       EXIT
     END IF

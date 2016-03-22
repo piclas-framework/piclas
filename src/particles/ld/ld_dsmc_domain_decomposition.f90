@@ -191,9 +191,9 @@ DO iElem = 1, nElems
     IF (CellTemp.LE. 0) THEN
       SWRITE(UNIT_StdOut,'(132("-"))')
       SWRITE(UNIT_stdOut,'(A)') 'Element, Temperatur:',iElem, CellTemp
-      CALL abort(&
-          __STAMP__,&
-           'ERROR LD-DSMC: Temperature is lt zero')
+CALL abort(&
+__STAMP__&
+,'ERROR LD-DSMC: Temperature is lt zero')
     END IF
     BulkValues(iElem)%Beta = SQRT(CellMass / MPFSum / (2 * CellTemp * BoltzmannConst))
   END IF

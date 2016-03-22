@@ -64,16 +64,16 @@ SWRITE(UNIT_stdOut,'(A)')' INIT BackGround-Field'
 BGFileName = GETSTR('PIC-BGFileName','blubb')
 IF(TRIM(BGFileName).EQ.'blubb')THEN 
   CALL abort(&
-      __STAMP__,&
-  'ERROR: No Filename for Background-Field defined!')
+  __STAMP__&
+  ,'ERROR: No Filename for Background-Field defined!')
 END IF 
 
 NBG = GETINT('PIC-NBG','1')
 BGFieldScaling = GETREAL('PIC-BGFieldScaling','1.')
 
 IF(TRIM(InterpolationType).NE.'particle_position')  CALL abort(&
-    __STAMP__,&
-  'InterpolationType has to be set to particle position!')
+  __STAMP__&
+  ,'InterpolationType has to be set to particle position!')
 
 SWRITE(UNIT_stdOut,'(A)')' Reading BackGround-Field from file... '
 
@@ -109,11 +109,11 @@ SWRITE(UNIT_stdOut,'(A3,A30,A3,A33,A13)')' | ','NodeType of BG-Field',' | ',Node
 
 IF(MPIRoot)THEN
   IF(TRIM(MeshFile).NE.TRIM(MeshFile_BGField))  CALL abort(&
-      __STAMP__,&
-      ' Meshfile and MeshFile of BG-Field does not correspond!')
+      __STAMP__&
+      ,' Meshfile and MeshFile of BG-Field does not correspond!')
   IF(Dims(Rank).NE.nGlobalElems)  CALL abort(&
-      __STAMP__,&
-      ' MeshSize and Size of BG-Field-Data does not match!')
+      __STAMP__&
+      ,' MeshSize and Size of BG-Field-Data does not match!')
 END IF
 
 BGType=0
@@ -125,8 +125,8 @@ IF(Dims(1).EQ.3)THEN
     BGType=2
   ELSE
     CALL abort(&
-        __STAMP__,&
-    'Wrong input file for BG-Field.')
+    __STAMP__&
+    ,'Wrong input file for BG-Field.')
   END IF
 ELSE
   BGDataSize=6
@@ -150,8 +150,8 @@ CASE("GAUSS-LOBATTO")
 CALL LegGaussLobNodesAndWeights(NBG,BGField_xGP,BGField_wGP)
 CASE DEFAULT
   CALL abort(&
-      __STAMP__,&
-      ' Nodetype for BackGround-Field is not implemented! Use Gauss or Gauss-Lobatto.')
+  __STAMP__&
+  ,' Nodetype for BackGround-Field is not implemented! Use Gauss or Gauss-Lobatto.')
 END SELECT
 CALL BarycentricWeights(NBG,BGField_xGP,BGField_wBary)
 
@@ -176,8 +176,8 @@ IF(NBG.NE.N_In)THEN
     CALL LegGaussLobNodesAndWeights(N_In,xGP_tmp,wGP_tmp)
   CASE DEFAULT
     CALL abort(&
-        __STAMP__,&
-        ' Not type of BackGround-Field is not implemented!')
+    __STAMP__&
+    ,' Not type of BackGround-Field is not implemented!')
   END SELECT
   CALL BarycentricWeights(N_In,xGP_tmp,wBary_tmp)
   CALL InitializeVandermonde(N_In,NBG,wBary_tmp,xGP_tmp,BGField_xGP,Vdm_BGFieldIn_BGField)

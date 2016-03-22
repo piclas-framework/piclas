@@ -126,8 +126,9 @@ DO SideID=1,nBCSides
   CASE(10,11) !Neumann, 
     nNeumannBCsides=nNeumannBCsides+1
   CASE DEFAULT ! unknown BCType
-    CALL abort(__STAMP__,&
-         ' unknown BC Type in hdg.f90!',BCType,999.)
+    CALL abort(&
+    __STAMP__&
+    ,' unknown BC Type in hdg.f90!',BCType,999.)
   END SELECT ! BCType
 END DO
 

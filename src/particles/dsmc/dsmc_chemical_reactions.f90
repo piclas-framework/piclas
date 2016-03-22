@@ -100,7 +100,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').AND.(.NOT.PRESENT(iPart_p3))) THEN
     CALL abort(&
      __STAMP__&
-      ,'Optional argument (iPart_p3) is missing for the recombination reaction. Reaction: ',iReac)
+     ,'Optional argument (iPart_p3) is missing for the recombination reaction. Reaction: ',iReac)
   END IF
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Calculation of the zero-point-energies
@@ -263,7 +263,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
       ELSE
         CALL abort(&
        __STAMP__&
-        ,'Reaction Type is not properly specified. Reaction: ',iReac)
+       ,'Reaction Type is not properly specified. Reaction: ',iReac)
       END IF
     END IF
     ! Calculation of the backward reaction rate coefficient and applying to Beta coefficient after Boyd "Modeling backward chemical
@@ -373,12 +373,12 @@ IonizationEnergy=SpecDSMC(PartSpecies(React1Inx))%ElectronicState(2,MaxElecQua)*
 !ElecTransfer = 0.
 
 IF(usevMPF) CALL abort(&
-       __STAMP__&
-        ,' Reaction not implemented with vMPF ',iReac)
+  __STAMP__&
+  ,' Reaction not implemented with vMPF ',iReac)
 
 IF (SpecDSMC(PartSpecies(ElecInx))%InterID.NE.4) CALL abort(&
-       __STAMP__&
-        ,' Only electron impact ionization. Further collision partner not implemented!  ',iReac)
+  __STAMP__&
+  ,' Only electron impact ionization. Further collision partner not implemented!  ',iReac)
 
 
 ! remove ionization energy from collision
@@ -422,8 +422,8 @@ DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
 PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
 IF (PositionNbr.EQ.0) THEN
    CALL Abort(&
-    __STAMP__,&
-    ' New Particle Number greater than max particle number!')
+    __STAMP__&
+    ,' New Particle Number greater than max particle number!')
 END IF
 
 !Set new Species of electron
@@ -1430,8 +1430,8 @@ USE MOD_Particle_Tracking_Vars,ONLY : DoRefmapping
       NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       IF (NonReacPart.EQ.0) THEN
         CALL abort(&
-            __STAMP__,&
-        'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
+        __STAMP__&
+        ,'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
       END IF
     ! Copy molecule data for non-reacting particle part
       PDM%ParticleInside(NonReacPart) = .true.
@@ -1454,8 +1454,8 @@ USE MOD_Particle_Tracking_Vars,ONLY : DoRefmapping
       NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       IF (NonReacPart.EQ.0) THEN
         CALL abort(&
-            __STAMP__,&
-        'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
+        __STAMP__&
+        ,'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
       END IF
     ! Copy molecule data for non-reacting particle part
       PDM%ParticleInside(NonReacPart) = .true.
@@ -2029,8 +2029,9 @@ EZeroPoint = 0.0
 !      DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
 !      NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
 !      IF (NonReacPart.EQ.0) THEN
-!        CALL abort(__STAMP__,&
-!        'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
+!        CALL abort(&
+!        __STAMP__&
+!        ,'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
 !      END IF
 !    ! Copy molecule data for non-reacting particle part
 !      PDM%ParticleInside(NonReacPart) = .true.
@@ -2052,8 +2053,9 @@ EZeroPoint = 0.0
 !      DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
 !      NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
 !      IF (NonReacPart.EQ.0) THEN
-!        CALL abort(__STAMP__,&
-!        'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
+!        CALL abort(&
+!        __STAMP__&
+!        ,'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
 !      END IF
 !    ! Copy molecule data for non-reacting particle part
 !      PDM%ParticleInside(NonReacPart) = .true.
@@ -2288,7 +2290,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
   IF(UpperLevel.GT.INT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)) THEN
     CALL abort(&
      __STAMP__&
-      ,'Temperature limit for the backward reaction rate calculation exceeds the given value! Temp: ',RealInfoOpt=LocalTemp)
+     ,'Temperature limit for the backward reaction rate calculation exceeds the given value! Temp: ',RealInfoOpt=LocalTemp)
   END IF
 
   ! Calculation of the backward reaction rate at the lower temperature value (using the equilibrium constant)

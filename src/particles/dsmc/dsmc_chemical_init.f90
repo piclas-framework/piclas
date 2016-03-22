@@ -123,21 +123,21 @@ SUBROUTINE DSMC_chemical_init()
       IF(DSMC%BackwardReacRate) THEN
         IF(ChemReac%QKProcedure(iReac)) THEN
           CALL abort(&
-              __STAMP__,&
-          'Automatic calculation of backward reaction rate not supported with Q-K reaction:',iReac)
+          __STAMP__&
+          ,'Automatic calculation of backward reaction rate not supported with Q-K reaction:',iReac)
         END IF
         IF(iReac.GT.(ChemReac%NumOfReact/2)) THEN
           IF(TRIM(ChemReac%ReactType(iReac-ChemReac%NumOfReact/2)).EQ.'D') ChemReac%ReactType(iReac) = 'R'
           IF(TRIM(ChemReac%ReactType(iReac-ChemReac%NumOfReact/2)).EQ.'E') ChemReac%ReactType(iReac) = 'E'
           IF(TRIM(ChemReac%ReactType(iReac-ChemReac%NumOfReact/2)).EQ.'i') THEN
             CALL abort(&
-                __STAMP__,&
-          'Automatic calculation of backward reaction rate not supported with ionization reactions:',iReac)
+          __STAMP__&
+          ,'Automatic calculation of backward reaction rate not supported with ionization reactions:',iReac)
           END IF
           IF(TRIM(ChemReac%ReactType(iReac-ChemReac%NumOfReact/2)).EQ.'x') THEN
             CALL abort(&
-                __STAMP__,&
-          'Automatic calculation of backward reaction rate not supported with CEX/MEX reactions:',iReac)
+          __STAMP__&
+          ,'Automatic calculation of backward reaction rate not supported with CEX/MEX reactions:',iReac)
           END IF
           ChemReac%DefinedReact(iReac,1,:)      = ChemReac%DefinedReact(iReac-ChemReac%NumOfReact/2,2,:)
           ChemReac%DefinedReact(iReac,2,:)      = ChemReac%DefinedReact(iReac-ChemReac%NumOfReact/2,1,:)
@@ -167,34 +167,35 @@ SUBROUTINE DSMC_chemical_init()
       IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
         IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)*ChemReac%DefinedReact(iReac,1,3)).EQ.0) THEN
           CALL abort(&
-              __STAMP__,&
-          'Error in Definition Reactants of Chemical Reaction: ',iReac)
+          __STAMP__&
+          ,'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       ELSE 
         IF ((ChemReac%DefinedReact(iReac,1,1)*ChemReac%DefinedReact(iReac,1,2)).EQ.0) THEN
           CALL abort(&
-              __STAMP__,&
-          'Error in Definition Reactants of Chemical Reaction: ',iReac)
+          __STAMP__&
+          ,'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       END IF
       ! Proof of product definition
       IF (TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
         IF ((ChemReac%DefinedReact(iReac,2,1)*ChemReac%DefinedReact(iReac,2,2)*ChemReac%DefinedReact(iReac,2,3)).EQ.0) THEN
           CALL abort(&
-              __STAMP__,&
-          'Error in Definition Reactants of Chemical Reaction: ',iReac)
+          __STAMP__&
+          ,'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       ELSE 
         IF ((ChemReac%DefinedReact(iReac,2,1)*ChemReac%DefinedReact(iReac,2,2)).EQ.0) THEN
           CALL abort(&
-              __STAMP__,&
-          'Error in Definition Reactants of Chemical Reaction: ',iReac)
+          __STAMP__&
+          ,'Error in Definition Reactants of Chemical Reaction: ',iReac)
         END IF
       END IF
       MaxSpecies = MAXVAL(ChemReac%DefinedReact(iReac,1:2,1:3))
       IF(MaxSpecies.GT.nSpecies) THEN
-        CALL abort(__STAMP__,&
-          'Error in Definition Reactants of Chemical Reaction, wrong species index: ',iReac)
+      CALL abort(&
+      __STAMP__&
+      ,'Error in Definition Reactants of Chemical Reaction, wrong species index: ',iReac)
       END IF
     END DO
     
@@ -805,8 +806,8 @@ SUBROUTINE Calc_Arrhenius_Factors()
           iQuaMax2 = SpecDSMC(ChemReac%DefinedReact(iReac,1,2))%MaxVibQuant
           IF(iQuaMax1.EQ.0) THEN
             CALL Abort(&
-                __STAMP__,&
-              'ERROR in DSMCSpecies.ini: The first defined particle in exchange reaction has to be a molecule', iReac)
+            __STAMP__&
+            ,'ERROR in DSMCSpecies.ini: The first defined particle in exchange reaction has to be a molecule', iReac)
           END IF
           iQuaMax1_temp = 100
           iQuaMax2_temp = 100

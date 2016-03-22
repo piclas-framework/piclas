@@ -76,9 +76,9 @@ LOGICAL                              :: isSpeciesSwap
 !===================================================================================================================================
 
 IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
-  CALL abort(&
-      __STAMP__,&
-  ' ERROR: PartBound not allocated!.',999,999.)
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not allocated!.',999,999.)
 END IF
 IsSpeciesSwap=.FALSE.
 ! Select the corresponding boundary condition and calculate particle treatment
@@ -127,27 +127,27 @@ CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! new implementation, nothing to due :)
   ! however, never checked
-  CALL abort(&
-      __STAMP__,&
-  ' ERROR: PartBound not associated!. (PartBound%PeriodicBC)',999,999.)
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not associated!. (PartBound%PeriodicBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL abort(&
-      __STAMP__,&
-  ' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)',999,999.)
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(5) !PartBound%SimpleCathodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL abort(&
-      __STAMP__,&
-  ' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)',999,999.)
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(6) !PartBound%MPINeighborhoodBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL abort(&
-      __STAMP__,&
-  ' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -155,9 +155,9 @@ CASE(10) !PartBound%SymmetryBC
 
 
 CASE DEFAULT
-  CALL abort(&
-      __STAMP__,&
-' ERROR: PartBound not associated!. (unknown case)',999,999.)
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not associated!. (unknown case)',999,999.)
 END SELECT !PartBound%MapToPartBC(BC(SideID)
 
 END SUBROUTINE GetBoundaryInteraction
@@ -202,9 +202,9 @@ LOGICAL                              :: IsSpeciesSwap
 !===================================================================================================================================
 
 IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
-  CALL abort(&
-      __STAMP__,&
-  ' ERROR: PartBound not allocated!.',999,999.)
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not allocated!.',999,999.)
 END IF
 IsSpeciesSwap=.FALSE.
 ! Select the corresponding boundary condition and calculate particle treatment
@@ -256,28 +256,28 @@ CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! new implementation, nothing to due :)
   ! however, never checked
-  CALL abort(&
-      __STAMP__,&
-  ' ERROR: PartBound not associated!. (PartBound%PeriodicBC)',999,999.)
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not associated!. (PartBound%PeriodicBC)',999,999.)
   !compute new bc
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(4) !PartBound%SimpleAnodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL abort(&
-      __STAMP__,&
-  ' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)',999,999.)
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(5) !PartBound%SimpleCathodeBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL abort(&
-      __STAMP__,&
-  ' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)',999,999.)
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(6) !PartBound%MPINeighborhoodBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL abort(&
-      __STAMP__,&
-  ' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not associated!. (PartBound%MPINeighborhoodBC)',999,999.)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -286,9 +286,9 @@ CASE(10) !PartBound%SymmetryBC
 
 
 CASE DEFAULT
-  CALL abort(&
-      __STAMP__,&
-' ERROR: PartBound not associated!. BC(SideID)',BC(SideID),REAL(SideID/nSides))
+CALL abort(&
+__STAMP__&
+,' ERROR: PartBound not associated!. BC(SideID)',BC(SideID),REAL(SideID/nSides))
 END SELECT !PartBound%MapToPartBC(BC(SideID)
 
 END SUBROUTINE GetBoundaryInteractionRef
@@ -436,9 +436,9 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
           AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
           AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
           IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
-            CALL Abort(&
-   __STAMP__,&
-              'maxSurfCollisNumber reached!')
+CALL Abort(&
+__STAMP__&
+,'maxSurfCollisNumber reached!')
           END IF
           AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
             = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
@@ -582,7 +582,7 @@ IF(PRESENT(BCSideID))THEN
     CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
   CASE(CURVED)
     CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
-  !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
+  !   CALL abort(__STAMP__'nvec for bezier not implemented!',999,999.)
   END SELECT 
 ELSE
   SELECT CASE(SideType(SideID))
@@ -595,7 +595,7 @@ ELSE
     CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,SideID)
   CASE(CURVED)
     CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,SideID)
-  !   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
+  !   CALL abort(__STAMP__'nvec for bezier not implemented!',999,999.)
   END SELECT 
 END IF
 
@@ -919,9 +919,9 @@ IF ((DSMC%CalcSurfaceVal.AND.(Time.GE.(1.-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%Cal
       AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
       AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
       IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
-        CALL Abort(&
-          __STAMP__,&
-          'maxSurfCollisNumber reached!')
+CALL Abort(&
+__STAMP__&
+,'maxSurfCollisNumber reached!')
       END IF
       AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
         = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
@@ -1015,9 +1015,9 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(GlobSideID)))
         AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
         AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
         IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
-          CALL Abort(&
- __STAMP__,&
-            'maxSurfCollisNumber reached!')
+CALL Abort(&
+__STAMP__&
+,'maxSurfCollisNumber reached!')
         END IF
         AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
           = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)

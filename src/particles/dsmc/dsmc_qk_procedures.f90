@@ -253,8 +253,9 @@ SELECT CASE (ChemReac%QKMethod(iReac))
     END IF
 
     CASE DEFAULT
-      CALL abort(__STAMP__&
-          ,'ERROR in DSMC_collis: Only two recombination methods of the Q-K method available. ')
+      CALL abort(&
+      __STAMP__&
+      ,'ERROR in DSMC_collis: Only two recombination methods of the Q-K method available. ')
     END SELECT
 
 END SUBROUTINE QK_recombination
@@ -443,8 +444,9 @@ SELECT CASE (ChemReac%QKMethod(iReac))
           RelaxToDo = .FALSE.
       END IF
     CASE DEFAULT
-      CALL abort(__STAMP__&
-          ,'ERROR in DSMC_collis: Only two exchange reaction methods for the Q-K method available. ')
+      CALL abort(&
+      __STAMP__&
+      ,'ERROR in DSMC_collis: Only two exchange reaction methods for the Q-K method available. ')
   END SELECT
 
 END SUBROUTINE QK_exchange

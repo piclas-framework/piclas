@@ -107,8 +107,8 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
           CALL XSec_Argon_DravinLotz(SpecToExec, iPair)
         CASE DEFAULT
           CALL abort(&
-              __STAMP__,&
-               'ERROR: spec proton not defined!')
+          __STAMP__&
+          ,'ERROR: spec proton not defined!')
       END SELECT
 
       SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
@@ -139,8 +139,8 @@ REAL,INTENT(IN), OPTIONAL         :: NodeVolume
       Coll_pData(iPair)%Prob = 0
     CASE DEFAULT
       CALL abort(&
-          __STAMP__,&
-           'ERROR in DSMC_collis: Wrong iPType case! =', iPType)
+      __STAMP__&
+      ,'ERROR in DSMC_collis: Wrong iPType case! =', iPType)
   END SELECT
   IF(DSMC%CalcQualityFactors) THEN
     DSMC%CollProbMax = MAX(Coll_pData(iPair)%Prob, DSMC%CollProbMax)
@@ -226,8 +226,8 @@ SUBROUTINE vMPF_AfterSplitting(OrgPartIndex, W_Part, W_Spec)
     PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
     IF (PositionNbr.EQ.0) THEN
       CALL abort(&
-          __STAMP__,&
-           'New Particle Number greater max Part Num')
+      __STAMP__&
+      ,'New Particle Number greater max Part Num')
     END IF
   ! Copy molecule data for non-reacting particle part
     PDM%ParticleInside(PositionNbr) = .true.
@@ -309,8 +309,8 @@ IMPLICIT NONE                                                                   
     NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
     IF (NonReacPart.EQ.0) THEN
       CALL abort(&
-          __STAMP__,&
-           'New Particle Number greater max Part Num')
+      __STAMP__&
+      ,'New Particle Number greater max Part Num')
     END IF
   ! Copy molecule data for non-reacting particle part
     PDM%ParticleInside(NonReacPart) = .true.
@@ -330,8 +330,8 @@ IMPLICIT NONE                                                                   
       NonReacPart2 = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       IF (NonReacPart2.EQ.0) THEN
         CALL abort(&
-            __STAMP__,&
-             'New Particle Number greater max Part Num')
+        __STAMP__&
+        ,'New Particle Number greater max Part Num')
       END IF
     ! Copy molecule data for non-reacting particle part
       PDM%ParticleInside(NonReacPart2) = .true.
@@ -355,8 +355,8 @@ IMPLICIT NONE                                                                   
     NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
     IF (NonReacPart.EQ.0) THEN
       CALL abort(&
-          __STAMP__,&
-           'New Particle Number greater max Part Num')
+      __STAMP__&
+      ,'New Particle Number greater max Part Num')
     END IF
   ! Copy molecule data for non-reacting particle part
     PDM%ParticleInside(NonReacPart) = .true.

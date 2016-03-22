@@ -1151,15 +1151,17 @@ INTEGER(KIND=8)    :: I
 !===================================================================================================================================
 !print*,"stop"
 !stop
-IF(N_in.LT.0) CALL abort(__STAMP__,&
-  'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
+IF(N_in.LT.0) CALL abort(&
+    __STAMP__&
+    ,  'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 IF(N_in.EQ.0)THEN
   FACTORIAL = 1 !! debug, should be one!!!!
 ELSE
   FACTORIAL = PRODUCT((/(I, I = 1, N_in)/))
 END IF
-IF(FACTORIAL.LT.0) CALL abort(__STAMP__,&
-  'FACTORIAL is negative. This is not allowed! ',999,REAL(FACTORIAL))
+IF(FACTORIAL.LT.0) CALL abort(&
+ __STAMP__&
+ ,'FACTORIAL is negative. This is not allowed! ',999,REAL(FACTORIAL))
 END FUNCTION FACTORIAL
 
 
@@ -1185,15 +1187,15 @@ INTEGER         :: I
 !print*,"stop"
 !stop
 IF(N_in.LT.0) CALL abort(&
-    __STAMP__,&
-  'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
+  __STAMP__&
+  ,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 FACTORIAL_REAL=1.
 DO I=2,N_in
   FACTORIAL_REAL=FACTORIAL_REAL*REAL(I,8)
 END DO
 IF(FACTORIAL_REAL.LT.0) CALL abort(&
-    __STAMP__,&
-  'FACTORIAL is negative. This is not allowed! ',999,FACTORIAL_REAL)
+  __STAMP__&
+  ,'FACTORIAL is negative. This is not allowed! ',999,FACTORIAL_REAL)
 END FUNCTION FACTORIAL_REAL
 
 

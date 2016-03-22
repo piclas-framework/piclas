@@ -117,8 +117,9 @@ CASE(10) ! symmetry BC
   CALL Riemann_Pois(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
 
 CASE DEFAULT ! unknown BCType
-  CALL abort(__STAMP__,&
-       'no BC defined in maxwell/getboundaryflux.f90!')
+  CALL abort(&
+  __STAMP__&
+  ,'no BC defined in maxwell/getboundaryflux.f90!')
 END SELECT ! BCType
 END SUBROUTINE GetBoundaryFlux
 

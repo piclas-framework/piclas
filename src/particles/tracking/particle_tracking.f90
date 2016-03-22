@@ -155,8 +155,8 @@ DO iPart=1,PDM%ParticleVecLength
                                                                                   ,eta(ilocSide)      ,iPart,SideID)
         CASE DEFAULT
           CALL abort(&
-              __STAMP__, &
-              ' Missing required side-data. Please increase halo region. ',SideID)
+          __STAMP__ &
+          ,' Missing required side-data. Please increase halo region. ',SideID)
         END SELECT
         IF(isHit) THEN
           nInterSections=nInterSections+1
@@ -772,8 +772,8 @@ DO iPart=1,PDM%ParticleVecLength
         IPWRITE(UNIT_stdOut,*) ' ElemID       ', PEM%Element(iPart)+offSetElem
 #endif
         CALL abort(&
-            __STAMP__, &
-            'Particle Not inSide of Element, iPart',iPart)
+        __STAMP__ &
+        ,'Particle Not inSide of Element, iPart',iPart)
       ELSE ! BCElem
         !CALL ComputeFaceIntersection(TestElem,1,BCElem(TestElem)%nInnerSides,BCElem(TestElem)%nInnerSides,iPart,PartIsDone)
         CALL ComputeFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone)
@@ -823,9 +823,9 @@ DO iPart=1,PDM%ParticleVecLength
 #else
             IPWRITE(UNIt_stdOut,*) ' elemid       ', pem%element(ipart)+offsetelem
 #endif
-            CALL abort(&
-              __STAMP__, &
-              ' Particle not inside of element, ipart',ipart)
+CALL abort(&
+__STAMP__ &
+,' Particle not inside of element, ipart',ipart)
           END IF ! inside
         END IF ! epsCell
       END IF ! BCElem
@@ -1049,9 +1049,9 @@ tLBStart = LOCALTIME() ! LB Time Start
 #else
           IPWRITE(UNIT_stdOut,*) ' ElemID       ', PEM%Element(iPart)+offSetElem
 #endif
-          CALL abort(&
-              __STAMP__, &
-              'Particle Not inSide of Element, iPart',iPart)
+CALL abort(&
+__STAMP__ &
+,'Particle Not inSide of Element, iPart',iPart)
         ELSE ! BCElem
           !CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,PartIsDone)
           CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
@@ -1082,8 +1082,8 @@ tLBStart = LOCALTIME() ! LB Time Start
               IPWRITE(UNIt_stdOut,*) ' elemid       ', pem%element(ipart)+offsetelem
 #endif
               CALL abort(&
-    __STAMP__, &
-                'particle noT inside of element, ipart',ipart)
+    __STAMP__ &
+    ,'particle noT inside of element, ipart',ipart)
             END IF ! inside
           ELSE
            PEM%Element(iPart)=NewElemID
@@ -1187,8 +1187,8 @@ ELSE ! no BC Side
         dolocSide(PartElemToElem(E2E_NB_LOC_SIDE_ID,hitlocSide,ElemID))=.FALSE.
         ElemID=PartElemToElem(E2E_NB_ELEM_ID,hitlocSide,ElemID)
         IF(ElemID.LE.0) CALL abort(&
-            __STAMP__,&
-           ' HaloRegion too small or critical error during halo region reconstruction!')
+__STAMP__&
+,' HaloRegion too small or critical error during halo region reconstruction!')
       END IF ! BC?
     ELSE
       dolocSide=.TRUE.
@@ -1341,14 +1341,14 @@ IF(FastPeriodic)THEN
     IF(PartState(PartID,1).GT.GEO%xmaxglob) THEN
       IPWRITE(*,*) 'PartPos', PartState(PartID,:)
       CALL abort(&
-          __STAMP__, &
-          ' particle outside x+, PartID',PartID)
+      __STAMP__ &
+      ,' particle outside x+, PartID',PartID)
     END IF
     IF(PartState(PartID,1).LT.GEO%xminglob) THEN
       IPWRITE(*,*) 'PartPos', PartState(PartID,:)
       CALL abort(&
-          __STAMP__, &
-          ' particle outside x-, PartID',PartID)
+      __STAMP__ &
+      ,' particle outside x-, PartID',PartID)
     END IF
   END IF
   ! y direction
@@ -1356,14 +1356,14 @@ IF(FastPeriodic)THEN
     IF(PartState(PartID,2).GT.GEO%ymaxglob) THEN
       IPWRITE(*,*) 'PartPos', PartState(PartID,:)
       CALL abort(&
-          __STAMP__, &
-          ' particle outside y+, PartID',PartID)
+      __STAMP__ &
+      ,' particle outside y+, PartID',PartID)
     END IF
     IF(PartState(PartID,2).LT.GEO%yminglob) THEN
       IPWRITE(*,*) 'PartPos', PartState(PartID,:)
       CALL abort(&
-          __STAMP__, &
-          ' particle outside y-, PartID',PartID)
+      __STAMP__ &
+      ,' particle outside y-, PartID',PartID)
     END IF
   END IF
   ! z direction
@@ -1371,14 +1371,14 @@ IF(FastPeriodic)THEN
     IF(PartState(PartID,3).GT.GEO%zmaxglob) THEN
       IPWRITE(*,*) 'PartPos', PartState(PartID,:)
       CALL abort(&
-          __STAMP__, &
-          ' particle outside z+, PartID',PartID)
+      __STAMP__ &
+      ,' particle outside z+, PartID',PartID)
     END IF
     IF(PartState(PartID,3).LT.GEO%zminglob) THEN
       IPWRITE(*,*) 'PartPos', PartState(PartID,:)
       CALL abort(&
-          __STAMP__, &
-          ' particle outside z-, PartID',PartID)
+      __STAMP__ &
+      ,' particle outside z-, PartID',PartID)
     END IF
   END IF 
 ELSE
@@ -1593,7 +1593,7 @@ CASE(BILINEAR)
   CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
 CASE(CURVED)
   CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
-!   CALL abort(__STAMP__,'nvec for bezier not implemented!',999,999.)
+!   CALL abort(__STAMP__'nvec for bezier not implemented!',999,999.)
 END SELECT 
 
 IF(DOT_PRODUCT(n_loc,PartTrajectory).LE.0.)THEN
@@ -1734,8 +1734,8 @@ ELSE
       IPWRITE(UNIT_stdOut,*) ' ElemID       ', PEM%Element(PartID)+offSetElem
 #endif
       CALL abort(&
-          __STAMP__, &
-          'Particle Not inSide of Element, PartID',PartID)
+      __STAMP__ &
+      ,'Particle Not inSide of Element, PartID',PartID)
 
     END IF
   END IF

@@ -142,9 +142,9 @@ USE MOD_DSMC_Vars,             ONLY : CollisMode, LD_MultiTemperaturMod
   IF (CellTempNew.lt. 0) then
     SWRITE(UNIT_StdOut,'(132("-"))')
     SWRITE(UNIT_stdOut,'(A)') 'Element, Temperatur:',iElem, CellTempNew
-    CALL abort(&
-        __STAMP__,&
-         'ERROR LD-DSMC: Temperature is lt zero')
+CALL abort(&
+__STAMP__&
+,'ERROR LD-DSMC: Temperature is lt zero')
   END IF
   !
   ! reassign particle properties
@@ -155,17 +155,17 @@ USE MOD_DSMC_Vars,             ONLY : CollisMode, LD_MultiTemperaturMod
         CASE(0)
           ! Do Nothing
         CASE(1)
-          CALL abort(&
-              __STAMP__,&
-               'ERROR: Wrong MultiTemperature Model here!')
+CALL abort(&
+__STAMP__&
+,'ERROR: Wrong MultiTemperature Model here!')
         CASE(2)
           CALL CalcInternalTemp_LD_second(iElem)
         CASE(3)
           CALL CalcInternalTemp_LD_third(iElem)
         CASE DEFAULT
-          CALL abort(&
-              __STAMP__,&
-               'ERROR: Wrong MultiTemperature Model!')
+CALL abort(&
+__STAMP__&
+,'ERROR: Wrong MultiTemperature Model!')
       END SELECT
     END IF
   END IF
@@ -173,9 +173,9 @@ USE MOD_DSMC_Vars,             ONLY : CollisMode, LD_MultiTemperaturMod
   IF (BulkValues(iElem)%BulkTemperature.lt. 0) then
     SWRITE(UNIT_StdOut,'(132("-"))')
     SWRITE(UNIT_stdOut,'(A)') 'Element, Temperatur:',iElem, BulkValues(iElem)%BulkTemperature
-    CALL abort(&
-        __STAMP__,&
-         'ERROR LD-DSMC: Temperature is lt zero after MultiTemperature Model')
+CALL abort(&
+__STAMP__&
+,'ERROR LD-DSMC: Temperature is lt zero after MultiTemperature Model')
   END IF
 
   nPart     = PEM%pNumber(iElem)
@@ -360,9 +360,9 @@ USE MOD_Particle_Boundary_Vars, ONLY:PartBound
     DeltaE = DeltaE - TransACC * 0.5 * dt * Area * (BulkValues(iElem)%DegreeOfFreedom + 1.0) &
            * BulkValues(iElem)%MassDens * SpecR * (TempCell - TempWall) * SQRT(SpecR * TempCell /(2 * PI))
   ELSE IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))).EQ.PartBound%SymmetryBC) THEN
-    CALL abort(&
-        __STAMP__,&
-      'SymmetryBC is not implemented for LD!')
+CALL abort(&
+__STAMP__&
+,'SymmetryBC is not implemented for LD!')
   END IF
 END SUBROUTINE CalcViscousTerms
 

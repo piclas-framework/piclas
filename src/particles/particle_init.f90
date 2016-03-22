@@ -163,7 +163,8 @@ PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
 !print*, "SFSDRWE#"
 ALLOCATE(Pt_temp(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
 Pt_temp=0.
@@ -173,12 +174,14 @@ Pt_temp=0.
 ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
 !ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate ParStage arrays!')
 END IF
 ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate PartStateN arrays!')
 END IF
 #endif /* IMEX */
@@ -187,51 +190,60 @@ END IF
 #if (PP_TimeDiscMethod!=110)
 ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,' Cannot allocate ParStage arrays!')
 END IF
 ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,' Cannot allocate PartStateN arrays!')
 END IF
 #endif
 ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate PartQ arrays!')
 END IF
 ! particle function values at X0
 ALLOCATE(F_PartX0(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate F_PartX0 arrays!')
 END IF
 ! particle function values at Xk
 ALLOCATE(F_PartXk(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate F_PartXk arrays!')
 END IF
 ! and the required norms
 ALLOCATE(Norm2_F_PartX0(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate Norm2_F_PartX0 arrays!')
 END IF
 ALLOCATE(Norm2_F_PartXk(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate Norm2_F_PartXk arrays!')
 END IF
 ALLOCATE(Norm2_F_PartXk_old(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate Norm2_F_PartXk_old arrays!')
 END IF
 ALLOCATE(DoPartInNewton(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
       ,'Cannot allocate DoPartInNewton arrays!')
 END IF
 #endif /* IMPA */
@@ -272,7 +284,8 @@ ALLOCATE(PartState(1:PDM%maxParticleNumber,1:6)       , &
          PDM%dtFracPush(1:PDM%maxParticleNumber)      , &
          PDM%IsNewPart(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
@@ -301,14 +314,16 @@ IF (usevMPF) THEN
     vMPF_velocityDistribution = GETSTR('Part-vMPFvelocityDistribution','OVDR')
     vMPF_relativistic = GETLOGICAL('Part-vMPFrelativistic','.FALSE.')
     IF(vMPF_relativistic.AND.(vMPF_velocityDistribution.EQ.'MBDR')) THEN
-      CALL abort(__STAMP__&
+      CALL abort(&
+__STAMP__&
       ,'Relativistic handling of vMPF is not possible using MBDR velocity distribution!')
     END IF
     ALLOCATE(vMPF_SpecNumElem(1:nElems,1:nSpecies))
   END IF
   ALLOCATE(PartMPF(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__&
+    CALL abort(&
+__STAMP__&
     ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
   END IF
 END IF
@@ -332,7 +347,8 @@ PartPressRemParts = GETLOGICAL('Part-ConstPressRemParts','.FALSE.')
 !nSpecies = CNTSTR('Part-Species-SpaceIC')
 
 IF (nSpecies.LE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR: nSpecies .LE. 0:', nSpecies)
 END IF
 PartPressureCell = .FALSE.
@@ -432,27 +448,33 @@ DO iSpec = 1, nSpecies
     END IF
     IF (Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN
       IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) .AND. (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.2) ) &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
           ,' Calculating height from v and dt is only supported for EmiType1 or EmiType2(=default)!')
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cuboid') &
           .AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cylinder')) &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
           ,' Calculating height from v and dt is only supported for cuboid or cylinder!')
       IF (Species(iSpec)%Init(iInit)%UseForInit) &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
           ,' Calculating height from v and dt is not supported for initial ParticleInserting!')
     END IF
     !--- virtual pre-insertion (vpi) checks and calculations
     IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_vpi') &
       .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_vpi')) THEN
       IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) .AND. (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.2) ) &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
         ,' Wrong emission-type for virtual Pre-Inserting region!')
       IF (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).NE.'maxwell_lpn') &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
         ,' Only maxwell_lpn is implemened as velocity-distribution for virtual Pre-Inserting region!')
       IF (Species(iSpec)%Init(iInit)%UseForInit) &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
           ,' virtual Pre-Inserting is not supported for initial ParticleInserting. Use additional Init!')
       !-- Virtual Pre-Inserting is used correctly !
       Species(iSpec)%Init(iInit)%VirtPreInsert = .TRUE.
@@ -465,7 +487,8 @@ DO iSpec = 1, nSpecies
       SELECT CASE ( TRIM(Species(iSpec)%Init(iInit)%vpiDomainType) )
       CASE ( 'freestream' )
         IF ( TRIM(Species(iSpec)%Init(iInit)%SpaceIC) .NE. 'cuboid_vpi' ) THEN
-          CALL abort(__STAMP__&
+          CALL abort(&
+__STAMP__&
             ,' Only cuboid_vpi is supported for a freestream vpiDomainType! (Use default vpiDomainType for cylinder.)')
         ELSE
           Species(iSpec)%Init(iInit)%vpiBVBuffer(1) = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-vpiBV1BufferNeg','.TRUE.')
@@ -476,13 +499,15 @@ DO iSpec = 1, nSpecies
       CASE ( 'orifice' )
         Species(iSpec)%Init(iInit)%vpiBVBuffer = .TRUE.
         IF ( ABS(Species(iSpec)%Init(iInit)%Radius2IC) .GT. 0. ) THEN
-          CALL abort(__STAMP__&
+          CALL abort(&
+__STAMP__&
             ,' Annular orifice is not implemented yet!')
         END IF
       CASE ( 'perpendicular_extrusion' )
         Species(iSpec)%Init(iInit)%vpiBVBuffer = .TRUE. !dummy
       CASE DEFAULT
-        CALL abort(__STAMP__,&
+        CALL abort(&
+__STAMP__,&
                 'vpiDomainType is not implemented!')
       END SELECT
       !--
@@ -492,7 +517,8 @@ DO iSpec = 1, nSpecies
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
          ((Species(iSpec)%Init(iInit)%ParticleEmission-INT(Species(iSpec)%Init(iInit)%ParticleEmission)).NE.0)) THEN
-       CALL abort(__STAMP__&
+       CALL abort(&
+__STAMP__&
        ,' If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number')
     END IF
     !--- flag for cell-based constant-pressure-EmiTypes
@@ -580,7 +606,8 @@ DO iSpec = 1, nSpecies
               * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1)
           ELSE IF ( (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid') .AND. &
                     (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cylinder') )THEN
-            CALL abort(__STAMP__,&
+            CALL abort(&
+__STAMP__,&
               'Error in ParticleInit, ExcludeRegions must be cuboid or cylinder!')
           END IF
           IF (Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1)**2 + &
@@ -600,12 +627,14 @@ DO iSpec = 1, nSpecies
               + Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2)**2 &
               + Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3)**2)
           ELSE
-            CALL abort(__STAMP__,&
+            CALL abort(&
+__STAMP__,&
               'Error in ParticleInit, NormalIC Vector must not be zero!')
           END IF
         END DO !iExclude
       ELSE
-        CALL abort(__STAMP__,&
+        CALL abort(&
+__STAMP__,&
           'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
       END IF
     END IF
@@ -617,7 +646,8 @@ DO iSpec = 1, nSpecies
         IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2) .AND. (Species(iSpec)%Init(iInit)%UseForInit) ) THEN
           PartDens_OnlyInit=.TRUE.
         ELSE
-          CALL abort(__STAMP__&
+          CALL abort(&
+__STAMP__&
             , 'PartDensity without LD is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
         END IF
       END IF
@@ -627,7 +657,8 @@ DO iSpec = 1, nSpecies
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'emmert') ) THEN
           IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
-            CALL abort(__STAMP__&
+            CALL abort(&
+__STAMP__&
             ,'Either ParticleEmission or PartDensity can be defined for selected emission parameters, not both!')
           END IF
           !---calculation of Base-Area and corresponding component of VeloVecIC
@@ -650,7 +681,8 @@ DO iSpec = 1, nSpecies
               IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
                 PartDens_OnlyInit=.TRUE.
               ELSE
-                CALL abort(__STAMP__&
+                CALL abort(&
+__STAMP__&
                   ,'PartDensity without LD is only supported for CalcHeightFromDt, vpi, or initial ParticleInserting!')
               END IF
             END IF
@@ -665,7 +697,8 @@ DO iSpec = 1, nSpecies
             !---calculation of initial (macro)particle number
             IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
               IF (Species(iSpec)%Init(iInit)%initialParticleNumber .GT. 0) THEN
-                CALL abort(__STAMP__&
+                CALL abort(&
+__STAMP__&
                   ,'Either initialParticleNumber or PartDensity can be defined for selected parameters, not both!')
               END IF
               IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') THEN
@@ -679,22 +712,26 @@ DO iSpec = 1, nSpecies
               END IF
             END IF
           ELSE
-            CALL abort(__STAMP__&
+            CALL abort(&
+__STAMP__&
               ,'BaseVectors are parallel or zero!')
           END IF
         ELSE
-          CALL abort(__STAMP__&
+          CALL abort(&
+__STAMP__&
           ,'Only const. or maxwell(_lpn) is supported as velocityDistr. for PartDensity without LD!')
         END IF
       ELSE IF (Species(iSpec)%Init(iInit)%VirtPreInsert) THEN
         IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
-               CALL abort(__STAMP__&
+               CALL abort(&
+__STAMP__&
           ,'Either ParticleEmission or PartDensity can be defined for selected emission parameters, not both!')
         ELSE
           SWRITE(*,*) "PartDensity is used for VPI of Species, Init ", iSpec, iInit !Value is calculated inside SetParticlePostion!
         END IF
       ELSE
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
         ,'PartDensity without LD is only supported for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
       END IF
     END IF
@@ -722,7 +759,8 @@ PartLorentzType = GETINT('Part-LorentzType','3')
 ! Read in boundary parameters
 nPartBound = GETINT('Part-nBounds','1.')
 IF (nPartBound.LE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR: nPartBound .LE. 0:', nPartBound)
 END IF
 ALLOCATE(PartBound%SourceBoundName(1:nPartBound))
@@ -805,7 +843,8 @@ DO iPartBound=1,nPartBound
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE DEFAULT
      SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
-     CALL abort(__STAMP__&
+     CALL abort(&
+__STAMP__&
          ,'Particle Boundary Condition does not exist')
   END SELECT
   PartBound%SourceBoundName(iPartBound) = GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName')
@@ -831,14 +870,16 @@ END DO
 ! FieldBound-Types.
 DO iBC = 1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-10) THEN
-    CALL abort(__STAMP__&
+    CALL abort(&
+__STAMP__&
     ,' PartBound%MapToPartBC for Boundary is not set. iBC: :',iBC)
   END IF
 END DO
 
 ALLOCATE(PEM%Element(1:PDM%maxParticleNumber), PEM%lastElement(1:PDM%maxParticleNumber), STAT=ALLOCSTAT) 
 IF (ALLOCSTAT.NE.0) THEN
- CALL abort(__STAMP__&
+ CALL abort(&
+__STAMP__&
   ,' Cannot allocate PEM arrays!')
 END IF
 IF (useDSMC.OR.PartPressureCell) THEN
@@ -848,7 +889,8 @@ IF (useDSMC.OR.PartPressureCell) THEN
            PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT) 
            !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__&
+    CALL abort(&
+__STAMP__&
     , ' Cannot allocate DSMC PEM arrays!')
   END IF
 END IF
@@ -856,7 +898,8 @@ IF (useDSMC) THEN
   ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT) 
            !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__&
+    CALL abort(&
+__STAMP__&
     ,' Cannot allocate DSMC PEM arrays!')
   END IF
 END IF

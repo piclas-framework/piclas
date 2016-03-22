@@ -57,8 +57,9 @@ INTEGER           :: iElem, ilocSide,SideID,flip,iSide
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SFC ...'
 IF(ParticleSFCInitIsDone) &
-    CALL abort(__STAMP__,&
-    ' process local space-filling curve for particle localization already allocated!.')
+    CALL abort(&
+    __STAMP__&
+    ,' process local space-filling curve for particle localization already allocated!.')
 
 ParticleSFCInitIsDone=.TRUE.
 

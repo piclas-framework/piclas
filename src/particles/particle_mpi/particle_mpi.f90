@@ -203,8 +203,8 @@ ALLOCATE( PartMPIExchange%nPartsSend(2,PartMPI%nMPINeighbors)  &
         , STAT=ALLOCSTAT                                       )
 
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__, &
-    ' Cannot allocate Particle-MPI-Variables! ALLOCSTAT',ALLOCSTAT)
+    __STAMP__&
+    ,' Cannot allocate Particle-MPI-Variables! ALLOCSTAT',ALLOCSTAT)
 
 PartMPIExchange%nPartsSend=0
 PartMPIExchange%nPartsRecv=0
@@ -299,7 +299,7 @@ LOGICAL                       :: PartInBGM
 PartMPIExchange%nPartsSend=0
 !ALLOCATE(PartTargetProc(1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
 !IF (ALLOCSTAT.NE.0) CALL abort(&
-!    __STAMP__, &
+!    __STAMP__ &
 !    ' Cannot allocate PartMPIDepoSend!')
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
@@ -325,7 +325,7 @@ END DO ! iPart
 IF(DoExternalParts)THEN
   !ALLOCATE(PartMPIDepoSend(1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
-  !    __STAMP__, &
+  !    __STAMP__ &
   !    ' Cannot allocate PartMPIDepoSend!')
   PartMPIDepoSend=.FALSE.
   nPartShape=0
@@ -393,8 +393,8 @@ IF(DoExternalParts)THEN
                     PartPosRef(3,iPart)
           END IF
           CALL Abort(&
-               __STAMP__,&
-              'Particle outside BGM! Err2')
+          __STAMP__&
+          ,'Particle outside BGM! Err2')
         END IF
       ELSE
         IPWRITE(UNIT_errOut,*)'Warning in SendNbOfParticles: Particle outside BGM!'
@@ -426,7 +426,7 @@ IF(DoExternalParts)THEN
         !    (CellZ.GT.GEO%FIBGMkmax).OR.(CellZ.LT.GEO%FIBGMkmin)) THEN
  
         !  CALL Abort(&
-        !       __STAMP__,&
+        !       __STAMP__&
         !      'Particle outside BGM!')
         !END IF
       END IF ! GEO%nPeriodicVectors
@@ -461,8 +461,8 @@ DO iProc=1,PartMPI%nMPINeighbors
                 , PartMPIExchange%SendRequest(1,iProc)                       &
                 , IERROR )
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-      __STAMP__&
-          ,' MPI Communication error', IERROR)
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
 
 !  CALL MPI_ISEND( PartMPIExchange%nPartsSend(iProc)                          &
 !                , 1                                                          &
@@ -632,7 +632,7 @@ DO iProc=1, PartMPI%nMPINeighbors
   END IF
   ALLOCATE(PartSendBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__&
+  __STAMP__&
   ,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
   ! fill message
   DO iPart=1,PDM%ParticleVecLength
@@ -802,8 +802,8 @@ DO iProc=1, PartMPI%nMPINeighbors
             IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',ShiftedPart(1),',PartY=',ShiftedPart(2),',PartZ=',&
                     ShiftedPart(3)
             CALL Abort(&
-                 __STAMP__,&
-                'Particle outside BGM! Err2')
+            __STAMP__&
+            ,'Particle outside BGM! Err2')
           END IF
         ELSE
           IPWRITE(UNIT_errOut,*)'Remap particle!'
@@ -826,7 +826,7 @@ DO iProc=1, PartMPI%nMPINeighbors
           IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',PartState(iPart,1),',PartY=',PartState(iPart,2),',PartZ=',&
                   PartState(iPart,3)
           !CALL Abort(&
-          !     __STAMP__,&
+          !     __STAMP__&
           !    'Particle outside BGM!')
         END IF ! GEO%nPeriodicVectors
       END IF ! PartInBGM
@@ -855,12 +855,12 @@ END DO ! iProc
 DO iProc=1,PartMPI%nMPINeighbors
   CALL MPI_WAIT(PartMPIExchange%SendRequest(1,iProc),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-      __STAMP__&
-          ,' MPI Communication error', IERROR)
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-      __STAMP__&
-          ,' MPI Communication error', IERROR)
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
 END DO ! iProc
 
 ! total number of received particles
@@ -878,13 +878,13 @@ IF(DoExternalParts) THEN
           !,ExtPartToFIBGM(1:6,1:NbrOfExtParticles) &
           ,STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__&
+  __STAMP__&
   ,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank)
   IF (usevMPF) THEN
     ALLOCATE(ExtPartMPF (1:NbrOfExtParticles) &
             ,STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) CALL abort(&
-        __STAMP__&
+    __STAMP__&
     ,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank)
   END IF
   ! map alt state to ext
@@ -923,8 +923,8 @@ DO iProc=1,PartMPI%nMPINeighbors
     IPWRITE(*,*) 'sum of total received particles            ', SUM(PartMPIExchange%nPartsRecv(1,:))
     IPWRITE(*,*) 'sum of total received deposition particles ', SUM(PartMPIExchange%nPartsRecv(2,:))
     CALL abort(&
-        __STAMP__&
-  ,'  Cannot allocate PartRecvBuf, local source ProcId, Allocstat',iProc,REAL(ALLOCSTAT))
+    __STAMP__&
+    ,'  Cannot allocate PartRecvBuf, local source ProcId, Allocstat',iProc,REAL(ALLOCSTAT))
   END IF
   CALL MPI_IRECV( PartRecvBuf(iProc)%content                                 &
                 , MessageSize                                                &
@@ -935,8 +935,8 @@ DO iProc=1,PartMPI%nMPINeighbors
                 , PartMPIExchange%RecvRequest(2,iProc)                       &
                 , IERROR )
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-      __STAMP__&
-          ,' MPI Communication error', IERROR)
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
 
 !  CALL MPI_IRECV( PartRecvBuf(iProc)%content                                 &
 !                , MessageSize                                                &
@@ -970,8 +970,8 @@ DO iProc=1,PartMPI%nMPINeighbors
                 , PartMPIExchange%SendRequest(2,iProc)                       &
                 , IERROR )
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-      __STAMP__&
-          ,' MPI Communication error', IERROR)
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
 !  CALL MPI_ISEND( SendBuf(iProc)%content                                     &
 !                , MessageSize                                                &
 !                , MPI_DOUBLE_PRECISION                                       &
@@ -1069,8 +1069,8 @@ DO iProc=1,PartMPI%nMPINeighbors
   IF(SUM(PartMPIExchange%nPartsSend(:,iProc)).EQ.0) CYCLE
   CALL MPI_WAIT(PartMPIExchange%SendRequest(2,iProc),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-      __STAMP__&
-          ,' MPI Communication error', IERROR)
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
 END DO ! iProc
 
 ! old number of already filled ExtParticles
@@ -1096,8 +1096,8 @@ DO iProc=1,PartMPI%nMPINeighbors
     nRecv=nRecv+1
     PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
     IF(PartID.EQ.0)  CALL abort(&
-        __STAMP__&
-          ,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
+      __STAMP__&
+      ,' Error in ParticleExchange_parallel. Corrupted list: PIC%nextFreePosition', nRecv)
     PartState(PartID,1:6)   = PartRecvBuf(iProc)%content( 1+iPos: 6+iPos)
     IF(DoRefMapping)THEN
       PartPosRef(1:3,PartID) = PartRecvBuf(iProc)%content(7+iPos: 9+iPos)
@@ -1416,7 +1416,7 @@ END DO
 DO iSide=1,nSides
   IF(SUM(ABS(SideSlabIntervals(:,iSide))).EQ.0)THEN
     CALL abort(&
-        __STAMP__&
+    __STAMP__&
     ,'  Zero bounding box found!')
   END IF
 END DO
@@ -1461,12 +1461,12 @@ INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
 
 ALLOCATE(SideIndex(1:nSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
+__STAMP__&
 ,'  Cannot allocate SideIndex!')
 SideIndex=0
 ALLOCATE(ElemIndex(1:PP_nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
+__STAMP__&
 ,'  Cannot allocate ElemIndex!')
 ElemIndex=0
 
@@ -1494,8 +1494,8 @@ END DO
 DEALLOCATE(SideIndex,STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
-      __STAMP__,&
-                       'Could not deallocate SideIndex')
+__STAMP__&
+,'Could not deallocate SideIndex')
 END IF
 
 IF(DoRefMapping) CALL CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
@@ -1716,8 +1716,8 @@ DO iSpec=1,nSpecies
         Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
          CALL abort(&
-             __STAMP__,&
-           'BaseVectors are parallel!')
+         __STAMP__&
+         ,'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
           lineVector(3) * lineVector(3))
@@ -1746,8 +1746,8 @@ DO iSpec=1,nSpecies
         Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
          CALL abort(&
-             __STAMP__,&
-           'BaseVectors are parallel!')
+         __STAMP__&
+         ,'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
           lineVector(3) * lineVector(3))
@@ -1781,8 +1781,8 @@ DO iSpec=1,nSpecies
         Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
          CALL abort(&
-             __STAMP__,&
-           'BaseVectors are parallel!')
+         __STAMP__&
+         ,'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
           lineVector(3) * lineVector(3))
@@ -1807,8 +1807,8 @@ DO iSpec=1,nSpecies
         Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
          CALL abort(&
-             __STAMP__,&
-           'BaseVectors are parallel!')
+         __STAMP__&
+         ,'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
           lineVector(3) * lineVector(3))
@@ -1834,8 +1834,8 @@ DO iSpec=1,nSpecies
       RegionOnProc=.TRUE.
     CASE('cuboid_equal')
       CALL abort(&
-          __STAMP__,&
-          'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
+      __STAMP__&
+      ,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
     CASE ('cuboid_with_equidistant_distribution') 
        xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
             + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
@@ -1850,8 +1850,8 @@ DO iSpec=1,nSpecies
            (ylen.NE.Species(iSpec)%Init(iInit)%BaseVector2IC(2)).OR. &
            (zlen.NE.Species(iSpec)%Init(iInit)%CuboidHeightIC)) THEN
           CALL abort(&
-              __STAMP__,&
-            'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition')
+          __STAMP__&
+          ,'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition')
        END IF
        DO iNode=1,8
         xCoords(1:3,iNode) = Species(iSpec)%Init(iInit)%BasePointIC(1:3)
@@ -1872,8 +1872,8 @@ DO iSpec=1,nSpecies
             * Species(iSpec)%Init(iInit)%maxParticleNumberZ)) THEN
          SWRITE(*,*) 'for species ',iSpec,' does not match number of particles in each direction!'
          CALL abort(&
-             __STAMP__,&
-            'ERROR: Number of particles in init / emission region',iInit)
+         __STAMP__&
+         ,'ERROR: Number of particles in init / emission region',iInit)
        END IF
        xlen = abs(GEO%xmaxglob  - GEO%xminglob)  
        ylen = abs(GEO%ymaxglob  - GEO%yminglob)
@@ -1891,8 +1891,8 @@ DO iSpec=1,nSpecies
        RegionOnProc=BoxInProc(xCoords,8)
     CASE DEFAULT
       CALL abort(&
-          __STAMP__,&
-          'not implemented')
+      __STAMP__&
+      ,'not implemented')
     END SELECT
     ! create new communicator
     color=MPI_UNDEFINED
@@ -2092,8 +2092,8 @@ DO iElem=1,nTotalElems
   DO ilocSide=1,6
     DO iVar=1,2
       IF(PartElemToSide(iVar,ilocSide,iElem).NE.PartElemToSide(iVar,ilocSide,iElem)) CALL abort(&
-          __STAMP__&
-          , ' Error in PartElemToSide')
+__STAMP__&
+, ' Error in PartElemToSide')
     END DO ! iVar=1,2
   END DO ! ilocSide=1,6
   IF(DoRefMapping)THEN
@@ -2103,12 +2103,12 @@ DO iElem=1,nTotalElems
         DO i=0,NGeo
           DO iVar=1,3
             IF(XCL_NGeo(iVar,i,j,k,iElem).NE.XCL_NGeo(iVar,i,j,k,iElem)) CALL abort(&
-                __STAMP__&
-                , ' Error in XCL_NGeo')
+__STAMP__&
+, ' Error in XCL_NGeo')
             DO iVar2=1,3
               IF(dXCL_NGeo(iVar2,iVar,i,j,k,iElem).NE.dXCL_NGeo(iVar2,iVar,i,j,k,iElem)) CALL abort(&
-                  __STAMP__&
-                  , ' Error in dXCL_NGeo')
+__STAMP__&
+, ' Error in dXCL_NGeo')
             END DO ! iVar2=1,3
           END DO ! iVar=1,3
         END DO ! i=0,NGeo
@@ -2129,7 +2129,7 @@ IF(DoRefMapping)THEN
   ! PartBCSideList
   DO iSide = 1,nTotalSides
     IF(PartBCSideList(iSide).NE.PartBCSideList(iSide)) CALL abort(&
-        __STAMP__&
+__STAMP__&
         , ' Error in dXCL_NGeo')
   END DO ! iSide=1,nTotalSides
   ! BezierControlPoints3D
@@ -2139,8 +2139,8 @@ IF(DoRefMapping)THEN
         DO iVar=1,3
           IF(BezierControlPoints3D(iVar,j,k,iSide) &
          .NE.BezierControlPoints3D(iVar,j,k,iSide)) CALL abort(&
-              __STAMP__&
-              , ' Error in dXCL_NGeo')
+__STAMP__&
+, ' Error in dXCL_NGeo')
         END DO ! iVar=1,3
       END DO ! j=0,nGeo
     END DO ! k=0,nGeo
@@ -2148,26 +2148,26 @@ IF(DoRefMapping)THEN
     DO iVar=1,3
       DO iVar2=1,3
         IF(SideSlabNormals(iVar2,iVar,iSide).NE.SideSlabNormals(iVar2,iVar,iSide)) CALL abort(&
-            __STAMP__&
-            , ' Error in PartHaloElemToProc')
+__STAMP__&
+, ' Error in PartHaloElemToProc')
       END DO ! iVar2=1,PP_nVar
     END DO ! iVar=1,PP_nVar
     DO ilocSide=1,6
       IF(SideSlabIntervals(ilocSide,iSide).NE.SideSlabIntervals(ilocSide,iSide)) CALL abort(&
-         __STAMP__&
-         , ' Error in SlabInvervalls')
+__STAMP__&
+, ' Error in SlabInvervalls')
     END DO ! ilocSide=1,6
     IF(BoundingBoxIsEmpty(iSide).NEQV.BoundingBoxIsEmpty(iSide)) CALL abort(&
-       __STAMP__&
-       , ' Error in BoundingBoxIsEmpty')
+__STAMP__&
+, ' Error in BoundingBoxIsEmpty')
   END DO ! iSide=1,nTotalBCSides
 END IF ! DoRefMapping
 ! PartHaloElemToProc
 DO iElem=PP_nElems+1,nTotalElems
   DO iVar=1,3
     IF(PartHaloElemToProc(iVar,iElem).NE.PartHaloElemToProc(iVar,iElem)) CALL abort(&
-        __STAMP__&
-        , ' Error in PartHaloElemToProc')
+__STAMP__&
+, ' Error in PartHaloElemToProc')
   END DO ! iVar=1,3
 END DO ! iElem=PP_nElems+1,nTotalElems
 DO iSide = 1,nTotalSides

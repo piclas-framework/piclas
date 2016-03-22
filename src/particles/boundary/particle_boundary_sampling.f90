@@ -407,11 +407,11 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-        __STAMP__&
-            ,' MPI Communication error', IERROR)
+__STAMP__&
+,' MPI Communication error', IERROR)
     CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-        __STAMP__&
+__STAMP__&
             ,' MPI Communication error', IERROR)
   END DO ! iProc
 
@@ -457,7 +457,7 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
     END DO ! iSide=nSides+1,nTotalSides
     IF(ANY(SurfSendBuf(iProc)%content.LE.0))THEN  
       CALL abort(&
-        __STAMP__&
+__STAMP__&
             ,' Sent NATIVE_ELEM_ID or LOCSIDEID is zero!')
     END IF
   END DO
@@ -477,11 +477,11 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
   DO iProc=1,SurfCOMM%nMPINeighbors
     CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-        __STAMP__&
+__STAMP__&
             ,' MPI Communication error', IERROR)
     CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-        __STAMP__&
+__STAMP__&
             ,' MPI Communication error', IERROR)
   END DO ! iProc
 
@@ -582,11 +582,11 @@ END DO ! iProc
 DO iProc=1,SurfCOMM%nMPINeighbors
   CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-      __STAMP__&
+__STAMP__&
           ,' MPI Communication error', IERROR)
   CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-      __STAMP__&
+__STAMP__&
           ,' MPI Communication error', IERROR)
 END DO ! iProc
 

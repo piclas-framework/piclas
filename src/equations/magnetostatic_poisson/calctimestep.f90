@@ -67,8 +67,9 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,TimeStep,2,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM
 CalcTimeStep=MINVAL(TimeStep)
 IF(CalcTimeStep.NE.CalcTimeStep)THEN
   SWRITE(*,*)' ******* Exit: Timestep NaN *******'
-  CALL abort(__STAMP__,&
-             'Flexi crashed!',999,999.)
+  CALL abort(&
+  __STAMP__&
+  ,'Flexi crashed!',999,999.)
 END IF
 END FUNCTION CalcTimeStep
 

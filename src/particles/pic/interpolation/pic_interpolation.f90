@@ -75,8 +75,8 @@ SDEALLOCATE(FieldAtParticle)
 ALLOCATE(FieldAtParticle(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT) 
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
-      __STAMP__, &
-      'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
+  __STAMP__ &
+  ,'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
 END IF
 
 SELECT CASE(TRIM(InterpolationType))
@@ -88,8 +88,8 @@ CASE('particle_position')
 CASE('nearest_gausspoint')
 CASE DEFAULT
   CALL abort(&
-      __STAMP__, &
-      'Unknown InterpolationType in pic_init.f90')
+  __STAMP__ &
+  ,'Unknown InterpolationType in pic_init.f90')
 END SELECT
 END SUBROUTINE InitializeInterpolation
 
@@ -763,8 +763,8 @@ iPos = INT(POS/DeltaExternalField) + 1
 IF (iPos.GE.nIntPoints) THEN
   IPWRITE(UNIT_stdOut,'(A,F8.5,I10.2)')"Position and Position index, ",POS,iPos
   CALL abort(&
-__STAMP__, &
-        "ERROR: particle out of data point region for external curved field interpolation!")
+  __STAMP__ &
+  ,"ERROR: particle out of data point region for external curved field interpolation!")
 END IF
 !  Linear Interpolation between iPos and iPos+1 B point
 InterpolateCurvedExternalField = (CurvedExternalField(2,iPos+1) - CurvedExternalField(2,iPos)) &

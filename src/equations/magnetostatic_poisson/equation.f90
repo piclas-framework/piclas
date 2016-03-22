@@ -157,7 +157,9 @@ CASE(103) !dipole
   r2=SQRT(SUM((x(:)-(IniCenter(:)+(/IniHalfwidth,0.,0./)))**2)) !+1.0E-3
   resu(:)=IniAmplitude*(1/r2-1/r1)
 CASE DEFAULT
-  CALL abort(__STAMP__,'Exactfunction not specified!')
+  CALL abort(&
+  __STAMP__&
+  ,'Exactfunction not specified!')
 END SELECT ! ExactFunction
 
 
