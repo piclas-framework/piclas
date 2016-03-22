@@ -113,14 +113,16 @@ CASE(2) !PartBound%ReflectiveBC)
   IsSpeciesSwap=.FALSE.
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
-    CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap)
+    CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
   END IF
-  CALL RANDOM_NUMBER(RanNum)
-  IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
-    ! perfectly reflection, specular re-emission
-    CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
-  ELSE
-    CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+  IF (.NOT.PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
+    CALL RANDOM_NUMBER(RanNum)
+    IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
+      ! perfectly reflection, specular re-emission
+      CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+    ELSE
+      CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+    END IF
   END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -201,7 +203,7 @@ IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
       __STAMP__,&
   ' ERROR: PartBound not allocated!.',999,999.)
 END IF
-
+IsSpeciesSwap=.FALSE.
 ! Select the corresponding boundary condition and calculate particle treatment
 SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !SELECT CASE(PartBound%SideBCType(SideID))
@@ -232,19 +234,22 @@ CASE(1) !PartBound%OpenBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IsSpeciesSwap=.FALSE.
   !---- swap species?
-  IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(GlobSideID))).gt.0) THEN
-    CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,BCSideID)
+  IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
+    CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
   END IF
-  CALL RANDOM_NUMBER(RanNum)
-  BCSideID=PartBCSideList(SideID)
-  IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
-    ! perfectly reflection, specular re-emission
-    CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
-  ELSE
-    CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
+  IF (.NOT.PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
+    CALL RANDOM_NUMBER(RanNum)
+    BCSideID=PartBCSideList(SideID)
+    IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
+      ! perfectly reflection, specular re-emission
+      CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
+    ELSE
+      CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
+    END IF
   END IF
+
+  
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
@@ -284,7 +289,7 @@ CASE(6) !PartBound%MPINeighborhoodBC)
 CASE(10)
 !-----------------------------------------------------------------------------------------------------------------------------------
   BCSideID=PartBCSideList(SideID)
-  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,BCSideID)
+  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
 
 
 CASE DEFAULT
@@ -508,7 +513,7 @@ USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,ElemBaryNGeo,PartSideToElem
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample,nSurfSample
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannConst,PartSpecies
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannConst,PartSpecies,nSpecies
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,BezierControlPoints3D
 USE MOD_Mesh_Vars,              ONLY:BC,NGEO
 USE MOD_DSMC_Vars,              ONLY:SpecDSMC,CollisMode
@@ -964,9 +969,11 @@ SUBROUTINE SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,G
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals,                ONLY:abort
-USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies
-USE MOD_Particle_Vars,          ONLY:WriteMacroValues
+USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SampWall,dXiEQ_SurfSample,SurfMesh
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,PartSpecies,PDM
+USE MOD_Particle_Vars,          ONLY:WriteMacroValues,nSpecies
+USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut
+USE MOD_Particle_Analyze,       ONLY: CalcEkinPart
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:DSMC
 USE MOD_DSMC_Vars,              ONLY:AnalyzeSurfCollis
@@ -975,7 +982,7 @@ USE MOD_TimeDisc_Vars,          ONLY:TEnd,Time
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES 
-REAL,INTENT(IN)                   :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
 REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, GlobSideID
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
@@ -985,6 +992,9 @@ LOGICAL,INTENT(INOUT)             :: IsSpeciesSwap
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                           :: targetSpecies, iSwaps
+REAL                              :: RanNum
+REAL                              :: Xitild,EtaTild
+INTEGER                           :: p,q,SurfSideID
 !===================================================================================================================================
 
 CALL RANDOM_NUMBER(RanNum)
@@ -1000,6 +1010,7 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(GlobSideID)))
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)) &
       .OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
       !---- Counter for swap species collisions
+      SurfSideID=SurfMesh%SideIDToSurfID(GlobSideID)
       ! compute p and q
       ! correction of xi and eta, can only be applied if xi & eta are not used later!
       Xitild =MIN(MAX(-1.,xi ),0.99)
@@ -1041,7 +1052,6 @@ IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(BC(GlobSideID)))
     END IF ! CalcPartBalance
     PDM%ParticleInside(PartID) = .FALSE.
     alpha=-1.
-    EXIT !should be equivalent to DONE=.TRUE. but without the following ReflectiveBC-lines
   ELSEIF (targetSpecies.gt.0) THEN !swap species
     PartSpecies(PartID)=targetSpecies
   END IF
