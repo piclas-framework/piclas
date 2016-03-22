@@ -153,6 +153,10 @@ DO iPart=1,PDM%ParticleVecLength
           CALL ComputeBezierIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
                                                                                   ,eta(ilocSide)      ,iPart,SideID)
+        CASE DEFAULT
+          CALL abort(&
+              __STAMP__, &
+              ' Missing required side-data. Please increase halo region. ',SideID)
         END SELECT
         IF(isHit) THEN
           nInterSections=nInterSections+1
