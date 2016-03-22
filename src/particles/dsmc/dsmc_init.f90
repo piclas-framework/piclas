@@ -688,34 +688,51 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
   IF (DSMC%CalcSurfaceVal) THEN
     DSMC%CalcSurfaceTime = GETLOGICAL('Particles-DSMC-CalcSurfaceTime','.FALSE.')
     CALL InitParticleBoundarySampling()
-  END IF
+    
+    DSMC%CalcSurfCollis_OnlySwaps = GETLOGICAL('Particles-DSMC-CalcSurfCollis_OnlySwaps','.FALSE.')
+    DSMC%CalcSurfCollis_Only0Swaps = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Only0Swaps','.FALSE.')
+    DSMC%CalcSurfCollis_Output = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Output','.FALSE.')
+    IF (DSMC%CalcSurfCollis_Only0Swaps) DSMC%CalcSurfCollis_OnlySwaps=.TRUE.
+    
+    DSMC%AnalyzeSurfCollis = GETLOGICAL('Particles-DSMC-AnalyzeSurfCollis','.FALSE.')
+    IF (DSMC%AnalyzeSurfCollis) THEN
+      AnalyzeSurfCollis%maxPartNumber = GETINT('Particles-DSMC-maxSurfCollisNumber','0')
+      ALLOCATE(AnalyzeSurfCollis%Data(1:AnalyzeSurfCollis%maxPartNumber,1:9))
+      ALLOCATE(AnalyzeSurfCollis%Spec(1:AnalyzeSurfCollis%maxPartNumber))
+      ALLOCATE(AnalyzeSurfCollis%Number(1:nSpecies+1))
+      !ALLOCATE(AnalyzeSurfCollis%Rate(1:nSpecies+1))
+      AnalyzeSurfCollis%Data=0.
+      AnalyzeSurfCollis%Spec=0
+      AnalyzeSurfCollis%Number=0
+      !AnalyzeSurfCollis%Rate=0.
+    END IF
+    
   ! Species-dependent calculations
-  ALLOCATE(DSMC%CalcSurfCollis_SpeciesFlags(1:nSpecies))
-  DSMC%CalcSurfCollis_NbrOfSpecies = GETINT('Particles-DSMC-CalcSurfCollis_NbrOfSpecies','0')
-  IF ( (DSMC%CalcSurfCollis_NbrOfSpecies.GT.0) .AND. (DSMC%CalcSurfCollis_NbrOfSpecies.LE.nSpecies) ) THEN
-    ALLOCATE(CalcSurfCollis_SpeciesRead(1:DSMC%CalcSurfCollis_NbrOfSpecies))
-    hilf2=''
-    DO iSpec=1,DSMC%CalcSurfCollis_NbrOfSpecies !build default string: 1 - CSC_NoS
-      WRITE(UNIT=hilf,FMT='(I0)') iSpec
-      hilf2=TRIM(hilf2)//TRIM(hilf)
-      IF (ispec.NE.DSMC%CalcSurfCollis_NbrOfSpecies) hilf2=TRIM(hilf2)//','
-    END DO
-    CalcSurfCollis_SpeciesRead = GETINTARRAY('Particles-DSMC-CalcSurfCollis_Species',DSMC%CalcSurfCollis_NbrOfSpecies,hilf2)
-    DSMC%CalcSurfCollis_SpeciesFlags(:)=.FALSE.
-    DO iSpec=1,DSMC%CalcSurfCollis_NbrOfSpecies
-      DSMC%CalcSurfCollis_SpeciesFlags(CalcSurfCollis_SpeciesRead(ispec))=.TRUE.
-    END DO
-    DEALLOCATE(CalcSurfCollis_SpeciesRead)
-  ELSE IF (DSMC%CalcSurfCollis_NbrOfSpecies.EQ.0) THEN !default
-    DSMC%CalcSurfCollis_SpeciesFlags(:)=.TRUE.
-  ELSE
-    CALL abort(__STAMP__,&
-              'Error in Particles-DSMC-CalcSurfCollis_NbrOfSpecies!')
+    ALLOCATE(DSMC%CalcSurfCollis_SpeciesFlags(1:nSpecies))
+    DSMC%CalcSurfCollis_NbrOfSpecies = GETINT('Particles-DSMC-CalcSurfCollis_NbrOfSpecies','0')
+    IF ( (DSMC%CalcSurfCollis_NbrOfSpecies.GT.0) .AND. (DSMC%CalcSurfCollis_NbrOfSpecies.LE.nSpecies) ) THEN
+      ALLOCATE(CalcSurfCollis_SpeciesRead(1:DSMC%CalcSurfCollis_NbrOfSpecies))
+      hilf2=''
+      DO iSpec=1,DSMC%CalcSurfCollis_NbrOfSpecies !build default string: 1 - CSC_NoS
+        WRITE(UNIT=hilf,FMT='(I0)') iSpec
+        hilf2=TRIM(hilf2)//TRIM(hilf)
+        IF (ispec.NE.DSMC%CalcSurfCollis_NbrOfSpecies) hilf2=TRIM(hilf2)//','
+      END DO
+      CalcSurfCollis_SpeciesRead = GETINTARRAY('Particles-DSMC-CalcSurfCollis_Species',DSMC%CalcSurfCollis_NbrOfSpecies,hilf2)
+      DSMC%CalcSurfCollis_SpeciesFlags(:)=.FALSE.
+      DO iSpec=1,DSMC%CalcSurfCollis_NbrOfSpecies
+        DSMC%CalcSurfCollis_SpeciesFlags(CalcSurfCollis_SpeciesRead(ispec))=.TRUE.
+      END DO
+      DEALLOCATE(CalcSurfCollis_SpeciesRead)
+    ELSE IF (DSMC%CalcSurfCollis_NbrOfSpecies.EQ.0) THEN !default
+      DSMC%CalcSurfCollis_SpeciesFlags(:)=.TRUE.
+    ELSE
+      CALL abort(__STAMP__,&
+        'Error in Particles-DSMC-CalcSurfCollis_NbrOfSpecies!')
+    END IF
+    
   END IF
-  DSMC%CalcSurfCollis_OnlySwaps = GETLOGICAL('Particles-DSMC-CalcSurfCollis_OnlySwaps','.FALSE.')
-  DSMC%CalcSurfCollis_Only0Swaps = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Only0Swaps','.FALSE.')
-  DSMC%CalcSurfCollis_Output = GETLOGICAL('Particles-DSMC-CalcSurfCollis_Output','.FALSE.')
-  IF (DSMC%CalcSurfCollis_Only0Swaps) DSMC%CalcSurfCollis_OnlySwaps=.TRUE.
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Initialize Adsorption/Desorption variables
 !-----------------------------------------------------------------------------------------------------------------------------------
