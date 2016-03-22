@@ -239,7 +239,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           Pos = PartState(iPart,1:3)
           !--- evaluate at Particle position
 #if (PP_nVar==8)
-#if def PP_POIS
+#ifdef PP_POIS
           HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
           HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
           CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)

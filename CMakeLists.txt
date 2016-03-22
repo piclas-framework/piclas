@@ -238,7 +238,6 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90
-                                ./src/hdg/*.f90
                                 ./src/interpolation/basis.f90
                                 ./src/interpolation/interpolation.f90
                                 ./src/interpolation/interpolation_vars.f90
@@ -258,6 +257,8 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/timedisc/*.f90
                                 ./src/utils/*.f90 )
 
+
+FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90)
 FILE(GLOB mainF90 ./src/boltzplatz.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/interpolation/eval_xyz.f90)
@@ -269,6 +270,9 @@ IF (BOLTZPLATZ_PARTICLES)
  ELSE()
    LIST(APPEND boltzplatzF90 ${noparticlesF90})
 ENDIF(BOLTZPLATZ_PARTICLES)
+IF(BOLTZPLATZ_HDG)
+  LIST(APPEND boltzplatzF90 ${hdgF90})
+ENDIF(BOLTZPLATZ_HDG)
 
 # define boltzplatz library 
 ADD_LIBRARY(boltzplatzlibF90 OBJECT ${boltzplatzF90})
