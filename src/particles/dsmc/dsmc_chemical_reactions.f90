@@ -69,7 +69,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, PolyatomMolDSMC, CollInf
   USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, BoltzmannConst, nSpecies
   USE MOD_DSMC_Analyze,           ONLY : CalcTVibPoly
-  USE MOD_Equation_Vars,          ONLY : Pi
+  USE MOD_Globals_Vars,           ONLY : Pi
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
