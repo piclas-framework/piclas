@@ -2524,6 +2524,7 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
             __STAMP__,&
             ' Particle lost in own MPI region. Need to communicate!')
         END IF
+        IF (PDM%ParticleInside(ParticleIndexNbr)) PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
       ELSE
         CALL abort(&
           __STAMP__,&
@@ -2630,6 +2631,7 @@ DO iElem = 1,Species(iSpec)%Init(iInit)%ConstPress%nElemTotalInside
             __STAMP__,&
             ' Particle lost in own MPI region. Need to communicate!')
         END IF
+        IF (PDM%ParticleInside(ParticleIndexNbr)) PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
         ! Determine the particle velocity (maxwell, part 1)
         DO distnum = 1, 3
           CALL RANDOM_NUMBER(RandVal3D)

@@ -114,9 +114,20 @@ SUBROUTINE InitDGbasis(N_in,xGP,wGP,wBary)
 ! Allocate global variable U (solution) and Ut (dg time derivative).
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Basis     ,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis     ,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
 USE MOD_DG_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
+#ifdef PP_HDG
+#ifdef MPI
+USE MOD_PreProc
+USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
+USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,Face_xGP
+USE MOD_Mesh_Vars,     ONLY:nBCSides,nInnerSides,nMPISides_MINE
+USE MOD_Mesh_Vars,     ONLY:SideID_minus_upper,SideID_minus_lower,SideID_plus_upper
+#endif /*MPI*/
+#endif /*PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -128,8 +139,13 @@ REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP,wGP,wBary
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 REAL,DIMENSION(0:N_in,0:N_in)              :: M,Minv
-REAL,DIMENSION(0:N_in)                     :: L_minus,L_plus        
-INTEGER                                    :: iMass         
+REAL,DIMENSION(0:N_in)                     :: L_minus,L_plus
+INTEGER                                    :: iMass
+#ifdef PP_HDG
+#ifdef MPI  
+REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,SideID_minus_lower:SideID_minus_upper)
+#endif /*MPI*/
+#endif /*PP_HDG*/
 !===================================================================================================================================
 ALLOCATE(L_HatMinus(0:N_in), L_HatPlus(0:N_in))
 ALLOCATE(D(0:N_in,0:N_in), D_T(0:N_in,0:N_in))
@@ -153,6 +169,31 @@ CALL LagrangeInterpolationPolys(1.,N_in,xGP,wBary,L_Plus)
 L_HatPlus(:) = MATMUL(Minv,L_Plus)
 CALL LagrangeInterpolationPolys(-1.,N_in,xGP,wBary,L_Minus)
 L_HatMinus(:) = MATMUL(Minv,L_Minus)
+
+#ifdef PP_HDG
+#ifdef MPI
+! exchange is in initDGbasis as InitMesh() and InitMPI() is needed
+Geotemp=0.
+Geotemp(1,:,:,:)=SurfElem(:,:,SideID_minus_lower:SideID_minus_upper)
+Geotemp(2:4,:,:,:)=NormVec(:,:,:,SideID_minus_lower:SideID_minus_upper)
+Geotemp(5:7,:,:,:)=TangVec1(:,:,:,SideID_minus_lower:SideID_minus_upper)
+Geotemp(8:10,:,:,:)=TangVec2(:,:,:,SideID_minus_lower:SideID_minus_upper)
+!Geotemp(11:13,:,:,:)=Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)
+
+IPWRITE(*,*) size(Geotemp)
+IPWRITE(*,*) 10,SideID_minus_lower,SideID_minus_upper
+CALL StartReceiveMPIData(10,Geotemp,SideID_minus_lower,SideID_minus_upper,RecRequest_Geo ,SendID=1) ! Receive MINE
+CALL StartSendMPIData(   10,Geotemp,SideID_minus_lower,SideID_minus_upper,SendRequest_Geo,SendID=1) ! Send YOUR
+CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)                                 ! Send YOUR - receive MINE
+
+SurfElem(:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(1,:,:,:)
+NormVec(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(2:4,:,:,:)
+TangVec1(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(5:7,:,:,:)
+TangVec2(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(8:10,:,:,:)
+!Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(11:13,:,:,:)
+
+#endif /*MPI*/
+#endif /*PP_HDG*/
 END SUBROUTINE InitDGbasis
 
 
@@ -175,7 +216,7 @@ USE MOD_Equation,         ONLY:CalcSource
 USE MOD_Interpolation,    ONLY:ApplyJacobian
 #ifdef MPI
 USE MOD_MPI_Vars
-USE MOD_MPI,              ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI,              ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_Mesh_Vars,        ONLY:SideID_plus_upper,SideID_plus_lower
 USE MOD_LoadBalance_Vars, ONLY:tCurrent
 #endif /*MPI*/

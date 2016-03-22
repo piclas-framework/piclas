@@ -57,6 +57,8 @@ REAL,ALLOCATABLE :: SurfElem(:,:,:)
 ! mapping from GaussPoints to Side or Neighbor Volume
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,ALLOCATABLE :: VolToSideA(:,:,:,:,:,:)
+INTEGER,ALLOCATABLE :: VolToSideIJKA(:,:,:,:,:,:)
+INTEGER,ALLOCATABLE :: VolToSide2A(:,:,:,:,:)
 INTEGER,ALLOCATABLE :: CGNS_VolToSideA(:,:,:,:,:)
 INTEGER,ALLOCATABLE :: CGNS_SideToVol2A(:,:,:,:)
 INTEGER,ALLOCATABLE :: SideToVolA(:,:,:,:,:,:)
@@ -81,6 +83,7 @@ INTEGER          :: nGlobalElems=0      ! number of elements in mesh
 INTEGER          :: nElems=0            ! number of local elements
 INTEGER          :: offsetElem=0        ! for MPI, until now=0 Elems pointer array range: [offsetElem+1:offsetElem+nElems]
 INTEGER          :: nSides=0            ! =nInnerSides+nBCSides+nMPISides
+INTEGER          :: offsetSide=0        ! for MPI, until now=0  Sides pointer array range
 INTEGER          :: nInnerSides=0       ! InnerSide index range: sideID \in [nBCSides+1:nBCSides+nInnerSides]
 INTEGER          :: nBCSides=0          ! BCSide index range: sideID \in [1:nBCSides]
 INTEGER          :: nMPISides=0
@@ -90,6 +93,8 @@ INTEGER          :: SideID_minus_lower  ! lower side ID of array U_minus/GradUx_
 INTEGER          :: SideID_minus_upper  ! upper side ID of array U_minus/GradUx_minus...
 INTEGER          :: SideID_plus_lower   ! lower side ID of array U_plus/GradUx_plus...
 INTEGER          :: SideID_plus_upper   ! upper side ID of array U_plus/GradUx_plus...
+INTEGER          :: nUniqueSides        ! processor local number of unique sides (including MPI sides)
+INTEGER          :: nGlobalUniqueSides  ! global number of unique sides, sum of SideID_minus_upper
 INTEGER          :: nNodes=0            ! total number of nodes in mesh nElems*(NGeo+1)**3
 INTEGER          :: nBCs=0              ! number of BCs in mesh
 INTEGER          :: nUserBCs=0          ! number of BC in inifile
@@ -108,6 +113,12 @@ REAL,ALLOCATABLE    :: Face_xGP(:,:,:,:)     ! XYZ positions (first index 1:3) o
 INTEGER             :: nPoyntingIntSides=0   ! Sides for the calculation of the poynting vector
 LOGICAL,ALLOCATABLE :: isPoyntingIntSide(:)  ! number of all PoyntingInt sides
 INTEGER,ALLOCATABLE :: whichPoyntingPlane(:) ! number of plane used for calculation of poynting vector
+!-----------------------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------------------
+! mapping on defined regions on elements
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                                  :: NbrOfRegions      ! Nbr of regions to be mapped to Elems
+REAL, ALLOCATABLE                        :: RegionBounds(:,:) ! RegionBounds ((xmin,xmax,ymin,...)|1:NbrOfRegions)
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! USER DEFINED TYPES 

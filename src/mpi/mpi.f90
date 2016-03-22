@@ -24,13 +24,15 @@ INTERFACE InitMPIvars
   MODULE PROCEDURE InitMPIvars
 END INTERFACE
 
-INTERFACE StartReceiveMPIData
-  MODULE PROCEDURE StartReceiveMPIData
-END INTERFACE
+! don't create an interface because some vectors are mapped to arrays
+!INTERFACE StartReceiveMPIData
+!  MODULE PROCEDURE StartReceiveMPIData
+!END INTERFACE
 
-INTERFACE StartSendMPIData
-  MODULE PROCEDURE StartSendMPIData
-END INTERFACE
+!INTERFACE StartSendMPIData
+!  MODULE PROCEDURE StartSendMPIData
+!END INTERFACE
+
 
 INTERFACE FinishExchangeMPIData
   MODULE PROCEDURE FinishExchangeMPIData
@@ -41,7 +43,7 @@ INTERFACE FinalizeMPI
 END INTERFACE
 
 
-PUBLIC::InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData, FinalizeMPI
+PUBLIC::InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
 #endif
 !===================================================================================================================================
 
@@ -116,12 +118,14 @@ IF(.NOT.InterpolationInitIsDone)THEN
       ,'InitMPITypes called before InitInterpolation')
 END IF
 ALLOCATE(SendRequest_U(nNbProcs)     )
+ALLOCATE(SendRequest_GEo(nNbProcs)     )
 !ALLOCATE(SendRequest_UMinus(nNbProcs)     )
 ALLOCATE(SendRequest_Flux(nNbProcs)  )
 ALLOCATE(SendRequest_gradUx(nNbProcs))
 ALLOCATE(SendRequest_gradUy(nNbProcs))
 ALLOCATE(SendRequest_gradUz(nNbProcs))
 ALLOCATE(RecRequest_U(nNbProcs)     )
+ALLOCATE(RecRequest_Geo(nNbProcs)     )
 !ALLOCATE(RecRequest_UMinus(nNbProcs)     )
 ALLOCATE(RecRequest_Flux(nNbProcs)  )
 ALLOCATE(RecRequest_gradUx(nNbProcs))
@@ -139,6 +143,8 @@ RecRequest_Flux(nNbProcs)    = MPI_REQUEST_NULL
 RecRequest_gradUx(nNbProcs)  = MPI_REQUEST_NULL
 RecRequest_gradUy(nNbProcs)  = MPI_REQUEST_NULL
 RecRequest_gradUz(nNbProcs)  = MPI_REQUEST_NULL
+SendRequest_Geo(nNbProcs)    = MPI_REQUEST_NULL
+RecRequest_Geo(nNbProcs)     = MPI_REQUEST_NULL
 DataSizeSide  =(PP_N+1)*(PP_N+1)
 ALLOCATE(nMPISides_send(       nNbProcs,2))
 ALLOCATE(OffsetMPISides_send(0:nNbProcs,2))
@@ -277,6 +283,7 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIData
+
 
 
 SUBROUTINE FinishExchangeMPIData(SendRequest,RecRequest,SendID)

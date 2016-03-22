@@ -59,8 +59,8 @@ USE MOD_Particle_MPI_Vars,      ONLY:DoExternalParts
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE          :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDepo(:,:)
-REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:)
+REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDepo(:,:)
+REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:),xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t
 REAL                      :: Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
 REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction
@@ -91,7 +91,7 @@ CASE('nearest_blurrycenter')
 CASE('nearest_blurycenter')
   DepositionType = 'nearest_blurrycenter'
 CASE('cell_volweight') 
-  ALLOCATE(CellVolWeightFac(0:PP_N))
+  ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
   ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
   CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
   CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
@@ -107,15 +107,16 @@ CASE('cell_volweight')
       END DO ! j=0,PP_N
     END DO ! k=0,PP_N
     CALL ChangeBasis3D(1,PP_N, 1,Vdm_tmp, DetLocal(:,:,:,:),DetJac(:,:,:,:))
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
+    DO k=0,1
+      DO j=0,1
+        DO i=0,1
           CellVolWeight_Volumes(i,j,k,iElem) = DetJac(1,i,j,k)*wGP_tmp(i)*wGP_tmp(j)*wGP_tmp(k)
         END DO ! i=0,PP_N
       END DO ! j=0,PP_N
     END DO ! k=0,PP_N
   END DO
   DEALLOCATE(Vdm_tmp)
+  DEALLOCATE(wGP_tmp, xGP_tmp)
 CASE('epanechnikov') 
   r_sf     = GETREAL('PIC-epanechnikov-radius','1.')
   r2_sf = r_sf * r_sf 

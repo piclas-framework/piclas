@@ -275,7 +275,6 @@ IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
-! always zero
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
 PDM%dtFracPush(1:PDM%maxParticleNumber) = .FALSE.
 PDM%IsNewPart(1:PDM%maxParticleNumber) = .FALSE.

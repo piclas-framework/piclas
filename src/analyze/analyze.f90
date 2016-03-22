@@ -32,7 +32,6 @@ INTERFACE PerformAnalyze
   MODULE PROCEDURE PerformAnalyze
 END INTERFACE
 
-
 !===================================================================================================================================
 PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze 
 !===================================================================================================================================
@@ -46,14 +45,14 @@ SUBROUTINE InitAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Interpolation_Vars,   ONLY: xGP,wBary,InterpolationInitIsDone
-USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt
+USE MOD_Interpolation_Vars,   ONLY:xGP,wBary,InterpolationInitIsDone
+USE MOD_Analyze_Vars,         ONLY:Nanalyze,DoAnalyze,CalcEpot,AnalyzeInitIsDone,Analyze_dt
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL
 USE MOD_Analyze_Vars,         ONLY:CalcPoyntingInt
 USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
-#ifndef PARTICLES
 USE MOD_ReadInTools,          ONLY:GETLOGICAL
-USE MOD_Particle_Analyze_Vars,ONLY:CalcEpot, DoAnalyze,PartAnalyzeStep
+#ifndef PARTICLES
+USE MOD_Particle_Analyze_Vars,ONLY:CalcEpot,PartAnalyzeStep
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars,     ONLY:nSkipAnalyze
 ! IMPLICIT VARIABLE HANDLING
@@ -77,18 +76,15 @@ NAnalyze=GETINT('NAnalyze',DefStr)
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
 Analyze_dt=GETREAL('Analyze_dt','0.')
 nSkipAnalyze=GETINT('nSkipAnalyze','1')
-
 #ifndef PARTICLES
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
 IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
-
+#endif /*PARTICLES*/
 DoAnalyze = .FALSE.
 CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
 IF(CalcEpot) DoAnalyze = .TRUE.
-#endif /*PARTICLES*/
 
 AnalyzeInitIsDone=.TRUE.
-
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
@@ -340,20 +336,20 @@ SUBROUTINE PerformAnalyze(t,iter,tenddiff,forceAnalyze,OutPut,LastIter)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,             ONLY: MeshFile
-USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt
+USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt,DoAnalyze
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 USE MOD_RecordPoints,          ONLY: RecordPoints
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
-USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
+USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 #if (PP_TimeDiscMethod==42)
 USE MOD_TimeDisc_Vars,         ONLY: dt
 #else
-USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt
+USE MOD_TimeDisc_Vars,         ONLY: dt
 #endif
 #ifdef PARTICLES
 USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
-USE MOD_Particle_Analyze_Vars, ONLY: DoAnalyze, PartAnalyzeStep
+USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 USE MOD_DSMC_Vars,             ONLY: DSMC,useDSMC, iter_macvalout
 USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
@@ -403,8 +399,8 @@ REAL                          :: TotalSideBoundingBoxVolume,rDummy
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 
-! not for first iteration
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+! not for first iteration (when analysis is called within RK steps)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 IF((iter.EQ.0).AND.(.NOT.forceAnalyze)) RETURN
 !IF(iter.EQ.0) RETURN
 #endif
@@ -421,7 +417,7 @@ IF (CalcPoyntingInt) THEN
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
   IF(forceAnalyze)THEN
     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
    ELSE
@@ -438,7 +434,6 @@ IF (CalcPoyntingInt) THEN
 END IF
 
 ! fill recordpoints buffer
-!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
 #if defined(LSERK) || defined(IMEX) || defined(IMPA) || (PP_TimeDiscMethod==110)
 IF(RP_onProc) THEN
 #ifdef MPI
@@ -455,20 +450,15 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC & DG-Sovler
 !----------------------------------------------------------------------------------------------------------------------------------
-
-#ifdef PARTICLES
-! particle analyze
 IF (DoAnalyze)  THEN
+#ifdef PARTICLES ! particle analyze
   IF(forceAnalyze)THEN
-    CALL AnalyzeParticles(t) 
+    CALL AnalyzeParticles(t)
   ELSE
     IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL AnalyzeParticles(t) 
   END IF
   IF(PRESENT(LastIter) .AND. LastIter) CALL AnalyzeParticles(t) 
-END IF
-
 #else /*pure DGSEM */
-IF (DoAnalyze)  THEN
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
@@ -482,10 +472,8 @@ IF (DoAnalyze)  THEN
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
 #endif /*MPI*/
-END IF
-
-  !IF(PartAnalyzeStep.EQ.123456789) CALL AnalyzeParticles(t) 
 #endif /*PARTICLES*/
+END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC & LD 
@@ -601,12 +589,13 @@ END SUBROUTINE PerformAnalyze
 #ifdef CODE_ANALYZE
 SUBROUTINE CodeAnalyzeOutput(TIME)
 !===================================================================================================================================
-! output of code_analyze stuff
+! output of code_analyze stuff: costly analyze routines for sanity checks and debugging
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars   ,ONLY:DoAnalyze, IsRestart
+USE MOD_Analyze_Vars            ,ONLY:DoAnalyze
+USE MOD_Particle_Analyze_Vars   ,ONLY:IsRestart
 USE MOD_Restart_Vars            ,ONLY:DoRestart
 USE MOD_Particle_Surfaces_Vars  ,ONLY:rBoundingBoxChecks,rPerformBezierClip,rTotalBBChecks,rTotalBezierClips,rPerformBezierNewton
 USE MOD_Particle_Surfaces_Vars  ,ONLY:rTotalBezierNewton
