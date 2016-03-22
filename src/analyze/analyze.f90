@@ -344,7 +344,7 @@ USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 #if (PP_TimeDiscMethod==42)
 USE MOD_TimeDisc_Vars,         ONLY: dt
 #else
-USE MOD_TimeDisc_Vars,         ONLY: TEnd,dt
+USE MOD_TimeDisc_Vars,         ONLY: dt
 #endif
 #ifdef PARTICLES
 USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum
@@ -453,7 +453,7 @@ END IF
 IF (DoAnalyze)  THEN
 #ifdef PARTICLES ! particle analyze
   IF(forceAnalyze)THEN
-    CALL AnalyzeParticles(t) 
+    CALL AnalyzeParticles(t)
   ELSE
     IF(MOD(iter,PartAnalyzeStep).EQ.0 .AND. .NOT. OutPut) CALL AnalyzeParticles(t) 
   END IF

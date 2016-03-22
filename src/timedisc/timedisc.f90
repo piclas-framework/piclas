@@ -389,7 +389,6 @@ DO !iter_t=0,MaxIter
       CALL MPI_ALLREDUCE(MPI_IN_PLACE,vMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
       CALL MPI_ALLREDUCE(MPI_IN_PLACE,NoPartInside,1,MPI_LOGICAL,MPI_LAND,MPI_COMM_WORLD,iError)
 #endif /*MPI*/
-
       IF (NoPartInside) THEN
         dt_max_particles = dt_maxwell
         EXIT
@@ -562,8 +561,6 @@ DO !iter_t=0,MaxIter
     EXIT
   END IF
 END DO ! iter_t
-
-
 !CALL FinalizeAnalyze
 END SUBROUTINE TimeDisc
 

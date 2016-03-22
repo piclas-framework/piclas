@@ -217,7 +217,7 @@ REAL,INTENT(IN)                 :: Time
 LOGICAL             :: isOpen, FileExists
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, iSpec
-REAL                :: WEl, WMag 
+REAL                :: WEl, WMag
 REAL                :: Ekin(nSpecies + 1), Temp(nSpecies)
 INTEGER             :: NumSpec(nSpecies), OutputCounter
 REAL                :: MaxCollProb, MeanCollProb
@@ -584,10 +584,6 @@ IF (PartMPI%MPIRoot) THEN
     CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(:) ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(:),nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
-#ifdef MPI 
-  tLBEnd = LOCALTIME() ! LB Time End
-  tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
-#endif /*MPI*/
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
     CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
@@ -614,11 +610,6 @@ ELSE ! no Root
     tLBEnd = LOCALTIME() ! LB Time End
     tCurrent(13)=tCurrent(13)+tLBEnd-tLBStart
 #endif /*MPI*/
-
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-    CALL MPI_REDUCE(MaxCollProb,RECBR,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PartMPI%COMM, IERROR)
-    CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
-#endif
   END IF
 #ifdef MPI 
   tLBStart = LOCALTIME() ! LB Time Start
@@ -633,6 +624,10 @@ ELSE ! no Root
     CALL MPI_REDUCE(PartEkinIn,RECBR ,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     CALL MPI_REDUCE(PartEkinOut,RECBR,nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   END IF
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+    CALL MPI_REDUCE(MaxCollProb,RECBR,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PartMPI%COMM, IERROR)
+    CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
+#endif
 #ifdef MPI 
   tLBEnd = LOCALTIME() ! LB Time End
   tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
@@ -640,6 +635,10 @@ ELSE ! no Root
 END IF
 #endif
 
+#ifdef MPI 
+  tLBEnd = LOCALTIME() ! LB Time End
+  tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
+#endif /*MPI*/
 #ifdef MPI 
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
