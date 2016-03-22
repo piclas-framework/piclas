@@ -37,10 +37,10 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation_Vars     , ONLY: chitens
-USE MOD_Interpolation_Vars ,ONLY: xGP,wGP,L_minus,L_plus
+USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: sJ, Metrics_fTilde, Metrics_gTilde,Metrics_hTilde
 USE MOD_Mesh_Vars          ,ONLY: SurfElem
-USE MOD_Mesh_Vars          ,ONLY: VolToSideA,VolToSide2A,VolToSideIJKA,ElemToSide
+USE MOD_Mesh_Vars          ,ONLY: VolToSideA,VolToSideIJKA,ElemToSide!,VolToSide2A
 USE MOD_Basis              ,ONLY: getSPDInverse
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -50,13 +50,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: l,p,q , g1,g2,g3
-INTEGER              :: i,j,k,iElem, i_m,i_p , j_m,j_p
-INTEGER              :: l1,l2,iDir,jDir 
-INTEGER              :: mm,nn,oo
+INTEGER              :: l,p,q,g1,g2,g3
+INTEGER              :: i,j,iElem, i_m,i_p,j_m,j_p
+INTEGER              :: iDir,jDir 
 INTEGER              :: iLocSide, jLocSide
-INTEGER              :: SideID(6),Flip(6),pq(2)
-REAL                 :: coeff
+INTEGER              :: SideID(6),Flip(6)
 REAL                 :: TauS(2,3)
 REAL                 :: Dhat(nGP_vol,nGP_vol)
 REAL                 :: Ktilde(3,3)
@@ -287,9 +285,10 @@ SUBROUTINE BuildPrecond()
 ! Build a block-diagonal preconditioner for the lambda system 
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars
-USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide,nBCSides,nMPIsides_YOUR
+USE MOD_Mesh_Vars          ,ONLY: nSides,SideToElem,nMPIsides_YOUR
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,               ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
@@ -390,10 +389,10 @@ CASE(2)
   ALLOCATE(P_reshape(1,0:PP_N,0:PP_N,startbuf:nSides))
   endbuf=nSides-nMPISides+nMPISides_MINE
   P_reshape=RESHAPE(InvPrecondDiag(:,startbuf:nSides),(/1,PP_N+1,PP_N+1,nSides-startbuf+1/))
-  CALL StartReceiveMPIData(nGP_face,P_reshape,startbuf,nSides, RecRequest_U,SendID=2) ! Receive MINE
-  CALL StartSendMPIData(   nGP_face,P_reshape,startbuf,nSides,SendRequest_U,SendID=2) ! Send YOUR
-  CALL FinishExchangeMPIData(                    SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-  IF(nMPISides_MINE.GT.0)THEN
+  CALL StartReceiveMPIData(1,P_reshape,startbuf,nSides, RecRequest_U,SendID=2) ! Receive MINE
+  CALL StartSendMPIData(   1,P_reshape,startbuf,nSides,SendRequest_U,SendID=2) ! Send YOUR
+  CALL FinishExchangeMPIData(             SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
+IF(nMPISides_MINE.GT.0)THEN
     InvPrecondDiag(:,startbuf:endbuf)=InvPrecondDiag(:,startbuf:endbuf) &
                                 +RESHAPE(P_reshape(:,:,:,startbuf:endbuf),(/nGP_face,endbuf-startbuf+1/))
   END IF !nMPIsides_MINE>0
@@ -417,7 +416,6 @@ USE MOD_Preproc
 USE MOD_HDG_Vars
 USE MOD_Mesh_Vars,ONLY:nSides,ElemToSide,Metrics_ftilde,Metrics_gTilde,Metrics_hTilde,sJ
 USE MOD_Mesh_Vars,ONLY:VolToSideA
-USE MOD_Equation_Vars,ONLY:chitens
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -231,7 +231,7 @@ ALLOCATE(Tau(PP_nElems))
 DO iElem=1,PP_nElems
   Tau(iElem)=2./((SUM(JwGP_vol(:,iElem)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
 END DO !iElem
-print*,"CALL Elem_Mat()"
+
 CALL Elem_Mat()
 
 ALLOCATE(Fdiag(nGP_face,nSides))
@@ -250,7 +250,7 @@ DO SideID=1,nSides
     Fdiag(:,SideID)=-Fdiag(:,SideID)*(Tau(iElem)+Tau(jElem))
   END IF
 END DO
-print*,"BuildPrecond()"
+
 CALL BuildPrecond()
 
 ALLOCATE(lambda(PP_nVar,nGP_face,nSides))
