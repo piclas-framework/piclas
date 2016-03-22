@@ -117,7 +117,6 @@ SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 RestartFile=Filename
-
 #ifdef PP_HDG
 #if PP_nVar==1
 IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime,FutureTime)
@@ -129,15 +128,7 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputT
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
 #endif /*PP_HDG*/
-#ifdef MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-#endif
 
-#ifdef MPI
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
-#else
-CALL OpenDataFile(FileName,create=.FALSE.)
-#endif
 
 ! Reopen file and write DG solution
 #ifdef MPI
@@ -262,6 +253,8 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
 
 #ifdef PARTICLES
 ! output of last source term
+print*,OutPutSource
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 IF(OutPutSource) THEN
   ! output of pure current and density
   ! not scaled with epsilon0 and c_corr
@@ -295,7 +288,6 @@ END IF
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
 #endif /*Particles*/
-
 
 CALL WriteAdditionalDataToHDF5(FileName)
 
