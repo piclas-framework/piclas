@@ -144,8 +144,8 @@ CALL DGETRF(n, n, Ainv, n, ipiv, info)
 
 IF(info.NE.0)THEN
     CALL abort(&
-    __STAMP__&
-    ,' Matrix is numerically singular!')
+__STAMP__&
+,' Matrix is numerically singular!')
 END IF
 
 ! DGETRI computes the inverse of a matrix using the LU factorization
@@ -154,8 +154,8 @@ CALL DGETRI(n, Ainv, n, ipiv, work, n, info)
 
 IF(info.NE.0)THEN
     CALL abort(&
-    __STAMP__&
-    ,' Matrix inversion failed!')
+__STAMP__&
+,' Matrix inversion failed!')
 END IF
 END FUNCTION INV
 
@@ -264,8 +264,8 @@ END DO !j
 
 ! 3.) build array with binomial coeffs (fractions) for elevation
 IF(N_In+BezierElevation.GE.171) CALL Abort(&
-    __STAMP__,&
-  'Bezier elevation to polynomial degrees greater/equal 171 is forbiddon! exit.',171,REAL(N_In+BezierElevation))
+__STAMP__&
+,'Bezier elevation to polynomial degrees greater/equal 171 is forbiddon! exit.',171,REAL(N_In+BezierElevation))
 ElevationMatrix(0,0) = 1.
 ElevationMatrix(N_In+BezierElevation,N_In) = 1.
 !print*,"BezierElevation",N_In,'+',BezierElevation
@@ -281,8 +281,8 @@ DO i=1,N_In+BezierElevation-1 ! from 0+1 to p_new-1 -> remove the edge points
   !print*,i," eps= ",eps
   !print*,"------- next ------"
   IF(eps>1e-12) CALL Abort(&
-    __STAMP__,&
-    'The line of the elevation matrix does not sum to unity! 1-1=',0,eps)
+__STAMP__&
+,'The line of the elevation matrix does not sum to unity! 1-1=',0,eps)
 END DO
 !print*,N_In+BezierElevation," eps= ",0.
 !STOP
@@ -312,12 +312,12 @@ dummy_vec=0.
 sVdm_Bezier=Vdm_Bezier
 CALL DGETRF(N_In+1,N_In+1,sVdm_Bezier,N_In+1,IPIV,errorflag)
 IF (errorflag .NE. 0) CALL Abort(&
-    __STAMP__, &
-               'LU factorisation of matrix crashed',999,999.)
+__STAMP__ &
+,'LU factorisation of matrix crashed',999,999.)
 CALL DGETRI(N_In+1,sVdm_Bezier,N_In+1,IPIV,dummy_vec,N_In+1,errorflag)
 IF (errorflag .NE. 0) CALL Abort(&
-    __STAMP__, &
-               'Solver crashed',999,999.)
+__STAMP__ &
+,'Solver crashed',999,999.)
 !print*,"Matrix inverted"
 !DO i=0,N_In
   !print*,sVdm_Bezier(i,:)
@@ -338,8 +338,8 @@ dummy=SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))-REAL(N_In+1)
 !print*,dummy,PP_RealTolerance
 !read*
 IF(ABS(dummy).GT.1.E-13) CALL abort(&
-    __STAMP__,&
-'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)
+__STAMP__&
+,'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',999,dummy)
 END SUBROUTINE BuildBezierVdm
 
 
@@ -524,8 +524,8 @@ REAL               :: WORK(dim1*dim1)
 
   IF (INFO /= 0) THEN
     CALL abort(&
-    __STAMP__&
-    ,' Matrix is numerically singular!')
+__STAMP__&
+,' Matrix is numerically singular!')
   END IF
 
   ! DGETRI computes the inverse of a matrix using the LU factorization
@@ -535,8 +535,8 @@ REAL               :: WORK(dim1*dim1)
 
   IF (INFO /= 0) THEN
     CALL abort(&
-    __STAMP__&
-    ,' Matrix inversion failed!')
+__STAMP__&
+,' Matrix inversion failed!')
   END IF
 END FUNCTION GetInverse
 
@@ -628,8 +628,8 @@ END DO !j
 !check (Vdm_Leg)^(-1)*Vdm_Leg := I 
 dummy=SUM((ABS(MATMUL(sVdm_Leg,Vdm_Leg)))-(N_In+1))
 IF(dummy.GT. PP_RealTolerance) CALL abort(&
-    __STAMP__,&
-                                          'problems in MODAL<->NODAL Vandermonde ',999,dummy)
+__STAMP__&
+,'problems in MODAL<->NODAL Vandermonde ',999,dummy)
 
 END SUBROUTINE buildLegendreVdm
 
@@ -827,8 +827,8 @@ ELSE ! N_in>1
         IF(abs(dx).LT.Tol*abs(xGP(iGP))) EXIT
       END DO !iter
       CALL abort(&
-          __STAMP__,&
-                 'Code stopped!',999,999.)
+__STAMP__&
+,'Code stopped!',999,999.)
     END IF ! (iter.GT.nIter)
     CALL LegendrePolynomialAndDerivative(N_in+1,xGP(iGP),L_Np1,Lder_Np1)
     xGP(N_in-iGP)=-xGP(iGP)
@@ -946,8 +946,8 @@ IF(N_in.GT.1)THEN
         IF(abs(dx).LT.Tol*abs(xGP(iGP))) EXIT
       END DO ! iter
       CALL abort(&
-          __STAMP__,&
-                 'Code stopped!',999,999.)
+__STAMP__&
+,'Code stopped!',999,999.)
     END IF ! (iter.GT.nIter)
     CALL qAndLEvaluation(N_in,xGP(iGP),q,qder,L)
     xGP(N_in-iGP)=-xGP(iGP)
@@ -1086,7 +1086,7 @@ ELSE
     CHOOSE = FACTORIAL(N_in) / (FACTORIAL(k) * FACTORIAL(N_in-k))
   END IF
 END IF
-!IF(CHOOSE.LT.0) CALL abort(__STAMP__,&
+!IF(CHOOSE.LT.0) CALL abort(__STAMP__&
   !'CHOOSE is negative. This is not allowed! ',999,REAL(CHOOSE))
 END FUNCTION CHOOSE
 
@@ -1125,7 +1125,7 @@ ELSE
     CHOOSE_large = FACTORIAL(N_in) / (FACTORIAL(k) * FACTORIAL(N_in-k))
   END IF
 END IF
-!IF(CHOOSE_large.LT.0) CALL abort(__STAMP__,&
+!IF(CHOOSE_large.LT.0) CALL abort(__STAMP__&
   !'CHOOSE_large is negative. This is not allowed! ',999,REAL(CHOOSE_large))
 END FUNCTION CHOOSE_large   
 
@@ -1152,16 +1152,16 @@ INTEGER(KIND=8)    :: I
 !print*,"stop"
 !stop
 IF(N_in.LT.0) CALL abort(&
-    __STAMP__&
-    ,  'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
+__STAMP__&
+,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 IF(N_in.EQ.0)THEN
   FACTORIAL = 1 !! debug, should be one!!!!
 ELSE
   FACTORIAL = PRODUCT((/(I, I = 1, N_in)/))
 END IF
 IF(FACTORIAL.LT.0) CALL abort(&
- __STAMP__&
- ,'FACTORIAL is negative. This is not allowed! ',999,REAL(FACTORIAL))
+__STAMP__&
+,'FACTORIAL is negative. This is not allowed! ',999,REAL(FACTORIAL))
 END FUNCTION FACTORIAL
 
 
@@ -1187,15 +1187,15 @@ INTEGER         :: I
 !print*,"stop"
 !stop
 IF(N_in.LT.0) CALL abort(&
-  __STAMP__&
-  ,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
+__STAMP__&
+,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 FACTORIAL_REAL=1.
 DO I=2,N_in
   FACTORIAL_REAL=FACTORIAL_REAL*REAL(I,8)
 END DO
 IF(FACTORIAL_REAL.LT.0) CALL abort(&
-  __STAMP__&
-  ,'FACTORIAL is negative. This is not allowed! ',999,FACTORIAL_REAL)
+__STAMP__&
+,'FACTORIAL is negative. This is not allowed! ',999,FACTORIAL_REAL)
 END FUNCTION FACTORIAL_REAL
 
 
@@ -1211,7 +1211,7 @@ INTEGER, INTENT(IN) :: N_in,k
 !local variables
 REAL(KIND=8)        :: X
 !===================================================================================================================================
-!IF(N_in.LT.0) CALL abort(__STAMP__,&
+!IF(N_in.LT.0) CALL abort(__STAMP__&
   !'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 IF(k==0)THEN
   X=1.

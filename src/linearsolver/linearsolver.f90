@@ -57,8 +57,8 @@ INTEGER    :: i,j,k,iElem
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.LinearSolverInitIsDone)THEN
    CALL abort(&
-       __STAMP__,&
-       'InitImplicit not ready to be called or already called.',999,999.)
+__STAMP__&
+,'InitImplicit not ready to be called or already called.',999,999.)
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT LINEAR SOLVER...'
@@ -142,8 +142,8 @@ CASE(7)
   SWRITE(*,'(A,I4)') ' New number of max. Iterations: ', maxIter_LinearSolver
 CASE DEFAULT
   CALL abort(&
-      __STAMP__, &
-      'WRONG TYPE OF LINEAR SOLVER:',LinSolver,999.)
+__STAMP__ &
+,'WRONG TYPE OF LINEAR SOLVER:',LinSolver,999.)
 END SELECT
 
 LinearSolverInitIsDone=.TRUE.
@@ -317,8 +317,8 @@ END DO ! while chance < 2
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
 IF(MPIROOT) CALL abort(&
-    __STAMP__, &
-     'CGS NOT CONVERGED WITH RESTARTS AND CGS ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
+__STAMP__ &
+,'CGS NOT CONVERGED WITH RESTARTS AND CGS ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 END SUBROUTINE LinearSolver_CGS
 
 
@@ -547,8 +547,8 @@ END DO ! while chance < 2
 SWRITE(*,*)'Norm_R        : ',Norm_R
 SWRITE(*,*)'Norm_R0       : ',Norm_R0
 IF(MPIRoot) CALL abort(&
-  __STAMP__, &
-     'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',chance,REAL(iterLinSolver))
+__STAMP__ &
+,'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',chance,REAL(iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTAB_P
 
@@ -723,8 +723,8 @@ END DO ! while chance < 2
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
 IF(MPIRoot) CALL abort(&
-    __STAMP__, &
-     'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
+__STAMP__ &
+,'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTAB_PM
 
@@ -854,8 +854,8 @@ END DO ! while
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
 IF(MPIRoot) CALL abort(&
-  __STAMP__, &
-     'StabBiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',chance)
+__STAMP__ &
+,'StabBiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',chance)
 
 END SUBROUTINE LinearSolver_StabBiCGSTAB
 
@@ -1024,8 +1024,8 @@ END DO ! while
 SWRITE(*,*)'Norm_R        : ',Norm_R
 SWRITE(*,*)'Norm_R0       : ',Norm_R0
 IF(MPIRoot) CALL abort(&
-    __STAMP__, &
-     'StabBiCGSTAB_P NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',chance,REAL(iter))
+__STAMP__ &
+,'StabBiCGSTAB_P NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',chance,REAL(iter))
 
 END SUBROUTINE LinearSolver_StabBiCGSTAB_P
 
@@ -1188,8 +1188,8 @@ DO WHILE (Restart<nRestarts)
 END DO ! Restart
 
 IF(MPIRoot) CALL abort(&
-    __STAMP__, &
-     'GMRES_M NOT CONVERGED WITH RESTARTS AND GMRES ITERATIONS:',Restart,REAL(nInnerIter))
+__STAMP__ &
+,'GMRES_M NOT CONVERGED WITH RESTARTS AND GMRES ITERATIONS:',Restart,REAL(nInnerIter))
 
 END SUBROUTINE LinearSolver_GMRES_P
 
@@ -1362,8 +1362,8 @@ END DO ! while chance < 2
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
 IF(MPIRoot) CALL abort(&
-    __STAMP__, &
-     'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
+__STAMP__ &
+,'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTAB_LRP
 
@@ -1528,8 +1528,8 @@ END DO ! while chance < 2
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
 IF(MPIRoot) CALL abort(&
-    __STAMP__, &
-     'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
+__STAMP__ &
+,'BiCGSTAB NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTAB_LP
 
@@ -1701,8 +1701,8 @@ END DO ! while chance < 2
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R0            : ',Norm_R0
 SWRITE(UNIT_stdOut,'(A22,E16.8)')   ' Norm_R             : ',Norm_R
 IF(MPIRoot) CALL abort(&
-    __STAMP__, &
-     'BiCGSTAB(l) NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
+__STAMP__ &
+,'BiCGSTAB(l) NOT CONVERGED WITH RESTARTS AND BiCGSTAB ITERATIONS:',Restart,REAL(nInnerIter+iterLinSolver))
 
 END SUBROUTINE LinearSolver_BiCGSTABl
 

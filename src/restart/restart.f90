@@ -56,8 +56,8 @@ INTEGER            :: maxNArgs
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
    CALL abort(&
-       __STAMP__&
-       ,'InitRestart not ready to be called or already called.',999,999.)
+__STAMP__&
+,'InitRestart not ready to be called or already called.',999,999.)
    RETURN
 END IF
 
@@ -290,8 +290,8 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
 #endif
 #elif defined PP_HDG
 CALL abort(&
-        __STAMP__,&
-       ' Restart with changed polynomial degree not implemented for HDG!')
+__STAMP__&
+,' Restart with changed polynomial degree not implemented for HDG!')
 !    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
 !    CALL ReadArray('DG_SolutionLambda',5,(/PP_nVar,N_Restart+1,N_Restart+1,N_Restart+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
 !    DO iElem=1,PP_nElems
@@ -408,8 +408,8 @@ CALL abort(&
   ! if ParticleVecLength GT maxParticleNumber: Stop
   IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
     CALL abort(&
-        __STAMP__,&
-       ' Number of Particles in Restart higher than MaxParticleNumber!')
+__STAMP__&
+,' Number of Particles in Restart higher than MaxParticleNumber!')
   END IF
 
   ! Since the elementside-local node number are NOT persistant and dependent on the location

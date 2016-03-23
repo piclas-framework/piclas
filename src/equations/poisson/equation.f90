@@ -159,8 +159,8 @@ CASE(103) !dipole
   resu(:)=IniAmplitude*(1/r2-1/r1)
 CASE DEFAULT
   CALL abort(&
-__STAMP__,&
-'Exactfunction not specified!')
+__STAMP__&
+,'Exactfunction not specified!')
 END SELECT ! ExactFunction
 
 

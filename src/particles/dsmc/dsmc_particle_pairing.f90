@@ -436,8 +436,8 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
   PartNumChildNode(:) = 0
   IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
     CALL Abort(&
-      __STAMP__,&
-      'ERROR in Octree Pairing: Too many branches, machine precision reached')
+__STAMP__&
+,'ERROR in Octree Pairing: Too many branches, machine precision reached')
   END IF 
   !         Numbering of the 8 ChildNodes of the Octree
   !          __________

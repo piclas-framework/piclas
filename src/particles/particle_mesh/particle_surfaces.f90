@@ -860,25 +860,25 @@ SideSlabNormals(:,3,SideID)=CROSSNORM(SideSlabNormals(:,2,SideID),SideSlabNormal
 
 ! check vector length=1
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,1,SideID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,1,SideID)))
+__STAMP__&
+,'Side slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,1,SideID)))
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID)))
+__STAMP__&
+,'Side slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID)))
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,3,SideID),SideSlabNormals(:,3,SideID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,3,SideID),SideSlabNormals(:,3,SideID)))
+__STAMP__&
+,'Side slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,3,SideID),SideSlabNormals(:,3,SideID)))
 
 ! check perpendicularity
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,2,SideID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,2,SideID))))
+__STAMP__&
+,'Side slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,2,SideID))))
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,3,SideID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,3,SideID))))
+__STAMP__&
+,'Side slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,3,SideID))))
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,3,SideID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,3,SideID))))
+__STAMP__&
+,'Side slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,3,SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 2.) slab box intervalls beta_1, beta_2, beta_3
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -949,8 +949,8 @@ dMax=MAX(dx,dy,dz)
 dMin=MIN(dx,dy,dz)
 IF(dx/dMax.LT.BezierEpsilonBilinear)THEN
   CALL Abort(&
-      __STAMP__,&
-  'Bezier side length is degenerated. dx/dMax.LT.BezierEpsilonBilinear ->',0,dx/dMax)
+__STAMP__&
+,'Bezier side length is degenerated. dx/dMax.LT.BezierEpsilonBilinear ->',0,dx/dMax)
 END IF
 IF(dy/dMax.LT.BezierEpsilonBilinear)THEN
   SideSlabIntervals(3:4, SideID)=0.
@@ -958,15 +958,15 @@ IF(dy/dMax.LT.BezierEpsilonBilinear)THEN
 END IF
 IF(dz/dMax.LT.BezierEpsilonBilinear)THEN
   CALL Abort(&
-      __STAMP__,&
-  'Bezier side length is degenerated. dz/dMax.LT.BezierEpsilonBilinear ->',0,dz/dMax)
+__STAMP__&
+,'Bezier side length is degenerated. dz/dMax.LT.BezierEpsilonBilinear ->',0,dz/dMax)
 END IF
 
 IF(dx*dy*dz.LT.0) THEN
   IPWRITE(UNIT_stdOut,*) ' Warning, no bounding box'
   IF(dx*dy*dz.LT.0) CALL Abort(&
-  __STAMP__,&
-  'A bounding box (for sides) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
+__STAMP__&
+,'A bounding box (for sides) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
 END IF
 
 IF(ALMOSTZERO(dx*dy*dz))THEN ! bounding box volume is approx zeros
@@ -1018,8 +1018,8 @@ REAL               :: skalprod(3),dx,dy,dz
 !ElemSlabNormals( x y z,1 2 3 , ElemID)
 IF(GEO%nPeriodicVectors.GT.0)THEN
   CALL  Abort(&
-  __STAMP__,&
-  ' computation of wrong bounding box!')
+__STAMP__&
+,' computation of wrong bounding box!')
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1051,25 +1051,25 @@ ElemSlabNormals(:,3,ElemID)=CROSSNORM(ElemSlabNormals(:,2,ElemID),ElemSlabNormal
 
 ! check vector length=1
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID)))
+__STAMP__&
+,'Element slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID)))
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID)))
+__STAMP__&
+,'Element slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID)))
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID)))
+__STAMP__&
+,'Element slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID)))
 
 ! check perpendicularity
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID))))
+__STAMP__&
+,'Element slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID))))
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID))))
+__STAMP__&
+,'Element slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID))))
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID))))
+__STAMP__&
+,'Element slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID))))
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 2.) slab box intervalls beta_1, beta_2, beta_3
@@ -1116,13 +1116,13 @@ ElemSlabIntervals(4,ElemID)=ElemSlabInterVals(4,ElemID)+RefMappingEps
 ElemSlabIntervals(5,ElemID)=ElemSlabInterVals(5,ElemID)-RefMappingEps 
 ElemSlabIntervals(6,ElemID)=ElemSlabInterVals(6,ElemID)+RefMappingEps 
 IF(dx*dy*dz.LT.0) CALL Abort(&
-  __STAMP__,&
-  'A bounding box (for elements) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
+__STAMP__&
+,'A bounding box (for elements) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
 !IF((dx*dy*dz).LT.GEO%Volume(ElemID))THEN
 !  IPWRITE(*,*) 'Volume', dx*dy*dz
 !  IPWRITE(*,*) 'DG-Volume', GEO%Volume(ElemID)
 !  CALL Abort(&
-!  __STAMP__,&
+!  __STAMP__&
 !  'The bounding box is smaller than element! BoundingBox-volume:')
 !END IF
 END SUBROUTINE GetElemSlabNormalsAndIntervals

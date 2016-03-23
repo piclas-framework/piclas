@@ -58,8 +58,9 @@ INTEGER :: locType,locState
 INTEGER :: MaxBCState,MaxBCStateGlobal
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone))THEN
-   CALL abort(__STAMP__,&
-     "InitBC not ready to be called or already called.")
+   CALL abort(&
+__STAMP__&
+,"InitBC not ready to be called or already called.")
 END IF
 ! determine globally max MaxBCState
 MaxBCState = 0
@@ -174,8 +175,9 @@ REAL                                 :: U_Face_loc(PP_nVar,0:PP_N,0:PP_N)
 SELECT CASE(BCType)
 CASE(1) !Periodic already filled!
 CASE DEFAULT ! unknown BCType
-  CALL abort(__STAMP__,&
-       'no BC defined in navierstokes/getboundaryflux.f90!',999,999.)
+  CALL abort(&
+__STAMP__&
+,'no BC defined in navierstokes/getboundaryflux.f90!',999,999.)
 END SELECT ! BCType
 END SUBROUTINE GetBoundaryFlux
 

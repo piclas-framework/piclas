@@ -507,8 +507,8 @@ __STAMP__&
         Species(iSpec)%Init(iInit)%vpiBVBuffer = .TRUE. !dummy
       CASE DEFAULT
         CALL abort(&
-__STAMP__,&
-                'vpiDomainType is not implemented!')
+__STAMP__&
+,'vpiDomainType is not implemented!')
       END SELECT
       !--
     ELSE
@@ -607,8 +607,8 @@ __STAMP__&
           ELSE IF ( (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid') .AND. &
                     (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cylinder') )THEN
             CALL abort(&
-__STAMP__,&
-              'Error in ParticleInit, ExcludeRegions must be cuboid or cylinder!')
+__STAMP__&
+,'Error in ParticleInit, ExcludeRegions must be cuboid or cylinder!')
           END IF
           IF (Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1)**2 + &
               Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2)**2 + &
@@ -628,14 +628,14 @@ __STAMP__,&
               + Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3)**2)
           ELSE
             CALL abort(&
-__STAMP__,&
-              'Error in ParticleInit, NormalIC Vector must not be zero!')
+__STAMP__&
+,'Error in ParticleInit, NormalIC Vector must not be zero!')
           END IF
         END DO !iExclude
       ELSE
         CALL abort(&
-__STAMP__,&
-          'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
+__STAMP__&
+,'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
       END IF
     END IF
     !--- stuff for calculating ParticleEmission/InitialParticleNumber from PartDensity when this value is not used for LD-stuff

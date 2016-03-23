@@ -61,8 +61,8 @@ SUBROUTINE DSMC_InitBGGas()
       PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
       IF (PositionNbr.EQ.0) THEN
         CALL Abort(&
-           __STAMP__,&
-          'ERROR in BGGas: Too many Particles!')
+__STAMP__&
+,'ERROR in BGGas: Too many Particles!')
       END IF
       PartState(PositionNbr,1:3) = PartState(iPart,1:3)
       IF(DoRefMapping)THEN ! here Nearst-GP is missing
