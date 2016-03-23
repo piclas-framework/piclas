@@ -1,6 +1,6 @@
 # Build Configurations
 
-## Validated Compiler Compinations
+## Validated Compiler Combinations
 
 *  Master
 
