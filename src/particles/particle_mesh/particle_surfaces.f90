@@ -237,6 +237,9 @@ SDEALLOCATE(BezierControlPoints3DElevated)
 SDEALLOCATE(FacNchooseK)
 SDEALLOCATE(SideType)
 SDEALLOCATE(BezierSampleXi)
+SDEALLOCATE(SurfMeshSubSideData)
+SDEALLOCATE(SurfMeshSideAreas)
+SDEALLOCATE(BCdata_auxSF)
 !SDEALLOCATE(gElemBCSide)
 ParticleSurfaceInitIsDone=.FALSE.
 
@@ -1018,9 +1021,10 @@ REAL               :: skalprod(3),dx,dy,dz
 !BezierControlPoints(:,:,:,ElemID)
 !ElemSlabNormals( x y z,1 2 3 , ElemID)
 IF(GEO%nPeriodicVectors.GT.0)THEN
-  CALL  Abort(&
-__STAMP__&
-,' computation of wrong bounding box!')
+    CALL  Abort(&
+  __STAMP__&
+  ,' computation of wrong bounding box!')
+  SWRITE(*,*) ' Computation of wrong bounding box in peridodic' 
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------

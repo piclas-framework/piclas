@@ -118,7 +118,7 @@ IF(.NOT.InterpolationInitIsDone)THEN
       ,'InitMPITypes called before InitInterpolation')
 END IF
 ALLOCATE(SendRequest_U(nNbProcs)     )
-ALLOCATE(SendRequest_GEo(nNbProcs)     )
+ALLOCATE(SendRequest_GEO(nNbProcs)     )
 !ALLOCATE(SendRequest_UMinus(nNbProcs)     )
 ALLOCATE(SendRequest_Flux(nNbProcs)  )
 ALLOCATE(SendRequest_gradUx(nNbProcs))
@@ -345,6 +345,9 @@ SDEALLOCATE(NbProc)
 ! requires knowledge of number of MPI neighbors
 SDEALLOCATE(SendRequest_U)
 SDEALLOCATE(SendRequest_Flux)
+SDEALLOCATE(SendRequest_GEO)
+SDEALLOCATE(RecRequest_Geo)
+!ALLOCATE(SendRequest_UMinus(nNbProcs)     )
 SDEALLOCATE(SendRequest_gradUx)
 SDEALLOCATE(SendRequest_gradUy)
 SDEALLOCATE(SendRequest_gradUz)
