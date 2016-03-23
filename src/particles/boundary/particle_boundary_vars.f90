@@ -97,6 +97,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: AmbientDynamicVisc(:)               ! dynamic viscousity
   REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
   LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?
+  LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries

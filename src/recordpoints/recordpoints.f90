@@ -442,7 +442,7 @@ IF(finalizeFile)THEN
     ALLOCATE(RP_Data(0:PP_nVar,nRP,RP_Buffersize))
   END IF
   ! last sample = first sample
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
   nSamples=0
   iSample=0
   RP_fileExists=.FALSE.

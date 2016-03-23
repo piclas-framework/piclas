@@ -416,7 +416,7 @@ IF (CalcPoyntingInt) THEN
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
   IF(forceAnalyze)THEN
     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
    ELSE
