@@ -211,7 +211,6 @@ IF(MPIroot) THEN
     WRITE(UNIT_StdOut,'(132("."))')
     WRITE(UNIT_stdOut,'(A,A,A,F8.2,A)') ' BOLTZPLATZ RUNNING ',TRIM(ProjectName),'... [',CalcTime-StartTime,' sec ]'
     WRITE(UNIT_StdOut,'(132("-"))')
-    WRITE(UNIT_StdOut,*)
   ELSE
     WRITE(UNIT_StdOut,'(132("="))')
   END IF

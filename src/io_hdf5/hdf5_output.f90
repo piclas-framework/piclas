@@ -112,8 +112,6 @@ SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE...'
   StartT=MPI_WTIME()
 #endif
 
-
-
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 RestartFile=Filename
@@ -253,7 +251,6 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
 
 #ifdef PARTICLES
 ! output of last source term
-print*,OutPutSource
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 IF(OutPutSource) THEN
   ! output of pure current and density

@@ -236,6 +236,7 @@ SDEALLOCATE(arrayNChooseK)
 SDEALLOCATE(BezierControlPoints3DElevated)
 SDEALLOCATE(FacNchooseK)
 SDEALLOCATE(SideType)
+SDEALLOCATE(BezierSampleXi)
 !SDEALLOCATE(gElemBCSide)
 ParticleSurfaceInitIsDone=.FALSE.
 
