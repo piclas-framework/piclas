@@ -68,7 +68,7 @@ CalcTimeStep=MINVAL(TimeStep)
 IF(CalcTimeStep.NE.CalcTimeStep)THEN
   SWRITE(*,*)' ******* Exit: Timestep NaN *******'
   CALL abort(&
-  __STAMP__,&
+  __STAMP__&
   ,'Flexi crashed!',999,999.)
 END IF
 END FUNCTION CalcTimeStep
