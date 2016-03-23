@@ -256,8 +256,8 @@ CASE(3)
   PartT(4:6) = FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle(1:6))
 CASE DEFAULT
 CALL abort(&
-__STAMP__, &
-  ' Given PartLorentzType does not exist!',PartLorentzType)
+__STAMP__ &
+,' Given PartLorentzType does not exist!',PartLorentzType)
 END SELECT
 ! or frozen version
 ! Part(4:6)=Pt(PartID,1:3)

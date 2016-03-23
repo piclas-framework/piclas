@@ -602,8 +602,8 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   ! Check if sum of probabilities is less than 1.
   IF (ProbFrac4.GT. 1.0) THEN
     CALL Abort(&
-         __STAMP__,&
-        'Error! Sum of internal relaxation probabilities > 1.0 for iPair ',iPair)
+__STAMP__&
+,'Error! Sum of internal relaxation probabilities > 1.0 for iPair ',iPair)
   END IF
 
   ! Select relaxation procedure (vibration, rotation)
@@ -1013,8 +1013,8 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
             CALL DSMC_Relax_Col_Gimelshein(iPair, iElem)
           CASE DEFAULT
             CALL Abort(&
-             __STAMP__,&
-            'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
+__STAMP__&
+,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
         END SELECT
 #if (PP_TimeDiscMethod==42)
       END IF
@@ -1038,8 +1038,8 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
               CALL DSMC_Relax_Col_Gimelshein(iPair, iElem)
             CASE DEFAULT
               CALL Abort(&
-               __STAMP__,&
-              'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
+__STAMP__&
+,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
           END SELECT
         END IF
 #if (PP_TimeDiscMethod==42)
@@ -1047,8 +1047,8 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 #endif
     CASE DEFAULT
       CALL Abort(&
-       __STAMP__,&
-      'ERROR in DSMC_perform_collision: Wrong Collision Mode:',CollisMode)
+__STAMP__&
+,'ERROR in DSMC_perform_collision: Wrong Collision Mode:',CollisMode)
   END SELECT
 
 END SUBROUTINE DSMC_perform_collision
@@ -1536,8 +1536,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
       iReac = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
       IF (ChemReac%QKProcedure(iReac)) THEN
         CALL Abort(&
-         __STAMP__,&
-        'ERROR! Associative ionization and charge exchange reactions not implemented with QK')
+__STAMP__&
+,'ERROR! Associative ionization and charge exchange reactions not implemented with QK')
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
       IF (.NOT.ChemReac%QKProcedure(iReac)) THEN
@@ -1584,8 +1584,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
       iReac3 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 3)
       IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
           CALL Abort(&
-           __STAMP__,&
-          'ERROR! Reaction case not supported with Q-K reactions!')
+__STAMP__&
+,'ERROR! Reaction case not supported with Q-K reactions!')
 !--------------------------------------------------------------------------------------------------!
       ELSE ! all reactions Arrhenius
 !--------------------------------------------------------------------------------------------------!
@@ -1671,8 +1671,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
       IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) &
       .OR. ChemReac%QKProcedure(iReac3) .OR. ChemReac%QKProcedure(iReac4)) THEN ! all Q-K
           CALL Abort(&
-           __STAMP__,&
-          'ERROR! Reaction case not supported with Q-K reactions!')
+__STAMP__&
+,'ERROR! Reaction case not supported with Q-K reactions!')
 !--------------------------------------------------------------------------------------------------!
       ELSE ! all reactions Arrhenius
 !--------------------------------------------------------------------------------------------------!
@@ -1779,8 +1779,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
       IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) &
       .OR. ChemReac%QKProcedure(iReac3) .OR. ChemReac%QKProcedure(iReac4)) THEN ! all Q-K
           CALL Abort(&
-           __STAMP__,&
-          'ERROR! Reaction case not supported with Q-K reactions!')
+__STAMP__&
+,'ERROR! Reaction case not supported with Q-K reactions!')
 !--------------------------------------------------------------------------------------------------!
       ELSE ! all reactions Arrhenius
 !--------------------------------------------------------------------------------------------------!
@@ -1885,8 +1885,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
       iReac3 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 3)
       IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
           CALL Abort(&
-           __STAMP__,&
-          'ERROR! Reaction case not supported with Q-K reactions!')
+__STAMP__&
+,'ERROR! Reaction case not supported with Q-K reactions!')
 !--------------------------------------------------------------------------------------------------!
       ELSE ! all reactions Arrhenius
 !--------------------------------------------------------------------------------------------------!
@@ -1991,8 +1991,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
         IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) &
         .OR. ChemReac%QKProcedure(iReac3) .OR. ChemReac%QKProcedure(iReac4)) THEN ! all Q-K
           CALL Abort(&
-           __STAMP__,&
-          'ERROR! Reaction case not supported with Q-K reactions!')
+__STAMP__&
+,'ERROR! Reaction case not supported with Q-K reactions!')
   !--------------------------------------------------------------------------------------------------!
         ELSE ! all reactions Arrhenius
   !--------------------------------------------------------------------------------------------------!
@@ -2120,8 +2120,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
                                                                                 PartSpecies(iPart_p3))
         IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
           CALL Abort(&
-           __STAMP__,&
-          'ERROR! Reaction case not supported with Q-K reactions!')
+__STAMP__&
+,'ERROR! Reaction case not supported with Q-K reactions!')
   !--------------------------------------------------------------------------------------------------!
         ELSE ! all reactions Arrhenius
   !--------------------------------------------------------------------------------------------------!
@@ -2228,8 +2228,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
                                                                                 PartSpecies(iPart_p3))
         IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
           CALL Abort(&
-           __STAMP__,&
-          'ERROR! Reaction case not supported with Q-K reactions!')
+__STAMP__&
+,'ERROR! Reaction case not supported with Q-K reactions!')
   !--------------------------------------------------------------------------------------------------!
         ELSE ! all reactions Arrhenius
   !--------------------------------------------------------------------------------------------------!
@@ -2335,8 +2335,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
                                                                                 PartSpecies(iPart_p3))
         IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) ) THEN ! all Q-K
           CALL Abort(&
-           __STAMP__,&
-          'ERROR! Reaction case not supported with Q-K reactions!')
+__STAMP__&
+,'ERROR! Reaction case not supported with Q-K reactions!')
   !--------------------------------------------------------------------------------------------------!
         ELSE ! all reactions Arrhenius
   !--------------------------------------------------------------------------------------------------!
@@ -2421,8 +2421,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
                                                                                 PartSpecies(iPart_p3))
         IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) ) THEN ! all Q-K
           CALL Abort(&
-           __STAMP__,&
-          'ERROR! Reaction case not supported with Q-K reactions!')
+__STAMP__&
+,'ERROR! Reaction case not supported with Q-K reactions!')
   !--------------------------------------------------------------------------------------------------!
         ELSE ! all reactions Arrhenius
   !--------------------------------------------------------------------------------------------------!
@@ -2496,8 +2496,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
         ReactionProb=(sigmaCEX/sigmaMEX)/((sigmaCEX/sigmaMEX)+1)
       ELSE
         CALL Abort(&
-              __STAMP__,&
-              'ERROR! CEX/MEX cross sections are both zero or at least one of them is negative.')
+__STAMP__&
+,'ERROR! CEX/MEX cross sections are both zero or at least one of them is negative.')
       END IF
 #if (PP_TimeDiscMethod==42)
       IF (.NOT.DSMC%ReservoirRateStatistic) THEN
@@ -2545,8 +2545,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
                                                                                 PartSpecies(iPart_p3))
         IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) ) THEN ! all Q-K
           CALL Abort(&
-           __STAMP__,&
-          'ERROR! Reaction case not supported with Q-K reactions!')
+__STAMP__&
+,'ERROR! Reaction case not supported with Q-K reactions!')
   !--------------------------------------------------------------------------------------------------!
         ELSE ! all reactions Arrhenius
   !--------------------------------------------------------------------------------------------------!
@@ -2613,16 +2613,16 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
       IF (ChemReac%QKProcedure(iReac)) THEN
         IF ( .NOT. DSMC%ElectronicState ) THEN
           CALL Abort(&
-           __STAMP__,&
-          'ERROR! Atomic electron shell has to be initalized.')
+__STAMP__&
+,'ERROR! Atomic electron shell has to be initalized.')
         END IF
         CALL QK_ImpactIonization(iPair,iReac,RelaxToDo)
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
       IF (.NOT.ChemReac%QKProcedure(iReac)) THEN
          CALL Abort(&
-         __STAMP__,&
-        'ERROR! Electron impact ionization not implemented without QK')
+__STAMP__&
+,'ERROR! Electron impact ionization not implemented without QK')
       END IF
 !############################################################################################################################### !
     CASE(19) ! only ion recombination possible Ar(+) + e + e -> Ar + e
@@ -2653,24 +2653,24 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
         IF ( ChemReac%QKProcedure(iReac)  ) THEN
           IF ( .NOT. DSMC%ElectronicState ) THEN
             CALL Abort(&
-             __STAMP__,&
-            ' ERROR! Atomic electron shell has to be initalized.')
+__STAMP__&
+,' ERROR! Atomic electron shell has to be initalized.')
           END IF
           CALL QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
         END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
         IF (.NOT.ChemReac%QKProcedure(iReac)) THEN
            CALL Abort(&
-           __STAMP__,&
-          'ERROR! Ion recombination not implemented without QK')
+__STAMP__&
+,'ERROR! Ion recombination not implemented without QK')
         END IF
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE DEFAULT
       IF(CaseOfReaction.NE.0) THEN
         CALL Abort(&
-             __STAMP__,&
-            'Error! Reaction case not defined:',CaseOfReaction)
+__STAMP__&
+,'Error! Reaction case not defined:',CaseOfReaction)
       END IF
   END SELECT
 
@@ -2736,8 +2736,8 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, jSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotM
     ProbRot = MIN(ProbRot, 0.5)
   ELSE
     CALL Abort(&
-         __STAMP__,&
-        'Error! Model for rotational relaxation undefined:',RealInfoOpt=DSMC%RotRelaxProb)
+__STAMP__&
+,'Error! Model for rotational relaxation undefined:',RealInfoOpt=DSMC%RotRelaxProb)
   END IF
 
 END SUBROUTINE DSMC_calc_P_rot
@@ -2815,8 +2815,8 @@ REAL, PARAMETER           :: PI=3.14159265358979323846_8
     ProbVibMax = ProbVibMax * TempCorr / (ProbVibMax + TempCorr) * CorrFact
   ELSE
     CALL Abort(&
-         __STAMP__,&
-        'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
+__STAMP__&
+,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
   END IF
 
 END SUBROUTINE DSMC_calc_P_vib

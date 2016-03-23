@@ -111,8 +111,8 @@ CHARACTER(LEN=2)  :: hilf
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
 IF(ParticleMeshInitIsDone) CALL abort(&
-    __STAMP__&
-     , ' Particle-Mesh is already initialized.')
+__STAMP__&
+, ' Particle-Mesh is already initialized.')
 ! allocate and duplicate partElemToside
 nTotalSides=nSides
 nTotalBCSides=nSides
@@ -122,8 +122,8 @@ ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalSides)    &
         ,PartElemToElem(1:2,1:6,1:nTotalElems)    &
         ,STAT=ALLOCSTAT                      )
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
- ,'  Cannot allocate particle mesh vars!')
+__STAMP__&
+,'  Cannot allocate particle mesh vars!')
 
 
 DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
@@ -140,13 +140,13 @@ epsInCell       = SQRT(3.0*RefMappingEps)
 epsOneCell      = 1.0+epsInCell
 IF((RefMappingGuess.LT.1).OR.(RefMappingGuess.GT.4))THEN
    CALL abort(&
-       __STAMP__, &
-        'Wrong guessing method for mapping from physical space in reference space.',RefMappingGuess,999.)
+__STAMP__ &
+,'Wrong guessing method for mapping from physical space in reference space.',RefMappingGuess,999.)
 END IF
 IF(DoRefMapping .AND. RefMappingGuess.EQ.2) THEN
    CALL abort(&
-       __STAMP__, &
-       ' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
+__STAMP__ &
+,' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
 END IF
 
 BezierEpsilonBilinear = GETREAL('BezierEpsilonBilinear','1e-6')
@@ -156,8 +156,8 @@ SDEALLOCATE(BezierControlPoints3DElevated)
 ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) &
         ,STAT=ALLOCSTAT )
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
- ,'  Cannot allocate BezierControlPoints3DElevated!')
+__STAMP__&
+,'  Cannot allocate BezierControlPoints3DElevated!')
 BezierControlPoints3DElevated=0.
 
 ! BezierAreaSample stuff:
@@ -855,8 +855,8 @@ IF (halo_eps_velo.EQ.0) halo_eps_velo = c
 #if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==1000)
 IF (halo_eps_velo.EQ.c) THEN
    CALL abort(&
-       __STAMP__&
-   , 'Halo Eps Velocity for MPI not defined')
+__STAMP__&
+, 'Halo Eps Velocity for MPI not defined')
 END IF
 #endif
 #if (PP_TimeDiscMethod==201)
@@ -901,8 +901,8 @@ IF (ALLOCSTAT.NE.0) THEN
   iProc=0
 #endif /*MPI*/
   CALL abort(&
-      __STAMP__&
-      , 'Problem allocating GEO%FIBGM!' )
+__STAMP__&
+, 'Problem allocating GEO%FIBGM!' )
 END IF
 
 ! null number of element per BGM cell
@@ -1113,7 +1113,7 @@ IF (DepositionType.EQ.'shape_function') THEN
  !   IF((nShapePaddingX.EQ.0)    &
  !     .OR.(nShapePaddingY.EQ.0) &
  !     .OR.(nShapePaddingZ.EQ.0))THEN 
- !       CALL abort(__STAMP__,&
+ !       CALL abort(__STAMP__&
  !         'Error in stencil calculation for FIBGM and shape function')
  !   END IF
  ! END IF
@@ -1377,7 +1377,7 @@ END DO !Cell
 !       END DO
 !       IF (i .EQ. ReducedBGMArray(j) .AND. k .EQ. ReducedBGMArray(j+1) .AND. l .EQ. ReducedBGMArray(j+2)) THEN
 !         IF (m .GT. MaxShapeProcs) THEN
-!           CALL abort(__STAMP__,&
+!           CALL abort(__STAMP__&
 !                                'ERROR in Boundary_PIC.f90: Cellproclist can contain only MaxShapeProcs=',MaxShapeProcs,999.)
 !         END IF
 !         CellProcList(i,k,l,m)=CurrentProc
@@ -1908,8 +1908,8 @@ DO iElem=1,nTotalElems
     IPWRITE(UNIT_stdOut,*) 'zmin', BGMkmin,CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
     IPWRITE(UNIT_stdOut,*) 'zmax', BGMkmax,CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
     CALL abort(&
-        __STAMP__&
-    ,' Element not located in FIBGM! iElem, myRank',iElem,REAL(PartMPI%MyRank))
+__STAMP__&
+,' Element not located in FIBGM! iElem, myRank',iElem,REAL(PartMPI%MyRank))
   END IF
 END DO ! iElem
 
@@ -1950,16 +1950,16 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes)
 ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
-      __STAMP__&
-  ,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
+__STAMP__&
+,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
 END IF
 usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
 IF(usevMPF) THEN
   ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__&
-    ,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
+__STAMP__&
+,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
   END IF
   GEO%DeltaEvMPF(:) = 0.0
 END IF
@@ -2036,50 +2036,50 @@ IF(nTotalBCSides.EQ.0) RETURN
 ! BezierControlPoints3D
 ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 DummyBezierControlPoints3d=BezierControlPoints3d
 DEALLOCATE(BezierControlPoints3D)
 ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
 BezierControlPoints3d=0.
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 ! SideSlabNormals
 ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 DummySideSlabNormals=SideSlabNormals
 DEALLOCATE(SideSlabNormals)
 ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 SideSlabNormals=0.
 ! SideSlabIntervals
 ALLOCATE(DummySideSlabIntervals(1:6,1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 DummySideSlabIntervals=SideSlabIntervals
 DEALLOCATE(SideSlabIntervals)
 ALLOCATE(SideSlabIntervals(1:6,1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 SideSlabIntervals=0.
 ! BoundingBoxIsEmpty
 ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
 DEALLOCATE(BoundingBoxIsEmpty)
 ALLOCATE(BoundingBoxIsEmpty(1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 BoundingBoxIsEmpty=.FALSE.
 
 BCInc=0
@@ -2177,8 +2177,8 @@ DO iElem=1,PP_nElems
       GEO%ElemToRegion(iElem)=iRegions
     ELSE
       CALL abort(&
-          __STAMP__&
-      ,'Defined regions are overlapping')
+__STAMP__&
+,'Defined regions are overlapping')
     END IF
   END DO ! iRegions=1,NbrOfRegions
 END DO ! iElem=1,PP_nElems
@@ -2537,8 +2537,8 @@ END DO ! iElem
 IF (TRIM(DepositionType).EQ.'shape_function')THEN
   ALLOCATE(ElemRadius2_sf(1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__, &
-      ' Cannot allocate ElemRadius2_sf!')
+__STAMP__ &
+,' Cannot allocate ElemRadius2_sf!')
   DO iElem=1,PP_nElems
     ElemRadius2_sf(iElem)=(ElemRadiusNGeo(iElem)+r_sf)*(ElemRadiusNGeo(iElem)+r_sf)
   END DO ! iElem=1,PP_nElems
@@ -2584,8 +2584,8 @@ END IF
 
 ALLOCATE(GEO%ElemToFIBGM(1:6,1:LastElem),STAT=ALLOCSTAT )
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
- ,'  Cannot allocate GEO%ElemToFIBGM!')
+__STAMP__&
+,'  Cannot allocate GEO%ElemToFIBGM!')
 
 ! because I copy and past
 BGMimax=GEO%FIBGMimax

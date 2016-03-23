@@ -1148,8 +1148,8 @@ EZeroTempToExec2 = 0.0
   PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
   IF (PositionNbr.EQ.0) THEN
     CALL abort(&
-        __STAMP__,&
-    'New Particle Number greater max Part Num in MolecDissoc. Reaction: ',iReac)
+__STAMP__&
+,'New Particle Number greater max Part Num in MolecDissoc. Reaction: ',iReac)
   END IF  
 
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + EZeroTempToExec2

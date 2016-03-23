@@ -58,11 +58,11 @@ CHARACTER(32)           :: hilf
   SWRITE(UNIT_stdOut,'(A)') ' LD INIT ...'
 
   IF(.NOT.DoRefMapping) CALL abort(&
-      __STAMP__,&
-          ' LD requires ref-mapping tracking.')
+__STAMP__&
+,' LD requires ref-mapping tracking.')
   IF(NGeo.NE.1) CALL abort(&
-      __STAMP__,&
-          ' LD requires a linear mesh (NGeo=1)!')
+__STAMP__&
+,' LD requires a linear mesh (NGeo=1)!')
 
   LD_SecantMeth%Guess = GETREAL('LD-InitialGuess','10')
   LD_SecantMeth%MaxIter = GETINT('LD-MaxIterNumForLagVelo','100')
@@ -661,7 +661,7 @@ vector2(:) = SideCoord(:,0,NGeo)-SideCoord(:,NGeo,0)
 !IF (NVecTest.LE.0.0) THEN
   !  SWRITE(UNIT_StdOut,'(132("-"))')
   !  SWRITE(UNIT_StdOut,'(A)') 'Element:',iElem
-  !  CALL abort(__STAMP__,&
+  !  CALL abort(__STAMP__&
   !       'ERROR in Calculation of NormVec for Element')
   !END IF
 

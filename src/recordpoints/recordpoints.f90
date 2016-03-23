@@ -187,8 +187,8 @@ REAL,ALLOCATABLE              :: xi_RP(:,:)
 IF(MPIRoot)THEN
   INQUIRE (FILE=TRIM(FileString), EXIST=fileExists)
   IF(.NOT.FileExists)  CALL abort(&
-      __STAMP__, &
-          'RPList from data file "'//TRIM(FileString)//'" does not exist',999,999.)
+__STAMP__&
+,'RPList from data file "'//TRIM(FileString)//'" does not exist',999,999.)
 END IF
 
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' Read recordpoint definitions from data file "'//TRIM(FileString)//'" ...'
@@ -210,8 +210,8 @@ CALL GetDataSize(File_ID,'OffsetRP',nDims,HSize)
 nGlobalElems_RPList=HSize(2) !global number of elements
 DEALLOCATE(HSize)
 IF(nGlobalElems_RPList.NE.nGlobalElems) CALL abort(&
-    __STAMP__, &
-          'nGlobalElems from RPList differs from nGlobalElems from Mesh File!',999,999.)
+__STAMP__&
+,'nGlobalElems from RPList differs from nGlobalElems from Mesh File!',999,999.)
 
 CALL ReadArray('OffsetRP',2,(/2,PP_nElems/),OffsetElem,2,IntegerArray=OffsetRPArray)
 
@@ -225,8 +225,8 @@ offsetRP = OffsetRPArray(1,1)
 CALL GetDataSize(File_ID,'xi_RP',nDims,HSize)
 IF(HUGE(0).LT.HSize(2)) THEN
   CALL abort(&
-      __STAMP__, &
-  'Global number of record points exceeds INTEGER TYPE 4!',999,999.)
+__STAMP__&
+,'Global number of record points exceeds INTEGER TYPE 4!',999,999.)
 ELSE
   nGlobalRP=INT(HSize(2),4) !global number of RecordPoints
 END IF

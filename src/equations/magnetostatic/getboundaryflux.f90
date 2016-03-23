@@ -82,8 +82,9 @@ CASE(3) !Neumann Flux=0.
   CALL Riemann(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
 
 CASE DEFAULT ! unknown BCType
-  CALL abort(__STAMP__,&
-       'no BC defined in navierstokes/getboundaryflux.f90!',999,999.)
+  CALL abort(&
+__STAMP__&
+,'no BC defined in navierstokes/getboundaryflux.f90!',999,999.)
 END SELECT ! BCType
 END SUBROUTINE GetBoundaryFlux
 

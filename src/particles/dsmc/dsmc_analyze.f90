@@ -195,8 +195,8 @@ REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax)
 
       IF ((LowerVal.GT.MaxPosiVal).OR.(MiddleVal.GT.MaxPosiVal)) THEN
          CALL Abort(&
-           __STAMP__,&
-          'Cannot find zero point in TVib Calculation Function! CharTVib:',RealInfoOpt=ChaTVib)
+__STAMP__&
+,'Cannot find zero point in TVib Calculation Function! CharTVib:',RealInfoOpt=ChaTVib)
       END IF
       
       ! Calc of actual function values
@@ -570,8 +570,8 @@ CASE('gauss-lobatto')
   CALL LegGaussLobNodesAndWeights(HODSMC%nOutputDSMC,xGP_tmp,HODSMC%DSMC_wGP)
 CASE DEFAULT
   CALL abort(&
-      __STAMP__, &
-      'Unknown HODSMCNodeType in dsmc_analyze.f90')
+__STAMP__&
+,'Unknown HODSMCNodeType in dsmc_analyze.f90')
 END SELECT
 
 CALL InitializeVandermonde(PP_N,HODSMC%nOutputDSMC,wBary,xGP,xGP_tmp,Vdm_ElemxgpN_DSMCNOut)
@@ -589,8 +589,8 @@ CASE('cartmesh_volumeweighting')
   DSMCSampVolWe%BGMdeltas(1:3) = 1./DSMCSampVolWe%FactorBGM(1:3)*DSMCSampVolWe%BGMdeltas(1:3)
   IF (ANY(DSMCSampVolWe%BGMdeltas.EQ.0.0)) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR: DSMCSampVolWe-BGMdeltas: No size for the cartesian background mesh definded.')
+__STAMP__&
+,'ERROR: DSMCSampVolWe-BGMdeltas: No size for the cartesian background mesh definded.')
   END IF
 
   DSMCSampVolWe%OrderVolInt = GETINT('DSMCSampVolWe-VolIntOrd','50')
@@ -619,14 +619,14 @@ CASE('cartmesh_volumeweighting')
   ALLOCATE(DSMCSampVolWe%GaussBGMIndex(1:3,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!') 
+__STAMP__&
+,'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!') 
   END IF
   ALLOCATE(DSMCSampVolWe%GaussBGMFactor(1:3,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
+__STAMP__&
+,'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
   END IF
   DO iElem = 1, nElems
     DO j = 0, HODSMC%nOutputDSMC
@@ -698,27 +698,27 @@ CASE('cartmesh_volumeweighting')
     ALLOCATE(DSMCSampVolWe%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
     IF (allocStat .NE. 0) THEN
       CALL abort(&
-          __STAMP__, &
-      'ERROR in MPIBackgroundMeshInitDSMCHO: cannot allocate DSMCSampVolWe%PeriodicBGMVectors!')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInitDSMCHO: cannot allocate DSMCSampVolWe%PeriodicBGMVectors!')
     END IF
     DO i = 1, GEO%nPeriodicVectors
       DSMCSampVolWe%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1))
       IF(ABS(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1)-REAL(DSMCSampVolWe%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       DSMCSampVolWe%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2))
       IF(ABS(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2)-REAL(DSMCSampVolWe%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       DSMCSampVolWe%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3))
       IF(ABS(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3)-REAL(DSMCSampVolWe%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
     END DO
   END IF
@@ -761,8 +761,8 @@ CASE('nearest_gausspoint')
   ALLOCATE(DSMCSampNearInt%GaussBorder(1:HODSMC%nOutputDSMC),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR in dsmc_analyze.f90: Cannot allocate Mapped Gauss Border Coords!')
+__STAMP__&
+,'ERROR in dsmc_analyze.f90: Cannot allocate Mapped Gauss Border Coords!')
   END IF
   DO i = 1,HODSMC%nOutputDSMC
     DSMCSampNearInt%GaussBorder(i) = (xGP_tmp(i) + xGP_tmp(i-1))/2
@@ -776,8 +776,8 @@ CASE('cell_volweight')
   DEALLOCATE(HODSMC%DSMC_wGP)
 CASE DEFAULT
   CALL abort(&
-      __STAMP__, &
-      'Unknown DSMCHOSampleType in dsmc_analyze.f90')
+__STAMP__&
+,'Unknown DSMCHOSampleType in dsmc_analyze.f90')
 END SELECT
 
 END SUBROUTINE InitHODSMC
@@ -1141,8 +1141,8 @@ CASE('cell_volweight')
  DEALLOCATE(BGMSourceCellVol, alphaSumCellVol)
 CASE DEFAULT
  CALL abort(&
-     __STAMP__, &
-      'Unknown DepositionType in pic_depo.f90')
+__STAMP__&
+,'Unknown DepositionType in pic_depo.f90')
 END SELECT
 END SUBROUTINE DSMCHO_data_sampling
 
@@ -1442,8 +1442,8 @@ CASE('gauss-lobatto')
   NodeTypeTemp = 'GAUSS-LOBATTO'
 CASE DEFAULT
   CALL abort(&
-      __STAMP__, &
-      'Unknown HODSMCNodeType in dsmc_analyze.f90')
+__STAMP__&
+,'Unknown HODSMCNodeType in dsmc_analyze.f90')
 END SELECT
 
 ! Write file header
@@ -1592,8 +1592,8 @@ SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
           ALLOCATE(send_message(i)%content(1:SourceLength(i)*12*nSpecies), STAT=allocStat)
           IF (allocStat .NE. 0) THEN
              CALL abort(&
-                 __STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
           END IF
        END IF
        Counter = 0
@@ -1643,8 +1643,8 @@ SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
           ALLOCATE(recv_message(i)%content(1:Counter*12*nSpecies), STAT=allocStat)
           IF (allocStat .NE. 0) THEN
              CALL abort(&
-                 __STAMP__, &
-               'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
           END IF
        END IF
     END DO
@@ -1682,8 +1682,8 @@ SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
            DEALLOCATE(send_message(i)%content, STAT=allocStat)
            IF (allocStat .NE. 0) THEN
               CALL abort(&
-                  __STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
            END IF
        END IF
     END DO
@@ -1762,8 +1762,8 @@ SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
              DEALLOCATE(recv_message(i)%content, STAT=allocStat)
              IF (allocStat .NE. 0) THEN
                 CALL abort(&
-__STAMP__ &
-                 ,'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
              END IF
           END IF
        END IF       
@@ -1850,8 +1850,8 @@ SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
           ALLOCATE(send_message(i)%content(1:SourceLength(i)), STAT=allocStat)
           IF (allocStat .NE. 0) THEN
              CALL abort(&
-                 __STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
           END IF
        END IF
        Counter = 0
@@ -1891,8 +1891,8 @@ SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
           ALLOCATE(recv_message(i)%content(1:Counter), STAT=allocStat)
           IF (allocStat .NE. 0) THEN
              CALL abort(&
-                 __STAMP__, &
-               'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
           END IF
        END IF
     END DO
@@ -1930,8 +1930,8 @@ SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
            DEALLOCATE(send_message(i)%content, STAT=allocStat)
            IF (allocStat .NE. 0) THEN
               CALL abort(&
-                  __STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
            END IF
        END IF
     END DO
@@ -1996,8 +1996,8 @@ SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
              DEALLOCATE(recv_message(i)%content, STAT=allocStat)
              IF (allocStat .NE. 0) THEN
                 CALL abort(&
-__STAMP__  &
-                 ,'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
              END IF
           END IF
        END IF       
@@ -2037,27 +2037,27 @@ SUBROUTINE MPIBackgroundMeshInitDSMCHO()
    ALLOCATE(DSMCSampVolWe%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
    IF (allocStat .NE. 0) THEN
      CALL abort(&
-         __STAMP__, &
-        'ERROR in MPIBackgroundMeshInitDSMCHO: cannot allocate DSMCSampVolWe%PeriodicBGMVectors!')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInitDSMCHO: cannot allocate DSMCSampVolWe%PeriodicBGMVectors!')
    END IF
    DO i = 1, GEO%nPeriodicVectors
      DSMCSampVolWe%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1))
      IF(ABS(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1)-REAL(DSMCSampVolWe%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
        CALL abort(&
-           __STAMP__, &
-        'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
      END IF
      DSMCSampVolWe%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2))
      IF(ABS(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2)-REAL(DSMCSampVolWe%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
        CALL abort(&
-           __STAMP__, &
-        'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
      END IF
      DSMCSampVolWe%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3))
      IF(ABS(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3)-REAL(DSMCSampVolWe%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
        CALL abort(&
-           __STAMP__, &
-        'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
      END IF
    END DO
    ! Check whether process is periodic with itself
@@ -2109,8 +2109,8 @@ SUBROUTINE MPIBackgroundMeshInitDSMCHO()
     ALLOCATE(DSMCSampVolWe%MPIConnect(0:PartMPI%nProcs-1),STAT=allocStat)
     IF (allocStat .NE. 0) THEN
       CALL abort(&
-          __STAMP__, &
-        'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
     END IF
 
     !--- determine borders indices (=overlapping BGM mesh points) with each process
@@ -2137,8 +2137,8 @@ SUBROUTINE MPIBackgroundMeshInitDSMCHO()
           ALLOCATE(DSMCSampVolWe%MPIConnect(i)%BGMBorder(1:2,1:3),STAT=allocStat)
           IF (allocStat .NE. 0) THEN
              CALL abort(&
-                 __STAMP__, &
-              'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
           END IF
           DSMCSampVolWe%MPIConnect(i)%BGMBorder(1:2,1:3) = TempBorder(1:2,1:3)
        END IF
@@ -2208,15 +2208,15 @@ SUBROUTINE MPIBackgroundMeshInitDSMCHO()
           ALLOCATE(DSMCSampVolWe%MPIConnect(i)%Periodic(1:DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount),STAT=allocStat)
           IF (allocStat .NE. 0) THEN
             CALL abort(&
-                __STAMP__,  &
-              'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
           END IF
           DO k = 1,NeighCount
             ALLOCATE(DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3),STAT=allocStat)
             IF (allocStat .NE. 0) THEN
               CALL abort(&
-                  __STAMP__, &
-                'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
             END IF
             DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3) = TempPeriBord(k,1:2,1:3)
           END DO

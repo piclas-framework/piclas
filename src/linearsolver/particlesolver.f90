@@ -70,13 +70,13 @@ srEps0=1./rEps0
 
 ALLOCATE(PartXK(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__, &
-  'Cannot allocate PartXK')
+__STAMP__&
+,'Cannot allocate PartXK')
 
 ALLOCATE(R_PartXK(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__, &
-  'Cannot allocate R_PartXK')
+__STAMP__&
+,'Cannot allocate R_PartXK')
 
 END SUBROUTINE InitPartSolver
 
@@ -247,8 +247,8 @@ DO WHILE(ANY(DoPartInNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! may
         R_PartXK(4:6,iPart) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(1:6))
       CASE DEFAULT
       CALL abort(&
-      __STAMP__, &
-        ' Given PartLorentzType does not exist!',PartLorentzType)
+__STAMP__&
+,' Given PartLorentzType does not exist!',PartLorentzType)
       END SELECT
       !R_PartXK(1:3,iPart)=PartState(iPart,4:6)
       !R_PartXK(4:6,iPart)=Pt(iPart,1:3)
@@ -265,8 +265,8 @@ nPartNewton=nPartNewton+nInnerPartNewton
 IF (nInnerPartNewton.EQ.nPartNewtonIter) THEN
   WRITE(*,*) Eps2PartNewton
   CALL abort(&
-      __STAMP__, &
-  'NEWTON NOT CONVERGED WITH NEWTON ITERATIONS',nInnerPartNewton)
+__STAMP__&
+,'NEWTON NOT CONVERGED WITH NEWTON ITERATIONS',nInnerPartNewton)
 END IF
 
 END SUBROUTINE ParticleNewton
@@ -411,8 +411,8 @@ END DO ! Restart
 
 IPWRITE(*,*) 'Gam(1+1)',Gam(m),AbortCrit
 CALL abort(&
-    __STAMP__, &
-     'GMRES_M NOT CONVERGED WITH RESTARTS AND GMRES ITERATIONS:',Restart,REAL(nPartInnerIter))
+__STAMP__&
+,'GMRES_M NOT CONVERGED WITH RESTARTS AND GMRES ITERATIONS:',Restart,REAL(nPartInnerIter))
 
 END SUBROUTINE Particle_GMRES
 
