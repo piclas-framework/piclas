@@ -625,9 +625,7 @@ USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide
 USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal , CollisMode
 USE MOD_Particle_Vars,              ONLY:nSpecies
 USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
-#ifdef MPI
 USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM
-#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -643,7 +641,10 @@ CHARACTER(LEN=255),ALLOCATABLE      :: StrVarNames(:)
 INTEGER                             :: nVar
 REAL                                :: tstart,tend
 !===================================================================================================================================
+
+#ifdef MPI
 CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
+#endif /*MPI*/
 IF(SurfCOMM%MPIROOT)THEN
   WRITE(*,*) ' WRITE DSMCSurfSTATE TO HDF5 FILE...'
   tstart=LOCALTIME()
@@ -682,7 +683,9 @@ IF(SurfCOMM%MPIRoot)THEN
   DEALLOCATE(StrVarNames)
 END IF
 
+#ifdef MPI
 CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
+#endif /*MPI*/
 
 #ifdef MPI
   IF(SurfCOMM%nProcs.GT.1)THEN

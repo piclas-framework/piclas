@@ -251,7 +251,9 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
 
 #ifdef PARTICLES
 ! output of last source term
+#ifdef MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif /*MPI*/
 IF(OutPutSource) THEN
   ! output of pure current and density
   ! not scaled with epsilon0 and c_corr
