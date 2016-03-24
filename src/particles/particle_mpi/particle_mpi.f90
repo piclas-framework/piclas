@@ -1117,7 +1117,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 8+jPos:13+jPos)
     IF ( INT(PartRecvBuf(iProc)%content( 14+jPos)) .EQ. 1) THEN
       PDM%IsNewPart(PartID)=.TRUE.
-    ELSE IF ( INT(recv_message(iProc)%content(pos+15)) .EQ. 0) THEN
+    ELSE IF ( INT(PartRecvBuf(iProc)%content( 14+jPos)) .EQ. 0) THEN
       PDM%IsNewPart(PartID)=.FALSE.
     ELSE
       CALL Abort(&
