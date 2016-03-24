@@ -878,7 +878,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iPart, ElemID,oldElemID,iElem, newElemID
+INTEGER                     :: iPart, ElemID,oldElemID,newElemID
 INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems
 REAL,ALLOCATABLE            :: Distance(:)
 REAL                        :: oldXi(3),newXi(3), LastPos(3)
@@ -902,7 +902,7 @@ DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     ElemID = PEM%lastElement(iPart)
 #ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
+    tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
     nTracks=nTracks+1
     ! sanity check
@@ -922,6 +922,10 @@ tLBStart = LOCALTIME() ! LB Time Start
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle is inside 
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle is inside 
         PEM%lastElement(iPart)=ElemID
+#ifdef MPI
+         tLBEnd = LOCALTIME() ! LB Time End
+         ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+#endif /*MPI*/
         CYCLE
       END IF
     ELSE ! no bc elem, therefore, no bc ineraction possible
@@ -947,18 +951,22 @@ tLBStart = LOCALTIME() ! LB Time Start
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle inside
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle inside
         PEM%Element(iPart)  = ElemID
+#ifdef MPI
+         tLBEnd = LOCALTIME() ! LB Time End
+         ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
+#endif /*MPI*/
         CYCLE
       !ELSE IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.5) THEN
       !  IPWRITE(UNIT_stdOut,*) ' partposref to large!',iPart
       END IF
     END IF ! initial check
 #ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tTracking = tTracking +tLBEnd-tLBStart
+    tLBEnd = LOCALTIME() ! LB Time End
+    ElemTime(ElemID)=ElemTime(ElemID)+tLBEnd-tLBStart
 #endif /*MPI*/
   ! still not located
 #ifdef MPI
-tLBStart = LOCALTIME() ! LB Time Start
+    tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
     ! relocate particle
     oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
@@ -1102,12 +1110,12 @@ __STAMP__ &
         END IF ! BCElem
       END IF ! inner eps to large
     END IF
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    tTracking = tTracking +tLBEnd-tLBStart
+#endif /*MPI*/
   END IF
 END DO ! iPart
-#ifdef MPI
-tLBEnd = LOCALTIME() ! LB Time End
-tTracking = tTracking +tLBEnd-tLBStart
-#endif /*MPI*/
 
 END SUBROUTINE ParticleRefTrackingFast
 
