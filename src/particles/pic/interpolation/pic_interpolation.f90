@@ -291,13 +291,13 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
             CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
 #elif defined PP_HDG
 #if PP_nVar==1
-            CALL eval_xyz_part2(PartPosRef(iPart,1:3),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)     
 #elif PP_nVar==3
-            CALL eval_xyz_part2(PartPosRef(iPart,1:3),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)     
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,B(1:3,:,:,:,iElem),field(4:6),iElem)     
 #else
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-            CALL eval_xyz_part2(PartPosRef(iPart,1:3),6,PP_N,HelperU,field(1:6),ielem)
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),ielem)
 #endif
 #else
             CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
