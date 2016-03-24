@@ -18,8 +18,8 @@ INTERFACE ParticleTrackingCurved
 END INTERFACE
 
 INTERFACE ParticleRefTracking
-  !MODULE PROCEDURE ParticleRefTrackingFast
-  MODULE PROCEDURE ParticleRefTrackingSLOW
+  MODULE PROCEDURE ParticleRefTrackingFast
+  !MODULE PROCEDURE ParticleRefTrackingSLOW
 END INTERFACE
 
 !PUBLIC::ParticleTracking,ParticleTrackingCurved
@@ -251,7 +251,7 @@ END DO ! iPart
 END SUBROUTINE ParticleTrackingCurved
 
 
-SUBROUTINE ParticleBCTrackingfast(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone)
+SUBROUTINE ParticleBCTrackingfast(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone,PartisMoved)
 !===================================================================================================================================
 ! read required parameters
 !===================================================================================================================================
@@ -278,7 +278,8 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)            :: PartID,ElemID,firstSide,LastSide,nlocSides
 LOGICAL,INTENT(INOUT)         :: PartisDone
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
+! OUTPUT VARIABLES!
+LOGICAL,INTENT(INOUT)         :: PartisMoved
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide), hitlocSide
@@ -303,6 +304,7 @@ END IF
 
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 
+PartisMoved=.FALSE.
 DoTracing=.TRUE.
 DO WHILE(DoTracing)
   IF(GEO%nPeriodicVectors.GT.0)THEN
@@ -352,6 +354,7 @@ DO WHILE(DoTracing)
   ELSE
     ! take first possible intersection
     !CALL BubbleSortID(locAlpha,locSideList,6)
+    PartIsMoved=.TRUE.
     CALL InsertionSort(locAlpha,locSideList,nlocSides)
     ilocSide=LastSide-nInter+1
     hitlocSide=locSideList(ilocSide)
@@ -886,7 +889,7 @@ INTEGER                     :: InElem
 #endif
 INTEGER                     :: TestElem
 !LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength),PartisDone
-LOGICAL                     :: PartisDone
+LOGICAL                     :: PartisDone,PartIsMoved
 !LOGICAL                     :: HitBC(1:PDM%ParticleVecLength)
 ! load balance
 #ifdef MPI
@@ -905,9 +908,17 @@ tLBStart = LOCALTIME() ! LB Time Start
     ! sanity check
     PartIsDone=.FALSE.
     IF(IsBCElem(ElemID))THEN
-      CALL ParticleBCTrackingfast(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
+      CALL ParticleBCTrackingfast(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved)
       IF(PartIsDone) CYCLE
+      IF(PartIsMoved)THEN
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+      ELSE
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
+#else
       CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+#endif
+      END IF
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle is inside 
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle is inside 
         PEM%lastElement(iPart)=ElemID
@@ -1056,7 +1067,7 @@ __STAMP__ &
           !CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart,PartIsDone)
           CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
           LastPos=PartState(iPart,1:3)
-          CALL ParticleBCTrackingfast(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone)
+          CALL ParticleBCTrackingfast(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved)
           IF(PartIsDone) CYCLE
           CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
           ! false, reallocate particle
