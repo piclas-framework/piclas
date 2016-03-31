@@ -109,7 +109,7 @@ epsilontol            = GETREAL('epsilontol','0.')
 ! epsilon approx 100*tolerance of the algorithm
 IF(ALMOSTZERO(epsilontol)) epsilontol=100.*BezierClipTolerance
 MinusEps              = -epsilontol
-OnePlusEps            = 1.0 + epsilontol
+OnePlusEps            = 1.0 + 100.*epsilontol
 OneMinusEps           = 1.0 - epsilontol
 
 BezierClipHit         = GETREAL('BezierClipHit','0.')
