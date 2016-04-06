@@ -126,7 +126,7 @@ USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem
 USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,     ONLY:SafetyFactor,halo_eps_velo,PartMPI
 USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
-#ifdef IMEX
+#if defined(IMEX) || defined (IMPA)
 USE MOD_TimeDisc_Vars,         ONLY: nRKStages
 #endif /*IMEX*/
 #ifdef MPI
