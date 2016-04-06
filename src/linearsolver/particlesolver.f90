@@ -263,10 +263,9 @@ END DO
 
 nPartNewton=nPartNewton+nInnerPartNewton
 IF (nInnerPartNewton.EQ.nPartNewtonIter) THEN
-  WRITE(*,*) Eps2PartNewton
   CALL abort(&
 __STAMP__&
-,'NEWTON NOT CONVERGED WITH NEWTON ITERATIONS',nInnerPartNewton)
+,'NEWTON NOT CONVERGED WITH NEWTON ITERATIONS,EPISLON',nInnerPartNewton,Eps2PartNewton)
 END IF
 
 END SUBROUTINE ParticleNewton
