@@ -230,8 +230,8 @@ TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)            ! Data of collision 
 
 ! defintion of Adsorbation variables
 TYPE tAdsorptionInfo
-  REAL    , ALLOCATABLE                  :: ProbAds(:)              ! Adsorption probability of surface n
-  REAL    , ALLOCATABLE                  :: ProbDes(:)              ! Desorption probability of surface n
+  REAL    , ALLOCATABLE                  :: ProbAds(:,:,:)              ! Adsorption probability of surface n
+  REAL    , ALLOCATABLE                  :: ProbDes(:,:,:)              ! Desorption probability of surface n
 #if (PP_TimeDiscMethod==42)
   INTEGER , ALLOCATABLE                  :: NumOfAds(:)             ! Number of Adsorptions on surface n
   INTEGER , ALLOCATABLE                  :: NumOfDes(:)             ! Number of Desorptions on Surface n
@@ -245,11 +245,14 @@ TYPE tAdsorption
   REAL                                   :: TPD_beta                ! temperature slope for TPD [K/s]
   REAL                                   :: TPD_Temp                ! Walltemperature for TPD [K]
 #endif
-  INTEGER , ALLOCATABLE                  :: SumDesorbPart(:,:,:)    ! Number of Particles of Species iSpec desorbing from Surface 
-                                                                    ! (nTriNum,nSpecies,nSurfSide)
-  INTEGER , ALLOCATABLE                  :: SumAdsorbPart(:,:,:)    
-  REAL    , ALLOCATABLE                  :: Coverage(:,:)           ! coverage of surface with surface n
-  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface with surface n
+  INTEGER , ALLOCATABLE                  :: SumDesorbPart(:,:,:,:)  ! Number of Particles of Species iSpec desorbing from Surface
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  INTEGER , ALLOCATABLE                  :: SumAdsorbPart(:,:,:,:)  ! Number of Particles of Species iSpec adsorbing to Surface
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  REAL    , ALLOCATABLE                  :: Coverage(:,:,:,:)       ! coverage of surface i with species n
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
+  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface i with species n
   REAL    , ALLOCATABLE                  :: InitStick(:,:)          ! initial sticking coefficient (S_0) for surface n
   REAL    , ALLOCATABLE                  :: PrefactorStick(:,:)     ! prefactor of sticking coefficient for surface n
   INTEGER , ALLOCATABLE                  :: Adsorbexp(:,:)          ! Adsorption exponent for surface n
@@ -257,10 +260,9 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: Nu_b(:,:)               ! Nu exponent b for surface n
   REAL    , ALLOCATABLE                  :: DesorbEnergy(:,:)       ! Desorption energy (K) for surface n
   REAL    , ALLOCATABLE                  :: Intensification(:,:)    ! Intensification energy (K) for surface n
-  REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
-  INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID 
+  INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID
                                                                     ! needed to calculate BC temperature for adsorption
-  TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for specie n (nSpecies)
+  TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 
@@ -388,19 +390,6 @@ TYPE tTreeNode
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
-
-TYPE tSurfaceMesh
-  INTEGER                         :: nSurfaceNode           ! Number of Nodes on Surface (reflective)
-  INTEGER                         :: nSurfaceBCSides        ! Number of Sides on Surface (reflective)
-  INTEGER                         :: nHaloSurfaceBCSides    ! Number of Halo Sides on Surface (reflective)
-  INTEGER, ALLOCATABLE            :: HaloSideIDToSurfSideMap(:)   ! Mapping from glob Side ID to Surface Side ID
-  INTEGER, ALLOCATABLE            :: BCSurfNodes(:)         ! Nodes on Surface (reflective) (nSurfaceNode)
-  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)   ! Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
-  INTEGER, ALLOCATABLE            :: GlobSideToSurfSideMap(:)     ! Mapping from glob Side ID to Surface Side ID
-  REAL, ALLOCATABLE               :: SurfaceArea(:)         ! Area of Surface 
-END TYPE
-
-TYPE (tSurfaceMesh)               :: SurfMesh
  
 REAL                              :: realtime               ! realtime of simulation
 

@@ -1398,6 +1398,10 @@ REAL    :: RandVal, dtFrac
 !===================================================================================================================================
 
   IF (DoSurfaceFlux) THEN
+    ! Calculate desobing particles for Surfaceflux
+    IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.GT.0)) THEN
+     CALL Calc_PartNum_Wall_Desorb()
+    END IF
     CALL ParticleSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN

@@ -44,8 +44,6 @@ USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
 USE MOD_DSMC_Vars
 USE MOD_PARTICLE_Vars,              ONLY: nSpecies, BoltzmannConst, Species, PDM, PartSpecies, useVTKFileBGG
-USE MOD_PARTICLE_Vars,              ONLY: KeepWallParticles, PEM
-USE MOD_Particle_Boundary_Vars,     ONLY:PartBound
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState,           ONLY: DSMC_SteadyStateInit
@@ -746,7 +744,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 ! Initialize surface model (Adsorption/Desorption/Reactions) variables
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (DSMC%WallModel.GT.0) CALL InitDSMCSurfModel()
-
+!-----------------------------------------------------------------------------------------------------------------------------------
   SWRITE(UNIT_stdOut,'(A)')' INIT DSMC DONE!'
   SWRITE(UNIT_StdOut,'(132("-"))')
 
