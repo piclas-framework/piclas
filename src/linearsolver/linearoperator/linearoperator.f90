@@ -245,6 +245,11 @@ REAL               :: FieldAtParticle(1:6)
 CALL PartVectorDotProduct(X,X,X_abs)
 EpsFD= rEps0/SQRT(X_abs)
 
+!CALL VectorDotProduct(typXk,ABS(V),typ_v_abs)
+!CALL VectorDotProduct(Xk,V,Xk_V)
+!sign_XK_V=SIGN(1.,Xk_V)
+!EpsFD= rEps0/V_abs*MAX(ABS(Xk_V),typ_v_abs)*SIGN_Xk_V
+
 PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
 CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
