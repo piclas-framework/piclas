@@ -156,7 +156,7 @@ USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
 USE MOD_Output,                ONLY: Visualize
 USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
-USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems
+USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_PML,                   ONLY: TransformPMLVars,BacktransformPMLVars
 USE MOD_PML_Vars,              ONLY: DoPML
 USE MOD_Filter,                ONLY: Filter
@@ -245,7 +245,7 @@ tFuture=MIN(time+Analyze_dt,tEnd)
 IF(DoRestart) CALL EvalGradient()
 #endif /*PP_POIS*/
 ! Write the state at time=0, i.e. the initial condition
-CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 
 ! if measurement of particle tracking time
 #ifdef PARTICLES
@@ -536,7 +536,7 @@ DO !iter_t=0,MaxIter
       CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
       ! Write state to file
       IF(DoPML) CALL BacktransformPMLVars()
-      CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+      IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
       IF(DoPML) CALL TransformPMLVars()
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)

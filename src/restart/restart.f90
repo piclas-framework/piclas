@@ -161,7 +161,7 @@ SUBROUTINE Restart()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,                 ONLY:U
-USE MOD_Mesh_Vars,               ONLY:offsetElem
+USE MOD_Mesh_Vars,               ONLY:offsetElem,DoWriteStateToHDF5
 #ifdef PP_HDG
 USE MOD_Mesh_Vars,               ONLY:offsetSide,nSides,nMPISides_YOUR, offsetSide
 #endif /*PP_HDG*/
@@ -568,11 +568,11 @@ __STAMP__&
 
   CALL CloseDataFile() 
   ! Delete all files that will be rewritten
-  CALL FlushHDF5(RestartTime)
+  IF(DoWriteStateToHDF5) CALL FlushHDF5(RestartTime)
   SWRITE(UNIT_stdOut,*)'Restart DONE!' 
 ELSE
   ! Delete all files since we are doing a fresh start
-  CALL FlushHDF5()
+  IF(DoWriteStateToHDF5) CALL FlushHDF5()
 END IF
 END SUBROUTINE Restart
 
