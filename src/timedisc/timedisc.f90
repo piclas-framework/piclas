@@ -1432,11 +1432,11 @@ REAL    :: RandVal, dtFrac
     PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
     PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
   END IF
-
 #ifdef MPI
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
 #endif /*MPI*/
+  CALL DSMC_Update_Wall_Vars()
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   ! actual tracking
   IF(DoRefMapping)THEN

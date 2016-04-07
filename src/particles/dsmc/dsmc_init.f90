@@ -49,7 +49,7 @@ USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState,           ONLY: DSMC_SteadyStateInit
 USE MOD_TimeDisc_Vars,              ONLY: TEnd
 USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init, InitPartitionFunction
-USE MOD_DSMC_SurfModelInit          ONLY: InitDSMCSurfModel
+USE MOD_DSMC_SurfModelInit,         ONLY: InitDSMCSurfModel
 USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate
 USE MOD_DSMC_PolyAtomicModel,       ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
@@ -743,7 +743,13 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Initialize surface model (Adsorption/Desorption/Reactions) variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IF (DSMC%WallModel.GT.0) CALL InitDSMCSurfModel()
+  IF (DSMC%WallModel.GT.0 .AND. CollisMode.GT.1) THEN
+    CALL InitDSMCSurfModel()
+  ELSE IF (DSMC%WallModel.GT.0 .AND. CollisMode.LE.1) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'Error in DSMC-Surface model init - wrong collismode!')
+  END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
   SWRITE(UNIT_stdOut,'(A)')' INIT DSMC DONE!'
   SWRITE(UNIT_StdOut,'(132("-"))')

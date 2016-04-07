@@ -13,9 +13,9 @@ INTERFACE InitDSMCSurfModel
   MODULE PROCEDURE InitDSMCSurfModel
 END INTERFACE
 
-INTERFACE FinalizeDSMCSurfModel
-  MODULE PROCEDURE FinalizeDSMCSurfModel
-END INTERFACE
+! INTERFACE FinalizeDSMCSurfModel
+!   MODULE PROCEDURE FinalizeDSMCSurfModel
+! END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
@@ -23,7 +23,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC                       :: InitDSMCSurfModel
-PUBLIC                       :: FinalizeDSMCSurfModel
+! PUBLIC                       :: FinalizeDSMCSurfModel
 !===================================================================================================================================
 
 CONTAINS
@@ -35,11 +35,12 @@ SUBROUTINE InitDSMCSurfModel()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,                ONLY : abort
-USE MOD_Mesh_Vars,              ONLY : nBCSides
+USE MOD_Mesh_Vars,              ONLY : nElems, nBCSides, BC
 USE MOD_DSMC_Vars,              ONLY : Adsorption
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PDM
 USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+USE MOD_ReadInTools
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -49,9 +50,8 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES                                                                      !
   CHARACTER(32)                    :: hilf , hilf2  
-  INTEGER                          :: iSpec, iSide, p, q, IDcounter
+  INTEGER                          :: iSpec, iSide, iSurf, p, q, IDcounter
   REAL                             :: maxPart, SurfArea
-#endif
 !===================================================================================================================================
 KeepWallParticles = GETLOGICAL('Particles-KeepWallParticles','.FALSE.')
 IF (KeepWallParticles) THEN
@@ -71,8 +71,8 @@ DO iSpec = 1,nSpecies
 END DO
 DO iSpec = 1,nSpecies
   DO iSide = 1,SurfMesh%nSides
-    DO q 1,nSurfSample
-      DO p 1,nSurfSample
+    DO q = 1,nSurfSample
+      DO p = 1,nSurfSample
         Adsorption%AdsorpInfo(iSpec)%ProbAds(p,q,iSide)=0
         Adsorption%AdsorpInfo(iSpec)%ProbDes(p,q,iSide)=0
       END DO
@@ -101,18 +101,18 @@ ALLOCATE(Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSp
           Adsorption%SurfSideToGlobSideMap(1:SurfMesh%nSides),&
           Adsorption%DensSurfAtoms(1:SurfMesh%nSides))
 IDcounter = 0         
-DO iSide=1, nBCSides 
+DO iSide = 1,nBCSides 
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
     IDcounter = IDcounter + 1
     Adsorption%SurfSideToGlobSideMap(IDcounter) = iSide
   END IF
 END DO
-DO iSurf = 1, SurfMesh%nSides
+DO iSurf = 1,SurfMesh%nSides
   WRITE(UNIT=hilf,FMT='(I2)') iSurf
   Adsorption%DensSurfAtoms(iSurf) = GETREAL('Particles-Surface'//TRIM(hilf)//'-AtomsDensity','1.5E+19')
 END DO
 
-DO iSpec = 1, nSpecies
+DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
   Adsorption%Coverage(:,:,:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-InitialCoverage','0.')
   Adsorption%MaxCoverage(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-MaximumCoverage','0.')
