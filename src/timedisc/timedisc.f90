@@ -191,6 +191,13 @@ USE MOD_LoadBalance_Vars,      ONLY: nSkipAnalyze
 USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeightAndLoad,ComputeElemLoad
 USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
 #endif /*MPI*/
+#ifdef IMEX
+USE MOD_LinearSolver_Vars, ONLY:totalIterLinearSolver
+#endif /*IMEX*/
+#ifdef IMPA
+USE MOD_LinearSolver_vars, ONLY:nPartNewton
+USE MOD_LinearSolver_Vars, ONLY:TotalPartIterLinearSolver
+#endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -532,6 +539,26 @@ DO !iter_t=0,MaxIter
         WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
         WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
       END IF !MPIroot
+#ifdef IMEX
+      SWRITE(UNIT_stdOut,'(132("="))')
+      SWRITE(UNIT_stdOut,'(A,I12)') ' Total iteration Linear Solver ',totalIterLinearSolver
+      TotalIterLinearSolver=0
+#if (PP_TimeDiscMethod==104)
+      SWRITE(UNIT_stdOut,'(A,I12)') ' Total iteration Newton        ',nNewton
+      nNewTon=0
+      SWRITE(UNIT_stdOut,'(132("="))')
+#endif
+#endif /*IMEX*/
+#ifdef IMPA
+      SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
+      SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration Newton         ',nPartNewton
+      SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
+      SWRITE(UNIT_stdOut,'(A35,F12.2)')' Average GMRES steps per Newton    ',REAL(TotalPartIterLinearSolver)&
+                                                                           /REAL(nPartNewton)
+      nPartNewTon=0
+      TotalPartIterLinearSolver=0
+      SWRITE(UNIT_stdOut,'(132("="))')
+#endif /*IMPA*/
       ! Analyze for output
       CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
       ! Write state to file
@@ -2565,6 +2592,7 @@ INTEGER            :: iCounter !, iStage
 !===================================================================================================================================
 
 tRatio = 1.0
+
 
 Un          = U
 !FieldSource = 0.
