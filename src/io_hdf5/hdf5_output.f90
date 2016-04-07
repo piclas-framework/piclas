@@ -384,7 +384,8 @@ USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,nPMLElems
 USE MOD_Particle_Vars ,ONLY:PDM,PEM
 #endif /*PARTICLES*/
 #ifdef MPI
-USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,ElemWeight
+USE MOD_LoadBalance_Vars, ONLY:DoLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,ElemWeight
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -445,13 +446,16 @@ END DO ! iPart
 #ifdef MPI
 IF(DoLoadBalance)THEN
   StrVarNames(4)='ElemTime'
-  IF(ALLOCATED(ElemWeight))THEN
-    DO iElem=1,PP_nElems
-      ElemData(4,iElem)=ElemWeight(iElem)
-    END DO ! iElem =1,PP_nElems
-  ELSE
-    ElemData(4,:)=0.
+  IF(nLoadBalance.EQ.0) THEN
+    IF(.NOT.ALLOCATED(ElemWeight))THEN
+      ElemTime=0.
+    ELSE
+      ElemTime=ElemWeight
+    END IF
   END IF
+  DO iElem=1,PP_nElems
+    ElemData(4,iElem)=ElemTime(iElem)
+  END DO ! iElem =1,PP_nElems
 END IF
 #endif /*MPI*/
 
