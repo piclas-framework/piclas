@@ -272,7 +272,7 @@ IF (DepositionType.EQ."shape_function") THEN
 END IF
 #endif /*MPI PARTICLES*/
 
-!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 !  CALL IRecvNbofParticles()
 !  CALL MPIParticleSend()
 !#endif /*MPI*/
@@ -1409,7 +1409,7 @@ REAL    :: RandVal, dtFrac
           PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
           PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
           PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
-        ELSE !sf-fractPush: Last-values already set!
+        ELSE !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
           CALL RANDOM_NUMBER(RandVal)
           dtFrac = dt * RandVal
           PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
@@ -3208,7 +3208,7 @@ USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos,PEM, PDM, usev
 USE MOD_Particle_Vars,           ONLY: DoSurfaceFlux
 USE MOD_part_RHS,                ONLY: CalcPartRHS
 !USE MOD_part_boundary,           ONLY : ParticleBoundary
-USE MOD_part_emission,           ONLY: ParticleInserting!, ParticleSurfaceflux
+USE MOD_part_emission,           ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools,           ONLY: StartParticleMerge
@@ -3257,14 +3257,13 @@ IF (t.GE.DelayTime) THEN
 END IF
 
 IF (DoSurfaceFlux) THEN
-  IF (t.GE.DelayTime) THEN
-    !CALL ParticleSurfaceflux()
-  END IF
-  
   LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
   LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
   LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
   PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+  IF (t.GE.DelayTime) THEN
+    CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
+  END IF
   IF (t.GE.DelayTime) THEN ! Euler-Explicit only for Particles
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
@@ -3369,7 +3368,7 @@ SUBROUTINE TimeStepPoissonByLSERK(t,iter,tEndDiff)
 USE MOD_Globals,               ONLY: Abort
 USE MOD_PreProc
 USE MOD_Analyze,               ONLY: PerformAnalyze
-USE MOD_TimeDisc_Vars,         ONLY: dt,iStage!,RKdtFrac,RKdtFracTotal
+USE MOD_TimeDisc_Vars,         ONLY: dt,iStage,RKdtFrac,RKdtFracTotal
 USE MOD_TimeDisc_Vars,         ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,               ONLY: U
 USE MOD_Particle_Tracking_vars,ONLY: DoRefMapping
@@ -3379,7 +3378,7 @@ USE MOD_PICInterpolation,      ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars,         ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, usevMPF, & 
                                      doParticleMerge,PartPressureCell,DoSurfaceFlux!,Time
 USE MOD_part_RHS,              ONLY: CalcPartRHS
-USE MOD_part_emission,         ONLY: ParticleInserting!, ParticleSurfaceflux
+USE MOD_part_emission,         ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                  ONLY: DSMC_main
 USE MOD_DSMC_Vars,             ONLY: useDSMC, DSMC_RHS
 USE MOD_part_MPFtools,         ONLY: StartParticleMerge
@@ -3424,8 +3423,8 @@ iStage=1
 ! first RK step
 #ifdef PARTICLES
 !Time=t
-!RKdtFrac = RK_c(2)
-!RKdtFracTotal=RKdtFrac
+RKdtFrac = RK_c(2)
+RKdtFracTotal=RKdtFrac
 
 IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   CALL Deposition(doInnerParts=.TRUE.) ! because of emmision and UpdateParticlePosition
@@ -3455,13 +3454,13 @@ CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
 
 #ifdef PARTICLES
 ! particles
-IF (DoSurfaceFlux .AND. (t.GE.DelayTime)) THEN
-  !CALL ParticleSurfaceflux()
-END IF
 LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
 LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
 LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
 PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+IF (DoSurfaceFlux .AND. (t.GE.DelayTime)) THEN
+  CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
+END IF
 IF (t.GE.DelayTime) THEN
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
@@ -3488,7 +3487,7 @@ IF (t.GE.DelayTime) THEN
       ELSE !IsNewPart
         IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !SF, new in current RKStage (no forces assumed in this stage)
           CALL RANDOM_NUMBER(RandVal)
-          !dtFrac = dt * RKdtFrac * RandVal
+          dtFrac = dt * RKdtFrac * RandVal
           PDM%dtFracPush(iPart) = .FALSE.
         ELSE
           CALL abort(&
@@ -3528,11 +3527,11 @@ DO iStage=2,nRKStages
   tStage=t+dt*RK_c(iStage)
 #ifdef PARTICLES
   IF (iStage.NE.nRKStages) THEN
-    !RKdtFrac = RK_c(iStage+1)-RK_c(iStage)
-    !RKdtFracTotal=RKdtFracTotal+RKdtFrac
+    RKdtFrac = RK_c(iStage+1)-RK_c(iStage)
+    RKdtFracTotal=RKdtFracTotal+RKdtFrac
   ELSE
-    !RKdtFrac = 1.-RK_c(nRKStages)
-    !RKdtFracTotal=1.
+    RKdtFrac = 1.-RK_c(nRKStages)
+    RKdtFracTotal=1.
   END IF
 
   ! deposition 
@@ -3559,13 +3558,13 @@ DO iStage=2,nRKStages
     CALL CalcPartRHS()
 
     ! particle step
-    !IF (DoSurfaceFlux) CALL ParticleSurfaceflux()
+    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+    PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+    IF (DoSurfaceFlux) CALL ParticleSurfaceflux() !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
-        LastPartPos(iPart,1)=PartState(iPart,1)
-        LastPartPos(iPart,2)=PartState(iPart,2)
-        LastPartPos(iPart,3)=PartState(iPart,3)
-        PEM%lastElement(iPart)=PEM%Element(iPart)
         IF (.NOT.PDM%IsNewPart(iPart)) THEN
           Pt_temp(iPart,1) = PartState(iPart,4) - RK_a(iStage) * Pt_temp(iPart,1)
           Pt_temp(iPart,2) = PartState(iPart,5) - RK_a(iStage) * Pt_temp(iPart,2)
@@ -3582,7 +3581,7 @@ DO iStage=2,nRKStages
         ELSE !IsNewPart: no Pt_temp history available!
           IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !SF, new in current RKStage (no forces assumed in this stage)
             CALL RANDOM_NUMBER(RandVal)
-            !dtFrac = dt * RKdtFrac * RandVal
+            dtFrac = dt * RKdtFrac * RandVal
             PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
             PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
             PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac

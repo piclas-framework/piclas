@@ -106,6 +106,21 @@ For building on the forhlr1-cluster, the following steps are needed:
         
         set HDF5F90 to TRUE
 
+### Building with ccmake on hazelhen
+
+For building on the hazelhen-cluster, the following steps are needed:
+
+* include in .bashrc:
+        
+		module unload PrgEnv-cray
+        module load PrgEnv-intel
+        module load cray-hdf5-parallel
+        module load tools/cmake
+
+    Create folder tecio in $HOME. Copy libtecio.a into new folder. Reset TECIO-DIR in ccmake.
+
+
+
 [openmpi]: https://www.open-mpi.org/
 [paraview]: https://www.paraview.org
 [cmake]: https://www.cmake.org

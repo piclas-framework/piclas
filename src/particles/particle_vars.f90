@@ -241,7 +241,7 @@ TYPE tParticleDataManagement
                                                                               ! (1:2,1:PDM%maxParticleNumber)
                                                                               ! surface index ElemToSide(i,localsideID,ElementID)
   LOGICAL ,ALLOCATABLE                   :: dtFracPush(:)                     ! Push random fraction only
-  LOGICAL ,ALLOCATABLE                   :: IsNewPart(:)                      ! Push random fraction only
+  LOGICAL ,ALLOCATABLE                   :: IsNewPart(:)                      ! Reconstruct RK-scheme in next stage
 END TYPE
 
 TYPE (tParticleDataManagement)           :: PDM
@@ -276,7 +276,7 @@ REAL, ALLOCATABLE                        :: vMPFOldVelo(:,:)                  ! 
 REAL, ALLOCATABLE                        :: vMPFOldBrownVelo(:,:)             ! Old brownian Velo
 REAL, ALLOCATABLE                        :: vMPFOldPos(:,:)                   ! Old Particle Pos for Polynom
 REAL, ALLOCATABLE                        :: vMPFOldMPF(:)                     ! Old Particle MPF
-REAL, ALLOCATABLE                        :: vMPFNewPosNum(:)
+INTEGER, ALLOCATABLE                     :: vMPFNewPosNum(:)
 INTEGER, ALLOCATABLE                     :: vMPF_SpecNumElem(:,:)             ! number of particles of spec (:,i) in element (j,:)
 CHARACTER(30)                            :: vMPF_velocityDistribution         ! specifying keyword for velocity distribution
 REAL, ALLOCATABLE                        :: vMPF_NewPosRefElem(:,:)          ! new positions in ref elem
