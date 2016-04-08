@@ -203,6 +203,9 @@ IMPLICIT NONE
 REAL,ALLOCATABLE         :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE         :: U_local2(:,:,:,:,:)
 INTEGER                  :: iElem,iPML
+#ifdef MPI
+REAL                     :: StartT,EndT
+#endif /*MPI*/
 #ifdef PARTICLES
 INTEGER                  :: FirstElemInd,LastelemInd,i,iInit
 INTEGER,ALLOCATABLE      :: PartInt(:,:)
@@ -224,6 +227,9 @@ INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:Part
 !===================================================================================================================================
 IF(DoRestart)THEN
 SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
+#ifdef MPI
+  StartT=MPI_WTIME()
+#endif
 #ifdef MPI
    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
 #else
@@ -319,7 +325,7 @@ __STAMP__&
       DEALLOCATE(U_local,U_local2)
     END IF ! DoPML
 #endif
-    SWRITE(UNIT_stdOut,*)'DONE!'
+    SWRITE(UNIT_stdOut,*)' DONE!'
   END IF
 
 #ifdef PARTICLES
@@ -399,7 +405,7 @@ __STAMP__&
   DEALLOCATE(PartInt,PartData)
   PDM%ParticleVecLength = PDM%ParticleVecLength + locnPart
   CALL UpdateNextFreePosition()
-  SWRITE(UNIT_stdOut,*)'DONE!' 
+  SWRITE(UNIT_stdOut,*)' DONE!' 
   DO i=1,nSpecies
     DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
       Species(i)%Init(iInit)%InsertedParticle = INT(Species(i)%Init(iInit)%ParticleEmission * RestartTime,8)
@@ -569,7 +575,13 @@ __STAMP__&
   CALL CloseDataFile() 
   ! Delete all files that will be rewritten
   CALL FlushHDF5(RestartTime)
-  SWRITE(UNIT_stdOut,*)'Restart DONE!' 
+#ifdef MPI
+  EndT=MPI_WTIME()
+  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Restart took  [',EndT-StartT,'s] for readin.'
+  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!' 
+#else
+  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!' 
+#endif
 ELSE
   ! Delete all files since we are doing a fresh start
   CALL FlushHDF5()
