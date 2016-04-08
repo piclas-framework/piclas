@@ -54,8 +54,8 @@ SUBROUTINE InitParticleAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars            ,ONLY:DoAnalyze
-USE MOD_Particle_Analyze_Vars  !,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin
+USE MOD_Analyze_Vars            ,ONLY: CalcEpot, DoAnalyze
+USE MOD_Particle_Analyze_Vars  !,ONLY: ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin
 USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY
 #ifdef PARTICLES
 USE MOD_Particle_Vars           ,ONLY: nSpecies
@@ -70,6 +70,12 @@ IMPLICIT NONE
 INTEGER   :: dir, VeloDirs_hilf(4)
 #endif /*PARTICLES*/
 !===================================================================================================================================
+  IF (ParticleAnalyzeInitIsDone) THEN
+    CALL abort(__STAMP__,'InitParticleAnalyse already called.',999,999.)
+    RETURN
+  END IF
+  SWRITE(UNIT_StdOut,'(132("-"))')
+  SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
 
 #ifdef PARTICLES  
 
@@ -184,9 +190,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars,          ONLY: CalcEpot, DoAnalyze
 USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
-USE MOD_PARTICLE_Vars,         ONLY: nSpecies
-USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac
-USE MOD_Restart_Vars,          ONLY: DoRestart
+USE MOD_PARTICLE_Vars,         ONLY: PartSpecies, PDM, nSpecies, PartMPF, usevMPF, BoltzmannConst, Species
+USE MOD_DSMC_Vars,             ONLY: DSMC, CollInf, useDSMC, CollisMode, ChemReac, SpecDSMC, PolyatomMolDSMC
+USE MOD_Restart_Vars,          ONLY: DoRestart, RestartTime
 USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod>=501)
 USE MOD_TimeDisc_Vars,         ONLY : iter
@@ -198,12 +204,10 @@ USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
 USE MOD_DSMC_Vars,             ONLY: DSMC
 #if (PP_TimeDiscMethod ==1000)
-USE MOD_DSMC_Vars,             ONLY: SpecDSMC
+USE MOD_DSMC_Vars,             ONLY: DSMC, SpecDSMC
 #endif
 #if ( PP_TimeDiscMethod ==42)
-USE MOD_DSMC_Vars,             ONLY: DSMC, SpecDSMC
-USE MOD_Particle_Vars,         ONLY: Species
-USE MOD_Restart_Vars,          ONLY: RestartTime
+USE MOD_DSMC_Vars,             ONLY: Adsorption
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -216,24 +220,25 @@ REAL,INTENT(IN)                 :: Time
 ! LOCAL VARIABLES
 LOGICAL             :: isOpen, FileExists
 CHARACTER(LEN=350)  :: outfile
-INTEGER             :: unit_index, iSpec
-REAL                :: WEl, WMag
-REAL                :: Ekin(nSpecies + 1), Temp(nSpecies)
-INTEGER             :: NumSpec(nSpecies), OutputCounter
+INTEGER             :: unit_index, iSpec, iPolyatMole, iPart, iDOF, OutputCounter
+REAL                :: WEl, WMag, NumSpec(nSpecies+1)
+REAL                :: Ekin(nSpecies + 1), Temp(nSpecies+1)
+REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3),TempTotal(nSpecies+1), Xi_Vib(nSpecies)
 REAL                :: MaxCollProb, MeanCollProb
 #ifdef MPI
 REAL                :: RECBR(nSpecies),RECBR2(nEkin),RECBR1
 INTEGER             :: RECBIM(nSpecies)
-REAL                :: sumMeanCollProb
+REAL                :: sumIntTemp(nSpecies+1),sumIntEn(nSpecies),sumTempTotal(nSpecies+1),sumMeanCollProb
 #endif /*MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==1000)
 REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3)
 #endif
 #if (PP_TimeDiscMethod ==42)
-INTEGER             :: ii, iunit, iCase, iTvib,jSpec
+INTEGER             :: ii, iunit, iCase, iTvib,jSpec, WallNumSpec(nSpecies)
 CHARACTER(LEN=64)   :: DebugElectronicStateFilename
 CHARACTER(LEN=350)  :: hilf
+REAL                :: WallCoverage(nSpecies)
 REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3)
 #ifdef MPI 
 REAL                :: sumIntTemp(nSpecies),sumIntEn(nSpecies)
