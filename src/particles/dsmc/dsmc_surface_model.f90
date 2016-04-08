@@ -77,10 +77,8 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
   USE MOD_Particle_Vars,          ONLY : WriteMacroValues, KeepWallParticles, PDM
   USE MOD_Particle_Vars,          ONLY : PartState,LastPartPos,Species,BoltzmannConst,PartSpecies,nSpecies
   USE MOD_Mesh_Vars,              ONLY : ElemToSide, BC
-  USE MOD_DSMC_Vars,              ONLY : useDSMC
-  USE MOD_DSMC_Vars,              ONLY : Adsorption
-  USE MOD_DSMC_Vars,              ONLY : PartStateIntEn, SpecDSMC, DSMC
-  USE MOD_DSMC_Vars,              ONLY : CollisMode
+  USE MOD_DSMC_Vars,              ONLY : useDSMC, CollisMode, Adsorption
+  USE MOD_DSMC_Vars,              ONLY : PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, dXiEQ_SurfSample, Partbound
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
 !===================================================================================================================================
@@ -110,8 +108,6 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
   REAL, ALLOCATABLE                    :: RanNumPoly(:), VibQuantNewRPoly(:)
   INTEGER                              :: iPolyatMole, iDOF
   INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
-  REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
-  REAL, ALLOCATABLE                    :: EVPolyNewFP(:), EVPolyWallFP(:)
   REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
 ! Local variable declaration            
   REAL                             :: maxPart
@@ -201,26 +197,57 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
       IntArray(3) = ErotNew
       PartStateIntEn(PartID,2) = ErotNew
       !---- Vibrational energy accommodation
-      VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib) &
-                  - DSMC%GammaQuant)
-      CALL RANDOM_NUMBER(RanNum)
-      VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(PartSpecies(PartID))%CharaTVib)
-      DO WHILE (VibQuantWall.GE.SpecDSMC(PartSpecies(PartID))%MaxVibQuant)
+      IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
+        EvibNew = 0.0
+        iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
+        ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+                 VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
+                 VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+        CALL RANDOM_NUMBER(RanNumPoly)
+        VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+          CALL RANDOM_NUMBER(RanNumPoly)
+          VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        END DO
+        VibQuantNewRPoly(:) = VibQuantsPar(PartID)%Quants(:) + VibACC*(VibQuantWallPoly(:) - VibQuantsPar(PartID)%Quants(:))
+        VibQuantNewPoly = INT(VibQuantNewRPoly)
+        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+          CALL RANDOM_NUMBER(RanNum)
+          IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
+            EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant + 1.0d0) &
+                      * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+            VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
+          ELSE
+            EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant) &
+                      * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+            VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
+          END IF
+          IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
+                      * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(PartSpecies(PartID))%MacroParticleFactor
+          IntArray(5) = IntArray(5) + VibQuantWall * BoltzmannConst &
+                      * SpecDSMC(PartSpecies(PartID))%CharaTVib * Species(PartSpecies(PartID))%MacroParticleFactor
+        END DO
+      ELSE
+        VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib) &
+                    - DSMC%GammaQuant)
         CALL RANDOM_NUMBER(RanNum)
         VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(PartSpecies(PartID))%CharaTVib)
-      END DO
-      VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
-      VibQuantNew = INT(VibQuantNewR)
-      CALL RANDOM_NUMBER(RanNum)
-      IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-        EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib
-      ELSE
-        EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib
+        DO WHILE (VibQuantWall.GE.SpecDSMC(PartSpecies(PartID))%MaxVibQuant)
+          CALL RANDOM_NUMBER(RanNum)
+          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(PartSpecies(PartID))%CharaTVib)
+        END DO
+        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
+        VibQuantNew = INT(VibQuantNewR)
+        CALL RANDOM_NUMBER(RanNum)
+        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
+          EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib
+        ELSE
+          EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib
+        END IF
+        IntArray(4) = VibQuant + DSMC%GammaQuant * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib
+        IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib
       END IF
-      IntArray(4) = VibQuant + DSMC%GammaQuant * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib
-      IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib
       IntArray(6) = EvibNew
-      PartStateIntEn(PartID,1) = EvibNew
     END IF
     END IF
     !End internal energy accomodation

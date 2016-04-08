@@ -644,8 +644,8 @@ REAL                                 :: POI_fak, TildPos(3),TildTrajectory(3)
 REAL, ALLOCATABLE                    :: RanNumPoly(:), VibQuantNewRPoly(:)
 INTEGER                              :: iPolyatMole, iDOF
 INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
-REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
-REAL, ALLOCATABLE                    :: EVPolyNewFP(:), EVPolyWallFP(:)
+! REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
+! REAL, ALLOCATABLE                    :: EVPolyNewFP(:), EVPolyWallFP(:)
 REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
 !===================================================================================================================================
 
