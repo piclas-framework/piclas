@@ -190,6 +190,8 @@ IF(DoRefMapping) PartCommSize=PartCommSize+3
 #else
     PartCommSize = PartCommSize - 6
 #endif /*IMEX*/
+#else !LSERK
+    PartCommSize = PartCommSize + 1 !IsNewPart for RK-Reconstruction
 #endif
 
 ALLOCATE( PartMPIExchange%nPartsSend(2,PartMPI%nMPINeighbors)  & 
@@ -659,7 +661,12 @@ DO iProc=1, PartMPI%nMPINeighbors
       !IF(PartSpecies(ipart).EQ.0) IPWRITE(*,*) 'part species zero',ipart
 #if defined(LSERK)
       PartSendBuf(iProc)%content(8+jPos:13+jPos) = Pt_temp(iPart,1:6)
-      jPos=jPos+6
+      IF (PDM%IsNewPart(iPart)) THEN
+        PartSendBuf(iProc)%content(14+jPos) = 1.
+      ELSE
+        PartSendBuf(iProc)%content(14+jPos) = 0.
+      END IF
+      jPos=jPos+7
 #endif
 #if defined(IMEX) || defined(IMPA)
 #if (PP_TimeDiscMethod!=110)
@@ -1110,7 +1117,16 @@ DO iProc=1,PartMPI%nMPINeighbors
     ! IF(PartSpecies(PartID).EQ.0) IPWRITE(*,*) 'part species zero',PartID
 #if defined(LSERK)
     Pt_temp(PartID,1:6)     = PartRecvBuf(iProc)%content( 8+jPos:13+jPos)
-    jPos=jPos+6
+    IF ( INT(PartRecvBuf(iProc)%content( 14+jPos)) .EQ. 1) THEN
+      PDM%IsNewPart(PartID)=.TRUE.
+    ELSE IF ( INT(PartRecvBuf(iProc)%content( 14+jPos)) .EQ. 0) THEN
+      PDM%IsNewPart(PartID)=.FALSE.
+    ELSE
+      CALL Abort(&
+        __STAMP__&
+        ,'Error with IsNewPart in MPIParticleRecv!')
+    END IF
+    jPos=jPos+7
 #endif
 #if defined(IMEX) || defined(IMPA)
 #if (PP_TimeDiscMethod!=110)

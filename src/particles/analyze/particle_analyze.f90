@@ -1079,7 +1079,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars,      ONLY : nPartIn,nPartOut,PartEkinIn,PartEkinOut
 #if defined(LSERK) || defined(IMEX) || defined(IMPA)
-!!#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Particle_Analyze_Vars,      ONLY : nPartInTmp,PartEkinInTmp
 #endif
 ! IMPLICIT VARIABLE HANDLING
@@ -1093,7 +1093,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 #if defined(LSERK) || defined(IMEX) || defined(IMPA)
-!!#if (PP_TimeDiscMethod==1) ||  (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 nPartIn=nPartInTmp
 nPartOut=0
 PartEkinIn=PartEkinInTmp

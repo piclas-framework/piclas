@@ -50,7 +50,7 @@ USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartA
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 !USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
-!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
@@ -69,7 +69,7 @@ REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTraj
 ! LOCAL VARIABLES
 REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3),RanNum
 INTEGER                              :: BCSideID
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 REAL                                 :: absPt_temp
 #endif
 LOGICAL                              :: isSpeciesSwap
@@ -151,7 +151,7 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Symmetry=.TRUE.)
 
 
 CASE DEFAULT
@@ -243,7 +243,7 @@ CASE(2) !PartBound%ReflectiveBC)
     BCSideID=PartBCSideList(SideID)
     IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
       ! perfectly reflection, specular re-emission
-      CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
+      CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID)
     ELSE
       CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
     END IF
@@ -282,7 +282,8 @@ __STAMP__&
 CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   BCSideID=PartBCSideList(SideID)
-  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
+  CALL PerfectReflection(&
+    PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID,opt_Symmetry=.TRUE.)
 
 
 CASE DEFAULT
@@ -294,7 +295,7 @@ END SELECT !PartBound%MapToPartBC(BC(SideID)
 END SUBROUTINE GetBoundaryInteractionRef
 
 
-SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,BCSideID)
+SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,BCSideID,opt_Symmetry)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -310,10 +311,10 @@ USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, SpecDSMC, DSMC, useDSMC
 USE MOD_DSMC_Vars,              ONLY:CollisMode, AnalyzeSurfCollis
-!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
-USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
-USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
+USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM!,Pt
+!USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartQ,F_PartX0
@@ -330,15 +331,16 @@ REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, SideID!,ElemID
 LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
+LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), v_help(3)
-!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-#if defined(LSERK)
-REAL                                 :: absPt_temp
-#endif
+REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), v_help(3), WallVelo(3)
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+!#if defined(LSERK)
+!REAL                                 :: absPt_temp
+!#endif
 #if IMPA
 REAL                                 :: absVec
 REAL                                 :: PartDiff(3)
@@ -349,10 +351,12 @@ INTEGER                              :: ElemID
 REAL                                  :: epsLength,epsReflect
 REAL                                 :: Xitild,EtaTild
 INTEGER                              :: p,q, SurfSideID
+LOGICAL                              :: Symmetry
 !===================================================================================================================================
 
 !OneMinus=1.0-MAX(epsInCell,epsilontol)
 epsLength=MAX(epsInCell,epsilontol)*lengthPartTrajectory
+WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
@@ -372,6 +376,11 @@ ELSE
   CASE(CURVED)
     CALL CalcNormAndTangBezier(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
   END SELECT 
+END IF
+IF(PRESENT(opt_Symmetry)) THEN
+  Symmetry = opt_Symmetry
+ELSE
+  Symmetry = .FALSE.
 END IF
 
 IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) RETURN
@@ -398,8 +407,7 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
   !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
   v_2=(LengthPartTrajectory-alpha)*PartTrajectory(1:3)+v_aux
   PartState(PartID,4:6)   = SQRT(DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6)))*&
-                           (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2                         +&
-                           PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
+                           (1/(SQRT(DOT_PRODUCT(v_2,v_2))))*v_2 + WallVelo
   
   PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
   lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
@@ -409,7 +417,7 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
   lengthPartTrajectory=lengthPartTrajectory!+epsilontol
   
   ! Wall sampling Macrovalues
-!   IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN
+!   IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
       SurfSideID=SurfMesh%SideIDToSurfID(SideID)
       ! compute p and q
@@ -419,16 +427,16 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
       p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
       q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1
       
-      !----  Sampling Forces at walls
+    !----  Sampling Forces at walls
 !       SampWall(SurfSideID)%State(10:12,p,q)= SampWall(SurfSideID)%State(10:12,p,q) + Species(PartSpecies(PartID))%MassIC &
-!                                           * (v_old(1:3) - PartState(PartID,4:6)) * Species(PartSpecies(PartID))%MacroParticleFactor
+!                                          * (v_old(1:3) - PartState(PartID,4:6)) * Species(PartSpecies(PartID))%MacroParticleFactor
       SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) + Species(PartSpecies(PartID))%MassIC &
                                           * (v_old(1) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
       SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) + Species(PartSpecies(PartID))%MassIC &
                                           * (v_old(2) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
       SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) + Species(PartSpecies(PartID))%MassIC &
                                           * (v_old(3) - PartState(PartID,4)) * Species(PartSpecies(PartID))%MacroParticleFactor
-      !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
+    !---- Counter for collisions (normal wall collisions - not to count if only Swaps to be counted, IsSpeciesSwap: already counted)
 !       IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps) THEN
       IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
         SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) = SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
@@ -462,14 +470,26 @@ __STAMP__&
 !   END IF
   
 #if defined(LSERK)
-!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-  ! correction for Runge-Kutta (correct position!!)
-  absPt_temp=SQRT(Pt_temp(PartID,1)*Pt_temp(PartID,1)+Pt_temp(PartID,2)*Pt_temp(PartID,2)+Pt_temp(PartID,3)*Pt_temp(PartID,3))
-  ! scale PartTrajectory to new Pt_temp
-  Pt_temp(PartID,1:3)=absPt_temp*PartTrajectory(1:3)
-  ! deleate force history
-  Pt_temp(PartID,4:6)=0.
-  ! what happens with force term || acceleration?
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+   ! correction for Runge-Kutta (correct position!!)
+!---------- old ----------
+!  absPt_temp=SQRT(Pt_temp(PartID,1)*Pt_temp(PartID,1)+Pt_temp(PartID,2)*Pt_temp(PartID,2)+Pt_temp(PartID,3)*Pt_temp(PartID,3))
+!  ! scale PartTrajectory to new Pt_temp
+!  Pt_temp(PartID,1:3)=absPt_temp*PartTrajectory(1:3)
+!  ! deleate force history
+!  Pt_temp(PartID,4:6)=0.
+!  ! what happens with force term || acceleration?
+!-------------------------
+   IF (.NOT.AlmostZero(DOT_PRODUCT(WallVelo,WallVelo))) THEN
+     PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
+   ELSE
+     Pt_temp(PartID,1:3)=Pt_temp(PartID,1:3)-2.*DOT_PRODUCT(Pt_temp(PartID,1:3),n_loc)*n_loc
+     IF (Symmetry) THEN !reflect also force history for symmetry
+       Pt_temp(PartID,4:6)=Pt_temp(PartID,4:6)-2.*DOT_PRODUCT(Pt_temp(PartID,4:6),n_loc)*n_loc
+     ELSE
+       Pt_temp(PartID,4:6)=0. !produces best result compared to analytical solution in plate capacitor...
+     END IF
+   END IF
 #endif  /*LSERK*/
 #ifdef IMPA
   ! at least EulerImplicit
@@ -507,18 +527,16 @@ USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall
 USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample,nSurfSample
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannConst,PartSpecies,nSpecies
+#if defined(LSERK)
+USE MOD_Particle_Vars,          ONLY:PDM
+#endif
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,BezierControlPoints3D
 USE MOD_Mesh_Vars,              ONLY:BC,NGEO
 USE MOD_DSMC_Vars,              ONLY:SpecDSMC,CollisMode
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn,DSMC, useDSMC
 USE MOD_DSMC_Vars,              ONLY:AnalyzeSurfCollis, PolyatomMolDSMC, VibQuantsPar
-#if defined(LSERK)
-!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-!USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
-USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
-#endif
 USE MOD_Particle_Vars,          ONLY:WriteMacroValues
-USE MOD_TImeDisc_Vars,          ONLY:dt,tend,time
+USE MOD_TimeDisc_Vars,          ONLY:dt,tend,time,RKdtFrac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -534,10 +552,6 @@ INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 ! LOCAL VARIABLES
 INTEGER                              :: locBCID, vibQuant, vibQuantNew, VibQuantWall
 REAL                                 :: VibQuantNewR                                                !
-!#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
-#if defined(LSERK)
-!REAL                                 :: absPt_temp
-#endif
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 INTEGER                              :: ElemID
 REAL                                 :: v_help(3)
@@ -657,13 +671,13 @@ v_help=LastPartPos(PartID,1:3)-ElemBaryNGeo(1:3,ElemID)
 LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*(1.0-epsInCell)
 
 ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
-!TildPos       =PartState(PartID,1:3)-dt*PartState(PartID,4:6)
-TildTrajectory=dt*PartState(PartID,4:6)
+!TildPos       =PartState(PartID,1:3)-dt*RKdtFrac*PartState(PartID,4:6)
+TildTrajectory=dt*RKdtFrac*PartState(PartID,4:6)
 POI_fak=1.- (lengthPartTrajectory-alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
 ! travel rest of particle vector
-!PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alpha/lengthPartTrajectory) * dt * NewVelo(1:3)
-!CALL RANDOM_NUMBER(POI_fak)
-PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt * NewVelo(1:3)
+!PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
+IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+PartState(PartID,1:3)   = LastPartPos(PartID,1:3) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3)
 
 !---- Internal energy accommodation
 IF (useDSMC) THEN
@@ -952,6 +966,10 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 !lengthPartTrajectory=lengthPartTrajectory!+epsilontol
+
+#if defined(LSERK)
+PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
+#endif
 
 END SUBROUTINE DiffuseReflection
 

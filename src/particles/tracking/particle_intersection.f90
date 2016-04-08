@@ -246,7 +246,14 @@ isHit=.FALSE.
 #ifdef CODE_ANALYZE
 rBoundingBoxChecks=rBoundingBoxChecks+1.
 #endif /*CODE_ANALYZE*/
-  
+
+IF(BoundingBoxIsEmpty(SideID))THEN
+  IF(DoRefMapping)THEN
+    IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
+  ELSE
+    IF(ALMOSTZERO(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory)))RETURN
+  END IF
+END IF
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
 IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
   IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box

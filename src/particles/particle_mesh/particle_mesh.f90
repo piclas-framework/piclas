@@ -2880,7 +2880,7 @@ INTEGER                                  :: iSide,p,q, nPlanar,nBilinear,nCurved
 INTEGER                                  :: nPlanarHalo, nBilinearHalo, nCurvedHalo, nCurvedElemsHalo
 INTEGER                                  :: nSideCount, BCSideID, BCSideID2, s,r
 INTEGER,ALLOCATABLE                      :: SideIndex(:)
-REAL,DIMENSION(1:3)                      :: v1,v2,NodeX
+REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
 INTEGER                                  :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
@@ -2893,7 +2893,7 @@ REAL                                    :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
 INTEGER                                 :: i,j,k, NGeo3,NGeo2, nLoop
 REAL                                    :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
 REAL                                    :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
-LOGICAL                                 :: isCurvedSide
+LOGICAL                                 :: isCurvedSide,isRectangular
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -2919,6 +2919,7 @@ ELSE
           , SideNormVec(1:3,nTotalSides) )
 END IF
 SideIsDone=.FALSE.
+SideType=-1
 
 SideDistance=0.
 SideNormVec=0.
@@ -2984,11 +2985,6 @@ DO iElem=1,nLoop
     IF(.NOT.CurvedElem(iElem))THEN
       ! linear element
       IF(BoundingBoxIsEmpty(TrueSideID))THEN
-        SideType(TrueSideID)=PLANAR
-        IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
-#ifdef MPI
-        IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
-#endif /*MPI*/
         v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
             -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
         
@@ -3000,6 +2996,31 @@ DO iElem=1,nLoop
                 +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
                 +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
         SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+        ! check if it is rectangular
+        isRectangular=.TRUE.
+        v1=BezierControlPoints3D(:,0   ,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+        v2=BezierControlPoints3D(:,NGeo,0   ,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+        v3=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,NGeo,TrueSideID)
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        IF(isRectangular)THEN
+          v1=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        END IF
+        IF(isRectangular)THEN
+          SideType(TrueSideID)=PLANAR
+          IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+          IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
+#endif /*MPI*/
+        ELSE
+          SideType(TrueSideID)=CURVED
+          IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+          IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+#endif /*MPI*/
+        END IF
       ELSE
         SideType(TrueSideID)=BILINEAR
         IF(SideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
@@ -3051,11 +3072,6 @@ DO iElem=1,nLoop
         END IF
       ELSE
         IF(BoundingBoxIsEmpty(TrueSideID))THEN
-          SideType(TrueSideID)=PLANAR
-          IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
-#ifdef MPI
-          IF(SideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
-#endif /*MPI*/
           v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
               -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
           
@@ -3067,6 +3083,31 @@ DO iElem=1,nLoop
                   +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
                   +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
           SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+          ! check if it is rectangular
+          isRectangular=.TRUE.
+          v1=BezierControlPoints3D(:,0   ,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+          v2=BezierControlPoints3D(:,NGeo,0   ,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+          v3=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,NGeo,TrueSideID)
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+          IF(isRectangular)THEN
+            v1=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)
+            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+          END IF
+          IF(isRectangular)THEN
+            SideType(TrueSideID)=PLANAR
+            IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+            IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
+#endif /*MPI*/
+          ELSE
+            SideType(TrueSideID)=CURVED
+            IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+            IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+#endif /*MPI*/
+          END IF
         ELSE
           SideType(TrueSideID)=BILINEAR
           IF(SideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
@@ -3108,7 +3149,7 @@ IF(DoRefMapping)THEN
   ! number of element local BC-Sides
   DO iElem=1,nTotalElems
     BCElem(iElem)%nInnerSides=0
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
     IF(.NOT.isBCElem(iElem)) CYCLE
 #endif
     DO ilocSide=1,6
@@ -3130,7 +3171,7 @@ IF(DoRefMapping)THEN
       DO ilocSide=1,6
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.EQ.-1) CYCLE
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         BCSideID2 =PartBCSideList(SideID)
         IF(BCSideID2.EQ.-1) CYCLE
         leave=.FALSE.

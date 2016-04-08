@@ -158,7 +158,7 @@ LOGICAL                       :: exitTrue
 
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
-!#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 !print*, "SFSDRWE#"
 ALLOCATE(Pt_temp(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
@@ -770,6 +770,7 @@ ALLOCATE(PartBound%WallTemp(1:nPartBound))
 ALLOCATE(PartBound%TransACC(1:nPartBound))
 ALLOCATE(PartBound%VibACC(1:nPartBound))
 ALLOCATE(PartBound%RotACC(1:nPartBound))
+ALLOCATE(PartBound%Resample(1:nPartBound))
 ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
 ALLOCATE(PartBound%AmbientCondition(1:nPartBound))
 ALLOCATE(PartBound%AmbientTemp(1:nPartBound))
@@ -821,6 +822,7 @@ DO iPartBound=1,nPartBound
      PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC','0')
      PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC','0')
      PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC','0')
+     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample','.FALSE.')
      PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3,'0. , 0. , 0.')
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
@@ -1068,7 +1070,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 #if defined(LSERK)
-!#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 SDEALLOCATE( Pt_temp)
 #endif
 !SDEALLOCATE(SampDSMC)
@@ -1094,6 +1096,7 @@ SDEALLOCATE(PartBound%WallTemp)
 SDEALLOCATE(PartBound%TransACC)
 SDEALLOCATE(PartBound%VibACC)
 SDEALLOCATE(PartBound%RotACC)
+SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%AmbientCondition)
 SDEALLOCATE(PartBound%AmbientTemp)

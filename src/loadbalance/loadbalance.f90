@@ -610,7 +610,7 @@ nloadIter=nloaditer+1
 tTotal=tTotal+tCurrent
 
 #ifdef PARTICLES
-#if ((PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
   nLocalParts=REAL(nCurrentParts)/REAL(nRKStages) ! parts per stage
 #else
   nLocalParts=REAL(nCurrentParts)
