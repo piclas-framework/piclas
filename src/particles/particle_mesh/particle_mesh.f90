@@ -631,6 +631,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#ifdef MPI
+REAL                     :: StartT,EndT
+#endif /*MPI*/
 !=================================================================================================================================
 
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -639,12 +642,20 @@ GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 CALL GetFIBGM()
+
 #ifdef MPI
+SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
+StartT=MPI_WTIME()
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 CALL InitHaloMesh()
 ! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
 ! rebuild is a local operation
 CALL AddHALOCellsToFIBGM()
+EndT=MPI_WTIME()
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Constructing of halo region took [',EndT-StartT,'s]'
+END IF
+
 #endif /*MPI*/
 
 ! remove inner BezierControlPoints3D and SlabNormals, usw.
@@ -664,6 +675,7 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
 CALL BuildElementBasis()
 !CALL MapElemToFIBGM()
 
+SWRITE(UNIT_stdOut,'(A)')' DONE!' 
 
 END SUBROUTINE InitFIBGM
 

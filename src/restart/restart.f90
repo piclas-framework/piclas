@@ -203,6 +203,9 @@ IMPLICIT NONE
 REAL,ALLOCATABLE         :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE         :: U_local2(:,:,:,:,:)
 INTEGER                  :: iElem,iPML
+#ifdef MPI
+REAL                     :: StartT,EndT
+#endif /*MPI*/
 #ifdef PARTICLES
 INTEGER                  :: FirstElemInd,LastelemInd,i,iInit
 INTEGER,ALLOCATABLE      :: PartInt(:,:)
@@ -224,6 +227,9 @@ INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:Part
 !===================================================================================================================================
 IF(DoRestart)THEN
 SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
+#ifdef MPI
+  StartT=MPI_WTIME()
+#endif
 #ifdef MPI
    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.)
 #else
@@ -569,7 +575,12 @@ __STAMP__&
   CALL CloseDataFile() 
   ! Delete all files that will be rewritten
   CALL FlushHDF5(RestartTime)
-  SWRITE(UNIT_stdOut,*)'Restart DONE!' 
+#ifdef MPI
+  EndT=MPI_WTIME()
+  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'Restart DONE! [',EndT-StartT,'s]'
+#else
+  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'Restart DONE!' 
+#endif
 ELSE
   ! Delete all files since we are doing a fresh start
   CALL FlushHDF5()

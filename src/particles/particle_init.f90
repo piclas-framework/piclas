@@ -986,6 +986,12 @@ OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
 CALL InitializeInterpolation() ! not any more required ! has to be called earliear
 CALL InitPIC()
 ! always, because you have to construct a halo_eps region around each bc element
+
+#ifdef MPI
+CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+#endif /*MPI*/
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...' 
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 !-- Finalizing InitializeVariables
@@ -993,6 +999,11 @@ CALL InitFIBGM()
 #ifdef MPI
 CALL InitEmissionComm()
 #endif /*MPI*/
+#ifdef MPI
+CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+#endif /*MPI*/
+
+SWRITE(UNIT_StdOut,'(132("-"))')
 
 !-- Read parameters for particle-data on region mapping
 
