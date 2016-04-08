@@ -50,7 +50,7 @@ USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartA
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
-USE MOD_DSMC_SurfModel_Tools,   ONLY:DSMC_Update_Wall_Vars
+USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 !USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
@@ -133,7 +133,7 @@ CASE(2) !PartBound%ReflectiveBC)
     ELSE IF (WallModeltype.EQ.1) THEN
                adsorbindex = 0
 !--- Adsorption               
-!       CALL Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex)
+      CALL Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
       IF (adsorbindex.EQ.1) THEN
         IF (KeepWallParticles) THEN
           PDM%ParticleAtWall(iPart) = .TRUE.
@@ -224,7 +224,7 @@ USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartA
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
-USE MOD_DSMC_SurfModel_Tools,   ONLY:DSMC_Update_Wall_Vars
+USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -298,7 +298,7 @@ CASE(2) !PartBound%ReflectiveBC)
     ELSE IF (WallModeltype.EQ.1) THEN
                adsorbindex = 0
 !--- Adsorption               
-!       CALL Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID)
+      CALL Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
       IF (adsorbindex.EQ.1) THEN
         IF (KeepWallParticles) THEN
           PDM%ParticleAtWall(iPart) = .TRUE.
