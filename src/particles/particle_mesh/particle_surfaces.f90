@@ -21,28 +21,12 @@ INTERFACE FinalizeParticleSurfaces
   MODULE PROCEDURE FinalizeParticleSurfaces
 END INTERFACE
 
-INTERFACE CalcBiLinearNormVec
-  MODULE PROCEDURE CalcBiLinearNormVec
-END INTERFACE
-
-!INTERFACE GetSuperSampledSurface
-!  MODULE PROCEDURE GetSuperSampledSurface
-!END INTERFACE
-
 INTERFACE GetBezierControlPoints3D
   MODULE PROCEDURE GetBezierControlPoints3D
 END INTERFACE
 
-INTERFACE CalcNormVecBezier
-  MODULE PROCEDURE CalcNormVecBezier
-END INTERFACE
-
-INTERFACE CalcBiLinearNormVecBezier
-  MODULE PROCEDURE CalcBiLinearNormVecBezier
-END INTERFACE
-
-INTERFACE CalcBiLinearNormAndTang
-  MODULE PROCEDURE CalcBiLinearNormAndTang
+INTERFACE CalcNormAndTangBilinear
+  MODULE PROCEDURE CalcNormAndTangBilinear
 END INTERFACE
 
 INTERFACE CalcNormAndTangBezier
@@ -66,11 +50,10 @@ INTERFACE EvaluateBezierPolynomialAndGradient
 END INTERFACE
   
 
-PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, CalcBiLinearNormVec, &!GetSuperSampledSurface, &
-        GetBezierControlPoints3D,CalcBiLinearNormVecBezier,CalcNormVecBezier,GetSideSlabNormalsAndIntervals,&
+PUBLIC::InitParticleSurfaces, FinalizeParticleSurfaces, GetBezierControlPoints3D, GetSideSlabNormalsAndIntervals, &
         GetElemSlabNormalsAndIntervals,GetBezierSampledAreas,EvaluateBezierPolynomialAndGradient
 
-PUBLIC::CalcBiLinearNormAndTang, CalcNormAndTangBezier
+PUBLIC::CalcNormAndTangBilinear, CalcNormAndTangBezier
 
 !===================================================================================================================================
 
@@ -126,7 +109,7 @@ epsilontol            = GETREAL('epsilontol','0.')
 ! epsilon approx 100*tolerance of the algorithm
 IF(ALMOSTZERO(epsilontol)) epsilontol=100.*BezierClipTolerance
 MinusEps              = -epsilontol
-OnePlusEps            = 1.0 + epsilontol
+OnePlusEps            = 1.0 + 100.*epsilontol
 OneMinusEps           = 1.0 - epsilontol
 
 BezierClipHit         = GETREAL('BezierClipHit','0.')
@@ -253,157 +236,21 @@ SDEALLOCATE(arrayNChooseK)
 SDEALLOCATE(BezierControlPoints3DElevated)
 SDEALLOCATE(FacNchooseK)
 SDEALLOCATE(SideType)
+SDEALLOCATE(BezierSampleXi)
+SDEALLOCATE(SurfMeshSubSideData)
+SDEALLOCATE(SurfMeshSideAreas)
+SDEALLOCATE(BCdata_auxSF)
 !SDEALLOCATE(gElemBCSide)
 ParticleSurfaceInitIsDone=.FALSE.
 
 END SUBROUTINE FinalizeParticleSurfaces
 
-! obsolete
-!SUBROUTINE GetBilinearPlane()
-!===================================================================================================================================
-! computes the required coefficients for a bi-linear plane and performs the decision between planar and bi-linear planes
-!===================================================================================================================================
-!! MODULES
-!USE MOD_Globals
-!USE MOD_Preproc
-!USE MOD_Mesh_Vars,                ONLY:nSides,ElemToSide
-!USE MOD_Particle_Vars,            ONLY:GEO
-!USE MOD_Particle_Surfaces_Vars,   ONLY:BezierEpsilonBilinear, BiLinearCoeff, SideNormVec, SideDistance
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!LOGICAL,ALLOCATABLE               :: SideIsDone(:)
-!REAL                              :: Displacement,nlength
-!INTEGER                           :: iElem,ilocSide, SideID,iNode,iSide
-!! debug information
-!INTEGER                           :: nBilinear,nPlanar
-!===================================================================================================================================
-!
-!ALLOCATE( SideIsDone(1:nSides) )
-!SideIsDone=.FALSE.
-!nBiLinear=0
-!nPlanar=0
-!
-!DO iElem=1,PP_nElems ! caution, if particles are not seeded in the whole domain
-!  DO ilocSide=1,6
-!    SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem) 
-!    IF(.NOT.SideIsDone(SideID))THEN
-!
-!      ! for ray-bi-linear patch intersection see. ramsay
-!      ! compute the bi-linear coefficients for this side
-!      ! caution: the parameter space is [-1;1] x [-1;1] instead of [0,1]x[0,2] 
-!      ! the numbering of the nodes should be counterclockwise 
-!      ! DEBUGGGG!!!!!!!!!!!!!!!!
-!      ! check if the nodes are in correct numbering
-!      ! for ray-bi-linear patch intersection see. ramsay
-!      BiLinearCoeff(:,1,SideID) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
-!                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
-!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
-!                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
-!
-!      BiLinearCoeff(:,2,SideID) =-GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
-!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
-!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
-!                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
-!
-!      BiLinearCoeff(:,3,SideID) =-GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
-!                                - GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
-!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
-!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
-!
-!      BiLinearCoeff(:,4,SideID) = GEO%NodeCoords(:,GEO%ElemSideNodeID(1,ilocSide,iElem)) &
-!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(2,ilocSide,iElem)) &
-!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(3,ilocSide,iElem)) &
-!                                + GEO%NodeCoords(:,GEO%ElemSideNodeID(4,ilocSide,iElem))
-!      BiLinearCoeff(:,:,SideID) = 0.25*BiLinearCoeff(:,:,SideID)
-!      ! compute displacement vector (is displacement form planar plane)
-!      Displacement = BiLinearCoeff(1,1,SideID)*BiLinearCoeff(1,1,SideID) &
-!                   + BiLinearCoeff(2,1,SideID)*BiLinearCoeff(2,1,SideID) &
-!                   + BiLinearCoeff(3,1,SideID)*BiLinearCoeff(3,1,SideID) 
-!      IF(Displacement.LT.BezierEpsilonBilinear)THEN
-!        nPlanar=nPlanar+1
-!      ELSE
-!        nBilinear=nBilinear+1
-!      END IF
-!      SideIsDone(SideID)=.TRUE.
-!    ELSE
-!      CYCLE  
-!    END IF ! SideID
-!  END DO ! ilocSide
-!END DO ! iElem
-!
-!! get number of bc-sides of each element
-!! nElemBCSides=0
-!! DO iElem=1,PP_nelems
-!!   DO ilocSide=1,6
-!!     SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
-!!     IF(SideID.LT.nBCSides) nElemBCSides=nElemBCSides+1
-!!   END DO ! ilocSide
-!! END DO ! nElemBCSides
-!
-!SWRITE(UNIT_StdOut,'(132("-"))')
-!SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar    surfaces: ', nPlanar
-!SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear surfaces: ', nBilinear
-!ALLOCATE(SideNormVec(1:3,nSides))
-!SideNormVec=0.
-!! compute normal vector of planar sides
-!DO iSide=1,nSides
-!  IF(SideIsPlanar(SideID))THEN
-!    SideNormVec(:,iSide)=CROSS(BiLinearCoeff(:,2,iSide),BiLinearCoeff(:,3,iSide))
-!    nlength=SideNormVec(1,iSide)*SideNormVec(1,iSide) &
-!           +SideNormVec(2,iSide)*SideNormVec(2,iSide) &
-!           +SideNormVec(3,iSide)*SideNormVec(3,iSide) 
-!    SideNormVec(:,iSide) = SideNormVec(:,iSide)/SQRT(nlength)
-!    SideDistance(iSide)  = DOT_PRODUCT(SideNormVec(:,iSide),BiLinearCoeff(:,4,iSide))
-!  END IF
-!END DO ! iSide
-!
-!DEALLOCATE( SideIsDone)
-!
-!END SUBROUTINE GetBilinearPlane
 
-FUNCTION CalcBiLinearNormVec(xi,eta,SideID)
+SUBROUTINE CalcNormAndTangBilinear(nVec,tang1,tang2,xi,eta,SideID)
 !================================================================================================================================
 ! function to compute the normal vector of a bi-linear surface
 !================================================================================================================================
-USE MOD_Globals,                              ONLY:CROSS
-USE MOD_Particle_Surfaces_Vars,               ONLY:BiLinearCoeff
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!--------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)                        :: xi,eta
-INTEGER,INTENT(IN)                     :: SideID
-!--------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,DIMENSION(3)                      :: CalcBiLinearNormVec
-!--------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL,DIMENSION(3)                      :: a,b,nVec
-REAL                                   :: nlength
-!================================================================================================================================
-
-a=xi* BiLinearCoeff(:,1,SideID)+BiLinearCoeff(:,2,SideID)
-b=eta*BiLinearCoeff(:,1,SideID)+BiLinearCoeff(:,3,SideID)
-
-nVec=CROSS(a,b)
-nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
-nlength=SQRT(nlength)
-CalcBiLinearNormVec=nVec/nlength
-
-END FUNCTION CalcBiLinearNormVec
-
-FUNCTION CalcBiLinearNormVecBezier(xi,eta,SideID)
-!================================================================================================================================
-! function to compute the normal vector of a bi-linear surface
-!================================================================================================================================
-USE MOD_Globals,                              ONLY:CROSS
+USE MOD_Globals,                              ONLY:CROSSNORM,UNITVECTOR
 USE MOD_Mesh_Vars,                            ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D
 ! IMPLICIT VARIABLE HANDLING
@@ -414,48 +261,8 @@ REAL,INTENT(IN)                        :: xi,eta
 INTEGER,INTENT(IN)                     :: SideID
 !--------------------------------------------------------------------------------------------------------------------------------
 !OUTPUT VARIABLES
-REAL,DIMENSION(3)                      :: CalcBilinearNormVecBezier
-!--------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL,DIMENSION(3)                      :: a,b,nVec
-REAL                                   :: nlength
-!================================================================================================================================
-
-
-b=xi*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0  ,SideID)  & 
-          +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) ) &
-   +0.25*(-BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0  ,SideID)   &
-          +BezierControlPoints3D(:,NGeo,NGeo,SideID)+BezierControlPoints3D(:,0   ,NGeo,SideID) )
-
-a=eta*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NGeo,0   ,SideID)   &
-           +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) ) &
-    +0.25*(-BezierControlPoints3D(:,0   ,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
-           +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) )
-
-
-nVec=CROSS(a,b)
-nlength=nVec(1)*nVec(1)+nVec(2)*nVec(2)+nVec(3)*nVec(3)
-nlength=SQRT(nlength)
-CalcBiLinearNormVecBezier=nVec/nlength
-END FUNCTION CalcBiLinearNormVecBezier
-
-
-SUBROUTINE CalcBiLinearNormAndTang(nVec,tang1,tang2,xi,eta,SideID)
-!================================================================================================================================
-! function to compute the normal vector of a bi-linear surface
-!================================================================================================================================
-USE MOD_Globals,                              ONLY:CROSSNORM
-USE MOD_Mesh_Vars,                            ONLY:NGeo
-USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!--------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)                        :: xi,eta
-INTEGER,INTENT(IN)                     :: SideID
-!--------------------------------------------------------------------------------------------------------------------------------
-!OUTPUT VARIABLES
-REAL,INTENT(OUT)                       :: nVec(3), tang1(3), tang2(3)
+REAL,INTENT(OUT)                       :: nVec(3)
+REAL,INTENT(OUT),OPTIONAL              :: tang1(3), tang2(3)
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(3)                      :: a,b
@@ -472,11 +279,11 @@ a=eta*0.25*(BezierControlPoints3D(:,0   ,0   ,SideID)-BezierControlPoints3D(:,NG
     +0.25*(-BezierControlPoints3D(:,0   ,0   ,SideID)+BezierControlPoints3D(:,NGeo,0   ,SideID)   &
            +BezierControlPoints3D(:,NGeo,NGeo,SideID)-BezierControlPoints3D(:,0   ,NGeo,SideID) )
 
-tang1=a/DOT_PRODUCT(a,a)
-tang2=b/DOT_PRODUCT(b,b)
-nVec=CROSSNORM(tang1,tang2)
+nVec=CROSSNORM(a,b)
+IF(PRESENT(tang1)) tang1=UNITVECTOR(a)
+IF(PRESENT(tang2)) tang2=UNITVECTOR(b)
 
-END SUBROUTINE CalcBiLinearNormAndTang
+END SUBROUTINE CalcNormAndTangBilinear
 
 
 SUBROUTINE CalcNormAndTangBezier(nVec,tang1,tang2,xi,eta,SideID)
@@ -484,7 +291,7 @@ SUBROUTINE CalcNormAndTangBezier(nVec,tang1,tang2,xi,eta,SideID)
 ! function to compute the normal vector of a bi-linear surface
 !================================================================================================================================
 USE MOD_Mesh_Vars,                            ONLY:NGeo
-USE MOD_Globals,                              ONLY:CROSSNORM
+USE MOD_Globals,                              ONLY:CROSSNORM,UNITVECTOR
 USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec
 ! IMPLICIT VARIABLE HANDLING
@@ -495,7 +302,8 @@ REAL,INTENT(IN)                        :: xi,eta
 INTEGER,INTENT(IN)                     :: SideID
 !--------------------------------------------------------------------------------------------------------------------------------
 !OUTPUT VARIABLES
-REAL,DIMENSION(3),INTENT(OUT)          :: nVec,tang1,tang2
+REAL,DIMENSION(3),INTENT(OUT)          :: nVec
+REAL,DIMENSION(3),INTENT(OUT),OPTIONAL :: tang1,tang2
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(2,3)                    :: gradXiEta
@@ -503,55 +311,12 @@ REAL,DIMENSION(2,3)                    :: gradXiEta
 
 ! caution we require the formula in [0;1]
 CALL EvaluateBezierPolynomialAndGradient((/xi,eta/),NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Gradient=gradXiEta)
-tang1=gradXiEta(1,:)/DOT_PRODUCT(gradXiEta(1,:),gradXiEta(1,:))
-tang2=gradXiEta(2,:)/DOT_PRODUCT(gradXiEta(2,:),gradXiEta(2,:))
 nVec =CROSSNORM(gradXiEta(1,:),gradXiEta(2,:))
+gradXiEta(2,:)=CROSSNORM(nVec,gradXiEta(1,:))
+IF(PRESENT(tang1)) tang1=UNITVECTOR(gradXiEta(1,:))
+IF(PRESENT(tang2)) tang2=gradXiEta(2,:)
 
 END SUBROUTINE CalcNormAndTangBezier
-
-
-FUNCTION CalcNormVecBezier(xi,eta,SideID)
-!================================================================================================================================
-! function to compute the normal vector of a bi-linear surface
-! book:
-! author = {Farin, Gerald},
-! title = {Curves and Surfaces for CAGD: A Practical Guide},
-! year = {2002},
-! 1) computation of Bezier Polynomial is from Farin, Chap. 5, p. 57, EQ. 1
-!    precompute t^i (1-t)^(n-i) by means of Horner Schema and store values direcly sorted 
-! 2) evaluate gradients
-!================================================================================================================================
-USE MOD_Mesh_Vars,                            ONLY:NGeo
-USE MOD_Globals,                              ONLY:CROSSNORM,CROSS
-USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D,facNchooseK,BoundingBoxIsEmpty
-USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec,D_Bezier
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!--------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)                        :: xi,eta
-INTEGER,INTENT(IN)                     :: SideID
-!--------------------------------------------------------------------------------------------------------------------------------
-!OUTPUT VARIABLES
-REAL,DIMENSION(3)                      :: CalcNormVecBezier
-!--------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL,DIMENSION(2,3)                    :: gradXiEta
-REAL,DIMENSION(2)                      :: XiOut(2)
-!================================================================================================================================
-
-IF(BoundingBoxIsEmpty(SideID))THEN
-  CalcNormVecBezier=SideNormVec(1:3,SideID)
-ELSE ! no flat side
-  ! compute norm vec
-  XiOut(1)=Xi
-  XiOut(2)=Eta
-
-  CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Gradient=gradXiEta)
-  CalcNormVecBezier=CROSSNORM(gradXiEta(1,1:3),gradXiEta(2,1:3))
-END IF ! BoundingBoxIsEmpty
-
-END FUNCTION CalcNormVecBezier
 
 
 SUBROUTINE EvaluateBezierPolynomialAndGradient(Xi,N_in,iSize,BezierControlPoints,dBezierControlPoints,Point,Gradient) 
@@ -1099,25 +864,25 @@ SideSlabNormals(:,3,SideID)=CROSSNORM(SideSlabNormals(:,2,SideID),SideSlabNormal
 
 ! check vector length=1
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,1,SideID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,1,SideID)))
+__STAMP__&
+,'Side slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,1,SideID)))
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID)))
+__STAMP__&
+,'Side slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,2,SideID)))
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,3,SideID),SideSlabNormals(:,3,SideID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,3,SideID),SideSlabNormals(:,3,SideID)))
+__STAMP__&
+,'Side slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(SideSlabNormals(:,3,SideID),SideSlabNormals(:,3,SideID)))
 
 ! check perpendicularity
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,2,SideID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,2,SideID))))
+__STAMP__&
+,'Side slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,2,SideID))))
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,3,SideID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,3,SideID))))
+__STAMP__&
+,'Side slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,1,SideID),SideSlabNormals(:,3,SideID))))
 IF((ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,3,SideID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Side slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,3,SideID))))
+__STAMP__&
+,'Side slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(SideSlabNormals(:,2,SideID),SideSlabNormals(:,3,SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 2.) slab box intervalls beta_1, beta_2, beta_3
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1188,8 +953,8 @@ dMax=MAX(dx,dy,dz)
 dMin=MIN(dx,dy,dz)
 IF(dx/dMax.LT.BezierEpsilonBilinear)THEN
   CALL Abort(&
-      __STAMP__,&
-  'Bezier side length is degenerated. dx/dMax.LT.BezierEpsilonBilinear ->',0,dx/dMax)
+__STAMP__&
+,'Bezier side length is degenerated. dx/dMax.LT.BezierEpsilonBilinear ->',0,dx/dMax)
 END IF
 IF(dy/dMax.LT.BezierEpsilonBilinear)THEN
   SideSlabIntervals(3:4, SideID)=0.
@@ -1197,15 +962,15 @@ IF(dy/dMax.LT.BezierEpsilonBilinear)THEN
 END IF
 IF(dz/dMax.LT.BezierEpsilonBilinear)THEN
   CALL Abort(&
-      __STAMP__,&
-  'Bezier side length is degenerated. dz/dMax.LT.BezierEpsilonBilinear ->',0,dz/dMax)
+__STAMP__&
+,'Bezier side length is degenerated. dz/dMax.LT.BezierEpsilonBilinear ->',0,dz/dMax)
 END IF
 
 IF(dx*dy*dz.LT.0) THEN
   IPWRITE(UNIT_stdOut,*) ' Warning, no bounding box'
   IF(dx*dy*dz.LT.0) CALL Abort(&
-  __STAMP__,&
-  'A bounding box (for sides) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
+__STAMP__&
+,'A bounding box (for sides) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
 END IF
 
 IF(ALMOSTZERO(dx*dy*dz))THEN ! bounding box volume is approx zeros
@@ -1249,16 +1014,17 @@ INTEGER,INTENT(IN) :: ElemID,NGeo
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: p,q,iLocSide,SideID,SideIDOrigin,tmpSideID
+INTEGER            :: p,q,iLocSide,SideID,SideIDOrigin
 REAL               :: skalprod(3),dx,dy,dz
 !===================================================================================================================================
 
 !BezierControlPoints(:,:,:,ElemID)
 !ElemSlabNormals( x y z,1 2 3 , ElemID)
 IF(GEO%nPeriodicVectors.GT.0)THEN
-  CALL  Abort(&
-  __STAMP__,&
-  ' computation of wrong bounding box!')
+    CALL  Abort(&
+  __STAMP__&
+  ,' computation of wrong bounding box!')
+  SWRITE(*,*) ' Computation of wrong bounding box in peridodic' 
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1290,25 +1056,25 @@ ElemSlabNormals(:,3,ElemID)=CROSSNORM(ElemSlabNormals(:,2,ElemID),ElemSlabNormal
 
 ! check vector length=1
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID)))
+__STAMP__&
+,'Element slab normal 1 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,1,ElemID)))
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID)))
+__STAMP__&
+,'Element slab normal 2 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,2,ElemID)))
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID))-1.)).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID)))
+__STAMP__&
+,'Element slab normal 3 does not have the length 1 .',1,DOT_PRODUCT(ElemSlabNormals(:,3,ElemID),ElemSlabNormals(:,3,ElemID)))
 
 ! check perpendicularity
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID))))
+__STAMP__&
+,'Element slab normal 1 and 2 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,2,ElemID))))
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID))))
+__STAMP__&
+,'Element slab normal 1 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,1,ElemID),ElemSlabNormals(:,3,ElemID))))
 IF((ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID)))).GT.1.E-6) CALL Abort(&
-  __STAMP__,&
-  'Element slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID))))
+__STAMP__&
+,'Element slab normal 2 and 3 are not perpendicular.',0,ABS(DOT_PRODUCT(ElemSlabNormals(:,2,ElemID),ElemSlabNormals(:,3,ElemID))))
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 2.) slab box intervalls beta_1, beta_2, beta_3
@@ -1355,13 +1121,13 @@ ElemSlabIntervals(4,ElemID)=ElemSlabInterVals(4,ElemID)+RefMappingEps
 ElemSlabIntervals(5,ElemID)=ElemSlabInterVals(5,ElemID)-RefMappingEps 
 ElemSlabIntervals(6,ElemID)=ElemSlabInterVals(6,ElemID)+RefMappingEps 
 IF(dx*dy*dz.LT.0) CALL Abort(&
-  __STAMP__,&
-  'A bounding box (for elements) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
+__STAMP__&
+,'A bounding box (for elements) is negative!?. dx*dy*dz.LT.0 ->',0,(dx*dy*dz))
 !IF((dx*dy*dz).LT.GEO%Volume(ElemID))THEN
 !  IPWRITE(*,*) 'Volume', dx*dy*dz
 !  IPWRITE(*,*) 'DG-Volume', GEO%Volume(ElemID)
 !  CALL Abort(&
-!  __STAMP__,&
+!  __STAMP__&
 !  'The bounding box is smaller than element! BoundingBox-volume:')
 !END IF
 END SUBROUTINE GetElemSlabNormalsAndIntervals
@@ -1409,9 +1175,10 @@ END DO
 END SUBROUTINE GetBezierControlPoints3DElevated
 
 
-SUBROUTINE GetBezierSampledAreas(BezierSampleProjection_opt)
+SUBROUTINE GetBezierSampledAreas(SideID,BezierSampleN,ProjectionVector_opt,SurfMeshSubSideAreas,SurfMeshSideArea_opt &
+                                ,SurfMeshSubSideVec_nOut_opt,SurfMeshSubSideVec_t1_opt,SurfMeshSubSideVec_t2_opt)
 !===================================================================================================================================
-! equidistanlty super-sampled bezier surface area calculation
+! equidistanlty super-sampled bezier surface area and vector calculation
 ! --------------------------------------
 ! book: see also for general remarks
 ! author = {Farin, Gerald},
@@ -1421,197 +1188,152 @@ SUBROUTINE GetBezierSampledAreas(BezierSampleProjection_opt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,BezierControlPoints3D,BezierSampleN,BezierSampleXi
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampledAreasInitIsDone,SurfMeshSubSideAreas,SurfMeshSideAreas
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleProjectionVec,SurfMeshProjSubSideAreas,SurfMeshProjSideAreas
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,BezierControlPoints3D
 USE MOD_Basis,                  ONLY:LegendreGaussNodesAndWeights
 USE MOD_Mesh_Vars,              ONLY:NGeo
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide
-USE MOD_Mesh_Vars,              ONLY:nBCSides,SideToElem
+USE MOD_Mesh_Vars,              ONLY:nBCSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN),OPTIONAL            :: BezierSampleProjection_opt
+INTEGER,INTENT(IN)                  :: SideID,BezierSampleN
+REAL,INTENT(IN),OPTIONAL            :: ProjectionVector_opt(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,DIMENSION(1:BezierSampleN,1:BezierSampleN),INTENT(OUT)              :: SurfMeshSubSideAreas
+REAL,INTENT(OUT),OPTIONAL                                                :: SurfMeshSideArea_opt
+REAL,DIMENSION(1:3,1:BezierSampleN,1:BezierSampleN),INTENT(OUT),OPTIONAL :: SurfMeshSubSideVec_nOut_opt &
+                                                                           ,SurfMeshSubSideVec_t1_opt &
+                                                                           ,SurfMeshSubSideVec_t2_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: p,q
-INTEGER                                :: I,J,Isample,Jsample
-REAL                                   :: areaTotal,areaTotalAbs,area,deltaXi,tmp1,tmp2,E,F,G,D,totalArea,totalAreaAbs
-REAL                                   :: tmpI1,tmpJ1,tmpI2,tmpJ2
+INTEGER                                :: I,J,iSample,jSample
+REAL                                   :: areaTotal,areaTotalAbs,area,deltaXi,tmp1,E,F,G,D
+REAL                                   :: tmpI2,tmpJ2
 REAL                                   :: BezierControlPoints2D(1:2,0:NGeo,0:NGeo)
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,DIMENSION(2,2)                    :: gradXiEta2D
 REAL,DIMENSION(2)                      :: XiOut(2)
 REAL,DIMENSION(2)                      :: Xi
-REAL,DIMENSION(3)                      :: VecBezier,n1,n2,SampleNormVec
+REAL,DIMENSION(3)                      :: n1,n2
 REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
-INTEGER                                :: SideID,iLocSide,iElem,BCSideID,ElemID
 LOGICAL                                :: BezierSampleProjection
+REAL,DIMENSION(3)                      :: ProjectionVector
+REAL,DIMENSION(0:BezierSampleN)        :: BezierSampleXi
+REAL,DIMENSION(1:3,1:BezierSampleN,1:BezierSampleN) :: SurfMeshSubSideVec_nOut,SurfMeshSubSideVec_t1,SurfMeshSubSideVec_t2
 !===================================================================================================================================
-IF (PRESENT(BezierSampleProjection_opt)) THEN
-  BezierSampleProjection=BezierSampleProjection_opt
+IF (PRESENT(ProjectionVector_opt)) THEN
+  BezierSampleProjection=.TRUE.
+  ProjectionVector=ProjectionVector_opt
 ELSE
   BezierSampleProjection=.FALSE.
+  ProjectionVector=0. !dummy
 END IF
 
-IF (BezierSampleProjection) THEN
-  SWRITE(UNIT_StdOut,'(132("-"))')
-  SWRITE(UNIT_stdOut,'(A)')' integrating projected areas of SurfaceMesh ...!'
-ELSE
-  SWRITE(UNIT_StdOut,'(132("-"))')
-  SWRITE(UNIT_stdOut,'(A)')' integrating non-projected areas of SurfaceMesh ...!'
-END IF
-
-
-! calc surafce area of each bezier face
-totalArea=0.
-totalAreaAbs=0.
 Xi(1) =-SQRT(1./3.)
 Xi(2) = SQRT(1./3.)
-
 deltaXi=2.0/BezierSampleN
 tmp1=deltaXi/2.0 !(b-a)/2
-
-IF (.NOT.BezierSampledAreasInitIsDone) THEN
-  DO iSample=0,BezierSampleN
-    BezierSampleXi(iSample)=-1.+deltaXi*iSample
-  END DO
-  BezierSampledAreasInitIsDone=.TRUE.
-END IF
-
-!===================================================================================================================================
-IF (BezierSampleProjection) THEN  !dummy so far, to be changed for final surfaceflux
-  ALLOCATE(SurfMeshProjSubSideAreas(1:BezierSampleN,1:BezierSampleN,1:nBCSides))
-  ALLOCATE(SurfMeshProjSideAreas(1:nBCSides))
-  SurfMeshProjSubSideAreas=0.
-  SurfMeshProjSideAreas=0.
-ELSE
-  ALLOCATE(SurfMeshSubSideAreas(1:BezierSampleN,1:BezierSampleN,1:nBCSides))
-  ALLOCATE(SurfMeshSideAreas(1:nBCSides))
-  SurfMeshSubSideAreas=0.
-  SurfMeshSideAreas=0.
-END IF
-DO BCSideID=1,nBCSides
-  ElemID = SideToElem(1,BCSideID)
-  IF (ElemID.LT.1) THEN
-    ElemID = SideToElem(2,BCSideID)
-    iLocSide = SideToElem(4,BCSideID)
-  ELSE
-    iLocSide = SideToElem(3,BCSideID)
-  END IF
-  SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-
-  IF(BezierSampleProjection)THEN
-    ! transformation of bezier patch 3D->2D
-    IF(ABS(BezierSampleProjectionVec(3)).LT.epsilontol)THEN
-      n1=(/ -BezierSampleProjectionVec(2)-BezierSampleProjectionVec(3)  , &
-        BezierSampleProjectionVec(1),BezierSampleProjectionVec(1) /)
-    ELSE
-      n1=(/ BezierSampleProjectionVec(3),BezierSampleProjectionVec(3) ,&
-        -BezierSampleProjectionVec(1)-BezierSampleProjectionVec(2) /)
-    END IF
-    n1=n1/SQRT(DOT_PRODUCT(n1,n1))
-    n2(:)=(/ BezierSampleProjectionVec(2)*n1(3)-BezierSampleProjectionVec(3)*n1(2) &
-      , BezierSampleProjectionVec(3)*n1(1)-BezierSampleProjectionVec(1)*n1(3) &
-      , BezierSampleProjectionVec(1)*n1(2)-BezierSampleProjectionVec(2)*n1(1) /)
-    n2=n2/SQRT(DOT_PRODUCT(n2,n2))
-    DO q=0,NGeo
-      DO p=0,NGeo
-        BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID),n1)
-        ! origin is (0,0,0)^T
-        BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID),n2)
-        ! origin is (0,0,0)^T
-      END DO
-    END DO
-  END IF!(BezierSampleProjection)THEN
-  
-  ALLOCATE(Xi_NGeo( 0:NGeo)  &
-    ,wGP_NGeo(0:NGeo) )
-  CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
-  
-  areaTotal=0.
-  areaTotalAbs=0.
-  DO Isample=1,BezierSampleN
-    DO Jsample=1,BezierSampleN
-      area=0.
-      tmpI2=(BezierSampleXi(ISample-1)+BezierSampleXi(ISample))/2. ! (a+b)/2
-      tmpJ2=(BezierSampleXi(JSample-1)+BezierSampleXi(JSample))/2. ! (a+b)/2
-      ! ---------------------------------------
-      ! calc integral
-      DO I=0,NGeo
-        DO J=0,NGeo
-          XiOut(1)=tmp1*Xi_NGeo(I)+tmpI2
-          XiOut(2)=tmp1*Xi_NGeo(J)+tmpJ2
-          
-          IF(BezierSampleProjection)THEN
-            
-            ! get gradients
-            CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,2,BezierControlPoints2D(1:2,0:NGeo,0:NGeo),Gradient=gradXiEta2D)
-            ! calculate first fundamental form
-            E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
-            F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
-            G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
-          ELSE
-            CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
-                                                    ,Gradient=gradXiEta3D)
-            ! calculate first fundamental form
-            E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
-            F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
-            G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
-          END IF
-          
-          D=SQRT(E*G-F*F)
-          area=area+tmp1*tmp1*D*wGP_NGeo(i)*wGP_NGeo(j)      
-        END DO
-      END DO
-      ! ---------------------------------------
-      !!!IPWRITE(*,*)'area', area
-      IF(BezierSampleProjection)THEN
-        SampleNormVec=CalcNormVecBezier(tmpI2,tmpJ2,SideID)
-        !!!IPWRITE(*,*) 'SampleNormVec', SampleNormVec
-        ! add facing sides and deduct non-facing sides
-        SurfMeshProjSubSideAreas(Jsample,Isample,BCSideID) = &
-          MAX(SIGN(area,-DOT_PRODUCT(BezierSampleProjectionVec,SampleNormVec)),0.) !so far cut off at zero!!!
-        !!!IPWRITE(*,*)'sign-area', SurfMeshProjSubSideAreas(Jsample,Isample,BCSideID)
-        areaTotal=areaTotal+SurfMeshProjSubSideAreas(Jsample,Isample,BCSideID)
-      ELSE
-        SurfMeshSubSideAreas(Jsample,Isample,BCSideID) = area
-        areaTotal=areaTotal+SurfMeshSubSideAreas(Jsample,Isample,BCSideID)
-      END IF
-      areaTotalAbs=areaTotalAbs+area
-      !!!IPWRITE(*,*)"areaTotal",areaTotal
-    END DO !Isample=1,BezierSampleN
-  END DO !Jsample=1,BezierSampleN
-  
-  DEALLOCATE(Xi_NGeo,wGP_NGeo)
-  
-  totalArea=totalArea+areaTotal
-  totalAreaAbs=totalAreaAbs+areaTotalAbs
-
-  IF(BezierSampleProjection)THEN
-    SurfMeshProjSideAreas(BCSideID)=areaTotal
-  ELSE
-    SurfMeshSideAreas(BCSideID)=areaTotal
-  END IF
-
-#ifdef CODE_ANALYZE
-  IPWRITE(*,*)" ===== SINGLE AREA (BCside) ====="
-  IPWRITE(*,*)"SideID:",SideID,"BCSideID:",BCSideID,"areaTotal   =",areaTotal
-  IPWRITE(*,*)"SideID:",SideID,"BCSideID:",BCSideID,"areaTotalAbs=",areaTotalAbs
-  IPWRITE(*,*)" ============================"
-#endif /*CODE_ANALYZE*/ 
+DO jSample=0,BezierSampleN
+  BezierSampleXi(jSample)=-1.+deltaXi*jSample
 END DO
 
+!===================================================================================================================================
+
+SurfMeshSubSideAreas=0.
+SurfMeshSubSideVec_nOut=0.
+SurfMeshSubSideVec_t1=0.
+SurfMeshSubSideVec_t2=0.
+
+IF(BezierSampleProjection)THEN
+  ! transformation of bezier patch 3D->2D
+  IF(ABS(ProjectionVector(3)).LT.epsilontol)THEN
+    n1=(/ -ProjectionVector(2)-ProjectionVector(3)  , &
+      ProjectionVector(1),ProjectionVector(1) /)
+  ELSE
+    n1=(/ ProjectionVector(3),ProjectionVector(3) ,&
+      -ProjectionVector(1)-ProjectionVector(2) /)
+  END IF
+  n1=n1/SQRT(DOT_PRODUCT(n1,n1))
+  n2(:)=CROSSNORM(ProjectionVector,n1)
+  DO q=0,NGeo; DO p=0,NGeo
+    BezierControlPoints2D(1,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID),n1)
+    ! origin is (0,0,0)^T
+    BezierControlPoints2D(2,p,q)=DOT_PRODUCT(BezierControlPoints3D(:,p,q,SideID),n2)
+    ! origin is (0,0,0)^T
+  END DO; END DO
+END IF!(BezierSampleProjection)THEN
+
+ALLOCATE(Xi_NGeo( 0:NGeo)  &
+        ,wGP_NGeo(0:NGeo) )
+CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
+
+areaTotal=0.
+areaTotalAbs=0.
+DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
+  area=0.
+  tmpI2=(BezierSampleXi(iSample-1)+BezierSampleXi(iSample))/2. ! (a+b)/2
+  tmpJ2=(BezierSampleXi(jSample-1)+BezierSampleXi(jSample))/2. ! (a+b)/2
+  ! ---------------------------------------
+  ! calc integral
+  DO I=0,NGeo; DO J=0,NGeo
+    XiOut(1)=tmp1*Xi_NGeo(I)+tmpI2
+    XiOut(2)=tmp1*Xi_NGeo(J)+tmpJ2
+    IF(BezierSampleProjection)THEN
+      ! get gradients
+      CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,2,BezierControlPoints2D(1:2,0:NGeo,0:NGeo),Gradient=gradXiEta2D)
+      ! calculate first fundamental form
+      E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
+      F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
+      G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
+    ELSE
+      CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+                                              ,Gradient=gradXiEta3D)
+      ! calculate first fundamental form
+      E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
+      F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
+      G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
+    END IF
+    D=SQRT(E*G-F*F)
+    area=area+tmp1*tmp1*D*wGP_NGeo(i)*wGP_NGeo(j)
+  END DO; END DO
+  ! ---------------------------------------
+  IF (BezierSampleProjection .OR. &
+      PRESENT(SurfMeshSubSideVec_nOut_opt) .OR. &
+      PRESENT(SurfMeshSubSideVec_t1_opt) .OR. &
+      PRESENT(SurfMeshSubSideVec_t2_opt) ) THEN
+    CALL CalcNormAndTangBezier( nVec=SurfMeshSubSideVec_nOut(:,iSample,jSample) &
+                              ,tang1=SurfMeshSubSideVec_t1(:,iSample,jSample) &
+                              ,tang2=SurfMeshSubSideVec_t2(:,iSample,jSample) &
+                              ,xi=tmpI2,eta=tmpJ2,SideID=SideID )
+  END IF
+  IF(BezierSampleProjection)THEN
+    !!!IPWRITE(*,*) 'vec_nOut', SurfMeshSubSideVec_nOut(iSample,jSample)
+    ! add facing sides and substract non-facing sides
+    SurfMeshSubSideAreas(iSample,jSample) = SIGN(area,-DOT_PRODUCT(ProjectionVector,SurfMeshSubSideVec_nOut(:,iSample,jSample)))
+    !!!IPWRITE(*,*)'sign-area', SurfMeshSubSideAreas(iSample,jSample)
+  ELSE
+    SurfMeshSubSideAreas(iSample,jSample) = area
+  END IF
+  areaTotal=areaTotal+SurfMeshSubSideAreas(iSample,jSample)
+  areaTotalAbs=areaTotalAbs+area
+  !!!IPWRITE(*,*)"areaTotal",areaTotal
+  !!!IPWRITE(*,*)"areaTotalAbs",areaTotalAbs
+END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
+  
+DEALLOCATE(Xi_NGeo,wGP_NGeo)
+
+IF (PRESENT(SurfMeshSideArea_opt)) SurfMeshSideArea_opt=areaTotal
+IF (PRESENT(SurfMeshSubSideVec_nOut_opt)) SurfMeshSubSideVec_nOut_opt=SurfMeshSubSideVec_nOut
+IF (PRESENT(SurfMeshSubSideVec_t1_opt)) SurfMeshSubSideVec_t1_opt=SurfMeshSubSideVec_t1
+IF (PRESENT(SurfMeshSubSideVec_t2_opt)) SurfMeshSubSideVec_t2_opt=SurfMeshSubSideVec_t2
+
 #ifdef CODE_ANALYZE
-IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
-IPWRITE(*,*)"totalArea       = ",totalArea
-IPWRITE(*,*)"totalArea/(pi) = ",totalArea/(ACOS(-1.))
-IPWRITE(*,*)"totalAreaAbs       = ",totalAreaAbs
-IPWRITE(*,*)"totalAreaAbs/(pi) = ",totalAreaAbs/(ACOS(-1.))
-IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
-#endif /*CODE_ANALYZE*/ 
+IPWRITE(*,*)" ===== SINGLE AREA ====="
+IPWRITE(*,*)"SideID:",SideID,"areaTotal   =",areaTotal
+IPWRITE(*,*)"SideID:",SideID,"areaTotalAbs=",areaTotalAbs
+IPWRITE(*,*)" ============================"
+#endif /*CODE_ANALYZE*/
 
 END SUBROUTINE GetBezierSampledAreas
 

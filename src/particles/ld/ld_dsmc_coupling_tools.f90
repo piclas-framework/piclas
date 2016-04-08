@@ -118,8 +118,9 @@ DO iElem = 1, nElems
       SumOfFormedClones = SumOfFormedClones + 1
       iCloneIndx = PDM%nextFreePosition(SumOfFormedClones+PDM%CurrentNextFreePosition)
       IF (iCloneIndx.EQ.0) THEN
-        CALL abort(__STAMP__,&
-             'ERROR: New Particle (Clone Region-A) Number greater max Part Num')
+        CALL abort(&
+        __STAMP__&
+        ,'ERROR: New Particle (Clone Region-A) Number greater max Part Num')
       END IF
                 ! --------create Clone--------
       PEM%Element(iCloneIndx) = PEM%Element(iPartIndx)
@@ -174,8 +175,9 @@ DO iElem = 1, nElems
       SumOfFormedClones = SumOfFormedClones + 1
       iCloneIndx = PDM%nextFreePosition(SumOfFormedClones+PDM%CurrentNextFreePosition)
       IF (iCloneIndx.EQ.0) THEN
-        CALL abort(__STAMP__,&
-             'ERROR: New Particle (Clone Region-B) Number greater max Part Num')
+        CALL abort(&
+        __STAMP__&
+        ,'ERROR: New Particle (Clone Region-B) Number greater max Part Num')
       END IF
                 ! --------create Clone--------
       PEM%Element(iCloneIndx) = PEM%Element(iPartIndx)
@@ -628,8 +630,9 @@ IF (nPart.GT. 1) THEN ! Are there more than one particle
         SWRITE(UNIT_StdOut,'(A)') 'Element, DOF, Part:',iElem, PartStateBulkValues(iPartIndx,5), iPartIndx
         SWRITE(UNIT_StdOut,'(A)') 'T_part:',PartStateBulkValues(iPartIndx,4)
         SWRITE(UNIT_StdOut,'(A)') 'v_part:',PartStateBulkValues(iPartIndx,1:3)
-        CALL abort(__STAMP__,&
-             'ERROR: DOF of part is zero')
+        CALL abort(&
+        __STAMP__&
+        ,'ERROR: DOF of part is zero')
     END IF
     CellMass                          = CellMass + WeightFak * Species(PartSpecies(iPartIndx))%MassIC
     MPFSum = MPFSum + WeightFak
@@ -662,8 +665,9 @@ IF (nPart.GT. 1) THEN ! Are there more than one particle
   IF (CellTemp.lt. 0) THEN
       SWRITE(UNIT_StdOut,'(132("-"))')
       SWRITE(UNIT_StdOut,'(A)') 'Elem, Temperature:',iElem, PartStateBulkValues(iPartIndx,4)
-      CALL abort(__STAMP__,&
-           'ERROR: ERROR LD-DSMC')
+      CALL abort(&
+      __STAMP__&
+      ,'ERROR: ERROR LD-DSMC')
   END IF
   BulkValues(iElem)%Beta = SQRT(CellMass / MPFSum / (2 * CellTemp * BoltzmannConst))
 !----Ralaxationfaktor due to statistical noise in DSMC Results
@@ -691,8 +695,9 @@ IF (nPart.GT. 1) THEN ! Are there more than one particle
 ELSE ! if there is no particle => keep old LD-state
     SWRITE(UNIT_StdOut,'(132("-"))')
     SWRITE(UNIT_StdOut,'(A)') 'Elem, Beta:',iElem, BulkValues(iElem)%Beta
-    CALL abort(__STAMP__,&
-         'ERROR: YOU NEED MORE PARTCLES FOR LD (A Buffer Zone)!!!')
+    CALL abort(&
+    __STAMP__&
+    ,'ERROR: YOU NEED MORE PARTCLES FOR LD (A Buffer Zone)!!!')
 END IF
 
 END SUBROUTINE LD_DSMC_Mean_Bufferzone_A_Val

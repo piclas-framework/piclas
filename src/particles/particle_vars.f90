@@ -19,7 +19,7 @@ REAL                  :: dt_max_particles                                    ! M
 REAL                  :: dt_maxwell                                          ! timestep for field solver (for static fields only!)
 REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent  
                                                                              ! on particle velocity (for static fields only!)
-REAL                  :: dt_part_ratio
+REAL                  :: dt_part_ratio, overrelax_factor                     ! factors for td200/201 overrelaxation/subcycling
 INTEGER               :: NextTimeStepAdjustmentIter                          ! iteration of next timestep change
 INTEGER               :: MaxwellIterNum                                      ! number of iterations for the maxwell solver
 INTEGER               :: WeirdElems                                          ! Number of Weird Elements (=Elements which are folded
@@ -165,13 +165,13 @@ TYPE tInit                                                                   ! P
 #endif /*MPI*/
 END TYPE tInit
 
-TYPE tDataTriaSF
-  REAL                                   :: projFak                          ! VeloVecIC projected to inwards normal of tria
-  REAL                                   :: a_nIn                            ! speed ratio projected to inwards normal of tria
-  REAL                                   :: Velo_t1                          ! Velo comp. of first orth. vector in tria
-  REAL                                   :: Velo_t2                          ! Velo comp. of second orth. vector in tria
-  REAL                                   :: nVFR                             ! normal volume flow rate through tria
-END TYPE tDataTriaSF
+TYPE tSurfFluxSubSideData
+  REAL                                   :: projFak                          ! VeloVecIC projected to inwards normal
+  REAL                                   :: a_nIn                            ! speed ratio projected to inwards normal
+  REAL                                   :: Velo_t1                          ! Velo comp. of first orth. vector
+  REAL                                   :: Velo_t2                          ! Velo comp. of second orth. vector
+  REAL                                   :: nVFR                             ! normal volume flow rate through subside
+END TYPE tSurfFluxSubSideData
 
 TYPE tSurfaceflux
   INTEGER                                :: BC                               ! PartBound to be emitted from
@@ -184,10 +184,9 @@ TYPE tSurfaceflux
   REAL                                   :: VFR_total                        ! Total Volumetric flow rate through surface
   REAL                     , ALLOCATABLE :: VFR_total_allProcs(:)            ! -''-, all values for root in ReduceNoise-case
   REAL                                   :: VFR_total_allProcsTotal          !     -''-, total
-  !REAL                                   :: VFR_frac                         ! Current Volumetric flow rate through surface
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
-  TYPE(tDataTriaSF)        , ALLOCATABLE :: DataTriaSF(:,:)                  ! SF-specific Data of Sides (1:2,1:SideNumber)
+  TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)    ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species
@@ -204,41 +203,6 @@ END TYPE
 
 INTEGER                                  :: nSpecies                         ! number of species
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
-
-TYPE tPartBoundary
-  INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: PeriodicBC              = 3      ! = 3 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SimpleAnodeBC           = 4      ! = 4 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SimpleCathodeBC         = 5      ! = 5 (s.u.) Boundary Condition Integer Definition
-  !INTEGER                                :: MPINeighborhoodBC       = 6      ! dummy BCs need to be defined as (unused) PartBound
-                                                                              ! in .ini or allocate TargetBoundCond as larger array
-  INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
-  CHARACTER(LEN=200)           , POINTER :: SourceBoundName(:) =>NULL() ! Link part 1 for mapping Boltzplatz BCs to Particle BC
-  INTEGER                      , POINTER :: TargetBoundCond(:) =>NULL() ! Link part 2 for mapping Boltzplatz BCs to Particle BC
-  INTEGER                      , POINTER :: MapToPartBC(:)     =>NULL() ! Map from Boltzplatz BCindex to Particle BC (NOT TO TYPE!)
-  REAL    , ALLOCATABLE                  :: MomentumACC(:)      
-  REAL    , ALLOCATABLE                  :: WallTemp(:)     
-  REAL    , ALLOCATABLE                  :: TransACC(:)     
-  REAL    , ALLOCATABLE                  :: VibACC(:) 
-  REAL    , ALLOCATABLE                  :: RotACC(:) 
-  REAL    , ALLOCATABLE                  :: WallVelo(:,:) 
-  REAL    , ALLOCATABLE                  :: Voltage(:)
-  INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          !Number of Species to be changed at wall
-  REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         !Probability of SpeciesSwaps at wall
-  INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           !Species to be changed at wall (in, out), out=0: delete
-  LOGICAL , ALLOCATABLE                  :: AmbientCondition(:)
-  LOGICAL , ALLOCATABLE                  :: AmbientConditionFix(:)
-  REAL    , ALLOCATABLE                  :: AmbientTemp(:)
-  REAL    , ALLOCATABLE                  :: AmbientMeanPartMass(:)
-  REAL    , ALLOCATABLE                  :: AmbientBeta(:)
-  REAL    , ALLOCATABLE                  :: AmbientVelo(:,:)
-  REAL    , ALLOCATABLE                  :: AmbientDens(:)
-  REAL    , ALLOCATABLE                  :: AmbientDynamicVisc(:)               ! dynamic viscosity
-  REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conductivity 
-  LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?
-
-END TYPE
 
 TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE   :: Element(:)      !      =>NULL()  ! Element number allocated to each Particle
@@ -257,7 +221,7 @@ TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE    :: pEnd(:)           !     =>NULL()  ! End of Linked List for Particles in Element
                                                                !               ! pEnd(1:PIC%nElem)
   INTEGER                , ALLOCATABLE    :: pNext(:)          !     =>NULL()  ! Next Particle in same Element (Linked List)
-                                                                             ! pStart(1:PIC%maxParticleNumber)
+                                                                               ! pStart(1:PIC%maxParticleNumber)
 END TYPE
 
 TYPE(tParticleElementMapping)            :: PEM
@@ -277,13 +241,14 @@ TYPE tParticleDataManagement
                                                                               ! (1:2,1:PDM%maxParticleNumber)
                                                                               ! surface index ElemToSide(i,localsideID,ElementID)
   LOGICAL ,ALLOCATABLE                   :: dtFracPush(:)                     ! Push random fraction only
-  LOGICAL ,ALLOCATABLE                   :: IsNewPart(:)                      ! Push random fraction only
+  LOGICAL ,ALLOCATABLE                   :: IsNewPart(:)                      ! Reconstruct RK-scheme in next stage
 END TYPE
 
 TYPE (tParticleDataManagement)           :: PDM
 
 REAL                                     :: DelayTime
 
+LOGICAL                                  :: ParticlesInitIsDone=.FALSE.
 
 LOGICAL                                  :: WriteMacroValues                  ! Output of macroscopic values
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling   
@@ -311,7 +276,7 @@ REAL, ALLOCATABLE                        :: vMPFOldVelo(:,:)                  ! 
 REAL, ALLOCATABLE                        :: vMPFOldBrownVelo(:,:)             ! Old brownian Velo
 REAL, ALLOCATABLE                        :: vMPFOldPos(:,:)                   ! Old Particle Pos for Polynom
 REAL, ALLOCATABLE                        :: vMPFOldMPF(:)                     ! Old Particle MPF
-REAL, ALLOCATABLE                        :: vMPFNewPosNum(:)
+INTEGER, ALLOCATABLE                     :: vMPFNewPosNum(:)
 INTEGER, ALLOCATABLE                     :: vMPF_SpecNumElem(:,:)             ! number of particles of spec (:,i) in element (j,:)
 CHARACTER(30)                            :: vMPF_velocityDistribution         ! specifying keyword for velocity distribution
 REAL, ALLOCATABLE                        :: vMPF_NewPosRefElem(:,:)          ! new positions in ref elem
@@ -320,7 +285,7 @@ LOGICAL                                  :: PartPressureCell                  ! 
 LOGICAL                                  :: PartPressAddParts                 ! Should Parts be added to reach wanted pressure?
 LOGICAL                                  :: PartPressRemParts                 ! Should Parts be removed to reach wanted pressure?
 INTEGER                                  :: NumRanVec      ! Number of predefined random vectors
-REAL  , ALLOCATABLE                      :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
+REAL, ALLOCATABLE                        :: RandomVec(:,:) ! Random Vectos (NumRanVec, direction)
 REAL, ALLOCATABLE                        :: RegionElectronRef(:,:)          ! RegionElectronRef((rho0,phi0,Te[eV])|1:NbrOfRegions)
 LOGICAL                                  :: useVTKFileBGG                     ! Flag for BGG via VTK-File
 REAL, ALLOCATABLE                        :: BGGdataAtElem(:,:)                ! data for BGG via VTK-File
@@ -333,6 +298,6 @@ LOGICAL                                  :: FindNeighbourElems=.FALSE.
 INTEGER(8)                               :: nTotalPart
 INTEGER(8)                               :: nTotalHalfPart
 
-LOGICAL                                  :: ParticlesInitIsDone=.FALSE.
+
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

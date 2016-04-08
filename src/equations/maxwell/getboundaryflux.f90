@@ -58,8 +58,9 @@ INTEGER :: locType,locState
 INTEGER :: MaxBCState,MaxBCStateGlobal
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone))THEN
-   CALL abort(__STAMP__,&
-     "InitBC not ready to be called or already called.")
+   CALL abort(&
+   __STAMP__&
+   ,"InitBC not ready to be called or already called.")
 END IF
 ! determine globally max MaxBCState
 MaxBCState = 0
@@ -305,8 +306,9 @@ DO iBC=1,nBCs
     END DO
   
   CASE DEFAULT ! unknown BCType
-    CALL abort(__STAMP__,&
-         'no BC defined in maxwell/getboundaryflux.f90!')
+    CALL abort(&
+__STAMP__&
+        ,'no BC defined in maxwell/getboundaryflux.f90!')
   END SELECT ! BCType
 END DO ! iBC=1,nBC
 
@@ -401,8 +403,9 @@ ELSE
   CASE("GAUSS-LOBATTO")
     CALL LegGaussLobNodesAndWeights(N_HDF5,xGP_tmp,wGP_tmp)
   CASE DEFAULT
-    CALL abort(__STAMP__,&
-        ' Not type of BackGround-Field is not implemented!')
+    CALL abort(&
+__STAMP__ &
+      , ' Not type of BackGround-Field is not implemented!')
   END SELECT
   CALL BarycentricWeights(N_HDF5,xGP_tmp,wBary_tmp)
   CALL InitializeVandermonde(N_HDF5,PP_N,wBary_tmp,xGP_tmp,xGP,Vdm_NHDF5_N)

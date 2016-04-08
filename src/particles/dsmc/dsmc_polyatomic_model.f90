@@ -147,8 +147,9 @@ SUBROUTINE DSMC_FindFirstVibPick(iInitTmp, iSpec, init_or_sf)
       TVib=SpecDSMC(iSpec)%SurfaceFlux(iInitTmp)%TVib
       iInit = iInitTmp + Species(iSpec)%NumberOfInits
     CASE DEFAULT
-      CALL abort(__STAMP__,&
-        'Neither iInit nor SurfaceFlux defined as reference!')
+      CALL abort(&
+      __STAMP__&
+      ,'Neither iInit nor SurfaceFlux defined as reference!')
   END SELECT
 
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -215,8 +216,9 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
       TVib=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TVib
       TRot=SpecDSMC(iSpecies)%SurfaceFlux(iInit)%TRot
     CASE DEFAULT
-      CALL abort(__STAMP__,&
-        'Neither iInit nor SurfaceFlux defined as reference!')
+      CALL abort(&
+      __STAMP__&
+      ,'Neither iInit nor SurfaceFlux defined as reference!')
   END SELECT
 
   ! set vibrational energy
@@ -294,8 +296,9 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM(iSpec, iInit, iPart, init_or_sf)
       TVib=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TVib
       TRot=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TRot
     CASE DEFAULT
-      CALL abort(__STAMP__,&
-        'Neither iInit nor SurfaceFlux defined as reference!')
+      CALL abort(&
+      __STAMP__&
+      ,'Neither iInit nor SurfaceFlux defined as reference!')
   END SELECT
 
 ! Set vibrational energy of new molecule
@@ -391,8 +394,9 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH_FirstPick(iSpec, iInit, iPart, init_or_sf
       TVib=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TVib
       TRot=SpecDSMC(iSpec)%SurfaceFlux(iInit)%TRot
     CASE DEFAULT
-      CALL abort(__STAMP__,&
-        'Neither iInit nor SurfaceFlux defined as reference!')
+      CALL abort(&
+      __STAMP__&
+      ,'Neither iInit nor SurfaceFlux defined as reference!')
   END SELECT
 
   IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -489,8 +493,9 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_MH(iSpec, iInitTmp, iPart, init_or_sf)
       TRot=SpecDSMC(iSpec)%SurfaceFlux(iInitTmp)%TRot
       iInit = iInitTmp + Species(iSpec)%NumberOfInits
     CASE DEFAULT
-      CALL abort(__STAMP__,&
-        'Neither iInit nor SurfaceFlux defined as reference!')
+      CALL abort(&
+      __STAMP__&
+      ,'Neither iInit nor SurfaceFlux defined as reference!')
   END SELECT
 
   IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -806,8 +811,8 @@ SUBROUTINE Calc_XiVib_Poly
           PolyatomMolDSMC(iPolyatMole)%TVib = 0.0
         ELSE
           CALL abort(&
-            __STAMP__&
-            ,'ERROR in Calc_XiVib_Poly, energy less than zero-point energy, Species: ',iSpec)
+          __STAMP__&
+          ,'ERROR in Calc_XiVib_Poly, energy less than zero-point energy, Species: ',iSpec)
         END IF
       ELSE
         PolyatomMolDSMC(iPolyatMole)%Xi_Vib_Mean = 0.0

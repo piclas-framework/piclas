@@ -65,7 +65,7 @@ USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OnePlusEps,BezierControlPoints3D,SideType,BezierClipHit&
                                     ,BezierControlPoints3D,SideNormVec
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,IsBCElem,PartBCSideList
-USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier,CalcNormVecBezier
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -163,9 +163,9 @@ DO ilocSide=1,6
       CASE(PLANAR)
         NormVec=SideNormVec(1:3,SideID)
       CASE(BILINEAR)
-        NormVec=CalcBiLinearNormVecBezier(xi,eta,SideID)
+        CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
       CASE(CURVED)
-        NormVec=CalcNormVecBezier(xi,eta,SideID)
+        CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
       END SELECT 
       IF(DOT_PRODUCT(NormVec,PartState(PartID,4:6)).LT.0.) alpha=-1.0
     END IF
@@ -231,7 +231,7 @@ REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0
 #endif /*CODE_ANALYZE*/
 INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID!,realInterID
 LOGICAL                                  :: firstClip
-INTEGER                                  :: realnInter
+INTEGER                                  :: realnInter,isInter
 REAL                                     :: XiNewton(2)
 REAL                                     :: PartFaceAngle,dXi,dEta
 REAL                                     :: Interval1D,dInterVal1D
@@ -246,7 +246,14 @@ isHit=.FALSE.
 #ifdef CODE_ANALYZE
 rBoundingBoxChecks=rBoundingBoxChecks+1.
 #endif /*CODE_ANALYZE*/
-  
+
+IF(BoundingBoxIsEmpty(SideID))THEN
+  IF(DoRefMapping)THEN
+    IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
+  ELSE
+    IF(ALMOSTZERO(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory)))RETURN
+  END IF
+END IF
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
 IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
   IF(.NOT.InsideBoundingBox(PartState(iPart,1:3),SideID))THEN ! the new particle position is not inside the bounding box
@@ -322,8 +329,8 @@ CALL BezierClip(firstClip,BezierControlPoints2D_tmp,PartTrajectory,lengthPartTra
                ,iClipIter,nXiClip,nEtaClip,nInterSections,iPart,SideID)
 IF(nInterSections.GT.1)THEN
   CALL abort(&
-      __STAMP__, &
-     ' More then one intersection! Cannot use Newton!' ,nInterSections)
+  __STAMP__&
+  ,' More then one intersection! Cannot use Newton!' ,nInterSections)
 END IF
 #endif /*CODE_ANALYZE*/
   !dInterVal1D =MINVAL(BezierControlPoints2D(1,:,:))
@@ -347,12 +354,12 @@ END IF
       IPWRITE(UNIT_stdout,*) ': Difference between Intersections > Tolerance'
       IPWRITE(UNIT_stdout,*) ': xi-clip,   xi-newton', locXi(1), XiNewton(1)
       IPWRITE(UNIT_stdout,*) ': eta-clip, eta-newton', loceta(1), XiNewton(2)
-      !CALL abort(__STAMP__, &
+      !CALL abort(__STAMP__ &
       ! ' Wrong intersection in Xi! Clip/Newton=',nInterSections,dXi)
     END IF
     !IF(dXi.GT.1.0)THEN
     !  IPWRITE(UNIT_stdout,*) ' eta-clip, eta-newton', loceta(1), XiNewton(2)
-    !  CALL abort(__STAMP__, &
+    !  CALL abort(__STAMP__ &
     !   ' Wrong intersection in Eta! Clip/Newton=',nInterSections, dXi)
     !END IF
   END IF
@@ -365,10 +372,11 @@ SELECT CASE(nInterSections)
 CASE(0)
   RETURN
 CASE(1)
-  alpha=locAlpha(nInterSections)
+  alpha=locAlpha(1)
   xi =locXi (1)
   eta=loceta(1)
   isHit=.TRUE.
+  RETURN
 CASE DEFAULT
   ! more than one intersection
   !ALLOCATE(locID(nInterSections))
@@ -378,7 +386,7 @@ CASE DEFAULT
   END DO ! iInter
   ! sort intersection distance
 !  CALL BubbleSortID(locAlpha,locID,nIntersections)
-  CALL InsertionSort(locAlpha,locID,nIntersections)
+  CALL InsertionSort(locAlpha(1:nIntersections),locID,nIntersections)
   
   IF(DoRefMapping)THEN
     DO iInter=1,nInterSections 
@@ -386,7 +394,7 @@ CASE DEFAULT
         alpha=locAlpha(iInter)
         xi =locXi (locID(iInter))
         eta=loceta(locID(iInter))
-        SDEALLOCATE(locID)
+        DEALLOCATE(locID)
         isHit=.TRUE.
         RETURN 
       END IF
@@ -402,17 +410,19 @@ CASE DEFAULT
             alpha=locAlpha(iInter)
             xi =locXi (locID(iInter))
             eta=loceta(locID(iInter))
-            SDEALLOCATE(locID)
+            DEALLOCATE(locID)
             isHit=.TRUE.
             RETURN 
           END IF
         END DO ! iInter
       ELSE ! inner side
         realnInter=1
+        isInter=1
         DO iInter=2,nInterSections
           IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
           .AND.(locAlpha(1)/locAlpha(iInter).GT.1.002))THEN
               realNInter=realnInter+1
+              isInter=iInter
           END IF
         END DO
         IF(MOD(realNInter,2).EQ.0) THEN
@@ -421,9 +431,9 @@ CASE DEFAULT
           isHit=.FALSE.
           RETURN ! leave and enter a cell multiple times
         ELSE
-          alpha=locAlpha(nInterSections)
-          xi =locXi (locID(nInterSections))
-          eta=loceta(locID(nInterSections))
+          alpha=locAlpha(isInter)
+          xi =locXi (locID(isInter))
+          eta=loceta(locID(isInter))
           isHit=.TRUE.
           DEALLOCATE(locID)
           RETURN
@@ -439,17 +449,19 @@ CASE DEFAULT
           alpha=locAlpha(iInter)
           xi =locXi (locID(iInter))
           eta=loceta(locID(iInter))
-          SDEALLOCATE(locID)
+          DEALLOCATE(locID)
           isHit=.TRUE.
           RETURN 
         END IF
       END DO ! iInter
     ELSE ! no BC Side
       realnInter=1
+      isInter=1
       DO iInter=2,nInterSections
         IF(  (locAlpha(1)/locAlpha(iInter).LT.0.998) &
         .AND.(locAlpha(1)/locAlpha(iInter).GT.1.002))THEN
             realNInter=realnInter+1
+            isInter=iInter
         END IF
       END DO
       IF(MOD(realNInter,2).EQ.0) THEN
@@ -458,9 +470,9 @@ CASE DEFAULT
         isHit=.FALSE.
         RETURN ! leave and enter a cell multiple times
       ELSE
-        alpha=locAlpha(nInterSections)
-        xi =locXi (locID(nInterSections))
-        eta=loceta(locID(nInterSections))
+        alpha=locAlpha(isInter)
+        xi =locXi (locID(isInter))
+        eta=loceta(locID(isInter))
         isHit=.TRUE.
         DEALLOCATE(locID)
         RETURN
@@ -471,6 +483,9 @@ CASE DEFAULT
   SDEALLOCATE(locID)
 END SELECT
 
+CALL abort(&
+__STAMP__&
+,' The code should never go here')
 
 END SUBROUTINE ComputeBezierIntersection
 
@@ -1429,7 +1444,7 @@ DO WHILE((dXi2.GT.BezierClipTolerance2).AND.(nIter.LE.BezierClipMaxIter))
     alpha=-1.0
     Xi=1.5
     EXIT
-    !CALL abort(__STAMP__, &
+    !CALL abort(__STAMP__ &
     !   'Bezier-Netwton singular. iter,sdetJac',nIter,sDet)
   END IF
 
@@ -1452,8 +1467,8 @@ DO WHILE((dXi2.GT.BezierClipTolerance2).AND.(nIter.LE.BezierClipMaxIter))
 END DO
 
 IF(nIter.GT.BezierClipMaxIter) CALL abort(&
-    __STAMP__,&
-    ' Bezier-Newton does not yield root! ')
+    __STAMP__&
+    ,' Bezier-Newton does not yield root! ')
 
 ! check if found Xi,Eta are in parameter range
 IF(ABS(xi(1)).GT.BezierClipHit) RETURN
@@ -1504,8 +1519,8 @@ IF(Length.EQ.0)THEN
   DoCheck=.FALSE.
   ! DEBUG: is the complete IF statement dispensable?
   CALL abort(&
-      __STAMP__,&
-      'Bezier Clipping -> LineNormVec is Null vector!')
+  __STAMP__&
+  ,'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF
 LXi=LXi/Length
@@ -1517,8 +1532,8 @@ IF(Length.EQ.0)THEN
   DoCheck=.FALSE.
   ! DEBUG: is the complete IF statement dispensable?
   CALL abort(&
-      __STAMP__,&
-      'Bezier Clipping -> LineNormVec is Null vector!')
+  __STAMP__&
+  ,'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF
 Leta=Leta/Length
@@ -1627,8 +1642,8 @@ IF(Length.EQ.0)THEN
   DoCheck=.FALSE.
   ! DEBUG: is the complete IF statement dispensable?
   CALL abort(&
-      __STAMP__,&
-      'Bezier Clipping -> LineNormVec is Null vector!')
+  __STAMP__&
+  ,'Bezier Clipping -> LineNormVec is Null vector!')
   RETURN
 END IF
 LineNormVec=LineNormVec/Length
@@ -2077,6 +2092,7 @@ REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
 REAL                              :: a1,a2,b1,b2,c1,c2
 REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3)
 REAL                              :: sdet
+REAL                              :: epsLoc
 !INTEGER                           :: flip
 !===================================================================================================================================
 
@@ -2160,6 +2176,7 @@ alphaNorm=alpha/lengthPartTrajectory
 IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
 !IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LE.0.))THEN
 !IF((alphaNorm.GE.1.0) .OR.(alphaNorm.LT.0.))THEN
+  ishit=.FALSE.
   alpha=-1.0
   RETURN
 END IF
@@ -2264,18 +2281,21 @@ IF(ABS(sdet).EQ.0)THEN
   STOP 'error'
 END IF
 sdet=1.0/sdet
+epsLoc=1.0+100.*epsMach
 
 
-xi=(-b2*c1+b1*c2)*sdet
-IF(ABS(xi).GT.BezierClipHit)THEN
+xi=(b2*c1-b1*c2)*sdet
+!IF(ABS(xi).GT.BezierClipHit)THEN
+IF(ABS(xi).GT.epsLoc)THEN
 !IF(ABS(xi).GT.OnePlusEps)THEN
   alpha=-1.0
   RETURN
 END IF
 
 !eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-eta=(+a2*c1-a1*c2)*sdet
-IF(ABS(eta).GT.BezierClipHit)THEN
+eta=(-a2*c1+a1*c2)*sdet
+!IF(ABS(eta).GT.BezierClipHit)THEN
+IF(ABS(eta).GT.epsLoc)THEN
   alpha=-1.0
   RETURN
 END IF
@@ -2501,7 +2521,6 @@ USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,Beziercliphit
 USE MOD_Particle_Vars,ONLY:PartState
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList,nTotalBCSides
-USE MOD_Particle_Surfaces,      ONLY:CalcBiLinearNormVecBezier
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 USE MOD_Timedisc_vars,           ONLY: iter
 #ifdef MPI

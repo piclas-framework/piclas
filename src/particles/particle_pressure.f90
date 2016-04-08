@@ -77,13 +77,13 @@ SUBROUTINE ParticlePressureIni()
 !===================================================================================================================================
 
   IF(.NOT.DoRefMapping) CALL abort(&
-      __STAMP__,&
-              ' Particle pressure is only possible with tracking via reference element mapping!')
+__STAMP__&
+,' Particle pressure is only possible with tracking via reference element mapping!')
   
 
    CALL abort(&
-       __STAMP__,&
-              ' GEO has to be exchanged by XCL_NGeo!' )
+__STAMP__&
+,' GEO has to be exchanged by XCL_NGeo!' )
   !epsi = 100.*epsilon(epsi)
   ! accuracy of mapping into ref element
   epsi = epsInCell
@@ -111,8 +111,8 @@ SUBROUTINE ParticlePressureIni()
           
           IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
             CALL Abort(&
-               __STAMP__,&
-              'Error in InitializeVariables: Cannot calculate Normal Vector of InitVolume in EmissionCase(3 or 4)!')
+__STAMP__&
+,'Error in InitializeVariables: Cannot calculate Normal Vector of InitVolume in EmissionCase(3 or 4)!')
           END IF
           
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector &
@@ -347,8 +347,8 @@ SUBROUTINE ParticlePressureIni()
           OV(1:3) = Species(iSpec)%Init(iInit)%ConstPress%OrthoVector(1:3)
           IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
             CALL Abort(&
-               __STAMP__,&
-              'Error in InitializeVariables: Cannot calculate NormalVector(Cyl) of InitVolume in EmissionCase(3 or 4)!')
+__STAMP__&
+,'Error in InitializeVariables: Cannot calculate NormalVector(Cyl) of InitVolume in EmissionCase(3 or 4)!')
           END IF
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector &
                   = OV*(Species(iSpec)%Init(iInit)%CylinderHeightIC/SQRT(OV(1)**2 + OV(2)**2 + OV(3)**2))
@@ -657,13 +657,13 @@ SUBROUTINE ParticlePressureCellIni()
   LOGICAL              :: InElementCheck,Marked
 !===================================================================================================================================
   IF(.NOT.DoRefMapping) CALL abort(&
-      __STAMP__,&
-              ' Particle pressure is only possible with tracking via reference element mapping!')
+__STAMP__&
+,' Particle pressure is only possible with tracking via reference element mapping!')
   
 
    CALL abort(&
-       __STAMP__,&
-              ' GEO has to be exchanged by XCL_NGeo!' )
+__STAMP__&
+,' GEO has to be exchanged by XCL_NGeo!' )
   !epsi = 100.*epsilon(epsi)
   ! accuracy of mapping into ref element
   epsi = epsInCell
@@ -693,8 +693,8 @@ SUBROUTINE ParticlePressureCellIni()
           
           IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
             CALL Abort(&
-               __STAMP__,&
-              'Error in InitializeVariables: Cannot calculate Normal Vector of InitVolume in EmissionCase(3 or 4)!')
+__STAMP__&
+,'Error in InitializeVariables: Cannot calculate Normal Vector of InitVolume in EmissionCase(3 or 4)!')
           END IF
           
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector &
@@ -925,8 +925,8 @@ SUBROUTINE ParticlePressureCellIni()
 
           IF ((OV(1) .EQ. 0) .AND. (OV(2) .EQ. 0) .AND. (OV(3) .EQ. 0)) THEN
             CALL Abort(&
-               __STAMP__,&
-              'Error in InitializeVariables: Cannot calculate NormalVector(Cyl) of InitVolume in EmissionCase(3 or 4)!')
+__STAMP__&
+,'Error in InitializeVariables: Cannot calculate NormalVector(Cyl) of InitVolume in EmissionCase(3 or 4)!')
           END IF
           Species(iSpec)%Init(iInit)%ConstPress%OrthoVector = &
                OV*(Species(iSpec)%Init(iInit)%CylinderHeightIC/SQRT(OV(1)**2 + OV(2)**2 + OV(3)**2))

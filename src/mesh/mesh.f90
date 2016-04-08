@@ -80,7 +80,7 @@ USE MOD_Interpolation_Vars,     ONLY:xGP,InterpolationInitIsDone
 !-----------------------------------------------------------------------------------------------------------------------------------
 USE MOD_Mesh_ReadIn,            ONLY:readMesh
 USE MOD_Prepare_Mesh,           ONLY:setLocalSideIDs,fillMeshInfo
-USE MOD_ReadInTools,            ONLY:GETLOGICAL,GETSTR,GETREAL
+USE MOD_ReadInTools,            ONLY:GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
 USE MOD_Metrics,                ONLY:CalcMetrics
 USE MOD_Analyze_Vars,           ONLY:CalcPoyntingInt
@@ -106,8 +106,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE  :: NodeCoords(:,:,:,:,:)
 REAL              :: x(3),PI,meshScale
-INTEGER           :: iElem,i,j,k,f,s,p,q, Flip(3), ijk(3),pq(3)
+INTEGER           :: iElem,i,j,k,iRegions,f,s,p,q, Flip(3), ijk(3),pq(3)
 INTEGER           :: iSide,countSurfElem,iProc
+CHARACTER(32)       :: hilf2
 INTEGER,ALLOCATABLE :: countSurfElemMPI(:)
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
@@ -173,13 +174,37 @@ BC          = 0
 
 !lower and upper index of U/gradUx/y/z _plus
 !lower and upper index of U/gradUx/y/z _plus
-sideID_minus_lower = 1
+#ifdef PP_HDG
+sideID_minus_upper = nBCSides+nInnerSides+nMPISides
+#else
 sideID_minus_upper = nBCSides+nInnerSides+nMPISides_MINE
+#endif /*PP_HDG*/
+sideID_minus_lower = 1
+nUniqueSides       = nBCSides+nInnerSides+nMPISides_MINE
 sideID_plus_lower  = nBCSides+1
 sideID_plus_upper  = nBCSides+nInnerSides+nMPISides
 
+#ifdef PP_HDG
+#ifdef MPI
+CALL MPI_ALLREDUCE(SideID_Minus_Upper,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#else
+nGlobalUniqueSides=SideID_minus_upper
+#endif
+#endif
+
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 CALL fillMeshInfo()
+
+! PO: is done in particle_Init
+!!-- Read parameters for region mapping
+!NbrOfRegions = GETINT('NbrOfRegions','0')
+!IF (NbrOfRegions .GT. 0) THEN
+!  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
+!  DO iRegions=1,NbrOfRegions
+!    WRITE(UNIT=hilf2,FMT='(I2)') iRegions
+!    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
+!  END DO
+!END IF
 
 #ifdef PARTICLES
 ! save geometry information for particle tracking
@@ -259,6 +284,24 @@ DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     END DO
   END DO
 END DO; END DO; END DO
+
+ALLOCATE(VolToSideIJKA(3,0:PP_N,0:PP_N,0:PP_N,0:4,1:6))
+DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  DO f=0,4
+    DO s=1,6
+      VolToSideIJKA(:,i,j,k,f,s) = VolToSideIJK(i,j,k,f,s)
+    END DO
+  END DO
+END DO; END DO; END DO
+
+ALLOCATE(VolToSide2A(2,0:PP_N,0:PP_N,0:4,1:6))
+DO j=0,PP_N; DO i=0,PP_N
+  DO f=0,4
+    DO s=1,6
+      VolToSide2A(:,i,j,f,s) = VolToSide2(i,j,f,s)
+    END DO
+  END DO
+END DO; END DO
 
 ALLOCATE(CGNS_VolToSideA(3,0:PP_N,0:PP_N,0:PP_N,1:6))
 DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -522,6 +565,69 @@ VolToSide(1:2) = Flip_S2M(pq(1),pq(2),flip)
 VolToSide(3) = pq(3)
 END FUNCTION VolToSide
 
+FUNCTION VolToSideIJK(i,j,k, flip, locSideID)
+!===================================================================================================================================
+! Transform Volume-Coordinates to RHS-Coordinates of Master. This is: VolToSide = Flip_S2M(CGNS_VolToSide(...))
+! input: i,j,k, flip, locSideID 
+!   where: i,j,k = volume-indices 
+! output: indices in IJK system, but on the side
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: i,j,k,flip,locSideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,DIMENSION(3) :: VolToSideIJK
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SELECT CASE(locSideID)
+  CASE(XI_MINUS,XI_PLUS)   
+    VolToSideIJK = (/j,k,i/)
+  CASE(ETA_MINUS,ETA_PLUS)  
+    VolToSideIJK = (/i,k,j/)
+  CASE(ZETA_MINUS,ZETA_PLUS) 
+    VolToSideIJK = (/i,j,k/)
+END SELECT
+END FUNCTION VolToSideIJK
+
+FUNCTION VolToSide2(ijk1,ijk2, flip, locSideID)
+!===================================================================================================================================
+! Transform Volume-Coordinates to RHS-Coordinates of Master. This is: VolToSide = Flip_S2M(CGNS_VolToSide(...))
+! input: (ijk1,ijk2)is i,j for Zeta, ik, for eta, and jk for xi, flip, locSideID 
+!   where: i,j,k = volume-indices 
+! output: indices in Master-RHS
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: ijk1,ijk2,flip,locSideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,DIMENSION(2) :: VolToSide2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,DIMENSION(3) :: pq
+!===================================================================================================================================
+SELECT CASE(locSideID)
+CASE(XI_MINUS,XI_PLUS)
+  pq = CGNS_VolToSide(0,ijk1,ijk2,locSideID)
+CASE(ETA_MINUS,ETA_PLUS)
+  pq = CGNS_VolToSide(ijk1,0,ijk2,locSideID)
+CASE(ZETA_MINUS,ZETA_PLUS)
+  pq = CGNS_VolToSide(ijk1,ijk2,0,locSideID)
+END SELECT
+VolToSide2(1:2) = Flip_S2M(pq(1),pq(2),flip)
+END FUNCTION VolToSide2
 
 FUNCTION SideToVol(l, p, q, flip, locSideID)
 !===================================================================================================================================
@@ -549,7 +655,6 @@ INTEGER,DIMENSION(2) :: pq
 pq = Flip_M2S(p,q,flip)
 SideToVol = CGNS_SideToVol(l,pq(1),pq(2),locSideID)
 END FUNCTION SideToVol
-
 
 FUNCTION SideToVol2(p, q, flip, locSideID)
 !===================================================================================================================================
@@ -787,6 +892,7 @@ SDEALLOCATE(Face_xGP)
 SDEALLOCATE(wbaryCL_NGeo)
 SDEALLOCATE(XiCL_NGeo)
 SDEALLOCATE(VolToSideA)
+SDEALLOCATE(VolToSide2A)
 SDEALLOCATE(CGNS_VolToSideA)
 SDEALLOCATE(SideToVolA)
 SDEALLOCATE(SideToVol2A)
@@ -795,6 +901,7 @@ SDEALLOCATE(Vdm_CLNGeo1_CLNGeo)
 SDEALLOCATE(wBaryCL_NGeo1)
 SDEALLOCATE(XiCL_NGeo1)
 SDEALLOCATE(CurvedElem)
+SDEALLOCATE(VolToSideIJKA)
 MeshInitIsDone = .FALSE.
 END SUBROUTINE FinalizeMesh
 

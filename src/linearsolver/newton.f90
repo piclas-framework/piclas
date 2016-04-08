@@ -218,8 +218,9 @@ END DO
 nNewton=nNewton+nInnerNewton
 IF (nInnerNewton.EQ.nNewtonIter) THEN
   WRITE(*,*) Eps2Newton
-  CALL abort(__STAMP__, &
-  'NEWTON NOT CONVERGED WITH NEWTON ITERATIONS AND RESIDUAL REDUCTION F_Xk/F_X0:',nInnerNewton,Norm2_F_Xk/Norm2_F_X0)
+  CALL abort(&
+  __STAMP__&
+  ,'NEWTON NOT CONVERGED WITH NEWTON ITERATIONS AND RESIDUAL REDUCTION F_Xk/F_X0:',nInnerNewton,Norm2_F_Xk/Norm2_F_X0)
 END IF
 
 END SUBROUTINE Newton
@@ -608,8 +609,9 @@ DO WHILE (Restart<nRestarts)
   Gam(1)=Norm_R0
 END DO ! Restart
 
-CALL abort(__STAMP__, &
-     'GMRES_M NOT CONVERGED WITH RESTARTS AND GMRES ITERATIONS:',Restart,REAL(nInnerIter))
+CALL abort(&
+__STAMP__&
+,'GMRES_M NOT CONVERGED WITH RESTARTS AND GMRES ITERATIONS:',Restart,REAL(nInnerIter))
 
 END SUBROUTINE GMRES_M_DX
 

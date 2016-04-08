@@ -91,8 +91,7 @@ USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,Bezie
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic
 USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem,NGeo
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi,BezierSampledAreasInitIsDone
-USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleProjection,BezierSampleProjectionVec
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
 USE MOD_LoadBalance_Vars,       ONLY:nTracksPerElem
 !USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
 ! IMPLICIT VARIABLE HANDLING
@@ -105,15 +104,15 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT
-INTEGER           :: iElem, ilocSide,SideID,flip,iSide
+INTEGER           :: iElem, ilocSide,SideID,flip,iSide,iSample
 CHARACTER(LEN=2)  :: hilf
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
 IF(ParticleMeshInitIsDone) CALL abort(&
-    __STAMP__&
-     , ' Particle-Mesh is already initialized.')
+__STAMP__&
+, ' Particle-Mesh is already initialized.')
 ! allocate and duplicate partElemToside
 nTotalSides=nSides
 nTotalBCSides=nSides
@@ -123,8 +122,8 @@ ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalSides)    &
         ,PartElemToElem(1:2,1:6,1:nTotalElems)    &
         ,STAT=ALLOCSTAT                      )
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
- ,'  Cannot allocate particle mesh vars!')
+__STAMP__&
+,'  Cannot allocate particle mesh vars!')
 
 
 DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
@@ -141,13 +140,13 @@ epsInCell       = SQRT(3.0*RefMappingEps)
 epsOneCell      = 1.0+epsInCell
 IF((RefMappingGuess.LT.1).OR.(RefMappingGuess.GT.4))THEN
    CALL abort(&
-       __STAMP__, &
-        'Wrong guessing method for mapping from physical space in reference space.',RefMappingGuess,999.)
+__STAMP__ &
+,'Wrong guessing method for mapping from physical space in reference space.',RefMappingGuess,999.)
 END IF
 IF(DoRefMapping .AND. RefMappingGuess.EQ.2) THEN
    CALL abort(&
-       __STAMP__, &
-       ' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
+__STAMP__ &
+,' No-Elem_xGP allocated for Halo-Cells! Select other mapping guess',RefMappingGuess)
 END IF
 
 BezierEpsilonBilinear = GETREAL('BezierEpsilonBilinear','1e-6')
@@ -157,21 +156,17 @@ SDEALLOCATE(BezierControlPoints3DElevated)
 ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) &
         ,STAT=ALLOCSTAT )
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
- ,'  Cannot allocate BezierControlPoints3DElevated!')
+__STAMP__&
+,'  Cannot allocate BezierControlPoints3DElevated!')
 BezierControlPoints3DElevated=0.
 
-! SurfMesh stuff:
-BezierSampledAreasInitIsDone=.FALSE.
-BezierSampleProjection   =GETLOGICAL('BezierSampleProjection','.FALSE.') !dummy so far, to be changed for final surfaceflux
-IF (BezierSampleProjection) THEN
-  BezierSampleProjectionVec=GETREALARRAY('BezierSampleProjectionVec',3,'1. , 0. , 0.')
-  BezierSampleProjectionVec=BezierSampleProjectionVec/SQRT(DOT_PRODUCT(BezierSampleProjectionVec,BezierSampleProjectionVec))
-END IF
-
+! BezierAreaSample stuff:
 WRITE( hilf, '(I2.2)') NGeo
 BezierSampleN = GETINT('BezierSampleN',hilf)
 ALLOCATE(BezierSampleXi(0:BezierSampleN))!,STAT=ALLOCSTAT)
+DO iSample=0,BezierSampleN
+  BezierSampleXi(iSample)=-1.+2.0/BezierSampleN*iSample
+END DO
 
 !--- Initialize Periodic Side Info
 !ALLOCATE(SidePeriodicType(1:nSides)) 
@@ -488,6 +483,9 @@ Distance=-1.
 ListDistance=0
 DO iBGMElem = 1, nBGMElems
   ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+  IF(.NOT.DoHALO)THEN
+    IF(ElemID.GT.PP_nElems) CYCLE
+  END IF
   Distance2=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
            +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
            +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) 
@@ -857,8 +855,8 @@ IF (halo_eps_velo.EQ.0) halo_eps_velo = c
 #if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==1000)
 IF (halo_eps_velo.EQ.c) THEN
    CALL abort(&
-       __STAMP__&
-   , 'Halo Eps Velocity for MPI not defined')
+__STAMP__&
+, 'Halo Eps Velocity for MPI not defined')
 END IF
 #endif
 #if (PP_TimeDiscMethod==201)
@@ -871,13 +869,15 @@ halo_eps2=halo_eps*halo_eps
 SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 halo distance  |    ',halo_eps 
 
 #ifdef MPI
-IF (DepositionType.EQ.'shape_function') THEN
-  BGMimax = INT((GEO%xmax+halo_eps-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
-  BGMimin = INT((GEO%xmin-halo_eps-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
-  BGMjmax = INT((GEO%ymax+halo_eps-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
-  BGMjmin = INT((GEO%ymin-halo_eps-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
-  BGMkmax = INT((GEO%zmax+halo_eps-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
-  BGMkmin = INT((GEO%zmin-halo_eps-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
+IF ((DepositionType.EQ.'shape_function') &
+.OR.(DepositionType.EQ.'cylindrical_shape_function') &
+.OR.(DepositionType.EQ.'shape_function_1d'))THEN
+  BGMimax = INT((MIN(GEO%xmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
+  BGMimin = INT((MAX(GEO%xmin-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
+  BGMjmax = INT((MIN(GEO%ymax+halo_eps,GEO%ymaxglob)-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
+  BGMjmin = INT((MAX(GEO%ymin-halo_eps,GEO%yminglob)-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
+  BGMkmax = INT((MIN(GEO%zmax+halo_eps,GEO%zmaxglob)-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
+  BGMkmin = INT((MAX(GEO%zmin-halo_eps,GEO%zminglob)-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
 END IF
 #endif
 
@@ -901,8 +901,8 @@ IF (ALLOCSTAT.NE.0) THEN
   iProc=0
 #endif /*MPI*/
   CALL abort(&
-      __STAMP__&
-      , 'Problem allocating GEO%FIBGM!' )
+__STAMP__&
+, 'Problem allocating GEO%FIBGM!' )
 END IF
 
 ! null number of element per BGM cell
@@ -1113,7 +1113,7 @@ IF (DepositionType.EQ.'shape_function') THEN
  !   IF((nShapePaddingX.EQ.0)    &
  !     .OR.(nShapePaddingY.EQ.0) &
  !     .OR.(nShapePaddingZ.EQ.0))THEN 
- !       CALL abort(__STAMP__,&
+ !       CALL abort(__STAMP__&
  !         'Error in stencil calculation for FIBGM and shape function')
  !   END IF
  ! END IF
@@ -1377,7 +1377,7 @@ END DO !Cell
 !       END DO
 !       IF (i .EQ. ReducedBGMArray(j) .AND. k .EQ. ReducedBGMArray(j+1) .AND. l .EQ. ReducedBGMArray(j+2)) THEN
 !         IF (m .GT. MaxShapeProcs) THEN
-!           CALL abort(__STAMP__,&
+!           CALL abort(__STAMP__&
 !                                'ERROR in Boundary_PIC.f90: Cellproclist can contain only MaxShapeProcs=',MaxShapeProcs,999.)
 !         END IF
 !         CellProcList(i,k,l,m)=CurrentProc
@@ -1908,8 +1908,8 @@ DO iElem=1,nTotalElems
     IPWRITE(UNIT_stdOut,*) 'zmin', BGMkmin,CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
     IPWRITE(UNIT_stdOut,*) 'zmax', BGMkmax,CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
     CALL abort(&
-        __STAMP__&
-    ,' Element not located in FIBGM! iElem, myRank',iElem,REAL(PartMPI%MyRank))
+__STAMP__&
+,' Element not located in FIBGM! iElem, myRank',iElem,REAL(PartMPI%MyRank))
   END IF
 END DO ! iElem
 
@@ -1950,16 +1950,16 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes)
 ALLOCATE(GEO%Volume(nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(&
-      __STAMP__&
-  ,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
+__STAMP__&
+,'ERROR in InitParticleGeometry: Cannot allocate GEO%Volume!')
 END IF
 usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
 IF(usevMPF) THEN
   ALLOCATE(GEO%DeltaEvMPF(nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__&
-    ,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
+__STAMP__&
+,'ERROR in InitParticleGeometry: Cannot allocate GEO%DeltaEvMPF!')
   END IF
   GEO%DeltaEvMPF(:) = 0.0
 END IF
@@ -2036,50 +2036,50 @@ IF(nTotalBCSides.EQ.0) RETURN
 ! BezierControlPoints3D
 ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummyBezierControlPoints3d)) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 DummyBezierControlPoints3d=BezierControlPoints3d
 DEALLOCATE(BezierControlPoints3D)
 ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalBCSides),STAT=ALLOCSTAT)
 BezierControlPoints3d=0.
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 ! SideSlabNormals
 ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummySideSlabNormals)) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 DummySideSlabNormals=SideSlabNormals
 DEALLOCATE(SideSlabNormals)
 ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 SideSlabNormals=0.
 ! SideSlabIntervals
 ALLOCATE(DummySideSlabIntervals(1:6,1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummySideSlabIntervals)) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 DummySideSlabIntervals=SideSlabIntervals
 DEALLOCATE(SideSlabIntervals)
 ALLOCATE(SideSlabIntervals(1:6,1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 SideSlabIntervals=0.
 ! BoundingBoxIsEmpty
 ALLOCATE(DummyBoundingBoxIsEmpty(1:nOldBCSides))
 IF (.NOT.ALLOCATED(DummyBoundingBoxIsEmpty)) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 DummyBoundingBoxIsEmpty=BoundingBoxIsEmpty
 DEALLOCATE(BoundingBoxIsEmpty)
 ALLOCATE(BoundingBoxIsEmpty(1:nTotalBCSides),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__,& !wunderschoen!!!
-  'Could not allocate ElemIndex')
+__STAMP__& !wunderschoen!!!
+,'Could not allocate ElemIndex')
 BoundingBoxIsEmpty=.FALSE.
 
 BCInc=0
@@ -2177,8 +2177,8 @@ DO iElem=1,PP_nElems
       GEO%ElemToRegion(iElem)=iRegions
     ELSE
       CALL abort(&
-          __STAMP__&
-      ,'Defined regions are overlapping')
+__STAMP__&
+,'Defined regions are overlapping')
     END IF
   END DO ! iRegions=1,NbrOfRegions
 END DO ! iElem=1,PP_nElems
@@ -2537,8 +2537,8 @@ END DO ! iElem
 IF (TRIM(DepositionType).EQ.'shape_function')THEN
   ALLOCATE(ElemRadius2_sf(1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__, &
-      ' Cannot allocate ElemRadius2_sf!')
+__STAMP__ &
+,' Cannot allocate ElemRadius2_sf!')
   DO iElem=1,PP_nElems
     ElemRadius2_sf(iElem)=(ElemRadiusNGeo(iElem)+r_sf)*(ElemRadiusNGeo(iElem)+r_sf)
   END DO ! iElem=1,PP_nElems
@@ -2584,8 +2584,8 @@ END IF
 
 ALLOCATE(GEO%ElemToFIBGM(1:6,1:LastElem),STAT=ALLOCSTAT )
 IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
- ,'  Cannot allocate GEO%ElemToFIBGM!')
+__STAMP__&
+,'  Cannot allocate GEO%ElemToFIBGM!')
 
 ! because I copy and past
 BGMimax=GEO%FIBGMimax
@@ -2880,7 +2880,7 @@ INTEGER                                  :: iSide,p,q, nPlanar,nBilinear,nCurved
 INTEGER                                  :: nPlanarHalo, nBilinearHalo, nCurvedHalo, nCurvedElemsHalo
 INTEGER                                  :: nSideCount, BCSideID, BCSideID2, s,r
 INTEGER,ALLOCATABLE                      :: SideIndex(:)
-REAL,DIMENSION(1:3)                      :: v1,v2,NodeX
+REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
 INTEGER                                  :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
@@ -2893,7 +2893,7 @@ REAL                                    :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
 INTEGER                                 :: i,j,k, NGeo3,NGeo2, nLoop
 REAL                                    :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
 REAL                                    :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
-LOGICAL                                 :: isCurvedSide
+LOGICAL                                 :: isCurvedSide,isRectangular
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -2919,6 +2919,7 @@ ELSE
           , SideNormVec(1:3,nTotalSides) )
 END IF
 SideIsDone=.FALSE.
+SideType=-1
 
 SideDistance=0.
 SideNormVec=0.
@@ -2984,11 +2985,6 @@ DO iElem=1,nLoop
     IF(.NOT.CurvedElem(iElem))THEN
       ! linear element
       IF(BoundingBoxIsEmpty(TrueSideID))THEN
-        SideType(TrueSideID)=PLANAR
-        IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
-#ifdef MPI
-        IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
-#endif /*MPI*/
         v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
             -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
         
@@ -3000,6 +2996,31 @@ DO iElem=1,nLoop
                 +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
                 +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
         SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+        ! check if it is rectangular
+        isRectangular=.TRUE.
+        v1=BezierControlPoints3D(:,0   ,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+        v2=BezierControlPoints3D(:,NGeo,0   ,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+        v3=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,NGeo,TrueSideID)
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        IF(isRectangular)THEN
+          v1=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        END IF
+        IF(isRectangular)THEN
+          SideType(TrueSideID)=PLANAR
+          IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+          IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
+#endif /*MPI*/
+        ELSE
+          SideType(TrueSideID)=CURVED
+          IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+          IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+#endif /*MPI*/
+        END IF
       ELSE
         SideType(TrueSideID)=BILINEAR
         IF(SideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
@@ -3051,11 +3072,6 @@ DO iElem=1,nLoop
         END IF
       ELSE
         IF(BoundingBoxIsEmpty(TrueSideID))THEN
-          SideType(TrueSideID)=PLANAR
-          IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
-#ifdef MPI
-          IF(SideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
-#endif /*MPI*/
           v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
               -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
           
@@ -3067,6 +3083,31 @@ DO iElem=1,nLoop
                   +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
                   +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
           SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+          ! check if it is rectangular
+          isRectangular=.TRUE.
+          v1=BezierControlPoints3D(:,0   ,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+          v2=BezierControlPoints3D(:,NGeo,0   ,TrueSideID)-BezierControlPoints3D(:,0   ,0   ,TrueSideID)
+          v3=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,0   ,NGeo,TrueSideID)
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+          IF(isRectangular)THEN
+            v1=BezierControlPoints3D(:,NGeo,NGeo,TrueSideID)-BezierControlPoints3D(:,NGeo,0   ,TrueSideID)
+            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+            IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+          END IF
+          IF(isRectangular)THEN
+            SideType(TrueSideID)=PLANAR
+            IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+            IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
+#endif /*MPI*/
+          ELSE
+            SideType(TrueSideID)=CURVED
+            IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+            IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+#endif /*MPI*/
+          END IF
         ELSE
           SideType(TrueSideID)=BILINEAR
           IF(SideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
@@ -3108,7 +3149,7 @@ IF(DoRefMapping)THEN
   ! number of element local BC-Sides
   DO iElem=1,nTotalElems
     BCElem(iElem)%nInnerSides=0
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
     IF(.NOT.isBCElem(iElem)) CYCLE
 #endif
     DO ilocSide=1,6
@@ -3130,7 +3171,7 @@ IF(DoRefMapping)THEN
       DO ilocSide=1,6
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.EQ.-1) CYCLE
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         BCSideID2 =PartBCSideList(SideID)
         IF(BCSideID2.EQ.-1) CYCLE
         leave=.FALSE.

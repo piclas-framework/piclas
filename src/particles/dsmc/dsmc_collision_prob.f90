@@ -274,14 +274,14 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       Coll_pData(iPair)%Prob = 0    
     CASE DEFAULT
       CALL Abort(&
-           __STAMP__,&
-          'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
+__STAMP__&
+,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
   END SELECT
   IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
     IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'
     CALL Abort(&
-         __STAMP__,&
-        'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
+__STAMP__&
+,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
   END IF
   IF(DSMC%CalcQualityFactors) THEN
     DSMC%CollProbMax = MAX(Coll_pData(iPair)%Prob, DSMC%CollProbMax)

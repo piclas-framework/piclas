@@ -115,7 +115,8 @@ TYPE tParticleMPIExchange
 !  INTEGER                       ,POINTER :: NbrArray(:)  ! (1:nProcs*2)
 !  INTEGER                       ,POINTER :: nbrOfSendParticlesEmission(:)  ! (1:nProcs)
 END TYPE
- 
+ TYPE (tParticleMPIExchange)     :: PartMPIExchange
+
 TYPE tParticleMPIExchange2
   INTEGER,ALLOCATABLE            :: nPartsSend(:)     ! only mpi neighbors
   INTEGER,ALLOCATABLE            :: nPartsRecv(:)     ! only mpi neighbors
@@ -124,6 +125,7 @@ TYPE tParticleMPIExchange2
   INTEGER,ALLOCATABLE            :: RecvRequest(:,:)  ! recv request message handle,  1 - Number, 2-Message
   TYPE(tMPIMessage),ALLOCATABLE  :: send_message(:)   ! message, required for particle emission
 END TYPE
+TYPE (tParticleMPIExchange2)     :: PartMPIInsert 
 
 TYPE tSurfMPIExchange
   INTEGER,ALLOCATABLE            :: nSidesSend(:)     ! only mpi neighbors
@@ -131,11 +133,8 @@ TYPE tSurfMPIExchange
   INTEGER,ALLOCATABLE            :: SendRequest(:)   ! send requirest message handle 1 - Number, 2-Message
   INTEGER,ALLOCATABLE            :: RecvRequest(:)   ! recv request message handle,  1 - Number, 2-Message
 END TYPE
+TYPE (tSurfMPIExchange)          :: SurfExchange
 
-
-TYPE (tParticleMPIExchange2)             :: PartMPIInsert 
-TYPE (tParticleMPIExchange)              :: PartMPIExchange
-TYPE (tSurfMPIExchange)                  :: SurfExchange
 
 INTEGER,ALLOCATABLE                      :: PartTargetProc(:)                ! local proc id for communication
 LOGICAL,ALLOCATABLE                      :: PartMPIDepoSend(:)               ! index of part number, if particle has to be send

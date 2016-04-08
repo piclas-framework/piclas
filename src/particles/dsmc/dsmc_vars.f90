@@ -378,27 +378,16 @@ END TYPE
 
 TYPE tTreeNode
 !  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
-  TYPE (tTreeNode), POINTER       :: ChildNode              !8 Childnodes of Octree Treenode
+  TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
   REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
   INTEGER                         :: PNum_Node              ! Particle Number of Treenode
   INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
-  INTEGER                         :: PairNum_Node           ! Number of Particle Pairs            
+  REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
+  REAL                            :: NodeVolume(8)
+  INTEGER                         :: NodeDepth        
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
-
-TYPE tSampWall             ! DSMC sample for Wall                                             
-  REAL                           :: Energy(9)               ! 1-3 E_tra (pre, wall, re),
-                                                            ! 4-6 E_rot (pre, wall, re),
-                                                            ! 7-9 E_vib (pre, wall, re)
-  REAL                           :: Force(3)                ! x, y, z direction
-  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter
-END TYPE
-
-TYPE(tSampWall), ALLOCATABLE     :: SampWall(:)             ! Wall sample array (number of BC-Sides)
-#ifdef MPI
-TYPE(tSampWall), ALLOCATABLE     :: SampWallHaloCell(:)     ! Wall sample array (number of BC-HALO-Sides)
-#endif
 
 TYPE tSurfaceMesh
   INTEGER                         :: nSurfaceNode           ! Number of Nodes on Surface (reflective)
@@ -542,10 +531,38 @@ END TYPE
 TYPE (tDSMCSampNearInt) DSMCSampNearInt
 
 TYPE tDSMCSampCellVolW
-  REAL,ALLOCATABLE                      :: xGP(:)     
+  REAL,ALLOCATABLE                      :: xGP(:)    
+  REAL,ALLOCATABLE                      :: SubVolumes(:,:,:,:) 
 END TYPE
 
 TYPE (tDSMCSampCellVolW) DSMCSampCellVolW
+
+TYPE tAdaptedElem
+  REAL                                   :: Volume
+  REAL                                   :: AdaptNodePoints(3,8)
+END TYPE
+
+TYPE tDSMCSampAdaptCellVolW
+  REAL,ALLOCATABLE                       :: xGP(:)    
+  LOGICAL, ALLOCATABLE                  :: IsAdaptedElem(:)
+  TYPE(tAdaptedElem), ALLOCATABLE        :: AdaptedElem(:)
+  INTEGER                                 :: AdaptPartNum
+  INTEGER                                 :: AdaptIterNum
+  LOGICAL                                 :: OnlyProcLocal
+END TYPE
+
+TYPE (tDSMCSampAdaptCellVolW) DSMCSampAdaptCellVolW
+
+#ifdef MPI
+TYPE tAdaptCellVolWRecvPart
+  REAL,ALLOCATABLE                      :: PartState(:,:)
+  REAL,ALLOCATABLE                      :: PartStateInt(:,:)
+  INTEGER                                :: PartNum
+  INTEGER,ALLOCATABLE                   :: PartSpec(:)
+END TYPE
+
+TYPE (tAdaptCellVolWRecvPart), ALLOCATABLE :: AdaptCellVolWRecvPart(:)
+#endif
 
 TYPE tHODSMC
   LOGICAL                 :: HODSMCOutput         !High Order DSMC Output
@@ -555,9 +572,37 @@ TYPE tHODSMC
   CHARACTER(LEN=256)      :: SampleType
   CHARACTER(LEN=256)      :: NodeType
   REAL,ALLOCATABLE        :: sJ(:,:,:,:)
+  LOGICAL                 :: DoAdaptCellWMPI=.false.
 END TYPE tHODSMC
 
 TYPE(tHODSMC)             :: HODSMC
 REAL,ALLOCATABLE          :: DSMC_HOSolution(:,:,:,:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
+
+TYPE tElemNodeVolumes
+    TYPE (tNodeVolume), POINTER             :: Root => null()
+END TYPE
+
+TYPE tNodeVolume
+    TYPE (tNodeVolume), POINTER             :: SubNode1 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode2 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode3 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode4 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode5 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode6 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
+    REAL                                    :: Volume
+END TYPE
+
+TYPE (tElemNodeVolumes), ALLOCATABLE        :: ElemNodeVol(:)
+  
+TYPE tOctreeVdm
+  TYPE (tOctreeVdm), POINTER                :: SubVdm => null()
+  REAL,ALLOCATABLE                          :: Vdm(:,:)
+  REAL                                      :: wGP
+  REAL,ALLOCATABLE                          :: xGP(:)
+END TYPE
+
+TYPE (tOctreeVdm), POINTER                  :: OctreeVdm => null()
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

@@ -13,6 +13,9 @@ USE MOD_IO_HDF5,           ONLY:InitIO
 USE MOD_TimeDisc,          ONLY:InitTimeDisc,FinalizeTimeDisc,TimeDisc
 USE MOD_MPI,               ONLY:InitMPI
 USE MOD_RecordPoints_Vars, ONLY:RP_Data
+#ifdef PP_HDG
+USE MOD_HDG,              ONLY:InitHDG
+#endif
 #ifdef MPI
 USE MOD_LoadBalance,       ONLY:InitLoadBalance,FinalizeLoadBalance
 USE MOD_MPI,               ONLY:FinalizeMPI
@@ -127,6 +130,9 @@ CALL InitBoltzplatz(IsLoadBalance=.FALSE.)
 !CALL InitParticleAnalyze()
 !#endif
 !CALL IgnoredStrings()
+#ifdef PP_HDG
+CALL InitHDG()
+#endif
 
 ! RESTART
 CALL Restart()

@@ -35,7 +35,7 @@ SUBROUTINE InitParticles()
 USE MOD_Globals!,       ONLY: MPIRoot,UNIT_STDOUT
 USE MOD_ReadInTools
 USE MOD_Particle_Vars,              ONLY: ParticlesInitIsDone, WriteMacroValues, nSpecies
-USE MOD_part_emission,              ONLY: InitializeParticleEmission
+USE MOD_part_emission,              ONLY: InitializeParticleEmission, InitializeParticleSurfaceflux
 USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_Init,                  ONLY: InitDSMC
 USE MOD_LD_Init,                    ONLY: InitLD
@@ -47,8 +47,6 @@ USE MOD_PICInterpolation_Vars,      ONLY: useBGField
 #ifdef MPI
 USE MOD_Particle_MPI,               ONLY:InitParticleCommSize
 #endif
-USE MOD_Particle_Surfaces,          ONLY:GetBezierSampledAreas
-USE MOD_Particle_Surfaces_Vars,     ONLY:BezierSampleN, BezierSampleProjection
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -73,13 +71,8 @@ CALL InitParticleCommSize()
 #endif
 IF(useBGField) CALL InitializeBackgroundField()
 
-! sample the bezier face
-IF (BezierSampleN.GT.0) THEN
-  CALL GetBezierSampledAreas()
-  IF (BezierSampleProjection) CALL GetBezierSampledAreas(BezierSampleProjection)
-END IF
-
 CALL InitializeParticleEmission()
+CALL InitializeParticleSurfaceflux()
 
 IF (useDSMC) THEN
   CALL  InitDSMC()
@@ -165,12 +158,13 @@ LOGICAL                       :: exitTrue
 
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
-!#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 !print*, "SFSDRWE#"
 ALLOCATE(Pt_temp(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
 Pt_temp=0.
@@ -180,12 +174,14 @@ Pt_temp=0.
 ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
 !ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate ParStage arrays!')
 END IF
 ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate PartStateN arrays!')
 END IF
 #endif /* IMEX */
@@ -194,51 +190,60 @@ END IF
 #if (PP_TimeDiscMethod!=110)
 ALLOCATE(PartStage(1:PDM%maxParticleNumber,1:6,1:nRKStages-1), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,' Cannot allocate ParStage arrays!')
 END IF
 ALLOCATE(PartStateN(1:PDM%maxParticleNumber,1:6), STAT=ALLOCSTAT)  
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,' Cannot allocate PartStateN arrays!')
 END IF
 #endif
 ALLOCATE(PartQ(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate PartQ arrays!')
 END IF
 ! particle function values at X0
 ALLOCATE(F_PartX0(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate F_PartX0 arrays!')
 END IF
 ! particle function values at Xk
 ALLOCATE(F_PartXk(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate F_PartXk arrays!')
 END IF
 ! and the required norms
 ALLOCATE(Norm2_F_PartX0(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate Norm2_F_PartX0 arrays!')
 END IF
 ALLOCATE(Norm2_F_PartXk(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate Norm2_F_PartXk arrays!')
 END IF
 ALLOCATE(Norm2_F_PartXk_old(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'Cannot allocate Norm2_F_PartXk_old arrays!')
 END IF
 ALLOCATE(DoPartInNewton(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
       ,'Cannot allocate DoPartInNewton arrays!')
 END IF
 #endif /* IMPA */
@@ -275,13 +280,17 @@ ALLOCATE(PartState(1:PDM%maxParticleNumber,1:6)       , &
          Pt(1:PDM%maxParticleNumber,1:3)              , &
          PartSpecies(1:PDM%maxParticleNumber)         , &
          PDM%ParticleInside(1:PDM%maxParticleNumber)  , &
-         PDM%nextFreePosition(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+         PDM%nextFreePosition(1:PDM%maxParticleNumber), &
+         PDM%dtFracPush(1:PDM%maxParticleNumber)      , &
+         PDM%IsNewPart(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
-! always zero
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
+PDM%dtFracPush(1:PDM%maxParticleNumber) = .FALSE.
+PDM%IsNewPart(1:PDM%maxParticleNumber) = .FALSE.
 LastPartPos(1:PDM%maxParticleNumber,1:3)    = 0.
 PartState=0.
 Pt=0.
@@ -305,14 +314,16 @@ IF (usevMPF) THEN
     vMPF_velocityDistribution = GETSTR('Part-vMPFvelocityDistribution','OVDR')
     vMPF_relativistic = GETLOGICAL('Part-vMPFrelativistic','.FALSE.')
     IF(vMPF_relativistic.AND.(vMPF_velocityDistribution.EQ.'MBDR')) THEN
-      CALL abort(__STAMP__&
+      CALL abort(&
+__STAMP__&
       ,'Relativistic handling of vMPF is not possible using MBDR velocity distribution!')
     END IF
     ALLOCATE(vMPF_SpecNumElem(1:nElems,1:nSpecies))
   END IF
   ALLOCATE(PartMPF(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__&
+    CALL abort(&
+__STAMP__&
     ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
   END IF
 END IF
@@ -336,7 +347,8 @@ PartPressRemParts = GETLOGICAL('Part-ConstPressRemParts','.FALSE.')
 !nSpecies = CNTSTR('Part-Species-SpaceIC')
 
 IF (nSpecies.LE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR: nSpecies .LE. 0:', nSpecies)
 END IF
 PartPressureCell = .FALSE.
@@ -394,6 +406,7 @@ DO iSpec = 1, nSpecies
     Species(iSpec)%Init(iInit)%NSigma                = GETREAL('Part-Species'//TRIM(hilf2)//'-NSigma','10.')
     Species(iSpec)%Init(iInit)%NumberOfExcludeRegions= GETINT('Part-Species'//TRIM(hilf2)//'-NumberOfExcludeRegions','0')
     Species(iSpec)%Init(iInit)%InsertedParticle      = 0
+    Species(iSpec)%Init(iInit)%InsertedParticleSurplus = 0
     IF(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell-juettner') THEN
       Species(iSpec)%Init(iInit)%MJxRatio       = GETREAL('Part-Species'//TRIM(hilf2)//'-MJxRatio','0')
       Species(iSpec)%Init(iInit)%MJyRatio       = GETREAL('Part-Species'//TRIM(hilf2)//'-MJyRatio','0')
@@ -411,12 +424,13 @@ DO iSpec = 1, nSpecies
     !----------- various checks/calculations after read-in of Species(i)%Init(iInit)%-data ----------------------------------!
     !--- Check if Initial ParticleInserting is really used
     IF ( ((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.1).OR.(Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2)) &
-      .AND. Species(iSpec)%Init(iInit)%UseForInit &
-      .AND. (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
+      .AND.(Species(iSpec)%Init(iInit)%UseForInit) ) THEN
+      IF ( (Species(iSpec)%Init(iInit)%initialParticleNumber.EQ.0) &
       .AND. AlmostEqual(Species(iSpec)%Init(iInit)%PartDensity,0.) ) THEN
         Species(iSpec)%Init(iInit)%UseForInit=.FALSE.
         SWRITE(*,*) "WARNING: Initial ParticleInserting disabled as neither ParticleNumber"
         SWRITE(*,*) "nor PartDensity detected for Species, Init ", iSpec, iInit
+      END IF
     END IF
     !--- cuboid-/cylinder-height calculation from v and dt
     IF (.NOT.Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN
@@ -434,27 +448,33 @@ DO iSpec = 1, nSpecies
     END IF
     IF (Species(iSpec)%Init(iInit)%CalcHeightFromDt) THEN
       IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) .AND. (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.2) ) &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
           ,' Calculating height from v and dt is only supported for EmiType1 or EmiType2(=default)!')
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cuboid') &
           .AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cylinder')) &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
           ,' Calculating height from v and dt is only supported for cuboid or cylinder!')
       IF (Species(iSpec)%Init(iInit)%UseForInit) &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
           ,' Calculating height from v and dt is not supported for initial ParticleInserting!')
     END IF
     !--- virtual pre-insertion (vpi) checks and calculations
     IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid_vpi') &
       .OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder_vpi')) THEN
       IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.1) .AND. (Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.2) ) &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
         ,' Wrong emission-type for virtual Pre-Inserting region!')
       IF (TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).NE.'maxwell_lpn') &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
         ,' Only maxwell_lpn is implemened as velocity-distribution for virtual Pre-Inserting region!')
       IF (Species(iSpec)%Init(iInit)%UseForInit) &
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
           ,' virtual Pre-Inserting is not supported for initial ParticleInserting. Use additional Init!')
       !-- Virtual Pre-Inserting is used correctly !
       Species(iSpec)%Init(iInit)%VirtPreInsert = .TRUE.
@@ -467,7 +487,8 @@ DO iSpec = 1, nSpecies
       SELECT CASE ( TRIM(Species(iSpec)%Init(iInit)%vpiDomainType) )
       CASE ( 'freestream' )
         IF ( TRIM(Species(iSpec)%Init(iInit)%SpaceIC) .NE. 'cuboid_vpi' ) THEN
-          CALL abort(__STAMP__&
+          CALL abort(&
+__STAMP__&
             ,' Only cuboid_vpi is supported for a freestream vpiDomainType! (Use default vpiDomainType for cylinder.)')
         ELSE
           Species(iSpec)%Init(iInit)%vpiBVBuffer(1) = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-vpiBV1BufferNeg','.TRUE.')
@@ -478,14 +499,16 @@ DO iSpec = 1, nSpecies
       CASE ( 'orifice' )
         Species(iSpec)%Init(iInit)%vpiBVBuffer = .TRUE.
         IF ( ABS(Species(iSpec)%Init(iInit)%Radius2IC) .GT. 0. ) THEN
-          CALL abort(__STAMP__&
+          CALL abort(&
+__STAMP__&
             ,' Annular orifice is not implemented yet!')
         END IF
       CASE ( 'perpendicular_extrusion' )
         Species(iSpec)%Init(iInit)%vpiBVBuffer = .TRUE. !dummy
       CASE DEFAULT
-        CALL abort(__STAMP__,&
-                'vpiDomainType is not implemented!')
+        CALL abort(&
+__STAMP__&
+,'vpiDomainType is not implemented!')
       END SELECT
       !--
     ELSE
@@ -494,7 +517,8 @@ DO iSpec = 1, nSpecies
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
          ((Species(iSpec)%Init(iInit)%ParticleEmission-INT(Species(iSpec)%Init(iInit)%ParticleEmission)).NE.0)) THEN
-       CALL abort(__STAMP__&
+       CALL abort(&
+__STAMP__&
        ,' If ParticleEmissionType = 2 (parts per iteration), ParticleEmission has to be an integer number')
     END IF
     !--- flag for cell-based constant-pressure-EmiTypes
@@ -582,8 +606,9 @@ DO iSpec = 1, nSpecies
               * Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1)
           ELSE IF ( (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cuboid') .AND. &
                     (TRIM(Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC).NE.'cylinder') )THEN
-            CALL abort(__STAMP__,&
-              'Error in ParticleInit, ExcludeRegions must be cuboid or cylinder!')
+            CALL abort(&
+__STAMP__&
+,'Error in ParticleInit, ExcludeRegions must be cuboid or cylinder!')
           END IF
           IF (Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1)**2 + &
               Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2)**2 + &
@@ -602,13 +627,15 @@ DO iSpec = 1, nSpecies
               + Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2)**2 &
               + Species(iSpec)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3)**2)
           ELSE
-            CALL abort(__STAMP__,&
-              'Error in ParticleInit, NormalIC Vector must not be zero!')
+            CALL abort(&
+__STAMP__&
+,'Error in ParticleInit, NormalIC Vector must not be zero!')
           END IF
         END DO !iExclude
       ELSE
-        CALL abort(__STAMP__,&
-          'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
+        CALL abort(&
+__STAMP__&
+,'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
       END IF
     END IF
     !--- stuff for calculating ParticleEmission/InitialParticleNumber from PartDensity when this value is not used for LD-stuff
@@ -619,16 +646,19 @@ DO iSpec = 1, nSpecies
         IF ( (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2) .AND. (Species(iSpec)%Init(iInit)%UseForInit) ) THEN
           PartDens_OnlyInit=.TRUE.
         ELSE
-          CALL abort(__STAMP__&
+          CALL abort(&
+__STAMP__&
             , 'PartDensity without LD is only supported for EmiType1 or initial ParticleInserting with EmiType1/2!')
         END IF
       END IF
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder')) THEN
-        IF  (((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
+        IF  ((((TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'constant') &
           .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell') ) &
-          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) THEN
+          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'maxwell_lpn') ) &
+          .OR.(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution).EQ.'emmert') ) THEN
           IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
-            CALL abort(__STAMP__&
+            CALL abort(&
+__STAMP__&
             ,'Either ParticleEmission or PartDensity can be defined for selected emission parameters, not both!')
           END IF
           !---calculation of Base-Area and corresponding component of VeloVecIC
@@ -651,7 +681,8 @@ DO iSpec = 1, nSpecies
               IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
                 PartDens_OnlyInit=.TRUE.
               ELSE
-                CALL abort(__STAMP__&
+                CALL abort(&
+__STAMP__&
                   ,'PartDensity without LD is only supported for CalcHeightFromDt, vpi, or initial ParticleInserting!')
               END IF
             END IF
@@ -666,7 +697,8 @@ DO iSpec = 1, nSpecies
             !---calculation of initial (macro)particle number
             IF (Species(iSpec)%Init(iInit)%UseForInit) THEN
               IF (Species(iSpec)%Init(iInit)%initialParticleNumber .GT. 0) THEN
-                CALL abort(__STAMP__&
+                CALL abort(&
+__STAMP__&
                   ,'Either initialParticleNumber or PartDensity can be defined for selected parameters, not both!')
               END IF
               IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') THEN
@@ -680,22 +712,26 @@ DO iSpec = 1, nSpecies
               END IF
             END IF
           ELSE
-            CALL abort(__STAMP__&
+            CALL abort(&
+__STAMP__&
               ,'BaseVectors are parallel or zero!')
           END IF
         ELSE
-          CALL abort(__STAMP__&
+          CALL abort(&
+__STAMP__&
           ,'Only const. or maxwell(_lpn) is supported as velocityDistr. for PartDensity without LD!')
         END IF
       ELSE IF (Species(iSpec)%Init(iInit)%VirtPreInsert) THEN
         IF (Species(iSpec)%Init(iInit)%ParticleEmission .GT. 0.) THEN
-               CALL abort(__STAMP__&
+               CALL abort(&
+__STAMP__&
           ,'Either ParticleEmission or PartDensity can be defined for selected emission parameters, not both!')
         ELSE
           SWRITE(*,*) "PartDensity is used for VPI of Species, Init ", iSpec, iInit !Value is calculated inside SetParticlePostion!
         END IF
       ELSE
-        CALL abort(__STAMP__&
+        CALL abort(&
+__STAMP__&
         ,'PartDensity without LD is only supported for the SpaceIC cuboid(_vpi) or cylinder(_vpi)!')
       END IF
     END IF
@@ -723,7 +759,8 @@ PartLorentzType = GETINT('Part-LorentzType','3')
 ! Read in boundary parameters
 nPartBound = GETINT('Part-nBounds','1.')
 IF (nPartBound.LE.0) THEN
-  CALL abort(__STAMP__&
+  CALL abort(&
+__STAMP__&
   ,'ERROR: nPartBound .LE. 0:', nPartBound)
 END IF
 ALLOCATE(PartBound%SourceBoundName(1:nPartBound))
@@ -733,6 +770,7 @@ ALLOCATE(PartBound%WallTemp(1:nPartBound))
 ALLOCATE(PartBound%TransACC(1:nPartBound))
 ALLOCATE(PartBound%VibACC(1:nPartBound))
 ALLOCATE(PartBound%RotACC(1:nPartBound))
+ALLOCATE(PartBound%Resample(1:nPartBound))
 ALLOCATE(PartBound%WallVelo(1:3,1:nPartBound))
 ALLOCATE(PartBound%AmbientCondition(1:nPartBound))
 ALLOCATE(PartBound%AmbientTemp(1:nPartBound))
@@ -784,6 +822,7 @@ DO iPartBound=1,nPartBound
      PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC','0')
      PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC','0')
      PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC','0')
+     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample','.FALSE.')
      PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3,'0. , 0. , 0.')
      PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage','0')
      IF (PartBound%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN  
@@ -806,7 +845,8 @@ DO iPartBound=1,nPartBound
      PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE DEFAULT
      SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
-     CALL abort(__STAMP__&
+     CALL abort(&
+__STAMP__&
          ,'Particle Boundary Condition does not exist')
   END SELECT
   PartBound%SourceBoundName(iPartBound) = GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName')
@@ -832,14 +872,16 @@ END DO
 ! FieldBound-Types.
 DO iBC = 1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-10) THEN
-    CALL abort(__STAMP__&
+    CALL abort(&
+__STAMP__&
     ,' PartBound%MapToPartBC for Boundary is not set. iBC: :',iBC)
   END IF
 END DO
 
 ALLOCATE(PEM%Element(1:PDM%maxParticleNumber), PEM%lastElement(1:PDM%maxParticleNumber), STAT=ALLOCSTAT) 
 IF (ALLOCSTAT.NE.0) THEN
- CALL abort(__STAMP__&
+ CALL abort(&
+__STAMP__&
   ,' Cannot allocate PEM arrays!')
 END IF
 IF (useDSMC.OR.PartPressureCell) THEN
@@ -849,7 +891,8 @@ IF (useDSMC.OR.PartPressureCell) THEN
            PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT) 
            !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__&
+    CALL abort(&
+__STAMP__&
     , ' Cannot allocate DSMC PEM arrays!')
   END IF
 END IF
@@ -857,7 +900,8 @@ IF (useDSMC) THEN
   ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT) 
            !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__&
+    CALL abort(&
+__STAMP__&
     ,' Cannot allocate DSMC PEM arrays!')
   END IF
 END IF
@@ -868,8 +912,14 @@ ManualTimeStep = GETREAL('Particles-ManualTimeStep', '0.0')
 IF (ManualTimeStep.GT.0.0) THEN
   useManualTimeStep=.True.
 END IF
-#if (PP_TimeDiscMethod==201)
+#if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
   dt_part_ratio = GETREAL('Particles-dt_part_ratio', '3.8')
+  overrelax_factor = GETREAL('Particles-overrelax_factor', '1.0')
+#if (PP_TimeDiscMethod==200)
+IF ( AlmostEqual(overrelax_factor,1.0) .AND. .NOT.AlmostEqual(dt_part_ratio,3.8) ) THEN
+  overrelax_factor = dt_part_ratio !compatibility
+END IF
+#endif
 #endif
 
 !--- initialize randomization (= random if one or more seeds are 0 or random is wanted)
@@ -921,6 +971,8 @@ DO iSeed = 1,SeedSize
    IPWRITE(UNIT_stdOut,*) iseeds(iSeed)
 END DO
 DEALLOCATE(iseeds)
+!DoZigguratSampling = GETLOGICAL('Particles-DoZigguratSampling','.FALSE.')
+DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
 
 DelayTime = GETREAL('Part-DelayTime','0.')
 
@@ -1018,7 +1070,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 #if defined(LSERK)
-!#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* RK3 and RK4 only */
+!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 SDEALLOCATE( Pt_temp)
 #endif
 !SDEALLOCATE(SampDSMC)
@@ -1030,6 +1082,9 @@ SDEALLOCATE(PartSpecies)
 SDEALLOCATE(Pt)
 SDEALLOCATE(PDM%ParticleInside)
 SDEALLOCATE(PDM%nextFreePosition)
+SDEALLOCATE(PDM%nextFreePosition)
+SDEALLOCATE(PDM%dtFracPush)
+SDEALLOCATE(PDM%IsNewPart)
 SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(PartMPF)
 !SDEALLOCATE(Species%Init)
@@ -1041,6 +1096,7 @@ SDEALLOCATE(PartBound%WallTemp)
 SDEALLOCATE(PartBound%TransACC)
 SDEALLOCATE(PartBound%VibACC)
 SDEALLOCATE(PartBound%RotACC)
+SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%AmbientCondition)
 SDEALLOCATE(PartBound%AmbientTemp)

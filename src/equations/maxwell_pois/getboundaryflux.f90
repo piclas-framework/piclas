@@ -61,8 +61,9 @@ INTEGER :: locType,locState
 INTEGER :: MaxBCState,MaxBCStateGlobal
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone))THEN
-   CALL abort(__STAMP__,&
-     "InitBC not ready to be called or already called.")
+   CALL abort(&
+   __STAMP__&
+   ,"InitBC not ready to be called or already called.")
 END IF
 ! determine globally max MaxBCState
 MaxBCState = 0
@@ -72,19 +73,19 @@ DO iSide=1,nBCSides
   ! should not be required || example for MaxBCState
   !IF((locType.NE.22).AND.locType.NE.3) MaxBCState = MAX(MaxBCState,locState)
   !IF((locType.EQ.4).AND.(locState.LT.1))&
-  !  CALL abort(__STAMP__,&
+  !  CALL abort(__STAMP__&
   !             'No temperature (refstate) defined for BC_TYPE',locType)
   !IF((locType.EQ.23).AND.(locState.LT.1))&
-  !  CALL abort(__STAMP__,&
+  !  CALL abort(__STAMP__&
   !             'No outflow Mach number in refstate (x,Ma,x,x,x) defined for BC_TYPE',locType)
   !IF((locType.EQ.24).AND.(locState.LT.1))&
-  !  CALL abort(__STAMP__,&
+  !  CALL abort(__STAMP__&
   !             'No outflow pressure in refstate defined for BC_TYPE',locType)
   !IF((locType.EQ.25).AND.(locState.LT.1))&
-  !  CALL abort(__STAMP__,&
+  !  CALL abort(__STAMP__&
   !             'No outflow pressure in refstate defined for BC_TYPE',locType)
   !IF((locType.EQ.27).AND.(locState.LT.1))&
-  !  CALL abort(__STAMP__,&
+  !  CALL abort(__STAMP__&
   !             'No inflow refstate (dens,v1,v2,v3,pressure) in refstate defined for BC_TYPE',locType)
 END DO
 MaxBCStateGLobal=MaxBCState
@@ -94,7 +95,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_
 
 ! Sanity check for BCs
 !IF(MaxBCState.GT.nRefState)&
-!  CALL abort(__STAMP__,&
+!  CALL abort(__STAMP__&
 !    'ERROR: Boundary RefState not defined! (MaxBCState,nRefState):',MaxBCState,REAL(nRefState))
 
 
@@ -106,7 +107,7 @@ DO i=1,nBCs
     ALLOCATE(BCData(PP_nVar,0:PP_N,0:PP_N,nBCSides))
     BCData=0.
     CALL ReadBCFlow(BCStateFile)
-    !CALL abort(__STAMP__,&
+    !CALL abort(__STAMP__&
     !     'no BC defined in maxwell/getboundaryflux.f90!')
     EXIT    
   END IF
@@ -308,8 +309,9 @@ DO iBC=1,nBCs
     END DO
   
   CASE DEFAULT ! unknown BCType
-    CALL abort(__STAMP__,&
-         'no BC defined in maxwell/getboundaryflux.f90!')
+    CALL abort(&
+    __STAMP__&
+    ,'no BC defined in maxwell/getboundaryflux.f90!')
   END SELECT ! BCType
 END DO ! iBC=1,nBC
 
@@ -444,8 +446,9 @@ ELSE
   CASE("GAUSS-LOBATTO")
     CALL LegGaussLobNodesAndWeights(N_HDF5,xGP_tmp,wGP_tmp)
   CASE DEFAULT
-    CALL abort(__STAMP__,&
-        ' Not type of BackGround-Field is not implemented!')
+    CALL abort(&
+    __STAMP__&
+    ,' Not type of BackGround-Field is not implemented!')
   END SELECT
   CALL BarycentricWeights(N_HDF5,xGP_tmp,wBary_tmp)
   CALL InitializeVandermonde(N_HDF5,PP_N,wBary_tmp,xGP_tmp,xGP,Vdm_NHDF5_N)

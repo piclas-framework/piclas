@@ -89,8 +89,8 @@ SUBROUTINE CalcSurfaceValues
   CALL ExchangeSurfData()  
 #endif
 
-  ALLOCATE(MacroSurfaceVal(5,0:nSurfSample,0:nSurfSample,SurfMesh%nSides))
-  ALLOCATE(MacroSurfaceCounter(1:nSpecies,0:nSurfSample,0:nSurfSample,SurfMesh%nSides))
+  ALLOCATE(MacroSurfaceVal(5,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
+  ALLOCATE(MacroSurfaceCounter(1:nSpecies,1:nSurfSample,1:nSurfSample,SurfMesh%nSides))
   MacroSurfaceVal=0.
   MacroSurfaceCounter=0
   IF (DSMC%CalcSurfCollis_Output) THEN
@@ -110,8 +110,8 @@ SUBROUTINE CalcSurfaceValues
   END IF
  
   DO iSurfSide=1,SurfMesh%nSides
-    DO q=0,nSurfSample
-      DO p=0,nSurfSample 
+    DO q=1,nSurfSample
+      DO p=1,nSurfSample 
         MacroSurfaceVal(1,p,q,iSurfSide) = SampWall(iSurfSide)%State(10,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         MacroSurfaceVal(2,p,q,iSurfSide) = SampWall(iSurfSide)%State(11,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
         MacroSurfaceVal(3,p,q,iSurfSide) = SampWall(iSurfSide)%State(12,p,q) /(SurfMesh%SurfaceArea(p,q,iSurfSide) * TimeSample)
@@ -129,13 +129,15 @@ SUBROUTINE CalcSurfaceValues
             MacroSurfaceVal(5,p,q,iSurfSide) = MacroSurfaceVal(5,p,q,iSurfSide) + MacroSurfaceCounter(iSpec,p,q,iSurfSide)
           END IF
         END DO ! iSpec=1,nSpecies
-      END DO ! q=0,nSurfSample
-    END DO ! p=0,nSurfSample 
+      END DO ! q=1,nSurfSample
+    END DO ! p=1,nSurfSample 
   END DO ! iSurfSide=1,SurfMesh%nSides
 
   IF (DSMC%CalcSurfCollis_Output) THEN
 #ifdef MPI
     CALL MPI_REDUCE(CounterTotal,SumCounterTotal(1:nSpecies),nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,iError)
+#else
+    SumCounterTotal=CounterTotal
 #endif
     DO iSpec=1,nSpecies
       IF (DSMC%CalcSurfCollis_SpeciesFlags(iSpec)) THEN !Sum up all Collisions with SpeciesFlags for output
@@ -193,8 +195,8 @@ REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax)
 
       IF ((LowerVal.GT.MaxPosiVal).OR.(MiddleVal.GT.MaxPosiVal)) THEN
          CALL Abort(&
-           __STAMP__,&
-          'Cannot find zero point in TVib Calculation Function! CharTVib:',RealInfoOpt=ChaTVib)
+__STAMP__&
+,'Cannot find zero point in TVib Calculation Function! CharTVib:',RealInfoOpt=ChaTVib)
       END IF
       
       ! Calc of actual function values
@@ -344,8 +346,7 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  REAL, INTENT(IN)                :: Volume
-  INTEGER, INTENT(IN)             :: SpecPartNum(:), nPart
+  REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
   REAL, OPTIONAL, INTENT(IN)      :: opt_omega, opt_temp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -361,37 +362,37 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_omega, opt_temp)
   ! Calculation of mixture reference diameter
 
   DO iSpec = 1, nSpecies
-    DrefMixture = DrefMixture + REAL(SpecPartNum(iSpec))*SpecDSMC(iSpec)%DrefVHS / REAL(nPart)
+    DrefMixture = DrefMixture + SpecPartNum(iSpec)*SpecDSMC(iSpec)%DrefVHS / nPart
   END DO
   ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
   ! (only defined for a single weighting factor, if omega is present calculation of the mean free path with the VHS model)
   IF(PRESENT(opt_omega).AND.PRESENT(opt_temp)) THEN
-    omega=opt_omega
+    omega = opt_omega
     Temp = opt_temp
-    DO iSpec = 1, nSpecies
+      DO iSpec = 1, nSpecies
         MFP_Tmp = 0.0
-        IF(SpecPartNum(iSpec).GT.0) THEN ! skipping species not present in the cell
-        DO jSpec = 1, nSpecies
-          IF(SpecPartNum(jSpec).GT.0) THEN ! skipping species not present in the cell
-          MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*REAL(SpecPartNum(jSpec))*Species(jSpec)%MacroParticleFactor / Volume &
-                                  * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
-                                  * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
-          END IF
-        END DO
-        CalcMeanFreePath = CalcMeanFreePath + REAL(SpecPartNum(iSpec)) / REAL(nPart) / MFP_Tmp
-      END IF
-    END DO
+        IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
+          DO jSpec = 1, nSpecies
+            IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
+              MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
+                                    * (SpecDSMC(iSpec)%TrefVHS/Temp)**(omega) &
+                                    * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
+            END IF
+          END DO
+          CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
+        END IF
+      END DO
   ELSE
     DO iSpec = 1, nSpecies
       MFP_Tmp = 0.0
       IF(SpecPartNum(iSpec).GT.0.0) THEN ! skipping species not present in the cell
         DO jSpec = 1, nSpecies
           IF(SpecPartNum(jSpec).GT.0.0) THEN ! skipping species not present in the cell
-            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*REAL(SpecPartNum(jSpec))*Species(jSpec)%MacroParticleFactor / Volume &
+            MFP_Tmp = MFP_Tmp + (Pi*DrefMixture**2.*SpecPartNum(jSpec)*Species(jSpec)%MacroParticleFactor / Volume &
                                   * SQRT(1+Species(iSpec)%MassIC/Species(jSpec)%MassIC))
           END IF
         END DO
-        CalcMeanFreePath = CalcMeanFreePath + REAL(SpecPartNum(iSpec)) / REAL(nPart) / MFP_Tmp
+        CalcMeanFreePath = CalcMeanFreePath + (SpecPartNum(iSpec) / nPart) / MFP_Tmp
       END IF
     END DO
   END IF
@@ -569,8 +570,8 @@ CASE('gauss-lobatto')
   CALL LegGaussLobNodesAndWeights(HODSMC%nOutputDSMC,xGP_tmp,HODSMC%DSMC_wGP)
 CASE DEFAULT
   CALL abort(&
-      __STAMP__, &
-      'Unknown HODSMCNodeType in dsmc_analyze.f90')
+__STAMP__&
+,'Unknown HODSMCNodeType in dsmc_analyze.f90')
 END SELECT
 
 CALL InitializeVandermonde(PP_N,HODSMC%nOutputDSMC,wBary,xGP,xGP_tmp,Vdm_ElemxgpN_DSMCNOut)
@@ -588,8 +589,8 @@ CASE('cartmesh_volumeweighting')
   DSMCSampVolWe%BGMdeltas(1:3) = 1./DSMCSampVolWe%FactorBGM(1:3)*DSMCSampVolWe%BGMdeltas(1:3)
   IF (ANY(DSMCSampVolWe%BGMdeltas.EQ.0.0)) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR: DSMCSampVolWe-BGMdeltas: No size for the cartesian background mesh definded.')
+__STAMP__&
+,'ERROR: DSMCSampVolWe-BGMdeltas: No size for the cartesian background mesh definded.')
   END IF
 
   DSMCSampVolWe%OrderVolInt = GETINT('DSMCSampVolWe-VolIntOrd','50')
@@ -618,14 +619,14 @@ CASE('cartmesh_volumeweighting')
   ALLOCATE(DSMCSampVolWe%GaussBGMIndex(1:3,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!') 
+__STAMP__&
+,'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!') 
   END IF
   ALLOCATE(DSMCSampVolWe%GaussBGMFactor(1:3,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,0:HODSMC%nOutputDSMC,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
+__STAMP__&
+,'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
   END IF
   DO iElem = 1, nElems
     DO j = 0, HODSMC%nOutputDSMC
@@ -697,27 +698,27 @@ CASE('cartmesh_volumeweighting')
     ALLOCATE(DSMCSampVolWe%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
     IF (allocStat .NE. 0) THEN
       CALL abort(&
-          __STAMP__, &
-      'ERROR in MPIBackgroundMeshInitDSMCHO: cannot allocate DSMCSampVolWe%PeriodicBGMVectors!')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInitDSMCHO: cannot allocate DSMCSampVolWe%PeriodicBGMVectors!')
     END IF
     DO i = 1, GEO%nPeriodicVectors
       DSMCSampVolWe%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1))
       IF(ABS(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1)-REAL(DSMCSampVolWe%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       DSMCSampVolWe%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2))
       IF(ABS(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2)-REAL(DSMCSampVolWe%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       DSMCSampVolWe%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3))
       IF(ABS(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3)-REAL(DSMCSampVolWe%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
     END DO
   END IF
@@ -760,8 +761,8 @@ CASE('nearest_gausspoint')
   ALLOCATE(DSMCSampNearInt%GaussBorder(1:HODSMC%nOutputDSMC),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR in dsmc_analyze.f90: Cannot allocate Mapped Gauss Border Coords!')
+__STAMP__&
+,'ERROR in dsmc_analyze.f90: Cannot allocate Mapped Gauss Border Coords!')
   END IF
   DO i = 1,HODSMC%nOutputDSMC
     DSMCSampNearInt%GaussBorder(i) = (xGP_tmp(i) + xGP_tmp(i-1))/2
@@ -775,8 +776,8 @@ CASE('cell_volweight')
   DEALLOCATE(HODSMC%DSMC_wGP)
 CASE DEFAULT
   CALL abort(&
-      __STAMP__, &
-      'Unknown DSMCHOSampleType in dsmc_analyze.f90')
+__STAMP__&
+,'Unknown DSMCHOSampleType in dsmc_analyze.f90')
 END SELECT
 
 END SUBROUTINE InitHODSMC
@@ -1140,8 +1141,8 @@ CASE('cell_volweight')
  DEALLOCATE(BGMSourceCellVol, alphaSumCellVol)
 CASE DEFAULT
  CALL abort(&
-     __STAMP__, &
-      'Unknown DepositionType in pic_depo.f90')
+__STAMP__&
+,'Unknown DepositionType in pic_depo.f90')
 END SELECT
 END SUBROUTINE DSMCHO_data_sampling
 
@@ -1441,8 +1442,8 @@ CASE('gauss-lobatto')
   NodeTypeTemp = 'GAUSS-LOBATTO'
 CASE DEFAULT
   CALL abort(&
-      __STAMP__, &
-      'Unknown HODSMCNodeType in dsmc_analyze.f90')
+__STAMP__&
+,'Unknown HODSMCNodeType in dsmc_analyze.f90')
 END SELECT
 
 ! Write file header
@@ -1591,8 +1592,8 @@ SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
           ALLOCATE(send_message(i)%content(1:SourceLength(i)*12*nSpecies), STAT=allocStat)
           IF (allocStat .NE. 0) THEN
              CALL abort(&
-                 __STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
           END IF
        END IF
        Counter = 0
@@ -1642,8 +1643,8 @@ SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
           ALLOCATE(recv_message(i)%content(1:Counter*12*nSpecies), STAT=allocStat)
           IF (allocStat .NE. 0) THEN
              CALL abort(&
-                 __STAMP__, &
-               'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
           END IF
        END IF
     END DO
@@ -1681,8 +1682,8 @@ SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
            DEALLOCATE(send_message(i)%content, STAT=allocStat)
            IF (allocStat .NE. 0) THEN
               CALL abort(&
-                  __STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
            END IF
        END IF
     END DO
@@ -1761,8 +1762,8 @@ SUBROUTINE MPISourceExchangeBGMDSMCHO(BGMSource, alphasum)
              DEALLOCATE(recv_message(i)%content, STAT=allocStat)
              IF (allocStat .NE. 0) THEN
                 CALL abort(&
-                    __STAMP__, &
-                  'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
              END IF
           END IF
        END IF       
@@ -1849,8 +1850,8 @@ SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
           ALLOCATE(send_message(i)%content(1:SourceLength(i)), STAT=allocStat)
           IF (allocStat .NE. 0) THEN
              CALL abort(&
-                 __STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
           END IF
        END IF
        Counter = 0
@@ -1890,8 +1891,8 @@ SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
           ALLOCATE(recv_message(i)%content(1:Counter), STAT=allocStat)
           IF (allocStat .NE. 0) THEN
              CALL abort(&
-                 __STAMP__, &
-               'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
           END IF
        END IF
     END DO
@@ -1929,8 +1930,8 @@ SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
            DEALLOCATE(send_message(i)%content, STAT=allocStat)
            IF (allocStat .NE. 0) THEN
               CALL abort(&
-                  __STAMP__, &
-                'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
            END IF
        END IF
     END DO
@@ -1995,8 +1996,8 @@ SUBROUTINE MPIVolumeExchangeBGMDSMCHO()
              DEALLOCATE(recv_message(i)%content, STAT=allocStat)
              IF (allocStat .NE. 0) THEN
                 CALL abort(&
-                    __STAMP__, &
-                  'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
+__STAMP__&
+,'ERROR in MPISourceExchangeBGMDSMCHO: cannot deallocate recv_message')
              END IF
           END IF
        END IF       
@@ -2036,27 +2037,27 @@ SUBROUTINE MPIBackgroundMeshInitDSMCHO()
    ALLOCATE(DSMCSampVolWe%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
    IF (allocStat .NE. 0) THEN
      CALL abort(&
-         __STAMP__, &
-        'ERROR in MPIBackgroundMeshInitDSMCHO: cannot allocate DSMCSampVolWe%PeriodicBGMVectors!')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInitDSMCHO: cannot allocate DSMCSampVolWe%PeriodicBGMVectors!')
    END IF
    DO i = 1, GEO%nPeriodicVectors
      DSMCSampVolWe%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1))
      IF(ABS(GEO%PeriodicVectors(1,i)/DSMCSampVolWe%BGMdeltas(1)-REAL(DSMCSampVolWe%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
        CALL abort(&
-           __STAMP__, &
-        'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
      END IF
      DSMCSampVolWe%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2))
      IF(ABS(GEO%PeriodicVectors(2,i)/DSMCSampVolWe%BGMdeltas(2)-REAL(DSMCSampVolWe%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
        CALL abort(&
-           __STAMP__, &
-        'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
      END IF
      DSMCSampVolWe%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3))
      IF(ABS(GEO%PeriodicVectors(3,i)/DSMCSampVolWe%BGMdeltas(3)-REAL(DSMCSampVolWe%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
        CALL abort(&
-           __STAMP__, &
-        'ERROR: Periodic Vector ist not multiple of background mesh delta')
+__STAMP__&
+,'ERROR: Periodic Vector ist not multiple of background mesh delta')
      END IF
    END DO
    ! Check whether process is periodic with itself
@@ -2108,8 +2109,8 @@ SUBROUTINE MPIBackgroundMeshInitDSMCHO()
     ALLOCATE(DSMCSampVolWe%MPIConnect(0:PartMPI%nProcs-1),STAT=allocStat)
     IF (allocStat .NE. 0) THEN
       CALL abort(&
-          __STAMP__, &
-        'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
     END IF
 
     !--- determine borders indices (=overlapping BGM mesh points) with each process
@@ -2136,8 +2137,8 @@ SUBROUTINE MPIBackgroundMeshInitDSMCHO()
           ALLOCATE(DSMCSampVolWe%MPIConnect(i)%BGMBorder(1:2,1:3),STAT=allocStat)
           IF (allocStat .NE. 0) THEN
              CALL abort(&
-                 __STAMP__, &
-              'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
           END IF
           DSMCSampVolWe%MPIConnect(i)%BGMBorder(1:2,1:3) = TempBorder(1:2,1:3)
        END IF
@@ -2207,15 +2208,15 @@ SUBROUTINE MPIBackgroundMeshInitDSMCHO()
           ALLOCATE(DSMCSampVolWe%MPIConnect(i)%Periodic(1:DSMCSampVolWe%MPIConnect(i)%BGMPeriodicBorderCount),STAT=allocStat)
           IF (allocStat .NE. 0) THEN
             CALL abort(&
-                __STAMP__,  &
-              'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
           END IF
           DO k = 1,NeighCount
             ALLOCATE(DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3),STAT=allocStat)
             IF (allocStat .NE. 0) THEN
               CALL abort(&
-                  __STAMP__, &
-                'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
+__STAMP__&
+,'ERROR in MPIBackgroundMeshInit: cannot allocate DSMCSampVolWe%MPIConnect')
             END IF
             DSMCSampVolWe%MPIConnect(i)%Periodic(k)%BGMPeriodicBorder(1:2,1:3) = TempPeriBord(k,1:2,1:3)
           END DO

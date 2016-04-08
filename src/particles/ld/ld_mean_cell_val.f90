@@ -97,7 +97,7 @@ IF((BulkValues(iElem)%CellType.EQ.3).OR.(BulkValues(iElem)%CellType.EQ.4)) THEN 
       CellTempMean                      = CellTempMean + PartStateBulkValues(iPartIndx,4) * WeightFak
 !      IF (CellTempMean.lt. 0) THEN
 !          SWRITE(UNIT_stdOut,'(A)') 'Element, Temperatur:',iElem, CellTempMean
-!          CALL abort(__STAMP__,&
+!          CALL abort(__STAMP__&
 !               'ERROR: Temperature is lt zero')
 !      END IF
       BulkValues(iElem)%DegreeOfFreedom = BulkValues(iElem)%DegreeOfFreedom + PartStateBulkValues(iPartIndx,5) * WeightFak
@@ -190,8 +190,9 @@ IF (LowPartCount.GE. 1) THEN
         END IF
       END DO
       IF (nNei.EQ.0) THEN
-          CALL abort(__STAMP__,&
-               'ERROR: YOU NEED MORE PARTCLES FOR LD!!!')
+          CALL abort(&
+          __STAMP__&
+          ,'ERROR: YOU NEED MORE PARTCLES FOR LD!!!')
       END IF
       BulkValues(iElem)%CellV(1:3) = BulkValues(iElem)%CellV(1:3) / nNei
       BulkValues(iElem)%DegreeOfFreedom = BulkValues(iElem)%DegreeOfFreedom / nNei

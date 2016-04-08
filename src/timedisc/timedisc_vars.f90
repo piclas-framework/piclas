@@ -20,6 +20,7 @@ REAL             :: CFLScale
 REAL             :: CFLtoOne      ! scaling factor to scale CFL to one
 REAL             :: sdtCFLOne     ! inverse of dt of CFLOne
 !REAL             :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver
+REAL             :: RKdtFrac,RKdtFracTotal
 !INTEGER          :: maxIter_LinearSolver
 INTEGER          :: iStage
 INTEGER(KIND=8)  :: iter, IterDisplayStep, IterDisplayStepUser
@@ -28,10 +29,13 @@ LOGICAL          :: DoDisplayEmissionWarnings
 LOGICAl          :: TimediscInitIsDone = .FALSE.
 REAL             :: TimeDG, TimeParticle
 
+#if (PP_TimeDiscMethod==100)
+INTEGER,PARAMETER  :: nRKStages=1
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! TIME INTEGRATION: RUNGE_KUTTA COEFFICIENTS AND STABILITY NUMBERS
 !-----------------------------------------------------------------------------------------------------------------------------------
-#if (PP_TimeDiscMethod==1)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==501)
 ! Low-storage Runge-Kutta 3, 3 stages, Kopriva,Algorithm 42 
 CHARACTER(LEN=255),PARAMETER :: TimeDiscName = 'STANDARD RK3-3'
 INTEGER,PARAMETER  :: nRKStages=3
@@ -61,7 +65,7 @@ REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 INTEGER,PARAMETER  :: nRKStages=1
 #endif
 
-#if ((PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==5) || (PP_TimeDiscMethod==200) || (PP_TimeDiscMethod==201))
+#if ((PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==5)||(PP_TimeDiscMethod==200)||(PP_TimeDiscMethod==201)||(PP_TimeDiscMethod==502))
 ! Runge-Kutta 4 - Carpenter 1994 NASA Report
 INTEGER,PARAMETER  :: nRKStages=5
 REAL,PARAMETER  :: RK4_a2=  567301805773.0/  1357537059087.0
@@ -92,7 +96,7 @@ REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 #endif /*PP_NodeType*/
 #endif
 
-#if (PP_TimeDiscMethod==6)
+#if (PP_TimeDiscMethod==6)||(PP_TimeDiscMethod==506)
 ! Low storage Runge-Kutta 4, 14 stages version - Niegemann et al 2012
 ! Fastest RK4 scheme implemented, but less accurate then Carpenter RK4
 ! Very good performance for high N

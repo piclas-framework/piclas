@@ -66,9 +66,10 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
 ! MODULES
   USE MOD_Globals
   USE MOD_DSMC_PolyAtomicModel,   ONLY : Calc_Beta_Poly
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, PolyatomMolDSMC
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, PolyatomMolDSMC, CollInf
   USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, BoltzmannConst, nSpecies
   USE MOD_DSMC_Analyze,           ONLY : CalcTVibPoly
+  USE MOD_Globals_Vars,           ONLY : Pi
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -85,6 +86,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
   REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, EReact 
   REAL                          :: Xi_vib1, Xi_vib2, Xi_vib3, Xi_Total
   REAL(KIND=8)                 :: BetaReaction, BackwardRate
+  REAL                          :: Rcoll, Tcoll
 !===================================================================================================================================
 
   IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
@@ -98,7 +100,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
   IF((TRIM(ChemReac%ReactType(iReac)).EQ.'R').AND.(.NOT.PRESENT(iPart_p3))) THEN
     CALL abort(&
      __STAMP__&
-      ,'Optional argument (iPart_p3) is missing for the recombination reaction. Reaction: ',iReac)
+     ,'Optional argument (iPart_p3) is missing for the recombination reaction. Reaction: ',iReac)
   END IF
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Calculation of the zero-point-energies
@@ -261,20 +263,33 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
       ELSE
         CALL abort(&
        __STAMP__&
-        ,'Reaction Type is not properly specified. Reaction: ',iReac)
+       ,'Reaction Type is not properly specified. Reaction: ',iReac)
       END IF
     END IF
     ! Calculation of the backward reaction rate coefficient and applying to Beta coefficient after Boyd "Modeling backward chemical
     ! rate processes in the direct simulation Monte Carlo method", Phys. Fluids 19, 1261103 (2007)
     IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
       CALL CalcBackwardRate(iReac,DSMC%InstantTransTemp(nSpecies+1),BackwardRate)
-      BetaReaction = BetaReaction * BackwardRate &
-                / (ChemReac%Arrhenius_Prefactor(iReac) * DSMC%InstantTransTemp(nSpecies+1)**ChemReac%Arrhenius_Powerfactor(iReac))
+      IF(TRIM(ChemReac%ReactType(iReac)).EQ.'E') THEN
+        BetaReaction = BetaReaction * BackwardRate &
+          / (ChemReac%Arrhenius_Prefactor(iReac) * DSMC%InstantTransTemp(nSpecies+1)**ChemReac%Arrhenius_Powerfactor(iReac))
+      END IF
     END IF
     ! Actual calculation of the reaction probability, different equation for recombination reaction
     IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-      ReactionProb = BetaReaction * (nPartNode*Species(PartSpecies(iPart_p3))%MacroParticleFactor/Volume)    &
-               * EReact**(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + SpecDSMC(PartSpecies(iPart_p3))%omegaVHS)
+      IF(DSMC%BackwardReacRate.AND.((iReac.GT.ChemReac%NumOfReact/2))) THEN
+        ! Reaction probability after the QK-model
+        Tcoll = 2. * Coll_pData(iPair)%Ec / (BoltzmannConst * Xi_Total)
+        Rcoll = 2. * SQRT(Pi) / (1 + CollInf%KronDelta(CollInf%Coll_Case(PartSpecies(PartToExec),PartSpecies(PartReac2)))) &
+          * (SpecDSMC(PartSpecies(PartToExec))%DrefVHS/2. + SpecDSMC(PartSpecies(PartReac2))%DrefVHS/2.)**2 &
+          * (Tcoll / SpecDSMC(PartSpecies(PartToExec))%TrefVHS)**(0.5 - SpecDSMC(PartSpecies(PartToExec))%omegaVHS) &
+          * SQRT(2. * BoltzmannConst * SpecDSMC(PartSpecies(PartToExec))%TrefVHS &
+          / (CollInf%MassRed(CollInf%Coll_Case(PartSpecies(PartToExec), PartSpecies(PartReac2)))))
+        ReactionProb = BackwardRate / Rcoll * nPartNode / Volume * Species(PartSpecies(iPart_p3))%MacroParticleFactor
+      ELSE
+        ReactionProb = BetaReaction * (nPartNode*Species(PartSpecies(iPart_p3))%MacroParticleFactor/Volume)    &
+                 * EReact**(ChemReac%Arrhenius_Powerfactor(iReac) - 0.5 + SpecDSMC(PartSpecies(iPart_p3))%omegaVHS)
+      END IF
     ELSE
       IF(SpecDSMC(PartSpecies(PartReac2))%PolyatomicMol.OR.SpecDSMC(PartSpecies(PartToExec))%PolyatomicMol) THEN
         ! Energy is multiplied by a factor to increase the resulting exponent and avoid floating overflows for high vibrational
@@ -358,12 +373,12 @@ IonizationEnergy=SpecDSMC(PartSpecies(React1Inx))%ElectronicState(2,MaxElecQua)*
 !ElecTransfer = 0.
 
 IF(usevMPF) CALL abort(&
-       __STAMP__&
-        ,' Reaction not implemented with vMPF ',iReac)
+  __STAMP__&
+  ,' Reaction not implemented with vMPF ',iReac)
 
 IF (SpecDSMC(PartSpecies(ElecInx))%InterID.NE.4) CALL abort(&
-       __STAMP__&
-        ,' Only electron impact ionization. Further collision partner not implemented!  ',iReac)
+  __STAMP__&
+  ,' Only electron impact ionization. Further collision partner not implemented!  ',iReac)
 
 
 ! remove ionization energy from collision
@@ -407,8 +422,8 @@ DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
 PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
 IF (PositionNbr.EQ.0) THEN
    CALL Abort(&
-    __STAMP__,&
-    ' New Particle Number greater than max particle number!')
+    __STAMP__&
+    ,' New Particle Number greater than max particle number!')
 END IF
 
 !Set new Species of electron
@@ -1132,8 +1147,9 @@ EZeroTempToExec2 = 0.0
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   PositionNbr = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
   IF (PositionNbr.EQ.0) THEN
-    CALL abort(__STAMP__,&
-    'New Particle Number greater max Part Num in MolecDissoc. Reaction: ',iReac)
+    CALL abort(&
+__STAMP__&
+,'New Particle Number greater max Part Num in MolecDissoc. Reaction: ',iReac)
   END IF  
 
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + EZeroTempToExec2
@@ -1414,8 +1430,8 @@ USE MOD_Particle_Tracking_Vars,ONLY : DoRefmapping
       NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       IF (NonReacPart.EQ.0) THEN
         CALL abort(&
-            __STAMP__,&
-        'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
+        __STAMP__&
+        ,'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
       END IF
     ! Copy molecule data for non-reacting particle part
       PDM%ParticleInside(NonReacPart) = .true.
@@ -1438,8 +1454,8 @@ USE MOD_Particle_Tracking_Vars,ONLY : DoRefmapping
       NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
       IF (NonReacPart.EQ.0) THEN
         CALL abort(&
-            __STAMP__,&
-        'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
+        __STAMP__&
+        ,'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
       END IF
     ! Copy molecule data for non-reacting particle part
       PDM%ParticleInside(NonReacPart) = .true.
@@ -1693,7 +1709,6 @@ SUBROUTINE AtomRecomb(iReac, iPair, iPart_p3)
 !    + 0.5* Species(PartSpecies(React2Inx))%MassIC*(PartState(React2Inx,4)**2+PartState(React2Inx,5)**2+PartState(React2Inx,6)**2)&
 !    + 0.5* Species(PartSpecies(iPart_p3))%MassIC* (PartState(iPart_p3, 4)**2+PartState(iPart_p3, 5)**2+PartState(iPart_p3, 6)**2)
 
-  ! neu - anfang
   ! Calculation of the centre of mass of the product molecule
   FracMassCent1 = CollInf%FracMassCent(PartSpecies(React1Inx), Coll_pData(iPair)%PairType)
   FracMassCent2 = CollInf%FracMassCent(PartSpecies(React2Inx), Coll_pData(iPair)%PairType)
@@ -1704,17 +1719,16 @@ SUBROUTINE AtomRecomb(iReac, iPair, iPart_p3)
          + FracMassCent2 * PartState(React2Inx, 5)
   VeloMz = FracMassCent1 * PartState(React1Inx, 6) &
          + FracMassCent2 * PartState(React2Inx, 6)  
-  ! neu - ende
 
   ! The input particle 1 is replaced by the product molecule, the
   !     second input particle is deleted
   PartSpecies(React1Inx) = ChemReac%DefinedReact(iReac,2,1)
   PDM%ParticleInside(React2Inx) = .FALSE.
-  ! neu - anfang
+
   PartState(React1Inx, 4) = VeloMx
   PartState(React1Inx, 5) = VeloMy
   PartState(React1Inx, 6) = VeloMz
-  ! neu - ende
+
   ! has to be calculated earlier because of setting of electronic energy
   Xi = 2.0 * (2.0 - SpecDSMC(PartSpecies(iPart_p3))%omegaVHS) + SpecDSMC(PartSpecies(iPart_p3))%Xi_Rot &
       + SpecDSMC(PartSpecies(React1Inx))%Xi_Rot
@@ -2015,8 +2029,9 @@ EZeroPoint = 0.0
 !      DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
 !      NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
 !      IF (NonReacPart.EQ.0) THEN
-!        CALL abort(__STAMP__,&
-!        'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
+!        CALL abort(&
+!        __STAMP__&
+!        ,'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
 !      END IF
 !    ! Copy molecule data for non-reacting particle part
 !      PDM%ParticleInside(NonReacPart) = .true.
@@ -2038,8 +2053,9 @@ EZeroPoint = 0.0
 !      DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
 !      NonReacPart = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
 !      IF (NonReacPart.EQ.0) THEN
-!        CALL abort(__STAMP__,&
-!        'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
+!        CALL abort(&
+!        __STAMP__&
+!        ,'New Particle Number greater max Part Num in MolecExchange. Reaction: ',iReac)
 !      END IF
 !    ! Copy molecule data for non-reacting particle part
 !      PDM%ParticleInside(NonReacPart) = .true.
@@ -2274,7 +2290,7 @@ SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
   IF(UpperLevel.GT.INT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)) THEN
     CALL abort(&
      __STAMP__&
-      ,'Temperature limit for the backward reaction rate calculation exceeds the given value! Temp: ',RealInfoOpt=LocalTemp)
+     ,'Temperature limit for the backward reaction rate calculation exceeds the given value! Temp: ',RealInfoOpt=LocalTemp)
   END IF
 
   ! Calculation of the backward reaction rate at the lower temperature value (using the equilibrium constant)

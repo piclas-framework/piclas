@@ -20,6 +20,16 @@ endif
 ifneq ($(IMEX),)
   SRCFILE = particles/srcfiles_particles_imex.mk
 endif
+ifeq ($(EQNSYS),poisson)
+  SRCFILE = particles/srcfiles_particles_hdg.mk
+endif
+ifeq ($(EQNSYS),magnetostatic)
+  SRCFILE = particles/srcfiles_particles_hdg.mk
+endif
+ifeq ($(EQNSYS),magnetostatic_poisson)
+  SRCFILE = particles/srcfiles_particles_hdg.mk
+endif
+
 SRC_RAW = $(shell cat $(SRCFILE))
 SRC     = $(subst $$(EQNSYS),$(EQNSYS),$(SRC_RAW))
 

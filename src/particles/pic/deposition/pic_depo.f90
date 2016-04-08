@@ -59,11 +59,13 @@ USE MOD_Particle_MPI_Vars,      ONLY:DoExternalParts
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE          :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDepo(:,:)
-REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:)
+REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDepo(:,:)
+REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:),xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t
 REAL                      :: Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
 REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction
+REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
+REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
@@ -73,21 +75,54 @@ DepositionType = GETSTR('PIC-Deposition-Type','nearest_blurrycenter')
 ! because DepositionType is not known yet)
 IF((TRIM(InterpolationType).EQ.'nearest_gausspoint').AND. &
    (TRIM(DepositionType).NE.'nearest_gausspoint')) THEN
-  CALL abort(__STAMP__, &
-    'ERROR in pic_depo.f90: Interpolation type nearest_gausspoint only allowed with same deposition type!')
+  CALL abort(&
+  __STAMP__&
+  ,'ERROR in pic_depo.f90: Interpolation type nearest_gausspoint only allowed with same deposition type!')
 END IF
 !--- Allocate arrays for charge density collection and initialize
 SDEALLOCATE(source)
 ALLOCATE(source(1:4,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(__STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate source!')
+  CALL abort(&
+  __STAMP__&
+  ,'ERROR in pic_depo.f90: Cannot allocate source!')
 END IF
 Source=0.
 SELECT CASE(TRIM(DepositionType))
 CASE('nearest_blurrycenter')
 CASE('nearest_blurycenter')
   DepositionType = 'nearest_blurrycenter'
+CASE('cell_volweight') 
+  ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
+  ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
+  CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
+  CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
+  CALL LegendreGaussNodesAndWeights(1,xGP_tmp,wGP_tmp)
+  ALLOCATE( Vdm_tmp(0:1,0:PP_N))
+  CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_tmp,Vdm_tmp)
+  DO iElem=1, nElems
+    DO k=0,PP_N
+      DO j=0,PP_N
+        DO i=0,PP_N
+          DetLocal(1,i,j,k)=1./sJ(i,j,k,iElem)
+        END DO ! i=0,PP_N
+      END DO ! j=0,PP_N
+    END DO ! k=0,PP_N
+    CALL ChangeBasis3D(1,PP_N, 1,Vdm_tmp, DetLocal(:,:,:,:),DetJac(:,:,:,:))
+    DO k=0,1
+      DO j=0,1
+        DO i=0,1
+          CellVolWeight_Volumes(i,j,k,iElem) = DetJac(1,i,j,k)*wGP_tmp(i)*wGP_tmp(j)*wGP_tmp(k)
+        END DO ! i=0,PP_N
+      END DO ! j=0,PP_N
+    END DO ! k=0,PP_N
+  END DO
+  DEALLOCATE(Vdm_tmp)
+  DEALLOCATE(wGP_tmp, xGP_tmp)
+CASE('epanechnikov') 
+  r_sf     = GETREAL('PIC-epanechnikov-radius','1.')
+  r2_sf = r_sf * r_sf 
+  ALLOCATE( tempcharge(1:nElems))
 CASE('nearest_gausspoint')
   ! Allocate array for particle positions in -1|1 space (used for deposition as well as interpolation)
   ! only if NOT DoRefMapping
@@ -100,8 +135,9 @@ CASE('nearest_gausspoint')
   ! compute the borders of the virtual volumes around the gauss points in -1|1 space
   ALLOCATE(GaussBorder(1:PP_N),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate Mapped Gauss Border Coords!')
+    CALL abort(&
+    __STAMP__&
+    ,'ERROR in pic_depo.f90: Cannot allocate Mapped Gauss Border Coords!')
   END IF
   DO i=0,PP_N
     ! bullshit here, use xGP
@@ -117,21 +153,19 @@ CASE('nearest_gausspoint')
     SDEALLOCATE(PartPosGauss)
     ALLOCATE(PartPosGauss(1:PDM%maxParticleNumber,1:3),STAT=ALLOCSTAT)
     IF (ALLOCSTAT.NE.0) THEN
-      CALL abort(__STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate Part Pos Gauss!')
+      CALL abort(&
+      __STAMP__&
+      ,'ERROR in pic_depo.f90: Cannot allocate Part Pos Gauss!')
     END IF
   END IF
 CASE('shape_function')
-  !IF(.NOT.DoRefMapping) CALL abort(&
-  !  __STAMP__&
-  !  ,' Shape function has to be used with ref element tracking.')
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
-  !    __STAMP__, &
+  !    __STAMP__&
   !    ' Cannot allocate PartToFIBGM!')
   !ALLOCATE(ExtPartToFIBGM(1:6,1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) THEN
-  !  CALL abort(__STAMP__, &
+  !  CALL abort(__STAMP__&
   !    ' Cannot allocate ExtPartToFIBGM!')
   r_sf     = GETREAL('PIC-shapefunction-radius','1.')
   alpha_sf = GETINT('PIC-shapefunction-alpha','2')
@@ -145,8 +179,9 @@ CASE('shape_function')
   nTotalDOF=REAL(nGlobalElems)*REAL((PP_N+1)**3)
   IF(MPIRoot)THEN
     IF(VolumeShapeFunction.GT.GEO%MeshVolume) &
-      CALL abort(__STAMP__, &
-      'ShapeFunctionVolume > MeshVolume')
+      CALL abort(&
+      __STAMP__&
+      ,'ShapeFunctionVolume > MeshVolume')
   END IF
   
   SWRITE(UNIT_stdOut,'(A,F12.6)') ' | Average DOFs in Shape-Function |                      ' , &
@@ -154,8 +189,8 @@ CASE('shape_function')
 
   ALLOCATE(ElemDepo_xGP(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__, &
-      ' Cannot allocate ElemDepo_xGP!')
+      __STAMP__&
+      ,' Cannot allocate ElemDepo_xGP!')
   IF(DoSFEqui)THEN
     ALLOCATE( Vdm_EquiN_GaussN(0:PP_N,0:PP_N)     &
             , Vdm_GaussN_EquiN(0:PP_N,0:PP_N)     &
@@ -205,8 +240,9 @@ CASE('shape_function_1d')
   CASE(8)
     w_sf=65536.*r_sf/109395.
   CASE DEFAULT
-    CALL abort(__STAMP__, &
-    ' Correct 1D weight not precomputed!')
+    CALL abort(&
+    __STAMP__&
+    ,' Correct 1D weight not precomputed!')
   END SELECT
 
   IF(sf1d_dir.EQ.1)THEN
@@ -223,8 +259,9 @@ CASE('shape_function_1d')
   nTotalDOF=REAL(nGlobalElems)*REAL((PP_N+1)**3)
   IF(MPIRoot)THEN
     IF(VolumeShapeFunction.GT.GEO%MeshVolume) &
-      CALL abort(__STAMP__, &
-      'ShapeFunctionVolume > MeshVolume')
+      CALL abort(&
+      __STAMP__&
+      ,'ShapeFunctionVolume > MeshVolume')
   END IF
   
   SWRITE(UNIT_stdOut,'(A,F12.6)') ' | Shape function volume          |                      ' , &
@@ -234,8 +271,8 @@ CASE('shape_function_1d')
 
   ALLOCATE(ElemDepo_xGP(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__, &
-      ' Cannot allocate ElemDepo_xGP!')
+      __STAMP__&
+      ,' Cannot allocate ElemDepo_xGP!')
   IF(DoSFEqui)THEN
     ALLOCATE( Vdm_EquiN_GaussN(0:PP_N,0:PP_N)     &
             , Vdm_GaussN_EquiN(0:PP_N,0:PP_N)     &
@@ -268,11 +305,11 @@ CASE('cylindrical_shape_function')
   !  ,' Shape function has to be used with ref element tracking.')
   !ALLOCATE(PartToFIBGM(1:6,1:PDM%maxParticleNumber),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) CALL abort(&
-  !    __STAMP__, &
+  !    __STAMP__&
   !    ' Cannot allocate PartToFIBGM!')
   !ALLOCATE(ExtPartToFIBGM(1:6,1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
   !IF (ALLOCSTAT.NE.0) THEN
-  !  CALL abort(__STAMP__, &
+  !  CALL abort(__STAMP__&
   !    ' Cannot allocate ExtPartToFIBGM!')
   r_sf       = GETREAL('PIC-shapefunction-radius','1.')
   r_sf0      = GETREAL('PIC-shapefunction-radius0','1.')
@@ -287,8 +324,8 @@ CASE('cylindrical_shape_function')
 
   ALLOCATE(ElemDepo_xGP(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
-      __STAMP__, &
-      ' Cannot allocate ElemDepo_xGP!')
+      __STAMP__&
+      ,' Cannot allocate ElemDepo_xGP!')
   IF(DoSFEqui)THEN
     ALLOCATE( Vdm_EquiN_GaussN(0:PP_N,0:PP_N)     &
             , Vdm_GaussN_EquiN(0:PP_N,0:PP_N)     &
@@ -344,8 +381,8 @@ CASE('delta_distri')
     END DO ! i
   CASE DEFAULT
     CALL abort(&
-        __STAMP__, &
-        ' Wrong Delta-Type')
+    __STAMP__&
+    ,' Wrong Delta-Type')
   END SELECT
   IF(NDepo.GT.PP_N) CALL abort(&
     __STAMP__&
@@ -394,8 +431,8 @@ CASE('cartmesh_volumeweighting')
   BGMdeltas(1:3) = 1./FactorBGM(1:3)*BGMdeltas(1:3)
   IF (ANY(BGMdeltas.EQ.0.0)) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.')
+    __STAMP__&
+    ,'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.')
   END IF
   ! calc min and max coordinates for local mesh
   xmin = 1.0E200
@@ -424,14 +461,14 @@ CASE('cartmesh_volumeweighting')
   ALLOCATE(GaussBGMIndex(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!') 
+    __STAMP__&
+    ,'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!') 
   END IF
   ALLOCATE(GaussBGMFactor(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
+    __STAMP__&
+    ,'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
   END IF
   DO iElem = 1, nElems
     DO j = 0, PP_N
@@ -455,27 +492,27 @@ CASE('cartmesh_volumeweighting')
     ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
     IF (allocStat .NE. 0) THEN
       CALL abort(&
-          __STAMP__, &
-      'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
+      __STAMP__&
+      ,'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
     END IF
     DO i = 1, GEO%nPeriodicVectors
       GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
       IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+        __STAMP__&
+        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
       IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+        __STAMP__&
+        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
       IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+        __STAMP__&
+        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
     END DO
   END IF
@@ -487,8 +524,8 @@ CASE('cartmesh_splines')
   BGMdeltas(1:3) = 1./FactorBGM(1:3)*BGMdeltas(1:3)
   IF (ANY(BGMdeltas.EQ.0)) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.')
+    __STAMP__&
+    ,'ERROR: PIC-BGMdeltas: No size for the cartesian background mesh definded.')
   END IF
   ! calc min and max coordinates for local mesh
   xmin = 1.0E200
@@ -517,14 +554,14 @@ CASE('cartmesh_splines')
   ALLOCATE(GaussBGMIndex(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!')
+    __STAMP__&
+    ,'ERROR in pic_depo.f90: Cannot allocate GaussBGMIndex!')
   END IF
   ALLOCATE(GaussBGMFactor(1:3,0:PP_N,0:PP_N,0:PP_N,1:nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
+    __STAMP__&
+    ,'ERROR in pic_depo.f90: Cannot allocate GaussBGMFactor!')
   END IF
   DO iElem = 1, nElems
     DO j = 0, PP_N
@@ -541,8 +578,8 @@ CASE('cartmesh_splines')
   ALLOCATE(GPWeight(1:nElems,0:PP_N,0:PP_N,0:PP_N,1:4,1:4,1:4),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
-        __STAMP__, &
-      'ERROR in pic_depo.f90: Cannot allocate GPWeight!')
+    __STAMP__&
+    ,'ERROR in pic_depo.f90: Cannot allocate GPWeight!')
   END IF
   DO iElem = 1, nElems
     DO j = 0, PP_N
@@ -579,27 +616,27 @@ CASE('cartmesh_splines')
     ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
     IF (allocStat .NE. 0) THEN
       CALL abort(&
-          __STAMP__, &
-      'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
+      __STAMP__&
+      ,'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
     END IF
     DO i = 1, GEO%nPeriodicVectors
       GEO%PeriodicBGMVectors(1,i) = NINT(GEO%PeriodicVectors(1,i)/BGMdeltas(1))
       IF(ABS(GEO%PeriodicVectors(1,i)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__,  &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+        __STAMP__ &
+        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       GEO%PeriodicBGMVectors(2,i) = NINT(GEO%PeriodicVectors(2,i)/BGMdeltas(2))
       IF(ABS(GEO%PeriodicVectors(2,i)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+        __STAMP__&
+        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
       GEO%PeriodicBGMVectors(3,i) = NINT(GEO%PeriodicVectors(3,i)/BGMdeltas(3))
       IF(ABS(GEO%PeriodicVectors(3,i)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,i))).GT.1E-10)THEN
         CALL abort(&
-            __STAMP__, &
-      'ERROR: Periodic Vector ist not multiple of background mesh delta')
+        __STAMP__&
+        ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
       END IF
     END DO
   END IF
@@ -607,8 +644,8 @@ CASE('cartmesh_splines')
   ALLOCATE(BGMSource(BGMminX:BGMmaxX,BGMminY:BGMmaxY,BGMminZ:BGMmaxZ,1:4))
 CASE DEFAULT
   CALL abort(&
-      __STAMP__, &
-      'Unknown DepositionType in pic_depo.f90')
+  __STAMP__&
+  ,'Unknown DepositionType in pic_depo.f90')
 END SELECT
 
 OutputSource = GETLOGICAL('PIC-OutputSource','F')
@@ -670,11 +707,12 @@ INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: ElemID, iCase, ind, N_in
 REAL                             :: radius2, S, S1, Fac(4)
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
+REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
 REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
 INTEGER                          :: a,b, ii, expo
 REAL                             :: ElemSource(nElems,1:4)
 REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
-REAL                             :: alpha1, alpha2, alpha3
+REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), alpha
 INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
 INTEGER                          :: foundDOF
 REAL,DIMENSION(3,0:NDepo)        :: L_xi
@@ -759,6 +797,178 @@ CASE('nearest_blurrycenter')
 #endif /*MPI*/
     END DO ! iElem=1,PP_nElems
   END IF ! .NOT. doInnerParts
+CASE('cell_volweight') 
+  ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:4))
+  BGMSourceCellVol(:,:,:,:,:) = 0.0
+  DO iPart = firstPart, lastPart
+    IF (PDM%ParticleInside(iPart)) THEN
+#ifdef MPI
+     tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+      IF (usevMPF) THEN
+        Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
+      ELSE
+        Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 
+      END IF ! usevMPF
+      iElem = PEM%Element(iPart)
+      IF(DoRefMapping)THEN
+        TempPartPos(1:3)=PartPosRef(1:3,iPart)
+      ELSE
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos,iElem,iPart)
+      END IF
+      TSource(:) = 0.0
+!#if (PP_nVar==8)
+      TSource(1) = PartState(iPart,4)*Charge
+      TSource(2) = PartState(iPart,5)*Charge
+      TSource(3) = PartState(iPart,6)*Charge
+!#endif
+      TSource(4) = Charge
+      alpha1=(TempPartPos(1)+1.0)/2.0
+      alpha2=(TempPartPos(2)+1.0)/2.0
+      alpha3=(TempPartPos(3)+1.0)/2.0
+      BGMSourceCellVol(0,0,0,iElem,1:4) = BGMSourceCellVol(0,0,0,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
+      BGMSourceCellVol(0,0,1,iElem,1:4) = BGMSourceCellVol(0,0,1,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(1-alpha2)*(alpha3))
+      BGMSourceCellVol(0,1,0,iElem,1:4) = BGMSourceCellVol(0,1,0,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(1-alpha3))
+      BGMSourceCellVol(0,1,1,iElem,1:4) = BGMSourceCellVol(0,1,1,iElem,1:4) + (TSource(1:4)*(1-alpha1)*(alpha2)*(alpha3))
+      BGMSourceCellVol(1,0,0,iElem,1:4) = BGMSourceCellVol(1,0,0,iElem,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(1-alpha3))
+      BGMSourceCellVol(1,0,1,iElem,1:4) = BGMSourceCellVol(1,0,1,iElem,1:4) + (TSource(1:4)*(alpha1)*(1-alpha2)*(alpha3))
+      BGMSourceCellVol(1,1,0,iElem,1:4) = BGMSourceCellVol(1,1,0,iElem,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(1-alpha3))
+      BGMSourceCellVol(1,1,1,iElem,1:4) = BGMSourceCellVol(1,1,1,iElem,1:4) + (TSource(1:4)*(alpha1)*(alpha2)*(alpha3))   
+#ifdef MPI
+      tLBEnd = LOCALTIME() ! LB Time End
+      ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
+    END IF
+  END DO
+
+#ifdef MPI
+  tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+  DO iElem=1, nElems
+    BGMSourceCellVol(0,0,0,iElem,:) = BGMSourceCellVol(0,0,0,iElem,1:4)/CellVolWeight_Volumes(0,0,0,iElem)
+    BGMSourceCellVol(0,0,1,iElem,:) = BGMSourceCellVol(0,0,1,iElem,1:4)/CellVolWeight_Volumes(0,0,1,iElem)
+    BGMSourceCellVol(0,1,0,iElem,:) = BGMSourceCellVol(0,1,0,iElem,1:4)/CellVolWeight_Volumes(0,1,0,iElem)
+    BGMSourceCellVol(0,1,1,iElem,:) = BGMSourceCellVol(0,1,1,iElem,1:4)/CellVolWeight_Volumes(0,1,1,iElem)
+    BGMSourceCellVol(1,0,0,iElem,:) = BGMSourceCellVol(1,0,0,iElem,1:4)/CellVolWeight_Volumes(1,0,0,iElem)
+    BGMSourceCellVol(1,0,1,iElem,:) = BGMSourceCellVol(1,0,1,iElem,1:4)/CellVolWeight_Volumes(1,0,1,iElem)
+    BGMSourceCellVol(1,1,0,iElem,:) = BGMSourceCellVol(1,1,0,iElem,1:4)/CellVolWeight_Volumes(1,1,0,iElem)
+    BGMSourceCellVol(1,1,1,iElem,:) = BGMSourceCellVol(1,1,1,iElem,1:4)/CellVolWeight_Volumes(1,1,1,iElem)   
+  END DO
+#ifdef MPI
+  tLBEnd = LOCALTIME() ! LB Time End
+  ElemTime(:)=ElemTime(:)+(tLBEnd-tLBStart)/nElems
+#endif /*MPI*/
+
+  DO iElem = 1, nElems
+#ifdef MPI
+   tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+    DO kk = 0, PP_N
+      DO ll = 0, PP_N
+        DO mm = 0, PP_N
+         alpha1 = CellVolWeightFac(kk)
+         alpha2 = CellVolWeightFac(ll)
+         alpha3 = CellVolWeightFac(mm)
+         source(1:4,kk,ll,mm,iElem) =source(1:4,kk,ll,mm,iElem) +&
+              BGMSourceCellVol(0,0,0,iElem,1:4) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(0,0,1,iElem,1:4) * (1-alpha1) * (1-alpha2) * (alpha3) + &
+              BGMSourceCellVol(0,1,0,iElem,1:4) * (1-alpha1) * (alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(0,1,1,iElem,1:4) * (1-alpha1) * (alpha2) * (alpha3) + &
+              BGMSourceCellVol(1,0,0,iElem,1:4) * (alpha1) * (1-alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(1,0,1,iElem,1:4) * (alpha1) * (1-alpha2) * (alpha3) + &
+              BGMSourceCellVol(1,1,0,iElem,1:4) * (alpha1) * (alpha2) * (1-alpha3) + &
+              BGMSourceCellVol(1,1,1,iElem,1:4) * (alpha1) * (alpha2) * (alpha3)
+       END DO !mm
+     END DO !ll
+   END DO !kk
+#ifdef MPI
+    tLBEnd = LOCALTIME() ! LB Time End
+    ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
+ END DO !iEle
+ DEALLOCATE(BGMSourceCellVol)
+CASE('epanechnikov') 
+  ALLOCATE(tempsource(0:PP_N,0:PP_N,0:PP_N))
+  IF(DoInnerParts)  tempcharge= 0.0
+  DO iPart = firstPart, lastPart
+    IF (PDM%ParticleInside(iPart)) THEN
+#ifdef MPI
+      tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+!      Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
+      IF (usevMPF) THEN
+        Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
+      ELSE
+        Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor 
+      END IF ! usevMPF
+      iElem = PEM%Element(iPart)
+      alpha = 0.0 
+      tempcharge(iElem) = tempcharge(iElem) + Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
+      DO kk = 0, PP_N
+        DO ll = 0, PP_N
+          DO mm = 0, PP_N
+            radius2 = (PartState(iPart,1) - Elem_xGP(1,kk,ll,mm,iElem)) * (PartState(iPart,1) - Elem_xGP(1,kk,ll,mm,iElem)) &
+                    + (PartState(iPart,2) - Elem_xGP(2,kk,ll,mm,iElem)) * (PartState(iPart,2) - Elem_xGP(2,kk,ll,mm,iElem)) &
+                    + (PartState(iPart,3) - Elem_xGP(3,kk,ll,mm,iElem)) * (PartState(iPart,3) - Elem_xGP(3,kk,ll,mm,iElem))
+           IF (radius2 .LT. r2_sf) THEN
+             tempsource(kk,ll,mm) = r2_sf - radius2
+             alpha = alpha + tempsource(kk,ll,mm)               
+           ELSE
+             tempsource(kk,ll,mm) = 0.0
+           END IF         
+         END DO !mm
+       END DO !ll
+      END DO !kk
+      DO kk = 0, PP_N
+        DO ll = 0, PP_N
+          DO mm = 0, PP_N
+           source(1:3,kk,ll,mm,iElem) = source(1:3,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm)*PartState(iPart,4:6) & 
+                                          * Species(PartSpecies(iPart))%ChargeIC &
+                                          * Species(PartSpecies(iPart))%MacroParticleFactor
+           source(4,kk,ll,mm,iElem) = source(4,kk,ll,mm,iElem)  + 1./alpha*tempsource(kk,ll,mm) & 
+                                          * Species(PartSpecies(iPart))%ChargeIC &
+                                          * Species(PartSpecies(iPart))%MacroParticleFactor
+         END DO !mm
+       END DO !ll
+      END DO !kk
+#ifdef MPI
+      tLBEnd = LOCALTIME() ! LB Time End
+      ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
+    END IF
+  END DO
+
+  IF(.NOT.DoInnerParts)THEN
+#ifdef MPI
+     tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+    ALLOCATE(tempgridsource(1:nElems))
+    tempgridsource= 0.0
+    ! seemps to be finalize
+    DO iElem=1,nElems
+      DO kk = 0, PP_N
+        DO ll = 0, PP_N
+          DO mm = 0, PP_N
+            alpha = wGP(kk)*wGP(ll)*wGP(mm)/sJ(kk,ll,mm,iElem)
+            source(1:4,kk,ll,mm,iElem) = 1./SQRT(alpha) * source(1:4,kk,ll,mm,iElem)*(PP_N+1)**3/ (GEO%Volume(iElem))
+            tempgridsource(iElem) = tempgridsource(iElem) + source(4,kk,ll,mm,iElem)*alpha
+         END DO !mm
+       END DO !ll
+      END DO !kk
+      ! possible ABS???
+      !IF (tempgridsource(iElem).GT.0.0) THEN
+      IF (ABS(tempgridsource(iElem)).GT.0.0) THEN
+        alpha = tempcharge(iElem)/tempgridsource(iElem)
+        source(1:4,:,:,:,iElem) = source(1:4,:,:,:,iElem)*alpha
+      END IF
+#ifdef MPI
+      tLBEnd = LOCALTIME() ! LB Time End
+      ElemTime(iElem)=ElemTime(iElem)+tLBEnd-tLBStart
+#endif /*MPI*/
+    END DO
+    DEALLOCATE(tempgridsource)
+  END IF
+  DEALLOCATE(tempsource)
 CASE('shape_function')
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   Vec1(1:3) = 0.
@@ -2133,8 +2343,8 @@ CASE('cartmesh_splines')
  !DEALLOCATE(BGMSource)
 CASE DEFAULT
   CALL abort(&
-      __STAMP__, &
-       'Unknown DepositionType in pic_depo.f90')
+  __STAMP__&
+  ,'Unknown DepositionType in pic_depo.f90')
 END SELECT
 
 RETURN
@@ -2249,14 +2459,14 @@ DO iProc = 0,PartMPI%nProcs-1
       ALLOCATE(send_message(iProc)%content_log(1:MsgLength(iProc)), STAT=allocStat)
       IF (allocStat .NE. 0) THEN
          CALL abort(&
-             __STAMP__, &
-            'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
+         __STAMP__&
+         ,'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
       END IF
       ALLOCATE(recv_message(iProc)%content_log(1:MsgLength(iProc)), STAT=allocStat)
       IF (allocStat .NE. 0) THEN
          CALL abort(&
-             __STAMP__, &
-            'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
+         __STAMP__&
+         ,'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
       END IF
    END IF
    !--- check which sources are <> 0
@@ -2333,8 +2543,8 @@ END IF
       ALLOCATE(send_message(iProc)%content(1:SourceLength(iProc)*4), STAT=allocStat)
       IF (allocStat .NE. 0) THEN
          CALL abort(&
-             __STAMP__, &
-            'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
+         __STAMP__&
+         ,'ERROR in MPISourceExchangeBGM: cannot allocate send_message')
       END IF
    END IF
    Counter = 0
@@ -2390,8 +2600,8 @@ DO iProc = 0,PartMPI%nProcs-1
          ALLOCATE(recv_message(iProc)%content(1:Counter*4), STAT=allocStat)
          IF (allocStat .NE. 0) THEN
             CALL abort(&
-                __STAMP__, &
-              'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
+            __STAMP__&
+            ,'ERROR in MPISourceExchangeBGM: cannot allocate recv_message')
          END IF
       END IF
    END IF
@@ -2430,15 +2640,15 @@ DO iProc = 0,PartMPI%nProcs-1
       DEALLOCATE(send_message(iProc)%content_log, STAT=allocStat)
       IF (allocStat .NE. 0) THEN
          CALL abort(&
-             __STAMP__, &
-            'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
+         __STAMP__&
+         ,'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
       END IF
       IF (SourceLength(iProc).GT.0) THEN
          DEALLOCATE(send_message(iProc)%content, STAT=allocStat)
          IF (allocStat .NE. 0) THEN
             CALL abort(&
-                __STAMP__, &
-              'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
+            __STAMP__&
+            ,'ERROR in MPISourceExchangeBGM: cannot deallocate send_message')
          END IF
       END IF
    END IF
@@ -2512,8 +2722,8 @@ DO iProc = 0,PartMPI%nProcs-1
          DEALLOCATE(recv_message(iProc)%content, STAT=allocStat)
          IF (allocStat .NE. 0) THEN
             CALL abort(&
-                __STAMP__, &
-              'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
+            __STAMP__&
+            ,'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
          END IF
       END IF
    END IF
@@ -2521,8 +2731,8 @@ DO iProc = 0,PartMPI%nProcs-1
       DEALLOCATE(recv_message(iProc)%content_log, STAT=allocStat)
       IF (allocStat .NE. 0) THEN
          CALL abort(&
-             __STAMP__, &
-          'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
+         __STAMP__&
+         ,'ERROR in MPISourceExchangeBGM: cannot deallocate recv_message')
       END IF
    END IF
 END DO
@@ -2565,27 +2775,27 @@ IF(GEO%nPeriodicVectors.GT.0)THEN
   ALLOCATE(GEO%PeriodicBGMVectors(1:3,1:GEO%nPeriodicVectors),STAT=allocStat)
   IF (allocStat .NE. 0) THEN
     CALL abort(&
-        __STAMP__, &
-       'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
+    __STAMP__&
+    ,'ERROR in MPIBackgroundMeshInit: cannot allocate GEO%PeriodicBGMVectors!')
   END IF
   DO iProc = 1, GEO%nPeriodicVectors
     GEO%PeriodicBGMVectors(1,iProc) = NINT(GEO%PeriodicVectors(1,iProc)/BGMdeltas(1))
     IF(ABS(GEO%PeriodicVectors(1,iProc)/BGMdeltas(1)-REAL(GEO%PeriodicBGMVectors(1,iProc))).GT.1E-10)THEN
       CALL abort(&
-          __STAMP__, &
-       'ERROR: Periodic Vector ist not multiple of background mesh delta')
+      __STAMP__&
+      ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
     END IF
     GEO%PeriodicBGMVectors(2,iProc) = NINT(GEO%PeriodicVectors(2,iProc)/BGMdeltas(2))
     IF(ABS(GEO%PeriodicVectors(2,iProc)/BGMdeltas(2)-REAL(GEO%PeriodicBGMVectors(2,iProc))).GT.1E-10)THEN
       CALL abort(&
-          __STAMP__, &
-       'ERROR: Periodic Vector ist not multiple of background mesh delta')
+      __STAMP__&
+      ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
     END IF
     GEO%PeriodicBGMVectors(3,iProc) = NINT(GEO%PeriodicVectors(3,iProc)/BGMdeltas(3))
     IF(ABS(GEO%PeriodicVectors(3,iProc)/BGMdeltas(3)-REAL(GEO%PeriodicBGMVectors(3,iProc))).GT.1E-10)THEN
       CALL abort(&
-          __STAMP__, &
-       'ERROR: Periodic Vector ist not multiple of background mesh delta')
+      __STAMP__&
+      ,'ERROR: Periodic Vector ist not multiple of background mesh delta')
     END IF
   END DO
   ! Check whether process is periodic with itself
@@ -2642,8 +2852,8 @@ SDEALLOCATE(PartMPI%DepoBGMConnect)
 ALLOCATE(PartMPI%DepoBGMConnect(0:PartMPI%nProcs-1),STAT=allocStat)
 IF (allocStat .NE. 0) THEN
   CALL abort(&
-      __STAMP__, &
-    ' Cannot allocate PartMPI%DepoBGMConnect')
+  __STAMP__&
+  ,' Cannot allocate PartMPI%DepoBGMConnect')
 END IF
 
 !--- determine borders indices (=overlapping BGM mesh points) with each process
@@ -2670,8 +2880,8 @@ DO iProc=0,PartMPI%nProcs-1
       ALLOCATE(PartMPI%DepoBGMConnect(iProc)%BGMBorder(1:2,1:3),STAT=allocStat)
       IF (allocStat .NE. 0) THEN
          CALL abort(&
-             __STAMP__, &
-          ' Cannot allocate PartMPI%DepoMPIConnect%BGMBorder')
+         __STAMP__&
+         ,' Cannot allocate PartMPI%DepoMPIConnect%BGMBorder')
       END IF
       PartMPI%DepoBGMConnect(iProc)%BGMBorder(1:2,1:3) = TempBorder(1:2,1:3)
    END IF
@@ -2752,15 +2962,15 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
       ALLOCATE(PartMPI%DepoBGMConnect(iProc)%Periodic(1:PartMPI%DepoBGMConnect(iProc)%BGMPeriodicBorderCount),STAT=allocStat)
       IF (allocStat .NE. 0) THEN
         CALL abort(&
-            __STAMP__,  &
-          'ERROR in MPIBackgroundMeshInit: cannot allocate PartMPI%DepoBGMConnect')
+        __STAMP__&
+        ,'ERROR in MPIBackgroundMeshInit: cannot allocate PartMPI%DepoBGMConnect')
       END IF
       DO k = 1,NeighCount
         ALLOCATE(PartMPI%DepoBGMConnect(iProc)%Periodic(k)%BGMPeriodicBorder(1:2,1:3),STAT=allocStat)
         IF (allocStat .NE. 0) THEN
           CALL abort(&
-              __STAMP__, &
-            'ERROR in MPIBackgroundMeshInit: cannot allocate PartMPI%DepoBGMConnect')
+          __STAMP__&
+          ,'ERROR in MPIBackgroundMeshInit: cannot allocate PartMPI%DepoBGMConnect')
         END IF
         PartMPI%DepoBGMConnect(iProc)%Periodic(k)%BGMPeriodicBorder(1:2,1:3) = TempPeriBord(k,1:2,1:3)
       END DO
@@ -2970,7 +3180,9 @@ SDEALLOCATE(XiNDepo)
 SDEALLOCATE(swGPNDepo)
 SDEALLOCATE(wBaryNDepo)
 SDEALLOCATE(NDepochooseK)
-
+SDEALLOCATE(tempcharge)
+SDEALLOCATE(CellVolWeightFac)
+SDEALLOCATE(CellVolWeight_Volumes)
 END SUBROUTINE FinalizeDeposition
 
 END MODULE MOD_PICDepo

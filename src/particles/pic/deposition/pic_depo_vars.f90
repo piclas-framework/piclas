@@ -28,6 +28,7 @@ REAL                                  :: r_sf_scale         ! scaling of shape f
 REAL                                  :: BetaFac            ! betafactor of shape-function || integral =1
 INTEGER                               :: sf1d_dir           ! direction of 1D shape function 
 INTEGER                               :: NDepo              ! polynomial degree of delta distri
+REAL,ALLOCATABLE                      :: tempcharge(:)      ! temp-charge for epo. kernal
 REAL,ALLOCATABLE                      :: NDepoChooseK(:,:)               ! array n over n
 REAL,ALLOCATABLE                      :: wBaryNDepo(:)      ! barycentric weights for deposition
 REAL,ALLOCATABLE                      :: swGPNDepo(:)       ! integration weights for deposition
@@ -53,6 +54,11 @@ INTEGER                               :: DeltaType          ! Flag
 INTEGER                               :: NKnots
 REAL,ALLOCATABLE                      :: Knots(:)
 LOGICAL                               :: OutputSource       ! write the source to hdf5
+REAL,ALLOCATABLE                      :: CellVolWeightFac(:)
+INTEGER                               :: VolIntOrder
+REAL,ALLOCATABLE                      :: VolInt_X(:)
+REAL,ALLOCATABLE                      :: VolInt_W(:)
+REAL,ALLOCATABLE                      :: CellVolWeight_Volumes(:,:,:,:)
 !REAL,ALLOCATABLE                      :: Vdm_BernSteinN_GaussN(:,:)
 !REAL,ALLOCATABLE                      :: sVdm_BernSteinN_GaussN(:,:)
 !===================================================================================================================================

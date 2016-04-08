@@ -56,7 +56,7 @@ TYPE tSampWall             ! DSMC sample for Wall
   REAL,ALLOCATABLE                      :: State(:,:,:)                ! 1-3   E_tra (pre, wall, re),
                                                                        ! 4-6   E_rot (pre, wall, re),
                                                                        ! 7-9   E_vib (pre, wall, re)
-                                                                       ! 10-12 x, y, z direction
+                                                                       ! 10-12 Forces in x, y, z direction
                                                                        ! 13-12+nSpecies Wall-Collision counter
   !REAL, ALLOCATABLE                    :: Energy(:,:,:)               ! 1-3 E_tra (pre, wall, re),
   !                                                                    ! 4-6 E_rot (pre, wall, re),
@@ -65,16 +65,6 @@ TYPE tSampWall             ! DSMC sample for Wall
   !REAL, ALLOCATABLE                    :: Counter(:,:,:)              ! Wall-Collision counter
 END TYPE
 TYPE(tSampWall), ALLOCATABLE           :: SampWall(:)             ! Wall sample array (number of BC-Sides)
-
-
-TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall    
-  REAL                           :: Heatflux                ! 
-  REAL                           :: Force(3)                ! x, y, z direction
-  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
-  REAL                           :: CounterOut              ! Wall-Collision counter for Output
-END TYPE
-
-TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
 
 TYPE tPartBoundary
   INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
@@ -107,6 +97,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: AmbientDynamicVisc(:)               ! dynamic viscousity
   REAL    , ALLOCATABLE                  :: AmbientThermalCond(:)               ! thermal conuctivity
   LOGICAL , ALLOCATABLE                  :: UseForQCrit(:)                   !Use Boundary for Q-Criterion ?
+  LOGICAL , ALLOCATABLE                  :: Resample(:)                      !Resample Equilibirum Distribution with reflection
 END TYPE
 
 INTEGER                                  :: nPartBound                       ! number of particle boundaries

@@ -64,8 +64,9 @@ INTEGER            :: NodeIDElem,nPlot_p1_2,nPlot_p1_3
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO TECPLOT ASCII FILE..."
 IF((nValMean.GT.0) .AND. .NOT. PRESENT(MeanValue)) &
-  CALL abort(__STAMP__, &
-       'Mean Value >0, but no mean value specified ',999,999.)
+  CALL abort(&
+  __STAMP__&
+  ,'Mean Value >0, but no mean value specified ',999,999.)
 !assemble format strings
 WRITE(Format_nVal,'(A1,I2,A17)')'(',nVal+nValMean,'(1X,E21.10))'
 Format_Title(1:51)='VARIABLES="CoordinateX","CoordinateY","CoordinateZ"'
@@ -174,8 +175,9 @@ CHARACTER(LEN=35)  :: VarString
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')" WRITE DATA TO TECPLOT BINARY FILE..."
 
 IF(nValMean.GT.0 .AND. .NOT. PRESENT(MeanValue)) &
-  CALL abort(__STAMP__, &
-       'Mean Value >0, but no mean value specified',999,999.)
+  CALL abort(&
+  __STAMP__&
+  ,'Mean Value >0, but no mean value specified',999,999.)
 !assemble format strings
 Format_Title(1:35)='CoordinateX,CoordinateY,CoordinateZ'
 Offset = 36

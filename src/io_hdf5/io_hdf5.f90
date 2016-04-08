@@ -129,12 +129,14 @@ IF(create)THEN
   CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, access_prp = Plist_ID)
 ELSE !read-only ! and write (added later)
   INQUIRE(FILE=TRIM(FileString),EXIST=fileExists)
-  IF(.NOT.fileExists) CALL abort(__STAMP__,&
-    'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
+  IF(.NOT.fileExists) CALL abort(&
+__STAMP__&
+, 'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
   CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDWR_F,  File_ID, iError, access_prp = Plist_ID)
 END IF
-IF(iError.NE.0) CALL abort(__STAMP__,&
-  'ERROR: Could not open or create file '//TRIM(FileString)) 
+IF(iError.NE.0) CALL abort(&
+__STAMP__&
+,'ERROR: Could not open or create file '//TRIM(FileString)) 
 
 CALL H5PCLOSE_F(Plist_ID, iError)
 LOGWRITE(*,*)'...DONE!'
