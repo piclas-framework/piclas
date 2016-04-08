@@ -137,7 +137,7 @@ USE MOD_Analyze_Vars,ONLY:NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_DG_Vars,ONLY:U
 USE MOD_Equation,ONLY:ExactFunc
 USE MOD_ChangeBasis,ONLY:ChangeBasis3D
-USE MOD_Output_Vars,ONLY:ProjectName
+USE MOD_Globals_Vars,ONLY:ProjectName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -230,7 +230,7 @@ SUBROUTINE AnalyzeToFile(Time,CalcTime,iter,L_2_Error)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars
-USE MOD_Output_Vars  ,ONLY:ProjectName
+USE MOD_Globals_Vars  ,ONLY:ProjectName
 USE MOD_Mesh_Vars    ,ONLY:nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -265,7 +265,7 @@ ioUnit=1746
   IF (openStat.NE.0) THEN
      WRITE(*,*)'ERROR: cannot open Outfile'
   END IF
-  ! Create a new file with the Tecplot header etc. 
+  ! Create a new file with the Tecplot (ASCII file, not binary) header etc.
   WRITE(ioUnit,*)'TITLE="Analysis,'//TRIM(ProjectName)//'"'
   WRITE(ioUnit,'(A12)')'VARIABLES ='
   ! Fill the formatStr and L2name strings

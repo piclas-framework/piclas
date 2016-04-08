@@ -610,7 +610,7 @@ SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_IO_HDF5
-USE MOD_Output_Vars,                ONLY:ProjectName
+USE MOD_Globals_Vars,               ONLY:ProjectName
 USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide
 USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal , CollisMode
 USE MOD_Particle_Vars,              ONLY:nSpecies

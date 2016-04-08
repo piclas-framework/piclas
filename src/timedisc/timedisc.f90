@@ -141,7 +141,6 @@ USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
-USE MOD_Output,                ONLY: Visualize
 USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems
 USE MOD_PML,                   ONLY: TransformPMLVars,BacktransformPMLVars

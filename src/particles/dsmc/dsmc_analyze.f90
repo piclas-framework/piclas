@@ -1155,7 +1155,7 @@ SUBROUTINE WriteDSMCHOToHDF5(MeshFileName,OutputTime, FutureTime)
 USE MOD_DSMC_Vars,            ONLY:HODSMC, DSMC_HOSolution, CollisMode, SpecDSMC, DSMC,useDSMC
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Output_Vars,          ONLY:ProjectName
+USE MOD_Globals_Vars,         ONLY:ProjectName
 USE MOD_Mesh_Vars,            ONLY:offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_output,          ONLY: WriteArrayToHDF5
@@ -1399,7 +1399,7 @@ SUBROUTINE GenerateDSMCHOFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,O
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Output_Vars,ONLY: ProjectName
+USE MOD_Globals_Vars,ONLY: ProjectName
 USE MOD_ReadInTools,ONLY: GetParameters
 !USE MOD_PreProcFlags
 USE MOD_io_HDF5
@@ -2299,7 +2299,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
    USE MOD_PARTICLE_Vars, ONLY:nSpecies
    USE MOD_Mesh_Vars,     ONLY:offsetElem,nGlobalElems
    USE MOD_DSMC_Vars,     ONLY:MacroDSMC, CollisMode, DSMC, useDSMC
-   USE MOD_Output_Vars,   ONLY:ProjectName
+   USE MOD_Globals_Vars,  ONLY:ProjectName
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

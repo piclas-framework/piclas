@@ -31,7 +31,6 @@ USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
 USE MOD_DG,                        ONLY:FinalizeDG
 USE MOD_PML,                       ONLY:FinalizePML
 USE MOD_Filter,                    ONLY:FinalizeFilter
-USE MOD_Output,                    ONLY:FinalizeOutput
 USE MOD_Analyze,                   ONLY:FinalizeAnalyze
 USE MOD_RecordPoints,              ONLY:FinalizeRecordPoints
 #ifdef IMEX
@@ -72,7 +71,6 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 !===================================================================================================================================
 
 !Finalize
-CALL FinalizeOutput()
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
 CALL FinalizeDG()
@@ -135,7 +133,6 @@ USE MOD_GetBoundaryFlux,    ONLY:InitBC
 USE MOD_DG,                 ONLY:InitDG
 USE MOD_PML,                ONLY:InitPML
 USE MOD_Filter,             ONLY:InitFilter
-USE MOD_Output,             ONLY:InitOutput
 USE MOD_Analyze,            ONLY:InitAnalyze
 USE MOD_RecordPoints,       ONLY:InitRecordPoints
 #if defined(IMEX) || defined(IMPA)
@@ -182,7 +179,6 @@ IF(IsLoadBalance)THEN
 ELSE
   CALL InitRestart()
 END IF
-CALL InitOutput()
 CALL InitMesh()
 #ifdef MPI
 CALL InitMPIVars()

@@ -40,7 +40,8 @@ SUBROUTINE InitIO_HDF5()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools,        ONLY:GETLOGICAL,CNTSTR
+USE MOD_Globals_Vars,       ONLY:ProjectName
+USE MOD_ReadInTools,        ONLY:GETLOGICAL,CNTSTR, GETSTR
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -50,6 +51,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+ProjectName=GETSTR('ProjectName')
+Logging    =GETLOGICAL('Logging','.FALSE.')
+
 gatheredWrite=.FALSE.
 IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')
 #ifdef MPI
