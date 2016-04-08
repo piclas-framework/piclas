@@ -325,7 +325,7 @@ __STAMP__&
       DEALLOCATE(U_local,U_local2)
     END IF ! DoPML
 #endif
-    SWRITE(UNIT_stdOut,*)'DONE!'
+    SWRITE(UNIT_stdOut,*)' DONE!'
   END IF
 
 #ifdef PARTICLES
@@ -405,7 +405,7 @@ __STAMP__&
   DEALLOCATE(PartInt,PartData)
   PDM%ParticleVecLength = PDM%ParticleVecLength + locnPart
   CALL UpdateNextFreePosition()
-  SWRITE(UNIT_stdOut,*)'DONE!' 
+  SWRITE(UNIT_stdOut,*)' DONE!' 
   DO i=1,nSpecies
     DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
       Species(i)%Init(iInit)%InsertedParticle = INT(Species(i)%Init(iInit)%ParticleEmission * RestartTime,8)
@@ -577,9 +577,10 @@ __STAMP__&
   CALL FlushHDF5(RestartTime)
 #ifdef MPI
   EndT=MPI_WTIME()
-  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'Restart DONE! [',EndT-StartT,'s]'
+  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Restart took  [',EndT-StartT,'s] for readin.'
+  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!' 
 #else
-  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'Restart DONE!' 
+  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!' 
 #endif
 ELSE
   ! Delete all files since we are doing a fresh start
