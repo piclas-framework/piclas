@@ -1713,6 +1713,11 @@ REAL                  :: timeStart, timeEnd, RandVal, dtFrac
 !===================================================================================================================================
 
 IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
+  ! Calculate desobing particles for Surfaceflux
+  IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.GT.0)) THEN
+    CALL Calc_PartNum_Wall_Desorb()
+  END IF
+  CALL DSMC_Update_Wall_Vars()
   CALL UpdateNextFreePosition()
 
 !  Debug_Energy=0.0

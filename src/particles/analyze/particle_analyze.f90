@@ -603,7 +603,7 @@ USE MOD_DSMC_Vars,             ONLY: Adsorption
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
   IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
     MaxCollProb = DSMC%CollProbMax
-    MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
+    MeanCollProb = 0.0 !DSMC%CollProbMean / DSMC%CollProbMeanCount
   ELSE
     MaxCollProb = 0.0
     MeanCollProb = 0.0

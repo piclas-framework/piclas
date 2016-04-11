@@ -3163,7 +3163,7 @@ __STAMP__&
 , 'Only constant or maxwell-like velodistri implemented for surfaceflux!')
     END IF
     Species(iSpec)%Surfaceflux(iSF)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC','0.')
-    Species(iSpec)%Surfaceflux(iSF)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'0. , 0. , 0.')
+    Species(iSpec)%Surfaceflux(iSF)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3,'1. , 0. , 0.')
     !--- normalize VeloVecIC
     IF (.NOT. ALL(Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(:).eq.0.)) THEN
       Species(iSpec)%Surfaceflux(iSF)%VeloVecIC = Species(iSpec)%Surfaceflux(iSF)%VeloVecIC &
@@ -3520,7 +3520,7 @@ __STAMP__&
       DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
         IF (useDSMC .AND. (.NOT. KeepWallParticles)) THEN !to be checked!!!
           IF (DSMC%WallModel.GT.0) THEN
-            ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(iSide),iSpec)
+            ExtraParts = Adsorption%SumDesorbPart(iSample,jSample,SurfMesh%SideIDToSurfID(SideID),iSpec)
           ELSE
             ExtraParts = 0
           END IF
