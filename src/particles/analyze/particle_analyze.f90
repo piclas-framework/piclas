@@ -211,18 +211,11 @@ USE MOD_DSMC_Vars,             ONLY: Adsorption
   REAL                :: sumIntTemp(nSpecies+1),sumIntEn(nSpecies),sumTempTotal(nSpecies+1),sumMeanCollProb
 #endif /*MPI*/
   REAL, ALLOCATABLE   :: CRate(:), RRate(:)
-#if (PP_TimeDiscMethod ==1000)
-  REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3)
-#endif
 #if (PP_TimeDiscMethod ==42)
   INTEGER             :: ii, iunit, iCase, iTvib,jSpec, WallNumSpec(nSpecies)
   CHARACTER(LEN=64)   :: DebugElectronicStateFilename
   CHARACTER(LEN=350)  :: hilf
   REAL                :: WallCoverage(nSpecies)
-  REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3)
-#ifdef MPI 
-  REAL                :: sumIntTemp(nSpecies),sumIntEn(nSpecies)
-#endif /*MPI*/
 #endif
   REAL                :: PartVtrans(nSpecies,4), PartVtherm(nSpecies,4)
   INTEGER             :: dir
@@ -945,11 +938,11 @@ IF (PartMPI%MPIROOT) THEN
 !         END IF 
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%ProbAds(1)
+        WRITE(unit_index,104,ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%ProbAds(1,1,1)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%ProbDes(1)
+        WRITE(unit_index,104,ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%ProbDes(1,1,1)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1199,8 +1192,8 @@ SUBROUTINE GetWallNumSpec(WallNumSpec,WallCoverage)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars,      ONLY : Species, PartSpecies, PDM, nSpecies, KeepWallParticles
-USE MOD_DSMC_Vars,          ONLY : Adsorption, SurfMesh
-USE MOD_Mesh_Vars,          ONLY : SideData
+USE MOD_DSMC_Vars,          ONLY : Adsorption
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1211,21 +1204,24 @@ INTEGER, INTENT(OUT)            :: WallNumSpec(nSpecies)
 REAL   , INTENT(OUT)            :: WallCoverage(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i, iSurfSide
+INTEGER           :: i, iSurfSide, p, q
 REAL              :: Surface, Coverage(nSpecies)
 !===================================================================================================================================
   WallNumSpec = 0
   Surface = 0
   Coverage(:) = 0
   
-  DO iSurfSide=1,SurfMesh%nSurfaceBCSides
-    Surface = Surface + SideData(1,Adsorption%SurfSideToGlobSideMap(iSurfSide))%area &
-            + SideData(2,Adsorption%SurfSideToGlobSideMap(iSurfSide))%area
-    DO i=1,nSpecies
-      Coverage(i) = Coverage(i) + Adsorption%Coverage(iSurfSide,i)
+  DO i=1,nSpecies
+  DO iSurfSide=1,SurfMesh%nSides
+    DO q = 1,nSurfSample
+      DO p = 1,nSurfSample
+        Surface = Surface + SurfMesh%SurfaceArea(p,q,iSurfSide)
+        Coverage(i) = Coverage(i) + Adsorption%Coverage(p,q,iSurfSide,i)
+      END DO
     END DO
   END DO
-  Coverage(:) = Coverage(:)/SurfMesh%nSurfaceBCSides
+  END DO
+  Coverage(:) = Coverage(:)/SurfMesh%nSides
   WallCoverage(:) = Coverage(:)
   
   IF (KeepWallParticles) THEN

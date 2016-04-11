@@ -149,7 +149,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
     ! Sample Adsorbing atoms
 !     Adsorption%SumAdsorbPart(TriNum,SurfSide,PartSpecies(PartID)) = Adsorption%SumAdsorbPart(TriNum,SurfSide,PartSpecies(PartID)) + 1
 #if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(PartSpecies(PartID))%NumOfAds(SurfSide) = Adsorption%AdsorpInfo(PartSpecies(PartID))%NumOfAds(SurfSide) + 1
+    Adsorption%AdsorpInfo(PartSpecies(PartID))%NumOfAds(SurfSide)=Adsorption%AdsorpInfo(PartSpecies(PartID))%NumOfAds(SurfSide) + 1
 #endif
     ! allocate particle belonging adsorbing side-index and side-subsurface-indexes
     IF (KeepWallParticles) THEN
