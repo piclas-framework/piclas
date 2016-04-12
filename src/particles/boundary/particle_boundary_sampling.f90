@@ -61,6 +61,7 @@ USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList
+USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI_Vars       ,ONLY:PartMPI
 #else
@@ -178,7 +179,11 @@ tmp1=dXiEQ_SurfSample/2.0 !(b-a)/2
 DO iSide=1,nTotalSides
   SurfSideID=SurfMesh%SideIDToSurfID(iSide)
   IF(SurfSideID.EQ.-1) CYCLE
-  SideID=PartBCSideList(iSide)
+  IF(DoRefMapping)THEN
+    SideID=PartBCSideList(iSide)
+  ELSE
+    SideID=iSide
+  END IF
   ! call here stephens algorithm to compute area 
   DO jSample=1,nSurfSample
     DO iSample=1,nSurfSample

@@ -48,7 +48,7 @@ USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
 USE MOD_Mesh_Vars,              ONLY:BC
-USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
+! USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 !USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
@@ -123,7 +123,6 @@ CASE(2) !PartBound%ReflectiveBC)
     END IF
     IF (WallModeltype.EQ.0) THEN !previously used wall interaction model
       CALL RANDOM_NUMBER(RanNum)
-      BCSideID=PartBCSideList(SideID)
       IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
         ! perfectly reflecting, specular re-emission
         CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)

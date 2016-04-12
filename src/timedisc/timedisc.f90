@@ -1762,19 +1762,17 @@ ELSE
     END IF
     
     CALL ParticleSurfaceflux()
-    
-    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-    !PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
     DO iPart=1,PDM%ParticleVecLength
-      PEM%lastElement(iPart)=PEM%Element(iPart)
       IF (PDM%ParticleInside(iPart)) THEN
         IF (.NOT.PDM%dtFracPush(iPart)) THEN
+          LastPartPos(iPart,1)=PartState(iPart,1)
+          LastPartPos(iPart,2)=PartState(iPart,2)
+          LastPartPos(iPart,3)=PartState(iPart,3)
+          PEM%lastElement(iPart)=PEM%Element(iPart)
           PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
           PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
           PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
-        ELSE
+        ELSE !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
           CALL RANDOM_NUMBER(RandVal)
           dtFrac = dt * RandVal
           PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac

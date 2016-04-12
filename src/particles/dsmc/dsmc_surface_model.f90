@@ -626,12 +626,12 @@ DO BC_Side=1,SurfMesh%nSides
       n = 2
       m = Theta * n
       IF (m.LT.1) THEN
-  !       Heat = (9*Q_0A**2)/(6*Q_0A+16*D_A)
-        Heat = (Q_0A**2)/(Q_0A/n+D_A)
+        Heat = (9*Q_0A**2)/(6*Q_0A+16*D_A)
+!         Heat = (Q_0A**2)/(Q_0A/n+D_A)
       ELSE 
         sigma = 1/m*(2-1/m)
-  !       Heat = (9*Q_0A**2)/(6*Q_0A+16*D_A) *sigma
-        Heat = (Q_0A**2)/(Q_0A/n+D_A) * sigma
+        Heat = (9*Q_0A**2)/(6*Q_0A+16*D_A) *sigma
+!         Heat = (Q_0A**2)/(Q_0A/n+D_A) * sigma
       END IF
       
       CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct)
