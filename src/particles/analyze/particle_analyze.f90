@@ -182,12 +182,8 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_LoadBalance_Vars,      ONLY: tCurrent
   USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
-  USE MOD_DSMC_Vars,             ONLY: DSMC
-#if (PP_TimeDiscMethod ==1000)
-  USE MOD_DSMC_Vars,             ONLY: DSMC, SpecDSMC
-#endif
 #if ( PP_TimeDiscMethod ==42)
-USE MOD_DSMC_Vars,             ONLY: Adsorption
+  USE MOD_DSMC_Vars,             ONLY: Adsorption
 #endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -601,9 +597,9 @@ USE MOD_DSMC_Vars,             ONLY: Adsorption
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
-  IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
+  IF((iter.GT.0).AND.(DSMC%CalcQualityFactors).AND.(DSMC%CollProbMeanCount.GT.0)) THEN
     MaxCollProb = DSMC%CollProbMax
-    MeanCollProb = 0.0 !DSMC%CollProbMean / DSMC%CollProbMeanCount
+    MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
   ELSE
     MaxCollProb = 0.0
     MeanCollProb = 0.0

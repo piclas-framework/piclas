@@ -278,6 +278,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
    INTEGER                          :: iSurfSide, iSpec, p, q, NPois
    REAL                             :: PartAds, PartDes, RanNum, Tpois
 !===================================================================================================================================
+  CALL CalcDesorbProb()
 #if (PP_TimeDiscMethod==42) 
   DO iSpec = 1,nSpecies
     Adsorption%AdsorpInfo(iSpec)%NumOfDes(:) = 0
