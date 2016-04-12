@@ -166,7 +166,7 @@ TYPE tDSMC
   INTEGER                       :: WallModel                ! Model for wall interaction
                                                             ! 0 perfect/diffusive reflection
                                                             ! 1 adsorption (Kisluik) / desorption (Polanyi Wigner)
-                                                            ! 2 adsorption/desorption + chemical interaction
+                                                            ! 2 adsorption/desorption + chemical interaction (UBI-QEP)
   REAL                          :: RotRelaxProb              ! Model for calculation of rotational relaxation probability, ini_1
                                                             !    0-1: constant probability  (0: no relaxation)
                                                             !    2: Boyd's model
@@ -230,39 +230,54 @@ TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)            ! Data of collision 
 
 ! defintion of Adsorbation variables
 TYPE tAdsorptionInfo
-  REAL    , ALLOCATABLE                  :: ProbAds(:,:,:)              ! Adsorption probability of surface n
-  REAL    , ALLOCATABLE                  :: ProbDes(:,:,:)              ! Desorption probability of surface n
 #if (PP_TimeDiscMethod==42)
+  REAL                                   :: MeanProbAds             ! mean adsorption probability
+  REAL                                   :: MeanProbDes             ! mean adsorption probability
   INTEGER , ALLOCATABLE                  :: NumOfAds(:)             ! Number of Adsorptions on surface n
   INTEGER , ALLOCATABLE                  :: NumOfDes(:)             ! Number of Desorptions on Surface n
 #endif
 END TYPE
 
+TYPE tAdsorptionConstants
+  ! parameters for Kisliuk and Polanyi Wigner model
+  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface i with species n
+  REAL    , ALLOCATABLE                  :: InitStick(:,:)          ! initial sticking coefficient (S_0) for surface n
+  REAL    , ALLOCATABLE                  :: PrefactorStick(:)       ! prefactor of sticking coefficient for surface n
+  INTEGER , ALLOCATABLE                  :: Adsorbexp(:)            ! Adsorption exponent for surface n
+  REAL    , ALLOCATABLE                  :: Nu_a(:)                 ! Nu exponent a for surface n
+  REAL    , ALLOCATABLE                  :: Nu_b(:)                 ! Nu exponent b for surface n
+  REAL    , ALLOCATABLE                  :: DesorbEnergy(:)         ! Desorption energy (K) for surface n
+  REAL    , ALLOCATABLE                  :: Intensification(:)      ! Intensification energy (K) for surface n
+  ! parameters for UBI-QEP model
+  REAL    , ALLOCATABLE                  :: HeatOfAds(:)            ! heat of adsorption (K) on clear surfaces for surface n 
+  REAL    , ALLOCATABLE                  :: EDissBond(:,:)          ! Bond dissociation energy (K) for diss into resulting species
+                                                                    ! (nspecies,nspecies)
+  INTEGER , ALLOCATABLE                  :: DissResultsSpecNum      ! Number of possible dissociation results
+  INTEGER , ALLOCATABLE                  :: DissResultsSpec(:,:)    ! (2,DissResultsSpecNum)
+                                                                    
+END TYPE
+
 TYPE tAdsorption
-  LOGICAL                                :: KeepParticles           ! Flag for deciding of keeping particles
 #if (PP_TimeDiscMethod==42)
   LOGICAL                                :: TPD                     ! Flag for TPD spectrum calculation
   REAL                                   :: TPD_beta                ! temperature slope for TPD [K/s]
   REAL                                   :: TPD_Temp                ! Walltemperature for TPD [K]
 #endif
+  REAL    , ALLOCATABLE                  :: Coverage(:,:,:,:)       ! coverage of surface i with species n
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  REAL    , ALLOCATABLE                  :: ProbAds(:,:,:,:)        ! Adsorption probability of surface n
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  REAL    , ALLOCATABLE                  :: ProbDes(:,:,:,:)        ! Desorption probability of surface n
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   INTEGER , ALLOCATABLE                  :: SumDesorbPart(:,:,:,:)  ! Number of Particles of Species iSpec desorbing from Surface
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   INTEGER , ALLOCATABLE                  :: SumAdsorbPart(:,:,:,:)  ! Number of Particles of Species iSpec adsorbing to Surface
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  REAL    , ALLOCATABLE                  :: Coverage(:,:,:,:)       ! coverage of surface i with species n
-                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
-  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface i with species n
-  REAL    , ALLOCATABLE                  :: InitStick(:,:)          ! initial sticking coefficient (S_0) for surface n
-  REAL    , ALLOCATABLE                  :: PrefactorStick(:,:)     ! prefactor of sticking coefficient for surface n
-  INTEGER , ALLOCATABLE                  :: Adsorbexp(:,:)          ! Adsorption exponent for surface n
-  REAL    , ALLOCATABLE                  :: Nu_a(:,:)               ! Nu exponent a for surface n
-  REAL    , ALLOCATABLE                  :: Nu_b(:,:)               ! Nu exponent b for surface n
-  REAL    , ALLOCATABLE                  :: DesorbEnergy(:,:)       ! Desorption energy (K) for surface n
-  REAL    , ALLOCATABLE                  :: Intensification(:,:)    ! Intensification energy (K) for surface n
   INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID
                                                                     ! needed to calculate BC temperature for adsorption
   TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
+  Type(tAdsorptionConstants),ALLOCATABLE :: Constants(:)            ! Modelconstants for adsorption (nSpecies)
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 

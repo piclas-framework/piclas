@@ -60,44 +60,54 @@ IF (KeepWallParticles) THEN
   PDM%ParticleAtWall(1:PDM%maxParticleNumber) = .FALSE.
   ALLOCATE(PEM%wNumber(1:nElems))
 END IF
-ALLOCATE(Adsorption%AdsorpInfo(1:nSpecies))
+! allocate info and constants
+ALLOCATE( Adsorption%AdsorpInfo(1:nSpecies),&
+          Adsorption%Constants(1:nSpecies))
 DO iSpec = 1,nSpecies
-  ALLOCATE(Adsorption%AdsorpInfo(iSpec)%ProbAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides),&
-            Adsorption%AdsorpInfo(iSpec)%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides))
 #if (PP_TimeDiscMethod==42)
-  ALLOCATE(Adsorption%AdsorpInfo(iSpec)%NumOfAds(1:SurfMesh%nSides),&
+  ALLOCATE( Adsorption%AdsorpInfo(iSpec)%NumOfAds(1:SurfMesh%nSides),&
             Adsorption%AdsorpInfo(iSpec)%NumOfDes(1:SurfMesh%nSides))
 #endif
+  ALLOCATE( Adsorption%Constants(iSpec)%MaxCoverage(1:SurfMesh%nSides),&
+            Adsorption%Constants(iSpec)%InitStick(1:SurfMesh%nSides),&
+            Adsorption%Constants(iSpec)%PrefactorStick(1:SurfMesh%nSides),&
+            Adsorption%Constants(iSpec)%Adsorbexp(1:SurfMesh%nSides),&
+            Adsorption%Constants(iSpec)%Nu_a(1:SurfMesh%nSides),&
+            Adsorption%Constants(iSpec)%Nu_b(1:SurfMesh%nSides),&
+            Adsorption%Constants(iSpec)%DesorbEnergy(1:SurfMesh%nSides),&
+            Adsorption%Constants(iSpec)%Intensification(1:SurfMesh%nSides))
 END DO
+! initialize info and constants
 DO iSpec = 1,nSpecies
-  DO iSide = 1,SurfMesh%nSides
-    DO q = 1,nSurfSample
-      DO p = 1,nSurfSample
-        Adsorption%AdsorpInfo(iSpec)%ProbAds(p,q,iSide)=0
-        Adsorption%AdsorpInfo(iSpec)%ProbDes(p,q,iSide)=0
-      END DO
-    END DO
 #if (PP_TimeDiscMethod==42)
+  DO iSide = 1,SurfMesh%nSides
     Adsorption%AdsorpInfo(iSpec)%NumOfAds(iSide)=0
     Adsorption%AdsorpInfo(iSpec)%NumOfDes(iSide)=0
+  END DO
+#endif
+  WRITE(UNIT=hilf,FMT='(I2)') iSpec
+  Adsorption%Constants(iSpec)%MaxCoverage(:) = GETREAL('Part-Species'//TRIM(hilf)//'-MaximumCoverage','0.')
+  Adsorption%Constants(iSpec)%InitStick(:) = GETREAL('Part-Species'//TRIM(hilf)//'-InitialStick','0.')
+  Adsorption%Constants(iSpec)%PrefactorStick(:) = GETREAL('Part-Species'//TRIM(hilf)//'-PrefactorStick','0.')
+  Adsorption%Constants(iSpec)%Adsorbexp(:) = GETINT('Part-Species'//TRIM(hilf)//'-Adsorbexp','1')
+  Adsorption%Constants(iSpec)%Nu_a(:) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-a','0.')
+  Adsorption%Constants(iSpec)%Nu_b(:) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-b','0.')
+  Adsorption%Constants(iSpec)%DesorbEnergy(:) = GETREAL('Part-Species'//TRIM(hilf)//'-Desorption-Energy-K','1.')
+  Adsorption%Constants(iSpec)%Intensification(:) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
+END DO
+#if (PP_TimeDiscMethod==42)
+    Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
+    Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
     Adsorption%TPD = GETLOGICAL('Particles-DSMC-Adsorption-doTPD','.FALSE.')
     Adsorption%TPD_beta = GETREAL('Particles-DSMC-Adsorption-TPD-Beta','0.')
     Adsorption%TPD_Temp = 0.
 #endif
-  END DO
-END DO
-
-ALLOCATE(Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+! allocate and initialize adsorption variables
+ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+          Adsorption%ProbAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+          Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%PrefactorStick(1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%Adsorbexp(1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%Nu_a(1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SurfSideToGlobSideMap(1:SurfMesh%nSides),&
           Adsorption%DensSurfAtoms(1:SurfMesh%nSides))
 IDcounter = 0         
@@ -111,19 +121,12 @@ DO iSurf = 1,SurfMesh%nSides
   WRITE(UNIT=hilf,FMT='(I2)') iSurf
   Adsorption%DensSurfAtoms(iSurf) = GETREAL('Particles-Surface'//TRIM(hilf)//'-AtomsDensity','1.5E+19')
 END DO
-
 DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
   Adsorption%Coverage(:,:,:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-InitialCoverage','0.')
-  Adsorption%MaxCoverage(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-MaximumCoverage','0.')
-  Adsorption%InitStick(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-InitialStick','0.')
-  Adsorption%PrefactorStick(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-PrefactorStick','0.')
-  Adsorption%Adsorbexp(:,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Adsorbexp','1')
-  Adsorption%Nu_a(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-a','0.')
-  Adsorption%Nu_b(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-b','0.')
-  Adsorption%DesorbEnergy(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Desorption-Energy-K','1.')
-  Adsorption%Intensification(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
 END DO
+Adsorption%ProbAds(:,:,:,:) = 0.
+Adsorption%ProbDes(:,:,:,:) = 0.
 Adsorption%SumDesorbPart(:,:,:,:) = 0
 Adsorption%SumAdsorbPart(:,:,:,:) = 0
 
