@@ -279,9 +279,10 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !===================================================================================================================================
 ! Local variable declaration
 !    INTEGER                          :: i, PartAds2
-   INTEGER                          :: iSurfSide, iSpec, p, q, NPois
+   INTEGER                          :: iSurfSide, iSpec, p, q, NPois, WallPartNum
    REAL                             :: PartAds, PartDes, RanNum, Tpois
 !===================================================================================================================================
+  Adsorption%AdsorpInfo(:)%MeanProbDes = 0.
   CALL CalcDesorbProb()
 #if (PP_TimeDiscMethod==42) 
   DO iSpec = 1,nSpecies
@@ -293,6 +294,10 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
       DO q = 1,nSurfSample
         DO p = 1,nSurfSample
           IF (Adsorption%Coverage(p,q,iSurfSide,iSpec).GT.0) THEN
+            WallPartNum = INT(Adsorption%Coverage(p,q,iSurfSide,iSpec) * Adsorption%DensSurfAtoms(iSurfSide) &
+                      * SurfMesh%SurfaceArea(p,q,iSurfSide) &
+                      / Species(iSpec)%MacroParticleFactor)
+            IF (WallPartNum .GT. 0) THEN
 !             IF (DSMC%WallModel.GT.1) THEN
 !               PartAds2 = INT(Adsorption%Coverage(p,q,iSurfSide,iSpec) * Adsorption%DensSurfAtoms(iSurfSide) &
 !                       * SurfMesh%SurfaceArea(p,q,iSurfSide) &
@@ -310,32 +315,39 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
                         * SurfMesh%SurfaceArea(p,q,iSurfSide) &
                         / Species(iSpec)%MacroParticleFactor
               PartDes = PartAds * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
-              CALL RANDOM_NUMBER(RanNum)            
-              IF (EXP(-PartDes).LE.TINY(PartDes) &
+              IF (PartDes.GT.WallPartNum) THEN
+                Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = WallPartNum
+              ELSE
+                CALL RANDOM_NUMBER(RanNum)            
+                IF (EXP(-PartDes).LE.TINY(PartDes) &
 #if (PP_TimeDiscMethod==42)
-              .OR. Adsorption%TPD &
+                .OR. Adsorption%TPD &
 #endif
-              ) THEN
-                Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = INT(PartDes + RanNum)
-              ELSE !poisson-sampling instead of random rounding (reduces numerical non-equlibrium effects [Tysanner and Garcia 2004]
-                Npois=0
-                Tpois=1.0
-                DO
-                  Tpois=RanNum*Tpois
-                  IF (Tpois.LT.TINY(Tpois)) THEN
-                    Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = INT(PartDes + RanNum)
-                    EXIT
-                  END IF
-                  IF (Tpois.GT.EXP(-PartDes)) THEN
-                    Npois=Npois+1
-                    CALL RANDOM_NUMBER(RanNum)
-                  ELSE
-                    Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = Npois
-                    EXIT
-                  END IF
-                END DO
-              END IF
+                ) THEN
+                  Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = INT(PartDes + RanNum)
+                ELSE !poisson-sampling instead of random rounding (reduces numeric non-equlibrium effects [Tysanner and Garcia 2004]
+                  Npois=0
+                  Tpois=1.0
+                  DO
+                    Tpois=RanNum*Tpois
+                    IF (Tpois.LT.TINY(Tpois)) THEN
+                      Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = INT(PartDes + RanNum)
+                      EXIT
+                    END IF
+                    IF (Tpois.GT.EXP(-PartDes)) THEN
+                      Npois=Npois+1
+                      CALL RANDOM_NUMBER(RanNum)
+                    ELSE
+                      Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = Npois
+                      EXIT
+                    END IF
+                  END DO
+                END IF
+              END IF !PartDes.GT.WallPartNum
 !             END IF  
+            ELSE !not PartAds.GT.0
+              Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = 0
+            END IF !PartAds.GT.0
 #if (PP_TimeDiscMethod==42)
             Adsorption%AdsorpInfo(iSpec)%NumOfDes = Adsorption%AdsorpInfo(iSpec)%NumOfDes &
                                                   + Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec)
@@ -672,7 +684,7 @@ DO SurfSide=1,SurfMesh%nSides
 !       END IF
 !===================================================================================================================================
     IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-      Adsorption%AdsorpInfo(iSpec)%MeanProbDes = Adsorption%AdsorpInfo(iSpec)%MeanProbDes + Adsorption%ProbAds(p,q,SurfSide,iSpec)
+      Adsorption%AdsorpInfo(iSpec)%MeanProbDes = Adsorption%AdsorpInfo(iSpec)%MeanProbDes + Adsorption%ProbDes(p,q,SurfSide,iSpec)
     END IF
   END DO
   END DO

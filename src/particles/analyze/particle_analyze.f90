@@ -1232,6 +1232,9 @@ REAL              :: Surface, Coverage(nSpecies), SurfPartDens
   ELSE 
     DO i=1,nSpecies
       WallNumSpec(i) = INT(WallCoverage(i) * Surface * SurfPartDens)
+      IF (WallNumSpec(i).EQ.0) THEN
+       WallCoverage(i) = 0.
+      END IF
     END DO
   END IF
     
