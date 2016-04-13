@@ -445,7 +445,7 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod==6)
   CALL TimeStepByLSERK(time,iter,tEndDiff)
 #elif (PP_TimeDiscMethod==42)
-  CALL TimeStep_DSMC_Debug(time) ! Reservoir and Debug
+  CALL TimeStep_DSMC_Debug() ! Reservoir and Debug
 #elif (PP_TimeDiscMethod==100)
   CALL TimeStepByEulerImplicit(time) ! O1 Euler Implicit
 #elif (PP_TimeDiscMethod==101)
@@ -1675,7 +1675,7 @@ END SUBROUTINE TimeStepByRK4EulerExpl
 #endif
 
 #if (PP_TimeDiscMethod==42)
-SUBROUTINE TimeStep_DSMC_Debug(t)
+SUBROUTINE TimeStep_DSMC_Debug()
 !===================================================================================================================================
 ! Hesthaven book, page 64
 ! Low-Storage Runge-Kutta integration of degree 4 with 5 stages.
@@ -1687,25 +1687,23 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,ONLY: dt
 USE MOD_Filter,ONLY:Filter
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux, WriteMacroValues, KeepWallParticles
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM,PEM, Species, PartSpecies
-USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, Debug_Energy,PartStateIntEn, Adsorption
+USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux, KeepWallParticles
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM,PEM!, Species, PartSpecies
+USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC!, Debug_Energy,PartStateIntEn
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
 USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
 USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb, DSMC_Update_Wall_Vars
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
 #endif /*MPI*/
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iPart
@@ -1798,7 +1796,7 @@ ELSE
   END IF
 #ifdef MPI
   ! open receive buffer for number of particles
-  CALL IRecvNbofParticles()
+  CALL IRecvNbOfParticles()
 #endif /*MPI*/
   CALL DSMC_Update_Wall_Vars()
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)

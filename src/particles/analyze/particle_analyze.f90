@@ -1204,12 +1204,12 @@ REAL   , INTENT(OUT)            :: WallCoverage(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i, iSurfSide, p, q
-REAL              :: Surface, Coverage(nSpecies)
+REAL              :: Surface, Coverage(nSpecies), SurfPartDens
 !===================================================================================================================================
   WallNumSpec = 0
-  Surface = 0
-  Coverage(:) = 0
-  
+  SurfPartDens = 0
+  Surface = 0.
+  Coverage(:) = 0.
   DO i=1,nSpecies
   DO iSurfSide=1,SurfMesh%nSides
     DO q = 1,nSurfSample
@@ -1218,6 +1218,7 @@ REAL              :: Surface, Coverage(nSpecies)
         Coverage(i) = Coverage(i) + Adsorption%Coverage(p,q,iSurfSide,i)
       END DO
     END DO
+    SurfPartDens = SurfPartDens + Adsorption%DensSurfAtoms(iSurfSide)/Species(i)%MacroParticleFactor
   END DO
   END DO
   WallCoverage(:) = Coverage(:)/SurfMesh%nSides
@@ -1230,7 +1231,7 @@ REAL              :: Surface, Coverage(nSpecies)
     END DO
   ELSE 
     DO i=1,nSpecies
-      WallNumSpec(i) = INT( WallCoverage(i) * Surface / Species(i)%MacroParticleFactor)
+      WallNumSpec(i) = INT(WallCoverage(i) * Surface * SurfPartDens)
     END DO
   END IF
     
@@ -1243,9 +1244,8 @@ SUBROUTINE CalcSurfRates(WallNumSpec,Adsorbrate,Desorbrate)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,      ONLY : Species, PartSpecies, PDM, nSpecies, KeepWallParticles
+USE MOD_Particle_Vars,      ONLY : nSpecies
 USE MOD_DSMC_Vars,          ONLY : Adsorption, DSMC
-USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1256,8 +1256,7 @@ INTEGER, INTENT(IN)             :: WallNumSpec(nSpecies)
 REAL   , INTENT(OUT)            :: Adsorbrate(nSpecies), Desorbrate(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iSpec, iSurfSide, p, q
-REAL              :: Surface, Coverage(nSpecies)
+INTEGER           :: iSpec
 !===================================================================================================================================
 
 IF (DSMC%ReservoirRateStatistic) THEN
