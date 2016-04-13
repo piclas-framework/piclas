@@ -42,9 +42,12 @@ SUBROUTINE DSMC_Update_Wall_Vars()
   IF (DSMC%WallModel.GT.0) THEN
 #if (PP_TimeDiscMethod==42)
     DO iSpec = 1,nSpecies
-      Adsorption%AdsorpInfo(iSpec)%NumOfAds(:) = 0
+      Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
+      Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
+      Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
       IF (KeepWallParticles) THEN
-        Adsorption%AdsorpInfo(iSpec)%NumOfDes(:) = 0
+        Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
+        Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
       END IF
     END DO
 #endif
@@ -111,7 +114,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
   REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
 ! Local variable declaration            
   REAL                             :: maxPart
-  INTEGER                          :: SurfSide
+  INTEGER                          :: SurfSide, iSpec
   REAL                             :: VelXold, VelYold, VelZold
   REAL, PARAMETER                  :: PI=3.14159265358979323846
   REAL                             :: IntersectionPos(1:3)
@@ -129,6 +132,10 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
   TransArray(:) = 0.0
   IntArray(:) = 0.0
   SurfSide = SurfMesh%SideIDToSurfID(GlobSideID)
+  iSpec = PartSpecies(PartID)
+  
+  ! Update wallcollision counter
+  Adsorption%AdsorpInfo(iSpec)%WallCollCount = Adsorption%AdsorpInfo(iSpec)%WallCollCount + 1
   
   ! compute p and q
   ! correction of xi and eta, can only be applied if xi & eta are not used later!
@@ -138,18 +145,15 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
   q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1 
   
   CALL RANDOM_NUMBER(RanNum)
-  IF ( (Adsorption%AdsorpInfo(PartSpecies(PartID))%ProbAds(p,q,SurfSide).GE.RanNum) .AND. &
-       (Adsorption%Coverage(p,q,SurfSide,PartSpecies(PartID)).LT.Adsorption%MaxCoverage(SurfSide,PartSpecies(PartID))) ) THEN  
+  IF ( (Adsorption%ProbAds(p,q,SurfSide,iSpec).GE.RanNum) .AND. &
+       (Adsorption%Coverage(p,q,SurfSide,iSpec).LT.Adsorption%MaxCoverage(SurfSide,iSpec)) ) THEN  
     
     maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
-    Adsorption%Coverage(p,q,SurfSide,PartSpecies(PartID)) = Adsorption%Coverage(p,q,SurfSide,PartSpecies(PartID)) & 
-                                                 + Species(PartSpecies(PartID))%MacroParticleFactor/maxPart
+    Adsorption%Coverage(p,q,SurfSide,iSpec) = Adsorption%Coverage(p,q,SurfSide,iSpec) & 
+                                                 + Species(iSpec)%MacroParticleFactor/maxPart
     adsindex = 1
-!     sum over collisionenergy of adsorbed particles
-    ! Sample Adsorbing atoms
-!     Adsorption%SumAdsorbPart(TriNum,SurfSide,PartSpecies(PartID)) = Adsorption%SumAdsorbPart(TriNum,SurfSide,PartSpecies(PartID)) + 1
 #if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(PartSpecies(PartID))%NumOfAds(SurfSide)=Adsorption%AdsorpInfo(PartSpecies(PartID))%NumOfAds(SurfSide) + 1
+    Adsorption%AdsorpInfo(iSpec)%NumOfAds = Adsorption%AdsorpInfo(iSpec)%NumOfAds + 1
 #endif
     ! allocate particle belonging adsorbing side-index and side-subsurface-indexes
     IF (KeepWallParticles) THEN
@@ -174,7 +178,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
     PartState(PartID,6)  = WallVelo(3)
   
     VeloReal = SQRT(VelXold * VelXold + VelYold * VelYold + VelZold * VelZold)
-    EtraOld = 0.5 * Species(PartSpecies(PartID))%MassIC * VeloReal**2
+    EtraOld = 0.5 * Species(iSpec)%MassIC * VeloReal**2
     EtraWall = 0.0
     EtraNew = 0.0
     
@@ -187,7 +191,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
   
     !---- Internal energy accommodation
     IF (CollisMode.GT.1) THEN
-    IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
+    IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
       !---- Rotational energy accommodation
       CALL RANDOM_NUMBER(RanNum)
       ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
@@ -197,9 +201,9 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
       IntArray(3) = ErotNew
       PartStateIntEn(PartID,2) = ErotNew
       !---- Vibrational energy accommodation
-      IF(SpecDSMC(PartSpecies(PartID))%PolyatomicMol) THEN
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
         EvibNew = 0.0
-        iPolyatMole = SpecDSMC(PartSpecies(PartID))%SpecToPolyArray
+        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
         ALLOCATE(RanNumPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF),VibQuantWallPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
                  VibQuantNewRPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), VibQuantNewPoly(PolyatomMolDSMC(iPolyatMole)%VibDOF), &
                  VibQuantTemp(PolyatomMolDSMC(iPolyatMole)%VibDOF))
@@ -223,29 +227,29 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
             VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
           END IF
           IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
-                      * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(PartSpecies(PartID))%MacroParticleFactor
+                      * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(iSpec)%MacroParticleFactor
           IntArray(5) = IntArray(5) + VibQuantWall * BoltzmannConst &
-                      * SpecDSMC(PartSpecies(PartID))%CharaTVib * Species(PartSpecies(PartID))%MacroParticleFactor
+                      * SpecDSMC(iSpec)%CharaTVib * Species(iSpec)%MacroParticleFactor
         END DO
       ELSE
-        VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib) &
+        VibQuant     = NINT(PartStateIntEn(PartID,1)/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) &
                     - DSMC%GammaQuant)
         CALL RANDOM_NUMBER(RanNum)
-        VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(PartSpecies(PartID))%CharaTVib)
-        DO WHILE (VibQuantWall.GE.SpecDSMC(PartSpecies(PartID))%MaxVibQuant)
+        VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(iSpec)%CharaTVib)
+        DO WHILE (VibQuantWall.GE.SpecDSMC(iSpec)%MaxVibQuant)
           CALL RANDOM_NUMBER(RanNum)
-          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(PartSpecies(PartID))%CharaTVib)
+          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(iSpec)%CharaTVib)
         END DO
         VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
         VibQuantNew = INT(VibQuantNewR)
         CALL RANDOM_NUMBER(RanNum)
         IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-          EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib
+          EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib
         ELSE
-          EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(PartSpecies(PartID))%CharaTVib
+          EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib
         END IF
-        IntArray(4) = VibQuant + DSMC%GammaQuant * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib
-        IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(PartSpecies(PartID))%CharaTVib
+        IntArray(4) = VibQuant + DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
+        IntArray(5) = VibQuantWall * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
       END IF
       IntArray(6) = EvibNew
     END IF
@@ -281,7 +285,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
   CALL CalcDesorbProb()
 #if (PP_TimeDiscMethod==42) 
   DO iSpec = 1,nSpecies
-    Adsorption%AdsorpInfo(iSpec)%NumOfDes(:) = 0
+    Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
   END DO
 #endif
   DO iSpec = 1,nSpecies
@@ -296,7 +300,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !               Dist_AdsorbateNum = INT (PartAds2 / Dist_MPF)        
 !               DO i = 1,Dist_AdsorbateNum
 !                 CALL RANDOM_NUMBER(RanNum)
-!                 IF (Adsorption%AdsorpInfo(iSpec)%ProbDes(p,q,iSurfSide).GT.RanNum) THEN
+!                 IF (Adsorption%ProbDes(p,q,iSurfSide,iSpec).GT.RanNum) THEN
 !                   Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) + 1
 !                 END IF
 !               END DO
@@ -305,7 +309,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
               PartAds = Adsorption%Coverage(p,q,iSurfSide,iSpec) * Adsorption%DensSurfAtoms(iSurfSide) &
                         * SurfMesh%SurfaceArea(p,q,iSurfSide) &
                         / Species(iSpec)%MacroParticleFactor
-              PartDes = PartAds * Adsorption%AdsorpInfo(iSpec)%ProbDes(p,q,iSurfSide)
+              PartDes = PartAds * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
               CALL RANDOM_NUMBER(RanNum)            
               IF (EXP(-PartDes).LE.TINY(PartDes) &
 #if (PP_TimeDiscMethod==42)
@@ -333,8 +337,8 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
               END IF
 !             END IF  
 #if (PP_TimeDiscMethod==42)
-            Adsorption%AdsorpInfo(iSpec)%NumOfDes(iSurfSide) = Adsorption%AdsorpInfo(iSpec)%NumOfDes(iSurfSide) &
-                                                            + Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec)
+            Adsorption%AdsorpInfo(iSpec)%NumOfDes = Adsorption%AdsorpInfo(iSpec)%NumOfDes &
+                                                  + Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec)
 #endif
           END IF
         END DO  
@@ -515,7 +519,7 @@ SUBROUTINE CalcAdsorbProb()
 ! Models for adsorption probability calculation
 !===================================================================================================================================
   USE MOD_Particle_Vars,          ONLY : nSpecies, Species
-  USE MOD_DSMC_Vars,              ONLY : Adsorption
+  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !===================================================================================================================================
   IMPLICIT NONE
@@ -524,8 +528,8 @@ SUBROUTINE CalcAdsorbProb()
   INTEGER                          :: SurfSide, iSpec, p, q
   REAL                             :: Theta_req, Kfactor, S_0
 !=================================================================================================================================== 
-  DO SurfSide=1,SurfMesh%nSides
   DO iSpec=1,nSpecies
+  DO SurfSide=1,SurfMesh%nSides
   DO q = 1,nSurfSample
   DO p = 1,nSurfSample
 !===================================================================================================================================
@@ -538,9 +542,9 @@ SUBROUTINE CalcAdsorbProb()
     S_0 = Adsorption%InitStick(SurfSide,iSpec)
     !-----
     IF (Theta_req.EQ.0) THEN
-      Adsorption%AdsorpInfo(iSpec)%ProbAds(p,q,SurfSide) = 0.
+      Adsorption%ProbAds(p,q,SurfSide,iSpec) = 0.
     ELSE
-      Adsorption%AdsorpInfo(iSpec)%ProbAds(p,q,SurfSide) = S_0 / (1.0 + Kfactor * ( 1.0/Theta_req - 1.0))
+      Adsorption%ProbAds(p,q,SurfSide,iSpec) = S_0 / (1.0 + Kfactor * ( 1.0/Theta_req - 1.0))
     END IF
 !=================================================================================================================================== 
 ! ! transition state theory(TST) and unity bond index-quadratic exponential potential (UBI-QEP)  
@@ -570,10 +574,16 @@ SUBROUTINE CalcAdsorbProb()
 !       Adsorption%AdsorpInfo(iSpec)%ProbDes(p,q,SurfSide) = 0.0
 !     END IF
 !===================================================================================================================================
+    IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+      Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + Adsorption%ProbAds(p,q,SurfSide,iSpec)
+    END IF
   END DO
   END DO
   END DO
   END DO
+IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+  Adsorption%AdsorpInfo(:)%MeanProbAds = Adsorption%AdsorpInfo(:)%MeanProbAds / (nSurfSample * nSurfSample * SurfMesh%nSides)
+END IF
 
 END SUBROUTINE CalcAdsorbProb
 
@@ -584,7 +594,7 @@ SUBROUTINE CalcDesorbProb()
   USE MOD_Globals_Vars,           ONLY : PlanckConst
   USE MOD_Particle_Vars,          ONLY : nSpecies, Species, BoltzmannConst
   USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_DSMC_Vars,              ONLY : Adsorption
+  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
   USE MOD_TimeDisc_Vars,          ONLY : dt
 #if (PP_TimeDiscMethod==42)  
@@ -594,14 +604,14 @@ SUBROUTINE CalcDesorbProb()
    IMPLICIT NONE
 !===================================================================================================================================
 ! Local variable declaration
-   INTEGER                          :: BC_Side, iSpec, globSide, p, q
+   INTEGER                          :: SurfSide, iSpec, globSide, p, q
    REAL                             :: Theta, E_des, nu_des, rate, WallTemp
    REAL                             :: Q_0A, D_A, sigma, Heat, m
    INTEGER                          :: n
    REAL                             :: VarPartitionFuncAct, VarPartitionFuncWall
 !===================================================================================================================================
-DO BC_Side=1,SurfMesh%nSides
-  globSide = Adsorption%SurfSideToGlobSideMap(BC_Side)
+DO SurfSide=1,SurfMesh%nSides
+  globSide = Adsorption%SurfSideToGlobSideMap(SurfSide)
 ! special TPD (temperature programmed desorption) temperature adjustment routine    
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
@@ -619,7 +629,7 @@ DO BC_Side=1,SurfMesh%nSides
   DO p = 1,nSurfSample
 !===================================================================================================================================
 ! transition state theory(TST) and unity bond index-quadratic exponential potential (UBI-QEP)  
-    Theta = Adsorption%Coverage(p,q,BC_Side,iSpec)  
+    Theta = Adsorption%Coverage(p,q,SurfSide,iSpec)  
     IF (Theta.GT.0) THEN
       Q_0A = 26312.
       D_A  = 59870.
@@ -634,37 +644,43 @@ DO BC_Side=1,SurfMesh%nSides
 !         Heat = (Q_0A**2)/(Q_0A/n+D_A) * sigma
       END IF
       
-      CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct)
+      CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSide))
       CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
       
       E_des = Heat
       nu_des = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall)
       rate = nu_des * exp(-E_des/WallTemp)
-      Adsorption%AdsorpInfo(iSpec)%ProbDes(p,q,BC_Side) = rate * dt
+      Adsorption%ProbDes(p,q,SurfSide,iSpec) = rate * dt
     ELSE
-      Adsorption%AdsorpInfo(iSpec)%ProbDes(p,q,BC_Side) = 0.0
+      Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.0
     END IF
 !===================================================================================================================================
 ! absolute rate theory / lattice gas model (QCA-quasi-chemical-approximation)
 !===================================================================================================================================
 ! Polanyi-Wigner-eq. from Kolasinski's Surface Science (book) 
-!       Theta = Adsorption%Coverage(p,q,BC_Side,iSpec)! / Adsorption%MaxCoverage(BC_Side,iSpec)
+!       Theta = Adsorption%Coverage(p,q,SurfSide,iSpec)! / Adsorption%MaxCoverage(SurfSide,iSpec)
 !       !----- kann später auf von Wandtemperatur/Translationsenergie abhängige Werte erweitert werden          
-!       E_des = Adsorption%DesorbEnergy(BC_Side,iSpec) + Adsorption%Intensification(BC_Side,iSpec) * Theta
-!       nu_des = 10**(Adsorption%Nu_a(BC_Side,iSpec) + Adsorption%Nu_b(BC_Side,iSpec) * Theta)/10000
+!       E_des = Adsorption%DesorbEnergy(SurfSide,iSpec) + Adsorption%Intensification(SurfSide,iSpec) * Theta
+!       nu_des = 10**(Adsorption%Nu_a(SurfSide,iSpec) + Adsorption%Nu_b(SurfSide,iSpec) * Theta)/10000
 !       !-----
-!       rate = nu_des *(Adsorption%DensSurfAtoms(BC_Side)**(Adsorption%Adsorbexp(BC_Side,iSpec)-1)) &
-!                     * (Theta**Adsorption%Adsorbexp(BC_Side,iSpec)) * exp(-E_des/WallTemp)
+!       rate = nu_des *(Adsorption%DensSurfAtoms(SurfSide)**(Adsorption%Adsorbexp(SurfSide,iSpec)-1)) &
+!                     * (Theta**Adsorption%Adsorbexp(SurfSide,iSpec)) * exp(-E_des/WallTemp)
 !       IF (Theta.GT.0) THEN
-!         Adsorption%AdsorpInfo(iSpec)%ProbDes(p,q,BC_Side) = rate * dt / Theta
+!         Adsorption%ProbDes(p,q,SurfSide,iSpec) = rate * dt
 !       ELSE
-!         Adsorption%AdsorpInfo(iSpec)%ProbDes(p,q,BC_Side) = 0.0
+!         Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.0
 !       END IF
 !===================================================================================================================================
+    IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+      Adsorption%AdsorpInfo(iSpec)%MeanProbDes = Adsorption%AdsorpInfo(iSpec)%MeanProbDes + Adsorption%ProbAds(p,q,SurfSide,iSpec)
+    END IF
   END DO
   END DO
   END DO
 END DO
+IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+  Adsorption%AdsorpInfo(:)%MeanProbDes = Adsorption%AdsorpInfo(:)%MeanProbDes / (nSurfSample * nSurfSample * SurfMesh%nSides)
+END IF
 
 END SUBROUTINE CalcDesorbProb
 
@@ -721,7 +737,7 @@ END SUBROUTINE CalcDesorbProb
 ! 
 ! END SUBROUTINE PartitionFuncGas
 
-SUBROUTINE PartitionFuncAct(iSpec, Temp, VarPartitionFuncAct)
+SUBROUTINE PartitionFuncAct(iSpec, Temp, VarPartitionFuncAct, Surfdensity)
 !===================================================================================================================================
 ! Partitionfunction of activated complex
 !===================================================================================================================================
@@ -735,6 +751,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iSpec
 REAL, INTENT(IN)              :: Temp
+REAL, INTENT(IN)              :: Surfdensity
 !===================================================================================================================================
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: VarPartitionFuncAct
@@ -744,7 +761,7 @@ REAL, PARAMETER               :: Pi=3.14159265358979323846_8
 INTEGER                       :: iPolyatMole, iDOF
 REAL                          :: Qtra, Qrot, Qvib, Qelec
 !===================================================================================================================================
-  Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))*1.5E-19
+  Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/Surfdensity
   IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray

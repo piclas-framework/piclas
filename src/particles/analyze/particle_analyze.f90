@@ -211,7 +211,7 @@ SUBROUTINE AnalyzeParticles(Time)
   INTEGER             :: ii, iunit, iCase, iTvib,jSpec, WallNumSpec(nSpecies)
   CHARACTER(LEN=64)   :: DebugElectronicStateFilename
   CHARACTER(LEN=350)  :: hilf
-  REAL                :: WallCoverage(nSpecies)
+  REAL                :: WallCoverage(nSpecies), Adsorptionrate(nSpecies), Desorptionrate(nSpecies)
 #endif
   REAL                :: PartVtrans(nSpecies,4), PartVtherm(nSpecies,4)
   INTEGER             :: dir
@@ -739,7 +739,10 @@ tLBStart = LOCALTIME() ! LB Time Start
   IF(CalcReacRates) THEN
     IF ((CollisMode.EQ.3).AND.(iter.GT.0)) CALL ReacRates(RRate, NumSpec)
   END IF
-IF (DSMC%WallModel.GE.1) CALL GetWallNumSpec(WallNumSpec,WallCoverage)
+IF (DSMC%WallModel.GE.1) THEN
+  CALL GetWallNumSpec(WallNumSpec,WallCoverage)
+  CALL CalcSurfRates(WallNumSpec,Adsorptionrate,Desorptionrate)
+END IF
 IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 ! currently, calculation of internal electronic energy not implemented !
 #ifdef MPI
@@ -934,19 +937,19 @@ IF (PartMPI%MPIROOT) THEN
 !         END IF 
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%ProbAds(1,1,1)
+        WRITE(unit_index,104,ADVANCE='NO') Adsorptionrate(iSpec)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%ProbDes(1,1,1)
+        WRITE(unit_index,104,ADVANCE='NO') Desorptionrate(iSpec)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfAds(1)
+        WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfAds
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfDes(1)
+        WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfDes
       END DO
       WRITE(unit_index,'(A1)',ADVANCE='NO') ','
       WRITE(unit_index,104,ADVANCE='NO') Adsorption%TPD_Temp
@@ -1217,8 +1220,7 @@ REAL              :: Surface, Coverage(nSpecies)
     END DO
   END DO
   END DO
-  Coverage(:) = Coverage(:)/SurfMesh%nSides
-  WallCoverage(:) = Coverage(:)
+  WallCoverage(:) = Coverage(:)/SurfMesh%nSides
   
   IF (KeepWallParticles) THEN
     DO i=1,PDM%ParticleVecLength
@@ -1228,11 +1230,49 @@ REAL              :: Surface, Coverage(nSpecies)
     END DO
   ELSE 
     DO i=1,nSpecies
-      WallNumSpec(i) = INT( Coverage(i) * Surface / Species(i)%MacroParticleFactor)
+      WallNumSpec(i) = INT( WallCoverage(i) * Surface / Species(i)%MacroParticleFactor)
     END DO
   END IF
     
 END SUBROUTINE GetWallNumSpec
+
+SUBROUTINE CalcSurfRates(WallNumSpec,Adsorbrate,Desorbrate)
+!===================================================================================================================================
+! Calculate number of wallparticles for all species
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars,      ONLY : Species, PartSpecies, PDM, nSpecies, KeepWallParticles
+USE MOD_DSMC_Vars,          ONLY : Adsorption, DSMC
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(IN)             :: WallNumSpec(nSpecies)
+REAL   , INTENT(OUT)            :: Adsorbrate(nSpecies), Desorbrate(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iSpec, iSurfSide, p, q
+REAL              :: Surface, Coverage(nSpecies)
+!===================================================================================================================================
+
+IF (DSMC%ReservoirRateStatistic) THEN
+  DO iSpec = 1,nSpecies
+    Adsorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfAds / Adsorption%AdsorpInfo(iSpec)%WallCollCount
+    Desorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes / WallNumSpec(iSpec)
+  END DO
+ELSE
+  DO iSpec = 1,nSpecies
+    Adsorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds
+    Desorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
+  END DO
+END IF
+
+END SUBROUTINE CalcSurfRates
 #endif
 
 SUBROUTINE CalcParticleBalance()

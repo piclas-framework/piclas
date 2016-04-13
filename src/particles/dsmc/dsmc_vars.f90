@@ -233,28 +233,10 @@ TYPE tAdsorptionInfo
 #if (PP_TimeDiscMethod==42)
   REAL                                   :: MeanProbAds             ! mean adsorption probability
   REAL                                   :: MeanProbDes             ! mean adsorption probability
-  INTEGER , ALLOCATABLE                  :: NumOfAds(:)             ! Number of Adsorptions on surface n
-  INTEGER , ALLOCATABLE                  :: NumOfDes(:)             ! Number of Desorptions on Surface n
+  INTEGER                                :: WallCollCount           ! counter of wallcollisions
+  INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
+  INTEGER                                :: NumOfDes                ! Number of Desorptions on Surfaces
 #endif
-END TYPE
-
-TYPE tAdsorptionConstants
-  ! parameters for Kisliuk and Polanyi Wigner model
-  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface i with species n
-  REAL    , ALLOCATABLE                  :: InitStick(:,:)          ! initial sticking coefficient (S_0) for surface n
-  REAL    , ALLOCATABLE                  :: PrefactorStick(:)       ! prefactor of sticking coefficient for surface n
-  INTEGER , ALLOCATABLE                  :: Adsorbexp(:)            ! Adsorption exponent for surface n
-  REAL    , ALLOCATABLE                  :: Nu_a(:)                 ! Nu exponent a for surface n
-  REAL    , ALLOCATABLE                  :: Nu_b(:)                 ! Nu exponent b for surface n
-  REAL    , ALLOCATABLE                  :: DesorbEnergy(:)         ! Desorption energy (K) for surface n
-  REAL    , ALLOCATABLE                  :: Intensification(:)      ! Intensification energy (K) for surface n
-  ! parameters for UBI-QEP model
-  REAL    , ALLOCATABLE                  :: HeatOfAds(:)            ! heat of adsorption (K) on clear surfaces for surface n 
-  REAL    , ALLOCATABLE                  :: EDissBond(:,:)          ! Bond dissociation energy (K) for diss into resulting species
-                                                                    ! (nspecies,nspecies)
-  INTEGER , ALLOCATABLE                  :: DissResultsSpecNum      ! Number of possible dissociation results
-  INTEGER , ALLOCATABLE                  :: DissResultsSpec(:,:)    ! (2,DissResultsSpecNum)
-                                                                    
 END TYPE
 
 TYPE tAdsorption
@@ -276,8 +258,23 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
   INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID
                                                                     ! needed to calculate BC temperature for adsorption
+  ! parameters for Kisliuk and Polanyi Wigner model
+  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface i with species n
+  REAL    , ALLOCATABLE                  :: InitStick(:,:)          ! initial sticking coefficient (S_0) for surface n
+  REAL    , ALLOCATABLE                  :: PrefactorStick(:,:)     ! prefactor of sticking coefficient for surface n
+  INTEGER , ALLOCATABLE                  :: Adsorbexp(:,:)          ! Adsorption exponent for surface n
+  REAL    , ALLOCATABLE                  :: Nu_a(:,:)               ! Nu exponent a for surface n
+  REAL    , ALLOCATABLE                  :: Nu_b(:,:)               ! Nu exponent b for surface n
+  REAL    , ALLOCATABLE                  :: DesorbEnergy(:,:)       ! Desorption energy (K) for surface n
+  REAL    , ALLOCATABLE                  :: Intensification(:,:)    ! Intensification energy (K) for surface n
+  ! parameters for UBI-QEP model
+  REAL    , ALLOCATABLE                  :: HeatOfAds(:,:)          ! heat of adsorption (K) on clear surfaces for surface n 
+  REAL    , ALLOCATABLE                  :: EDissBond(:,:,:)        ! Bond dissociation energy (K) for diss into resulting species
+                                                                    ! (nSpecies,nspecies,nspecies)
+  INTEGER , ALLOCATABLE                  :: DissResultsSpecNum(:)   ! Number of possible dissociation results (nSpecies)
+  INTEGER , ALLOCATABLE                  :: DissResultsSpec(:,:,:)  ! (2,DissResultsSpecNum,nSpecies)
+  
   TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
-  Type(tAdsorptionConstants),ALLOCATABLE :: Constants(:)            ! Modelconstants for adsorption (nSpecies)
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 
