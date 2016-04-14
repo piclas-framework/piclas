@@ -61,7 +61,9 @@ IF (KeepWallParticles) THEN
   ALLOCATE(PEM%wNumber(1:nElems))
 END IF
 ! allocate info and constants
+#if (PP_TimeDiscMethod==42)
 ALLOCATE( Adsorption%AdsorpInfo(1:nSpecies))
+#endif
 ALLOCATE( Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),& 
           Adsorption%PrefactorStick(1:SurfMesh%nSides,1:nSpecies),& 
           Adsorption%Adsorbexp(1:SurfMesh%nSides,1:nSpecies),& 

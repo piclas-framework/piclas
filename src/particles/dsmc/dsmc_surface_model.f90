@@ -133,10 +133,10 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
   IntArray(:) = 0.0
   SurfSide = SurfMesh%SideIDToSurfID(GlobSideID)
   iSpec = PartSpecies(PartID)
-  
+#if (PP_TimeDiscMethod==42)  
   ! Update wallcollision counter
   Adsorption%AdsorpInfo(iSpec)%WallCollCount = Adsorption%AdsorpInfo(iSpec)%WallCollCount + 1
-  
+#endif  
   ! compute p and q
   ! correction of xi and eta, can only be applied if xi & eta are not used later!
   Xitild =MIN(MAX(-1.,xi ),0.99)
@@ -282,13 +282,12 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
    INTEGER                          :: iSurfSide, iSpec, p, q, NPois, WallPartNum
    REAL                             :: PartAds, PartDes, RanNum, Tpois
 !===================================================================================================================================
+#if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(:)%MeanProbDes = 0.
-  CALL CalcDesorbProb()
-#if (PP_TimeDiscMethod==42) 
-  DO iSpec = 1,nSpecies
-    Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
-  END DO
+  Adsorption%AdsorpInfo(:)%NumOfDes = 0
 #endif
+  CALL CalcDesorbProb()
+  
   DO iSpec = 1,nSpecies
     DO iSurfSide = 1,SurfMesh%nSides
       DO q = 1,nSurfSample
@@ -586,17 +585,20 @@ SUBROUTINE CalcAdsorbProb()
 !       Adsorption%AdsorpInfo(iSpec)%ProbDes(p,q,SurfSide) = 0.0
 !     END IF
 !===================================================================================================================================
+#if (PP_TimeDiscMethod==42)
     IF (.NOT.DSMC%ReservoirRateStatistic) THEN
       Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + Adsorption%ProbAds(p,q,SurfSide,iSpec)
     END IF
+#endif
   END DO
   END DO
   END DO
   END DO
+#if (PP_TimeDiscMethod==42)
 IF (.NOT.DSMC%ReservoirRateStatistic) THEN
   Adsorption%AdsorpInfo(:)%MeanProbAds = Adsorption%AdsorpInfo(:)%MeanProbAds / (nSurfSample * nSurfSample * SurfMesh%nSides)
 END IF
-
+#endif
 END SUBROUTINE CalcAdsorbProb
 
 SUBROUTINE CalcDesorbProb()
@@ -683,17 +685,20 @@ DO SurfSide=1,SurfMesh%nSides
 !         Adsorption%ProbDes(p,q,SurfSide,iSpec) = 0.0
 !       END IF
 !===================================================================================================================================
+#if (PP_TimeDiscMethod==42)
     IF (.NOT.DSMC%ReservoirRateStatistic) THEN
       Adsorption%AdsorpInfo(iSpec)%MeanProbDes = Adsorption%AdsorpInfo(iSpec)%MeanProbDes + Adsorption%ProbDes(p,q,SurfSide,iSpec)
     END IF
+#endif
   END DO
   END DO
   END DO
 END DO
+#if (PP_TimeDiscMethod==42)
 IF (.NOT.DSMC%ReservoirRateStatistic) THEN
   Adsorption%AdsorpInfo(:)%MeanProbDes = Adsorption%AdsorpInfo(:)%MeanProbDes / (nSurfSample * nSurfSample * SurfMesh%nSides)
 END IF
-
+#endif
 END SUBROUTINE CalcDesorbProb
 
 ! SUBROUTINE PartitionFuncGas(iSpec, Temp, VarPartitionFuncGas)

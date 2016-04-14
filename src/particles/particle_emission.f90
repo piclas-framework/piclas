@@ -3375,7 +3375,7 @@ USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh
+USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh,nSurfSample
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
 #endif

@@ -80,13 +80,13 @@ INTEGER                                :: iSample,jSample
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
 REAL                                   :: tmpI1,tmpJ1,tmpI2,tmpJ2,XiOut(1:2),E,F,G,D,tmp1,area
-!CHARACTER(2)                :: hilf
+CHARACTER(2)                :: hilf
 !===================================================================================================================================
  
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
-nSurfSample=nGeo
-!WRITE(UNIT=hilf,FMT='(I2)') NGeo
-!nSurfSample = GETINT('DSMC-nSurfSample',hilf)
+nSurfSample = NGeo
+WRITE(UNIT=hilf,FMT='(I2)') NGeo
+nSurfSample = GETINT('DSMC-nSurfSample',hilf)
  
 ALLOCATE(XiEQ_SurfSample(0:nSurfSample))
 

@@ -273,6 +273,7 @@ TYPE tAdsorption
                                                                     ! (nSpecies,nspecies,nspecies)
   INTEGER , ALLOCATABLE                  :: DissResultsSpecNum(:)   ! Number of possible dissociation results (nSpecies)
   INTEGER , ALLOCATABLE                  :: DissResultsSpec(:,:,:)  ! (2,DissResultsSpecNum,nSpecies)
+  INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
   
   TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 END TYPE
@@ -430,6 +431,8 @@ TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
 
 REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)          ! variables,p,q,sides
 REAL,ALLOCATABLE                  :: MacroSurfaceCounter(:,:,:,:)   ! variables,p,q,sides
+
+! some variables redefined
 !TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall    
 !  REAL                           :: Heatflux                ! 
 !  REAL                           :: Force(3)                ! x, y, z direction
@@ -494,9 +497,10 @@ REAL, ALLOCATABLE                 :: MK_Trend(:)    ! Normalized Trend Parameter
 REAL, ALLOCATABLE                 :: HValue(:)                  ! Entropy Parameter (Boltzmann's H-Theorem) (number of Elements)
 !-----------------------------------------------convergence criteria-------------------------------------------------
 
-INTEGER                           :: nSurfSample             ! polynomial degree of surface supersampling
-REAL,ALLOCATABLE                  :: XiEq_Surf(:)            ! position of equidistant interpolation points on surface
-REAL                              :: deltaXiEQ_Surf              ! delta of equidistant surface sampling
+! already defined in particle_boundary_vars.f90
+! INTEGER                           :: nSurfSample             ! polynomial degree of surface supersampling
+! REAL,ALLOCATABLE                  :: XiEq_Surf(:)            ! position of equidistant interpolation points on surface
+! REAL                              :: deltaXiEQ_Surf              ! delta of equidistant surface sampling
 
 TYPE tSampleCartmesh_VolWe
   REAL                                  :: BGMdeltas(3)       ! Backgroundmesh size in x,y,z
