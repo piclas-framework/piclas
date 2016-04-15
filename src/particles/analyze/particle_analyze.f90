@@ -505,8 +505,10 @@ SUBROUTINE AnalyzeParticles(Time)
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Ndes', iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' WallTemp', iSpec,' '
+          IF (Adsorption%TPD) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' WallTemp', iSpec,' '
+          END IF
           OutputCounter = OutputCounter + 1
         END IF
         IF(CalcCollRates) THEN
@@ -951,8 +953,10 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfDes
       END DO
-      WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-      WRITE(unit_index,104,ADVANCE='NO') Adsorption%TPD_Temp
+      IF (Adsorption%TPD) THEN
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,104,ADVANCE='NO') Adsorption%TPD_Temp
+      END IF
     END IF
     IF(CalcCollRates) THEN
       DO iCase=1, CollInf%NumCase +1 
