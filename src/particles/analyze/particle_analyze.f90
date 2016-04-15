@@ -204,7 +204,7 @@ SUBROUTINE AnalyzeParticles(Time)
 #ifdef MPI
   REAL                :: RECBR(nSpecies),RECBR2(nEkin),RECBR1
   INTEGER             :: RECBIM(nSpecies)
-  REAL                :: sumIntTemp(nSpecies+1),sumIntEn(nSpecies),sumTempTotal(nSpecies+1),sumMeanCollProb
+  REAL                :: sumIntTemp(nSpecies),sumIntEn(nSpecies),sumTempTotal(nSpecies+1),sumMeanCollProb
 #endif /*MPI*/
   REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
@@ -750,19 +750,19 @@ IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 #ifdef MPI
 ! average over all cells
   IF (CollisMode.GT.1) THEN
-    CALL MPI_REDUCE(IntTemp(:,1), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-    IntTemp(:,1) = sumIntTemp / PartMPI%nProcs
-    CALL MPI_REDUCE(IntTemp(:,2), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0,PartMPI%COMM, IERROR)
-    IntTemp(:,2) = sumIntTemp / PartMPI%nProcs
-    CALL MPI_REDUCE(IntEn(:,1) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-    IntEn(:,1) = sumIntEn 
-    CALL MPI_REDUCE(IntEn(:,2) , sumIntEn   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-    IntEn(:,2) = sumIntEn 
+    CALL MPI_REDUCE(IntTemp(:,1), sumIntTemp(:) , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+    IntTemp(:,1) = sumIntTemp(:) / PartMPI%nProcs
+    CALL MPI_REDUCE(IntTemp(:,2), sumIntTemp(:) , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0,PartMPI%COMM, IERROR)
+    IntTemp(:,2) = sumIntTemp(:) / PartMPI%nProcs
+    CALL MPI_REDUCE(IntEn(:,1) , sumIntEn(:)   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+    IntEn(:,1) = sumIntEn(:)
+    CALL MPI_REDUCE(IntEn(:,2) , sumIntEn(:)   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+    IntEn(:,2) = sumIntEn(:) 
     IF ( DSMC%ElectronicState ) THEN
-      CALL MPI_REDUCE(IntTemp(:,3), sumIntTemp , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      IntTemp(:,3) = sumIntTemp / PartMPI%nProcs
-      CALL MPI_REDUCE(IntEN(:,3), sumIntEn , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      IntEn(:,3) = sumIntEn
+      CALL MPI_REDUCE(IntTemp(:,3), sumIntTemp(:) , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+      IntTemp(:,3) = sumIntTemp(:) / PartMPI%nProcs
+      CALL MPI_REDUCE(IntEN(:,3), sumIntEn(:) , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
+      IntEn(:,3) = sumIntEn(:)
     END IF
   END IF 
 #endif /*MPI*/
