@@ -1221,7 +1221,7 @@ REAL              :: Surface, Coverage(nSpecies), SurfPartDens
     SurfPartDens = SurfPartDens + Adsorption%DensSurfAtoms(iSurfSide)/Species(i)%MacroParticleFactor
   END DO
   END DO
-  WallCoverage(:) = Coverage(:)/SurfMesh%nSides
+  WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
   
   IF (KeepWallParticles) THEN
     DO i=1,PDM%ParticleVecLength

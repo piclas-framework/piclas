@@ -632,12 +632,12 @@ DO SurfSide=1,SurfMesh%nSides
     WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide))) + (Adsorption%TPD_beta * iter * dt)
     Adsorption%TPD_Temp = Walltemp
   ELSE
-#else
     WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
-#endif
-#if (PP_TimeDiscMethod==42)
   END IF
+#else
+  WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
 #endif
+
   DO iSpec = 1,nSpecies 
   DO q = 1,nSurfSample
   DO p = 1,nSurfSample

@@ -114,7 +114,7 @@ CASE(2) !PartBound%ReflectiveBC)
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
     CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
   END IF
-  IF (.NOT.PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
+  IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide which WallModel is used
     IF (useDSMC) THEN
       WallModeltype = DSMC%WallModel
@@ -278,7 +278,7 @@ CASE(2) !PartBound%ReflectiveBC)
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
     CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
   END IF
-  IF (.NOT.PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
+  IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide which WallModel is used
     IF (useDSMC) THEN
       WallModeltype = DSMC%WallModel
@@ -310,7 +310,8 @@ CASE(2) !PartBound%ReflectiveBC)
           alpha=-1.
         END IF
       ELSE IF (adsorbindex.EQ.0) THEN
-!--- Inelastic Reflection (not diffuse)               
+!--- Inelastic Reflection (not diffuse)  
+        BCSideID=PartBCSideList(SideID)
         CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'

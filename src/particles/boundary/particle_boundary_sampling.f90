@@ -57,9 +57,10 @@ USE MOD_ReadInTools             ,ONLY:GETINT
 USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides
 USE MOD_Particle_Vars           ,ONLY:nSpecies
+USE MOD_DSMC_Vars               ,ONLY:useDSMC,DSMC
 USE MOD_Basis                   ,ONLY:LegendreGaussNodesAndWeights
 USE MOD_Particle_Surfaces       ,ONLY:EvaluateBezierPolynomialAndGradient
-USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars  ,ONLY:BezierControlPoints3D,BezierSampleN
 USE MOD_Particle_Mesh_Vars      ,ONLY:PartBCSideList
 USE MOD_Particle_Tracking_Vars  ,ONLY:DoRefMapping
 #ifdef MPI
@@ -84,9 +85,21 @@ CHARACTER(2)                :: hilf
 !===================================================================================================================================
  
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
-nSurfSample = NGeo
 WRITE(UNIT=hilf,FMT='(I2)') NGeo
 nSurfSample = GETINT('DSMC-nSurfSample',hilf)
+! IF (NGeo.GT.nSurfSample) THEN
+!   nSurfSample = NGeo
+! END IF
+IF (useDSMC) THEN
+  IF (DSMC%WallModel.GT.0) THEN
+    IF (nSurfSample.NE.BezierSampleN) THEN
+!       nSurfSample = BezierSampleN
+    CALL abort(&
+        __STAMP__&
+        ,'Error: nSurfSample not equal to BezierSampleN. Problem for Desorption + Surfflux')
+    END IF
+  END IF
+END IF
  
 ALLOCATE(XiEQ_SurfSample(0:nSurfSample))
 
