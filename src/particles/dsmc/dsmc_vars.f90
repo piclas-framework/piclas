@@ -166,7 +166,7 @@ TYPE tDSMC
   INTEGER                       :: WallModel                ! Model for wall interaction
                                                             ! 0 perfect/diffusive reflection
                                                             ! 1 adsorption (Kisluik) / desorption (Polanyi Wigner)
-                                                            ! 2 adsorption/desorption + chemical interaction
+                                                            ! 2 adsorption/desorption + chemical interaction (UBI-QEP)
   REAL                          :: RotRelaxProb              ! Model for calculation of rotational relaxation probability, ini_1
                                                             !    0-1: constant probability  (0: no relaxation)
                                                             !    2: Boyd's model
@@ -230,26 +230,36 @@ TYPE(tPairData), ALLOCATABLE    :: Coll_pData(:)            ! Data of collision 
 
 ! defintion of Adsorbation variables
 TYPE tAdsorptionInfo
-  REAL    , ALLOCATABLE                  :: ProbAds(:)              ! Adsorption probability of surface n
-  REAL    , ALLOCATABLE                  :: ProbDes(:)              ! Desorption probability of surface n
 #if (PP_TimeDiscMethod==42)
-  INTEGER , ALLOCATABLE                  :: NumOfAds(:)             ! Number of Adsorptions on surface n
-  INTEGER , ALLOCATABLE                  :: NumOfDes(:)             ! Number of Desorptions on Surface n
+  REAL                                   :: MeanProbAds             ! mean adsorption probability
+  REAL                                   :: MeanProbDes             ! mean adsorption probability
+  INTEGER                                :: WallCollCount           ! counter of wallcollisions
+  INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
+  INTEGER                                :: NumOfDes                ! Number of Desorptions on Surfaces
 #endif
 END TYPE
 
 TYPE tAdsorption
-  LOGICAL                                :: KeepParticles           ! Flag for deciding of keeping particles
 #if (PP_TimeDiscMethod==42)
   LOGICAL                                :: TPD                     ! Flag for TPD spectrum calculation
   REAL                                   :: TPD_beta                ! temperature slope for TPD [K/s]
   REAL                                   :: TPD_Temp                ! Walltemperature for TPD [K]
 #endif
-  INTEGER , ALLOCATABLE                  :: SumDesorbPart(:,:,:)    ! Number of Particles of Species iSpec desorbing from Surface 
-                                                                    ! (nTriNum,nSpecies,nSurfSide)
-  INTEGER , ALLOCATABLE                  :: SumAdsorbPart(:,:,:)    
-  REAL    , ALLOCATABLE                  :: Coverage(:,:)           ! coverage of surface with surface n
-  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface with surface n
+  REAL    , ALLOCATABLE                  :: Coverage(:,:,:,:)       ! coverage of surface i with species n
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  REAL    , ALLOCATABLE                  :: ProbAds(:,:,:,:)        ! Adsorption probability of surface n
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  REAL    , ALLOCATABLE                  :: ProbDes(:,:,:,:)        ! Desorption probability of surface n
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  INTEGER , ALLOCATABLE                  :: SumDesorbPart(:,:,:,:)  ! Number of Particles of Species iSpec desorbing from Surface
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  INTEGER , ALLOCATABLE                  :: SumAdsorbPart(:,:,:,:)  ! Number of Particles of Species iSpec adsorbing to Surface
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
+  INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID
+                                                                    ! needed to calculate BC temperature for adsorption
+  ! parameters for Kisliuk and Polanyi Wigner model
+  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)        ! maximum coverage of surface i with species n
   REAL    , ALLOCATABLE                  :: InitStick(:,:)          ! initial sticking coefficient (S_0) for surface n
   REAL    , ALLOCATABLE                  :: PrefactorStick(:,:)     ! prefactor of sticking coefficient for surface n
   INTEGER , ALLOCATABLE                  :: Adsorbexp(:,:)          ! Adsorption exponent for surface n
@@ -257,10 +267,15 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: Nu_b(:,:)               ! Nu exponent b for surface n
   REAL    , ALLOCATABLE                  :: DesorbEnergy(:,:)       ! Desorption energy (K) for surface n
   REAL    , ALLOCATABLE                  :: Intensification(:,:)    ! Intensification energy (K) for surface n
-  REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
-  INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID 
-                                                                    ! needed to calculate BC temperature for adsorption
-  TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for specie n (nSpecies)
+  ! parameters for UBI-QEP model
+  REAL    , ALLOCATABLE                  :: HeatOfAds(:,:)          ! heat of adsorption (K) on clear surfaces for surface n 
+  REAL    , ALLOCATABLE                  :: EDissBond(:,:,:)        ! Bond dissociation energy (K) for diss into resulting species
+                                                                    ! (nSpecies,nspecies,nspecies)
+  INTEGER , ALLOCATABLE                  :: DissResultsSpecNum(:)   ! Number of possible dissociation results (nSpecies)
+  INTEGER , ALLOCATABLE                  :: DissResultsSpec(:,:,:)  ! (2,DissResultsSpecNum,nSpecies)
+  INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
+  
+  TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 
@@ -388,19 +403,6 @@ TYPE tTreeNode
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
-
-TYPE tSurfaceMesh
-  INTEGER                         :: nSurfaceNode           ! Number of Nodes on Surface (reflective)
-  INTEGER                         :: nSurfaceBCSides        ! Number of Sides on Surface (reflective)
-  INTEGER                         :: nHaloSurfaceBCSides    ! Number of Halo Sides on Surface (reflective)
-  INTEGER, ALLOCATABLE            :: HaloSideIDToSurfSideMap(:)   ! Mapping from glob Side ID to Surface Side ID
-  INTEGER, ALLOCATABLE            :: BCSurfNodes(:)         ! Nodes on Surface (reflective) (nSurfaceNode)
-  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)   ! Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
-  INTEGER, ALLOCATABLE            :: GlobSideToSurfSideMap(:)     ! Mapping from glob Side ID to Surface Side ID
-  REAL, ALLOCATABLE               :: SurfaceArea(:)         ! Area of Surface 
-END TYPE
-
-TYPE (tSurfaceMesh)               :: SurfMesh
  
 REAL                              :: realtime               ! realtime of simulation
 
@@ -429,6 +431,8 @@ TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
 
 REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)          ! variables,p,q,sides
 REAL,ALLOCATABLE                  :: MacroSurfaceCounter(:,:,:,:)   ! variables,p,q,sides
+
+! some variables redefined
 !TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall    
 !  REAL                           :: Heatflux                ! 
 !  REAL                           :: Force(3)                ! x, y, z direction
@@ -493,9 +497,10 @@ REAL, ALLOCATABLE                 :: MK_Trend(:)    ! Normalized Trend Parameter
 REAL, ALLOCATABLE                 :: HValue(:)                  ! Entropy Parameter (Boltzmann's H-Theorem) (number of Elements)
 !-----------------------------------------------convergence criteria-------------------------------------------------
 
-INTEGER                           :: nSurfSample             ! polynomial degree of surface supersampling
-REAL,ALLOCATABLE                  :: XiEq_Surf(:)            ! position of equidistant interpolation points on surface
-REAL                              :: deltaXiEQ_Surf              ! delta of equidistant surface sampling
+! already defined in particle_boundary_vars.f90
+! INTEGER                           :: nSurfSample             ! polynomial degree of surface supersampling
+! REAL,ALLOCATABLE                  :: XiEq_Surf(:)            ! position of equidistant interpolation points on surface
+! REAL                              :: deltaXiEQ_Surf              ! delta of equidistant surface sampling
 
 TYPE tSampleCartmesh_VolWe
   REAL                                  :: BGMdeltas(3)       ! Backgroundmesh size in x,y,z
