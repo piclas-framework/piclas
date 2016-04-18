@@ -673,7 +673,7 @@ FileString=TRIM(FileName)//'.h5'
 
 IF(SurfCOMM%MPIRoot)THEN
 #ifdef MPI
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.)
+  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.)
 #else
   CALL OpenDataFile(FileString,create=.TRUE.)
 #endif
@@ -706,11 +706,11 @@ CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
 #endif /*MPI*/
 
 #ifdef MPI
-  IF(SurfCOMM%nProcs.GT.1)THEN
+!   IF(SurfCOMM%nProcs.GT.1)THEN
     CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,communicatorOpt=SurfCOMM%COMM)
-  ELSE
-    CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.)
-  END IF
+!   ELSE
+!     CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.)
+!   END IF
 #else
   CALL OpenDataFile(FileString,create=.FALSE.)
 #endif
@@ -725,7 +725,7 @@ CALL CloseDataFile()
 IF(SurfCOMM%MPIROOT)THEN
   tend=LOCALTIME()
   WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',tend-tstart,'s]'
-  WRITE(*,*) ' DONE.'
+!   WRITE(*,*) ' DONE.'
 END IF
 END SUBROUTINE WriteSurfSampleToHDF5
 
