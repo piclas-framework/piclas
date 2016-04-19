@@ -106,11 +106,15 @@ DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
             ElemID = GEO%FIBGM(iBGM,jBGM,kBGM)%Element(iElem)
             DO iLocSide=1,6
               SideID=ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-              IF(SideID.GT.(nInnerSides+nBCSides).AND.(SideIndex(SideID).EQ.0))THEN
-              ! because of implicit, but here I send for checking, other process sends the required halo region
-              !IF(SideIndex(SideID).EQ.0)THEN
-                SendMsg%nMPISides=SendMsg%nMPISides+1
-                SideIndex(SideID)=SendMsg%nMPISides
+              IF(SideID.GT.0)THEN
+                IF((SideID.LE.nBCSides).OR.(SideID.GT.(nBCSides+nInnerSides)))THEN
+                  !IF(SideID.GT.(nInnerSides+nBCSides).AND.(SideIndex(SideID).EQ.0))THEN
+                  ! because of implicit, but here I send for checking, other process sends the required halo region
+                  IF(SideIndex(SideID).EQ.0)THEN
+                    SendMsg%nMPISides=SendMsg%nMPISides+1
+                    SideIndex(SideID)=SendMsg%nMPISides
+                  END IF
+                END IF
               END IF
             END DO ! ilocSide
           END DO ! iElem
@@ -281,7 +285,7 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,El
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,nSides!,XCL_NGeo
+USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,nSides,SideToElem!,XCL_NGeo
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix
 USE MOD_Particle_MPI_Vars,         ONLY:halo_eps
 USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D
@@ -518,6 +522,28 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
   END DO ! iSide
 END IF  ! nperiodicvectors>0
 
+! finally, all elements connected to this side have to be marked
+DO iSide=1,nSides
+  IF(SideIndex(iSide).GT.0)THEN
+    ! check both elements connected to side if they are marked
+    ! master
+    ElemID=SideToElem(S2E_ELEM_ID,iSide)
+    IF((ElemID.GT.0).AND.(ElemID.LE.PP_nElems))THEN
+      IF(ElemIndex(ElemID).EQ.0)THEN
+        NbOfElems=NbOfElems+1
+        ElemIndex(ElemID)=NbofElems
+      END IF
+    END IF
+    ! slave
+    ElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
+    IF((ElemID.GT.0).AND.(ElemID.LE.PP_nElems))THEN
+      IF(ElemIndex(ElemID).EQ.0)THEN
+        NbOfElems=NbOfElems+1
+        ElemIndex(ElemID)=NbofElems
+      END IF
+    END IF
+  END IF
+END DO ! iSide=1,nSides
 
 !IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of marked sides:   ', NbOfSides
 
@@ -1244,7 +1270,7 @@ IF(DoRefMapping)THEN
       newElemID=tmpnElems+iElem
       DO ilocSide=1,6
         haloSideID=RecvMsg%ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-        IF(haloSideID.EQ.0) CYCLE ! all non BC faces have not to be located
+        IF(haloSideID.LE.0) CYCLE ! all non BC faces have not to be located
         isDoubleSide=.FALSE.
         IF(isSide(haloSideID)) THEN
           IF(HaloInc(haloSideID).EQ.0) IPWRITE(UNIT_stdOut,*) ' Warning: wrong halo inc'
@@ -1324,6 +1350,7 @@ __STAMP__&
             PartSideToElem(S2E_FLIP       ,newSideID)=0 !RecvMsg%SideToElem(S2E_FLIP,haloSideID)
           ELSE IF(iElem.EQ.RecvMsg%SideToElem(S2E_NB_ELEM_ID,haloSideID))THEN
             ! slave side
+            ! should never happens
             PartSideToElem(S2E_NB_ELEM_ID,newSideID) =newElemID
             PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) =ilocSide
             PartSideToElem(S2E_FLIP      ,newSideID) =RecvMsg%SideToElem(S2E_FLIP,haloSideID)
@@ -1370,6 +1397,7 @@ __STAMP__&
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
       ElemID2=PartSideToElem(S2E_NB_ELEM_ID,iSide)
       IF( ElemID .NE. -1 .AND. ElemID2 .NE. -1 ) CYCLE
+      locSideID=-1
       IF( ElemID .GE. 1 .AND. ElemID .LE. PP_nElems) THEN
         HostElemID=ElemID
         locSideID = SideToElem(S2E_LOC_SIDE_ID,iSide)
@@ -1428,6 +1456,7 @@ __STAMP__&
             xNodes2=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
           END SELECT
   
+          ! BUG: works only if both local coord systems are not rotated
           IF(  ALMOSTEQUAL(xNodes(1,0,0),xNodes2(1,0,0))               &
           .AND.ALMOSTEQUAL(xNodes(2,0,0),xNodes2(2,0,0))               &
           .AND.ALMOSTEQUAL(xNodes(3,0,0),xNodes2(3,0,0))               & 
