@@ -450,7 +450,8 @@ END IF
 ! PIC & DG-Sovler
 !----------------------------------------------------------------------------------------------------------------------------------
 IF (DoAnalyze)  THEN
-#ifdef PARTICLES ! particle analyze
+#ifdef PARTICLES 
+  ! particle analyze
   IF(forceAnalyze)THEN
     CALL AnalyzeParticles(t)
   ELSE
