@@ -67,6 +67,7 @@ SUBROUTINE InitParticleSurfaces()
 USE MOD_Globals
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
+USE MOD_Globals_Vars,               ONLY:epsMach
 USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,NGeo,nBCSides,nSides
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList
@@ -107,7 +108,7 @@ epsilontol            = GETREAL('epsilontol','0.')
 ! if nothing is entered, than a default value is used
 ! for tolerance issuses see, e.g. Haselbxxx PIC Tracking Paper
 ! epsilon approx 100*tolerance of the algorithm
-IF(ALMOSTZERO(epsilontol)) epsilontol=100.*BezierClipTolerance
+IF(ALMOSTZERO(epsilontol)) epsilontol=100.*epsMach
 MinusEps              = -epsilontol
 OnePlusEps            = 1.0 + 100.*epsilontol
 OneMinusEps           = 1.0 - epsilontol
