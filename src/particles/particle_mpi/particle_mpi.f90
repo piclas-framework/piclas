@@ -190,7 +190,8 @@ IF(DoRefMapping) PartCommSize=PartCommSize+3
 #else
     PartCommSize = PartCommSize - 6
 #endif /*IMEX*/
-#else !LSERK
+#else 
+    !LSERK
     PartCommSize = PartCommSize + 1 !IsNewPart for RK-Reconstruction
 #endif
 
