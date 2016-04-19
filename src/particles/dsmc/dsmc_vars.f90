@@ -268,12 +268,13 @@ TYPE tAdsorption
   REAL    , ALLOCATABLE                  :: DesorbEnergy(:,:)       ! Desorption energy (K) for surface n
   REAL    , ALLOCATABLE                  :: Intensification(:,:)    ! Intensification energy (K) for surface n
   ! parameters for UBI-QEP model
-  REAL    , ALLOCATABLE                  :: HeatOfAds(:,:)          ! heat of adsorption (K) on clear surfaces for surface n 
+  REAL    , ALLOCATABLE                  :: HeatOfAdsZero(:)        ! heat of adsorption (K) on clear surfaces for surface n 
   REAL    , ALLOCATABLE                  :: EDissBond(:,:,:)        ! Bond dissociation energy (K) for diss into resulting species
                                                                     ! (nSpecies,nspecies,nspecies)
   INTEGER , ALLOCATABLE                  :: DissResultsSpecNum(:)   ! Number of possible dissociation results (nSpecies)
   INTEGER , ALLOCATABLE                  :: DissResultsSpec(:,:,:)  ! (2,DissResultsSpecNum,nSpecies)
   INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
+  REAL    , ALLOCATABLE                  :: Sigma(:,:,:,:)          ! Coverage effect on Adsorption energies
   
   TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 END TYPE

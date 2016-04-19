@@ -71,6 +71,11 @@ ALLOCATE( Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),& 
           Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),& 
           Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
+ALLOCATE( Adsorption%HeatOfAdsZero(1:nSpecies),& 
+!           Adsorption%DissResultsSpecNum(1:nSpecies),&
+!           Adsorption%DissResultsSpec(1:2,1:(2*(nSpecies-1)-1),1:nSpecies),&
+!           Adsorption%EDissBond(1:nSpecies,1:nSpecies,1:nSpecies),& 
+          Adsorption%Coordination(1:nSpecies))
 ! initialize info and constants
 DO iSpec = 1,nSpecies
 #if (PP_TimeDiscMethod==42)
@@ -88,6 +93,8 @@ DO iSpec = 1,nSpecies
   Adsorption%Nu_b(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-b','0.')
   Adsorption%DesorbEnergy(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Desorption-Energy-K','1.')
   Adsorption%Intensification(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
+  Adsorption%Coordination(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Coordination','0')
+  Adsorption%HeatOfAdsZero(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfAdsorption-K','0.')
 END DO
 #if (PP_TimeDiscMethod==42)
   Adsorption%TPD = GETLOGICAL('Particles-DSMC-Adsorption-doTPD','.FALSE.')
@@ -102,6 +109,7 @@ ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SurfSideToGlobSideMap(1:SurfMesh%nSides),&
+          Adsorption%Sigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%DensSurfAtoms(1:SurfMesh%nSides))
 IDcounter = 0         
 DO iSide = 1,nBCSides 
@@ -123,6 +131,7 @@ Adsorption%ProbAds(:,:,:,:) = 0.
 Adsorption%ProbDes(:,:,:,:) = 0.
 Adsorption%SumDesorbPart(:,:,:,:) = 0
 Adsorption%SumAdsorbPart(:,:,:,:) = 0
+Adsorption%Sigma(:,:,:,:) = 1.
 
 END SUBROUTINE InitDSMCSurfModel
 

@@ -51,6 +51,8 @@ SUBROUTINE DSMC_Update_Wall_Vars()
       END IF
     END DO
 #endif
+    CALL CalcSurfDistInteraction()
+    
     IF (.NOT.KeepWallParticles) THEN
       DO iSpec = 1,nSpecies
         DO iSurfSide = 1,SurfMesh%nSides
@@ -624,6 +626,7 @@ SUBROUTINE CalcDesorbProb()
    INTEGER                          :: n
    REAL                             :: VarPartitionFuncAct, VarPartitionFuncWall
 !===================================================================================================================================
+CALL CalcSurfDistInteraction()
 DO SurfSide=1,SurfMesh%nSides
   globSide = Adsorption%SurfSideToGlobSideMap(SurfSide)
 ! special TPD (temperature programmed desorption) temperature adjustment routine    
@@ -645,18 +648,26 @@ DO SurfSide=1,SurfMesh%nSides
 ! transition state theory(TST) and unity bond index-quadratic exponential potential (UBI-QEP)  
     Theta = Adsorption%Coverage(p,q,SurfSide,iSpec)  
     IF (Theta.GT.0) THEN
-      Q_0A = 26312.
+      Q_0A = Adsorption%HeatOfAdsZero(iSpec)
       D_A  = 59870.
+      
+      SELECT CASE(Adsorption%Coordination(iSpec))
+      CASE(1)
+      n = 4
+      CASE(2)
       n = 2
-      m = Theta * n
-      IF (m.LT.1) THEN
-        Heat = (9*Q_0A**2)/(6*Q_0A+16*D_A)
+!       m = Theta * n
+!       IF (m.LT.1) THEN
+!         Heat = (9*Q_0A**2)/(6*Q_0A+16*D_A)
 !         Heat = (Q_0A**2)/(Q_0A/n+D_A)
-      ELSE 
-        sigma = 1/m*(2-1/m)
+!       ELSE 
+!         sigma = 1/m*(2-1/m)
+        sigma = Adsorption%Sigma(p,q,SurfSide,iSpec)
         Heat = (9*Q_0A**2)/(6*Q_0A+16*D_A) *sigma
 !         Heat = (Q_0A**2)/(Q_0A/n+D_A) * sigma
-      END IF
+!       END IF
+      CASE DEFAULT
+      END SELECT
       
       CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSide))
       CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
@@ -700,6 +711,202 @@ IF (.NOT.DSMC%ReservoirRateStatistic) THEN
 END IF
 #endif
 END SUBROUTINE CalcDesorbProb
+
+SUBROUTINE CalcSurfDistInteraction()
+!===================================================================================================================================
+! Model for calculating surface distibution and effects of coverage on heat of adsorption
+!===================================================================================================================================
+  USE MOD_Particle_Vars,          ONLY : nSpecies
+  USE MOD_DSMC_Vars,              ONLY : Adsorption
+  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+!===================================================================================================================================
+  IMPLICIT NONE
+!=================================================================================================================================== 
+! Local variable declaration
+  INTEGER                          :: SurfSideID, subsurfxi, subsurfeta, iSpec
+  INTEGER                          :: surfsquare1, surfsquare2, xi, eta, i, j, dist, Adsorbates
+  INTEGER                          :: left, right, up, down, counter, first,second
+  REAL                             :: sigmasub, sigma
+  INTEGER,ALLOCATABLE              :: hollowsite(:,:), M(:,:), bridgesite(:,:), topsite(:,:)
+  REAL                             :: RanNum, RanNum2
+  INTEGER                          :: leftxi,lefteta,rightxi,righteta,upxi,upeta,downxi,downeta
+!===================================================================================================================================
+surfsquare1 = 100
+surfsquare2 = surfsquare1
+ALLOCATE( hollowsite(1:surfsquare1,1:surfsquare2),&
+          bridgesite(1:(surfsquare1*2),1:(surfsquare2)),&
+          topsite(1:surfsquare1,1:surfsquare2),&
+          M(1:surfsquare1+1,1:surfsquare1+1))
+hollowsite(1:surfsquare1,1:surfsquare2) = 0
+bridgesite(1:(surfsquare1*2),1:(surfsquare2)) = 0
+topsite(1:surfsquare1,1:surfsquare2) = 0
+
+DO iSpec = 1,nSpecies
+DO SurfSideID=1,SurfMesh%nSides
+  DO subsurfeta = 1,nSurfSample
+  DO subsurfxi = 1,nSurfSample
+    Adsorbates = NINT(Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,iSpec) * surfsquare1 * surfsquare2)
+    dist = 0
+    hollowsite(:,:) = 0
+    bridgesite(:,:) = 0
+    DO While (dist.LE.Adsorbates)
+!       usedpositionxi = 
+!       usedpositioneta =
+!       DO i = 1,n
+!       DO i = n+1,hollowsitenum
+!         PDM%nextFreePosition(counter1) = i
+!         counter1 = counter1 + 1
+!       END DO 
+      CALL RANDOM_NUMBER(RanNum)
+      CALL RANDOM_NUMBER(RanNum2)
+      SELECT CASE(Adsorption%Coordination(iSpec))
+      CASE(1)
+        IF (hollowsite(Ceiling(RanNum*surfsquare1),Ceiling(RanNum2*surfsquare2)).GT.0) THEN
+          CYCLE
+        ELSE
+          hollowsite(Ceiling(RanNum*surfsquare1),Ceiling(RanNum2*surfsquare2)) = iSpec
+          dist = dist + 1
+        END IF
+      CASE(2)
+        IF (bridgesite(Ceiling(RanNum*surfsquare1*2),Ceiling(RanNum2*surfsquare2)).GT.0) THEN
+          CYCLE
+        ELSE
+          bridgesite(Ceiling(RanNum*surfsquare1*2),Ceiling(RanNum2*surfsquare2)) = iSpec
+          dist = dist + 1
+        END IF
+      CASE DEFAULT
+      END SELECT
+    END DO
+    
+    M(:,:)=0
+    SELECT CASE(Adsorption%Coordination(iSpec))
+    CASE(1)
+      DO xi = 1,surfsquare1
+        DO eta = 1,surfsquare2
+          IF (xi.EQ.1) THEN
+            left = surfsquare1
+            right = xi
+          ELSE IF (xi.EQ.(surfsquare1)) THEN
+            left = xi - 1
+            right = 1
+          ELSE
+            left = xi - 1
+            right = xi
+          END IF
+          IF (eta.EQ.1) THEN
+            up = surfsquare2
+            down = eta
+          ELSE IF (eta.EQ.(surfsquare2)) THEN
+            up = eta - 1
+            down = 1 
+          ELSE
+            up = eta - 1
+            down = eta
+          END IF
+          
+          IF (hollowsite(left,up).NE.0) M(xi,eta) = M(xi,eta) + 1
+          IF (hollowsite(right,up).NE.0) M(xi,eta) = M(xi,eta) + 1
+          IF (hollowsite(left,down).NE.0) M(xi,eta) = M(xi,eta) + 1
+          IF (hollowsite(right,down).NE.0) M(xi,eta) = M(xi,eta) + 1
+        END DO
+      END DO
+    CASE(2)
+      DO xi = 1,surfsquare1
+        DO eta = 1,surfsquare2
+          IF (xi.EQ.1) THEN
+            leftxi = surfsquare1
+          ELSE
+            leftxi = xi - 1
+          END IF
+          lefteta = eta
+          rightxi = xi
+          righteta = eta
+          IF (eta.EQ.1) THEN
+            upeta = surfsquare2
+          ELSE
+            upeta = eta - 1
+          END IF
+          upxi = xi + surfsquare1
+          downxi = xi + surfsquare1
+          downeta = eta
+          
+          IF (bridgesite(leftxi,lefteta).NE.0) M(xi,eta) = M(xi,eta) + 1
+          IF (bridgesite(rightxi,righteta).NE.0) M(xi,eta) = M(xi,eta) + 1
+          IF (bridgesite(upxi,upeta).NE.0) M(xi,eta) = M(xi,eta) + 1
+          IF (bridgesite(downxi,downeta).NE.0) M(xi,eta) = M(xi,eta) + 1
+          
+        END DO
+      END DO
+    CASE DEFAULT
+    END SELECT
+    
+    SELECT CASE(Adsorption%Coordination(iSpec))
+    CASE(1)
+      sigma = 0.
+      counter = 0
+      DO xi = 1,surfsquare1
+        DO eta = 1,surfsquare2 
+          IF (hollowsite(xi,eta).NE.0) THEN
+            sigmasub = 0.
+            DO i = 1,2
+              DO j = 1,2
+                first = xi+i-1
+                second = eta+j-1
+                sigmasub = sigmasub + (1./4. * 1./M(first,second) * (2.-1./M(first,second)))
+              END DO
+            END DO
+            sigma = sigma + sigmasub
+            counter = counter + 1
+          END IF
+        END DO
+      END DO
+    CASE(2)
+      sigma = 0.
+      counter = 0
+      DO xi = 1,(surfsquare1*2)
+        DO eta = 1,surfsquare2 
+          IF (bridgesite(xi,eta).NE.0) THEN
+            sigmasub = 0.
+            IF (xi.LE.surfsquare1) THEN
+              DO i = 1,2
+                IF ((xi+i-1).LE.surfsquare1) THEN
+                  first = xi + i - 1
+                  second = eta
+                ELSE
+                  first = 1
+                  second = eta
+                END IF
+                sigmasub = sigmasub + (1./2. * 1./M(first,second) * (2.-1./M(first,second)))
+              END DO
+            ELSE
+              DO i = 1,2
+                IF ((eta+i-1).LE.surfsquare2) THEN
+                  first = xi - surfsquare1
+                  second = eta + i - 1
+                ELSE
+                  first = xi - surfsquare1
+                  second = 1
+                END IF
+                sigmasub = sigmasub + (1./2. * 1./M(first,second) * (2.-1./M(first,second)))
+              END DO
+            END IF !(xi.LE.surfsquare1)
+            sigma = sigma + sigmasub
+            counter = counter + 1
+          END IF
+        END DO
+      END DO
+    CASE DEFAULT
+    END SELECT
+    Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec) = sigma / counter
+  END DO
+  END DO
+END DO
+END DO
+
+DEALLOCATE(hollowsite,bridgesite,topsite,M)
+
+END SUBROUTINE CalcSurfDistInteraction
+
 
 ! SUBROUTINE PartitionFuncGas(iSpec, Temp, VarPartitionFuncGas)
 ! !===================================================================================================================================
