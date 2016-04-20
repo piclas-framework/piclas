@@ -410,6 +410,15 @@ __STAMP__&
     DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
       Species(i)%Init(iInit)%InsertedParticle = INT(Species(i)%Init(iInit)%ParticleEmission * RestartTime,8)
     END DO
+    DO iInit = 1, Species(i)%nSurfacefluxBCs
+      IF (Species(i)%Surfaceflux(iInit)%ReduceNoise) THEN
+        VFR_total = Species(i)%Surfaceflux(iInit)%VFR_total_allProcsTotal !proc global total (for non-root: dummy!!!)
+      ELSE
+        VFR_total = Species(i)%Surfaceflux(iInit)%VFR_total               !proc local total
+      END IF
+      Species(i)%Surfaceflux(iInit)%InsertedParticle = INT(Species(i)%Surfaceflux(iInit)%PartDensity * RestartTime &
+        / Species(i)%MacroParticleFactor * VFR_total,8)
+    END DO
   END DO
   ! if ParticleVecLength GT maxParticleNumber: Stop
   IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
