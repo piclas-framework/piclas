@@ -518,6 +518,9 @@ USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
 #endif /*IMPA*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -552,6 +555,9 @@ PartCommSize=PartCommSize0+ 34 ! PartXk,R_PartXK
 PartCommSize=PartCommSize0+(iStage-1)*6 +34+6 ! PartXk,R_PartXK ! and communicate fieldatparticle
 #endif
 #endif /*IMEX*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+PartCommSize=PartCommSize+1
+#endif
 
 ! ! 1) get number of send particles
 ! PartMPIExchange%nPartsSend=0
@@ -707,6 +713,14 @@ DO iProc=1, PartMPI%nMPINeighbors
       PartSendBuf(iProc)%content(jPos+8:jPos+13) = FieldAtParticle(iPart,1:6)
       jPos=jPos+6
 #endif /*IMPA*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+      IF(PartIsImplicit(iPart))THEN
+        PartSendBuf(iProc)%content(jPos+8) = 1.0
+      ELSE
+        PartSendBuf(iProc)%content(jPos+8) = 0.0
+      END IF
+      jPos=jPos+4
+#endif
       !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       IF(.NOT.UseLD) THEN   
@@ -1037,6 +1051,9 @@ USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #endif /*IMPA*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1076,6 +1093,9 @@ PartCommSize=PartCommSize0+ 34 ! PartXk,R_PartXK
 PartCommSize=PartCommSize0+(iStage-1)*6 +34 ! PartXk,R_PartXK
 #endif
 #endif /*IMEX*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+PartCommSize=PartCommSize+1
+#endif
 
 
 DO iProc=1,PartMPI%nMPINeighbors
@@ -1159,7 +1179,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     Norm2_F_PartX0    (PartID) = PartRecvBuf(iProc)%content(jPos+8 )
     Norm2_F_PartXk    (PartID) = PartRecvBuf(iProc)%content(jPos+9 )
     Norm2_F_PartXk_Old(PartID) = PartRecvBuf(iProc)%content(jPos+10)
-    IF(PartRecvBuf(iProc)%content(11).EQ.1.0)THEN
+    IF(PartRecvBuf(iProc)%content(jPos+11).EQ.1.0)THEN
       DoPartInNewton(PartID) = .TRUE.
     ELSE
       DoPartInNewton(PartID) = .FALSE.
@@ -1169,6 +1189,14 @@ DO iProc=1,PartMPI%nMPINeighbors
     FieldAtParticle(PartID,1:6)  = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
     jPos=jPos+6
 #endif /*IMPA*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+    IF(PartRecvBuf(iProc)%content(jPos+8).EQ.1.0)THEN
+        PartIsImplicit(PartID) = .TRUE.
+    ELSE
+        PartIsImplicit(PartID) = .FALSE.
+    END IF
+    jPos=jPos+1
+#endif
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     IF(.NOT.UseLD) THEN
       IF (useDSMC.AND.(CollisMode.NE.1)) THEN

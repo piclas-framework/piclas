@@ -23,8 +23,17 @@ INTERFACE InitPartSolver
   MODULE PROCEDURE InitPartSolver
 END INTERFACE
 
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+INTERFACE SelectImplicitParticles
+  MODULE PROCEDURE SelectImplicitParticles
+END INTERFACE
+#endif
+
 PUBLIC:: InitPartSolver
 PUBLIC:: ParticleNewton
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+PUBLIC:: SelectImplicitParticles
+#endif
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
@@ -79,6 +88,40 @@ __STAMP__&
 ,'Cannot allocate R_PartXK')
 
 END SUBROUTINE InitPartSolver
+
+
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+SUBROUTINE SelectImplicitParticles() 
+!===================================================================================================================================
+! select if particle is treated implicitly or explicitly, has to be called, after particle are created/emitted
+! currently only one criterion is used: the species
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particles_Vars,     ONLY:Species,nSpecies,PartSpecies,PartIsImplicit
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER     :: iPart
+!===================================================================================================================================
+
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    IF(Species(PartSpecies(iPart))%IsImplicit)THEN
+      PartIsImplicit(iPart)=.TRUE.
+    ELSE
+      PartIsImplicit(iPart)=.FALSE.
+    END IF
+  END IF ! ParticleInside
+END DO ! iPart
+  
+END SUBROUTINE SelectImplicitParticles
+#endif
 
 
 SUBROUTINE ParticleNewton(t,coeff)

@@ -248,6 +248,16 @@ __STAMP__&
 END IF
 #endif /* IMPA */
 
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+ALLOCATE(PartIsImplicit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)  ! save memory
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+  ,' Cannot allocate PartIsImplicit arrays!')
+END IF
+#endif
+
+
 IF(DoRefMapping)THEN
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
@@ -357,6 +367,9 @@ END IF
 PartPressureCell = .FALSE.
 ALLOCATE(Species(1:nSpecies))
 
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+ALLOCATE(SpeciesIsImplicit(nSpecies))
+#endif
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')
@@ -375,6 +388,9 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf2)//'-ChargeIC','0.')
       Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-MassIC','0.')
       Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor','1.')
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+      Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-IsImplicit','.FALSE.')
+#endif
     END IF ! iInit
     ! get emission and init data
     Species(iSpec)%Init(iInit)%UseForInit           = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-UseForInit','.TRUE.')
