@@ -223,6 +223,7 @@ REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
 INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
 INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
 #endif /*MPI*/
+REAL                     :: VFR_total
 #endif /*PARTICLES*/
 !===================================================================================================================================
 IF(DoRestart)THEN
