@@ -238,8 +238,10 @@ TYPE tParticleDataManagement
   LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)    !  =>NULL()  ! Particle_inside(1:Particle_Number)
   LOGICAL , ALLOCATABLE                  :: ParticleAtWall(:)                 ! Particle_adsorbed_on_to_wall(1:Particle_number)
   INTEGER , ALLOCATABLE                  :: PartAdsorbSideIndx(:,:)           ! Surface index on which Particle i adsorbed 
-                                                                              ! (1:2,1:PDM%maxParticleNumber)
-                                                                              ! surface index ElemToSide(i,localsideID,ElementID)
+                                                                              ! (1:3,1:PDM%maxParticleNumber)
+                                                                              ! 1: surface index ElemToSide(i,localsideID,ElementID)
+                                                                              ! 2: p
+                                                                              ! 3: q
   LOGICAL ,ALLOCATABLE                   :: dtFracPush(:)                     ! Push random fraction only
   LOGICAL ,ALLOCATABLE                   :: IsNewPart(:)                      ! Reconstruct RK-scheme in next stage
 END TYPE

@@ -65,6 +65,7 @@ SUBROUTINE InitParticleSurfaces()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,               ONLY:EpsMach
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
 USE MOD_Globals_Vars,               ONLY:epsMach
@@ -108,7 +109,7 @@ epsilontol            = GETREAL('epsilontol','0.')
 ! if nothing is entered, than a default value is used
 ! for tolerance issuses see, e.g. Haselbxxx PIC Tracking Paper
 ! epsilon approx 100*tolerance of the algorithm
-IF(ALMOSTZERO(epsilontol)) epsilontol=100.*epsMach
+IF(ALMOSTZERO(epsilontol)) epsilontol=100.*EpsMach
 MinusEps              = -epsilontol
 OnePlusEps            = 1.0 + 100.*epsilontol
 OneMinusEps           = 1.0 - epsilontol

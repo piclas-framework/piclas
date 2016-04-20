@@ -297,6 +297,9 @@ Pt=0.
 PartSpecies        = 0
 PDM%nextFreePosition(1:PDM%maxParticleNumber)=0
 
+! initialize of adsorbed particle tracking 
+KeepWallParticles = .FALSE.
+
 nSpecies = GETINT('Part-nSpecies','1')
 
 

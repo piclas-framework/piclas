@@ -48,7 +48,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMCHO_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
 PUBLIC :: CalcTVib, CalcSurfaceValues, CalcTelec, CalcTVibPoly, InitHODSMC, WriteDSMCHOToHDF5, CalcGammaVib
-PUBLIC :: CalcInstantTransTemp
+PUBLIC :: CalcInstantTransTemp, CalcWallSample
 !===================================================================================================================================
 
 CONTAINS
@@ -782,7 +782,100 @@ END SELECT
 
 END SUBROUTINE InitHODSMC
 
+SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,lengthPartTrajectory,alpha,IsSpeciesSwap)
+!===================================================================================================================================
+! Sample Wall values from Particle collisions
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals,                ONLY : abort
+  USE MOD_Particle_Vars
+  USE MOD_DSMC_Vars,              ONLY : SpecDSMC, useDSMC, AnalyzeSurfCollis
+  USE MOD_DSMC_Vars,              ONLY : CollisMode, DSMC
+  USE MOD_Particle_Boundary_Vars, ONLY : SampWall
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES            
+  INTEGER,INTENT(IN)                 :: PartID,SurfSideID,p,q
+  REAL,INTENT(IN)                    :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+  REAL,INTENT(IN)                    :: TransArray(1:6) !1-3 trans energies(old,wall,new), 4-6 diff. trans vel. (x,y,z)
+  REAL,INTENT(IN)                    :: IntArray(1:6) ! 1-6 internal energies (rot-old,rot-wall,rot-new,vib-old,vib-wall,vib-new)
+  LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
 
+  !----  Sampling for energy (translation) accommodation at walls
+  SampWall(SurfSideID)%State(1,p,q)= SampWall(SurfSideID)%State(1,p,q) &
+                                  + TransArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(2,p,q)= SampWall(SurfSideID)%State(2,p,q) &
+                                  + TransArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(3,p,q)= SampWall(SurfSideID)%State(3,p,q) &
+                                  + TransArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor 
+      
+  !----  Sampling force at walls
+  SampWall(SurfSideID)%State(10,p,q)= SampWall(SurfSideID)%State(10,p,q) &
+      + Species(PartSpecies(PartID))%MassIC * (TransArray(4)) * Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(11,p,q)= SampWall(SurfSideID)%State(11,p,q) &
+      + Species(PartSpecies(PartID))%MassIC * (TransArray(5)) * Species(PartSpecies(PartID))%MacroParticleFactor
+  SampWall(SurfSideID)%State(12,p,q)= SampWall(SurfSideID)%State(12,p,q) &
+      + Species(PartSpecies(PartID))%MassIC * (TransArray(6)) * Species(PartSpecies(PartID))%MacroParticleFactor 
+      
+  IF (useDSMC) THEN
+  IF (CollisMode.GT.1) THEN
+  IF (SpecDSMC(PartSpecies(PartID))%InterID.EQ.2) THEN
+    !----  Sampling for internal (rotational) energy accommodation at walls
+    SampWall(SurfSideID)%State(4,p,q) = SampWall(SurfSideID)%State(4,p,q) &
+                                      + IntArray(1) * Species(PartSpecies(PartID))%MacroParticleFactor
+    SampWall(SurfSideID)%State(5,p,q) = SampWall(SurfSideID)%State(5,p,q) &
+                                      + IntArray(2) * Species(PartSpecies(PartID))%MacroParticleFactor
+    SampWall(SurfSideID)%State(6,p,q) = SampWall(SurfSideID)%State(6,p,q) &
+                                      + IntArray(3) * Species(PartSpecies(PartID))%MacroParticleFactor 
+  
+    !----  Sampling for internal (vibrational) energy accommodation at walls
+    SampWall(SurfSideID)%State(7,p,q) = SampWall(SurfSideID)%State(7,p,q) &
+                                      + IntArray(4) * Species(PartSpecies(PartID))%MacroParticleFactor
+    SampWall(SurfSideID)%State(8,p,q) = SampWall(SurfSideID)%State(8,p,q) &
+                                      + IntArray(5) * Species(PartSpecies(PartID))%MacroParticleFactor
+    SampWall(SurfSideID)%State(9,p,q) = SampWall(SurfSideID)%State(9,p,q) &
+                                      + IntArray(6) * Species(PartSpecies(PartID))%MacroParticleFactor
+  END IF
+  END IF
+  END IF
+
+  !---- Counter for collisions (normal wall collisions - not to count if only SpeciesSwaps to be counted)
+  IF (.NOT.DSMC%CalcSurfCollis_OnlySwaps .AND. .NOT.IsSpeciesSwap) THEN
+    SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q)= SampWall(SurfSideID)%State(12+PartSpecies(PartID),p,q) + 1
+    IF (DSMC%AnalyzeSurfCollis) THEN
+      AnalyzeSurfCollis%Number(PartSpecies(PartID)) = AnalyzeSurfCollis%Number(PartSpecies(PartID)) + 1
+      AnalyzeSurfCollis%Number(nSpecies+1) = AnalyzeSurfCollis%Number(nSpecies+1) + 1
+      IF (AnalyzeSurfCollis%Number(nSpecies+1) .GT. AnalyzeSurfCollis%maxPartNumber) THEN
+        CALL abort(&
+        __STAMP__&
+        ,'maxSurfCollisNumber reached!')
+      END IF
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),1:3) &
+        = LastPartPos(PartID,1:3) + alpha * PartTrajectory(1:3)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),4) &
+        = PartState(PartID,4)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),5) &
+        = PartState(PartID,5)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),6) &
+        = PartState(PartID,6)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),7) &
+        = LastPartPos(PartID,1)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),8) &
+        = LastPartPos(PartID,2)
+      AnalyzeSurfCollis%Data(AnalyzeSurfCollis%Number(nSpecies+1),9) &
+        = LastPartPos(PartID,3)
+      AnalyzeSurfCollis%Spec(AnalyzeSurfCollis%Number(nSpecies+1)) &
+        = PartSpecies(PartID)
+    END IF
+  END IF   
+
+END SUBROUTINE CalcWallSample
 
 SUBROUTINE DSMCHO_data_sampling()
 !===================================================================================================================================
