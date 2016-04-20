@@ -36,7 +36,7 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
 REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! ERK4 additional function values
 REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! PartilceState at t^n
 #endif /*IMEX*/
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 LOGICAL , ALLOCATABLE :: PartIsImplicit(:)
 #endif
 #ifdef IMPA
@@ -202,7 +202,7 @@ TYPE tSpecies                                                                ! P
   INTEGER                                :: StartnumberOfInits               ! 0 if old emit defined (array is copied into 0. entry)
   TYPE(tSurfaceflux),ALLOCATABLE         :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
   LOGICAL                                :: IsImplicit
 #endif
 END TYPE
