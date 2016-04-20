@@ -315,11 +315,14 @@ END IF
 
 ! --- get background mesh cell of particle
 CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-CellX = MIN(GEO%FIBGMimax,CellX)                             
+CellX = MAX(MIN(GEO%FIBGMimax,CellX),GEO%FIBGMimin)
 CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-CellY = MIN(GEO%FIBGMjmax,CellY) 
+CellY = MAX(MIN(GEO%FIBGMjmax,CellY),GEO%FIBGMjmin)
 CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-CellZ = MIN(GEO%FIBGMkmax,CellZ)
+CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
+
+
+
 !   print*,'cell indices',CellX,CellY,CellZ
 !   print*,'number of cells in bgm',GEO%FIBGM(CellX,CellY,CellZ)%nElem
 !   read*
@@ -466,11 +469,11 @@ END IF
 
 ! --- get background mesh cell of particle
 CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-CellX = MIN(GEO%FIBGMimax,CellX)                             
+CellX = MAX(MIN(GEO%FIBGMimax,CellX),GEO%FIBGMimin)
 CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-CellY = MIN(GEO%FIBGMjmax,CellY) 
+CellY = MAX(MIN(GEO%FIBGMjmax,CellY),GEO%FIBGMjmin)
 CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-CellZ = MIN(GEO%FIBGMkmax,CellZ)
+CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
 
 !--- check all cells associated with this beckground mesh cell
 
@@ -631,6 +634,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#ifdef MPI
+REAL                     :: StartT,EndT
+#endif /*MPI*/
 !=================================================================================================================================
 
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -639,12 +645,19 @@ GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 CALL GetFIBGM()
+
 #ifdef MPI
+SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
+StartT=MPI_WTIME()
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 CALL InitHaloMesh()
 ! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
 ! rebuild is a local operation
 CALL AddHALOCellsToFIBGM()
+EndT=MPI_WTIME()
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
+END IF
 #endif /*MPI*/
 
 ! remove inner BezierControlPoints3D and SlabNormals, usw.
@@ -664,6 +677,7 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
 CALL BuildElementBasis()
 !CALL MapElemToFIBGM()
 
+SWRITE(UNIT_stdOut,'(A)')' DONE!' 
 
 END SUBROUTINE InitFIBGM
 
@@ -1643,18 +1657,31 @@ DO iElem=1,nTotalElems
 
   !--- find minimum and maximum BGM cell for current element
   IF(GEO%nPeriodicVectors.EQ.0)THEN
+    ! same fancy stuff
+    !BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    !BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    !BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    !BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    !BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    !BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    !BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    !BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
     BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
     BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
     BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
     BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
     BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
     BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
+    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
   ELSE
     ! here fancy stuff, because element could be wide out of element range
     BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
@@ -1774,18 +1801,31 @@ DO iElem=1,nTotalElems
 
   ! same as above
   IF(GEO%nPeriodicVectors.EQ.0)THEN
+    !BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    !BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    !BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    !BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    !BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    !BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    !BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    !BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !BGMCellZmin = MAX(BGMCellZmin,BGMkmin)     
+    ! still the fancy stuff
     BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
     BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
     BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
     BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
     BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
     BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmin = MAX(BGMCellZmin,BGMkmin)     
+    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
   ELSE
     BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
     BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
@@ -1913,6 +1953,8 @@ __STAMP__&
   END IF
 END DO ! iElem
 
+DEALLOCATE(Elementfound)
+
 END SUBROUTINE AddHALOCellsToFIBGM
 #endif /*MPI*/
 
@@ -2027,7 +2069,7 @@ nPeriodicSides=0
 ! now, shrink partbcsidelist
 nOldBCSides  =nTotalBCSides
 nTotalBCSides=nTotalBCSides-nSides+nBCSides
-nTotalSides  =nTotalBCSides-nBCSides+nSides
+nTotalSides  =nTotalBCSides-nBCSides+nSides ! which is zero change
 
 
 IF(nTotalBCSides.EQ.0) RETURN
@@ -3128,7 +3170,7 @@ IF(DoRefMapping)THEN
   DO iElem=1,nTotalElems
     DO ilocSide=1,6
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-      IF (SideID.EQ.-1) CYCLE
+      IF (SideID.LE.0) CYCLE
       IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
         IF(.NOT.isBCElem(iElem))THEN
           IsBCElem(iElem)=.TRUE.
@@ -3169,9 +3211,9 @@ IF(DoRefMapping)THEN
       IF(BCSideID.EQ.-1) CYCLE
       ! next, get all sides in halo-eps vicinity
       DO ilocSide=1,6
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.EQ.-1) CYCLE
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         BCSideID2 =PartBCSideList(SideID)
         IF(BCSideID2.EQ.-1) CYCLE
         leave=.FALSE.
@@ -3199,6 +3241,8 @@ IF(DoRefMapping)THEN
           IF(leave) EXIT
         END DO ! q
 #else /* no LSERK */
+        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+        !IF(SideID.EQ.-1) CYCLE
         SELECT CASE(ilocSide)
         CASE(XI_MINUS)
           xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
@@ -3278,6 +3322,7 @@ IF(DoRefMapping)THEN
         BCElem(iElem)%BCSideID(nSideCount)=iSide
       END IF
     END DO  ! iSide
+    SideIndex=0
   END DO ! iElem
 END IF
 

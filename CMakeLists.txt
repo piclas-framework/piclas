@@ -440,40 +440,6 @@ IF (BOLTZPLATZ_HDF5F90)
 ENDIF()
 
 # =========================================================================
-# Tecplot
-# =========================================================================
-#SET(BOLTZPLATZ_TECIOVERSION "2013" CACHE STRING "TECIO version tag")
-#SET(BOLTZPLATZ_TECIODIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${BOLTZPLATZ_COMPILERNAME}/tecio-${BOLTZPLATZ_TECIOVERSION})
-#FIND_PACKAGE(TECIO QUIET)
-#IF (NOT TECIO_FOUND)
-#  OPTION(BOLTZPLATZ_BUILDTECIO "Compile and build tecio library" ON)
-#ELSE()
-#  OPTION(BOLTZPLATZ_BUILDTECIO "Compile and build tecio library" OFF)
-#ENDIF()
-#IF (BOLTZPLATZ_BUILDTECIO)
-#  IF (NOT EXISTS "${BOLTZPLATZ_TECIODIR}/src/tecio/tecio-${BOLTZPLATZ_TECIOVERSION}/libtecio.a")
-#    ExternalProject_Add(tecio
-#      GIT_REPOSITORY ${TECIODOWNLOAD}
-#      PREFIX ${BOLTZPLATZ_TECIODIR}
-#      PATCH_COMMAND tar -xvJf tecio-${BOLTZPLATZ_TECIOVERSION}.tar.bz2
-#      CONFIGURE_COMMAND ""
-#      BUILD_IN_SOURCE 1
-#      BUILD_COMMAND cd tecio-${BOLTZPLATZ_TECIOVERSION} && ./Runmake linuxg27x64.24 -tecio 
-#      INSTALL_COMMAND "" 
-#    )
-#  ENDIF()
-#  SET(TECIO_LIBRARY ${BOLTZPLATZ_TECIODIR}/src/tecio/tecio-${BOLTZPLATZ_TECIOVERSION}/libtecio.a)
-#  SET(TECIO_LIBRARIES ${BOLTZPLATZ_TECIODIR}/src/tecio/tecio-${BOLTZPLATZ_TECIOVERSION}/libtecio.a -lstdc++)
-#ENDIF()
-#TARGET_LINK_LIBRARIES(boltzplatz ${TECLIB})
-#TARGET_LINK_LIBRARIES(boltzplatz stdc++)
-SET(TECDIR "/opt/tecio-2013" CACHE STRING "Directory of tecplot-library")
-FIND_LIBRARY(TECLIB tecio ${TECDIR})
-TARGET_LINK_LIBRARIES(boltzplatz ${TECLIB})
-TARGET_LINK_LIBRARIES(boltzplatz stdc++)
-
-
-# =========================================================================
 # LAPACK/MKL library
 # =========================================================================
 IF (NOT BOLTZPLATZ_MKL)

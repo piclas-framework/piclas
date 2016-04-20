@@ -83,7 +83,6 @@ USE MOD_Prepare_Mesh,           ONLY:setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools,            ONLY:GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
 USE MOD_Metrics,                ONLY:CalcMetrics
-USE MOD_DebugMesh,              ONLY:writeDebugMesh
 USE MOD_Analyze_Vars,           ONLY:CalcPoyntingInt
 #ifdef PARTICLES
 USE MOD_Particle_Mesh,          ONLY:InitParticleMesh,InitElemVolumes ! new
@@ -108,7 +107,6 @@ IMPLICIT NONE
 REAL,ALLOCATABLE  :: NodeCoords(:,:,:,:,:)
 REAL              :: x(3),PI,meshScale
 INTEGER           :: iElem,i,j,k,iRegions,f,s,p,q, Flip(3), ijk(3),pq(3)
-LOGICAL           :: debugmesh
 INTEGER           :: iSide,countSurfElem,iProc
 CHARACTER(32)       :: hilf2
 INTEGER,ALLOCATABLE :: countSurfElemMPI(:)
@@ -277,11 +275,6 @@ SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
 CALL InitMeshBasis(NGeo,PP_N,xGP)
 CALL CalcMetrics(NodeCoords)
 DEALLOCATE(NodeCoords)
-
-debugmesh=GETLOGICAL('debugmesh','.FALSE.')
-IF(debugmesh)THEN
-  CALL  WriteDebugMesh()
-END IF !/*debugmesh*/
 
 ALLOCATE(VolToSideA(3,0:PP_N,0:PP_N,0:PP_N,0:4,1:6))
 DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N

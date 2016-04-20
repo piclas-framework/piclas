@@ -3,36 +3,21 @@ MAINDIR = ../
 include ../Makefile.defs
 
 ifeq ($(EQNSYS),maxwell)
-all: hdf5 recipes teclib  
+all: hdf5 recipes  
 else ifeq ($(EQNSYS),electrostatic)
-all: hdf5 recipes teclib  
+all: hdf5 recipes  
 else ifeq ($(EQNSYS),electrostatic_pois)
-all: hdf5 recipes teclib  
+all: hdf5 recipes  
 else ifeq ($(EQNSYS),maxwell_pois)
-all: hdf5 recipes teclib  
+all: hdf5 recipes  
 else
-all: hdf5 teclib recipes
+all: hdf5 recipes
 endif
 
 dir:
 	@# Create the directory for the share programs 
 	@ if [ ! -d $(SHARECOMP)/ ] ; then \
 		mkdir $(SHARECOMP)/ ; \
-	fi
-
-teclib: dir
-	@# Tecplot Binary library                   -> currently not in use
-	@ if [ -n "$(TECLIB_VERSION)" ] && [ ! -f $(SHARECOMP)/tecio-$(TECLIB_VERSION)/tecio.a ] ; then \
-		echo "===============================================================";\
-		echo "= M A K E   T E C P L O T                                     =";\
-		echo "===============================================================";\
-		if [ ! -d $(SHARECOMP)/tecio-$(TECLIB_VERSION) ] ; then \
-			cd $(SHARECOMP)/ && tar -xvzf ../tecio-$(TECLIB_VERSION).tar.gz 1>/dev/null && cd .. ; \
-		fi ; \
-		cd $(SHARECOMP)/tecio-$(TECLIB_VERSION) && ./Runmake linuxg27x64.24 -tecio && rm pltview pltview.o && ln -s tecio.a libtecio.a; \
-		echo "===============================================================";\
-		echo "= T E C P L O T   D O N E                                     =";\
-		echo "===============================================================";\
 	fi
 
 hdf5: dir
@@ -70,10 +55,7 @@ recipes: dir
 .PHONY: clean
 clean:  
 	rm -f *~
-	@# TECLIB library
-	@ if [ -d $(SHARECOMP)/tecio-$(TECLIB_VERSION) ] ; then \
-		cd $(SHARECOMP)/tecio-$(TECLIB_VERSION) && rm -f tecio.a && rm -f libtecio.a; \
-	fi
+
 	@# HDF5 libraries
 	@ if [ -d $(SHARECOMP)/hdf5-$(HDF5_VERSION) ] ; then \
 		cd $(SHARECOMP)/hdf5-$(HDF5_VERSION) && $(MAKE) clean && $(MAKE) uninstall ; \
