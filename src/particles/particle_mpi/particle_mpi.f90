@@ -514,6 +514,7 @@ USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
 #endif /*IMEX*/
 #if defined(IMPA)
+USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
 #endif /*IMPA*/
@@ -548,7 +549,7 @@ PartCommSize=PartCommSize0+(iStage-1)*6
 #if (PP_TimeDiscMethod==110)
 PartCommSize=PartCommSize0+ 34 ! PartXk,R_PartXK
 #else
-PartCommSize=PartCommSize0+(iStage-1)*6 +34 ! PartXk,R_PartXK
+PartCommSize=PartCommSize0+(iStage-1)*6 +34+6 ! PartXk,R_PartXK ! and communicate fieldatparticle
 #endif
 #endif /*IMEX*/
 
@@ -702,6 +703,9 @@ DO iProc=1, PartMPI%nMPINeighbors
         PartSendBuf(iProc)%content(jPos+11) = 0.0
       END IF
       jPos=jPos+4
+      ! fieldatparticle 
+      PartSendBuf(iProc)%content(jPos+8:jPos+13) = FieldAtParticle(iPart,1:6)
+      jPos=jPos+6
 #endif /*IMPA*/
       !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
@@ -1031,6 +1035,7 @@ USE MOD_Timedisc_Vars,            ONLY:iStage
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
+USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1160,6 +1165,9 @@ DO iProc=1,PartMPI%nMPINeighbors
       DoPartInNewton(PartID) = .FALSE.
     END IF
     jPos=jPos+4
+    ! fieldatparticle 
+    FieldAtParticle(PartID,1:6)  = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
+    jPos=jPos+6
 #endif /*IMPA*/
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     IF(.NOT.UseLD) THEN
@@ -1850,9 +1858,39 @@ DO iSpec=1,nSpecies
     CASE('LD_insert')
       RegionOnProc=.TRUE.
     CASE('cuboid_equal')
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
+       xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
+            + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
+            + Species(iSpec)%Init(iInit)%BaseVector1IC(3)**2 )
+       ylen = SQRT(Species(iSpec)%Init(iInit)%BaseVector2IC(1)**2 &
+            + Species(iSpec)%Init(iInit)%BaseVector2IC(2)**2 &
+            + Species(iSpec)%Init(iInit)%BaseVector2IC(3)**2 )
+       zlen = ABS(Species(iSpec)%Init(iInit)%CuboidHeightIC)
+
+       ! make sure the vectors correspond to x,y,z-dir
+       IF ((xlen.NE.Species(iSpec)%Init(iInit)%BaseVector1IC(1)).OR. &
+           (ylen.NE.Species(iSpec)%Init(iInit)%BaseVector2IC(2)).OR. &
+           (zlen.NE.Species(iSpec)%Init(iInit)%CuboidHeightIC)) THEN
+          CALL abort(&
+          __STAMP__&
+          ,'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition')
+       END IF
+       DO iNode=1,8
+        xCoords(1:3,iNode) = Species(iSpec)%Init(iInit)%BasePointIC(1:3)
+       END DO
+       xCoords(1,2)   = xCoords(1,1) + xlen
+       xCoords(2,3)   = xCoords(2,1) + ylen
+       xCoords(1,4)   = xCoords(1,1) + xlen
+       xCoords(2,4)   = xCoords(2,1) + ylen
+       xCoords(3,5)   = xCoords(3,1) + zlen
+       xCoords(1,6)   = xCoords(1,5) + xlen
+       xCoords(2,7)   = xCoords(2,5) + ylen
+       xCoords(1,8)   = xCoords(1,5) + xlen
+       xCoords(2,8)   = xCoords(2,5) + ylen
+       RegionOnProc=BoxInProc(xCoords,8)
+
+     !~j CALL abort(&
+     !~j __STAMP__&
+     !~j ,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
     CASE ('cuboid_with_equidistant_distribution') 
        xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
             + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
