@@ -65,12 +65,13 @@ REAL                        :: scaleps
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE SOLVER...'
 
-Eps2PartNewton =GETREAL('EpsPartNewton','0.001')
-Eps2PartNewton =Eps2PartNewton**2
-nPartNewtonIter=GETINT('nPartNewtonIter','20')
-EisenstatWalker=GETLOGICAL('EisenstatWalker','.FALSE.')
-PartgammaEW    =GETREAL('PartgammaEW','0.9')
-nPartNewton    =0
+Eps2PartNewton     =GETREAL('EpsPartNewton','0.001')
+Eps2PartNewton     =Eps2PartNewton**2
+nPartNewtonIter    =GETINT('nPartNewtonIter','20')
+FreezePartInNewton =GETINT('FreezePartInNewton','1')
+EisenstatWalker    =GETLOGICAL('EisenstatWalker','.FALSE.')
+PartgammaEW        =GETREAL('PartgammaEW','0.9')
+nPartNewton        =0
 
 scaleps=GETREAL('scaleps','1.')
 ! rEps0 = scaleps * 1.E-8
@@ -144,7 +145,7 @@ USE MOD_Part_RHS,                ONLY:CalcPartRHS
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
 #endif /*MPI*/
-USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter
+USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,FreezePartInNewton
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
@@ -259,30 +260,32 @@ DO WHILE(ANY(DoPartInNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! may
   END DO ! iPart
   ! closed form: now move particles
   ! further improvement: add flag for DoPartInNewton, if it has to be considered in tracking or communication
+  IF(MOD(nInnerPartNewton,FreezePartInNewton).EQ.0)THEN
 #ifdef MPI
-  ! open receive buffer for number of particles
-  CALL IRecvNbofParticles() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+    ! open receive buffer for number of particles
+    CALL IRecvNbofParticles() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
 #endif /*MPI*/
-  IF(DoRefMapping)THEN
-    CALL ParticleRefTracking() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-  ELSE
-    CALL ParticleTrackingCurved() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-  END IF
+    IF(DoRefMapping)THEN
+      CALL ParticleRefTracking() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+    ELSE
+      CALL ParticleTrackingCurved() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+    END IF
 #ifdef MPI
-  ! send number of particles
-  CALL SendNbOfParticles() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-  ! finish communication of number of particles and send particles
-  CALL MPIParticleSend() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-  ! finish communication
-  CALL MPIParticleRecv() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+    ! send number of particles
+    CALL SendNbOfParticles() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+    ! finish communication of number of particles and send particles
+    CALL MPIParticleSend() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+    ! finish communication
+    CALL MPIParticleRecv() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
 #endif
+  END IF
   !! correspond to call DGTimeDerivative
   !CALL InterpolateFieldToParticle(doInnerParts=.TRUE.) ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
   !CALL CalcPartRHS() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
 
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
-      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      IF(MOD(nInnerPartNewton,FreezePartInNewton).EQ.0) CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       R_PartXK(1:3,iPart)=PartState(iPart,4:6)
       SELECT CASE(PartLorentzType)
       CASE(1)

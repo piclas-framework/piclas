@@ -33,6 +33,7 @@ INTEGER              :: ldim
 INTEGER              :: totalPartIterLinearSolver,nPartInnerIter
 INTEGER              :: nPartNewton
 INTEGER              :: nPartNewtonIter
+INTEGER              :: FreezePartInNewton
 REAL                 :: Eps2PartNewton
 LOGICAL              :: EisenstatWalker
 REAL                 :: PartgammaEW
