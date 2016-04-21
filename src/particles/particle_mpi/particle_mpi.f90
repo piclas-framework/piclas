@@ -163,7 +163,7 @@ INTEGER         :: ALLOCSTAT
 !===================================================================================================================================
 
 PartCommSize   = 0  
-IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+IF (useDSMC.AND.(CollisMode.GT.1)) THEN
   IF (usevMPF .AND. DSMC%ElectronicState) THEN
     PartCommSize = 18
   ELSE IF (usevMPF ) THEN
@@ -706,7 +706,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       IF(.NOT.UseLD) THEN   
-        IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
           IF (usevMPF .AND. DSMC%ElectronicState) THEN
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
@@ -730,7 +730,7 @@ DO iProc=1, PartMPI%nMPINeighbors
           END IF
         END IF
       ELSE ! UseLD == true      =>      useDSMC == true
-        IF (CollisMode.NE.1) THEN
+        IF (CollisMode.GT.1) THEN
           IF (usevMPF .AND. DSMC%ElectronicState) THEN
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
@@ -1163,7 +1163,7 @@ DO iProc=1,PartMPI%nMPINeighbors
 #endif /*IMPA*/
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     IF(.NOT.UseLD) THEN
-      IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+      IF (useDSMC.AND.(CollisMode.GT.1)) THEN
         IF (usevMPF .AND. DSMC%ElectronicState) THEN
           PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content( 9+jPos)
           PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(10+jPos)
@@ -1185,7 +1185,7 @@ DO iProc=1,PartMPI%nMPINeighbors
         IF (usevMPF) PartMPF(PartID) = PartRecvBuf(iProc)%content( 9+jPos)
       END IF
     ELSE ! UseLD == true      =>      useDSMC == true
-      IF (CollisMode.NE.1) THEN
+      IF (CollisMode.GT.1) THEN
         IF (usevMPF .AND. DSMC%ElectronicState) THEN
           PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content( 9+jPos)
           PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(10+jPos)
