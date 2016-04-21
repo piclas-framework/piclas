@@ -215,16 +215,17 @@ SUBROUTINE PartMatrixVector(t,Coeff,PartID,X,Y)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals_Vars,       ONLY:epsMach
-USE MOD_Globals,            ONLY:Abort
-USE MOD_DG_Vars,            ONLY:U,Ut
-USE MOD_DG,                 ONLY:DGTimeDerivative_weakForm
-USE MOD_LinearSolver_Vars,  ONLY:reps0,PartXK,R_PartXK
-USE MOD_Equation_Vars,      ONLY:DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,      ONLY:dt,sdtCFLOne
-USE MOD_Particle_Vars,      ONLY:PartState, PartLorentzType
-USE MOD_Part_RHS,           ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
-USE MOD_PICInterpolation,   ONLY:InterpolateFieldToSingleParticle
+USE MOD_Globals_Vars,            ONLY:epsMach
+USE MOD_Globals,                 ONLY:Abort
+USE MOD_DG_Vars,                 ONLY:U,Ut
+USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
+USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
+USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars,           ONLY:dt,sdtCFLOne
+USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType
+USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
+USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -239,7 +240,7 @@ REAL,INTENT(OUT)   :: Y(1:6)
 ! LOCAL VARIABLES
 REAL               :: X_abs,epsFD
 REAL               :: PartT(1:6)
-REAL               :: FieldAtParticle(1:6)
+!REAL               :: FieldAtParticle(1:6)
 !REAL               :: typ_v_abs, XK_V, sign_XK_V
 !===================================================================================================================================
 
@@ -253,13 +254,13 @@ EpsFD= rEps0/SQRT(X_abs)
 
 PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
-CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
+!CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
 PartT(1:3)=PartState(PartID,4:6)
 SELECT CASE(PartLorentzType)
 CASE(1)
-  PartT(4:6) = SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle(1:6))
+  PartT(4:6) = SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
 CASE(3)
-  PartT(4:6) = FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle(1:6))
+  PartT(4:6) = FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
 CASE DEFAULT
 CALL abort(&
 __STAMP__ &

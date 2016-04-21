@@ -729,7 +729,7 @@ REAL                             :: tLBStart,tLBEnd
 IF(PRESENT(DoParticle_IN))THEN
   DoParticle=DoParticle_In
 ELSE
-  DoParticle=PDM%ParticleInside(iPart)
+  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
 END IF
 
 IF(doInnerParts)THEN

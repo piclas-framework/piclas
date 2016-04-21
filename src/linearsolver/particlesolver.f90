@@ -23,7 +23,7 @@ INTERFACE InitPartSolver
   MODULE PROCEDURE InitPartSolver
 END INTERFACE
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 INTERFACE SelectImplicitParticles
   MODULE PROCEDURE SelectImplicitParticles
 END INTERFACE
@@ -31,7 +31,7 @@ END INTERFACE
 
 PUBLIC:: InitPartSolver
 PUBLIC:: ParticleNewton
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 PUBLIC:: SelectImplicitParticles
 #endif
 #endif /*PARTICLES*/
@@ -90,7 +90,7 @@ __STAMP__&
 END SUBROUTINE InitPartSolver
 
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod=122)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 SUBROUTINE SelectImplicitParticles() 
 !===================================================================================================================================
 ! select if particle is treated implicitly or explicitly, has to be called, after particle are created/emitted
@@ -147,6 +147,7 @@ USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
 USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 !USE MOD_Equation,       ONLY: CalcImplicitSource
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -161,7 +162,7 @@ REAL                         :: time
 INTEGER                      :: iPart
 INTEGER                      :: nInnerPartNewton = 0
 REAL                         :: AbortCritLinSolver,gammaA,gammaB
-REAL                         :: FieldAtParticle(1:6)
+!REAL                         :: FieldAtParticle(1:6)
 REAL                         :: DeltaX(1:6)
 REAL                         :: Pt_tmp(1:6)
 ! required GLOBAL variables
@@ -281,13 +282,13 @@ DO WHILE(ANY(DoPartInNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! may
 
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
-      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle)
+      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       R_PartXK(1:3,iPart)=PartState(iPart,4:6)
       SELECT CASE(PartLorentzType)
       CASE(1)
-        R_PartXK(4:6,iPart) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(1:6))
+        R_PartXK(4:6,iPart) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       CASE(3)
-        R_PartXK(4:6,iPart) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(1:6))
+        R_PartXK(4:6,iPart) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       CASE DEFAULT
       CALL abort(&
 __STAMP__&
