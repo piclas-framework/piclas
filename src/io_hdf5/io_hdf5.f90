@@ -42,6 +42,9 @@ SUBROUTINE InitIO_HDF5()
 USE MOD_Globals
 USE MOD_Globals_Vars,       ONLY:ProjectName
 USE MOD_ReadInTools,        ONLY:GETLOGICAL,CNTSTR, GETSTR
+#ifndef GNU 
+USE IFPORT
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

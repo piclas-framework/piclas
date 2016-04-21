@@ -986,6 +986,9 @@ USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
 USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
 USE MOD_ReadInTools,ONLY: GetParameters
+#ifndef GNU 
+USE IFPORT,                 ONLY:SYSTEM
+#endif
 !USE MOD_PreProcFlags
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
