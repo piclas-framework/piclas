@@ -92,7 +92,7 @@ END SUBROUTINE InitPartSolver
 
 
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-SUBROUTINE SelectImplicitParticles() 
+SUBROUTINE SelectImplicitParticles(AllExplicit) 
 !===================================================================================================================================
 ! select if particle is treated implicitly or explicitly, has to be called, after particle are created/emitted
 ! currently only one criterion is used: the species
@@ -106,6 +106,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
+LOGICAL, INTENT(OUT) :: AllExplicit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER     :: iPart
@@ -120,12 +121,14 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
   END IF ! ParticleInside
 END DO ! iPart
+AllExplicit=.TRUE.
+IF(ANY(Species(:)%IsImplicit)) AllExplicit=.FALSE.
   
 END SUBROUTINE SelectImplicitParticles
 #endif
 
 
-SUBROUTINE ParticleNewton(t,coeff)
+SUBROUTINE ParticleNewton(t,coeff,doParticle_In)
 !===================================================================================================================================
 ! Allocate global variable 
 !===================================================================================================================================
@@ -155,6 +158,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)               :: t,coeff
+LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -166,6 +170,7 @@ REAL                         :: AbortCritLinSolver,gammaA,gammaB
 !REAL                         :: FieldAtParticle(1:6)
 REAL                         :: DeltaX(1:6)
 REAL                         :: Pt_tmp(1:6)
+LOGICAL                      :: doParticle(1:PDM%ParticleVecLength)
 ! required GLOBAL variables
 !! to move to global variables for MPI :(
 !REAL                         :: F_PartX0(1:6,1:PDM%ParticleVecLength)
@@ -175,7 +180,6 @@ REAL                         :: Pt_tmp(1:6)
 !REAL                         :: Norm2_F_PartXK_Old(1:PDM%ParticleVecLength)
 !! maybeeee
 !! and thats maybe local??? || global, has to be set false during communication
-!LOGICAL                      :: DoPartInNewton(1:PDM%maxParticleNumber)
 !===================================================================================================================================
 
 time = t+coeff
@@ -185,15 +189,27 @@ time = t+coeff
 ! real newton:
 ! update Pt at each iteration
 
-! compute Pt
+IF(PRESENT(DoParticle_IN))THEN
+  DoPartInNewton=DoParticle_In
+ELSE
+  DoPartInNewton(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
+END IF
+
+! only for particles which has to be interpolated
 CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
 CALL CalcPartRHS()
 
 ! whole pt array
-! particle which are altered are set to true!
-DoPartInNewton=.FALSE.
 DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
+  IF(DoPartInNewton(iPart))THEN
+    CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+    SELECT CASE(PartLorentzType)
+    CASE(1)
+      Pt(4:6,iPart) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+    CASE(3)
+      Pt(4:6,iPart) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+    CASE DEFAULT
+    END SELECT
     ! PartStateN has to be exchanged by PartQ
     Pt_tmp(1) = PartState(iPart,4) 
     Pt_tmp(2) = PartState(iPart,5) 
@@ -205,7 +221,6 @@ DO iPart=1,PDM%ParticleVecLength
     PartXK(:,iPart)     =   PartState(iPart,:)
     R_PartXK(:,iPart)   =   Pt_tmp(:)
     F_PartXK(:,iPart)   =   F_PartX0(:,iPart)
-    DoPartInNewton(iPart)=.TRUE.
   END IF ! ParticleInside
 END DO ! iPart
 

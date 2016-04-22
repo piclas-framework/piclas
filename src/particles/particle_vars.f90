@@ -37,7 +37,7 @@ REAL    , ALLOCATABLE :: PartStage (:,:,:)                                   ! E
 REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! PartilceState at t^n
 #endif /*IMEX*/
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-LOGICAL , ALLOCATABLE :: PartIsImplicit(:)
+LOGICAL , ALLOCATABLE :: PartIsImplicit(:)                                   ! select, if specific particle is explicit or implicit
 #endif
 #ifdef IMPA
 REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n or state at RK-level 0

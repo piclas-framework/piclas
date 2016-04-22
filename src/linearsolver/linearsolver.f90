@@ -71,6 +71,9 @@ nDOFelem=PP_nVar*nGP3D
 nDOFGlobal=nDOFelem*PP_nElems
 
 ALLOCATE(ImplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+ALLOCATE(ExplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+#endif
 ALLOCATE(LinSolverRHS  (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 !#if (PP_TimeDiscMethod==100)
 !  ALLOCATE(FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1))
@@ -105,6 +108,12 @@ maxIter_LinearSolver  = GETINT('maxIter_LinearSolver','60')
 nKDim=GETINT('nKDim','25')
 nInnerIter=0
 totalIterLinearSolver = 0
+
+#if (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+maxFullNewtonIter    = GETINT('maxFullNewtonIter','100')
+TotalFullNewtonIter = 0
+#endif
+
 
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 DO iElem=1,PP_nElems

@@ -14,6 +14,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                 :: eps_LinearSolver,eps2_LinearSolver,epsTilde_LinearSolver
 REAL,ALLOCATABLE     :: ImplicitSource(:,:,:,:,:)
+REAL,ALLOCATABLE     :: ExplicitSource(:,:,:,:,:)
 REAL,ALLOCATABLE     :: LinSolverRHS  (:,:,:,:,:)
 REAL,ALLOCATABLE     :: FieldSource(:,:,:,:,:,:)
 REAL,ALLOCATABLE     :: Upast(:,:,:,:,:,:)
@@ -50,6 +51,10 @@ REAL,ALLOCATABLE     :: xk(:,:,:,:,:)
 REAL                 :: Eps2Newton
 LOGICAL              :: EisenstatWalker
 REAL                 :: gammaEW
+#endif
+#if (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+INTEGER              :: maxFullNewtonIter
+INTEGER              :: TotalFullNewtonIter
 #endif
 !===================================================================================================================================
 END MODULE MOD_LinearSolver_Vars
