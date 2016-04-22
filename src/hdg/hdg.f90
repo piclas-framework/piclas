@@ -9,6 +9,7 @@ MODULE MOD_HDG
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
+#ifdef PP_HDG
 INTERFACE InitHDG
   MODULE PROCEDURE InitHDG
 END INTERFACE
@@ -23,10 +24,12 @@ END INTERFACE
 
 PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RestartHDG
+#endif /* PP_HDG*/
 !===================================================================================================================================
 
 CONTAINS
 
+#ifdef PP_HDG
 SUBROUTINE InitHDG()
 !===================================================================================================================================
 ! Initialize variables of the HDG module
@@ -1654,5 +1657,6 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
   CALL PostProcessGradient(U_out(4,:,:),lambda(4,:,:),E)
 #endif
 END SUBROUTINE RestartHDG
+#endif /* PP_HDG*/
 
 END MODULE MOD_HDG

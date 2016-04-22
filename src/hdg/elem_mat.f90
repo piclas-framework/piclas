@@ -9,6 +9,7 @@ IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 
+#ifdef PP_HDG
 INTERFACE Elem_Mat
   MODULE PROCEDURE Elem_Mat
 END INTERFACE
@@ -24,10 +25,12 @@ END INTERFACE
 PUBLIC :: Elem_Mat
 PUBLIC :: BuildPrecond 
 PUBLIC :: PostProcessGradient
+#endif /* PP_HDG*/
 !===================================================================================================================================
 
 CONTAINS
 
+#ifdef PP_HDG
 SUBROUTINE Elem_Mat()
 !===================================================================================================================================
 ! 
@@ -488,5 +491,5 @@ DO iElem=1,PP_nElems
 END DO !iElem
 
 END SUBROUTINE PostProcessGradient
-
+#endif /* PP_HDG*/
 END MODULE MOD_Elem_Mat

@@ -166,6 +166,7 @@ PREPROC +=-DPP_N=$(N)
 ifneq ($(PARTICLES),)
   PREPROC +=-DPARTICLES=$(PARTICLES)
 endif
+PREPROC +=-DBASEDIR="'$(CURRENT_DIR)'"
 ifneq ($(FILESYSTEM),)
   PREPROC +=-D$(FILESYSTEM)
 endif
@@ -240,6 +241,7 @@ HDF5_INC  = -I$(HDF5_BASE)/include/
 HDF5_LIBS = -lhdf5_fortran -lhdf5
 # HDF5 requires DL lib and Zlib
 HDF5_LIBS += -ldl -lz
+PREPROC +=-DH5TOOLSDIR="'$(HDF5_BASE)/bin/'"
 #---------------------------------------------------------------------------------------------------------------------------------#
 
 #---------------------------------------------------------------------------------------------------------------------------------#
