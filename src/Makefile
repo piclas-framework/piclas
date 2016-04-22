@@ -87,6 +87,25 @@ $(BOLTZPLATZ_LIB): $(OBJ)
 %.o: %.f90
 	$(FC) $(FCFLAGS) $(INCDIRS) -c $< -o $@
 
+userblock:
+	@echo $(PWD)
+	@echo '{[( BUILD_CMD )]}' > ../bin/userblock.txt
+	@echo '$(FC) $(FCFLAGS) $(INCDIRS) -c flexi.f90 -o flexi.o' >> ../bin/userblock.txt
+	@echo '{[( LINK_CMD )]}' >> ../bin/userblock.txt
+	@echo '$(FC) $(FLFLAGS) flexi.o ../lib/$(FLEXI_LIB) -o ../bin/flexi $(LIBDIRS) $(EXTERNAL_LIBS)' >> ../bin/userblock.txt
+	@cd .. ;\
+	 echo '{[( GIT REVISIONS )]}'        >> ./bin/userblock.txt ;\
+	 git rev-parse --abbrev-ref HEAD     >> ./bin/userblock.txt ;\
+	 git log --oneline -1                >> ./bin/userblock.txt ;\
+	 echo 'master: '                     >> ./bin/userblock.txt ;\
+	 git log origin/master --oneline -1  >> ./bin/userblock.txt ;\
+	 echo '{[( GIT DIFF )]}'             >> ./bin/userblock.txt ;\
+	 git diff -p origin/master..HEAD     >> ./bin/userblock.txt ;\
+	 git diff -p                         >> ./bin/userblock.txt ;\
+	 echo '{[( GIT URL )]}'       			 >> ./bin/userblock.txt ;\
+   git config --get remote.origin.url	 >> ./bin/userblock.txt ;\
+	 cd src
+
 #------------------------------------------------------------------------------
 # DEPENDENCIES
 #------------------------------------------------------------------------------

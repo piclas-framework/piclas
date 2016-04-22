@@ -3377,7 +3377,7 @@ USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh,nSurfSample
 #if (PP_TimeDiscMethod==300)
-USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
+!USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
