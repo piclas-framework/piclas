@@ -42,6 +42,9 @@ SUBROUTINE InitIO_HDF5()
 USE MOD_Globals
 USE MOD_Globals_Vars,       ONLY:ProjectName
 USE MOD_ReadInTools,        ONLY:GETLOGICAL,CNTSTR, GETSTR
+#ifndef GNU 
+USE IFPORT
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -50,9 +53,40 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+CHARACTER(LEN=300)             :: IniFile,userblockFile
 !===================================================================================================================================
 ProjectName=GETSTR('ProjectName')
 Logging    =GETLOGICAL('Logging','.FALSE.')
+
+IF (MPIRoot) THEN
+  ! Copy userblock file
+  userblockFile = BASEDIR  &
+                  // 'bin/userblock.txt'
+  iError = SYSTEM('cp ' // TRIM(userblockFile) // ' ' // TRIM(ProjectName) // '.userblock')
+  IF (iError.NE.0) THEN
+    CALL abort(__STAMP__,&
+        'Could not copy userblock.')
+  END IF
+
+  ! Copy Inifile
+  iError = SYSTEM('echo "{[( INIFILE )]}" >> '//TRIM(ProjectName) // '.userblock')
+  IF (iError.NE.0) THEN
+    CALL abort(__STAMP__,&
+        'Could not append "{[( INIFILE )]}".')
+  END IF
+  CALL GET_COMMAND_ARGUMENT(1,IniFile)
+  iError = SYSTEM('cat ' // TRIM(IniFile) // ' >> ' // TRIM(ProjectName) // '.userblock')
+  IF (iError.NE.0) THEN
+    CALL abort(__STAMP__,&
+        'Could not copy inifile.')
+  END IF
+  ! Write END USERBLOCK to userblock
+  iError = SYSTEM('echo "{[( END USERBLOCK )]}" >> '//TRIM(ProjectName) // '.userblock')
+  IF (iError.NE.0) THEN
+    CALL abort(__STAMP__,&
+        'Could not append "{[( END USERBLOCK )]}".')
+  END IF
+END IF
 
 gatheredWrite=.FALSE.
 IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')

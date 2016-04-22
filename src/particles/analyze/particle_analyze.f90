@@ -559,7 +559,7 @@ SUBROUTINE AnalyzeParticles(Time)
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcTemp) THEN
     CALL CalcTemperature(Temp, NumSpec)
-    IF (CollisMode.NE.1) THEN
+    IF (CollisMode.GT.1) THEN
       CALL CalcIntTempsAndEn(IntTemp, IntEn)
       TempTotal = 0.0
       Xi_Vib = 0.0
@@ -593,7 +593,7 @@ SUBROUTINE AnalyzeParticles(Time)
       END DO
       TempTotal(nSpecies+1) = TempTotal(nSpecies+1) / NumSpec(nSpecies+1)
     END IF
-  ELSEIF(CalcEint.AND.(CollisMode.NE.1)) THEN
+  ELSEIF(CalcEint.AND.(CollisMode.GT.1)) THEN
     CALL CalcIntTempsAndEn(IntTemp, IntEn)
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------

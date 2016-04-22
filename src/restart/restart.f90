@@ -223,6 +223,7 @@ REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
 INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
 INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
 #endif /*MPI*/
+REAL                     :: VFR_total
 #endif /*PARTICLES*/
 !===================================================================================================================================
 IF(DoRestart)THEN
@@ -409,6 +410,15 @@ __STAMP__&
   DO i=1,nSpecies
     DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
       Species(i)%Init(iInit)%InsertedParticle = INT(Species(i)%Init(iInit)%ParticleEmission * RestartTime,8)
+    END DO
+    DO iInit = 1, Species(i)%nSurfacefluxBCs
+      IF (Species(i)%Surfaceflux(iInit)%ReduceNoise) THEN
+        VFR_total = Species(i)%Surfaceflux(iInit)%VFR_total_allProcsTotal !proc global total (for non-root: dummy!!!)
+      ELSE
+        VFR_total = Species(i)%Surfaceflux(iInit)%VFR_total               !proc local total
+      END IF
+      Species(i)%Surfaceflux(iInit)%InsertedParticle = INT(Species(i)%Surfaceflux(iInit)%PartDensity * RestartTime &
+        / Species(i)%MacroParticleFactor * VFR_total,8)
     END DO
   END DO
   ! if ParticleVecLength GT maxParticleNumber: Stop

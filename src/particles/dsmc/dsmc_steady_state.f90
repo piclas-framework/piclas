@@ -637,10 +637,12 @@ SUBROUTINE SteadyStateDetection_main()
             History(iElem,iSpecies,iTime)%Energy(1:3)     = History(iElem,iSpecies,iTime+1)%Energy(1:3)
             History(iElem,iSpecies,iTime)%Velocity(1:3)   = History(iElem,iSpecies,iTime+1)%Velocity(1:3)
             History(iElem,iSpecies,iTime)%PartNum         = History(iElem,iSpecies,iTime+1)%PartNum
-            IF(((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(SpecDSMC(iSpecies)%InterID.EQ.2)) THEN
-              History(iElem,iSpecies,iTime)%ERot          = History(iElem,iSpecies,iTime+1)%ERot
-              History(iElem,iSpecies,iTime)%EVib          = History(iElem,iSpecies,iTime+1)%EVib
-            ENDIF
+            IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+              IF (SpecDSMC(iSpecies)%InterID.EQ.2) THEN
+                History(iElem,iSpecies,iTime)%ERot          = History(iElem,iSpecies,iTime+1)%ERot
+                History(iElem,iSpecies,iTime)%EVib          = History(iElem,iSpecies,iTime+1)%EVib
+              END IF
+            END IF
             IF(DSMC%ElectronicState) THEN
               History(iElem,iSpecies,iTime)%EElec         = History(iElem,iSpecies,iTime+1)%EElec
             ENDIF
@@ -660,10 +662,12 @@ SUBROUTINE SteadyStateDetection_main()
                                                          * Species(iSpecies)%MassIC &
                                                          / BoltzmannConst
           History(iElem,iSpecies,HistTime)%PartNum       = Sampler(iElem,iSpecies)%PartNum
-          IF(((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(SpecDSMC(iSpecies)%InterID.EQ.2)) THEN
-            History(iElem,iSpecies,HistTime)%ERot        = Sampler(iElem,iSpecies)%ERot  / Sampler(iElem,iSpecies)%PartNum
-            History(iElem,iSpecies,HistTime)%EVib        = Sampler(iElem,iSpecies)%EVib  / Sampler(iElem,iSpecies)%PartNum
-          ENDIF
+          IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+            IF(SpecDSMC(iSpecies)%InterID.EQ.2) THEN
+              History(iElem,iSpecies,HistTime)%ERot        = Sampler(iElem,iSpecies)%ERot  / Sampler(iElem,iSpecies)%PartNum
+              History(iElem,iSpecies,HistTime)%EVib        = Sampler(iElem,iSpecies)%EVib  / Sampler(iElem,iSpecies)%PartNum
+            END IF
+          END IF
           IF(DSMC%ElectronicState) THEN
             History(iElem,iSpecies,HistTime)%EElec       = Sampler(iElem,iSpecies)%EElec / Sampler(iElem,iSpecies)%PartNum
           ENDIF
@@ -671,10 +675,12 @@ SUBROUTINE SteadyStateDetection_main()
           History(iElem,iSpecies,HistTime)%Velocity(1:3) = -1.0
           History(iElem,iSpecies,HistTime)%Energy(1:3)   = -1.0
           History(iElem,iSpecies,HistTime)%PartNum       = -1.0
-          IF(((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(SpecDSMC(iSpecies)%InterID.EQ.2)) THEN
-            History(iElem,iSpecies,HistTime)%ERot        = -1.0
-            History(iElem,iSpecies,HistTime)%EVib        = -1.0
-          ENDIF
+          IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
+            IF (SpecDSMC(iSpecies)%InterID.EQ.2) THEN
+              History(iElem,iSpecies,HistTime)%ERot        = -1.0
+              History(iElem,iSpecies,HistTime)%EVib        = -1.0
+            END IF
+          END IF
           IF(DSMC%ElectronicState) THEN
             History(iElem,iSpecies,HistTime)%EElec       = -1.0
           ENDIF
@@ -730,25 +736,29 @@ SUBROUTINE SteadyStateDetection_main()
           Check(7) = Check(7)+1
         ENDIF
         ! Check Energies (internal)
-        IF(((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(SpecDSMC(iSpecies)%InterID.EQ.2)) THEN
-          IF(CheckIntEn(1)) THEN
-            CheckHistory(1:nElems,1:nTime) = History(1:nElems,iSpecies,1:nTime)%ERot
-            CALL SteadyStateDetection_Algorithm(iSpecies,8)
-            IF(SteadyIdentGlobal(iSpecies,8).EQ.1) THEN
+        IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+          IF (SpecDSMC(iSpecies)%InterID.EQ.2) THEN
+            IF(CheckIntEn(1)) THEN
+              CheckHistory(1:nElems,1:nTime) = History(1:nElems,iSpecies,1:nTime)%ERot
+              CALL SteadyStateDetection_Algorithm(iSpecies,8)
+              IF(SteadyIdentGlobal(iSpecies,8).EQ.1) THEN
+                Check(8) = Check(8)+1
+              ENDIF
+            ELSE
               Check(8) = Check(8)+1
             ENDIF
-          ELSE
-            Check(8) = Check(8)+1
-          ENDIF
-          IF(CheckIntEn(2)) THEN
-            CheckHistory(1:nElems,1:nTime) = History(1:nElems,iSpecies,1:nTime)%EVib
-            CALL SteadyStateDetection_Algorithm(iSpecies,9)
-            IF(SteadyIdentGlobal(iSpecies,9).EQ.1) THEN
+            IF(CheckIntEn(2)) THEN
+              CheckHistory(1:nElems,1:nTime) = History(1:nElems,iSpecies,1:nTime)%EVib
+              CALL SteadyStateDetection_Algorithm(iSpecies,9)
+              IF(SteadyIdentGlobal(iSpecies,9).EQ.1) THEN
+                Check(9) = Check(9)+1
+              ENDIF
+            ELSE
               Check(9) = Check(9)+1
             ENDIF
           ELSE
-            Check(9) = Check(9)+1
-          ENDIF
+            Check(8:9) = Check(8:9)+1
+          END IF
         ELSE
           Check(8:9) = Check(8:9)+1
         ENDIF
@@ -805,12 +815,14 @@ SUBROUTINE SteadyStateDetection_Sampling()
                                                             + PartMPF(PartIndex) * PartState(PartIndex,4:6)
         Sampler(iElem,PartSpecies(PartIndex))%PartNum       = Sampler(iElem,PartSpecies(PartIndex))%PartNum &
                                                             + PartMPF(PartIndex)
-        IF(((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.2)) THEN
-          Sampler(iElem,PartSpecies(PartIndex))%EVib        = Sampler(iElem,PartSpecies(PartIndex))%EVib &
-                                                            + PartStateIntEn(PartIndex,1) * PartMPF(PartIndex)
-          Sampler(iElem,PartSpecies(PartIndex))%ERot        = Sampler(iElem,PartSpecies(PartIndex))%ERot &
-                                                            + PartStateIntEn(PartIndex,2) * PartMPF(PartIndex)
-        ENDIF
+        IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
+          IF(SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.2) THEN
+            Sampler(iElem,PartSpecies(PartIndex))%EVib        = Sampler(iElem,PartSpecies(PartIndex))%EVib &
+                                                              + PartStateIntEn(PartIndex,1) * PartMPF(PartIndex)
+            Sampler(iElem,PartSpecies(PartIndex))%ERot        = Sampler(iElem,PartSpecies(PartIndex))%ERot &
+                                                              + PartStateIntEn(PartIndex,2) * PartMPF(PartIndex)
+          END IF
+        END IF
         IF(DSMC%ElectronicState) THEN
           Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
                                                             + PartStateIntEn(PartIndex,2) * PartMPF(PartIndex)
@@ -822,12 +834,14 @@ SUBROUTINE SteadyStateDetection_Sampling()
                                                             + PartState(PartIndex,4:6)
         Sampler(iElem,PartSpecies(PartIndex))%PartNum       = Sampler(iElem,PartSpecies(PartIndex))%PartNum &
                                                             + 1
-        IF(((CollisMode.EQ.2).OR.(CollisMode.EQ.3)).AND.(SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.2)) THEN
-          Sampler(iElem,PartSpecies(PartIndex))%EVib        = Sampler(iElem,PartSpecies(PartIndex))%EVib &
-                                                            + PartStateIntEn(PartIndex,1)
-          Sampler(iElem,PartSpecies(PartIndex))%ERot        = Sampler(iElem,PartSpecies(PartIndex))%ERot &
-                                                            + PartStateIntEn(PartIndex,2)
-        ENDIF
+        IF((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
+          IF(SpecDSMC(PartSpecies(PartIndex))%InterID.EQ.2) THEN
+            Sampler(iElem,PartSpecies(PartIndex))%EVib        = Sampler(iElem,PartSpecies(PartIndex))%EVib &
+                                                              + PartStateIntEn(PartIndex,1)
+            Sampler(iElem,PartSpecies(PartIndex))%ERot        = Sampler(iElem,PartSpecies(PartIndex))%ERot &
+                                                              + PartStateIntEn(PartIndex,2)
+          END IF
+        END IF
         IF(DSMC%ElectronicState) THEN
           Sampler(iElem,PartSpecies(PartIndex))%EElec       = Sampler(iElem,PartSpecies(PartIndex))%EElec &
                                                             + PartStateIntEn(PartIndex,2)

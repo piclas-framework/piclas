@@ -761,7 +761,7 @@ INTEGER                  :: iPos
 iPos = 0
 iPos = INT(POS/DeltaExternalField) + 1
 IF (iPos.GE.nIntPoints) THEN
-  IPWRITE(UNIT_stdOut,'(A,F8.5,I10.2)')"Position and Position index, ",POS,iPos
+  IPWRITE(UNIT_stdOut,'(I4,A,F8.5,I10.2)')"Position and Position index, ",POS,iPos
   CALL abort(&
   __STAMP__ &
   ,"ERROR: particle out of data point region for external curved field interpolation!")
