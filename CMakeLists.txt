@@ -42,6 +42,7 @@ OPTION(BOLTZPLATZ_HLRS "enable the settings for the HLRS" OFF)
 OPTION(BOLTZPLATZ_HDF5F90 "enable old HDF5 interface" OFF)
 OPTION(BOLTZPLATZ_MKL "use MKL libraries instead of BLAS/LAPACK" OFF)
 OPTION(BOLTZPLATZ_CODE_ANALYZE "Code Analyze" OFF)
+OPTION(BOLTZPLATZ_CTAGS "Use Ctags" OFF)
 ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 OPTION(BOLTZPLATZ_HDG "enable Hybridized Discontinuous Galerkin (HDG) depending on choice of TIMEDISCMETHOD" OFF)
 
@@ -489,3 +490,12 @@ ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURC
 # =========================================================================
 INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boltzplatz DESTINATION bin)
 INSTALL(FILES  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt DESTINATION bin)
+
+# =========================================================================
+# Ctags
+# =========================================================================
+IF(BOLTZPLATZ_CTAGS)
+  ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt src)
+  ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
+  ADD_DEPENDENCIES(boltzplatz tags)
+ENDIF(BOLTZPLATZ_CTAGS)
