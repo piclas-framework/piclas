@@ -189,6 +189,9 @@ INTEGER            :: i,j,k,vn1,vn2,mm,iVar,nn,oo,p,q,vni,vnj,vnk,vnmm,vnoo,vnnn
 REAL               :: coeff
 REAL               :: tmp(1:nDOFLine,1:nDOFLine)
 INTEGER            :: nTotalDOF,NBElemID,nlocSides
+#ifdef MPI
+REAL               :: TotalTimeMPI(3)
+#endif /*MPI*/
 !===================================================================================================================================
 
 IF(PrecondType.EQ.0) RETURN !NO PRECONDITIONER
@@ -275,8 +278,16 @@ DO iElem=1,PP_nElems
   END IF ! DebugMatrix
 END DO ! ! iELEM
 
-WRITE(UNIT_stdOut,'(A,F11.3,A)')' TOTAL DERIVATING TIME =[',TotalTime(1),' ]'
-WRITE(UNIT_stdOut,'(A,F11.3,A)')' TOTAL INVERTING  TIME =[',TotalTime(2),' ]'
+#ifdef MPI
+CALL MPI_REDUCE(TotalTime,TotalTimeMPI ,3,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD,IERROR)
+IF(MPIRoot) THEN
+  TotalTime=TotalTimeMPI
+END IF
+
+#endif /*MPI*/
+
+SWRITE(UNIT_stdOut,'(A,F11.3,A)')' TOTAL DERIVATING TIME =[',TotalTime(1),' ]'
+SWRITE(UNIT_stdOut,'(A,F11.3,A)')' TOTAL INVERTING  TIME =[',TotalTime(2),' ]'
 IF(debugMatrix.GT.2) WRITE(UNIT_stdOut,'(A,F11.3,A)')' TOTAL CHECKING  TIME =[',TotalTime(3),' ]'
 SWRITE(UNIT_stdOut,'(A)')' BUILD PRECONDITIONER DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
