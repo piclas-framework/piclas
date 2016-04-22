@@ -367,9 +367,6 @@ END IF
 PartPressureCell = .FALSE.
 ALLOCATE(Species(1:nSpecies))
 
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-ALLOCATE(SpeciesIsImplicit(nSpecies))
-#endif
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits','0')

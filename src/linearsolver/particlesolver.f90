@@ -99,7 +99,7 @@ SUBROUTINE SelectImplicitParticles()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particles_Vars,     ONLY:Species,nSpecies,PartSpecies,PartIsImplicit
+USE MOD_Particle_Vars,     ONLY:Species,nSpecies,PartSpecies,PartIsImplicit,PDM
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
