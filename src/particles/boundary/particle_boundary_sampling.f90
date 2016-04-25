@@ -95,8 +95,8 @@ IF (useDSMC) THEN
     IF (nSurfSample.NE.BezierSampleN) THEN
 !       nSurfSample = BezierSampleN
     CALL abort(&
-        __STAMP__&
-        ,'Error: nSurfSample not equal to BezierSampleN. Problem for Desorption + Surfflux')
+__STAMP__&
+,'Error: nSurfSample not equal to BezierSampleN. Problem for Desorption + Surfflux')
     END IF
   END IF
 END IF
