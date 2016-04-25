@@ -2907,11 +2907,12 @@ REAL               :: alpha
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-REAL               :: DeltaX(1:8,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! difference between electric field and div-correction
+REAL               :: DeltaX(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! difference between electric field and div-correction
 REAL               :: tRatio, tphi
-REAL               :: Norm_RO,Norm_R,rDummy
+REAL               :: Norm_R0,Norm_R,rDummy
 INTEGER            :: iCounter !, iStage
 INTEGER            :: nFullNewtonIter
+INTEGER            :: i,j,k,iElem,iVar
 #ifdef PARTICLES
 INTEGER            :: iPart
 #endif /*PARTICLES*/
@@ -3067,12 +3068,95 @@ DO iStage=2,nRKStages
   ! get predictor of u^s+1
   CALL Predictor(iStage,dt,Un,FieldSource,FieldStage) ! sets new value for U_DG
 
+#ifdef PARTICLES
+  IF (t.GE.DelayTime) THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF(PartIsImplicit(iPart))THEN
+        LastPartPos(iPart,1)=PartState(iPart,1)
+        LastPartPos(iPart,2)=PartState(iPart,2)
+        LastPartPos(iPart,3)=PartState(iPart,3)
+        PEM%lastElement(iPart)=PEM%Element(iPart)
+        ! compute Q and U
+        PartQ(1:6,iPart)=PartStateN(iPart,1:6)
+        DO iCounter = 1, iStage-1
+          PartQ(1:6,iPart)=PartQ(1:6,iPart) &
+                        + ESDIRK_a(iStage,iCounter)*dt*PartStage(iPart,1:6,iCounter)
+        END DO 
+      END IF ! PartIsImplicit
+    END DO ! iPart
+
+    ! now, we have an initial guess for the field  can compute the first particle movement
+    alpha = ESDIRK_a(iStage,iStage)*dt
+    CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit)
+
+    ! move particle, if not already done, here, a reduced list could be again used, but a different list...
+#ifdef MPI
+    ! open receive buffer for number of particles
+    CALL IRecvNbofParticles()
+#endif /*MPI*/
+    IF(DoRefMapping)THEN
+      CALL ParticleRefTracking()
+    ELSE
+      CALL ParticleTrackingCurved()
+    END IF
+#ifdef MPI
+    ! here: could use deposition as hiding, not done yet
+    ! send number of particles
+    CALL SendNbOfParticles()
+    ! finish communication of number of particles and send particles
+    CALL MPIParticleSend()
+    ! finish communication
+    CALL MPIParticleRecv()
+    PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+
+    ! compute particle source terms on field solver of implicit particles :)
+    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit)
+    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit)
+#ifdef MPI
+    ! here: finish deposition with delta kernal
+    !       maps source terms in physical space
+    ! ALWAYS require
+    PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+  END IF
+#endif /*PARTICLES*/
+
+  ! compute error-norm-version1, non-optimized
+  CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
+  ImplicitSource=ExplicitSource
+  CALL CalcSource(tStage,1.,ImplicitSource)
+  DeltaX(1:3,:,:,:,:)=U(1:3,:,:,:,:)-alpha*Ut(1:3,:,:,:,:)-LinSolverRHS(1:3,:,:,:,:)-alpha*ImplicitSource(1:3,:,:,:,:)
+
+  Norm_R=0.
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N
+      DO j=0,PP_N
+        DO i=0,PP_N
+          DO iVar=1,3
+            Norm_R=Norm_R + DeltaX(iVar,i,j,k,iElem)*DeltaX(iVar,i,j,k,iElem)
+          END DO
+        END DO
+      END DO
+    END DO
+  END DO
+
+#ifdef MPI
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+#endif
+  Norm_R0=SQRT(Norm_R)
+  Norm_R=Norm_R0
+
+
   nFullNewtonIter=0
-  Norm_RO=1
-  Norm_R =1
-  DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_RO*eps_LinearSolver))
+  DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*eps_LinearSolver))
     nFullNewtonIter = nFullNewtonIter+1
     DeltaX=-U
+
+    ! solve field to new stage 
+    ImplicitSource=ExplicitSource
+    CALL LinearSolver(tstage,alpha)
+
 #ifdef PARTICLES
     IF (t.GE.DelayTime) THEN
       DO iPart=1,PDM%ParticleVecLength
@@ -3082,11 +3166,12 @@ DO iStage=2,nRKStages
           LastPartPos(iPart,3)=PartState(iPart,3)
           PEM%lastElement(iPart)=PEM%Element(iPart)
           ! compute Q and U
-          PartQ(1:6,iPart)=PartStateN(iPart,1:6)
-          DO iCounter = 1, iStage-1
-            PartQ(1:6,iPart)=PartQ(1:6,iPart) &
-                          + ESDIRK_a(iStage,iCounter)*dt*PartStage(iPart,1:6,iCounter)
-          END DO 
+          ! reuse old Q !! correct????
+          PartQ(1:6,iPart)=PartState(iPart,1:6)
+          !DO iCounter = 1, iStage-1
+          !  PartQ(1:6,iPart)=PartQ(1:6,iPart) &
+          !                + ESDIRK_a(iStage,iCounter)*dt*PartStage(iPart,1:6,iCounter)
+          !END DO 
         END IF ! PartIsImplicit
       END DO ! iPart
 
@@ -3127,19 +3212,38 @@ DO iStage=2,nRKStages
     END IF
 #endif /*PARTICLES*/
 
-    ! solve field to new stage 
+    ! compute error-norm-version1, non-optimized
+    CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
     ImplicitSource=ExplicitSource
-    CALL LinearSolver(tstage,alpha)
+    CALL CalcSource(tStage,1.,ImplicitSource)
+    DeltaX(1:3,:,:,:,:)=U(1:3,:,:,:,:)-alpha*Ut(1:3,:,:,:,:)-LinSolverRHS(1:3,:,:,:,:)-alpha*ImplicitSource(1:3,:,:,:,:)
+  
+    Norm_R=0.
+    DO iElem=1,PP_nElems
+      DO k=0,PP_N
+        DO j=0,PP_N
+          DO i=0,PP_N
+            DO iVar=1,3
+              Norm_R=Norm_R + DeltaX(iVar,i,j,k,iElem)*DeltaX(iVar,i,j,k,iElem)
+            END DO
+          END DO
+        END DO
+      END DO
+    END DO
 
-    ! recompute new residual, in form of change after one whole iteration 
-    DeltaX=DeltaX+U
-    rDummy=MAXVAL(ABS(DeltaX))
 #ifdef MPI
-    CALL MPI_ALLREDUCE(rDummy,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,IERROR)
-#else
-    Norm_R=rDimmy
-#endif /*MPI*/
-    IF(nFullNewtonIter.EQ.1) Norm_RO=Norm_R
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+#endif
+   Norm_R=SQRT(Norm_R)
+    ! recompute new residual, in form of change after one whole iteration 
+!    DeltaX=DeltaX+U
+!!    rDummy=MAXVAL(ABS(DeltaX))
+!#ifdef MPI
+!    CALL MPI_ALLREDUCE(rDummy,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,IERROR)
+!#else
+!    Norm_R=rDimmy
+!#endif /*MPI*/
+    !IF(nFullNewtonIter.EQ.1) Norm_RO=Norm_R
     IF(AllExplicit) Norm_R=0
 
   END DO ! funny pseudo Newton for all implicit
