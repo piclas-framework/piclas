@@ -63,8 +63,8 @@ SUBROUTINE InitParticleAnalyze()
   INTEGER   :: dir, VeloDirs_hilf(4)
 !===================================================================================================================================
   IF (ParticleAnalyzeInitIsDone) THEN
-    CALL abort(__STAMP__,&
-    'InitParticleAnalyse already called.',999,999.)
+CALL abort(__STAMP__,&
+'InitParticleAnalyse already called.',999,999.)
     RETURN
   END IF
   SWRITE(UNIT_StdOut,'(132("-"))')
