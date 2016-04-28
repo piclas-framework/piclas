@@ -727,7 +727,7 @@ REAL                             :: tLBStart,tLBEnd
 !============================================================================================================================
 
 IF(PRESENT(DoParticle_IN))THEN
-  DoParticle=DoParticle_In
+  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
 ELSE
   DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
 END IF
