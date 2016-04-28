@@ -255,6 +255,7 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
   ,' Cannot allocate PartIsImplicit arrays!')
 END IF
+PartIsImplicit=.FALSE.
 #endif
 
 
