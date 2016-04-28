@@ -2921,6 +2921,7 @@ LOGICAL            :: AllExplicit
 
 #ifdef maxwell
 ! caution hard coded
+print*,'init preconditioner',iter
 IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
 #endif /*maxwell*/
 
@@ -3017,6 +3018,7 @@ DO iStage=2,nRKStages
   ! particle step || only explicit particles
   IF (t.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       IF(.NOT.PartIsImplicit(iPart))THEN
         LastPartPos(iPart,1)=PartState(iPart,1)
         LastPartPos(iPart,2)=PartState(iPart,2)
@@ -3046,10 +3048,11 @@ DO iStage=2,nRKStages
     ! finish communication of number of particles and send particles
     CALL MPIParticleSend()
     ! deposit explicit, local particles
-    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit)
+    print*,'PartIsImplicit',PartIsImplicit
+    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     ! finish communication
     CALL MPIParticleRecv()
-    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit)
+    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
 #endif
     PartMPIExchange%nMPIParticles=0
     CALL CalcSource(tStage,1.,ExplicitSource)
@@ -3087,7 +3090,7 @@ DO iStage=2,nRKStages
 
     ! now, we have an initial guess for the field  can compute the first particle movement
     alpha = ESDIRK_a(iStage,iStage)*dt
-    CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit)
+    CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 
     ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
@@ -3111,8 +3114,8 @@ DO iStage=2,nRKStages
 #endif /*MPI*/
 
     ! compute particle source terms on field solver of implicit particles :)
-    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit)
-    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit)
+    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #ifdef MPI
     ! here: finish deposition with delta kernal
     !       maps source terms in physical space
@@ -3127,6 +3130,8 @@ DO iStage=2,nRKStages
   ImplicitSource=ExplicitSource
   CALL CalcSource(tStage,1.,ImplicitSource)
   DeltaX(1:3,:,:,:,:)=U(1:3,:,:,:,:)-alpha*Ut(1:3,:,:,:,:)-LinSolverRHS(1:3,:,:,:,:)-alpha*ImplicitSource(1:3,:,:,:,:)
+  !DeltaX(1:8,:,:,:,:)=U(1:8,:,:,:,:)-alpha*Ut(1:8,:,:,:,:)-LinSolverRHS(1:8,:,:,:,:)-alpha*ImplicitSource(1:8,:,:,:,:)
+  !Y(1:6,:,:,:,:) =LinSolverRHS(1:6,:,:,:,:) - U(1:6,:,:,:,:) +coeff*Ut(1:6,:,:,:,:)+ coeff*ImplicitSource(1:6,:,:,:,:))
 
   Norm_R=0.
   DO iElem=1,PP_nElems
@@ -3146,16 +3151,19 @@ DO iStage=2,nRKStages
 #endif
   Norm_R0=SQRT(Norm_R)
   Norm_R=Norm_R0
+  SWRITE(*,*) 'Norm_R0',Norm_R0
 
 
   nFullNewtonIter=0
   DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*eps_LinearSolver))
     nFullNewtonIter = nFullNewtonIter+1
-    DeltaX=-U
+    !DeltaX=-U
 
     ! solve field to new stage 
+    print*,'LinearSolver'
     ImplicitSource=ExplicitSource
     CALL LinearSolver(tstage,alpha)
+    print*,'done'
 
 #ifdef PARTICLES
     IF (t.GE.DelayTime) THEN
@@ -3167,7 +3175,7 @@ DO iStage=2,nRKStages
           PEM%lastElement(iPart)=PEM%Element(iPart)
           ! compute Q and U
           ! reuse old Q !! correct????
-          PartQ(1:6,iPart)=PartState(iPart,1:6)
+          !PartQ(1:6,iPart)=PartState(iPart,1:6)
           !DO iCounter = 1, iStage-1
           !  PartQ(1:6,iPart)=PartQ(1:6,iPart) &
           !                + ESDIRK_a(iStage,iCounter)*dt*PartStage(iPart,1:6,iCounter)
@@ -3177,7 +3185,7 @@ DO iStage=2,nRKStages
 
       ! now, we have an initial guess for the field  can compute the first particle movement
       alpha = ESDIRK_a(iStage,iStage)*dt
-      CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit)
+      CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
@@ -3201,8 +3209,8 @@ DO iStage=2,nRKStages
 #endif /*MPI*/
 
       ! compute particle source terms on field solver of implicit particles :)
-      CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit)
-      CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit)
+      CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #ifdef MPI
       ! here: finish deposition with delta kernal
       !       maps source terms in physical space
@@ -3212,43 +3220,39 @@ DO iStage=2,nRKStages
     END IF
 #endif /*PARTICLES*/
 
-    ! compute error-norm-version1, non-optimized
-    CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
-    ImplicitSource=ExplicitSource
-    CALL CalcSource(tStage,1.,ImplicitSource)
-    DeltaX(1:3,:,:,:,:)=U(1:3,:,:,:,:)-alpha*Ut(1:3,:,:,:,:)-LinSolverRHS(1:3,:,:,:,:)-alpha*ImplicitSource(1:3,:,:,:,:)
+    IF(AllExplicit)THEN
+      Norm_R=0
+    ELSE
+      ! compute error-norm-version1, non-optimized
+      CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
+      ImplicitSource=ExplicitSource
+      CALL CalcSource(tStage,1.,ImplicitSource)
+      DeltaX(1:3,:,:,:,:)=U(1:3,:,:,:,:)-alpha*Ut(1:3,:,:,:,:)-LinSolverRHS(1:3,:,:,:,:)-alpha*ImplicitSource(1:3,:,:,:,:)
+      !DeltaX(1:8,:,:,:,:)=U(1:8,:,:,:,:)-alpha*Ut(1:8,:,:,:,:)-LinSolverRHS(1:8,:,:,:,:)-alpha*ImplicitSource(1:8,:,:,:,:)
   
-    Norm_R=0.
-    DO iElem=1,PP_nElems
-      DO k=0,PP_N
-        DO j=0,PP_N
-          DO i=0,PP_N
-            DO iVar=1,3
-              Norm_R=Norm_R + DeltaX(iVar,i,j,k,iElem)*DeltaX(iVar,i,j,k,iElem)
+      Norm_R=0.
+      DO iElem=1,PP_nElems
+        DO k=0,PP_N
+          DO j=0,PP_N
+            DO i=0,PP_N
+              DO iVar=1,3
+                Norm_R=Norm_R + DeltaX(iVar,i,j,k,iElem)*DeltaX(iVar,i,j,k,iElem)
+              END DO
             END DO
           END DO
         END DO
       END DO
-    END DO
 
 #ifdef MPI
-    CALL MPI_ALLREDUCE(MPI_IN_PLACE,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+      CALL MPI_ALLREDUCE(MPI_IN_PLACE,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
-   Norm_R=SQRT(Norm_R)
-    ! recompute new residual, in form of change after one whole iteration 
-!    DeltaX=DeltaX+U
-!!    rDummy=MAXVAL(ABS(DeltaX))
-!#ifdef MPI
-!    CALL MPI_ALLREDUCE(rDummy,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,IERROR)
-!#else
-!    Norm_R=rDimmy
-!#endif /*MPI*/
-    !IF(nFullNewtonIter.EQ.1) Norm_RO=Norm_R
-    IF(AllExplicit) Norm_R=0
+      Norm_R=SQRT(Norm_R)
+    END IF
+    SWRITE(*,*) 'iter,Norm_R',nFullNewtonIter,Norm_R
 
   END DO ! funny pseudo Newton for all implicit
   totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
-  IF(nFullNewtonIter.GE.TotalFullNewtonITer) CALL abort(&
+  IF(nFullNewtonIter.GE.maxFullNewtonIter) CALL abort(&
    __STAMP__&
      ,' Outer-Newton of semi-fully implicit scheme is running into infinity.')
 END DO
@@ -3258,6 +3262,7 @@ END DO
 ! particle step || only explicit particles
 IF (t.GE.DelayTime) THEN
   DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart))CYCLE
     IF(.NOT.PartIsImplicit(iPart))THEN
       LastPartPos(iPart,1)=PartState(iPart,1)
       LastPartPos(iPart,2)=PartState(iPart,2)
