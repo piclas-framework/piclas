@@ -198,8 +198,8 @@ ELSE
 END IF
 
 ! only for particles which has to be interpolated
-CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
-CALL CalcPartRHS()
+!CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
+!CALL CalcPartRHS()
 
 ! whole pt array
 DO iPart=1,PDM%ParticleVecLength
@@ -207,9 +207,9 @@ DO iPart=1,PDM%ParticleVecLength
     CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
     SELECT CASE(PartLorentzType)
     CASE(1)
-      Pt(4:6,iPart) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
     CASE(3)
-      Pt(4:6,iPart) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
     CASE DEFAULT
     END SELECT
     ! PartStateN has to be exchanged by PartQ
