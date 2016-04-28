@@ -119,6 +119,8 @@ DO iPart=1,PDM%ParticleVecLength
     ELSE
       PartIsImplicit(iPart)=.FALSE.
     END IF
+  ELSE
+    PartIsImplicit(iPart)=.FALSE.
   END IF ! ParticleInside
 END DO ! iPart
 AllExplicit=.TRUE.
