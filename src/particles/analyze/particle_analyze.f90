@@ -172,7 +172,7 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
   USE MOD_PARTICLE_Vars,         ONLY: PartSpecies, PDM, nSpecies, PartMPF, usevMPF, BoltzmannConst, Species
   USE MOD_DSMC_Vars,             ONLY: DSMC, CollInf, useDSMC, CollisMode, ChemReac, SpecDSMC, PolyatomMolDSMC
-  USE MOD_Restart_Vars,          ONLY: DoRestart, RestartTime
+  USE MOD_Restart_Vars,          ONLY: DoRestart
   USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod>=501)
   USE MOD_TimeDisc_Vars,         ONLY : iter
@@ -204,7 +204,7 @@ SUBROUTINE AnalyzeParticles(Time)
 #ifdef MPI
   REAL                :: RECBR(nSpecies),RECBR2(nEkin),RECBR1
   INTEGER             :: RECBIM(nSpecies)
-  REAL                :: sumIntTemp(nSpecies),sumIntEn(nSpecies),sumTempTotal(nSpecies+1),sumMeanCollProb
+  REAL                :: sumIntTemp(nSpecies),sumIntEn(nSpecies),sumMeanCollProb
 #endif /*MPI*/
   REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)
@@ -615,6 +615,8 @@ SUBROUTINE AnalyzeParticles(Time)
   IF(CalcEkin) CALL CalcKineticEnergy(Ekin)
   !IF(CalcTemp) CALL CalcTemperature(Temp, NumSpec)
   IF(TrackParticlePosition) CALL TrackingParticlePosition(time)
+  PartVtrans=0.
+  PartVtherm=0.
   IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm)
 !===================================================================================================================================
 ! MPI Communication
@@ -1496,9 +1498,9 @@ REAL              :: PartV(nSpecies, 3), PartV2(nSpecies,3),Mean_PartV2(nSpecies
 #endif
 END SUBROUTINE CalcTemperature
 
-SUBROUTINE CalcVelocities(PartVloc, PartVthermloc)
+SUBROUTINE CalcVelocities(PartVtrans, PartVtherm)
 !===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
+! Calculates the 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1513,18 +1515,19 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                :: PartVloc(:,:), PartVthermloc(:,:) 
+REAL,INTENT(OUT)                :: PartVtrans(:,:), PartVtherm(:,:) 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                        :: iSpec
 INTEGER                        :: i, NumSpecloc(nSpecies), NumSpecglob(nSpecies), dir
 REAL                           :: RealNumSpecloc(nSpecies), RealNumSpecglob(nSpecies)
 REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies,4)
 !===================================================================================================================================
 ! Compute velocity averages
-  PartVloc = 0.
+  PartVtrans = 0.
   PartVglob = 0.
   PartVthermglob = 0.
-  PartVthermloc = 0.
+  PartVtherm = 0.
   NumSpecloc = 0
   NumSpecglob = 0
   RealNumSpecloc = 0.
@@ -1539,17 +1542,17 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
       DO dir = 1,3
         IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
           IF (usevMPF) THEN 
-            PartVloc(PartSpecies(i),dir) = PartVloc(PartSpecies(i),dir) + PartState(i,dir+3) * PartMPF(i)
+            PartVtrans(PartSpecies(i),dir) = PartVtrans(PartSpecies(i),dir) + PartState(i,dir+3) * PartMPF(i)
           ELSE
-            PartVloc(PartSpecies(i),dir) = PartVloc(PartSpecies(i),dir) + PartState(i,dir+3)
+            PartVtrans(PartSpecies(i),dir) = PartVtrans(PartSpecies(i),dir) + PartState(i,dir+3)
           END IF
         END IF
       END DO
     END IF
   END DO
 #ifdef MPI
-  CALL MPI_ALLREDUCE(PartVloc, PartVglob, 4*nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,  PartMPI%COMM, IERROR)
-  PartVloc = PartVglob
+  CALL MPI_ALLREDUCE(PartVtrans, PartVglob, 4*nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,  PartMPI%COMM, IERROR)
+  PartVtrans = PartVglob
 #endif
   IF (usevMPF) THEN
 #ifdef MPI
@@ -1558,7 +1561,13 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
 #endif
     DO dir = 1,3
       IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
-        PartVloc(:,dir) = PartVloc(:,dir)/RealNumSpecloc(:)
+        DO iSpec = 1,nSpecies
+          IF(RealNumSpecloc(iSpec).EQ.0)THEN
+            PartVtrans(iSpec,dir) = 0.
+          ELSE
+            PartVtrans(iSpec,dir) = PartVtrans(iSpec,dir)/RealNumSpecloc(iSpec)
+          END IF
+        END DO ! iSpec = 1,nSpecies
       END IF
     END DO
   ELSE
@@ -1568,7 +1577,13 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
 #endif
     DO dir = 1,3
       IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
-        PartVloc(:,dir) = PartVloc(:,dir)/NumSpecloc(:)
+        DO iSpec = 1,nSpecies
+          IF(NumSpecloc(iSpec).EQ.0)THEN
+            PartVtrans(iSpec,dir) = 0.
+          ELSE
+            PartVtrans(iSpec,dir) = PartVtrans(iSpec,dir)/NumSpecloc(iSpec)
+          END IF
+        END DO ! iSpec = 1,nSpecies
       END IF
     END DO
   END IF
@@ -1578,36 +1593,45 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
       DO dir = 1,3
         IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
           IF (usevMPF) THEN 
-            PartVthermloc(PartSpecies(i),dir) = PartVthermloc(PartSpecies(i),dir) + PartMPF(i) * &
-                (PartState(i,dir+3) - PartVloc(PartSpecies(i),dir))*(PartState(i,dir+3) - PartVloc(PartSpecies(i),dir))
+            PartVtherm(PartSpecies(i),dir) = PartVtherm(PartSpecies(i),dir) + PartMPF(i) * &
+                (PartState(i,dir+3) - PartVtrans(PartSpecies(i),dir))*(PartState(i,dir+3) - PartVtrans(PartSpecies(i),dir))
           ELSE
-            PartVthermloc(PartSpecies(i),dir) = PartVthermloc(PartSpecies(i),dir) + &
-                (PartState(i,dir+3) - PartVloc(PartSpecies(i),dir))*(PartState(i,dir+3) - PartVloc(PartSpecies(i),dir))
+            PartVtherm(PartSpecies(i),dir) = PartVtherm(PartSpecies(i),dir) + &
+                (PartState(i,dir+3) - PartVtrans(PartSpecies(i),dir))*(PartState(i,dir+3) - PartVtrans(PartSpecies(i),dir))
           END IF
         END IF
       END DO
     END IF
   END DO
 #ifdef MPI
-  CALL MPI_ALLREDUCE(PartVthermloc, PartVthermglob, 4*nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,  PartMPI%COMM, IERROR)
-  PartVthermloc = PartVthermglob
+  CALL MPI_ALLREDUCE(PartVtherm, PartVthermglob, 4*nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,  PartMPI%COMM, IERROR)
+  PartVtherm = PartVthermglob
 #endif
   DO dir = 1,3
     IF (VeloDirs(dir) .OR. VeloDirs(4)) THEN
-      IF (usevMPF) THEN
-        PartVthermloc(:,dir)=PartVthermloc(:,dir)/RealNumSpecloc(:)
-      ELSE
-        PartVthermloc(:,dir)=PartVthermloc(:,dir)/NumSpecloc(:)
-      END IF
+      DO iSpec = 1,nSpecies
+        IF (usevMPF) THEN
+          IF(RealNumSpecloc(iSpec).EQ.0)THEN
+            PartVtherm(iSpec,dir)=0.
+          ELSE
+            PartVtherm(iSpec,dir)=PartVtherm(iSpec,dir)/RealNumSpecloc(iSpec)
+          END IF
+        ELSE
+          IF(NumSpecloc(iSpec).EQ.0)THEN
+            PartVtherm(iSpec,dir)=0.
+          ELSE
+            PartVtherm(iSpec,dir)=PartVtherm(iSpec,dir)/NumSpecloc(iSpec)
+          END IF
+        END IF
+      END DO ! iSpec = 1,nSpecies
     END IF
   END DO
-   
  ! calc abolute value
   IF (VeloDirs(4)) THEN
-    PartVloc(:,4)      = SQRT(PartVloc(:,1)*PartVloc(:,1) + PartVloc(:,2)*PartVloc(:,2) + PartVloc(:,3)*PartVloc(:,3))
-    PartVthermloc(:,4) = PartVthermloc(:,1) + PartVthermloc(:,2) + PartVthermloc(:,3)
+    PartVtrans(:,4)      = SQRT(PartVtrans(:,1)*PartVtrans(:,1) + PartVtrans(:,2)*PartVtrans(:,2) + PartVtrans(:,3)*PartVtrans(:,3))
+    PartVtherm(:,4) = PartVtherm(:,1) + PartVtherm(:,2) + PartVtherm(:,3)
   END IF
-  PartVthermloc(:,:) = SQRT(PartVthermloc(:,:))
+  PartVtherm(:,:) = SQRT(PartVtherm(:,:))
 END SUBROUTINE CalcVelocities
 
 
