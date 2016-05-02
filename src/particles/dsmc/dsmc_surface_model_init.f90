@@ -105,11 +105,12 @@ END DO
 ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),& 
           Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%ProbAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+          Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:24*nSpecies),&
           Adsorption%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SurfSideToGlobSideMap(1:SurfMesh%nSides),&
-          Adsorption%Sigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+          Adsorption%Sigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:24*nSpecies),&
+          Adsorption%ProbSigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:24*nSpecies),&
           Adsorption%DensSurfAtoms(1:SurfMesh%nSides))
 IDcounter = 0         
 DO iSide = 1,nBCSides 
@@ -128,10 +129,11 @@ DO iSpec = 1,nSpecies
   Adsorption%Coverage(:,:,:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-InitialCoverage','0.')
 END DO
 Adsorption%ProbAds(:,:,:,:) = 0.
-Adsorption%ProbDes(:,:,:,:) = 0.
+Adsorption%ProbDes(:,:,:,:,:) = 0.
 Adsorption%SumDesorbPart(:,:,:,:) = 0
 Adsorption%SumAdsorbPart(:,:,:,:) = 0
-Adsorption%Sigma(:,:,:,:) = 1.
+Adsorption%Sigma(:,:,:,:,:) = 1.
+Adsorption%ProbSigma(:,:,:,:,:) = 0.
 
 END SUBROUTINE InitDSMCSurfModel
 
