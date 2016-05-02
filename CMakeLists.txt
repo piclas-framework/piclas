@@ -35,7 +35,7 @@ SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
 SET_PROPERTY(CACHE BOLTZPLATZ_EQNSYSNAME PROPERTY STRINGS maxwell maxwell_pois electrostatic electrostatic_pois poisson)
 OPTION(BOLTZPLATZ_PARTICLES "Particles" ON)
 SET(BOLTZPLATZ_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
-SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR ParticleEuler-FieldEulerImplicit ParticleExplicit-FieldImplicitO3 ParticleExplicit-FieldImplicitO4 Ascher3 ParticleImplicit IPEF3 IPEF4 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
+SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR ParticleEuler-FieldEulerImplicit ParticleExplicit-FieldImplicitO3 ParticleExplicit-FieldImplicitO4 Ascher3 ParticleImplicit IPEF3 IPEF4 IMPLICIT03 IMPLICIT04 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
 OPTION(BOLTZPLATZ_GAUSS_NODES "Gauss nodes" ON)
 SET(BOLTZPLATZ_POLYNOMIAL_DEGREE "N" CACHE STRING "N = compile with variable polynomial degree. Use any other number to compile with fixed polynomial degree.")
 OPTION(BOLTZPLATZ_HLRS "enable the settings for the HLRS" OFF)
@@ -90,7 +90,7 @@ ENDFOREACH()
 # =========================================================================
 # General preproc DEFINES
 # =========================================================================
-SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DBASEDIR=\"\\\"${CMAKE_CURRENT_SOURCE_DIR}\\\"\"")
+ADD_DEFINITIONS("-DBASEDIR='\"${CMAKE_CURRENT_BINARY_DIR}/\"'")
 
 # =========================================================================
 # Equation system
@@ -185,6 +185,10 @@ ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "IPEF3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=111 -DIMPA)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "IPEF4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=112 -DIMPA)
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "IMPLICITO3")
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "IMPLICITO4")
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
@@ -404,7 +408,7 @@ IF(HDF5_FOUND)
   SET(CMAKE_Fortran_FLAGS "${CMAKE_FORTRAN_FLAGS} -I${HDF5_INCLUDE_DIR_FORTRAN}")
   TARGET_LINK_LIBRARIES(boltzplatz ${HDF5_FORTRAN_STATIC_LIBRARY} ${HDF5_LIBRARIES})
   MESSAGE(STATUS "Building boltzplatz with parallel HDF5 (HyperSlab)")
-  SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DH5TOOLSDIR=\"\\\"${HDF5_INCLUDE_DIR}/../bin/\\\"\"")
+  ADD_DEFINITIONS(-DH5TOOLSDIR=\"${HDF5_INCLUDE_DIR}/../bin/\")
   SET(BOLTZPLATZ_HDF5_FOUND TRUE)
 ELSE()
   SET(BOLTZPLATZ_HDF5_DIR $ENV{HDF5_DIR} CACHE PATH "Directory of HDF5")
@@ -430,7 +434,12 @@ ELSE()
   FIND_LIBRARY(BOLTZPLATZ_HDF53 NAMES libhdf5.a hdf5 PATHS ${BOLTZPLATZ_HDF5_DIR}/lib)
   TARGET_LINK_LIBRARIES(boltzplatz ${BOLTZPLATZ_HDF53} -ldl -lz)
   MESSAGE(STATUS "Building boltzplatz with parallel HDF5 (HyperSlab)")
-  SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DH5TOOLSDIR=\"\\\"${BOLTZPLATZ_HDF5_DIR}/bin/\\\"\"")
+  IF (ONHORNET GREATER -1)
+     # customized location of the tools on hazelhen
+    ADD_DEFINITIONS(-DH5TOOLSDIR=\"${BOLTZPLATZ_HDF5_DIR}/../../../../hdf5/1.8.14/bin/\")
+  ELSE()
+    ADD_DEFINITIONS(-DH5TOOLSDIR=\"${BOLTZPLATZ_HDF5_DIR}/bin/\")
+  ENDIF()
 ENDIF()
 IF(NOT BOLTZPLATZ_HDF5_FOUND)
    MESSAGE(ERROR "No hdf5 installation found!")
@@ -438,40 +447,6 @@ ENDIF()
 IF (BOLTZPLATZ_HDF5F90)
    ADD_DEFINITIONS(-DHDF5_F90)
 ENDIF()
-
-# =========================================================================
-# Tecplot
-# =========================================================================
-#SET(BOLTZPLATZ_TECIOVERSION "2013" CACHE STRING "TECIO version tag")
-#SET(BOLTZPLATZ_TECIODIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${BOLTZPLATZ_COMPILERNAME}/tecio-${BOLTZPLATZ_TECIOVERSION})
-#FIND_PACKAGE(TECIO QUIET)
-#IF (NOT TECIO_FOUND)
-#  OPTION(BOLTZPLATZ_BUILDTECIO "Compile and build tecio library" ON)
-#ELSE()
-#  OPTION(BOLTZPLATZ_BUILDTECIO "Compile and build tecio library" OFF)
-#ENDIF()
-#IF (BOLTZPLATZ_BUILDTECIO)
-#  IF (NOT EXISTS "${BOLTZPLATZ_TECIODIR}/src/tecio/tecio-${BOLTZPLATZ_TECIOVERSION}/libtecio.a")
-#    ExternalProject_Add(tecio
-#      GIT_REPOSITORY ${TECIODOWNLOAD}
-#      PREFIX ${BOLTZPLATZ_TECIODIR}
-#      PATCH_COMMAND tar -xvJf tecio-${BOLTZPLATZ_TECIOVERSION}.tar.bz2
-#      CONFIGURE_COMMAND ""
-#      BUILD_IN_SOURCE 1
-#      BUILD_COMMAND cd tecio-${BOLTZPLATZ_TECIOVERSION} && ./Runmake linuxg27x64.24 -tecio 
-#      INSTALL_COMMAND "" 
-#    )
-#  ENDIF()
-#  SET(TECIO_LIBRARY ${BOLTZPLATZ_TECIODIR}/src/tecio/tecio-${BOLTZPLATZ_TECIOVERSION}/libtecio.a)
-#  SET(TECIO_LIBRARIES ${BOLTZPLATZ_TECIODIR}/src/tecio/tecio-${BOLTZPLATZ_TECIOVERSION}/libtecio.a -lstdc++)
-#ENDIF()
-#TARGET_LINK_LIBRARIES(boltzplatz ${TECLIB})
-#TARGET_LINK_LIBRARIES(boltzplatz stdc++)
-SET(TECDIR "/opt/tecio-2013" CACHE STRING "Directory of tecplot-library")
-FIND_LIBRARY(TECLIB tecio ${TECDIR})
-TARGET_LINK_LIBRARIES(boltzplatz ${TECLIB})
-TARGET_LINK_LIBRARIES(boltzplatz stdc++)
-
 
 # =========================================================================
 # LAPACK/MKL library
@@ -506,6 +481,8 @@ ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURC
 ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && echo "master: " >>  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt && git log master --oneline -1  >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
 ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND echo \"{[\( GIT DIFF \)]}\" >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
 ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && git diff -p origin/master >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
+ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND echo \"{[\( GIT URL \)]}\" >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
+ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && git config --get remote.origin.url >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
 
 # =========================================================================
 # Install

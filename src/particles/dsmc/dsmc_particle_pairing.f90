@@ -208,7 +208,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
 ! LOCAL VARIABLES
   INTEGER                       :: nPair, iPair, iPart, iLoop, cPart1, cPart2, nPart
   INTEGER                       :: cSpec1, cSpec2, iCase
-  INTEGER, ALLOCATABLE         :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
+  INTEGER, ALLOCATABLE          :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
   REAL                          :: iRan
   REAL                          :: TempMPFFac, MPFFac
 !===================================================================================================================================
@@ -238,7 +238,7 @@ SUBROUTINE DSMC_pairing_statistical(iElem)
   DO iLoop = 1, nPart
     ! check if particle is on wall and chose next particle until particle is not at wall 
     IF (KeepWallParticles) THEN
-      DO WHILE (PDM%ParticleAtWall(iPart)) ! Attention please! Endlosschleife?
+      DO WHILE (PDM%ParticleAtWall(iPart)) ! Attention please! Endlosschleife? no, nPart=0 if all particles on wall
         iPart = PEM%pNext(iPart)
       END DO
     END IF
@@ -378,7 +378,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
         END DO
       ELSE ! position in reference space [-1,1] has to be computed
         DO iLoop = 1, nPart
-          CALL Eval_XYZ_ElemCheck(TreeNode%MappedPartStates(iLoop,1:3),PartState(iPart,1:3),iElem)
+          CALL Eval_XYZ_ElemCheck(PartState(iPart,1:3),TreeNode%MappedPartStates(iLoop,1:3),iElem)
           iPart = PEM%pNext(iPart)    
         END DO
       END IF ! DoRefMapping

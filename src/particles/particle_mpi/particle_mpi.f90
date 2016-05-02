@@ -163,7 +163,7 @@ INTEGER         :: ALLOCSTAT
 !===================================================================================================================================
 
 PartCommSize   = 0  
-IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+IF (useDSMC.AND.(CollisMode.GT.1)) THEN
   IF (usevMPF .AND. DSMC%ElectronicState) THEN
     PartCommSize = 18
   ELSE IF (usevMPF ) THEN
@@ -190,7 +190,8 @@ IF(DoRefMapping) PartCommSize=PartCommSize+3
 #else
     PartCommSize = PartCommSize - 6
 #endif /*IMEX*/
-#else !LSERK
+#else 
+    !LSERK
     PartCommSize = PartCommSize + 1 !IsNewPart for RK-Reconstruction
 #endif
 
@@ -705,7 +706,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       IF(.NOT.UseLD) THEN   
-        IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
           IF (usevMPF .AND. DSMC%ElectronicState) THEN
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
@@ -729,7 +730,7 @@ DO iProc=1, PartMPI%nMPINeighbors
           END IF
         END IF
       ELSE ! UseLD == true      =>      useDSMC == true
-        IF (CollisMode.NE.1) THEN
+        IF (CollisMode.GT.1) THEN
           IF (usevMPF .AND. DSMC%ElectronicState) THEN
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
@@ -1162,7 +1163,7 @@ DO iProc=1,PartMPI%nMPINeighbors
 #endif /*IMPA*/
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     IF(.NOT.UseLD) THEN
-      IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+      IF (useDSMC.AND.(CollisMode.GT.1)) THEN
         IF (usevMPF .AND. DSMC%ElectronicState) THEN
           PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content( 9+jPos)
           PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(10+jPos)
@@ -1184,7 +1185,7 @@ DO iProc=1,PartMPI%nMPINeighbors
         IF (usevMPF) PartMPF(PartID) = PartRecvBuf(iProc)%content( 9+jPos)
       END IF
     ELSE ! UseLD == true      =>      useDSMC == true
-      IF (CollisMode.NE.1) THEN
+      IF (CollisMode.GT.1) THEN
         IF (usevMPF .AND. DSMC%ElectronicState) THEN
           PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content( 9+jPos)
           PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(10+jPos)
@@ -1452,7 +1453,7 @@ USE MOD_PreProc
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc
+USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry,ExchangeMappedHaloGeometry
 USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
 ! IMPLICIT VARIABLE HANDLING
@@ -1529,7 +1530,9 @@ DO iProc=0,PartMPI%nProcs-1
   END IF
   !IPWRITE(UNIT_stdOut,*) 'check',tmpneigh,PartMPI%isMPINeighbor(iProc)
   IF (TmpNeigh.NEQV.PartMPI%isMPINeighbor(iProc)) THEN
-    WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
+    IF(printMPINeighborWarnings)THEN
+      WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
+    END IF
     IF(.NOT.PartMPI%isMPINeighbor(iProc))THEN
       PartMPI%isMPINeighbor(iProc) = .TRUE.
       PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1

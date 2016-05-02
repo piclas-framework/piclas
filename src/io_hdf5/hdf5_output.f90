@@ -48,7 +48,7 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,FutureTime)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U
-USE MOD_Output_Vars,          ONLY:ProjectName
+USE MOD_Globals_Vars,          ONLY:ProjectName
 USE MOD_Mesh_Vars,            ONLY:offsetElem,nGlobalElems
 USE MOD_Equation_Vars,        ONLY:StrVarNames
 USE MOD_Restart_Vars,         ONLY:RestartFile
@@ -983,9 +983,12 @@ SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputT
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Output_Vars,ONLY: ProjectName
+USE MOD_Globals_Vars,ONLY: ProjectName
 USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
 USE MOD_ReadInTools,ONLY: GetParameters
+#ifndef GNU 
+USE IFPORT,                 ONLY:SYSTEM
+#endif
 !USE MOD_PreProcFlags
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1041,13 +1044,20 @@ CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
 
 CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
 
+! we use userblock instead
 ! Write ini file parameters and compile flags
-CALL GetParameters(params)
-CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
+!CALL GetParameters(params)
+!CALL WriteAttributeToHDF5(File_ID,'Parameters',SIZE(params),StrArray=params)
 !CALL WriteAttributeToHDF5(File_ID,'Compile',1,StrScalar=(/PREPROC_FLAGS/))
-DEALLOCATE(params)
+!DEALLOCATE(params)
 
 CALL CloseDataFile()
+
+! Add userblock to hdf5-file
+iError = SYSTEM(H5TOOLSDIR//&
+    'h5jam -u '//TRIM(ProjectName)//'.userblock -i '  //&
+    TRIM(FileName))
+
 END SUBROUTINE GenerateFileSkeleton
 
 
@@ -1058,7 +1068,7 @@ SUBROUTINE FlushHDF5(FlushTime_In)
 ! MODULES
 !USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Output_Vars,ONLY:ProjectName
+USE MOD_Globals_Vars,ONLY:ProjectName
 USE MOD_HDF5_Input,ONLY:GetHDF5NextFileName
 #ifdef MPI
 USE MOD_Loadbalance_Vars,  ONLY:DoLoadBalance,nLoadBalance
@@ -1140,7 +1150,7 @@ SUBROUTINE WriteHDF5Header(FileType_in,File_ID)
 ! Subroutine to write a distinct file header to each HDF5 file
 !===================================================================================================================================
 ! MODULES
-USE MOD_Output_Vars,ONLY:ProgramName,FileVersion,ProjectName
+USE MOD_Globals_Vars,ONLY:ProgramName,FileVersion,ProjectName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

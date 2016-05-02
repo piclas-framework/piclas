@@ -3,6 +3,8 @@
 *.i90
 *.mod
 *.swp
+*.mk
+build/*
 src/deplist.mk
 src/srcfiles_pp.mk
 bin/*

@@ -31,6 +31,7 @@ SUBROUTINE UpdateNextFreePosition()
 ! MODULES
   USE MOD_Globals
   USE MOD_Particle_Vars, ONLY : PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem, PartPressureCell
+  USE MOD_Particle_Vars, ONLY : KeepWallParticles
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -46,6 +47,7 @@ SUBROUTINE UpdateNextFreePosition()
   counter1 = 1
   IF (useDSMC.OR.doParticleMerge.OR.PartPressureCell) THEN
    PEM%pNumber(:) = 0
+   IF (KeepWallParticles) PEM%wNumber(:) = 0
   END IF
   n = PDM%ParticleVecLength !PDM%maxParticleNumber
   PDM%ParticleVecLength = 0
@@ -65,6 +67,11 @@ SUBROUTINE UpdateNextFreePosition()
        PEM%pEnd(PEM%Element(i)) = i
        PEM%pNumber(PEM%Element(i)) = &                      ! Number of Particles in Element
        PEM%pNumber(PEM%Element(i)) + 1
+       IF (KeepWallParticles) THEN
+         IF (PDM%ParticleAtWall(i)) THEN
+           PEM%wNumber(PEM%Element(i)) = PEM%wNumber(PEM%Element(i)) + 1
+         END IF
+       END IF
        PDM%ParticleVecLength = i
        IF(doParticleMerge) vMPF_SpecNumElem(PEM%Element(i),PartSpecies(i)) = vMPF_SpecNumElem(PEM%Element(i),PartSpecies(i)) + 1
      END IF

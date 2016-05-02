@@ -41,14 +41,16 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos,KeepWallParticles
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 !USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
 USE MOD_Mesh_Vars,              ONLY:BC
-USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
+! USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
+USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
+USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 !USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
@@ -68,7 +70,7 @@ REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTraj
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3),RanNum
-INTEGER                              :: BCSideID
+INTEGER                              :: BCSideID, WallModeltype, adsorbindex
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 REAL                                 :: absPt_temp
 #endif
@@ -112,16 +114,52 @@ CASE(2) !PartBound%ReflectiveBC)
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
     CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
   END IF
-  IF (.NOT.PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
-    CALL RANDOM_NUMBER(RanNum)
-    IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
-      ! perfectly reflection, specular re-emission
-      CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+  IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
+    ! Decide which WallModel is used
+    IF (useDSMC) THEN
+      WallModeltype = DSMC%WallModel
     ELSE
-      CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+      WallModeltype = 0
+    END IF
+    IF (WallModeltype.EQ.0) THEN !previously used wall interaction model
+      CALL RANDOM_NUMBER(RanNum)
+      IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
+        ! perfectly reflecting, specular re-emission
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+      ELSE
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+      END IF
+    ELSE IF (WallModeltype.EQ.1) THEN
+               adsorbindex = 0
+!--- Adsorption               
+      CALL Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
+      IF (adsorbindex.EQ.1) THEN
+        IF (KeepWallParticles) THEN
+          PDM%ParticleAtWall(iPart) = .TRUE.
+        ELSE
+          IF(CalcPartBalance) THEN
+            nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
+            PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
+          END IF ! CalcPartBalance
+          PDM%ParticleInside(iPart) = .FALSE.
+          alpha=-1.
+        END IF
+      ELSE IF (adsorbindex.EQ.0) THEN
+!--- Inelastic Reflection (not diffuse)               
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+      ELSE
+        WRITE(*,*)'Boundary_PIC: Adsorption error.'
+        CALL Abort(&
+__STAMP__,&
+'Boundary_Error: Adsorptionindex switched to unknown value.')
+      END IF
+    ELSE IF (WallModeltype.GT.1) THEN
+      WRITE(*,*)'Boundary_PIC: wall model with adsorption chemistry (catalysis) not implemented yet.'
+      CALL Abort(&
+__STAMP__,&
+'wall model 2 not implemented')
     END IF
   END IF
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -177,13 +215,15 @@ SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,x
 USE MOD_PreProc
 USE MOD_Globals!,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_Vars, ONLY:SideType,SideNormVec,epsilontol
 USE MOD_Particle_Analyze,       ONLY:CalcEkinPart
 USE MOD_Particle_Analyze_Vars,  ONLY:CalcPartBalance,nPartOut,PartEkinOut!,PartAnalyzeStep
 USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
+USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
+USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -197,7 +237,7 @@ REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTraj
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: RanNum,n_loc(1:3)
-INTEGER                              :: BCSideID
+INTEGER                              :: BCSideID, WallModeltype, adsorbindex
 LOGICAL                              :: IsSpeciesSwap
 !===================================================================================================================================
 
@@ -238,19 +278,54 @@ CASE(2) !PartBound%ReflectiveBC)
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
     CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
   END IF
-  IF (.NOT.PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
-    CALL RANDOM_NUMBER(RanNum)
-    BCSideID=PartBCSideList(SideID)
-    IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
-      ! perfectly reflection, specular re-emission
-      CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID)
+  IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
+    ! Decide which WallModel is used
+    IF (useDSMC) THEN
+      WallModeltype = DSMC%WallModel
     ELSE
-      CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
+      WallModeltype = 0
+    END IF
+    IF (WallModeltype.EQ.0) THEN !previously used wall interaction model
+      CALL RANDOM_NUMBER(RanNum)
+      BCSideID=PartBCSideList(SideID)
+      IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
+        ! perfectly reflecting, specular re-emission
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID)
+      ELSE
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
+      END IF
+    ELSE IF (WallModeltype.EQ.1) THEN
+               adsorbindex = 0
+!--- Adsorption               
+      CALL Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
+      IF (adsorbindex.EQ.1) THEN
+        IF (KeepWallParticles) THEN
+          PDM%ParticleAtWall(iPart) = .TRUE.
+        ELSE
+          IF(CalcPartBalance) THEN
+            nPartOut(PartSpecies(iPart))=nPartOut(PartSpecies(iPart)) + 1
+            PartEkinOut(PartSpecies(iPart))=PartEkinOut(PartSpecies(iPart))+CalcEkinPart(iPart)
+          END IF ! CalcPartBalance
+          PDM%ParticleInside(iPart) = .FALSE.
+          alpha=-1.
+        END IF
+      ELSE IF (adsorbindex.EQ.0) THEN
+!--- Inelastic Reflection (not diffuse)  
+        BCSideID=PartBCSideList(SideID)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID)
+      ELSE
+        WRITE(*,*)'Boundary_PIC: Adsorption error.'
+        CALL Abort(&
+__STAMP__,&
+'Boundary_Error: Adsorptionindex switched to unknown value.')
+      END IF
+    ELSE IF (WallModeltype.GT.1) THEN
+      WRITE(*,*)'Boundary_PIC: wall model with adsorption chemistry (catalysis) not implemented yet.'
+      CALL Abort(&
+__STAMP__,&
+'wall model 2 not implemented')
     END IF
   END IF
-
-  
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(3) !PartBound%PeriodicBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -569,8 +644,8 @@ REAL                                 :: POI_fak, TildPos(3),TildTrajectory(3)
 REAL, ALLOCATABLE                    :: RanNumPoly(:), VibQuantNewRPoly(:)
 INTEGER                              :: iPolyatMole, iDOF
 INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
-REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
-REAL, ALLOCATABLE                    :: EVPolyNewFP(:), EVPolyWallFP(:)
+! REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
+! REAL, ALLOCATABLE                    :: EVPolyNewFP(:), EVPolyWallFP(:)
 REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
 !===================================================================================================================================
 

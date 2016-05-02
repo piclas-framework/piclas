@@ -101,6 +101,8 @@ def check_use_statements(use_statements, filename, exceptions):
 	exceptions.append("nr")
 	exceptions.append("nrtype")
 	exceptions.append("mpi")
+	exceptions.append("mpi")
+	exceptions.append("IFPORT")
 	# Additionally, remove unnecessary items, that are not translated
 	clean_use_statements = []
 	for statement in use_statements:

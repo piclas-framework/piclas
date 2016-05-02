@@ -371,7 +371,7 @@ USE HDF5
 USE MOD_IO_HDF5           ,ONLY: File_ID,OpenDataFile,CloseDataFile
 USE MOD_Equation_Vars     ,ONLY: StrVarNames
 USE MOD_HDF5_Output       ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5
-USE MOD_Output_Vars       ,ONLY: ProjectName
+USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_Mesh_Vars         ,ONLY: MeshFile
 USE MOD_Recordpoints_Vars ,ONLY: myRPrank,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RPDefFile,RP_Data,iSample,nSamples

@@ -93,6 +93,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
+INTEGER                        :: OpenStat
+CHARACTER(LEN=8)               :: StrDate
+CHARACTER(LEN=10)              :: StrTime
+CHARACTER(LEN=255)             :: LogFile
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS ...'
@@ -103,6 +107,23 @@ sPI = 1./PI
 ! get machine accuracy
 epsMach=EPSILON(0.0)
 TwoEpsMach=2.0d0*epsMach
+
+! Open file for logging
+IF(Logging)THEN
+  WRITE(LogFile,'(A,A1,I6.6,A4)')TRIM(ProjectName),'_',myRank,'.log'
+  OPEN(UNIT=UNIT_logOut,  &
+       FILE=LogFile,      &
+       STATUS='UNKNOWN',  &
+       ACTION='WRITE',    &
+       POSITION='APPEND', &
+       IOSTAT=OpenStat)
+  CALL DATE_AND_TIME(StrDate,StrTime)
+  WRITE(UNIT_logOut,*)
+  WRITE(UNIT_logOut,'(132("#"))')
+  WRITE(UNIT_logOut,*)
+  WRITE(UNIT_logOut,*)'STARTED LOGGING FOR PROC',myRank,' ON ',StrDate(7:8),'.',StrDate(5:6),'.',StrDate(1:4),' | ',&
+                      StrTime(1:2),':',StrTime(3:4),':',StrTime(5:10)
+END IF  ! Logging
 
 SWRITE(UNIT_stdOut,'(A)')' INIT GLOBALS DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')

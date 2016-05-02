@@ -31,16 +31,11 @@ io_hdf5/hdf5_input.f90
 io_hdf5/hdf5_output.f90
 mesh/mesh_vars.f90
 mesh/mesh.f90
-mesh/debugmesh.f90
 mesh/metrics.f90
 mesh/mesh_readin.f90
 mesh/prepare_mesh.f90
 mpi/mpi_vars.f90
 mpi/mpi.f90
-output/output_vars.f90
-output/output.f90
-output/output_VTK.f90
-output/output_tecplot.f90
 readintools/isovaryingstring.f90
 readintools/readintools.f90
 restart/restart_vars.f90
@@ -146,3 +141,8 @@ particles/particle_pressure.f90
 particles/ld/ld_dsmc_coupling_tools.f90 
 particles/ld/ld_dsmc_domain_decomposition.f90
 particles/ld/ld_internal_temperature.f90
+hdg/hdg_vars.f90
+hdg/elem_mat.f90
+hdg/hdg.f90
+particles/dsmc/dsmc_surface_model.f90
+particles/dsmc/dsmc_surface_model_init.f90

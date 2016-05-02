@@ -154,7 +154,6 @@ USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 #else
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
-USE MOD_Output,                ONLY: Visualize
 USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_PML,                   ONLY: TransformPMLVars,BacktransformPMLVars
@@ -445,7 +444,7 @@ DO !iter_t=0,MaxIter
 #elif (PP_TimeDiscMethod==6)
   CALL TimeStepByLSERK(time,iter,tEndDiff)
 #elif (PP_TimeDiscMethod==42)
-  CALL TimeStep_DSMC_Debug(time) ! Reservoir and Debug
+  CALL TimeStep_DSMC_Debug() ! Reservoir and Debug
 #elif (PP_TimeDiscMethod==100)
   CALL TimeStepByEulerImplicit(time) ! O1 Euler Implicit
 #elif (PP_TimeDiscMethod==101)
@@ -1381,6 +1380,7 @@ USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb, DSMC_Update_Wall_Vars
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
@@ -1398,6 +1398,10 @@ REAL    :: RandVal, dtFrac
 !===================================================================================================================================
 
   IF (DoSurfaceFlux) THEN
+    ! Calculate desobing particles for Surfaceflux
+    IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.GT.0)) THEN
+     CALL Calc_PartNum_Wall_Desorb()
+    END IF
     CALL ParticleSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
@@ -1428,11 +1432,11 @@ REAL    :: RandVal, dtFrac
     PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
     PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
   END IF
-
 #ifdef MPI
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
 #endif /*MPI*/
+  CALL DSMC_Update_Wall_Vars()
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   ! actual tracking
   IF(DoRefMapping)THEN
@@ -1670,7 +1674,7 @@ END SUBROUTINE TimeStepByRK4EulerExpl
 #endif
 
 #if (PP_TimeDiscMethod==42)
-SUBROUTINE TimeStep_DSMC_Debug(t)
+SUBROUTINE TimeStep_DSMC_Debug()
 !===================================================================================================================================
 ! Hesthaven book, page 64
 ! Low-Storage Runge-Kutta integration of degree 4 with 5 stages.
@@ -1682,30 +1686,35 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,ONLY: dt
 USE MOD_Filter,ONLY:Filter
 #ifdef PARTICLES
-USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM,PEM, Species, PartSpecies
-USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, Debug_Energy,PartStateIntEn
+USE MOD_Particle_Vars,    ONLY : DoSurfaceFlux, KeepWallParticles
+USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM,PEM!, Species, PartSpecies
+USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC!, Debug_Energy,PartStateIntEn
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
-USE MOD_part_emission,    ONLY : ParticleInserting
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
 USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb, DSMC_Update_Wall_Vars
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
 #endif /*MPI*/
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)       :: t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: i
-REAL                  :: timeStart, timeEnd
+INTEGER               :: iPart
+REAL                  :: timeStart, timeEnd, RandVal, dtFrac
 !===================================================================================================================================
 
 IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
+  ! Calculate desobing particles for Surfaceflux
+  IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.GT.0)) THEN
+    CALL Calc_PartNum_Wall_Desorb()
+  END IF
+  CALL DSMC_Update_Wall_Vars()
   CALL UpdateNextFreePosition()
 
 !  Debug_Energy=0.0
@@ -1743,32 +1752,52 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
   PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                          + DSMC_RHS(1:PDM%ParticleVecLength,3)
 ELSE
-  CALL ParticleInserting()
-  LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-  LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-  LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-  ! bugfix if more than 2.x mio (2000001) particle per process
-  ! tested with 64bit Ubuntu 12.04 backports
-  DO i = 1, PDM%ParticleVecLength
-    PEM%lastElement(i)=PEM%Element(i)
-  END DO
-!   PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-  PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,1)
-  PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,2)
-  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-                                         + DSMC_RHS(1:PDM%ParticleVecLength,3)
-  PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) &
-                                         + PartState(1:PDM%ParticleVecLength,4) * dt
-  PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) &
-                                         + PartState(1:PDM%ParticleVecLength,5) * dt
-  PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) &
-                                         + PartState(1:PDM%ParticleVecLength,6) * dt
+  IF (DoSurfaceFlux) THEN
+    ! Calculate desobing particles for Surfaceflux
+    IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.GT.0)) THEN
+     CALL Calc_PartNum_Wall_Desorb()
+    END IF
+    
+    CALL ParticleSurfaceflux()
+    DO iPart=1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
+        IF (.NOT.PDM%dtFracPush(iPart)) THEN
+          LastPartPos(iPart,1)=PartState(iPart,1)
+          LastPartPos(iPart,2)=PartState(iPart,2)
+          LastPartPos(iPart,3)=PartState(iPart,3)
+          PEM%lastElement(iPart)=PEM%Element(iPart)
+          PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dt
+          PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dt
+          PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dt
+        ELSE !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
+          CALL RANDOM_NUMBER(RandVal)
+          dtFrac = dt * RandVal
+          PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac
+          PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac
+          PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac
+          PDM%dtFracPush(iPart) = .FALSE.
+        END IF
+      END IF
+    END DO
+  ELSE
+    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+    ! bugfix if more than 2.x mio (2000001) particle per process
+    ! tested with 64bit Ubuntu 12.04 backports
+    DO iPart = 1, PDM%ParticleVecLength
+      PEM%lastElement(iPart)=PEM%Element(iPart)
+    END DO
+    !PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+    PartState(1:PDM%ParticleVecLength,1) = PartState(1:PDM%ParticleVecLength,1) + PartState(1:PDM%ParticleVecLength,4) * dt
+    PartState(1:PDM%ParticleVecLength,2) = PartState(1:PDM%ParticleVecLength,2) + PartState(1:PDM%ParticleVecLength,5) * dt
+    PartState(1:PDM%ParticleVecLength,3) = PartState(1:PDM%ParticleVecLength,3) + PartState(1:PDM%ParticleVecLength,6) * dt
+  END IF
 #ifdef MPI
   ! open receive buffer for number of particles
-  CALL IRecvNbofParticles()
+  CALL IRecvNbOfParticles()
 #endif /*MPI*/
+  CALL DSMC_Update_Wall_Vars()
   IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
   ! actual tracking
   IF(DoRefMapping)THEN
@@ -1788,7 +1817,7 @@ ELSE
   ! finish communication
   CALL MPIParticleRecv()
 #endif /*MPI*/
-
+  CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
 END IF

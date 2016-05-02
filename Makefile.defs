@@ -166,6 +166,7 @@ PREPROC +=-DPP_N=$(N)
 ifneq ($(PARTICLES),)
   PREPROC +=-DPARTICLES=$(PARTICLES)
 endif
+PREPROC +=-DBASEDIR="'$(CURRENT_DIR)'"
 ifneq ($(FILESYSTEM),)
   PREPROC +=-D$(FILESYSTEM)
 endif
@@ -240,14 +241,7 @@ HDF5_INC  = -I$(HDF5_BASE)/include/
 HDF5_LIBS = -lhdf5_fortran -lhdf5
 # HDF5 requires DL lib and Zlib
 HDF5_LIBS += -ldl -lz
-#---------------------------------------------------------------------------------------------------------------------------------#
-
-#---------------------------------------------------------------------------------------------------------------------------------#
-# Tecplot Binary
-#---------------------------------------------------------------------------------------------------------------------------------#
-TECLIB_VERSION = 12.0
-TECBIN_LIB = -L../share/$(SHARECOMP)/tecio-$(TECLIB_VERSION)
-TECBIN_LIBS = -ltecio -lstdc++
+PREPROC +=-DH5TOOLSDIR="'$(HDF5_BASE)/bin/'"
 #---------------------------------------------------------------------------------------------------------------------------------#
 
 #---------------------------------------------------------------------------------------------------------------------------------#
@@ -516,8 +510,8 @@ endif
 
 #---------------------------------------------------------------------------------------------------------------------------------#
 
-EXTERNAL_LIBS = $(HDF5_LIBS) $(SZ_LIBS) $(LIBHPC_LIBS) $(NR_LIBS) $(TECBIN_LIBS) $(BLAS_LAPACK_LIBS) $(LIBDL)
-LIBDIRS       = $(HDF5_LIB) $(SZ_LIB) $(LIBHPC_LIB) $(NR_LIB) $(TECBIN_LIB) $(BLAS_LAPACK_LIB) $(OMP_LIB)
+EXTERNAL_LIBS = $(HDF5_LIBS) $(SZ_LIBS) $(LIBHPC_LIBS) $(NR_LIBS) $(BLAS_LAPACK_LIBS) $(LIBDL)
+LIBDIRS       = $(HDF5_LIB) $(SZ_LIB) $(LIBHPC_LIB) $(NR_LIB) $(BLAS_LAPACK_LIB) $(OMP_LIB)
 INCDIRS       = $(HDF5_INC) $(SZ_INC) $(LIBHPC_INC) $(BLAS_LAPACK_INC)
  
 BOLTZPLATZ_LIB     = libboltzplatz.a

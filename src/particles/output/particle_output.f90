@@ -33,7 +33,6 @@ SUBROUTINE InitParticleOutput()
 USE MOD_Globals
 USE MOD_Preproc
 !USE MOD_ReadInTools,ONLY:GetStr,GetLogical,GETINT
-!USE MOD_Output_Vars,ONLY:ProjectName
 USE MOD_Particle_Output_Vars,ONLY:ParticleOutputInitIsDone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -65,7 +64,7 @@ SUBROUTINE Visualize_Particles(OutputTime)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Output_Vars,ONLY:ProjectName
+USE MOD_Globals_Vars,ONLY:ProjectName
 USE MOD_Particle_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

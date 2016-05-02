@@ -154,8 +154,8 @@ LOGICAL                       :: exitTrue
 #ifdef MPI
 #endif
 !===================================================================================================================================
-
-
+! Read print flags
+printRandomSeeds = GETLOGICAL('printRandomSeeds','.TRUE.')
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -296,6 +296,9 @@ PartState=0.
 Pt=0.
 PartSpecies        = 0
 PDM%nextFreePosition(1:PDM%maxParticleNumber)=0
+
+! initialize of adsorbed particle tracking 
+KeepWallParticles = .FALSE.
 
 nSpecies = GETINT('Part-nSpecies','1')
 
@@ -938,14 +941,18 @@ TrueRandom = .FALSE.                             ! FALSE for defined random seed
 ! to be stored in HDF5-state file!!!
 IF (nrSeeds.GT.0) THEN
    IF (nrSeeds.NE.SeedSize) THEN
-      IPWRITE(UNIT_StdOut,*) 'Error: Number of seeds for RNG must be ',SeedSize
-      IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
+      IF(printRandomSeeds)THEN
+        IPWRITE(UNIT_StdOut,*) 'Error: Number of seeds for RNG must be ',SeedSize
+        IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
+      END IF
       TrueRandom = .TRUE.
    END IF
    DO iSeed = 1, nrSeeds
       IF (Seeds(iSeed).EQ.0) THEN
-         IPWRITE(UNIT_StdOut,*) 'Error: ',SeedSize,' seeds for RNG must be defined'
-         IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
+         IF(printRandomSeeds)THEN
+           IPWRITE(UNIT_StdOut,*) 'Error: ',SeedSize,' seeds for RNG must be defined'
+           IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
+         END IF
          TrueRandom = .TRUE.
       END IF
    END DO
@@ -966,10 +973,12 @@ ALLOCATE(iseeds(SeedSize))
 iseeds(:)=0
 CALL RANDOM_SEED(GET = iseeds(1:SeedSize))
 ! to be stored in HDF5-state file!!!
-IPWRITE(UNIT_stdOut,*) 'Random seeds in PIC_init:'
-DO iSeed = 1,SeedSize
-   IPWRITE(UNIT_stdOut,*) iseeds(iSeed)
-END DO
+IF(printRandomSeeds)THEN
+  IPWRITE(UNIT_stdOut,*) 'Random seeds in PIC_init:'
+  DO iSeed = 1,SeedSize
+     IPWRITE(UNIT_stdOut,*) iseeds(iSeed)
+  END DO
+END IF
 DEALLOCATE(iseeds)
 !DoZigguratSampling = GETLOGICAL('Particles-DoZigguratSampling','.FALSE.')
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
@@ -986,6 +995,12 @@ OutputVpiWarnings = GETLOGICAL('Particles-OutputVpiWarnings','.FALSE.')
 CALL InitializeInterpolation() ! not any more required ! has to be called earliear
 CALL InitPIC()
 ! always, because you have to construct a halo_eps region around each bc element
+
+#ifdef MPI
+CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+#endif /*MPI*/
+SWRITE(UNIT_StdOut,'(132("-"))')
+SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...' 
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 !-- Finalizing InitializeVariables
@@ -993,6 +1008,11 @@ CALL InitFIBGM()
 #ifdef MPI
 CALL InitEmissionComm()
 #endif /*MPI*/
+#ifdef MPI
+CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+#endif /*MPI*/
+
+SWRITE(UNIT_StdOut,'(132("-"))')
 
 !-- Read parameters for particle-data on region mapping
 
