@@ -41,12 +41,16 @@ all: preproc builddeps
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
 	@echo ' BOLTZPLATZ COMPILED, NOW LINKING...'
 	@echo '----------------------------------------------------------------------------------------'
+	mkdir -p ../bin
+	touch ../bin/userblock.txt
+	rm ../bin/userblock.txt
 	$(FC) $(FLFLAGS) boltzplatz.o ../lib/$(BOLTZPLATZ_LIB) -o ../bin/boltzplatz \
 	$(LIBDIRS) \
 	$(EXTERNAL_LIBS)
 	@echo '----------------------------------------------------------------------------------------'
 	@echo ' BOLTZPLATZ LINKED!'
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+	$(MAKE) userblock
 
 preproc:
 	@echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
@@ -90,9 +94,9 @@ $(BOLTZPLATZ_LIB): $(OBJ)
 userblock:
 	@echo $(PWD)
 	@echo '{[( BUILD_CMD )]}' > ../bin/userblock.txt
-	@echo '$(FC) $(FCFLAGS) $(INCDIRS) -c flexi.f90 -o flexi.o' >> ../bin/userblock.txt
+	@echo '$(FC) $(FCFLAGS) $(INCDIRS) -c boltzplatz.f90 -o boltzplatz.o' >> ../bin/userblock.txt
 	@echo '{[( LINK_CMD )]}' >> ../bin/userblock.txt
-	@echo '$(FC) $(FLFLAGS) flexi.o ../lib/$(FLEXI_LIB) -o ../bin/flexi $(LIBDIRS) $(EXTERNAL_LIBS)' >> ../bin/userblock.txt
+	@echo '$(FC) $(FLFLAGS) boltzplatz.o ../lib/$(BOLTZPLATZ_LIB) -o ../bin/boltzplatz $(LIBDIRS) $(EXTERNAL_LIBS)' >> ../bin/userblock.txt
 	@cd .. ;\
 	 echo '{[( GIT REVISIONS )]}'        >> ./bin/userblock.txt ;\
 	 git rev-parse --abbrev-ref HEAD     >> ./bin/userblock.txt ;\
