@@ -2921,7 +2921,6 @@ LOGICAL            :: AllExplicit
 
 #ifdef maxwell
 ! caution hard coded
-print*,'init preconditioner',iter
 IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
 #endif /*maxwell*/
 
@@ -3048,7 +3047,6 @@ DO iStage=2,nRKStages
     ! finish communication of number of particles and send particles
     CALL MPIParticleSend()
     ! deposit explicit, local particles
-    print*,'PartIsImplicit',PartIsImplicit
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     ! finish communication
     CALL MPIParticleRecv()
