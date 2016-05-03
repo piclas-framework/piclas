@@ -1489,7 +1489,7 @@ USE MOD_PreProc
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc
+USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry,ExchangeMappedHaloGeometry
 USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
 ! IMPLICIT VARIABLE HANDLING
@@ -1566,7 +1566,9 @@ DO iProc=0,PartMPI%nProcs-1
   END IF
   !IPWRITE(UNIT_stdOut,*) 'check',tmpneigh,PartMPI%isMPINeighbor(iProc)
   IF (TmpNeigh.NEQV.PartMPI%isMPINeighbor(iProc)) THEN
-    WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
+    IF(printMPINeighborWarnings)THEN
+      WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
+    END IF
     IF(.NOT.PartMPI%isMPINeighbor(iProc))THEN
       PartMPI%isMPINeighbor(iProc) = .TRUE.
       PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1

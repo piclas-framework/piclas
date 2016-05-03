@@ -123,6 +123,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
 MeshFile = GETSTR('MeshFile')
 
 useCurveds=GETLOGICAL('useCurveds','.TRUE.')
+DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5','.TRUE.')
 #ifdef MPI
 CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.)
 #else

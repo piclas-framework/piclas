@@ -154,8 +154,8 @@ LOGICAL                       :: exitTrue
 #ifdef MPI
 #endif
 !===================================================================================================================================
-
-
+! Read print flags
+printRandomSeeds = GETLOGICAL('printRandomSeeds','.TRUE.')
 ! Read basic particle parameter
 PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -955,14 +955,18 @@ TrueRandom = .FALSE.                             ! FALSE for defined random seed
 ! to be stored in HDF5-state file!!!
 IF (nrSeeds.GT.0) THEN
    IF (nrSeeds.NE.SeedSize) THEN
-      IPWRITE(UNIT_StdOut,*) 'Error: Number of seeds for RNG must be ',SeedSize
-      IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
+      IF(printRandomSeeds)THEN
+        IPWRITE(UNIT_StdOut,*) 'Error: Number of seeds for RNG must be ',SeedSize
+        IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
+      END IF
       TrueRandom = .TRUE.
    END IF
    DO iSeed = 1, nrSeeds
       IF (Seeds(iSeed).EQ.0) THEN
-         IPWRITE(UNIT_StdOut,*) 'Error: ',SeedSize,' seeds for RNG must be defined'
-         IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
+         IF(printRandomSeeds)THEN
+           IPWRITE(UNIT_StdOut,*) 'Error: ',SeedSize,' seeds for RNG must be defined'
+           IPWRITE(UNIT_StdOut,*) 'Random RNG seeds are used'
+         END IF
          TrueRandom = .TRUE.
       END IF
    END DO
@@ -983,10 +987,12 @@ ALLOCATE(iseeds(SeedSize))
 iseeds(:)=0
 CALL RANDOM_SEED(GET = iseeds(1:SeedSize))
 ! to be stored in HDF5-state file!!!
-IPWRITE(UNIT_stdOut,*) 'Random seeds in PIC_init:'
-DO iSeed = 1,SeedSize
-   IPWRITE(UNIT_stdOut,*) iseeds(iSeed)
-END DO
+IF(printRandomSeeds)THEN
+  IPWRITE(UNIT_stdOut,*) 'Random seeds in PIC_init:'
+  DO iSeed = 1,SeedSize
+     IPWRITE(UNIT_stdOut,*) iseeds(iSeed)
+  END DO
+END IF
 DEALLOCATE(iseeds)
 !DoZigguratSampling = GETLOGICAL('Particles-DoZigguratSampling','.FALSE.')
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')

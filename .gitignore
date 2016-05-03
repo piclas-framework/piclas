@@ -12,6 +12,6 @@ ini/*
 lib/*
 src/preprocflags.f90
 *~
-build/*
+build*
 share/GNU-MPI/*
 share/hdf5-1.8.13.tar.bz2

@@ -15,6 +15,7 @@ REAL                  :: ManualTimeStep                                      ! M
 LOGICAL               :: useManualTimeStep                                   ! Logical Flag for manual timestep. For consistency
                                                                              ! with IAG programming style
 LOGICAL               :: KeepWallParticles                                   ! Flag for tracking of adsorbed Particles
+LOGICAL               :: printRandomSeeds                                    ! print random seeds or not
 REAL                  :: dt_max_particles                                    ! Maximum timestep for particles (for static fields!)
 REAL                  :: dt_maxwell                                          ! timestep for field solver (for static fields only!)
 REAL                  :: dt_adapt_maxwell                                    ! adapted timestep for field solver dependent  
