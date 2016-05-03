@@ -3063,6 +3063,7 @@ DO iStage=2,nRKStages
   ! implicit - particle pusher & Maxwell's field
   !--------------------------------------------------------------------------------------------------------------------------------
 
+  alpha = ESDIRK_a(iStage,iStage)*dt
   ! compute RHS for linear solver
   LinSolverRHS=Un
   DO iCounter = 1,iStage-1
@@ -3089,7 +3090,7 @@ DO iStage=2,nRKStages
     END DO ! iPart
 
     ! now, we have an initial guess for the field  can compute the first particle movement
-    alpha = ESDIRK_a(iStage,iStage)*dt
+    !alpha = ESDIRK_a(iStage,iStage)*dt
     CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 
     ! move particle, if not already done, here, a reduced list could be again used, but a different list...
@@ -3184,7 +3185,7 @@ DO iStage=2,nRKStages
       END DO ! iPart
 
       ! now, we have an initial guess for the field  can compute the first particle movement
-      alpha = ESDIRK_a(iStage,iStage)*dt
+      !alpha = ESDIRK_a(iStage,iStage)*dt
       CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
