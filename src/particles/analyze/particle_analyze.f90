@@ -118,7 +118,7 @@ CALL abort(__STAMP__,&
   CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
   IF (CalcVelos) THEN
     DoAnalyze=.TRUE.
-    VeloDirs_hilf = GetIntArray('VelocityDirections',4,'0,0,0,0') ! x,y,z,abs -> 0/1 = T/F
+    VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
     VeloDirs(:) = .FALSE.
     DO dir = 1,4
       IF (VeloDirs_hilf(dir) .EQ. 1) THEN
@@ -213,7 +213,8 @@ SUBROUTINE AnalyzeParticles(Time)
   CHARACTER(LEN=350)  :: hilf
   REAL                :: WallCoverage(nSpecies), Adsorptionrate(nSpecies), Desorptionrate(nSpecies)
 #endif
-  REAL                :: PartVtrans(nSpecies,4), PartVtherm(nSpecies,4)
+  REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
+  REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
   INTEGER             :: dir
 #ifdef MPI 
 ! load balance
@@ -1500,7 +1501,9 @@ END SUBROUTINE CalcTemperature
 
 SUBROUTINE CalcVelocities(PartVtrans, PartVtherm)
 !===================================================================================================================================
-! Calculates the 
+! Calculates the drift and eigen velocity of all particles: PartVtotal = PartVtrans + PartVtherm 
+! PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
+! PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1519,7 +1522,10 @@ REAL,INTENT(OUT)                :: PartVtrans(:,:), PartVtherm(:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: iSpec
-INTEGER                        :: i, NumSpecloc(nSpecies), NumSpecglob(nSpecies), dir
+INTEGER                        :: i
+INTEGER                        :: NumSpecloc(nSpecies)
+INTEGER                        :: NumSpecglob(nSpecies)
+INTEGER                        :: dir
 REAL                           :: RealNumSpecloc(nSpecies), RealNumSpecglob(nSpecies)
 REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies,4)
 !===================================================================================================================================
@@ -1556,7 +1562,7 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
 #endif
   IF (usevMPF) THEN
 #ifdef MPI
-    CALL MPI_ALLREDUCE(RealNumSpecloc, RealNumSpecglob, 4*nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,  PartMPI%COMM, IERROR)
+    CALL MPI_ALLREDUCE(RealNumSpecloc, RealNumSpecglob, nSpecies, MPI_DOUBLE_PRECISION, MPI_SUM,  PartMPI%COMM, IERROR)
     RealNumSpecloc = RealNumSpecglob
 #endif
     DO dir = 1,3
@@ -1570,9 +1576,9 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
         END DO ! iSpec = 1,nSpecies
       END IF
     END DO
-  ELSE
+  ELSE !no vMPF
 #ifdef MPI
-    CALL MPI_ALLREDUCE(NumSpecloc, NumSpecglob, 4*nSpecies, MPI_INTEGER, MPI_SUM, PartMPI%COMM, IERROR)
+    CALL MPI_ALLREDUCE(NumSpecloc, NumSpecglob, nSpecies, MPI_INTEGER, MPI_SUM, PartMPI%COMM, IERROR)
     NumSpecloc = NumSpecglob
 #endif
     DO dir = 1,3
@@ -1586,7 +1592,7 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
         END DO ! iSpec = 1,nSpecies
       END IF
     END DO
-  END IF
+  END IF !usevMPF
   
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
@@ -1628,7 +1634,7 @@ REAL                           :: PartVglob(nSpecies,4), PartVthermglob(nSpecies
   END DO
  ! calc abolute value
   IF (VeloDirs(4)) THEN
-    PartVtrans(:,4)      = SQRT(PartVtrans(:,1)*PartVtrans(:,1) + PartVtrans(:,2)*PartVtrans(:,2) + PartVtrans(:,3)*PartVtrans(:,3))
+    PartVtrans(:,4) = SQRT(PartVtrans(:,1)*PartVtrans(:,1) + PartVtrans(:,2)*PartVtrans(:,2) + PartVtrans(:,3)*PartVtrans(:,3))
     PartVtherm(:,4) = PartVtherm(:,1) + PartVtherm(:,2) + PartVtherm(:,3)
   END IF
   PartVtherm(:,:) = SQRT(PartVtherm(:,:))
