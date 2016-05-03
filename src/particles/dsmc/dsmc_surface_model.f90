@@ -299,7 +299,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
                       * SurfMesh%SurfaceArea(p,q,iSurfSide) &
                       / Species(iSpec)%MacroParticleFactor)
             IF (WallPartNum .GT. 0) THEN
-              DO iProbSigma = 1,24*nSpecies
+              DO iProbSigma = 1,36*nSpecies
 !             IF (DSMC%WallModel.GT.1) THEN
 !               PartAds2 = INT(Adsorption%Coverage(p,q,iSurfSide,iSpec) * Adsorption%DensSurfAtoms(iSurfSide) &
 !                       * SurfMesh%SurfaceArea(p,q,iSurfSide) &
@@ -317,14 +317,11 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
                         * SurfMesh%SurfaceArea(p,q,iSurfSide) &
                         / Species(iSpec)%MacroParticleFactor * Adsorption%ProbSigma(p,q,iSurfSide,iSpec,iProbSigma)
               PartDes = PartAds * Adsorption%ProbDes(p,q,iSurfSide,iSpec,iProbSigma)
-!               write(*,*)PartAds,PartDes,WallPartNum
+!               write(*,*)PartDes,PartAds
+!               write(*,*)Adsorption%ProbSigma(p,q,iSurfSide,iSpec,iProbSigma),Adsorption%Sigma(p,q,iSurfSide,iSpec,iProbSigma)
 !               read(*,*)
               IF (PartDes.GT.PartAds) THEN
                 Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) + INT(PartAds)
-                IF (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec).GT.WallPartNum) THEN
-                  Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = WallPartNum
-                  Exit
-                END IF
               ELSE
                 CALL RANDOM_NUMBER(RanNum)            
                 IF (EXP(-PartDes).LE.TINY(PartDes) &
@@ -354,6 +351,10 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
                   END DO
                 END IF
               END IF !PartDes.GT.WallPartNum
+              IF (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec).GT.WallPartNum  &
+              .OR.Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec).LT.0) THEN
+                Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = WallPartNum
+              END IF
               END DO
 !             END IF  
             ELSE !not PartAds.GT.0
@@ -663,7 +664,8 @@ DO SurfSide=1,SurfMesh%nSides
       D_A  = 59870.
       
       rate = 0.
-      DO iProbSigma = 1,24*nSpecies
+!       iProbSigma = 1
+      DO iProbSigma = 1,36*nSpecies
         SELECT CASE(Adsorption%Coordination(iSpec))
         CASE(1)
           n = 4
@@ -691,9 +693,11 @@ DO SurfSide=1,SurfMesh%nSides
       CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSide))
       CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
       nu_des = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall)
-      rate = nu_des * exp(-E_des/WallTemp) !* rate
+      rate = nu_des * exp(-E_des/WallTemp)
       
       Adsorption%ProbDes(p,q,SurfSide,iSpec,iProbSigma) = rate * dt
+!       Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%ProbDes(p,q,SurfSide,iSpec) &
+!                                              + rate * dt * Adsorption%ProbSigma(p,q,SurfSide,iSpec,iProbSigma)
       END DO
     ELSE
       Adsorption%ProbDes(p,q,SurfSide,iSpec,:) = 0.0
@@ -754,101 +758,103 @@ SUBROUTINE CalcSurfDistInteraction()
   INTEGER                          :: firstval,secondval,thirdval,fourthval,pos
   INTEGER                          :: Surfpos, Surfnum1, Surfnum2, Indx, Indy
 !===================================================================================================================================
-surfsquare = 200
+surfsquare = 100
 
 ALLOCATE( hollowsite(1:surfsquare,1:surfsquare),&
           bridgesite(1:(surfsquare*2),1:(surfsquare)),&
-          topsite(1:surfsquare,1:surfsquare),&
-          M(1:surfsquare+1,1:surfsquare+1),&
-          xSurfIndx1(1:surfsquare**2),&
-          ySurfIndx1(1:surfsquare**2),&
-          xSurfIndx2(1:2*surfsquare**2),&
-          ySurfIndx2(1:2*surfsquare**2))
+          M(1:surfsquare+1,1:surfsquare+1))!,&
+!           topsite(1:surfsquare,1:surfsquare),&
+!           xSurfIndx1(1:surfsquare**2),&
+!           ySurfIndx1(1:surfsquare**2),&
+!           xSurfIndx2(1:2*surfsquare**2),&
+!           ySurfIndx2(1:2*surfsquare**2))
           
-ALLOCATE( sigma(1:24*nSpecies,1:24*nSpecies,1:24*nSpecies,1:24*nSpecies),&
-          ProbSigma(1:24*nSpecies,1:24*nSpecies,1:24*nSpecies,1:24*nSpecies) )
+ALLOCATE( sigma(1:36*nSpecies,1:36*nSpecies,1:36*nSpecies,1:36*nSpecies),&
+          ProbSigma(1:36*nSpecies,1:36*nSpecies,1:36*nSpecies,1:36*nSpecies) )
           
 hollowsite(1:surfsquare,1:surfsquare) = 0
 bridgesite(1:(surfsquare*2),1:surfsquare) = 0
-topsite(1:surfsquare,1:surfsquare) = 0
+! topsite(1:surfsquare,1:surfsquare) = 0
 
 DO iSpec = 1,nSpecies
 DO SurfSideID=1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
-    Adsorbates = NINT(Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,iSpec) * surfsquare * surfsquare)
-    dist = 0
-    Surfnum1 = surfsquare**2
-    Surfnum2 = 2*surfsquare**2
+    Adsorbates = INT(Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,iSpec) * surfsquare * surfsquare)
+    dist = 1
+!     Surfnum1 = surfsquare**2
+!     Surfnum2 = 2*surfsquare**2
     hollowsite(:,:) = 0
     bridgesite(:,:) = 0
     
-    Indx = 1
-    Indy = 1
-    DO Surfpos = 1,Surfnum1
-      IF (Indx.GT.surfsquare) THEN
-        Indx = 1
-        Indy = Indy + 1
-      END IF
-      xSurfIndx1(Surfpos) = Indx
-      ySurfIndx1(Surfpos) = Indy
-      Indx = Indx + 1
-    END DO
-    Indx = 1
-    Indy = 1
-    DO Surfpos = 1,Surfnum2
-      IF (Indx.GT.(2*surfsquare)) THEN
-        Indx = 1
-        Indy = Indy + 1
-      END IF
-      xSurfIndx2(Surfpos) = Indx
-      ySurfIndx2(Surfpos) = Indy
-      Indx = Indx + 1
-    END DO
+!     Indx = 1
+!     Indy = 1
+!     DO Surfpos = 1,Surfnum1
+!       IF (Indx.GT.surfsquare) THEN
+!         Indx = 1
+!         Indy = Indy + 1
+!       END IF
+!       xSurfIndx1(Surfpos) = Indx
+!       ySurfIndx1(Surfpos) = Indy
+!       Indx = Indx + 1
+!     END DO
+!     Indx = 1
+!     Indy = 1
+!     DO Surfpos = 1,Surfnum2
+!       IF (Indx.GT.(2*surfsquare)) THEN
+!         Indx = 1
+!         Indy = Indy + 1
+!       END IF
+!       xSurfIndx2(Surfpos) = Indx
+!       ySurfIndx2(Surfpos) = Indy
+!       Indx = Indx + 1
+!     END DO
 
 !     DO While (dist.LE.Adsorbates) 
 !       CALL RANDOM_NUMBER(RanNum)
-!       CALL RANDOM_NUMBER(RanNum2)
 !       SELECT CASE(Adsorption%Coordination(iSpec))
 !       CASE(1)
-!         IF (hollowsite(Ceiling(RanNum*surfsquare),Ceiling(RanNum2*surfsquare)).GT.0) THEN
-!           CYCLE
-!         ELSE
-!           hollowsite(Ceiling(RanNum*surfsquare),Ceiling(RanNum2*surfsquare)) = iSpec
-!           dist = dist + 1
-!         END IF
+!         Surfpos = Ceiling(Surfnum1 * RanNum)
+!         hollowsite(xSurfIndx1(Surfpos),ySurfIndx1(Surfpos)) = iSpec
+!         xSurfIndx1(Surfpos) = xSurfIndx1(Surfnum1)
+!         ySurfIndx1(Surfpos) = ySurfIndx1(Surfnum1)
+!         Surfnum1 = Surfnum1 - 1
+!         dist = dist + 1
 !       CASE(2)
-!         IF (bridgesite(Ceiling(RanNum*surfsquare*2),Ceiling(RanNum2*surfsquare)).GT.0) THEN
-!           CYCLE
-!         ELSE
-!           bridgesite(Ceiling(RanNum*surfsquare*2),Ceiling(RanNum2*surfsquare)) = iSpec
-!           dist = dist + 1
-!         END IF
+!         Surfpos = 1 + INT(Surfnum2 * RanNum)
+!         bridgesite(xSurfIndx2(Surfpos),ySurfIndx2(Surfpos)) = iSpec
+!         xSurfIndx2(Surfpos) = xSurfIndx2(Surfnum2)
+!         ySurfIndx2(Surfpos) = ySurfIndx2(Surfnum2)
+!         Surfnum2 = Surfnum2 - 1
+!         dist = dist + 1
 !       CASE DEFAULT
 !       END SELECT
 !     END DO
+
+    ! Random distribution of Adsorbates on Surfacelattice
     DO While (dist.LE.Adsorbates) 
       CALL RANDOM_NUMBER(RanNum)
+      CALL RANDOM_NUMBER(RanNum2)
       SELECT CASE(Adsorption%Coordination(iSpec))
       CASE(1)
-        Surfpos = Ceiling(Surfnum1 * RanNum)
-        hollowsite(xSurfIndx1(Surfpos),ySurfIndx1(Surfpos)) = iSpec
-        xSurfIndx1(Surfpos) = xSurfIndx1(Surfnum1)
-        ySurfIndx1(Surfpos) = ySurfIndx1(Surfnum1)
-        Surfnum1 = Surfnum1 - 1
-        dist = dist + 1
+        IF (hollowsite(Ceiling(RanNum*surfsquare),Ceiling(RanNum2*surfsquare)).GT.0) THEN
+          CYCLE
+        ELSE
+          hollowsite(Ceiling(RanNum*surfsquare),Ceiling(RanNum2*surfsquare)) = iSpec
+          dist = dist + 1
+        END IF
       CASE(2)
-        Surfpos = 1 + INT(Surfnum2 * RanNum)
-        bridgesite(xSurfIndx2(Surfpos),ySurfIndx2(Surfpos)) = iSpec
-        xSurfIndx2(Surfpos) = xSurfIndx2(Surfnum2)
-        ySurfIndx2(Surfpos) = ySurfIndx2(Surfnum2)
-        Surfnum2 = Surfnum2 - 1
-        dist = dist + 1
+        IF (bridgesite(Ceiling(RanNum*surfsquare*2),Ceiling(RanNum2*surfsquare)).GT.0) THEN
+          CYCLE
+        ELSE
+          bridgesite(Ceiling(RanNum*surfsquare*2),Ceiling(RanNum2*surfsquare)) = iSpec
+          dist = dist + 1
+        END IF
       CASE DEFAULT
       END SELECT
     END DO
-
     
+    ! assign number of interacting adsorbates to surface atoms of the surfacelattice
     M(:,:)=0
     SELECT CASE(Adsorption%Coordination(iSpec))
     CASE(1)
@@ -875,15 +881,15 @@ DO SurfSideID=1,SurfMesh%nSides
             down = eta
           END IF
           
-          IF (hollowsite(left,up).NE.0) M(xi,eta) = M(xi,eta) + 1
-          IF (hollowsite(right,up).NE.0) M(xi,eta) = M(xi,eta) + 1
-          IF (hollowsite(left,down).NE.0) M(xi,eta) = M(xi,eta) + 1
+          IF (hollowsite(left,up).NE.0 .AND. xi.NE.1 .AND. eta.NE.1) M(xi,eta) = M(xi,eta) + 1
+          IF (hollowsite(right,up).NE.0 .AND. eta.NE.1) M(xi,eta) = M(xi,eta) + 1
+          IF (hollowsite(left,down).NE.0 .AND. xi.NE.1) M(xi,eta) = M(xi,eta) + 1
           IF (hollowsite(right,down).NE.0) M(xi,eta) = M(xi,eta) + 1
         END DO
       END DO
     CASE(2)
-      DO xi = 1,surfsquare
-        DO eta = 1,surfsquare
+      DO xi = 1,surfsquare+1
+        DO eta = 1,surfsquare+1
           IF (xi.EQ.1) THEN
             leftxi = surfsquare
           ELSE
@@ -900,11 +906,21 @@ DO SurfSideID=1,SurfMesh%nSides
           upxi = xi + surfsquare
           downxi = xi + surfsquare
           downeta = eta
+          IF (xi.EQ.surfsquare+1) THEN
+            rightxi = rightxi - 1
+            upxi = upxi - 1
+            downxi = downxi - 1
+          END IF
+          IF (eta.EQ.surfsquare+1) THEN
+            downeta = downeta - 1
+            lefteta = lefteta - 1
+            righteta = righteta - 1
+          END IF
           
-          IF (bridgesite(leftxi,lefteta).NE.0) M(xi,eta) = M(xi,eta) + 1
-          IF (bridgesite(rightxi,righteta).NE.0) M(xi,eta) = M(xi,eta) + 1
-          IF (bridgesite(upxi,upeta).NE.0) M(xi,eta) = M(xi,eta) + 1
-          IF (bridgesite(downxi,downeta).NE.0) M(xi,eta) = M(xi,eta) + 1
+          IF (bridgesite(leftxi,lefteta).NE.0 .AND. xi.NE.1 .AND. (eta.NE.surfsquare+1)) M(xi,eta) = M(xi,eta) + 1
+          IF (bridgesite(rightxi,righteta).NE.0 .AND. (xi.NE.surfsquare+1) .AND. (eta.NE.surfsquare+1)) M(xi,eta) = M(xi,eta) + 1
+          IF (bridgesite(upxi,upeta).NE.0 .AND. eta.NE.1 .AND. (xi.NE.surfsquare+1)) M(xi,eta) = M(xi,eta) + 1
+          IF (bridgesite(downxi,downeta).NE.0 .AND. (eta.NE.surfsquare+1) .AND. (xi.NE.surfsquare+1)) M(xi,eta) = M(xi,eta) + 1
           
         END DO
       END DO
@@ -975,13 +991,13 @@ DO SurfSideID=1,SurfMesh%nSides
             sigmasub = 0.
             IF (xi.LE.surfsquare) THEN
               DO i = 1,2
-                IF ((xi+i-1).LE.surfsquare) THEN
+!                 IF ((xi+i-1).LE.surfsquare) THEN
                   first = xi + i - 1
                   second = eta
-                ELSE
-                  first = 1
-                  second = eta
-                END IF
+!                 ELSE
+!                   first = 1
+!                   second = eta
+!                 END IF
                 sigmasub = sigmasub + (1./2. * 1./M(first,second) * (2.-1./M(first,second)))
                 IF (i.EQ.1) THEN
                   firstval = M(first,second)
@@ -995,13 +1011,13 @@ DO SurfSideID=1,SurfMesh%nSides
               END DO
             ELSE
               DO i = 1,2
-                IF ((eta+i-1).LE.surfsquare) THEN
+!                 IF ((eta+i-1).LE.surfsquare) THEN
                   first = xi - surfsquare
                   second = eta + i - 1
-                ELSE
-                  first = xi - surfsquare
-                  second = 1
-                END IF
+!                 ELSE
+!                   first = xi - surfsquare
+!                   second = 1
+!                 END IF
                 sigmasub = sigmasub + (1./2. * 1./M(first,second) * (2.-1./M(first,second)))
                 IF (i.EQ.1) THEN
                   firstval = M(first,second)
@@ -1015,7 +1031,7 @@ DO SurfSideID=1,SurfMesh%nSides
               END DO
             END IF !(xi.LE.surfsquare)
             sigma(firstval,secondval,thirdval,fourthval) = sigmasub
-            ProbSigma(firstval,secondval,thirdval,fourthval) = ProbSigma(firstval,secondval,thirdval,fourthval) + 1.
+            ProbSigma(firstval,secondval,thirdval,fourthval) = ProbSigma(firstval,secondval,thirdval,fourthval) + 1
             counter = counter + 1
 !             sigma = sigma + sigmasub
 !             counter = counter + 1
@@ -1030,42 +1046,55 @@ DO SurfSideID=1,SurfMesh%nSides
     secondval = 1
     thirdval = 1
     fourthval = 1
-    DO fourthval = 1,4
-      IF (thirdval.GE.4) THEN
-        Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(4,4,4,fourthval)
-        Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(4,4,4,fourthval) / counter
+    DO WHILE ((firstval.LE.4).AND.(secondval.LE.4).AND.(thirdval.LE.4).AND.(fourthval.LE.4))
+      DO firstval = 1,4
+      DO secondval = 1,firstval
+      DO thirdval = 1,secondval
+      DO fourthval = 1,thirdval
+        Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(firstval,secondval,thirdval,fourthval)
+        Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(firstval,secondval,thirdval,fourthval) / counter
         pos = pos + 1
-      ELSE
-    DO thirdval = 1,4
-      IF (secondval.GE.4) THEN
-        Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(4,4,thirdval,fourthval)
-        Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(4,4,thirdval,fourthval) / counter
-        pos = pos + 1
-      ELSE
-    DO secondval = 1,4
-      IF (firstval.GE.4) THEN
-        Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(4,secondval,thirdval,fourthval)
-        Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(4,secondval,thirdval,fourthval) / counter
-        pos = pos + 1
-      ELSE
-    DO firstval = 1,4
-      Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(firstval,secondval,thirdval,fourthval)
-      Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(firstval,secondval,thirdval,fourthval) / counter
-      pos = pos + 1
+      END DO
+      END DO
+      END DO
+      END DO
     END DO
-      END IF !firstval
-    END DO
-      END IF !secondval
-    END DO
-      END IF !thirdval
-    END DO
+!     DO fourthval = 1,4
+!       IF (thirdval.LE.4) THEN
+!         Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(4,4,4,fourthval)
+!         Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(4,4,4,fourthval) / counter
+!         pos = pos + 1
+!       ELSE
+!     DO thirdval = 1,4
+!       IF (secondval.GE.4) THEN
+!         Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(4,4,thirdval,fourthval)
+!         Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(4,4,thirdval,fourthval) / counter
+!         pos = pos + 1
+!       ELSE
+!     DO secondval = 1,4
+!       IF (firstval.GE.4) THEN
+!         Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(4,secondval,thirdval,fourthval)
+!         Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(4,secondval,thirdval,fourthval) / counter
+!         pos = pos + 1
+!       ELSE
+!     DO firstval = 1,4
+!       Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(firstval,secondval,thirdval,fourthval)
+!       Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(firstval,secondval,thirdval,fourthval) / counter
+!       pos = pos + 1
+!     END DO
+!       END IF !firstval
+!     END DO
+!       END IF !secondval
+!     END DO
+!       END IF !thirdval
+!     END DO
     
   END DO
   END DO
 END DO
 END DO
 
-DEALLOCATE(hollowsite,bridgesite,topsite,M,sigma,ProbSigma)
+DEALLOCATE(hollowsite,bridgesite,M,sigma,ProbSigma)!,topsite,xSurfIndx1,ySurfIndx1,xSurfIndx2,ySurfIndx2)
 
 END SUBROUTINE CalcSurfDistInteraction
 
