@@ -80,10 +80,10 @@ nSkipAnalyze=GETINT('nSkipAnalyze','1')
 #ifndef PARTICLES
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
 IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = 123456789
-#endif /*PARTICLES*/
 DoAnalyze = .FALSE.
 CalcEpot = GETLOGICAL('CalcPotentialEnergy','.FALSE.')
 IF(CalcEpot) DoAnalyze = .TRUE.
+#endif /*PARTICLES*/
 
 AnalyzeInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
