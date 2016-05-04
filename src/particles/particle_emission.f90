@@ -3585,17 +3585,17 @@ __STAMP__&
           IF (ParticleIndexNbr .ne. 0) THEN
             PartState(ParticleIndexNbr,1:3) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
 !!test
-CALL Eval_xyz_Poly((/0.,0.,0./),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID),Particle_pos(1:3))
-IF (.NOT.AlmostEqual(Particle_pos(1),ElemBaryNGeo(1,ElemID))) STOP "blubb1!!!"
-IF (.NOT.AlmostEqual(Particle_pos(2),ElemBaryNGeo(2,ElemID))) STOP "blubb2!!!"
-IF (.NOT.AlmostEqual(Particle_pos(3),ElemBaryNGeo(3,ElemID))) STOP "blubb3!!!"
+!CALL Eval_xyz_Poly((/0.,0.,0./),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID),Particle_pos(1:3))
+!IF (.NOT.AlmostEqual(Particle_pos(1),ElemBaryNGeo(1,ElemID))) STOP "blubb1!!!"
+!IF (.NOT.AlmostEqual(Particle_pos(2),ElemBaryNGeo(2,ElemID))) STOP "blubb2!!!"
+!IF (.NOT.AlmostEqual(Particle_pos(3),ElemBaryNGeo(3,ElemID))) STOP "blubb3!!!"
 !!
             ! shift lastpartpos minimal into cell for fail-safe tracking
             SELECT CASE(SideType(SideID))
             CASE(PLANAR_RECT,PLANAR_NONRECT)
               LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
               + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (1.0-epsInCell)
-            CASE(BILINEAR,CURVED)
+            CASE(BILINEAR,CURVED) !to be changed into more efficient method using known xi
               CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID,ParticleIndexNbr) !RefMap PartState
               DO iLoop=1,3 !shift border-RefCoords into elem
                 IF( ABS(Particle_pos(iLoop)) .GT. 1.0-epsInCell ) THEN
