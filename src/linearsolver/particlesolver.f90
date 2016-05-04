@@ -148,12 +148,15 @@ USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_Part_RHS,                ONLY:CalcPartRHS
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
+USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange,PartMPI
 #endif /*MPI*/
 USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,FreezePartInNewton
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+#endif
 !USE MOD_Equation,       ONLY: CalcImplicitSource
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -182,6 +185,8 @@ LOGICAL                      :: doParticle(1:PDM%ParticleVecLength)
 !REAL                         :: Norm2_F_PartXK_Old(1:PDM%ParticleVecLength)
 !! maybeeee
 !! and thats maybe local??? || global, has to be set false during communication
+LOGICAL                      :: DoNewton
+INTEGER:: counter
 !===================================================================================================================================
 
 time = t+coeff
@@ -200,6 +205,12 @@ END IF
 ! only for particles which has to be interpolated
 !CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
 !CALL CalcPartRHS()
+DoNewton=.FALSE.
+IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
+#ifdef MPI
+!set T if at least 1 proc has to do newton
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
+#endif /*MPI*/
 
 ! whole pt array
 DO iPart=1,PDM%ParticleVecLength
@@ -240,9 +251,22 @@ DO iPart=1,PDM%ParticleVecLength
 END DO ! iPart
 
 ! newton per particle 
+Counter=0
+DO iPart=1,PDM%ParticleVecLength
+  IF(DoPartInNewton(iPart))THEN
+    Counter=Counter+1      
+  END IF ! ParticleInside
+END DO ! iPart
+#ifdef MPI
+!set T if at least 1 proc has to do newton
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
+#endif /*MPI*/
+
 nInnerPartNewton=-1
-DO WHILE(ANY(DoPartInNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
+DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
   nInnerPartNewton=nInnerPartNewton+1
+  !SWRITE(*,*) 'PartNewton',nInnerPartNewton,Counter
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       ! set abort crit      
@@ -294,6 +318,11 @@ DO WHILE(ANY(DoPartInNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! may
     CALL MPIParticleSend() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
     ! finish communication
     CALL MPIParticleRecv() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+!#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+!    DO iPart=1,PDM%ParticleVecLength
+!      IF(.NOT.PartIsImplicit(iPart)) DoPartInNewton(iPart)=.FALSE.
+!    END DO
+!#endif
 #endif
   END IF
   !! correspond to call DGTimeDerivative
@@ -321,16 +350,35 @@ __STAMP__&
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_F_PartXK(iPart))
       IF(Norm2_F_PartXK(iPart).LT.Eps2PartNewton*Norm2_F_PartX0(iPart)) DoPartInNewton(iPart)=.FALSE.
+      IF(nInnerPartNewton.GT.20)THEN
+        IPWRITE(*,*) 'blubb',iPart, Norm2_F_PartXK(iPart),Norm2_F_PartX0(iPart)
+      END IF
     END IF
   END DO
+  DoNewton=.FALSE.
+  IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
+  Counter=0
+  DO iPart=1,PDM%ParticleVecLength
+    IF(DoPartInNewton(iPart))THEN
+      Counter=Counter+1      
+    END IF ! ParticleInside
+  END DO ! iPart
+#ifdef MPI
+  !set T if at least 1 proc has to do newton
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
+#endif /*MPI*/
 END DO
 
+SWRITE(*,*) 'PartNewton',nInnerPartNewton,Counter
 nPartNewton=nPartNewton+nInnerPartNewton
-IF (nInnerPartNewton.EQ.nPartNewtonIter) THEN
-  CALL abort(&
-__STAMP__&
-,'NEWTON NOT CONVERGED WITH NEWTON ITERATIONS,EPISLON',nInnerPartNewton,Eps2PartNewton)
-END IF
+!IF (nInnerPartNewton.EQ.nPartNewtonIter) THEN
+!  IF(PartMPI%MPIRoot)THEN
+!  CALL abort(&
+!__STAMP__&
+!,'NEWTON NOT CONVERGED WITH NEWTON ITERATIONS,EPISLON',nInnerPartNewton,Eps2PartNewton)
+!  END IF
+!END IF
 
 END SUBROUTINE ParticleNewton
 
