@@ -1256,6 +1256,16 @@ USE MOD_TimeDisc_Vars,               ONLY: dt,iStage
 USE MOD_TimeDisc_Vars,               ONLY: ERK_a,RK_b,RK_c
 USE MOD_Particle_Vars,               ONLY: PartStateN,PartStage
 #endif /*IMEX*/
+#ifdef IMPA
+USE MOD_Particle_Vars,               ONLY: PartQ
+USE MOD_TimeDisc_Vars,               ONLY: dt,iStage
+USE MOD_TimeDisc_Vars,               ONLY: ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs
+USE MOD_Particle_Vars,               ONLY: PartStateN,PartStage
+USE MOD_LinearSolver_Vars,           ONLY: PartXK
+#endif /*IMPA*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_Particle_Vars,              ONLY: PartIsImplicit
+#endif 
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -1268,6 +1278,10 @@ LOGICAL,INTENT(OUT),OPTIONAL   :: isMovedOut
 INTEGER                         :: iPV
 REAL                            :: MoveVector(1:3)
 LOGICAL                         :: isMoved
+#ifdef IMPA
+INTEGER                         :: iCounter
+REAL                            :: DeltaP(6)
+#endif /*IMPA*/
 #ifdef IMEX
 INTEGER                         :: iCounter
 #endif /*IMEX*/
@@ -1288,9 +1302,11 @@ IF(FastPeriodic)THEN
       IF(GEO%PeriodicVectors(1,iPV).GT.0)THEN
         PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+        isMoved=.TRUE.
       ELSE
         PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+        isMoved=.TRUE.
       END IF
     END IF
     IF(PartState(PartID,1).LT.GEO%xminglob) THEN
@@ -1301,9 +1317,11 @@ IF(FastPeriodic)THEN
       IF(GEO%PeriodicVectors(1,iPV).GT.0)THEN
         PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+        isMoved=.TRUE.
       ELSE
         PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+        isMoved=.TRUE.
       END IF
     END IF
   END IF
@@ -1317,9 +1335,11 @@ IF(FastPeriodic)THEN
       IF(GEO%PeriodicVectors(2,iPV).GT.0)THEN
         PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+        isMoved=.TRUE.
       ELSE
         PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+        isMoved=.TRUE.
       END IF
     END IF
     IF(PartState(PartID,2).LT.GEO%yminglob) THEN
@@ -1330,9 +1350,11 @@ IF(FastPeriodic)THEN
       IF(GEO%PeriodicVectors(2,iPV).GT.0)THEN
         PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+        isMoved=.TRUE.
       ELSE
         PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+        isMoved=.TRUE.
       END IF
     END IF
   END IF
@@ -1346,9 +1368,11 @@ IF(FastPeriodic)THEN
       IF(GEO%PeriodicVectors(3,iPV).GT.0)THEN
         PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+        isMoved=.TRUE.
       ELSE
         PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+        isMoved=.TRUE.
       END IF
     END IF
     IF(PartState(PartID,3).LT.GEO%zminglob) THEN
@@ -1359,9 +1383,11 @@ IF(FastPeriodic)THEN
       IF(GEO%PeriodicVectors(3,iPV).GT.0)THEN
         PartState(PartID,1:3)  =PartState(PartID,1:3)  +MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)+MoveVector
+        isMoved=.TRUE.
       ELSE
         PartState(PartID,1:3)  =PartState(PartID,1:3)  -MoveVector
         LastPartPos(PartID,1:3)=LastPartPos(PartID,1:3)-MoveVector
+        isMoved=.TRUE.
       END IF
     END IF
   END IF
@@ -1514,7 +1540,7 @@ END IF
 PartShiftVector(1:3,PartID)=-PartState(PartID,1:3)+PartShiftvector(1:3,PartID)
 #endif /*MPI*/
 
-#ifdef IMEX
+#ifdef IMEX 
 ! recompute PartStateN to kill jump in integration through periodic BC
 IF(iStage.GT.0)THEN
   PartStateN(PartID,1:6) = PartState(PartID,1:6)
@@ -1524,6 +1550,41 @@ IF(iStage.GT.0)THEN
   END DO
 END IF
 #endif /*IMEX*/
+
+#ifdef IMPA 
+! recompute PartStateN to kill jump in integration through periodic BC
+IF(iStage.GT.0)THEN
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  IF(PartIsImplicit(PartID))THEN
+#endif
+    ! partshift-vector is pointing from parallel-pos to old pos
+    PartStateN(PartID,1:6) = PartState(PartID,1:6)
+    ! explicit particle
+    DeltaP=0.
+    DO iCounter=1,iStage-1
+      DeltaP=DeltaP - ESDIRK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+    END DO
+    PartStateN(PartID,1:6) = PartStateN(PartID,1:6) + DeltaP ! plus, because DeltaP is defined neg
+    PartQ(1:3,PartID) = PartQ(1:3,PartID) - PartShiftVector(1:3,PartID)
+    ! and move all the functions
+    ! F_PartX0 is not changing, because of difference
+    PartXK(1:3,PartID) = PartXK(1:3,PartID) - PartShiftVector(1:3,PartID)
+    ! brainfuck, does F_PartXK(:,PartID) is changed?
+    ! init: F_PartXK=F_PartXK0
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ELSE
+    PartStateN(PartID,1:6) = PartState(PartID,1:6)
+    ! explicit particle
+    DO iCounter=1,iStage-1
+      PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
+                             - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+    END DO
+  END IF
+#endif
+END IF
+#endif /*IMPA*/
+
+
 IF(PRESENT(isMovedOut)) isMovedOut=isMoved
 
 END SUBROUTINE PeriodicMovement
