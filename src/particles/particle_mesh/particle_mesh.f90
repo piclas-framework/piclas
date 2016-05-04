@@ -531,12 +531,12 @@ DO iBGMElem=1,nBGMElems
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
     flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
     SELECT CASE(SideType(SideID))
-!    CASE(PLANAR)
+!    CASE(PLANAR_RECT)
 !      CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
 !                                                                              ,xi                 &
 !                                                                              ,eta             ,iPart,flip,SideID)
 !                                                                              !,eta             ,iPart,ilocSide,SideID,ElemID)
-!    CASE(BILINEAR)
+!    CASE(BILINEAR,PLANAR_NONRECT)
 !      xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
 !      xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
 !      xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -561,13 +561,13 @@ DO iBGMElem=1,nBGMElems
 !                                                                              ,eta                ,iPart,SideID)
 !    END SELECT
 
-    CASE(PLANAR)
+    CASE(PLANAR_RECT)
       CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                               ,xi,eta ,iPart,flip,SideID)
 
 !      CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
 !                                                                                    ,xi,eta  ,iPart,flip,SideID)
-    CASE(BILINEAR)
+    CASE(BILINEAR,PLANAR_NONRECT)
       xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
       xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
       xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -2344,9 +2344,9 @@ SUBROUTINE BuildElementBasis()
 ! check if points on edges are linear. if linear, the cross product of the vector between two vertices and a vector between a 
 ! vercites and a edge point has to be zero
 ! SideType
-! 0 - planar
-! 1 - bilinear
-! 2 - curved
+! 0/1 - planar
+! 2 - bilinear
+! 3 - curved
 !================================================================================================================================
 USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Preproc
@@ -3052,16 +3052,16 @@ DO iElem=1,nLoop
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
         END IF
         IF(isRectangular)THEN
-          SideType(TrueSideID)=PLANAR
+          SideType(TrueSideID)=PLANAR_RECT
           IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
 #ifdef MPI
           IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
 #endif /*MPI*/
         ELSE
-          SideType(TrueSideID)=CURVED
-          IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+          SideType(TrueSideID)=PLANAR_NONRECT
+          IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
 #ifdef MPI
-          IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+          IF(SideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
 #endif /*MPI*/
         END IF
       ELSE
@@ -3139,16 +3139,16 @@ DO iElem=1,nLoop
             IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
           END IF
           IF(isRectangular)THEN
-            SideType(TrueSideID)=PLANAR
+            SideType(TrueSideID)=PLANAR_RECT
             IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
 #ifdef MPI
             IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
 #endif /*MPI*/
           ELSE
-            SideType(TrueSideID)=CURVED
-            IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+            SideType(TrueSideID)=PLANAR_NONRECT
+            IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
 #ifdef MPI
-            IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+            IF(SideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
 #endif /*MPI*/
           END IF
         ELSE

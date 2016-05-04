@@ -108,7 +108,7 @@ DO iPart=1,PDM%ParticleVecLength
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
         flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
         SELECT CASE(SideType(SideID))
-        CASE(PLANAR)
+        CASE(PLANAR_RECT)
           CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                         ,xi (ilocSide)      &
                                                                                         ,eta(ilocSide)   ,iPart,flip,SideID)
@@ -119,7 +119,7 @@ DO iPart=1,PDM%ParticleVecLength
 !                                                                              !,doTest=.TRUE.)
 !                                                                                  !,eta(ilocSide)   ,iPart,ilocSide,SideID,ElemID)
 
-        CASE(BILINEAR)
+        CASE(BILINEAR,PLANAR_NONRECT)
           xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
           xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
           xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -324,7 +324,7 @@ DO WHILE(DoTracing)
     ! get correct flip
     flip  = 0 
     SELECT CASE(SideType(BCSideID))
-    CASE(PLANAR)
+    CASE(PLANAR_RECT)
 
       !CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
       !                                                                              ,xi (ilocSide)            &
@@ -334,7 +334,7 @@ DO WHILE(DoTracing)
       CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                     ,xi (ilocSide)            &
                                                                                     ,eta(ilocSide)   ,PartID,flip,BCSideID)
-    CASE(BILINEAR)
+    CASE(BILINEAR,PLANAR_NONRECT)
       xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
       xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
       xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
@@ -444,7 +444,7 @@ DO iLocSide=firstSide,LastSide
   ! get correct flip
   flip  = 0 
   SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR)
+  CASE(PLANAR_RECT)
     !CALL ComputePlanarIntersectionBezier(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
     CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)            &
@@ -455,7 +455,7 @@ DO iLocSide=firstSide,LastSide
 !                                                                                  ,eta(ilocSide)   ,PartID,flip,BCSideID)
 !
 !                                                                            !,eta(ilocSide)   ,PartID,ilocSide,SideID,ElemID)
-  CASE(BILINEAR)
+  CASE(BILINEAR,PLANAR_NONRECT)
     xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
     xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
     xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
@@ -1209,7 +1209,7 @@ ELSE ! no BC Side
                                                                        ,xi    &
                                                                        ,eta   ,PartID,SideID,ElemID)
         dolocSide=.TRUE.
-        IF(SideType(SideID).EQ.PLANAR) THEN
+        IF(SideType(SideID).EQ.PLANAR_RECT) THEN !also for PLANAR_NONRECT?
           dolocSide(hitlocSide)=.FALSE.
         END IF
       ELSE
@@ -1618,7 +1618,7 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 
 SELECT CASE(SideType(BCSideID))
-CASE(PLANAR)
+CASE(PLANAR_RECT,PLANAR_NONRECT)
   n_loc=SideNormVec(1:3,BCSideID)
 CASE(BILINEAR)
   CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
@@ -1846,7 +1846,7 @@ DO iLocSide=firstSide,LastSide
   ! get correct flip
   flip  = 0 
   SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR)
+  CASE(PLANAR_RECT)
     !CALL ComputePlanarIntersectionBezier(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
     CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)            &
@@ -1857,7 +1857,7 @@ DO iLocSide=firstSide,LastSide
 !                                                                                  ,eta(ilocSide)   ,PartID,flip,BCSideID)
 !
 !                                                                            !,eta(ilocSide)   ,PartID,ilocSide,SideID,ElemID)
-  CASE(BILINEAR)
+  CASE(BILINEAR,PLANAR_NONRECT)
     xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
     xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
     xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
