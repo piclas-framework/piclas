@@ -796,11 +796,11 @@ IF (PartMPI%MPIROOT) THEN
     IF (CalcPartBalance) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') nPartIn(iSpec)
+        WRITE(unit_index,104,ADVANCE='NO') REAL(nPartIn(iSpec))
       END DO
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') nPartOut(iSpec)
+        WRITE(unit_index,104,ADVANCE='NO') REAL(nPartOut(iSpec))
       END DO
     END IF
     IF (CalcEpot) THEN 
