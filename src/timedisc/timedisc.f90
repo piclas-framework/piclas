@@ -3159,10 +3159,8 @@ DO iStage=2,nRKStages
     !DeltaX=-U
 
     ! solve field to new stage 
-    print*,'LinearSolver'
     ImplicitSource=ExplicitSource
     CALL LinearSolver(tstage,alpha)
-    print*,'done'
 
 #ifdef PARTICLES
     IF (t.GE.DelayTime) THEN
