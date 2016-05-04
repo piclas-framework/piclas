@@ -3387,14 +3387,14 @@ USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
 USE MOD_Mesh_Vars              ,ONLY: SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemToSide
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SideType
 USE MOD_Timedisc_Vars          ,ONLY: dt
 
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D,BezierSampleXi
 USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
-USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell, ElemBaryNGeo
-USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck
+USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
 
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
@@ -3409,7 +3409,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Local variable declaration                                                                       
-INTEGER                     :: iSpec , PositionNbr, iSF, iSide, currentBC, SideID
+INTEGER                     :: iSpec , PositionNbr, iSF, iSide, currentBC, SideID, iLoop
 INTEGER                     :: NbrOfParticle, ExtraParts
 INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSF, PartInsSubSide, iPart, iPartTotal, IntSample
 INTEGER                     :: ParticleIndexNbr, allocStat
@@ -3584,8 +3584,28 @@ __STAMP__&
           END IF
           IF (ParticleIndexNbr .ne. 0) THEN
             PartState(ParticleIndexNbr,1:3) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
-            LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) & !shift lastpartpos minimal into cell for fail-safe tracking
+!!test
+CALL Eval_xyz_Poly((/0.,0.,0./),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID),Particle_pos(1:3))
+IF (.NOT.AlmostEqual(Particle_pos(1),ElemBaryNGeo(1,ElemID))) STOP "blubb1!!!"
+IF (.NOT.AlmostEqual(Particle_pos(2),ElemBaryNGeo(2,ElemID))) STOP "blubb2!!!"
+IF (.NOT.AlmostEqual(Particle_pos(3),ElemBaryNGeo(3,ElemID))) STOP "blubb3!!!"
+!!
+            ! shift lastpartpos minimal into cell for fail-safe tracking
+            SELECT CASE(SideType(SideID))
+            CASE(PLANAR_RECT,PLANAR_NONRECT)
+              LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
               + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (1.0-epsInCell)
+            CASE(BILINEAR,CURVED)
+              CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID,ParticleIndexNbr) !RefMap PartState
+              DO iLoop=1,3 !shift border-RefCoords into elem
+                IF( ABS(Particle_pos(iLoop)) .GT. 1.0-epsInCell ) THEN
+                  Particle_pos(iLoop)=SIGN(1.0-epsInCell,Particle_pos(iLoop))
+                END IF
+              END DO
+              CALL Eval_xyz_Poly(Particle_pos(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID) &
+                ,LastPartPos(ParticleIndexNbr,1:3)) !Map back into phys. space
+            END SELECT
+
 #ifdef CODE_ANALYZE
           CALL Eval_xyz_ElemCheck(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID,ParticleIndexNbr)
           IF (ANY(ABS(Particle_pos).GT.1.0)) THEN !maybe 1+epsInCell would be enough...
