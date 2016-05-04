@@ -550,9 +550,9 @@ PartCommSize=PartCommSize0+(iStage-1)*6
 #endif /*IMEX*/
 #if defined (IMPA)
 #if (PP_TimeDiscMethod==110)
-PartCommSize=PartCommSize0+ 34 ! PartXk,R_PartXK
+PartCommSize=PartCommSize0+ 40 ! PartXk,R_PartXK
 #else
-PartCommSize=PartCommSize0+(iStage-1)*6 +34+6 ! PartXk,R_PartXK ! and communicate fieldatparticle
+PartCommSize=PartCommSize0+(iStage-1)*6 +40 ! PartXk,R_PartXK ! and communicate fieldatparticle
 #endif
 #endif /*IMEX*/
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
@@ -719,7 +719,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       ELSE
         PartSendBuf(iProc)%content(jPos+8) = 0.0
       END IF
-      jPos=jPos+4
+      jPos=jPos+1
 #endif
       !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
@@ -784,6 +784,12 @@ DO iProc=1, PartMPI%nMPINeighbors
       iPos=iPos+PartCommSize
       ! particle is ready for send, now it can deleted
       PDM%ParticleInside(iPart) = .FALSE.  
+#ifdef IMPA
+      DoPartInNewton(iPart) = .FALSE.
+#endif /*IMPA*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+      PartIsImplicit(iPart)     = .FALSE.
+#endif
     END IF ! Particle is particle with target proc-id equals local proc id
   END DO  ! iPart
   ! next, external particles has to be handled for deposition
@@ -1088,9 +1094,9 @@ PartCommSize=PartCommSize0+(iStage-1)*6
 #endif /*IMEX*/
 #if defined (IMPA)
 #if (PP_TimeDiscMethod==110)
-PartCommSize=PartCommSize0+ 34 ! PartXk,R_PartXK
+PartCommSize=PartCommSize0+ 40 ! PartXk,R_PartXK
 #else
-PartCommSize=PartCommSize0+(iStage-1)*6 +34 ! PartXk,R_PartXK
+PartCommSize=PartCommSize0+(iStage-1)*6 +40 ! PartXk,R_PartXK
 #endif
 #endif /*IMEX*/
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
@@ -1255,6 +1261,10 @@ DO iProc=1,PartMPI%nMPINeighbors
     ! Set Flag for received parts in order to localize them later
     PEM%lastElement(PartID) = -888 
     PDM%ParticleInside(PartID) = .TRUE.
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+    ! only for fully implicit
+    PEM%lastElement(PartID) = PEM%Element(PartID)
+#endif
   END DO
   IF(DoExternalParts)THEN
     jPos=MessageSize
