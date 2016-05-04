@@ -50,6 +50,10 @@ INTERFACE BuildElementBasis
   MODULE PROCEDURE BuildElementBasis
 END INTERFACE
 
+INTERFACE BuildElementOrigin
+  MODULE PROCEDURE BuildElementOrigin
+END INTERFACE
+
 INTERFACE CountPartsPerElem
   MODULE PROCEDURE CountPartsPerElem
 END INTERFACE
@@ -71,7 +75,7 @@ INTERFACE GetElemAndSideType
 END INTERFACE
 
 PUBLIC::CountPartsPerElem
-PUBLIC::BuildElementBasis,CheckIfCurvedElem
+PUBLIC::BuildElementBasis,CheckIfCurvedElem,BuildElementOrigin
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
 PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 PUBLIC::InsideElemBoundingBox
@@ -645,6 +649,8 @@ GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 CALL GetFIBGM()
+ALLOCATE(ElemBaryNGeo(1:3,1:nTotalElems) )
+CALL BuildElementOrigin()
 
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
@@ -673,8 +679,7 @@ CALL GetElemAndSideType()
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
-        ,ElemRadius2NGeo(1:nTotalElems)        &
-        ,ElemBaryNGeo(1:3,1:nTotalElems)       )
+        ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
 !CALL MapElemToFIBGM()
 
@@ -2338,15 +2343,58 @@ DEALLOCATE( Distance,ListDistance)
 END SUBROUTINE PointToExactElement
 
 
+SUBROUTINE BuildElementOrigin()
+!================================================================================================================================
+! compute the element origin at xi=(0,0,0)^T and set it as ElemBaryNGeo
+!================================================================================================================================
+USE MOD_Globals!,                  ONLY:CROSS
+USE MOD_Preproc
+USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Particle_Mesh_Vars,       ONLY:ElemBaryNGeo
+USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
+USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
+USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iElem,SideID,i,j,k
+REAL                    :: Xi(3),XPos(3),Radius,buf
+REAL                    :: Lag(1:3,0:NGeo)
+!================================================================================================================================
+
+ElemBaryNGeo=0.
+DO iElem=1,PP_nElems
+  ! evaluate the polynomial at origin
+  Xi=(/0.0,0.0,0.0/)
+  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  xPos=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      buf=Lag(2,j)*Lag(3,k)
+      DO i=0,NGeo
+        xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*buf
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  ElemBaryNGeo(:,iElem)=xPos
+END DO ! iElem
+
+END SUBROUTINE BuildElementOrigin
+
+
 SUBROUTINE BuildElementBasis()
 !================================================================================================================================
-! select the side type for each side 
-! check if points on edges are linear. if linear, the cross product of the vector between two vertices and a vector between a 
-! vercites and a edge point has to be zero
-! SideType
-! 0 - planar
-! 1 - bilinear
-! 2 - curved
+! build the element local basis system 
+! origin is located at xi=(0,0,0)^T
+! each local coord system is pointing to an element side
 !================================================================================================================================
 USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Preproc
@@ -2358,6 +2406,7 @@ USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
 USE MOD_PICDepo_Vars,             ONLY:DepositionType,r_sf,ElemRadius2_sf
+USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -2367,37 +2416,12 @@ IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem,SideID,i,j,k,ilocSide, ALLOCSTAT
-REAL                    :: Xi(3),XPos(3),Radius
-REAL                    :: RNGeo3,RNGeoSide
+REAL                    :: Xi(3),XPos(3),Radius,buf
 REAL                    :: Lag(1:3,0:NGeo)
 !================================================================================================================================
 
-!ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
-!        ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
-!        ,ElemRadiusNGeo(1:nTotalElems)         &
-!        ,ElemBaryNGeo(1:3,1:nTotalElems)       )
-
-Xi=(/0.0,0.0,0.0/)
 ElemRadiusNGeo=0.
-ElemBaryNGeo=0.
-RNGeo3=1.0/REAL((NGeo+1)**3)
-RNGeoSide=1.0/(6.0*REAL((NGeo+1)**2))
 DO iElem=1,nTotalElems
-  IF((DoRefMapping).OR.(iElem.LE.PP_nElems))THEN
-    ElemBaryNGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))*RNGeo3
-    ElemBaryNGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))*RNGeo3
-    ElemBaryNGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))*RNGeo3
-  ELSE
-    DO ilocSide=1,6
-      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-      ElemBaryNGeo(1,iElem)=ElemBaryNGeo(1,iElem)+SUM(BezierControlPoints3D(1,:,:,SideID))
-      ElemBaryNGeo(2,iElem)=ElemBaryNGeo(2,iElem)+SUM(BezierControlPoints3D(2,:,:,SideID))
-      ElemBaryNGeo(3,iElem)=ElemBaryNGeo(3,iElem)+SUM(BezierControlPoints3D(3,:,:,SideID))
-    END DO ! ilocSide
-    ElemBaryNGeo(1,iElem)=ElemBaryNGeo(1,iElem)*RNGeoSide
-    ElemBaryNGeo(2,iElem)=ElemBaryNGeo(2,iElem)*RNGeoSide
-    ElemBaryNGeo(3,iElem)=ElemBaryNGeo(3,iElem)*RNGeoSide
-  END IF
   ! get point on each side 
   IF(DoRefMapping)THEN
     ! xi plus
@@ -2485,52 +2509,18 @@ DO iElem=1,nTotalElems
     END DO !k=0,NGeo
     XiEtaZetaBasis(1:3,6,iElem)=xPos
   ELSE ! compute particle position in physical space
-    IF(NGeo.EQ.1)THEN
-      ! xi plus
-      XiEtaZetaBasis(1:3,1,iElem)=0.25*(XCL_NGeo(:,NGeo,0,0,iElem)       &
-                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
-                                       +XCL_NGeo(:,NGeo,0,NGeo,iElem)    &
-                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
-      ! eta plus
-      XiEtaZetaBasis(1:3,2,iElem)=0.25*(XCL_NGeo(:,0,   NGeo,0,iElem)    &
-                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
-                                       +XCL_NGeo(:,0,   NGeo,NGeo,iElem) &
-                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
-      ! zeta plus
-      XiEtaZetaBasis(1:3,3,iElem)=0.25*(XCL_NGeo(:,0,0,      NGeo,iElem) &
-                                       +XCL_NGeo(:,NGeo,0,   NGeo,iElem) &
-                                       +XCL_NGeo(:,0,NGeo,   NGeo,iElem) &
-                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
-      ! xi minus
-      XiEtaZetaBasis(1:3,4,iElem)=0.25*(XCL_NGeo(:,0,0,0,iElem)       &
-                                       +XCL_NGeo(:,0,NGeo,0,iElem)    &
-                                       +XCL_NGeo(:,0,0,NGeo,iElem)    &
-                                       +XCL_NGeo(:,0,NGeo,NGeo,iElem) )
-      ! eta minus
-      XiEtaZetaBasis(1:3,5,iElem)=0.25*(XCL_NGeo(:,0,   0,0,iElem)    &
-                                       +XCL_NGeo(:,NGeo,0,0,iElem)    &
-                                       +XCL_NGeo(:,0,   0,NGeo,iElem) &
-                                       +XCL_NGeo(:,NGeo,0,NGeo,iElem) )
-      ! zeta plus
-      XiEtaZetaBasis(1:3,6,iElem)=0.25*(XCL_NGeo(:,0,0,      0,iElem) &
-                                       +XCL_NGeo(:,NGeo,0,   0,iElem) &
-                                       +XCL_NGeo(:,0,NGeo,   0,iElem) &
-                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem) )
-    ELSE
-      Xi=(/0.0,0.0,0.0/)
-      SideID = PartElemToSide(1,XI_PLUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,1,iElem))
-      SideID = PartElemToSide(1,ETA_PLUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,2,iElem))
-      SideID = PartElemToSide(1,ZETA_PLUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,3,iElem))
-      SideID = PartElemToSide(1,XI_MINUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,4,iElem))
-      SideID = PartElemToSide(1,ETA_MINUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,5,iElem))
-      SideID = PartElemToSide(1,ZETA_MINUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,6,iElem))
-    END IF
+    SideID = PartElemToSide(1,XI_PLUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,1,iElem))
+    SideID = PartElemToSide(1,ETA_PLUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,2,iElem))
+    SideID = PartElemToSide(1,ZETA_PLUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,3,iElem))
+    SideID = PartElemToSide(1,XI_MINUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,4,iElem))
+    SideID = PartElemToSide(1,ETA_MINUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,5,iElem))
+    SideID = PartElemToSide(1,ZETA_MINUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,6,iElem))
   END IF ! no ref mapping
   ! compute vector from each barycenter to sidecenter
   XiEtaZetaBasis(:,1,iElem)=XiEtaZetaBasis(:,1,iElem)-ElemBaryNGeo(:,iElem)
@@ -2548,7 +2538,7 @@ DO iElem=1,nTotalElems
   slenXiEtaZetaBasis(6,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,6,iElem),XiEtaZetaBasis(:,6,iElem))
   
   Radius=0.
-  IF(DoRefMapping)THEN
+  IF(DoRefMapping)THEN ! thats not the bounding box, caution, this box is to small!
     DO k=0,NGeo
       DO j=0,NGeo
         DO i=0,NGeo
@@ -2573,8 +2563,11 @@ DO iElem=1,nTotalElems
   !ElemRadiusNGeo(iElem)=Radius
   ! elem radius containts 10% tolerance because we are not using the beziercontrolpoints
   ElemRadiusNGeo(iElem)=Radius
-  ElemRadius2NGeo(iElem)=(Radius*1.10)*(Radius*1.10)
-
+  IF(DoRefMapping)THEN
+    ElemRadius2NGeo(iElem)=(Radius*1.10)*(Radius*1.10)
+  ELSE
+    ElemRadius2NGeo(iElem)=Radius*Radius
+  END IF
 END DO ! iElem
 
 IF (TRIM(DepositionType).EQ.'shape_function')THEN
