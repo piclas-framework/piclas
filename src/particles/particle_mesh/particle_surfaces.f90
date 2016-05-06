@@ -1178,7 +1178,8 @@ END SUBROUTINE GetBezierControlPoints3DElevated
 
 
 SUBROUTINE GetBezierSampledAreas(SideID,BezierSampleN,ProjectionVector_opt,SurfMeshSubSideAreas,SurfMeshSideArea_opt &
-                                ,SurfMeshSubSideVec_nOut_opt,SurfMeshSubSideVec_t1_opt,SurfMeshSubSideVec_t2_opt)
+                                ,SurfMeshSubSideVec_nOut_opt,SurfMeshSubSideVec_t1_opt,SurfMeshSubSideVec_t2_opt &
+                                ,DmaxSampleN_opt,Dmax_opt,BezierControlPoints2D_opt)
 !===================================================================================================================================
 ! equidistanlty super-sampled bezier surface area and vector calculation
 ! --------------------------------------
@@ -1199,6 +1200,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                  :: SideID,BezierSampleN
 REAL,INTENT(IN),OPTIONAL            :: ProjectionVector_opt(3)
+INTEGER,INTENT(IN),OPTIONAL         :: DmaxSampleN_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,DIMENSION(1:BezierSampleN,1:BezierSampleN),INTENT(OUT)              :: SurfMeshSubSideAreas
@@ -1206,23 +1208,26 @@ REAL,INTENT(OUT),OPTIONAL                                                :: Surf
 REAL,DIMENSION(1:3,1:BezierSampleN,1:BezierSampleN),INTENT(OUT),OPTIONAL :: SurfMeshSubSideVec_nOut_opt &
                                                                            ,SurfMeshSubSideVec_t1_opt &
                                                                            ,SurfMeshSubSideVec_t2_opt
+REAL,DIMENSION(1:BezierSampleN,1:BezierSampleN),INTENT(OUT),OPTIONAL     :: Dmax_opt
+REAL,DIMENSION(1:2,0:NGeo,0:NGeo),INTENT(OUT),OPTIONAL                   :: BezierControlPoints2D_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: p,q
-INTEGER                                :: I,J,iSample,jSample
+INTEGER                                :: I,J,iSample,jSample,DmaxSampleN
 REAL                                   :: areaTotal,areaTotalAbs,area,deltaXi,tmp1,E,F,G,D
 REAL                                   :: tmpI2,tmpJ2
 REAL                                   :: BezierControlPoints2D(1:2,0:NGeo,0:NGeo)
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
-REAL,DIMENSION(2,2)                    :: gradXiEta2D
+REAL,DIMENSION(2,2)                    :: gradXiEta2D,xiab
 REAL,DIMENSION(2)                      :: XiOut(2)
 REAL,DIMENSION(2)                      :: Xi
 REAL,DIMENSION(3)                      :: n1,n2,n_loc
 REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
-LOGICAL                                :: BezierSampleProjection, ParallelSide
+LOGICAL                                :: BezierSampleProjection, ParallelSide, CalcDmax
 REAL,DIMENSION(3)                      :: ProjectionVector
 REAL,DIMENSION(0:BezierSampleN)        :: BezierSampleXi
 REAL,DIMENSION(1:3,1:BezierSampleN,1:BezierSampleN) :: SurfMeshSubSideVec_nOut,SurfMeshSubSideVec_t1,SurfMeshSubSideVec_t2
+REAL,DIMENSION(1:BezierSampleN,1:BezierSampleN) :: Dmax
 !===================================================================================================================================
 IF (PRESENT(ProjectionVector_opt)) THEN
   BezierSampleProjection=.TRUE.
@@ -1230,6 +1235,22 @@ IF (PRESENT(ProjectionVector_opt)) THEN
 ELSE
   BezierSampleProjection=.FALSE.
   ProjectionVector=0. !dummy
+END IF
+IF (PRESENT(Dmax_opt)) THEN
+  IF (PRESENT(DmaxSampleN_opt)) THEN
+    IF (DmaxSampleN_opt.GT.0) THEN
+      DmaxSampleN=DmaxSampleN_opt
+      CalcDmax=.TRUE.
+    ELSE ! 0 is value for AcceptReject=.FALSE.
+      CalcDmax=.FALSE.
+    END IF
+  ELSE
+    CALL Abort(&
+      __STAMP__&
+      ,'DmaxSampleN not defined in GetBezierSampledAreas!')
+  END IF
+ELSE
+  CalcDmax=.FALSE.
 END IF
 
 Xi(1) =-SQRT(1./3.)
@@ -1247,6 +1268,7 @@ SurfMeshSubSideAreas=0.
 SurfMeshSubSideVec_nOut=0.
 SurfMeshSubSideVec_t1=0.
 SurfMeshSubSideVec_t2=0.
+Dmax=1. !dummy
 
 IF(BezierSampleProjection)THEN
 
@@ -1309,6 +1331,12 @@ IF(BezierSampleProjection)THEN
     END IF
     IF (PRESENT(SurfMeshSideArea_opt)) THEN
       SurfMeshSideArea_opt=0.
+    END IF
+    IF (PRESENT(Dmax_opt)) THEN
+      Dmax_opt=1. !dummy
+    END IF
+    IF (PRESENT(BezierControlPoints2D_opt)) THEN
+      BezierControlPoints2D_opt=1. !dummy
     END IF
     DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN !so far wrong for extruded non-planar!!!
       SurfMeshSubSideAreas(iSample,jSample)=0.
@@ -1379,6 +1407,38 @@ DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
     D=SQRT(E*G-F*F)
     area=area+tmp1*tmp1*D*wGP_NGeo(i)*wGP_NGeo(j)
   END DO; END DO
+  ! calc Dmax
+  IF (PRESENT(Dmax_opt).AND.CalcDmax) THEN
+    Dmax(iSample,jSample)=-1.
+    DO I=0,DmaxSampleN; DO J=0,DmaxSampleN
+      xiab(1,1:2)=(/BezierSampleXi(ISample-1),BezierSampleXi(ISample)/) !correct order?!?
+      xiab(2,1:2)=(/BezierSampleXi(JSample-1),BezierSampleXi(JSample)/) !correct order?!?
+      XiOut = (xiab(:,2)-xiab(:,1))*(/ REAL(J) , REAL(I) /)/REAL(DmaxSampleN) + xiab(:,1)
+      IF(BezierSampleProjection)THEN
+        ! get gradients
+        CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,2,BezierControlPoints2D(1:2,0:NGeo,0:NGeo),Gradient=gradXiEta2D)
+        ! calculate first fundamental form
+        E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
+        F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
+        G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
+      ELSE
+        CALL EvaluateBezierPolynomialAndGradient(XiOut,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+          ,Gradient=gradXiEta3D)
+        ! calculate first fundamental form
+        E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
+        F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
+        G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
+      END IF
+      D=SQRT(E*G-F*F)
+      !!!IPWRITE(*,*)"D",D
+      Dmax(iSample,jSample)=MAX(Dmax(iSample,jSample),D)
+    END DO; END DO !I,J
+    IF (Dmax(iSample,jSample).LT.0.) THEN
+      CALL abort(&
+        __STAMP__&
+        ,'ERROR in GetBezierSampledAreas: No Dmax found!?')
+    END IF
+  END IF
   ! ---------------------------------------
   IF (BezierSampleProjection .OR. &
       PRESENT(SurfMeshSubSideVec_nOut_opt) .OR. &
@@ -1410,6 +1470,14 @@ IF (PRESENT(SurfMeshSideArea_opt)) SurfMeshSideArea_opt=areaTotal
 IF (PRESENT(SurfMeshSubSideVec_nOut_opt)) SurfMeshSubSideVec_nOut_opt=SurfMeshSubSideVec_nOut
 IF (PRESENT(SurfMeshSubSideVec_t1_opt)) SurfMeshSubSideVec_t1_opt=SurfMeshSubSideVec_t1
 IF (PRESENT(SurfMeshSubSideVec_t2_opt)) SurfMeshSubSideVec_t2_opt=SurfMeshSubSideVec_t2
+IF (PRESENT(Dmax_opt)) Dmax_opt=Dmax
+IF (PRESENT(BezierControlPoints2D_opt)) THEN
+  IF(BezierSampleProjection)THEN
+    BezierControlPoints2D_opt=BezierControlPoints2D
+  ELSE
+    BezierControlPoints2D_opt=1. !dummy
+  END IF
+END IF
 
 #ifdef CODE_ANALYZE
 IPWRITE(*,*)" ===== SINGLE AREA ====="

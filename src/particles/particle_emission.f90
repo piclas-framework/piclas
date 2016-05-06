@@ -3061,7 +3061,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding
 USE MOD_Particle_Mesh_Vars,    ONLY: GEO
-USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem
+USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide
@@ -3075,7 +3075,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 ! Local variable declaration                                                                       
 INTEGER               :: iPartBound,iSpec,iSF,SideID,BCSideID,iSide,ElemID,iLocSide,iSample,jSample,iBC,currentBC,iCount,iProc
-CHARACTER(32)         :: hilf, hilf2
+CHARACTER(32)         :: hilf, hilf2, hilf3
 REAL                  :: a, vSF
 REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3)
 INTEGER               :: nDataBC                             ! number of different PartBounds used for SFs
@@ -3085,8 +3085,9 @@ INTEGER,ALLOCATABLE   :: TmpSideNumber(:)                    ! Number of Particl
 INTEGER,ALLOCATABLE   :: TmpSideEnd(:)                       ! End of Linked List for Sides in SurfacefluxBC
 INTEGER,ALLOCATABLE   :: TmpSideNext(:)                      ! Next Side in same SurfacefluxBC (Linked List)
 REAL                  :: totalArea
-REAL,DIMENSION(1:BezierSampleN,1:BezierSampleN)     :: tmp_SubSideAreas
+REAL,DIMENSION(1:BezierSampleN,1:BezierSampleN)     :: tmp_SubSideAreas, tmp_SubSideDmax
 REAL,DIMENSION(1:3,1:BezierSampleN,1:BezierSampleN) :: tmp_Vec_nOut, tmp_Vec_t1, tmp_Vec_t2
+REAL,DIMENSION(1:2,0:NGeo,0:NGeo)                   :: tmp_BezierControlPoints2D
 !===================================================================================================================================
 ! global calculations for sampling the bezier faces for area and vector calculations (checks the integration with CODE_ANALYZE)
 ALLOCATE(SurfMeshSubSideData(1:BezierSampleN,1:BezierSampleN,1:nBCSides))
@@ -3177,6 +3178,18 @@ __STAMP__&
       SWRITE(*,*)'switching now to Random rounding...'
       DoPoissonRounding = .FALSE.
     END IF
+    Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-AcceptReject','.TRUE.')
+    IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject .AND. BezierSampleN.GT.1) THEN
+      SWRITE(*,*)'WARNING: BezierSampleN > 0 may not be necessary as ARM is used for SurfaceFlux!'
+    ELSE IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%AcceptReject .AND. BezierSampleN.LE.NGeo) THEN
+      SWRITE(*,*)'WARNING: The choosen small BezierSampleN (def.: NGeo) might result in inhom. SurfFluxes without ARM!'
+    END IF
+    IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+      WRITE( hilf3, '(I2.2)') NGeo*NGeo*NGeo !1 for linear elements, this is an arbitray estimation for higher N!
+      Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN = GETINT('Part-Species'//TRIM(hilf2)//'-ARM_DmaxSampleN',hilf3)
+    ELSE
+      Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN = 0
+    END IF
   END DO !iSF
 END DO ! iSpec
 #ifdef MPI
@@ -3260,6 +3273,9 @@ DO iSpec=1,nSpecies
     !--- 3a: SF-specific data of Sides
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC !go through sides if present in proc...
     IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
+      IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+        ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo,1:BCdata_auxSF(currentBC)%SideNumber))
+      END IF
       DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
         BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
         ElemID = SideToElem(1,BCSideID)
@@ -3270,10 +3286,20 @@ DO iSpec=1,nSpecies
           iLocSide = SideToElem(3,BCSideID)
         END IF
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-        CALL GetBezierSampledAreas(SideID=SideID &
-                                  ,BezierSampleN=BezierSampleN &
-                                  ,ProjectionVector_opt=Species(iSpec)%Surfaceflux(iSF)%VeloVecIC &
-                                  ,SurfMeshSubSideAreas=tmp_SubSideAreas) !project VeloVecIV on SubSide-area
+        IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+          CALL GetBezierSampledAreas(SideID=SideID &
+                                    ,BezierSampleN=BezierSampleN &
+                                    ,ProjectionVector_opt=Species(iSpec)%Surfaceflux(iSF)%VeloVecIC &
+                                    ,SurfMeshSubSideAreas=tmp_SubSideAreas &  !project VeloVecIC on SubSide-area
+                                    ,DmaxSampleN_opt=Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN &
+                                    ,Dmax_opt=tmp_SubSideDmax &
+                                    ,BezierControlPoints2D_opt=tmp_BezierControlPoints2D)
+        ELSE
+          CALL GetBezierSampledAreas(SideID=SideID &
+                                    ,BezierSampleN=BezierSampleN &
+                                    ,ProjectionVector_opt=Species(iSpec)%Surfaceflux(iSF)%VeloVecIC &
+                                    ,SurfMeshSubSideAreas=tmp_SubSideAreas)  !project VeloVecIC on SubSide-area
+        END IF
         DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
           vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
           vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
@@ -3314,7 +3340,11 @@ __STAMP__&
           Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 &
             = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
             * DOT_PRODUCT(vec_t2,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !v in t2-dir
+          Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
         END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
+        IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+          Species(iSpec)%Surfaceflux(iSF)%BezierControlPoints2D(:,:,:,iSide) = tmp_BezierControlPoints2D
+        END IF
       END DO ! iSide
     ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
       CALL abort(&
@@ -3418,7 +3448,7 @@ REAL                        :: Particle_pos(3), RandVal1, RandVal2(2)
 REAL,ALLOCATABLE            :: particle_positions(:)
 INTEGER(KIND=8)             :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
 INTEGER,ALLOCATABLE         :: PartInsProc(:),PartInsSubSides(:,:,:)
-REAL                        :: xiab(1:2,1:2),xi(2)
+REAL                        :: xiab(1:2,1:2),xi(2),E,F,G,D,gradXiEta2D(1:2,1:2)
 !===================================================================================================================================
 
 DO iSpec=1,nSpecies
@@ -3564,10 +3594,41 @@ __STAMP__&
         !-- put particles in subside
         iPart=1
         DO WHILE (iPart .LE. PartInsSubSide)
-          CALL RANDOM_NUMBER(RandVal2)
-          xiab(1,1:2)=(/BezierSampleXi(ISample-1),BezierSampleXi(ISample)/) !correct order?!?
-          xiab(2,1:2)=(/BezierSampleXi(JSample-1),BezierSampleXi(JSample)/) !correct order?!?
-          xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
+          iLoop=0
+          DO !ARM for xi considering the dA of the Subside in RefSpace
+            iLoop = iLoop+1
+            CALL RANDOM_NUMBER(RandVal2)
+            xiab(1,1:2)=(/BezierSampleXi(ISample-1),BezierSampleXi(ISample)/) !correct order?!?
+            xiab(2,1:2)=(/BezierSampleXi(JSample-1),BezierSampleXi(JSample)/) !correct order?!?
+            xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
+            IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+              CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,2 &
+                ,Species(iSpec)%Surfaceflux(iSF)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo,iSide) &
+                ,Gradient=gradXiEta2D)
+              E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
+              F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
+              G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
+              D=SQRT(E*G-F*F)
+              D=D/Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax !scaled Jacobian of xi
+              IF (D .GT. 1.01) THEN !arbitrary warning threshold
+                IPWRITE(*,'(I4,x,A28,I0,A9,I0,A22,I0)') &
+                  'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has inaccurate Dmax! ',D
+              END IF
+              CALL RANDOM_NUMBER(RandVal1)
+              IF (RandVal1.LE.D) THEN
+                EXIT !accept xi
+              ELSE
+                IF (MOD(iLoop,100).EQ.0) THEN !arbitrary warning threshold
+                  IPWRITE(*,'(I4,x,A28,I0,A9,I0,A18,I0)') &
+                    'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has reached loop ',iLoop
+                  IPWRITE(*,'(I4,x,A19,2(x,E16.8))') &
+                    '         R, D/Dmax:',RandVal1,D
+                END IF
+              END IF
+            ELSE !no ARM -> accept xi
+              EXIT
+            END IF
+          END DO
           CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos)
           !-- save position:
           particle_positions(iPart*3-2) = Particle_pos(1)
