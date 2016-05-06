@@ -3340,7 +3340,9 @@ __STAMP__&
           Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 &
             = Species(iSpec)%Surfaceflux(iSF)%VeloIC &
             * DOT_PRODUCT(vec_t2,Species(iSpec)%Surfaceflux(iSF)%VeloVecIC) !v in t2-dir
-          Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
+          IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+            Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
+          END IF
         END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
         IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
           Species(iSpec)%Surfaceflux(iSF)%BezierControlPoints2D(:,:,:,iSide) = tmp_BezierControlPoints2D
