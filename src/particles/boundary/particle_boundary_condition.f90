@@ -91,7 +91,7 @@ CASE(1) !PartBound%OpenBC)
   IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
     !BCSideID=PartBCSideList(SideID)
     SELECT CASE(SideType(SideID))
-    CASE(PLANAR)
+    CASE(PLANAR_RECT,PLANAR_NONRECT)
       n_loc=SideNormVec(1:3,SideID)
     CASE(BILINEAR)
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
@@ -255,7 +255,7 @@ CASE(1) !PartBound%OpenBC)
   IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
     BCSideID=PartBCSideList(SideID)
     SELECT CASE(SideType(BCSideID))
-    CASE(PLANAR)
+    CASE(PLANAR_RECT,PLANAR_NONRECT)
       n_loc=SideNormVec(1:3,BCSideID)
     CASE(BILINEAR)
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
@@ -435,7 +435,7 @@ WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR)
+  CASE(PLANAR_RECT,PLANAR_NONRECT)
     n_loc=SideNormVec(1:3,BCSideID)
   CASE(BILINEAR)
     CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
@@ -444,7 +444,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   SELECT CASE(SideType(SideID))
-  CASE(PLANAR)
+  CASE(PLANAR_RECT,PLANAR_NONRECT)
     n_loc=SideNormVec(1:3,SideID)
   CASE(BILINEAR)
     CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
@@ -662,7 +662,7 @@ RotACC       = PartBound%RotACC(locBCID)
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR)
+  CASE(PLANAR_RECT,PLANAR_NONRECT)
     n_loc=SideNormVec(1:3,BCSideID)
     tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID))
     tang2=CROSSNORM(n_loc,tang1)
@@ -675,7 +675,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   SELECT CASE(SideType(SideID))
-  CASE(PLANAR)
+  CASE(PLANAR_RECT,PLANAR_NONRECT)
     n_loc=SideNormVec(1:3,SideID)
     tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,SideID)-BezierControlPoints3D(:,0,0,SideID))
     tang2=CROSSNORM(n_loc,tang1)

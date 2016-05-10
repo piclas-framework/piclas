@@ -74,9 +74,10 @@
 
 !#define DEBUGMESH
 
-#define PLANAR   0
-#define BILINEAR 1
-#define CURVED   2
+#define PLANAR_RECT   0
+#define PLANAR_NONRECT   1
+#define BILINEAR 2
+#define CURVED   3
 
 ! entries for PartHaloToProc
 #define NATIVE_ELEM_ID  1

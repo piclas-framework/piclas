@@ -114,10 +114,10 @@ DO ilocSide=1,6
   END IF
   
   SELECT CASE(SideType(SideID))
-!  CASE(PLANAR)
+!  CASE(PLANAR_RECT)
 !    CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta  &
 !                                                                            ,PartID,flip,SideID)
-!  CASE(BILINEAR)
+!  CASE(BILINEAR,PLANAR_NONRECT)
 !    xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
 !    xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
 !    xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -133,14 +133,14 @@ DO ilocSide=1,6
 
 
 
-  CASE(PLANAR)
+  CASE(PLANAR_RECT)
 
     CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,alpha &
                                                                               ,xi,eta ,PartID,flip,SideID)
     !CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
     !                                                                              ,xi             &
     !                                                                              ,eta   ,PartID,flip,SideID)
-  CASE(BILINEAR)
+  CASE(BILINEAR,PLANAR_NONRECT)
     xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
     xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
     xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -160,7 +160,7 @@ DO ilocSide=1,6
   IF(DoRefMapping)THEN
     IF(alpha.GT.-1)THEN
       SELECT CASE(SideType(SideID))
-      CASE(PLANAR)
+      CASE(PLANAR_RECT,PLANAR_NONRECT)
         NormVec=SideNormVec(1:3,SideID)
       CASE(BILINEAR)
         CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
