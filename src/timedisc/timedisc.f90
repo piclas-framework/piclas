@@ -3217,9 +3217,9 @@ DO iStage=2,nRKStages
     END IF
 #endif /*PARTICLES*/
 
-    IF(AllExplicit)THEN
-      Norm_R=0
-    ELSE
+    !IF(AllExplicit)THEN
+    !  Norm_R=0
+    !ELSE
       ! compute error-norm-version1, non-optimized
       CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
       ImplicitSource=ExplicitSource
@@ -3244,7 +3244,7 @@ DO iStage=2,nRKStages
       CALL MPI_ALLREDUCE(MPI_IN_PLACE,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
       Norm_R=SQRT(Norm_R)
-    END IF
+    !END IF
     SWRITE(*,*) 'iter,Norm_R',nFullNewtonIter,Norm_R
 
   END DO ! funny pseudo Newton for all implicit
@@ -3268,9 +3268,9 @@ IF (t.GE.DelayTime) THEN
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
       CASE(1)
-        Pt(4:6,iPart) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       CASE(3)
-        Pt(4:6,iPart) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       CASE DEFAULT
       END SELECT
       PartState(iPart,1:3) = PartStateN(iPart,1:3)                   &
