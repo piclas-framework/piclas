@@ -4,6 +4,7 @@
 *.mod
 *.swp
 *.mk
+*.optrpt
 build/*
 src/deplist.mk
 src/srcfiles_pp.mk
