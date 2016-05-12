@@ -2907,7 +2907,7 @@ REAL               :: alpha
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-REAL               :: DeltaX(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! difference between electric field and div-correction
+REAL               :: DeltaX(1:8,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! difference between electric field and div-correction
 REAL               :: tRatio, tphi
 REAL               :: Norm_R0,Norm_R,rDummy
 INTEGER            :: iCounter !, iStage
@@ -3100,7 +3100,7 @@ DO iStage=2,nRKStages
 
     ! now, we have an initial guess for the field  can compute the first particle movement
     SWRITE(*,*) 'calling of newton'
-    CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength),Opt_in=.TRUE.)
 
     ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
@@ -3120,6 +3120,7 @@ DO iStage=2,nRKStages
     CALL MPIParticleSend()
     ! finish communication
     CALL MPIParticleRecv()
+    ! ALWAYS require
     PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
 
@@ -3127,12 +3128,6 @@ DO iStage=2,nRKStages
     SWRITE(*,*) 'implicit depo'
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-    ! here: finish deposition with delta kernal
-    !       maps source terms in physical space
-    ! ALWAYS require
-    PartMPIExchange%nMPIParticles=0
-#endif /*MPI*/
   END IF
 #endif /*PARTICLES*/
 
@@ -3140,8 +3135,8 @@ DO iStage=2,nRKStages
   CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
   ImplicitSource=ExplicitSource
   CALL CalcSource(tStage,1.,ImplicitSource)
-  DeltaX(1:3,:,:,:,:)=U(1:3,:,:,:,:)-alpha*Ut(1:3,:,:,:,:)-LinSolverRHS(1:3,:,:,:,:)-alpha*ImplicitSource(1:3,:,:,:,:)
-  !DeltaX(1:8,:,:,:,:)=U(1:8,:,:,:,:)-alpha*Ut(1:8,:,:,:,:)-LinSolverRHS(1:8,:,:,:,:)-alpha*ImplicitSource(1:8,:,:,:,:)
+  !DeltaX(1:3,:,:,:,:)=U(1:3,:,:,:,:)-alpha*Ut(1:3,:,:,:,:)-LinSolverRHS(1:3,:,:,:,:)-alpha*ImplicitSource(1:3,:,:,:,:)
+  DeltaX(1:8,:,:,:,:)=U(1:8,:,:,:,:)-alpha*Ut(1:8,:,:,:,:)-LinSolverRHS(1:8,:,:,:,:)-alpha*ImplicitSource(1:8,:,:,:,:)
   !Y(1:6,:,:,:,:) =LinSolverRHS(1:6,:,:,:,:) - U(1:6,:,:,:,:) +coeff*Ut(1:6,:,:,:,:)+ coeff*ImplicitSource(1:6,:,:,:,:))
 
   Norm_R=0.
@@ -3149,7 +3144,7 @@ DO iStage=2,nRKStages
     DO k=0,PP_N
       DO j=0,PP_N
         DO i=0,PP_N
-          DO iVar=1,3
+          DO iVar=1,8
             Norm_R=Norm_R + DeltaX(iVar,i,j,k,iElem)*DeltaX(iVar,i,j,k,iElem)
           END DO
         END DO
@@ -3193,7 +3188,7 @@ DO iStage=2,nRKStages
       END DO ! iPart
 
       ! now, we have an initial guess for the field  can compute the first particle movement
-      CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength),Opt_In=.TRUE.)
 
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
@@ -3219,12 +3214,6 @@ DO iStage=2,nRKStages
       ! compute particle source terms on field solver of implicit particles :)
       CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-#ifdef MPI
-      ! here: finish deposition with delta kernal
-      !       maps source terms in physical space
-      ! ALWAYS require
-      PartMPIExchange%nMPIParticles=0
-#endif /*MPI*/
     END IF
 #endif /*PARTICLES*/
 
@@ -3235,15 +3224,16 @@ DO iStage=2,nRKStages
       CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
       ImplicitSource=ExplicitSource
       CALL CalcSource(tStage,1.,ImplicitSource)
-      DeltaX(1:3,:,:,:,:)=U(1:3,:,:,:,:)-alpha*Ut(1:3,:,:,:,:)-LinSolverRHS(1:3,:,:,:,:)-alpha*ImplicitSource(1:3,:,:,:,:)
-      !DeltaX(1:8,:,:,:,:)=U(1:8,:,:,:,:)-alpha*Ut(1:8,:,:,:,:)-LinSolverRHS(1:8,:,:,:,:)-alpha*ImplicitSource(1:8,:,:,:,:)
+      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+      !DeltaX(1:3,:,:,:,:)=U(1:3,:,:,:,:)-alpha*Ut(1:3,:,:,:,:)-LinSolverRHS(1:3,:,:,:,:)-alpha*ImplicitSource(1:3,:,:,:,:)
+      DeltaX(1:8,:,:,:,:)=U(1:8,:,:,:,:)-alpha*Ut(1:8,:,:,:,:)-LinSolverRHS(1:8,:,:,:,:)-alpha*ImplicitSource(1:8,:,:,:,:)
   
       Norm_R=0.
       DO iElem=1,PP_nElems
         DO k=0,PP_N
           DO j=0,PP_N
             DO i=0,PP_N
-              DO iVar=1,3
+              DO iVar=1,8
                 Norm_R=Norm_R + DeltaX(iVar,i,j,k,iElem)*DeltaX(iVar,i,j,k,iElem)
               END DO
             END DO

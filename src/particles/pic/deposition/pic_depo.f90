@@ -686,6 +686,7 @@ USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtP
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartMPIExchange
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem,tCartMesh,ElemTime
 #endif  /*MPI*/
+USE MOD_Particle_Vars,           ONLY: PartIsImplicit,PartLorentzType
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
