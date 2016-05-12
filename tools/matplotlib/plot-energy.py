@@ -19,7 +19,7 @@ filename2 = './../implicit/Database.csv'
 column=[1,5,7]
 scale =[1e9,1e6,1e6]
 imagename = 'comparison_plasmawave-ekin.pdf'
-Variables=['$t$','$E_{kin}$']
+Variables=['$t$','$E$']
 Units=['s','J']
 #---------------------------------------------------------------------------------------
 
@@ -80,9 +80,10 @@ ax = gca()
 matplotlib.rc('lines', linewidth=0.5, markersize=5)
 #plot(data1[:,0],data1[:,1],label='E_{el,1}', color='r', marker='s', markevery=360, markerfacecolor='w')
 #plot(data2[:,0],data2[:,1],label='E_{el,2}', color='g', marker='^', markevery=440, markerfacecolor='w')
-plot(data1[:,0],data1[:,1],label='$E_{el,imex}$', color='r')
-plot(data2[:,0],data2[:,1],label='$E_{el,implicit}$', color='g', marker='^', markevery=10, markerfacecolor='w')
-
+plot(data1[:,0],data1[:,1],label='$E_{el,imex}$', color='b')
+plot(data2[:,0],data2[:,1],label='$E_{el,implicit}$', color='r', marker='^', markevery=10, markerfacecolor='w')
+plot(data1[:,0],data1[:,2],label='$E_{kin,imex}$', color='g')
+plot(data2[:,0],data2[:,2],label='$E_{kin,implicit}$', color='k', marker='^', markevery=10, markerfacecolor='w')
 
 #majoryLocator   = MultipleLocator(0.02)
 #ax.yaxis.set_major_locator(majoryLocator)
