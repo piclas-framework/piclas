@@ -2947,6 +2947,7 @@ ALLExplicit=.TRUE.
 
 tStage=t
 
+SWRITE(*,*) 'init depo'
 #ifdef PARTICLES
 ! simulation with delay-time, compute the
 IF(DelayTime.GT.0.)THEN
@@ -2960,6 +2961,7 @@ IF(DelayTime.GT.0.)THEN
     PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
     CALL Deposition(doInnerParts=.FALSE.)
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
   END IF
 END IF
 
@@ -2975,16 +2977,24 @@ IF (t.GE.DelayTime) THEN
   PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
   CALL Deposition(doInnerParts=.FALSE.)
+  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
   ImplicitSource=0.
   CALL CalcSource(tStage,1.,ImplicitSource)
 END IF
 #endif /*PARTICLES*/
 
+SWRITE(*,*) 'init depo done'
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! stage 2 to 6
 ! ----------------------------------------------------------------------------------------------------------------------------------
 DO iStage=2,nRKStages
+  ! time of current stage
+  tStage = t + RK_c(iStage)*dt
+  alpha = ESDIRK_a(iStage,iStage)*dt
+  ! store predictor
+  CALL StorePredictor()
+
   ! compute the f(u^s-1)
   ! compute the f(u^s-1)
   ! DG-solver, Maxwell's equations
@@ -3003,10 +3013,6 @@ DO iStage=2,nRKStages
   END IF
 #endif /*PARTICLES*/
 
-  ! time of current stage
-  tStage = t + RK_c(iStage)*dt
-  ! store predictor
-  CALL StorePredictor()
 
   !--------------------------------------------------------------------------------------------------------------------------------
   ! explicit - particle  pusher
@@ -3034,26 +3040,32 @@ DO iStage=2,nRKStages
 #ifdef MPI
     ! mpi-routines should be extended by additional input: PartisImplicit, better criterion, saves computational time
   ! open receive buffer for number of particles
+   SWRITE(*,*) 'explicit depo'
     CALL IRecvNbofParticles()
 #endif /*MPI*/
     IF(DoRefMapping)THEN
-      CALL ParticleRefTracking() ! tracking routines has to be extended for optional flag, like deposition
+      ! tracking routines has to be extended for optional flag, like deposition
+      CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     ELSE
-      CALL ParticleTrackingCurved()
+      CALL ParticleTrackingCurved(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     END IF
 #ifdef MPI
     ! send number of particles
-    CALL SendNbOfParticles()
+    CALL SendNbOfParticles(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     ! finish communication of number of particles and send particles
     CALL MPIParticleSend()
+#endif /*MPI*/
     ! deposit explicit, local particles
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+#ifdef MPI
     ! finish communication
     CALL MPIParticleRecv()
-    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-#endif
+#endif /*MPI*/
+    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength)) ! external particles arg
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
     PartMPIExchange%nMPIParticles=0
     CALL CalcSource(tStage,1.,ExplicitSource)
+    SWRITE(*,*) 'explicit depo done'
   END IF
 #endif /*PARTICLES*/
 
@@ -3061,7 +3073,6 @@ DO iStage=2,nRKStages
   ! implicit - particle pusher & Maxwell's field
   !--------------------------------------------------------------------------------------------------------------------------------
 
-  alpha = ESDIRK_a(iStage,iStage)*dt
   ! compute RHS for linear solver
   LinSolverRHS=Un
   DO iCounter = 1,iStage-1
@@ -3088,7 +3099,7 @@ DO iStage=2,nRKStages
     END DO ! iPart
 
     ! now, we have an initial guess for the field  can compute the first particle movement
-    !alpha = ESDIRK_a(iStage,iStage)*dt
+    SWRITE(*,*) 'calling of newton'
     CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 
     ! move particle, if not already done, here, a reduced list could be again used, but a different list...
@@ -3097,14 +3108,14 @@ DO iStage=2,nRKStages
     CALL IRecvNbofParticles()
 #endif /*MPI*/
     IF(DoRefMapping)THEN
-      CALL ParticleRefTracking()
+      CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     ELSE
-      CALL ParticleTrackingCurved()
+      CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     END IF
 #ifdef MPI
     ! here: could use deposition as hiding, not done yet
     ! send number of particles
-    CALL SendNbOfParticles()
+    CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     ! finish communication of number of particles and send particles
     CALL MPIParticleSend()
     ! finish communication
@@ -3113,6 +3124,7 @@ DO iStage=2,nRKStages
 #endif /*MPI*/
 
     ! compute particle source terms on field solver of implicit particles :)
+    SWRITE(*,*) 'implicit depo'
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 #ifdef MPI
@@ -3181,7 +3193,6 @@ DO iStage=2,nRKStages
       END DO ! iPart
 
       ! now, we have an initial guess for the field  can compute the first particle movement
-      !alpha = ESDIRK_a(iStage,iStage)*dt
       CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
@@ -3190,14 +3201,14 @@ DO iStage=2,nRKStages
       CALL IRecvNbofParticles()
 #endif /*MPI*/
       IF(DoRefMapping)THEN
-        CALL ParticleRefTracking()
+        CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ELSE
-        CALL ParticleTrackingCurved()
+        CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       END IF
 #ifdef MPI
       ! here: could use deposition as hiding, not done yet
       ! send number of particles
-      CALL SendNbOfParticles()
+      CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       ! finish communication of number of particles and send particles
       CALL MPIParticleSend()
       ! finish communication
@@ -3291,13 +3302,14 @@ IF (t.GE.DelayTime) THEN
   CALL IRecvNbofParticles()
 #endif /*MPI*/
   IF(DoRefMapping)THEN
-    CALL ParticleRefTracking() ! tracking routines has to be extended for optional flag, like deposition
+    ! tracking routines has to be extended for optional flag, like deposition
+    CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTrackingCurved(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   END IF
 #ifdef MPI
   ! send number of particles
-  CALL SendNbOfParticles()
+  CALL SendNbOfParticles(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   ! finish communication of number of particles and send particles
   CALL MPIParticleSend()
   ! finish communication

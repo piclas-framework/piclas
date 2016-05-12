@@ -149,6 +149,7 @@ USE MOD_Part_RHS,                ONLY:CalcPartRHS
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange,PartMPI
+USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 #endif /*MPI*/
 USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,FreezePartInNewton
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
@@ -307,9 +308,11 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
     CALL IRecvNbofParticles() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
 #endif /*MPI*/
     IF(DoRefMapping)THEN
-      CALL ParticleRefTracking() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+      ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+      CALL ParticleRefTracking(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
     ELSE
-      CALL ParticleTrackingCurved() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+      ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+      CALL ParticleTrackingCurved(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
     END IF
 #ifdef MPI
     ! send number of particles
@@ -318,6 +321,11 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
     CALL MPIParticleSend() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
     ! finish communication
     CALL MPIParticleRecv() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+    ! as we do not have the shape function here, we have to deallocate something
+    SDEALLOCATE(ExtPartState)
+    SDEALLOCATE(ExtPartSpecies)
+    SDEALLOCATE(ExtPartToFIBGM)
+    SDEALLOCATE(ExtPartMPF)
 !#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 !    DO iPart=1,PDM%ParticleVecLength
 !      IF(.NOT.PartIsImplicit(iPart)) DoPartInNewton(iPart)=.FALSE.

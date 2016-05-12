@@ -31,7 +31,7 @@ PUBLIC::ParticleRefTracking
 
 CONTAINS
 
-SUBROUTINE ParticleTrackingCurved()
+SUBROUTINE ParticleTrackingCurved(doParticle_In)
 !===================================================================================================================================
 ! read required parameters
 !===================================================================================================================================
@@ -58,11 +58,13 @@ USE MOD_LoadBalance_Vars,            ONLY:ElemTime
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
+! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                       :: iPart,ElemID,flip,OldElemID
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections,nLoc
 LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol
@@ -74,8 +76,14 @@ REAL                          :: tLBStart,tLBEnd
 #endif /*MPI*/
 !===================================================================================================================================
 
+IF(PRESENT(DoParticle_IN))THEN
+  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
+ELSE
+  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
+END IF
+
 DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
+  IF(DoParticle(iPart))THEN
 #ifdef MPI
     tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
@@ -524,7 +532,7 @@ END IF ! nInter>0
 END SUBROUTINE ParticleBCTracking
 
 
-SUBROUTINE ParticleRefTrackingSlow()
+SUBROUTINE ParticleRefTrackingSlow(doParticle_In)
 !===================================================================================================================================
 ! Compute the intersection with a Bezier surface
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
@@ -548,31 +556,37 @@ USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nTracksPerElem,tTracking
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iPart, ElemID,oldElemID,iElem, newElemID
-INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems
-REAL,ALLOCATABLE            :: Distance(:)
-REAL                        :: oldXi(3),newXi(3), LastPos(3),epsLowOne
-INTEGER,ALLOCATABLE         :: ListDistance(:)
-!REAL                        :: epsOne
+LOGICAL                          :: doParticle(1:PDM%ParticleVecLength)
+INTEGER                          :: iPart, ElemID,oldElemID,iElem, newElemID
+INTEGER                          :: CellX,CellY,CellZ,iBGMElem,nBGMElems
+REAL,ALLOCATABLE                 :: Distance(:)
+REAL                             :: oldXi(3),newXi(3), LastPos(3),epsLowOne
+INTEGER,ALLOCATABLE              :: ListDistance(:)
+!REAL                             :: epsOne
 #ifdef MPI
-INTEGER                     :: InElem
+INTEGER                          :: InElem
 #endif
-INTEGER                     :: TestElem
-LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength),PartisDone
-!LOGICAL                     :: HitBC(1:PDM%ParticleVecLength)
+INTEGER                          :: TestElem
+LOGICAL                          :: ParticleFound(1:PDM%ParticleVecLength),PartisDone
+!LOGICAL                          :: HitBC(1:PDM%ParticleVecLength)
 ! load balance
 #ifdef MPI
-REAL                          :: tLBStart,tLBEnd
+REAL                               :: tLBStart,tLBEnd
 #endif /*MPI*/
 !===================================================================================================================================
 
+IF(PRESENT(DoParticle_IN))THEN
+  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
+ELSE
+  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
+END IF
 
 ParticleFound=.FALSE.
 !HitBC=.FALSE.
@@ -583,7 +597,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
   DO iPart=1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(iPart))THEN
+    IF(DoParticle(iPart))THEN
       ElemID = PEM%lastElement(iPart)
       IF(ElemID.NE.iElem) CYCLE
       nTracks=nTracks+1
@@ -852,7 +866,7 @@ tTracking = tTracking +tLBEnd-tLBStart
 END SUBROUTINE ParticleRefTrackingSlow
 
 
-SUBROUTINE ParticleRefTrackingFast()
+SUBROUTINE ParticleRefTrackingFast(doParticle_In)
 !===================================================================================================================================
 ! Compute the intersection with a Bezier surface
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
@@ -876,35 +890,41 @@ USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nTracksPerElem,tTracking
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iPart, ElemID,oldElemID,newElemID
-INTEGER                     :: CellX,CellY,CellZ,iBGMElem,nBGMElems
-REAL,ALLOCATABLE            :: Distance(:)
-REAL                        :: oldXi(3),newXi(3), LastPos(3)
-INTEGER,ALLOCATABLE         :: ListDistance(:)
-!REAL                        :: epsOne
+LOGICAL                           :: doParticle(1:PDM%ParticleVecLength)
+INTEGER                           :: iPart, ElemID,oldElemID,newElemID
+INTEGER                           :: CellX,CellY,CellZ,iBGMElem,nBGMElems
+REAL,ALLOCATABLE                  :: Distance(:)
+REAL                              :: oldXi(3),newXi(3), LastPos(3)
+INTEGER,ALLOCATABLE               :: ListDistance(:)
+!REAL                              :: epsOne
 #ifdef MPI
-INTEGER                     :: InElem
+INTEGER                           :: InElem
 #endif
-INTEGER                     :: TestElem
-!LOGICAL                     :: ParticleFound(1:PDM%ParticleVecLength),PartisDone
-LOGICAL                     :: PartisDone,PartIsMoved
-!LOGICAL                     :: HitBC(1:PDM%ParticleVecLength)
+INTEGER                           :: TestElem
+!LOGICAL                           :: ParticleFound(1:PDM%ParticleVecLength),PartisDone
+LOGICAL                           :: PartisDone,PartIsMoved
+!LOGICAL                           :: HitBC(1:PDM%ParticleVecLength)
 ! load balance
 #ifdef MPI
-REAL                          :: tLBStart,tLBEnd
+REAL                                :: tLBStart,tLBEnd
 #endif /*MPI*/
 !===================================================================================================================================
 
+IF(PRESENT(DoParticle_IN))THEN
+  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
+ELSE
+  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
+END IF
 
 DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
+  IF(DoParticle(iPart))THEN
     ElemID = PEM%lastElement(iPart)
 #ifdef MPI
     tLBStart = LOCALTIME() ! LB Time Start
