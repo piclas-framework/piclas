@@ -104,7 +104,7 @@ SELECT CASE(PredictorType)
     U=LinSolverRHS
   CASE(2)
     ! second order dense output
-#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==105)
+#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
     !tphi = 1.+RK_c(iStage)
     tphi = RK_c(iStage)
     U=Un
@@ -118,7 +118,7 @@ __STAMP__&
 ,'No Predictor for this timedisc!',999,999.)
 #endif
   CASE(3)
-#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105)
+#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
     ! third order dense output
    ! tphi = 1.+RK_c(iStage)
     tphi = RK_c(iStage)
