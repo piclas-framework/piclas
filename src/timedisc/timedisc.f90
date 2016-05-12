@@ -2867,6 +2867,7 @@ USE MOD_Precond_Vars,            ONLY: PrecondType
 USE MOD_JacDG,                   ONLY: BuildJacDG
 USE MOD_Equation,                ONLY: CalcSource
 #ifdef PARTICLES
+USE MOD_Predictor,               ONLY: PartPredictor
 USE MOD_Particle_Vars,           ONLY: PartIsImplicit,PartLorentzType
 USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
@@ -3095,6 +3096,7 @@ DO iStage=2,nRKStages
           PartQ(1:6,iPart)=PartQ(1:6,iPart) &
                         + ESDIRK_a(iStage,iCounter)*dt*PartStage(iPart,1:6,iCounter)
         END DO 
+        CALL PartPredictor(iStage,dt,iPart) ! sets new value for U_DG
       END IF ! PartIsImplicit
     END DO ! iPart
 
