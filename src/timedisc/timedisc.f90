@@ -194,7 +194,7 @@ USE MOD_LoadBalance_Vars,      ONLY: nSkipAnalyze
 USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeightAndLoad,ComputeElemLoad
 USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
 #endif /*MPI*/
-#ifdef IMEX
+#if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars, ONLY:totalIterLinearSolver
 #endif /*IMEX*/
 #ifdef IMPA
@@ -549,7 +549,7 @@ DO !iter_t=0,MaxIter
         WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
         WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
       END IF !MPIroot
-#ifdef IMEX
+#if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       SWRITE(UNIT_stdOut,'(132("="))')
       SWRITE(UNIT_stdOut,'(A,I12)') ' Total iteration Linear Solver ',totalIterLinearSolver
       TotalIterLinearSolver=0
