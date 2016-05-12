@@ -130,7 +130,7 @@ END SUBROUTINE SelectImplicitParticles
 #endif
 
 
-SUBROUTINE ParticleNewton(t,coeff,doParticle_In)
+SUBROUTINE ParticleNewton(t,coeff,doParticle_In,opt_In)
 !===================================================================================================================================
 ! Allocate global variable 
 !===================================================================================================================================
@@ -165,10 +165,12 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)               :: t,coeff
 LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
+LOGICAL,INTENT(IN),OPTIONAL   :: opt_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
+LOGICAL                      :: opt
 REAL                         :: time
 INTEGER                      :: iPart
 INTEGER                      :: nInnerPartNewton = 0
@@ -177,13 +179,6 @@ REAL                         :: AbortCritLinSolver,gammaA,gammaB
 REAL                         :: DeltaX(1:6)
 REAL                         :: Pt_tmp(1:6)
 LOGICAL                      :: doParticle(1:PDM%ParticleVecLength)
-! required GLOBAL variables
-!! to move to global variables for MPI :(
-!REAL                         :: F_PartX0(1:6,1:PDM%ParticleVecLength)
-!REAL                         :: F_PartXk(1:6,1:PDM%ParticleVecLength)
-!REAL                         :: Norm2_F_PartX0    (1:PDM%ParticleVecLength)
-!REAL                         :: Norm2_F_PartXK    (1:PDM%ParticleVecLength)
-!REAL                         :: Norm2_F_PartXK_Old(1:PDM%ParticleVecLength)
 !! maybeeee
 !! and thats maybe local??? || global, has to be set false during communication
 LOGICAL                      :: DoNewton
@@ -191,6 +186,8 @@ INTEGER:: counter
 !===================================================================================================================================
 
 time = t+coeff
+opt=.TRUE.
+IF(PRESENT(opt_In)) opt=Opt_in
 
 ! quasi-newton:
 ! hold the system
@@ -213,43 +210,45 @@ IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError)
 #endif /*MPI*/
 
-! whole pt array
-DO iPart=1,PDM%ParticleVecLength
-  IF(DoPartInNewton(iPart))THEN
-    CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
-    SELECT CASE(PartLorentzType)
-    CASE(1)
-      Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-    CASE(3)
-      Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-    CASE DEFAULT
-    END SELECT
-    ! PartStateN has to be exchanged by PartQ
-    Pt_tmp(1) = PartState(iPart,4) 
-    Pt_tmp(2) = PartState(iPart,5) 
-    Pt_tmp(3) = PartState(iPart,6) 
-    Pt_tmp(4) = Pt(iPart,1) 
-    Pt_tmp(5) = Pt(iPart,2) 
-    Pt_tmp(6) = Pt(iPart,3)
-    F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(1:6,iPart)-coeff*Pt_tmp
-    PartXK(:,iPart)     =   PartState(iPart,:)
-    R_PartXK(:,iPart)   =   Pt_tmp(:)
-    F_PartXK(:,iPart)   =   F_PartX0(:,iPart)
-  END IF ! ParticleInside
-END DO ! iPart
-
-! compute norm for each particle
-DO iPart=1,PDM%ParticleVecLength
-  IF(DoPartInNewton(iPart))THEN
-    CALL PartVectorDotProduct(F_PartX0(:,iPart),F_PartX0(:,iPart),Norm2_F_PartX0(iPart))
-    IF (Norm2_F_PartX0(iPart).LT.6E-16) THEN ! do not iterate, as U is already the implicit solution
-      Norm2_F_PartXk(iPart)=TINY(1.)
-      DoPartInNewton(iPart)=.FALSE.
-    ELSE ! we need iterations
-      Norm2_F_PartXk(iPart)=Norm2_F_PartX0(iPart)
-    END IF
-  END IF ! ParticleInside
-END DO ! iPart
+IF(opt)THEN ! compute zero state
+  ! whole pt array
+  DO iPart=1,PDM%ParticleVecLength
+    IF(DoPartInNewton(iPart))THEN
+      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      SELECT CASE(PartLorentzType)
+      CASE(1)
+        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      CASE(3)
+        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      CASE DEFAULT
+      END SELECT
+      ! PartStateN has to be exchanged by PartQ
+      Pt_tmp(1) = PartState(iPart,4) 
+      Pt_tmp(2) = PartState(iPart,5) 
+      Pt_tmp(3) = PartState(iPart,6) 
+      Pt_tmp(4) = Pt(iPart,1) 
+      Pt_tmp(5) = Pt(iPart,2) 
+      Pt_tmp(6) = Pt(iPart,3)
+      F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(1:6,iPart)-coeff*Pt_tmp
+      PartXK(:,iPart)     =   PartState(iPart,:)
+      R_PartXK(:,iPart)   =   Pt_tmp(:)
+      F_PartXK(:,iPart)   =   F_PartX0(:,iPart)
+    END IF ! ParticleInside
+  END DO ! iPart
+  
+  ! compute norm for each particle
+  DO iPart=1,PDM%ParticleVecLength
+    IF(DoPartInNewton(iPart))THEN
+      CALL PartVectorDotProduct(F_PartX0(:,iPart),F_PartX0(:,iPart),Norm2_F_PartX0(iPart))
+      IF (Norm2_F_PartX0(iPart).LT.6E-16) THEN ! do not iterate, as U is already the implicit solution
+        Norm2_F_PartXk(iPart)=TINY(1.)
+        DoPartInNewton(iPart)=.FALSE.
+      ELSE ! we need iterations
+        Norm2_F_PartXk(iPart)=Norm2_F_PartX0(iPart)
+      END IF
+    END IF ! ParticleInside
+  END DO ! iPart
+END IF
 
 ! newton per particle 
 Counter=0
@@ -263,6 +262,8 @@ END DO ! iPart
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
 #endif /*MPI*/
+
+SWRITE(*,*) 'init part',Counter
 
 nInnerPartNewton=-1
 DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
