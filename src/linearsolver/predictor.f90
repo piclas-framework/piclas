@@ -71,10 +71,10 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,          ONLY: U
 USE MOD_LinearSolver_Vars,ONLY: LinSolverRHS,Upast
-#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105)
+#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==105) || (PP_TimeDiscMethod==122)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bsO3,RK_bs
 #endif
-#if (PP_TimeDiscMethod==101) 
+#if (PP_TimeDiscMethod==101)  || (PP_TimeDiscMethod==121)
 USE MOD_TimeDisc_Vars,    ONLY: RK_c,RK_bs
 #endif
 ! IMPLICIT VARIABLE HANDLING
