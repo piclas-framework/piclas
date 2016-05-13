@@ -217,12 +217,10 @@ SUBROUTINE PartMatrixVector(t,Coeff,PartID,X,Y)
 USE MOD_PreProc
 USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Globals,                 ONLY:Abort
-USE MOD_DG_Vars,                 ONLY:U,Ut
-USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
 USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars,           ONLY:dt,sdtCFLOne
-USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType
+USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType,Pt
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
@@ -255,7 +253,8 @@ EpsFD= rEps0/SQRT(X_abs)
 PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
 !CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
-PartT(1:3)=PartState(PartID,4:6)
+PartT(1:3)=PartState(PartID,4:6) ! funny, or PartXK
+PartT(4:6)=Pt(PartID,1:3)
 SELECT CASE(PartLorentzType)
 CASE(1)
   PartT(4:6) = SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
@@ -267,7 +266,6 @@ __STAMP__ &
 ,' Given PartLorentzType does not exist!',PartLorentzType)
 END SELECT
 ! or frozen version
-! Part(4:6)=Pt(PartID,1:3)
 Y = (X - (coeff/EpsFD)*(PartT - R_PartXk(:,PartID)))
 
 END SUBROUTINE PartMatrixVector

@@ -285,6 +285,10 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       END IF 
       Norm2_F_PartXk_old(iPart)=Norm2_F_PartXk(iPart)
       CALL Particle_GMRES(t,coeff,iPart,-F_PartXK(:,iPart),SQRT(Norm2_F_PartXk(iPart)),AbortCritLinSolver,DeltaX)
+      !IF(iPart.EQ.1)THEN
+      !  print*,'deltax',ipart,deltaX
+      !  read*
+      !END IF
       ! update to new partstate during Newton iteration
       PartXK(:,iPart)=PartXK(:,iPart)+DeltaX
       PartState(iPart,:)=PartXK(:,iPart)
@@ -327,6 +331,11 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
     SDEALLOCATE(ExtPartSpecies)
     SDEALLOCATE(ExtPartToFIBGM)
     SDEALLOCATE(ExtPartMPF)
+    ! update the last part pos and element for particle movement
+    LastPartPos(iPart,1)=PartState(iPart,1)
+    LastPartPos(iPart,2)=PartState(iPart,2)
+    LastPartPos(iPart,3)=PartState(iPart,3)
+    PEM%lastElement(iPart)=PEM%Element(iPart)
 !#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 !    DO iPart=1,PDM%ParticleVecLength
 !      IF(.NOT.PartIsImplicit(iPart)) DoPartInNewton(iPart)=.FALSE.
@@ -341,17 +350,22 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       IF(MOD(nInnerPartNewton,FreezePartInNewton).EQ.0) CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
-      R_PartXK(1:3,iPart)=PartState(iPart,4:6)
       SELECT CASE(PartLorentzType)
       CASE(1)
-        R_PartXK(4:6,iPart) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       CASE(3)
-        R_PartXK(4:6,iPart) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       CASE DEFAULT
       CALL abort(&
 __STAMP__&
 ,' Given PartLorentzType does not exist!',PartLorentzType)
       END SELECT
+      R_PartXK(1,iPart)=PartState(iPart,4)
+      R_PartXK(2,iPart)=PartState(iPart,5)
+      R_PartXK(3,iPart)=PartState(iPart,6)
+      R_PartXK(4,iPart)=Pt(iPart,1)
+      R_PartXK(5,iPart)=Pt(iPart,2)
+      R_PartXK(6,iPart)=Pt(iPart,3)
       !R_PartXK(1:3,iPart)=PartState(iPart,4:6)
       !R_PartXK(4:6,iPart)=Pt(iPart,1:3)
       !F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*Part_tmp(:,iPart)

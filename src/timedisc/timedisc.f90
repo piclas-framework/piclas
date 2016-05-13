@@ -2905,6 +2905,7 @@ REAL,INTENT(IN)    :: t
 REAL               :: tstage
 ! implicit 
 REAL               :: alpha
+REAL               :: sgamma
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
@@ -2913,6 +2914,7 @@ REAL               :: tRatio, tphi
 REAL               :: Norm_R0,Norm_R,rDummy
 INTEGER            :: iCounter !, iStage
 INTEGER            :: nFullNewtonIter
+logical :: first
 INTEGER            :: i,j,k,iElem,iVar
 #ifdef PARTICLES
 INTEGER            :: iPart
@@ -2992,7 +2994,8 @@ SWRITE(*,*) 'init depo done'
 DO iStage=2,nRKStages
   ! time of current stage
   tStage = t + RK_c(iStage)*dt
-  alpha = ESDIRK_a(iStage,iStage)*dt
+  alpha  = ESDIRK_a(iStage,iStage)*dt
+  sGamma = 1.0/alpha
   ! store predictor
   CALL StorePredictor()
 
@@ -3011,6 +3014,24 @@ DO iStage=2,nRKStages
     CALL CalcPartRHS()
     PartStage(1:PDM%ParticleVecLength,1:3,iStage-1) = PartState(1:PDM%ParticleVecLength,4:6)
     PartStage(1:PDM%ParticleVecLength,4:6,iStage-1) = Pt       (1:PDM%ParticleVecLength,1:3)
+    !IF(iStage.GT.2)THEN
+    !  DO iPart=1,PDM%ParticleVecLength
+    !    IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+    !    IF(PartIsImplicit(iPart))THEN
+    !      print*,'partstaten-13',PartStateN(iPart,1:3)
+    !      print*,'partstaten-46',PartStateN(iPart,4:6)
+    !      print*,'partstate-13',PartState(iPart,1:3)
+    !      print*,'partstate-46',PartState(iPart,4:6)
+    !      print*,'partstage-13',PartStage(iPart,1:3,iStage-1)
+    !      print*,'partstage-13',PartStage(iPart,1:3,iStage-1)
+    !      print*,'partstage-46',PartStage(iPart,4:6,iStage-1)
+    !      print*,'finite difference-13',(PartState(iPart,1:3)-PartQ(iPart,1:3))*sGamma 
+    !      print*,'finite difference-46',(PartState(iPart,4:6)-PartQ(iPart,4:6))*sGamma 
+    !      read*
+    !      !PartStage(iPart,1:6,iStage-1)=(PartState(iPart,1:6)-PartQ(iPart,1:6))*sGamma 
+    !    END IF ! ParticleInside
+    !  END DO ! iPart
+    !END IF
   END IF
 #endif /*PARTICLES*/
 
@@ -3056,12 +3077,13 @@ DO iStage=2,nRKStages
     ! finish communication of number of particles and send particles
     CALL MPIParticleSend()
 #endif /*MPI*/
-    ! deposit explicit, local particles
-    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
 #ifdef MPI
     ! finish communication
     CALL MPIParticleRecv()
 #endif /*MPI*/
+    PartMPIExchange%nMPIParticles=0
+    ! deposit explicit, local particles
+    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     CALL Deposition(doInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength)) ! external particles arg
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
     PartMPIExchange%nMPIParticles=0
