@@ -2851,47 +2851,47 @@ SUBROUTINE TimeStepByImplicitRK(t)
 USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY: dt,iter,iStage, nRKStages,time
-USE MOD_TimeDisc_Vars,           ONLY: ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs
-USE MOD_DG_Vars,                 ONLY: U,Ut
-USE MOD_DG,                      ONLY: DGTimeDerivative_weakForm
-USE MOD_LinearSolver,            ONLY: LinearSolver
-USE MOD_Predictor,               ONLY: Predictor,StorePredictor
-USE MOD_LinearSolver_Vars,       ONLY: ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver
-USE MOD_LinearSolver_Vars,       ONLY: maxFullNewtonIter,totalFullNewtonIter
-USE MOD_Equation,                ONLY: DivCleaningDamping
+USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,time
+USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs
+USE MOD_DG_Vars,                 ONLY:U,Ut
+USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
+USE MOD_LinearSolver,            ONLY:LinearSolver
+USE MOD_Predictor,               ONLY:Predictor,StorePredictor
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter
+USE MOD_Equation,                ONLY:DivCleaningDamping
 #ifdef maxwell
-USE MOD_Precond,                 ONLY: BuildPrecond
-USE MOD_Precond_Vars,            ONLY: PrecondType
+USE MOD_Precond,                 ONLY:BuildPrecond
+USE MOD_Precond_Vars,            ONLY:PrecondType
 #endif /*maxwell*/
-USE MOD_JacDG,                   ONLY: BuildJacDG
-USE MOD_Equation,                ONLY: CalcSource
+USE MOD_JacDG,                   ONLY:BuildJacDG
+USE MOD_Equation,                ONLY:CalcSource
 #ifdef PARTICLES
-USE MOD_Predictor,               ONLY: PartPredictor
-USE MOD_Particle_Vars,           ONLY: PartIsImplicit,PartLorentzType
-USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
-USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
-USE MOD_PICDepo,                 ONLY: Deposition
-USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
-USE MOD_PIC_Vars,                ONLY: PIC
-USE MOD_Particle_Vars,           ONLY: PartStateN,PartStage, PartQ
-USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF
-USE MOD_part_RHS,                ONLY: CalcPartRHS
-USE MOD_part_emission,           ONLY: ParticleInserting
-USE MOD_DSMC,                    ONLY: DSMC_main
-USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS, DSMC
-USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
-USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-USE MOD_ParticleSolver,          ONLY: ParticleNewton, SelectImplicitParticles
+USE MOD_Predictor,               ONLY:PartPredictor
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies
+USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
+USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
+USE MOD_PICDepo,                 ONLY:Deposition
+USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
+USE MOD_PIC_Vars,                ONLY:PIC
+USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF
+USE MOD_part_RHS,                ONLY:CalcPartRHS
+USE MOD_part_emission,           ONLY:ParticleInserting
+USE MOD_DSMC,                    ONLY:DSMC_main
+USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS, DSMC
+USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #ifdef MPI
-USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
+USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
 #endif /*MPI*/
-USE MOD_PIC_Analyze,             ONLY: CalcDepositedCharge
-USE MOD_part_tools,              ONLY: UpdateNextFreePosition
+USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
+USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2996,6 +2996,7 @@ DO iStage=2,nRKStages
   tStage = t + RK_c(iStage)*dt
   alpha  = ESDIRK_a(iStage,iStage)*dt
   sGamma = 1.0/alpha
+  SWRITE(*,*) 'alpha,gamma',ESDIRK_A(iStage,iStage),alpha,sGamma
   ! store predictor
   CALL StorePredictor()
 
@@ -3352,6 +3353,20 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! split and merge
 !----------------------------------------------------------------------------------------------------------------------------------
+
+first=.FALSE.
+DO iPart=1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart))THEN
+    IF(PartSpecies(iPart).EQ.1)THEN
+      IF(.NOT.first)THEN
+        print*,'iPart',iPart
+        print*,'PartState',PartState(iPart,:)
+      END IF
+      STOP
+    END IF
+  END IF ! ParticleInside
+END DO ! iPart
+  
 
 
 END SUBROUTINE TimeStepByImplicitRK
