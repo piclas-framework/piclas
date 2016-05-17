@@ -219,7 +219,6 @@ USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Globals,                 ONLY:Abort
 USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
 USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,           ONLY:dt,sdtCFLOne
 USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType,Pt
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
