@@ -230,9 +230,9 @@ IF(opt)THEN ! compute zero state
       Pt_tmp(5) = Pt(iPart,2) 
       Pt_tmp(6) = Pt(iPart,3)
       F_PartX0(1:6,iPart) =   PartState(iPart,1:6)-PartQ(1:6,iPart)-coeff*Pt_tmp
-      PartXK(:,iPart)     =   PartState(iPart,:)
-      R_PartXK(:,iPart)   =   Pt_tmp(:)
-      F_PartXK(:,iPart)   =   F_PartX0(:,iPart)
+      PartXK(1:6,iPart)   =   PartState(iPart,1:6)
+      R_PartXK(1:6,iPart) =   Pt_tmp(1:6)
+      F_PartXK(1:6,iPart) =   F_PartX0(1:6,iPart)
     END IF ! ParticleInside
   END DO ! iPart
   
