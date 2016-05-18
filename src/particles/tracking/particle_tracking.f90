@@ -874,7 +874,7 @@ SUBROUTINE ParticleRefTrackingFast(doParticle_In)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
-USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef
+USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef, PartSpecies
 USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,nCurrentParts
@@ -1300,7 +1300,7 @@ REAL                            :: MoveVector(1:3)
 LOGICAL                         :: isMoved
 #ifdef IMPA
 INTEGER                         :: iCounter
-REAL                            :: DeltaP(6)
+REAL                            :: DeltaP(6),Norm
 #endif /*IMPA*/
 #ifdef IMEX
 INTEGER                         :: iCounter
@@ -1560,49 +1560,68 @@ END IF
 PartShiftVector(1:3,PartID)=-PartState(PartID,1:3)+PartShiftvector(1:3,PartID)
 #endif /*MPI*/
 
+IF(isMoved)THEN
 #ifdef IMEX 
-! recompute PartStateN to kill jump in integration through periodic BC
-IF(iStage.GT.0)THEN
-  PartStateN(PartID,1:6) = PartState(PartID,1:6)
-  DO iCounter=1,iStage-1
-    PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
-                      - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
-  END DO
-END IF
+  ! recompute PartStateN to kill jump in integration through periodic BC
+  IF(iStage.GT.0)THEN
+    PartStateN(PartID,1:6) = PartState(PartID,1:6)
+    DO iCounter=1,iStage-1
+      PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
+                        - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+    END DO
+  END IF
 #endif /*IMEX*/
 
 #ifdef IMPA 
-! recompute PartStateN to kill jump in integration through periodic BC
-IF(iStage.GT.0)THEN
+  ! recompute PartStateN to kill jump in integration through periodic BC
+  IF(iStage.GT.0)THEN
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-  IF(PartIsImplicit(PartID))THEN
+    IF(PartIsImplicit(PartID))THEN
 #endif
-    ! partshift-vector is pointing from parallel-pos to old pos
-    PartStateN(PartID,1:6) = PartState(PartID,1:6)
-    ! explicit particle
-    DeltaP=0.
-    DO iCounter=1,iStage-1
-      DeltaP=DeltaP - ESDIRK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
-    END DO
-    PartStateN(PartID,1:6) = PartStateN(PartID,1:6) + DeltaP ! plus, because DeltaP is defined neg
-    PartQ(1:3,PartID) = PartQ(1:3,PartID) - PartShiftVector(1:3,PartID)
-    ! and move all the functions
-    ! F_PartX0 is not changing, because of difference
-    PartXK(1:3,PartID) = PartXK(1:3,PartID) - PartShiftVector(1:3,PartID)
-    ! brainfuck, does F_PartXK(:,PartID) is changed?
-    ! init: F_PartXK=F_PartXK0
+      ! partshift-vector is pointing from parallel-pos to old pos
+      PartStateN(PartID,1:6) = PartState(PartID,1:6)
+      ! explicit particle
+      DeltaP=0.
+      DO iCounter=1,iStage-1
+        DeltaP=DeltaP - ESDIRK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+      END DO
+      PartStateN(PartID,1:6) = PartStateN(PartID,1:6) + DeltaP ! plus, because DeltaP is defined neg
+      PartQ(1:3,PartID) = PartQ(1:3,PartID) - PartShiftVector(1:3,PartID)
+      ! and move all the functions
+      ! F_PartX0 is not changing, because of difference
+      PartXK(1:3,PartID) = PartXK(1:3,PartID) - PartShiftVector(1:3,PartID)
+      ! brainfuck, does F_PartXK(:,PartID) is changed?
+      ! init: F_PartXK=F_PartXK0 
+      ! sanity check for parallel...
+      !! old norm
+      !DeltaP(1)=PartState(PartID,4)
+      !DeltaP(2)=PartState(PartID,5)
+      !DeltaP(3)=PartState(PartID,6)
+      !DeltaP(4)=Pt(PartID,1)
+      !DeltaP(5)=Pt(PartID,2)
+      !DeltaP(6)=Pt(PartID,3)
+      !IF(iStage.GT.0)THEN
+      !DeltaP=PartState(PartID,:) - PartQ(:,PartID)-ESDIRK_A(iStage,iStage)*dt*DeltaP
+      !CALL PartVectorDotProduct(DeltaP,DeltaP,Norm)
+      !ELSE
+      !Norm=Norm2_F_PartXK(PartID)
+      !END IF
+      !IF(.NOT.ALMOSTEQUAL(Norm,Norm2_F_PartXK(PartID)))THEN
+      !  print*,'norm diff',PartID
+      !END IF
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-  ELSE
-    PartStateN(PartID,1:6) = PartState(PartID,1:6)
-    ! explicit particle
-    DO iCounter=1,iStage-1
-      PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
-                             - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
-    END DO
+   ELSE
+     PartStateN(PartID,1:6) = PartState(PartID,1:6)
+     ! explicit particle
+     DO iCounter=1,iStage-1
+       PartStateN(PartID,1:6) = PartStateN(PartID,1:6)   &
+                              - ERK_a(iStage,iCounter)*dt*PartStage(PartID,1:6,iCounter)
+     END DO
+   END IF
+#endif
   END IF
-#endif
-END IF
 #endif /*IMPA*/
+END IF
 
 
 IF(PRESENT(isMovedOut)) isMovedOut=isMoved
