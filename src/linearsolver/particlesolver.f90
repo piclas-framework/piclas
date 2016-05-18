@@ -285,10 +285,6 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       END IF 
       Norm2_F_PartXk_old(iPart)=Norm2_F_PartXk(iPart)
       CALL Particle_GMRES(t,coeff,iPart,-F_PartXK(:,iPart),SQRT(Norm2_F_PartXk(iPart)),AbortCritLinSolver,DeltaX)
-      !IF(iPart.EQ.1)THEN
-      !  print*,'deltax',ipart,deltaX
-      !  read*
-      !END IF
       ! update to new partstate during Newton iteration
       PartXK(:,iPart)=PartXK(:,iPart)+DeltaX
       PartState(iPart,:)=PartXK(:,iPart)
@@ -321,7 +317,7 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
     END IF
 #ifdef MPI
     ! send number of particles
-    CALL SendNbOfParticles() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
+    CALL SendNbOfParticles(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
     ! finish communication of number of particles and send particles
     CALL MPIParticleSend() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
     ! finish communication
