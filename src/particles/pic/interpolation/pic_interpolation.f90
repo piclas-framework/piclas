@@ -55,9 +55,12 @@ USE MOD_PICInterpolation_Vars
 INTEGER                   :: ALLOCSTAT
 !REAL                      :: P(3,8), T(3,3), T_inv(3,3)
 !INTEGER                   :: iNode, Elem
+REAL                      :: scaleExternalField
 !===================================================================================================================================
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
 externalField(1:6)= GETREALARRAY('PIC-externalField',6,'0.,0.,0.,0.,0.,0.')
+scaleexternalField= GETREAL('PIC-scaleexternalField','1.0')
+externalField=externalField*ScaleExternalField
 !SWRITE(*,*) " External fied", externalfield
 DoInterpolation   = GETLOGICAL('PIC-DoInterpolation','.TRUE.')
 useBGField        = GETLOGICAL('PIC-BG-Field','.FALSE.')
