@@ -563,8 +563,10 @@ DO !iter_t=0,MaxIter
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration Newton         ',nPartNewton
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
-      SWRITE(UNIT_stdOut,'(A35,F12.2)')' Average GMRES steps per Newton    ',REAL(TotalPartIterLinearSolver)&
-                                                                           /REAL(nPartNewton)
+      IF(nPartNewton.GT.0)THEN
+        SWRITE(UNIT_stdOut,'(A35,F12.2)')' Average GMRES steps per Newton    ',REAL(TotalPartIterLinearSolver)&
+                                                                              /REAL(nPartNewton)
+      END IF
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
       SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration outer-Newton    ',TotalFullNewtonIter
       totalFullNewtonIter=0
@@ -2643,8 +2645,6 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   CALL ParticleInserting()
 END IF
 PartStateN(1:PDM%ParticleVecLength,1:6)=PartState(1:PDM%ParticleVecLength,1:6)
-!print*,'istage,partstate',0,PartState
-!print*,''
 #endif
 
 !! stage 1, explicit
@@ -2692,10 +2692,8 @@ DO iStage=2,nRKStages
   ! it's for the implicit part, here: PARTICLES
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
-    !print*,'istage,partstate',iStage,PartState
     CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
     CALL CalcPartRHS()
-    !print*,'Pt',Pt
     PartStage(1:PDM%ParticleVecLength,1:3,iStage-1) = PartState(1:PDM%ParticleVecLength,4:6)
     PartStage(1:PDM%ParticleVecLength,4:6,iStage-1) = Pt       (1:PDM%ParticleVecLength,1:3)
   END IF
@@ -2747,7 +2745,6 @@ DO iStage=2,nRKStages
       PartQ(6,1:PDM%ParticleVecLength)=PartQ(6,1:PDM%ParticleVecLength) &
                                       + ESDIRK_a(iStage,iCounter)*dt*PartStage(1:PDM%ParticleVecLength,6,iCounter)
     END DO 
-    !print*,'PartQ',PartQ
     ! predictor
     tphi = RK_c(iStage)
     ! do not change PartState .... working??
@@ -2757,9 +2754,6 @@ DO iStage=2,nRKStages
     !                +         (RK_bs(iCounter,1)*tphi+RK_bs(iCounter,2)*tphi**2)*dt &
     !                +          PartStage(1:PDM%ParticleVecLength,1:6,iCounter)
     !END DO
-    !!print*,'PartN',PartState
-    !print*,''
-    !print*,'newton'
     alpha = ESDIRK_a(iStage,iStage)*dt
     CALL ParticleNewton(tstage,alpha)
     ! move particle
@@ -2950,7 +2944,6 @@ ALLExplicit=.TRUE.
 
 tStage=t
 
-SWRITE(*,*) 'init depo'
 #ifdef PARTICLES
 ! simulation with delay-time, compute the
 IF(DelayTime.GT.0.)THEN
@@ -2986,7 +2979,6 @@ IF (t.GE.DelayTime) THEN
 END IF
 #endif /*PARTICLES*/
 
-SWRITE(*,*) 'init depo done'
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! stage 2 to 6
@@ -2996,10 +2988,8 @@ DO iStage=2,nRKStages
   tStage = t + RK_c(iStage)*dt
   alpha  = ESDIRK_a(iStage,iStage)*dt
   sGamma = 1.0/alpha
-  !SWRITE(*,*) 'AA(i,i), alpha:',ESDIRK_A(iStage,iStage),alpha
-  !SWRITE(*,*) 'gamma,dt      :',sGamma,dt
-  !SWRITE(*,*) 'dt/alpha      :',dt/alpha
-  !read*
+  SWRITE(*,*) '-----------------------------'
+  SWRITE(*,*) 'istage:',istage
   ! store predictor
   CALL StorePredictor()
 
@@ -3016,8 +3006,18 @@ DO iStage=2,nRKStages
     ! I think, this step can be saved, but we test it with a simpler version, first
     CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
     CALL CalcPartRHS()
-    PartStage(1:PDM%ParticleVecLength,1:3,iStage-1) = PartState(1:PDM%ParticleVecLength,4:6)
-    PartStage(1:PDM%ParticleVecLength,4:6,iStage-1) = Pt       (1:PDM%ParticleVecLength,1:3)
+    !PartStage(1:PDM%ParticleVecLength,1:3,iStage-1) = PartState(1:PDM%ParticleVecLength,4:6)
+    !PartStage(1:PDM%ParticleVecLength,4:6,iStage-1) = Pt       (1:PDM%ParticleVecLength,1:3)
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+      IF(PartIsImplicit(iPart))THEN
+        PartStage(iPart,1:3,iStage-1) = PartState(iPart,4:6) !+ alpha*Pt(iPart,1:3)
+        PartStage(iPart,4:6,iStage-1) = Pt       (iPart,1:3)
+      ELSE
+        PartStage(iPart,1:3,iStage-1) = PartState(iPart,4:6)
+        PartStage(iPart,4:6,iStage-1) = Pt       (iPart,1:3)
+      END IF ! ParticleIsImplicit
+    END DO ! iPart
   END IF
 #endif /*PARTICLES*/
 
@@ -3055,7 +3055,6 @@ DO iStage=2,nRKStages
 #ifdef MPI
     ! mpi-routines should be extended by additional input: PartisImplicit, better criterion, saves computational time
   ! open receive buffer for number of particles
-   SWRITE(*,*) 'explicit depo'
     CALL IRecvNbofParticles()
 #endif /*MPI*/
     IF(DoRefMapping)THEN
@@ -3082,7 +3081,6 @@ DO iStage=2,nRKStages
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
     !PartMPIExchange%nMPIParticles=0
     CALL CalcSource(tStage,1.,ExplicitSource)
-    SWRITE(*,*) 'explicit depo done'
   END IF
 #endif /*PARTICLES*/
 
@@ -3131,7 +3129,6 @@ DO iStage=2,nRKStages
     END DO ! iPart
 
     ! now, we have an initial guess for the field  can compute the first particle movement
-    SWRITE(*,*) 'calling of newton, alpha',alpha
     CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength),Opt_in=.TRUE.)
 
     ! move particle, if not already done, here, a reduced list could be again used, but a different list...
@@ -3157,7 +3154,6 @@ DO iStage=2,nRKStages
 #endif /*MPI*/
 
     ! compute particle source terms on field solver of implicit particles :)
-    SWRITE(*,*) 'implicit depo'
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   END IF
@@ -3219,7 +3215,7 @@ DO iStage=2,nRKStages
       END DO ! iPart
 
       ! now, we have an initial guess for the field  can compute the first particle movement
-      CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength),Opt_In=.FALSE.)
+      CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength),Opt_In=.TRUE.)
 
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
@@ -3284,20 +3280,6 @@ DO iStage=2,nRKStages
   IF(nFullNewtonIter.GE.maxFullNewtonIter) CALL abort(&
    __STAMP__&
      ,' Outer-Newton of semi-fully implicit scheme is running into infinity.')
-
-!  first=.FALSE.
-!  DO iPart=1,PDM%ParticleVecLength
-!    IF(PDM%ParticleInside(iPart))THEN
-!      IF(PartSpecies(iPart).EQ.1)THEN
-!        IF(.NOT.first)THEN
-!          print*,'iPart',iPart
-!          print*,'PartState',PartState(iPart,:)
-!        END IF
-!        STOP
-!      END IF
-!    END IF ! ParticleInside
-!  END DO ! iPart
-
 END DO
 
 
@@ -3394,8 +3376,6 @@ IF (t.GE.DelayTime) THEN
   PartMPIExchange%nMPIParticles=0
 END IF
 #endif /*PARTICLES*/
-
-
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC
