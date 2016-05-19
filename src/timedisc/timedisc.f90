@@ -2071,7 +2071,7 @@ IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
 #endif /*maxwell*/
 
 Un = U
-FieldSource=0.
+FieldStage =0.
 ! prediction with embadded scheme
 
 !tRatio= ! dt^n+1 / dt^n
@@ -2859,6 +2859,7 @@ USE MOD_Precond,                 ONLY:BuildPrecond
 USE MOD_Precond_Vars,            ONLY:PrecondType
 #endif /*maxwell*/
 USE MOD_JacDG,                   ONLY:BuildJacDG
+USE MOD_Newton,                  ONLY:ImplicitNorm
 USE MOD_Equation,                ONLY:CalcSource
 #ifdef PARTICLES
 USE MOD_Predictor,               ONLY:PartPredictor
@@ -2945,9 +2946,23 @@ ALLExplicit=.TRUE.
 tStage=t
 
 #ifdef PARTICLES
+! communicate shape function particles
+#ifdef MPI
+! open receive buffer for number of particles
+CALL IRecvNbofParticles()
+! send number of particles
+CALL SendNbOfParticles()
+! finish communication of number of particles and send particles
+CALL MPIParticleSend()
+! finish communication
+CALL MPIParticleRecv()
+! set exchanged number of particles to zero
+PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+
 ! simulation with delay-time, compute the
 IF(DelayTime.GT.0.)THEN
-  IF(iter.EQ.0)THEN
+  IF((iter.EQ.0).AND.(t.LT.DelayTime))THEN
     ! perform normal deposition
     CALL Deposition(doInnerParts=.TRUE.)
 #ifdef MPI
@@ -2974,9 +2989,13 @@ IF (t.GE.DelayTime) THEN
 #endif /*MPI*/
   CALL Deposition(doInnerParts=.FALSE.)
   IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-  ImplicitSource=0.
-  CALL CalcSource(tStage,1.,ImplicitSource)
 END IF
+
+ImplicitSource=0.
+CALL CalcSource(tStage,1.,ImplicitSource)
+U=ImplicitSource (:,:,:,:,:)
+CALL ImplicitNorm(tStage,dt,Norm_R0)
+STOP
 #endif /*PARTICLES*/
 
 
@@ -2999,7 +3018,10 @@ DO iStage=2,nRKStages
   CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
   FieldStage (:,:,:,:,:,iStage-1) = Ut
   FieldSource(:,:,:,:,:,iStage-1) = ImplicitSource
-
+  !U=FieldSource (:,:,:,:,:,iStage-1)
+  U=ImplicitSource (:,:,:,:,:)
+  CALL ImplicitNorm(tStage,dt,Norm_R0)
+  STOP
   ! and particles
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
@@ -3078,7 +3100,6 @@ DO iStage=2,nRKStages
     ! deposit explicit, local particles
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     CALL Deposition(doInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength)) ! external particles arg
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
     !PartMPIExchange%nMPIParticles=0
     CALL CalcSource(tStage,1.,ExplicitSource)
   END IF
@@ -3089,17 +3110,14 @@ DO iStage=2,nRKStages
   !--------------------------------------------------------------------------------------------------------------------------------
 
   ! compute RHS for linear solver
+
   LinSolverRHS=ESDIRK_a(iStage,iStage-1)*(FieldStage(:,:,:,:,:,iStage-1)+FieldSource(:,:,:,:,:,iStage-1))
   DO iCounter=1,iStage-2
     LinSolverRHS=LinSolverRHS +ESDIRK_a(iStage,iCounter)*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
   END DO ! iCoutner=1,iStage-2
   LinSolverRHS=Un+dt*LinSolverRHS
-  ! old
-  !LinSolverRHS=Un
-  !DO iCounter = 1,iStage-1
-  !  LinSolverRHS = LinSolverRHS + ESDIRK_a(iStage,iCounter)*dt*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
-  !END DO
 
+  CALL ImplicitNorm(tStage,dt,Norm_R0)
   ! get predictor of u^s+1
   CALL Predictor(iStage,dt,Un,FieldSource,FieldStage) ! sets new value for U_DG
 
@@ -3159,30 +3177,7 @@ DO iStage=2,nRKStages
   END IF
 #endif /*PARTICLES*/
 
-  ! compute error-norm-version1, non-optimized
-  CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
-  ImplicitSource=ExplicitSource
-  CALL CalcSource(tStage,1.,ImplicitSource)
-  !DeltaX(1:3,:,:,:,:)=U(1:3,:,:,:,:)-alpha*Ut(1:3,:,:,:,:)-LinSolverRHS(1:3,:,:,:,:)-alpha*ImplicitSource(1:3,:,:,:,:)
-  DeltaX(1:8,:,:,:,:)=U(1:8,:,:,:,:)-alpha*Ut(1:8,:,:,:,:)-LinSolverRHS(1:8,:,:,:,:)-alpha*ImplicitSource(1:8,:,:,:,:)
-
-  Norm_R=0.
-  DO iElem=1,PP_nElems
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-          DO iVar=1,8
-            Norm_R=Norm_R + DeltaX(iVar,i,j,k,iElem)*DeltaX(iVar,i,j,k,iElem)
-          END DO
-        END DO
-      END DO
-    END DO
-  END DO
-
-#ifdef MPI
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-#endif
-  Norm_R0=SQRT(Norm_R)
+  CALL ImplicitNorm(tStage,alpha,Norm_R0)
   Norm_R=Norm_R0
   SWRITE(*,*) 'Norm_R0',Norm_R0
 
@@ -3241,38 +3236,11 @@ DO iStage=2,nRKStages
       ! compute particle source terms on field solver of implicit particles :)
       CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
       CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
     END IF
 #endif /*PARTICLES*/
 
-    !IF(AllExplicit)THEN
-    !  Norm_R=0
-    !ELSE
-      ! compute error-norm-version1, non-optimized
-      CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
-      ImplicitSource=ExplicitSource
-      CALL CalcSource(tStage,1.,ImplicitSource)
-      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-      !DeltaX(1:3,:,:,:,:)=U(1:3,:,:,:,:)-alpha*Ut(1:3,:,:,:,:)-LinSolverRHS(1:3,:,:,:,:)-alpha*ImplicitSource(1:3,:,:,:,:)
-      DeltaX(1:8,:,:,:,:)=U(1:8,:,:,:,:)-alpha*Ut(1:8,:,:,:,:)-LinSolverRHS(1:8,:,:,:,:)-alpha*ImplicitSource(1:8,:,:,:,:)
-  
-      Norm_R=0.
-      DO iElem=1,PP_nElems
-        DO k=0,PP_N
-          DO j=0,PP_N
-            DO i=0,PP_N
-              DO iVar=1,8
-                Norm_R=Norm_R + DeltaX(iVar,i,j,k,iElem)*DeltaX(iVar,i,j,k,iElem)
-              END DO
-            END DO
-          END DO
-        END DO
-      END DO
-
-#ifdef MPI
-      CALL MPI_ALLREDUCE(MPI_IN_PLACE,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-#endif
-      Norm_R=SQRT(Norm_R)
-    !END IF
+    CALL ImplicitNorm(tStage,alpha,Norm_R)
     SWRITE(*,*) 'iter,Norm_R',nFullNewtonIter,Norm_R
 
   END DO ! funny pseudo Newton for all implicit

@@ -2,7 +2,7 @@
 
 MODULE MOD_Newton
 !===================================================================================================================================
-! Contains routines to compute the riemann (Advection, Diffusion) for a given Face
+! Contains routines for the fully implicit scheme
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -14,6 +14,11 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+INTERFACE ImplicitNorm
+  MODULE PROCEDURE ImplicitNorm
+END INTERFACE
+#endif 
 
 #if (PP_TimeDiscMethod==104) 
 INTERFACE Newton
@@ -23,9 +28,81 @@ END INTERFACE
 !PUBLIC:: InitImplicit, FinalizeImplicit
 PUBLIC:: Newton
 #endif
+
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+PUBLIC::ImplicitNorm
+#endif 
 !===================================================================================================================================
 
 CONTAINS
+
+
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+SUBROUTINE ImplicitNorm(t,coeff,Norm_R) 
+!===================================================================================================================================
+! The error-norm of the fully implicit scheme is computed
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_DG_Vars,                 ONLY:U,Ut
+USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS
+USE MOD_Equation,                ONLY:CalcSource
+USE MOD_Mesh_Vars,               ONLY:OffSetElem
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+REAL,INTENT(IN)        :: t
+REAL,INTENT(IN)        :: coeff
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)       :: Norm_R
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                   :: DeltaX ! difference between electric field and div-correction
+INTEGER                :: iElem, i,j,k,iVar
+REAL :: Norm_e
+!===================================================================================================================================
+
+! compute error-norm-version1, non-optimized
+CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
+ImplicitSource=ExplicitSource
+CALL CalcSource(t,1.,ImplicitSource)
+
+Norm_R=0.
+DO iElem=1,PP_nElems
+  Norm_e=0
+  DO k=0,PP_N
+    DO j=0,PP_N
+      DO i=0,PP_N
+        DO iVar=1,8
+          !DeltaX=LinSolverRHS(iVar,i,j,k,iElem)             ! &
+          DeltaX=U(iVar,i,j,k,iElem)             ! &
+          !DeltaX=U(iVar,i,j,k,iElem)-coeff*Ut(iVar,i,j,k,iElem)             ! &
+                                  !  -coeff*ImplicitSource(iVar,i,j,k,iElem)  &
+                                  !  -LinSolverRHS(iVar,i,j,k,iElem)
+          Norm_e=Norm_e + DeltaX*DeltaX
+        END DO
+      END DO
+    END DO
+  END DO
+  IPWRITE(UNIT_stdOut,*) ' ElemID       ', iElem+offSetElem,Norm_e
+  Norm_R=Norm_R+Norm_e
+END DO
+
+print*,'SQRT',Norm_R,SQRT(Norm_R),coeff
+#ifdef MPI
+DeltaX=Norm_R
+CALL MPI_ALLREDUCE(DeltaX,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+#endif
+print*,'reduced',Norm_R,SQRT(Norm_R)
+Norm_R=SQRT(Norm_R)
+
+END SUBROUTINE ImplicitNorm
+#endif 
 
 #if (PP_TimeDiscMethod==104) 
 !SUBROUTINE InitNewton()
