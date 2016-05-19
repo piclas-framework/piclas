@@ -19,14 +19,14 @@ INTERFACE Predictor
   MODULE PROCEDURE Predictor
 END INTERFACE
 
-#ifdef PARTICLES
+#if defined(PARTICLES) && IMPA
 INTERFACE PartPredictor
   MODULE PROCEDURE PartPredictor
 END INTERFACE
 #endif /*PARTICLES*/
 
 PUBLIC:: InitPredictor, FinalizePredictor,Predictor,StorePredictor
-#ifdef PARTICLES
+#if defined(PARTICLES) && IMPA
 PUBLIC:: PartPredictor
 #endif /*PARTICLES*/
 
@@ -150,7 +150,7 @@ END SELECT
 END SUBROUTINE Predictor
 
 
-#ifdef PARTICLES
+#if defined(PARTICLES) && IMPA
 SUBROUTINE PartPredictor(iStage,dt,PartID)
 !===================================================================================================================================
 ! predicts the new Stage-value to decrease computational time
@@ -227,7 +227,7 @@ __STAMP__&
 END SELECT
 
 END SUBROUTINE PartPredictor
-#endif /*PARTICLES*/
+#endif /*PARTICLES + IMPA*/
 
 
 SUBROUTINE StorePredictor()
