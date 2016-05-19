@@ -369,9 +369,9 @@ __STAMP__&
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_F_PartXK(iPart))
       IF(Norm2_F_PartXK(iPart).LT.Eps2PartNewton*Norm2_F_PartX0(iPart)) DoPartInNewton(iPart)=.FALSE.
-      IF(nInnerPartNewton.GT.20)THEN
-        IPWRITE(*,*) 'blubb',iPart, Norm2_F_PartXK(iPart),Norm2_F_PartX0(iPart)
-      END IF
+      !IF(nInnerPartNewton.GT.20)THEN
+      !  IPWRITE(*,*) 'blubb',iPart, Norm2_F_PartXK(iPart),Norm2_F_PartX0(iPart)
+      !END IF
     END IF
   END DO
   DoNewton=.FALSE.
