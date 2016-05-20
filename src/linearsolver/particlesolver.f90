@@ -92,7 +92,7 @@ END SUBROUTINE InitPartSolver
 
 
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-SUBROUTINE SelectImplicitParticles(AllExplicit) 
+SUBROUTINE SelectImplicitParticles() 
 !===================================================================================================================================
 ! select if particle is treated implicitly or explicitly, has to be called, after particle are created/emitted
 ! currently only one criterion is used: the species
@@ -106,7 +106,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-LOGICAL, INTENT(OUT) :: AllExplicit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER     :: iPart
@@ -123,8 +122,6 @@ DO iPart=1,PDM%ParticleVecLength
     PartIsImplicit(iPart)=.FALSE.
   END IF ! ParticleInside
 END DO ! iPart
-AllExplicit=.TRUE.
-IF(ANY(Species(:)%IsImplicit)) AllExplicit=.FALSE.
   
 END SUBROUTINE SelectImplicitParticles
 #endif

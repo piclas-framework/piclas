@@ -2914,7 +2914,6 @@ INTEGER            :: i,j,k,iElem,iVar
 #ifdef PARTICLES
 INTEGER            :: iPart
 #endif /*PARTICLES*/
-LOGICAL            :: AllExplicit
 !===================================================================================================================================
 
 #ifdef maxwell
@@ -2933,10 +2932,8 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   CALL ParticleInserting() ! do not forget to communicate the emmitted particles ... for shape function
 END IF
 ! select, if particles are treated implicitly or explicitly
-CALL SelectImplicitParticles(AllExplicit)
+CALL SelectImplicitParticles()
 PartStateN(1:PDM%ParticleVecLength,1:6)=PartState(1:PDM%ParticleVecLength,1:6)
-#else
-ALLExplicit=.TRUE.
 #endif
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
