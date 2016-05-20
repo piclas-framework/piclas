@@ -2972,7 +2972,6 @@ IF(DelayTime.GT.0.)THEN
     PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
     CALL Deposition(doInnerParts=.FALSE.)
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
   END IF
 END IF
 
@@ -2988,16 +2987,30 @@ IF (t.GE.DelayTime) THEN
   PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
   CALL Deposition(doInnerParts=.FALSE.)
-  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 END IF
 
 ImplicitSource=0.
 CALL CalcSource(tStage,1.,ImplicitSource)
-U=ImplicitSource (:,:,:,:,:)
-CALL ImplicitNorm(tStage,dt,Norm_R0)
-STOP
+IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+
+IF(iter.EQ.0)THEN
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+    IF(PartIsImplicit(iPart))THEN
+      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      SELECT CASE(PartLorentzType)
+      CASE(1)
+        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      CASE(3)
+        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      CASE DEFAULT
+      END SELECT
+    END IF ! ParticleIsImplicit
+  END DO ! iPart
+END IF
 #endif /*PARTICLES*/
 
+IF(iter.EQ.0) CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! stage 2 to 6
@@ -3015,27 +3028,26 @@ DO iStage=2,nRKStages
   ! compute the f(u^s-1)
   ! compute the f(u^s-1)
   ! DG-solver, Maxwell's equations
-  CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
   FieldStage (:,:,:,:,:,iStage-1) = Ut
   FieldSource(:,:,:,:,:,iStage-1) = ImplicitSource
-  !U=FieldSource (:,:,:,:,:,iStage-1)
-  U=ImplicitSource (:,:,:,:,:)
-  CALL ImplicitNorm(tStage,dt,Norm_R0)
-  STOP
+
   ! and particles
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
-    ! I think, this step can be saved, but we test it with a simpler version, first
-    CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
-    CALL CalcPartRHS()
-    !PartStage(1:PDM%ParticleVecLength,1:3,iStage-1) = PartState(1:PDM%ParticleVecLength,4:6)
-    !PartStage(1:PDM%ParticleVecLength,4:6,iStage-1) = Pt       (1:PDM%ParticleVecLength,1:3)
     DO iPart=1,PDM%ParticleVecLength
       IF(.NOT.PDM%ParticleInside(iPart))CYCLE
       IF(PartIsImplicit(iPart))THEN
-        PartStage(iPart,1:3,iStage-1) = PartState(iPart,4:6) !+ alpha*Pt(iPart,1:3)
+        PartStage(iPart,1:3,iStage-1) = PartState(iPart,4:6) 
         PartStage(iPart,4:6,iStage-1) = Pt       (iPart,1:3)
       ELSE
+        CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+        SELECT CASE(PartLorentzType)
+        CASE(1)
+          Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE(3)
+          Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE DEFAULT
+        END SELECT
         PartStage(iPart,1:3,iStage-1) = PartState(iPart,4:6)
         PartStage(iPart,4:6,iStage-1) = Pt       (iPart,1:3)
       END IF ! ParticleIsImplicit
@@ -3065,12 +3077,6 @@ DO iStage=2,nRKStages
           PartState(iPart,1:6)=PartState(iPart,1:6)+ERK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
         END DO ! iCounter=1,iStage-2
         PartState(iPart,1:6)=PartStateN(iPart,1:6)+dt*PartState(iPart,1:6)
-        ! old
-        !PartState(iPart,1:6)=PartStateN(iPart,1:6)
-        !DO iCounter=1,iStage-1
-        !  PartState(iPart,1:6) = PartState(iPart,1:6)  &
-        !                       + ERK_a(iStage,iCounter)*dt*PartStage(iPart,1:6,iCounter)
-        !END DO ! counter
       END IF ! ParticleIsExplicit
     END DO ! iPart
       
@@ -3117,7 +3123,6 @@ DO iStage=2,nRKStages
   END DO ! iCoutner=1,iStage-2
   LinSolverRHS=Un+dt*LinSolverRHS
 
-  CALL ImplicitNorm(tStage,dt,Norm_R0)
   ! get predictor of u^s+1
   CALL Predictor(iStage,dt,Un,FieldSource,FieldStage) ! sets new value for U_DG
 
@@ -3136,18 +3141,13 @@ DO iStage=2,nRKStages
         END DO ! iCounter=1,iStage-2
         PartQ(1:6,iPart) = PartStateN(iPart,1:6) + dt* PartQ(1:6,iPart)
         !old
-        !PartQ(1:6,iPart)=PartStateN(iPart,1:6)
-        !DO iCounter = 1, iStage-1
-        !  PartQ(1:6,iPart)=PartQ(1:6,iPart) &
-        !                + ESDIRK_a(iStage,iCounter)*dt*PartStage(iPart,1:6,iCounter)
-        !END DO 
         ! predictor
         CALL PartPredictor(iStage,dt,iPart) ! sets new value for U_DG
       END IF ! PartIsImplicit
     END DO ! iPart
 
     ! now, we have an initial guess for the field  can compute the first particle movement
-    CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength),Opt_in=.TRUE.)
+    CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE.)
 
     ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
@@ -3181,7 +3181,6 @@ DO iStage=2,nRKStages
   Norm_R=Norm_R0
   SWRITE(*,*) 'Norm_R0',Norm_R0
 
-
   nFullNewtonIter=0
   DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*eps_LinearSolver))
     nFullNewtonIter = nFullNewtonIter+1
@@ -3199,18 +3198,11 @@ DO iStage=2,nRKStages
           LastPartPos(iPart,2)=PartState(iPart,2)
           LastPartPos(iPart,3)=PartState(iPart,3)
           PEM%lastElement(iPart)=PEM%Element(iPart)
-          ! compute Q and U
-          ! reuse old Q !! correct????
-          !PartQ(1:6,iPart)=PartState(iPart,1:6)
-          !DO iCounter = 1, iStage-1
-          !  PartQ(1:6,iPart)=PartQ(1:6,iPart) &
-          !                + ESDIRK_a(iStage,iCounter)*dt*PartStage(iPart,1:6,iCounter)
-          !!END DO 
         END IF ! PartIsImplicit
       END DO ! iPart
 
       ! now, we have an initial guess for the field  can compute the first particle movement
-      CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength),Opt_In=.TRUE.)
+      CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE.)
 
       ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI
