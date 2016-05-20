@@ -1125,10 +1125,15 @@ FIBGMCellPadding(1:3) = INT(halo_eps/GEO%FIBGMdeltas(1:3))+1
 nShapePaddingX = 0
 nShapePaddingY = 0
 nShapePaddingZ = 0
-IF (DepositionType.EQ.'shape_function') THEN
+IF ((DepositionType.EQ.'shape_function') &
+.OR.(DepositionType.EQ.'cylindrical_shape_function') &
+.OR.(DepositionType.EQ.'shape_function_1d'))THEN
   nShapePaddingX = INT(r_sf/GEO%FIBGMdeltas(1)+0.9999999)
   nShapePaddingY = INT(r_sf/GEO%FIBGMdeltas(2)+0.9999999)
   nShapePaddingZ = INT(r_sf/GEO%FIBGMdeltas(3)+0.9999999)
+  IPWRITE(*,*) 'nShapePaddingX',nShapePaddingX
+  IPWRITE(*,*) 'nShapePaddingY',nShapePaddingY
+  IPWRITE(*,*) 'nShapePaddingZ',nShapePaddingZ
  ! IF(mode.EQ.2) THEN
  !   IF((nShapePaddingX.EQ.0)    &
  !     .OR.(nShapePaddingY.EQ.0) &
