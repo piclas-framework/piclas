@@ -200,9 +200,6 @@ ELSE
   DoPartInNewton(1:PDM%maxParticleNumber)=PDM%ParticleInside(1:PDM%maxParticleNumber)
 END IF
 
-! only for particles which has to be interpolated
-!CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
-!CALL CalcPartRHS()
 DoNewton=.FALSE.
 IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
 #ifdef MPI
@@ -288,17 +285,6 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       ! update to new partstate during Newton iteration
       PartXK(:,iPart)=PartXK(:,iPart)+DeltaX
       PartState(iPart,:)=PartXK(:,iPart)
-  !    ! compute d Part/ dt
-  !    ! correct version!!, relaxating verion, do not compute!
-  !    ! here, for single particle or do particle?  ! here a situation to communicate :)
-  !    !CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
-  !    !CALL CalcPartRHS()
-  !    Pt_tmp(1:3,iPart)=PartState(iPart,4:6)
-  !    Pt_tmp(4:6,iPart)=Pt(iPart,:)
-  !    F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*Part_tmp(:,iPart)
-  !    ! vector dot product 
-  !    CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_F_PartXK(iPart))
-  !    IF(Norm2_F_PartXK(iPart).LT.Eps2PartNewton*Norm2_F_PartXO(iPart)) DoPartInNewton(iPart)=.FALSE.
     END IF ! ParticleInside
   END DO ! iPart
   ! closed form: now move particles
@@ -339,9 +325,6 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
 !#endif
 #endif
   END IF
-  !! correspond to call DGTimeDerivative
-  !CALL InterpolateFieldToParticle(doInnerParts=.TRUE.) ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-  !CALL CalcPartRHS() ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
 
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
@@ -362,9 +345,6 @@ __STAMP__&
       R_PartXK(4,iPart)=Pt(iPart,1)
       R_PartXK(5,iPart)=Pt(iPart,2)
       R_PartXK(6,iPart)=Pt(iPart,3)
-      !R_PartXK(1:3,iPart)=PartState(iPart,4:6)
-      !R_PartXK(4:6,iPart)=Pt(iPart,1:3)
-      !F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*Part_tmp(:,iPart)
       F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*R_PartXK(:,iPart)
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_F_PartXK(iPart))
