@@ -41,6 +41,7 @@ SUBROUTINE InitializeInterpolation
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_PreProc,                ONLY:PP_nElems
 USE MOD_ReadInTools
 USE MOD_Particle_Vars,          ONLY : PDM
 USE MOD_PICInterpolation_Vars
@@ -57,6 +58,12 @@ INTEGER                   :: ALLOCSTAT
 !INTEGER                   :: iNode, Elem
 !===================================================================================================================================
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
+InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop','.TRUE.')
+IF (InterpolationElemLoop) THEN !If user-defined F: F for all procs
+  IF (PP_nElems.GT.10) THEN !so far arbitrary threshold...
+    InterpolationElemLoop=.FALSE. !switch off for procs with high number of Elems
+  END IF
+END IF
 externalField(1:6)= GETREALARRAY('PIC-externalField',6,'0.,0.,0.,0.,0.,0.')
 !SWRITE(*,*) " External fied", externalfield
 DoInterpolation   = GETLOGICAL('PIC-DoInterpolation','.TRUE.')
@@ -106,6 +113,7 @@ USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_PIC_Vars!,      ONLY: 
 USE MOD_PICInterpolation_Vars,   ONLY:usecurvedExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
+USE MOD_PICInterpolation_Vars,   ONLY:InterpolationElemLoop
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
 USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
 USE MOD_Particle_Mesh_Vars,ONLY:epsOneCell
@@ -164,6 +172,12 @@ END IF
 ! thats wrong
 IF(firstPart.GT.lastPart) RETURN
 
+IF (.NOT.InterpolationElemLoop) THEN
+  DO iPart = firstPart, LastPart
+    CALL InterpolateFieldToSingleParticle(iPart,FieldAtparticle(iPart,1:6))
+  END DO
+  RETURN
+END IF
 
 IF(usecurvedExternalField) THEN ! used curved external Bz
   FieldAtParticle(firstPart:lastPart,:) = 0.
@@ -200,7 +214,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     !m = INT(PP_N/2)+1
     DO iElem=1,PP_nElems
 #if (PP_nVar==8)
-#if PP_POIS
+#ifdef PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
       CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
@@ -282,9 +296,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),ielem)
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
 #else
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),ielem)
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
 #endif
 #else
 #ifdef PP_POIS
@@ -297,7 +311,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
             HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
             HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
-            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),ielem)
+            CALL eval_xyz_part2(PartPosRef(1:3,iPart),6,PP_N,HelperU,field(1:6),iElem)
 #endif
 #else
             CALL eval_xyz_part2(PartPosRef(1:3,iPart),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
@@ -320,7 +334,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
             HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
             CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),iElem)
 #else
-            CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem,iPart)
+            CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
 #endif
 #else
 #ifdef PP_POIS
@@ -454,6 +468,16 @@ USE MOD_Particle_Mesh_Vars,      ONLY:epsOneCell
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
 #endif
+#ifdef PP_HDG
+#if PP_nVar==1
+USE MOD_Equation_Vars,        ONLY:E
+#elif PP_nVar==3
+USE MOD_Equation_Vars,        ONLY:B
+#else
+USE MOD_Equation_Vars,        ONLY:B,E
+#endif /*PP_nVar==1*/
+#endif /*PP_HDG*/
+
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -468,10 +492,10 @@ REAL,INTENT(OUT)             :: FieldAtParticle(1:6)
 REAL                         :: Pos(3),Field(1:6)
 INTEGER                      :: ElemID
 ! for Nearest GaussPoint
-INTEGER                      :: a,b,k,ii,l,m
-#ifdef PP_POIS
-REAL                         :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-#endif
+INTEGER                          :: a,b,k,ii,l,m
+#if defined PP_POIS || defined  PP_HDG
+REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
+#endif /*(PP_POIS||PP_HDG)*/
 !===================================================================================================================================
 
 FieldAtParticle=0.
@@ -483,8 +507,8 @@ IF(usecurvedExternalField) THEN ! used curved external Bz
 #if (PP_nVar==8)
   FieldAtParticle(4) = externalField(4)
   FieldAtParticle(5) = externalField(5)
-#endif          
-  ! Bz field strenfirstPart:lastPartgth at particle position
+#endif
+  ! Bz field strength at particle position
   FieldAtparticle(6) = InterpolateCurvedExternalField(PartState(PartID,3))
 ELSE ! usecurvedExternalField
   FieldAtParticle(:) = 0.
@@ -511,18 +535,28 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
     HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
     HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-    CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field,ElemID)
+    CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field(1:6),ElemID)
 #else
-    CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,ElemID),field,ElemID)
+    CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
 #endif /*PP_POIS*/
-#else 
+#else
 #ifdef PP_POIS
-    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field,ElemID)
+    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#elif defined PP_HDG
+#if PP_nVar==1
+    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#elif PP_nVar==3
+    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
 #else
-    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,ElemID),field,ElemID)
+    HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+    HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
+    CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field(1:6),ElemID)
+#endif /*PP_nVar==1*/
+#else
+    CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #endif /*PP_POIS*/
-#endif /*PP_nVar*/
-    FieldAtParticle(:) = FieldAtParticle(:) + field
+#endif /*(PP_nVar==8)*/
+    FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
   CASE('particle_position_slow')
     Pos = PartState(PartID,1:3)
     !--- evaluate at Particle position
@@ -530,18 +564,28 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
     HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
     HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-    CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field,ElemID)
+    CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID)
 #else
-    CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field,ElemID,PartID)
-#endif
+    CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
+#endif /*PP_POIS*/
 #else
 #ifdef PP_POIS
-    CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field,ElemID)
+    CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#elif defined PP_HDG
+#if PP_nVar==1
+    CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#elif PP_nVar==3
+    CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
 #else
-    CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field,ElemID)
-#endif         
-#endif
-    FieldAtParticle(:) = FieldAtParticle(:) + field
+    HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+    HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
+    CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID)
+#endif /*PP_nVar*/
+#else
+    CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#endif /*PP_POIS*/
+#endif /*(PP_nVar==8)*/
+    FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
   CASE('particle_position')
     IF(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint')THEN
       ! particles have already been mapped in deposition, other eval routine used
@@ -553,18 +597,28 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-      CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,HelperU,field,ElemID)
+      CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
 #else
-      CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,U(1:6,:,:,:,ElemID),field,ElemID)
+      CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
 #endif
 #else
 #ifdef PP_POIS
-      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field,ElemID)     
+      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#elif defined PP_HDG
+#if PP_nVar==1
+      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#elif PP_nVar==3
+      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
 #else
-      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,U(1:3,:,:,:,ElemID),field,ElemID)
+      HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+      HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
+      CALL eval_xyz_part2(PartPosRef(1:3,PartID),6,PP_N,HelperU,field(1:6),ElemID)
+#endif
+#else
+      CALL eval_xyz_part2(PartPosRef(1:3,PartID),3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
 #endif
 #endif
-      FieldAtParticle(:) = FieldAtParticle(:) + field
+      FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
     ELSE ! particles are not yet mapped
       Pos = PartState(PartID,1:3)
       !--- evaluate at Particle position
@@ -572,18 +626,28 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field,ElemID)
+      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID)
 #else
-      CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field,ElemID,PartID)
+      CALL eval_xyz_curved(Pos,6,PP_N,U(1:6,:,:,:,ElemID),field(1:6),ElemID)
 #endif
 #else
 #ifdef PP_POIS
-      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field,ElemID)
+      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#elif defined PP_HDG
+#if PP_nVar==1
+      CALL eval_xyz_curved(Pos,3,PP_N,E(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#elif PP_nVar==3
+      CALL eval_xyz_curved(Pos,3,PP_N,B(1:3,:,:,:,ElemID),field(4:6),ElemID)
 #else
-      CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field,ElemID)
-#endif         
+      HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+      HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
+      CALL eval_xyz_curved(Pos,6,PP_N,HelperU,field(1:6),ElemID)
 #endif
-      FieldAtParticle(:) = FieldAtParticle(:) + field
+#else
+      CALL eval_xyz_curved(Pos,3,PP_N,U(1:3,:,:,:,ElemID),field(1:3),ElemID)
+#endif
+#endif
+      FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
     END IF ! DoRefMapping .or. Depositiontype=nearest_gausspoint
   CASE('nearest_gausspoint')
     ! particles have already been mapped in deposition
@@ -633,15 +697,27 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #ifdef PP_POIS
     field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
     field(4:6) = U(4:6,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
-    FieldAtParticle(:) = FieldAtParticle(:) + field
+    FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
 #else
     field = U(1:6,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
-    FieldAtParticle(:) = FieldAtParticle(:) + field
+    FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
 #endif
 #else
 #ifdef PP_POIS
     field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
     FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)
+#elif defined PP_HDG
+#if PP_nVar==1
+    field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
+    FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)
+#elif PP_nVar==3
+    field(4:6) = B(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
+    FieldAtParticle(4:6) = FieldAtParticle(4:6) + field(4:6)
+#else
+    field(1:3) = E(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
+    field(4:6) = B(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
+    FieldAtParticle(:) = FieldAtParticle(:) + field(1:6)
+#endif
 #else
     field(1:3) = U(1:3,PartPosGauss(PartID,1),PartPosGauss(PartID,2),PartPosGauss(PartID,3), ElemID)
     FieldAtParticle(1:3) = FieldAtParticle(1:3) + field(1:3)

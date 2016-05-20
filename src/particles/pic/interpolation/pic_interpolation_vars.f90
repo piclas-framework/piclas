@@ -12,6 +12,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE                      :: FieldAtParticle(:,:) ! (PIC%maxParticleNumber,6) 2nd index: Ex,Ey,Ez,Bx,By,Bz
 CHARACTER(LEN=256)                    :: InterpolationType    ! Type of Interpolation-Method
+LOGICAL                               :: InterpolationElemLoop! Interpolate with outer iElem-loop (not for many Elems per proc!)
 REAL                                  :: externalField(6)     ! ext field is added to the maxwell-solver-field
 LOGICAL                               :: DoInterpolation      ! Flag for interpolation
 LOGICAL                               :: useBGField           ! Flag for BGField via h5-File
