@@ -20,10 +20,10 @@ CURRENT_DIR:=$(dir $(MKFILE_PATH))
 #                      BLUEGENE  (Juelich Juqueen cluster)
 #=================================================================================================================================#
 INIFILE=$(MAINDIR)ini/particles.ini
-#COMPILER=INTEL
+COMPILER=INTEL
 #COMPILER=INTEL_DEBUG
 #COMPILER=GNU_DEBUG
-COMPILER=GNU
+#COMPILER=GNU
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
 
 #=================================================================================================================================#
@@ -115,6 +115,12 @@ ifeq ($(TIMEDISCMETHOD),111)
   IMPA=T
 endif
 ifeq ($(TIMEDISCMETHOD),112)
+  IMPA=T
+endif
+ifeq ($(TIMEDISCMETHOD),121)
+  IMPA=T
+endif
+ifeq ($(TIMEDISCMETHOD),122)
   IMPA=T
 endif
 
