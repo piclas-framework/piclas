@@ -79,27 +79,22 @@ DO iElem=1,PP_nElems
     DO j=0,PP_N
       DO i=0,PP_N
         DO iVar=1,8
-          !DeltaX=LinSolverRHS(iVar,i,j,k,iElem)             ! &
-          DeltaX=U(iVar,i,j,k,iElem)             ! &
-          !DeltaX=U(iVar,i,j,k,iElem)-coeff*Ut(iVar,i,j,k,iElem)             ! &
-                                  !  -coeff*ImplicitSource(iVar,i,j,k,iElem)  &
-                                  !  -LinSolverRHS(iVar,i,j,k,iElem)
+          DeltaX=U(iVar,i,j,k,iElem)-coeff*Ut(iVar,i,j,k,iElem)              &
+                                    -coeff*ImplicitSource(iVar,i,j,k,iElem)  &
+                                    -LinSolverRHS(iVar,i,j,k,iElem)
           Norm_e=Norm_e + DeltaX*DeltaX
         END DO
       END DO
     END DO
   END DO
-  IPWRITE(UNIT_stdOut,*) ' ElemID       ', iElem+offSetElem,Norm_e
+  !IPWRITE(UNIT_stdOut,*) ' ElemID       ', iElem+offSetElem,Norm_e
   Norm_R=Norm_R+Norm_e
 END DO
 
-print*,'SQRT',Norm_R,SQRT(Norm_R),coeff
 #ifdef MPI
 DeltaX=Norm_R
 CALL MPI_ALLREDUCE(DeltaX,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
-print*,'reduced',Norm_R,SQRT(Norm_R)
-Norm_R=SQRT(Norm_R)
 
 END SUBROUTINE ImplicitNorm
 #endif 
