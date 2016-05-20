@@ -18,6 +18,10 @@ PRIVATE
 INTERFACE ImplicitNorm
   MODULE PROCEDURE ImplicitNorm
 END INTERFACE
+
+INTERFACE FullNewton
+  MODULE PROCEDURE FullNewton
+END INTERFACE
 #endif 
 
 #if (PP_TimeDiscMethod==104) 
@@ -30,12 +34,11 @@ PUBLIC:: Newton
 #endif
 
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-PUBLIC::ImplicitNorm
+PUBLIC::ImplicitNorm,FullNewton
 #endif 
 !===================================================================================================================================
 
 CONTAINS
-
 
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
 SUBROUTINE ImplicitNorm(t,coeff,Norm_R) 
@@ -97,6 +100,155 @@ CALL MPI_ALLREDUCE(DeltaX,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,i
 #endif
 
 END SUBROUTINE ImplicitNorm
+
+
+SUBROUTINE FullNewton(tStage,coeff)
+!===================================================================================================================================
+! Full Newton with particles and field 
+! Newton:
+! Init: Implicit particle step and Norm_R0
+!       1) Implicit field solver
+!       2) ParticleNewton
+!       3) Compute Norm_R
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_LinearSolver,            ONLY:LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter
+#ifdef PARTICLES
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
+USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
+USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
+USE MOD_Part_MPFtools,           ONLY:StartParticleMerge
+USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
+USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
+USE MOD_PICDepo,                 ONLY:Deposition
+USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_ParticleSolver,          ONLY:ParticleNewton
+#ifdef MPI
+USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
+#endif /*MPI*/
+#endif /*PARTICLES*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+REAL,INTENT(INOUT)         :: tStage
+REAL,INTENT(INOUT)         :: coeff
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                       :: Norm_R0,Norm_R
+INTEGER                    :: nFullNewtonIter
+#ifdef PARTICLES
+INTEGER                    :: iPart
+#endif /*PARTICLES*/
+!===================================================================================================================================
+
+#ifdef PARTICLES
+IF (tStage.GE.DelayTime) THEN
+  ! now, we have an initial guess for the field  can compute the first particle movement
+  CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE.)
+
+  ! move particle, if not already done, here, a reduced list could be again used, but a different list...
+#ifdef MPI
+  ! open receive buffer for number of particles
+  CALL IRecvNbofParticles()
+#endif /*MPI*/
+  IF(DoRefMapping)THEN
+    CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+  ELSE
+    CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+  END IF
+#ifdef MPI
+  ! here: could use deposition as hiding, not done yet
+  ! send number of particles
+  CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+  ! finish communication of number of particles and send particles
+  CALL MPIParticleSend()
+  ! finish communication
+  CALL MPIParticleRecv()
+  ! ALWAYS require
+  PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+
+  ! compute particle source terms on field solver of implicit particles :)
+  CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+  CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+END IF
+#endif /*PARTICLES*/
+
+CALL ImplicitNorm(tStage,coeff,Norm_R0)
+Norm_R=Norm_R0
+SWRITE(*,*) 'Norm_R0',Norm_R0
+
+nFullNewtonIter=0
+DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*eps_LinearSolver))
+  nFullNewtonIter = nFullNewtonIter+1
+
+  ! solve field to new stage 
+  ImplicitSource=ExplicitSource
+  CALL LinearSolver(tStage,coeff)
+
+#ifdef PARTICLES
+  IF (tStage.GE.DelayTime) THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF(PartIsImplicit(iPart))THEN
+        LastPartPos(iPart,1)=PartState(iPart,1)
+        LastPartPos(iPart,2)=PartState(iPart,2)
+        LastPartPos(iPart,3)=PartState(iPart,3)
+        PEM%lastElement(iPart)=PEM%Element(iPart)
+      END IF ! PartIsImplicit
+    END DO ! iPart
+
+    ! now, we have an initial guess for the field  can compute the first particle movement
+    CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE.)
+
+    ! move particle, if not already done, here, a reduced list could be again used, but a different list...
+#ifdef MPI
+    ! open receive buffer for number of particles
+    CALL IRecvNbofParticles()
+#endif /*MPI*/
+    IF(DoRefMapping)THEN
+      CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    ELSE
+      CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    END IF
+#ifdef MPI
+    ! here: could use deposition as hiding, not done yet
+    ! send number of particles
+    CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    ! finish communication of number of particles and send particles
+    CALL MPIParticleSend()
+    ! finish communication
+    CALL MPIParticleRecv()
+    PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+
+    ! compute particle source terms on field solver of implicit particles :)
+    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  END IF
+#endif /*PARTICLES*/
+
+  CALL ImplicitNorm(tStage,coeff,Norm_R)
+  SWRITE(*,*) 'iter,Norm_R',nFullNewtonIter,Norm_R
+
+END DO ! funny pseudo Newton for all implicit
+totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
+IF(nFullNewtonIter.GE.maxFullNewtonIter) CALL abort(&
+ __STAMP__&
+   ,' Outer-Newton of semi-fully implicit scheme is running into infinity.')
+
+END SUBROUTINE FullNewton
 #endif 
 
 #if (PP_TimeDiscMethod==104) 

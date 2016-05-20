@@ -2852,14 +2852,13 @@ USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_Predictor,               ONLY:Predictor,StorePredictor
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter
 USE MOD_Equation,                ONLY:DivCleaningDamping
 #ifdef maxwell
 USE MOD_Precond,                 ONLY:BuildPrecond
 USE MOD_Precond_Vars,            ONLY:PrecondType
 #endif /*maxwell*/
 USE MOD_JacDG,                   ONLY:BuildJacDG
-USE MOD_Newton,                  ONLY:ImplicitNorm
+USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
 USE MOD_Equation,                ONLY:CalcSource
 #ifdef PARTICLES
 USE MOD_Predictor,               ONLY:PartPredictor
@@ -2881,7 +2880,7 @@ USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
-USE MOD_part_MPFtools,           ONLY: StartParticleMerge
+USE MOD_part_MPFtools,           ONLY:StartParticleMerge
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
@@ -2906,11 +2905,8 @@ REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: tRatio, tphi
-REAL               :: Norm_R0,Norm_R,rDummy
 INTEGER            :: iCounter !, iStage
-INTEGER            :: nFullNewtonIter
 logical :: first
-INTEGER            :: i,j,k,iElem,iVar
 #ifdef PARTICLES
 INTEGER            :: iPart
 #endif /*PARTICLES*/
@@ -3141,102 +3137,11 @@ DO iStage=2,nRKStages
         CALL PartPredictor(iStage,dt,iPart) ! sets new value for U_DG
       END IF ! PartIsImplicit
     END DO ! iPart
-
-    ! now, we have an initial guess for the field  can compute the first particle movement
-    CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE.)
-
-    ! move particle, if not already done, here, a reduced list could be again used, but a different list...
-#ifdef MPI
-    ! open receive buffer for number of particles
-    CALL IRecvNbofParticles()
-#endif /*MPI*/
-    IF(DoRefMapping)THEN
-      CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-    ELSE
-      CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-    END IF
-#ifdef MPI
-    ! here: could use deposition as hiding, not done yet
-    ! send number of particles
-    CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-    ! finish communication of number of particles and send particles
-    CALL MPIParticleSend()
-    ! finish communication
-    CALL MPIParticleRecv()
-    ! ALWAYS require
-    PartMPIExchange%nMPIParticles=0
-#endif /*MPI*/
-
-    ! compute particle source terms on field solver of implicit particles :)
-    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   END IF
 #endif /*PARTICLES*/
-
-  CALL ImplicitNorm(tStage,alpha,Norm_R0)
-  Norm_R=Norm_R0
-  SWRITE(*,*) 'Norm_R0',Norm_R0
-
-  nFullNewtonIter=0
-  DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*eps_LinearSolver))
-    nFullNewtonIter = nFullNewtonIter+1
-
-    ! solve field to new stage 
-    ImplicitSource=ExplicitSource
-    CALL LinearSolver(tstage,alpha)
-
-#ifdef PARTICLES
-    IF (t.GE.DelayTime) THEN
-      DO iPart=1,PDM%ParticleVecLength
-        IF(PartIsImplicit(iPart))THEN
-          LastPartPos(iPart,1)=PartState(iPart,1)
-          LastPartPos(iPart,2)=PartState(iPart,2)
-          LastPartPos(iPart,3)=PartState(iPart,3)
-          PEM%lastElement(iPart)=PEM%Element(iPart)
-        END IF ! PartIsImplicit
-      END DO ! iPart
-
-      ! now, we have an initial guess for the field  can compute the first particle movement
-      CALL ParticleNewton(tstage,alpha,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE.)
-
-      ! move particle, if not already done, here, a reduced list could be again used, but a different list...
-#ifdef MPI
-      ! open receive buffer for number of particles
-      CALL IRecvNbofParticles()
-#endif /*MPI*/
-      IF(DoRefMapping)THEN
-        CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      ELSE
-        CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      END IF
-#ifdef MPI
-      ! here: could use deposition as hiding, not done yet
-      ! send number of particles
-      CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      ! finish communication of number of particles and send particles
-      CALL MPIParticleSend()
-      ! finish communication
-      CALL MPIParticleRecv()
-      PartMPIExchange%nMPIParticles=0
-#endif /*MPI*/
-
-      ! compute particle source terms on field solver of implicit particles :)
-      CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-      IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-    END IF
-#endif /*PARTICLES*/
-
-    CALL ImplicitNorm(tStage,alpha,Norm_R)
-    SWRITE(*,*) 'iter,Norm_R',nFullNewtonIter,Norm_R
-
-  END DO ! funny pseudo Newton for all implicit
-  totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
-  IF(nFullNewtonIter.GE.maxFullNewtonIter) CALL abort(&
-   __STAMP__&
-     ,' Outer-Newton of semi-fully implicit scheme is running into infinity.')
+  ! full newton for particles and fields
+  CALL FullNewton(tStage,alpha)
 END DO
-
 
 #ifdef PARTICLES
 ! particle step || only explicit particles
