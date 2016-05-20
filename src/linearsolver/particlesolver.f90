@@ -164,7 +164,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)               :: t,coeff
-LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
+LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%maxParticleNumber)
 LOGICAL,INTENT(IN),OPTIONAL   :: opt_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -178,7 +178,7 @@ REAL                         :: AbortCritLinSolver,gammaA,gammaB
 !REAL                         :: FieldAtParticle(1:6)
 REAL                         :: DeltaX(1:6)
 REAL                         :: Pt_tmp(1:6)
-LOGICAL                      :: doParticle(1:PDM%ParticleVecLength)
+LOGICAL                      :: doParticle(1:PDM%maxParticleNumber)
 !! maybeeee
 !! and thats maybe local??? || global, has to be set false during communication
 LOGICAL                      :: DoNewton
@@ -197,7 +197,7 @@ IF(PRESENT(opt_In)) opt=Opt_in
 IF(PRESENT(DoParticle_IN))THEN
   DoPartInNewton=DoParticle_In
 ELSE
-  DoPartInNewton(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
+  DoPartInNewton(1:PDM%maxParticleNumber)=PDM%ParticleInside(1:PDM%maxParticleNumber)
 END IF
 
 ! only for particles which has to be interpolated
