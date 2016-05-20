@@ -2863,7 +2863,7 @@ USE MOD_Newton,                  ONLY:ImplicitNorm
 USE MOD_Equation,                ONLY:CalcSource
 #ifdef PARTICLES
 USE MOD_Predictor,               ONLY:PartPredictor
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies, doParticleMerge,PartPressureCell
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
@@ -2881,6 +2881,7 @@ USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
+USE MOD_part_MPFtools,           ONLY: StartParticleMerge
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
@@ -2904,7 +2905,6 @@ REAL               :: sgamma
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-REAL               :: DeltaX(1:8,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! difference between electric field and div-correction
 REAL               :: tRatio, tphi
 REAL               :: Norm_R0,Norm_R,rDummy
 INTEGER            :: iCounter !, iStage
@@ -3055,7 +3055,6 @@ DO iStage=2,nRKStages
   END IF
 #endif /*PARTICLES*/
 
-
   !--------------------------------------------------------------------------------------------------------------------------------
   ! explicit - particle  pusher
   !--------------------------------------------------------------------------------------------------------------------------------
@@ -3184,7 +3183,6 @@ DO iStage=2,nRKStages
   nFullNewtonIter=0
   DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*eps_LinearSolver))
     nFullNewtonIter = nFullNewtonIter+1
-    !DeltaX=-U
 
     ! solve field to new stage 
     ImplicitSource=ExplicitSource
@@ -3270,15 +3268,6 @@ IF (t.GE.DelayTime) THEN
       END DO ! counter
       PartState(iPart,1:6) = PartStateN(iPart,1:6)+dt*PartState(iPart,1:6)
 
-!      PartState(iPart,1:3) = PartStateN(iPart,1:3)                   &
-!                                               + RK_b(nRKStages)*dt*PartState(iPart,4:6)
-!      PartState(iPart,4:6) = PartStateN(iPart,4:6)                   &
-!                                           + RK_b(nRKSTages)*dt*Pt(iPart,1:3)
-!      !  stage 1 ,nRKStages-1
-!      DO iCounter=1,nRKStages-1
-!        PartState(iPart,1:6) = PartState(iPart,1:6)   &
-!                             + RK_b(iCounter)*dt*PartStage(iPart,1:6,iCounter)
-!      END DO ! counter
     END IF ! ParticleIsExplicit
   END DO ! iPart
 
@@ -3326,8 +3315,8 @@ IF (t.GE.DelayTime) THEN
   END IF
 #ifdef MPI
   ! send number of particles
-  !CALL SendNbOfParticles(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-  CALL SendNbOfParticles() ! all particles to get initial deposition right \\ without emmission
+  CALL SendNbOfParticles(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+  !CALL SendNbOfParticles() ! all particles to get initial deposition right \\ without emmission
   ! finish communication of number of particles and send particles
   CALL MPIParticleSend()
   ! finish communication
@@ -3351,26 +3340,35 @@ IF (useDSMC) THEN
  PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
                                         + DSMC_RHS(1:PDM%ParticleVecLength,3)
 END IF
-#endif /*PARTICLES*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! split and merge
 !----------------------------------------------------------------------------------------------------------------------------------
 
-!first=.FALSE.
-!DO iPart=1,PDM%ParticleVecLength
-!  IF(PDM%ParticleInside(iPart))THEN
-!    IF(PartSpecies(iPart).EQ.1)THEN
-!      IF(.NOT.first)THEN
-!        print*,'iPart',iPart
-!        print*,'PartState',PartState(iPart,:)
-!      END IF
-!      STOP
-!    END IF
-!  END IF ! ParticleInside
-!END DO ! iPart
-  
+IF (doParticleMerge) THEN
+  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+    ALLOCATE(PEM%pStart(1:PP_nElems)           , &
+             PEM%pNumber(1:PP_nElems)          , &
+             PEM%pNext(1:PDM%maxParticleNumber), &
+             PEM%pEnd(1:PP_nElems) )
+  END IF
+END IF
 
+IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
+  CALL UpdateNextFreePosition()
+END IF
+
+IF (doParticleMerge) THEN
+  CALL StartParticleMerge()  
+  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+    DEALLOCATE(PEM%pStart , &
+               PEM%pNumber, &
+               PEM%pNext  , &
+               PEM%pEnd   )
+  END IF
+  CALL UpdateNextFreePosition()
+END IF
+#endif /*PARTICLES*/
 
 END SUBROUTINE TimeStepByImplicitRK
 #endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
