@@ -2884,6 +2884,8 @@ USE MOD_part_MPFtools,           ONLY:StartParticleMerge
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
+USE MOD_Particle_MPI_Vars,       ONLY:DoExternalParts
+USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
 #endif /*MPI*/
 USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
@@ -3225,6 +3227,13 @@ IF (t.GE.DelayTime) THEN
   CALL MPIParticleRecv()
 #endif
   PartMPIExchange%nMPIParticles=0
+  IF(DoExternalParts)THEN
+    ! as we do not have the shape function here, we have to deallocate something
+    SDEALLOCATE(ExtPartState)
+    SDEALLOCATE(ExtPartSpecies)
+    SDEALLOCATE(ExtPartToFIBGM)
+    SDEALLOCATE(ExtPartMPF)
+  END IF
 END IF
 #endif /*PARTICLES*/
 

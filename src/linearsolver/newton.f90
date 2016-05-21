@@ -29,7 +29,6 @@ INTERFACE Newton
   MODULE PROCEDURE Newton
 END INTERFACE
 
-!PUBLIC:: InitImplicit, FinalizeImplicit
 PUBLIC:: Newton
 #endif
 
@@ -110,13 +109,17 @@ SUBROUTINE FullNewton(tStage,coeff)
 !       1) Implicit field solver
 !       2) ParticleNewton
 !       3) Compute Norm_R
+! EisenStat-Walker is from 
+! Kelly - Iterative Methods for Linear and Nonlinear Equations, p. 105 ff
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter
+USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:Eps_FullNewton,Eps2_FullNewton,FullEisenstatWalker,FullgammaEW
 #ifdef PARTICLES
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies
 USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
@@ -145,11 +148,13 @@ REAL,INTENT(INOUT)         :: coeff
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: Norm_R0,Norm_R
+REAL                       :: Norm_R0,Norm_R,Norm_Rold
+REAL                       :: etaA,etaB,etaC,etaMax,taut
 INTEGER                    :: nFullNewtonIter
 #ifdef PARTICLES
 INTEGER                    :: iPart
 #endif /*PARTICLES*/
+REAL                       :: relTolerance,Criterion
 !===================================================================================================================================
 
 #ifdef PARTICLES
@@ -188,14 +193,45 @@ END IF
 CALL ImplicitNorm(tStage,coeff,Norm_R0)
 Norm_R=Norm_R0
 SWRITE(*,*) 'Norm_R0',Norm_R0
+IF(FullEisenstatWalker)THEN
+  etaMax=0.9999
+  taut  =epsMach+eps2_FullNewton*Norm_R0
+      !SWRITE(*,*) 'taut ', taut
+END IF
 
 nFullNewtonIter=0
-DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*eps_LinearSolver))
+DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_FullNewton))
+!DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps_LinearSolver))
   nFullNewtonIter = nFullNewtonIter+1
-
+  IF(FullEisenstatWalker)THEN
+    IF(nFullNewtonIter.EQ.1)THEN
+      !etaA=etaMax
+      !etaB=etaMax
+      !etaC=etaMax
+      relTolerance=etaMax
+    ELSE
+      etaA=FullgammaEW*Norm_R/Norm_Rold
+      !SWRITE(*,*) 'etaA ', etaA
+      etaB=MIN(etaMax,etaA)
+      !SWRITE(*,*) 'etaB ', etaB
+      Criterion  =FullGammaEW*relTolerance*relTolerance
+      !SWRITE(*,*) 'criterion ', Criterion
+      IF(Criterion.LT.0.1)THEN
+        etaC=MIN(etaMax,etaA)
+      ELSE
+        etaC=MIN(etaMax,MAX(etaA,Criterion))
+      END IF
+      !SWRITE(*,*) 'etaC ', etaC
+      relTolerance=MIN(etaMax,MAX(etaC,0.5*taut/Norm_R))
+    END IF
+  ELSE
+    relTolerance=eps_LinearSolver
+  END IF
+  !SWRITE(*,*) 'relTolerance ', relTolerance
+  !SWRITE(*,*) ' '
   ! solve field to new stage 
   ImplicitSource=ExplicitSource
-  CALL LinearSolver(tStage,coeff)
+  CALL LinearSolver(tStage,coeff,relTolerance)
 
 #ifdef PARTICLES
   IF (tStage.GE.DelayTime) THEN
@@ -239,6 +275,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*eps_Line
   END IF
 #endif /*PARTICLES*/
 
+  Norm_Rold=Norm_R
   CALL ImplicitNorm(tStage,coeff,Norm_R)
   SWRITE(*,*) 'iter,Norm_R',nFullNewtonIter,Norm_R
 
@@ -247,6 +284,8 @@ totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
 IF(nFullNewtonIter.GE.maxFullNewtonIter) CALL abort(&
  __STAMP__&
    ,' Outer-Newton of semi-fully implicit scheme is running into infinity.')
+
+SWRITE(*,*) 'TotalIterlinearsolver',TotalIterlinearSolver
 
 END SUBROUTINE FullNewton
 #endif 
