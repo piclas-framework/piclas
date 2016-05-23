@@ -71,6 +71,8 @@ REAL,INTENT(OUT) :: Y(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL             :: rTmp
+REAL             :: locMass
+INTEGER          :: i,j,k,iElem,iVar
 !===================================================================================================================================
 U=X
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
@@ -78,8 +80,21 @@ CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 IF(DoParabolicDamping)THEN
   !rTmp=1.0-(fDamping-1.0)*dt*sdTCFLOne
   rTmp=1.0-(fDamping-1.0)*coeff*sdTCFLOne
-  Y(1:6,:,:,:,:) = mass*(     U(1:6,:,:,:,:) - Coeff*Ut(1:6,:,:,:,:))
-  Y(7:8,:,:,:,:) = mass*(rTmp*U(7:8,:,:,:,:) - Coeff*Ut(7:8,:,:,:,:))
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N
+      DO j=0,PP_N
+        DO i=0,PP_N
+          locMass=mass(1,i,j,k,iElem)
+          DO iVar=1,6
+            Y(iVar,i,j,k,iElem) = locMass*(     U(iVar,i,j,k,iElem) - Coeff*Ut(iVar,i,j,k,iElem))
+          END DO ! iVar=1,6
+          DO iVar=7,PP_nVar
+            Y(iVar,i,j,k,iElem) = locMass*(rTmp*U(iVar,i,j,k,iElem) - Coeff*Ut(iVar,i,j,k,iElem))
+          END DO ! iVar=7,PP_nVar
+        END DO ! i=0,PP_N
+      END DO ! j=0,PP_N
+    END DO ! k=0,PP_N
+  END DO ! iElem=1,PP_nElems
 ELSE
   Y = mass*(U - Coeff*Ut)
 END IF
@@ -114,7 +129,8 @@ REAL,INTENT(IN)  :: t,Coeff
 REAL,INTENT(OUT) :: Y(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL             :: rTmp
+REAL             :: rTmp,locMass
+INTEGER          :: i,j,k,iElem,iVar
 !===================================================================================================================================
 
 ! y =  Coeff*Ut+source
@@ -127,8 +143,27 @@ CALL CalcSource(t,1.0,ImplicitSource)
 IF(DoParabolicDamping)THEN
   !rTmp=1.0-(fDamping-1.0)*dt*sdTCFLOne
   rTmp=1.0-(fDamping-1.0)*coeff*sdTCFLOne
-  Y(1:6,:,:,:,:) = mass*(LinSolverRHS(1:6,:,:,:,:) -      U(1:6,:,:,:,:) +coeff*Ut(1:6,:,:,:,:)+ coeff*ImplicitSource(1:6,:,:,:,:))
-  Y(7:8,:,:,:,:) = mass*(LinSolverRHS(7:8,:,:,:,:) - rTmp*U(7:8,:,:,:,:) +coeff*Ut(7:8,:,:,:,:)+ coeff*ImplicitSource(7:8,:,:,:,:))
+  DO iElem=1,PP_nElems
+    DO k=0,PP_N
+      DO j=0,PP_N
+        DO i=0,PP_N
+          locMass=mass(1,i,j,k,iElem)
+          DO iVar=1,6
+            Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
+                                           -U(iVar,i,j,k,iElem)                    &
+                                           +coeff*Ut(iVar,i,j,k,iElem)             &
+                                           +coeff*ImplicitSource(iVar,i,j,k,iElem) )
+          END DO ! iVar=1,6
+          DO iVar=7,PP_nVar
+            Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
+                                           -U(iVar,i,j,k,iElem)                    &
+                                           +coeff*Ut(iVar,i,j,k,iElem)             &
+                                           +coeff*ImplicitSource(iVar,i,j,k,iElem) )
+          END DO ! iVar=7,PP_nVar
+        END DO ! i=0,PP_N
+      END DO ! j=0,PP_N
+    END DO ! k=0,PP_N
+  END DO ! iElem=1,PP_nElems
 ELSE
   Y = mass*(LinSolverRHS - U +coeff*ut + coeff*ImplicitSource)
 END IF
