@@ -150,13 +150,13 @@ IF(DoParabolicDamping)THEN
           locMass=mass(1,i,j,k,iElem)
           DO iVar=1,6
             Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
-                                           -U(iVar,i,j,k,iElem)                    &
+                                                -U(iVar,i,j,k,iElem)               &
                                            +coeff*Ut(iVar,i,j,k,iElem)             &
                                            +coeff*ImplicitSource(iVar,i,j,k,iElem) )
           END DO ! iVar=1,6
           DO iVar=7,PP_nVar
             Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
-                                           -U(iVar,i,j,k,iElem)                    &
+                                           -rTmp*U(iVar,i,j,k,iElem)               &
                                            +coeff*Ut(iVar,i,j,k,iElem)             &
                                            +coeff*ImplicitSource(iVar,i,j,k,iElem) )
           END DO ! iVar=7,PP_nVar
