@@ -67,6 +67,7 @@ SUBROUTINE InitMappings(N_in,V2S,V2SIJK,V2S2,CV2S,S2V,S2V2,CS2V)
 ! initialization of all mappings for polynomial degree N_in
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
+USE MOD_Globals, ONLY:abort
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -151,9 +152,9 @@ DO f = 0, 4
       ijk = S2V(:,0,p,q,f,s)
       pq = V2S(:,ijk(1),ijk(2),ijk(3),f,s)
       IF ((pq(1).NE.p).OR.(pq(2).NE.q)) THEN
-        CALL abort(&
-            __STAMP__&
-            ,'SideToVol does not fit to VolToSideA')
+CALL abort(&
+__STAMP__&
+,'SideToVol does not fit to VolToSideA')
       END IF
     END DO; END DO 
   END DO ! s = 1, 6
