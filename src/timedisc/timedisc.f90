@@ -551,7 +551,7 @@ DO !iter_t=0,MaxIter
       END IF !MPIroot
 #if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       SWRITE(UNIT_stdOut,'(132("="))')
-      SWRITE(UNIT_stdOut,'(A,I12)') ' Total iteration Linear Solver ',totalIterLinearSolver
+      SWRITE(UNIT_stdOut,'(A32,I12)') ' Total iteration Linear Solver    ',totalIterLinearSolver
       TotalIterLinearSolver=0
 #if (PP_TimeDiscMethod==104)
       SWRITE(UNIT_stdOut,'(A,I12)') ' Total iteration Newton        ',nNewton
