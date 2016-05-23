@@ -253,8 +253,11 @@ LOGICAL                   :: hasSurf
 INTEGER,ALLOCATABLE       :: countSurfSideMPI(:)
 !===================================================================================================================================
 color=MPI_UNDEFINED
-IF(SurfMesh%SurfonProc) color=2
-
+IF(SurfMesh%SurfonProc) THEN
+color=2
+ELSE
+color=1
+END IF
 ! create ranks for RP communicator
 IF(PartMPI%MPIRoot) THEN
   Surfrank=-1
@@ -282,7 +285,11 @@ END IF
 
 ! create new RP communicator for RP output
 CALL MPI_COMM_SPLIT(PartMPI%COMM, color, SurfCOMM%MyRank, SurfCOMM%COMM,iError)
-IF(SurfMesh%SurfOnPRoc) CALL MPI_COMM_SIZE(SurfCOMM%COMM, SurfCOMM%nProcs,iError)
+IF(SurfMesh%SurfOnPRoc) THEN
+  CALL MPI_COMM_SIZE(SurfCOMM%COMM, SurfCOMM%nProcs,iError)
+ELSE
+  SurfCOMM%nProcs = 1
+END IF
 SurfCOMM%MPIRoot=.FALSE.
 IF(SurfCOMM%MyRank.EQ.0 .AND. SurfMesh%SurfOnProc) THEN
   SurfCOMM%MPIRoot=.TRUE.
@@ -315,7 +322,7 @@ SUBROUTINE GetHaloSurfMapping()
 ! offSetMPI
 ! MPI-neighbor list
 ! PartHaloSideToProc
-! only receiving process nows to which local side the sending information is going, the sending process does not know the final 
+! only receiving process knows to which local side the sending information is going, the sending process does not know the final 
 ! sideid 
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
@@ -664,29 +671,32 @@ REAL                                :: tstart,tend
 CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
 #endif /*MPI*/
 IF(SurfCOMM%MPIROOT)THEN
-  WRITE(*,*) ' WRITE DSMCSurfSTATE TO HDF5 FILE...'
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMCSurfSTATE TO HDF5 FILE...'
   tstart=LOCALTIME()
 END IF
 
 FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString=TRIM(FileName)//'.h5'
 
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 IF(SurfCOMM%MPIRoot)THEN
 #ifdef MPI
-  CALL OpenDataFile(FileString,create=.TRUE.,single=.FALSE.)
+  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.)
 #else
   CALL OpenDataFile(FileString,create=.TRUE.)
 #endif
   Statedummy = 'DSMCSurfState'  
   
+  ! Write file header
   CALL WriteHDF5Header(Statedummy,File_ID)
-  
+  ! Write dataset properties "Time","MeshFile","DSMC_nSurfSampl","DSMC_nSpecies","DSMC_CollisMode"
   CALL WriteAttributeToHDF5(File_ID,'DSMC_nSurfSample',1,IntegerScalar=nSurfSample)
   CALL WriteAttributeToHDF5(File_ID,'DSMC_nSpecies',1,IntegerScalar=nSpecies)
   CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
 
+  ! Create dataset attribute "VarNames" and write to file
   nVar=5
   ALLOCATE(StrVarNames(1:nVar))
   StrVarnames(1)='ForceX'
@@ -719,14 +729,14 @@ CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=4,&
                     nValGlobal=(/5,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
                     nVal=      (/5,nSurfSample,nSurfSample,SurfMesh%nSides/),&
                     offset=    (/0,          0,          0,offsetSurfSide/),&
-                    collective=.TRUE., RealArray=MacroSurfaceVal)
+                    collective=.FALSE., RealArray=MacroSurfaceVal)
 CALL CloseDataFile()
 
 IF(SurfCOMM%MPIROOT)THEN
   tend=LOCALTIME()
   WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',tend-tstart,'s]'
-!   WRITE(*,*) ' DONE.'
 END IF
+
 END SUBROUTINE WriteSurfSampleToHDF5
 
 

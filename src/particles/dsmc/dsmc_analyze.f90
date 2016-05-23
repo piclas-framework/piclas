@@ -59,7 +59,7 @@ SUBROUTINE CalcSurfaceValues
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Timedisc_Vars,              ONLY:time
+  USE MOD_Timedisc_Vars,              ONLY:time,dt
   USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceCounter, DSMC !,SampWall
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall
   USE MOD_Particle_Boundary_Sampling, ONLY:WriteSurfSampleToHDF5
@@ -144,7 +144,7 @@ SUBROUTINE CalcSurfaceValues
         SumCounterTotal(nSpecies+1) = SumCounterTotal(nSpecies+1) + SumCounterTotal(iSpec)
       END IF
     END DO
-    SWRITE(*,*) ' The following species swaps at walls have been sampled:'
+    SWRITE(UNIT_stdOut,'(A)') ' The following species swaps at walls have been sampled:'
     DO iSpec=1,nSpecies
       SWRITE(*,'(A9,I2,A2,E16.9,A6)') ' Species ',iSpec,': ',REAL(SumCounterTotal(iSpec)) / TimeSample,' MP/s;'
     END DO
@@ -153,7 +153,7 @@ SUBROUTINE CalcSurfaceValues
     DEALLOCATE(SumCounterTotal)
   END IF
 
-  CALL WriteSurfSampleToHDF5(TRIM(MeshFile),time)
+  CALL WriteSurfSampleToHDF5(TRIM(MeshFile),time+dt)
 
   DEALLOCATE(MacroSurfaceVal,MacroSurfaceCounter)
 

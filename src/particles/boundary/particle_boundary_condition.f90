@@ -386,6 +386,7 @@ USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, SpecDSMC, DSMC, useDSMC
 USE MOD_DSMC_Vars,              ONLY:CollisMode, AnalyzeSurfCollis
+USE MOD_LD_Vars,                ONLY: useLD
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM!,Pt
@@ -492,7 +493,7 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
   lengthPartTrajectory=lengthPartTrajectory!+epsilontol
   
   ! Wall sampling Macrovalues
-!   IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
+  IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
       SurfSideID=SurfMesh%SideIDToSurfID(SideID)
       ! compute p and q
@@ -542,7 +543,7 @@ __STAMP__&
         END IF
       END IF
     END IF
-!   END IF
+  END IF
   
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)

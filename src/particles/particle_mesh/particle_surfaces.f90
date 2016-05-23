@@ -68,7 +68,6 @@ USE MOD_Globals
 USE MOD_Globals_Vars,               ONLY:EpsMach
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
-USE MOD_Globals_Vars,               ONLY:epsMach
 USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,NGeo,nBCSides,nSides
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList
