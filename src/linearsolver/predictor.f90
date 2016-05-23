@@ -231,7 +231,7 @@ __STAMP__&
    ! tphi = 1.+RK_c(iStage)
     tphi = RK_c(iStage)
     tphi2= tphi*tphi
-    tphi3= tphi*tphi3
+    tphi3= tphi*tphi2
     PartState(PartID,1:6)=(RK_bsO3(iStage-1,1)*tphi+RK_bsO3(iStage-1,2)*tphi2+RK_bsO3(iStage-1,3)*tphi3) &
                          * PartStage(PartID,1:6,iStage-1)
     DO iCounter = 1,iStage-2
