@@ -111,16 +111,10 @@ IMPLICIT NONE
 INTEGER     :: iPart
 !===================================================================================================================================
 
-DO iPart=1,PDM%MaxParticleNumber
-  IF(PDM%ParticleInside(iPart))THEN
-    IF(Species(PartSpecies(iPart))%IsImplicit)THEN
-      PartIsImplicit(iPart)=.TRUE.
-    ELSE
-      PartIsImplicit(iPart)=.FALSE.
-    END IF
-  ELSE
-    PartIsImplicit(iPart)=.FALSE.
-  END IF ! ParticleInside
+PDM%PartIsImplicit=.FALSE.
+DO iPart=1,PDM%ParticleVecLength
+  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+  IF(Species(PartSpecies(iPart))%IsImplicit) PartIsImplicit(iPart)=.TRUE.
 END DO ! iPart
   
 END SUBROUTINE SelectImplicitParticles
