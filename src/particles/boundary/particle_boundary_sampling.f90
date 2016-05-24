@@ -52,9 +52,9 @@ SUBROUTINE InitParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides
+USE MOD_Mesh_Vars               ,ONLY:NGeo,BC,nSides,nBCSides,nBCs,BoundaryName
 USE MOD_ReadInTools             ,ONLY:GETINT
-USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall
+USE MOD_Particle_Boundary_Vars  ,ONLY:nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample,SurfMesh,SampWall,nSurfBC,SurfBCName
 USE MOD_Particle_Mesh_Vars      ,ONLY:nTotalSides
 USE MOD_Particle_Vars           ,ONLY:nSpecies
 USE MOD_DSMC_Vars               ,ONLY:useDSMC,DSMC
@@ -77,11 +77,12 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: p,q,iSide,SurfSideID,SideID
-INTEGER                                :: iSample,jSample
+INTEGER                                :: iSample,jSample, iBC
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
 REAL                                   :: tmpI1,tmpJ1,tmpI2,tmpJ2,XiOut(1:2),E,F,G,D,tmp1,area
-CHARACTER(2)                :: hilf
+CHARACTER(2)                           :: hilf
+CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 !===================================================================================================================================
  
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
@@ -107,6 +108,23 @@ dXiEQ_SurfSample =2./REAL(nSurfSample)
 DO q=0,nSurfSample
   XiEQ_SurfSample(q) = dXiEQ_SurfSample * REAL(q) - 1. 
 END DO
+
+! create boundary name mapping for surfaces SurfaceBC number mapping
+nSurfBC = 0
+ALLOCATE(BCName(1:nBCs))
+DO iBC=1,nBCs
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
+  nSurfBC = nSurfBC + 1
+  BCName(nSurfBC) = BoundaryName(iBC)
+  END IF
+END DO
+IF (nSurfBC.GE.1) THEN
+ALLOCATE(SurfBCName(1:nSurfBC))
+  DO iBC=1,nSurfBC
+    SurfBCName(iBC) = BCName(iBC)
+  END DO
+END IF
+DEALLOCATE(BCName)
 
 ! get number of BC-Sides
 ALLOCATE(SurfMesh%SideIDToSurfID(1:nTotalSides))
@@ -650,7 +668,7 @@ USE MOD_Particle_Boundary_Vars,     ONLY:nSurfSample,SurfMesh,offSetSurfSide
 USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal , CollisMode
 USE MOD_Particle_Vars,              ONLY:nSpecies
 USE MOD_HDF5_Output,                ONLY:WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
-USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM
+USE MOD_Particle_Boundary_Vars,     ONLY:SurfCOMM,nSurfBC,SurfBCName
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -695,6 +713,7 @@ IF(SurfCOMM%MPIRoot)THEN
   CALL WriteAttributeToHDF5(File_ID,'DSMC_CollisMode',1,IntegerScalar=CollisMode)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
+  CALL WriteAttributeToHDF5(File_ID,'BC_Surf',nSurfBC,StrArray=SurfBCName)
 
   ! Create dataset attribute "VarNames" and write to file
   nVar=5
@@ -770,6 +789,7 @@ SDEALLOCATE(SurfMesh%SideIDToSurfID)
 DO iSurfSide=1,SurfMesh%nSides
   SDEALLOCATE(SampWall(iSurfSide)%State)
 END DO
+SDEALLOCATE(SurfBCName)
 SDEALLOCATE(SampWall)
 #ifdef MPI
 SDEALLOCATE(PartHaloSideToProc)
