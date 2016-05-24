@@ -29,7 +29,7 @@ io_hdf5/hdf5_input.f90
 io_hdf5/hdf5_output.f90
 mesh/mesh_vars.f90
 mesh/mesh.f90
-mesh/mappings.f90
+mesh/mapping.f90
 mesh/debugmesh.f90
 mesh/metrics.f90
 mesh/mesh_readin.f90
