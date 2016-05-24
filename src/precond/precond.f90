@@ -216,6 +216,8 @@ SELECT CASE(PrecondType)
 END SELECT
 
 TotalTime=0.
+TimeStart=0.
+TimeEnd=0.
 
 ! PrecondType .LT. 99 - element local
 DO iElem=1,PP_nElems

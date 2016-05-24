@@ -1984,15 +1984,13 @@ DO iSpec=1,nSpecies
        ylen = abs(GEO%ymaxglob  - GEO%yminglob)
        zlen = abs(GEO%zmaxglob  - GEO%zminglob)
        xCoords(1:3,1) = (/GEO%xminglob,GEO%yminglob,GEO%zminglob/)
-       xCoords(1,2)   = xCoords(1,1) + xlen
-       xCoords(2,3)   = xCoords(2,1) + ylen
-       xCoords(1,4)   = xCoords(1,1) + xlen
-       xCoords(2,4)   = xCoords(2,1) + ylen
-       xCoords(3,5)   = xCoords(3,1) + zlen
-       xCoords(1,6)   = xCoords(1,5) + xlen
-       xCoords(2,7)   = xCoords(2,5) + ylen
-       xCoords(1,8)   = xCoords(1,5) + xlen
-       xCoords(2,8)   = xCoords(2,5) + ylen
+       xCoords(1:3,2) = xCoords(1:3,1) + (/xlen,0.,0./)
+       xCoords(1:3,3) = xCoords(1:3,1) + (/0.,ylen,0./)
+       xCoords(1:3,4) = xCoords(1:3,1) + (/xlen,ylen,0./)
+       xCoords(1:3,5) = xCoords(1:3,1) + (/0.,0.,zlen/)
+       xCoords(1:3,6) = xCoords(1:3,5) + (/xlen,0.,0./)
+       xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
+       xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
        RegionOnProc=BoxInProc(xCoords,8)
     CASE DEFAULT
       CALL abort(&
