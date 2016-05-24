@@ -111,7 +111,7 @@ IMPLICIT NONE
 INTEGER     :: iPart
 !===================================================================================================================================
 
-PDM%PartIsImplicit=.FALSE.
+PartIsImplicit=.FALSE.
 DO iPart=1,PDM%ParticleVecLength
   IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
   IF(Species(PartSpecies(iPart))%IsImplicit) PartIsImplicit(iPart)=.TRUE.
