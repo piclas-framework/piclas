@@ -200,6 +200,7 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iErr
 
 IF(opt)THEN ! compute zero state
   ! whole pt array
+  SWRITE(*,*) PDM%ParticleVecLength
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
@@ -221,12 +222,6 @@ IF(opt)THEN ! compute zero state
       PartXK(1:6,iPart)   =   PartState(iPart,1:6)
       R_PartXK(1:6,iPart) =   Pt_tmp(1:6)
       F_PartXK(1:6,iPart) =   F_PartX0(1:6,iPart)
-    END IF ! ParticleInside
-  END DO ! iPart
-  
-  ! compute norm for each particle
-  DO iPart=1,PDM%ParticleVecLength
-    IF(DoPartInNewton(iPart))THEN
       CALL PartVectorDotProduct(F_PartX0(:,iPart),F_PartX0(:,iPart),Norm2_F_PartX0(iPart))
       IF (Norm2_F_PartX0(iPart).LT.6E-16) THEN ! do not iterate, as U is already the implicit solution
         Norm2_F_PartXk(iPart)=TINY(1.)
@@ -304,11 +299,6 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
     SDEALLOCATE(ExtPartSpecies)
     SDEALLOCATE(ExtPartToFIBGM)
     SDEALLOCATE(ExtPartMPF)
-    ! update the last part pos and element for particle movement
-    LastPartPos(iPart,1)=PartState(iPart,1)
-    LastPartPos(iPart,2)=PartState(iPart,2)
-    LastPartPos(iPart,3)=PartState(iPart,3)
-    PEM%lastElement(iPart)=PEM%Element(iPart)
 !#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 !    DO iPart=1,PDM%ParticleVecLength
 !      IF(.NOT.PartIsImplicit(iPart)) DoPartInNewton(iPart)=.FALSE.
@@ -319,6 +309,11 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
 
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
+      ! update the last part pos and element for particle movement
+      LastPartPos(iPart,1)=PartState(iPart,1)
+      LastPartPos(iPart,2)=PartState(iPart,2)
+      LastPartPos(iPart,3)=PartState(iPart,3)
+      PEM%lastElement(iPart)=PEM%Element(iPart)
       IF(MOD(nInnerPartNewton,FreezePartInNewton).EQ.0) CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
       CASE(1)
