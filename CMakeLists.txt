@@ -485,6 +485,11 @@ ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND echo \"{[\( GIT URL \)]}
 ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && git config --get remote.origin.url >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
 
 # =========================================================================
+# final message
+# =========================================================================
+ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: BOLZPLATZ EXECUTABLE GENERATED!")
+
+# =========================================================================
 # Install
 # =========================================================================
 INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boltzplatz DESTINATION bin)
