@@ -163,15 +163,16 @@ IF (tStage.GE.DelayTime) THEN
   CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE.)
 
   ! move particle, if not already done, here, a reduced list could be again used, but a different list...
+  ! required to get the correct deposition
 #ifdef MPI
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
 #endif /*MPI*/
-  IF(DoRefMapping)THEN
-    CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-  ELSE
-    CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-  END IF
+!  IF(DoRefMapping)THEN
+!    CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+!  ELSE
+!    CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+!  END IF
 #ifdef MPI
   ! here: could use deposition as hiding, not done yet
   ! send number of particles
@@ -252,11 +253,11 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_Ful
     ! open receive buffer for number of particles
     CALL IRecvNbofParticles()
 #endif /*MPI*/
-    IF(DoRefMapping)THEN
-      CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-    ELSE
-      CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-    END IF
+!    IF(DoRefMapping)THEN
+!      CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+!    ELSE
+!      CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+!    END IF
 #ifdef MPI
     ! here: could use deposition as hiding, not done yet
     ! send number of particles

@@ -366,8 +366,14 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
    # set Flags
    SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -r8 -i4 -traceback -warn all -assume bscc -shared-intel -DINTEL")
    SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O2 ${BOLTZPLATZ_INSTRUCTION} -vec-report0 -no-prec-div ")
+   # -ipo is not working
+   # -fp-model precise -> identical results 85s
+   # -fp-model strict  -> identical results 96s
+   # -rec-sqrt -fma -no-fma
+   # additional -fp-model precise -fp-model exept -fp-model strict
    SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O2 ${BOLTZPLATZ_INSTRUCTION} -vec-report0 -no-prec-div")
-   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -init=snan -init=arrays -init=zero")
+   #SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -init=snan -init=arrays -init=zero")
+   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O2 -fpe0 -traceback -warn all -fstack-protector -assume protect_parens -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -ftrapuv -init=snan -init=arrays -init=zero")
    # add flags only for compiling not linking!
   SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES COMPILE_FLAGS "-fpp -assume bscc")
    SET_TARGET_PROPERTIES(boltzplatz    PROPERTIES COMPILE_FLAGS "-fpp -assume bscc")
