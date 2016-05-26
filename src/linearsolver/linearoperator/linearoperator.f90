@@ -190,6 +190,9 @@ REAL,INTENT(OUT)  :: resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iVar,i,j,k,iElem
+#ifdef MPI
+REAL              :: ResuSend
+#endif
 !===================================================================================================================================
 
 resu=0.
@@ -206,7 +209,8 @@ DO iElem=1,PP_nElems
 END DO
 
 #ifdef MPI
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  ResuSend=Resu
+  CALL MPI_ALLREDUCE(ResuSend,resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
 
 END SUBROUTINE VectorDotProduct

@@ -1479,6 +1479,9 @@ REAL,INTENT(OUT)  :: Resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i
+#ifdef MPI
+REAL              :: ResuSend
+#endif
 !===================================================================================================================================
 
 Resu=0.
@@ -1487,7 +1490,8 @@ DO i=1,dim1
 END DO
 
 #ifdef MPI
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  ResuSend=Resu
+  CALL MPI_ALLREDUCE(ResuSend,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
 
 END SUBROUTINE VectorDotProduct
