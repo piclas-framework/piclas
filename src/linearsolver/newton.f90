@@ -228,8 +228,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_Ful
   ELSE
     relTolerance=eps_LinearSolver
   END IF
-  !SWRITE(*,*) 'relTolerance ', relTolerance
-  !SWRITE(*,*) ' '
   ! solve field to new stage 
   ImplicitSource=ExplicitSource
   CALL LinearSolver(tStage,coeff,relTolerance)

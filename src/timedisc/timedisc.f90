@@ -2851,7 +2851,7 @@ USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_Predictor,               ONLY:Predictor,StorePredictor
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver,DoPrintConvInfo
 USE MOD_Equation,                ONLY:DivCleaningDamping
 #ifdef maxwell
 USE MOD_Precond,                 ONLY:BuildPrecond
@@ -3015,8 +3015,12 @@ DO iStage=2,nRKStages
   tStage = t + RK_c(iStage)*dt
   alpha  = ESDIRK_a(iStage,iStage)*dt
   sGamma = 1.0/alpha
-  SWRITE(*,*) '-----------------------------'
-  SWRITE(*,*) 'istage:',istage
+  IF(MPIRoot)THEN
+    IF(DoPrintConvInfo)THEN
+      WRITE(*,*) '-----------------------------'
+      WRITE(*,*) 'istage:',istage
+    END IF
+  END IF
   ! store predictor
   CALL StorePredictor()
 

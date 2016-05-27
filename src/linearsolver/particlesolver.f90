@@ -200,7 +200,6 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iErr
 
 IF(opt)THEN ! compute zero state
   ! whole pt array
-  SWRITE(*,*) PDM%ParticleVecLength
   DO iPart=1,PDM%ParticleVecLength
     IF(DoPartInNewton(iPart))THEN
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
