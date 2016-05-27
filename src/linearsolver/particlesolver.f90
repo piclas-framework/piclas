@@ -142,7 +142,7 @@ USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIPar
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange,PartMPI
 USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 #endif /*MPI*/
-USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,FreezePartInNewton
+USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,FreezePartInNewton,DoPrintConvInfo
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
@@ -233,20 +233,27 @@ IF(opt)THEN ! compute zero state
   END DO ! iPart
 END IF
 
-! newton per particle 
-Counter=0
-DO iPart=1,PDM%ParticleVecLength
-  IF(DoPartInNewton(iPart))THEN
-    Counter=Counter+1      
-  END IF ! ParticleInside
-END DO ! iPart
 #ifdef MPI
 !set T if at least 1 proc has to do newton
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
 #endif /*MPI*/
 
-SWRITE(*,*) 'init part',Counter
+
+
+IF(DoPrintConvInfo)THEN
+  ! newton per particle 
+  Counter=0
+  DO iPart=1,PDM%ParticleVecLength
+    IF(DoPartInNewton(iPart))THEN
+      Counter=Counter+1      
+    END IF ! ParticleInside
+  END DO ! iPart
+#ifdef MPI
+  !set T if at least 1 proc has to do newton
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
+#endif /*MPI*/
+  SWRITE(*,*) 'init part',Counter
+END IF
 
 nInnerPartNewton=-1
 DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
@@ -342,20 +349,27 @@ __STAMP__&
   END DO
   DoNewton=.FALSE.
   IF(ANY(DoPartInNewton)) DoNewton=.TRUE.
-  Counter=0
-  DO iPart=1,PDM%ParticleVecLength
-    IF(DoPartInNewton(iPart))THEN
-      Counter=Counter+1      
-    END IF ! ParticleInside
-  END DO ! iPart
 #ifdef MPI
   !set T if at least 1 proc has to do newton
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoNewton,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) 
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
 #endif /*MPI*/
+  IF(DoPrintConvInfo)THEN
+    Counter=0
+    DO iPart=1,PDM%ParticleVecLength
+      IF(DoPartInNewton(iPart))THEN
+        Counter=Counter+1      
+      END IF ! ParticleInside
+    END DO ! iPart
+#ifdef MPI
+    !set T if at least 1 proc has to do newton
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,Counter,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError) 
+#endif /*MPI*/
+  END IF
 END DO
 
-SWRITE(*,*) 'PartNewton',nInnerPartNewton,Counter
+IF(DoPrintConvInfo)THEN
+  SWRITE(*,*) 'PartNewton',nInnerPartNewton,Counter
+END IF
 nPartNewton=nPartNewton+nInnerPartNewton
 !IF (nInnerPartNewton.EQ.nPartNewtonIter) THEN
 !  IF(PartMPI%MPIRoot)THEN

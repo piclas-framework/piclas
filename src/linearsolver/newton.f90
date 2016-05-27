@@ -119,7 +119,7 @@ USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:Eps_FullNewton,Eps2_FullNewton,FullEisenstatWalker,FullgammaEW
+USE MOD_LinearSolver_Vars,       ONLY:Eps_FullNewton,Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies
 USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
@@ -193,7 +193,7 @@ END IF
 
 CALL ImplicitNorm(tStage,coeff,Norm_R0)
 Norm_R=Norm_R0
-SWRITE(*,*) 'Norm_R0',Norm_R0
+IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'Norm_R0',Norm_R0
 IF(FullEisenstatWalker)THEN
   etaMax=0.9999
   taut  =epsMach+eps2_FullNewton*Norm_R0
@@ -278,15 +278,17 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_Ful
 
   Norm_Rold=Norm_R
   CALL ImplicitNorm(tStage,coeff,Norm_R)
-  SWRITE(*,*) 'iter,Norm_R',nFullNewtonIter,Norm_R
+  IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'iter,Norm_R',nFullNewtonIter,Norm_R
 
 END DO ! funny pseudo Newton for all implicit
 totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
-IF(nFullNewtonIter.GE.maxFullNewtonIter) CALL abort(&
+IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
+  IF(MPIRoot) CALL abort(&
  __STAMP__&
    ,' Outer-Newton of semi-fully implicit scheme is running into infinity.')
+END IF
 
-SWRITE(*,*) 'TotalIterlinearsolver',TotalIterlinearSolver
+IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'TotalIterlinearsolver',TotalIterlinearSolver
 
 END SUBROUTINE FullNewton
 #endif 

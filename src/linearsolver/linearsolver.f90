@@ -116,6 +116,7 @@ Eps_FullNewton       = GETREAL('eps_FullNewton','1e-3')
 Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
 FullEisenstatWalker  = GETLOGICAL('FullEisenstatWalker','F')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
+DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 #endif
 
 
