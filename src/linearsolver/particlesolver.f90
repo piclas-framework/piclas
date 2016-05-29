@@ -121,7 +121,7 @@ END SUBROUTINE SelectImplicitParticles
 #endif
 
 
-SUBROUTINE ParticleNewton(t,coeff,doParticle_In,opt_In)
+SUBROUTINE ParticleNewton(t,coeff,doParticle_In,opt_In,AbortTol_In)
 !===================================================================================================================================
 ! Allocate global variable 
 !===================================================================================================================================
@@ -157,6 +157,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)               :: t,coeff
 LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%maxParticleNumber)
 LOGICAL,INTENT(IN),OPTIONAL   :: opt_In
+REAL,INTENT(IN),OPTIONAL      :: AbortTol_In
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -173,6 +174,7 @@ LOGICAL                      :: doParticle(1:PDM%maxParticleNumber)
 !! maybeeee
 !! and thats maybe local??? || global, has to be set false during communication
 LOGICAL                      :: DoNewton
+REAL                         :: AbortTol
 INTEGER:: counter
 !===================================================================================================================================
 
@@ -189,6 +191,12 @@ IF(PRESENT(DoParticle_IN))THEN
   DoPartInNewton=DoParticle_In
 ELSE
   DoPartInNewton(1:PDM%maxParticleNumber)=PDM%ParticleInside(1:PDM%maxParticleNumber)
+END IF
+
+IF(PRESENT(AbortTol_In))THEN
+  AbortTol=AbortTol_In
+ELSE
+  AbortTol=Eps2PartNewton
 END IF
 
 DoNewton=.FALSE.
@@ -270,7 +278,7 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
         ELSE
           gammaB = min(0.999, max(gammaA,PartgammaEW*AbortCritLinSolver*AbortCritLinSolver))
         ENDIF
-        AbortCritLinSolver = min(0.999,max(gammaB,0.5*SQRT(Eps2PartNewton)/SQRT(Norm2_F_PartXk(iPart))))
+        AbortCritLinSolver = min(0.999,max(gammaB,0.5*SQRT(AbortTol)/SQRT(Norm2_F_PartXk(iPart))))
       END IF 
       Norm2_F_PartXk_old(iPart)=Norm2_F_PartXk(iPart)
       CALL Particle_GMRES(t,coeff,iPart,-F_PartXK(:,iPart),SQRT(Norm2_F_PartXk(iPart)),AbortCritLinSolver,DeltaX)
@@ -340,7 +348,7 @@ __STAMP__&
       F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*R_PartXK(:,iPart)
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_F_PartXK(iPart))
-      IF(Norm2_F_PartXK(iPart).LT.Eps2PartNewton*Norm2_F_PartX0(iPart)) DoPartInNewton(iPart)=.FALSE.
+      IF(Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)) DoPartInNewton(iPart)=.FALSE.
       !IF(nInnerPartNewton.GT.20)THEN
       !  IPWRITE(*,*) 'blubb',iPart, Norm2_F_PartXK(iPart),Norm2_F_PartX0(iPart)
       !END IF
@@ -374,7 +382,7 @@ nPartNewton=nPartNewton+nInnerPartNewton
 !  IF(PartMPI%MPIRoot)THEN
 !  CALL abort(&
 !__STAMP__&
-!,'NEWTON NOT CONVERGED WITH NEWTON ITERATIONS,EPISLON',nInnerPartNewton,Eps2PartNewton)
+!,'NEWTON NOT CONVERGED WITH NEWTON ITERATIONS,EPISLON',nInnerPartNewton,AbortTol)
 !  END IF
 !END IF
 

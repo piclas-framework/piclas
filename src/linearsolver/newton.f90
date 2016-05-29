@@ -121,6 +121,7 @@ USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSourc
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps_FullNewton,Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
+USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies
 USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
 USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
@@ -154,13 +155,19 @@ INTEGER                    :: nFullNewtonIter
 #ifdef PARTICLES
 INTEGER                    :: iPart
 #endif /*PARTICLES*/
-REAL                       :: relTolerance,Criterion
+REAL                       :: relTolerance,relTolerancePart,Criterion
 !===================================================================================================================================
 
 #ifdef PARTICLES
 IF (tStage.GE.DelayTime) THEN
+  IF(FullEisenstatWalker.GT.1)THEN
+    relTolerancePart=0.998
+  ELSE
+    relTolerancePart=eps2PartNewton
+  END IF
   ! now, we have an initial guess for the field  can compute the first particle movement
-  CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE.)
+  CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
+                     ,AbortTol_In=relTolerancePart)
 
   ! move particle, if not already done, here, a reduced list could be again used, but a different list...
   ! required to get the correct deposition
@@ -194,7 +201,7 @@ END IF
 CALL ImplicitNorm(tStage,coeff,Norm_R0)
 Norm_R=Norm_R0
 IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'Norm_R0',Norm_R0
-IF(FullEisenstatWalker)THEN
+IF(FullEisenstatWalker.GT.0)THEN
   etaMax=0.9999
   taut  =epsMach+eps2_FullNewton*Norm_R0
       !SWRITE(*,*) 'taut ', taut
@@ -204,7 +211,7 @@ nFullNewtonIter=0
 DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_FullNewton))
 !DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps_LinearSolver))
   nFullNewtonIter = nFullNewtonIter+1
-  IF(FullEisenstatWalker)THEN
+  IF(FullEisenstatWalker.GT.0)THEN
     IF(nFullNewtonIter.EQ.1)THEN
       !etaA=etaMax
       !etaB=etaMax
@@ -244,7 +251,13 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_Ful
     END DO ! iPart
 
     ! now, we have an initial guess for the field  can compute the first particle movement
-    CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE.)
+    IF(FullEisenstatWalker.GT.1)THEN
+      relTolerancePart=relTolerance*relTolerance
+    ELSE
+      relTolerancePart=eps2PartNewton
+    END IF
+    CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
+                       ,AbortTol_In=relTolerancePart)
 
     ! move particle, if not already done, here, a reduced list could be again used, but a different list...
 #ifdef MPI

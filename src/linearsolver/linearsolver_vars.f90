@@ -59,7 +59,10 @@ INTEGER              :: maxFullNewtonIter                                       
 INTEGER              :: TotalFullNewtonIter                                         ! counter for all total full newton iters
 REAL                 :: Eps_FullNewton                                              ! abort tolerance for fullnewtoniter
 REAL                 :: Eps2_FullNewton                                             ! square of above
-LOGICAL              :: FullEisenstatWalker                                         ! Switch for outer eisenstat walker
+INTEGER              :: FullEisenstatWalker                                         ! Switch for outer eisenstat walker
+                                                                                    ! 0 - no Eisenstat-Walker
+                                                                                    ! 1 - Field Solver
+                                                                                    ! 2 - Particle Newton and Field Solver
 REAL                 :: FullgammaEW                                                 ! Eisenstat-Walker parameter
 #endif
 !===================================================================================================================================

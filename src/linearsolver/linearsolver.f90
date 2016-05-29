@@ -114,7 +114,7 @@ maxFullNewtonIter    = GETINT('maxFullNewtonIter','100')
 TotalFullNewtonIter  = 0
 Eps_FullNewton       = GETREAL('eps_FullNewton','1e-3')
 Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
-FullEisenstatWalker  = GETLOGICAL('FullEisenstatWalker','F')
+FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
 DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 #endif
