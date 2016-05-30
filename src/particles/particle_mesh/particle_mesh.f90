@@ -1131,9 +1131,9 @@ IF ((DepositionType.EQ.'shape_function') &
   nShapePaddingX = INT(r_sf/GEO%FIBGMdeltas(1)+0.9999999)
   nShapePaddingY = INT(r_sf/GEO%FIBGMdeltas(2)+0.9999999)
   nShapePaddingZ = INT(r_sf/GEO%FIBGMdeltas(3)+0.9999999)
-  IPWRITE(*,*) 'nShapePaddingX',nShapePaddingX
-  IPWRITE(*,*) 'nShapePaddingY',nShapePaddingY
-  IPWRITE(*,*) 'nShapePaddingZ',nShapePaddingZ
+  !IPWRITE(*,*) 'nShapePaddingX',nShapePaddingX
+  !IPWRITE(*,*) 'nShapePaddingY',nShapePaddingY
+  !IPWRITE(*,*) 'nShapePaddingZ',nShapePaddingZ
  ! IF(mode.EQ.2) THEN
  !   IF((nShapePaddingX.EQ.0)    &
  !     .OR.(nShapePaddingY.EQ.0) &
