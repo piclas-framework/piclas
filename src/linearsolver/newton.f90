@@ -76,7 +76,7 @@ CALL CalcSource(t,1.,ImplicitSource)
 
 Norm_R=0.
 DO iElem=1,PP_nElems
-  Norm_e=0
+  Norm_e=0.
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
@@ -101,7 +101,7 @@ CALL MPI_ALLREDUCE(DeltaX,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,i
 END SUBROUTINE ImplicitNorm
 
 
-SUBROUTINE FullNewton(tStage,coeff)
+SUBROUTINE FullNewton(t,tStage,coeff)
 !===================================================================================================================================
 ! Full Newton with particles and field 
 ! Newton:
@@ -144,6 +144,7 @@ USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
 IMPLICIT NONE
 ! INPUT VARIABLES 
 !----------------------------------------------------------------------------------------------------------------------------------!
+REAL,INTENT(IN)            :: t
 REAL,INTENT(INOUT)         :: tStage
 REAL,INTENT(INOUT)         :: coeff
 ! OUTPUT VARIABLES
@@ -159,7 +160,7 @@ REAL                       :: relTolerance,relTolerancePart,Criterion
 !===================================================================================================================================
 
 #ifdef PARTICLES
-IF (tStage.GE.DelayTime) THEN
+IF (t.GE.DelayTime) THEN
   IF(FullEisenstatWalker.GT.1)THEN
     relTolerancePart=0.998
   ELSE
@@ -230,6 +231,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_Ful
         etaC=MIN(etaMax,MAX(etaA,Criterion))
       END IF
       !SWRITE(*,*) 'etaC ', etaC
+      !relTolerance=MIN(MIN(etaMax,MAX(etaC,0.5*taut/Norm_R)),FullgammaEW*relTolerance)
       relTolerance=MIN(etaMax,MAX(etaC,0.5*taut/Norm_R))
     END IF
   ELSE
@@ -240,7 +242,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_Ful
   CALL LinearSolver(tStage,coeff,relTolerance)
 
 #ifdef PARTICLES
-  IF (tStage.GE.DelayTime) THEN
+  IF (t.GE.DelayTime) THEN
     DO iPart=1,PDM%ParticleVecLength
       IF(PartIsImplicit(iPart))THEN
         LastPartPos(iPart,1)=PartState(iPart,1)
@@ -289,7 +291,7 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_Ful
 
   Norm_Rold=Norm_R
   CALL ImplicitNorm(tStage,coeff,Norm_R)
-  IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'iter,Norm_R',nFullNewtonIter,Norm_R
+  IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'iter,Norm_R,rel,abort',nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
 
 END DO ! funny pseudo Newton for all implicit
 totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter

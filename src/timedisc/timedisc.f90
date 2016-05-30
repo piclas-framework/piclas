@@ -3146,7 +3146,8 @@ DO iStage=2,nRKStages
   END IF
 #endif /*PARTICLES*/
   ! full newton for particles and fields
-  CALL FullNewton(tStage,alpha)
+  CALL FullNewton(t,tStage,alpha)
+  CALL DivCleaningDamping()
 END DO
 
 #ifdef PARTICLES
