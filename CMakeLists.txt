@@ -503,11 +503,6 @@ INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boltzplatz DESTINATION bin)
 INSTALL(FILES  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt DESTINATION bin)
 
 # =========================================================================
-# final message
-# =========================================================================
-ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: BOLZPLATZ EXECUTABLE GENERATED!")
-
-# =========================================================================
 # Ctags
 # =========================================================================
 IF(BOLTZPLATZ_CTAGS)
