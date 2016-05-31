@@ -1071,7 +1071,7 @@ DO iPart=1,PDM%ParticleVecLength
         oldElemID=NewElemID
       END IF
     
-      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.0) THEN
+      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell) THEN
         PartIsDone=.FALSE.
         TestElem=PEM%Element(iPart)
         IF(.NOT.IsBCElem(TestElem))THEN
