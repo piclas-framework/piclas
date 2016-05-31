@@ -2943,6 +2943,14 @@ tStage=t
 #ifdef PARTICLES
 ! communicate shape function particles
 #ifdef MPI
+PartMPIExchange%nMPIParticles=0
+IF(DoExternalParts)THEN
+  ! as we do not have the shape function here, we have to deallocate something
+  SDEALLOCATE(ExtPartState)
+  SDEALLOCATE(ExtPartSpecies)
+  SDEALLOCATE(ExtPartToFIBGM)
+  SDEALLOCATE(ExtPartMPF)
+END IF
 ! open receive buffer for number of particles
 CALL IRecvNbofParticles()
 ! send number of particles
