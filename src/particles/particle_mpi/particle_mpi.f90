@@ -921,7 +921,7 @@ IF(DoExternalParts) THEN
           ,STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&
-  ,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank)
+  ,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank,REAL(ALLOCSTAT))
   IF (usevMPF) THEN
     ALLOCATE(ExtPartMPF (1:NbrOfExtParticles) &
             ,STAT=ALLOCSTAT)
