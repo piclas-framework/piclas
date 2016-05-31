@@ -350,6 +350,7 @@ USE MOD_TimeDisc_Vars,         ONLY: dt
 USE MOD_PARTICLE_Vars,         ONLY: WriteMacroValues,MacroValSamplIterNum
 USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
+USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh, SampWall
 USE MOD_DSMC_Vars,             ONLY: DSMC,useDSMC, iter_macvalout
 USE MOD_DSMC_Vars,             ONLY: DSMC_HOSolution
 USE MOD_DSMC_Analyze,          ONLY: DSMCHO_data_sampling, WriteDSMCHOToHDF5
@@ -386,7 +387,7 @@ LOGICAL,INTENT(IN),OPTIONAL   :: LastIter
 ! LOCAL VARIABLES
 #ifdef PARTICLES
 #ifdef MPI
-INTEGER                       :: RECI
+INTEGER                       :: RECI, iSide
 REAL                          :: RECR
 #endif /*MPI*/
 #endif /*PARTICLES*/
@@ -501,7 +502,12 @@ IF ((WriteMacroValues).AND.(.NOT.Output))THEN
     CALL LD_DSMC_output_calc()
 #else
     CALL WriteDSMCHOToHDF5(TRIM(MeshFile),t+dt)
-    IF (DSMC%CalcSurfaceVal) CALL CalcSurfaceValues
+    IF (DSMC%CalcSurfaceVal) THEN
+      CALL CalcSurfaceValues
+      DO iSide=1,SurfMesh%nTotalSides 
+        SampWall(iSide)%State=0.
+      END DO
+    END IF
 #endif
     iter_macvalout = 0
     DSMC%SampNum = 0
