@@ -375,7 +375,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,SideToElem
 USE MOD_Mesh_Vars              ,ONLY: BC,BoundaryType,nBCSides
-USE MOD_Mesh                   ,ONLY: VolToSide,SideToVol
+USE MOD_Mappings               ,ONLY: VolToSide,SideToVol
 USE MOD_Precond_Vars           ,ONLY: nVec, Surf, neighborElemID
 USE MOD_LinearSolver_Vars      ,ONLY: nDOFElem,nDOFSide
 USE MOD_Jac_Ex_Vars            ,ONLY: LL_minus, LL_plus

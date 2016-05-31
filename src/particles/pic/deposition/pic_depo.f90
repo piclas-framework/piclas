@@ -655,7 +655,7 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 END SUBROUTINE InitializeDeposition
 
 
-SUBROUTINE Deposition(doInnerParts)  
+SUBROUTINE Deposition(doInnerParts,doParticle_In)
 !============================================================================================================================
 ! This subroutine performes the deposition of the particle charge and current density to the grid
 ! following list of distribution methods are implemted
@@ -691,12 +691,14 @@ USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem,tCartMesh,ElemTime
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT variable declaration                                                                       
-LOGICAL                          :: doInnerParts
+LOGICAL,INTENT(IN)               :: doInnerParts
+LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT variable declaration                                                                       
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration                                                                       
 !-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL                          :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                          :: firstPart,lastPart
 INTEGER                          :: i,j, k, l, m, iElem, iPart
 LOGICAL                          :: chargedone(1:nElems)!, SAVE_GAUSS             
@@ -724,6 +726,12 @@ REAL                             :: tLBStart,tLBEnd
 #endif /*MPI*/
 !============================================================================================================================
 
+IF(PRESENT(DoParticle_IN))THEN
+  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
+ELSE
+  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
+END IF
+
 IF(doInnerParts)THEN
   source=0.0
   firstPart=1
@@ -738,6 +746,7 @@ ELSE
   lastPart =0
 #endif /*MPI*/
 END IF
+
   
 !IF((firstPart.GT.lastPart).AND.(DepositionType.NE.'delta_distri').AND.(DepositionType.NE.'shape_function')&
 !                          .AND.(DepositionType.NE.'nearest_blurrycenter')) RETURN
@@ -751,7 +760,8 @@ CASE('nearest_blurrycenter')
     tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
     DO iPart=firstPart,lastPart
-      IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+      !IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+      IF(.NOT.DoParticle(iPart)) CYCLE
       IF(PEM%Element(iPart).EQ.iElem)THEN
         IF(usevMPF)THEN
 !#if (PP_nVar==8)
@@ -801,7 +811,8 @@ CASE('cell_volweight')
   ALLOCATE(BGMSourceCellVol(0:1,0:1,0:1,1:nElems,1:4))
   BGMSourceCellVol(:,:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
-    IF (PDM%ParticleInside(iPart)) THEN
+    !IF (PDM%ParticleInside(iPart)) THEN
+    IF (DoParticle(iPart)) THEN
 #ifdef MPI
      tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
@@ -891,7 +902,8 @@ CASE('epanechnikov')
   ALLOCATE(tempsource(0:PP_N,0:PP_N,0:PP_N))
   IF(DoInnerParts)  tempcharge= 0.0
   DO iPart = firstPart, lastPart
-    IF (PDM%ParticleInside(iPart)) THEN
+    !IF (PDM%ParticleInside(iPart)) THEN
+    IF (DoParticle(iPart)) THEN
 #ifdef MPI
       tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
@@ -987,7 +999,8 @@ CASE('shape_function')
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
   DO iPart=firstPart,LastPart
-    IF (PDM%ParticleInside(iPart)) THEN
+    !IF (PDM%ParticleInside(iPart)) THEN
+    IF (DoParticle(iPart)) THEN
       IF (usevMPF) THEN
         Fac(4)= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)*w_sf
       ELSE
@@ -1364,7 +1377,8 @@ CASE('shape_function_1d')
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
   DO iPart=firstPart,LastPart
-    IF (PDM%ParticleInside(iPart)) THEN
+    !IF (PDM%ParticleInside(iPart)) THEN
+    IF (DoParticle(iPart)) THEN
       IF (usevMPF) THEN
         Fac(4)= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)*w_sf
       ELSE
@@ -1773,7 +1787,8 @@ CASE('cylindrical_shape_function')
     Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
   END IF
   DO iPart=firstPart,LastPart
-    IF (PDM%ParticleInside(iPart)) THEN
+    !IF (PDM%ParticleInside(iPart)) THEN
+    IF (DoParticle(iPart)) THEN
       ! compute local radius
       local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:2),PartState(iPart,1:2)))
       local_r2_sf=local_r_sf*local_r_sf
@@ -1962,7 +1977,8 @@ CASE('delta_distri')
     tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
     DO iPart=firstPart,LastPart
-      IF (PDM%ParticleInside(iPart)) THEN
+      ! IF (PDM%ParticleInside(iPart)) THEN
+      IF (DoParticle(iPart)) THEN
         IF(PEM%Element(iPart).EQ.iElem)THEN
           IF (usevMPF) THEN
             prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
@@ -2066,7 +2082,8 @@ CASE('nearest_gausspoint')
     tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
     DO iPart=firstPart,LastPart
-      IF (PDM%ParticleInside(iPart)) THEN
+     ! IF (PDM%ParticleInside(iPart)) THEN
+      IF (DoParticle(iPart)) THEN
         IF(PEM%Element(iPart).EQ.iElem)THEN
           IF (usevMPF) THEN
             prefac= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
@@ -2151,7 +2168,8 @@ CASE('cartmesh_volumeweighting')
 #endif /*MPI*/
   BGMSource(:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
-    IF (PDM%ParticleInside(iPart)) THEN
+    !IF (PDM%ParticleInside(iPart)) THEN
+    IF (DoParticle(iPart)) THEN
       IF (usevMPF) THEN
         Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
       ELSE
@@ -2250,7 +2268,8 @@ CASE('cartmesh_splines')
 #endif /*MPI*/
   BGMSource(:,:,:,:) = 0.0
   DO iPart = firstPart, lastPart
-    IF (PDM%ParticleInside(iPart)) THEN
+    !IF (PDM%ParticleInside(iPart)) THEN
+    IF (DoParticle(iPart)) THEN
 !      Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
       IF (usevMPF) THEN
         Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)

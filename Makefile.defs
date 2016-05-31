@@ -1,3 +1,5 @@
+MKFILE_PATH:=$(abspath $(lastword $(MAKEFILE_LIST)))
+CURRENT_DIR:=$(dir $(MKFILE_PATH))
 #=================================================================================================================================#
 # CONFIGURATION                                                                                                                   #
 # USAGE:
@@ -18,10 +20,10 @@
 #                      BLUEGENE  (Juelich Juqueen cluster)
 #=================================================================================================================================#
 INIFILE=$(MAINDIR)ini/particles.ini
-#COMPILER=INTEL
+COMPILER=INTEL
 #COMPILER=INTEL_DEBUG
 #COMPILER=GNU_DEBUG
-COMPILER=GNU
+#COMPILER=GNU
 MACHINE=AUTO  # AUTO, CRAY, NEHALEM or leave empty
 
 #=================================================================================================================================#
@@ -115,6 +117,12 @@ endif
 ifeq ($(TIMEDISCMETHOD),112)
   IMPA=T
 endif
+ifeq ($(TIMEDISCMETHOD),121)
+  IMPA=T
+endif
+ifeq ($(TIMEDISCMETHOD),122)
+  IMPA=T
+endif
 
 
 #=================================================================================================================================#
@@ -166,6 +174,7 @@ PREPROC +=-DPP_N=$(N)
 ifneq ($(PARTICLES),)
   PREPROC +=-DPARTICLES=$(PARTICLES)
 endif
+PREPROC +=-DBASEDIR="'$(CURRENT_DIR)'"
 ifneq ($(FILESYSTEM),)
   PREPROC +=-D$(FILESYSTEM)
 endif
@@ -209,6 +218,14 @@ SHARECOMP=$(subst $(space),$(empty),$(SHARECOMP_MOD))
 #---------------------------------------------------------------------------------------------------------------------------------#
 # HDF5
 #---------------------------------------------------------------------------------------------------------------------------------#
+ifeq ($(MPI),T)
+  H5MPI +=-enable-parallel
+else ifeq ($(MPI),TRUE)
+  H5MPI +=-enable-parallel
+else
+  H5MPI +=-disable-parallel
+endif
+
 # Download and compile HDF5 libraries, if not already available
 ifeq ($(MACHINE),)
   ifeq ($(HDF5_DIR),)
@@ -240,6 +257,7 @@ HDF5_INC  = -I$(HDF5_BASE)/include/
 HDF5_LIBS = -lhdf5_fortran -lhdf5
 # HDF5 requires DL lib and Zlib
 HDF5_LIBS += -ldl -lz
+PREPROC +=-DH5TOOLSDIR="'$(HDF5_BASE)/bin/'"
 #---------------------------------------------------------------------------------------------------------------------------------#
 
 #---------------------------------------------------------------------------------------------------------------------------------#

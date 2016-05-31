@@ -31,6 +31,7 @@ io_hdf5/hdf5_input.f90
 io_hdf5/hdf5_output.f90
 mesh/mesh_vars.f90
 mesh/mesh.f90
+mesh/mapping.f90
 mesh/metrics.f90
 mesh/mesh_readin.f90
 mesh/prepare_mesh.f90
@@ -141,3 +142,8 @@ particles/particle_pressure.f90
 particles/ld/ld_dsmc_coupling_tools.f90 
 particles/ld/ld_dsmc_domain_decomposition.f90
 particles/ld/ld_internal_temperature.f90
+hdg/hdg_vars.f90
+hdg/elem_mat.f90
+hdg/hdg.f90
+particles/dsmc/dsmc_surface_model.f90
+particles/dsmc/dsmc_surface_model_init.f90

@@ -9,6 +9,7 @@ MODULE MOD_HDG
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
+#ifdef PP_HDG
 INTERFACE InitHDG
   MODULE PROCEDURE InitHDG
 END INTERFACE
@@ -23,10 +24,12 @@ END INTERFACE
 
 PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RestartHDG
+#endif /* PP_HDG*/
 !===================================================================================================================================
 
 CONTAINS
 
+#ifdef PP_HDG
 SUBROUTINE InitHDG()
 !===================================================================================================================================
 ! Initialize variables of the HDG module
@@ -1476,6 +1479,9 @@ REAL,INTENT(OUT)  :: Resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: i
+#ifdef MPI
+REAL              :: ResuSend
+#endif
 !===================================================================================================================================
 
 Resu=0.
@@ -1484,7 +1490,8 @@ DO i=1,dim1
 END DO
 
 #ifdef MPI
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  ResuSend=Resu
+  CALL MPI_ALLREDUCE(ResuSend,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
 
 END SUBROUTINE VectorDotProduct
@@ -1654,5 +1661,6 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
   CALL PostProcessGradient(U_out(4,:,:),lambda(4,:,:),E)
 #endif
 END SUBROUTINE RestartHDG
+#endif /* PP_HDG*/
 
 END MODULE MOD_HDG

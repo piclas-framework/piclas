@@ -30,14 +30,17 @@ SUBROUTINE VerifyDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,          ONLY : nElems, sJ
-USE MOD_Particle_Vars,      ONLY : PDM, Species, PartSpecies ,PartMPF,usevMPF
-USE MOD_Interpolation_Vars, ONLY : wGP
-USE MOD_PICDepo_Vars,  ONLY : Source
+USE MOD_Mesh_Vars,            ONLY:nElems, sJ
+USE MOD_Particle_Vars,        ONLY:PDM, Species, PartSpecies ,PartMPF,usevMPF
+USE MOD_Interpolation_Vars,   ONLY:wGP
+USE MOD_PICDepo_Vars,         ONLY:Source
 USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,      ONLY : PartMPI
+#if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource
 #endif
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
+#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -61,7 +64,11 @@ DO iElem=1,nElems
   ChargeLoc=0. 
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+#if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+    ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+#else
     ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * source(4,i,j,k,iElem) * J_N(1,i,j,k)
+#endif
   END DO; END DO; END DO
   Charge = Charge + ChargeLoc
 END DO
@@ -108,9 +115,10 @@ USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_PICDepo_Vars,           ONLY:Source
 USE MOD_Particle_Analyze_Vars,  ONLY:PartCharge
 USE MOD_TimeDisc_Vars,          ONLY:iter
-!#ifdef MPI
+#if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_LinearSolver_Vars,      ONLY:ImplicitSource
+#endif
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
-!#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -134,7 +142,11 @@ DO iElem=1,PP_nElems
   ! compute the deposited charge
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+#if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+#else
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * source(4,i,j,k,iElem) * J_N(1,i,j,k)
+#endif
   END DO; END DO; END DO
 END DO
 

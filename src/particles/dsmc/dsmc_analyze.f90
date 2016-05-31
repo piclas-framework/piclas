@@ -59,7 +59,7 @@ SUBROUTINE CalcSurfaceValues
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Timedisc_Vars,              ONLY:time
+  USE MOD_Timedisc_Vars,              ONLY:time,dt
   USE MOD_DSMC_Vars,                  ONLY:MacroSurfaceVal,MacroSurfaceCounter, DSMC !,SampWall
   USE MOD_Particle_Boundary_Vars,     ONLY:SurfMesh,nSurfSample,SampWall
   USE MOD_Particle_Boundary_Sampling, ONLY:WriteSurfSampleToHDF5
@@ -144,7 +144,7 @@ SUBROUTINE CalcSurfaceValues
         SumCounterTotal(nSpecies+1) = SumCounterTotal(nSpecies+1) + SumCounterTotal(iSpec)
       END IF
     END DO
-    SWRITE(*,*) ' The following species swaps at walls have been sampled:'
+    SWRITE(UNIT_stdOut,'(A)') ' The following species swaps at walls have been sampled:'
     DO iSpec=1,nSpecies
       SWRITE(*,'(A9,I2,A2,E16.9,A6)') ' Species ',iSpec,': ',REAL(SumCounterTotal(iSpec)) / TimeSample,' MP/s;'
     END DO
@@ -153,7 +153,7 @@ SUBROUTINE CalcSurfaceValues
     DEALLOCATE(SumCounterTotal)
   END IF
 
-  CALL WriteSurfSampleToHDF5(TRIM(MeshFile),time)
+  CALL WriteSurfSampleToHDF5(TRIM(MeshFile),time+dt)
 
   DEALLOCATE(MacroSurfaceVal,MacroSurfaceCounter)
 
@@ -929,9 +929,11 @@ SELECT CASE(TRIM(HODSMC%SampleType))
       TSource(4:6) = PartState(i,4:6)**2
       TSource(7) = 1.0  !density
       IF(useDSMC)THEN
-        IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-          IF(SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+        IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+          IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
             TSource(8:9)      =  PartStateIntEn(i,1:2)
+          ELSE
+            TSource(8:9) = 0.0
           END IF
         ELSE
           TSource(8:9) = 0.0
@@ -1076,15 +1078,14 @@ CASE('nearest_gausspoint')
       Source(4:6,k,l,m,iElem, iSpec) = Source(4:6,k,l,m,iElem, iSpec) + PartState(i,4:6)**2
       Source(7,k,l,m,iElem, iSpec) = Source(7,k,l,m,iElem, iSpec) + 1.0  !density
       IF(useDSMC)THEN
-        IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-          IF(SpecDSMC(PartSpecies(i))%InterID.EQ.2) &
-          Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(i,1:2)
+        IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+          IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+            Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(i,1:2)
+          END IF
         END IF
         IF (DSMC%ElectronicState) THEN
           Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
         END IF
-      ELSE
-        Source(8:10,k,l,m,iElem,iSpec)=0.
       END IF
       Source(11,k,l,m,iElem, iSpec) = Source(11,k,l,m,iElem, iSpec) + 1.0 
     END IF
@@ -1106,15 +1107,14 @@ CASE('cell_mean')
         Source(4:6,kk,ll,mm,iElem, iSpec) = Source(4:6,kk,ll,mm,iElem, iSpec) + PartState(i,4:6)**2
         Source(7,kk,ll,mm,iElem, iSpec) = Source(7,kk,ll,mm,iElem, iSpec) + 1.0  !density
         IF(useDSMC)THEN
-          IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-            IF(SpecDSMC(PartSpecies(i))%InterID.EQ.2) &
-            Source(8:9,kk,ll,mm,iElem, iSpec) = Source(8:9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,1:2)
+          IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+            IF (SpecDSMC(PartSpecies(i))%InterID.EQ.2) THEN
+              Source(8:9,kk,ll,mm,iElem, iSpec) = Source(8:9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,1:2)
+            END IF
           END IF
           IF (DSMC%ElectronicState) THEN
             Source(10,kk,ll,mm,iElem, iSpec) = Source(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
           END IF
-        ELSE
-          Source(8:10,kk,ll,mm,iElem,iSpec)=0.
         END IF
         Source(11,kk,ll,mm,iElem, iSpec) = Source(11,kk,ll,mm,iElem, iSpec) + 1.0 
       END DO; END DO; END DO
@@ -1141,9 +1141,12 @@ CASE('cell_volweight')
     TSource(4:6) = PartState(iPart,4:6)**2
     TSource(7) = 1.0  !density
     IF(useDSMC)THEN
-      IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-        IF(SpecDSMC(PartSpecies(iPart))%InterID.EQ.2) &
-        TSource(8:9)      =  PartStateIntEn(iPart,1:2)
+      IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
+        IF (SpecDSMC(PartSpecies(iPart))%InterID.EQ.2) THEN
+          TSource(8:9)      =  PartStateIntEn(iPart,1:2)
+        ELSE
+          TSource(8:9) = 0.0
+        END IF
       ELSE
         TSource(8:9) = 0.0
       END IF
@@ -1354,8 +1357,6 @@ DO iSpec = 1, nSpecies
               END IF
             END IF
           END IF
-        ELSE
-          DSMC_MacroVal(8:10,kk,ll,mm,iElem)=0.
         END IF
         DSMC_MacroVal(11,kk,ll,mm, iElem) = DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec) 
       CASE('nearest_gausspoint') 
@@ -1402,8 +1403,6 @@ DO iSpec = 1, nSpecies
                 END IF
               END IF
             END IF
-          ELSE
-            DSMC_MacroVal(8:10,kk,ll,mm, iElem) = 0.0
           END IF
         ELSE
           DSMC_MacroVal(1:10,kk,ll,mm, iElem) = 0.0
@@ -1453,8 +1452,6 @@ DO iSpec = 1, nSpecies
                 END IF
               END IF
             END IF
-          ELSE
-            DSMC_MacroVal(8:10,kk,ll,mm, iElem) = 0.0
           END IF
         ELSE
           DSMC_MacroVal(1:10,kk,ll,mm, iElem) = 0.0

@@ -114,10 +114,10 @@ DO ilocSide=1,6
   END IF
   
   SELECT CASE(SideType(SideID))
-!  CASE(PLANAR)
+!  CASE(PLANAR_RECT)
 !    CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta  &
 !                                                                            ,PartID,flip,SideID)
-!  CASE(BILINEAR)
+!  CASE(BILINEAR,PLANAR_NONRECT)
 !    xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
 !    xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
 !    xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -133,14 +133,14 @@ DO ilocSide=1,6
 
 
 
-  CASE(PLANAR)
+  CASE(PLANAR_RECT)
 
     CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,alpha &
                                                                               ,xi,eta ,PartID,flip,SideID)
     !CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
     !                                                                              ,xi             &
     !                                                                              ,eta   ,PartID,flip,SideID)
-  CASE(BILINEAR)
+  CASE(BILINEAR,PLANAR_NONRECT)
     xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
     xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
     xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -160,7 +160,7 @@ DO ilocSide=1,6
   IF(DoRefMapping)THEN
     IF(alpha.GT.-1)THEN
       SELECT CASE(SideType(SideID))
-      CASE(PLANAR)
+      CASE(PLANAR_RECT,PLANAR_NONRECT)
         NormVec=SideNormVec(1:3,SideID)
       CASE(BILINEAR)
         CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
@@ -1981,7 +1981,7 @@ P0=(locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)    &
 P1=0.25*P1
 P2=0.25*P2
 Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-P0=0.25*P0-Inter1
+P0=-0.25*P0+Inter1
 
 
 A1=P1(1)+P1(3)
@@ -2033,7 +2033,7 @@ END IF
 sdet=1.0/sdet
 
 
-xi=(-b2*c1+b1*c2)*sdet
+xi=(b2*c1-b1*c2)*sdet
 IF(ABS(xi).GT.BezierClipHit)THEN
 !IF(ABS(xi).GT.OnePlusEps)THEN
   alpha=-1.0
@@ -2041,7 +2041,7 @@ IF(ABS(xi).GT.BezierClipHit)THEN
 END IF
 
 !eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-eta=(+a2*c1-a1*c2)*sdet
+eta=(-a2*c1+a1*c2)*sdet
 IF(ABS(eta).GT.BezierClipHit)THEN
   alpha=-1.0
   RETURN
@@ -2173,6 +2173,7 @@ END IF
 
 alphaNorm=alpha/lengthPartTrajectory
 !IF((alpha.GT.lengthPartTrajectory) .OR.(alpha.LT.-epsilontol))THEN
+
 IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
 !IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LE.0.))THEN
 !IF((alphaNorm.GE.1.0) .OR.(alphaNorm.LT.0.))THEN
@@ -2193,7 +2194,7 @@ P0=(locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)    &
 P1=0.25*P1
 P2=0.25*P2
 Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-P0=0.25*P0-Inter1
+P0=-0.25*P0+Inter1
 
 A1=P1(1)+P1(3)
 B1=P2(1)+P2(3)
@@ -2286,6 +2287,7 @@ epsLoc=1.0+100.*epsMach
 
 xi=(b2*c1-b1*c2)*sdet
 !IF(ABS(xi).GT.BezierClipHit)THEN
+
 IF(ABS(xi).GT.epsLoc)THEN
 !IF(ABS(xi).GT.OnePlusEps)THEN
   alpha=-1.0

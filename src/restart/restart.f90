@@ -161,7 +161,7 @@ SUBROUTINE Restart()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,                 ONLY:U
-USE MOD_Mesh_Vars,               ONLY:offsetElem
+USE MOD_Mesh_Vars,               ONLY:offsetElem,DoWriteStateToHDF5
 #ifdef PP_HDG
 USE MOD_Mesh_Vars,               ONLY:offsetSide,nSides,nMPISides_YOUR, offsetSide
 #endif /*PP_HDG*/
@@ -223,6 +223,7 @@ REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
 INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
 INTEGER                  :: NbrOfFoundParts, CompleteNbrOfFound, RecCount(0:PartMPI%nProcs-1)
 #endif /*MPI*/
+REAL                     :: VFR_total
 #endif /*PARTICLES*/
 !===================================================================================================================================
 IF(DoRestart)THEN
@@ -410,6 +411,15 @@ __STAMP__&
     DO iInit = Species(i)%StartnumberOfInits, Species(i)%NumberOfInits
       Species(i)%Init(iInit)%InsertedParticle = INT(Species(i)%Init(iInit)%ParticleEmission * RestartTime,8)
     END DO
+    DO iInit = 1, Species(i)%nSurfacefluxBCs
+      IF (Species(i)%Surfaceflux(iInit)%ReduceNoise) THEN
+        VFR_total = Species(i)%Surfaceflux(iInit)%VFR_total_allProcsTotal !proc global total (for non-root: dummy!!!)
+      ELSE
+        VFR_total = Species(i)%Surfaceflux(iInit)%VFR_total               !proc local total
+      END IF
+      Species(i)%Surfaceflux(iInit)%InsertedParticle = INT(Species(i)%Surfaceflux(iInit)%PartDensity * RestartTime &
+        / Species(i)%MacroParticleFactor * VFR_total,8)
+    END DO
   END DO
   ! if ParticleVecLength GT maxParticleNumber: Stop
   IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
@@ -574,7 +584,7 @@ __STAMP__&
 
   CALL CloseDataFile() 
   ! Delete all files that will be rewritten
-  CALL FlushHDF5(RestartTime)
+  IF(DoWriteStateToHDF5) CALL FlushHDF5(RestartTime)
 #ifdef MPI
   EndT=MPI_WTIME()
   SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Restart took  [',EndT-StartT,'s] for readin.'
@@ -584,7 +594,7 @@ __STAMP__&
 #endif
 ELSE
   ! Delete all files since we are doing a fresh start
-  CALL FlushHDF5()
+  IF(DoWriteStateToHDF5) CALL FlushHDF5()
 END IF
 END SUBROUTINE Restart
 

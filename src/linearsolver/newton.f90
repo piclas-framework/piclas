@@ -2,7 +2,7 @@
 
 MODULE MOD_Newton
 !===================================================================================================================================
-! Contains routines to compute the riemann (Advection, Diffusion) for a given Face
+! Contains routines for the fully implicit scheme
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -14,18 +14,297 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+INTERFACE ImplicitNorm
+  MODULE PROCEDURE ImplicitNorm
+END INTERFACE
+
+INTERFACE FullNewton
+  MODULE PROCEDURE FullNewton
+END INTERFACE
+#endif 
 
 #if (PP_TimeDiscMethod==104) 
 INTERFACE Newton
   MODULE PROCEDURE Newton
 END INTERFACE
 
-!PUBLIC:: InitImplicit, FinalizeImplicit
 PUBLIC:: Newton
 #endif
+
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+PUBLIC::ImplicitNorm,FullNewton
+#endif 
 !===================================================================================================================================
 
 CONTAINS
+
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+SUBROUTINE ImplicitNorm(t,coeff,Norm_R) 
+!===================================================================================================================================
+! The error-norm of the fully implicit scheme is computed
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_DG_Vars,                 ONLY:U,Ut
+USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS
+USE MOD_Equation,                ONLY:CalcSource
+USE MOD_Mesh_Vars,               ONLY:OffSetElem
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+REAL,INTENT(IN)        :: t
+REAL,INTENT(IN)        :: coeff
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)       :: Norm_R
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                   :: DeltaX ! difference between electric field and div-correction
+INTEGER                :: iElem, i,j,k,iVar
+REAL :: Norm_e
+!===================================================================================================================================
+
+! compute error-norm-version1, non-optimized
+CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
+ImplicitSource=ExplicitSource
+CALL CalcSource(t,1.,ImplicitSource)
+
+Norm_R=0.
+DO iElem=1,PP_nElems
+  Norm_e=0.
+  DO k=0,PP_N
+    DO j=0,PP_N
+      DO i=0,PP_N
+        DO iVar=1,8
+          DeltaX=U(iVar,i,j,k,iElem)-coeff*Ut(iVar,i,j,k,iElem)              &
+                                    -coeff*ImplicitSource(iVar,i,j,k,iElem)  &
+                                    -LinSolverRHS(iVar,i,j,k,iElem)
+          Norm_e=Norm_e + DeltaX*DeltaX
+        END DO
+      END DO
+    END DO
+  END DO
+  !IPWRITE(UNIT_stdOut,*) ' ElemID       ', iElem+offSetElem,Norm_e
+  Norm_R=Norm_R+Norm_e
+END DO
+
+#ifdef MPI
+DeltaX=Norm_R
+CALL MPI_ALLREDUCE(DeltaX,Norm_R,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+#endif
+
+END SUBROUTINE ImplicitNorm
+
+
+SUBROUTINE FullNewton(t,tStage,coeff)
+!===================================================================================================================================
+! Full Newton with particles and field 
+! Newton:
+! Init: Implicit particle step and Norm_R0
+!       1) Implicit field solver
+!       2) ParticleNewton
+!       3) Compute Norm_R
+! EisenStat-Walker is from 
+! Kelly - Iterative Methods for Linear and Nonlinear Equations, p. 105 ff
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Globals_Vars,            ONLY:EpsMach
+USE MOD_LinearSolver,            ONLY:LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:Eps_FullNewton,Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
+#ifdef PARTICLES
+USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
+USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
+USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
+USE MOD_Part_MPFtools,           ONLY:StartParticleMerge
+USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
+USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
+USE MOD_PICDepo,                 ONLY:Deposition
+USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_ParticleSolver,          ONLY:ParticleNewton
+#ifdef MPI
+USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
+#endif /*MPI*/
+#endif /*PARTICLES*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+REAL,INTENT(IN)            :: t
+REAL,INTENT(INOUT)         :: tStage
+REAL,INTENT(INOUT)         :: coeff
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                       :: Norm_R0,Norm_R,Norm_Rold
+REAL                       :: etaA,etaB,etaC,etaMax,taut
+INTEGER                    :: nFullNewtonIter
+#ifdef PARTICLES
+INTEGER                    :: iPart
+#endif /*PARTICLES*/
+REAL                       :: relTolerance,relTolerancePart,Criterion
+!===================================================================================================================================
+
+#ifdef PARTICLES
+IF (t.GE.DelayTime) THEN
+  IF(FullEisenstatWalker.GT.1)THEN
+    relTolerancePart=0.998
+  ELSE
+    relTolerancePart=eps2PartNewton
+  END IF
+  ! now, we have an initial guess for the field  can compute the first particle movement
+  CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
+                     ,AbortTol_In=relTolerancePart)
+
+  ! move particle, if not already done, here, a reduced list could be again used, but a different list...
+  ! required to get the correct deposition
+#ifdef MPI
+  ! open receive buffer for number of particles
+  CALL IRecvNbofParticles()
+#endif /*MPI*/
+!  IF(DoRefMapping)THEN
+!    CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+!  ELSE
+!    CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+!  END IF
+#ifdef MPI
+  ! here: could use deposition as hiding, not done yet
+  ! send number of particles
+  CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+  ! finish communication of number of particles and send particles
+  CALL MPIParticleSend()
+  ! finish communication
+  CALL MPIParticleRecv()
+  ! ALWAYS require
+  PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+
+  ! compute particle source terms on field solver of implicit particles :)
+  CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+  CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+END IF
+#endif /*PARTICLES*/
+
+CALL ImplicitNorm(tStage,coeff,Norm_R0)
+Norm_R=Norm_R0
+IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'Norm_R0',Norm_R0
+IF(FullEisenstatWalker.GT.0)THEN
+  etaMax=0.9999
+  taut  =epsMach+eps2_FullNewton*Norm_R0
+      !SWRITE(*,*) 'taut ', taut
+END IF
+
+nFullNewtonIter=0
+DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_FullNewton))
+!DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps_LinearSolver))
+  nFullNewtonIter = nFullNewtonIter+1
+  IF(FullEisenstatWalker.GT.0)THEN
+    IF(nFullNewtonIter.EQ.1)THEN
+      !etaA=etaMax
+      !etaB=etaMax
+      !etaC=etaMax
+      relTolerance=etaMax
+    ELSE
+      etaA=FullgammaEW*Norm_R/Norm_Rold
+      !SWRITE(*,*) 'etaA ', etaA
+      etaB=MIN(etaMax,etaA)
+      !SWRITE(*,*) 'etaB ', etaB
+      Criterion  =FullGammaEW*relTolerance*relTolerance
+      !SWRITE(*,*) 'criterion ', Criterion
+      IF(Criterion.LT.0.1)THEN
+        etaC=MIN(etaMax,etaA)
+      ELSE
+        etaC=MIN(etaMax,MAX(etaA,Criterion))
+      END IF
+      !SWRITE(*,*) 'etaC ', etaC
+      !relTolerance=MIN(MIN(etaMax,MAX(etaC,0.5*taut/Norm_R)),FullgammaEW*relTolerance)
+      relTolerance=MIN(etaMax,MAX(etaC,0.5*taut/Norm_R))
+    END IF
+  ELSE
+    relTolerance=eps_LinearSolver
+  END IF
+  ! solve field to new stage 
+  ImplicitSource=ExplicitSource
+  CALL LinearSolver(tStage,coeff,relTolerance)
+
+#ifdef PARTICLES
+  IF (t.GE.DelayTime) THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF(PartIsImplicit(iPart))THEN
+        LastPartPos(iPart,1)=PartState(iPart,1)
+        LastPartPos(iPart,2)=PartState(iPart,2)
+        LastPartPos(iPart,3)=PartState(iPart,3)
+        PEM%lastElement(iPart)=PEM%Element(iPart)
+      END IF ! PartIsImplicit
+    END DO ! iPart
+
+    ! now, we have an initial guess for the field  can compute the first particle movement
+    IF(FullEisenstatWalker.GT.1)THEN
+      relTolerancePart=relTolerance*relTolerance
+    ELSE
+      relTolerancePart=eps2PartNewton
+    END IF
+    CALL ParticleNewton(tstage,coeff,doParticle_In=PartIsImplicit(1:PDM%maxParticleNumber),Opt_In=.TRUE. &
+                       ,AbortTol_In=relTolerancePart)
+
+    ! move particle, if not already done, here, a reduced list could be again used, but a different list...
+#ifdef MPI
+    ! open receive buffer for number of particles
+    CALL IRecvNbofParticles()
+#endif /*MPI*/
+!    IF(DoRefMapping)THEN
+!      CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+!    ELSE
+!      CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+!    END IF
+#ifdef MPI
+    ! here: could use deposition as hiding, not done yet
+    ! send number of particles
+    CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    ! finish communication of number of particles and send particles
+    CALL MPIParticleSend()
+    ! finish communication
+    CALL MPIParticleRecv()
+    PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+
+    ! compute particle source terms on field solver of implicit particles :)
+    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  END IF
+#endif /*PARTICLES*/
+
+  Norm_Rold=Norm_R
+  CALL ImplicitNorm(tStage,coeff,Norm_R)
+  IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'iter,Norm_R,rel,abort',nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
+
+END DO ! funny pseudo Newton for all implicit
+totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
+IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
+  IF(MPIRoot) CALL abort(&
+ __STAMP__&
+   ,' Outer-Newton of semi-fully implicit scheme is running into infinity.')
+END IF
+
+IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'TotalIterlinearsolver',TotalIterlinearSolver
+
+END SUBROUTINE FullNewton
+#endif 
 
 #if (PP_TimeDiscMethod==104) 
 !SUBROUTINE InitNewton()

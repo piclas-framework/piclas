@@ -163,7 +163,7 @@ INTEGER         :: ALLOCSTAT
 !===================================================================================================================================
 
 PartCommSize   = 0  
-IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+IF (useDSMC.AND.(CollisMode.GT.1)) THEN
   IF (usevMPF .AND. DSMC%ElectronicState) THEN
     PartCommSize = 18
   ELSE IF (usevMPF ) THEN
@@ -190,7 +190,8 @@ IF(DoRefMapping) PartCommSize=PartCommSize+3
 #else
     PartCommSize = PartCommSize - 6
 #endif /*IMEX*/
-#else !LSERK
+#else 
+    !LSERK
     PartCommSize = PartCommSize + 1 !IsNewPart for RK-Reconstruction
 #endif
 
@@ -256,7 +257,7 @@ END DO ! iProc
 END SUBROUTINE IRecvNbOfParticles
 
 
-SUBROUTINE SendNbOfParticles()
+SUBROUTINE SendNbOfParticles(doParticle_In)
 !===================================================================================================================================
 ! this routine sends the number of send particles. Following steps are performed
 ! 1) Compute number of Send Particles
@@ -281,13 +282,14 @@ USE MOD_Particle_MPI_Vars,        ONLY:PartShiftVector
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
+! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                       :: iPart,ElemID,iProc
 ! shape function 
 INTEGER                       :: CellX,CellY,CellZ!, iPartShape
@@ -297,6 +299,12 @@ REAL                          :: ShiftedPart(1:3)
 LOGICAL                       :: PartInBGM
 !===================================================================================================================================
 
+IF(PRESENT(DoParticle_IN))THEN
+  DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
+ELSE
+  DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
+END IF
+
 ! 1) get number of send particles
 PartMPIExchange%nPartsSend=0
 !ALLOCATE(PartTargetProc(1:PDM%ParticleVecLength),STAT=ALLOCSTAT)
@@ -305,7 +313,8 @@ PartMPIExchange%nPartsSend=0
 !    ' Cannot allocate PartMPIDepoSend!')
 PartTargetProc=-1
 DO iPart=1,PDM%ParticleVecLength
-  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+  !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+  IF(.NOT.DoParticle(iPart)) CYCLE
   ElemID=PEM%Element(iPart)
   IF(ElemID.GT.PP_nElems) THEN
     PartMPIExchange%nPartsSend(1,PartHaloElemToProc(LOCAL_PROC_ID,ElemID))=             &
@@ -332,7 +341,8 @@ IF(DoExternalParts)THEN
   PartMPIDepoSend=.FALSE.
   nPartShape=0
   DO iPart=1,PDM%ParticleVecLength
-    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF(.NOT.DoParticle(iPart)) CYCLE
     IF (Species(PartSpecies(iPart))%ChargeIC.EQ.0) CYCLE        ! Don't deposite neutral particles!
     CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
     CellX = MIN(GEO%FIBGMimax,CellX)
@@ -384,7 +394,8 @@ IF(DoExternalParts)THEN
         CellZ = INT((ShiftedPart(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
         IF (.NOT.ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
           IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM! Err2'
-          IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+          IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',DoParticle(iPart)
+          !IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
           IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
           IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
           IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
@@ -400,7 +411,8 @@ IF(DoExternalParts)THEN
         END IF
       ELSE
         IPWRITE(UNIT_errOut,*)'Warning in SendNbOfParticles: Particle outside BGM!'
-        IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+        IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',DoParticle(iPart)
+        !IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
         IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
@@ -513,14 +525,17 @@ USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
 USE MOD_Timedisc_Vars,            ONLY:iStage
 #endif /*IMEX*/
 #if defined(IMPA)
+USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
 #endif /*IMPA*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
+! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -545,11 +560,14 @@ PartCommSize=PartCommSize0+(iStage-1)*6
 #endif /*IMEX*/
 #if defined (IMPA)
 #if (PP_TimeDiscMethod==110)
-PartCommSize=PartCommSize0+ 34 ! PartXk,R_PartXK
+PartCommSize=PartCommSize0+ 40 ! PartXk,R_PartXK
 #else
-PartCommSize=PartCommSize0+(iStage-1)*6 +34 ! PartXk,R_PartXK
+PartCommSize=PartCommSize0+(iStage-1)*6 +40 ! PartXk,R_PartXK ! and communicate fieldatparticle
 #endif
 #endif /*IMEX*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+PartCommSize=PartCommSize+1
+#endif
 
 ! ! 1) get number of send particles
 ! PartMPIExchange%nPartsSend=0
@@ -701,11 +719,22 @@ DO iProc=1, PartMPI%nMPINeighbors
         PartSendBuf(iProc)%content(jPos+11) = 0.0
       END IF
       jPos=jPos+4
+      ! fieldatparticle 
+      PartSendBuf(iProc)%content(jPos+8:jPos+13) = FieldAtParticle(iPart,1:6)
+      jPos=jPos+6
 #endif /*IMPA*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+      IF(PartIsImplicit(iPart))THEN
+        PartSendBuf(iProc)%content(jPos+8) = 1.0
+      ELSE
+        PartSendBuf(iProc)%content(jPos+8) = 0.0
+      END IF
+      jPos=jPos+1
+#endif
       !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       IF(.NOT.UseLD) THEN   
-        IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
           IF (usevMPF .AND. DSMC%ElectronicState) THEN
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
@@ -729,7 +758,7 @@ DO iProc=1, PartMPI%nMPINeighbors
           END IF
         END IF
       ELSE ! UseLD == true      =>      useDSMC == true
-        IF (CollisMode.NE.1) THEN
+        IF (CollisMode.GT.1) THEN
           IF (usevMPF .AND. DSMC%ElectronicState) THEN
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
@@ -765,6 +794,12 @@ DO iProc=1, PartMPI%nMPINeighbors
       iPos=iPos+PartCommSize
       ! particle is ready for send, now it can deleted
       PDM%ParticleInside(iPart) = .FALSE.  
+#ifdef IMPA
+      DoPartInNewton(iPart) = .FALSE.
+#endif /*IMPA*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+      PartIsImplicit(iPart)     = .FALSE.
+#endif
     END IF ! Particle is particle with target proc-id equals local proc id
   END DO  ! iPart
   ! next, external particles has to be handled for deposition
@@ -886,7 +921,7 @@ IF(DoExternalParts) THEN
           ,STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&
-  ,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank)
+  ,'  Cannot allocate ExtPartState on Rank',PartMPI%MyRank,REAL(ALLOCSTAT))
   IF (usevMPF) THEN
     ALLOCATE(ExtPartMPF (1:NbrOfExtParticles) &
             ,STAT=ALLOCSTAT)
@@ -1030,7 +1065,11 @@ USE MOD_Timedisc_Vars,            ONLY:iStage
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
 USE MOD_Particle_Vars,           ONLY:PartQ,F_PartX0,F_PartXk,Norm2_F_PartX0,Norm2_F_PartXK,Norm2_F_PartXK_old,DoPartInNewton
+USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #endif /*IMPA*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1065,11 +1104,14 @@ PartCommSize=PartCommSize0+(iStage-1)*6
 #endif /*IMEX*/
 #if defined (IMPA)
 #if (PP_TimeDiscMethod==110)
-PartCommSize=PartCommSize0+ 34 ! PartXk,R_PartXK
+PartCommSize=PartCommSize0+ 40 ! PartXk,R_PartXK
 #else
-PartCommSize=PartCommSize0+(iStage-1)*6 +34 ! PartXk,R_PartXK
+PartCommSize=PartCommSize0+(iStage-1)*6 +40 ! PartXk,R_PartXK
 #endif
 #endif /*IMEX*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+PartCommSize=PartCommSize+1
+#endif
 
 
 DO iProc=1,PartMPI%nMPINeighbors
@@ -1153,16 +1195,27 @@ DO iProc=1,PartMPI%nMPINeighbors
     Norm2_F_PartX0    (PartID) = PartRecvBuf(iProc)%content(jPos+8 )
     Norm2_F_PartXk    (PartID) = PartRecvBuf(iProc)%content(jPos+9 )
     Norm2_F_PartXk_Old(PartID) = PartRecvBuf(iProc)%content(jPos+10)
-    IF(PartRecvBuf(iProc)%content(11).EQ.1.0)THEN
+    IF(PartRecvBuf(iProc)%content(jPos+11).EQ.1.0)THEN
       DoPartInNewton(PartID) = .TRUE.
     ELSE
       DoPartInNewton(PartID) = .FALSE.
     END IF
     jPos=jPos+4
+    ! fieldatparticle 
+    FieldAtParticle(PartID,1:6)  = PartRecvBuf(iProc)%content(jPos+8:jPos+13)
+    jPos=jPos+6
 #endif /*IMPA*/
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+    IF(PartRecvBuf(iProc)%content(jPos+8).EQ.1.0)THEN
+        PartIsImplicit(PartID) = .TRUE.
+    ELSE
+        PartIsImplicit(PartID) = .FALSE.
+    END IF
+    jPos=jPos+1
+#endif
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     IF(.NOT.UseLD) THEN
-      IF (useDSMC.AND.(CollisMode.NE.1)) THEN
+      IF (useDSMC.AND.(CollisMode.GT.1)) THEN
         IF (usevMPF .AND. DSMC%ElectronicState) THEN
           PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content( 9+jPos)
           PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(10+jPos)
@@ -1184,7 +1237,7 @@ DO iProc=1,PartMPI%nMPINeighbors
         IF (usevMPF) PartMPF(PartID) = PartRecvBuf(iProc)%content( 9+jPos)
       END IF
     ELSE ! UseLD == true      =>      useDSMC == true
-      IF (CollisMode.NE.1) THEN
+      IF (CollisMode.GT.1) THEN
         IF (usevMPF .AND. DSMC%ElectronicState) THEN
           PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content( 9+jPos)
           PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(10+jPos)
@@ -1218,6 +1271,10 @@ DO iProc=1,PartMPI%nMPINeighbors
     ! Set Flag for received parts in order to localize them later
     PEM%lastElement(PartID) = -888 
     PDM%ParticleInside(PartID) = .TRUE.
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+    ! only for fully implicit
+    PEM%lastElement(PartID) = PEM%Element(PartID)
+#endif
   END DO
   IF(DoExternalParts)THEN
     jPos=MessageSize
@@ -1452,7 +1509,7 @@ USE MOD_PreProc
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc
+USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
 USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry,ExchangeMappedHaloGeometry
 USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
 ! IMPLICIT VARIABLE HANDLING
@@ -1529,7 +1586,9 @@ DO iProc=0,PartMPI%nProcs-1
   END IF
   !IPWRITE(UNIT_stdOut,*) 'check',tmpneigh,PartMPI%isMPINeighbor(iProc)
   IF (TmpNeigh.NEQV.PartMPI%isMPINeighbor(iProc)) THEN
-    WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
+    IF(printMPINeighborWarnings)THEN
+      WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
+    END IF
     IF(.NOT.PartMPI%isMPINeighbor(iProc))THEN
       PartMPI%isMPINeighbor(iProc) = .TRUE.
       PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
@@ -1849,9 +1908,37 @@ DO iSpec=1,nSpecies
     CASE('LD_insert')
       RegionOnProc=.TRUE.
     CASE('cuboid_equal')
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
+       xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
+            + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
+            + Species(iSpec)%Init(iInit)%BaseVector1IC(3)**2 )
+       ylen = SQRT(Species(iSpec)%Init(iInit)%BaseVector2IC(1)**2 &
+            + Species(iSpec)%Init(iInit)%BaseVector2IC(2)**2 &
+            + Species(iSpec)%Init(iInit)%BaseVector2IC(3)**2 )
+       zlen = ABS(Species(iSpec)%Init(iInit)%CuboidHeightIC)
+
+       ! make sure the vectors correspond to x,y,z-dir
+       IF ((xlen.NE.Species(iSpec)%Init(iInit)%BaseVector1IC(1)).OR. &
+           (ylen.NE.Species(iSpec)%Init(iInit)%BaseVector2IC(2)).OR. &
+           (zlen.NE.Species(iSpec)%Init(iInit)%CuboidHeightIC)) THEN
+          CALL abort(&
+          __STAMP__&
+          ,'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition')
+       END IF
+       DO iNode=1,8
+        xCoords(1:3,iNode) = Species(iSpec)%Init(iInit)%BasePointIC(1:3)
+       END DO
+       xCoords(1:3,2) = xCoords(1:3,1) + (/xlen,0.,0./)
+       xCoords(1:3,3) = xCoords(1:3,1) + (/0.,ylen,0./)
+       xCoords(1:3,4) = xCoords(1:3,1) + (/xlen,ylen,0./)
+       xCoords(1:3,5) = xCoords(1:3,1) + (/0.,0.,zlen/)
+       xCoords(1:3,6) = xCoords(1:3,5) + (/xlen,0.,0./)
+       xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
+       xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
+       RegionOnProc=BoxInProc(xCoords,8)
+
+     !~j CALL abort(&
+     !~j __STAMP__&
+     !~j ,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
     CASE ('cuboid_with_equidistant_distribution') 
        xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
             + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
@@ -1872,15 +1959,13 @@ DO iSpec=1,nSpecies
        DO iNode=1,8
         xCoords(1:3,iNode) = Species(iSpec)%Init(iInit)%BasePointIC(1:3)
        END DO
-       xCoords(1,2)   = xCoords(1,1) + xlen
-       xCoords(2,3)   = xCoords(2,1) + ylen
-       xCoords(1,4)   = xCoords(1,1) + xlen
-       xCoords(2,4)   = xCoords(2,1) + ylen
-       xCoords(3,5)   = xCoords(3,1) + zlen
-       xCoords(1,6)   = xCoords(1,5) + xlen
-       xCoords(2,7)   = xCoords(2,5) + ylen
-       xCoords(1,8)   = xCoords(1,5) + xlen
-       xCoords(2,8)   = xCoords(2,5) + ylen
+       xCoords(1:3,2) = xCoords(1:3,1) + (/xlen,0.,0./)
+       xCoords(1:3,3) = xCoords(1:3,1) + (/0.,ylen,0./)
+       xCoords(1:3,4) = xCoords(1:3,1) + (/xlen,ylen,0./)
+       xCoords(1:3,5) = xCoords(1:3,1) + (/0.,0.,zlen/)
+       xCoords(1:3,6) = xCoords(1:3,5) + (/xlen,0.,0./)
+       xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
+       xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
        RegionOnProc=BoxInProc(xCoords,8)
     CASE('sin_deviation')
        IF(Species(iSpec)%Init(iInit)%initialParticleNumber.NE. &
@@ -1895,15 +1980,13 @@ DO iSpec=1,nSpecies
        ylen = abs(GEO%ymaxglob  - GEO%yminglob)
        zlen = abs(GEO%zmaxglob  - GEO%zminglob)
        xCoords(1:3,1) = (/GEO%xminglob,GEO%yminglob,GEO%zminglob/)
-       xCoords(1,2)   = xCoords(1,1) + xlen
-       xCoords(2,3)   = xCoords(2,1) + ylen
-       xCoords(1,4)   = xCoords(1,1) + xlen
-       xCoords(2,4)   = xCoords(2,1) + ylen
-       xCoords(3,5)   = xCoords(3,1) + zlen
-       xCoords(1,6)   = xCoords(1,5) + xlen
-       xCoords(2,7)   = xCoords(2,5) + ylen
-       xCoords(1,8)   = xCoords(1,5) + xlen
-       xCoords(2,8)   = xCoords(2,5) + ylen
+       xCoords(1:3,2) = xCoords(1:3,1) + (/xlen,0.,0./)
+       xCoords(1:3,3) = xCoords(1:3,1) + (/0.,ylen,0./)
+       xCoords(1:3,4) = xCoords(1:3,1) + (/xlen,ylen,0./)
+       xCoords(1:3,5) = xCoords(1:3,1) + (/0.,0.,zlen/)
+       xCoords(1:3,6) = xCoords(1:3,5) + (/xlen,0.,0./)
+       xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
+       xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
        RegionOnProc=BoxInProc(xCoords,8)
     CASE DEFAULT
       CALL abort(&

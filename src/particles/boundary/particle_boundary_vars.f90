@@ -15,6 +15,8 @@ INTEGER                                 :: NSurfSample                   ! polyn
 REAL,ALLOCATABLE                        :: XiEQ_SurfSample(:)            ! position of XiEQ_SurfSample
 REAL                                    :: dXiEQ_SurfSample              ! deltaXi in [-1,1]
 INTEGER                                 :: OffSetSurfSide                ! offset of local surf side
+INTEGER                                 :: nSurfBC                       ! number of surface side BCs
+CHARACTER(LEN=255),ALLOCATABLE          :: SurfBCName(:)                 ! names of belonging surface BC
 #ifdef MPI
 INTEGER,ALLOCATABLE                     :: OffSetSurfSideMPI(:)          ! integer offset for particle boundary sampling            
 #endif /*MPI*/

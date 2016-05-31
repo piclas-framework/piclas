@@ -107,6 +107,10 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ESDIRK3-Particles and ERK3-Field'
 #elif (PP_TimeDiscMethod==112)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ESDIRK4-Particles and ERK4-Field'
+#elif (PP_TimeDiscMethod==121)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ERK3/ESDIRK3-Particles and ESDIRK3-Field'
+#elif (PP_TimeDiscMethod==122)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ERK4/ESDIRK4-Particles and ESDIRK4-Field'
 #elif (PP_TimeDiscMethod==200)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Euler Static Explicit'
 #elif (PP_TimeDiscMethod==201)
@@ -155,7 +159,7 @@ USE MOD_Particle_Analyze,      ONLY: AnalyzeParticles
 USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
 USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
-USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems
+USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_PML,                   ONLY: TransformPMLVars,BacktransformPMLVars
 USE MOD_PML_Vars,              ONLY: DoPML
 USE MOD_Filter,                ONLY: Filter
@@ -190,6 +194,16 @@ USE MOD_LoadBalance_Vars,      ONLY: nSkipAnalyze
 USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeightAndLoad,ComputeElemLoad
 USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
 #endif /*MPI*/
+#if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_LinearSolver_Vars, ONLY:totalIterLinearSolver
+#endif /*IMEX*/
+#ifdef IMPA
+USE MOD_LinearSolver_vars, ONLY:nPartNewton
+USE MOD_LinearSolver_Vars, ONLY:TotalPartIterLinearSolver
+#endif /*IMPA*/
+#if (PP_TimeDiscMethod==121||PP_TimeDiscMethod==122)
+USE MOD_LinearSolver_Vars,       ONLY: totalFullNewtonIter
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -244,7 +258,7 @@ tFuture=MIN(time+Analyze_dt,tEnd)
 IF(DoRestart) CALL EvalGradient()
 #endif /*PP_POIS*/
 ! Write the state at time=0, i.e. the initial condition
-CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 
 ! if measurement of particle tracking time
 #ifdef PARTICLES
@@ -461,6 +475,10 @@ DO !iter_t=0,MaxIter
   CALL TimeStepByIMPA(time) ! ) O3 ESDIRK Particles + ERK Field 
 #elif (PP_TimeDiscMethod==112)
   CALL TimeStepByIMPA(time) ! O4 ESDIRK Particles + ERK Field 
+#elif (PP_TimeDiscMethod==121)
+  CALL TimeStepByImplicitRK(time) !  O3 ERK/ESDIRK Particles + ESDIRK Field 
+#elif (PP_TimeDiscMethod==122)
+  CALL TimeStepByImplicitRK(time) ! O4 ERK/ESDIRK Particles + ESDIRK Field 
 #elif (PP_TimeDiscMethod==200)
   CALL TimeStepByEulerStaticExp(time) ! O1 Euler Static Explicit
 #elif (PP_TimeDiscMethod==201)
@@ -531,11 +549,37 @@ DO !iter_t=0,MaxIter
         WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
         WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
       END IF !MPIroot
+#if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+      SWRITE(UNIT_stdOut,'(132("="))')
+      SWRITE(UNIT_stdOut,'(A32,I12)') ' Total iteration Linear Solver    ',totalIterLinearSolver
+      TotalIterLinearSolver=0
+#if (PP_TimeDiscMethod==104)
+      SWRITE(UNIT_stdOut,'(A,I12)') ' Total iteration Newton        ',nNewton
+      nNewTon=0
+      SWRITE(UNIT_stdOut,'(132("="))')
+#endif
+#endif /*IMEX*/
+#ifdef IMPA
+      SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
+      SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration Newton         ',nPartNewton
+      SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
+      IF(nPartNewton.GT.0)THEN
+        SWRITE(UNIT_stdOut,'(A35,F12.2)')' Average GMRES steps per Newton    ',REAL(TotalPartIterLinearSolver)&
+                                                                              /REAL(nPartNewton)
+      END IF
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+      SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration outer-Newton    ',TotalFullNewtonIter
+      totalFullNewtonIter=0
+#endif 
+      nPartNewTon=0
+      TotalPartIterLinearSolver=0
+      SWRITE(UNIT_stdOut,'(132("="))')
+#endif /*IMPA*/
       ! Analyze for output
       CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
       ! Write state to file
       IF(DoPML) CALL BacktransformPMLVars()
-      CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+      IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
       IF(DoPML) CALL TransformPMLVars()
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
@@ -2023,15 +2067,11 @@ INTEGER            :: iCounter !, iStage
 
 #ifdef maxwell
 ! caution hard coded
-!IF (iter==0) CALL BuildPrecond(t,t,0,0.25,dt)
 IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
-!IF(PrecondType.GT.0)THEN
-  !IF (iter==0) CALL BuildJacDG()
-!END IF
 #endif /*maxwell*/
 
 Un = U
-FieldSource=0.
+FieldStage =0.
 ! prediction with embadded scheme
 
 !tRatio= ! dt^n+1 / dt^n
@@ -2557,7 +2597,7 @@ USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY: Deposition
 USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
 USE MOD_PIC_Vars,                ONLY: PIC
-USE MOD_Particle_Vars,           ONLY: PartStateN,PartStage
+USE MOD_Particle_Vars,           ONLY: PartStateN,PartStage, PartQ
 USE MOD_Particle_Vars,           ONLY: PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF
 USE MOD_part_RHS,                ONLY: CalcPartRHS
 USE MOD_part_emission,           ONLY: ParticleInserting
@@ -2565,6 +2605,7 @@ USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS, DSMC
 USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_ParticleSolver,          ONLY: ParticleNewton
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
@@ -2586,256 +2627,675 @@ REAL               :: tstage
 REAL               :: alpha
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
+!REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: tRatio, tphi
 INTEGER            :: iCounter !, iStage
 ! explicit
 !===================================================================================================================================
 
-!#ifdef maxwell
-!! caution hard coded
-!!IF (iter==0) CALL BuildPrecond(t,t,0,0.25,dt)
-!IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
-!!IF(PrecondType.GT.0)THEN
-!  !IF (iter==0) CALL BuildJacDG()
-!!END IF
-!#endif /*maxwell*/
-!
-!Un = U
-!FieldSource=0.
-!! prediction with embadded scheme
-!
-!!tRatio= ! dt^n+1 / dt^n
-!tRatio = 1. 
-!
-!#ifdef PARTICLES
-!! Partilce locating
-!IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-!  CALL ParticleInserting()
+tRatio = 1.0
+
+
+Un          = U
+!FieldSource = 0.
+
+#ifdef PARTICLES
+! Partilce locating
+IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+  CALL ParticleInserting()
+END IF
+PartStateN(1:PDM%ParticleVecLength,1:6)=PartState(1:PDM%ParticleVecLength,1:6)
+#endif
+
+!! stage 1, explicit
+!IF (nNewtonIterGlobal==0) THEN
+!  CALL DGTimeDerivative_weakForm(t,t,0)
+!  R_Stage(:,:,:,:,:,1)=Ut
+!ELSE
+!  ! Ut is stored in R_Xk from the last Newton iteration
+!  R_Stage(:,:,:,:,:,1)=R_Xk
 !END IF
-!#endif
-!
+
+ 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! stage 1 - initialization
 ! ----------------------------------------------------------------------------------------------------------------------------------
+
 !tStage=t
-!! implicit
+! explicit - Maxwell solver
+IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+  ! because of emmision and UpdateParticlePosition
+  CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+  ! here: finish deposition with delta kernal
+  !       maps source terms in physical space
+  ! ALWAYS require
+  PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+  CALL Deposition(doInnerParts=.FALSE.)
+!  ImplicitSource=0.
+!  CALL CalcSource(tStage,1.,ImplicitSource)
+END IF
+
 !#ifdef PARTICLES
-!PartStateN(1:PDM%ParticleVecLength,1:6)=PartState(1:PDM%ParticleVecLength,1:6)
 !IF (t.GE.DelayTime) THEN
 !  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
 !  CALL CalcPartRHS()
 !END IF
-!
-! ----------------------------------------------------------------------------------------------------------------------------------
-!!! explicit - Maxwell solver
-!!IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-!!  ! because of emmision and UpdateParticlePosition
-!!  CALL Deposition(doInnerParts=.TRUE.)
-!!#ifdef MPI
-!!  ! here: finish deposition with delta kernal
-!!  !       maps source terms in physical space
-!!  ! ALWAYS require !! not so correct, implement particle send mode 1,2,3
-!!  PartMPIExchange%nMPIParticles=0
-!!#endif /*MPI*/
-!!  CALL Deposition(doInnerParts=.FALSE.)
-!!  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-!!END IF
-!!! u1=un
-!!#endif
-!!ImplicitSource=0.
-!!CALL CalcSource(tStage,1.,ImplicitSource)
-!
+!#endif /*PARTICLES*/
+
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! stage 2 to 6
 ! ----------------------------------------------------------------------------------------------------------------------------------
-!DO iStage=2,nRKStages
-!  ! compute f(u^s-1)
-!  CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.FALSE.)
-!  ! store old values for use in next stages
+DO iStage=2,nRKStages
+  ! compute f(u^s-1)
+  ! it's for the implicit part, here: PARTICLES
+#ifdef PARTICLES
+  IF (t.GE.DelayTime) THEN
+    CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
+    CALL CalcPartRHS()
+    PartStage(1:PDM%ParticleVecLength,1:3,iStage-1) = PartState(1:PDM%ParticleVecLength,4:6)
+    PartStage(1:PDM%ParticleVecLength,4:6,iStage-1) = Pt       (1:PDM%ParticleVecLength,1:3)
+  END IF
+#endif /*PARTICLES*/
+
+  ! time of current stage
+  tStage = t + RK_c(iStage)*dt
+  !--------------------------------------------------------------------------------------------------------------------------------
+  ! explicit - field pusher
+  !--------------------------------------------------------------------------------------------------------------------------------
+  CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.TRUE.)
+  ! store old values for use in next stages
+  FieldStage (:,:,:,:,:,iStage-1) = Ut
+  !FieldSource(:,:,:,:,:,iStage-1) = ImplicitSource
+  U=Un
+  DO iCounter = 1,iStage-1
+    U = U + ERK_a(iStage,iCounter)*dt*(FieldStage(:,:,:,:,:,iCounter)) !+FieldSource(:,:,:,:,:,iCounter))
+  END DO
+
+  !--------------------------------------------------------------------------------------------------------------------------------
+  ! implicit - Particle pusher
+  !--------------------------------------------------------------------------------------------------------------------------------
+
+#ifdef PARTICLES
+  IF (t.GE.DelayTime) THEN
+    ! old state
+    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
+    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
+    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
+    PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
+    ! compute Q and U
+    PartQ(1,1:PDM%ParticleVecLength)=PartStateN(1:PDM%ParticleVecLength,1)
+    PartQ(2,1:PDM%ParticleVecLength)=PartStateN(1:PDM%ParticleVecLength,2)
+    PartQ(3,1:PDM%ParticleVecLength)=PartStateN(1:PDM%ParticleVecLength,3)
+    PartQ(4,1:PDM%ParticleVecLength)=PartStateN(1:PDM%ParticleVecLength,4)
+    PartQ(5,1:PDM%ParticleVecLength)=PartStateN(1:PDM%ParticleVecLength,5)
+    PartQ(6,1:PDM%ParticleVecLength)=PartStateN(1:PDM%ParticleVecLength,6)
+    DO iCounter = 1, iStage-1
+      PartQ(1,1:PDM%ParticleVecLength)=PartQ(1,1:PDM%ParticleVecLength) &
+                                      + ESDIRK_a(iStage,iCounter)*dt*PartStage(1:PDM%ParticleVecLength,1,iCounter)
+      PartQ(2,1:PDM%ParticleVecLength)=PartQ(2,1:PDM%ParticleVecLength) &
+                                      + ESDIRK_a(iStage,iCounter)*dt*PartStage(1:PDM%ParticleVecLength,2,iCounter)
+      PartQ(3,1:PDM%ParticleVecLength)=PartQ(3,1:PDM%ParticleVecLength) &
+                                      + ESDIRK_a(iStage,iCounter)*dt*PartStage(1:PDM%ParticleVecLength,3,iCounter)
+      PartQ(4,1:PDM%ParticleVecLength)=PartQ(4,1:PDM%ParticleVecLength) &
+                                      + ESDIRK_a(iStage,iCounter)*dt*PartStage(1:PDM%ParticleVecLength,4,iCounter)
+      PartQ(5,1:PDM%ParticleVecLength)=PartQ(5,1:PDM%ParticleVecLength) &
+                                      + ESDIRK_a(iStage,iCounter)*dt*PartStage(1:PDM%ParticleVecLength,5,iCounter)
+      PartQ(6,1:PDM%ParticleVecLength)=PartQ(6,1:PDM%ParticleVecLength) &
+                                      + ESDIRK_a(iStage,iCounter)*dt*PartStage(1:PDM%ParticleVecLength,6,iCounter)
+    END DO 
+    ! predictor
+    tphi = RK_c(iStage)
+    ! do not change PartState .... working??
+    !PartState(1:PDM%ParticleVecLength,1:6)=PartStateN(1:PDM%ParticleVecLength,1:6)
+    !DO iCounter = 1,iStage-1
+    !  PartState(1:PDM%ParticleVecLength,1:6)=PartState(1:PDM%ParticleVecLength,1:6) &
+    !                +         (RK_bs(iCounter,1)*tphi+RK_bs(iCounter,2)*tphi**2)*dt &
+    !                +          PartStage(1:PDM%ParticleVecLength,1:6,iCounter)
+    !END DO
+    alpha = ESDIRK_a(iStage,iStage)*dt
+    CALL ParticleNewton(tstage,alpha)
+    ! move particle
+#ifdef MPI
+    ! open receive buffer for number of particles
+    CALL IRecvNbofParticles()
+#endif /*MPI*/
+    IF(DoRefMapping)THEN
+      CALL ParticleRefTracking()
+    ELSE
+      CALL ParticleTrackingCurved()
+    END IF
+#ifdef MPI
+    ! here: could use deposition as hiding, not done yet
+    ! send number of particles
+    CALL SendNbOfParticles()
+    ! finish communication of number of particles and send particles
+    CALL MPIParticleSend()
+    ! finish communication
+    CALL MPIParticleRecv()
+#endif /*MPI*/
+    
+    ! funny, can use interpolation and deposition as hiding :)
+    ! recompute particle source terms on field solver :)
+    CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+    ! here: finish deposition with delta kernal
+    !       maps source terms in physical space
+    ! ALWAYS require
+    PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+    CALL Deposition(doInnerParts=.FALSE.)
+  END IF
+#endif /*PARTICLES*/
+END DO
+! DEBUGGGGGG
+! missssisssssing !
 !  FieldStage (:,:,:,:,:,iStage-1) = Ut
 !  FieldSource(:,:,:,:,:,iStage-1) = ImplicitSource
-!
-!  ! time of current stage
-!  tStage = t + RK_c(iStage)*dt
-!  ! store predictor
-! !--------------------------------------------------------------------------------------------------------------------------------
-! ! explicit - field pusher
-! !--------------------------------------------------------------------------------------------------------------------------------
-!  ! requires source terms of particle at stage level iStage-1
-!  IF ((t.GE.DelayTime).OR.((t.EQ.0).AND.(iStage.EQ.2)) THEN
-!    ! because of emmision and UpdateParticlePosition
-!    CALL Deposition(doInnerParts=.TRUE.)
-!#ifdef MPI
-!    ! here: finish deposition with delta kernal
-!    !       maps source terms in physical space
-!    ! ALWAYS require
-!    PartMPIExchange%nMPIParticles=0
-!#endif /*MPI*/
-!    CALL Deposition(doInnerParts=.FALSE.)
-!    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
-!  END IF
-!#endif /*PARTICLES*/
-!  
-!  U=Un
-!  DO iCounter=1,iStage-1
-!    U=U+ERK_a(iStage,iCounter)*dt*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
-!  END DO ! counter
-!
-!
-!
-!
-!
-!
-!
-!  !--------------------------------------------------------------------------------------------------------------------------------
-!  ! implicit - Particle pusher
-!  !--------------------------------------------------------------------------------------------------------------------------------
-!#ifdef PARTICLES
-!  ! particle RHS
-!  IF (t.GE.DelayTime) THEN
-!    CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
-!    CALL CalcPartRHS()
-!
-!    PartStage(1:PDM%ParticleVecLength,1:3,iStage-1) = PartState(1:PDM%ParticleVecLength,4:6)
-!    PartStage(1:PDM%ParticleVecLength,4:6,iStage-1) = Pt       (1:PDM%ParticleVecLength,1:3)
-!  END IF
-!  ! particle step
-!  IF (t.GE.DelayTime) THEN
-!    LastPartPos(1:PDM%ParticleVecLength,1)=PartState(1:PDM%ParticleVecLength,1)
-!    LastPartPos(1:PDM%ParticleVecLength,2)=PartState(1:PDM%ParticleVecLength,2)
-!    LastPartPos(1:PDM%ParticleVecLength,3)=PartState(1:PDM%ParticleVecLength,3)
-!    PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-!    PartState(1:PDM%ParticleVecLength,1:6)=PartStateN(1:PDM%ParticleVecLength,1:6)
-!    DO iCounter=1,iStage-1
-!      PartState(1:PDM%ParticleVecLength,1:6) = PartState(1:PDM%ParticleVecLength,1:6)   &
-!                                                + ERK_a(iStage,iCounter)*dt*PartStage(1:PDM%ParticleVecLength,1:6,iCounter)
-!    END DO ! counter
-!  END IF
-!
-!#ifdef MPI
-!  ! open receive buffer for number of particles
-!  CALL IRecvNbofParticles()
-!#endif /*MPI*/
-!  IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-!    IF(DoRefMapping)THEN
-!      CALL ParticleRefTracking()
-!    ELSE
-!      CALL ParticleTrackingCurved()
-!    END IF
-!#ifdef MPI
-!    ! send number of particles
-!    CALL SendNbOfParticles()
-!    ! finish communication of number of particles and send particles
-!    CALL MPIParticleSend()
-!    ! finish communication
-!    CALL MPIParticleRecv()
-!#endif
-!  END IF
-!
-!
-!  !--------------------------------------------------------------------------------------------------------------------------------
-!  ! implicit - Maxwell solver
-!  !--------------------------------------------------------------------------------------------------------------------------------
-!  !--------------------------------------------------------------------------------------------------------------------------------
-!  ! compute RHS for linear solver
-!  LinSolverRHS=Un
-!  DO iCounter = 1,iStage-1
-!    LinSolverRHS = LinSolverRHS + ESDIRK_a(iStage,iCounter)*dt*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
-!  END DO
-!  ! get predictor of u^s+1
-!  CALL Predictor(iStage,dt,Un,FieldSource,FieldStage)
-!
-!  ImplicitSource=0.
-!  alpha = ESDIRK_a(iStage,iStage)*dt
-!  ! solve to new stage 
-!  CALL LinearSolver(tstage,alpha)
-!    ! damping
-!  !CALL DivCleaningDamping()
-!END DO
-!
-!!----------------------------------------------------------------------------------------------------------------------------------
-!! update to next time level
-!!----------------------------------------------------------------------------------------------------------------------------------
-!
-!#ifdef PARTICLES
-!! only required for explicit equations // particle pusher
-!! implicit coefficients are equal, therefore not required, however, would result in smoother solution
-!! particle RHS
-!IF (t.GE.DelayTime) THEN
-!  CALL InterpolateFieldToParticle(doInnerParts=.TRUE.)
-!  CALL CalcPartRHS()
-!!  PartStage(1:PDM%ParticleVecLength,1:3,6) = PartState(1:PDM%ParticleVecLength,4:6)
-!!  PartStage(1:PDM%ParticleVecLength,4:6,6) = Pt       (1:PDM%ParticleVecLength,1:3)
-!END IF
-!
-!
-!IF (t.GE.DelayTime) THEN
-!  LastPartPos(1:PDM%ParticleVecLength,1)  =PartState(1:PDM%ParticleVecLength,1)
-!  LastPartPos(1:PDM%ParticleVecLength,2)  =PartState(1:PDM%ParticleVecLength,2)
-!  LastPartPos(1:PDM%ParticleVecLength,3)  =PartState(1:PDM%ParticleVecLength,3)
-!  PEM%lastElement(1:PDM%ParticleVecLength)=PEM%Element(1:PDM%ParticleVecLength)
-!  ! compined
-!  ! stage 6
-!  PartState(1:PDM%ParticleVeclength,1:3) = PartStateN(1:PDM%ParticleVecLength,1:3)                   &
-!                                           + RK_b(nRKStages)*dt*PartState(1:PDM%ParticleVecLength,4:6)
-!  PartState(1:PDM%ParticleVeclength,4:6) = PartStateN(1:PDM%ParticleVecLength,4:6)                   &
-!                                           + RK_b(nRKSTages)*dt*Pt(1:PDM%ParticleVecLength,1:3)
-!!  ! stage 1 to 5
-!!  PartState(1:PDM%ParticleVeclength,1:6) = PartState(1:PDM%ParticleVecLength,1:6)                    &
-!!                                           + RK_b(1)*dt*PartStage(1:PDM%ParticleVecLength,1:6,1)    &
-!!                                           + RK_b(2)*dt*PartStage(1:PDM%ParticleVecLength,1:6,2)    &
-!!                                           + RK_b(3)*dt*PartStage(1:PDM%ParticleVecLength,1:6,3)    &
-!!                                           + RK_b(4)*dt*PartStage(1:PDM%ParticleVecLength,1:6,4)    &
-!!                                           + RK_b(5)*dt*PartStage(1:PDM%ParticleVecLength,1:6,5) 
-!!  PartState(1:PDM%ParticleVecLength,1:6)=PartStateN(1:PDM%ParticleVecLength,1:6)
-!  DO iCounter=1,nRKStages-1
-!    PartState(1:PDM%ParticleVecLength,1:6) = PartState(1:PDM%ParticleVecLength,1:6)   &
-!                                              + RK_b(iCounter)*dt*PartStage(1:PDM%ParticleVecLength,1:6,iCounter)
-!  END DO ! counter
-!END IF
-!
-!! null iStage, because the old f(u^s) have not to be communicated
-!iStage = 0
-!IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
-!#ifdef MPI
-!  ! open receive buffer for number of particles
-!  CALL IRecvNbofParticles()
-!#endif /*MPI*/
-!  IF(DoRefMapping)THEN
-!    CALL ParticleRefTracking()
-!  ELSE
-!    CALL ParticleTrackingCurved()
-!  END IF
-!#ifdef MPI
-!  ! send number of particles
-!  CALL SendNbOfParticles()
-!  ! finish communication of number of particles and send particles
-!  CALL MPIParticleSend()
-!  ! finish communication
-!  CALL MPIParticleRecv()
-!#endif /*MPI*/
-!END IF
-!
-!!----------------------------------------------------------------------------------------------------------------------------------
-!! DSMC
-!!----------------------------------------------------------------------------------------------------------------------------------
-!CALL UpdateNextFreePosition()
-!IF (useDSMC) THEN
-! CALL DSMC_main()
-! PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
-!                                        + DSMC_RHS(1:PDM%ParticleVecLength,1)
-! PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
-!                                        + DSMC_RHS(1:PDM%ParticleVecLength,2)
-! PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
-!                                        + DSMC_RHS(1:PDM%ParticleVecLength,3)
-!END IF
-!#endif /*PARTICLES*/
-!
-!! compute source and recompute field
+
+
+! particles implicit done
+!----------------------------------------------------------------------------------------------------------------------------------
+! update explicit to next time level
+!----------------------------------------------------------------------------------------------------------------------------------
+
+CALL DGTimeDerivative_weakForm(tStage, tStage, 0,doSource=.TRUE.)
+! store old values for use in next stages
+U=Un+RK_b(nRKStages)*dt*Ut
+DO iCounter = 1,nRKStages-1
+  U = U + RK_b(iCounter)*dt*(FieldStage(:,:,:,:,:,iCounter)) !+FieldSource(:,:,:,:,:,iCounter))
+END DO
+
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! DSMC
+!----------------------------------------------------------------------------------------------------------------------------------
+#ifdef PARTICLES
+CALL UpdateNextFreePosition()
+IF (useDSMC) THEN
+ CALL DSMC_main()
+ PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                        + DSMC_RHS(1:PDM%ParticleVecLength,1)
+ PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                        + DSMC_RHS(1:PDM%ParticleVecLength,2)
+ PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                        + DSMC_RHS(1:PDM%ParticleVecLength,3)
+END IF
+#endif /*PARTICLES*/
+
 
 END SUBROUTINE TimeStepByIMPA
 #endif /*PP_TimeDiscMethod==111 || PP_TimeDiscMethod==112  */
+
+
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+SUBROUTINE TimeStepByImplicitRK(t)
+!===================================================================================================================================
+! IMEX time integrator
+! ESDIRK for particles
+! ERK for field
+! from: Kennedy & Carpenter 2003
+! Additive Runge-Kutta schemes for convection-diffusion-reaction equations
+! This procedure takes the current time t, the time step dt and the solution at
+! the current time U(t) and returns the solution at the next time level.
+! test timedisc for implicit particle treatment || highly relativistic
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DG_Vars,                 ONLY:U,Ut
+USE MOD_PreProc
+USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,time
+USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs
+USE MOD_DG_Vars,                 ONLY:U,Ut
+USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
+USE MOD_LinearSolver,            ONLY:LinearSolver
+USE MOD_Predictor,               ONLY:Predictor,StorePredictor
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver,DoPrintConvInfo
+USE MOD_Equation,                ONLY:DivCleaningDamping
+#ifdef maxwell
+USE MOD_Precond,                 ONLY:BuildPrecond
+USE MOD_Precond_Vars,            ONLY:PrecondType
+#endif /*maxwell*/
+USE MOD_JacDG,                   ONLY:BuildJacDG
+USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
+USE MOD_Equation,                ONLY:CalcSource
+#ifdef PARTICLES
+USE MOD_Predictor,               ONLY:PartPredictor
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies, doParticleMerge,PartPressureCell
+USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
+USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
+USE MOD_PICDepo,                 ONLY:Deposition
+USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
+USE MOD_PIC_Vars,                ONLY:PIC
+USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF
+USE MOD_part_RHS,                ONLY:CalcPartRHS
+USE MOD_part_emission,           ONLY:ParticleInserting
+USE MOD_DSMC,                    ONLY:DSMC_main
+USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS, DSMC
+USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
+USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
+USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
+USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
+USE MOD_part_MPFtools,           ONLY:StartParticleMerge
+#ifdef MPI
+USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
+USE MOD_Particle_MPI_Vars,       ONLY:DoExternalParts
+USE MOD_Particle_MPI_Vars,       ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM
+#endif /*MPI*/
+USE MOD_PIC_Analyze,             ONLY:CalcDepositedCharge
+USE MOD_part_tools,              ONLY:UpdateNextFreePosition
+#endif /*PARTICLES*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: t
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: tstage
+! implicit 
+REAL               :: alpha
+REAL               :: sgamma
+REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
+REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
+REAL               :: tRatio, tphi
+INTEGER            :: iCounter !, iStage
+logical :: first
+#ifdef PARTICLES
+INTEGER            :: iPart
+#endif /*PARTICLES*/
+!===================================================================================================================================
+
+#ifdef maxwell
+! caution hard coded
+IF (iter==0) CALL BuildPrecond(t,t,0,RK_b(nRKStages),dt)
+#endif /*maxwell*/
+
+Un          = U
+FieldSource = 0.
+
+tRatio = 1.
+
+#ifdef PARTICLES
+! Partilce locating
+IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
+  CALL ParticleInserting() ! do not forget to communicate the emmitted particles ... for shape function
+END IF
+! select, if particles are treated implicitly or explicitly
+CALL SelectImplicitParticles()
+PartStateN(1:PDM%ParticleVecLength,1:6)=PartState(1:PDM%ParticleVecLength,1:6)
+#endif
+
+! ----------------------------------------------------------------------------------------------------------------------------------
+! stage 1 - initialization
+! ----------------------------------------------------------------------------------------------------------------------------------
+
+tStage=t
+
+#ifdef PARTICLES
+! communicate shape function particles
+#ifdef MPI
+PartMPIExchange%nMPIParticles=0
+IF(DoExternalParts)THEN
+  ! as we do not have the shape function here, we have to deallocate something
+  SDEALLOCATE(ExtPartState)
+  SDEALLOCATE(ExtPartSpecies)
+  SDEALLOCATE(ExtPartToFIBGM)
+  SDEALLOCATE(ExtPartMPF)
+END IF
+! open receive buffer for number of particles
+CALL IRecvNbofParticles()
+! send number of particles
+CALL SendNbOfParticles()
+! finish communication of number of particles and send particles
+CALL MPIParticleSend()
+! finish communication
+CALL MPIParticleRecv()
+! set exchanged number of particles to zero
+PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+
+! simulation with delay-time, compute the
+IF(DelayTime.GT.0.)THEN
+  IF((iter.EQ.0).AND.(t.LT.DelayTime))THEN
+    ! perform normal deposition
+    CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+    ! here: finish deposition with delta kernal
+    !       maps source terms in physical space
+    ! ALWAYS require
+    PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+    CALL Deposition(doInnerParts=.FALSE.)
+  END IF
+END IF
+
+! compute source of first stage for Maxwell solver
+IF (t.GE.DelayTime) THEN
+  ! if we call it correctly, we may save here work between different RK-stages
+  ! because of emmision and UpdateParticlePosition
+  CALL Deposition(doInnerParts=.TRUE.)
+#ifdef MPI
+  ! here: finish deposition with delta kernal
+  !       maps source terms in physical space
+  ! ALWAYS require
+  PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+  CALL Deposition(doInnerParts=.FALSE.)
+END IF
+
+ImplicitSource=0.
+CALL CalcSource(tStage,1.,ImplicitSource)
+IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+
+IF(iter.EQ.0)THEN
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+    IF(PartIsImplicit(iPart))THEN
+      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      SELECT CASE(PartLorentzType)
+      CASE(1)
+        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      CASE(3)
+        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      CASE DEFAULT
+      END SELECT
+    END IF ! ParticleIsImplicit
+  END DO ! iPart
+END IF
+#endif /*PARTICLES*/
+
+IF(iter.EQ.0) CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
+
+! ----------------------------------------------------------------------------------------------------------------------------------
+! stage 2 to 6
+! ----------------------------------------------------------------------------------------------------------------------------------
+DO iStage=2,nRKStages
+  ! time of current stage
+  tStage = t + RK_c(iStage)*dt
+  alpha  = ESDIRK_a(iStage,iStage)*dt
+  sGamma = 1.0/alpha
+  IF(MPIRoot)THEN
+    IF(DoPrintConvInfo)THEN
+      WRITE(*,*) '-----------------------------'
+      WRITE(*,*) 'istage:',istage
+    END IF
+  END IF
+  ! store predictor
+  CALL StorePredictor()
+
+  ! compute the f(u^s-1)
+  ! compute the f(u^s-1)
+  ! DG-solver, Maxwell's equations
+  FieldStage (:,:,:,:,:,iStage-1) = Ut
+  FieldSource(:,:,:,:,:,iStage-1) = ImplicitSource
+
+  ! and particles
+#ifdef PARTICLES
+  IF (t.GE.DelayTime) THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+      IF(PartIsImplicit(iPart))THEN
+        PartStage(iPart,1:3,iStage-1) = PartState(iPart,4:6) 
+        PartStage(iPart,4:6,iStage-1) = Pt       (iPart,1:3)
+      ELSE
+        CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+        SELECT CASE(PartLorentzType)
+        CASE(1)
+          Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE(3)
+          Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE DEFAULT
+        END SELECT
+        PartStage(iPart,1:3,iStage-1) = PartState(iPart,4:6)
+        PartStage(iPart,4:6,iStage-1) = Pt       (iPart,1:3)
+      END IF ! ParticleIsImplicit
+    END DO ! iPart
+  END IF
+#endif /*PARTICLES*/
+
+  !--------------------------------------------------------------------------------------------------------------------------------
+  ! explicit - particle  pusher
+  !--------------------------------------------------------------------------------------------------------------------------------
+
+#ifdef PARTICLES
+  ExplicitSource=0.
+  ! particle step || only explicit particles
+  IF (t.GE.DelayTime) THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+      IF(.NOT.PartIsImplicit(iPart))THEN
+        LastPartPos(iPart,1)=PartState(iPart,1)
+        LastPartPos(iPart,2)=PartState(iPart,2)
+        LastPartPos(iPart,3)=PartState(iPart,3)
+        PEM%lastElement(iPart)=PEM%Element(iPart)
+        ! compute explicit push
+        PartState(iPart,1:6) = ERK_a(iStage,iStage-1)*PartStage(iPart,1:6,iStage-1)
+        DO iCounter=1,iStage-2
+          PartState(iPart,1:6)=PartState(iPart,1:6)+ERK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+        END DO ! iCounter=1,iStage-2
+        PartState(iPart,1:6)=PartStateN(iPart,1:6)+dt*PartState(iPart,1:6)
+      END IF ! ParticleIsExplicit
+    END DO ! iPart
+      
+#ifdef MPI
+    ! mpi-routines should be extended by additional input: PartisImplicit, better criterion, saves computational time
+  ! open receive buffer for number of particles
+    CALL IRecvNbofParticles()
+#endif /*MPI*/
+    IF(DoRefMapping)THEN
+      ! tracking routines has to be extended for optional flag, like deposition
+      CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    ELSE
+      CALL ParticleTrackingCurved(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    END IF
+#ifdef MPI
+    ! send number of particles
+    CALL SendNbOfParticles(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    ! finish communication of number of particles and send particles
+    CALL MPIParticleSend()
+#endif /*MPI*/
+#ifdef MPI
+    ! finish communication
+    CALL MPIParticleRecv()
+    ! set exchanged number of particles to zero
+    PartMPIExchange%nMPIParticles=0
+#endif /*MPI*/
+    ! deposit explicit, local particles
+    CALL Deposition(doInnerParts=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    CALL Deposition(doInnerParts=.FALSE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength)) ! external particles arg
+    !PartMPIExchange%nMPIParticles=0
+    CALL CalcSource(tStage,1.,ExplicitSource)
+  END IF
+#endif /*PARTICLES*/
+
+  !--------------------------------------------------------------------------------------------------------------------------------
+  ! implicit - particle pusher & Maxwell's field
+  !--------------------------------------------------------------------------------------------------------------------------------
+
+  ! compute RHS for linear solver
+
+  LinSolverRHS=ESDIRK_a(iStage,iStage-1)*(FieldStage(:,:,:,:,:,iStage-1)+FieldSource(:,:,:,:,:,iStage-1))
+  DO iCounter=1,iStage-2
+    LinSolverRHS=LinSolverRHS +ESDIRK_a(iStage,iCounter)*(FieldStage(:,:,:,:,:,iCounter)+FieldSource(:,:,:,:,:,iCounter))
+  END DO ! iCoutner=1,iStage-2
+  LinSolverRHS=Un+dt*LinSolverRHS
+
+  ! get predictor of u^s+1
+  CALL Predictor(iStage,dt,Un,FieldSource,FieldStage) ! sets new value for U_DG
+
+#ifdef PARTICLES
+  IF (t.GE.DelayTime) THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF(PartIsImplicit(iPart))THEN
+        LastPartPos(iPart,1)=PartState(iPart,1)
+        LastPartPos(iPart,2)=PartState(iPart,2)
+        LastPartPos(iPart,3)=PartState(iPart,3)
+        PEM%lastElement(iPart)=PEM%Element(iPart)
+        ! compute Q and U
+        PartQ(1:6,iPart) = ESDIRK_a(iStage,iStage-1)*PartStage(iPart,1:6,iStage-1)
+        DO iCounter=1,iStage-2
+          PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+        END DO ! iCounter=1,iStage-2
+        PartQ(1:6,iPart) = PartStateN(iPart,1:6) + dt* PartQ(1:6,iPart)
+        !old
+        ! predictor
+        CALL PartPredictor(iStage,dt,iPart) ! sets new value for U_DG
+      END IF ! PartIsImplicit
+    END DO ! iPart
+  END IF
+#endif /*PARTICLES*/
+  ! full newton for particles and fields
+  CALL FullNewton(t,tStage,alpha)
+  CALL DivCleaningDamping()
+END DO
+
+#ifdef PARTICLES
+! particle step || only explicit particles
+IF (t.GE.DelayTime) THEN
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+    IF(.NOT.PartIsImplicit(iPart))THEN
+      LastPartPos(iPart,1)=PartState(iPart,1)
+      LastPartPos(iPart,2)=PartState(iPart,2)
+      LastPartPos(iPart,3)=PartState(iPart,3)
+      PEM%lastElement(iPart)=PEM%Element(iPart)
+      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+      SELECT CASE(PartLorentzType)
+      CASE(1)
+        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      CASE(3)
+        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      CASE DEFAULT
+      END SELECT
+      PartState(iPart,1:3) = RK_b(nRKStages)*PartState(iPart,4:6)
+      PartState(iPart,4:6) = RK_b(nRKSTages)*Pt(iPart,1:3)
+      !  stage 1 ,nRKStages-1
+      DO iCounter=1,nRKStages-1
+        PartState(iPart,1:6) = PartState(iPart,1:6)   &
+                             + RK_b(iCounter)*PartStage(iPart,1:6,iCounter)
+      END DO ! counter
+      PartState(iPart,1:6) = PartStateN(iPart,1:6)+dt*PartState(iPart,1:6)
+
+    END IF ! ParticleIsExplicit
+  END DO ! iPart
+
+!  ! do the same stuff with the implicit pushed particles
+!  DO iPart=1,PDM%ParticleVecLength
+!    IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+!    IF(PartIsImplicit(iPart))THEN
+!      LastPartPos(iPart,1)=PartState(iPart,1)
+!      LastPartPos(iPart,2)=PartState(iPart,2)
+!      LastPartPos(iPart,3)=PartState(iPart,3)
+!      PEM%lastElement(iPart)=PEM%Element(iPart)
+!      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+!      SELECT CASE(PartLorentzType)
+!      CASE(1)
+!        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+!      CASE(3)
+!        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+!      CASE DEFAULT
+!      END SELECT
+!      PartState(iPart,1:3) = RK_b(nRKStages)*PartState(iPart,4:6)
+!      PartState(iPart,4:6) = RK_b(nRKSTages)*Pt(iPart,1:3)
+!      !  stage 1 ,nRKStages-1
+!      DO iCounter=1,nRKStages-1
+!        PartState(iPart,1:6) = PartState(iPart,1:6)   &
+!                             + RK_b(iCounter)*PartStage(iPart,1:6,iCounter)
+!      END DO ! counter
+!      PartState(iPart,1:6) = PartStateN(iPart,1:6)+dt*PartState(iPart,1:6)
+!
+!    END IF ! ParticleIsImplicit
+!  END DO ! iPart
+
+  iStage=0  
+#ifdef MPI
+  ! mpi-routines should be extended by additional input: PartisImplicit, better criterion, saves computational time
+  ! open receive buffer for number of particles
+  CALL IRecvNbofParticles()
+#endif /*MPI*/
+  IF(DoRefMapping)THEN
+    ! tracking routines has to be extended for optional flag, like deposition
+    CALL ParticleRefTracking()
+    !CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+  ELSE
+    CALL ParticleTrackingCurved()
+    !CALL ParticleTrackingCurved(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+  END IF
+#ifdef MPI
+  ! send number of particles
+  CALL SendNbOfParticles(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+  !CALL SendNbOfParticles() ! all particles to get initial deposition right \\ without emmission
+  ! finish communication of number of particles and send particles
+  CALL MPIParticleSend()
+  ! finish communication
+  CALL MPIParticleRecv()
+#endif
+  PartMPIExchange%nMPIParticles=0
+  IF(DoExternalParts)THEN
+    ! as we do not have the shape function here, we have to deallocate something
+    SDEALLOCATE(ExtPartState)
+    SDEALLOCATE(ExtPartSpecies)
+    SDEALLOCATE(ExtPartToFIBGM)
+    SDEALLOCATE(ExtPartMPF)
+  END IF
+END IF
+#endif /*PARTICLES*/
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! DSMC
+!----------------------------------------------------------------------------------------------------------------------------------
+#ifdef PARTICLES
+CALL UpdateNextFreePosition()
+IF (useDSMC) THEN
+ CALL DSMC_main()
+ PartState(1:PDM%ParticleVecLength,4) = PartState(1:PDM%ParticleVecLength,4) &
+                                        + DSMC_RHS(1:PDM%ParticleVecLength,1)
+ PartState(1:PDM%ParticleVecLength,5) = PartState(1:PDM%ParticleVecLength,5) &
+                                        + DSMC_RHS(1:PDM%ParticleVecLength,2)
+ PartState(1:PDM%ParticleVecLength,6) = PartState(1:PDM%ParticleVecLength,6) &
+                                        + DSMC_RHS(1:PDM%ParticleVecLength,3)
+END IF
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! split and merge
+!----------------------------------------------------------------------------------------------------------------------------------
+
+IF (doParticleMerge) THEN
+  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+    ALLOCATE(PEM%pStart(1:PP_nElems)           , &
+             PEM%pNumber(1:PP_nElems)          , &
+             PEM%pNext(1:PDM%maxParticleNumber), &
+             PEM%pEnd(1:PP_nElems) )
+  END IF
+END IF
+
+IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
+  CALL UpdateNextFreePosition()
+END IF
+
+IF (doParticleMerge) THEN
+  CALL StartParticleMerge()  
+  IF (.NOT.(useDSMC.OR.PartPressureCell)) THEN
+    DEALLOCATE(PEM%pStart , &
+               PEM%pNumber, &
+               PEM%pNext  , &
+               PEM%pEnd   )
+  END IF
+  CALL UpdateNextFreePosition()
+END IF
+#endif /*PARTICLES*/
+
+END SUBROUTINE TimeStepByImplicitRK
+#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 
 
 #if (PP_TimeDiscMethod==200)

@@ -106,11 +106,15 @@ DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
             ElemID = GEO%FIBGM(iBGM,jBGM,kBGM)%Element(iElem)
             DO iLocSide=1,6
               SideID=ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-              IF(SideID.GT.(nInnerSides+nBCSides).AND.(SideIndex(SideID).EQ.0))THEN
-              ! because of implicit, but here I send for checking, other process sends the required halo region
-              !IF(SideIndex(SideID).EQ.0)THEN
-                SendMsg%nMPISides=SendMsg%nMPISides+1
-                SideIndex(SideID)=SendMsg%nMPISides
+              IF(SideID.GT.0)THEN
+                IF((SideID.LE.nBCSides).OR.(SideID.GT.(nBCSides+nInnerSides)))THEN
+                  !IF(SideID.GT.(nInnerSides+nBCSides).AND.(SideIndex(SideID).EQ.0))THEN
+                  ! because of implicit, but here I send for checking, other process sends the required halo region
+                  IF(SideIndex(SideID).EQ.0)THEN
+                    SendMsg%nMPISides=SendMsg%nMPISides+1
+                    SideIndex(SideID)=SendMsg%nMPISides
+                  END IF
+                END IF
               END IF
             END DO ! ilocSide
           END DO ! iElem
@@ -281,7 +285,7 @@ SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,El
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,nSides!,XCL_NGeo
+USE MOD_Mesh_Vars,                 ONLY:NGeo,ElemToSide,nSides,SideToElem!,XCL_NGeo
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix
 USE MOD_Particle_MPI_Vars,         ONLY:halo_eps
 USE MOD_Particle_Surfaces_Vars,    ONLY:BezierControlPoints3D
@@ -518,6 +522,28 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
   END DO ! iSide
 END IF  ! nperiodicvectors>0
 
+! finally, all elements connected to this side have to be marked
+DO iSide=1,nSides
+  IF(SideIndex(iSide).GT.0)THEN
+    ! check both elements connected to side if they are marked
+    ! master
+    ElemID=SideToElem(S2E_ELEM_ID,iSide)
+    IF((ElemID.GT.0).AND.(ElemID.LE.PP_nElems))THEN
+      IF(ElemIndex(ElemID).EQ.0)THEN
+        NbOfElems=NbOfElems+1
+        ElemIndex(ElemID)=NbofElems
+      END IF
+    END IF
+    ! slave
+    ElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
+    IF((ElemID.GT.0).AND.(ElemID.LE.PP_nElems))THEN
+      IF(ElemIndex(ElemID).EQ.0)THEN
+        NbOfElems=NbOfElems+1
+        ElemIndex(ElemID)=NbofElems
+      END IF
+    END IF
+  END IF
+END DO ! iSide=1,nSides
 
 !IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of marked sides:   ', NbOfSides
 
@@ -539,7 +565,7 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, nInnerSides, ElemToSide, BC,nGeo,SideToElem
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem,GEO,nTotalBCSides
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem,GEO,nTotalBCSides,ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:ElemSlabNormals,ElemSlabIntervals  
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
@@ -563,6 +589,7 @@ TYPE tMPISideMessage
   REAL,ALLOCATABLE          :: dXCL_NGeo(:,:,:,:,:,:)
   REAL,ALLOCATABLE,DIMENSION(:,:,:)   :: ElemSlabNormals    
   REAL,ALLOCATABLE,DIMENSION(:,:)     :: ElemSlabIntervals   
+  REAL,ALLOCATABLE,DIMENSION(:,:)     :: ElemBaryNGeo   
   INTEGER,ALLOCATABLE       :: ElemToSide(:,:,:) 
   INTEGER,ALLOCATABLE       :: SideToElem(:,:)
   INTEGER,ALLOCATABLE       :: SideBCType(:)
@@ -756,14 +783,14 @@ IF(DoRefMapping)THEN
     IF (ALLOCSTAT.NE.0) CALL abort(&
      __STAMP__&
       ,'Could not allocate SendMsg%ElemSlabNormals',SendMsg%nElems)
-    SendMsg%XCL_NGeo(:,:,:,:,:)=0
+    SendMsg%ElemSlabNormals(:,:,:)=0
   END IF
   IF (RecvMsg%nElems.GT.0) THEN
     ALLOCATE(RecvMsg%ElemSlabNormals(1:3,0:3,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
     IF (ALLOCSTAT.NE.0) CALL abort(&
       __STAMP__&
       ,'Could not allocate RecvMsg%ElemSlabNormals',RecvMsg%nElems)
-    RecvMsg%XCL_NGeo(:,:,:,:,:)=0
+    RecvMsg%ElemSlabNormals(:,:,:)=0
   END IF
   
   ! ElemSlabIntervals for exchange
@@ -781,6 +808,22 @@ IF(DoRefMapping)THEN
       ,'Could not allocate RecvMsg%ElemSlabIntervals',RecvMsg%nElems)
     RecvMsg%DXCL_NGeo(:,:,:,:,:,:)=0
   END IF
+END IF
+
+! ElemBaryNGeo
+IF (SendMsg%nElems.GT.0) THEN       ! ElemToSide(1:2,1:iLocSide,1:nElems)
+  ALLOCATE(SendMsg%ElemBaryNGeo(1:3,1:SendMsg%nElems),STAT=ALLOCSTAT) 
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+   __STAMP__&
+    ,'Could not allocate SendMsg%ElemBaryNGeo',SendMsg%nElems)
+  SendMsg%ElemBaryNGeo(:,:)=0
+END IF
+IF (RecvMsg%nElems.GT.0) THEN
+  ALLOCATE(RecvMsg%ElemBaryNGeo(1:3,1:RecvMsg%nElems),STAT=ALLOCSTAT)  
+  IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+    ,'Could not allocate RecvMsg%ElemBary',RecvMsg%nElems)
+  RecvMsg%ElemBaryNGeo(:,:)=0
 END IF
 
 ! SideToElem Mapping
@@ -919,6 +962,7 @@ DO iElem = 1,nElems
       SendMsg%ElemSlabNormals(:,:,ElemIndex(iElem))=ElemSlabNormals(:,:,iElem)
       SendMsg%ElemSlabIntervals(:,ElemIndex(iElem))=ElemSlabIntervals(:,iElem)
     END IF
+    SendMsg%ElemBaryNGeo(:,ElemIndex(iElem))=ElemBaryNGeo(:,iElem)
     DO iLocSide = 1,6
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
       !IF(isSide(SideID))THEN
@@ -1059,6 +1103,8 @@ IF (PartMPI%MyRank.LT.iProc) THEN
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
   END IF
+  IF (SendMsg%nElems.GT.0) &
+      CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
 
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
@@ -1093,7 +1139,8 @@ IF (PartMPI%MyRank.LT.iProc) THEN
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
-
+  IF (RecvMsg%nElems.GT.0) &
+      CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
 ELSE IF (PartMPI%MyRank.GT.iProc) THEN
   ! Receive:
   IF (RecvMsg%nElems.GT.0) &
@@ -1127,6 +1174,8 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
     IF (RecvMsg%nElems.GT.0) &
         CALL MPI_RECV(RecvMsg%ElemSlabIntervals,RecvMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,MPISTATUS,IERROR)
   END IF
+  IF (RecvMsg%nElems.GT.0) &
+      CALL MPI_RECV(RecvMsg%ElemBaryNGeo,RecvMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,MPISTATUS,IERROR)
 
   ! Send:
   IF (SendMsg%nElems.GT.0) CALL MPI_SEND(SendMsg%ElemToSide,SendMsg%nElems*2*6,MPI_INTEGER       ,iProc,1104,PartMPI%COMM,IERROR)
@@ -1156,6 +1205,8 @@ ELSE IF (PartMPI%MyRank.GT.iProc) THEN
     IF (SendMsg%nElems.GT.0) &
         CALL MPI_SEND(SendMsg%ElemSlabIntervals,SendMsg%nElems*6,MPI_DOUBLE_PRECISION,iProc,1117,PartMPI%COMM,IERROR)
   END IF
+  IF (SendMsg%nElems.GT.0) &
+      CALL MPI_SEND(SendMsg%ElemBaryNGeo,SendMsg%nElems*3,MPI_DOUBLE_PRECISION,iProc,1118,PartMPI%COMM,IERROR)
 
 END IF
 
@@ -1244,7 +1295,7 @@ IF(DoRefMapping)THEN
       newElemID=tmpnElems+iElem
       DO ilocSide=1,6
         haloSideID=RecvMsg%ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-        IF(haloSideID.EQ.0) CYCLE ! all non BC faces have not to be located
+        IF(haloSideID.LE.0) CYCLE ! all non BC faces have not to be located
         isDoubleSide=.FALSE.
         IF(isSide(haloSideID)) THEN
           IF(HaloInc(haloSideID).EQ.0) IPWRITE(UNIT_stdOut,*) ' Warning: wrong halo inc'
@@ -1324,6 +1375,7 @@ __STAMP__&
             PartSideToElem(S2E_FLIP       ,newSideID)=0 !RecvMsg%SideToElem(S2E_FLIP,haloSideID)
           ELSE IF(iElem.EQ.RecvMsg%SideToElem(S2E_NB_ELEM_ID,haloSideID))THEN
             ! slave side
+            ! should never happens
             PartSideToElem(S2E_NB_ELEM_ID,newSideID) =newElemID
             PartSideToElem(S2E_NB_LOC_SIDE_ID,newSideID) =ilocSide
             PartSideToElem(S2E_FLIP      ,newSideID) =RecvMsg%SideToElem(S2E_FLIP,haloSideID)
@@ -1364,12 +1416,14 @@ __STAMP__&
       dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,newElemID)=RecvMsg%dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,iElem)
       ElemSlabNormals(1:3,0:3,newElemID) = RecvMsg%ElemSlabNormals(1:3,0:3,iElem)
       ElemSlabIntervals(1:6,newElemID) = RecvMsg%ElemSlabIntervals(1:6,iElem)
+      ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
     END DO ! iElem
     ! missing connection info to MPI-Neighbor-ElemID
     DO iSide=nBCSides+nInnerSides+1,nSides
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
       ElemID2=PartSideToElem(S2E_NB_ELEM_ID,iSide)
       IF( ElemID .NE. -1 .AND. ElemID2 .NE. -1 ) CYCLE
+      locSideID=-1
       IF( ElemID .GE. 1 .AND. ElemID .LE. PP_nElems) THEN
         HostElemID=ElemID
         locSideID = SideToElem(S2E_LOC_SIDE_ID,iSide)
@@ -1428,6 +1482,7 @@ __STAMP__&
             xNodes2=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
           END SELECT
   
+          ! BUG: works only if both local coord systems are not rotated
           IF(  ALMOSTEQUAL(xNodes(1,0,0),xNodes2(1,0,0))               &
           .AND.ALMOSTEQUAL(xNodes(2,0,0),xNodes2(2,0,0))               &
           .AND.ALMOSTEQUAL(xNodes(3,0,0),xNodes2(3,0,0))               & 
@@ -1659,6 +1714,7 @@ __STAMP__&
      ! set native elemID
      PartHaloElemToProc(NATIVE_ELEM_ID,newElemId)=RecvMsg%NativeElemID(iElem)
      PartHaloElemToProc(NATIVE_PROC_ID,newElemId)=iProc
+     ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
    END DO ! iElem
    ! build rest: PartElemToElem, PartLocSideID
    DO iElem=PP_nElems+1,nTotalElems
@@ -1707,7 +1763,7 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem,ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
@@ -1728,6 +1784,7 @@ INTEGER,ALLOCATABLE                :: DummyBC(:)
 REAL,ALLOCATABLE                   :: DummyBezierControlPoints3D(:,:,:,:)                                
 REAL,ALLOCATABLE                   :: DummyXCL_NGEO (:,:,:,:,:)                                
 REAL,ALLOCATABLE                   :: DummydXCL_NGEO(:,:,:,:,:,:)                                
+REAL,ALLOCATABLE                   :: DummyElemBaryNGeo(:,:)                                
 INTEGER,ALLOCATABLE                :: DummyHaloToProc(:,:)                                 
 INTEGER,ALLOCATABLE                :: DummySideToElem(:,:)
 INTEGER,ALLOCATABLE                :: DummySideBCType(:),DummyPartBCSideList(:)
@@ -2012,6 +2069,21 @@ ELSE ! no mapping
   BoundingBoxIsEmpty(1:nOldSides) =DummyBoundingBoxIsEmpty(1:nOldSides)
   DEALLOCATE(DummyBoundingBoxIsEmpty)
 END IF
+
+! ElemBaryNGeo
+ALLOCATE(DummyElemBaryNGeo(1:3,1:nOldElems))
+IF (.NOT.ALLOCATED(DummyElemBaryNGeo)) CALL abort(&
+    __STAMP__&
+ ,'Could not allocate ElemBaryNGeo')
+DummyElemBaryNGeo=ElemBaryNGeo
+DEALLOCATE(ElemBaryNGeo)
+ALLOCATE(ElemBaryNGeo(1:3,1:nTotalElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+    __STAMP__&
+ ,'Could not allocate ElemBaryNGeo')
+ElemBaryNGeo=0.
+ElemBaryNGeo(1:3,1:nOldElems) =DummyElemBaryNGeo(1:3,1:nOldElems)
+
 ! SideBCType
 ALLOCATE(DummySideBCType(1:nOldSides))
 IF (.NOT.ALLOCATED(DummySideBCType)) CALL abort(&

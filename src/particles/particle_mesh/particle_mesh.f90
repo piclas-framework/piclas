@@ -50,6 +50,10 @@ INTERFACE BuildElementBasis
   MODULE PROCEDURE BuildElementBasis
 END INTERFACE
 
+INTERFACE BuildElementOrigin
+  MODULE PROCEDURE BuildElementOrigin
+END INTERFACE
+
 INTERFACE CountPartsPerElem
   MODULE PROCEDURE CountPartsPerElem
 END INTERFACE
@@ -71,7 +75,7 @@ INTERFACE GetElemAndSideType
 END INTERFACE
 
 PUBLIC::CountPartsPerElem
-PUBLIC::BuildElementBasis,CheckIfCurvedElem
+PUBLIC::BuildElementBasis,CheckIfCurvedElem,BuildElementOrigin
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
 PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 PUBLIC::InsideElemBoundingBox
@@ -135,7 +139,7 @@ FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 
 ! method from xPhysic to parameter space
 RefMappingGuess = GETINT('RefMappingGuess','1')
-RefMappingEps   = GETREAL('RefMappingEps','1e-8')
+RefMappingEps   = GETREAL('RefMappingEps','1e-4')
 epsInCell       = SQRT(3.0*RefMappingEps)
 epsOneCell      = 1.0+epsInCell
 IF((RefMappingGuess.LT.1).OR.(RefMappingGuess.GT.4))THEN
@@ -315,11 +319,14 @@ END IF
 
 ! --- get background mesh cell of particle
 CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-CellX = MIN(GEO%FIBGMimax,CellX)                             
+CellX = MAX(MIN(GEO%FIBGMimax,CellX),GEO%FIBGMimin)
 CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-CellY = MIN(GEO%FIBGMjmax,CellY) 
+CellY = MAX(MIN(GEO%FIBGMjmax,CellY),GEO%FIBGMjmin)
 CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-CellZ = MIN(GEO%FIBGMkmax,CellZ)
+CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
+
+
+
 !   print*,'cell indices',CellX,CellY,CellZ
 !   print*,'number of cells in bgm',GEO%FIBGM(CellX,CellY,CellZ)%nElem
 !   read*
@@ -466,11 +473,11 @@ END IF
 
 ! --- get background mesh cell of particle
 CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-CellX = MIN(GEO%FIBGMimax,CellX)                             
+CellX = MAX(MIN(GEO%FIBGMimax,CellX),GEO%FIBGMimin)
 CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-CellY = MIN(GEO%FIBGMjmax,CellY) 
+CellY = MAX(MIN(GEO%FIBGMjmax,CellY),GEO%FIBGMjmin)
 CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-CellZ = MIN(GEO%FIBGMkmax,CellZ)
+CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
 
 !--- check all cells associated with this beckground mesh cell
 
@@ -528,12 +535,12 @@ DO iBGMElem=1,nBGMElems
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
     flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
     SELECT CASE(SideType(SideID))
-!    CASE(PLANAR)
+!    CASE(PLANAR_RECT)
 !      CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
 !                                                                              ,xi                 &
 !                                                                              ,eta             ,iPart,flip,SideID)
 !                                                                              !,eta             ,iPart,ilocSide,SideID,ElemID)
-!    CASE(BILINEAR)
+!    CASE(BILINEAR,PLANAR_NONRECT)
 !      xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
 !      xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
 !      xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -558,13 +565,13 @@ DO iBGMElem=1,nBGMElems
 !                                                                              ,eta                ,iPart,SideID)
 !    END SELECT
 
-    CASE(PLANAR)
+    CASE(PLANAR_RECT)
       CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                               ,xi,eta ,iPart,flip,SideID)
 
 !      CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
 !                                                                                    ,xi,eta  ,iPart,flip,SideID)
-    CASE(BILINEAR)
+    CASE(BILINEAR,PLANAR_NONRECT)
       xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
       xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
       xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -613,14 +620,14 @@ SUBROUTINE InitFIBGM()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools,                        ONLY:GetRealArray
+USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
 !USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI,printMPINeighborWarnings
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -642,20 +649,22 @@ GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 CALL GetFIBGM()
+ALLOCATE(ElemBaryNGeo(1:3,1:nTotalElems) )
+CALL BuildElementOrigin()
 
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
 StartT=MPI_WTIME()
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
+printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.TRUE.')
 CALL InitHaloMesh()
 ! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
 ! rebuild is a local operation
 CALL AddHALOCellsToFIBGM()
 EndT=MPI_WTIME()
 IF(PartMPI%MPIROOT)THEN
-   WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Constructing of halo region took [',EndT-StartT,'s]'
+   WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
 END IF
-
 #endif /*MPI*/
 
 ! remove inner BezierControlPoints3D and SlabNormals, usw.
@@ -670,8 +679,7 @@ CALL GetElemAndSideType()
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
-        ,ElemRadius2NGeo(1:nTotalElems)        &
-        ,ElemBaryNGeo(1:3,1:nTotalElems)       )
+        ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
 !CALL MapElemToFIBGM()
 
@@ -1117,10 +1125,15 @@ FIBGMCellPadding(1:3) = INT(halo_eps/GEO%FIBGMdeltas(1:3))+1
 nShapePaddingX = 0
 nShapePaddingY = 0
 nShapePaddingZ = 0
-IF (DepositionType.EQ.'shape_function') THEN
+IF ((DepositionType.EQ.'shape_function') &
+.OR.(DepositionType.EQ.'cylindrical_shape_function') &
+.OR.(DepositionType.EQ.'shape_function_1d'))THEN
   nShapePaddingX = INT(r_sf/GEO%FIBGMdeltas(1)+0.9999999)
   nShapePaddingY = INT(r_sf/GEO%FIBGMdeltas(2)+0.9999999)
   nShapePaddingZ = INT(r_sf/GEO%FIBGMdeltas(3)+0.9999999)
+  !IPWRITE(*,*) 'nShapePaddingX',nShapePaddingX
+  !IPWRITE(*,*) 'nShapePaddingY',nShapePaddingY
+  !IPWRITE(*,*) 'nShapePaddingZ',nShapePaddingZ
  ! IF(mode.EQ.2) THEN
  !   IF((nShapePaddingX.EQ.0)    &
  !     .OR.(nShapePaddingY.EQ.0) &
@@ -1655,18 +1668,31 @@ DO iElem=1,nTotalElems
 
   !--- find minimum and maximum BGM cell for current element
   IF(GEO%nPeriodicVectors.EQ.0)THEN
+    ! same fancy stuff
+    !BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    !BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    !BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    !BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    !BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    !BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    !BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    !BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
     BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
     BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
     BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
     BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
     BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
     BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
+    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
   ELSE
     ! here fancy stuff, because element could be wide out of element range
     BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
@@ -1786,18 +1812,31 @@ DO iElem=1,nTotalElems
 
   ! same as above
   IF(GEO%nPeriodicVectors.EQ.0)THEN
+    !BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    !BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    !BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    !BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    !BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    !BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    !BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    !BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !BGMCellZmin = MAX(BGMCellZmin,BGMkmin)     
+    ! still the fancy stuff
     BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
     BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
     BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
     BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
     BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
     BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmin = MAX(BGMCellZmin,BGMkmin)     
+    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
   ELSE
     BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
     BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
@@ -1925,6 +1964,8 @@ __STAMP__&
   END IF
 END DO ! iElem
 
+DEALLOCATE(Elementfound)
+
 END SUBROUTINE AddHALOCellsToFIBGM
 #endif /*MPI*/
 
@@ -2039,7 +2080,7 @@ nPeriodicSides=0
 ! now, shrink partbcsidelist
 nOldBCSides  =nTotalBCSides
 nTotalBCSides=nTotalBCSides-nSides+nBCSides
-nTotalSides  =nTotalBCSides-nBCSides+nSides
+nTotalSides  =nTotalBCSides-nBCSides+nSides ! which is zero change
 
 
 IF(nTotalBCSides.EQ.0) RETURN
@@ -2307,15 +2348,58 @@ DEALLOCATE( Distance,ListDistance)
 END SUBROUTINE PointToExactElement
 
 
+SUBROUTINE BuildElementOrigin()
+!================================================================================================================================
+! compute the element origin at xi=(0,0,0)^T and set it as ElemBaryNGeo
+!================================================================================================================================
+USE MOD_Globals!,                  ONLY:CROSS
+USE MOD_Preproc
+USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Particle_Mesh_Vars,       ONLY:ElemBaryNGeo
+USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
+USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
+USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iElem,SideID,i,j,k
+REAL                    :: Xi(3),XPos(3),Radius,buf
+REAL                    :: Lag(1:3,0:NGeo)
+!================================================================================================================================
+
+ElemBaryNGeo=0.
+DO iElem=1,PP_nElems
+  ! evaluate the polynomial at origin
+  Xi=(/0.0,0.0,0.0/)
+  CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
+  CALL LagrangeInterpolationPolys(Xi(2),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(2,:))
+  CALL LagrangeInterpolationPolys(Xi(3),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(3,:))
+  xPos=0.
+  DO k=0,NGeo
+    DO j=0,NGeo
+      buf=Lag(2,j)*Lag(3,k)
+      DO i=0,NGeo
+        xPos=xPos+XCL_NGeo(:,i,j,k,iElem)*Lag(1,i)*buf
+      END DO !i=0,NGeo
+    END DO !j=0,NGeo
+  END DO !k=0,NGeo
+  ElemBaryNGeo(:,iElem)=xPos
+END DO ! iElem
+
+END SUBROUTINE BuildElementOrigin
+
+
 SUBROUTINE BuildElementBasis()
 !================================================================================================================================
-! select the side type for each side 
-! check if points on edges are linear. if linear, the cross product of the vector between two vertices and a vector between a 
-! vercites and a edge point has to be zero
-! SideType
-! 0 - planar
-! 1 - bilinear
-! 2 - curved
+! build the element local basis system 
+! origin is located at xi=(0,0,0)^T
+! each local coord system is pointing to an element side
 !================================================================================================================================
 USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Preproc
@@ -2327,6 +2411,7 @@ USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
 USE MOD_PICDepo_Vars,             ONLY:DepositionType,r_sf,ElemRadius2_sf
+USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -2336,37 +2421,12 @@ IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem,SideID,i,j,k,ilocSide, ALLOCSTAT
-REAL                    :: Xi(3),XPos(3),Radius
-REAL                    :: RNGeo3,RNGeoSide
+REAL                    :: Xi(3),XPos(3),Radius,buf
 REAL                    :: Lag(1:3,0:NGeo)
 !================================================================================================================================
 
-!ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
-!        ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
-!        ,ElemRadiusNGeo(1:nTotalElems)         &
-!        ,ElemBaryNGeo(1:3,1:nTotalElems)       )
-
-Xi=(/0.0,0.0,0.0/)
 ElemRadiusNGeo=0.
-ElemBaryNGeo=0.
-RNGeo3=1.0/REAL((NGeo+1)**3)
-RNGeoSide=1.0/(6.0*REAL((NGeo+1)**2))
 DO iElem=1,nTotalElems
-  IF((DoRefMapping).OR.(iElem.LE.PP_nElems))THEN
-    ElemBaryNGeo(1,iElem)=SUM(XCL_NGeo(1,:,:,:,iElem))*RNGeo3
-    ElemBaryNGeo(2,iElem)=SUM(XCL_NGeo(2,:,:,:,iElem))*RNGeo3
-    ElemBaryNGeo(3,iElem)=SUM(XCL_NGeo(3,:,:,:,iElem))*RNGeo3
-  ELSE
-    DO ilocSide=1,6
-      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-      ElemBaryNGeo(1,iElem)=ElemBaryNGeo(1,iElem)+SUM(BezierControlPoints3D(1,:,:,SideID))
-      ElemBaryNGeo(2,iElem)=ElemBaryNGeo(2,iElem)+SUM(BezierControlPoints3D(2,:,:,SideID))
-      ElemBaryNGeo(3,iElem)=ElemBaryNGeo(3,iElem)+SUM(BezierControlPoints3D(3,:,:,SideID))
-    END DO ! ilocSide
-    ElemBaryNGeo(1,iElem)=ElemBaryNGeo(1,iElem)*RNGeoSide
-    ElemBaryNGeo(2,iElem)=ElemBaryNGeo(2,iElem)*RNGeoSide
-    ElemBaryNGeo(3,iElem)=ElemBaryNGeo(3,iElem)*RNGeoSide
-  END IF
   ! get point on each side 
   IF(DoRefMapping)THEN
     ! xi plus
@@ -2454,52 +2514,18 @@ DO iElem=1,nTotalElems
     END DO !k=0,NGeo
     XiEtaZetaBasis(1:3,6,iElem)=xPos
   ELSE ! compute particle position in physical space
-    IF(NGeo.EQ.1)THEN
-      ! xi plus
-      XiEtaZetaBasis(1:3,1,iElem)=0.25*(XCL_NGeo(:,NGeo,0,0,iElem)       &
-                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
-                                       +XCL_NGeo(:,NGeo,0,NGeo,iElem)    &
-                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
-      ! eta plus
-      XiEtaZetaBasis(1:3,2,iElem)=0.25*(XCL_NGeo(:,0,   NGeo,0,iElem)    &
-                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem)    &
-                                       +XCL_NGeo(:,0,   NGeo,NGeo,iElem) &
-                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
-      ! zeta plus
-      XiEtaZetaBasis(1:3,3,iElem)=0.25*(XCL_NGeo(:,0,0,      NGeo,iElem) &
-                                       +XCL_NGeo(:,NGeo,0,   NGeo,iElem) &
-                                       +XCL_NGeo(:,0,NGeo,   NGeo,iElem) &
-                                       +XCL_NGeo(:,NGeo,NGeo,NGeo,iElem) )
-      ! xi minus
-      XiEtaZetaBasis(1:3,4,iElem)=0.25*(XCL_NGeo(:,0,0,0,iElem)       &
-                                       +XCL_NGeo(:,0,NGeo,0,iElem)    &
-                                       +XCL_NGeo(:,0,0,NGeo,iElem)    &
-                                       +XCL_NGeo(:,0,NGeo,NGeo,iElem) )
-      ! eta minus
-      XiEtaZetaBasis(1:3,5,iElem)=0.25*(XCL_NGeo(:,0,   0,0,iElem)    &
-                                       +XCL_NGeo(:,NGeo,0,0,iElem)    &
-                                       +XCL_NGeo(:,0,   0,NGeo,iElem) &
-                                       +XCL_NGeo(:,NGeo,0,NGeo,iElem) )
-      ! zeta plus
-      XiEtaZetaBasis(1:3,6,iElem)=0.25*(XCL_NGeo(:,0,0,      0,iElem) &
-                                       +XCL_NGeo(:,NGeo,0,   0,iElem) &
-                                       +XCL_NGeo(:,0,NGeo,   0,iElem) &
-                                       +XCL_NGeo(:,NGeo,NGeo,0,iElem) )
-    ELSE
-      Xi=(/0.0,0.0,0.0/)
-      SideID = PartElemToSide(1,XI_PLUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,1,iElem))
-      SideID = PartElemToSide(1,ETA_PLUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,2,iElem))
-      SideID = PartElemToSide(1,ZETA_PLUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,3,iElem))
-      SideID = PartElemToSide(1,XI_MINUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,4,iElem))
-      SideID = PartElemToSide(1,ETA_MINUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,5,iElem))
-      SideID = PartElemToSide(1,ZETA_MINUS,iElem)
-      CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,6,iElem))
-    END IF
+    SideID = PartElemToSide(1,XI_PLUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,1,iElem))
+    SideID = PartElemToSide(1,ETA_PLUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,2,iElem))
+    SideID = PartElemToSide(1,ZETA_PLUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,3,iElem))
+    SideID = PartElemToSide(1,XI_MINUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,4,iElem))
+    SideID = PartElemToSide(1,ETA_MINUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,5,iElem))
+    SideID = PartElemToSide(1,ZETA_MINUS,iElem)
+    CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,6,iElem))
   END IF ! no ref mapping
   ! compute vector from each barycenter to sidecenter
   XiEtaZetaBasis(:,1,iElem)=XiEtaZetaBasis(:,1,iElem)-ElemBaryNGeo(:,iElem)
@@ -2517,7 +2543,7 @@ DO iElem=1,nTotalElems
   slenXiEtaZetaBasis(6,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,6,iElem),XiEtaZetaBasis(:,6,iElem))
   
   Radius=0.
-  IF(DoRefMapping)THEN
+  IF(DoRefMapping)THEN ! thats not the bounding box, caution, this box is to small!
     DO k=0,NGeo
       DO j=0,NGeo
         DO i=0,NGeo
@@ -2542,8 +2568,11 @@ DO iElem=1,nTotalElems
   !ElemRadiusNGeo(iElem)=Radius
   ! elem radius containts 10% tolerance because we are not using the beziercontrolpoints
   ElemRadiusNGeo(iElem)=Radius
-  ElemRadius2NGeo(iElem)=(Radius*1.10)*(Radius*1.10)
-
+  IF(DoRefMapping)THEN
+    ElemRadius2NGeo(iElem)=(Radius*1.10)*(Radius*1.10)
+  ELSE
+    ElemRadius2NGeo(iElem)=Radius*Radius
+  END IF
 END DO ! iElem
 
 IF (TRIM(DepositionType).EQ.'shape_function')THEN
@@ -3021,16 +3050,16 @@ DO iElem=1,nLoop
           IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
         END IF
         IF(isRectangular)THEN
-          SideType(TrueSideID)=PLANAR
+          SideType(TrueSideID)=PLANAR_RECT
           IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
 #ifdef MPI
           IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
 #endif /*MPI*/
         ELSE
-          SideType(TrueSideID)=CURVED
-          IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+          SideType(TrueSideID)=PLANAR_NONRECT
+          IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
 #ifdef MPI
-          IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+          IF(SideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
 #endif /*MPI*/
         END IF
       ELSE
@@ -3108,16 +3137,16 @@ DO iElem=1,nLoop
             IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
           END IF
           IF(isRectangular)THEN
-            SideType(TrueSideID)=PLANAR
+            SideType(TrueSideID)=PLANAR_RECT
             IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
 #ifdef MPI
             IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
 #endif /*MPI*/
           ELSE
-            SideType(TrueSideID)=CURVED
-            IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+            SideType(TrueSideID)=PLANAR_NONRECT
+            IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
 #ifdef MPI
-            IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+            IF(SideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
 #endif /*MPI*/
           END IF
         ELSE
@@ -3140,7 +3169,7 @@ IF(DoRefMapping)THEN
   DO iElem=1,nTotalElems
     DO ilocSide=1,6
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-      IF (SideID.EQ.-1) CYCLE
+      IF (SideID.LE.0) CYCLE
       IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
         IF(.NOT.isBCElem(iElem))THEN
           IsBCElem(iElem)=.TRUE.
@@ -3181,9 +3210,9 @@ IF(DoRefMapping)THEN
       IF(BCSideID.EQ.-1) CYCLE
       ! next, get all sides in halo-eps vicinity
       DO ilocSide=1,6
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.EQ.-1) CYCLE
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         BCSideID2 =PartBCSideList(SideID)
         IF(BCSideID2.EQ.-1) CYCLE
         leave=.FALSE.
@@ -3211,6 +3240,8 @@ IF(DoRefMapping)THEN
           IF(leave) EXIT
         END DO ! q
 #else /* no LSERK */
+        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+        !IF(SideID.EQ.-1) CYCLE
         SELECT CASE(ilocSide)
         CASE(XI_MINUS)
           xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
@@ -3290,6 +3321,7 @@ IF(DoRefMapping)THEN
         BCElem(iElem)%BCSideID(nSideCount)=iSide
       END IF
     END DO  ! iSide
+    SideIndex=0
   END DO ! iElem
 END IF
 

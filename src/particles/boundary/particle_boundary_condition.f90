@@ -57,6 +57,9 @@ USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -91,7 +94,7 @@ CASE(1) !PartBound%OpenBC)
   IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
     !BCSideID=PartBCSideList(SideID)
     SELECT CASE(SideType(SideID))
-    CASE(PLANAR)
+    CASE(PLANAR_RECT,PLANAR_NONRECT)
       n_loc=SideNormVec(1:3,SideID)
     CASE(BILINEAR)
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
@@ -107,6 +110,10 @@ CASE(1) !PartBound%OpenBC)
   END IF ! CalcPartBalance
   PDM%ParticleInside(iPart) = .FALSE.
   alpha=-1.
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+  PartIsImplicit(iPart) = .FALSE.
+#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -150,14 +157,14 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
-          __STAMP__,&
-          'Boundary_Error: Adsorptionindex switched to unknown value.')
+__STAMP__,&
+'Boundary_Error: Adsorptionindex switched to unknown value.')
       END IF
     ELSE IF (WallModeltype.GT.1) THEN
       WRITE(*,*)'Boundary_PIC: wall model with adsorption chemistry (catalysis) not implemented yet.'
       CALL Abort(&
-          __STAMP__,&
-          'wall model 2 not implemented')
+__STAMP__,&
+'wall model 2 not implemented')
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -224,6 +231,9 @@ USE MOD_Mesh_Vars,              ONLY:BC,nSides
 USE MOD_Particle_Mesh_Vars,     ONLY:PartBCSideList
 USE MOD_DSMC_Vars,              ONLY:DSMC,useDSMC
 USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -255,7 +265,7 @@ CASE(1) !PartBound%OpenBC)
   IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
     BCSideID=PartBCSideList(SideID)
     SELECT CASE(SideType(BCSideID))
-    CASE(PLANAR)
+    CASE(PLANAR_RECT,PLANAR_NONRECT)
       n_loc=SideNormVec(1:3,BCSideID)
     CASE(BILINEAR)
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
@@ -271,6 +281,9 @@ CASE(1) !PartBound%OpenBC)
   END IF ! CalcPartBalance
   PDM%ParticleInside(iPart) = .FALSE.
   alpha=-1.
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+  PartIsImplicit(iPart) = .FALSE.
+#endif /*PP_TimeDiscMethod==121 || PP_TimeDiscMethod==122  */
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -316,14 +329,14 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
-          __STAMP__,&
-          'Boundary_Error: Adsorptionindex switched to unknown value.')
+__STAMP__,&
+'Boundary_Error: Adsorptionindex switched to unknown value.')
       END IF
     ELSE IF (WallModeltype.GT.1) THEN
       WRITE(*,*)'Boundary_PIC: wall model with adsorption chemistry (catalysis) not implemented yet.'
       CALL Abort(&
-          __STAMP__,&
-          'wall model 2 not implemented')
+__STAMP__,&
+'wall model 2 not implemented')
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -386,6 +399,7 @@ USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars,              ONLY:BC
 USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, SpecDSMC, DSMC, useDSMC
 USE MOD_DSMC_Vars,              ONLY:CollisMode, AnalyzeSurfCollis
+USE MOD_LD_Vars,                ONLY: useLD
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
 USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM!,Pt
@@ -435,7 +449,7 @@ WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR)
+  CASE(PLANAR_RECT,PLANAR_NONRECT)
     n_loc=SideNormVec(1:3,BCSideID)
   CASE(BILINEAR)
     CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
@@ -444,7 +458,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   SELECT CASE(SideType(SideID))
-  CASE(PLANAR)
+  CASE(PLANAR_RECT,PLANAR_NONRECT)
     n_loc=SideNormVec(1:3,SideID)
   CASE(BILINEAR)
     CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
@@ -492,7 +506,7 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
   lengthPartTrajectory=lengthPartTrajectory!+epsilontol
   
   ! Wall sampling Macrovalues
-!   IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
+  IF((.NOT.Symmetry).AND.(.NOT.UseLD)) THEN !surface mesh is not build for the symmetry BC!?!
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
       SurfSideID=SurfMesh%SideIDToSurfID(SideID)
       ! compute p and q
@@ -542,7 +556,7 @@ __STAMP__&
         END IF
       END IF
     END IF
-!   END IF
+  END IF
   
 #if defined(LSERK)
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -662,7 +676,7 @@ RotACC       = PartBound%RotACC(locBCID)
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR)
+  CASE(PLANAR_RECT,PLANAR_NONRECT)
     n_loc=SideNormVec(1:3,BCSideID)
     tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID))
     tang2=CROSSNORM(n_loc,tang1)
@@ -675,7 +689,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   SELECT CASE(SideType(SideID))
-  CASE(PLANAR)
+  CASE(PLANAR_RECT,PLANAR_NONRECT)
     n_loc=SideNormVec(1:3,SideID)
     tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,SideID)-BezierControlPoints3D(:,0,0,SideID))
     tang2=CROSSNORM(n_loc,tang1)

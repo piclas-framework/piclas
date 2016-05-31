@@ -71,6 +71,9 @@ nDOFelem=PP_nVar*nGP3D
 nDOFGlobal=nDOFelem*PP_nElems
 
 ALLOCATE(ImplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+ALLOCATE(ExplicitSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+#endif
 ALLOCATE(LinSolverRHS  (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 !#if (PP_TimeDiscMethod==100)
 !  ALLOCATE(FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1))
@@ -105,6 +108,17 @@ maxIter_LinearSolver  = GETINT('maxIter_LinearSolver','60')
 nKDim=GETINT('nKDim','25')
 nInnerIter=0
 totalIterLinearSolver = 0
+
+#if (PP_TimeDiscMethod==121) ||(PP_TimeDiscMethod==122)
+maxFullNewtonIter    = GETINT('maxFullNewtonIter','100')
+TotalFullNewtonIter  = 0
+Eps_FullNewton       = GETREAL('eps_FullNewton','1e-3')
+Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
+FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
+FullgammaEW          = GETREAL('FullgammaEW','0.9')
+DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
+#endif
+
 
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 DO iElem=1,PP_nElems
@@ -156,7 +170,7 @@ CALL InitPrecond()
 
 END SUBROUTINE InitLinearSolver
 
-SUBROUTINE LinearSolver(t,Coeff)
+SUBROUTINE LinearSolver(t,Coeff,relTolerance)
 !==================================================================================================================================
 ! Selection between different linear solvers
 !==================================================================================================================================
@@ -166,31 +180,51 @@ USE MOD_LinearSolver_Vars              ,ONLY: LinSolver
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT)  :: t,Coeff
+REAL,INTENT(INOUT)       :: t,Coeff
+REAL,INTENT(IN),OPTIONAL :: relTolerance
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !==================================================================================================================================
 
-SELECT CASE(LinSolver)
-CASE(1)
- CALL LinearSolver_CGS(t,Coeff)
-CASE(2)
- CALL LinearSolver_BiCGSTAB_PM(t,Coeff)
-CASE(3)
- CALL LinearSolver_StabBiCGSTAB_P(t,Coeff)
-CASE(4)
- CALL LinearSolver_GMRES_P(t,Coeff)
-CASE(5)
- CALL LinearSolver_BiCGSTAB_LRP(t,Coeff)
-CASE(6)
- CALL LinearSolver_BiCGSTAB_LP(t,Coeff)
-CASE(7)
- CALL LinearSolver_BiCGSTABl(t,Coeff)
-END SELECT
+IF(PRESENT(relTolerance))THEN
+  SELECT CASE(LinSolver)
+  CASE(1)
+   CALL LinearSolver_CGS(t,Coeff,relTolerance)
+  CASE(2)
+   CALL LinearSolver_BiCGSTAB_PM(t,Coeff,relTolerance)
+  CASE(3)
+   CALL LinearSolver_StabBiCGSTAB_P(t,Coeff,relTolerance)
+  CASE(4)
+   CALL LinearSolver_GMRES_P(t,Coeff,relTolerance)
+  CASE(5)
+   CALL LinearSolver_BiCGSTAB_LRP(t,Coeff,relTolerance)
+  CASE(6)
+   CALL LinearSolver_BiCGSTAB_LP(t,Coeff,relTolerance)
+  CASE(7)
+   CALL LinearSolver_BiCGSTABl(t,Coeff,relTolerance)
+  END SELECT
+ELSE
+  SELECT CASE(LinSolver)
+  CASE(1)
+   CALL LinearSolver_CGS(t,Coeff)
+  CASE(2)
+   CALL LinearSolver_BiCGSTAB_PM(t,Coeff)
+  CASE(3)
+   CALL LinearSolver_StabBiCGSTAB_P(t,Coeff)
+  CASE(4)
+   CALL LinearSolver_GMRES_P(t,Coeff)
+  CASE(5)
+   CALL LinearSolver_BiCGSTAB_LRP(t,Coeff)
+  CASE(6)
+   CALL LinearSolver_BiCGSTAB_LP(t,Coeff)
+  CASE(7)
+   CALL LinearSolver_BiCGSTABl(t,Coeff)
+  END SELECT
+END IF
 
 END SUBROUTINE LinearSolver
 
-SUBROUTINE LinearSolver_CGS(t,Coeff)
+SUBROUTINE LinearSolver_CGS(t,Coeff,relTolerance)
 !==================================================================================================================================
 ! Solves Linear system Ax=b using CGS
 ! Matrix A = I - Coeff*R
@@ -203,30 +237,34 @@ USE MOD_Globals
 USE MOD_DG_Vars,              ONLY:U,Ut
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#endif
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)  :: t,Coeff
+REAL,INTENT(IN)          :: t,Coeff
+REAL,INTENT(IN),OPTIONAL :: relTolerance
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: iter
-REAL             :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAl             :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Q(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Tvec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Norm_R0,sigma,alpha,beta,Norm_R
-REAL             :: AbortCrit
-INTEGER          :: iterLinSolver,Restart
+INTEGER                  :: iter
+REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAl                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Q(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Tvec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Norm_R0,sigma,alpha,beta,Norm_R
+REAL                     :: AbortCrit
+INTEGER                  :: iterLinSolver,Restart
 ! preconditioner
-REAL             :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: TvecQt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: TvecQt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !==================================================================================================================================
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
@@ -255,7 +293,12 @@ Norm_R0=SQRT(Norm_R0)
 P=R0
 R=R0
 Tvec=R0
-AbortCrit = Norm_R0*eps_LinearSolver
+
+IF(PRESENT(relTolerance))THEN
+  AbortCrit = Norm_R0*relTolerance
+ELSE
+  AbortCrit = Norm_R0*eps_LinearSolver
+END IF
 
 DO WHILE (Restart.LT.nRestarts) ! maximum number of trials with CGS
   DO iterLinSolver=1, maxIter_LinearSolver
@@ -300,7 +343,11 @@ DO WHILE (Restart.LT.nRestarts) ! maximum number of trials with CGS
   ! restart with new U
   ! LinSolverRHS and X0 = U
   !  U              = 0.5*(Uold+Un)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ImplicitSource = ExplicitSource
+#else
   ImplicitSource = 0.
+#endif
   U             = Un
   ! LinSolverRHS and X0 = U
   CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
@@ -335,6 +382,9 @@ USE MOD_Globals
 USE MOD_DG_Vars,        ONLY: U
 USE MOD_LinearSolver_Vars,  ONLY: eps_LinearSolver,maxIter_LinearSolver!,epsTilde_LinearSolver
 USE MOD_LinearSolver_Vars,  ONLY: LinSolverRHS,ImplicitSource
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#endif
 USE MOD_LinearOperator, ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -413,7 +463,11 @@ DO iter=1,maxIter_LinearSolver
     U=0.5*(UOld+Un)
     chance=chance+1
     ! restart
-    ImplicitSource=0.
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ImplicitSource = ExplicitSource
+#else
+  ImplicitSource = 0.
+#endif
     LinSolverRHS  =U
     SWRITE(*,*)'SAUARSCH,iter,t,Norm_R,Norm_R0',iter,t,Norm_R,Norm_R0
     GOTO 1002
@@ -441,6 +495,9 @@ USE MOD_DG_Vars,             ONLY: U
 USE MOD_TimeDisc_Vars,       ONLY: dt
 USE MOD_LinearSolver_Vars,   ONLY: eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,   ONLY: LinSolverRHS,ImplicitSource
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#endif
 USE MOD_ApplyPreconditioner, ONLY:Preconditioner
 USE MOD_LinearOperator,      ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
 ! IMPLICIT VARIABLE HANDLING
@@ -535,7 +592,11 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   Un   = U
   Uold = U
   ! restart
-  ImplicitSource=0.
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ImplicitSource = ExplicitSource
+#else
+  ImplicitSource = 0.
+#endif
   LinSolverRHS  =U
   chance = chance+1
   totalIterLinearSolver=totalIterLinearSolver+iterLinSolver
@@ -552,7 +613,7 @@ __STAMP__ &
 
 END SUBROUTINE LinearSolver_BiCGSTAB_P
 
-SUBROUTINE LinearSolver_BiCGStab_PM(t,Coeff)
+SUBROUTINE LinearSolver_BiCGStab_PM(t,Coeff,relTolerance)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab with right preconditioner P_r
 ! Matrix A = I - Coeff*R
@@ -566,33 +627,37 @@ USE MOD_DG_Vars,              ONLY:U
 USE MOD_TimeDisc_Vars,        ONLY:dt
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#endif
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)  :: t,Coeff
+REAL,INTENT(IN)          :: t,Coeff
+REAL,INTENT(IN),OPTIONAL :: relTolerance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL             :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Norm_R0,Norm_R,Norm_T2
-INTEGER          :: iterLinSolver,Restart
-REAL             :: alpha,sigma,omega,beta
-REAL             :: AbortCrit
+REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Norm_R0,Norm_R,Norm_T2
+INTEGER                  :: iterLinSolver,Restart
+REAL                     :: alpha,sigma,omega,beta
+REAL                     :: AbortCrit
 ! preconditioner
-REAL             :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #ifdef DLINANALYZE
-REAL             :: tS,tE,tStart,tend
-REAL             :: tDG, tPrecond
+REAL                     :: tS,tE,tStart,tend
+REAL                     :: tDG, tPrecond
 #endif /* DLINANALYZE */
 !===================================================================================================================================
 
@@ -629,7 +694,12 @@ Norm_R0=SQRT(Norm_R0)
 
 P  = R0
 R  = R0
-AbortCrit = Norm_R0*eps_LinearSolver
+IF(PRESENT(relTolerance))THEN
+  AbortCrit = Norm_R0*relTolerance
+ELSE
+  AbortCrit = Norm_R0*eps_LinearSolver
+END IF
+
 
 DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner interation
   DO iterLinSolver = 1, maxIter_LinearSolver  ! two trials with half of iterations
@@ -706,7 +776,11 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   ! restart with new U
   ! LinSolverRHS and X0 = U
 !  U              = 0.5*(Uold+Un)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ImplicitSource = ExplicitSource
+#else
   ImplicitSource = 0.
+#endif
   U             = Un
   ! LinSolverRHS and X0 = U
   CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
@@ -742,6 +816,9 @@ USE MOD_DG_Vars,       ONLY:U
 USE MOD_LinearSolver_Vars, ONLY:eps_LinearSolver,maxIter_LinearSolver!,epsTilde_LinearSolver
 USE MOD_Equation_Vars, ONLY:eps0,c_corr
 USE MOD_LinearSolver_Vars, ONLY:LinSolverRHS,ImplicitSource
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#endif
 USE MOD_LinearOperator, ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -843,7 +920,11 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   Un   = U
   Uold = U
   ! restart
-  ImplicitSource=0.
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ImplicitSource = ExplicitSource
+#else
+  ImplicitSource = 0.
+#endif
   LinSolverRHS  =U
   chance = chance+1
   SWRITE(*,*) 'No convergence during first half of iterations.'
@@ -860,7 +941,7 @@ __STAMP__ &
 END SUBROUTINE LinearSolver_StabBiCGSTAB
 
 
-SUBROUTINE LinearSolver_StabBiCGSTAB_P(t,Coeff)
+SUBROUTINE LinearSolver_StabBiCGSTAB_P(t,Coeff,relTolerance)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using stabilized BiCGStab 
 ! Matrix A = I - Coeff*R
@@ -874,32 +955,36 @@ USE MOD_DG_Vars,                 ONLY: U
 USE MOD_Precond_Vars,            ONLY: PrecondType
 USE MOD_LinearSolver_Vars,       ONLY: eps_LinearSolver,maxIter_LinearSolver,epsTilde_LinearSolver,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY: LinSolverRHS,ImplicitSource
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#endif
 USE MOD_LinearOperator,          ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,     ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)  :: t,Coeff
+REAL,INTENT(IN)          :: t,Coeff
+REAL,INTENT(IN),OPTIONAL :: relTolerance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: iter
-REAL             :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R,eps0inv, Norm_R02, Norm_V, Norm_S
-REAL             :: AbortCrit,AbortCrit2
-INTEGER          :: chance
+INTEGER                  :: iter
+REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Norm_R0,sigma,alpha,Norm_T2,omega,beta,Norm_R,eps0inv, Norm_R02, Norm_V, Norm_S
+REAL                     :: AbortCrit,AbortCrit2
+INTEGER                  :: chance
 ! preconditioner
-REAL             :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: tS,tE,tStart,tend
-REAL             :: tDG, tPrecond
+REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: tS,tE,tStart,tend
+REAL                     :: tDG, tPrecond
 !===================================================================================================================================
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
@@ -928,7 +1013,11 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   Norm_R0=SQRT(Norm_R0)
   P=R0
   R=R0
-  AbortCrit  = Norm_R0*eps_LinearSolver
+  IF(PRESENT(relTolerance))THEN
+    AbortCrit = Norm_R0*relTolerance
+  ELSE
+    AbortCrit = Norm_R0*eps_LinearSolver
+  END IF
   AbortCrit2 = AbortCrit*AbortCrit
   
   DO iter=1,maxIter_LinearSolver
@@ -1013,7 +1102,11 @@ DO WHILE (chance.LT.2)  ! maximum of two trials with BiCGStab inner interation
   Un   = 0.5*(Uold+Un)
   Uold = U
   LinSolverRHS = U
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ImplicitSource = ExplicitSource
+#else
   ImplicitSource = 0.
+#endif
   totalIterLinearSolver=totalIterLinearSolver+iter
   chance = chance+1
   SWRITE(*,*) 'No convergence during first half of iterations.'
@@ -1030,7 +1123,7 @@ __STAMP__ &
 END SUBROUTINE LinearSolver_StabBiCGSTAB_P
 
 
-SUBROUTINE LinearSolver_GMRES_P(t,coeff)
+SUBROUTINE LinearSolver_GMRES_P(t,coeff,relTolerance)
 !===================================================================================================================================
 ! Uses matrix free to solve the linear system
 ! Attention: We use DeltaX=0 as our initial guess   ! why not Un??
@@ -1041,6 +1134,9 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DG_Vars,              ONLY: U
 USE MOD_LinearSolver_Vars,    ONLY: LinSolverRHS,ImplicitSource
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#endif
 USE MOD_LinearSolver_Vars,    ONLY: eps_LinearSolver,TotalIterLinearSolver
 USE MOD_LinearSolver_Vars,    ONLY: nKDim,nRestarts,nInnerIter
 USE MOD_LinearOperator,       ONLY: MatrixVector, MatrixVectorSource, VectorDotProduct
@@ -1049,26 +1145,27 @@ USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)   :: t,coeff
+REAL,INTENT(IN)          :: t,coeff
+REAL,INTENT(IN),OPTIONAL :: relTolerance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL              :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nKDim)
-REAL              :: V2P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL              :: W(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL              :: Z(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL              :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL              :: Gam(1:nKDim+1),C(1:nKDim),S(1:nKDim),H(1:nKDim+1,1:nKDim+1),Alp(1:nKDim+1)
-REAL              :: Norm_R0,Resu,Temp,Bet
-REAL              :: AbortCrit
-INTEGER           :: Restart
-INTEGER           :: m,nn,o
+REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nKDim)
+REAL                     :: V2P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: W(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Z(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Gam(1:nKDim+1),C(1:nKDim),S(1:nKDim),H(1:nKDim+1,1:nKDim+1),Alp(1:nKDim+1)
+REAL                     :: Norm_R0,Resu,Temp,Bet
+REAL                     :: AbortCrit
+INTEGER                  :: Restart
+INTEGER                  :: m,nn,o
 ! preconditoner + Vt
-REAL              :: Vt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nKDim)
-REAL              :: Vt2(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Vt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nKDim)
+REAL                     :: Vt2(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 #ifdef DLINANALYZE
-REAL              :: tS,tE, tS2,tE2,t1,t2
-real              :: tstart,tend,tPrecond,tDG
+REAL                     :: tS,tE, tS2,tE2,t1,t2
+real                     :: tstart,tend,tPrecond,tDG
 #endif /* DLINANALYZE */
 !===================================================================================================================================
 
@@ -1100,7 +1197,12 @@ CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 CALL VectorDotProduct(R0,R0,Norm_R0)
 Norm_R0=SQRT(Norm_R0)
 ! define relative abort criteria
-AbortCrit=Norm_R0*eps_LinearSolver
+IF(PRESENT(relTolerance))THEN
+  AbortCrit = Norm_R0*relTolerance
+ELSE
+  AbortCrit = Norm_R0*eps_LinearSolver
+END IF
+
 ! GMRES(m)  inner loop
 V(:,:,:,:,:,1)=R0/Norm_R0
 Gam(1)=Norm_R0
@@ -1176,7 +1278,11 @@ DO WHILE (Restart<nRestarts)
   Restart=Restart+1
   ! new settings for source
   U=Un
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ImplicitSource = ExplicitSource
+#else
   ImplicitSource = 0.
+#endif
   ! does not change LinSolverRHS
 ! start residuum berrechnen
   CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
@@ -1193,7 +1299,7 @@ __STAMP__ &
 
 END SUBROUTINE LinearSolver_GMRES_P
 
-SUBROUTINE LinearSolver_BiCGStab_LRP(t,Coeff)
+SUBROUTINE LinearSolver_BiCGStab_LRP(t,Coeff,relTolerance)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab with left and right preconditioners
 ! left preconditioner is right preconditioner
@@ -1209,35 +1315,39 @@ USE MOD_DG_Vars,              ONLY:U
 USE MOD_TimeDisc_Vars,        ONLY:dt
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#endif
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)  :: t,Coeff
+REAL,INTENT(IN)          :: t,Coeff
+REAL,INTENT(IN),OPTIONAL :: relTolerance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL             :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-!REAL             :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Norm_R0,Norm_R,Norm_T2,Norm_Rn
-INTEGER          :: iterLinSolver,Restart
-REAL             :: alpha,sigma,omega,beta
-REAL             :: AbortCrit
+REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+!REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Norm_R0,Norm_R,Norm_T2,Norm_Rn
+INTEGER                  :: iterLinSolver,Restart
+REAL                     :: alpha,sigma,omega,beta
+REAL                     :: AbortCrit
 ! preconditioner
-REAL             :: deltaX(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Rt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R0t(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Vt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Tvect(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: deltaX(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Rt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R0t(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Vt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Tvect(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !===================================================================================================================================
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
@@ -1262,7 +1372,11 @@ CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 !P = R0
 R = R0
 CALL VectorDotProduct(R0,R0,Norm_R0)
-AbortCrit = eps_LinearSolver*SQRT(Norm_R0)
+IF(PRESENT(relTolerance))THEN
+  AbortCrit = SQRT(Norm_R0)*relTolerance
+ELSE
+  AbortCrit = SQRT(Norm_R0)*eps_LinearSolver
+END IF
 
 ! left precondtioning of residuum
 CALL Preconditioner(coeff,R0,R0t)
@@ -1344,7 +1458,11 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   Uold = U
 
   ! restart with new U
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ImplicitSource = ExplicitSource
+#else
   ImplicitSource = 0.
+#endif
   ! LinSolverRHS and X0 = U
   CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
   R = R0
@@ -1367,7 +1485,7 @@ __STAMP__ &
 
 END SUBROUTINE LinearSolver_BiCGSTAB_LRP
 
-SUBROUTINE LinearSolver_BiCGStab_LP(t,Coeff)
+SUBROUTINE LinearSolver_BiCGStab_LP(t,Coeff,relTolerance)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab with left and right preconditioners
 ! left preconditioner is right preconditioner
@@ -1383,35 +1501,39 @@ USE MOD_DG_Vars,              ONLY:U
 USE MOD_TimeDisc_Vars,        ONLY:dt
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#endif
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)  :: t,Coeff
+REAL,INTENT(IN)          :: t,Coeff
+REAL,INTENT(IN),OPTIONAL :: relTolerance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL             :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-!REAL             :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Norm_R0,Norm_R,Norm_T2,Norm_Rn
-INTEGER          :: iterLinSolver,Restart
-REAL             :: alpha,sigma,omega,beta
-REAL             :: AbortCrit
+REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: UOld(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: V(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+!REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: S(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: TVec(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Norm_R0,Norm_R,Norm_T2,Norm_Rn
+INTEGER                  :: iterLinSolver,Restart
+REAL                     :: alpha,sigma,omega,beta
+REAL                     :: AbortCrit
 ! preconditioner
-!REAL             :: deltaX(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Rt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: R0t(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Vt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Tvect(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+!REAL                     :: deltaX(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Rt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: R0t(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Vt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Tvect(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: St(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !===================================================================================================================================
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
@@ -1435,7 +1557,11 @@ CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 !P = R0
 R = R0
 CALL VectorDotProduct(R0,R0,Norm_R0)
-AbortCrit = eps_LinearSolver*SQRT(Norm_R0)
+IF(PRESENT(relTolerance))THEN
+  AbortCrit = SQRT(Norm_R0)*relTolerance
+ELSE
+  AbortCrit = SQRT(Norm_R0)*eps_LinearSolver
+END IF
 
 ! left precondtioning of residuum
 CALL Preconditioner(coeff,R0,R0t)
@@ -1510,7 +1636,11 @@ DO WHILE (Restart.LT.nRestarts)  ! maximum of two trials with BiCGStab inner int
   Uold = U
 
   ! restart with new U
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ImplicitSource = ExplicitSource
+#else
   ImplicitSource = 0.
+#endif
   ! LinSolverRHS and X0 = U
   CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
   R = R0
@@ -1533,7 +1663,7 @@ __STAMP__ &
 
 END SUBROUTINE LinearSolver_BiCGSTAB_LP
 
-SUBROUTINE LinearSolver_BiCGSTABl(t,Coeff)
+SUBROUTINE LinearSolver_BiCGSTABl(t,Coeff,relTolerance)
 !===================================================================================================================================
 ! Solves Linear system Ax=b using BiCGStab(l) with right preconditioner P_r
 ! Matrix A = I - Coeff*R
@@ -1548,30 +1678,34 @@ USE MOD_DG_Vars,              ONLY:U
 USE MOD_TimeDisc_Vars,        ONLY:dt
 USE MOD_LinearSolver_Vars,    ONLY:eps_LinearSolver,maxIter_LinearSolver,totalIterLinearSolver,nInnerIter
 USE MOD_LinearSolver_Vars,    ONLY:LinSolverRHS,ImplicitSource,nRestarts,ldim
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#endif
 USE MOD_LinearOperator,       ONLY:MatrixVector, MatrixVectorSource, VectorDotProduct
 USE MOD_ApplyPreconditioner,  ONLY:Preconditioner
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)  :: t,Coeff
+REAL,INTENT(IN)          :: t,Coeff
+REAL,INTENT(IN),OPTIONAL :: relTolerance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL             :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: deltaX(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,0:ldim)
-REAL             :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,0:ldim)
-REAL             :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: sigma(0:ldim),tau(1:ldim,1:ldim)
-REAL             :: phi(0:ldim),phis(0:ldim),phiss(0:ldim)
-INTEGER          :: iterLinSolver,Restart
-INTEGER          :: m,nn
-REAL             :: alpha,omega,beta
-REAL             :: Norm_R, Norm_R0, Norm_Abort
-REAL             :: AbortCrit
+REAL                     :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: deltaX(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: P(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,0:ldim)
+REAL                     :: R(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,0:ldim)
+REAL                     :: R0(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: sigma(0:ldim),tau(1:ldim,1:ldim)
+REAL                     :: phi(0:ldim),phis(0:ldim),phiss(0:ldim)
+INTEGER                  :: iterLinSolver,Restart
+INTEGER                  :: m,nn
+REAL                     :: alpha,omega,beta
+REAL                     :: Norm_R, Norm_R0, Norm_Abort
+REAL                     :: AbortCrit
 ! preconditioner
-REAL             :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL             :: Rt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Pt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL                     :: Rt(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !===================================================================================================================================
 
 ! U^n+1 = U^n + dt * DG_Operator U^n+1 + Sources^n+1
@@ -1596,8 +1730,11 @@ CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 ! compute  A*U^n
 CALL VectorDotProduct(R0,R0,Norm_R0)
 Norm_R0=SQRT(Norm_R0)
-AbortCrit = Norm_R0*eps_LinearSolver
-
+IF(PRESENT(relTolerance))THEN
+  AbortCrit = Norm_R0*relTolerance
+ELSE
+  AbortCrit = Norm_R0*eps_LinearSolver
+END IF
 ! starting direction accoring to old paper
 P(:,:,:,:,:,0) = 0.
 R(:,:,:,:,:,0) = R0
@@ -1684,7 +1821,11 @@ DO WHILE(Restart.LT.nRestarts)
 !  U              = 0.5*(Uold+Un)
   CALL Preconditioner(coeff,deltaX,U)
   U=U+Un
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+  ImplicitSource = ExplicitSource
+#else
   ImplicitSource = 0.
+#endif
   ! LinSolverRHS and X0 = U
   CALL MatrixVectorSource(t,Coeff,R0) ! coeff*Ut+Source^n+1 ! only output
 
@@ -1712,6 +1853,9 @@ SUBROUTINE FinalizeLinearSolver()
 !===================================================================================================================================
 ! MODULES
 USE MOD_LinearSolver_Vars,ONLY:LinearSolverInitIsDone,ImplicitSource,LinSolverRHS
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+USE MOD_LinearSolver_Vars,    ONLY:ExplicitSource
+#endif
 USE MOD_Predictor    ,ONLY:FinalizePredictor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1726,6 +1870,9 @@ IMPLICIT NONE
 LinearSolverInitIsDone = .FALSE.
 SDEALLOCATE(ImplicitSource)
 SDEALLOCATE(LinSolverRHS)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
+SDEALLOCATE(ExplicitSource)
+#endif
 CALL FinalizePredictor
 !SDEALLOCATE(FieldSource)
 END SUBROUTINE FinalizeLinearSolver

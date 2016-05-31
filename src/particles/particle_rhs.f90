@@ -140,7 +140,7 @@ FUNCTION SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 ! Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort
+USE MOD_Globals,           ONLY : abort,MyRank
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
 USE MOD_Equation_Vars,     ONLY : c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
@@ -162,9 +162,13 @@ velosq = PartState(PartID,4) * PartState(PartID,4) &
        + PartState(PartID,5) * PartState(PartID,5) &
        + PartState(PartID,6) * PartState(PartID,6)  
 
-IF(velosq.GT.c2) CALL abort(&
+IF(velosq.GT.c2) THEN
+ IPWRITE(*,*) ' Particle is faster than the speed of light'
+ IPWRITE(*,*) ' Species-ID',PartSpecies(PartID)
+  CALL abort(&
 __STAMP__&
 ,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
+END IF
 
 ! MPF in ChargeIC and MassIC cancels out.
 LorentzFac = (SQRT(1.0 - velosq * c2_inv))
@@ -192,7 +196,7 @@ FUNCTION FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
 ! Creates an integer stamp that will afterwards be given to the SOUBRUTINE timestamp
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort
+USE MOD_Globals,           ONLY : abort,Myrank
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
 USE MOD_Equation_Vars,     ONLY : c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
@@ -221,6 +225,8 @@ v2s = v2*v2
 v3s = v3*v3
 velosq = v1s+v2s+v3s
 IF(velosq.GT.c2) THEN
+ IPWRITE(*,*) ' Particle is faster than the speed of light'
+ IPWRITE(*,*) ' Species-ID',PartSpecies(PartID)
  CALL abort(&
 __STAMP__&
 ,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)

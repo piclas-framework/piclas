@@ -35,13 +35,14 @@ SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
 SET_PROPERTY(CACHE BOLTZPLATZ_EQNSYSNAME PROPERTY STRINGS maxwell maxwell_pois electrostatic electrostatic_pois poisson)
 OPTION(BOLTZPLATZ_PARTICLES "Particles" ON)
 SET(BOLTZPLATZ_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
-SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR ParticleEuler-FieldEulerImplicit ParticleExplicit-FieldImplicitO3 ParticleExplicit-FieldImplicitO4 Ascher3 ParticleImplicit IPEF3 IPEF4 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
+SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR ParticleEuler-FieldEulerImplicit ParticleExplicit-FieldImplicitO3 ParticleExplicit-FieldImplicitO4 Ascher3 ParticleImplicit IPEF3 IPEF4 ImplicitO3 ImplicitO4 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
 OPTION(BOLTZPLATZ_GAUSS_NODES "Gauss nodes" ON)
 SET(BOLTZPLATZ_POLYNOMIAL_DEGREE "N" CACHE STRING "N = compile with variable polynomial degree. Use any other number to compile with fixed polynomial degree.")
 OPTION(BOLTZPLATZ_HLRS "enable the settings for the HLRS" OFF)
 OPTION(BOLTZPLATZ_HDF5F90 "enable old HDF5 interface" OFF)
 OPTION(BOLTZPLATZ_MKL "use MKL libraries instead of BLAS/LAPACK" OFF)
 OPTION(BOLTZPLATZ_CODE_ANALYZE "Code Analyze" OFF)
+OPTION(BOLTZPLATZ_CTAGS "Use Ctags" OFF)
 ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 OPTION(BOLTZPLATZ_HDG "enable Hybridized Discontinuous Galerkin (HDG) depending on choice of TIMEDISCMETHOD" OFF)
 
@@ -90,7 +91,7 @@ ENDFOREACH()
 # =========================================================================
 # General preproc DEFINES
 # =========================================================================
-SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DBASEDIR=\"\\\"${CMAKE_CURRENT_SOURCE_DIR}\\\"\"")
+ADD_DEFINITIONS("-DBASEDIR='\"${CMAKE_CURRENT_BINARY_DIR}/\"'")
 
 # =========================================================================
 # Equation system
@@ -185,6 +186,10 @@ ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "IPEF3")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=111 -DIMPA)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "IPEF4")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=112 -DIMPA)
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO3")
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
+ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "ImplicitO4")
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation")
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=200)
 ELSEIF(BOLTZPLATZ_TIMEDISCMETHOD STREQUAL "FieldRelaxation-AdaptiveTimeStep")
@@ -361,8 +366,14 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
    # set Flags
    SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -r8 -i4 -traceback -warn all -assume bscc -shared-intel -DINTEL")
    SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O2 ${BOLTZPLATZ_INSTRUCTION} -vec-report0 -no-prec-div ")
+   # -ipo is not working
+   # -fp-model precise -> identical results 85s
+   # -fp-model strict  -> identical results 96s
+   # -rec-sqrt -fma -no-fma
+   # additional -fp-model precise -fp-model exept -fp-model strict
    SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O2 ${BOLTZPLATZ_INSTRUCTION} -vec-report0 -no-prec-div")
-   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit")
+   #SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -init=snan -init=arrays -init=zero")
+   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O2 -fpe0 -traceback -warn all -fstack-protector -assume protect_parens -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -ftrapuv -init=snan -init=arrays -init=zero")
    # add flags only for compiling not linking!
   SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES COMPILE_FLAGS "-fpp -assume bscc")
    SET_TARGET_PROPERTIES(boltzplatz    PROPERTIES COMPILE_FLAGS "-fpp -assume bscc")
@@ -404,7 +415,7 @@ IF(HDF5_FOUND)
   SET(CMAKE_Fortran_FLAGS "${CMAKE_FORTRAN_FLAGS} -I${HDF5_INCLUDE_DIR_FORTRAN}")
   TARGET_LINK_LIBRARIES(boltzplatz ${HDF5_FORTRAN_STATIC_LIBRARY} ${HDF5_LIBRARIES})
   MESSAGE(STATUS "Building boltzplatz with parallel HDF5 (HyperSlab)")
-  SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DH5TOOLSDIR=\"\\\"${HDF5_INCLUDE_DIR}/../bin/\\\"\"")
+  ADD_DEFINITIONS(-DH5TOOLSDIR=\"${HDF5_INCLUDE_DIR}/../bin/\")
   SET(BOLTZPLATZ_HDF5_FOUND TRUE)
 ELSE()
   SET(BOLTZPLATZ_HDF5_DIR $ENV{HDF5_DIR} CACHE PATH "Directory of HDF5")
@@ -430,7 +441,12 @@ ELSE()
   FIND_LIBRARY(BOLTZPLATZ_HDF53 NAMES libhdf5.a hdf5 PATHS ${BOLTZPLATZ_HDF5_DIR}/lib)
   TARGET_LINK_LIBRARIES(boltzplatz ${BOLTZPLATZ_HDF53} -ldl -lz)
   MESSAGE(STATUS "Building boltzplatz with parallel HDF5 (HyperSlab)")
-  SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DH5TOOLSDIR=\"\\\"${BOLTZPLATZ_HDF5_DIR}/bin/\\\"\"")
+  IF (ONHORNET GREATER -1)
+     # customized location of the tools on hazelhen
+    ADD_DEFINITIONS(-DH5TOOLSDIR=\"${BOLTZPLATZ_HDF5_DIR}/../../../../hdf5/1.8.14/bin/\")
+  ELSE()
+    ADD_DEFINITIONS(-DH5TOOLSDIR=\"${BOLTZPLATZ_HDF5_DIR}/bin/\")
+  ENDIF()
 ENDIF()
 IF(NOT BOLTZPLATZ_HDF5_FOUND)
    MESSAGE(ERROR "No hdf5 installation found!")
@@ -452,7 +468,7 @@ IF (NOT BOLTZPLATZ_MKL)
   ENDIF()
 ELSE()
   MESSAGE(STATUS "use MKL library")
-  LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
+  LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
   FIND_PACKAGE(MKL REQUIRED)
   INCLUDE_DIRECTORIES(${MKL_INCLUDE_DIR})
   LINK_DIRECTORIES(${MKL_LIBRARY})
@@ -472,9 +488,25 @@ ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURC
 ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && echo "master: " >>  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt && git log master --oneline -1  >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
 ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND echo \"{[\( GIT DIFF \)]}\" >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
 ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && git diff -p origin/master >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
+ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND echo \"{[\( GIT URL \)]}\" >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
+ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && git config --get remote.origin.url >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
+
+# =========================================================================
+# final message
+# =========================================================================
+ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: BOLZPLATZ EXECUTABLE GENERATED!")
 
 # =========================================================================
 # Install
 # =========================================================================
 INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boltzplatz DESTINATION bin)
 INSTALL(FILES  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt DESTINATION bin)
+
+# =========================================================================
+# Ctags
+# =========================================================================
+IF(BOLTZPLATZ_CTAGS)
+  ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt src)
+  ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
+  ADD_DEPENDENCIES(boltzplatz tags)
+ENDIF(BOLTZPLATZ_CTAGS)

@@ -11,7 +11,10 @@ set grid
 set key horizontal
 set key top
 #plot './implicit/Database.csv' u (1e9*$1):4 w l t 'implicit', './explicit/Database.csv' u (1e9*$1):4 w l t 'explicit'
-plot './ParticlePosition.csv' u ($1*1e12):($3**2+$4**2+$5**2) w l
-pause 1
+#plot './ParticlePosition.csv' u ($1*1e12):($3**2+$4**2+$5**2) w l
+plot './ParticlePosition.csv' u ($1*1e12):($6) w l, \
+     './ParticlePosition.csv' u ($1*1e12):($7) w l, \
+     './ParticlePosition.csv' u ($1*1e12):($8) w l  
+pause  1
 replot
 reread

@@ -155,7 +155,7 @@ REAL,PARAMETER  :: CFLScaleAlpha(1:15) = &
 #endif /*PP_NodeType*/
 #endif 
 
-#if (PP_TimeDiscMethod==101)
+#if (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==111) || (PP_TimeDiscMethod==121)
 ! for stage counter
 INTEGER,PARAMETER :: nRKStages = 4
 ! explicit scheme
@@ -220,7 +220,7 @@ REAL,PARAMETER :: RK3_bs42 =   2508943948391.0 /    7218656332882.0
 REAL,PARAMETER :: RK3_bs4(1:2) = (/ RK3_bs41, RK3_bs42 /)
 REAL,PARAMETER :: RK_bs(1:4,1:2)=RESHAPE((/RK3_bs1,RK3_bs2,RK3_bs3,RK3_bs4/),(/4,2/),ORDER =(/2,1/))
 #endif
-#if (PP_TimeDiscMethod==102)
+#if (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==112) || (PP_TimeDiscMethod==122)
 ! for stage counter
 INTEGER,PARAMETER :: nRKStages = 6
 ! explicit scheme

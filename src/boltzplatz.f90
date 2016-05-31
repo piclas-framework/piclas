@@ -20,9 +20,6 @@ USE MOD_HDG,              ONLY:InitHDG
 USE MOD_LoadBalance,       ONLY:InitLoadBalance,FinalizeLoadBalance
 USE MOD_MPI,               ONLY:FinalizeMPI
 #endif /*MPI*/
-#ifdef IMEX
-USE MOD_LinearSolver_Vars, ONLY:totalIterLinearSolver
-#endif /*IMEX*/
 !USE MOD_ReadInTools,      ONLY:IgnoredStrings
 !
 !USE MOD_Restart,          ONLY:InitRestart,Restart,FinalizeRestart
@@ -194,14 +191,6 @@ IF(iError .NE. 0) &
   __STAMP__&
   ,'MPI finalize error',iError,999.)
 #endif
-#ifdef IMEX
-SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,I12)') ' Total iteration Linear Solver ',totalIterLinearSolver
-#if (PP_TimeDiscMethod==104)
-SWRITE(UNIT_stdOut,'(A,I12)') ' Total iteration Newton        ',nNewton
-SWRITE(UNIT_stdOut,'(132("="))')
-#endif
-#endif /*IMEX*/
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F8.2,A)')  ' BOLTZPLATZ FINISHED! [',Time-StartTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
