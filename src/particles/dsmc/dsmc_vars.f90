@@ -273,7 +273,7 @@ TYPE tAdsorption
                                                                     ! (nSpecies,nspecies,nspecies)
   INTEGER , ALLOCATABLE                  :: DissResultsSpecNum(:)   ! Number of possible dissociation results (nSpecies)
   INTEGER , ALLOCATABLE                  :: DissResultsSpec(:,:,:)  ! (2,DissResultsSpecNum,nSpecies)
-  INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
+  INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
   REAL    , ALLOCATABLE                  :: Sigma(:,:,:,:,:)        ! Coverage effect on Adsorption energies
   REAL    , ALLOCATABLE                  :: ProbSigma(:,:,:,:,:)    ! Coverage effect on Adsorption energies
   
@@ -281,6 +281,16 @@ TYPE tAdsorption
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 
+TYPE tSurfaceDistributionInfo
+  ! variables for surface distribution calculation
+  LOGICAL , ALLOCATABLE                  :: HollowSite(:,:,:)
+  LOGICAL , ALLOCATABLE                  :: BridgeSite(:,:,:)
+  LOGICAL , ALLOCATABLE                  :: TopSite(:,:,:)
+  INTEGER , ALLOCATABLE                  :: SurfAtomBondOrder(:,:,:)
+  INTEGER , ALLOCATABLE                  :: SitesRemain(:)
+  INTEGER , ALLOCATABLE                  :: nSites(:)
+END TYPE
+TYPE(tSurfaceDistributionInfo),ALLOCATABLE   :: SurfDistInfo(:,:,:)            ! Surface distribution -container
 
 
 TYPE tCollInf             ! informations of collision                                              
