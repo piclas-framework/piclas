@@ -13,7 +13,10 @@
 #elif PGI
 #  define NO_ISNAN
 #endif
-#define __STAMP__ __FILE__,__LINE__,__DATE__,__TIME__
+#ifndef __FILENAME__ 
+#define __FILENAME__ __FILE__
+#endif
+#define __STAMP__ __FILENAME__,__LINE__,__DATE__,__TIME__
 
 #ifdef GNU
 #  define IEEE_IS_NAN ISNAN
