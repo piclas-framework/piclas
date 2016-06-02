@@ -177,6 +177,7 @@ IF(firstPart.GT.lastPart) RETURN
 
 IF (.NOT.InterpolationElemLoop) THEN
   DO iPart = firstPart, LastPart
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
     CALL InterpolateFieldToSingleParticle(iPart,FieldAtparticle(iPart,1:6))
   END DO
   RETURN
