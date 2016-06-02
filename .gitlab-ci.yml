@@ -10,9 +10,9 @@ before_script:
   - export HDF5_DIR=/opt/hdf5/1.8.16/gnu-mpi/share/cmake/
   - export CMAKE_PREFIX_PATH=/opt/hdf5/1.8.16/gnu-mpi/:$CMAKE_PREFIX_PATH
   - export LD_LIBRARY_PATH=/opt/hdf5/1.8.16/gnu-mpi/lib/:$LD_LIBRARY_PATH
-  - export CMAKE_PREFIX_PATH=/opt/openmpi/1.8.4/:$CMAKE_PREFIX_PATH
-  - export PATH=/opt/openmpi/1.8.4/bin:$PATH
-  - export LD_LIBRARY_PATH=/opt/openmpi/1.8.4/lib:$LD_LIBRARY_PATH
+  - export CMAKE_PREFIX_PATH=/opt/gnu/openmpi/1.8.4/:$CMAKE_PREFIX_PATH
+  - export PATH=/opt/openmpi/gnu/1.8.4/bin:$PATH
+  - export LD_LIBRARY_PATH=/opt/openmpi/gnu/1.8.4/lib:$LD_LIBRARY_PATH
   - export ZLIB_DIR=/opt/zlib/1.2.8/
   - export CMAKE_PREFIX_PATH=$ZLIB_DIR:$CMAKE_PREFIX_PATH
   - export LD_LIBRARY_PATH=$ZLIB_DIR/include:$LD_LIBRARY_PATH
