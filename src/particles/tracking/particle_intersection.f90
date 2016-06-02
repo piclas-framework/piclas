@@ -99,6 +99,8 @@ IF(ALMOSTZERO(lengthPartTrajectory))THEN
   Check=.TRUE.
   PartState(PartID,1:3)   = tmpPos
   LastPartPos(PartID,1:3) = tmpLastPartPos
+  ! bugfix by Tilman
+  RETURN
 END IF
 PartTrajectory=PartTrajectory/lengthPartTrajectory
 isHit=.FALSE.

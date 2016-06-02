@@ -1294,6 +1294,9 @@ END DO ! iProc
 
 PDM%ParticleVecLength       = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
+IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL abort(&
+    __STAMP__&
+    ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication!')
 
 ! validate solution and check
 ! debug
