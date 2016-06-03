@@ -238,7 +238,7 @@ SELECT CASE(BCType)
   ! as long as it does not depend on interior value
     ! has to be nullyfied as long as it does not depend on inner values
     Aside(:,:,:,:) = 0.
-  CASE(3) ! 1st order absorbing BC 
+  CASE(3,5) ! 1st order absorbing BC 
           ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
 
 ! Gauss point i,j
@@ -351,9 +351,9 @@ CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
     END DO ! p
   END DO ! q
 
-  CASE(5) ! open boundary condition with no force of divergenz cleaning
-    ! has to be nullyfied
-    Aside(:,:,:,:) = 0.
+  !CASE(5) ! open boundary condition with no force of divergenz cleaning
+  !  ! has to be nullyfied
+  !  Aside(:,:,:,:) = 0.
 
 
 END SELECT

@@ -298,7 +298,7 @@ totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
 IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
   IF(MPIRoot) CALL abort(&
  __STAMP__&
-   ,' Outer-Newton of semi-fully implicit scheme is running into infinity.')
+   ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)
 END IF
 
 IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'TotalIterlinearsolver',TotalIterlinearSolver
