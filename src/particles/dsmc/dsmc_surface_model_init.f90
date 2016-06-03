@@ -160,12 +160,14 @@ SUBROUTINE Init_SurfDist()
   REAL                             :: RanNum
 !   INTEGER                          :: leftxi,lefteta,rightxi,righteta,upxi,upeta,downxi,downeta
   INTEGER                          :: xpos, ypos
+  INTEGER                          :: Coord, nSites, nInterAtom, nNeighbours
 !===================================================================================================================================
 ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides))
 DO SurfSideID=1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
-    ALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(1:3))
+    ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(1:3),&
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(1:3))
   END DO
   END DO
 END DO
@@ -186,19 +188,60 @@ DO SurfSideID=1,SurfMesh%nSides
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(1) = INT(surfsquare**2)
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(2) = INT(2*(surfsquare**2))
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3) = INT((surfsquare+1)**2)
-    
-    ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%HollowSite(1:nSpecies,1:surfsquare,1:surfsquare),&
-              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%BridgeSite(1:nSpecies,1:(surfsquare*2),1:(surfsquare)),&
-              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(1:nSpecies,1:surfsquare+1,1:surfsquare+1),&
-!               SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%TopSite(1:nSpecies,1:surfsquare,1:surfsquare),&
-              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(1:3))
-              
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%HollowSite(:,:,:) = .FALSE.
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%BridgeSite(:,:,:) = .FALSE.
-!     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%TopSite(:,:,:) = .FALSE.
-    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(:,:,:) = 0
-
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(:) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(:)
+    
+    ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(1:nSpecies,1:surfsquare+1,1:surfsquare+1))
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(:,:,:) = 0
+!     ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%HollowSite(1:nSpecies,1:surfsquare,1:surfsquare),&
+!               SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%BridgeSite(1:nSpecies,1:(surfsquare*2),1:(surfsquare)),&
+!               SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%TopSite(1:nSpecies,1:surfsquare+1,1:surfsquare+1))
+!     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%HollowSite(:,:,:) = .FALSE.
+!     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%BridgeSite(:,:,:) = .FALSE.
+!     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%TopSite(:,:,:) = .FALSE.
+    ! allocation and initialization of adsorbate mapping
+    ALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1:3))
+
+    Coord = 1
+    nSites = nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom = 4
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours = 16
+    nInterAtom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+    nNeighbours = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours
+    ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(1:nSites,nInterAtom),&
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(1:nSites,nInterAtom),&
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(1:nSites,1:nNeighbours),&
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(1:nSites,1:nNeighbours))
+    Coord = 2
+    nSites = nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom = 2
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours = 14
+    nInterAtom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+    nNeighbours = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours
+    ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(1:nSites,nInterAtom),&
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(1:nSites,nInterAtom),&
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(1:nSites,1:nNeighbours),&
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(1:nSites,1:nNeighbours))
+    Coord = 3
+    nSites = nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom = 1
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours = 12
+    nInterAtom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+    nNeighbours = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours
+    ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(1:nSites,nInterAtom),&
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(1:nSites,nInterAtom),&
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(1:nSites,1:nNeighbours),&
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(1:nSites,1:nNeighbours))
+    DO Coord = 1,3
+      nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
+      ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(1:nSites),&
+                SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(1:nSites))
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(:) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(:) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(:,:) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(:,:) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(:,:) = 0
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(:,:) = 0
+    END DO
   END DO
   END DO
 END DO
@@ -208,7 +251,7 @@ DO SurfSideID=1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
     DO iSpec = 1,nSpecies
-      ! surfsqaure chosen for nSite(1) only for right xSurfInd definition (see IF cases below)
+      ! surfsquare chosen for nSite(1) only for correct xSurfInd definition
       surfsquare = INT(SQRT(REAL(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(1))))
       Adsorbates = INT(Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,iSpec) &
                   * SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(iSpec)))
@@ -218,6 +261,29 @@ DO SurfSideID=1,SurfMesh%nSides
         ,'Error in Init_SurfDist: Too many Adsorbates! - Choose lower Coverages')
       END IF
       
+!     ! Random distribution of Adsorbates on Surfacelattice
+!     DO While (dist.LE.Adsorbates) 
+!       CALL RANDOM_NUMBER(RanNum)
+!       CALL RANDOM_NUMBER(RanNum2)
+!       SELECT CASE(Adsorption%Coordination(iSpec))
+!       CASE(1)
+!         IF (hollowsite(Ceiling(RanNum*surfsquare),Ceiling(RanNum2*surfsquare)).GT.0) THEN
+!           CYCLE
+!         ELSE
+!           hollowsite(Ceiling(RanNum*surfsquare),Ceiling(RanNum2*surfsquare)) = iSpec
+!           dist = dist + 1
+!         END IF
+!       CASE(2)
+!         IF (bridgesite(Ceiling(RanNum*surfsquare*2),Ceiling(RanNum2*surfsquare)).GT.0) THEN
+!           CYCLE
+!         ELSE
+!           bridgesite(Ceiling(RanNum*surfsquare*2),Ceiling(RanNum2*surfsquare)) = iSpec
+!           dist = dist + 1
+!         END IF
+!       CASE DEFAULT
+!       END SELECT
+!     END DO
+!       
       ! allocate and define surface indexes for adsorbate distribution
       IF (iSpec.EQ.1) THEN
         SDEALLOCATE(xSurfIndx1)
@@ -271,15 +337,16 @@ DO SurfSideID=1,SurfMesh%nSides
         END DO
       END IF
       
-      ! distribute adsorbates randomly on the surface on the correct site
+      ! distribute adsorbates randomly on the surface on the correct site and build map
       dist = 1
       DO While (dist.LE.Adsorbates) 
         CALL RANDOM_NUMBER(RanNum)
         SELECT CASE(Adsorption%Coordination(iSpec))
         CASE(1)
           Surfpos = 1 + INT(Surfnum1 * RanNum)
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%HollowSite(iSpec,xSurfIndx1(Surfpos),ySurfIndx1(Surfpos)) = .TRUE.
-          ! assign bond order of surface atoms in the surfacelattice of a hollowsite
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Adsorption%Coordination(iSpec))%Species(UsedSiteMap(Surfpos)) = iSpec
+!           SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%HollowSite(iSpec,xSurfIndx1(Surfpos),ySurfIndx1(Surfpos)) = .TRUE.
+          ! assign bond order of belonging surface atoms in the surfacelattice of a hollowsite
             xpos = xSurfIndx2(Surfpos)
             ypos = ySurfIndx2(Surfpos)
             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos) = &
@@ -297,8 +364,9 @@ DO SurfSideID=1,SurfMesh%nSides
           dist = dist + 1
         CASE(2)
           Surfpos = 1 + INT(Surfnum2 * RanNum)
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%BridgeSite(iSpec,xSurfIndx2(Surfpos),ySurfIndx2(Surfpos)) = .TRUE.
-          ! assign bond order of surface atoms in the surfacelattice of a bridgesite
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Adsorption%Coordination(iSpec))%Species(UsedSiteMap(Surfpos)) = iSpec
+!           SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%BridgeSite(iSpec,xSurfIndx2(Surfpos),ySurfIndx2(Surfpos)) = .TRUE.
+          ! assign bond order of belonging surface atoms in the surfacelattice of a bridgesite
           IF (xSurfIndx2(Surfpos) .GT. surfsquare) THEN ! surface atoms are LEFT an RIGHT of adsorbate
             xpos = xSurfIndx2(Surfpos)
             ypos = ySurfIndx2(Surfpos)
@@ -321,8 +389,9 @@ DO SurfSideID=1,SurfMesh%nSides
           dist = dist + 1
         CASE(3)
           Surfpos = 1 + INT(Surfnum3 * RanNum)
-          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%TopSite(iSpec,xSurfIndx3(Surfpos),ySurfIndx3(Surfpos)) = .TRUE.
-          ! assign bond order of surface atoms in the surfacelattice of a topsite
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Adsorption%Coordination(iSpec))%Species(UsedSiteMap(Surfpos)) = iSpec
+!           SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%TopSite(iSpec,xSurfIndx3(Surfpos),ySurfIndx3(Surfpos)) = .TRUE.
+          ! assign bond order of belonging surface atoms in the surfacelattice of a topsite
           SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xSurfIndx3(Surfpos),ySurfIndx3(Surfpos)) = &
             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xSurfIndx3(Surfpos),ySurfIndx3(Surfpos)) + 1 
           ! rearrange SurfIndarray
@@ -513,9 +582,9 @@ IF (ALLOCATED(SurfDistInfo)) THEN
 DO SurfSideID=1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%HollowSite)
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%BridgeSite)
-    DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%TopSite)
+!     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%HollowSite)
+!     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%BridgeSite)
+!     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%TopSite)
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder)
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain)
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites)

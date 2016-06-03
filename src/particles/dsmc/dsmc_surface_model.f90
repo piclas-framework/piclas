@@ -735,6 +735,35 @@ END IF
 #endif
 END SUBROUTINE CalcDesorbProb
 
+! SUBROUTINE CalcDiffusionProb()
+! !===================================================================================================================================
+! ! Model for diffusion probability calculation
+! !===================================================================================================================================
+!   USE MOD_Globals_Vars,           ONLY : PlanckConst
+!   USE MOD_Particle_Vars,          ONLY : nSpecies, Species, BoltzmannConst
+!   USE MOD_Mesh_Vars,              ONLY : BC
+!   USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
+!   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
+!   USE MOD_TimeDisc_Vars,          ONLY : dt
+! #if (PP_TimeDiscMethod==42)  
+!   USE MOD_TimeDisc_Vars,          ONLY : iter
+! #endif
+! !===================================================================================================================================
+!    IMPLICIT NONE
+! !===================================================================================================================================
+! ! Local variable declaration
+!    INTEGER                          :: SurfSide, iSpec, globSide, p, q
+!    REAL                             :: Theta, nu_des, rate, WallTemp
+!    REAL                             :: Q_0A, D_A, m, Heat, E_des, sigma
+! !    REAL                :: sigma(10)
+!    INTEGER                          :: n, iProbSigma
+!    REAL                             :: VarPartitionFuncAct, VarPartitionFuncWall
+! !===================================================================================================================================
+! 
+! 
+! 
+! END SUBROUTINE CalcDiffusionProb
+
 SUBROUTINE CalcSurfDistInteraction()
 !===================================================================================================================================
 ! Model for calculating surface distibution and effects of coverage on heat of adsorption
@@ -758,174 +787,14 @@ SUBROUTINE CalcSurfDistInteraction()
   INTEGER                          :: firstval,secondval,thirdval,fourthval,pos
   INTEGER                          :: Surfpos, Surfnum1, Surfnum2, Indx, Indy
 !===================================================================================================================================
-surfsquare = 100
-
-ALLOCATE( hollowsite(1:surfsquare,1:surfsquare),&
-          bridgesite(1:(surfsquare*2),1:(surfsquare)),&
-          M(1:surfsquare+1,1:surfsquare+1))!,&
-!           topsite(1:surfsquare,1:surfsquare),&
-!           xSurfIndx1(1:surfsquare**2),&
-!           ySurfIndx1(1:surfsquare**2),&
-!           xSurfIndx2(1:2*surfsquare**2),&
-!           ySurfIndx2(1:2*surfsquare**2))
-          
 ALLOCATE( sigma(1:36*nSpecies,1:36*nSpecies,1:36*nSpecies,1:36*nSpecies),&
           ProbSigma(1:36*nSpecies,1:36*nSpecies,1:36*nSpecies,1:36*nSpecies) )
-          
-hollowsite(1:surfsquare,1:surfsquare) = 0
-bridgesite(1:(surfsquare*2),1:surfsquare) = 0
-! topsite(1:surfsquare,1:surfsquare) = 0
 
 DO iSpec = 1,nSpecies
 DO SurfSideID=1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
     Adsorbates = INT(Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,iSpec) * surfsquare * surfsquare)
-    dist = 1
-!     Surfnum1 = surfsquare**2
-!     Surfnum2 = 2*surfsquare**2
-    hollowsite(:,:) = 0
-    bridgesite(:,:) = 0
-    
-!     Indx = 1
-!     Indy = 1
-!     DO Surfpos = 1,Surfnum1
-!       IF (Indx.GT.surfsquare) THEN
-!         Indx = 1
-!         Indy = Indy + 1
-!       END IF
-!       xSurfIndx1(Surfpos) = Indx
-!       ySurfIndx1(Surfpos) = Indy
-!       Indx = Indx + 1
-!     END DO
-!     Indx = 1
-!     Indy = 1
-!     DO Surfpos = 1,Surfnum2
-!       IF (Indx.GT.(2*surfsquare)) THEN
-!         Indx = 1
-!         Indy = Indy + 1
-!       END IF
-!       xSurfIndx2(Surfpos) = Indx
-!       ySurfIndx2(Surfpos) = Indy
-!       Indx = Indx + 1
-!     END DO
-
-!     DO While (dist.LE.Adsorbates) 
-!       CALL RANDOM_NUMBER(RanNum)
-!       SELECT CASE(Adsorption%Coordination(iSpec))
-!       CASE(1)
-!         Surfpos = Ceiling(Surfnum1 * RanNum)
-!         hollowsite(xSurfIndx1(Surfpos),ySurfIndx1(Surfpos)) = iSpec
-!         xSurfIndx1(Surfpos) = xSurfIndx1(Surfnum1)
-!         ySurfIndx1(Surfpos) = ySurfIndx1(Surfnum1)
-!         Surfnum1 = Surfnum1 - 1
-!         dist = dist + 1
-!       CASE(2)
-!         Surfpos = 1 + INT(Surfnum2 * RanNum)
-!         bridgesite(xSurfIndx2(Surfpos),ySurfIndx2(Surfpos)) = iSpec
-!         xSurfIndx2(Surfpos) = xSurfIndx2(Surfnum2)
-!         ySurfIndx2(Surfpos) = ySurfIndx2(Surfnum2)
-!         Surfnum2 = Surfnum2 - 1
-!         dist = dist + 1
-!       CASE DEFAULT
-!       END SELECT
-!     END DO
-
-    ! Random distribution of Adsorbates on Surfacelattice
-    DO While (dist.LE.Adsorbates) 
-      CALL RANDOM_NUMBER(RanNum)
-      CALL RANDOM_NUMBER(RanNum2)
-      SELECT CASE(Adsorption%Coordination(iSpec))
-      CASE(1)
-        IF (hollowsite(Ceiling(RanNum*surfsquare),Ceiling(RanNum2*surfsquare)).GT.0) THEN
-          CYCLE
-        ELSE
-          hollowsite(Ceiling(RanNum*surfsquare),Ceiling(RanNum2*surfsquare)) = iSpec
-          dist = dist + 1
-        END IF
-      CASE(2)
-        IF (bridgesite(Ceiling(RanNum*surfsquare*2),Ceiling(RanNum2*surfsquare)).GT.0) THEN
-          CYCLE
-        ELSE
-          bridgesite(Ceiling(RanNum*surfsquare*2),Ceiling(RanNum2*surfsquare)) = iSpec
-          dist = dist + 1
-        END IF
-      CASE DEFAULT
-      END SELECT
-    END DO
-    
-    ! assign number of interacting adsorbates to surface atoms of the surfacelattice
-    M(:,:)=0
-    SELECT CASE(Adsorption%Coordination(iSpec))
-    CASE(1)
-      DO xi = 1,surfsquare
-        DO eta = 1,surfsquare
-          IF (xi.EQ.1) THEN
-            left = surfsquare
-            right = xi
-!           ELSE IF (xi.EQ.(surfsquare)) THEN
-!             left = xi - 1
-!             right = 1
-          ELSE
-            left = xi - 1
-            right = xi
-          END IF
-          IF (eta.EQ.1) THEN
-            up = surfsquare
-            down = eta
-!           ELSE IF (eta.EQ.(surfsquare)) THEN
-!             up = eta - 1
-!             down = 1 
-          ELSE
-            up = eta - 1
-            down = eta
-          END IF
-          
-          IF (hollowsite(left,up).NE.0 .AND. xi.NE.1 .AND. eta.NE.1) M(xi,eta) = M(xi,eta) + 1
-          IF (hollowsite(right,up).NE.0 .AND. eta.NE.1) M(xi,eta) = M(xi,eta) + 1
-          IF (hollowsite(left,down).NE.0 .AND. xi.NE.1) M(xi,eta) = M(xi,eta) + 1
-          IF (hollowsite(right,down).NE.0) M(xi,eta) = M(xi,eta) + 1
-        END DO
-      END DO
-    CASE(2)
-      DO xi = 1,surfsquare+1
-        DO eta = 1,surfsquare+1
-          IF (xi.EQ.1) THEN
-            leftxi = surfsquare
-          ELSE
-            leftxi = xi - 1
-          END IF
-          lefteta = eta
-          rightxi = xi
-          righteta = eta
-          IF (eta.EQ.1) THEN
-            upeta = surfsquare
-          ELSE
-            upeta = eta - 1
-          END IF
-          upxi = xi + surfsquare
-          downxi = xi + surfsquare
-          downeta = eta
-          IF (xi.EQ.surfsquare+1) THEN
-            rightxi = rightxi - 1
-            upxi = upxi - 1
-            downxi = downxi - 1
-          END IF
-          IF (eta.EQ.surfsquare+1) THEN
-            downeta = downeta - 1
-            lefteta = lefteta - 1
-            righteta = righteta - 1
-          END IF
-          
-          IF (bridgesite(leftxi,lefteta).NE.0 .AND. xi.NE.1 .AND. (eta.NE.surfsquare+1)) M(xi,eta) = M(xi,eta) + 1
-          IF (bridgesite(rightxi,righteta).NE.0 .AND. (xi.NE.surfsquare+1) .AND. (eta.NE.surfsquare+1)) M(xi,eta) = M(xi,eta) + 1
-          IF (bridgesite(upxi,upeta).NE.0 .AND. eta.NE.1 .AND. (xi.NE.surfsquare+1)) M(xi,eta) = M(xi,eta) + 1
-          IF (bridgesite(downxi,downeta).NE.0 .AND. (eta.NE.surfsquare+1) .AND. (xi.NE.surfsquare+1)) M(xi,eta) = M(xi,eta) + 1
-          
-        END DO
-      END DO
-    CASE DEFAULT
-    END SELECT
           
     SELECT CASE(Adsorption%Coordination(iSpec))
     CASE(1)
