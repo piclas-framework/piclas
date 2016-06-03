@@ -171,6 +171,7 @@ DO SurfSideID=1,SurfMesh%nSides
 END DO
 IF (.NOT.KeepWallParticles) THEN
   surfsquare = GETINT('Particles-DSMC-AdsorptionSites','100')
+  surfsquare = INT(SQRT(REAL(surfsquare))) - 1
 END IF
 
 DO SurfSideID=1,SurfMesh%nSides
@@ -180,8 +181,8 @@ DO SurfSideID=1,SurfMesh%nSides
       surfsquare = INT(Adsorption%DensSurfAtoms(SurfSideID) &
                     * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) &
                     / Species(1)%MacroParticleFactor)
+      surfsquare = INT(SQRT(REAL(surfsquare))) - 1
     END IF
-    surfsquare = INT(SQRT(REAL(surfsquare))) - 1
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(1) = INT(surfsquare**2)
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(2) = INT(2*(surfsquare**2))
     SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(3) = INT((surfsquare+1)**2)
