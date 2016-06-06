@@ -1,5 +1,5 @@
-stages:
-  - build
+#stages:
+#  - build
 
 cache:
   key: "$CI_BUILD_REF_NAME"
