@@ -20,4 +20,4 @@ before_script:
 build:
   stage: build
   script:
-    - mkdir build && cd build && cmake -DBOLTZPLATZ_TIMEDISCMETHOD=Implicit04 .. && make -j 2
+    - mkdir -p build && cd build && cmake -DBOLTZPLATZ_TIMEDISCMETHOD=Implicit04 .. && make -j 2 
