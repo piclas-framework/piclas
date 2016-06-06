@@ -207,6 +207,7 @@ CASE('shape_function')
       SFdepoFixesChargeMult(iSFfix) = &
         GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-ChargeMult','1.')
     END DO
+  END IF
   VolumeShapeFunction=4./3.*PI*r_sf*r2_sf
   nTotalDOF=REAL(nGlobalElems)*REAL((PP_N+1)**3)
   IF(MPIRoot)THEN
