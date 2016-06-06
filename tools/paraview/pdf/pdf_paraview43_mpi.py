@@ -50,7 +50,17 @@ def RequestData():
   deltaX=float(xMax-xMin)/float(NumberOfSpaceBins)
   deltaV=float(maxVelo-minVelo)/float(NumberOfVeloBins)
   # input
-  pdi = self.GetInput()
+  input=self.GetInputDataObject(0,0)
+  if input.IsA("vtkMultiBlockDataSet"):
+      # here: new format with vtk-multiblock
+      print(" vtkMultiBlockDataSet")
+      iter = input.NewIterator()
+      iter.UnRegister(None)
+      iter.InitTraversal()
+      pdi=iter.GetCurrentDataObject()
+  else:
+      # old format without multiblock
+      pdi=input.GetInput()  
   nParts= pdi.GetNumberOfPoints()
   if nProcs>1:
       #nTotalParts = numpy.array(0, 'i')
