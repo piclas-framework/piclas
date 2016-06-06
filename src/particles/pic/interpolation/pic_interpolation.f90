@@ -528,6 +528,9 @@ END IF ! use constant external field
 
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
   ElemID=PEM%Element(PartID)
+#ifdef MPI
+  IF(ElemID.GT.PP_nElems) RETURN
+#endif
   SELECT CASE(TRIM(InterpolationType))
   CASE('nearest_blurrycenter')
     ! add fields to fields at particle position
