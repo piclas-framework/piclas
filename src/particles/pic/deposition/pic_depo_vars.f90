@@ -59,6 +59,9 @@ INTEGER                               :: VolIntOrder
 REAL,ALLOCATABLE                      :: VolInt_X(:)
 REAL,ALLOCATABLE                      :: VolInt_W(:)
 REAL,ALLOCATABLE                      :: CellVolWeight_Volumes(:,:,:,:)
+INTEGER                               :: NbrOfSFdepoFixes                  !Number of fixes for shape func depo at planar BCs
+REAL    , ALLOCATABLE                 :: SFdepoFixesGeo(:,:,:)             !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
+REAL    , ALLOCATABLE                 :: SFdepoFixesChargeMult(:)          !multiplier for mirrored charges (wall: -1.0, sym: 1.0)
 !REAL,ALLOCATABLE                      :: Vdm_BernSteinN_GaussN(:,:)
 !REAL,ALLOCATABLE                      :: sVdm_BernSteinN_GaussN(:,:)
 !===================================================================================================================================
