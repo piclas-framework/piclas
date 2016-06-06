@@ -281,21 +281,6 @@ TYPE tAdsorption
 END TYPE
 TYPE(tAdsorption)                        :: Adsorption              ! Adsorption-container
 
-TYPE tSurfaceDistributionInfo
-  ! variables for surface distribution calculation
-!   LOGICAL , ALLOCATABLE                  :: HollowSite(:,:,:)
-!   LOGICAL , ALLOCATABLE                  :: BridgeSite(:,:,:)
-!   LOGICAL , ALLOCATABLE                  :: TopSite(:,:,:)
-  INTEGER , ALLOCATABLE                  :: nSites(:)               ! max number of sites for site coordination (1:nCoordination=3)
-  INTEGER , ALLOCATABLE                  :: SitesRemain(:)          ! number of empty sites for site coordination 
-  INTEGER , ALLOCATABLE                  :: SurfAtomBondOrder(:,:,:)! bond order of surface atoms ((1:nSpecies,1:nXPos,1:nYPos)
-                                                                    ! nXPos = nYPos = sqrt(nSites(3)) -> number of topsites
-                                                                    ! applies for fcc(100) or similar surfaces
-  TYPE(tAdsorbateMapping), ALLOCATABLE   :: AdsMap(:)               ! Mapping for adsorbates, adjacent surfatoms and neighbours 
-                                                                    ! (1:nCoordination)
-END TYPE
-TYPE(tSurfaceDistributionInfo),ALLOCATABLE   :: SurfDistInfo(:,:,:) ! Surface distribution tracking container
-
 TYPE tAdsorbateMapping
   INTEGER , ALLOCATABLE                  :: UsedSiteMap(:)          ! Mapping of adsorbateindex to surfposindex 
                                                                     ! (1:SitesRemain) --> free site positions
@@ -310,6 +295,20 @@ TYPE tAdsorbateMapping
                                                                     ! (all possible Coordinations incl.)
 END TYPE
 
+TYPE tSurfaceDistributionInfo
+  ! variables for surface distribution calculation
+!   LOGICAL , ALLOCATABLE                  :: HollowSite(:,:,:)
+!   LOGICAL , ALLOCATABLE                  :: BridgeSite(:,:,:)
+!   LOGICAL , ALLOCATABLE                  :: TopSite(:,:,:)
+  INTEGER , ALLOCATABLE                  :: nSites(:)               ! max number of sites for site coordination (1:nCoordination=3)
+  INTEGER , ALLOCATABLE                  :: SitesRemain(:)          ! number of empty sites for site coordination(1:nCoordination=3)
+  INTEGER , ALLOCATABLE                  :: SurfAtomBondOrder(:,:,:)! bond order of surface atoms ((1:nSpecies,1:nXPos,1:nYPos)
+                                                                    ! nXPos = nYPos = sqrt(nSites(3)) -> number of topsites
+                                                                    ! applies for fcc(100) or similar surfaces
+  TYPE(tAdsorbateMapping), ALLOCATABLE   :: AdsMap(:)               ! Mapping for adsorbates, adjacent surfatoms and neighbours 
+                                                                    ! (1:nCoordination)
+END TYPE
+TYPE(tSurfaceDistributionInfo),ALLOCATABLE   :: SurfDistInfo(:,:,:) ! Surface distribution tracking container
 
 TYPE tCollInf             ! informations of collision                                              
   INTEGER       , ALLOCATABLE    :: Coll_Case(:,:)          ! Case of species combination (Spec1, Spec2)
