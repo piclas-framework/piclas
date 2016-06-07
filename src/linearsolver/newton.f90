@@ -43,6 +43,7 @@ CONTAINS
 SUBROUTINE ImplicitNorm(t,coeff,Norm_R) 
 !===================================================================================================================================
 ! The error-norm of the fully implicit scheme is computed
+! use same norm as in maxtrix-vector source; initial norm of linearsolver 
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -50,9 +51,11 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS,mass
 USE MOD_Equation,                ONLY:CalcSource
 USE MOD_Mesh_Vars,               ONLY:OffSetElem
+USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
+USE MOD_TimeDisc_Vars,           ONLY:dt,sdtCFLOne
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -66,7 +69,7 @@ REAL,INTENT(OUT)       :: Norm_R
 ! LOCAL VARIABLES
 REAL                   :: DeltaX ! difference between electric field and div-correction
 INTEGER                :: iElem, i,j,k,iVar
-REAL :: Norm_e
+REAL                   :: Norm_e, rTmp(1:8), locMass
 !===================================================================================================================================
 
 ! compute error-norm-version1, non-optimized
@@ -74,24 +77,33 @@ CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
 ImplicitSource=ExplicitSource
 CALL CalcSource(t,1.,ImplicitSource)
 
+IF(DoParabolicDamping)THEN
+  rTmp(1:6)=1.0
+  rTmp( 7 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
+  rTmp( 8 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
+ELSE
+  rTmp(1:8)=1.0
+END IF
+
 Norm_R=0.
 DO iElem=1,PP_nElems
   Norm_e=0.
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
+        locMass=mass(1,i,j,k,iElem)
         DO iVar=1,8
-          DeltaX=U(iVar,i,j,k,iElem)-coeff*Ut(iVar,i,j,k,iElem)              &
-                                    -coeff*ImplicitSource(iVar,i,j,k,iElem)  &
-                                    -LinSolverRHS(iVar,i,j,k,iElem)
-          Norm_e=Norm_e + DeltaX*DeltaX
-        END DO
-      END DO
-    END DO
-  END DO
-  !IPWRITE(UNIT_stdOut,*) ' ElemID       ', iElem+offSetElem,Norm_e
+          DeltaX=locMass*( LinSolverRHS(iVar,i,j,k,iElem)           &
+                         - rTmp(iVar)*U(iVar,i,j,k,iElem)           &
+                         +     coeff*Ut(iVar,i,j,k,iElem)           &
+                         + coeff*ImplicitSource(iVar,i,j,k,iElem)   )
+          Norm_e = Norm_e + DeltaX*DeltaX
+        END DO ! iVar=1,PP_nVar
+      END DO ! i=0,PP_N
+    END DO ! j=0,PP_N
+  END DO ! k=0,PP_N
   Norm_R=Norm_R+Norm_e
-END DO
+END DO ! iElem=1,PP_nElems
 
 #ifdef MPI
 DeltaX=Norm_R

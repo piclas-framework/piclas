@@ -129,7 +129,7 @@ REAL,INTENT(IN)  :: t,Coeff
 REAL,INTENT(OUT) :: Y(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL             :: rTmp,locMass
+REAL             :: rTmp(1:8),locMass
 INTEGER          :: i,j,k,iElem,iVar
 !===================================================================================================================================
 
@@ -140,33 +140,30 @@ INTEGER          :: i,j,k,iElem,iVar
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 !Y = LinSolverRHS - X0 +coeff*ut
 CALL CalcSource(t,1.0,ImplicitSource)
+
 IF(DoParabolicDamping)THEN
-  !rTmp=1.0-(fDamping-1.0)*dt*sdTCFLOne
-  rTmp=1.0-(fDamping-1.0)*coeff*sdTCFLOne
-  DO iElem=1,PP_nElems
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-          locMass=mass(1,i,j,k,iElem)
-          DO iVar=1,6
-            Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
-                                                -U(iVar,i,j,k,iElem)               &
-                                           +coeff*Ut(iVar,i,j,k,iElem)             &
-                                           +coeff*ImplicitSource(iVar,i,j,k,iElem) )
-          END DO ! iVar=1,6
-          DO iVar=7,PP_nVar
-            Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
-                                           -rTmp*U(iVar,i,j,k,iElem)               &
-                                           +coeff*Ut(iVar,i,j,k,iElem)             &
-                                           +coeff*ImplicitSource(iVar,i,j,k,iElem) )
-          END DO ! iVar=7,PP_nVar
-        END DO ! i=0,PP_N
-      END DO ! j=0,PP_N
-    END DO ! k=0,PP_N
-  END DO ! iElem=1,PP_nElems
+  rTmp(1:6)=1.0
+  rTmp( 7 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
+  rTmp( 8 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
 ELSE
-  Y = mass*(LinSolverRHS - U +coeff*ut + coeff*ImplicitSource)
+  rTmp(1:8)=1.0
 END IF
+
+DO iElem=1,PP_nElems
+  DO k=0,PP_N
+    DO j=0,PP_N
+      DO i=0,PP_N
+        locMass=mass(1,i,j,k,iElem)
+        DO iVar=1,PP_nVar
+          Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
+                                         -rTmp(iVar)*U(iVar,i,j,k,iElem)         &
+                                         +    coeff*Ut(iVar,i,j,k,iElem)         &
+                                         +coeff*ImplicitSource(iVar,i,j,k,iElem) )
+        END DO ! iVar=1,PP_nVar
+      END DO ! i=0,PP_N
+    END DO ! j=0,PP_N
+  END DO ! k=0,PP_N
+END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE MatrixVectorSource
 

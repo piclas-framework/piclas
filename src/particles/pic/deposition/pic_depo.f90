@@ -1055,7 +1055,8 @@ CASE('shape_function')
           IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
             ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfix,2,1:3)
           ELSE IF (SFfixDistance .GT. 0.) THEN
-            CALL abort(__STAMP__, &
+            CALL abort(&
+__STAMP__, &
               'Particle is outside of SF-Fix-Plane!')
           ELSE
             CYCLE !SF of mirrored particle would not reach any DOF
