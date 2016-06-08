@@ -511,7 +511,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: subsurfxi,subsurfeta,SurfSideID
+INTEGER                      :: subsurfxi,subsurfeta,SurfSideID,Coord
 !===================================================================================================================================
 SDEALLOCATE(PDM%ParticleAtWall)
 SDEALLOCATE(PDM%PartAdsorbSideIndx)
@@ -553,12 +553,21 @@ DO SurfSideID=1,SurfMesh%nSides
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder)
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain)
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites)
+    IF (ALLOCATED(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap)) THEN
+      DO Coord = 1,3
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap)
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species)
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx)
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy)
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos)
+        DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite)
+      END DO
+    END IF
   END DO
   END DO
 END DO
 DEALLOCATE(SurfDistInfo)
 END IF
-
 
 END SUBROUTINE FinalizeDSMCSurfModel
 
