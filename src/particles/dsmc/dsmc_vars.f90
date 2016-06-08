@@ -284,7 +284,7 @@ TYPE(tAdsorption)                        :: Adsorption              ! Adsorption
 TYPE tAdsorbateMapping
   INTEGER , ALLOCATABLE                  :: UsedSiteMap(:)          ! Mapping of adsorbateindex to surfposindex 
                                                                     ! (1:SitesRemain) --> free site positions
-                                                                    ! (SitesRemain:nSites) --> vacant site positions
+                                                                    ! (SitesRemain+1:nSites) --> vacant site positions
   INTEGER , ALLOCATABLE                  :: Species(:)              ! species of adsorbate on sitepos (1:nSites)
   INTEGER , ALLOCATABLE                  :: BondAtomIndx(:,:)       ! adjacent surfatoms index x (1:nSites,1:nInterAtom)
   INTEGER , ALLOCATABLE                  :: BondAtomIndy(:,:)       ! adjacent surfatoms index y (1:nSites,1:nInterAtom)
