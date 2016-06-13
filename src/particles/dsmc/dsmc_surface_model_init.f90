@@ -183,7 +183,7 @@ SUBROUTINE Init_SurfDist()
 ! Except for top sites(3) they also interact with the next top site.
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION...'
 ALLOCATE(SurfDistInfo(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides))
-DO SurfSideID=1,SurfMesh%nSides
+DO SurfSideID = 1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
     ALLOCATE( SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(1:3),&
@@ -196,7 +196,7 @@ IF (.NOT.KeepWallParticles) THEN
   surfsquare = INT(SQRT(REAL(surfsquare))) - 1
 END IF
 
-DO SurfSideID=1,SurfMesh%nSides
+DO SurfSideID = 1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
     IF (KeepWallParticles) THEN ! does not work with vMPF

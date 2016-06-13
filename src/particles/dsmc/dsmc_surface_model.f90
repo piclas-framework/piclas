@@ -40,7 +40,6 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 !===================================================================================================================================
 
   IF (DSMC%WallModel.GT.0) THEN
-  CALL CalcDiffusion()
 #if (PP_TimeDiscMethod==42)
     DO iSpec = 1,nSpecies
       Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
@@ -52,7 +51,6 @@ SUBROUTINE DSMC_Update_Wall_Vars()
       END IF
     END DO
 #endif
-!     CALL CalcSurfDistInteraction()
     
     IF (.NOT.KeepWallParticles) THEN
       DO iSpec = 1,nSpecies
@@ -69,6 +67,11 @@ SUBROUTINE DSMC_Update_Wall_Vars()
       Adsorption%SumDesorbPart(:,:,:,:) = 0
       Adsorption%SumAdsorbPart(:,:,:,:) = 0
     END IF
+    
+    CALL CalcDistNumChange()
+    CALL CalcDiffusion()
+    CALL CalcSurfDistInteraction()
+    
     CALL CalcAdsorbProb()
     IF (KeepWallParticles) CALL CalcDesorbprob()
   END IF
@@ -318,9 +321,6 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
                         * SurfMesh%SurfaceArea(p,q,iSurfSide) &
                         / Species(iSpec)%MacroParticleFactor * Adsorption%ProbSigma(p,q,iSurfSide,iSpec,iProbSigma)
               PartDes = PartAds * Adsorption%ProbDes(p,q,iSurfSide,iSpec,iProbSigma)
-!               write(*,*)PartDes,PartAds
-!               write(*,*)Adsorption%ProbSigma(p,q,iSurfSide,iSpec,iProbSigma),Adsorption%Sigma(p,q,iSurfSide,iSpec,iProbSigma)
-!               read(*,*)
               IF (PartDes.GT.PartAds) THEN
                 Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) + INT(PartAds)
               ELSE
@@ -539,6 +539,325 @@ END SUBROUTINE Calc_PartNum_Wall_Desorb
 ! 
 ! END SUBROUTINE Particle_Wall_Desorb
 
+SUBROUTINE CalcDiffusion()
+!===================================================================================================================================
+! Model for diffusion calculation
+!===================================================================================================================================
+  USE MOD_Particle_Vars,          ONLY : nSpecies
+  USE MOD_Mesh_Vars,              ONLY : BC
+  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo
+  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
+!===================================================================================================================================
+   IMPLICIT NONE
+!===================================================================================================================================
+! Local variable declaration
+   INTEGER                          :: SurfSideID, iSpec, globSide, subsurfeta, subsurfxi
+   INTEGER                          :: Coord, nSites, nSitesRemain, i, j, AdsorbID, iij
+   REAL                             :: WallTemp, Prob_diff, RanNum
+   REAL                             :: Q_0A, D_A, Heat_i, Heat_j, Heat_temp, sigma
+   INTEGER                          :: bondorder, n_equal_site_Neigh, Indx, Indy, Surfpos, newpos
+   INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
+!===================================================================================================================================
+D_A  = 59870.
+
+! DO iij=1,3
+
+DO SurfSideID = 1,SurfMesh%nSides
+DO subsurfeta = 1,nSurfSample
+DO subsurfxi = 1,nSurfSample
+
+  DO iSpec=1,nSpecies
+    Coord = Adsorption%Coordination(iSpec)
+    nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
+    nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
+    Q_0A = Adsorption%HeatOfAdsZero(iSpec)
+    
+    ALLOCATE ( free_Neigh_pos(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours))
+    DO AdsorbID = nSitesRemain+1,nSites,1
+      Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
+      n_equal_site_Neigh = 0
+      free_Neigh_pos(:) = 0
+      
+      ! find free Neighbour positions of the same site-coordination
+      DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours
+        IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,i) .EQ. Coord) THEN
+          IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species( &
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)).EQ.0) ) THEN
+            n_equal_site_Neigh = n_equal_site_Neigh + 1
+            free_Neigh_pos(n_equal_site_Neigh) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)
+          END IF
+        END IF
+      END DO
+      
+      ! calculate heat of adsorption for actual site and reduce bond order of bondatoms
+      sigma = 0.
+      DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+        Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
+        Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j)
+        
+        bondorder = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy)
+        sigma = sigma + ( (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom) &
+              * (1./(bondorder)) * (2.-(1./bondorder)) )
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) - 1
+      END DO
+      Heat_i = (Q_0A**2)/(Q_0A/SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom+D_A) * sigma
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos) = 0
+      
+      ! choose Neighbour position with highest heat of adsorption if adsorbate would move there
+      Heat_j = 0.
+      DO i = 1,n_equal_site_Neigh
+        sigma = 0.
+        DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+          Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(free_Neigh_pos(i),j)
+          Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(free_Neigh_pos(i),j) 
+          bondorder = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
+          sigma = sigma + ( (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom) &
+                * (1./(bondorder)) * (2.-(1./bondorder)) )
+        END DO
+        Heat_temp = (Q_0A**2)/(Q_0A/SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom+D_A) * sigma
+        IF (Heat_temp .GT. Heat_j) THEN
+          Heat_j = Heat_temp
+          newpos = free_Neigh_pos(i)
+        END IF
+      END DO
+      
+      ! only try to diffuse particle if unoccupied sites available
+      IF (n_equal_site_Neigh .GE. 1) THEN
+        globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
+        WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
+        Prob_diff = exp(-(Heat_i - Heat_j)/WallTemp) / (1+exp(-(Heat_i - Heat_j)/Walltemp))
+        CALL RANDOM_NUMBER(RanNum)
+        IF (Prob_diff.GT.RanNum) THEN
+        ! move particle to new position and update map
+          DO i = 1,nSitesRemain
+            IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(i).EQ.newpos) THEN
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(i) = Surfpos
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = newpos
+            END IF
+          END DO
+        ELSE 
+          newpos = Surfpos
+        END IF
+      ELSE
+        newpos = Surfpos        
+      END IF ! end if (n_equal_site_Neigh >= 1)
+      
+      ! update surfatom bond order and species map
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(newpos) = iSpec
+      DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+        Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(newpos,j)
+        Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(newpos,j) 
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
+      END DO
+    END DO
+    DEALLOCATE(free_Neigh_pos)
+    
+  END DO
+  
+!   END DO
+  
+END DO
+END DO
+END DO
+
+END SUBROUTINE CalcDiffusion
+
+SUBROUTINE CalcDistNumChange()
+!===================================================================================================================================
+! updates mapping of adsorbed particles if particles desorbed (sumdesorbpart.GT.0)
+!===================================================================================================================================
+  USE MOD_Particle_Vars,          ONLY : nSpecies
+  USE MOD_Mesh_Vars,              ONLY : BC
+  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo
+  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
+!===================================================================================================================================
+   IMPLICIT NONE
+!===================================================================================================================================
+! Local variable declaration
+   INTEGER                          :: SurfSideID, iSpec, subsurfeta, subsurfxi, Adsorbates
+   INTEGER                          :: Coord, nSites, nSitesRemain, iInterAtom, xpos, ypos
+   REAL                             :: RanNum
+   INTEGER                          :: Surfpos, UsedSiteMapPos, dist, Surfnum, newAdsorbates
+   INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
+!===================================================================================================================================
+
+DO SurfSideID = 1,SurfMesh%nSides
+DO subsurfeta = 1,nSurfSample
+DO subsurfxi = 1,nSurfSample
+
+  DO iSpec = 1,nSpecies
+    Coord = Adsorption%Coordination(iSpec)
+    nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
+    nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
+    Adsorbates = INT(Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,iSpec) &
+                * SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(iSpec)))
+    IF (nSites-nSitesRemain.GT.Adsorbates) THEN
+      newAdsorbates = (nSites-nSitesRemain) - Adsorbates
+      ! remove adsorbates randomly from the surface from the correct site and assign surface atom bond order
+      dist = 1
+      Surfnum = nSites - nSitesRemain
+      DO WHILE (dist.LE.newAdsorbates) 
+        CALL RANDOM_NUMBER(RanNum)
+        Surfpos = 1 + INT(Surfnum * RanNum)
+        UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+Surfpos)
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(UsedSiteMapPos) = 0
+        ! assign bond order of respective surface atoms in the surfacelattice
+        DO iInterAtom = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+          xpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(UsedSiteMapPos,iInterAtom)
+          ypos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(UsedSiteMapPos,iInterAtom)
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos) = &
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos) - 1
+        END DO
+        ! rearrange UsedSiteMap-Surfpos-array
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+Surfpos) = &
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+1)
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+1) = UsedSiteMapPos
+        Surfnum = Surfnum - 1
+        nSitesRemain = nSitesRemain + 1
+        dist = dist + 1
+      END DO
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = nSitesRemain
+    ELSE IF (nSites-nSitesRemain.LT.Adsorbates) THEN
+      newAdsorbates = Adsorbates - (nSites-nSitesRemain)
+      ! add new Adsorbates to macro adsorbate map
+      dist = 1
+      Surfnum = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
+      DO WHILE (dist.LE.newAdsorbates) 
+        CALL RANDOM_NUMBER(RanNum)
+        Surfpos = 1 + INT(Surfnum * RanNum)
+        UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos)
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(UsedSiteMapPos) = iSpec
+        ! assign bond order of respective surface atoms in the surfacelattice
+        DO iInterAtom = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+          xpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(UsedSiteMapPos,iInterAtom)
+          ypos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(UsedSiteMapPos,iInterAtom)
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos) = &
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos) + 1
+        END DO
+        ! rearrange UsedSiteMap-Surfpos-array
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfnum)
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfnum) = UsedSiteMapPos
+        Surfnum = Surfnum - 1
+        dist = dist + 1
+      END DO
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = Surfnum
+    ELSE
+      CYCLE
+    END IF
+  END DO
+
+END DO
+END DO
+END DO
+
+END SUBROUTINE CalcDistNumChange
+
+SUBROUTINE CalcSurfDistInteraction()
+!===================================================================================================================================
+! Model for calculating surface distibution and effects of coverage on heat of adsorption
+!===================================================================================================================================
+  USE MOD_Particle_Vars,          ONLY : nSpecies
+  USE MOD_DSMC_Vars,              ONLY : Adsorption, SurfDistInfo
+  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
+!===================================================================================================================================
+  IMPLICIT NONE
+!=================================================================================================================================== 
+! Local variable declaration
+  INTEGER                          :: SurfSideID, subsurfxi, subsurfeta, iSpec, counter
+  REAL                             :: sigmasub 
+  REAL, ALLOCATABLE                :: sigma(:,:,:,:), ProbSigma(:,:,:,:)
+  INTEGER                          :: firstval, secondval, thirdval, fourthval, pos
+  INTEGER                          :: Surfpos, nSites, nSitesRemain, xpos, ypos, AdsorbID, iInterAtom, bondorder, Coord
+!===================================================================================================================================
+ALLOCATE( sigma(1:36*nSpecies,1:36*nSpecies,1:36*nSpecies,1:36*nSpecies),&
+          ProbSigma(1:36*nSpecies,1:36*nSpecies,1:36*nSpecies,1:36*nSpecies) )
+
+DO SurfSideID=1,SurfMesh%nSides
+DO subsurfeta = 1,nSurfSample
+DO subsurfxi = 1,nSurfSample
+
+  DO iSpec=1,nSpecies
+    Coord = Adsorption%Coordination(iSpec)
+    nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
+    nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
+    
+    sigma = 1.
+    ProbSigma = 0.
+    firstval = 1
+    secondval = 1
+    thirdval = 1
+    fourthval = 1
+    counter = 0
+      
+    DO AdsorbID = nSitesRemain+1,nSites,1
+      Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
+
+      sigmasub = 0.
+      DO iInterAtom = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+        xpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,iInterAtom)
+        ypos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,iInterAtom)
+        bondorder = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos)
+        sigmasub = sigmasub + (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom &
+                  * 1./bondorder * (2.-1./bondorder))
+        IF (bondorder.GE.firstval) THEN
+          fourthval = thirdval
+          thirdval = secondval
+          secondval = firstval
+          firstval = bondorder
+        ELSE IF (bondorder.GE.secondval) THEN
+          fourthval = thirdval
+          thirdval = secondval
+          secondval = bondorder
+        ELSE IF (bondorder.GE.thirdval) THEN
+          fourthval = thirdval
+          thirdval = bondorder
+        ELSE
+          fourthval = bondorder
+        END IF
+      END DO
+      sigma(firstval,secondval,thirdval,fourthval) = sigmasub
+      ProbSigma(firstval,secondval,thirdval,fourthval) = ProbSigma(firstval,secondval,thirdval,fourthval) + 1.
+      counter = counter + 1
+    END DO
+    
+    IF (counter.GT.0) THEN
+      pos = 1
+      firstval = 1
+      secondval = 1
+      thirdval = 1
+      fourthval = 1
+      DO WHILE ((firstval.LE.4).AND.(secondval.LE.4).AND.(thirdval.LE.4).AND.(fourthval.LE.4))
+        DO firstval = 1,4
+        DO secondval = 1,firstval
+        DO thirdval = 1,secondval
+        DO fourthval = 1,thirdval
+          Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(firstval,secondval,thirdval,fourthval)
+          Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(firstval,secondval,thirdval,fourthval)/counter
+          pos = pos + 1
+        END DO
+        END DO
+        END DO
+        END DO
+      END DO
+    ELSE
+      Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,:) = 1.
+      Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,:) = 0.
+    END IF
+    
+  END DO! iSpec = 1,nSpecies
+    
+END DO
+END DO
+END DO
+
+DEALLOCATE(sigma,ProbSigma)
+
+END SUBROUTINE CalcSurfDistInteraction
+
+
 SUBROUTINE CalcAdsorbProb()
 !===================================================================================================================================
 ! Models for adsorption probability calculation
@@ -735,331 +1054,6 @@ IF (.NOT.DSMC%ReservoirRateStatistic) THEN
 END IF
 #endif
 END SUBROUTINE CalcDesorbProb
-
-SUBROUTINE CalcDiffusion()
-!===================================================================================================================================
-! Model for diffusion calculation
-!===================================================================================================================================
-  USE MOD_Particle_Vars,          ONLY : nSpecies
-  USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo
-  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
-!===================================================================================================================================
-   IMPLICIT NONE
-!===================================================================================================================================
-! Local variable declaration
-   INTEGER                          :: SurfSideID, iSpec, globSide, subsurfeta, subsurfxi
-   INTEGER                          :: Coord, nSites, nSitesRemain, i, j, AdsorbID
-   REAL                             :: WallTemp, Prob_diff, RanNum
-   REAL                             :: Q_0A, D_A, Heat_i, Heat_j, Heat_temp, sigma
-   INTEGER                          :: bondorder, n_equal_site_Neigh, Indx, Indy, Surfpos, newpos
-   INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
-!===================================================================================================================================
-D_A  = 59870.
-DO SurfSideID=1,SurfMesh%nSides
-DO subsurfeta = 1,nSurfSample
-DO subsurfxi = 1,nSurfSample
-
-  DO iSpec=1,nSpecies
-    Coord = Adsorption%Coordination(iSpec)
-    nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
-    nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
-    Q_0A = Adsorption%HeatOfAdsZero(iSpec)
-    
-    ALLOCATE ( free_Neigh_pos(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours))
-    DO AdsorbID = nSitesRemain+1,nSites,1
-      Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
-      n_equal_site_Neigh = 0
-      free_Neigh_pos(:) = 0
-      
-      ! find free Neighbour positions of the same site-coordination
-      DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours
-        IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,i) .EQ. Coord) THEN
-          IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species( &
-              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)).EQ.0) ) THEN
-            n_equal_site_Neigh = n_equal_site_Neigh + 1
-            free_Neigh_pos(n_equal_site_Neigh) = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)
-          END IF
-        END IF
-      END DO
-      
-      ! calculate heat of adsorption for actual site and reduce bond order of bondatoms
-      sigma = 0.
-      DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
-        Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
-        Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j) 
-!                   write(*,*)Surfpos
-!           write(*,*)Indx,Indy,'-',j
-!           read(*,*)
-        bondorder = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy)
-        sigma = sigma + ( (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom) &
-              * (1./(bondorder)) * (2.-(1./bondorder)) )
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
-            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) - 1
-      END DO
-      Heat_i = (Q_0A**2)/(Q_0A/SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom+D_A) * sigma
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos) = 0
-      
-      ! choose Neighbour position with highest heat of adsorption if adsorbate would move there
-      Heat_j = 0.
-      DO i = 1,n_equal_site_Neigh
-        sigma = 0.
-        DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
-          Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(free_Neigh_pos(i),j)
-          Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(free_Neigh_pos(i),j) 
-          bondorder = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
-          sigma = sigma + ( (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom) &
-                * (1./(bondorder)) * (2.-(1./bondorder)) )
-        END DO
-        Heat_temp = (Q_0A**2)/(Q_0A/SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom+D_A) * sigma
-        IF (Heat_temp .GT. Heat_j) THEN
-          Heat_j = Heat_temp
-          newpos = free_Neigh_pos(i)
-        END IF
-      END DO
-      
-      ! only try to diffuse particle if unoccupied sites available
-      IF (n_equal_site_Neigh .GE. 1) THEN
-        globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
-        WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
-        Prob_diff = exp(-(Heat_i - Heat_j)/WallTemp) / (1+exp(-(Heat_i - Heat_j)/Walltemp))
-        CALL RANDOM_NUMBER(RanNum)
-        IF (Prob_diff.GT.RanNum) THEN
-        ! move particle to new position and update map
-          DO i = 1,nSitesRemain
-            IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(i).EQ.newpos) THEN
-              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(i) = Surfpos
-              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = newpos
-            END IF
-          END DO
-        ELSE 
-          newpos = Surfpos
-        END IF
-      ELSE
-        newpos = Surfpos        
-      END IF ! end if (n_equal_site_Neigh >= 1)
-      
-      ! update surfatom bond order and species map
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(newpos) = iSpec
-      DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
-        Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(newpos,j)
-        Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(newpos,j) 
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
-            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
-      END DO
-    END DO
-    DEALLOCATE(free_Neigh_pos)
-    
-  END DO
-  
-END DO
-END DO
-END DO
-
-END SUBROUTINE CalcDiffusion
-
-! SUBROUTINE CalcSurfDistInteraction()
-! !===================================================================================================================================
-! ! Model for calculating surface distibution and effects of coverage on heat of adsorption
-! !===================================================================================================================================
-!   USE MOD_Particle_Vars,          ONLY : nSpecies
-!   USE MOD_DSMC_Vars,              ONLY : Adsorption
-!   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
-! !===================================================================================================================================
-!   IMPLICIT NONE
-! !=================================================================================================================================== 
-! ! Local variable declaration
-!   INTEGER                          :: SurfSideID, subsurfxi, subsurfeta, iSpec
-!   INTEGER                          :: surfsquare, xi, eta, i, j
-!   INTEGER                          :: left, right, up, down, counter, first,second
-!   REAL                             :: sigmasub 
-!   REAL, ALLOCATABLE                :: sigma(:,:,:,:), ProbSigma(:,:,:,:)
-!   INTEGER,ALLOCATABLE              :: hollowsite(:,:), M(:,:), bridgesite(:,:), topsite(:,:)
-!   INTEGER,ALLOCATABLE              :: xSurfIndx1(:), ySurfIndx1(:), xSurfIndx2(:), ySurfIndx2(:)
-!   REAL                             :: RanNum, RanNum2
-!   INTEGER                          :: leftxi,lefteta,rightxi,righteta,upxi,upeta,downxi,downeta
-!   INTEGER                          :: firstval,secondval,thirdval,fourthval,pos
-!   INTEGER                          :: Surfpos, Surfnum1, Surfnum2, Indx, Indy
-! !===================================================================================================================================
-! ALLOCATE( sigma(1:36*nSpecies,1:36*nSpecies,1:36*nSpecies,1:36*nSpecies),&
-!           ProbSigma(1:36*nSpecies,1:36*nSpecies,1:36*nSpecies,1:36*nSpecies) )
-! 
-! DO iSpec = 1,nSpecies
-! DO SurfSideID=1,SurfMesh%nSides
-! DO subsurfeta = 1,nSurfSample
-! DO subsurfxi = 1,nSurfSample
-!           
-!     SELECT CASE(Adsorption%Coordination(iSpec))
-!     CASE(1)
-!       sigma = 1.
-!       ProbSigma = 0.
-!       firstval = 1
-!       secondval = 1
-!       thirdval = 1
-!       fourthval = 1
-!       counter = 0
-!       DO xi = 1,surfsquare
-!         DO eta = 1,surfsquare
-!           IF (hollowsite(xi,eta).NE.0) THEN
-!             sigmasub = 0.
-!             DO i = 1,2
-!               DO j = 1,2
-!                 first = xi+i-1
-!                 second = eta+j-1
-!                 sigmasub = sigmasub + (1./4. * 1./M(first,second) * (2.-1./M(first,second)))
-! !                 IF (i.EQ.1 .AND. j.EQ.1) THEN
-! !                   firstval = M(first,second)
-! !                 ELSE IF (i.EQ.1 .AND. j.EQ.2) THEN
-! !                   secondval = M(first,second)
-! !                 ELSE IF (i.EQ.2 .AND. j.EQ.1) THEN
-! !                   thirdval = M(first,second)
-! !                 ELSE IF (i.EQ.2 .AND. j.EQ.2) THEN
-! !                   fourthval = M(first,second)
-! !                 END IF
-!                 IF (M(first,second).GE.firstval) THEN
-!                   fourthval = thirdval
-!                   thirdval = secondval
-!                   secondval = firstval
-!                   firstval = M(first,second)
-!                 ELSE IF (M(first,second).GE.secondval) THEN
-!                   fourthval = thirdval
-!                   thirdval = secondval
-!                   secondval = M(first,second)
-!                 ELSE IF (M(first,second).GE.thirdval) THEN
-!                   fourthval = thirdval
-!                   thirdval = M(first,second)
-!                 ELSE
-!                   fourthval = M(first,second)
-!                 END IF
-!               END DO
-!             END DO
-!             sigma(firstval,secondval,thirdval,fourthval) = sigmasub
-!             ProbSigma(firstval,secondval,thirdval,fourthval) = ProbSigma(firstval,secondval,thirdval,fourthval) + 1.
-!             counter = counter + 1
-!           END IF
-!         END DO
-!       END DO
-!     CASE(2)
-!       sigma = 1.
-!       ProbSigma = 0.
-!       firstval = 1
-!       secondval = 1
-!       thirdval = 1
-!       fourthval = 1
-!       counter = 0
-!       DO xi = 1,(surfsquare*2)
-!         DO eta = 1,surfsquare
-!           IF (bridgesite(xi,eta).NE.0) THEN
-!             sigmasub = 0.
-!             IF (xi.LE.surfsquare) THEN
-!               DO i = 1,2
-! !                 IF ((xi+i-1).LE.surfsquare) THEN
-!                   first = xi + i - 1
-!                   second = eta
-! !                 ELSE
-! !                   first = 1
-! !                   second = eta
-! !                 END IF
-!                 sigmasub = sigmasub + (1./2. * 1./M(first,second) * (2.-1./M(first,second)))
-!                 IF (i.EQ.1) THEN
-!                   firstval = M(first,second)
-!                 ELSE IF (i.EQ.2) THEN
-!                   secondval = M(first,second)
-!                   IF (secondval.GT.firstval) THEN
-!                     secondval = firstval
-!                     firstval = M(first,second)
-!                   END IF
-!                 END IF
-!               END DO
-!             ELSE
-!               DO i = 1,2
-! !                 IF ((eta+i-1).LE.surfsquare) THEN
-!                   first = xi - surfsquare
-!                   second = eta + i - 1
-! !                 ELSE
-! !                   first = xi - surfsquare
-! !                   second = 1
-! !                 END IF
-!                 sigmasub = sigmasub + (1./2. * 1./M(first,second) * (2.-1./M(first,second)))
-!                 IF (i.EQ.1) THEN
-!                   firstval = M(first,second)
-!                 ELSE IF (i.EQ.2) THEN
-!                   secondval = M(first,second)
-!                   IF (secondval.GT.firstval) THEN
-!                     secondval = firstval
-!                     firstval = M(first,second)
-!                   END IF
-!                 END IF
-!               END DO
-!             END IF !(xi.LE.surfsquare)
-!             sigma(firstval,secondval,thirdval,fourthval) = sigmasub
-!             ProbSigma(firstval,secondval,thirdval,fourthval) = ProbSigma(firstval,secondval,thirdval,fourthval) + 1
-!             counter = counter + 1
-! !             sigma = sigma + sigmasub
-! !             counter = counter + 1
-!           END IF
-!         END DO
-!       END DO
-!     CASE DEFAULT
-!     END SELECT
-!     
-!     pos = 1
-!     firstval = 1
-!     secondval = 1
-!     thirdval = 1
-!     fourthval = 1
-!     DO WHILE ((firstval.LE.4).AND.(secondval.LE.4).AND.(thirdval.LE.4).AND.(fourthval.LE.4))
-!       DO firstval = 1,4
-!       DO secondval = 1,firstval
-!       DO thirdval = 1,secondval
-!       DO fourthval = 1,thirdval
-!         Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(firstval,secondval,thirdval,fourthval)
-!         Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(firstval,secondval,thirdval,fourthval) / counter
-!         pos = pos + 1
-!       END DO
-!       END DO
-!       END DO
-!       END DO
-!     END DO
-! !     DO fourthval = 1,4
-! !       IF (thirdval.LE.4) THEN
-! !         Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(4,4,4,fourthval)
-! !         Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(4,4,4,fourthval) / counter
-! !         pos = pos + 1
-! !       ELSE
-! !     DO thirdval = 1,4
-! !       IF (secondval.GE.4) THEN
-! !         Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(4,4,thirdval,fourthval)
-! !         Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(4,4,thirdval,fourthval) / counter
-! !         pos = pos + 1
-! !       ELSE
-! !     DO secondval = 1,4
-! !       IF (firstval.GE.4) THEN
-! !         Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(4,secondval,thirdval,fourthval)
-! !         Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(4,secondval,thirdval,fourthval) / counter
-! !         pos = pos + 1
-! !       ELSE
-! !     DO firstval = 1,4
-! !       Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = sigma(firstval,secondval,thirdval,fourthval)
-! !       Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,pos) = ProbSigma(firstval,secondval,thirdval,fourthval) / counter
-! !       pos = pos + 1
-! !     END DO
-! !       END IF !firstval
-! !     END DO
-! !       END IF !secondval
-! !     END DO
-! !       END IF !thirdval
-! !     END DO
-!     
-! END DO
-! END DO
-! END DO
-! END DO
-! 
-! DEALLOCATE(hollowsite,bridgesite,M,sigma,ProbSigma)!,topsite,xSurfIndx1,ySurfIndx1,xSurfIndx2,ySurfIndx2)
-! 
-! END SUBROUTINE CalcSurfDistInteraction
-
 
 ! SUBROUTINE PartitionFuncGas(iSpec, Temp, VarPartitionFuncGas)
 ! !===================================================================================================================================
