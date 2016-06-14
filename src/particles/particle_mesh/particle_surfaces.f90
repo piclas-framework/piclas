@@ -68,7 +68,6 @@ USE MOD_Globals
 USE MOD_Globals_Vars,               ONLY:EpsMach
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
-USE MOD_Globals_Vars,               ONLY:epsMach
 USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,NGeo,nBCSides,nSides
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList
@@ -1296,7 +1295,7 @@ IF(BezierSampleProjection)THEN
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=tmpI2,eta=tmpJ2,SideID=SideID)
       IF (ALMOSTZERO( DOT_PRODUCT(ProjectionVector,n_loc)/100. )) THEN
         CALL Abort(&
-          __STAMP__&
+__STAMP__&
           ,'Bilinear Side is partly parallel to ProjectionVector! Choose different BezierSampleN (e.g. old value +-1).')
       END IF
     END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
@@ -1315,12 +1314,12 @@ IF(BezierSampleProjection)THEN
           ParallelSide=.TRUE.
         ELSE IF (.NOT.ParallelSide) THEN !at least 2nd side -> partly parallel!
           CALL Abort(&
-            __STAMP__&
+__STAMP__&
             ,'Curved Side is partly parallel to ProjectionVector! Choose different BezierSampleN (e.g. old value +-1).')
         END IF
       ELSE IF (ParallelSide) THEN !current subside is not parallel but a previous one was -> partly parallel!
         CALL Abort(&
-          __STAMP__&
+__STAMP__&
           ,'Curved Side is partly parallel to ProjectionVector! Choose different BezierSampleN (e.g. old value +-1).')
       END IF
     END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN
@@ -1435,7 +1434,7 @@ DO jSample=1,BezierSampleN; DO iSample=1,BezierSampleN
     END DO; END DO !I,J
     IF (Dmax(iSample,jSample).LT.0.) THEN
       CALL abort(&
-        __STAMP__&
+__STAMP__&
         ,'ERROR in GetBezierSampledAreas: No Dmax found!?')
     END IF
   END IF

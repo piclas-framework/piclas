@@ -218,6 +218,14 @@ SHARECOMP=$(subst $(space),$(empty),$(SHARECOMP_MOD))
 #---------------------------------------------------------------------------------------------------------------------------------#
 # HDF5
 #---------------------------------------------------------------------------------------------------------------------------------#
+ifeq ($(MPI),T)
+  H5MPI +=-enable-parallel
+else ifeq ($(MPI),TRUE)
+  H5MPI +=-enable-parallel
+else
+  H5MPI +=-disable-parallel
+endif
+
 # Download and compile HDF5 libraries, if not already available
 ifeq ($(MACHINE),)
   ifeq ($(HDF5_DIR),)

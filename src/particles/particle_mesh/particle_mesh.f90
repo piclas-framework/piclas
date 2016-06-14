@@ -139,7 +139,7 @@ FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 
 ! method from xPhysic to parameter space
 RefMappingGuess = GETINT('RefMappingGuess','1')
-RefMappingEps   = GETREAL('RefMappingEps','1e-8')
+RefMappingEps   = GETREAL('RefMappingEps','1e-4')
 epsInCell       = SQRT(3.0*RefMappingEps)
 epsOneCell      = 1.0+epsInCell
 IF((RefMappingGuess.LT.1).OR.(RefMappingGuess.GT.4))THEN
