@@ -37,6 +37,7 @@ INTEGER              :: nPartNewtonIter                                         
 INTEGER              :: FreezePartInNewton                                          ! particle is moved after each Newton step
 REAL                 :: Eps2PartNewton                                              ! PartNewton abort criterion
 LOGICAL              :: EisenstatWalker                                             ! EisenstatWalker for ParticleNewton
+REAL                 :: EpsPartLinSolver                                            ! Abort tolerance for linear solver of parts
 REAL                 :: PartgammaEW                                                 ! gamma value of PartEisenstatWalker
 REAL                 :: rEps0,srEps0                                                ! FD-step-size for PartMV in PartNewton
 REAL,ALLOCATABLE     :: PartXK(:,:)                                                 ! ParticlePosition for linearization

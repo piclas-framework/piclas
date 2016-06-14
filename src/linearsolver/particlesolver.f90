@@ -67,6 +67,8 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE SOLVER...'
 
 Eps2PartNewton     =GETREAL('EpsPartNewton','0.001')
 Eps2PartNewton     =Eps2PartNewton**2
+EpsPartLinSolver   =GETREAL('EpsPartLinSolver','0.0')
+IF(EpsPartLinSolver.EQ.0.) EpsPartLinSolver=Eps_LinearSolver
 nPartNewtonIter    =GETINT('nPartNewtonIter','20')
 FreezePartInNewton =GETINT('FreezePartInNewton','1')
 EisenstatWalker    =GETLOGICAL('EisenstatWalker','.FALSE.')
@@ -262,6 +264,7 @@ IF(DoPrintConvInfo)THEN
   SWRITE(*,*) 'init part',Counter
 END IF
 
+AbortCritLinSolver=0.99
 nInnerPartNewton=-1
 DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
   nInnerPartNewton=nInnerPartNewton+1
@@ -397,7 +400,7 @@ SUBROUTINE Particle_GMRES(t,coeff,PartID,B,Norm_B,AbortCrit,DeltaX)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_LinearSolver_Vars,    ONLY: eps_LinearSolver,TotalPartIterLinearSolver
+USE MOD_LinearSolver_Vars,    ONLY: epsPartlinSolver,TotalPartIterLinearSolver
 USE MOD_LinearSolver_Vars,    ONLY: nKDim,nRestarts,nPartInnerIter,EisenstatWalker
 USE MOD_LinearOperator,       ONLY: PartMatrixVector, PartVectorDotProduct
 USE MOD_TimeDisc_Vars,        ONLY: dt,iter
@@ -439,10 +442,10 @@ Restart=0
 nPartInnerIter=0
 !Un(:)=PartState(PartID,:)
 IF(iter.EQ.0) THEN
-  AbortCrit=eps_LinearSolver
+  AbortCrit=epsPartlinSolver
 ELSE
   IF (EisenstatWalker .eqv. .FALSE.) THEN
-    AbortCrit=eps_LinearSolver
+    AbortCrit=epsPartlinSolver
   END IF
 END IF
 AbortCrit=Norm_B*AbortCrit
