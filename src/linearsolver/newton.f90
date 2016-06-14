@@ -137,7 +137,7 @@ USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies
 USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
 USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
+USE MOD_Part_RHS,                ONLY:PartVeloToImp
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_Part_MPFtools,           ONLY:StartParticleMerge
@@ -204,10 +204,13 @@ IF (t.GE.DelayTime) THEN
   ! ALWAYS require
   PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
-
+  ! map particle from gamma v to v
+  CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   ! compute particle source terms on field solver of implicit particles :)
   CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
+  ! map particle from v to gamma v
+  CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
 END IF
 #endif /*PARTICLES*/
 
@@ -294,10 +297,14 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_Ful
     PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
 
+    ! map particle from gamma v to v
+    CALL PartVeloToImp(VeloToImp=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     ! compute particle source terms on field solver of implicit particles :)
     CALL Deposition(doInnerParts=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     CALL Deposition(doInnerParts=.FALSE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
     IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+    ! and map back
+    CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
   END IF
 #endif /*PARTICLES*/
 

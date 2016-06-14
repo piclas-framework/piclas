@@ -254,9 +254,10 @@ USE MOD_PreProc
 USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Globals,                 ONLY:Abort
 USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
-USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
+USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping,c2_inv
 USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType,Pt
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
+USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
+                                     ,RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 ! IMPLICIT VARIABLE HANDLING
@@ -273,6 +274,7 @@ REAL,INTENT(OUT)   :: Y(1:6)
 ! LOCAL VARIABLES
 REAL               :: X_abs,epsFD
 REAL               :: PartT(1:6)
+REAL               :: LorentzFacInv
 !REAL               :: FieldAtParticle(1:6)
 !REAL               :: typ_v_abs, XK_V, sign_XK_V
 !===================================================================================================================================
@@ -288,18 +290,24 @@ EpsFD= rEps0/SQRT(X_abs)
 PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
 !CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
-PartT(1:3)=PartState(PartID,4:6) ! funny, or PartXK
 PartT(4:6)=Pt(PartID,1:3)
 SELECT CASE(PartLorentzType)
 CASE(1)
   PartT(4:6) = SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
+  LorentzFacInv = 1.0
 CASE(3)
   PartT(4:6) = FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
+  LorentzFacInv = 1.0
+CASE(5)
+  LorentzFacInv=1.0+DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv      
+  LorentzFacInv=1.0/SQRT(LorentzFacInv)
+  PartT(4:6) = RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6),LorentzFacInvIn=LorentzFacInv)
 CASE DEFAULT
 CALL abort(&
 __STAMP__ &
 ,' Given PartLorentzType does not exist!',PartLorentzType)
 END SELECT
+PartT(1:3)=LorentzFacInv*PartState(PartID,4:6) ! funny, or PartXK
 ! or frozen version
 Y = (X - (coeff/EpsFD)*(PartT - R_PartXk(:,PartID)))
 
