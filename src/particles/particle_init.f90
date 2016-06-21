@@ -256,6 +256,8 @@ __STAMP__&
   ,' Cannot allocate PartIsImplicit arrays!')
 END IF
 PartIsImplicit=.FALSE.
+! flag to enforce updatenextfree position in all rk stages
+DoUpdateInStage =  GETLOGICAL('DoUpdateInStage','.FALSE.')
 #endif
 
 

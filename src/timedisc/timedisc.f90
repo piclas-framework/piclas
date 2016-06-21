@@ -2863,7 +2863,7 @@ USE MOD_Equation,                ONLY:CalcSource
 USE MOD_Equation_Vars,           ONLY:c2_inv
 #ifdef PARTICLES
 USE MOD_Predictor,               ONLY:PartPredictor
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies, doParticleMerge,PartPressureCell
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies, doParticleMerge,PartPressureCell,DoUpdateInStage
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
@@ -2952,17 +2952,17 @@ IF(DoExternalParts)THEN
   SDEALLOCATE(ExtPartSpecies)
   SDEALLOCATE(ExtPartToFIBGM)
   SDEALLOCATE(ExtPartMPF)
+  ! open receive buffer for number of particles
+  CALL IRecvNbofParticles()
+  ! send number of particles
+  CALL SendNbOfParticles()
+  ! finish communication of number of particles and send particles
+  CALL MPIParticleSend()
+  ! finish communication
+  CALL MPIParticleRecv()
+  ! set exchanged number of particles to zero
+  PartMPIExchange%nMPIParticles=0
 END IF
-! open receive buffer for number of particles
-CALL IRecvNbofParticles()
-! send number of particles
-CALL SendNbOfParticles()
-! finish communication of number of particles and send particles
-CALL MPIParticleSend()
-! finish communication
-CALL MPIParticleRecv()
-! set exchanged number of particles to zero
-PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
 
 ! simulation with delay-time, compute the
@@ -2992,31 +2992,34 @@ IF (t.GE.DelayTime) THEN
   PartMPIExchange%nMPIParticles=0
 #endif /*MPI*/
   CALL Deposition(doInnerParts=.FALSE.)
-  ! velocity to impulse
-  CALL PartVeloToImp(VeloToImp=.TRUE.) 
 END IF
 
 ImplicitSource=0.
 CALL CalcSource(tStage,1.,ImplicitSource)
 IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 
-IF(iter.EQ.0)THEN
-  ! should be already be done
-  DO iPart=1,PDM%ParticleVecLength
-    IF(.NOT.PDM%ParticleInside(iPart))CYCLE
-    IF(PartIsImplicit(iPart))THEN
-      CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
-      SELECT CASE(PartLorentzType)
-      CASE(1)
-        Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      CASE(3)
-        Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      CASE(5)
-        Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
-      CASE DEFAULT
-      END SELECT
-    END IF ! ParticleIsImplicit
-  END DO ! iPart
+IF(t.GE.DelayTime)THEN
+  ! velocity to impulse
+  CALL PartVeloToImp(VeloToImp=.TRUE.) 
+  IF(iter.EQ.0)THEN ! caution with emission: fields should also be interpolated to new particles, this is missing
+                    ! or should be done directly during emission...
+    ! should be already be done
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+      IF(PartIsImplicit(iPart))THEN
+        CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+        SELECT CASE(PartLorentzType)
+        CASE(1)
+          Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE(3)
+          Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE(5)
+          Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE DEFAULT
+        END SELECT
+      END IF ! ParticleIsImplicit
+    END DO ! iPart
+  END IF
 END IF
 #endif /*PARTICLES*/
 
@@ -3058,7 +3061,9 @@ DO iStage=2,nRKStages
         ELSE
           LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv      
           LorentzFacInv=1.0/SQRT(LorentzFacInv)
-          PartStage(iPart,1:3,iStage-1) = PartState(iPart,4:6) * LorentzFacInv
+          PartStage(iPart,1  ,iStage-1) = PartState(iPart,4  ) * LorentzFacInv
+          PartStage(iPart,2  ,iStage-1) = PartState(iPart,5  ) * LorentzFacInv
+          PartStage(iPart,3  ,iStage-1) = PartState(iPart,6  ) * LorentzFacInv
           PartStage(iPart,4:6,iStage-1) = Pt       (iPart,1:3)
         END IF
       ELSE
@@ -3076,7 +3081,9 @@ DO iStage=2,nRKStages
           Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
         CASE DEFAULT
         END SELECT
-        PartStage(iPart,1:3,iStage-1) = PartState(iPart,4:6)*LorentzFacInv
+        PartStage(iPart,1,iStage-1) = PartState(iPart,4)*LorentzFacInv
+        PartStage(iPart,2,iStage-1) = PartState(iPart,5)*LorentzFacInv
+        PartStage(iPart,3,iStage-1) = PartState(iPart,6)*LorentzFacInv
         PartStage(iPart,4:6,iStage-1) = Pt       (iPart,1:3)
       END IF ! ParticleIsImplicit
     END DO ! iPart
@@ -3161,8 +3168,6 @@ DO iStage=2,nRKStages
 
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN
-    ! add here new method
-    ! maybeeeeeeeeee
     DO iPart=1,PDM%ParticleVecLength
       IF(PartIsImplicit(iPart))THEN
         LastPartPos(iPart,1)=PartState(iPart,1)
@@ -3175,7 +3180,6 @@ DO iStage=2,nRKStages
           PartQ(1:6,iPart) = PartQ(1:6,iPart) + ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
         END DO ! iCounter=1,iStage-2
         PartQ(1:6,iPart) = PartStateN(iPart,1:6) + dt* PartQ(1:6,iPart)
-        !old
         ! predictor
         CALL PartPredictor(iStage,dt,iPart) ! sets new value for U_DG
       END IF ! PartIsImplicit
@@ -3185,6 +3189,14 @@ DO iStage=2,nRKStages
   ! full newton for particles and fields
   CALL FullNewton(t,tStage,alpha)
   CALL DivCleaningDamping()
+#ifdef PARTICLES
+  IF (t.GE.DelayTime) THEN
+    IF(DoUpdateInStage)THEN
+      CALL UpdateNextFreePosition()
+    END IF
+  END IF
+#endif /*PARTICLES*/
+
 END DO
 
 #ifdef PARTICLES
@@ -3212,7 +3224,9 @@ IF (t.GE.DelayTime) THEN
         Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
       CASE DEFAULT
       END SELECT
-      PartState(iPart,1:3) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,4:6)
+      PartState(iPart,1  ) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,4)
+      PartState(iPart,2  ) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,5)
+      PartState(iPart,3  ) = RK_b(nRKStages)*LorentzFacInv*PartState(iPart,6)
       PartState(iPart,4:6) = RK_b(nRKSTages)*Pt(iPart,1:3)
       !  stage 1 ,nRKStages-1
       DO iCounter=1,nRKStages-1
@@ -3283,11 +3297,13 @@ IF (t.GE.DelayTime) THEN
     SDEALLOCATE(ExtPartToFIBGM)
     SDEALLOCATE(ExtPartMPF)
   END IF
+
+  ! map particle from gamma*v to v
+  CALL PartVeloToImp(VeloToImp=.FALSE.) 
+
 END IF
 #endif /*PARTICLES*/
 
-! map particle from gamma*v to v
-CALL PartVeloToImp(VeloToImp=.FALSE.) 
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC

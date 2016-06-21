@@ -290,7 +290,7 @@ EpsFD= rEps0/SQRT(X_abs)
 PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
 !CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
-PartT(4:6)=Pt(PartID,1:3)
+!PartT(4:6)=Pt(PartID,1:3)
 SELECT CASE(PartLorentzType)
 CASE(1)
   PartT(4:6) = SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
@@ -307,7 +307,9 @@ CALL abort(&
 __STAMP__ &
 ,' Given PartLorentzType does not exist!',PartLorentzType)
 END SELECT
-PartT(1:3)=LorentzFacInv*PartState(PartID,4:6) ! funny, or PartXK
+PartT(1)=LorentzFacInv*PartState(PartID,4) ! funny, or PartXK
+PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
+PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
 ! or frozen version
 Y = (X - (coeff/EpsFD)*(PartT - R_PartXk(:,PartID)))
 

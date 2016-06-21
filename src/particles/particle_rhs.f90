@@ -284,7 +284,7 @@ FUNCTION RELATIVISTIC_PUSH(PartID,FieldAtParticle,LorentzFacInvIn)
 ! full relativistic push in case that the particle velocity*gamma is updated in time
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,           ONLY : abort,Myrank
+USE MOD_Globals,           ONLY : cross
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
 USE MOD_Equation_Vars,     ONLY : c2_inv, c2
 ! IMPLICIT VARIABLE HANDLING
@@ -301,6 +301,9 @@ REAL                :: RELATIVISTIC_PUSH(1:3) ! The stamp
 ! LOCAL VARIABLES
 REAL                :: LorentzFacInv,qmt
 REAL                :: E(1:3),B(1:3),Pt(1:3)
+#if (PP_nVar==8)
+REAL                :: Velo(3)
+#endif
 !===================================================================================================================================
 
 IF(PRESENT(LorentzFacInvIn))THEN
@@ -318,9 +321,13 @@ B(1:3) = FieldAtParticle(4:6) * qmt
 #endif
 ! Calc Lorentz forces in x, y, z direction:
 #if (PP_nVar==8)
-Pt(1) = E(1) + LorentzFacInv*(PartState(PartID,5) * B(3) - PartState(PartID,6) * B(2))
-Pt(2) = E(2) + LorentzFacInv*(PartState(PartID,6) * B(1) - PartState(PartID,4) * B(3))
-Pt(3) = E(3) + LorentzFacInv*(PartState(PartID,4) * B(2) - PartState(PartID,5) * B(1))
+Velo(1) = LorentzFacInv*PartState(PartID,4)
+Velo(2) = LorentzFacInv*PartState(PartID,5)
+Velo(3) = LorentzFacInv*PartState(PartID,6)
+Pt = E + CROSS(Velo,B)
+!Pt(1) = E(1) + LorentzFacInv*(PartState(PartID,5) * B(3) - PartState(PartID,6) * B(2))
+!Pt(2) = E(2) + LorentzFacInv*(PartState(PartID,6) * B(1) - PartState(PartID,4) * B(3))
+!Pt(3) = E(3) + LorentzFacInv*(PartState(PartID,4) * B(2) - PartState(PartID,5) * B(1))
 #else
 Pt(1) = E(1) 
 Pt(2) = E(2) 

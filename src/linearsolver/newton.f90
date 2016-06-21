@@ -134,7 +134,7 @@ USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,tota
 USE MOD_LinearSolver_Vars,       ONLY:Eps_FullNewton,Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
 USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
 USE MOD_Part_RHS,                ONLY:PartVeloToImp
