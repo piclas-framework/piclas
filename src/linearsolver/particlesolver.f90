@@ -88,6 +88,10 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'Cannot allocate R_PartXK')
 
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+PartImplicitMethod =GETINT('Part-ImplicitMethod','0')
+#endif
+
 END SUBROUTINE InitPartSolver
 
 
@@ -99,7 +103,11 @@ SUBROUTINE SelectImplicitParticles()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Vars,     ONLY:Species,nSpecies,PartSpecies,PartIsImplicit,PDM
+USE MOD_Globals
+USE MOD_Particle_Vars,     ONLY:Species,nSpecies,PartSpecies,PartIsImplicit,PDM,Pt,PartState
+USE MOD_Linearsolver_Vars, ONLY:PartImplicitMethod
+USE MOD_TimeDisc_Vars,     ONLY:dt,nRKStages,iter
+USE MOD_Equation_Vars,     ONLY:c2_inv
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -109,13 +117,53 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER     :: iPart
+REAL        :: NewVelo(3),Vabs,PartGamma,VabsNew
 !===================================================================================================================================
 
 PartIsImplicit=.FALSE.
-DO iPart=1,PDM%ParticleVecLength
-  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-  IF(Species(PartSpecies(iPart))%IsImplicit) PartIsImplicit(iPart)=.TRUE.
-END DO ! iPart
+SELECT CASE(PartImplicitMethod)
+CASE(0) ! depending on species
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF(Species(PartSpecies(iPart))%IsImplicit) PartIsImplicit(iPart)=.TRUE.
+  END DO ! iPart
+CASE(1) ! selection after simplified, linear push
+  IF(iter.EQ.0)THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+      PartIsImplicit(iPart)=.TRUE.
+    END DO ! iPart
+  ELSE
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+      NewVelo=PartState(iPart,4:6)+dt/REAL(nRKStages-1)*Pt(iPart,1:3)
+      Vabs   =DOT_PRODUCT(NewVelo,NewVelo)
+      IF(Vabs*c2_inv.GT.0.9) PartIsImplicit(iPart)=.TRUE.
+    END DO ! iPart
+  END IF
+CASE(2) ! if gamma exceeds a certain treshold
+  IF(iter.EQ.0)THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+      PartIsImplicit(iPart)=.TRUE.
+    END DO ! iPart
+  ELSE
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+      NewVelo=PartState(iPart,4:6)
+      Vabs   =DOT_PRODUCT(NewVelo,NewVelo)
+      PartGamma=1.0-Vabs*c2_inv
+      PartGamma=1.0/SQRT(PartGamma)
+      IF(PartGamma.GT.0.3) PartIsImplicit(iPart)=.TRUE.
+    END DO ! iPart
+  END IF
+! CASE(3) 
+! use the dense output to compute error, if to large, switch to implicit
+CASE DEFAULT
+  IF(MPIRoot)  CALL abort(&
+__STAMP__&
+,' Method to select implicit particles is not implemented!')
+END SELECT
   
 END SUBROUTINE SelectImplicitParticles
 #endif
