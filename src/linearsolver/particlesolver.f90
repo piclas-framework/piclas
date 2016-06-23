@@ -192,7 +192,7 @@ USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtP
 #endif /*MPI*/
 USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,FreezePartInNewton,DoPrintConvInfo
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
-                                     ,RELATIVISTIC_PUSH
+                                     ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
 USE MOD_Equation_vars,           ONLY:c2_inv
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
@@ -263,6 +263,9 @@ IF(opt)THEN ! compute zero state
     IF(DoPartInNewton(iPart))THEN
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
+      CASE(0)
+        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        LorentzFacInv = 1.0
       CASE(1)
         Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
         LorentzFacInv = 1.0
@@ -387,6 +390,9 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       PEM%lastElement(iPart)=PEM%Element(iPart)
       IF(MOD(nInnerPartNewton,FreezePartInNewton).EQ.0) CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
+      CASE(0)
+        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        LorentzFacInv = 1.0
       CASE(1)
         Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
         LorentzFacInv = 1.0

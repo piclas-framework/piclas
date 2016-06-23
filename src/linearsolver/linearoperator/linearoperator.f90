@@ -257,7 +257,7 @@ USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
 USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping,c2_inv
 USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType,Pt
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
-                                     ,RELATIVISTIC_PUSH
+                                     ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 ! IMPLICIT VARIABLE HANDLING
@@ -292,6 +292,9 @@ PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 !CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
 !PartT(4:6)=Pt(PartID,1:3)
 SELECT CASE(PartLorentzType)
+CASE(0)
+  PartT(4:6) = NON_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
+  LorentzFacInv = 1.0
 CASE(1)
   PartT(4:6) = SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
   LorentzFacInv = 1.0
