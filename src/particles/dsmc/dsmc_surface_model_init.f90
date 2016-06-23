@@ -36,7 +36,7 @@ SUBROUTINE InitDSMCSurfModel()
 ! MODULES
 USE MOD_Globals,                ONLY : abort
 USE MOD_Mesh_Vars,              ONLY : nElems, nBCSides, BC
-USE MOD_DSMC_Vars,              ONLY : Adsorption
+USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PDM
 USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM
 USE MOD_ReadInTools
@@ -63,19 +63,23 @@ END IF
 #if (PP_TimeDiscMethod==42)
 ALLOCATE( Adsorption%AdsorpInfo(1:nSpecies))
 #endif
-ALLOCATE( Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),& 
-          Adsorption%PrefactorStick(1:SurfMesh%nSides,1:nSpecies),& 
-          Adsorption%Adsorbexp(1:SurfMesh%nSides,1:nSpecies),& 
-          Adsorption%Nu_a(1:SurfMesh%nSides,1:nSpecies),& 
-          Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),& 
-          Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),& 
-          Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
-ALLOCATE( Adsorption%HeatOfAdsZero(1:nSpecies),& 
-!           Adsorption%DissResultsSpecNum(1:nSpecies),&
-!           Adsorption%DissResultsSpec(1:2,1:(2*(nSpecies-1)-1),1:nSpecies),&
-!           Adsorption%EDissBond(1:nSpecies,1:nSpecies,1:nSpecies),& 
-          Adsorption%Coordination(1:nSpecies))
-! initialize info and constants
+IF (DSMC%WallModel.EQ.1) THEN 
+  ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),& 
+            Adsorption%InitStick(1:SurfMesh%nSides,1:nSpecies),& 
+            Adsorption%PrefactorStick(1:SurfMesh%nSides,1:nSpecies),& 
+            Adsorption%Adsorbexp(1:SurfMesh%nSides,1:nSpecies),& 
+            Adsorption%Nu_a(1:SurfMesh%nSides,1:nSpecies),& 
+            Adsorption%Nu_b(1:SurfMesh%nSides,1:nSpecies),& 
+            Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),& 
+            Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
+ELSE IF (DSMC%WallModel.GT.1) THEN 
+  ALLOCATE( Adsorption%HeatOfAdsZero(1:nSpecies),& 
+  !           Adsorption%DissResultsSpecNum(1:nSpecies),&
+  !           Adsorption%DissResultsSpec(1:2,1:(2*(nSpecies-1)-1),1:nSpecies),&
+  !           Adsorption%EDissBond(1:nSpecies,1:nSpecies,1:nSpecies),& 
+            Adsorption%Coordination(1:nSpecies))
+  ! initialize info and constants
+END IF
 DO iSpec = 1,nSpecies
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
@@ -85,15 +89,19 @@ DO iSpec = 1,nSpecies
   Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
 #endif
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
-  Adsorption%InitStick(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-InitialStick','0.')
-  Adsorption%PrefactorStick(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-PrefactorStick','0.')
-  Adsorption%Adsorbexp(:,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Adsorbexp','1')
-  Adsorption%Nu_a(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-a','0.')
-  Adsorption%Nu_b(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-b','0.')
-  Adsorption%DesorbEnergy(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Desorption-Energy-K','1.')
-  Adsorption%Intensification(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
-  Adsorption%Coordination(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Coordination','0')
-  Adsorption%HeatOfAdsZero(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfAdsorption-K','0.')
+  IF (DSMC%WallModel.EQ.1) THEN
+    Adsorption%MaxCoverage(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-MaximumCoverage','0.')
+    Adsorption%InitStick(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-InitialStick','0.')
+    Adsorption%PrefactorStick(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-PrefactorStick','0.')
+    Adsorption%Adsorbexp(:,iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Adsorbexp','1')
+    Adsorption%Nu_a(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-a','0.')
+    Adsorption%Nu_b(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Nu-b','0.')
+    Adsorption%DesorbEnergy(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Desorption-Energy-K','1.')
+    Adsorption%Intensification(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
+  ELSE IF (DSMC%WallModel.GT.1) THEN 
+    Adsorption%Coordination(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Coordination','0')
+    Adsorption%HeatOfAdsZero(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfAdsorption-K','0.')
+  END IF
 END DO
 #if (PP_TimeDiscMethod==42)
   Adsorption%TPD = GETLOGICAL('Particles-DSMC-Adsorption-doTPD','.FALSE.')
@@ -101,16 +109,19 @@ END DO
   Adsorption%TPD_Temp = 0.
 #endif
 ! allocate and initialize adsorption variables
-ALLOCATE( Adsorption%MaxCoverage(1:SurfMesh%nSides,1:nSpecies),& 
-          Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%ProbAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
-          Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
+          Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SurfSideToGlobSideMap(1:SurfMesh%nSides),&
-          Adsorption%Sigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
-          Adsorption%ProbSigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
           Adsorption%DensSurfAtoms(1:SurfMesh%nSides))
+IF (DSMC%WallModel.EQ.2) THEN
+  ALLOCATE( Adsorption%ProbSigAds(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
+            Adsorption%ProbSigDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
+            Adsorption%Sigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies),&
+            Adsorption%ProbSigma(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies,1:36*nSpecies))
+END IF
 IDcounter = 0         
 DO iSide = 1,nBCSides 
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN
@@ -120,21 +131,25 @@ DO iSide = 1,nBCSides
 END DO
 DO iSurf = 1,SurfMesh%nSides
   WRITE(UNIT=hilf,FMT='(I2)') iSurf
-  Adsorption%DensSurfAtoms(iSurf) = GETREAL('Particles-Surface'//TRIM(hilf)//'-AtomsDensity','1.5E+19')
+  Adsorption%DensSurfAtoms(iSurf) = GETREAL('Particles-Surface'//TRIM(hilf)//'-AtomsDensity','1.0E+19')
 END DO
 DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
-  Adsorption%MaxCoverage(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-MaximumCoverage','0.')
   Adsorption%Coverage(:,:,:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-InitialCoverage','0.')
 END DO
 Adsorption%ProbAds(:,:,:,:) = 0.
-Adsorption%ProbDes(:,:,:,:,:) = 0.
+Adsorption%ProbDes(:,:,:,:) = 0.
 Adsorption%SumDesorbPart(:,:,:,:) = 0
 Adsorption%SumAdsorbPart(:,:,:,:) = 0
-Adsorption%Sigma(:,:,:,:,:) = 1.
-Adsorption%ProbSigma(:,:,:,:,:) = 0.
 
-CALL Init_SurfDist()
+IF (DSMC%WallModel.EQ.2) THEN
+  Adsorption%ProbSigAds(:,:,:,:,:) = 0.
+  Adsorption%ProbSigDes(:,:,:,:,:) = 0.
+  Adsorption%Sigma(:,:,:,:,:) = 1.
+  Adsorption%ProbSigma(:,:,:,:,:) = 0.
+END IF
+
+IF (DSMC%WallModel.GT.1) CALL Init_SurfDist()
 
 END SUBROUTINE InitDSMCSurfModel
 
@@ -539,6 +554,8 @@ SDEALLOCATE(Adsorption%ProbDes)
 SDEALLOCATE(Adsorption%SumDesorbPart)
 SDEALLOCATE(Adsorption%SumAdsorbPart)
 SDEALLOCATE(Adsorption%SurfSideToGlobSideMap)
+SDEALLOCATE(Adsorption%ProbSigAds)
+SDEALLOCATE(Adsorption%ProbSigDes)
 SDEALLOCATE(Adsorption%Sigma)
 SDEALLOCATE(Adsorption%ProbSigma)
 SDEALLOCATE(Adsorption%DensSurfAtoms)
@@ -547,9 +564,6 @@ IF (ALLOCATED(SurfDistInfo)) THEN
 DO SurfSideID=1,SurfMesh%nSides
   DO subsurfeta = 1,nSurfSample
   DO subsurfxi = 1,nSurfSample
-!     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%HollowSite)
-!     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%BridgeSite)
-!     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%TopSite)
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder)
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain)
     DEALLOCATE(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites)

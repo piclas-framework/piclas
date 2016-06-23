@@ -110,7 +110,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
   DSMC%ReservoirRateStatistic = GETLOGICAL('Particles-DSMCReservoirStatistic','.FALSE.')
   DSMC%VibEnergyModel = GETINT('Particles-ModelForVibrationEnergy','0')
   DSMC%ElectronicStateDatabase = GETSTR('Particles-DSMCElectronicDatabase','none')
-  DSMC%WallModel = GETINT('Particles-DSMC-WallModel','0') !0: elastic/diffusive reflection, 1:ad-/desorption, 2:chem. ad-/desorption
+  DSMC%WallModel = GETINT('Particles-DSMC-WallModel','0') !0: elastic/diffusive reflection, 1:ad-/desorption empiric, 2:chem. ad-/desorption UBI-QEP
   LD_MultiTemperaturMod=GETINT('LD-ModelForMultiTemp','0')
   DSMC%ElectronicState = .FALSE.
   IF ( (DSMC%ElectronicStateDatabase .ne. 'none') .AND. (CollisMode .GT. 1)  ) THEN 

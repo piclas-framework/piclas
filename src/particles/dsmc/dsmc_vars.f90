@@ -249,7 +249,7 @@ TYPE tAdsorption
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   REAL    , ALLOCATABLE                  :: ProbAds(:,:,:,:)        ! Adsorption probability of surface n
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
-  REAL    , ALLOCATABLE                  :: ProbDes(:,:,:,:,:)        ! Desorption probability of surface n
+  REAL    , ALLOCATABLE                  :: ProbDes(:,:,:,:)        ! Desorption probability of surface n
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   INTEGER , ALLOCATABLE                  :: SumDesorbPart(:,:,:,:)  ! Number of Particles of Species iSpec desorbing from Surface
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
@@ -276,6 +276,10 @@ TYPE tAdsorption
   INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
   REAL    , ALLOCATABLE                  :: Sigma(:,:,:,:,:)        ! Coverage effect on Adsorption energies
   REAL    , ALLOCATABLE                  :: ProbSigma(:,:,:,:,:)    ! Coverage effect on Adsorption energies
+  REAL    , ALLOCATABLE                  :: ProbSigAds(:,:,:,:,:)      ! Adsorption probability of surface n
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies,36*nSpecies)
+  REAL    , ALLOCATABLE                  :: ProbSigDes(:,:,:,:,:)      ! Desorption probability of surface n
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies,36*nSpecies)
   
   TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 END TYPE
