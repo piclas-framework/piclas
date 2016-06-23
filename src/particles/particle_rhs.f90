@@ -24,6 +24,11 @@ INTERFACE RELATIVISTIC_PUSH
   MODULE PROCEDURE RELATIVISTIC_PUSH
 END INTERFACE
 
+
+INTERFACE NON_RELATIVISTIC_PUSH
+  MODULE PROCEDURE NON_RELATIVISTIC_PUSH
+END INTERFACE
+
 INTERFACE PartVeloToImp
   MODULE PROCEDURE PartVeloToImp
 END INTERFACE
@@ -33,6 +38,7 @@ PUBLIC            :: CalcPartRHS
 PUBLIC            :: SLOW_RELATIVISTIC_PUSH
 PUBLIC            :: FAST_RELATIVISTIC_PUSH
 PUBLIC            :: RELATIVISTIC_PUSH
+PUBLIC            :: NON_RELATIVISTIC_PUSH
 PUBLIC            :: PartVeloToImp
 !----------------------------------------------------------------------------------------------------------------------------------
                                                                                                    
@@ -62,6 +68,13 @@ REAL                             :: ax, ay, az, bx, by, bz, dx, dy, snx, sny, sn
 ! Lorentzforce
 Pt(1:PDM%ParticleVecLength,:)=0.
 SELECT CASE(PartLorentzType)
+  CASE(0) ! default
+    ! non-relativistic
+    DO iPart = 1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
+        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+      END IF
+    END DO
   CASE(1) ! default
     ! constant Lorentz factor over time step
     DO iPart = 1,PDM%ParticleVecLength
@@ -337,6 +350,53 @@ Pt(3) = E(3)
 RELATIVISTIC_PUSH = Pt
 
 END FUNCTION RELATIVISTIC_PUSH
+
+
+FUNCTION NON_RELATIVISTIC_PUSH(PartID,FieldAtParticle)
+!===================================================================================================================================
+! NON relativistic push 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,           ONLY : cross
+USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: PartID
+REAL,INTENT(IN)     :: FieldAtParticle(1:6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                :: NON_RELATIVISTIC_PUSH(1:3) ! The stamp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                :: E(1:3),B(1:3),Pt(1:3),qmt
+#if (PP_nVar==8)
+REAL                :: Velo(3)
+#endif
+!===================================================================================================================================
+
+qmt = Species(PartSpecies(PartID))%ChargeIC/Species(PartSpecies(PartID))%MassIC
+
+E(1:3) = FieldAtParticle(1:3) * qmt
+#if (PP_nVar==8)
+B(1:3) = FieldAtParticle(4:6) * qmt
+#endif
+! Calc Lorentz forces in x, y, z direction:
+#if (PP_nVar==8)
+Velo(1) = PartState(PartID,4)
+Velo(2) = PartState(PartID,5)
+Velo(3) = PartState(PartID,6)
+Pt = E + CROSS(Velo,B)
+#else
+Pt(1) = E(1) 
+Pt(2) = E(2) 
+Pt(3) = E(3) 
+#endif
+
+NON_RELATIVISTIC_PUSH = Pt
+
+END FUNCTION NON_RELATIVISTIC_PUSH
 
 
 SUBROUTINE PartVeloToImp(VeloToImp,doParticle_In)

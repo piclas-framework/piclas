@@ -2879,7 +2879,7 @@ USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
-                                     ,RELATIVISTIC_PUSH
+                                     ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_part_MPFtools,           ONLY:StartParticleMerge
@@ -2933,7 +2933,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 END IF
 ! select, if particles are treated implicitly or explicitly
 CALL SelectImplicitParticles()
-PartStateN(1:PDM%ParticleVecLength,1:6)=PartState(1:PDM%ParticleVecLength,1:6)
+! partstaten is set AFTER VeloToImp
 #endif
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
@@ -3001,6 +3001,7 @@ IF(DoVerifyCharge) CALL VerifyDepositedCharge()
 IF(t.GE.DelayTime)THEN
   ! velocity to impulse
   CALL PartVeloToImp(VeloToImp=.TRUE.) 
+  PartStateN(1:PDM%ParticleVecLength,1:6)=PartState(1:PDM%ParticleVecLength,1:6)
   IF(iter.EQ.0)THEN ! caution with emission: fields should also be interpolated to new particles, this is missing
                     ! or should be done directly during emission...
     ! should be already be done
@@ -3009,6 +3010,8 @@ IF(t.GE.DelayTime)THEN
       IF(PartIsImplicit(iPart))THEN
         CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
         SELECT CASE(PartLorentzType)
+        CASE(0)
+          Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
         CASE(1)
           Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
         CASE(3)
@@ -3069,6 +3072,8 @@ DO iStage=2,nRKStages
       ELSE
         CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
         SELECT CASE(PartLorentzType)
+        CASE(0)
+          Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
         CASE(1)
           Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
           LorentzFacInv = 1.0
@@ -3212,6 +3217,8 @@ IF (t.GE.DelayTime) THEN
       PEM%lastElement(iPart)=PEM%Element(iPart)
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
+      CASE(0)
+        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
       CASE(1)
         Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
         LorentzFacInv = 1.0
