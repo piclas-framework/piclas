@@ -420,7 +420,8 @@ __STAMP__&
       F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*R_PartXK(:,iPart)
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_F_PartXK(iPart))
-      IF(Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)) DoPartInNewton(iPart)=.FALSE.
+      IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
+          DoPartInNewton(iPart)=.FALSE.
       !IF(nInnerPartNewton.GT.20)THEN
       !  IPWRITE(*,*) 'blubb',iPart, Norm2_F_PartXK(iPart),Norm2_F_PartX0(iPart)
       !END IF
