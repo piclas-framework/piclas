@@ -2858,7 +2858,7 @@ USE MOD_Precond,                 ONLY:BuildPrecond
 USE MOD_Precond_Vars,            ONLY:PrecondType
 #endif /*maxwell*/
 USE MOD_JacDG,                   ONLY:BuildJacDG
-USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton2
+USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
 USE MOD_Equation,                ONLY:CalcSource
 USE MOD_Equation_Vars,           ONLY:c2_inv
 #ifdef PARTICLES
@@ -3192,7 +3192,7 @@ DO iStage=2,nRKStages
   END IF
 #endif /*PARTICLES*/
   ! full newton for particles and fields
-  CALL FullNewton2(t,tStage,alpha)
+  CALL FullNewton(t,tStage,alpha)
   CALL DivCleaningDamping()
 #ifdef PARTICLES
   IF (t.GE.DelayTime) THEN

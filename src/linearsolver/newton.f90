@@ -19,9 +19,8 @@ INTERFACE ImplicitNorm
   MODULE PROCEDURE ImplicitNorm
 END INTERFACE
 
-INTERFACE FullNewton2
-  !MODULE PROCEDURE FullNewton
-  MODULE PROCEDURE FullNewton2
+INTERFACE FullNewton
+  MODULE PROCEDURE FullNewton
 END INTERFACE
 #endif 
 
@@ -34,7 +33,7 @@ PUBLIC:: Newton
 #endif
 
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122) 
-PUBLIC::ImplicitNorm,FullNewton2
+PUBLIC::ImplicitNorm,FullNewton
 #endif 
 !===================================================================================================================================
 
@@ -163,13 +162,14 @@ REAL,INTENT(INOUT)         :: coeff
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: Norm_R0,Norm_R,Norm_Rold
+REAL                       :: Norm_R0,Norm_R,Norm_Rold, Norm_Diff
 REAL                       :: etaA,etaB,etaC,etaMax,taut
 INTEGER                    :: nFullNewtonIter
 #ifdef PARTICLES
 INTEGER                    :: iPart
 #endif /*PARTICLES*/
 REAL                       :: relTolerance,relTolerancePart,Criterion
+LOGICAL                    :: IsConverged
 !===================================================================================================================================
 
 #ifdef PARTICLES
@@ -217,6 +217,7 @@ END IF
 
 CALL ImplicitNorm(tStage,coeff,Norm_R0)
 Norm_R=Norm_R0
+Norm_Diff=HUGE(1.0)
 IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'Norm_R0',Norm_R0
 IF(FullEisenstatWalker.GT.0)THEN
   etaMax=0.9999
@@ -225,7 +226,9 @@ IF(FullEisenstatWalker.GT.0)THEN
 END IF
 
 nFullNewtonIter=0
-DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_FullNewton))
+IsConverged=.FALSE.
+DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
+!DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_FullNewton))
 !DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps_LinearSolver))
   nFullNewtonIter = nFullNewtonIter+1
   IF(FullEisenstatWalker.GT.0)THEN
@@ -312,6 +315,8 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_Ful
   Norm_Rold=Norm_R
   CALL ImplicitNorm(tStage,coeff,Norm_R)
   IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'iter,Norm_R,rel,abort',nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
+  Norm_Diff=ABS(Norm_Rold-Norm_R)
+  IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(Norm_Diff.LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
 
 END DO ! funny pseudo Newton for all implicit
 totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
