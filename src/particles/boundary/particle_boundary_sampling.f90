@@ -152,7 +152,8 @@ DO iSide=nSides+1,nTotalSides
 END DO
 
 SurfMesh%SurfOnProc=.FALSE.
-IF(SurfMesh%nSides.GT.0) SurfMesh%SurfOnProc=.TRUE.
+!IF(SurfMesh%nSides.GT.0) 
+IF(SurfMesh%nTotalSides.GT.0) SurfMesh%SurfOnProc=.TRUE.
 
 #ifdef MPI
 CALL MPI_ALLREDUCE(SurfMesh%nSides,SurfMesh%nGlobalSides,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,iError)
@@ -174,6 +175,9 @@ END IF
 SurfCOMM%MyRank=0
 SurfCOMM%MPIRoot=.TRUE.
 SurfCOMM%nProcs=1
+SurfCOMM%MyOutputRank=0
+SurfCOMM%nOutputProcs = 1
+SurfCOMM%nOutputProcs=1
 ! get correct offsets
 OffSetSurfSide=0
 #endif /*MPI*/
@@ -269,13 +273,15 @@ INTEGER                   :: color,iProc
 INTEGER                   :: noSurfrank,Surfrank
 LOGICAL                   :: hasSurf
 INTEGER,ALLOCATABLE       :: countSurfSideMPI(:)
+LOGICAL                   :: OutputOnProc
 !===================================================================================================================================
 color=MPI_UNDEFINED
-IF(SurfMesh%SurfonProc) THEN
-color=2
-ELSE
-color=1
-END IF
+IF(SurfMesh%SurfonProc) color=2
+! THEN
+! color=2
+! ELSE
+! color=1
+! END IF
 ! create ranks for RP communicator
 IF(PartMPI%MPIRoot) THEN
   Surfrank=-1
@@ -297,11 +303,11 @@ IF(PartMPI%MPIRoot) THEN
     END IF
   END DO
 ELSE
-    CALL MPI_SEND(SurfMesh%SurfOnProc,1,MPI_LOGICAL,0,0,MPI_COMM_WORLD,iError)
-    CALL MPI_RECV(SurfCOMM%MyRank,1,MPI_INTEGER,0,0,MPI_COMM_WORLD,MPIstatus,iError)
+  CALL MPI_SEND(SurfMesh%SurfOnProc,1,MPI_LOGICAL,0,0,MPI_COMM_WORLD,iError)
+  CALL MPI_RECV(SurfCOMM%MyRank,1,MPI_INTEGER,0,0,MPI_COMM_WORLD,MPIstatus,iError)
 END IF
 
-! create new RP communicator for RP output
+! create new SurfMesh communicator for SurfMesh communiction
 CALL MPI_COMM_SPLIT(PartMPI%COMM, color, SurfCOMM%MyRank, SurfCOMM%COMM,iError)
 IF(SurfMesh%SurfOnPRoc) THEN
   CALL MPI_COMM_SIZE(SurfCOMM%COMM, SurfCOMM%nProcs,iError)
@@ -311,25 +317,72 @@ END IF
 SurfCOMM%MPIRoot=.FALSE.
 IF(SurfCOMM%MyRank.EQ.0 .AND. SurfMesh%SurfOnProc) THEN
   SurfCOMM%MPIRoot=.TRUE.
-  WRITE(UNIT_stdout,'(A11,I5,A6)') 'SURF COMM: ',SurfCOMM%nProcs,' procs'
+  WRITE(UNIT_stdout,'(A18,I5,A6)') 'SURF COMM:        ',SurfCOMM%nProcs,' procs'
 END IF
+
+! now, create output communicator
+OutputOnProc=.FALSE.
+color=MPI_UNDEFINED
+IF(SurfMesh%nSides.GT.0) THEN
+  OutputOnProc=.TRUE.
+  color=4
+END IF
+
+IF(PartMPI%MPIRoot) THEN
+  Surfrank=-1
+  noSurfrank=-1
+  SurfCOMM%MyOutputRank=0
+  IF(SurfMesh%nSides.GT.0) THEN
+    Surfrank=0
+  ELSE 
+    noSurfrank=0
+  END IF
+  DO iProc=1,nProcessors-1
+    CALL MPI_RECV(hasSurf,1,MPI_LOGICAL,iProc,0,MPI_COMM_WORLD,MPIstatus,iError)
+    IF(hasSurf) THEN
+      SurfRank=SurfRank+1
+      CALL MPI_SEND(SurfRank,1,MPI_INTEGER,iProc,0,MPI_COMM_WORLD,iError)
+    ELSE
+      noSurfRank=noSurfRank+1
+      CALL MPI_SEND(noSurfRank,1,MPI_INTEGER,iProc,0,MPI_COMM_WORLD,iError)
+    END IF
+  END DO
+ELSE
+  CALL MPI_SEND(OutputOnProc,1,MPI_LOGICAL,0,0,MPI_COMM_WORLD,iError)
+  CALL MPI_RECV(SurfCOMM%MyOutputRank,1,MPI_INTEGER,0,0,MPI_COMM_WORLD,MPIstatus,iError)
+END IF
+
+! create new SurfMesh Output-communicator 
+CALL MPI_COMM_SPLIT(PartMPI%COMM, color, SurfCOMM%MyOutputRank, SurfCOMM%OutputCOMM,iError)
+IF(OutputOnPRoc)THEN
+  CALL MPI_COMM_SIZE(SurfCOMM%OutputCOMM, SurfCOMM%nOutputProcs,iError)
+ELSE
+  SurfCOMM%nOutputProcs = 1
+END IF
+SurfCOMM%MPIOutputRoot=.FALSE.
+IF(SurfCOMM%MyOutputRank.EQ.0 .AND. OutputOnProc) THEN
+  SurfCOMM%MPIOutputRoot=.TRUE.
+  WRITE(UNIT_stdout,'(A18,I5,A6)') 'SURF OUTPUT-COMM: ',SurfCOMM%nOutputProcs,' procs'
+END IF
+
+IF(SurfMesh%nSides.EQ.0) RETURN
 
 ! get correct offsets
-ALLOCATE(offsetSurfSideMPI(0:SurfCOMM%nProcs))
+ALLOCATE(offsetSurfSideMPI(0:SurfCOMM%nOutputProcs))
 offsetSurfSideMPI=0
-ALLOCATE(countSurfSideMPI(0:SurfCOMM%nProcs-1))
+ALLOCATE(countSurfSideMPI(0:SurfCOMM%nOutputProcs-1))
 countSurfSideMPI=0
 
-CALL MPI_GATHER(SurfMesh%nSides,1,MPI_INTEGER,countSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%COMM,iError)
+CALL MPI_GATHER(SurfMesh%nSides,1,MPI_INTEGER,countSurfSideMPI,1,MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
 
-IF (SurfCOMM%MPIroot) THEN
-  DO iProc=1,SurfCOMM%nProcs-1
+IF (SurfCOMM%MPIOutputRoot) THEN
+  DO iProc=1,SurfCOMM%nOutputProcs-1
     offsetSurfSideMPI(iProc)=SUM(countSurfSideMPI(0:iProc-1))
   END DO
-  offsetSurfSideMPI(SurfCOMM%nProcs)=SUM(countSurfSideMPI(:))
+  offsetSurfSideMPI(SurfCOMM%nOutputProcs)=SUM(countSurfSideMPI(:))
 END IF
-CALL MPI_BCAST (offsetSurfSideMPI,size(offsetSurfSideMPI),MPI_INTEGER,0,SurfCOMM%COMM,iError)
-offsetSurfSide=offsetSurfSideMPI(SurfCOMM%MyRank)
+CALL MPI_BCAST (offsetSurfSideMPI,size(offsetSurfSideMPI),MPI_INTEGER,0,SurfCOMM%OutputCOMM,iError)
+offsetSurfSide=offsetSurfSideMPI(SurfCOMM%MyOutputRank)
 
 END SUBROUTINE InitSurfCommunicator
 
@@ -687,6 +740,7 @@ REAL                                :: tstart,tend
 
 #ifdef MPI
 CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
+IF(SurfMesh%nSides.EQ.0) RETURN
 #endif /*MPI*/
 IF(SurfCOMM%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMCSurfSTATE TO HDF5 FILE...'
@@ -696,8 +750,9 @@ END IF
 FileName=TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString=TRIM(FileName)//'.h5'
 
+
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-IF(SurfCOMM%MPIRoot)THEN
+IF(SurfCOMM%MPIOutputRoot)THEN
 #ifdef MPI
   CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.)
 #else
@@ -731,12 +786,12 @@ IF(SurfCOMM%MPIRoot)THEN
 END IF
 
 #ifdef MPI
-CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
+CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 #endif /*MPI*/
 
 #ifdef MPI
 !   IF(SurfCOMM%nProcs.GT.1)THEN
-    CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,communicatorOpt=SurfCOMM%COMM)
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
 !   ELSE
 !     CALL OpenDataFile(FileString,create=.FALSE.,single=.TRUE.)
 !   END IF
@@ -748,10 +803,10 @@ CALL WriteArrayToHDF5(DataSetName='DSMC_SurfaceSampling', rank=4,&
                     nValGlobal=(/5,nSurfSample,nSurfSample,SurfMesh%nGlobalSides/),&
                     nVal=      (/5,nSurfSample,nSurfSample,SurfMesh%nSides/),&
                     offset=    (/0,          0,          0,offsetSurfSide/),&
-                    collective=.FALSE., RealArray=MacroSurfaceVal)
+                    collective=.TRUE., RealArray=MacroSurfaceVal)
 CALL CloseDataFile()
 
-IF(SurfCOMM%MPIROOT)THEN
+IF(SurfCOMM%MPIOutputROOT)THEN
   tend=LOCALTIME()
   WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',tend-tstart,'s]'
 END IF
