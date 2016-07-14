@@ -415,8 +415,9 @@ IF(DoExternalParts)THEN
             IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',ShiftedPart(1),',PartY=',ShiftedPart(2),',PartZ=',&
                     ShiftedPart(3)
             IF(DoRefMapping)THEN
-              IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartXi=',PartPosRef(1,iPart),',PartEta=',PartPosRef(2,iPart),',PartZeta=',&
-                      PartPosRef(3,iPart)
+              IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartXi=',PartPosRef(1,iPart)   &
+                                                    ,',PartEta=',PartPosRef(2,iPart) &
+                                                    ,',PartZeta=',PartPosRef(3,iPart)
             END IF
             CALL Abort(&
             __STAMP__&
