@@ -122,7 +122,7 @@ USE MOD_Particle_Output_Vars,  ONLY:WriteFieldsToVTK, OutputMesh
 USE MOD_part_MPFtools,         ONLY:DefinePolyVec, DefineSplitVec
 USE MOD_PICInterpolation,      ONLY:InitializeInterpolation
 USE MOD_PICInit,               ONLY:InitPIC
-USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem
+USE MOD_Particle_Mesh,         ONLY:InitFIBGM,MapRegionToElem,InitSFIBGM
 USE MOD_Particle_Tracking_Vars,ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,     ONLY:SafetyFactor,halo_eps_velo,PartMPI
 USE MOD_part_pressure,         ONLY:ParticlePressureIni,ParticlePressureCellIni
@@ -1020,7 +1020,8 @@ SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...'
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 !-- Finalizing InitializeVariables
-CALL InitFIBGM()
+!CALL InitFIBGM()
+CALL InitSFIBGM()
 #ifdef MPI
 CALL InitEmissionComm()
 #endif /*MPI*/
