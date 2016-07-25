@@ -386,8 +386,9 @@ LOGICAL,INTENT(IN),OPTIONAL   :: LastIter
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #ifdef PARTICLES
+INTEGER                       :: iSide
 #ifdef MPI
-INTEGER                       :: RECI, iSide
+INTEGER                       :: RECI
 REAL                          :: RECR
 #endif /*MPI*/
 #endif /*PARTICLES*/
