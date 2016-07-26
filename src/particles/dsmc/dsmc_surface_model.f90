@@ -683,7 +683,8 @@ SUBROUTINE CalcBackgndPartDesorb()
    REAL                             :: Q_0A, D_A, Heat_i, sigma, nu_des, rate, P_des
    INTEGER                          :: bondorder, Indx, Indy, Surfpos
    REAL                             :: VarPartitionFuncAct, VarPartitionFuncWall!, Energy
-   INTEGER                          :: desorbnum, adsorbnum
+   INTEGER                          :: adsorbnum
+   INTEGER , ALLOCATABLE            :: desorbnum(:)
 !===================================================================================================================================
 D_A  = 59870.
 #if (PP_TimeDiscMethod==42)
@@ -691,9 +692,11 @@ D_A  = 59870.
   Adsorption%AdsorpInfo(:)%NumOfDes = 0
 #endif
 
+ALLOCATE (desorbnum(1:nSpecies))
+
 DO SurfSideID = 1,SurfMesh%nSides
   globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
-! special TPD (temperature programmed desorption) temperature adjustment routine    
+! special TPD (temperature programmed desorption) temperature adjustment routine
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
     WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide))) + (Adsorption%TPD_beta * iter * dt)
@@ -706,11 +709,8 @@ DO SurfSideID = 1,SurfMesh%nSides
 #endif
 DO subsurfeta = 1,nSurfSample
 DO subsurfxi = 1,nSurfSample
-
+  desorbnum(:) = 0
   DO Coord=1,3
-    desorbnum = 0
-    
-!     Coord = Adsorption%Coordination()
     nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
     nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
     
@@ -733,8 +733,8 @@ DO subsurfxi = 1,nSurfSample
               * (1./(bondorder)) * (2.-(1./bondorder)) )
       END DO
       Q_0A = Adsorption%HeatOfAdsZero(iSpec)
-      Heat_i = Q_0A*sigma
-      !(9.*Q_0A**2)/(6.*Q_0A/SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom+16.*D_A) * sigma
+!       Heat_i = Q_0A*sigma
+      Heat_i = (9.*Q_0A**2)/(6.*Q_0A/SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom+16.*D_A) * sigma
 !       Energy = Energy + Heat_i
       CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
       CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
@@ -746,7 +746,7 @@ DO subsurfxi = 1,nSurfSample
       ! only try to desorb particle if random number higher probability and then update map
       CALL RANDOM_NUMBER(RanNum)
       IF (P_des.GT.RanNum) THEN
-        desorbnum = desorbnum + 1
+        desorbnum(iSpec) = desorbnum(iSpec) + 1
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos) = 0
         DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
           Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
@@ -764,21 +764,25 @@ DO subsurfxi = 1,nSurfSample
       
     END DO
       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = nSitesRemain
-    END IF
-  Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = INT((REAL(desorbnum) / REAL(nSites)) &
+    END IF         
+  END DO
+  
+  DO iSpec = 1,nSpecies
+  Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = INT((REAL(desorbnum(iSpec)) / REAL(nSites)) &
                                                                   * (Adsorption%DensSurfAtoms(SurfSideID) &
                       * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) / Species(iSpec)%MacroParticleFactor))
 #if (PP_TimeDiscMethod==42)
             Adsorption%AdsorpInfo(iSpec)%NumOfDes = Adsorption%AdsorpInfo(iSpec)%NumOfDes &
                                                   + Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec)
-!             Adsorption%AdsorpInfo(iSPec%MeanEAds = Energy/REAL(adsorbnum)
+!             Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 
+!             Adsorption%AdsorpInfo(iSPec)%MeanEAds = Energy/REAL(adsorbnum)
 #endif
-                      
   END DO
+END DO
+END DO
+END DO
 
-END DO
-END DO
-END DO
+DEALLOCATE(desorbnum)
 
 END SUBROUTINE CalcBackgndPartDesorb
 
@@ -1159,17 +1163,15 @@ DO SurfSide=1,SurfMesh%nSides
 !         rate = rate + Adsorption%ProbSigma(p,q,SurfSide,iSpec,iProbSigma) * exp(-E_des/WallTemp)
 !       END DO
       
-      CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSide))
-      CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
-      nu_des = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall)
-      rate = nu_des * exp(-E_des/WallTemp)
-      
-      Adsorption%ProbSigDes(p,q,SurfSide,iSpec,iProbSigma) = rate * dt
-      IF (Adsorption%ProbSigDes(p,q,SurfSide,iSpec,iProbSigma).GT.1.) THEN
-        Adsorption%ProbSigDes(p,q,SurfSide,iSpec,iProbSigma) = 1.
-      END IF
-!       Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%ProbDes(p,q,SurfSide,iSpec) &
-!                                              + rate * dt * Adsorption%ProbSigma(p,q,SurfSide,iSpec,iProbSigma)
+        CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSide))
+        CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
+        nu_des = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall)
+        rate = nu_des * exp(-E_des/WallTemp)
+        
+        Adsorption%ProbSigDes(p,q,SurfSide,iSpec,iProbSigma) = rate * dt
+        IF (Adsorption%ProbSigDes(p,q,SurfSide,iSpec,iProbSigma).GT.1.) THEN
+          Adsorption%ProbSigDes(p,q,SurfSide,iSpec,iProbSigma) = 1.
+        END IF
       END DO
     ELSE
       Adsorption%ProbSigDes(p,q,SurfSide,iSpec,(1+(iSpec-1)*36):(36*iSpec)) = 0.0
