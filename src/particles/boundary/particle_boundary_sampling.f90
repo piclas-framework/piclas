@@ -80,7 +80,7 @@ INTEGER                                :: p,q,iSide,SurfSideID,SideID
 INTEGER                                :: iSample,jSample, iBC
 REAL,DIMENSION(2,3)                    :: gradXiEta3D
 REAL,ALLOCATABLE,DIMENSION(:)          :: Xi_NGeo,wGP_NGeo
-REAL                                   :: tmpI1,tmpJ1,tmpI2,tmpJ2,XiOut(1:2),E,F,G,D,tmp1,area
+REAL                                   :: XiOut(1:2),E,F,G,D,tmp1,area,tmpI2,tmpJ2
 CHARACTER(2)                           :: hilf
 CHARACTER(LEN=255),ALLOCATABLE         :: BCName(:)
 !===================================================================================================================================
@@ -401,9 +401,8 @@ SUBROUTINE GetHaloSurfMapping()
 USE MOD_Globals
 USE MOD_Mesh_Vars                   ,ONLY:nSides
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
-USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartMPI,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
+USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
 USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide
-USE MOD_Particle_MPI_Vars           ,ONLY:PartMPIExchange
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -412,24 +411,31 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                           :: isMPINeighbor(1:PartMPI%nMPINeighbors)
-LOGICAL                           :: RecvMPINeighbor(1:PartMPI%nMPINeighbors)
+LOGICAL                           :: isMPINeighbor(0:SurfCOMM%nProcs-1)
+LOGICAL                           :: RecvMPINeighbor(0:SurfCOMM%nProcs-1)
 INTEGER                           :: nDOF,ALLOCSTAT,SideID
 INTEGER                           :: iProc, GlobalProcID,iSide,ElemID,SurfSideID,LocalProcID,iSendSide,iRecvSide,iPos
-INTEGER,ALLOCATABLE               :: recv_status_list(:,:)
+INTEGER,ALLOCATABLE               :: recv_status_list(:,:) 
+INTEGER                           :: RecvRequest(0:SurfCOMM%nProcs-1),SendRequest(0:SurfCOMM%nProcs-1)
+INTEGER                           :: SurfToGlobal(0:SurfCOMM%nProcs-1)
 !===================================================================================================================================
 
 nDOF=(nSurfSample)*(nSurfSample)
 
+
+! get mapping from local rank to global rank...
+CALL MPI_ALLGATHER(MyRank,1, MPI_INTEGER, SurfToGlobal(0:SurfCOMM%nProcs-1), 1, MPI_INTEGER, SurfCOMM%COMM, IERROR)
+
+! get list of mpi surf-comm neighbors in halo-region
+isMPINeighbor=.FALSE.
+SurfCOMM%nMPINeighbors=0
 IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
   ALLOCATE(PartHaloSideToProc(1:4,nSides+1:nTotalSides))
   PartHaloSideToProc=-1
   ! get all MPI-neighbors to communicate with
-  ! loop over all mpi neighbors
-  isMPINeighbor=.FALSE.
-  SurfCOMM%nMPINeighbors=0
-  DO iProc=1,PartMPI%nMPINeighbors
-    GlobalProcID=PartMPI%MPINeighbor(iProc)
+  DO iProc=0,SurfCOMM%nProcs-1
+    IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
+    GlobalProcID=SurfToGlobal(iProc)
     DO iSide=nSides+1,nTotalSides
       SurfSideID=SurfMesh%SideIDToSurfID(iSide)
       IF(SurfSideID.EQ.-1) CYCLE
@@ -444,215 +450,226 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
         PartHaloSideToProc(LOCAL_PROC_ID,iSide) =SurfCOMM%nMPINeighbors
       END IF
     END DO ! iSide=nSides+1,nTotalSides
-  END DO
+  END DO ! iProc = 0, SurfCOMM%nProcs-1
+END IF
 
-  ! Make sure SurfCOMM%MPINeighbor is consistent
-  ! receive and send connection information
-  DO iProc=1,PartMPI%nMPINeighbors
-    CALL MPI_IRECV( RecvMPINeighbor(iProc)                    &
-                  , 1                                         &
-                  , MPI_LOGICAL                               &
-                  , PartMPI%MPINeighbor(iProc)                &
-                  , 1001                                      &
-                  , PartMPI%COMM                              &
-                  , PartMPIExchange%RecvRequest(1,iProc)      & 
-                  , IERROR )
-  END DO ! iProc
-  DO iProc=1,PartMPI%nMPINeighbors
-    CALL MPI_ISEND( isMPINeighbor(iProc)                      &
-                  , 1                                         &
-                  , MPI_LOGICAL                               &
-                  , PartMPI%MPINeighbor(iProc)                &
-                  , 1001                                      &
-                  , PartMPI%COMM                              &
-                  , PartMPIExchange%SendRequest(1,iProc)      &
-                  , IERROR )
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-      __STAMP__&
-      ,' MPI Communication error', IERROR)
-  END DO ! iProc
+! Make sure SurfCOMM%MPINeighbor is consistent
+ALLOCATE(RECV_STATUS_LIST(1:MPI_STATUS_SIZE,0:SurfCOMM%nProcs-1))
+! receive and send connection information
+DO iProc=0,SurfCOMM%nProcs-1
+  IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
+  CALL MPI_IRECV( RecvMPINeighbor(iProc)                    &
+                , 1                                         &
+                , MPI_LOGICAL                               &
+                , iProc                                     &
+                , 1001                                      &
+                , SurfCOMM%COMM                             &
+                , RecvRequest(iProc)                        &  
+                , IERROR )
+END DO ! iProc
+DO iProc=0,SurfCOMM%nProcs-1
+  IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
+  CALL MPI_ISEND( isMPINeighbor(iProc)                      &
+                , 1                                         &
+                , MPI_LOGICAL                               &
+                , iProc                                     &
+                , 1001                                      &
+                , SurfCOMM%COMM                             &
+                , SendRequest(iProc)                        & 
+                , IERROR )
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
+END DO ! iProc
 
-  DO iProc=1,PartMPI%nMPINeighbors
-    CALL MPI_WAIT(PartMPIExchange%SendRequest(1,iProc),MPIStatus,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-      __STAMP__&
-      ,' MPI Communication error', IERROR)
-    CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-      __STAMP__&
-      ,' MPI Communication error', IERROR)
-  END DO ! iProc
+! finish communication
+DO iProc=1,SurfCOMM%nProcs-1
+  IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
+  CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
+  CALL MPI_WAIT(RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+    __STAMP__&
+    ,' MPI Communication error', IERROR)
+END DO ! iProc
+DEALLOCATE(RECV_STATUS_LIST)
 
-  DO iProc=1,PartMPI%nMPINeighbors
-    IF (RecvMPINeighbor(iProc).NEQV.isMPINeighbor(iProc)) THEN
-      IF(.NOT.isMPINeighbor(iProc))THEN
-        isMPINeighbor(iProc)=.TRUE.
-        SurfCOMM%nMPINeighbors=SurfCOMM%nMPINeighbors+1
-      END IF
+DO iProc=0,SurfCOMM%nProcs-1
+  IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
+  IF (RecvMPINeighbor(iProc).NEQV.isMPINeighbor(iProc)) THEN
+    IF(.NOT.isMPINeighbor(iProc))THEN
+      isMPINeighbor(iProc)=.TRUE.
+      SurfCOMM%nMPINeighbors=SurfCOMM%nMPINeighbors+1
     END IF
-  END DO ! iProc
+  END IF
+END DO ! iProc
 
-  ! next, allocate SurfCOMM%MPINeighbor
-  ALLOCATE(SurfCOMM%MPINeighbor(1:SurfCOMM%nMPINeighbors))
-  LocalProcID=0
-  DO iProc = 1,PartMPI%nMPINeighbors
-    IF(isMPINeighbor(iProc))THEN
-      LocalProcID=LocalProcID+1
-      ! map from local proc id to global
-      SurfCOMM%MPINeighbor(LocalProcID)%NativeProcID=PartMPI%MPINeighbor(iProc)
+! next, allocate SurfCOMM%MPINeighbor
+ALLOCATE(SurfCOMM%MPINeighbor(1:SurfCOMM%nMPINeighbors))
+LocalProcID=0
+DO iProc = 0,SurfCOMM%nProcs-1
+  IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
+  IF(isMPINeighbor(iProc))THEN
+    LocalProcID=LocalProcID+1
+    ! map from local proc id to global
+    SurfCOMM%MPINeighbor(LocalProcID)%NativeProcID=iProc !PartMPI%MPINeighbor(iProc)
+  END IF
+END DO ! iProc=1,PartMPI%nMPINeighbors
+
+! array how many data has to be communicated
+ALLOCATE(SurfExchange%nSidesSend(1:SurfCOMM%nMPINeighbors) &
+        ,SurfExchange%nSidesRecv(1:SurfCOMM%nMPINeighbors) &
+        ,SurfExchange%SendRequest(SurfCOMM%nMPINeighbors)  &
+        ,SurfExchange%RecvRequest(SurfCOMM%nMPINeighbors)  )
+
+
+SurfExchange%nSidesSend=0
+SurfExchange%nSidesRecv=0
+! loop over all neighbors  
+DO iProc=1,SurfCOMM%nMPINeighbors
+  LocalProcID=SurfCOMM%MPINeighbor(iProc)%NativeProcID
+  DO iSide=nSides+1,nTotalSides
+    SurfSideID=SurfMesh%SideIDToSurfID(iSide)
+    IF(SurfSideID.EQ.-1) CYCLE
+    ! get elemid
+    IF(LocalProcID.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
+      SurfExchange%nSidesSend(iProc)=SurfExchange%nSidesSend(iProc)+1
+      PartHaloSideToProc(LOCAL_SEND_ID,iSide) =SurfExchange%nSidesSend(iProc)
     END IF
-  END DO ! iProc=1,PartMPI%nMPINeighbors
-  ALLOCATE(SurfExchange%nSidesSend(1:SurfCOMM%nMPINeighbors) &
-          ,SurfExchange%nSidesRecv(1:SurfCOMM%nMPINeighbors) &
-          ,SurfExchange%SendRequest(SurfCOMM%nMPINeighbors)  &
-          ,SurfExchange%RecvRequest(SurfCOMM%nMPINeighbors)  )
+  END DO ! iSide=nSides+1,nTotalSides
+END DO ! iProc=1,SurfCOMM%nMPINeighbors
 
-  ALLOCATE(recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors))
+! open receive number of send particles
+ALLOCATE(RECV_STATUS_LIST(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors))
+DO iProc=1,SurfCOMM%nMPINeighbors
+  CALL MPI_IRECV( SurfExchange%nSidesRecv(iProc)            &
+                , 1                                         &
+                , MPI_INTEGER                               &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID  &
+                , 1001                                      &
+                , SurfCOMM%COMM                             &
+                , SurfExchange%RecvRequest(iProc)           & 
+                , IERROR )
+END DO ! iProc
 
-  SurfExchange%nSidesSend=0
-  SurfExchange%nSidesRecv=0
-  ! loop over all neighbors  
-  DO iProc=1,PartMPI%nMPINeighbors
-    GlobalProcID=PartMPI%MPINeighbor(iProc)
-    DO iSide=nSides+1,nTotalSides
-      SurfSideID=SurfMesh%SideIDToSurfID(iSide)
-      IF(SurfSideID.EQ.-1) CYCLE
-      ! get elemid
-      IF(iProc.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
-        SurfExchange%nSidesSend(iProc)=SurfExchange%nSidesSend(iProc)+1
-        PartHaloSideToProc(LOCAL_SEND_ID,iSide) =SurfExchange%nSidesSend(iProc)
-      END IF
-    END DO ! iSide=nSides+1,nTotalSides
-  END DO
-  ! open receive number of send particles
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    CALL MPI_IRECV( SurfExchange%nSidesRecv(iProc)            &
-                  , 1                                         &
-                  , MPI_INTEGER                               &
-                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID  &
-                  , 1001                                      &
-                  , SurfCOMM%COMM                             &
-                  , SurfExchange%RecvRequest(iProc)           & 
-                  , IERROR )
-  END DO ! iProc
+DO iProc=1,SurfCOMM%nMPINeighbors
+  ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendList(SurfExchange%nSidesSend(iProc)))
+  SurfCOMM%MPINeighbor(iProc)%SendList=0
+  CALL MPI_ISEND( SurfExchange%nSidesSend(iProc)           &
+                , 1                                        &
+                , MPI_INTEGER                              &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID &
+                , 1001                                     &
+                , SurfCOMM%COMM                            &
+                , SurfExchange%SendRequest(iProc)          &
+                , IERROR )
+END DO ! iProc
 
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%SendList(SurfExchange%nSidesSend(iProc)))
-    SurfCOMM%MPINeighbor(iProc)%SendList=0
-    CALL MPI_ISEND( SurfExchange%nSidesSend(iProc)           &
-                  , 1                                        &
-                  , MPI_INTEGER                              &
-                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID &
-                  , 1001                                     &
-                  , SurfCOMM%COMM                            &
-                  , SurfExchange%SendRequest(iProc)          &
-                  , IERROR )
-  END DO ! iProc
-  ! 4) Finish Received number of particles
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+! 4) Finish Received number of particles
+DO iProc=1,SurfCOMM%nMPINeighbors
+  CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
 ,' MPI Communication error', IERROR)
-    CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+  CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
 __STAMP__&
-            ,' MPI Communication error', IERROR)
-  END DO ! iProc
+          ,' MPI Communication error', IERROR)
+END DO ! iProc
 
-  ! allocate send and receive buffer
-
-  ALLOCATE(SurfSendBuf(SurfCOMM%nMPINeighbors))
-  ALLOCATE(SurfRecvBuf(SurfCOMM%nMPINeighbors))
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    ALLOCATE(SurfSendBuf(iProc)%content(2*SurfExchange%nSidesSend(iProc)),STAT=ALLOCSTAT)
-    SurfSendBuf(iProc)%Content=-1
-    ALLOCATE(SurfRecvBuf(iProc)%content(2*SurfExchange%nSidesRecv(iProc)),STAT=ALLOCSTAT)
-  END DO ! iProc=1,PartMPI%nMPINeighbors
+! allocate send and receive buffer
+ALLOCATE(SurfSendBuf(SurfCOMM%nMPINeighbors))
+ALLOCATE(SurfRecvBuf(SurfCOMM%nMPINeighbors))
+DO iProc=1,SurfCOMM%nMPINeighbors
+  ALLOCATE(SurfSendBuf(iProc)%content(2*SurfExchange%nSidesSend(iProc)),STAT=ALLOCSTAT)
+  SurfSendBuf(iProc)%Content=-1
+  ALLOCATE(SurfRecvBuf(iProc)%content(2*SurfExchange%nSidesRecv(iProc)),STAT=ALLOCSTAT)
+END DO ! iProc=1,PartMPI%nMPINeighbors
  
-  ! open receive buffer
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    CALL MPI_IRECV( SurfRecvBuf(iProc)%content                   &
-                  , 2*SurfExchange%nSidesRecv(iProc)             &
-                  , MPI_DOUBLE_PRECISION                         &
-                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
-                  , 1004                                         &
-                  , SurfCOMM%COMM                                &
-                  , SurfExchange%RecvRequest(iProc)              & 
-                  , IERROR )
-  END DO ! iProc
+! open receive buffer
+DO iProc=1,SurfCOMM%nMPINeighbors
+  CALL MPI_IRECV( SurfRecvBuf(iProc)%content                   &
+                , 2*SurfExchange%nSidesRecv(iProc)             &
+                , MPI_DOUBLE_PRECISION                         &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID     &
+                , 1004                                         &
+                , SurfCOMM%COMM                                &
+                , SurfExchange%RecvRequest(iProc)              & 
+                , IERROR )
+END DO ! iProc
 
-  ! build message
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    iSendSide=0
-    iPos=1
-    DO iSide=nSides+1,nTotalSides
-      SurfSideID=SurfMesh%SideIDToSurfID(iSide)
-      IF(SurfSideID.EQ.-1) CYCLE
-      ! get elemid
-      IF(iProc.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
-      !IF(iProc.EQ.PartHaloElemToProc(LOCAL_PROC_ID,ElemID))THEN
-        iSendSide=iSendSide+1
-        ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
-        SurfCOMM%MPINeighbor(iProc)%SendList(iSendSide)=SurfSideID
-        SurfSendBuf(iProc)%content(iPos  )= REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID))
-        SurfSendBuf(iProc)%content(iPos+1)= REAL(PartSideToElem(S2E_LOC_SIDE_ID,iSide))
-        iPos=iPos+2
-      END IF
-    END DO ! iSide=nSides+1,nTotalSides
-    IF(ANY(SurfSendBuf(iProc)%content.LE.0))THEN  
-      CALL abort(&
-__STAMP__&
-            ,' Sent NATIVE_ELEM_ID or LOCSIDEID is zero!')
-    END IF
-  END DO
-
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    CALL MPI_ISEND( SurfSendBuf(iProc)%content               &
-                  , 2*SurfExchange%nSidesSend(iProc)         & 
-                  , MPI_DOUBLE_PRECISION                     &
-                  , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
-                  , 1004                                     &
-                  , SurfCOMM%COMM                            &   
-                  , SurfExchange%SendRequest(iProc)          &
-                  , IERROR )                                     
-  END DO ! iProc                                                
-
-  ! 4) Finish Received number of particles
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-            ,' MPI Communication error', IERROR)
-    CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
-__STAMP__&
-            ,' MPI Communication error', IERROR)
-  END DO ! iProc
-
-  ! fill list with received side ids
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    ALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList(SurfExchange%nSidesRecv(iProc)))
-    iPos=1
-    DO iRecvSide=1,SurfExchange%nSidesRecv(iProc)
-      SideID=PartElemToSide(E2S_SIDE_ID,INT(SurfRecvBuf(iProc)%content(iPos+1)),INT(SurfRecvBuf(iProc)%content(iPos)))
-      SurfSideID=SurfMesh%SideIDToSurfID(SideID)
-      SurfCOMM%MPINeighbor(iProc)%RecvList(iRecvSide)=SurfSideID
+! build message
+DO iProc=1,SurfCOMM%nMPINeighbors
+  iSendSide=0
+  iPos=1
+  LocalProcID=SurfCOMM%MPINeighbor(iProc)%NativeProcID
+  DO iSide=nSides+1,nTotalSides
+    SurfSideID=SurfMesh%SideIDToSurfID(iSide)
+    IF(SurfSideID.EQ.-1) CYCLE
+    ! get elemid
+    IF(LocalProcID.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
+      iSendSide=iSendSide+1
+      ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
+      SurfCOMM%MPINeighbor(iProc)%SendList(iSendSide)=SurfSideID
+      SurfSendBuf(iProc)%content(iPos  )= REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID))
+      SurfSendBuf(iProc)%content(iPos+1)= REAL(PartSideToElem(S2E_LOC_SIDE_ID,iSide))
       iPos=iPos+2
-    END DO ! RecvSide=1,SurfExchange%nSidesRecv(iProc)-1,2
-  END DO ! iProc
+    END IF
+  END DO ! iSide=nSides+1,nTotalSides
+  IF(ANY(SurfSendBuf(iProc)%content.LE.0))THEN  
+    CALL abort(&
+__STAMP__&
+          ,' Sent NATIVE_ELEM_ID or LOCSIDEID is zero!')
+  END IF
+END DO
 
-  DO iProc=1,SurfCOMM%nMPINeighbors
-    DEALLOCATE(SurfSendBuf(iProc)%content)
-    DEALLOCATE(SurfRecvBuf(iProc)%content)
-    ALLOCATE(SurfSendBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesSend(iProc)))
-    ALLOCATE(SurfRecvBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesRecv(iProc)))
-    SurfSendBuf(iProc)%content=0.
-    SurfRecvBuf(iProc)%content=0.
-  END DO ! iProc
-  DEALLOCATE(recv_status_list)
+DO iProc=1,SurfCOMM%nMPINeighbors
+  CALL MPI_ISEND( SurfSendBuf(iProc)%content               &
+                , 2*SurfExchange%nSidesSend(iProc)         & 
+                , MPI_DOUBLE_PRECISION                     &
+                , SurfCOMM%MPINeighbor(iProc)%NativeProcID & 
+                , 1004                                     &
+                , SurfCOMM%COMM                            &   
+                , SurfExchange%SendRequest(iProc)          &
+                , IERROR )                                     
+END DO ! iProc                                                
 
-END IF
+! 4) Finish Received number of particles
+DO iProc=1,SurfCOMM%nMPINeighbors
+  CALL MPI_WAIT(SurfExchange%SendRequest(iProc),MPIStatus,IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error', IERROR)
+  CALL MPI_WAIT(SurfExchange%RecvRequest(iProc),recv_status_list(:,iProc),IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL abort(&
+__STAMP__&
+          ,' MPI Communication error', IERROR)
+END DO ! iProc
+
+! fill list with received side ids
+DO iProc=1,SurfCOMM%nMPINeighbors
+  ALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList(SurfExchange%nSidesRecv(iProc)))
+  iPos=1
+  DO iRecvSide=1,SurfExchange%nSidesRecv(iProc)
+    SideID=PartElemToSide(E2S_SIDE_ID,INT(SurfRecvBuf(iProc)%content(iPos+1)),INT(SurfRecvBuf(iProc)%content(iPos)))
+    SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+    SurfCOMM%MPINeighbor(iProc)%RecvList(iRecvSide)=SurfSideID
+    iPos=iPos+2
+  END DO ! RecvSide=1,SurfExchange%nSidesRecv(iProc)-1,2
+END DO ! iProc
+
+DO iProc=1,SurfCOMM%nMPINeighbors
+  DEALLOCATE(SurfSendBuf(iProc)%content)
+  DEALLOCATE(SurfRecvBuf(iProc)%content)
+  ALLOCATE(SurfSendBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesSend(iProc)))
+  ALLOCATE(SurfRecvBuf(iProc)%content(SurfMesh%SampSize*nDOF*SurfExchange%nSidesRecv(iProc)))
+  SurfSendBuf(iProc)%content=0.
+  SurfRecvBuf(iProc)%content=0.
+END DO ! iProc
+DEALLOCATE(recv_status_list)
+
 
 END SUBROUTINE GetHaloSurfMapping
 
