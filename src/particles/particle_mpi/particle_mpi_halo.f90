@@ -529,12 +529,12 @@ DO iElem=1,nExternalElems
     NodeX(1:3) = ElemBaryAndRadius(1:3,iElem) 
     Radius     = ElemBaryAndRadius( 4 ,iElem)
 
-    xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
-    ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)
-    zmin = ElemBaryNGeo(3,iElem) -ElemRadiusNGeo(iElem)
-    xmax = ElemBaryNGeo(1,iElem) +ElemRadiusNGeo(iElem)
-    ymax = ElemBaryNGeo(2,iElem) +ElemRadiusNGeo(iElem)
-    zmax = ElemBaryNGeo(3,iElem) +ElemRadiusNGeo(iElem)
+    xmin = NodeX(1) -Radius
+    ymin = NodeX(2) -Radius
+    zmin = NodeX(3) -Radius
+    xmax = NodeX(1) +Radius
+    ymax = NodeX(2) +Radius
+    zmax = NodeX(3) +Radius
 
     ! BGM mesh cells
     iBGMmin = CEILING((xMin-GEO%xminglob)/GEO%FIBGMdeltas(1))-FIBGMCellPadding(1)
