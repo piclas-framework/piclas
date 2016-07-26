@@ -1445,10 +1445,11 @@ REAL    :: RandVal, dtFrac
   IF (DoSurfaceFlux) THEN
     ! Calculate desobing particles for Surfaceflux
     IF ((.NOT.KeepWallParticles) .AND. (DSMC%WallModel.EQ.1)) THEN
-        CALL Calc_PartNum_Wall_Desorb()
+      CALL Calc_PartNum_Wall_Desorb()
     END IF
     IF (DSMC%WallModel.EQ.2) THEN
-        CALL CalcBackgndPartDesorb()
+      CALL Calc_PartNum_Wall_Desorb()
+!       CALL CalcBackgndPartDesorb()
     END IF
     CALL ParticleSurfaceflux()
     DO iPart=1,PDM%ParticleVecLength
@@ -1764,7 +1765,8 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
       CALL Calc_PartNum_Wall_Desorb()
   END IF
   IF (DSMC%WallModel.EQ.2) THEN
-      CALL CalcBackgndPartDesorb()
+    CALL Calc_PartNum_Wall_Desorb()
+!       CALL CalcBackgndPartDesorb()
   END IF
   CALL DSMC_Update_Wall_Vars()
   CALL UpdateNextFreePosition()
@@ -1810,7 +1812,8 @@ ELSE
       CALL Calc_PartNum_Wall_Desorb()
     END IF
     IF (DSMC%WallModel.EQ.2) THEN
-      CALL CalcBackgndPartDesorb()
+      CALL Calc_PartNum_Wall_Desorb()
+!       CALL CalcBackgndPartDesorb()
     END IF
     
     CALL ParticleSurfaceflux()

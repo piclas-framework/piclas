@@ -283,7 +283,7 @@ SUBROUTINE Calc_PartNum_Wall_Desorb()
 ! calculation of desorbing desorbing particle number when particles deleted at adsorption and inserted at desorption
 !===================================================================================================================================
 USE MOD_Particle_Vars,          ONLY : nSpecies, Species
-USE MOD_DSMC_Vars,              ONLY : Adsorption
+USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !===================================================================================================================================
   IMPLICIT NONE
@@ -308,18 +308,19 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
                       * SurfMesh%SurfaceArea(p,q,iSurfSide) &
                       / Species(iSpec)%MacroParticleFactor)
             IF (WallPartNum .GT. 0) THEN
-            
-!             IF (DSMC%WallModel.EQ.1) THEN
             PartAds = Adsorption%Coverage(p,q,iSurfSide,iSpec) * Adsorption%DensSurfAtoms(iSurfSide) &
                         * SurfMesh%SurfaceArea(p,q,iSurfSide) &
                         / Species(iSpec)%MacroParticleFactor
-!             ELSE IF (DSMC%WallModel.EQ.2) THEN 
-! !               DO iProbSigma = 1,36*nSpecies
-!               PartAds = Adsorption%Coverage(p,q,iSurfSide,iSpec) * Adsorption%DensSurfAtoms(iSurfSide) &
-!                         * SurfMesh%SurfaceArea(p,q,iSurfSide) &
-!                         / Species(iSpec)%MacroParticleFactor * Adsorption%ProbSigma(p,q,iSurfSide,iSpec)
-!             END IF
-              PartDes = PartAds * Adsorption%ProbDes(p,q,iSurfSide,iSpec)!,iProbSigma)
+            
+            IF (DSMC%WallModel.EQ.1) THEN
+              PartDes = PartAds * Adsorption%ProbDes(p,q,iSurfSide,iSpec)
+            ELSE IF (DSMC%WallModel.EQ.2) THEN 
+              PartDes = 0.
+              DO iProbSigma = (1+(iSpec-1)*36),(36*iSpec)
+                PartDes = PartDes + PartAds * Adsorption%ProbSigma(p,q,iSurfSide,iSpec,iProbSigma) &
+                                            * Adsorption%ProbSigDes(p,q,iSurfSide,iSpec,iProbSigma) 
+              END DO
+            END IF
               IF (PartDes.GT.PartAds) THEN
                 Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) + INT(PartAds)
               ELSE
@@ -901,6 +902,7 @@ DO subsurfxi = 1,nSurfSample
     nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
     nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
     
+    pos = 1
     sigma = 1.
     ProbSigma = 0.
     firstval = 1
@@ -941,7 +943,6 @@ DO subsurfxi = 1,nSurfSample
     END DO
     
     IF (counter.GT.0) THEN
-      pos = 1
       firstval = 1
       secondval = 1
       thirdval = 1
@@ -960,8 +961,8 @@ DO subsurfxi = 1,nSurfSample
         END DO
       END DO
     ELSE
-      Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,:) = 1.
-      Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,:) = 0.
+      Adsorption%Sigma(subsurfxi,subsurfeta,SurfSideID,iSpec,(1+(iSpec-1)*36):(36*iSpec)) = 1.
+      Adsorption%ProbSigma(subsurfxi,subsurfeta,SurfSideID,iSpec,(1+(iSpec-1)*36):(36*iSpec)) = 0.
     END IF
     
   END DO! iSpec = 1,nSpecies
@@ -1012,7 +1013,8 @@ SUBROUTINE CalcAdsorbProb()
 !===================================================================================================================================    
   ELSE IF (DSMC%WallModel.EQ.2) THEN
 !=================================================================================================================================== 
-! ! transition state theory(TST) and unity bond index-quadratic exponential potential (UBI-QEP)  
+! transition state theory(TST) and unity bond index-quadratic exponential potential (UBI-QEP) 
+
 !     Theta = Adsorption%Coverage(p,q,SurfSide,iSpec)  
 !     IF (Theta.GT.0) THEN
 !       Q_0A = 26312.
@@ -1029,7 +1031,7 @@ SUBROUTINE CalcAdsorbProb()
 !       END IF
 !       
 !       CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct)
-!       CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
+!       CALL PartitionFuncGas(iSpec, WallTemp, VarPartitionFuncGas)
 !       
 !       E_des = Q
 !       nu_des = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall)
@@ -1107,9 +1109,9 @@ DO SurfSide=1,SurfMesh%nSides
     Theta = Adsorption%Coverage(p,q,SurfSide,iSpec)! / Adsorption%MaxCoverage(SurfSide,iSpec)
     !----- kann später auf von Wandtemperatur/Translationsenergie abhängige Werte erweitert werden          
     E_des = Adsorption%DesorbEnergy(SurfSide,iSpec) + Adsorption%Intensification(SurfSide,iSpec) * Theta
-    nu_des = 10**(Adsorption%Nu_a(SurfSide,iSpec) + Adsorption%Nu_b(SurfSide,iSpec) * Theta)/10000
+    nu_des = 10**(Adsorption%Nu_a(SurfSide,iSpec) + Adsorption%Nu_b(SurfSide,iSpec) * Theta)!/10000
     !-----
-    rate = nu_des *(Adsorption%DensSurfAtoms(SurfSide)**(Adsorption%Adsorbexp(SurfSide,iSpec)-1)) &
+    rate = nu_des &!*(Adsorption%DensSurfAtoms(SurfSide)**(Adsorption%Adsorbexp(SurfSide,iSpec)-1)) &
                   * (Theta**Adsorption%Adsorbexp(SurfSide,iSpec)) * exp(-E_des/WallTemp)
     IF (Theta.GT.0) THEN
       Adsorption%ProbDes(p,q,SurfSide,iSpec) = rate * dt /Theta
@@ -1132,7 +1134,7 @@ DO SurfSide=1,SurfMesh%nSides
       
       rate = 0.
 !       iProbSigma = 1
-      DO iProbSigma = 1,36*nSpecies
+      DO iProbSigma = (1+(iSpec-1)*36),(36*iSpec)
         SELECT CASE(Adsorption%Coordination(iSpec))
         CASE(1)
           n = 4
@@ -1163,16 +1165,22 @@ DO SurfSide=1,SurfMesh%nSides
       rate = nu_des * exp(-E_des/WallTemp)
       
       Adsorption%ProbSigDes(p,q,SurfSide,iSpec,iProbSigma) = rate * dt
+      IF (Adsorption%ProbSigDes(p,q,SurfSide,iSpec,iProbSigma).GT.1.) THEN
+        Adsorption%ProbSigDes(p,q,SurfSide,iSpec,iProbSigma) = 1.
+      END IF
 !       Adsorption%ProbDes(p,q,SurfSide,iSpec) = Adsorption%ProbDes(p,q,SurfSide,iSpec) &
 !                                              + rate * dt * Adsorption%ProbSigma(p,q,SurfSide,iSpec,iProbSigma)
       END DO
     ELSE
-      Adsorption%ProbSigDes(p,q,SurfSide,iSpec,:) = 0.0
+      Adsorption%ProbSigDes(p,q,SurfSide,iSpec,(1+(iSpec-1)*36):(36*iSpec)) = 0.0
     END IF
 #if (PP_TimeDiscMethod==42)
     IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-      Adsorption%AdsorpInfo(iSpec)%MeanProbDes = Adsorption%AdsorpInfo(iSpec)%MeanProbDes &
-                                                + Adsorption%ProbSigDes(p,q,SurfSide,iSpec,1)
+      DO iProbSigma = (1+(iSpec-1)*36),(36*iSpec)
+        Adsorption%AdsorpInfo(iSpec)%MeanProbDes = Adsorption%AdsorpInfo(iSpec)%MeanProbDes &
+                                                  + Adsorption%ProbSigDes(p,q,SurfSide,iSpec,iProbSigma) &
+                                                  * Adsorption%ProbSigma(p,q,SurfSide,iSpec,iProbSigma)
+      END DO
     END IF
 #endif
 !===================================================================================================================================

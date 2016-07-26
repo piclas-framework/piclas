@@ -153,7 +153,7 @@ CASE(2) !PartBound%ReflectiveBC)
         END IF
       ELSE IF (adsorbindex.EQ.0) THEN
 !--- Inelastic Reflection (not diffuse)               
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
@@ -325,7 +325,7 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE IF (adsorbindex.EQ.0) THEN
 !--- Inelastic Reflection (not diffuse)  
         BCSideID=PartBCSideList(SideID)
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID)
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&

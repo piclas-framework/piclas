@@ -175,7 +175,7 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_Restart_Vars,          ONLY: DoRestart
   USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod>=501)
-  USE MOD_TimeDisc_Vars,         ONLY : iter
+  USE MOD_TimeDisc_Vars,         ONLY : iter, dt
 #endif
   USE MOD_PIC_Analyze,           ONLY: CalcDepositedCharge
 #ifdef MPI
@@ -212,6 +212,7 @@ SUBROUTINE AnalyzeParticles(Time)
   CHARACTER(LEN=64)   :: DebugElectronicStateFilename
   CHARACTER(LEN=350)  :: hilf
   REAL                :: WallCoverage(nSpecies), Adsorptionrate(nSpecies), Desorptionrate(nSpecies)
+  INTEGER             :: iCov
 #endif
   REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
   REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
@@ -263,6 +264,10 @@ SUBROUTINE AnalyzeParticles(Time)
           WRITE( hilf, '(I5.5)') iTvib
           outfile = 'Database_Ttrans_'//TRIM(hilf)//'.csv'
         END IF
+      ELSE IF (Adsorption%TPD) THEN
+          iCov = INT(Adsorption%Coverage(1,1,1,1)*1000)
+          WRITE( hilf, '(I4.4)') iCov
+        outfile = 'Database_Cov_'//TRIM(hilf)//'.csv'
       ELSE
         outfile = 'Database.csv'
       END IF
@@ -939,14 +944,13 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,104,ADVANCE='NO') WallCoverage(iSpec)
       END DO
-!         END IF 
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,104,ADVANCE='NO') Adsorptionrate(iSpec)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Desorptionrate(iSpec)
+        WRITE(unit_index,104,ADVANCE='NO') Desorptionrate(iSpec)!*WallCoverage(iSpec)/dt
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
