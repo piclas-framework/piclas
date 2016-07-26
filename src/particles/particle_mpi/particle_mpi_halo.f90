@@ -340,15 +340,17 @@ DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
         IF (GEO%FIBGM(iBGM,jBGM,kBGM)%PaddingProcs(iNBProc).EQ.iProc) THEN
           DO iElem = 1, GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
             ElemID = GEO%FIBGM(iBGM,jBGM,kBGM)%Element(iElem)
+            IF((ElemID.LT.1).OR.(ElemID.GT.PP_nElems)) CYCLE
             DO iLocSide=1,6
               SideID=ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
               IF(SideID.GT.0)THEN
+                IF(SideID.GT.nSides) CYCLE
                 IF((SideID.LE.nBCSides).OR.(SideID.GT.(nBCSides+nInnerSides)))THEN
                   !IF(SideID.GT.(nInnerSides+nBCSides).AND.(SideIndex(SideID).EQ.0))THEN
                   ! because of implicit, but here I send for checking, other process sends the required halo region
-                  IF(ElemIndex(SideID).EQ.0)THEN
+                  IF(ElemIndex(ElemID).EQ.0)THEN
                     SendMsg%nMPIElems=SendMsg%nMPIElems+1
-                    ElemIndex(SideID)=SendMsg%nMPIElems
+                    ElemIndex(ElemID)=SendMsg%nMPIElems
                   END IF
                 END IF
               END IF
@@ -501,7 +503,6 @@ USE MOD_Particle_Mesh_Vars,        ONLY:ElemBaryNGeo,ElemRadiusNGeo
 ! INPUT VARIABLES
 REAL,    INTENT(IN)      :: ElemBaryAndRadius(1:4,1:nExternalElems)
 INTEGER, INTENT(IN)      :: nExternalElems
-!----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER, INTENT(INOUT)   :: ElemIndex(PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -537,24 +538,21 @@ DO iElem=1,nExternalElems
 
     ! BGM mesh cells
     iBGMmin = CEILING((xMin-GEO%xminglob)/GEO%FIBGMdeltas(1))-FIBGMCellPadding(1)
-    iBGMmin = MIN(GEO%FIBGMimax,iBGMmin)                             
     iBGMmax = CEILING((xMax-GEO%xminglob)/GEO%FIBGMdeltas(1))+FIBGMCellPadding(1)
-    iBGMmax = MIN(GEO%FIBGMimax,iBGMmax)                             
 
     jBGMmin = CEILING((yMin-GEO%yminglob)/GEO%FIBGMdeltas(2))-FIBGMCellPadding(2)
-    jBGMmin = MIN(GEO%FIBGMjmax,jBGMmin)                             
     jBGMmax = CEILING((yMax-GEO%yminglob)/GEO%FIBGMdeltas(2))+FIBGMCellPadding(2)
-    jBGMmax = MIN(GEO%FIBGMjmax,jBGMmax)                             
 
     kBGMmin = CEILING((zMin-GEO%zminglob)/GEO%FIBGMdeltas(3))-FIBGMCellPadding(3)
-    kBGMmin = MIN(GEO%FIBGMkmax,kBGMmin)                             
     kBGMmax = CEILING((zMax-GEO%zminglob)/GEO%FIBGMdeltas(3))+FIBGMCellPadding(3)
-    kBGMmax = MIN(GEO%FIBGMkmax,kBGMmax)                             
 
     ! loop over BGM cells    
     DO iPBGM = iBGMmin,iBGMmax
       DO jPBGM = jBGMmin,jBGMmax
         DO kPBGM = kBGMmin,kBGMmax
+          IF((iPBGM.GT.GEO%FIBGMimax).OR.(iPBGM.LT.GEO%FIBGMimin) .OR. &
+             (jPBGM.GT.GEO%FIBGMjmax).OR.(jPBGM.LT.GEO%FIBGMjmin) .OR. &
+             (kPBGM.GT.GEO%FIBGMkmax).OR.(kPBGM.LT.GEO%FIBGMkmin) ) CYCLE
           DO iBGMElem = 1, GEO%FIBGM(iPBGM,jPBGM,kPBGM)%nElem
             ElemID = GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element(iBGMElem)
             IF((ElemID.LE.1.).OR.(ElemID.GT.PP_nElems))CYCLE
