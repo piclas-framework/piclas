@@ -356,8 +356,6 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
               .OR.Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec).LT.0) THEN
                 Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = WallPartNum
               END IF
-!               END DO
-!             END IF  
             ELSE !not PartAds.GT.0
               Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) = 0
             END IF !PartAds.GT.0
@@ -696,7 +694,8 @@ ALLOCATE (desorbnum(1:nSpecies))
 
 DO SurfSideID = 1,SurfMesh%nSides
   globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
-! special TPD (temperature programmed desorption) temperature adjustment routine
+  
+! special TPD (temperature programmed desorption) temperature adjustment part
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
     WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide))) + (Adsorption%TPD_beta * iter * dt)
@@ -707,6 +706,7 @@ DO SurfSideID = 1,SurfMesh%nSides
 #else
   WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
 #endif
+
 DO subsurfeta = 1,nSurfSample
 DO subsurfxi = 1,nSurfSample
   desorbnum(:) = 0
@@ -768,6 +768,7 @@ DO subsurfxi = 1,nSurfSample
   END DO
   
   DO iSpec = 1,nSpecies
+  nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(iSpec))
   Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = INT((REAL(desorbnum(iSpec)) / REAL(nSites)) &
                                                                   * (Adsorption%DensSurfAtoms(SurfSideID) &
                       * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) / Species(iSpec)%MacroParticleFactor))
