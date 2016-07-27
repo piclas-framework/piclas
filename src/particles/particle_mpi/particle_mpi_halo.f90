@@ -2322,7 +2322,7 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&
   ,'Could not allocate PartSideToElem')
 PartSideToElem=-1
-PartSideToElem(:,1:nOldSides  )              =DummySideToElem(:,1:nOldSides)
+PartSideToElem(1:5,1:nOldSides  )              =DummySideToElem(1:5,1:nOldSides)
 DEALLOCATE(DummySideToElem)
 !print*,' done side to elem',myrank
 ! PartElemToElem
