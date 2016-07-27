@@ -512,6 +512,7 @@ INTEGER                  :: iBGMmin,iBGMmax,jBGMmin,jBGMmax,kBGMmin,kBGMmax,iPBG
 INTEGER                  :: iBGM,jBGM,kBGM
 REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3), NodeX(1:3), Radius,Distance,Vec0(1:3)
 REAL                     :: xmin, xmax, ymin,ymax,zmin,zmax
+LOGICAL                  :: IsChecked(1:PP_nElems)
 !===================================================================================================================================
 
 ! For each (NGeo+1)^2 BezierControlPoint of each side, the FIBGM cell(s) in which the side 
@@ -523,6 +524,7 @@ ElemIndex=0
 NBOfElems=0
 
 DO iElem=1,nExternalElems
+  IsChecked=.FALSE.
   ! check only the min-max values
   DO iNode=1,8
     ! get elem extension based on barycenter and radius
@@ -555,15 +557,17 @@ DO iElem=1,nExternalElems
              (kPBGM.GT.GEO%FIBGMkmax).OR.(kPBGM.LT.GEO%FIBGMkmin) ) CYCLE
           DO iBGMElem = 1, GEO%FIBGM(iPBGM,jPBGM,kPBGM)%nElem
             ElemID = GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element(iBGMElem)
-            IF((ElemID.LE.1.).OR.(ElemID.GT.PP_nElems))CYCLE
+            IF((ElemID.LE.0.).OR.(ElemID.GT.PP_nElems))CYCLE
+            IF(IsChecked(ElemID)) CYCLE
             IF(ElemIndex(ElemID).EQ.0)THEN
               Vec0=ElemBaryNGeo(1:3,ElemID)-ElemBaryAndRadius(1:3,iElem)
               Distance=SQRT(DOT_PRODUCT(Vec0,Vec0)) &
-                      +Radius+ElemRadiusNGeo(ElemID)
+                      -Radius-ElemRadiusNGeo(ElemID)
               IF(Distance.LE.halo_eps)THEN
                 NbOfElems=NbOfElems+1
                 ElemIndex(ElemID)=NbofElems
               END IF ! in range
+              IsChecked(ElemID)=.TRUE.
             END IF ! ElemIndex(ElemID).EQ.0
           END DO ! iBGMElem
         END DO ! kPBGM
@@ -571,7 +575,6 @@ DO iElem=1,nExternalElems
     END DO ! i PBGM
   END DO ! q
 END DO ! iSide
-
 
 !--- if there are periodic boundaries, they need to be taken into account as well:
 IF (GEO%nPeriodicVectors.GT.0) THEN
