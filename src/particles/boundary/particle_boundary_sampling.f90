@@ -136,7 +136,7 @@ DO iSide=1,nBCSides
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
     SurfMesh%nSides = SurfMesh%nSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nSides
-    SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
+    !SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nSides
   END IF
 END DO
 
@@ -147,7 +147,7 @@ DO iSide=nSides+1,nTotalSides
   IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(iSide))).EQ.PartBound%ReflectiveBC) THEN  
     SurfMesh%nTotalSides = SurfMesh%nTotalSides + 1
     SurfMesh%SideIDToSurfID(iSide)=SurfMesh%nTotalSides
-    SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nTotalSides
+    !SurfMesh%SideIDToSurfID(iSide) = SurfMesh%nTotalSides
   END IF
 END DO
 
@@ -399,6 +399,7 @@ SUBROUTINE GetHaloSurfMapping()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Preproc
 USE MOD_Mesh_Vars                   ,ONLY:nSides
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
 USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
@@ -435,12 +436,15 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
   ! get all MPI-neighbors to communicate with
   DO iProc=0,SurfCOMM%nProcs-1
     IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
-    GlobalProcID=SurfToGlobal(iProc)
+      GlobalProcID=SurfToGlobal(iProc)
     DO iSide=nSides+1,nTotalSides
       SurfSideID=SurfMesh%SideIDToSurfID(iSide)
       IF(SurfSideID.EQ.-1) CYCLE
       ! get elemid
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
+      IF(ElemID.LE.PP_nElems)THEN
+        IPWRITE(UNIT_stdOut,'(A)') ' Error in PartSideToElem'
+      END IF
       IF(GlobalProcID.EQ.PartHaloElemToProc(NATIVE_PROC_ID,ElemID))THEN
         IF(.NOT.isMPINeighbor(iProc))THEN
           isMPINeighbor(iProc)=.TRUE.
@@ -618,6 +622,9 @@ DO iProc=1,SurfCOMM%nMPINeighbors
       iPos=iPos+2
     END IF
   END DO ! iSide=nSides+1,nTotalSides
+  IF(iSendSide.NE.SurfExchange%nSidesSend(iProc)) CALL abort(&
+__STAMP__&
+          ,' Message too short!',iProc)
   IF(ANY(SurfSendBuf(iProc)%content.LE.0))THEN  
     CALL abort(&
 __STAMP__&
@@ -654,7 +661,14 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   iPos=1
   DO iRecvSide=1,SurfExchange%nSidesRecv(iProc)
     SideID=PartElemToSide(E2S_SIDE_ID,INT(SurfRecvBuf(iProc)%content(iPos+1)),INT(SurfRecvBuf(iProc)%content(iPos)))
+    IF(SideID.GT.nSides)THEN
+      IPWRITE(UNIT_stdOut,'(A)') ' Received wrong sideid ', SideID
+      IPWRITE(UNIT_stdOut,'(A)') ' Sending process has error in halo-region! ', SurfCOMM%MPINeighbor(iProc)%NativeProcID
+    END IF
     SurfSideID=SurfMesh%SideIDToSurfID(SideID)
+    IF(SurfSideID.EQ.-1)THEN
+      IPWRITE(UNIT_stdOut,'(A)') ' Received wrong sideid. SurfSideID is corrupted! '
+    END IF
     SurfCOMM%MPINeighbor(iProc)%RecvList(iRecvSide)=SurfSideID
     iPos=iPos+2
   END DO ! RecvSide=1,SurfExchange%nSidesRecv(iProc)-1,2
