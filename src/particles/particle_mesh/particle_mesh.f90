@@ -3908,6 +3908,7 @@ SUBROUTINE PointsEqual(N,Points1,Points2,IsNotEqual)
 ! compute the distance between two data sets
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
+!USE MOD_Globals,    ONLY:AlmostEqual
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -4015,6 +4016,7 @@ IF((z.LT.ElemSlabIntervals(5,ElemID)).OR.(z.GT.ElemSlabIntervals(6,ElemID)))THEN
 END IF
 Inside=.TRUE.
 END SUBROUTINE InsideElemBoundingBox
+
 
 SUBROUTINE GetElemAndSideType() 
 !===================================================================================================================================
@@ -4129,9 +4131,9 @@ DO iElem=1,nLoop
   XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,iElem)
 
   CALL ChangeBasis3D(3,1,NGeo,Vdm_CLNGeo1_CLNGeo,XCL_NGeo1,XCL_NGeoNew)
-
   ! check 3D points
-  CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeo,CurvedElem(iElem))
+  CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),CurvedElem(iElem))
+
   IF(iElem.LE.PP_nElems)THEN
     IF(CurvedElem(iElem))THEN
       nCurvedElems=nCurvedElems+1
