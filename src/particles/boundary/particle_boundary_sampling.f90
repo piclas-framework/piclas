@@ -312,7 +312,7 @@ CALL MPI_COMM_SPLIT(PartMPI%COMM, color, SurfCOMM%MyRank, SurfCOMM%COMM,iError)
 IF(SurfMesh%SurfOnPRoc) THEN
   CALL MPI_COMM_SIZE(SurfCOMM%COMM, SurfCOMM%nProcs,iError)
 ELSE
-  SurfCOMM%nProcs = 1
+  SurfCOMM%nProcs = 0
 END IF
 SurfCOMM%MPIRoot=.FALSE.
 IF(SurfCOMM%MyRank.EQ.0 .AND. SurfMesh%SurfOnProc) THEN
@@ -357,7 +357,7 @@ CALL MPI_COMM_SPLIT(PartMPI%COMM, color, SurfCOMM%MyOutputRank, SurfCOMM%OutputC
 IF(OutputOnPRoc)THEN
   CALL MPI_COMM_SIZE(SurfCOMM%OutputCOMM, SurfCOMM%nOutputProcs,iError)
 ELSE
-  SurfCOMM%nOutputProcs = 1
+  SurfCOMM%nOutputProcs = 0
 END IF
 SurfCOMM%MPIOutputRoot=.FALSE.
 IF(SurfCOMM%MyOutputRank.EQ.0 .AND. OutputOnProc) THEN
@@ -400,7 +400,7 @@ SUBROUTINE GetHaloSurfMapping()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars                   ,ONLY:nSides
+USE MOD_Mesh_Vars                   ,ONLY:nSides,nBCSides
 USE MOD_Particle_Boundary_Vars      ,ONLY:SurfMesh,SurfComm,nSurfSample
 USE MOD_Particle_MPI_Vars           ,ONLY:PartHaloSideToProc,PartHaloElemToProc,SurfSendBuf,SurfRecvBuf,SurfExchange
 USE MOD_Particle_Mesh_Vars          ,ONLY:nTotalSides,PartSideToElem,PartElemToSide
@@ -443,7 +443,10 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
       ! get elemid
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
       IF(ElemID.LE.PP_nElems)THEN
-        IPWRITE(UNIT_stdOut,'(A)') ' Error in PartSideToElem'
+        IPWRITE(UNIT_stdOut,*) ' Error in PartSideToElem'
+      END IF
+      IF(ElemID.LE.1)THEN
+        IPWRITE(UNIT_stdOut,*) ' Error in PartSideToElem'
       END IF
       IF(GlobalProcID.EQ.PartHaloElemToProc(NATIVE_PROC_ID,ElemID))THEN
         IF(.NOT.isMPINeighbor(iProc))THEN
@@ -506,6 +509,7 @@ DO iProc=0,SurfCOMM%nProcs-1
     IF(.NOT.isMPINeighbor(iProc))THEN
       isMPINeighbor(iProc)=.TRUE.
       SurfCOMM%nMPINeighbors=SurfCOMM%nMPINeighbors+1
+      IPWRITE(UNIT_stdOut,*) ' Found missing mpi-neighbor'
     END IF
   END IF
 END DO ! iProc
@@ -533,6 +537,7 @@ SurfExchange%nSidesSend=0
 SurfExchange%nSidesRecv=0
 ! loop over all neighbors  
 DO iProc=1,SurfCOMM%nMPINeighbors
+  ! proc-id in SurfCOMM%nProcs
   LocalProcID=SurfCOMM%MPINeighbor(iProc)%NativeProcID
   DO iSide=nSides+1,nTotalSides
     SurfSideID=SurfMesh%SideIDToSurfID(iSide)
@@ -616,6 +621,14 @@ DO iProc=1,SurfCOMM%nMPINeighbors
     IF(LocalProcID.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
       iSendSide=iSendSide+1
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
+      ! get elemid
+      ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
+      IF(ElemID.LE.PP_nElems)THEN
+        IPWRITE(UNIT_stdOut,*) ' Error in PartSideToElem'
+      END IF
+      IF(ElemID.LE.1)THEN
+        IPWRITE(UNIT_stdOut,*) ' Error in PartSideToElem'
+      END IF
       SurfCOMM%MPINeighbor(iProc)%SendList(iSendSide)=SurfSideID
       SurfSendBuf(iProc)%content(iPos  )= REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID))
       SurfSendBuf(iProc)%content(iPos+1)= REAL(PartSideToElem(S2E_LOC_SIDE_ID,iSide))
@@ -662,12 +675,16 @@ DO iProc=1,SurfCOMM%nMPINeighbors
   DO iRecvSide=1,SurfExchange%nSidesRecv(iProc)
     SideID=PartElemToSide(E2S_SIDE_ID,INT(SurfRecvBuf(iProc)%content(iPos+1)),INT(SurfRecvBuf(iProc)%content(iPos)))
     IF(SideID.GT.nSides)THEN
-      IPWRITE(UNIT_stdOut,'(A)') ' Received wrong sideid ', SideID
-      IPWRITE(UNIT_stdOut,'(A)') ' Sending process has error in halo-region! ', SurfCOMM%MPINeighbor(iProc)%NativeProcID
+      IPWRITE(UNIT_stdOut,*) ' Received wrong sideid ', SideID
+      IPWRITE(UNIT_stdOut,*) ' Sending process has error in halo-region! ', SurfCOMM%MPINeighbor(iProc)%NativeProcID
+    END IF
+    IF(SideID.GT.nBCSides)THEN
+      IPWRITE(UNIT_stdOut,*) ' Received wrong sideid. Is not a BC side! ', SideID
+      IPWRITE(UNIT_stdOut,*) ' Sending process has error in halo-region! ', SurfCOMM%MPINeighbor(iProc)%NativeProcID
     END IF
     SurfSideID=SurfMesh%SideIDToSurfID(SideID)
     IF(SurfSideID.EQ.-1)THEN
-      IPWRITE(UNIT_stdOut,'(A)') ' Received wrong sideid. SurfSideID is corrupted! '
+      IPWRITE(UNIT_stdOut,*) ' Received wrong sideid. SurfSideID is corrupted! '
     END IF
     SurfCOMM%MPINeighbor(iProc)%RecvList(iRecvSide)=SurfSideID
     iPos=iPos+2
