@@ -431,12 +431,20 @@ CALL MPI_ALLGATHER(MyRank,1, MPI_INTEGER, SurfToGlobal(0:SurfCOMM%nProcs-1), 1, 
 isMPINeighbor=.FALSE.
 SurfCOMM%nMPINeighbors=0
 IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
+  ! PartHaloSideToProc has the mapping from the local sideid to the corresponding 
+  ! element-id, localsideid, native-proc-id and local-proc-id
+  ! caution: 
+  ! native-proc-id is id in global list || PartMPI%COMM
+  ! local-proc-id is the nth neighbor in SurfCOMM%COMM
+  ! caution2:
+  !  this mapping is done only for reflective bcs, thus, each open side or non-reflective side 
+  !  points to -1
   ALLOCATE(PartHaloSideToProc(1:4,nSides+1:nTotalSides))
   PartHaloSideToProc=-1
   ! get all MPI-neighbors to communicate with
   DO iProc=0,SurfCOMM%nProcs-1
     IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
-      GlobalProcID=SurfToGlobal(iProc)
+    GlobalProcID=SurfToGlobal(iProc)
     DO iSide=nSides+1,nTotalSides
       SurfSideID=SurfMesh%SideIDToSurfID(iSide)
       IF(SurfSideID.EQ.-1) CYCLE
@@ -453,6 +461,9 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
           isMPINeighbor(iProc)=.TRUE.
           SurfCOMM%nMPINeighbors=SurfCOMM%nMPINeighbors+1
         END IF
+        ! caution: 
+        ! native-proc-id is id in global list || PartMPI%COMM
+        ! local-proc-id is the nth neighbor in SurfCOMM%COMM
         PartHaloSideToProc(NATIVE_PROC_ID,iSide)=GlobalProcID
         PartHaloSideToProc(LOCAL_PROC_ID,iSide) =SurfCOMM%nMPINeighbors
       END IF
@@ -461,6 +472,7 @@ IF(SurfMesh%nTotalSides.GT.SurfMesh%nSides)THEN
 END IF
 
 ! Make sure SurfCOMM%MPINeighbor is consistent
+! 1) communication of found is neighbor
 ALLOCATE(RECV_STATUS_LIST(1:MPI_STATUS_SIZE,0:SurfCOMM%nProcs-1))
 ! receive and send connection information
 DO iProc=0,SurfCOMM%nProcs-1
@@ -503,6 +515,7 @@ DO iProc=1,SurfCOMM%nProcs-1
 END DO ! iProc
 DEALLOCATE(RECV_STATUS_LIST)
 
+! 2) finalize MPI consistency check.
 DO iProc=0,SurfCOMM%nProcs-1
   IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
   IF (RecvMPINeighbor(iProc).NEQV.isMPINeighbor(iProc)) THEN
@@ -514,8 +527,10 @@ DO iProc=0,SurfCOMM%nProcs-1
   END IF
 END DO ! iProc
 
+! build SurfMesh exchange information
 ! next, allocate SurfCOMM%MPINeighbor
 ALLOCATE(SurfCOMM%MPINeighbor(1:SurfCOMM%nMPINeighbors))
+! set native proc-id of each SurfCOMM-MPI-Neighbor
 LocalProcID=0
 DO iProc = 0,SurfCOMM%nProcs-1
   IF(iProc.EQ.SurfCOMM%MyRank) CYCLE
@@ -527,6 +542,7 @@ DO iProc = 0,SurfCOMM%nProcs-1
 END DO ! iProc=1,PartMPI%nMPINeighbors
 
 ! array how many data has to be communicated
+! number of Sides
 ALLOCATE(SurfExchange%nSidesSend(1:SurfCOMM%nMPINeighbors) &
         ,SurfExchange%nSidesRecv(1:SurfCOMM%nMPINeighbors) &
         ,SurfExchange%SendRequest(SurfCOMM%nMPINeighbors)  &
@@ -538,12 +554,11 @@ SurfExchange%nSidesRecv=0
 ! loop over all neighbors  
 DO iProc=1,SurfCOMM%nMPINeighbors
   ! proc-id in SurfCOMM%nProcs
-  LocalProcID=SurfCOMM%MPINeighbor(iProc)%NativeProcID
   DO iSide=nSides+1,nTotalSides
     SurfSideID=SurfMesh%SideIDToSurfID(iSide)
     IF(SurfSideID.EQ.-1) CYCLE
     ! get elemid
-    IF(LocalProcID.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
+    IF(iProc.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
       SurfExchange%nSidesSend(iProc)=SurfExchange%nSidesSend(iProc)+1
       PartHaloSideToProc(LOCAL_SEND_ID,iSide) =SurfExchange%nSidesSend(iProc)
     END IF
@@ -575,6 +590,7 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                 , SurfExchange%SendRequest(iProc)          &
                 , IERROR )
 END DO ! iProc
+
 
 ! 4) Finish Received number of particles
 DO iProc=1,SurfCOMM%nMPINeighbors
@@ -609,16 +625,17 @@ DO iProc=1,SurfCOMM%nMPINeighbors
                 , IERROR )
 END DO ! iProc
 
-! build message
+! build message 
+! after this message, the receiving process knows to which of his sides the sending process will send the 
+  ! surface data
 DO iProc=1,SurfCOMM%nMPINeighbors
   iSendSide=0
   iPos=1
-  LocalProcID=SurfCOMM%MPINeighbor(iProc)%NativeProcID
   DO iSide=nSides+1,nTotalSides
     SurfSideID=SurfMesh%SideIDToSurfID(iSide)
     IF(SurfSideID.EQ.-1) CYCLE
     ! get elemid
-    IF(LocalProcID.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
+    IF(iProc.EQ.PartHaloSideToProc(LOCAL_PROC_ID,iSide))THEN
       iSendSide=iSendSide+1
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
       ! get elemid
@@ -669,6 +686,7 @@ __STAMP__&
 END DO ! iProc
 
 ! fill list with received side ids
+! store the receiving data
 DO iProc=1,SurfCOMM%nMPINeighbors
   ALLOCATE(SurfCOMM%MPINeighbor(iProc)%RecvList(SurfExchange%nSidesRecv(iProc)))
   iPos=1
@@ -701,14 +719,18 @@ DO iProc=1,SurfCOMM%nMPINeighbors
 END DO ! iProc
 DEALLOCATE(recv_status_list)
 
+CALL MPI_BARRIER(SurfCOMM%Comm,iError)
 
 END SUBROUTINE GetHaloSurfMapping
 
 
 SUBROUTINE ExchangeSurfData() 
 !===================================================================================================================================
-! exchange the surface data like particles
-! has to be added to the already computed values 
+! exchange the surface data
+! only processes with samling sides in their halo region and the original process participate on the communication
+! structure is similar to particle communication
+! each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
+! the receiving process adds the new data to his own sides
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!

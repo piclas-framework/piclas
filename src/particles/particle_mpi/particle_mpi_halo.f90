@@ -1698,6 +1698,7 @@ IF(DoRefMapping)THEN
               nDoubleBezier=nDoubleBezier+1
             IF(nDoubleBezier.EQ.2) THEN
               isDoubleSide=.TRUE.
+              IPWRITE(*,*) ' Found a double side in halo region! Error!'
               EXIT
             END IF
           END DO ! iOldSide
@@ -1801,6 +1802,7 @@ __STAMP__&
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
     END DO ! iElem
     ! missing connection info to MPI-Neighbor-ElemID
+    ! i think, that here happens the wrong stuff
     DO iSide=nBCSides+nInnerSides+1,nSides
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
       ElemID2=PartSideToElem(S2E_NB_ELEM_ID,iSide)
@@ -1883,26 +1885,28 @@ __STAMP__&
       END DO ! iElem=PP_nElems+1,nTotalElems
     END DO ! iSide=nBCSides+nInnerSides+1,nSides
     ! build rest: PartElemToElem, PartLocSideID
-    DO iElem=PP_nElems+1,nTotalElems
-      DO ilocSide=1,6
-        flip   = PartElemToSide(E2S_FLIP,ilocSide,iElem)
-        SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-        ! check of sideid
-        HaloSideID=SideID-tmpnSides
-        IF(HaloSideID.LE.tmpnSides) CYCLE 
-        IF(isDone(HaloSideID)) CYCLE
-        IF(flip.EQ.0)THEN
-          ! SideID of slave
-          PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-          PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_ELEM_ID,SideID)
-        ELSE
-          ! SideID of master
-          PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_LOC_SIDE_ID,SideID)
-          PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_ELEM_ID,SideID)
-        END IF
-        isDone(HaloSideID)=.TRUE.
-      END DO ! ilocSide
-    END DO ! Elem
+    ! here happens bullshit
+    ! PO DEBUG, WRONG
+    ! DO iElem=PP_nElems+1,nTotalElems
+    !   DO ilocSide=1,6
+    !     flip   = PartElemToSide(E2S_FLIP,ilocSide,iElem)
+    !     SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    !     ! check of sideid
+    !     HaloSideID=SideID-tmpnSides
+    !     IF(HaloSideID.LE.tmpnSides) CYCLE 
+    !     IF(isDone(HaloSideID)) CYCLE
+    !     IF(flip.EQ.0)THEN
+    !       ! SideID of slave
+    !       PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+    !       PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_ELEM_ID,SideID)
+    !     ELSE
+    !       ! SideID of master
+    !       PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+    !       PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_ELEM_ID,SideID)
+    !     END IF
+    !     isDone(HaloSideID)=.TRUE.
+    !   END DO ! ilocSide
+    ! END DO ! Elem
     IF(.NOT.PartMPI%isMPINeighbor(iProc))THEN
       PartMPI%isMPINeighbor(iProc) = .true.
       PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
