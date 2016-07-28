@@ -1233,6 +1233,7 @@ REAL              :: Surface, Coverage(nSpecies), SurfPartDens
   END DO
   END DO
   WallCoverage(:) = Coverage(:) / (SurfMesh%nSides*nSurfSample*nSurfSample)
+  SurfPartDens = SurfPartDens / SurfMesh%nSides
   
   IF (KeepWallParticles) THEN
     DO i=1,PDM%ParticleVecLength
