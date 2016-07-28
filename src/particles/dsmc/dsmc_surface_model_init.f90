@@ -36,7 +36,7 @@ SUBROUTINE InitDSMCSurfModel()
 ! MODULES
 USE MOD_Globals,                ONLY : abort
 USE MOD_Mesh_Vars,              ONLY : nElems, nBCSides, BC
-USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
+USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, CollisMode
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PDM
 USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM
 USE MOD_ReadInTools
@@ -48,7 +48,7 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES                                                                      !
+! LOCAL VARIABLES
   CHARACTER(32)                    :: hilf
   INTEGER                          :: iSpec, iSide, iSurf, IDcounter
 !===================================================================================================================================
@@ -73,10 +73,7 @@ IF (DSMC%WallModel.EQ.1) THEN
             Adsorption%DesorbEnergy(1:SurfMesh%nSides,1:nSpecies),& 
             Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
 ELSE IF (DSMC%WallModel.GT.1) THEN 
-  ALLOCATE( Adsorption%HeatOfAdsZero(1:nSpecies),& 
-  !           Adsorption%DissResultsSpecNum(1:nSpecies),&
-  !           Adsorption%DissResultsSpec(1:2,1:(2*(nSpecies-1)-1),1:nSpecies),&
-  !           Adsorption%EDissBond(1:nSpecies,1:nSpecies,1:nSpecies),& 
+  ALLOCATE( Adsorption%HeatOfAdsZero(1:nSpecies),&
             Adsorption%Coordination(1:nSpecies))
   ! initialize info and constants
 END IF
@@ -103,6 +100,7 @@ DO iSpec = 1,nSpecies
     Adsorption%HeatOfAdsZero(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfAdsorption-K','0.')
   END IF
 END DO
+
 #if (PP_TimeDiscMethod==42)
   Adsorption%TPD = GETLOGICAL('Particles-DSMC-Adsorption-doTPD','.FALSE.')
   Adsorption%TPD_beta = GETREAL('Particles-DSMC-Adsorption-TPD-Beta','0.')
@@ -149,7 +147,11 @@ IF (DSMC%WallModel.EQ.2) THEN
   Adsorption%ProbSigma(:,:,:,:,:) = 0.
 END IF
 
-IF (DSMC%WallModel.GT.1) CALL Init_SurfDist()
+IF (DSMC%WallModel.GT.1) THEN
+  CALL Init_SurfDist()
+!   IF (CollisMode.EQ.3) 
+  CALL Init_SurfChem()
+END IF
 
 END SUBROUTINE InitDSMCSurfModel
 
@@ -510,6 +512,85 @@ SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE DISTRIBUTION DONE!'
     
 END SUBROUTINE Init_SurfDist
 
+SUBROUTINE Init_SurfChem()
+!===================================================================================================================================
+! Initializing surface reaction variables
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,                ONLY : abort, MPIRoot, UNIT_StdOut
+USE MOD_DSMC_Vars,              ONLY : Adsorption
+USE MOD_PARTICLE_Vars,          ONLY : nSpecies
+USE MOD_ReadInTools
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  CHARACTER(32)                    :: hilf, hilf2
+  INTEGER                          :: iSpec, iSpec2, ReactNum, ReactNum2
+  INTEGER                          :: MaxDissNum, MaxReactNum
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY...'
+MaxDissNum = 0
+! ! binomial coefficients with 2 from n (all possible dissociations for n species) 
+! DO iSpec = 1,nSpecies-1
+!   MaxDissNum = MaxDissNum + iSpec
+! END DO
+MaxDissNum = GETINT('Part-Species-MaxDissNum','0')
+
+IF (MaxDissNum.GT.0) THEN
+  MaxReactNum = MaxDissNum + nSpecies
+  ALLOCATE( Adsorption%DissocReact(1:2,1:MaxDissNum,1:nSpecies),&
+            Adsorption%AssocReact(1:2,1:(MaxReactNum-MaxDissNum),1:nSpecies),&
+            Adsorption%EDissBond(1:MaxReactNum,1:nSpecies))
+  DO iSpec = 1,nSpecies            
+    WRITE(UNIT=hilf,FMT='(I2)') iSpec
+    DO ReactNum = 1,MaxDissNum
+      WRITE(UNIT=hilf2,FMT='(I2)') ReactNum
+      Adsorption%DissocReact(:,ReactNum,iSpec) = &
+                                       GETINTARRAY('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Products',2,'0,0')
+      Adsorption%EDissBond(ReactNum,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-EDissBond','0.')
+    END DO
+    DO ReactNum = MaxDissNum+1,MaxReactNum
+      Adsorption%EDissBond(ReactNum,iSpec) = 0.
+    END DO
+  END DO
+  
+  DO iSpec = 1,nSpecies
+    ReactNum = 1
+    DO iSpec2 = 1,nSpecies
+    DO ReactNum2 = 1,MaxDissNum
+      IF (Adsorption%DissocReact(1,ReactNum2,iSpec2).EQ.iSpec) THEN
+        Adsorption%AssocReact(1,ReactNum,iSpec) = Adsorption%DissocReact(2,ReactNum2,iSpec2)
+        Adsorption%AssocReact(2,ReactNum,iSpec) = iSpec2
+        Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(ReactNum2,iSpec)
+        ReactNum = ReactNum + 1
+      ELSE IF (Adsorption%DissocReact(2,ReactNum2,iSpec2).EQ.iSpec) THEN
+        Adsorption%AssocReact(1,ReactNum,iSpec) = Adsorption%DissocReact(1,ReactNum2,iSpec2)
+        Adsorption%AssocReact(2,ReactNum,iSpec) = iSpec2
+        Adsorption%EDissBond((MaxDissNum+ReactNum),iSpec) = Adsorption%EDissBond(ReactNum2,iSpec)
+        ReactNum = ReactNum + 1
+      ELSE
+        CYCLE
+      END IF
+    END DO
+    END DO
+    IF (ReactNum.LE.(MaxReactNum-MaxDissNum)) THEN
+      Adsorption%AssocReact(:,ReactNum:(MaxReactNum-MaxDissNum),iSpec) = 0
+    END IF
+  END DO
+  
+ELSE
+  MaxReactNum = 0
+END IF !MaxDissResultsNum > 0
+Adsorption%DissNum = MaxDissNum
+Adsorption%ReactNum = MaxReactNum
+
+END SUBROUTINE Init_SurfChem
+
 SUBROUTINE FinalizeDSMCSurfModel()
 !===================================================================================================================================
 ! Init of DSMC Vars
@@ -542,8 +623,8 @@ SDEALLOCATE(Adsorption%Nu_b)
 SDEALLOCATE(Adsorption%DesorbEnergy)
 SDEALLOCATE(Adsorption%Intensification)
 SDEALLOCATE(Adsorption%HeatOfAdsZero)
-SDEALLOCATE(Adsorption%DissResultsSpecNum)
-SDEALLOCATE(Adsorption%DissResultsSpec)
+SDEALLOCATE(Adsorption%DissocReact)
+SDEALLOCATE(Adsorption%AssocReact)
 SDEALLOCATE(Adsorption%EDissBond)
 SDEALLOCATE(Adsorption%Coordination)
 
