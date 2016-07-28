@@ -36,7 +36,7 @@ SUBROUTINE InitDSMCSurfModel()
 ! MODULES
 USE MOD_Globals,                ONLY : abort
 USE MOD_Mesh_Vars,              ONLY : nElems, nBCSides, BC
-USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, CollisMode
+USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC!, CollisMode
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PDM
 USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM
 USE MOD_ReadInTools
@@ -539,13 +539,16 @@ MaxDissNum = 0
 ! DO iSpec = 1,nSpecies-1
 !   MaxDissNum = MaxDissNum + iSpec
 ! END DO
+! Maximum of defined dissociations for one species
 MaxDissNum = GETINT('Part-Species-MaxDissNum','0')
 
+! allocate and initialize dissociative and associative reactions species map
 IF (MaxDissNum.GT.0) THEN
   MaxReactNum = MaxDissNum + nSpecies
   ALLOCATE( Adsorption%DissocReact(1:2,1:MaxDissNum,1:nSpecies),&
             Adsorption%AssocReact(1:2,1:(MaxReactNum-MaxDissNum),1:nSpecies),&
             Adsorption%EDissBond(1:MaxReactNum,1:nSpecies))
+  ! Read in dissociative reactions and dissociation bond energies
   DO iSpec = 1,nSpecies            
     WRITE(UNIT=hilf,FMT='(I2)') iSpec
     DO ReactNum = 1,MaxDissNum
@@ -558,7 +561,7 @@ IF (MaxDissNum.GT.0) THEN
       Adsorption%EDissBond(ReactNum,iSpec) = 0.
     END DO
   END DO
-  
+  ! fill associative reactions species map from defined dssociative reactions
   DO iSpec = 1,nSpecies
     ReactNum = 1
     DO iSpec2 = 1,nSpecies
@@ -582,10 +585,10 @@ IF (MaxDissNum.GT.0) THEN
       Adsorption%AssocReact(:,ReactNum:(MaxReactNum-MaxDissNum),iSpec) = 0
     END IF
   END DO
-  
-ELSE
+ELSE !MaxDissResultsNum = 0
   MaxReactNum = 0
 END IF !MaxDissResultsNum > 0
+! save defined number of surface reactions
 Adsorption%DissNum = MaxDissNum
 Adsorption%ReactNum = MaxReactNum
 
