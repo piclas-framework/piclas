@@ -3708,7 +3708,8 @@ DO iElem=1,nTotalElems
   ! elem radius containts 10% tolerance because we are not using the beziercontrolpoints
   ElemRadiusNGeo(iElem)=Radius
   IF(DoRefMapping)THEN
-    ElemRadius2NGeo(iElem)=(Radius*1.10)*(Radius*1.10)
+    !ElemRadius2NGeo(iElem)=(Radius*1.10)*(Radius*1.10)
+    ElemRadius2NGeo(iElem)=(Radius*1.02)*(Radius*1.02)
   ELSE
     ElemRadius2NGeo(iElem)=Radius*Radius
   END IF
