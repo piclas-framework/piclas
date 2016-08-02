@@ -4036,11 +4036,12 @@ SUBROUTINE GetElemAndSideType()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,                 ONLY:ElemBaryNGeo,ElemRadius2NGeo,ElemRadiusNGeo
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,SideID_minus_upper,NGeo,nBCSides
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO
 USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,Vdm_CLNGeo1_CLNGeo
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
@@ -4075,8 +4076,9 @@ REAL                                    :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                                    :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
 INTEGER                                 :: i,j,k, NGeo3,NGeo2, nLoop
 REAL                                    :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
+REAL                                    :: Distance 
 REAL                                    :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
-LOGICAL                                 :: isCurvedSide,isRectangular
+LOGICAL                                 :: isCurvedSide,isRectangular, fullMesh
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -4325,7 +4327,13 @@ IF(DoRefMapping)THEN
       END IF
     END DO ! ilocSide
   END DO ! iElem
-  
+  ! get distance of halo_eps
+  V1(1) = GEO%xmaxglob-GEO%xminglob
+  V1(2) = GEO%ymaxglob-GEO%yminglob
+  V1(3) = GEO%zmaxglob-GEO%zminglob
+  Distance=DOT_PRODUCT(V1,V1)
+  fullMesh=.FALSE.
+  IF(Distance.LE.halo_eps2) fullMesh=.TRUE.
   ! build list with elements in halo-eps vicinity around bc-elements
   ALLOCATE( BCElem(1:nTotalElems) )
   ALLOCATE( SideIndex(1:nTotalSides) )
@@ -4346,17 +4354,18 @@ IF(DoRefMapping)THEN
     ! loop over all sides
     SideIndex=0
     DO iSide=1,nTotalSides
-      ! ignore sides of the same element
-      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
+      ! only bc sides
       BCSideID  =PartBCSideList(iSide)
       IF(BCSideID.EQ.-1) CYCLE
+      ! ignore sides of the same element
+      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
       ! next, get all sides in halo-eps vicinity
       DO ilocSide=1,6
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.EQ.-1) CYCLE
         BCSideID2 =PartBCSideList(SideID)
         IF(BCSideID2.EQ.-1) CYCLE
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         leave=.FALSE.
         ! all points of bc side
         DO q=0,NGeo
@@ -4382,46 +4391,72 @@ IF(DoRefMapping)THEN
           IF(leave) EXIT
         END DO ! q
 #else /* no LSERK */
-        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-        !IF(SideID.EQ.-1) CYCLE
-        SELECT CASE(ilocSide)
-        CASE(XI_MINUS)
-          xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
-        CASE(XI_PLUS)
-          xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
-        CASE(ETA_MINUS)
-          xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
-        CASE(ETA_PLUS)
-          xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
-        CASE(ZETA_MINUS)
-          xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
-        CASE(ZETA_PLUS)
-          xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
-        END SELECT
-        leave=.FALSE.
-        ! all points of bc side
-        DO q=0,NGeo
-          DO p=0,NGeo
-            NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
-            ! all nodes of current side
-            DO s=0,NGeo
-              DO r=0,NGeo
-                IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
-                                   ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
-                  IF(SideIndex(iSide).EQ.0)THEN
-                    BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
-                    SideIndex(iSide)=BCElem(iElem)%lastSide
-                    leave=.TRUE.
-                    EXIT
-                  END IF
+        ! simplified version
+        IF(fullMesh)THEN
+          IF(SideIndex(iSide).EQ.0)THEN
+            BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+            SideIndex(iSide)=BCElem(iElem)%lastSide
+          END IF
+        ELSE
+          leave=.FALSE.
+          DO q=0,NGeo
+            DO p=0,NGeo
+              V1=BezierControlPoints3D(1:3,p,q,BCSideID)-ElemBaryNGeo(1:3,iElem)
+              Distance=DOT_PRODUCT(V1,V1)-ElemRadius2NGeo(iElem)
+              IF(Distance.LE.halo_eps2)THEN
+                IF(SideIndex(iSide).EQ.0)THEN
+                  BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                  SideIndex(iSide)=BCElem(iElem)%lastSide
+                  leave=.TRUE.
+                  EXIT
                 END IF
-              END DO ! r
-              IF(leave) EXIT
-            END DO ! s
+              END IF
+            END DO ! p=0,NGeo
             IF(leave) EXIT
-          END DO ! p
-          IF(leave) EXIT
-        END DO ! q
+          END DO !  q=0,NGeo
+        END IF
+
+        !SELECT CASE(ilocSide)
+        !CASE(XI_MINUS)
+        !  xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
+        !CASE(XI_PLUS)
+        !  xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
+        !CASE(ETA_MINUS)
+        !  xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
+        !CASE(ETA_PLUS)
+        !  xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
+        !CASE(ZETA_MINUS)
+        !  xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
+        !CASE(ZETA_PLUS)
+        !  xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
+        !END SELECT
+        !leave=.FALSE.
+        !! all points of bc side
+        !DO q=0,NGeo
+        !  DO p=0,NGeo
+        !    NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+        !    Distance=NodeX-ElemBaryNGeo(iElem)
+        !     all nodes of current side
+        !    DO s=0,NGeo
+        !      DO r=0,NGeo
+        !        IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
+        !                           ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
+        !          IF(SideIndex(iSide).EQ.0)THEN
+        !            BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+        !            SideIndex(iSide)=BCElem(iElem)%lastSide
+        !            leave=.TRUE.
+        !            EXIT
+        !          END IF
+        !        END IF
+        !      END DO ! r
+        !      IF(leave) EXIT
+        !    END DO ! s
+        !     or elem bary
+        !    
+        !    IF(leave) EXIT
+        !  END DO ! p
+        !  IF(leave) EXIT
+        !END DO ! q
 #endif
         IF(leave) EXIT
       END DO ! ilocSide
