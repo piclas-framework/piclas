@@ -106,7 +106,11 @@ REAL               :: scaledJac(2)
 #ifdef PARTICLES
 INTEGER            :: iSide,lowerLimit
 #endif /*PARTICLES*/
+REAL               :: StartT,EndT
 !===================================================================================================================================
+
+
+StartT=BOLTZPLATZTIME(MPI_COMM_WORLD)
 ALLOCATE(dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo,1:PP_nElems)) !jacobi matrix of the mapping P\in NGeo
 ! null outside!!
 dXCL_NGeo=0.
@@ -330,6 +334,9 @@ END DO
 SWRITE(UNIT_stdOut,'(A)') ' '
 #endif /*PARTICLES*/
 
+
+endt=BOLTZPLATZTIME(MPI_COMM_WORLD)
+SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took      [',EndT-StartT,'s]'
 
 !#ifdef PARTICLES
 !  CALL GetSideType()
