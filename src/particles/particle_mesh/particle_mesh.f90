@@ -2880,17 +2880,17 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax
+INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax, ALLOCSTAT
 REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
 INTEGER                          :: iBGM,jBGM,kBGM,SideID,iElem,ilocSide
 INTEGER                          :: BGMCellXmax,BGMCellXmin
 INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin
 LOGICAL, ALLOCATABLE             :: ElementFound(:)
-REAL                             :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
 !===================================================================================================================================
 
-! simplify writting
+
+! current min,max
 BGMimax=GEO%FIBGMimax
 BGMimin=GEO%FIBGMimin
 BGMjmax=GEO%FIBGMjmax
@@ -2898,28 +2898,58 @@ BGMjmin=GEO%FIBGMjmin
 BGMkmax=GEO%FIBGMkmax
 BGMkmin=GEO%FIBGMkmin
 
-! delete all elements form FIBGM && zero nElems per BGM-cell
-DO iBGM=GEO%FIBGMimin,GEO%FIBGMimax
-  DO jBGM=GEO%FIBGMjmin,GEO%FIBGMjmax
-    DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
-      SDEALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%Element)
-      GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = 0
-    END DO
-  END DO
-END DO
+GEO%TFIBGMimax =GEO%FIBGMimax
+GEO%TFIBGMimin =GEO%FIBGMimin
+GEO%TFIBGMjmax =GEO%FIBGMjmax
+GEO%TFIBGMjmin =GEO%FIBGMjmin
+GEO%TFIBGMkmax =GEO%FIBGMkmax
+GEO%TFIBGMkmin =GEO%FIBGMkmin
+
+
+! get new min max
+DO iElem=PP_nElems+1,nTotalElems
+
+  xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
+  ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)
+  zmin = ElemBaryNGeo(3,iElem) -ElemRadiusNGeo(iElem)
+  xmax = ElemBaryNGeo(1,iElem) +ElemRadiusNGeo(iElem)
+  ymax = ElemBaryNGeo(2,iElem) +ElemRadiusNGeo(iElem)
+  zmax = ElemBaryNGeo(3,iElem) +ElemRadiusNGeo(iElem)
+
+  BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+  BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+  BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+  BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+
+  BGMimax=MAX(BGMimax,BGMCellXmax)
+  BGMimin=MIN(BGMimin,BGMCellXmin)
+  BGMjmax=MAX(BGMjmax,BGMCellYmax)
+  BGMjmin=MIN(BGMjmin,BGMCellYmin)
+  BGMkmax=MAX(BGMkmax,BGMCellZmax)
+  BGMkmin=MIN(BGMkmin,BGMCellZmin)
+END DO ! iElem = nElems+1,nTotalElems
+
+
+GEO%TFIBGMimax =BGMimax
+GEO%TFIBGMimin =BGMimin
+GEO%TFIBGMjmax =BGMjmax
+GEO%TFIBGMjmin =BGMjmin
+GEO%TFIBGMkmax =BGMkmax
+GEO%TFIBGMkmin =BGMkmin
+ALLOCATE(GEO%TFIBGM(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+__STAMP__&
+,' ERROR in AddElemsToTFIBGM: Cannot allocate GEO%TFIBGM!')
+END IF
 
 ALLOCATE( ElementFound(1:nTotalElems) )
 ElementFound = .FALSE.
 
 !--- compute number of elements in each background cell
 DO iElem=1,nTotalElems
-  xmin = HUGE(1.0)
-  xmax =-HUGE(1.0)
-  ymin = HUGE(1.0)
-  ymax =-HUGE(1.0)
-  zmin = HUGE(1.0)
-  zmax =-HUGE(1.0)
-
   ! get elem extension based on barycenter and radius
   xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
   ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)
@@ -2974,7 +3004,7 @@ DO iElem=1,nTotalElems
   DO iBGM = BGMCellXmin,BGMCellXmax
     DO jBGM = BGMCellYmin,BGMCellYmax
       DO kBGM = BGMCellZmin,BGMCellZmax
-         GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
+         GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1
          ElementFound(iElem) = .TRUE.
       END DO ! kBGM
     END DO ! jBGM
@@ -2985,20 +3015,14 @@ END DO ! iElem
 DO iBGM = BGMimin,BGMimax
   DO jBGM = BGMjmin,BGMjmax
     DO kBGM = BGMkmin,BGMkmax
-      ALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%Element(1:GEO%FIBGM(iBGM,jBGM,kBGM)%nElem))
-      GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = 0
+      ALLOCATE(GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(1:GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem))
+      GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = 0
     END DO ! kBGM
   END DO ! jBGM
 END DO ! iBGM
 
 !--- map elements to background cells
 DO iElem=1,nTotalElems
-  xmin = HUGE(1.0)
-  xmax =-HUGE(1.0)
-  ymin = HUGE(1.0)
-  ymax =-HUGE(1.0)
-  zmin = HUGE(1.0)
-  zmax =-HUGE(1.0)
   ! get elem extension based on barycenter and radius
   xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
   ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)
@@ -3009,18 +3033,6 @@ DO iElem=1,nTotalElems
 
   ! same as above
   IF(GEO%nPeriodicVectors.EQ.0)THEN
-    !BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    !BGMCellXmax = MIN(BGMCellXmax,BGMimax)
-    !BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    !BGMCellXmin = MAX(BGMCellXmin,BGMimin)
-    !BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    !BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
-    !BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    !BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
-    !BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    !BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
-    !BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    !BGMCellZmin = MAX(BGMCellZmin,BGMkmin)     
     ! still the fancy stuff
     BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
     BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
@@ -3052,8 +3064,8 @@ DO iElem=1,nTotalElems
   DO iBGM = BGMCellXmin,BGMCellXmax
     DO jBGM = BGMCellYmin,BGMCellYmax
       DO kBGM = BGMCellZmin,BGMCellZmax
-        GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1    
-        GEO%FIBGM(iBGM,jBGM,kBGM)%Element(GEO%FIBGM(iBGM,jBGM,kBGM)%nElem) = iElem
+        GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1    
+        GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem) = iElem
       END DO ! kBGM
     END DO ! jBGM
   END DO ! iBGM
@@ -3062,13 +3074,6 @@ END DO ! iElem
 
 DO iElem=1,nTotalElems
   IF(.NOT.ElementFound(iElem))THEN
-    xmin = HUGE(1.0)
-    xmax =-HUGE(1.0)
-    ymin = HUGE(1.0)
-    ymax =-HUGE(1.0)
-    zmin = HUGE(1.0)
-    zmax =-HUGE(1.0)
-
     ! get elem extension based on barycenter and radius
     xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
     ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)

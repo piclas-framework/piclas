@@ -703,7 +703,7 @@ DO iPart=1,PDM%ParticleVecLength
   CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
         
   ! check all cells associated with this beckground mesh cell
-  nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+  nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
   !SDEALLOCATE( Distance)
   !SDEALLOCATE( ListDistance)
   ALLOCATE( Distance(1:nBGMElems) &
@@ -713,7 +713,7 @@ DO iPart=1,PDM%ParticleVecLength
   Distance=0.
   ListDistance=0
   DO iBGMElem = 1, nBGMElems
-    ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+    ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
     ListDistance(iBGMElem)=ElemID
     IF(ElemID.EQ.-1)CYCLE
     IF(ElemID.EQ.OldElemID)THEN
@@ -1004,7 +1004,7 @@ DO iPart=1,PDM%ParticleVecLength
     CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
           
     ! check all cells associated with this beckground mesh cell
-    nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+    nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
     !SDEALLOCATE( Distance)
     !SDEALLOCATE( ListDistance)
     ALLOCATE( Distance(1:nBGMElems) &
@@ -1014,7 +1014,7 @@ DO iPart=1,PDM%ParticleVecLength
     Distance=0.
     ListDistance=0
     DO iBGMElem = 1, nBGMElems
-      ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+      ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
       ListDistance(iBGMElem)=ElemID
       IF(ElemID.EQ.-1)CYCLE
       IF(ElemID.EQ.OldElemID)THEN
@@ -1786,7 +1786,7 @@ ELSE
   !CellZ = MIN(GEO%FIBGMkmax,CellZ)
 
   ! check all cells associated with this beckground mesh cell
-  nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+  nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
   ALLOCATE( Distance(1:nBGMElems) &
           , ListDistance(1:nBGMElems) )
 
@@ -1794,7 +1794,7 @@ ELSE
   Distance=0.
   ListDistance=0
   DO iBGMElem = 1, nBGMElems
-    ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+    ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
     ListDistance(iBGMElem)=ElemID
     IF(ElemID.EQ.-1)CYCLE
     IF(ElemID.EQ.OldElemID)THEN
