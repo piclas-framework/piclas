@@ -639,7 +639,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
                 IF(ElemIndex(ElemID).EQ.0)THEN
                   Vec0=ElemBaryNGeo(1:3,ElemID)-ElemBaryAndRadius(1:3,iElem)
                   Distance=SQRT(DOT_PRODUCT(Vec0,Vec0)) &
-                          +Radius+ElemRadiusNGeo(ElemID)
+                          -Radius-ElemRadiusNGeo(ElemID)
                   IF(Distance.LE.halo_eps)THEN
                     NbOfElems=NbOfElems+1
                     ElemIndex(ElemID)=NbofElems
