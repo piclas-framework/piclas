@@ -118,8 +118,8 @@ FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
 DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
 ! UpdateNextFreePosition in each interation
-UpdateInIter         = GETINT('UpdateInIter','0')
-IF(UpdateInIter.EQ.0) UpdateInIter=HUGE(1)
+UpdateInIter         = GETINT('UpdateInIter','-1')
+IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
 #endif
 
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
@@ -133,9 +133,6 @@ DO iElem=1,PP_nElems
   END DO !k
 END DO ! iElem=1,PP_nElems
 IF(.NOT.GETLOGICAL('withmass','F')) mass=1.
-
-
-
 
 LinSolver= GETINT('LinSolver','2')
 SELECT CASE(LinSolver)
