@@ -66,6 +66,8 @@ INTEGER              :: FullEisenstatWalker                                     
                                                                                     ! 2 - Particle Newton and Field Solver
 REAL                 :: FullgammaEW                                                 ! Eisenstat-Walker parameter
 INTEGER              :: PartImplicitMethod                                          ! selection for particle implicit method
+INTEGER              :: UpdateInIter                                                ! additional update in iteration. required
+                                                                                    ! due to overflow of free positions...
 #endif
 !===================================================================================================================================
 END MODULE MOD_LinearSolver_Vars

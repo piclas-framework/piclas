@@ -133,7 +133,7 @@ USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSourc
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:Eps_FullNewton,Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
-USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton
+USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
 USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
@@ -146,6 +146,7 @@ USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 USE MOD_ParticleSolver,          ONLY:ParticleNewton
+USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
@@ -317,8 +318,9 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
   IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'iter,Norm_R,rel,abort',nFullNewtonIter,Norm_R,Norm_R/Norm_R0,relTolerance
   Norm_Diff=ABS(Norm_Rold-Norm_R)
   IF((Norm_R.LT.Norm_R0*Eps2_FullNewton).OR.(Norm_Diff.LT.Norm_R0*eps2_FullNewton)) IsConverged=.TRUE.
-
+  IF((.NOT.IsConverged).AND.(MOD(nFullNewtonIter,UpdateInIter).EQ.0)) CALL UpdateNextFreePosition()
 END DO ! funny pseudo Newton for all implicit
+
 totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
 IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
   IF(MPIRoot) CALL abort(&
