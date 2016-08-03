@@ -696,7 +696,7 @@ CALL BuildElementBasis()
 CALL AddSimpleHALOCellsToFIBGM()
 EndT=MPI_WTIME()
 IF(PartMPI%MPIROOT)THEN
-   WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
+   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
 END IF
 #endif /*MPI*/
 
@@ -4363,9 +4363,9 @@ IF(DoRefMapping)THEN
       DO ilocSide=1,6
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.EQ.-1) CYCLE
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         BCSideID2 =PartBCSideList(SideID)
         IF(BCSideID2.EQ.-1) CYCLE
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         leave=.FALSE.
         ! all points of bc side
         DO q=0,NGeo
@@ -4414,49 +4414,45 @@ IF(DoRefMapping)THEN
             END DO ! p=0,NGeo
             IF(leave) EXIT
           END DO !  q=0,NGeo
+          !SELECT CASE(ilocSide)
+          !CASE(XI_MINUS)
+          !  xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
+          !CASE(XI_PLUS)
+          !  xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
+          !CASE(ETA_MINUS)
+          !  xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
+          !CASE(ETA_PLUS)
+          !  xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
+          !CASE(ZETA_MINUS)
+          !  xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
+          !CASE(ZETA_PLUS)
+          !  xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
+          !END SELECT
+          !leave=.FALSE.
+          !! all points of bc side
+          !DO q=0,NGeo
+          !  DO p=0,NGeo
+          !    NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+          !    !all nodes of current side
+          !    DO s=0,NGeo
+          !      DO r=0,NGeo
+          !        IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
+          !                           ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
+          !          IF(SideIndex(iSide).EQ.0)THEN
+          !            BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+          !            SideIndex(iSide)=BCElem(iElem)%lastSide
+          !            leave=.TRUE.
+          !            EXIT
+          !          END IF
+          !        END IF
+          !      END DO ! r
+          !      IF(leave) EXIT
+          !    END DO ! s
+          !    IF(leave) EXIT
+          !  END DO ! p
+          !  IF(leave) EXIT
+          !END DO ! q
         END IF
-
-        !SELECT CASE(ilocSide)
-        !CASE(XI_MINUS)
-        !  xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
-        !CASE(XI_PLUS)
-        !  xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
-        !CASE(ETA_MINUS)
-        !  xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
-        !CASE(ETA_PLUS)
-        !  xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
-        !CASE(ZETA_MINUS)
-        !  xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
-        !CASE(ZETA_PLUS)
-        !  xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
-        !END SELECT
-        !leave=.FALSE.
-        !! all points of bc side
-        !DO q=0,NGeo
-        !  DO p=0,NGeo
-        !    NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
-        !    Distance=NodeX-ElemBaryNGeo(iElem)
-        !     all nodes of current side
-        !    DO s=0,NGeo
-        !      DO r=0,NGeo
-        !        IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
-        !                           ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
-        !          IF(SideIndex(iSide).EQ.0)THEN
-        !            BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
-        !            SideIndex(iSide)=BCElem(iElem)%lastSide
-        !            leave=.TRUE.
-        !            EXIT
-        !          END IF
-        !        END IF
-        !      END DO ! r
-        !      IF(leave) EXIT
-        !    END DO ! s
-        !     or elem bary
-        !    
-        !    IF(leave) EXIT
-        !  END DO ! p
-        !  IF(leave) EXIT
-        !END DO ! q
 #endif
         IF(leave) EXIT
       END DO ! ilocSide
