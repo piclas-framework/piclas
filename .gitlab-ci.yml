@@ -34,7 +34,7 @@ build_intel:
   tags:
     - withmodules
   script:
-    - module load env/intel ; mkdir -p build_intel ; cd build_intel ; mkdir -p maxwell ; cd maxwell; cmake maxwell=Implicit04 ../.. ; make
+    - module load env/intel ; mkdir -p build_intel ; cd build_intel ; mkdir -p maxwell ; cd maxwell; cmake ../.. ; make
     - module load env/intel ; mkdir -p build_intel ; cd build_intel ; mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=Implicit04 ../.. ; make
     - module load env/intel ; mkdir -p build_intel ; cd build_intel ; mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make
     - module load env/intel ; mkdir -p build_intel ; cd build_intel ; mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make
