@@ -323,6 +323,9 @@ END DO ! funny pseudo Newton for all implicit
 
 totalFullNewtonIter=TotalFullNewtonIter+nFullNewtonIter
 IF(nFullNewtonIter.GE.maxFullNewtonIter)THEN
+  SWRITE(UNIT_StdOut,'(A)') " Implicit scheme is not converged!"
+  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' NormDiff and NormDiff/Norm_R0: ',Norm_Diff, Norm_Diff/Norm_R0
+  SWRITE(UNIT_StdOut,'(A,E20.14,5x,E20.14)') ' Norm_R/Norm_R0               : ',Norm_R/Norm_R0
   IF(MPIRoot) CALL abort(&
  __STAMP__&
    ,' Outer-Newton of semi-fully implicit scheme is running into infinity.',nFullNewtonIter,Norm_R/Norm_R0)
