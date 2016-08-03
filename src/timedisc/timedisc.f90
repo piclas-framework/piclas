@@ -2862,8 +2862,9 @@ USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
 USE MOD_Equation,                ONLY:CalcSource
 USE MOD_Equation_Vars,           ONLY:c2_inv
 #ifdef PARTICLES
+USE MOD_LinearSolver_Vars,       ONLY:DoUpdateInStage
 USE MOD_Predictor,               ONLY:PartPredictor
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies, doParticleMerge,PartPressureCell,DoUpdateInStage
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies, doParticleMerge,PartPressureCell
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition

@@ -39,7 +39,6 @@ REAL    , ALLOCATABLE :: PartStateN(:,:)                                     ! P
 #endif /*IMEX*/
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 LOGICAL , ALLOCATABLE :: PartIsImplicit(:)                                   ! select, if specific particle is explicit or implicit
-LOGICAL               :: DoUpdateInStage                                     ! perform updatenextfree position in each rk stage
 #endif
 #ifdef IMPA
 REAL    , ALLOCATABLE :: PartQ(:,:)                                          ! PartilceState at t^n or state at RK-level 0

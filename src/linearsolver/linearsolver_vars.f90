@@ -66,8 +66,13 @@ INTEGER              :: FullEisenstatWalker                                     
                                                                                     ! 2 - Particle Newton and Field Solver
 REAL                 :: FullgammaEW                                                 ! Eisenstat-Walker parameter
 INTEGER              :: PartImplicitMethod                                          ! selection for particle implicit method
+#ifdef PARTICLES
+LOGICAL              :: DoUpdateInStage                                             ! perform updatenextfree position 
+                                                                                    ! in each rk stage
 INTEGER              :: UpdateInIter                                                ! additional update in iteration. required
                                                                                     ! due to overflow of free positions...
+                                                                                    ! UNFP each nth iteration
+#endif /*PARTICLES*/
 #endif
 !===================================================================================================================================
 END MODULE MOD_LinearSolver_Vars

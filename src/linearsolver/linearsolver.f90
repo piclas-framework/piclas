@@ -117,9 +117,13 @@ Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
 FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
 DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
+#ifdef PARTICLES
+! flag to enforce updatenextfree position in all rk stages
+DoUpdateInStage =  GETLOGICAL('DoUpdateInStage','.FALSE.')
 ! UpdateNextFreePosition in each interation
 UpdateInIter         = GETINT('UpdateInIter','-1')
 IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
+#endif /*PARTICLES*/
 #endif
 
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
