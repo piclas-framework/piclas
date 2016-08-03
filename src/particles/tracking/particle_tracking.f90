@@ -1991,10 +1991,10 @@ DO iLocSide=firstSide,LastSide
 END DO ! ilocSide
 
 IF(nInter.EQ.0) THEN
-  IPWRITE(*,*) 'not found',PartID
-  IPWRITE(*,*) 'ElemBary',LastPartPos(PartID,1:3)
-  IPWRITE(*,*) 'Part-Pos',tmpPos
-  IPWRITE(*,*) 'LastPart-Pos',tmpLastPartPos
+  !IPWRITE(*,*) 'not found',PartID
+  !IPWRITE(*,*) 'ElemBary',LastPartPos(PartID,1:3)
+  !IPWRITE(*,*) 'Part-Pos',tmpPos
+  !IPWRITE(*,*) 'LastPart-Pos',tmpLastPartPos
   PartState(PartID,1:3)=tmpPos
   LastPartPos(PartID,1:3)=tmpLastPartPos(1:3)
   IF(PartPosRef(1,PartID).GT. 1.) PartPosRef(1,PartID)= 0.99
