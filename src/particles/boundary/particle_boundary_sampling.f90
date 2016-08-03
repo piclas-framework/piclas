@@ -253,7 +253,12 @@ END SUBROUTINE InitParticleBoundarySampling
 #ifdef MPI
 SUBROUTINE InitSurfCommunicator()
 !===================================================================================================================================
-! Read RP parameters from ini file and RP definitions from HDF5 
+! Creates two new subcommunicators. 
+! SurfCOMM%COMM contains all MPI-Ranks which have reflective boundary faces in their halo-region and process which have reflective
+! boundary faces in their origin region. This communicator is used to communicate the wall-sampled values of halo-faces to the
+! origin face
+! SurfCOMM%OutputCOMM is another subset. This communicator contains only the processes with origin surfaces. It is used to perform
+! collective writes of the surf-sampled values.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -514,7 +519,8 @@ DO iProc=0,SurfCOMM%nProcs-1
   IF (RecvMPINeighbor(iProc).NEQV.isMPINeighbor(iProc)) THEN
     IF(.NOT.isMPINeighbor(iProc))THEN
       isMPINeighbor(iProc)=.TRUE.
-      IPWRITE(UNIT_stdOut,*) ' Found missing mpi-neighbor'
+      ! it is a debug output
+      !IPWRITE(UNIT_stdOut,*) ' Found missing mpi-neighbor'
     END IF
   END IF
 END DO ! iProc
