@@ -4399,59 +4399,59 @@ IF(DoRefMapping)THEN
           END IF
         ELSE
           leave=.FALSE.
-          DO q=0,NGeo
-            DO p=0,NGeo
-              V1=BezierControlPoints3D(1:3,p,q,BCSideID)-ElemBaryNGeo(1:3,iElem)
-              Distance=DOT_PRODUCT(V1,V1)-ElemRadius2NGeo(iElem)
-              IF(Distance.LE.halo_eps2)THEN
-                IF(SideIndex(iSide).EQ.0)THEN
-                  BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
-                  SideIndex(iSide)=BCElem(iElem)%lastSide
-                  leave=.TRUE.
-                  EXIT
-                END IF
-              END IF
-            END DO ! p=0,NGeo
-            IF(leave) EXIT
-          END DO !  q=0,NGeo
-          !SELECT CASE(ilocSide)
-          !CASE(XI_MINUS)
-          !  xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
-          !CASE(XI_PLUS)
-          !  xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
-          !CASE(ETA_MINUS)
-          !  xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
-          !CASE(ETA_PLUS)
-          !  xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
-          !CASE(ZETA_MINUS)
-          !  xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
-          !CASE(ZETA_PLUS)
-          !  xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
-          !END SELECT
-          !leave=.FALSE.
-          !! all points of bc side
           !DO q=0,NGeo
           !  DO p=0,NGeo
-          !    NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
-          !    !all nodes of current side
-          !    DO s=0,NGeo
-          !      DO r=0,NGeo
-          !        IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
-          !                           ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
-          !          IF(SideIndex(iSide).EQ.0)THEN
-          !            BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
-          !            SideIndex(iSide)=BCElem(iElem)%lastSide
-          !            leave=.TRUE.
-          !            EXIT
-          !          END IF
-          !        END IF
-          !      END DO ! r
-          !      IF(leave) EXIT
-          !    END DO ! s
-          !    IF(leave) EXIT
-          !  END DO ! p
+          !    V1=BezierControlPoints3D(1:3,p,q,BCSideID)-ElemBaryNGeo(1:3,iElem)
+          !    Distance=DOT_PRODUCT(V1,V1)-ElemRadius2NGeo(iElem)
+          !    IF(Distance.LE.halo_eps2)THEN
+          !      IF(SideIndex(iSide).EQ.0)THEN
+          !        BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+          !        SideIndex(iSide)=BCElem(iElem)%lastSide
+          !        leave=.TRUE.
+          !        EXIT
+          !      END IF
+          !    END IF
+          !  END DO ! p=0,NGeo
           !  IF(leave) EXIT
-          !END DO ! q
+          !END DO !  q=0,NGeo
+          SELECT CASE(ilocSide)
+          CASE(XI_MINUS)
+            xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
+          CASE(XI_PLUS)
+            xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
+          CASE(ETA_MINUS)
+            xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
+          CASE(ETA_PLUS)
+            xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
+          CASE(ZETA_MINUS)
+            xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
+          CASE(ZETA_PLUS)
+            xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
+          END SELECT
+          leave=.FALSE.
+          ! all points of bc side
+          DO q=0,NGeo
+            DO p=0,NGeo
+              NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+              !all nodes of current side
+              DO s=0,NGeo
+                DO r=0,NGeo
+                  IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
+                                     ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
+                    IF(SideIndex(iSide).EQ.0)THEN
+                      BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                      SideIndex(iSide)=BCElem(iElem)%lastSide
+                      leave=.TRUE.
+                      EXIT
+                    END IF
+                  END IF
+                END DO ! r
+                IF(leave) EXIT
+              END DO ! s
+              IF(leave) EXIT
+            END DO ! p
+            IF(leave) EXIT
+          END DO ! q
         END IF
 #endif
         IF(leave) EXIT
