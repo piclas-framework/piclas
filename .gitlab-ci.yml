@@ -1,23 +1,49 @@
 stages:
   - build
+  - error_clean
 
 cache:
   key: "$CI_BUILD_REF_NAME"
   paths: 
-    - build/    
+    - build_gnu/    
+    - build_intel/    
 
-before_script:
-  - export HDF5_DIR=/opt/hdf5/1.8.16/gnu-mpi/share/cmake/
-  - export CMAKE_PREFIX_PATH=/opt/hdf5/1.8.16/gnu-mpi/:$CMAKE_PREFIX_PATH
-  - export LD_LIBRARY_PATH=/opt/hdf5/1.8.16/gnu-mpi/lib/:$LD_LIBRARY_PATH
-  - export CMAKE_PREFIX_PATH=/opt/gnu/openmpi/1.8.4/:$CMAKE_PREFIX_PATH
-  - export PATH=/opt/openmpi/gnu/1.8.4/bin:$PATH
-  - export LD_LIBRARY_PATH=/opt/openmpi/gnu/1.8.4/lib:$LD_LIBRARY_PATH
-  - export ZLIB_DIR=/opt/zlib/1.2.8/
-  - export CMAKE_PREFIX_PATH=$ZLIB_DIR:$CMAKE_PREFIX_PATH
-  - export LD_LIBRARY_PATH=$ZLIB_DIR/include:$LD_LIBRARY_PATH
+#before_script:
+#  - export HDF5_DIR=/opt/hdf5/1.8.16/gnu-mpi/share/cmake/
+#  - export CMAKE_PREFIX_PATH=/opt/hdf5/1.8.16/gnu-mpi/:$CMAKE_PREFIX_PATH
+#  - export LD_LIBRARY_PATH=/opt/hdf5/1.8.16/gnu-mpi/lib/:$LD_LIBRARY_PATH
+#  - export CMAKE_PREFIX_PATH=/opt/gnu/openmpi/1.8.4/:$CMAKE_PREFIX_PATH
+#  - export PATH=/opt/openmpi/gnu/1.8.4/bin:$PATH
+#  - export LD_LIBRARY_PATH=/opt/openmpi/gnu/1.8.4/lib:$LD_LIBRARY_PATH
+#  - export ZLIB_DIR=/opt/zlib/1.2.8/
+#  - export CMAKE_PREFIX_PATH=$ZLIB_DIR:$CMAKE_PREFIX_PATH
+#  - export LD_LIBRARY_PATH=$ZLIB_DIR/include:$LD_LIBRARY_PATH
 
-build:
+build_gnu:
   stage: build
+  tags:
+    - withmodules
   script:
-    - mkdir -p build && cd build && cmake -DBOLTZPLATZ_TIMEDISCMETHOD=Implicit04 .. && make -j 2 
+    - module load env/gnu ; mkdir -p build_gnu ; cd build_gnu ; mkdir -p maxwell ; cd maxwell; cmake  ../.. ; make
+    - module load env/gnu ; mkdir -p build_gnu ; cd build_gnu ; mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=Implicit04 ../.. ; make
+    - module load env/gnu ; mkdir -p build_gnu ; cd build_gnu ; mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make
+    - module load env/gnu ; mkdir -p build_gnu ; cd build_gnu ; mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make
+
+build_intel:
+  stage: build
+  tags:
+    - withmodules
+  script:
+    - module load env/intel ; mkdir -p build_intel ; cd build_intel ; mkdir -p maxwell ; cd maxwell; cmake maxwell=Implicit04 ../.. ; make
+    - module load env/intel ; mkdir -p build_intel ; cd build_intel ; mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=Implicit04 ../.. ; make
+    - module load env/intel ; mkdir -p build_intel ; cd build_intel ; mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make
+    - module load env/intel ; mkdir -p build_intel ; cd build_intel ; mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make
+
+clean:
+  stage: error_clean
+  tags:
+    - withmodules
+  script:
+    - rm -rf build_gnu  ; rm -rf build_intel
+  when: on_failure
+
