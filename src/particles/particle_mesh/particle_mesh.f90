@@ -4086,7 +4086,7 @@ INTEGER                                 :: i,j,k, NGeo3,NGeo2, nLoop
 REAL                                    :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
 REAL                                    :: Distance 
 REAL                                    :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
-LOGICAL                                 :: isCurvedSide,isRectangular, fullMesh
+LOGICAL                                 :: isCurvedSide,isRectangular, fullMesh, isBilinear
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -4313,6 +4313,191 @@ DO iElem=1,nLoop
     SideIsDone(SideID)=.TRUE.
   END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
+
+! build the side type for halo sides
+IF (.NOT.DoRefMapping)THEN
+  DO iSide=1,nTotalSides
+    IF(SideIsDone(iSide)) CYCLE
+    IF(iSide.LE.nSides)THEN
+      IPWRITE(UNIT_StdOut,*) ' Error in local side lists....'
+    END IF
+    ! check all four edges for linearity
+    isLinear=.TRUE.
+    nLoop=NGeo-1
+    ! first edge (0,0)->(NGeo,0)
+    v1=BezierControlPoints3D(:,NGeo,0   ,iSide)-BezierControlPoints3D(:,0,0,  iSide)   
+    DO p=1,nLoop
+      v2=BezierControlPoints3D(:,p,0   ,iSide)-BezierControlPoints3D(:,0,0,  iSide)   
+      v3=CROSS(v1,v2)
+      Length=DOT_PRODUCT(v3,v3)
+      IF(.NOT.ALMOSTZERO(Length))THEN
+        isLinear=.FALSE.
+        EXIT 
+      END IF
+    END DO
+    ! second edge (0,0)->(0,NGeo)
+    IF(isLinear)THEN
+      v1=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,0,0,  iSide)   
+      DO p=1,nLoop
+        v2=BezierControlPoints3D(:,0,p,iSide)-BezierControlPoints3D(:,0,0,  iSide)   
+        v3=CROSS(v1,v2)
+        Length=DOT_PRODUCT(v3,v3)
+        IF(.NOT.ALMOSTZERO(Length))THEN
+          isLinear=.FALSE.
+          EXIT 
+        END IF
+      END DO
+    END IF
+    ! third edge (N,N)->(0,NGeo)
+    IF(isLinear)THEN
+      v1=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,NGeo,NGeo,iSide)   
+      DO p=1,nLoop
+        v2=BezierControlPoints3D(:,0,p,iSide)-BezierControlPoints3D(:,NGeo,NGeo,iSide)   
+        v3=CROSS(v1,v2)
+        Length=DOT_PRODUCT(v3,v3)
+        IF(.NOT.ALMOSTZERO(Length))THEN
+          isLinear=.FALSE.
+          EXIT 
+        END IF
+      END DO
+    END IF
+    ! forth edge (N,N)->(NGeo,0)
+    IF(isLinear)THEN
+      v1=BezierControlPoints3D(:,NGeo,0,iSide)-BezierControlPoints3D(:,NGeo,NGeo,iSide)   
+      DO p=1,nLoop
+        v2=BezierControlPoints3D(:,p,0,iSide)-BezierControlPoints3D(:,NGeo,NGeo,iSide)   
+        v3=CROSS(v1,v2)
+        Length=DOT_PRODUCT(v3,v3)
+        IF(.NOT.ALMOSTZERO(Length))THEN
+          isLinear=.FALSE.
+          EXIT 
+        END IF
+      END DO
+    END IF
+    IF(isLinear)THEN
+      IF(BoundingBoxIsEmpty(iSide))THEN
+        v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+            -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+        
+        v2=(-BezierControlPoints3D(:,0,0   ,iSide)-BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+            +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+        SideNormVec(:,iSide) = CROSSNORM(v1,v2)
+        v1=0.25*(BezierControlPoints3D(:,0,0,iSide)     &
+                +BezierControlPoints3D(:,NGeo,0,iSide)  &
+                +BezierControlPoints3D(:,0,NGeo,iSide)  &
+                +BezierControlPoints3D(:,NGeo,NGeo,iSide))
+        SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+        ! check if it is rectangular
+        isRectangular=.TRUE.
+        v1=BezierControlPoints3D(:,0   ,NGeo,iSide)-BezierControlPoints3D(:,0   ,0   ,iSide)
+        v2=BezierControlPoints3D(:,NGeo,0   ,iSide)-BezierControlPoints3D(:,0   ,0   ,iSide)
+        v3=BezierControlPoints3D(:,NGeo,NGeo,iSide)-BezierControlPoints3D(:,0   ,NGeo,iSide)
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        IF(isRectangular)THEN
+          v1=BezierControlPoints3D(:,NGeo,NGeo,iSide)-BezierControlPoints3D(:,NGeo,0   ,iSide)
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        END IF
+        IF(isRectangular)THEN
+          SideType(iSide)=PLANAR_RECT
+          IF(iSide.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+          IF(iSide.GT.nSides) nPlanarHalo=nPlanarHalo+1
+#endif /*MPI*/
+        ELSE
+          SideType(iSide)=PLANAR_NONRECT
+          IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+          IF(SideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
+#endif /*MPI*/
+        END IF
+      ELSE
+        ! check if bilinear 
+        ! isBiLinear=.TRUE.
+        ! IF(NGeo.GT.1)THEN
+        !   ! check a line in xi and in eta for linearity
+        !   nLoop=NGeo-1
+        !   ! first lines (0,1:NGeo-1)->(NGeo,1:NGeo-1)
+        !   DO p=1,nLoop
+        !     IF(isBilinear)THEN
+        !        v1=BezierControlPoints3D(:,NGeo,p   ,iSide)-BezierControlPoints3D(:,0,p,  iSide)   
+        !        DO q=1,nLoop
+        !          v2=BezierControlPoints3D(:,q,p   ,iSide)-BezierControlPoints3D(:,0,p,  iSide)   
+        !          v3=CROSS(v1,v2)
+        !          Length=DOT_PRODUCT(v3,v3)
+        !          IF(.NOT.ALMOSTZERO(Length))THEN
+        !            isBiLinear=.FALSE.
+        !            EXIT 
+        !          END IF
+        !        END DO ! q=1,nLoop
+        !     END IF
+        !   END DO ! p=1,nLOOP
+        !   ! second lines (1:NGeo-1,0)->(1:NGeo-1,nGeo)
+        !   DO p=1,nLoop
+        !     IF(isBilinear)THEN
+        !        v1=BezierControlPoints3D(:,p,NGeo  ,iSide)-BezierControlPoints3D(:,p,0,  iSide)   
+        !        DO q=1,nLoop
+        !          v2=BezierControlPoints3D(:,p,q   ,iSide)-BezierControlPoints3D(:,p,0,  iSide)   
+        !          v3=CROSS(v1,v2)
+        !          Length=DOT_PRODUCT(v3,v3)
+        !          IF(.NOT.ALMOSTZERO(Length))THEN
+        !            isBiLinear=.FALSE.
+        !            EXIT 
+        !          END IF
+        !        END DO ! q=1,nLoop
+        !     END IF
+        !   END DO ! p=1,nLOOP
+        ! END IF
+        IF(isBiLinear)THEN
+          SideType(iSide)=BILINEAR
+          IF(SideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
+#ifdef MPI
+          IF(SideID.GT.nSides) nBilinearHalo=nBilinearHalo+1
+#endif /*MPI*/
+        ELSE ! not bilinear
+          SideType(iSide)=CURVED
+          IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+          IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+#endif /*MPI*/
+          IF(BoundingBoxIsEmpty(iSide))THEN
+            v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+                -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+            
+            v2=(-BezierControlPoints3D(:,0,0   ,iSide)-BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+                +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+            SideNormVec(:,iSide) = CROSSNORM(v1,v2)
+            v1=0.25*(BezierControlPoints3D(:,0,0,iSide)     &
+                    +BezierControlPoints3D(:,NGeo,0,iSide)  &
+                    +BezierControlPoints3D(:,0,NGeo,iSide)  &
+                    +BezierControlPoints3D(:,NGeo,NGeo,iSide))
+            SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+          END IF
+        END IF
+      END IF ! bounding bos is empty
+    ELSE  ! non-linear edges
+      SideType(iSide)=CURVED
+      IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+      IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+#endif /*MPI*/
+      IF(BoundingBoxIsEmpty(iSide))THEN
+        v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+            -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+        
+        v2=(-BezierControlPoints3D(:,0,0   ,iSide)-BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+            +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+        SideNormVec(:,iSide) = CROSSNORM(v1,v2)
+        v1=0.25*(BezierControlPoints3D(:,0,0,iSide)     &
+                +BezierControlPoints3D(:,NGeo,0,iSide)  &
+                +BezierControlPoints3D(:,0,NGeo,iSide)  &
+                +BezierControlPoints3D(:,NGeo,NGeo,iSide))
+        SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+      END IF
+    END IF
+  END DO ! iSide=1,nTotalSides
+END IF
 
 IF(DoRefMapping)THEN
   ! mark elements as bc element
