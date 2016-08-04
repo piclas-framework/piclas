@@ -17,3 +17,4 @@ build*
 share/GNU-MPI/*
 share/hdf5-1.8.13.tar.bz2
 share/hdf5-1.8.14.tar.bz2
+ctags.txt
