@@ -2948,6 +2948,14 @@ END IF
 ALLOCATE( ElementFound(1:nTotalElems) )
 ElementFound = .FALSE.
 
+DO iBGM = BGMimin,BGMimax
+  DO jBGM = BGMjmin,BGMjmax
+    DO kBGM = BGMkmin,BGMkmax
+       GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = 0
+    END DO ! kBGM
+  END DO ! jBGM
+END DO ! iBGM
+
 !--- compute number of elements in each background cell
 DO iElem=1,nTotalElems
   ! get elem extension based on barycenter and radius
