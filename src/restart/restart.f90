@@ -459,7 +459,7 @@ __STAMP__&
       CALL Eval_xyz_ElemCheck(PartState(i,1:3),Xi,PEM%Element(i))
       IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
         InElementCheck=.TRUE.
-        PartPosRef(1:3,i)=Xi
+        IF(ALLOCATED(PartPosRef)) PartPosRef(1:3,i)=Xi
       ELSE
         InElementCheck=.FALSE.
       END IF
