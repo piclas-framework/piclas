@@ -81,6 +81,7 @@ DO iSpec = 1,nSpecies
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
   Adsorption%AdsorpInfo(iSpec)%MeanProbDes = 0.
+  Adsorption%AdsorpInfo(iSpec)%MeanEads = 0.
   Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
   Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
   Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0

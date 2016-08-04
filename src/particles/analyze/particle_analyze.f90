@@ -511,6 +511,11 @@ SUBROUTINE AnalyzeParticles(Time)
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Ndes', iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
+          DO iSpec = 1, nSpecies
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' E-ads', iSpec,' '
+            OutputCounter = OutputCounter + 1
+          END DO
           IF (Adsorption%TPD) THEN
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' WallTemp', iSpec,' '
@@ -959,6 +964,10 @@ IF (PartMPI%MPIROOT) THEN
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,'(I18.1)',ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%NumOfDes
+      END DO
+      DO iSpec = 1, nSpecies
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,104,ADVANCE='NO') Adsorption%AdsorpInfo(iSpec)%MeanEads
       END DO
       IF (Adsorption%TPD) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','

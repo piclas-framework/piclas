@@ -233,6 +233,7 @@ TYPE tAdsorptionInfo
 #if (PP_TimeDiscMethod==42)
   REAL                                   :: MeanProbAds             ! mean adsorption probability
   REAL                                   :: MeanProbDes             ! mean adsorption probability
+  REAL                                   :: MeanEAds                ! mean heat of adsorption
   INTEGER                                :: WallCollCount           ! counter of wallcollisions
   INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
   INTEGER                                :: NumOfDes                ! Number of Desorptions on Surfaces
