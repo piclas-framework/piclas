@@ -614,7 +614,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
       IF ((casematrix(iCase,1).EQ.0) .AND. &  ! DON'T DO THE UNMOVED PART, HAS BEEN DONE ABOVE
           (casematrix(iCase,2).EQ.0) .AND. &
           (casematrix(iCase,3).EQ.0)) CYCLE
-      DO iNode=1,8
+     ! DO iNode=1,8
         NodeX =ElemBaryAndRadius(1:3,iElem)
         Radius=ElemBaryAndRadius( 4 ,iElem)
         !SELECT CASE(iNode)
@@ -664,7 +664,7 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
             END DO ! kPBGM
           END DO ! jPBGM
         END DO ! iPBGM
-      END DO ! Node=1,8
+     ! END DO ! Node=1,8
     END DO ! iCase
   END DO ! iElem
 END IF  ! nperiodicvectors>0
