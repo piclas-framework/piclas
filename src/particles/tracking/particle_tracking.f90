@@ -610,7 +610,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
         CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,ParticleFound(iPart))
         IF(ParticleFound(iPart)) CYCLE
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
-        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle is inside 
+        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell(ElemID)) THEN ! particle is inside 
         !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle is inside 
           PEM%lastElement(iPart)=ElemID
           ParticleFound(iPart)=.TRUE.
@@ -640,7 +640,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
         END DO
         IF(ParticleFound(iPart)) CYCLE
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
-        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle is inside 
+        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell(ElemID)) THEN ! particle is inside 
         !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle is inside 
           ParticleFound(iPart)=.TRUE.
           CYCLE
@@ -667,7 +667,7 @@ DO iElem=1,PP_nElems ! loop only over internal elems, if particle is already in 
 #else
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
 #endif
-        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle inside
+        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell(ElemID)) THEN ! particle inside
         !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle inside
           PEM%Element(iPart)  = ElemID
           ParticleFound(iPart)=.TRUE.
@@ -744,7 +744,7 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*MPI*/
     CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
     !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.BezierClipHit) THEN ! particle inside
-    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.epsOneCell) THEN ! particle inside
+    IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LE.epsOneCell(ElemID)) THEN ! particle inside
     !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle inside
       PEM%Element(iPart) = ElemID
       ParticleFound(iPart)=.TRUE.
@@ -778,7 +778,7 @@ DO iPart=1,PDM%ParticleVecLength
         ! ausgabe
         IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with internal element '
         IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
-        IPWRITE(UNIT_stdOut,*) ' epsOneCell  ', epsOneCell
+        IPWRITE(UNIT_stdOut,*) ' epsOneCell  ', epsOneCell(ElemID)
         IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldXi
         IPWRITE(UNIT_stdOut,*) ' newxi       ', newXi
         IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
@@ -822,7 +822,7 @@ DO iPart=1,PDM%ParticleVecLength
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),TestElem)
         ! false, reallocate particle
         !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.1.0)THEN
-        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell)THEN
+        IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem))THEN
           IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element, relocating!! '
           CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.)                                                             
           IF(.NOT.PDM%ParticleInside(iPart)) THEN
@@ -944,7 +944,7 @@ DO iPart=1,PDM%ParticleVecLength
       CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
 #endif
       END IF
-      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell) THEN ! particle is inside 
+      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell(ElemID)) THEN ! particle is inside 
       !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle is inside 
         PEM%lastElement(iPart)=ElemID
 #ifdef MPI
@@ -1071,14 +1071,14 @@ DO iPart=1,PDM%ParticleVecLength
         oldElemID=NewElemID
       END IF
     
-      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell) THEN
+      TestElem=PEM%Element(iPart)
+      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem)) THEN
         PartIsDone=.FALSE.
-        TestElem=PEM%Element(iPart)
         IF(.NOT.IsBCElem(TestElem))THEN
           ! ausgabe
           IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with internal element '
           IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
-          IPWRITE(UNIT_stdOut,*) ' epsOneCell  ', epsOneCell
+          IPWRITE(UNIT_stdOut,*) ' epsOneCell  ', epsOneCell(TestElem)
           IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldXi
           IPWRITE(UNIT_stdOut,*) ' newxi       ', newXi
           IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
@@ -1104,7 +1104,7 @@ __STAMP__ &
           IF(PartIsDone) CYCLE
           CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),TestElem)
           ! false, reallocate particle
-          IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell)THEN
+          IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).GT.epsOneCell(TestElem))THEN
             IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element, relocating!! '
             CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.)                                                             
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
@@ -1843,7 +1843,7 @@ ELSE
       PEM%Element(PartID)=NewElemID
     END IF
     PDM%ParticleInside(PartID)=.TRUE.
-    IF(MAXVAL(ABS(PartPosRef(1:3,PartID))).GT.epsOneCell) THEN
+    IF(MAXVAL(ABS(PartPosRef(1:3,PartID))).GT.epsOneCell(PEM%Element(PartID))) THEN
       IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,PartID)
       IPWRITE(UNIT_stdOut,*) ' newxi       ', newXi
       IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldXi

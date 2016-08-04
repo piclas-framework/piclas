@@ -144,8 +144,10 @@ FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 ! method from xPhysic to parameter space
 RefMappingGuess = GETINT('RefMappingGuess','1')
 RefMappingEps   = GETREAL('RefMappingEps','1e-4')
+
 epsInCell       = SQRT(3.0*RefMappingEps)
-epsOneCell      = 1.0+epsInCell
+!epsOneCell      = 1.0+epsInCell
+
 IF((RefMappingGuess.LT.1).OR.(RefMappingGuess.GT.4))THEN
    CALL abort(&
 __STAMP__ &
@@ -260,6 +262,7 @@ SDEALLOCATE(slenXiEtaZetaBasis)
 SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemRadiusNGeo)
 SDEALLOCATE(ElemRadius2NGeo)
+SDEALLOCATE(EpsOneCell)
 
 ParticleMeshInitIsDone=.FALSE.
 
@@ -382,7 +385,7 @@ DO iBGMElem=1,nBGMElems
   CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
   IF(MAXVAL(ABS(Xi)).LE.1.0) THEN ! particle inside
     InElementCheck=.TRUE.
-  ELSE IF(MAXVAL(ABS(Xi)).GT.epsOneCell)THEN ! particle outside
+  ELSE IF(MAXVAL(ABS(Xi)).GT.epsOneCell(ElemID))THEN ! particle outside
   !  print*,'ici'
     InElementCheck=.FALSE.
   ELSE ! particle at face,edge or node, check most possible point
@@ -3482,7 +3485,7 @@ DO iBGMElem=1,nBGMElems
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
   CALL Eval_xyz_elemcheck(X_in(1:3),xi,ElemID)
-  IF(ALL(ABS(Xi).LE.epsOneCell)) THEN ! particle inside
+  IF(ALL(ABS(Xi).LE.epsOneCell(ElemID))) THEN ! particle inside
     isInSide=.TRUE.
     Element=ElemID
     EXIT
@@ -4038,6 +4041,9 @@ SUBROUTINE GetElemAndSideType()
 ! used tracking method
 ! 1) Get Elem Type
 ! 2) Get Side Type
+! 3) Halo sides
+! 4) Add BC and Halo-BC sides in halo_eps distance to a certain element (DoRefMapping=F)
+! 5) build epsOneCell for each element
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -4045,7 +4051,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemBaryNGeo,ElemRadius2NGeo,ElemRadiusNGeo
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,SideID_minus_upper,NGeo,nBCSides
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,SideID_minus_upper,NGeo,nBCSides,sJ
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
@@ -4053,6 +4059,7 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideT
 USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,Vdm_CLNGeo1_CLNGeo
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
+USE MOD_Particle_Mesh_Vars,                 ONLY:RefMappingEps,epsOneCell
 #ifdef MPI
 !USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticleMappingPartitionInformation
 USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticlePartitionInformation
@@ -4083,8 +4090,8 @@ LOGICAL,ALLOCATABLE                     :: SideIsDone(:)
 REAL                                    :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                                    :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
 INTEGER                                 :: i,j,k, NGeo3,NGeo2, nLoop
-REAL                                    :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
-REAL                                    :: Distance 
+REAL                                    :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
+REAL                                    :: Distance ,maxScaleJ
 REAL                                    :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
 LOGICAL                                 :: isCurvedSide,isRectangular, fullMesh, isBilinear
 !===================================================================================================================================
@@ -4728,6 +4735,25 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 CALL WriteParticlePartitionInformation(nPlanar,nBilinear,nCurved,nPlanarHalo,nBilinearHalo,nCurvedHalo &
                                       ,nBCElems,nLinearElems,nCurvedElems,nBCElemsHalo,nLinearElemsHalo,nCurvedElemsHalo)
 #endif
+
+! finally, build epsonecell per element
+IF(DoRefMapping)THEN
+  ALLOCATE(epsOneCell(1:nTotalElems))
+ELSE
+  ALLOCATE(epsOneCell(1:PP_nElems))
+END IF
+
+nLoop=nTotalElems
+IF(.NOT.DoRefMapping) nLoop=PP_nElems
+maxScaleJ=0.
+DO iElem=1,PP_nElems
+  scaleJ=MAXVAL(sJ(:,:,:,iElem))/MINVAL(sJ(:,:,:,iElem))
+  epsOneCell(iElem)=1.0+SQRT(scaleJ*RefMappingEps)
+  maxScaleJ=MAX(scaleJ,maxScaleJ)
+END DO ! iElem=1,nLoop
+DO iElem=PP_nElems+1,nTotalElems
+  epsOneCell(iElem)=1.0+SQRT(maxScaleJ*RefMappingEps)
+END DO ! iElem=1,nLoop
 
 END SUBROUTINE GetElemAndSideType
 

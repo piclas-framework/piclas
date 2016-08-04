@@ -62,7 +62,7 @@ INTEGER                                 :: RefMappingGuess                      
 REAL                                    :: RefMappingEps                                  ! tolerance for Netwton to get xi from X
 REAL                                    :: epsInCell                                      ! tolerance for eps for particle 
                                                                                           ! inside of ref element
-REAL                                    :: epsOneCell                                     ! tolerance for particle in 
+REAL,ALLOCATABLE                        :: epsOneCell(:)                                  ! tolerance for particle in 
                                                                                           ! inside ref element 1+epsinCell
 
 !LOGICAL                                 :: DoRefMapping                  ! tracking by mapping particle into reference element

@@ -2363,7 +2363,7 @@ DO stepz=0, DSMCSampVolWe%OrderVolInt
    DO iElem = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
       Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(iElem)
       CALL Eval_xyz_ElemCheck(GuessPos,Xi,Element)
-      IF(MAXVAL(ABS(Xi)).GT.epsOneCell)THEN ! particle outside
+      IF(MAXVAL(ABS(Xi)).GT.epsOneCell(Element))THEN ! particle outside
         alpha1 = (GuessPos(1) / DSMCSampVolWe%BGMdeltas(1)) - i
         alpha2 = (GuessPos(2) / DSMCSampVolWe%BGMdeltas(2)) - j
         alpha3 = (GuessPos(3) / DSMCSampVolWe%BGMdeltas(3)) - k
