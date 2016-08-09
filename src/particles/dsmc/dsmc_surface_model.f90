@@ -554,11 +554,10 @@ SUBROUTINE CalcDiffusion()
    INTEGER                          :: SurfSideID, iSpec, globSide, subsurfeta, subsurfxi
    INTEGER                          :: Coord, nSites, nSitesRemain, i, j, AdsorbID
    REAL                             :: WallTemp, Prob_diff, RanNum
-   REAL                             :: Q_0A, D_A, Heat_i, Heat_j, Heat_temp, sigma
+   REAL                             :: Heat_i, Heat_j, Heat_temp, sigma
    INTEGER                          :: bondorder, n_equal_site_Neigh, Indx, Indy, Surfpos, newpos
    INTEGER , ALLOCATABLE            :: free_Neigh_pos(:)
 !===================================================================================================================================
-D_A  = 59870.
 
 DO SurfSideID = 1,SurfMesh%nSides
 DO subsurfeta = 1,nSurfSample
@@ -568,7 +567,6 @@ DO subsurfxi = 1,nSurfSample
     Coord = Adsorption%Coordination(iSpec)
     nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
     nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
-    Q_0A = Adsorption%HeatOfAdsZero(iSpec)
     
     ALLOCATE ( free_Neigh_pos(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours))
     DO AdsorbID = nSitesRemain+1,nSites,1
@@ -599,12 +597,15 @@ DO subsurfxi = 1,nSurfSample
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) - 1
       END DO
-      Heat_i = (Q_0A**2)/(Q_0A/SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom+D_A) * sigma
+      Heat_i = Adsorption%HeatOfAdsZero(iSpec) * sigma
       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos) = 0
       
       ! choose Neighbour position with highest heat of adsorption if adsorbate would move there
       Heat_j = 0.
       DO i = 1,n_equal_site_Neigh
+!       IF (n_equal_site_Neigh .GE. 1) THEN
+!         CALL RANDOM_NUMBER(RanNum)
+!         i = 1 + INT(n_equal_site_Neigh*RanNum)
         sigma = 0.
         DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
           Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(free_Neigh_pos(i),j)
@@ -613,7 +614,7 @@ DO subsurfxi = 1,nSurfSample
           sigma = sigma + ( (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom) &
                 * (1./(bondorder)) * (2.-(1./bondorder)) )
         END DO
-        Heat_temp = (Q_0A**2)/(Q_0A/SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom+D_A) * sigma
+        Heat_temp = Adsorption%HeatOfAdsZero(iSpec) * sigma
         IF (Heat_temp .GT. Heat_j) THEN
           Heat_j = Heat_temp
           newpos = free_Neigh_pos(i)
@@ -770,9 +771,8 @@ DO subsurfxi = 1,nSurfSample
       sigma = sigma + ( (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom) &
             * (1./(bondorder)) * (2.-(1./bondorder)) )
     END DO
-    
     Heat_A = Adsorption%HeatOfAdsZero(iSpec) * sigma
-    Energy(iSpec) = Energy(iSpec) + Heat_A
+!     Energy(iSpec) = Energy(iSpec) + Heat_A
     CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
     CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
     nu_des = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall)
@@ -830,6 +830,7 @@ DO subsurfxi = 1,nSurfSample
     CALL RANDOM_NUMBER(RanNum)
     IF (P_actual_des.GT.RanNum) THEN
       desorbnum(iSpec) = desorbnum(iSpec) + 1
+    Energy(iSpec) = Energy(iSpec) + Heat_A
       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos) = 0
       DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
         Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
@@ -865,12 +866,12 @@ DO subsurfxi = 1,nSurfSample
   Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = INT((REAL(desorbnum(iSpec)) / REAL(numSites)) &
                                                                   * (Adsorption%DensSurfAtoms(SurfSideID) &
                       * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) / Species(iSpec)%MacroParticleFactor))
-  IF (adsorbates(iSpec).EQ.0) THEN
+  IF (desorbnum(iSpec).EQ.0) THEN !(adsorbates(iSpec).EQ.0) THEN !
     Adsorption%ProbDes(subsurfxi,subsurfeta,SurfSideID,iSpec) = 0
     Energy(iSpec) = Adsorption%HeatOfAdsZero(iSpec)
   ELSE
     Adsorption%ProbDes(subsurfxi,subsurfeta,SurfSideID,iSpec) = P_des(iSpec) / REAL(adsorbates(iSpec))
-    Energy(iSpec) = Energy(iSpec) / REAL(adsorbates(iSpec))
+    Energy(iSpec) = Energy(iSpec) /REAL(desorbnum(iSpec)) !/ REAL(adsorbates(iSpec)) !
   END IF
 #if (PP_TimeDiscMethod==42)
   Adsorption%AdsorpInfo(iSpec)%NumOfDes = Adsorption%AdsorpInfo(iSpec)%NumOfDes &
