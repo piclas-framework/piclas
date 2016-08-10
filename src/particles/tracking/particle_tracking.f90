@@ -884,7 +884,7 @@ USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef, PartSpecies
 USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
-USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,nCurrentParts
+USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,nCurrentParts,Distance,ListDistance
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsInCell,epsOneCell
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo,ElemRadius2NGeo
@@ -907,9 +907,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                           :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                           :: iPart, ElemID,oldElemID,newElemID
 INTEGER                           :: CellX,CellY,CellZ,iBGMElem,nBGMElems
-REAL,ALLOCATABLE                  :: Distance(:)
 REAL                              :: oldXi(3),newXi(3), LastPos(3)
-INTEGER,ALLOCATABLE               :: ListDistance(:)
 !REAL                              :: epsOne
 #ifdef MPI
 INTEGER                           :: InElem
@@ -1010,38 +1008,38 @@ DO iPart=1,PDM%ParticleVecLength
     CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
     CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
           
-    ! check all cells associated with this beckground mesh cell
+    ! check all cells associated with this background mesh cell
     nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
-    !SDEALLOCATE( Distance)
-    !SDEALLOCATE( ListDistance)
-    ALLOCATE( Distance(1:nBGMElems) &
-            , ListDistance(1:nBGMElems) )
- 
-    ! get closest element barycenter
-    Distance=0.
-    ListDistance=0
-    DO iBGMElem = 1, nBGMElems
-      ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
-      ListDistance(iBGMElem)=ElemID
-      IF(ElemID.EQ.-1)CYCLE
-      IF(ElemID.EQ.OldElemID)THEN
-        Distance(iBGMElem)=-1.0
-      ELSE
-        !Distance(iBGMElem)=SQRT((PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))  &
-        !                       +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
-        !                       +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) )
-        Distance(iBGMElem)=    ((PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
-                               +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
-                               +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) )
-
-        IF(Distance(iBGMElem).GT.ElemRadius2NGeo(ElemID))THEN
+    IF(nBGMElems.GT.1)THEN
+      ! get closest element barycenter by looping over all elements in BGMcell
+      Distance=-1.
+      ListDistance=-1
+      DO iBGMElem = 1, nBGMElems
+        ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+        ListDistance(iBGMElem)=ElemID
+        IF(ElemID.EQ.-1)CYCLE
+        IF(ElemID.EQ.OldElemID)THEN
           Distance(iBGMElem)=-1.0
-        END IF
-      END IF
-    END DO ! nBGMElems
+        ELSE
+          !Distance(iBGMElem)=SQRT((PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))  &
+          !                       +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
+          !                       +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) )
+          Distance(iBGMElem)=    ((PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
+                                 +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
+                                 +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) )
 
-    !CALL BubbleSortID(Distance,ListDistance,nBGMElems)
-    CALL InsertionSort(Distance,ListDistance,nBGMElems)
+          IF(Distance(iBGMElem).GT.ElemRadius2NGeo(ElemID))THEN
+            Distance(iBGMElem)=-1.0
+          END IF
+        END IF
+      END DO ! nBGMElems
+
+      !CALL BubbleSortID(Distance,ListDistance,nBGMElems)
+      CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
+    ELSE
+      Distance(1)=0.
+      ListDistance(1)=GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+    END IF
 
     OldXi=PartPosRef(1:3,iPart)
     newXi=HUGE(1.0)
@@ -1065,8 +1063,6 @@ DO iPart=1,PDM%ParticleVecLength
         newElemID=ElemID
       END IF
     END DO ! iBGMElem
-    DEALLOCATE( Distance     &
-              , ListDistance )
     IF(.NOT.PartIsDone)THEN
       ! use best xi
       IF(MAXVAL(ABS(oldXi)).LT.MAXVAL(ABS(newXi)))THEN

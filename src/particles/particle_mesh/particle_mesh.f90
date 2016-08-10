@@ -232,6 +232,7 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Tracking_Vars, ONLY: Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -263,6 +264,8 @@ SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemRadiusNGeo)
 SDEALLOCATE(ElemRadius2NGeo)
 SDEALLOCATE(EpsOneCell)
+SDEALLOCATE(Distance)
+SDEALLOCATE(ListDistance)
 
 ParticleMeshInitIsDone=.FALSE.
 
@@ -290,7 +293,7 @@ USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_PICDepo_Vars,           ONLY:DepositionType
 USE MOD_Particle_Intersection,  ONLY:PartInElemCheck
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -307,8 +310,6 @@ INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,Cel
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                           :: InElementCheck,ParticleFound                                
 REAL                              :: xi(1:3),vBary(1:3),Distance2
-REAL,ALLOCATABLE                  :: Distance(:)
-INTEGER,ALLOCATABLE               :: ListDistance(:)
 !REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
 !REAL,PARAMETER                    :: eps2=1e-3
 !REAL                              :: epsOne,OneMeps
@@ -340,9 +341,6 @@ CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
 
 !--- check all cells associated with this beckground mesh cell
 nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
-ALLOCATE( Distance(1:nBGMElems) &
-        , ListDistance(1:nBGMElems) )
-
 
 ! get closest element barycenter
 Distance=-1.
@@ -367,8 +365,7 @@ END IF
 
 !print*,'earlier',Distance,ListDistance
 !CALL BubbleSortID(Distance,ListDistance,nBGMElems)
-CALL InsertionSort(Distance,ListDistance,nBGMElems)
-!print*,'after',Distance,ListDistance
+IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
 
 ! loop through sorted list and start by closest element  
 DO iBGMElem=1,nBGMElems
@@ -419,9 +416,6 @@ END DO ! iBGMElem
 IF (.NOT.ParticleFound) THEN
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
-! deallocate lists
-DEALLOCATE( Distance,ListDistance)
-!read*
 END SUBROUTINE SingleParticleToExactElement
 
 
@@ -443,6 +437,7 @@ USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarInterSectionBezier,ComputeBilinearIntersectionSuperSampled2
 USE MOD_Particle_Intersection,  ONLY:ComputeBezierIntersection
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
+USE MOD_Particle_Tracking_Vars, ONLY:Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -460,8 +455,6 @@ INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,Cel
 INTEGER                           :: ilocSide,SideID,flip
 LOGICAL                           :: ParticleFound,isHit
 REAL                              :: lengthPartTrajectory,tmpPos(3),xNodes(1:3,1:4),tmpLastPartPos(1:3),Distance2
-REAL,ALLOCATABLE                  :: Distance(:)
-INTEGER,ALLOCATABLE               :: ListDistance(:)
 REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
 REAL,PARAMETER                    :: eps2=1e-3
 REAL                              :: epsOne,OneMeps,locAlpha(6),xi,eta
@@ -489,8 +482,6 @@ CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
 !--- check all cells associated with this beckground mesh cell
 
 nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
-ALLOCATE( Distance(1:nBGMElems) &
-        , ListDistance(1:nBGMElems) )
 
 ! get closest element barycenter
 Distance=-1.
@@ -517,7 +508,7 @@ IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
 END IF
 
 !CALL BubbleSortID(Distance,ListDistance,nBGMElems)
-CALL InsertionSort(Distance,ListDistance,nBGMElems)
+IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
 ! loop through sorted list and start by closest element  
 tmpPos=PartState(iPart,1:3)
 tmpLastPartPos(1:3)=LastPartPos(iPart,1:3)
@@ -613,9 +604,6 @@ END DO ! iBGMElem
 IF (.NOT.ParticleFound) THEN
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
-! deallocate lists
-DEALLOCATE( Distance,ListDistance)
-!read*
 END SUBROUTINE SingleParticleToExactElementNoMap
 
 
@@ -2869,7 +2857,7 @@ USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping,Distance,ListDistance
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Equation_Vars,                      ONLY:c
 USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartElemToSide,PartSideToElem
@@ -2890,7 +2878,7 @@ REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
 INTEGER                          :: iBGM,jBGM,kBGM,SideID,iElem,ilocSide
 INTEGER                          :: BGMCellXmax,BGMCellXmin
 INTEGER                          :: BGMCellYmax,BGMCellYmin
-INTEGER                          :: BGMCellZmax,BGMCellZmin
+INTEGER                          :: BGMCellZmax,BGMCellZmin,maxnBGMElems
 LOGICAL, ALLOCATABLE             :: ElementFound(:)
 !===================================================================================================================================
 
@@ -3117,6 +3105,18 @@ __STAMP__&
 END DO ! iElem
 
 DEALLOCATE(Elementfound)
+
+! and get max number of bgm-elems
+maxnBGMElems=0
+DO iBGM = GEO%TFIBGMimin,GEO%TFIBGMimax
+  DO jBGM = GEO%TFIBGMjmin,GEO%TFIBGMjmax
+    DO kBGM = GEO%TFIBGMkmin,GEO%TFIBGMkmax
+      maxnBGMElems=MAX(maxnBGMElems,GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem)
+    END DO ! kBGM
+  END DO ! jBGM
+END DO ! iBGM
+ALLOCATE(Distance    (1:maxnBGMElems) &
+        ,ListDistance(1:maxnBGMElems) )
 
 END SUBROUTINE AddSimpleHALOCellsToFIBGM
 #endif /*MPI*/
@@ -3407,7 +3407,7 @@ USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,ListDistance,Distance
 USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
@@ -3429,8 +3429,6 @@ INTEGER,INTENT(OUT)                :: Element
 INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                              :: xi(1:3)
-REAL,ALLOCATABLE                  :: Distance(:)
-INTEGER,ALLOCATABLE               :: ListDistance(:)
 !REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
 !REAL,PARAMETER                    :: eps2=1e-3
 !REAL                              :: epsOne,OneMeps
@@ -3458,12 +3456,9 @@ CellZ = MIN(GEO%FIBGMkmax,CellZ)
 
 !--- check all cells associated with this beckground mesh cell
 nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
-ALLOCATE( Distance(1:nBGMElems) &
-        , ListDistance(1:nBGMElems) )
-
 
 ! get closest element barycenter
-Distance=1.
+Distance=-1.
 ListDistance=0
 DO iBGMElem = 1, nBGMElems
   ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
@@ -3474,9 +3469,7 @@ DO iBGMElem = 1, nBGMElems
   ListDistance(iBGMElem)=ElemID
 END DO ! nBGMElems
 
-!print*,'earlier',Distance,ListDistance
-!CALL BubbleSortID(Distance,ListDistance,nBGMElems)
-CALL InsertionSort(Distance,ListDistance,nBGMElems)
+IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
 !print*,'after',Distance,ListDistance
 
 ! loop through sorted list and start by closest element  
@@ -3494,9 +3487,6 @@ DO iBGMElem=1,nBGMElems
   END IF
 END DO ! iBGMElem
 
-! deallocate lists
-DEALLOCATE( Distance,ListDistance)
-!read*
 END SUBROUTINE PointToExactElement
 
 
