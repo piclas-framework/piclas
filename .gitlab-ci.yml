@@ -8,26 +8,15 @@ cache:
     - build_gnu/    
     - build_intel/    
 
-#before_script:
-#  - export HDF5_DIR=/opt/hdf5/1.8.16/gnu-mpi/share/cmake/
-#  - export CMAKE_PREFIX_PATH=/opt/hdf5/1.8.16/gnu-mpi/:$CMAKE_PREFIX_PATH
-#  - export LD_LIBRARY_PATH=/opt/hdf5/1.8.16/gnu-mpi/lib/:$LD_LIBRARY_PATH
-#  - export CMAKE_PREFIX_PATH=/opt/gnu/openmpi/1.8.4/:$CMAKE_PREFIX_PATH
-#  - export PATH=/opt/openmpi/gnu/1.8.4/bin:$PATH
-#  - export LD_LIBRARY_PATH=/opt/openmpi/gnu/1.8.4/lib:$LD_LIBRARY_PATH
-#  - export ZLIB_DIR=/opt/zlib/1.2.8/
-#  - export CMAKE_PREFIX_PATH=$ZLIB_DIR:$CMAKE_PREFIX_PATH
-#  - export LD_LIBRARY_PATH=$ZLIB_DIR/include:$LD_LIBRARY_PATH
-
 build_gnu:
   stage: build
   tags:
     - withmodules
   script:
-    - module load env/gnu ; mkdir -p build_gnu ; cd build_gnu ; mkdir -p maxwell ; cd maxwell; cmake  ../.. ; make
-    - cd .. ; mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=Implicit04 ../.. ; make
-    - cd .. ; mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make
-    - cd .. ; mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make
+    - module load env/gnu ; mkdir -p build_gnu ; cd build_gnu ; mkdir -p maxwell ; cd maxwell; cmake  ../.. ; make ; cd ..
+    - mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=Implicit04 ../.. ; make ; cd ..
+    - mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make ; cd ..
+    - mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make 
 
 build_intel:
   stage: build
@@ -35,9 +24,9 @@ build_intel:
     - withmodules
   script:
     - module load env/intel ; mkdir -p build_intel ; cd build_intel ; mkdir -p maxwell ; cd maxwell; cmake ../.. ; make
-    - cd .. ; mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=Implicit04 ../.. ; make
-    - cd .. ; mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make
-    - cd .. ; mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make
+    - mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=Implicit05 ../.. ; make ; cd ..
+    - mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make ; cd ..
+    - mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make 
 
 clean:
   stage: error_clean
