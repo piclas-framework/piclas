@@ -1,4 +1,5 @@
-stages: - build
+stages: 
+  - build
   - error_clean
 
 cache:
