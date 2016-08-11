@@ -1,6 +1,55 @@
+# =========================================================================
+# Boltzplatz CMake configuration
+# =========================================================================
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.11)
+# TODO: eventually require CMake 3.0 in future releases
+# Advantages: Possible to split string
 IF ("${CMAKE_VERSION}" VERSION_GREATER 3.0.0)
+  cmake_policy (SET CMP0045 OLD)
   cmake_policy (SET CMP0046 OLD)
+ENDIF()
+LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
+INCLUDE(ExternalProject)
+INCLUDE(CMakeDependentOption)
+
+
+# =========================================================================
+# Check whether we are on Github or at IAG
+# =========================================================================
+execute_process(
+  COMMAND git config --get remote.origin.url
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_ORIGIN
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+STRING(FIND "${GIT_ORIGIN}" ".iag.uni-stuttgart.de" HOMERUN)
+STRING(FIND "${GIT_ORIGIN}" "git@" USESSH)
+IF (HOMERUN GREATER -1)
+  IF(USESSH EQUAL 0)
+    SET(BOLTZPLATZ_DLPATH "git@gitlab.iag.uni-stuttgart.de:piclas")
+  ELSE()
+    SET(BOLTZPLATZ_DLPATH "https://gitlabext.iag.uni-stuttgart.de/piclas")
+  ENDIF()
+ELSE()
+  IF(USESSH EQUAL 0)
+    SET(BOLTZPLATZ_DLPATH "git@github.com:piclas-framework")
+  ELSE()
+    SET(BOLTZPLATZ_DLPATH "https://github.com/piclas-framework")
+  ENDIF()
+ENDIF()
+
+# =========================================================================
+# Project definitions and output paths
+# =========================================================================
+SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+SET(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
+SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+
+IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  SET(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Prefix prepended to install directories" FORCE)
 ENDIF()
 
 # =========================================================================
@@ -13,85 +62,61 @@ IF (ONHORNET GREATER -1)
   SET(CMAKE_C_COMPILER       cc)
   SET(CMAKE_CXX_COMPILER     CC)
   SET(CMAKE_Fortran_COMPILER ftn)
-ENDIF()
-
-PROJECT(Boltzplatz)
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-SET(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
-SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
-ENABLE_LANGUAGE(Fortran)
-
-IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  SET(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Prefix prepended to install directories" FORCE)
+  SET(HDF5_USE_STATIC_LIBRARIES TRUE)
+  MARK_AS_ADVANCED(C_PATH CXX_PATH Fortran_PATH)
+  MESSAGE(STATUS "Compiling on Hazelhen")
+  ADD_DEFINITIONS(-DLUSTRE)
 ENDIF()
 
 # =========================================================================
 # Options
 # =========================================================================
-#include(ExternalProject)
-OPTION(BOLTZPLATZ_MPI "Compile SINGLE or MPI version" ON)
-SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
-SET_PROPERTY(CACHE BOLTZPLATZ_EQNSYSNAME PROPERTY STRINGS maxwell maxwell_pois electrostatic electrostatic_pois poisson)
+
+PROJECT(Boltzplatz)
+ENABLE_LANGUAGE(Fortran)
+
+MACRO(SUBDIRLIST result curdir)
+  FILE(GLOB children RELATIVE ${curdir} ${curdir}/*)
+  SET(dirlist "")
+  FOREACH(child ${children})
+    IF(IS_DIRECTORY ${curdir}/${child})
+        LIST(APPEND dirlist ${child})
+    ENDIF()
+  ENDFOREACH()
+  SET(${result} ${dirlist})
+ENDMACRO()
+SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 OPTION(BOLTZPLATZ_PARTICLES "Particles" ON)
 SET(BOLTZPLATZ_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE BOLTZPLATZ_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit RK3 RK4 RK14 ParticleEuler-FieldRK4 DSMC RESERVOIR ParticleEuler-FieldEulerImplicit ParticleExplicit-FieldImplicitO3 ParticleExplicit-FieldImplicitO4 Ascher3 ParticleImplicit IPEF3 IPEF4 ImplicitO3 ImplicitO4 FieldRelaxation FieldRelaxation-AdaptiveTimeStep LD LD-DSMC)
-OPTION(BOLTZPLATZ_GAUSS_NODES "Gauss nodes" ON)
-SET(BOLTZPLATZ_POLYNOMIAL_DEGREE "N" CACHE STRING "N = compile with variable polynomial degree. Use any other number to compile with fixed polynomial degree.")
-OPTION(BOLTZPLATZ_HLRS "enable the settings for the HLRS" OFF)
+
+OPTION(BOLTZPLATZ_MPI "Compile SINGLE or MPI version" ON)
+OPTION(BOLTZPLATZ_MKL "Use MKL libraries instead of BLAS/LAPACK" OFF)
+OPTION(BOLTZPLATZ_PAPI "Use PAPI library to perform performance measurements (e.g. flop counts)." OFF)
+SET(BOLTZPLATZ_BUILD_HDF5 OFF  CACHE BOOL "Compile and build hdf5 library")
 OPTION(BOLTZPLATZ_HDF5F90 "enable old HDF5 interface" OFF)
-OPTION(BOLTZPLATZ_MKL "use MKL libraries instead of BLAS/LAPACK" OFF)
+
+SET(BOLTZPLATZ_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
+SET_PROPERTY(CACHE BOLTZPLATZ_EQNSYSNAME PROPERTY STRINGS maxwell maxwell_pois electrostatic electrostatic_pois poisson)
+
+
+SET(BOLTZPLATZ_POLYNOMIAL_DEGREE "N" CACHE STRING "N: compile with variable polynomial degree. 1,2,3,...: compile with fixed polynomial degree for performance (untested).")
+ADD_DEFINITIONS(-DPP_N=${BOLTZPLATZ_POLYNOMIAL_DEGREE})
+
+##### Node type
+SET(BOLTZPLATZ_NODETYPE "GAUSS" CACHE STRING "Set of nodes used for representing the solution (GAUSS/GAUSS-LOBATTO).")
+SET_PROPERTY(CACHE BOLTZPLATZ_NODETYPE PROPERTY STRINGS "GAUSS" "GAUSS-LOBATTO")
+IF(BOLTZPLATZ_NODETYPE STREQUAL "GAUSS")
+  ADD_DEFINITIONS(-DPP_NodeType=1)
+ELSEIF(BOLTZPLATZ_NODETYPE STREQUAL "GAUSS-LOBATTO")
+  ADD_DEFINITIONS(-DPP_NodeType=2)
+ELSE()
+  MESSAGE(ERROR "No such node type known.")
+ENDIF()
+
+# code development
 OPTION(BOLTZPLATZ_CODE_ANALYZE "Code Analyze" OFF)
 OPTION(BOLTZPLATZ_CTAGS "Use Ctags" OFF)
-ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
-OPTION(BOLTZPLATZ_HDG "enable Hybridized Discontinuous Galerkin (HDG) depending on choice of TIMEDISCMETHOD" OFF)
-
-# =========================================================================
-# Machine environements and specific library paths
-# =========================================================================
-SITE_NAME(CMAKE_HOSTNAME)
-STRING(FIND "${CMAKE_HOSTNAME}" "eslogin" ONHLRS)
-IF (ONHLRS GREATER -1)
-  ADD_DEFINITIONS(-DLUSTRE -DHLRS)
-  MESSAGE(STATUS "Compiling on HLRS system")
-  SET(BOLTZPLATZ_HLRS ON)
-ENDIF()
-#STRING(COMPARE EQUAL ${CMAKEHOST} "juqueen" ONJUQUEEN)
-#IF (ONJUQUEEN)
-  #ADD_DEFINITIONS(-DGPFS)
-#ENDIF()
-
-# =========================================================================
-# USERBLOCK + Preproc_flags
-# =========================================================================
-
-# A function to get all user defined variables with a specified prefix
-function (getListOfVarsStartingWith _prefix _varResult)
-    get_cmake_property(_vars CACHE_VARIABLES)
-    string (REGEX MATCHALL "(^|;)${_prefix}[A-Za-z0-9_]*" _matchedVars "${_vars}")
-    set (${_varResult} ${_matchedVars} PARENT_SCOPE)
-endfunction()
-
-SET(configuration ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake)
-FILE(WRITE ${configuration} "")
-GETLISTOFVARSSTARTINGWITH("BOLTZPLATZ_" boltzplatzVars)
-FOREACH (_var IN LISTS boltzplatzVars)
-   GET_PROPERTY(currentHelpString CACHE "${_var}" PROPERTY HELPSTRING)
-   SET(boolian (${${_var}} STREQUAL "ON" OR ${${_var}} STREQUAL "OFF")) 
-   IF(${boolian})
-      FILE(APPEND ${configuration} "OPTION(${_var} \"${currentHelpString}\" ${${_var}})\n")
-   ELSE()
-      IF(${_var})
-         STRING(REPLACE "\\" "\\\\" ${_var} ${${_var}})
-      ENDIF()
-      FILE(APPEND ${configuration} "SET(${_var} \"${${_var}}\" CACHE STRING \"${currentHelpString}\")\n")
-   ENDIF()
-ENDFOREACH()
-
-# =========================================================================
-# General preproc DEFINES
-# =========================================================================
-ADD_DEFINITIONS("-DBASEDIR='\"${CMAKE_CURRENT_BINARY_DIR}/\"'")
 
 # =========================================================================
 # Equation system
@@ -222,24 +247,40 @@ IF(BOLTZPLATZ_HDG)
 ENDIF(BOLTZPLATZ_HDG)
 
 # =========================================================================
-# Node type
+# USERBLOCK + Preproc_flags
 # =========================================================================
-IF(BOLTZPLATZ_GAUSS_NODES)
-  ADD_DEFINITIONS(-DPP_NodeType=1)
-ELSE()
-  ADD_DEFINITIONS(-DPP_NodeType=2)
-ENDIF(BOLTZPLATZ_GAUSS_NODES)
 
-# =========================================================================
-# Polynomial degree
-# =========================================================================
-ADD_DEFINITIONS(-DPP_N=${BOLTZPLATZ_POLYNOMIAL_DEGREE})
+# A function to get all user defined variables with a specified prefix
+function (getListOfVarsStartingWith _prefix _varResult)
+    GET_CMAKE_PROPERTY(_vars CACHE_VARIABLES)
+    STRING(REGEX MATCHALL "(^|;)${_prefix}[A-Za-z0-9_]*" _matchedVars "${_vars}")
+    SET(${_varResult} ${_matchedVars} PARENT_SCOPE)
+endfunction()
+
+# A function to get all user defined variables with a specified prefix
+SET(configuration ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake)
+FILE(WRITE ${configuration} "")
+GETLISTOFVARSSTARTINGWITH("BOLTZPLATZ_" boltzplatzVars)
+FOREACH (_var IN LISTS boltzplatzVars)
+  GET_PROPERTY(currentHelpString CACHE "${_var}" PROPERTY HELPSTRING)
+  SET(boolian (${${_var}} STREQUAL "ON" OR ${${_var}} STREQUAL "OFF")) 
+  IF(${boolian})
+    FILE(APPEND ${configuration} "OPTION(${_var} \"${currentHelpString}\" ${${_var}})\n")
+  ELSE()
+    IF(${_var})
+      STRING(REPLACE "\\" "\\\\" ${_var} ${${_var}})
+    ENDIF()
+    FILE(APPEND ${configuration} "SET(${_var} \"${${_var}}\" CACHE STRING \"${currentHelpString}\")\n")
+  ENDIF()
+ENDFOREACH()
+
 
 # =========================================================================
 # Build type
 # =========================================================================
 # make sure that the default is a RELEASE
-if (NOT CMAKE_BUILD_TYPE)
+
+IF (NOT CMAKE_BUILD_TYPE)
    SET (CMAKE_BUILD_TYPE Debug CACHE STRING
       "Choose the type of build, options are: None Debug Release Profile."
       FORCE)
@@ -248,15 +289,220 @@ if (NOT CMAKE_BUILD_TYPE)
    ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
      SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile)
    ENDIF()
-endif (NOT CMAKE_BUILD_TYPE)
+ENDIF (NOT CMAKE_BUILD_TYPE)
+
+IF (CMAKE_BUILD_TYPE MATCHES "Debug")
+  ADD_DEFINITIONS("-DDEBUG")
+ENDIF()
 
 # =========================================================================
-# boltzplatz sources & targets
+# Location of binary and filenames
 # =========================================================================
+
+# append relative filename-macro for __FILENAME__ in Stamp of abort function (see boltzplatz.h)
+SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__FILENAME__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
+
+# add basedir for location of corresponding userblock-file
+ADD_DEFINITIONS("-DBASEDIR='\"${CMAKE_CURRENT_BINARY_DIR}/\"'")
+
+# =========================================================================
+# COMPILER FLAGS
+# =========================================================================
+
+# FFLAGS depend on the compiler
+GET_FILENAME_COMPONENT (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
+
+IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+  #environment specific variables
+  IF(ONHORNET GREATER -1)
+    SET(BOLTZPLATZ_INSTRUCTION "-march=core-avx2")
+  ELSE()
+    SET(BOLTZPLATZ_INSTRUCTION "-march=native -finline-functions")
+  ENDIF()
+  # set Flags
+  SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -ffree-line-length-0 -DGNU")
+  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O3 -march=native  -finline-functions")
+  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -pg -O3 -march=native  -finline-functions")
+  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace  -Wall")
+  # add flags only for compiling not linking!
+  SET (BOLTZPLATZ_COMPILE_FLAGS "-xf95-cpp-input")
+
+ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+   #environment specific variables
+   IF(ONHORNET GREATER -1)
+      SET(BOLTZPLATZ_INSTRUCTION "-xCORE-AVX2")
+   ELSE()
+      SET(BOLTZPLATZ_INSTRUCTION "-xHost")
+   ENDIF()
+   # set Flags
+  SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -r8 -i4 -traceback -warn all -shared-intel -DINTEL")
+  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O2 ${BOLTZPLATZ_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
+  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O2 ${BOLTZPLATZ_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
+   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit")
+   # add flags only for compiling not linking!
+   SET (BOLTZPLATZ_COMPILE_FLAGS "-fpp -assume bscc")
+
+ELSE()
+   MESSAGE(ERROR "Unknown compiler")
+ENDIF()
+
+# =========================================================================
+# Add the libraries
+# =========================================================================
+
+IF(BOLTZPLATZ_MPI)
+  SET(BOLTZPLATZ_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID}-MPI)
+ELSE()
+  SET(BOLTZPLATZ_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID})
+ENDIF()
+MARK_AS_ADVANCED(BOLTZPLATZ_EXTERNAL_LIB_DIR)
+
+# =========================================================================
+# HDF5 library
+# =========================================================================
+
+IF(NOT BOLTZPLATZ_BUILD_HDF5)
+  FIND_PACKAGE(HDF5 COMPONENTS C Fortran QUIET) #if built with configure script
+  IF (HDF5_FOUND)
+    SET(BOLTZPLATZ_HDF5_CMAKE FALSE)
+  ELSE()
+    FIND_PACKAGE(HDF5 COMPONENTS C Fortran static NO_MODULE QUIET PATH_SUFFIXES share/cmake )
+    IF (HDF5_FOUND)
+      SET(BOLTZPLATZ_HDF5_CMAKE TRUE)
+      MESSAGE (STATUS "HDF5 C libs:${HDF5_FOUND} static:${HDF5_static_C_FOUND} and shared:${HDF5_shared_C_FOUND}")
+      MESSAGE (STATUS "HDF5 Fortran libs: static:${HDF5_static_Fortran_FOUND} and shared:${HDF5_shared_Fortran_FOUND}")
+    ENDIF()
+  ENDIF()
+  IF (ONHORNET GREATER -1)
+     # customized location of the tools on hazelhen
+    ADD_DEFINITIONS(-DH5TOOLSDIR=\"${BOLTZPLATZ_HDF5_DIR}/../../../../hdf5/1.8.14/bin/\")
+  ELSE()
+    ADD_DEFINITIONS(-DH5TOOLSDIR=\"${HDF5_INCLUDE_DIR_FORTRAN}/../../bin\")
+  ENDIF()
+ELSE()
+  # define here the path to download from
+  SET (HDF5DOWNLOAD ${BOLTZPLATZ_DLPATH}/HDF5.git )
+  SET (HDF5TAG "1.10.0-patch1" CACHE STRING "HDF5 version tag")
+
+  SET(BOLTZPLATZ_HDF5_DLDIR ${BOLTZPLATZ}/HDF5)
+  SET(BOLTZPLATZ_HDF5_DIR  ${BOLTZPLATZ}/build)
+  IF (NOT EXISTS "${BOLTZPLATZ_HDF5_DIR}/lib/libhdf5.a")
+    IF(BOLTZPLATZ_MPI)
+      SET(BOLTZPLATZ_HDF5PARALLEL --enable-parallel)
+      SET(BOLTZPLATZ_HDF5FC ${MPI_Fortran_COMPILER})
+      SET(BOLTZPLATZ_HDF5CC ${MPI_C_COMPILER})
+    ELSE()
+      UNSET(BOLTZPLATZ_HDF5PARALLEL)
+      SET(BOLTZPLATZ_HDF5FC ${CMAKE_Fortran_COMPILER})
+      SET(BOLTZPLATZ_HDF5CC ${CMAKE_C_COMPILER} )
+    ENDIF()
+    #NOTE: old 1.8.X versions of HDF5 require additional flag --enable-fortran2003
+    ExternalProject_Add(HDF5
+      GIT_REPOSITORY ${HDF5DOWNLOAD}
+      GIT_TAG ${HDF5TAG}
+      PREFIX ${BOLTZPLATZ_HDF5_DIR}
+      UPDATE_COMMAND ""
+      CONFIGURE_COMMAND FC=${BOLTZPLATZ_HDF5FC} CC=${BOLTZPLATZ_HDF5CC} ${BOLTZPLATZ_HDF5_DIR}/src/HDF5/configure --prefix=${BOLTZPLATZ_HDF5_DIR} --enable-fortran ${BOLTZPLATZ_HDF5PARALLEL} --disable-shared --libdir=${BOLTZPLATZ_HDF5_DIR}/lib
+      BUILD_COMMAND ${MAKE}
+    )
+    # CMake HDF5 is fast but not that reliable
+    #ExternalProject_Add(HDF5
+    #  GIT_REPOSITORY ${HDF5DOWNLOAD}
+    #  GIT_TAG ${HDF5TAG}
+    #  PREFIX ${BOLTZPLATZ_HDF5_DIR}
+    #  UPDATE_COMMAND ""
+    #  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${BOLTZPLATZ_HDF5_DIR} -DCMAKE_C_COMPILER=${BOLTZPLATZ_HDF5CC} -DCMAKE_Fortran_COMPILER=${BOLTZPLATZ_HDF5FC} -DBUILD-TESTING=OFF -DHDF5_BUILD_EXAMPLES=OFF -DHDF5_BUILD_TOOLS=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_PARALLEL=ON
+    #  BUILD_COMMAND ${MAKE}
+    #)
+  ENDIF()
+  ADD_DEFINITIONS(-DH5TOOLSDIR=\"${BOLTZPLATZ_HDF5_DIR}/bin/\")
+  SET(HDF5_hdf5_LIBRARY_RELEASE         ${BOLTZPLATZ_HDF5_DIR}/lib/libhdf5.a)
+  SET(HDF5_hdf5_fortran_LIBRARY_RELEASE ${BOLTZPLATZ_HDF5_DIR}/lib/libhdf5_fortran.a)
+  SET(HDF5_C_INCLUDE_DIR                ${BOLTZPLATZ_HDF5_DIR}/include)
+  SET(HDF5_Fortran_INCLUDE_DIR          ${BOLTZPLATZ_HDF5_DIR}/include)
+  UNSET(HDF5_LIBRARIES)
+  UNSET(HDF5_INCLUDE_DIR_FORTRAN)
+  UNSET(HDF5_INCLUDE_DIR)
+  LIST(APPEND HDF5_INCLUDE_DIR_FORTRAN ${HDF5_Fortran_INCLUDE_DIR} ${HDF5_C_INCLUDE_DIR})
+  LIST(APPEND HDF5_INCLUDE_DIR  ${HDF5_C_INCLUDE_DIR})
+  FIND_LIBRARY(HDF5_z_LIBRARY_RELEASE z)
+  LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_fortran_LIBRARY_RELEASE} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
+ENDIF()
+IF (BOLTZPLATZ_HDF5F90)
+   ADD_DEFINITIONS(-DHDF5_F90)
+ENDIF()
+
+IF(BOLTZPLATZ_HDF5_CMAKE)
+  INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
+  LIST(APPEND linkedlibs ${HDF5_FORTRAN_STATIC_LIBRARY} ${HDF5_LIBRARIES})
+ELSE()
+  INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
+  LIST(INSERT HDF5_LIBRARIES 0 ${HDF5_hdf5_fortran_LIBRARY_RELEASE})
+  LIST(REMOVE_DUPLICATES HDF5_LIBRARIES)
+  MESSAGE(STATUS "Found HDF5 Libs: " ${HDF5_LIBRARIES})
+  LIST(APPEND linkedlibs ${HDF5_LIBRARIES} )
+ENDIF()
+
+# =========================================================================
+# LAPACK/MKL library
+# =========================================================================
+# use Lapack/Blas for GNU
+MESSAGE(STATUS "Using BLAS/Lapack library")
+IF (BOLTZPLATZ_MKL)
+  SET(BLA_VENDOR "Intel") #search only for Intel BLAS (=MKL)
+ENDIF()
+FIND_PACKAGE(LAPACK QUIET)
+IF (LAPACK_FOUND)
+  LIST(APPEND linkedlibs ${LAPACK_LIBRARIES})
+ENDIF()
+
+# =========================================================================
+# MPI
+# =========================================================================
+IF(BOLTZPLATZ_MPI)
+  FIND_PACKAGE(MPI REQUIRED)
+  IF (NOT MPI_Fortran_NO_INTERROGATE)
+    FOREACH(DIR ${MPI_INCLUDE_PATH})
+      INCLUDE_DIRECTORIES(${DIR})
+    ENDFOREACH()
+    FOREACH(DIR ${MPI_Fortran_INCLUDE_PATH})
+      INCLUDE_DIRECTORIES(${DIR})
+    ENDFOREACH()
+    LIST(APPEND linkedlibs ${MPI_Fortran_LIBRARIES})
+  ENDIF()
+  MARK_AS_ADVANCED(MPI_LIBRARY MPI_EXTRA_LIBRARY) # don't show these ones
+  ADD_DEFINITIONS(-DMPI)
+  MESSAGE(STATUS "Building Boltzplatz with MPI")
+  MESSAGE(STATUS "MPI Compiler: " ${MPI_Fortran_COMPILER})
+ENDIF()
+
+# ========================================================================= 
+# PAPI library 
+# ========================================================================= 
+IF(BOLTZPLATZ_PAPI)
+  FIND_PACKAGE(PAPI REQUIRED)
+  ADD_DEFINITIONS(-DPAPI) 
+  LIST(APPEND linkedlibs ${PAPI_LIBRARIES})
+  INCLUDE_DIRECTORIES(${PAPI_INCLUDE_DIRS})
+  MESSAGE(STATUS "Building Boltzplatz with PAPI benchmark support.") 
+ENDIF()
+
+# =========================================================================
+# Boltzplatz sources & targets
+# =========================================================================
+
+function(add_exec target)
+  ADD_EXECUTABLE(${target} ${ARGN})
+  TARGET_LINK_LIBRARIES(${target} boltzplatzlib ${linkedlibs})
+  SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
+  SET_TARGET_PROPERTIES(${target} PROPERTIES LINKER_LANGUAGE Fortran)
+  INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
+  STRING(TOUPPER ${target} TARGETUP)
+  ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: ${TARGETUP} BUILD COMPLETE!")
+endfunction()
 
 # include boltzplatz.h 
-FILE(COPY ${CMAKE_CURRENT_SOURCE_DIR}/src/boltzplatz.h DESTINATION ${CMAKE_Fortran_MODULE_DIRECTORY})
-INCLUDE_DIRECTORIES(${CMAKE_Fortran_MODULE_DIRECTORY})
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src) 
 
 # collect all F90 files needed for boltzplatzlib
 FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
@@ -283,7 +529,6 @@ FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/timedisc/*.f90
                                 ./src/utils/*.f90 )
 
-
 FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90)
 FILE(GLOB mainF90 ./src/boltzplatz.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
@@ -300,181 +545,19 @@ IF(BOLTZPLATZ_HDG)
   LIST(APPEND boltzplatzF90 ${hdgF90})
 ENDIF(BOLTZPLATZ_HDG)
 
-# define boltzplatz library 
-ADD_LIBRARY(boltzplatzlibF90 OBJECT ${boltzplatzF90})
-SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES LINKER_LANGUAGE Fortran)
-
-#define boltzplatzlib
+# define libs
+ADD_LIBRARY(boltzplatzlibF90 OBJECT ${boltzplatzF90} )
+SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES COMPILE_FLAGS ${BOLTZPLATZ_COMPILE_FLAGS}) 
 ADD_LIBRARY(boltzplatzlib STATIC $<TARGET_OBJECTS:boltzplatzlibF90>)
-SET_TARGET_PROPERTIES(boltzplatzlib PROPERTIES LINKER_LANGUAGE Fortran)
-TARGET_LINK_LIBRARIES(boltzplatzlib ${LINK_LIBS})
+ADD_DEPENDENCIES(boltzplatzlibF90 HDF5)
 
+add_exec(boltzplatz ./src/boltzplatz.f90)
+ADD_DEPENDENCIES(boltzplatz boltzplatzlib HDF5)
 
-# define boltzplatz executable
-ADD_EXECUTABLE(boltzplatz ./src/boltzplatz.f90)
-TARGET_LINK_LIBRARIES(boltzplatz boltzplatzlib) 
-SET_TARGET_PROPERTIES(boltzplatz PROPERTIES LINKER_LANGUAGE Fortran)
-INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boltzplatz DESTINATION bin)
-INSTALL(FILES  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt DESTINATION bin)
-
-# =========================================================================
-# FLAGS
-# =========================================================================
-
-# append relative filename-macro for __FILENAME__ in Stamp of abort function (see boltzplatz.h)
-SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__FILENAME__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
-
-# =========================================================================
-# COMPILER STUFF
-# =========================================================================
-
-# FFLAGS depend on the compiler
-GET_FILENAME_COMPONENT (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
-
+# special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-  # gfortran
-  # set compiler
-  #IF (BOLTZPLATZ_MPI)
-  #   SET (CMAKE_Fortran_COMPILER mpif90)
-  #ENDIF()
-  #environment specific variables
-  IF(ONHLRS GREATER -1)
-    SET(BOLTZPLATZ_INSTRUCTION "-march=core-avx2")
-  ELSE()
-    SET(BOLTZPLATZ_INSTRUCTION "-march=native -finline-functions")
-  ENDIF()
-  # set Flags
-  SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -DGNU")
-  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O3 -march=native  -finline-functions")
-  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -pg -O3 -march=native  -finline-functions")
-  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace  -Wall")
-  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace  -Wall -fsanitize=address,undefined -fno-omit-frame-pointer -Wc-binding-type")
-  # add flags only for compiling not linking!
-  SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES COMPILE_FLAGS "-xf95-cpp-input")
-  SET_TARGET_PROPERTIES(boltzplatz PROPERTIES COMPILE_FLAGS "-xf95-cpp-input")
-ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-   # ifort
-   #environment specific variables
-   IF(ONHORNET GREATER -1)
-     SET(BOLTZPLATZ_INSTRUCTION "-xCORE-AVX2")
-   ELSE()
-      SET(BOLTZPLATZ_INSTRUCTION "-xHost")
-   ENDIF()
-   IF (BOLTZPLATZ_MPI AND ONHORNET LESS 0)
-      SET(CMAKE_Fortran_COMPILER mpif90)
-   ENDIF()
-   # set Flags
-   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -r8 -i4 -traceback -warn all -assume bscc -shared-intel -DINTEL")
-   SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O2 ${BOLTZPLATZ_INSTRUCTION} -vec-report0 -no-prec-div ")
-   # -ipo is not working
-   # -fp-model precise -> identical results 85s
-   # -fp-model strict  -> identical results 96s
-   # -rec-sqrt -fma -no-fma
-   # additional -fp-model precise -fp-model exept -fp-model strict
-   SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -p -O2 ${BOLTZPLATZ_INSTRUCTION} -vec-report0 -no-prec-div")
-   #SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -init=snan -init=arrays -init=zero")
-   SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O2 -fpe0 -traceback -warn all -fstack-protector -assume protect_parens -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -ftrapuv -init=snan -init=arrays -init=zero")
-   # add flags only for compiling not linking!
-  SET_TARGET_PROPERTIES(boltzplatzlibF90 PROPERTIES COMPILE_FLAGS "-fpp -assume bscc")
-   SET_TARGET_PROPERTIES(boltzplatz    PROPERTIES COMPILE_FLAGS "-fpp -assume bscc")
-ELSE()
-   MESSAGE(ERROR "Unknown compiler")
+   SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals.f90 PROPERTIES COMPILE_FLAGS "-Wno-intrinsic-shadow")
 ENDIF()
-
-# =========================================================================
-# MPI
-# =========================================================================
-IF(BOLTZPLATZ_MPI)
-  FIND_PACKAGE(MPI REQUIRED)
-  LIST(GET MPI_INCLUDE_PATH 0 MPI_INCLUDE_PATH)
-  INCLUDE_DIRECTORIES(${MPI_INCLUDE_PATH} ${MPI_INCLUDE_PATH}/../lib)
-  #INCLUDE_DIRECTORIES(${MPI_INCLUDE_PATH})
-  MESSAGE(STATUS "MPI include dir: " ${MPI_INCLUDE_PATH})
-  ADD_DEFINITIONS(-DMPI)
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${MPI_INCLUDE_PATH}")
-  SET (LINK_LIBS ${LINK_LIBS} ${MPI_LIBRARIES})
-  TARGET_LINK_LIBRARIES(boltzplatzlib ${MPI_Fortran_LIBRARIES})
-  TARGET_LINK_LIBRARIES(boltzplatz       ${MPI_Fortran_LIBRARIES} ${MPI_Fortran_LIBRARIES})
-  MESSAGE(STATUS "Building boltzplatz with MPI")
-  MESSAGE(STATUS "MPI Compiler: " ${MPI_Fortran_COMPILER})
-ENDIF()
-
-# =========================================================================
-# HDF5 library
-# =========================================================================
-#HDF5
-SET(BOLTZPLATZ_HDF5_FOUND FALSE)
-#IF(ONHLRS GREATER -1)
-  #SET(HDF5_USE_STATIC_LIBRARIES TRUE)
-#ENDIF()
-FIND_PACKAGE (HDF5 NAMES hdf5 COMPONENTS Fortran static QUIET)
-IF(HDF5_FOUND)
-  LIST(GET HDF5_INCLUDE_DIR 0 HDF5_INCLUDE_DIR)
-  MESSAGE(STATUS "HDF5 include dir: " ${HDF5_INCLUDE_DIR_FORTRAN})
-  INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR_FORTRAN})
-  SET(CMAKE_Fortran_FLAGS "${CMAKE_FORTRAN_FLAGS} -I${HDF5_INCLUDE_DIR_FORTRAN}")
-  TARGET_LINK_LIBRARIES(boltzplatz ${HDF5_FORTRAN_STATIC_LIBRARY} ${HDF5_LIBRARIES})
-  MESSAGE(STATUS "Building boltzplatz with parallel HDF5 (HyperSlab)")
-  ADD_DEFINITIONS(-DH5TOOLSDIR=\"${HDF5_INCLUDE_DIR}/../bin/\")
-  SET(BOLTZPLATZ_HDF5_FOUND TRUE)
-ELSE()
-  SET(BOLTZPLATZ_HDF5_DIR $ENV{HDF5_DIR} CACHE PATH "Directory of HDF5")
-  IF(EXISTS "${BOLTZPLATZ_HDF5_DIR}/include/")
-    INCLUDE_DIRECTORIES (${BOLTZPLATZ_HDF5_DIR}/include)
-    MESSAGE(STATUS "HDF5 include dir: " ${BOLTZPLATZ_HDF5_DIR}/include)
-    SET(BOLTZPLATZ_HDF5_FOUND TRUE)
-  ENDIF()
-  IF(EXISTS "${BOLTZPLATZ_HDF5_DIR}/include/static")
-    INCLUDE_DIRECTORIES (${BOLTZPLATZ_HDF5_DIR}/include/static)
-    MESSAGE(STATUS "HDF5 include dir: " ${BOLTZPLATZ_HDF5_DIR}/include/static)
-    SET(BOLTZPLATZ_HDF5_FOUND TRUE)
-  ENDIF()
-  IF(NOT BOLTZPLATZ_HDF5_FOUND)
-    MESSAGE(ERROR "No hdf5 installation found!")
-  ENDIF()
-  FIND_LIBRARY(BOLTZPLATZ_HDF51 NAMES libhdf5_fortran.a hdf5_fortran PATHS  ${BOLTZPLATZ_HDF5_DIR}/lib)
-  TARGET_LINK_LIBRARIES(boltzplatz ${BOLTZPLATZ_HDF51})
-  IF(EXISTS "${BOLTZPLATZ_HDF5_DIR}/lib/libhdf5_hl_f90cstub.a")
-    FIND_LIBRARY(BOLTZPLATZ_HDF52 NAMES libhdf5_f90cstub.a hdf5_f90cstub PATHS ${BOLTZPLATZ_HDF5_DIR}/lib)
-    TARGET_LINK_LIBRARIES(boltzplatz ${BOLTZPLATZ_HDF52})
-  ENDIF()
-  FIND_LIBRARY(BOLTZPLATZ_HDF53 NAMES libhdf5.a hdf5 PATHS ${BOLTZPLATZ_HDF5_DIR}/lib)
-  TARGET_LINK_LIBRARIES(boltzplatz ${BOLTZPLATZ_HDF53} -ldl -lz)
-  MESSAGE(STATUS "Building boltzplatz with parallel HDF5 (HyperSlab)")
-  IF (ONHORNET GREATER -1)
-     # customized location of the tools on hazelhen
-    ADD_DEFINITIONS(-DH5TOOLSDIR=\"${BOLTZPLATZ_HDF5_DIR}/../../../../hdf5/1.8.14/bin/\")
-  ELSE()
-    ADD_DEFINITIONS(-DH5TOOLSDIR=\"${BOLTZPLATZ_HDF5_DIR}/bin/\")
-  ENDIF()
-ENDIF()
-IF(NOT BOLTZPLATZ_HDF5_FOUND)
-   MESSAGE(ERROR "No hdf5 installation found!")
-ENDIF()
-IF (BOLTZPLATZ_HDF5F90)
-   ADD_DEFINITIONS(-DHDF5_F90)
-ENDIF()
-
-# =========================================================================
-# LAPACK/MKL library
-# =========================================================================
-IF (NOT BOLTZPLATZ_MKL)
-  # use Lapack/Blas for GNU
-  MESSAGE(STATUS "use BLAS/Lapack library")
-  FIND_PACKAGE(LAPACK)
-  IF (LAPACK_FOUND)
-    TARGET_LINK_LIBRARIES(boltzplatz    ${LAPACK_LIBRARIES}) 
-    TARGET_LINK_LIBRARIES(boltzplatzlib ${LAPACK_LIBRARIES})
-  ENDIF()
-ELSE()
-  MESSAGE(STATUS "use MKL library")
-  LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-  FIND_PACKAGE(MKL REQUIRED)
-  INCLUDE_DIRECTORIES(${MKL_INCLUDE_DIR})
-  LINK_DIRECTORIES(${MKL_LIBRARY})
-  TARGET_LINK_LIBRARIES(boltzplatz ${MKL_LIBRARY})
-ENDIF()
-
 
 # =========================================================================
 # Userblock
@@ -491,16 +574,18 @@ ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURC
 ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND echo \"{[\( GIT URL \)]}\" >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
 ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && git config --get remote.origin.url >> ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt)
 
+
 # =========================================================================
-# final message
+# generate .boltzplatz in $HOME
 # =========================================================================
-ADD_CUSTOM_COMMAND(TARGET boltzplatz POST_BUILD COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "SUCCESS: BOLZPLATZ EXECUTABLE GENERATED!")
+ADD_CUSTOM_COMMAND(TARGET boltzplatz     POST_BUILD COMMAND echo \"export BOLTZPLATZ_DIR=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}\" > $ENV{HOME}/.boltzplatz)
+ADD_CUSTOM_COMMAND(TARGET boltzplatz     POST_BUILD COMMAND echo \"alias boltzplatz='${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boltzplatz'\" >> $ENV{HOME}/.boltzplatz)
+
 
 # =========================================================================
 # Install
 # =========================================================================
-INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/boltzplatz DESTINATION bin)
-INSTALL(FILES  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt DESTINATION bin)
+INSTALL(FILES    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.txt DESTINATION bin)
 
 # =========================================================================
 # Ctags
@@ -508,5 +593,9 @@ INSTALL(FILES  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_RUN
 IF(BOLTZPLATZ_CTAGS)
   ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt src)
   ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
-  ADD_DEPENDENCIES(boltzplatz tags)
+  FIND_PROGRAM(CTAGS_PATH ctags)
+  IF(CTAGS_PATH)
+      MESSAGE(STATUS "Found ctags: ${CTAGS_PATH}")
+      ADD_DEPENDENCIES(boltzplatz tags)
+  ENDIF(CTAGS_PATH)
 ENDIF(BOLTZPLATZ_CTAGS)
