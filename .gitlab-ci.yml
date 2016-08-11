@@ -3,7 +3,7 @@ stages:
   - error_clean
 
 cache:
-  key: "$CI_BUILD_REF_NAME"
+  key: "$CI_BUILD_NAME/$CI_BUILD_REF_NAME"
   paths: 
     - build_gnu/    
     - build_intel/    
@@ -14,10 +14,10 @@ build_gnu:
     - withmodules
   script:
     - module load env/gnu ; module list 
-    - mkdir -p build_gnu ; cd build_gnu ; mkdir -p maxwell ; cd maxwell; cmake  ../.. ; make ; cd ..
-    - mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=ImplicitO4 ../.. ; make ; cd ..
-    - mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make ; cd ..
-    - mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make 
+    - mkdir -p build_gnu ; cd build_gnu ; mkdir -p maxwell ; cd maxwell; cmake  ../.. ; make 
+    - cd .. ; mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=ImplicitO4 ../.. ; make 
+    - cd .. ; mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make 
+    - cd .. ; mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make 
 
 build_intel:
   stage: build
@@ -25,10 +25,10 @@ build_intel:
     - withmodules
   script:
     - module load env/intel ; module list 
-    - mkdir -p build_intel ; cd build_intel ; mkdir -p maxwell ; cd maxwell; cmake ../.. ; make ; cd ..
-    - mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=ImplicitO4 ../.. ; make ; cd ..
-    - mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make ; cd ..
-    - mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make 
+    - mkdir -p build_intel ; cd build_intel ; mkdir -p maxwell ; cd maxwell; cmake ../.. ; make 
+    - cd .. ; mkdir -p implicit ; cd implicit; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=ImplicitO4 ../.. ; make 
+    - cd .. ; mkdir -p dsmc ; cd dsmc; cmake -DBOLTZPLATZ_TIMEDISCMETHOD=DSMC ../.. ; make 
+    - cd .. ; mkdir -p hdg ; cd hdg; cmake -DBOLTZPLATZ_HDG=ON ../.. ; make 
 
 clean:
   stage: error_clean
