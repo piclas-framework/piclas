@@ -436,7 +436,7 @@ __STAMP__&
   IF(DoRefMapping) THEN
     DO i = 1,PDM%ParticleVecLength
       CALL Eval_xyz_ElemCheck(PartState(i,1:3),Xi,PEM%Element(i))
-      IF(ALL(ABS(Xi).LE.EpsOneCell)) THEN ! particle inside
+      IF(ALL(ABS(Xi).LE.EpsOneCell(PEM%Element(i)))) THEN ! particle inside
         InElementCheck=.TRUE.
         PartPosRef(1:3,i)=Xi
       ELSE
