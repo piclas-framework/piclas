@@ -76,9 +76,6 @@ SUBROUTINE DSMC_Update_Wall_Vars()
       CALL CalcDistNumChange()
       CALL CalcDiffusion()
       CALL CalcSurfDistInteraction()
-    ELSE IF (DSMC%WallModel.EQ.3) THEN
-!       CALL CalcDistNumChange()
-      CALL CalcDiffusion()
     END IF
     
     CALL CalcAdsorbProb()
@@ -525,8 +522,8 @@ SUBROUTINE CalcBackgndPartDesorb()
    INTEGER , ALLOCATABLE            :: nSites(:), nSitesRemain(:), remainNum(:), adsorbates(:)
 !---------- reaction variables
    INTEGER                          :: react_Neigh, n_react_Neigh, n_empty_Neigh, jSpec, kSpec, ReactNum, PartnerID, LastRemainID
-   INTEGER                          :: react_Neigh_pos, surf_react_case
-   REAL                             :: E_a, E_d, E_diff, nu_react, P_diff, sigmaB
+   INTEGER                          :: react_Neigh_pos, surf_react_case, interatom
+   REAL                             :: E_a, E_d, E_diff, nu_react, P_diff, sigmaB, nu_diff
    REAL                             :: Heat_AB, D_AB, sum_probabilities
    REAL                             :: VarPartitionFuncWall1, VarPartitionFuncWall2
    INTEGER , ALLOCATABLE            :: NeighbourID(:)
@@ -670,11 +667,18 @@ DO subsurfxi = 1,nSurfSample
     jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species(react_Neigh_pos)
     ! calculate probability for 'reaction' with partner site
     IF (jSpec.EQ.0) THEN !diffusion
-!       interatom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nInterAtom
-!       E_diff = ( (interatom-2)/(4*interatom-2))*Heat_A
-      P_diff = 0.
+      interatom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nInterAtom
+      E_diff = ( (interatom-2)/(4*interatom-2))*Heat_A
+      CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
+      CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
+      nu_diff = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall) * (3.E-8)**2/4.
+      rate = nu_diff * exp(-E_diff/WallTemp)
+      IF (rate*dt.GT.1) THEN
+        P_diff = 1.
+      ELSE
+        P_diff = rate * dt
+      END IF
       P_actual_react(:) = 0.
-      ! currently extra routine for diffusion
     ELSE !reaction
       DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
       IF ( jSpec.EQ.Adsorption%AssocReact(1,ReactNum,iSpec) ) THEN
@@ -801,26 +805,39 @@ DO subsurfxi = 1,nSurfSample
           nSitesRemain(4) = nSitesRemain(4) + 1
           ! additional increment to trace number
           trace = trace + 1
-!           ! Surfpos (nSitesRemain(Coord2)+1) saved in PartnerID might be now in position that is not checked (in remainNum segment)
-!           IF (PartnerID.GT.nSitesRemain(Coord2)+adsorbnum(Coord2)-remainNum(Coord2)) THEN
-!             LastRemainID = nSitesRemain(Coord2)+adsorbnum(Coord2)-remainNum(Coord2) + 1
-!             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%UsedSiteMap(PartnerID) = &
-!                 SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%UsedSiteMap(LastRemainID)
-!             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%UsedSiteMap(LastRemainID) = react_Neigh_pos
-!             remainNum(Coord2) = remainNum(Coord2) - 1
-!             remainNum(4) = remainNum(4) - 1
-!           END IF
         END IF
         END DO !PartnerID
       !-----------------------------------------------------------------------------------------------------------------------------
-      CASE(2) !diffusion (currently separate routine)
+      CASE(2) !diffusion
       !-----------------------------------------------------------------------------------------------------------------------------
-      ! do nothing
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = &
-            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord))
-        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord)) = Surfpos
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos) = 0
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(react_Neigh_pos) = iSpec
+        DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+          Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
+          Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j)
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) - 1
+          Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(react_Neigh_pos,j)
+          Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(react_Neigh_pos,j)
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
+        END DO
+        ! move adsorbate to empty site and update map
+        DO i = 1,nSitesRemain(Coord)
+          IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(i).EQ.react_Neigh_pos) THEN
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(i) = Surfpos
+!             SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = react_Neigh_pos
+            ! move Surfpos to MapID in remainNum segment
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID) = &
+                SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord))
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSites(Coord)-remainNum(Coord)) =react_Neigh_pos
+            EXIT
+          END IF
+        END DO
         remainNum(Coord) = remainNum(Coord) + 1
         remainNum(4) = remainNum(4) + 1
+        ! additional increment to trace number
+        trace = trace + 1
       !-----------------------------------------------------------------------------------------------------------------------------
       CASE(3) !(desorption)
       !-----------------------------------------------------------------------------------------------------------------------------
