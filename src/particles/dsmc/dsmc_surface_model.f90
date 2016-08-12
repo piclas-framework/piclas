@@ -54,19 +54,22 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 #endif
     
     IF (.NOT.KeepWallParticles) THEN
+      ! adjust coverages of all species on surfaces
       DO iSpec = 1,nSpecies
         DO iSurfSide = 1,SurfMesh%nSides
           DO q = 1,nSurfSample
             DO p = 1,nSurfSample
               maxPart = Adsorption%DensSurfAtoms(iSurfSide) * SurfMesh%SurfaceArea(p,q,iSurfSide)
               Adsorption%Coverage(p,q,iSurfSide,iSpec) = Adsorption%Coverage(p,q,iSurfSide,iSpec) &
-                  - Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec)* Species(iSpec)%MacroParticleFactor / maxPart
+                  - (Adsorption%SumDesorbPart(p,q,iSurfSide,iSpec) - Adsorption%SumReactPart(p,q,iSurfSide,iSpec)) &
+                  * Species(iSpec)%MacroParticleFactor / maxPart
             END DO
           END DO
         END DO
       END DO
       Adsorption%SumDesorbPart(:,:,:,:) = 0
       Adsorption%SumAdsorbPart(:,:,:,:) = 0
+      Adsorption%SumReactPart(:,:,:,:) = 0
     END IF
 
     IF (DSMC%WallModel.EQ.2) THEN
@@ -518,7 +521,8 @@ SUBROUTINE CalcBackgndPartDesorb()
    INTEGER                          :: bondorder, Indx, Indy, Surfpos
    REAL                             :: VarPartitionFuncAct, VarPartitionFuncWall
    INTEGER                          :: trace, traceNum
-   INTEGER , ALLOCATABLE            :: desorbnum(:), adsorbnum(:), nSites(:), nSitesRemain(:), remainNum(:), adsorbates(:)
+   INTEGER , ALLOCATABLE            :: desorbnum(:), reactdesorbnum(:), adsorbnum(:)
+   INTEGER , ALLOCATABLE            :: nSites(:), nSitesRemain(:), remainNum(:), adsorbates(:)
 !---------- reaction variables
    INTEGER                          :: react_Neigh, n_react_Neigh, n_empty_Neigh, jSpec, kSpec, ReactNum, PartnerID, LastRemainID
    INTEGER                          :: react_Neigh_pos, surf_react_case
@@ -534,6 +538,7 @@ SUBROUTINE CalcBackgndPartDesorb()
 #endif
 
 ALLOCATE (desorbnum(1:nSpecies),&
+          reactdesorbnum(1:nSpecies),&
           adsorbnum(1:4),&
           nSites(1:4),&
           nSitesRemain(1:4),&
@@ -566,6 +571,7 @@ DO SurfSideID = 1,SurfMesh%nSides
 DO subsurfeta = 1,nSurfSample
 DO subsurfxi = 1,nSurfSample
   desorbnum(:) = 0
+  reactdesorbnum(:) = 0
   nSites(:) = 0
   nSitesRemain(:) = 0
   remainNum(:) = 0
@@ -761,6 +767,9 @@ DO subsurfxi = 1,nSurfSample
       !-----------------------------------------------------------------------------------------------------------------------------
         ! update number of desorptions
         desorbnum(Adsorption%AssocReact(2,ReactNum,iSpec)) = desorbnum(Adsorption%AssocReact(2,ReactNum,iSpec)) + 1
+        reactdesorbnum(Adsorption%AssocReact(2,ReactNum,iSpec)) = reactdesorbnum(Adsorption%AssocReact(2,ReactNum,iSpec)) + 1
+        reactdesorbnum(Adsorption%AssocReact(1,ReactNum,iSpec)) = reactdesorbnum(Adsorption%AssocReact(1,ReactNum,iSpec)) - 1
+        reactdesorbnum(iSpec) = reactdesorbnum(iSpec) - 1
 !         Energy(Adsorption%AssocReact(2,ReactNum,iSpec)) = Energy(Adsorption%AssocReact(2,ReactNum,iSpec)) + Heat_A
         ! remove adsorbate and update map
         SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos) = 0
@@ -849,6 +858,9 @@ DO subsurfxi = 1,nSurfSample
   ! calculate number of desorbed particles for each species
   numSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(iSpec))
   Adsorption%SumDesorbPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = INT((REAL(desorbnum(iSpec)) / REAL(numSites)) &
+                                                                  * (Adsorption%DensSurfAtoms(SurfSideID) &
+                      * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) / Species(iSpec)%MacroParticleFactor))
+  Adsorption%SumReactPart(subsurfxi,subsurfeta,SurfSideID,iSpec) = INT((REAL(reactdesorbnum(iSpec)) / REAL(numSites)) &
                                                                   * (Adsorption%DensSurfAtoms(SurfSideID) &
                       * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID) / Species(iSpec)%MacroParticleFactor))
   ! analyze rate data

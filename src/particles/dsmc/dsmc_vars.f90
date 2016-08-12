@@ -256,6 +256,8 @@ TYPE tAdsorption
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   INTEGER , ALLOCATABLE                  :: SumAdsorbPart(:,:,:,:)  ! Number of Particles of Species iSpec adsorbing to Surface
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
+  INTEGER , ALLOCATABLE                  :: SumReactPart(:,:,:,:)   ! Number of Particles desorbed through reaction
+                                                                    ! (nSurfSample,nSurfSample,nSurfSide,nSpecies)
   REAL    , ALLOCATABLE                  :: DensSurfAtoms(:)        ! density of surfaceatoms
   INTEGER , ALLOCATABLE                  :: SurfSideToGlobSideMap(:)! map of surfside ID to global Side ID
                                                                     ! needed to calculate BC temperature for adsorption

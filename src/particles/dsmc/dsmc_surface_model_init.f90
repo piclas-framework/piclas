@@ -113,6 +113,7 @@ ALLOCATE( Adsorption%Coverage(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nS
           Adsorption%ProbDes(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumDesorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SumAdsorbPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
+          Adsorption%SumReactPart(1:nSurfSample,1:nSurfSample,1:SurfMesh%nSides,1:nSpecies),&
           Adsorption%SurfSideToGlobSideMap(1:SurfMesh%nSides),&
           Adsorption%DensSurfAtoms(1:SurfMesh%nSides))
 IF (DSMC%WallModel.EQ.2) THEN
@@ -140,6 +141,7 @@ Adsorption%ProbAds(:,:,:,:) = 0.
 Adsorption%ProbDes(:,:,:,:) = 0.
 Adsorption%SumDesorbPart(:,:,:,:) = 0
 Adsorption%SumAdsorbPart(:,:,:,:) = 0
+Adsorption%SumReactPart(:,:,:,:) = 0
 
 IF (DSMC%WallModel.EQ.2) THEN
   Adsorption%ProbSigAds(:,:,:,:,:) = 0.
