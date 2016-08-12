@@ -658,6 +658,7 @@ DO subsurfxi = 1,nSurfSample
       END IF
     END DO
     
+    IF ((n_empty_Neigh+n_react_Neigh).GT.0) THEN
     ! choose random neighbour site from relevant neighbours
     CALL RANDOM_NUMBER(RanNum)
     react_Neigh = 1 + INT((n_empty_Neigh+n_react_Neigh) * RanNum)
@@ -719,6 +720,13 @@ DO subsurfxi = 1,nSurfSample
         P_diff = 0.
       END IF
       END DO
+    END IF
+    
+    ELSE
+      DEALLOCATE(NeighbourID)
+      P_diff = 0.
+      P_actual_react(:) = 0.
+      jSpec = 0
     END IF
     
     ! calculate desorption probability
