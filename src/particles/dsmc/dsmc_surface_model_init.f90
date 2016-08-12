@@ -392,8 +392,8 @@ DO subsurfxi = 1,nSurfSample
       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,3) = Surfpos -surfsquare &
                                                                                   -(surfsquare+1)*(Indy-1) -1
       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,4) = Surfpos - surfsquare -(surfsquare+1)*(Indy-1)
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-2) -1
-      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-2)
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,5) = Surfpos -(surfsquare+1)*(Indy-1) -1
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,6) = Surfpos -(surfsquare+1)*(Indy-1)
       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighSite(Surfpos,1:6) = 1
       ! bridge
       SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(2)%NeighPos(Surfpos,7) = Surfpos - surfsquare - (surfsquare+1)
