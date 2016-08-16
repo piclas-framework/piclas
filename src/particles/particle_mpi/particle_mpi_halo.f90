@@ -960,7 +960,7 @@ SUBROUTINE ExchangeHaloGeometry(iProc,ElemList)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, nInnerSides, ElemToSide, BC,nGeo
+USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, nInnerSides, ElemToSide, BC,nGeo,SideToElem
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem,GEO,nTotalBCSides,ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:ElemSlabNormals,ElemSlabIntervals  
@@ -1378,14 +1378,14 @@ DO iSide = 1,nSides
   IF (SideIndex(iSide).GT.0) THEN
   !IF(isSide(iSide))THEN
     DO iIndex = 1,2   ! S2E_ELEM_ID, S2E_NB_ELEM_ID
-      IF (PartSideToElem(iIndex,iSide).GT.0) THEN
+      IF (SideToElem(iIndex,iSide).GT.0) THEN
          SendMsg%SideToElem(iIndex,SideIndex(iSide)) = &
-                 ElemIndex(PartSideToElem(iIndex,iSide))     
+                 ElemIndex(SideToElem(iIndex,iSide))     
          SendMsg%SideBCType(SideIndex(iSide)) = SidePeriodicType(iSide)
       END IF
     END DO ! S2E_LOC_SIDE_ID, S2E_NB_LOC_SIDE_ID, S2E_FLIP
     SendMsg%SideToElem(3:5,SideIndex(iSide)) = &
-        PartSideToElem(3:5,iSide)
+        SideToElem(3:5,iSide)
     SendMsg%BezierControlPoints3D(:,:,:,SideIndex(iSide)) = &
         BezierControlPoints3D(:,:,:,iSide)
     ! slabnormals
