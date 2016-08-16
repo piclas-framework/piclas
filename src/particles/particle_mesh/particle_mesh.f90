@@ -3664,6 +3664,7 @@ DO iElem=1,nTotalElems
     END DO !k=0,NGeo
     XiEtaZetaBasis(1:3,6,iElem)=xPos
   ELSE ! compute particle position in physical space
+    Xi=(/0.0,0.0,0.0/)
     SideID = PartElemToSide(1,XI_PLUS,iElem)
     CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,1,iElem))
     SideID = PartElemToSide(1,ETA_PLUS,iElem)
@@ -3691,7 +3692,7 @@ DO iElem=1,nTotalElems
   slenXiEtaZetaBasis(4,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,4,iElem),XiEtaZetaBasis(:,4,iElem))
   slenXiEtaZetaBasis(5,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,5,iElem),XiEtaZetaBasis(:,5,iElem))
   slenXiEtaZetaBasis(6,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,6,iElem),XiEtaZetaBasis(:,6,iElem))
-  
+
   Radius=0.
   IF(DoRefMapping)THEN ! thats not the bounding box, caution, this box is to small!
     DO k=0,NGeo
@@ -4751,7 +4752,7 @@ DO iElem=1,PP_nElems
   epsOneCell(iElem)=1.0+SQRT(scaleJ*RefMappingEps)
   maxScaleJ=MAX(scaleJ,maxScaleJ)
 END DO ! iElem=1,nLoop
-DO iElem=PP_nElems+1,nTotalElems
+DO iElem=PP_nElems+1,nLoop
   epsOneCell(iElem)=1.0+SQRT(maxScaleJ*RefMappingEps)
 END DO ! iElem=1,nLoop
 
