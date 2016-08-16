@@ -193,9 +193,11 @@ DO iPart=1,PDM%ParticleVecLength
                                          ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
         IF(ElemID.NE.OldElemID)THEN
 #ifdef MPI
-          tLBEnd = LOCALTIME() ! LB Time End
-          ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
-          tLBStart = LOCALTIME() ! LB Time Start
+          IF(OldElemID.LE.PP_nElems)THEN
+            tLBEnd = LOCALTIME() ! LB Time End
+            ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
+            tLBStart = LOCALTIME() ! LB Time Start
+          END IF
 #endif /*MPI*/
         END IF
       CASE DEFAULT ! two or more hits
