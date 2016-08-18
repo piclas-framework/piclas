@@ -187,6 +187,7 @@ TYPE tSurfaceflux
   REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3)
+  LOGICAL                                :: VeloIsNormal                     ! VeloIC is in Surf-Normal instead of VeloVecIC
   LOGICAL                                :: ReduceNoise                      ! reduce stat. noise by global calc. of PartIns
   LOGICAL                                :: AcceptReject                     ! perform ARM for skewness of RefMap-positioning
   INTEGER                                :: ARM_DmaxSampleN                  ! number of sample intervals in xi/eta for Dmax-calc.
