@@ -578,7 +578,7 @@ DO iBGMElem=1,nBGMElems
 
 !      CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
 !                                                                                    ,xi,eta  ,iPart,flip,SideID)
-    CASE(BILINEAR,PLANAR_NONRECT)
+    CASE(BILINEAR)
       xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
       xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
       xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -588,7 +588,7 @@ DO iBGMElem=1,nBGMElems
                                                                                         ,xi,eta,iPart,flip,SideID)
 
 
-    CASE(CURVED)
+    CASE(CURVED,PLANAR_NONRECT)
       CALL ComputeBezierIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                               ,xi ,eta,iPart,SideID)
 

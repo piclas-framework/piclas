@@ -53,6 +53,7 @@ USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLin
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
 #ifdef MPI
 USE MOD_LoadBalance_Vars,            ONLY:ElemTime
+USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -68,7 +69,7 @@ LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                       :: iPart,ElemID,flip,OldElemID
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections,nLoc
 LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol
-REAL                          :: localpha(1:6),xi(1:6),eta(1:6)
+REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
 #ifdef MPI
@@ -127,7 +128,7 @@ DO iPart=1,PDM%ParticleVecLength
 !                                                                              !,doTest=.TRUE.)
 !                                                                                  !,eta(ilocSide)   ,iPart,ilocSide,SideID,ElemID)
 
-        CASE(BILINEAR,PLANAR_NONRECT)
+        CASE(BILINEAR)
           xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
           xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
           xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -157,7 +158,7 @@ DO iPart=1,PDM%ParticleVecLength
 !                                                                            ,eta(ilocSide)      ,iPart,SideID)
 !
 
-        CASE(CURVED)
+        CASE(CURVED,PLANAR_NONRECT)
           CALL ComputeBezierIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
                                                                                   ,eta(ilocSide)      ,iPart,SideID)
@@ -239,6 +240,10 @@ DO iPart=1,PDM%ParticleVecLength
         PartIsDone=.TRUE.
         IF(.NOT.PDM%ParticleInside(iPart))THEN
           IPWRITE(UNIT_stdOut,*) 'lost particle with id', ipart
+IPWRITE(UNIT_stdOut,*) 'LastPartPos: ',LastPartPos(ipart,1:3)
+CALL Eval_xyz_ElemCheck(LastPartPos(ipart,1:3),refpos(1:3),PEM%lastElement(ipart),ipart)
+IPWRITE(UNIT_stdOut,*) 'LastPartRefPos: ',refpos
+IPWRITE(UNIT_stdOut,*) 'PartState: ',PartState(ipart,1:3)
         END IF
       END IF ! markTol
     END DO ! PartisDone=.FALSE.
@@ -344,7 +349,7 @@ DO WHILE(DoTracing)
       CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                     ,xi (ilocSide)            &
                                                                                     ,eta(ilocSide)   ,PartID,flip,BCSideID)
-    CASE(BILINEAR,PLANAR_NONRECT)
+    CASE(BILINEAR)
       xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
       xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
       xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
@@ -354,7 +359,7 @@ DO WHILE(DoTracing)
                                                                                        ,xi (ilocSide)      &
                                                                                        ,eta(ilocSide)      &
                                                                                        ,PartID,flip,BCSideID)
-    CASE(CURVED)
+    CASE(CURVED,PLANAR_NONRECT)
       CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                               ,xi (ilocSide)      &
                                                                               ,eta(ilocSide)      ,PartID,BCSideID)
@@ -465,7 +470,7 @@ DO iLocSide=firstSide,LastSide
 !                                                                                  ,eta(ilocSide)   ,PartID,flip,BCSideID)
 !
 !                                                                            !,eta(ilocSide)   ,PartID,ilocSide,SideID,ElemID)
-  CASE(BILINEAR,PLANAR_NONRECT)
+  CASE(BILINEAR)
     xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
     xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
     xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
@@ -488,7 +493,7 @@ DO iLocSide=firstSide,LastSide
 !                                                                      ,xi (ilocSide)      &
 !                                                                      ,eta(ilocSide)      ,PartID,SideID)
 
-  CASE(CURVED)
+  CASE(CURVED,PLANAR_NONRECT)
     CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                             ,xi (ilocSide)      &
                                                                             ,eta(ilocSide)      ,PartID,BCSideID)
@@ -946,8 +951,8 @@ DO iPart=1,PDM%ParticleVecLength
       CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
 #endif
       END IF
-      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell(ElemID)) THEN ! particle is inside 
-      !IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle is inside 
+!      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell(ElemID)) THEN ! particle is inside 
+      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN ! particle is inside 
         PEM%lastElement(iPart)=ElemID
 #ifdef MPI
          tLBEnd = LOCALTIME() ! LB Time End
@@ -1959,7 +1964,7 @@ DO iLocSide=firstSide,LastSide
 !                                                                                  ,eta(ilocSide)   ,PartID,flip,BCSideID)
 !
 !                                                                            !,eta(ilocSide)   ,PartID,ilocSide,SideID,ElemID)
-  CASE(BILINEAR,PLANAR_NONRECT)
+  CASE(BILINEAR)
     xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
     xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
     xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
@@ -1982,7 +1987,7 @@ DO iLocSide=firstSide,LastSide
 !                                                                      ,xi (ilocSide)      &
 !                                                                      ,eta(ilocSide)      ,PartID,SideID)
 
-  CASE(CURVED)
+  CASE(CURVED,PLANAR_NONRECT)
     CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                             ,xi (ilocSide)      &
                                                                             ,eta(ilocSide)      ,PartID,BCSideID)
