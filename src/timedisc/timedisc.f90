@@ -273,7 +273,9 @@ END IF
 IF(time.EQ.tEnd)RETURN
 
 #if defined(PARTICLES) && defined(MPI)
-IF (DepositionType.EQ."shape_function") THEN
+IF  (DepositionType.EQ."shape_function")             &
+.OR.(DepositionType.EQ."shape_function_1d")          &
+.OR.(DepositionType.EQ."cylindrical_shape_function") THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
   ! send number of particles
