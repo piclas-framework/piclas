@@ -461,7 +461,10 @@ DO iElem=1,PP_nElems
                   + tParts * nPartsPerElem(iElem)*sTotalParts    &
                   + tCartMesh * nPartsPerElem(iElem)*sTotalParts &
                   + tTracking * nTracksPerElem(iElem)*sTotalTracks
-  IF((TRIM(DepositionType).EQ.'shape_function') .OR. (TRIM(DepositionType).EQ.'cylindrical_shape_function')) THEN
+  IF(   (TRIM(DepositionType).EQ.'shape_function')             &
+   .OR. (TRIM(DepositionType).EQ.'shape_function_1d')          &    
+   .OR. (TRIM(DepositionType).EQ.'shape_function_cylindrical') &    
+   .OR. (TRIM(DepositionType).EQ.'shape_function_spherical') )THEN
     !IF(tTotal(7) * nDeposPerElem(iElem)*sTotalDepos.GT.1000)THEN
     !  IPWRITE(*,*) 'deposition above 1000',tTotal(7) * nDeposPerElem(iElem)*sTotalDepos,nDeposPerElem(iElem)& 
     !                                      ,sTotalDepos,1.0/sTotalDepos
@@ -560,8 +563,10 @@ END IF
 LastImbalance=NewImBalance
 
 #ifdef PARTICLES
-IF((DepositionType.EQ."shape_function") .OR. &
-   (DepositionType.EQ."cylindrical_shape_function")) THEN
+IF(   (TRIM(DepositionType).EQ.'shape_function')             &
+ .OR. (TRIM(DepositionType).EQ.'shape_function_1d')          &    
+ .OR. (TRIM(DepositionType).EQ.'shape_function_cylindrical') &    
+ .OR. (TRIM(DepositionType).EQ.'shape_function_spherical') )THEN
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
   ! send number of particles

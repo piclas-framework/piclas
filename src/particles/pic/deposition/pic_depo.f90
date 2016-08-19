@@ -63,7 +63,7 @@ REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDep
 REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:),xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t, iSFfix
 REAL                      :: Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
-REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction
+REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction, r_sf_average
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(32)             :: hilf
@@ -332,7 +332,7 @@ CASE('shape_function_1d')
   DoExternalParts=.TRUE.
 #endif /*MPI*/
 
-CASE('cylindrical_shape_function')
+CASE('shape_function_cylindrical','shape_function_spherical')
   !IF(.NOT.DoRefMapping) CALL abort(&
   !  __STAMP__&
   !  ,' Shape function has to be used with ref element tracking.')
@@ -344,16 +344,34 @@ CASE('cylindrical_shape_function')
   !IF (ALLOCSTAT.NE.0) THEN
   !  CALL abort(__STAMP__&
   !    ' Cannot allocate ExtPartToFIBGM!')
-  r_sf       = GETREAL('PIC-shapefunction-radius','1.')
-  r_sf0      = GETREAL('PIC-shapefunction-radius0','1.')
-  r_sf_scale = GETREAL('PIC-shapefunction-scale','0.')
-  alpha_sf   = GETINT('PIC-shapefunction-alpha','2')
+  IF(TRIM(DepositionType).EQ.'shape_function_cylindrical')THEN
+    SfRadiusInt=2
+  ELSE
+    SfRadiusInt=3
+  END IF
+  r_sf       = GETREAL   ('PIC-shapefunction-radius','1.')
+  r_sf0      = GETREAL   ('PIC-shapefunction-radius0','1.')
+  r_sf_scale = GETREAL   ('PIC-shapefunction-scale','0.')
+  alpha_sf   = GETINT    ('PIC-shapefunction-alpha','2')
   DoSFEqui   = GETLOGICAL('PIC-shapefunction-equi','F')
   BetaFac    = beta(1.5, REAL(alpha_sf) + 1.)
   w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) &
                         * (REAL(alpha_sf) + 1.)!/(PI*(r_sf**3))
   r2_sf = r_sf * r_sf 
   r2_sf_inv = 1./r2_sf
+
+  r_sf_average=0.5*(r_sf+r_sf0)
+  VolumeShapeFunction=4./3.*PI*r_sf_average*r_sf_average
+  nTotalDOF=REAL(nGlobalElems)*REAL((PP_N+1)**3)
+  IF(MPIRoot)THEN
+    IF(VolumeShapeFunction.GT.GEO%MeshVolume) &
+      CALL abort(&
+      __STAMP__&
+      ,'ShapeFunctionVolume > MeshVolume')
+  END IF
+  
+  SWRITE(UNIT_stdOut,'(A,F12.6)') ' | Average DOFs in Shape-Function |                      ' , &
+      nTotalDOF*VolumeShapeFunction/GEO%MeshVolume
 
   ALLOCATE(ElemDepo_xGP(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
@@ -1838,7 +1856,7 @@ CASE('shape_function_1d')
 
 
 
-CASE('cylindrical_shape_function')
+CASE('shape_function_cylindrical','shape_function_spherical')
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   Vec1(1:3) = 0.
   Vec2(1:3) = 0.
@@ -1859,7 +1877,7 @@ CASE('cylindrical_shape_function')
     !IF (PDM%ParticleInside(iPart)) THEN
     IF (DoParticle(iPart)) THEN
       ! compute local radius
-      local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:2),PartState(iPart,1:2)))
+      local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:SfRadiusInt),PartState(iPart,1:SfRadiusInt)))
       local_r2_sf=local_r_sf*local_r_sf
       local_r2_sf_inv=1./local_r2_sf
       IF (usevMPF) THEN
@@ -1952,7 +1970,7 @@ CASE('cylindrical_shape_function')
     END IF
     
     DO iPart=1,NbrOfextParticles  !external Particles
-      local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:2),PartState(iPart,1:2)))
+      local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:SfRadiusInt),PartState(iPart,1:SfRadiusInt)))
       local_r2_sf=local_r_sf*local_r_sf
       local_r2_sf_inv=1./local_r2_sf
       IF (usevMPF) THEN

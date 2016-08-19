@@ -994,9 +994,10 @@ halo_eps2=halo_eps*halo_eps
 SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 halo distance  |    ',halo_eps 
 
 #ifdef MPI
-IF ((DepositionType.EQ.'shape_function') &
-.OR.(DepositionType.EQ.'cylindrical_shape_function') &
-.OR.(DepositionType.EQ.'shape_function_1d'))THEN
+IF ((DepositionType.EQ.'shape_function')             &
+.OR.(DepositionType.EQ.'shape_function_cylindrical') &
+.OR.(DepositionType.EQ.'shape_function_spherical')   &
+.OR.(DepositionType.EQ.'shape_function_1d')          )THEN
   BGMimax = INT((MIN(GEO%xmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
   BGMimin = INT((MAX(GEO%xmin-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
   BGMjmax = INT((MIN(GEO%ymax+halo_eps,GEO%ymaxglob)-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
@@ -1230,9 +1231,10 @@ FIBGMCellPadding(1:3) = INT(halo_eps/GEO%FIBGMdeltas(1:3))+1
 nShapePaddingX = 0
 nShapePaddingY = 0
 nShapePaddingZ = 0
-IF ((DepositionType.EQ.'shape_function') &
-.OR.(DepositionType.EQ.'cylindrical_shape_function') &
-.OR.(DepositionType.EQ.'shape_function_1d'))THEN
+IF ((DepositionType.EQ.'shape_function')             &
+.OR.(DepositionType.EQ.'shape_function_cylindrical') &
+.OR.(DepositionType.EQ.'shape_function_spherical')   &
+.OR.(DepositionType.EQ.'shape_function_1d')          )THEN
   nShapePaddingX = INT(r_sf/GEO%FIBGMdeltas(1)+0.9999999)
   nShapePaddingY = INT(r_sf/GEO%FIBGMdeltas(2)+0.9999999)
   nShapePaddingZ = INT(r_sf/GEO%FIBGMdeltas(3)+0.9999999)
