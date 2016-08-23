@@ -375,7 +375,7 @@ IF(NOT BOLTZPLATZ_BUILD_HDF5)
   ENDIF()
   IF (ONHORNET GREATER -1)
      # customized location of the tools on hazelhen
-    ADD_DEFINITIONS(-DH5TOOLSDIR=\"${BOLTZPLATZ_HDF5_DIR}/../../../../hdf5/1.8.14/bin/\")
+    ADD_DEFINITIONS(-DH5TOOLSDIR=\"$ENV{HDF5_DIR}/../../../../hdf5/1.8.14/bin/\")
   ELSE()
     ADD_DEFINITIONS(-DH5TOOLSDIR=\"${HDF5_INCLUDE_DIR_FORTRAN}/../../bin\")
   ENDIF()
