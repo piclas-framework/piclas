@@ -139,7 +139,9 @@ INTEGER          :: i,j,k,iElem,iVar
 
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 !Y = LinSolverRHS - X0 +coeff*ut
+#ifndef PP_HDG
 CALL CalcSource(t,1.0,ImplicitSource)
+#endif
 
 IF(DoParabolicDamping)THEN
   rTmp(1:6)=1.0

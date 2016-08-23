@@ -68,7 +68,8 @@ USE MOD_Globals
 USE MOD_Globals_Vars,               ONLY:EpsMach
 USE MOD_Particle_Surfaces_vars
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                  ONLY:nSides,ElemToSide,NGeo,nBCSides,nSides
+USE MOD_Mesh_Vars,                  ONLY:nSides,NGeo,nBCSides,nSides
+!USE MOD_Mesh_Vars,                  ONLY:ElemToSide
 USE MOD_ReadInTools,                ONLY:GETREAL,GETINT,GETLOGICAL
 USE MOD_Particle_Mesh_Vars,         ONLY:PartBCSideList
 USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
@@ -236,7 +237,6 @@ SDEALLOCATE(D_Bezier)
 SDEALLOCATE(arrayNChooseK)
 SDEALLOCATE(BezierControlPoints3DElevated)
 SDEALLOCATE(FacNchooseK)
-SDEALLOCATE(SideType)
 SDEALLOCATE(BezierSampleXi)
 SDEALLOCATE(SurfMeshSubSideData)
 SDEALLOCATE(SurfMeshSideAreas)
@@ -294,7 +294,6 @@ SUBROUTINE CalcNormAndTangBezier(nVec,tang1,tang2,xi,eta,SideID)
 USE MOD_Mesh_Vars,                            ONLY:NGeo
 USE MOD_Globals,                              ONLY:CROSSNORM,UNITVECTOR
 USE MOD_Particle_Surfaces_Vars,               ONLY:BezierControlPoints3D
-USE MOD_Particle_Surfaces_Vars,               ONLY:SideNormVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -344,8 +343,8 @@ SUBROUTINE EvaluateBezierPolynomialAndGradient(Xi,N_in,iSize,BezierControlPoints
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Surfaces_Vars,               ONLY:facNchooseK,D_Bezier
-USE MOD_TimeDisc_Vars,                        ONLY: iter
+USE MOD_Particle_Surfaces_Vars,               ONLY:facNchooseK
+!USE MOD_Particle_Surfaces_Vars,               ONLY:D_Bezier
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1002,7 +1001,7 @@ SUBROUTINE GetElemSlabNormalsAndIntervals(NGeo,ElemID)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,GEO,PartBCSideList,RefMappingEps 
+USE MOD_Particle_Mesh_Vars,       ONLY:PartElemToSide,GEO,RefMappingEps 
 USE MOD_Particle_Surfaces_Vars,   ONLY:ElemSlabNormals,ElemSlabIntervals,BezierControlPoints3DElevated,BezierElevation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1190,10 +1189,9 @@ SUBROUTINE GetBezierSampledAreas(SideID,BezierSampleN,BezierSurfFluxProjection_o
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,BezierControlPoints3D,SideType,SideNormVec
+USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,BezierControlPoints3D
 USE MOD_Basis,                  ONLY:LegendreGaussNodesAndWeights
 USE MOD_Mesh_Vars,              ONLY:NGeo
-USE MOD_Mesh_Vars,              ONLY:nBCSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES

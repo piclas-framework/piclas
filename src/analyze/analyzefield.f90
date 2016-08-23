@@ -372,6 +372,7 @@ END SUBROUTINE PoyntingVector
 #endif
 
 
+#if (PP_nVar>=6)
 SUBROUTINE OutputPoyntingInt(t,Sabs)
 !===================================================================================================================================
 ! Output of PoyntingVector Integral to *csv vile
@@ -436,6 +437,7 @@ WRITE(unit_index_PI,'(A1)') ''
 #endif    /* MPI */
 
 END SUBROUTINE OutputPoyntingInt
+#endif
 
 SUBROUTINE GetPoyntingIntPlane()
 !===================================================================================================================================

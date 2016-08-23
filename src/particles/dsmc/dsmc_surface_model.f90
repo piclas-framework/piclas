@@ -72,7 +72,7 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 
 END SUBROUTINE DSMC_Update_Wall_Vars  
     
-SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex) 
+SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex) 
 !===================================================================================================================================
 ! Particle Adsorption after wall collision
 !===================================================================================================================================
@@ -89,7 +89,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
 !===================================================================================================================================
 ! argument list declaration
   INTEGER,INTENT(INOUT)            :: adsindex
-  REAL,INTENT(INOUT)               :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+  REAL,INTENT(INOUT)               :: PartTrajectory(1:3), alpha
   REAL,INTENT(IN)                  :: xi, eta
   INTEGER,INTENT(IN)               :: PartID, GlobSideID
   LOGICAL,INTENT(IN)               :: IsSpeciesSwap
@@ -258,7 +258,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
     
 !----  Sampling at walls
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
-      CALL CalcWallSample(PartID,SurfSide,p,q,Transarray,IntArray,PartTrajectory,lengthPartTrajectory,alpha,IsSpeciesSwap)
+      CALL CalcWallSample(PartID,SurfSide,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap)
     END IF
     
   ELSE

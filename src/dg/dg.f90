@@ -325,7 +325,12 @@ tLBStart = LOCALTIME() ! LB Time Start
 CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
 
 ! Add Source Terms
+#ifdef PP_HDG
+IF(doSource) CALL CalcSource(Ut)
+#else
 IF(doSource) CALL CalcSource(tStage,1.0,Ut)
+#endif
+
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
@@ -470,7 +475,11 @@ DO iElem=1,PP_nElems
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
+#ifdef PP_HDG
+        CALL ExactFunc(IniExactFunc,Elem_xGP(1:3,i,j,k,iElem),U(1:PP_nVar,i,j,k,iElem))
+#else
         CALL ExactFunc(IniExactFunc,0.,0,Elem_xGP(1:3,i,j,k,iElem),U(1:PP_nVar,i,j,k,iElem))
+#endif
       END DO ! i
     END DO ! j
   END DO !k

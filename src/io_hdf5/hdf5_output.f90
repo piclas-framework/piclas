@@ -62,9 +62,8 @@ USE MOD_LoadBalance_Vars,     ONLY:DoLoadBalance
 USE MOD_Equation_Vars,        ONLY:E,Phi
 #endif /*PP_POIS*/
 #ifdef PP_HDG
-USE MOD_Particle_Boundary_Vars,ONLY: SurfMesh
-USE MOD_Mesh_Vars,            ONLY: offsetSide, nSides,nGlobalUniqueSides,nUniqueSides
-USE MOD_HDG_Vars,             ONLY: lambda, nGP_face, nGP_vol, RHS_vol
+USE MOD_Mesh_Vars,            ONLY: offsetSide,nGlobalUniqueSides,nUniqueSides
+USE MOD_HDG_Vars,             ONLY: lambda, nGP_face
 #if PP_nVar==1
 USE MOD_Equation_Vars,        ONLY:E
 #elif PP_nVar==3
@@ -290,7 +289,9 @@ CALL WriteParticleToHDF5(FileName)
 
 CALL WriteAdditionalDataToHDF5(FileName)
 
+#if (PP_nVar==8)
 CALL WritePMLDataToHDF5(FileName)
+#endif
 
 #ifdef MPI
 IF(DoLoadBalance) CALL WriteElemWeightToHDF5(FileName)
@@ -482,6 +483,7 @@ DEALLOCATE(ElemData,StrVarNames)
 END SUBROUTINE WriteAdditionalDataToHDF5
 
 
+#if (PP_nVar==8)
 SUBROUTINE WritePMLDataToHDF5(FileName)
 !===================================================================================================================================
 ! Write additional (elementwise scalar) data to HDF5
@@ -500,14 +502,13 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVar
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 REAL,ALLOCATABLE               :: Upml(:,:,:,:,:)
 INTEGER                        :: iPML
 !===================================================================================================================================
 
 nVar=0
-#if (PP_nVar==8)
 IF(DoPML)THEN
   nVar=6
   ALLOCATE(StrVarNames(nVar))
@@ -551,9 +552,10 @@ IF(DoPML)THEN
   DEALLOCATE(UPML)
   DEALLOCATE(StrVarNames)
 END IF ! DoPML
-#endif
+
 
 END SUBROUTINE WritePMLDataToHDF5
+#endif
 
 #ifdef PARTICLES
 SUBROUTINE WriteParticleToHDF5(FileName)
@@ -927,7 +929,7 @@ INTEGER                        :: minnParts
   END IF
 
 #ifdef MPI
- CALL DistributedWriteArray(FileName,create=.FALSE.,&
+ CALL DistributedWriteArray(FileName,&
                             DataSetName='PartData', rank=2         ,&
                             nValGlobal=(/nPart_glob,PartDataSize/) ,&
                             nVal=      (/locnPart,PartDataSize/)   ,&
@@ -1008,7 +1010,7 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 INTEGER(HID_T)                 :: DSet_ID,FileSpace,HDF5DataType
 INTEGER(HSIZE_T)               :: Dimsf(5)
 CHARACTER(LEN=255)             :: FileName,MeshFile255
-CHARACTER(LEN=255),ALLOCATABLE :: params(:)
+!CHARACTER(LEN=255),ALLOCATABLE :: params(:)
 !===================================================================================================================================
 ! Create file
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
@@ -1528,7 +1530,7 @@ END IF
 END SUBROUTINE GatheredWriteArray
 
 #ifdef MPI
-SUBROUTINE DistributedWriteArray(FileName,create,DataSetName,rank,nValGlobal,nVal,offset,collective,&
+SUBROUTINE DistributedWriteArray(FileName,DataSetName,rank,nValGlobal,nVal,offset,collective,&
                                  offSetDim,communicator,RealArray,IntegerArray,StrArray)
 !===================================================================================================================================
 ! Write distributed data to proc, e.g. particles which are not hosted by each proc
@@ -1542,7 +1544,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: FileName,DataSetName
-LOGICAL,INTENT(IN)             :: create,collective
+LOGICAL,INTENT(IN)             :: collective
 INTEGER,INTENT(IN)             :: offSetDim,communicator
 INTEGER,INTENT(IN)             :: rank,nVal(rank),nValGlobal(rank),offset(rank)
 REAL              ,INTENT(IN),OPTIONAL,TARGET :: RealArray(PRODUCT(nVal))

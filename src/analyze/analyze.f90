@@ -174,7 +174,11 @@ DO iElem=1,PP_nElems
    DO m=0,NAnalyze
      DO l=0,NAnalyze
        DO k=0,NAnalyze
+#ifdef PP_HDG
+         CALL ExactFunc(IniExactFunc,Coords_NAnalyze(1:3,k,l,m),U_exact)
+#else
          CALL ExactFunc(IniExactFunc,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact)
+#endif
          L_Inf_Error = MAX(L_Inf_Error,abs(U_NAnalyze(:,k,l,m) - U_exact))
          IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
          ! To sum over the elements, We compute here the square of the L_2 error

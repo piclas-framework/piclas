@@ -109,22 +109,18 @@ END SUBROUTINE InitEquation
 
 
 
-SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu) 
+SUBROUTINE ExactFunc(ExactFunction,x,resu) 
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,ONLY:Abort,MPIRoot
+USE MOD_Globals,ONLY:Abort
 USE MOD_Equation_Vars,ONLY:Pi
-USE MOD_Equation_Vars,ONLY: IniWavenumber 
 USE MOD_Equation_Vars,ONLY: IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_TimeDisc_vars,ONLY:dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: t
-INTEGER,INTENT(IN)              :: tDeriv           ! determines the time derivative of the function
 REAL,INTENT(IN)                 :: x(3)              
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -134,7 +130,7 @@ REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative va
 ! LOCAL VARIABLES 
 REAL                            :: Frequency,Amplitude,Omega
 REAL                            :: Cent(3)
-REAL                            :: x0(3),r1,r2
+REAL                            :: r1,r2
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
 CASE(0)
@@ -168,23 +164,20 @@ END SUBROUTINE ExactFunc
 
 
 
-SUBROUTINE CalcSource(t,coeff,Ut)
+SUBROUTINE CalcSource(Ut)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,ONLY:Abort
 USE MOD_PreProc
-USE MOD_Equation_Vars,ONLY:Pi
 USE MOD_Equation_Vars,ONLY:IniExactFunc
 USE MOD_Equation_Vars,ONLY:IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_DG_Vars,ONLY:U
 USE MOD_Mesh_Vars,ONLY:Elem_xGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: t,coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
@@ -261,7 +254,7 @@ END DO
 END SUBROUTINE DivCleaningDamping
 
 
-SUBROUTINE CalcSourceHDG(t,i,j,k,iElem,resu, Phi)
+SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -269,10 +262,9 @@ SUBROUTINE CalcSourceHDG(t,i,j,k,iElem,resu, Phi)
 USE MOD_Globals,ONLY:Abort
 USE MOD_PreProc
 USE MOD_PICDepo_Vars,ONLY:source
-USE MOD_Equation_Vars,ONLY:Pi, eps0
+USE MOD_Equation_Vars,ONLY: eps0
 USE MOD_Equation_Vars,ONLY:IniExactFunc
 USE MOD_Equation_Vars,ONLY:IniCenter,IniHalfwidth,IniAmplitude
-USE MOD_DG_Vars,ONLY:Ut,U
 USE MOD_Mesh_Vars,ONLY:Elem_xGP
 USE MOD_Particle_Mesh_Vars, ONLY : GEO,NbrOfRegions
 USE MOD_Particle_Vars, ONLY : RegionElectronRef
@@ -280,7 +272,6 @@ USE MOD_Particle_Vars, ONLY : RegionElectronRef
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: t       
 INTEGER, INTENT(IN)             :: i, j, k,iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
