@@ -25,15 +25,20 @@ INTERFACE FinalizePoyntingInt
   MODULE PROCEDURE FinalizePoyntingInt
 END INTERFACE
 
+#if (PP_nVar>=6)
 INTERFACE CalcPoyntingIntegral
   MODULE PROCEDURE CalcPoyntingIntegral
 END INTERFACE
+#endif
 
 INTERFACE CalcPotentialEnergy
   MODULE PROCEDURE CalcPotentialEnergy
 END INTERFACE
 
-PUBLIC:: GetPoyntingIntPlane,FinalizePoyntingInt, CalcPoyntingIntegral, CalcPotentialEnergy
+PUBLIC:: GetPoyntingIntPlane,FinalizePoyntingInt,CalcPotentialEnergy
+#if (PP_nVar>=6)
+PUBLIC:: CalcPoyntingIntegral
+#endif
 #ifndef PARTICLES
 PUBLIC:: AnalyzeField
 #endif /*NOT PARTICLES*/
@@ -151,6 +156,7 @@ END IF ! DoAnalyze
 END SUBROUTINE AnalyzeField
 #endif /*NOT PARTICLES*/
 
+#if (PP_nVar>=6)
 SUBROUTINE CalcPoyntingIntegral(t,doProlong)
 !===================================================================================================================================
 ! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Labatto or Gaus Points is used is missing ... ups
@@ -331,6 +337,7 @@ END DO ! iElems
 CALL OutputPoyntingInt(t,Sabs(:)) 
 
 END SUBROUTINE CalcPoyntingIntegral
+#endif
 
 
 #if (PP_nVar>=6)

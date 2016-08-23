@@ -146,7 +146,6 @@ SUBROUTINE TimeDisc()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter &
                                      ,IterDisplayStep,DoDisplayIter,sdtCFLOne,CFLtoOne
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime

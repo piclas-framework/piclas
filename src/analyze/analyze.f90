@@ -337,7 +337,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,             ONLY: MeshFile
 USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt,DoAnalyze
+#if (PP_nVar>=6)
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
+#endif
 USE MOD_RecordPoints,          ONLY: RecordPoints
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
@@ -419,7 +421,8 @@ IF (CalcPoyntingInt) THEN
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if (PP_nVar>=6)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
   IF(forceAnalyze)THEN
     CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
    ELSE
@@ -428,6 +431,7 @@ IF (CalcPoyntingInt) THEN
   IF(PRESENT(LastIter) .AND. LastIter) CALL CalcPoyntingIntegral(t,doProlong=.TRUE.)
 #else
   IF(MOD(iter,PartAnalyzeStep).EQ.0) CALL CalcPoyntingIntegral(t)
+#endif
 #endif
 #ifdef MPI
   tLBEnd = LOCALTIME() ! LB Time End
