@@ -332,6 +332,8 @@ CALL OutputPoyntingInt(t,Sabs(:))
 
 END SUBROUTINE CalcPoyntingIntegral
 
+
+#if (PP_nVar>=6)
 SUBROUTINE PoyntingVector(Uface_in,Sloc)
 !===================================================================================================================================
 ! Calculate the Poynting Vector on a certain face
@@ -360,6 +362,7 @@ DO p = 0,PP_N
 END DO  ! p - PP_N
 
 END SUBROUTINE PoyntingVector
+#endif
 
 
 SUBROUTINE OutputPoyntingInt(t,Sabs)

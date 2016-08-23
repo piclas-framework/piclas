@@ -61,11 +61,11 @@ SUBROUTINE InitCSR()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_CSR_Vars
-USE MOD_Mesh_Vars,          ONLY: nBCSides
+!USE MOD_Mesh_Vars,          ONLY: nBCSides
 USE MOD_LinearSolver_Vars,  ONLY: nDOFelem
 USE MOD_Jac_ex,             ONLY: Jac_ex, Jac_Ex_Neighbor, InitJac_Ex
 USE MOD_DG_Vars,            ONLY: L_HatMinus, L_HatPlus
-USE MOD_Mesh_Vars,          ONLY: ElemToSide
+!USE MOD_Mesh_Vars,          ONLY: ElemToSide
 !USE MOD_Precond,            ONLY: BuildnVecSurf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -76,8 +76,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 INTEGER  :: locSize
-INTEGER  :: iElem,r,SideID,ilocSide
-REAL,DIMENSION(:,:),ALLOCATABLE   :: GlobalJacobian
+!INTEGER  :: iElem,r,SideID,ilocSide
+!REAL,DIMENSION(:,:),ALLOCATABLE   :: GlobalJacobian
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT CSR...'
@@ -248,27 +248,14 @@ INTEGER,INTENT(IN)          :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: ii,kk,jj,iEntry
-LOGICAL                     :: first,last
-INTEGER                     :: k1,k2
-REAL,ALLOCATABLE            :: Vin(:),Vresu1(:),Vresu2(:),B(:)
-REAL                        :: Sparsity
+LOGICAL                     :: first
+!INTEGER                     :: k1,k2
+!REAL,ALLOCATABLE            :: Vin(:)
+!REAL                        :: Sparsity
 INTEGER                     :: lastLine,lineNonZero
 LOGICAL                     :: singleValue
-REAL                        :: diff
-REAL                        :: L(nDOFELEM,nDOFElem)
-REAL                        :: U(nDOFELEM,nDOFElem)
-REAL                        :: LU(nDOFElem,nDOFElem)
-INTEGER                     :: lowerEntry, upperEntry
-CHARACTER(LEN=17)                                     :: strfmt
-CHARACTER(LEN=64)                                     :: filename
-
-! check
-REAL,DIMENSION(nDofElem,nDofElem)       :: PLOC,Ainv
-REAL,DIMENSION(nDofelem*nDofelem)       :: Work
-REAL:: vtild(1:nDOFELEM), vResu3(nDOFElem)
-INTEGER,DIMENSION(ndofelem):: IPIV
-INTEGER :: INFO,lwork, autsch
-integer::r,s
+!REAL                        :: L(nDOFELEM,nDOFElem)
+!REAL                        :: U(nDOFELEM,nDOFElem)
 !===================================================================================================================================
 
 !epsZero=0.5*EPSILON(0.0)
@@ -413,7 +400,7 @@ SUBROUTINE GlobalCSR()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Precond_Vars           ,ONLY:MatPattern,MatPatternElemID,Lower, Upper, ProcJacobian
+USE MOD_Precond_Vars           ,ONLY:MatPattern,MatPatternElemID,ProcJacobian
 USE MOD_LinearSolver_Vars      ,ONLY:nDOFGlobal,nDOFElem
 USE MOD_CSR_Vars               ,ONLY:GlobalIA,GlobalJA,GlobalAA,epsZero,nonZerosGlobal
 ! IMPLICIT VARIABLE HANDLING
@@ -455,7 +442,7 @@ DO iElem=1,PP_nElems
   DO r=1,nDOFElem
     ii=nDOFElem*(iElem-1)+r
     first=.TRUE.
-    lineNonZero=0.
+    lineNonZero=0
     DO iRow=1,7
       IF(MatPatternElemID(iRow,iElem).LT.0) CYCLE
       conElemID=MatPatternElemID(iRow,iElem)
@@ -495,8 +482,8 @@ SUBROUTINE GlobalBCSR()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Precond_Vars           ,ONLY:MatPattern,MatPatternElemID,Lower, Upper, ProcJacobian, BlockSize, nBlockSize
-USE MOD_LinearSolver_Vars      ,ONLY:nDOFGlobal,nDOFElem
+USE MOD_Precond_Vars           ,ONLY:MatPattern,MatPatternElemID, ProcJacobian, BlockSize, nBlockSize
+USE MOD_LinearSolver_Vars      ,ONLY:nDOFElem
 USE MOD_CSR_Vars               ,ONLY:GlobalIA,GlobalJA,GlobalBAA,epsZero,nonZerosGlobal
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -539,7 +526,7 @@ DO iElem=1,PP_nElems
   DO r=1,nDOFElem,BlockSize
     ii=nDOFElem*(iElem-1)+r
     first=.TRUE.
-    lineNonZero=0.
+    lineNonZero=0
     DO iRow=1,7
       IF(MatPatternElemID(iRow,iElem).LT.0) CYCLE
       conElemID=MatPatternElemID(iRow,iElem)

@@ -64,12 +64,12 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE  :: NodeCoords(:,:,:,:,:)
-REAL              :: x(3),PI,meshScale
-INTEGER           :: iElem,i,j,k,iRegions,f,s,p,q, Flip(3)
-INTEGER           :: iSide,countSurfElem,iProc
-CHARACTER(32)       :: hilf2
-INTEGER,ALLOCATABLE :: countSurfElemMPI(:)
+REAL,ALLOCATABLE    :: NodeCoords(:,:,:,:,:)
+REAL                :: x(3),PI,meshScale
+INTEGER             :: iElem,i,j,k!,iRegions
+!CHARACTER(32)       :: hilf2
+CHARACTER(LEN=255)  :: FileName
+LOGICAL             :: ExistFile
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(&
@@ -78,6 +78,26 @@ IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
+
+! SwapMesh: either supply the path to the swapmesh binary or place the binary into the current working directory
+DoSwapMesh=GETLOGICAL('DoSwapMesh','.FALSE.')
+IF(DoSwapMesh)THEN
+  SwapMeshExePath=GETSTR('SwapMeshExePath','')
+  INQUIRE(File=SwapMeshExePath,EXIST=ExistFile)
+  IF(.NOT.ExistFile)THEN ! no path to binary found, look for binary in current directory
+    FileName='./swapmesh'
+    INQUIRE(File=FileName,EXIST=ExistFile)
+    IF(.NOT.ExistFile) THEN
+      SWRITE(UNIT_stdOut,'(A)') ' ERROR: no swapmesh binary found'
+      SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ',TRIM(FileName)
+      SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:            ',ExistFile
+      DoSwapMesh=.FALSE.
+    ELSE
+      SwapMeshExePath=FileName
+    END IF
+  END IF
+  SwapMeshLevel=GETINT('SwapMeshLevel','0')
+END IF
 
 ! prepare pointer structure (get nElems, etc.)
 MeshFile = GETSTR('MeshFile')

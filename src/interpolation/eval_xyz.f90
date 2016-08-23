@@ -42,7 +42,7 @@ PUBLIC :: eval_xyz_curved,eval_xyz_elemcheck, eval_xyz_part2,eval_xyz_poly
 CONTAINS
 
 !#ifdef PARTICLES
-SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,ElemID,PartID)
+SUBROUTINE eval_xyz_curved(x_in,NVar,N_in,U_In,U_Out,ElemID)!,PartID)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! first get xi,eta,zeta from x,y,z...then do tenso product interpolation
@@ -69,7 +69,7 @@ INTEGER,INTENT(IN)  :: N_In                                  ! usually PP_N
 INTEGER,INTENT(IN)  :: ElemID                                 ! elem index
 REAL,INTENT(IN)     :: U_In(1:NVar,0:N_In,0:N_In,0:N_In)   ! elem state
 REAL,INTENT(IN)     :: x_in(3)                                  ! physical position of particle 
-INTEGER,INTENT(IN),OPTIONAL :: PartID
+!INTEGER,INTENT(IN),OPTIONAL :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)    :: U_Out(1:NVar)  ! Interpolated state
@@ -87,8 +87,8 @@ REAL                :: L_xi(3,0:PP_N), L_eta_zeta
 REAL                :: Ptild(1:3),XiLinear(1:6)
 REAL                :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
-REAL                :: XiA, XiB
-LOGICAL             :: Found
+!REAL                :: XiA, XiB
+!LOGICAL             :: Found
 ! h5-external e,b field
 REAL,ALLOCATABLE    :: L_xi_BGField(:,:), U_BGField(:)
 !===================================================================================================================================
@@ -234,7 +234,7 @@ END IF ! useBGField
 END SUBROUTINE eval_xyz_curved
 
 
-SUBROUTINE eval_xyz_elemcheck(x_in,xi,ElemID,PartID,DoReUseMap)
+SUBROUTINE eval_xyz_elemcheck(x_in,xi,ElemID,DoReUseMap)
 !===================================================================================================================================
 ! interpolate a 3D tensor product Lagrange basis defined by (N_in+1) 1D interpolation point positions x
 ! first get xi,eta,zeta from x,y,z...then do tensor product interpolation
@@ -255,7 +255,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)          :: ElemID                                 ! elem index
 REAL,INTENT(IN)             :: x_in(3)                                  ! physical position of particle 
-INTEGER,INTENT(IN),OPTIONAL :: PartID
 LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -269,7 +268,7 @@ INTEGER                    :: idir
 REAL                       :: Ptild(1:3),XiLinear(1:6)
 REAL                       :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                       :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
-REAL                       :: XiA,XiB
+!REAL                       :: XiA,XiB
 !===================================================================================================================================
 
 

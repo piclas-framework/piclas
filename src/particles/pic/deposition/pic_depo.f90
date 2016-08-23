@@ -876,7 +876,7 @@ CASE('cell_volweight')
       IF(DoRefMapping)THEN
         TempPartPos(1:3)=PartPosRef(1:3,iPart)
       ELSE
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos,iElem,iPart)
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos,iElem)
       END IF
       TSource(:) = 0.0
 !#if (PP_nVar==8)
@@ -2074,7 +2074,7 @@ CASE('delta_distri')
           END IF ! usevMPF
           ! Map Particle to -1|1 space (re-used in interpolation)
           IF(.NOT.DoRefMapping)THEN
-            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
           END IF
           ! get value of test function at particle position
           SELECT CASE(DeltaType)

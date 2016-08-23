@@ -241,7 +241,7 @@ DO iPart=1,PDM%ParticleVecLength
         IF(.NOT.PDM%ParticleInside(iPart))THEN
           IPWRITE(UNIT_stdOut,*) 'lost particle with id', ipart
 IPWRITE(UNIT_stdOut,*) 'LastPartPos: ',LastPartPos(ipart,1:3)
-CALL Eval_xyz_ElemCheck(LastPartPos(ipart,1:3),refpos(1:3),PEM%lastElement(ipart),ipart)
+CALL Eval_xyz_ElemCheck(LastPartPos(ipart,1:3),refpos(1:3),PEM%lastElement(ipart))
 IPWRITE(UNIT_stdOut,*) 'LastPartRefPos: ',refpos
 IPWRITE(UNIT_stdOut,*) 'PartState: ',PartState(ipart,1:3)
         END IF

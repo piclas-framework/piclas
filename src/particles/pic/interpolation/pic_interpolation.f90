@@ -293,7 +293,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           IF(PEM%Element(iPart).EQ.iElem)THEN
             IF(.NOT.DoRefMapping)THEN
-              CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+              CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
             END IF
             !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -376,7 +376,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         IF(PEM%Element(iPart).EQ.iElem)THEN
           IF(.NOT.DoRefMapping)THEN
-            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
           END IF
           ! compute exact k,l,m
           !! x-direction
@@ -597,7 +597,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     IF(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint')THEN
       ! particles have already been mapped in deposition, other eval routine used
       IF(.NOT.DoRefMapping)THEN
-        CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID,PartID)
+        CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
       END IF
       !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -666,7 +666,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       b = a-1
     END IF
     IF(.NOT.DoRefMapping)THEN
-      CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID,PartID)
+      CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
     END IF
     ! compute exact k,l,m
     !! x-direction

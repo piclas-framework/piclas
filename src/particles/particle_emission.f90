@@ -3696,7 +3696,7 @@ __STAMP__&
               LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
               + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (1.0-epsInCell)
             CASE(BILINEAR,CURVED) !to be changed into more efficient method using known xi
-              CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID,ParticleIndexNbr) !RefMap PartState
+              CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
               DO iLoop=1,3 !shift border-RefCoords into elem
                 IF( ABS(Particle_pos(iLoop)) .GT. 1.0-epsInCell ) THEN
                   Particle_pos(iLoop)=SIGN(1.0-epsInCell,Particle_pos(iLoop))
@@ -3711,7 +3711,7 @@ __STAMP__&
             END SELECT
 
 #ifdef CODE_ANALYZE
-          CALL Eval_xyz_ElemCheck(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID,ParticleIndexNbr)
+          CALL Eval_xyz_ElemCheck(LastPartPos(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID)
           IF (ANY(ABS(Particle_pos).GT.1.0)) THEN !maybe 1+epsInCell would be enough...
             IPWRITE(*,*) 'Particle_pos: ',Particle_pos
             CALL abort(&

@@ -1043,7 +1043,7 @@ CASE('nearest_gausspoint')
       ! Map Particle to -1|1 space (re-used in interpolation)
       ! check with depositions and PartPosRef already mapped
       IF(.NOT.DoRefMapping)THEN
-        CALL Eval_xyz_ElemCheck(PartState(i,1:3),PartPosRef(1:3,i),iElem,i)
+        CALL Eval_xyz_ElemCheck(PartState(i,1:3),PartPosRef(1:3,i),iElem)
       END IF
       !CALL GeoCoordToMap(PartState(i,1:3),PartPosRef(1:3),iElem)
       ! Find out which gausspoint is closest and add up charges and currents
@@ -1133,7 +1133,7 @@ CASE('cell_volweight')
     iElem = PEM%Element(iPart)
     iSpec = PartSpecies(iPart)
     IF(.NOT.DoRefMapping)THEN
-      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
     END IF
     !CALL GeoCoordToMap(PartState(iPart,1:3), TempPartPos(1:3), iElem)
     TSource(:) = 0.0
