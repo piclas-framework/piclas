@@ -49,9 +49,8 @@ USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES                                                                      !
-  CHARACTER(32)                    :: hilf , hilf2  
-  INTEGER                          :: iSpec, iSide, iSurf, p, q, IDcounter
-  REAL                             :: maxPart, SurfArea
+  CHARACTER(32)                    :: hilf
+  INTEGER                          :: iSpec, iSide, iSurf, IDcounter
 !===================================================================================================================================
 KeepWallParticles = GETLOGICAL('Particles-KeepWallParticles','.FALSE.')
 IF (KeepWallParticles) THEN

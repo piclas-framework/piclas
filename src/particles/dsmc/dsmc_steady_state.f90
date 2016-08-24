@@ -580,12 +580,10 @@ SUBROUTINE SteadyStateDetection_main()
   USE MOD_DSMC_Vars,             ONLY : DSMC, CollisMode, SpecDSMC 
   USE MOD_Mesh_Vars,             ONLY : nElems
   USE MOD_Particle_Vars,         ONLY : nSpecies, BoltzmannConst, Species
-  USE MOD_TimeDisc_Vars,         ONLY : iter ! debug
   USE MOD_DSMC_Vars,             ONLY : iSamplingIters, nSamplingIters, HistTime, nTime
   USE MOD_DSMC_Vars,             ONLY : Sampler, History, CheckHistory, SamplingActive, SteadyIdentGlobal
 #ifdef MPI
   USE mpi
-  USE MOD_Globals,               ONLY : MPIRoot
 #endif
   
 !--------------------------------------------------------------------------------------------------------!
@@ -623,6 +621,7 @@ SUBROUTINE SteadyStateDetection_main()
   !CheckIntEn(2) = .TRUE. ! vibrational energy
   !CheckIntEn(3) = .TRUE. ! electronic state
   !CheckDens = .TRUE.   ! density
+CheckDens=.false. !initialize somehow?!
    
   iSamplingIters = iSamplingIters + 1
   

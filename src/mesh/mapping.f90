@@ -105,7 +105,7 @@ END DO; END DO; END DO
 DO k=0,N_in; DO j=0,N_in; DO i=0,N_in
   DO f=0,4
     DO s=1,6
-      V2SIJK(:,i,j,k,f,s) = VolToSideIJK(i,j,k,f,s)
+      V2SIJK(:,i,j,k,f,s) = VolToSideIJK(i,j,k,s)
     END DO
   END DO
 END DO; END DO; END DO
@@ -364,7 +364,7 @@ VolToSide(1:2) = Flip_S2M(pq(1),pq(2),flip)
 VolToSide(3) = pq(3)
 END FUNCTION VolToSide
 
-FUNCTION VolToSideIJK(i,j,k, flip, locSideID)
+FUNCTION VolToSideIJK(i,j,k,locSideID)
 !===================================================================================================================================
 ! Transform Volume-Coordinates to RHS-Coordinates of Master. This is: VolToSide = Flip_S2M(CGNS_VolToSide(...))
 ! input: i,j,k, flip, locSideID 
@@ -376,7 +376,7 @@ USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: i,j,k,flip,locSideID
+INTEGER,INTENT(IN) :: i,j,k,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -501,7 +501,7 @@ INTEGER,INTENT(IN) :: locSideID,iElem
 INTEGER              :: ElemToNBElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: flip, SideID, i
+INTEGER              :: flip, SideID
 !===================================================================================================================================
 SideID=ElemToSide(E2S_SIDE_ID,locSideID,iElem)
 IF ((SideID.GE.nBCSides+1).AND.(SideID.LE.nBCSides+nInnerSides)) THEN
@@ -517,7 +517,7 @@ END IF
 END FUNCTION ElemToNBElem
 
 
-FUNCTION VolToVol(i,j,k,locSideID,iElem,neighbor_iElem)
+FUNCTION VolToVol(i,j,k,locSideID,iElem)
 !===================================================================================================================================
 ! Transform Volume-Coordinates to neighboring Volume-Coordinates.  This is: VolToVol = SideToVol(VolToSide(...))
 ! input: i,j,k, iElem, locSideID
@@ -531,7 +531,7 @@ USE MOD_Mesh_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: i,j,k,locSideID,iElem,neighbor_iElem
+INTEGER,INTENT(IN) :: i,j,k,locSideID,iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

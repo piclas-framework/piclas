@@ -591,8 +591,10 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,          ONLY : nElems, sJ
 USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_Equation_Vars,      ONLY : smu0, eps0 
+#ifndef PP_HDG
 USE MOD_DG_Vars,            ONLY : U
 USE MOD_Mesh_Vars,          ONLY : Elem_xGP
+#endif /*PP_nVar=8*/        
 #ifdef PP_HDG
 #if PP_nVar==1
 USE MOD_Equation_Vars,        ONLY:E

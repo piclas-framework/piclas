@@ -38,7 +38,7 @@ SUBROUTINE InitDSMC()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc,                    ONLY : PP_N
-USE MOD_Mesh_Vars,                  ONLY : nElems, nBCSides, BC,NGEo
+USE MOD_Mesh_Vars,                  ONLY : nElems, NGEo
 USE MOD_Globals_Vars,               ONLY : Pi
 USE MOD_ReadInTools
 USE MOD_DSMC_ElectronicModel,       ONLY: ReadSpeciesLevel
@@ -62,7 +62,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
-  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, IDcounter, iSide, iSurf, iPolyatMole, iDOF, PartitionArraySize
+  INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, PartitionArraySize
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
   REAL                  :: JToEv
   INTEGER,ALLOCATABLE   :: CalcSurfCollis_SpeciesRead(:) !help array for reading surface stuff
