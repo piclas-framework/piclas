@@ -17,11 +17,16 @@ INTERFACE InitMesh
   MODULE PROCEDURE InitMesh
 END INTERFACE
 
+INTERFACE SwapMesh
+  MODULE PROCEDURE SwapMesh
+END INTERFACE
+
 INTERFACE FinalizeMesh
   MODULE PROCEDURE FinalizeMesh
 END INTERFACE
 
 PUBLIC::InitMesh
+PUBLIC::SwapMesh
 PUBLIC::FinalizeMesh
 !===================================================================================================================================
 
@@ -97,6 +102,11 @@ IF(DoSwapMesh)THEN
     END IF
   END IF
   SwapMeshLevel=GETINT('SwapMeshLevel','0')
+  IF((SwapMeshLevel.LT.0).OR.(SwapMeshLevel.GT.99))THEN
+    CALL abort(&
+    __STAMP__&
+    ,'SwapMeshLEvel<0 or SwapMeshLEvel>99, this is invalid!',999,999.)
+  END IF
 END IF
 
 ! prepare pointer structure (get nElems, etc.)
@@ -354,6 +364,53 @@ CALL BuildBezierDMat(NGeo_in,Xi_NGeo,D_Bezier)
 #endif
 
 END SUBROUTINE InitMeshBasis
+
+
+SUBROUTINE SwapMesh()
+!============================================================================================================================
+! use the posti tool swapmesh in order to map the DG solution as well as particles into a new state file with a different 
+! mesh file
+!============================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars,             ONLY:SwapMeshExePath,SwapMeshLevel
+USE MOD_Restart_Vars,          ONLY:RestartFile
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------
+!input parameters
+!----------------------------------------------------------------------------------------------------------------------------
+!output parameters
+!----------------------------------------------------------------------------------------------------------------------------
+!local variables
+CHARACTER(LEN=255)  :: FileName,FolderName
+LOGICAL             :: ExistFile
+CHARACTER(LEN=3)         :: hilf 
+!============================================================================================================================
+print*,"RestartFile= ",RestartFile
+! check if next level mesh folder exists
+
+WRITE(UNIT=hilf,FMT='(I3)') SwapMeshLevel+1
+IF(SwapMeshLevel.GT.9)THEN
+  FolderName='mesh'//TRIM(ADJUSTL(hilf))
+ELSE
+  FolderName='mesh0'//TRIM(ADJUSTL(hilf))
+ENDIF
+
+INQUIRE(File=TRIM(FolderName),EXIST=ExistFile)
+IF(.NOT.ExistFile)THEN ! no path to binary found, look for binary in current directory
+  FileName='parameter_swapmesh.ini'
+  INQUIRE(File=FileName,EXIST=ExistFile)
+  IF(.NOT.ExistFile) THEN
+    SWRITE(UNIT_stdOut,'(A)') ' ERROR: no swapmesh binary found'
+    SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ',TRIM(FileName)
+    SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:            ',ExistFile
+  ELSE
+    FolderName=FileName
+  END IF
+END IF
+
+END SUBROUTINE SwapMesh
 
 
 SUBROUTINE FinalizeMesh()
