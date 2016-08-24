@@ -9,7 +9,6 @@ MODULE MOD_Precond
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-#if (PP_TimeDiscMethod==100) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==103) || (PP_TimeDiscMethod==104) || (PP_TimeDiscMethod==121)  || (PP_TimeDiscMethod==122)
 INTERFACE InitPrecond
   MODULE PROCEDURE InitPrecond
 END INTERFACE
@@ -710,5 +709,4 @@ IF(PrecondType.EQ.22) CALL FinalizeSparseILU
 END SUBROUTINE FinalizePrecond
 
 
-#endif /*(PP_TimeDiscMethod==100) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==103) || (PP_TimeDiscMethod==104) || (PP_TimeDiscMethod==121)  || (PP_TimeDiscMethod==122)*/
 END MODULE MOD_Precond

@@ -14,7 +14,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#if (PP_TimeDiscMethod==100) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==103) || (PP_TimeDiscMethod==104) || (PP_TimeDiscMethod==121)  || (PP_TimeDiscMethod==122)
 
 INTERFACE InitJac_FD
   MODULE PROCEDURE InitJac_FD
@@ -220,5 +219,4 @@ PrecondFdInitisDone = .FALSE.
 END SUBROUTINE FinalizeJac_FD
 
 
-#endif /*(PP_TimeDiscMethod==100) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==103) || (PP_TimeDiscMethod==104) || (PP_TimeDiscMethod==121)  || (PP_TimeDiscMethod==122)*/
 END MODULE MOD_Jac_FD
