@@ -506,44 +506,55 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # collect all F90 files needed for boltzplatzlib
 FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
-                                ./src/dg/*.f90
-                                ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90
                                 ./src/interpolation/basis.f90
                                 ./src/interpolation/interpolation.f90
                                 ./src/interpolation/interpolation_vars.f90
                                 ./src/interpolation/changeBasis.f90
-                                ./src/interpolation/prolongtoface.f90
                                 ./src/io_hdf5/*.f90
-                                ./src/linearsolver/*.f90
                                 ./src/loadbalance/*.f90
                                 ./src/mesh/*.f90
                                 ./src/mpi/*.f90
                                 ./src/output/*.f90
-                                ./src/pml/*.f90
-                                ./src/precond/*.f90
                                 ./src/readintools/*.f90
                                 ./src/recordpoints/*.f90
                                 ./src/restart/*.f90
                                 ./src/timedisc/*.f90
                                 ./src/utils/*.f90 )
 
-FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90)
+FILE(GLOB_RECURSE dgF90 ./src/dg/*.f90
+                        ./src/interpolation/prolongtoface.f90
+                        ./src/linearsolver/*.f90
+                        ./src/pml/*.f90
+                        ./src/precond/*.f90
+                        ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/*.f90)
+
+FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
+                         ./src/dg/dg.f90
+                         ./src/dg/dg_vars.f90
+                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/equation.f90
+                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/equation_vars.f90
+                         ./src/equations/${BOLTZPLATZ_EQNSYSNAME}/getboundaryflux.f90)
+
+
 FILE(GLOB mainF90 ./src/boltzplatz.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/interpolation/eval_xyz.f90)
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90 
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90)
+IF(BOLTZPLATZ_HDG)
+  LIST(APPEND boltzplatzF90 ${hdgF90})
+ELSE()
+  LIST(APPEND boltzplatzF90 ${dgF90})
+ENDIF(BOLTZPLATZ_HDG)
+
 LIST(APPEND boltzplatzF90 ${mainF90})
 IF (BOLTZPLATZ_PARTICLES)
    LIST(APPEND boltzplatzF90 ${particlesF90})
  ELSE()
    LIST(APPEND boltzplatzF90 ${noparticlesF90})
 ENDIF(BOLTZPLATZ_PARTICLES)
-IF(BOLTZPLATZ_HDG)
-  LIST(APPEND boltzplatzF90 ${hdgF90})
-ENDIF(BOLTZPLATZ_HDG)
 
 # define libs
 ADD_LIBRARY(boltzplatzlibF90 OBJECT ${boltzplatzF90} )

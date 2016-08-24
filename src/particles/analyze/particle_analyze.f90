@@ -1342,7 +1342,9 @@ USE MOD_Equation_Vars,          ONLY : c2, c2_inv
 USE MOD_Particle_Vars,          ONLY : PartState, PartSpecies, Species, PDM
 USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PartMPF, usevMPF
 USE MOD_Particle_Analyze_Vars,  ONLY : nEkin
+#ifndef PP_HDG
 USE MOD_PML_Vars,               ONLY : DoPML,xyzPhysicalMinMax
+#endif /*PP_HDG*/ 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1360,6 +1362,7 @@ Ekin = 0.!d0
 IF (nEkin .GT. 1 ) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
+#ifndef PP_HDG
       IF(DoPML)THEN
         IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
             PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
@@ -1367,6 +1370,7 @@ IF (nEkin .GT. 1 ) THEN
           CYCLE
         END IF
       ENDIF
+#endif /*PP_HDG*/ 
       partV2 = PartState(i,4) * PartState(i,4) &
               + PartState(i,5) * PartState(i,5) &
               + PartState(i,6) * PartState(i,6)
@@ -1400,6 +1404,7 @@ IF (nEkin .GT. 1 ) THEN
 ELSE ! nEkin = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
+#ifndef PP_HDG
       IF(DoPML)THEN
         IF (PartState(i,1) .GE. xyzPhysicalMinMax(1) .AND. PartState(i,1) .LE. xyzPhysicalMinMax(2) .AND. &
             PartState(i,2) .GE. xyzPhysicalMinMax(3) .AND. PartState(i,2) .LE. xyzPhysicalMinMax(4) .AND. &
@@ -1407,6 +1412,7 @@ ELSE ! nEkin = 1 : only 1 species
           CYCLE
         END IF
       ENDIF
+#endif /*PP_HDG*/ 
       partV2 = PartState(i,4) * PartState(i,4) &
              + PartState(i,5) * PartState(i,5) &
              + PartState(i,6) * PartState(i,6)

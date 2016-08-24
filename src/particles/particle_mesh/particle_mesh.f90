@@ -798,7 +798,9 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
+#ifndef PP_HDG
 USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
+#endif /*PP_HDG*/
 USE MOD_Equation_Vars,                      ONLY:c
 USE MOD_Particle_Vars,                      ONLY:manualtimestep,dt_part_ratio
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
@@ -960,7 +962,13 @@ BGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
 !--- PO: modified for curved and shape-function influence
 !        c*dt*SafetyFactor+r_cutoff
 IF (ManualTimeStep.EQ.0.0) THEN
+#ifndef PP_HDG
   deltaT=CALCTIMESTEP()
+#else
+   CALL abort(&
+__STAMP__&
+, 'ManualTimeStep is not defined correctly!')
+#endif /*PP_HDG*/
 ELSE
   deltaT=ManualTimeStep
 END IF
@@ -1636,7 +1644,9 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
+#ifndef PP_HDG
 USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
+#endif /*PP_HDG*/
 USE MOD_Equation_Vars,                      ONLY:c
 USE MOD_Particle_Vars,                      ONLY:manualtimestep,dt_part_ratio
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
@@ -1797,7 +1807,13 @@ BGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
 !--- PO: modified for curved and shape-function influence
 !        c*dt*SafetyFactor+r_cutoff
 IF (ManualTimeStep.EQ.0.0) THEN
+#ifndef PP_HDG
   deltaT=CALCTIMESTEP()
+#else
+   CALL abort(&
+__STAMP__&
+, 'ManualTimeStep is not defined correctly!')
+#endif /*PP_HDG*/
 ELSE
   deltaT=ManualTimeStep
 END IF

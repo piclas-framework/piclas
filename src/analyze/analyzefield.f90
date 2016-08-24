@@ -593,7 +593,6 @@ USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_Equation_Vars,      ONLY : smu0, eps0 
 USE MOD_DG_Vars,            ONLY : U
 USE MOD_Mesh_Vars,          ONLY : Elem_xGP
-USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax,DoPML
 #ifdef PP_HDG
 #if PP_nVar==1
 USE MOD_Equation_Vars,        ONLY:E
@@ -602,6 +601,8 @@ USE MOD_Equation_Vars,        ONLY:B
 #else
 USE MOD_Equation_Vars,        ONLY:B,E
 #endif /*PP_nVar==1*/
+#else
+USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax,DoPML
 #endif /*PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -621,6 +622,7 @@ REAL              :: WEl_tmp, WMag_tmp, E_abs, B_abs
 Wel=0.
 WMag=0.
 
+#ifndef PP_HDG
 IF(DoPML)THEN
   DO iElem=1,nElems
     !--- Calculate and save volume of element iElem
@@ -654,6 +656,7 @@ IF(DoPML)THEN
 #endif /*PP_nVar=8*/        
   END DO
 ELSE
+#endif /*PP_HDG*/
   DO iElem=1,nElems
     !--- Calculate and save volume of element iElem
     WEl_tmp=0. 
@@ -698,7 +701,9 @@ ELSE
     WMag = WMag + WMag_tmp
 #endif /*PP_nVar=8*/        
   END DO
+#ifndef PP_HDG
 END IF ! noPML
+#endif /*PP_HDG*/
 
 WEl = WEl * eps0 * 0.5 
 WMag = WMag * smu0 * 0.5

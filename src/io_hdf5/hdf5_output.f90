@@ -380,7 +380,9 @@ SUBROUTINE WriteAdditionalDataToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems
+#ifndef PP_HDG
 USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,nPMLElems
+#endif /*PP_HDG*/ 
 #ifdef PARTICLES
 USE MOD_Particle_Vars ,ONLY:PDM,PEM
 #endif /*PARTICLES*/
@@ -428,12 +430,14 @@ ElemData=0.
 DO iElem=1,PP_nElems
   ElemData(1,iElem)=REAL(MyRank)
 END DO
+#ifndef PP_HDG
 ! PML Info
 IF(DoPML)THEN
   DO iElem=1,nPMLElems
     ElemData(2,PMLToElem(iElem))=1.0
   END DO ! iElem=1,nPMLElems
 END IF
+#endif /*PP_HDG*/ 
 ! hasParticles
 #ifdef PARTICLES
 DO iPart=1,PDM%ParticleVecLength

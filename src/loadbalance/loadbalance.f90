@@ -142,7 +142,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_LoadBalance_Vars,      ONLY:tCurrent,LoadSum,tTotal,nloaditer,nTotalParts,nLoadBalance,PartWeightMethod,DeviationThreshold&
                                    ,WeightAverageMethod,ParticleMPIWeight,LastImbalance,ElemWeight
+#ifndef PP_HDG
 USE MOD_PML_Vars,              ONLY:DoPML,nPMLElems
+#endif /*PP_HDG*/
 USE MOD_Utils,                 ONLY:InsertionSort
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -174,9 +176,11 @@ TotalLoad=0.
 ! per dt_analyze
 ! dg
 TotalLoad(1:2)=tTotal(1:2)/(REAL(nloaditer)*REAL(PP_nElems))
+#ifndef PP_HDG
 IF(DoPML)THEN
   IF(nPMLElems.GT.0) TotalLoad(3)=tTotal(3)/(REAL(nPMLElems)*REAL(nloaditer))
 END IF
+#endif /*PP_HDG*/
 TotalLoad(13)=tTotal(13)/(REAL(nloaditer)*REAL(PP_nElems))
 
 ! particles
@@ -377,7 +381,9 @@ SUBROUTINE ComputeElemLoad(CurrentImbalance,PerformLoadbalance)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nLoadBalance,tTotal,tCurrent
+#ifndef PP_HDG
 USE MOD_PML_Vars,                ONLY:DoPML,nPMLElems,ElemToPML
+#endif /*PP_HDG*/
 USE MOD_LoadBalance_Vars,        ONLY:DeviationThreshold,LastImbalance,LoadSum,nLoadIter
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars,        ONLY:nPartsPerElem,nDeposPerElem,nTracksPerElem,tTracking,tCartMesh
@@ -407,9 +413,11 @@ nLoadBalance=nLoadBalance+1
 ! time per dg elem
 tDG=(tTotal(1)+tTotal(13))/REAL(PP_nElems)
 tPML=0.
+#ifndef PP_HDG
 IF(DoPML)THEN
   IF(nPMLElems.GT.0) tPML=tTotal(3)/REAL(nPMLElems)
 END IF
+#endif /*PP_HDG*/
 
 #ifdef PARTICLES
 stotalDepos=1.0
@@ -446,9 +454,12 @@ DO iElem=1,PP_nElems
   !IF(ElemTime(iElem).GT.1000) THEN
   !  IPWRITE(*,*) 'ElemTime already above 1000'
   !END IF
+#ifndef PP_HDG
   IF(DoPML)THEN
     IF(ElemToPML(iElem).GT.0 ) ElemTime(iElem) = ElemTime(iElem) + tPML
   END IF
+#endif /*PP_HDG*/
+
 #ifdef PARTICLES
   !IF(tParts * nPartsPerElem(iElem)*sTotalParts.GT.1000)THEN
   !  IPWRITE(*,*) 'tParts above 1000',tParts * nPartsPerElem(iElem)*sTotalParts,nPartsPerElem(iElem),sTotalParts,1.0/sTotalParts
@@ -595,7 +606,9 @@ USE MOD_LoadBalance_Vars,       ONLY:tCurrent,LoadSum,tTotal,nLoadIter,nTotalPar
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_Vars, ONLY:nCurrentParts
 #endif /*PARTICLES*/
+#ifndef PP_HDG
 USE MOD_PML_Vars,               ONLY:DoPML,nPMLElems
+#endif /*PP_HDG*/
 #if defined(LSERK) || defined(IMPA) || defined(IMEX)
 #if (PP_TimeDiscMethod!=110)
 USE MOD_TimeDisc_Vars,          ONLY:nRKStages
@@ -628,9 +641,12 @@ nTotalParts=nTotalParts+nLocalParts
 ! compute load sum
 ! dg
 LoadSum(1:2)=LoadSum(1:2)+tCurrent(1:2)/REAL(PP_nElems)
+#ifndef PP_HDG
 IF(DoPML)THEN
   IF(nPMLElems.GT.0) LoadSum(3)=LoadSum(3)+tCurrent(3)/REAL(nPMLElems)
 END IF
+#endif /*PP_HDG*/
+
 LoadSum(13)=LoadSum(13)+tCurrent(13)/REAL(PP_nElems)
 
 ! particles

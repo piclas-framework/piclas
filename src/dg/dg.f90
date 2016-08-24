@@ -58,7 +58,6 @@ USE MOD_Mesh_Vars,          ONLY: nSides
 USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
 USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
 USE MOD_Mesh_Vars,          ONLY: MeshInitIsDone
-USE MOD_PML,                ONLY: TransformPMLVars 
 #ifdef OPTIMIZED
 USE MOD_Riemann,            ONLY: GetRiemannMatrix
 #endif /*OPTIMIZED*/

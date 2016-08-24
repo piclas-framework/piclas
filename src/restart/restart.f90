@@ -170,7 +170,9 @@ USE MOD_Restart_Vars,            ONLY:DoRestart,N_Restart,RestartFile,RestartTim
 USE MOD_ChangeBasis,             ONLY:ChangeBasis3D
 USE MOD_HDF5_input ,             ONLY:OpenDataFile,CloseDataFile,ReadArray,ReadAttribute
 USE MOD_HDF5_Output,             ONLY:FlushHDF5
+#ifndef PP_HDG
 USE MOD_PML_Vars,                ONLY:DoPML,PMLToElem,U2,nPMLElems
+#endif /*PP_HDG*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:Phi
 #endif

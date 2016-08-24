@@ -149,7 +149,9 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars,         ONLY: time,TEnd,dt,tAnalyze,iter &
                                      ,IterDisplayStep,DoDisplayIter,sdtCFLOne,CFLtoOne
 USE MOD_Restart_Vars,          ONLY: DoRestart,RestartTime
+#ifndef PP_HDG
 USE MOD_CalcTimeStep,          ONLY: CalcTimeStep
+#endif /*PP_HDG*/
 USE MOD_Analyze,               ONLY: CalcError,PerformAnalyze
 USE MOD_Analyze_Vars,          ONLY: Analyze_dt
 #ifdef PARTICLES
@@ -159,8 +161,10 @@ USE MOD_AnalyzeField,          ONLY: AnalyzeField
 #endif /*PARTICLES*/
 USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
+#ifndef PP_HDG
 USE MOD_PML,                   ONLY: TransformPMLVars,BacktransformPMLVars
 USE MOD_PML_Vars,              ONLY: DoPML
+#endif /*PP_HDG*/
 USE MOD_Filter,                ONLY: Filter
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
@@ -325,7 +329,12 @@ ELSE ! .NO. ManualTimeStep
 #endif /*PARTICLES*/
   ! time step is calculated by the solver
   ! first Maxwell time step for explicit LSRK
+#ifndef PP_HDG
   dt_Min=CALCTIMESTEP()
+#else
+  dt_Min=0
+#endif /*PP_HDG*/
+
   sdtCFLOne  = 1.0/(dt_Min*CFLtoOne)
   dt=dt_Min
   ! calculate time step for sub-cycling of divergence correction
@@ -579,10 +588,16 @@ DO !iter_t=0,MaxIter
 #endif /*IMPA*/
       ! Analyze for output
       CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
+#ifndef PP_HDG
       ! Write state to file
       IF(DoPML) CALL BacktransformPMLVars()
+#endif /*PP_HDG*/
       IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
+#ifndef PP_HDG
+      ! Write state to file
       IF(DoPML) CALL TransformPMLVars()
+#endif /*PP_HDG*/
+
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
 !#ifdef MPI
@@ -598,7 +613,9 @@ DO !iter_t=0,MaxIter
     IF(DoLoadBalance .AND. time.LT.tEnd)THEN
       RestartTime=time
       CALL LoadBalance(CurrentImbalance,PerformLoadBalance)
+#ifndef PP_HDG
       dt_Min=CALCTIMESTEP()
+#endif /*PP_HDG*/
       dt=dt_Min
       CALL PerformAnalyze(time,iter,tendDiff,forceAnalyze=.TRUE.,OutPut=.FALSE.)
       ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture) ! not sure if required
