@@ -170,7 +170,10 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_Preproc
   USE MOD_Analyze_Vars,          ONLY: DoAnalyze
   USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
-  USE MOD_PARTICLE_Vars,         ONLY: PartSpecies, PDM, nSpecies, PartMPF, usevMPF, BoltzmannConst, Species
+  USE MOD_PARTICLE_Vars,         ONLY: PartSpecies, PDM, nSpecies, PartMPF, usevMPF, BoltzmannConst
+#if (PP_TimeDiscMethod==42)
+  USE MOD_PARTICLE_Vars,         ONLY: Species
+#endif
   USE MOD_DSMC_Vars,             ONLY: DSMC, CollInf, useDSMC, CollisMode, ChemReac, SpecDSMC, PolyatomMolDSMC
   USE MOD_Restart_Vars,          ONLY: DoRestart
   USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
@@ -204,7 +207,12 @@ SUBROUTINE AnalyzeParticles(Time)
 #ifdef MPI
   REAL                :: RECBR(nSpecies),RECBR2(nEkin),RECBR1
   INTEGER             :: RECBIM(nSpecies)
-  REAL                :: sumIntTemp(nSpecies),sumIntEn(nSpecies),sumMeanCollProb
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
+  REAL                :: sumMeanCollProb
+#endif
+#if (PP_TimeDiscMethod==42)
+  REAL                :: sumIntTemp(nSpecies),sumIntEn(nSpecies)
+#endif
 #endif /*MPI*/
   REAL, ALLOCATABLE   :: CRate(:), RRate(:)
 #if (PP_TimeDiscMethod ==42)

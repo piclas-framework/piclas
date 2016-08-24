@@ -337,17 +337,14 @@ USE MOD_Particle_Tracking_Vars,ONLY : DoRefmapping
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
   INTEGER                       :: iVec
-  REAL                          :: JToEv, iRan, FacEtraDistri
+  REAL                          :: iRan, FacEtraDistri
   REAL                          :: ERel_React1_React2, ERel_React2_Elec
   INTEGER                       :: PositionNbr, React1Inx, ElecInx
   REAL                          :: VxPseuAtom, VyPseuAtom, VzPseuAtom
   INTEGER                       :: MaxElecQua
   REAL                          :: IonizationEnergy
   REAL                          :: FakXi, Xi_rel,Xi
-  INTEGER                       :: iQuaMax, iQua, MaxColQua
   !REAL                          :: ElecTransfer
-  INTEGER                       :: newSpecies
-  LOGICAL                       :: DoVib, DoRot
 !===================================================================================================================================
 
 
@@ -526,9 +523,9 @@ SUBROUTINE IonRecomb(iReac, iPair, iPart_p3)
 ! ion recombination routine           A+ + e + X -> A + X
 !===================================================================================================================================
 USE MOD_Globals
-USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles!, Debug_Energy
-USE MOD_DSMC_Vars,             ONLY : ChemReac, CollisMode, PartStateIntEn
-USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec,Species
+USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS,  CollInf, SpecDSMC!, Debug_Energy
+USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn
+USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, NumRanVec, RandomVec
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange, TVEEnergyExchange
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -540,19 +537,14 @@ USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange, TVEEnergyExchang
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
-  REAL                          :: VeloMx, VeloMy, VeloMz, VeloMxOld, VeloMyOld, VeloMzOld ! center of mass velo
+  REAL                          :: VeloMx, VeloMy, VeloMz ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
   INTEGER                       :: iVec
-  REAL                          :: FakXi, Xi, iRan, Xi_rel
-  INTEGER                       :: iQuaMax, iQua, React1Inx, React2Inx
-  REAL                          :: MaxColQua
+  REAL                          :: FakXi, Xi, iRan
+  INTEGER                       :: React1Inx, React2Inx
 ! additional for Q-K theory
-  REAL                          :: ksum, Tcoll
-  INTEGER                       :: ii
-  INTEGER                       :: newSpeciesID,oldSpeciesID
   INTEGER                       :: MaxElecQua
-  REAL                          :: IonizationEnergy, evor, enach
-  LOGICAL                       :: DoVib, DoRot
+  REAL                          :: IonizationEnergy!, evor, enach
 !===================================================================================================================================
 IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%DefinedReact(iReac,1,1)) THEN
   React1Inx = Coll_pData(iPair)%iPart_p1
@@ -847,7 +839,7 @@ SUBROUTINE MolecDissoc(iReac, iPair)
 ! MODULES
 USE MOD_Globals,               ONLY : abort
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars,             ONLY : ChemReac, CollisMode, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, Debug_Energy
+USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar!, Debug_Energy
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec
 USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species, PartPosRef
 USE MOD_Particle_Mesh_Vars,    ONLY : GEO
@@ -1372,7 +1364,7 @@ SUBROUTINE MolecExch(iReac, iPair)
 ! MODULES
 USE MOD_Globals,               ONLY : abort
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars,             ONLY : ChemReac, CollisMode, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, Debug_Energy
+USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn, PolyatomMolDSMC!, Debug_Energy
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
 USE MOD_vmpf_collision,        ONLY : vMPF_AfterSplitting
 USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species, PartPosRef
@@ -1666,9 +1658,9 @@ SUBROUTINE AtomRecomb(iReac, iPair, iPart_p3)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,               ONLY : abort
-  USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-  USE MOD_DSMC_Vars,             ONLY : ChemReac, CollisMode, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, Debug_Energy
-  USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec, Species
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC
+  USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn, PolyatomMolDSMC!, Debug_Energy
+  USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, NumRanVec, RandomVec
   USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,  ONLY : DSMC_VibRelaxPoly, DSMC_RotRelaxPoly, DSMC_InsertPolyProduct
   USE MOD_DSMC_Analyze,          ONLY : CalcTVib, CalcTVibPoly
@@ -1976,16 +1968,15 @@ SUBROUTINE AssoIonization(iReac, iPair)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals,               ONLY : abort
-USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars,             ONLY : ChemReac, CollisMode, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
-USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
+USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC!, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn, PolyatomMolDSMC
+USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, NumRanVec, RandomVec
 USE MOD_vmpf_collision,        ONLY : vMPF_AfterSplitting
-USE MOD_Particle_Vars,         ONLY : usevMPF, PartMPF, RandomVec, Species
-USE MOD_Particle_Mesh_Vars,    ONLY : GEO
+USE MOD_Particle_Vars,         ONLY : RandomVec
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange
 USE MOD_DSMC_PolyAtomicModel,  ONLY : DSMC_VibRelaxPoly, DSMC_RotRelaxPoly, FakXiPoly, DSMC_InsertPolyProduct
 USE MOD_DSMC_Analyze,          ONLY : CalcTVib, CalcTVibPoly
-USE MOD_Particle_Tracking_Vars,ONLY : DoRefmapping
+!USE MOD_Particle_Tracking_Vars,ONLY : DoRefmapping
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -70,8 +70,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 
     CASE(2,3,4,11,12,21,22)
     ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
-      SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
-      SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
+      SpecNum1 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
+      SpecNum2 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
       IF (BGGas%BGGasSpecies.NE.0) THEN       
         Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  & 
                 * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
@@ -140,8 +140,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
           DoSimpleElectronColl=.TRUE.
       END SELECT
 
-      SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
-      SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
+      SpecNum1 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
+      SpecNum2 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
       ! generally this is only a HS calculation of the prob
       IF (DoSimpleElectronColl) THEN
         ! copy & past from above (atom, molecular,etc.)
@@ -206,8 +206,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       ELSE
         SpecToExec = PartSpecies(Coll_pData(iPair)%iPart_p2)
       END IF
-      SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
-      SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
+      SpecNum1 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
+      SpecNum2 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
       IF(DoSimpleElectronColl)THEN
         ! copy & past from above (atom, molecular,etc.)
         IF (BGGas%BGGasSpecies.NE.0) THEN
@@ -238,8 +238,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       bCEX = ChemReac%CEXb(NbrOfReaction)
       aMEX = ChemReac%MEXa(NbrOfReaction)
       bMEX = ChemReac%MEXb(NbrOfReaction)
-      SpecNum1 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)) !number of particles of spec 1
-      SpecNum2 = CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)) !number of particles of spec 2
+      SpecNum1 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
+      SpecNum2 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
       IF (Coll_pData(iPair)%CRela2.eq.0.) THEN !avoid log(0)
         Coll_pData(iPair)%Prob=0.
       ELSE

@@ -14,6 +14,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+#if (PP_TimeDiscMethod==100) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==103) || (PP_TimeDiscMethod==104) || (PP_TimeDiscMethod==121)  || (PP_TimeDiscMethod==122)
 INTERFACE MatrixVector
   MODULE PROCEDURE MatrixVector
 END INTERFACE
@@ -386,4 +387,5 @@ END DO ! j
 
 END SUBROUTINE DENSE_MATMUL
 
+#endif /*(PP_TimeDiscMethod==100) || (PP_TimeDiscMethod==101) || (PP_TimeDiscMethod==102) || (PP_TimeDiscMethod==103) || (PP_TimeDiscMethod==104) || (PP_TimeDiscMethod==121)  || (PP_TimeDiscMethod==122)*/
 END MODULE MOD_LinearOperator

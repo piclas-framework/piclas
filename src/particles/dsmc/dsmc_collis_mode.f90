@@ -102,9 +102,9 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
 !===================================================================================================================================
 ! MODULES  
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, &
-                                         SpecDSMC, PartStateIntEn, PairE_vMPF, Debug_Energy
+                                         SpecDSMC, PartStateIntEn, PairE_vMPF!, Debug_Energy
   USE MOD_Particle_Vars,          ONLY : PartSpecies, RandomVec, NumRanVec, &
-                                         PartState, BoltzmannConst, usevMPF, PartMPF, Species
+                                         PartState, BoltzmannConst, usevMPF, PartMPF
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
@@ -131,7 +131,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   REAL                          :: PartStateIntEnTemp, Phi, DeltaPartStateIntEn ! temp. var for inertial energy (needed for vMPF)
   ! variables for electronic level relaxation and transition
   LOGICAL                       :: DoElec1, DoElec2
-REAL::evor, enach
+!REAL::evor, enach
 !===================================================================================================================================
 
   DoRot1  = .FALSE.
@@ -560,14 +560,14 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   ! calculate probability for rotational/vibrational relaxation for both particles
   IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
     CALL DSMC_calc_P_vib(iSpec, jSpec, iPair, Xi_rel, ProbVib1, ProbVibMax1)
-    CALL DSMC_calc_P_rot(iSpec, jSpec, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
+    CALL DSMC_calc_P_rot(iSpec, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
     ProbVib1 = 0.
     ProbRot1 = 0.
   END IF
   IF (SpecDSMC(jSpec)%InterID.EQ.2) THEN
     CALL DSMC_calc_P_vib(jSpec, iSpec, iPair, Xi_rel, ProbVib2, ProbVibMax2)
-    CALL DSMC_calc_P_rot(jSpec, iSpec, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
+    CALL DSMC_calc_P_rot(jSpec, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE
     ProbVib2 = 0.
     ProbRot2 = 0.
@@ -1060,8 +1060,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,                ONLY : Abort
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, PolyatomMolDSMC
-  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PartState , BoltzmannConst, PEM,  usevMPF, nSpecies
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
+  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PartState , BoltzmannConst, PEM,  usevMPF
   USE MOD_DSMC_ChemReact,         ONLY : ElecImpactIoni, MolecDissoc, MolecExch, AtomRecomb, simpleCEX, AssoIonization
   USE MOD_DSMC_ChemReact,         ONLY : CalcReactionProb
   USE MOD_Globals,                ONLY : Unit_stdOut
@@ -1081,7 +1081,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: CaseOfReaction, iReac, SpecToExec, PartToExec, PartReac1, PartReac2, iPart_p3
+  INTEGER                       :: CaseOfReaction, iReac, PartToExec, PartReac1, PartReac2, iPart_p3
   INTEGER                       :: PartToExecSec, PartReac2Sec, iReac2, iReac3, iReac4
   INTEGER                       :: nPartNode, PairForRec, nPair
   REAL, PARAMETER               :: JToEv = 1.602176565E-19
@@ -2656,7 +2656,7 @@ __STAMP__&
 __STAMP__&
 ,' ERROR! Atomic electron shell has to be initalized.')
           END IF
-          CALL QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
+          CALL QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,NodeVolume,NodePartNum)
         END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
         IF (.NOT.ChemReac%QKProcedure(iReac)) THEN
@@ -2677,7 +2677,7 @@ __STAMP__&
 END SUBROUTINE ReactionDecision
 
 
-SUBROUTINE DSMC_calc_P_rot(iSpec, jSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
+SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !===================================================================================================================================
 ! Calculation of probability for rotational relaxation. Different Models implemented:
 ! 0 - Constant Probability
@@ -2688,12 +2688,12 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, jSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotM
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
   USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC
-  USE MOD_Particle_Vars,      ONLY : PartSpecies, BoltzmannConst, Species
+  USE MOD_Particle_Vars,      ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)       :: iSpec, iPair, iPart, jSpec
+  INTEGER, INTENT(IN)       :: iSpec, iPair, iPart
   REAL, INTENT(IN)          :: Xi_rel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -2752,9 +2752,9 @@ SUBROUTINE DSMC_calc_P_vib(iSpec, jSpec, iPair, Xi_rel, ProbVib, ProbVibMax)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
-  USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC, CollInf, CRelaMax, CRelaAv
+  USE MOD_DSMC_Vars,          ONLY : SpecDSMC, Coll_pData, DSMC, CollInf, CRelaMax, CRelaAv
   USE MOD_DSMC_Vars,          ONLY : PolyatomMolDSMC
-  USE MOD_Particle_Vars,      ONLY : PartSpecies, BoltzmannConst
+  USE MOD_Particle_Vars,      ONLY : BoltzmannConst
 
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

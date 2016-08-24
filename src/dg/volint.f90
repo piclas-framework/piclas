@@ -12,11 +12,14 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+#ifndef PP_HDG
 INTERFACE VolInt
   MODULE PROCEDURE VolInt_weakForm
 END INTERFACE
 
+
 PUBLIC::VolInt
+#endif
 !===================================================================================================================================
 
 
@@ -24,6 +27,7 @@ CONTAINS
 
 
 
+#ifndef PP_HDG
 SUBROUTINE VolInt_weakForm(Ut,dofirstElems)
 !===================================================================================================================================
 ! Computes the volume integral of the weak DG form a la Kopriva
@@ -119,6 +123,7 @@ DO iElem=firstElemID,lastElemID
   !END DO ! k
 END DO ! iElem
 END SUBROUTINE VolInt_weakForm
+#endif
 
 #ifdef donotcompilethis
 SUBROUTINE VolInt_Metrics(f,g,h,Mf,Mg,Mh)

@@ -23,15 +23,20 @@ INTERFACE InitDG
   MODULE PROCEDURE InitDG
 END INTERFACE
 
+#ifndef PP_HDG
 INTERFACE DGTimeDerivative_weakForm
   MODULE PROCEDURE DGTimeDerivative_weakForm
 END INTERFACE
+#endif /*PP_HDG*/
 
 INTERFACE FinalizeDG
   MODULE PROCEDURE FinalizeDG
 END INTERFACE
 
-PUBLIC::InitDG,DGTimeDerivative_weakForm,FinalizeDG
+PUBLIC::InitDG,FinalizeDG
+#ifndef PP_HDG
+PUBLIC::DGTimeDerivative_weakForm
+#endif /*PP_HDG*/
 #ifdef PP_POIS
 PUBLIC::DGTimeDerivative_weakForm_Pois
 #endif
@@ -123,9 +128,8 @@ USE MOD_DG_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
 USE MOD_PreProc
 USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,Face_xGP
-USE MOD_Mesh_Vars,     ONLY:nBCSides,nInnerSides,nMPISides_MINE
-USE MOD_Mesh_Vars,     ONLY:SideID_minus_upper,SideID_minus_lower,SideID_plus_upper
+USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem!,Face_xGP
+USE MOD_Mesh_Vars,     ONLY:SideID_minus_upper,SideID_minus_lower
 #endif /*MPI*/
 #endif /*PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -197,6 +201,7 @@ TangVec2(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(8:10,:,:,:)
 END SUBROUTINE InitDGbasis
 
 
+#ifndef PP_HDG
 SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv,doSource)
 !===================================================================================================================================
 ! Computes the DG time derivative consisting of Volume Integral and Surface integral for the whole field
@@ -325,11 +330,7 @@ tLBStart = LOCALTIME() ! LB Time Start
 CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
 
 ! Add Source Terms
-#ifdef PP_HDG
-IF(doSource) CALL CalcSource(Ut)
-#else
 IF(doSource) CALL CalcSource(tStage,1.0,Ut)
-#endif
 
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
@@ -337,6 +338,7 @@ tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 #endif /*MPI*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
+#endif /*PP_HDG*/
 
 #ifdef PP_POIS
 

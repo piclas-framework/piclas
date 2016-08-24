@@ -145,7 +145,6 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv, Flux, U_Minus, NormVec, TangVec1, TangVec2,
 USE MOD_Globals,ONLY:Abort
 USE MOD_PreProc
 USE MOD_Mesh_Vars    ,  ONLY:nBCSides
-USE MOD_Riemann,ONLY:Riemann
 USE MOD_Equation,ONLY:ExactFunc
 USE MOD_Equation_Vars,ONLY:IniExactFunc
 ! IMPLICIT VARIABLE HANDLING
