@@ -2865,7 +2865,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,time
-USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs
+USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs,RKdtFrac
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY:LinearSolver
@@ -2890,9 +2890,9 @@ USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_PIC_Vars,                ONLY:PIC
 USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF, DoSurfaceFlux
 USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
-USE MOD_part_emission,           ONLY:ParticleInserting
+USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
 USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS, DSMC
 USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
