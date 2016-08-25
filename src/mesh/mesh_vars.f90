@@ -13,9 +13,9 @@ LOGICAL          :: DoWriteStateToHDF5           ! only write HDF5 output if thi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! SwapMesh
 !-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL          :: DoSwapMesh                   ! flag for SwapMesh routines
-CHARACTER(LEN=255),ALLOCATABLE :: SwapMeshExePath! path to swapmesh binary
-INTEGER          :: SwapMeshLevel                ! 0: initial grid, 1: first swap mesh, 2: second swap mesh
+LOGICAL           :: DoSwapMesh                   ! flag for SwapMesh routines
+CHARACTER(LEN=255):: SwapMeshExePath              ! path to swapmesh binary
+INTEGER           :: SwapMeshLevel                ! 0: initial grid, 1: first swap mesh, 2: second swap mesh
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! basis
 !-----------------------------------------------------------------------------------------------------------------------------------
