@@ -1038,7 +1038,7 @@ DO iPart=1,PDM%ParticleVecLength
       CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
     ELSE
       Distance(1)=0.
-      ListDistance(1)=GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+      ListDistance(1)=GEO%TFIBGM(CellX,CellY,CellZ)%Element(1)
     END IF
 
     OldXi=PartPosRef(1:3,iPart)

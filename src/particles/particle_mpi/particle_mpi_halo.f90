@@ -129,6 +129,7 @@ DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
     END DO ! iBGM
   END DO ! jBGM
 END DO ! kBGM
+
 !IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Send:   ', SendMsg%nMPISides
 
 !--- NOTE: IF SENDMSG%NNODES IS 0 AT THIS POINT, THEN I SHOULD BE ABLE TO RETURN HERE!!!
@@ -363,6 +364,9 @@ DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
     END DO ! iBGM
   END DO ! jBGM
 END DO ! kBGM
+
+
+
 !IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Send:   ', SendMsg%nMPIElems
 
 !--- NOTE: IF SENDMSG%NNODES IS 0 AT THIS POINT, THEN I SHOULD BE ABLE TO RETURN HERE!!!
@@ -451,6 +455,7 @@ ELSE IF(PartMPI%MyRank.GT.iProc)THEN
                                            ,PartMPI%COMM                &
                                            ,IERROR                      )
 END IF
+
 
 
 
@@ -591,6 +596,7 @@ DO iElem=1,nExternalElems
   END DO ! i PBGM
 END DO ! iElem
 
+
 !--- if there are periodic boundaries, they need to be taken into account as well:
 IF (GEO%nPeriodicVectors.GT.0) THEN
   Vec1(1:3) = 0.
@@ -617,45 +623,52 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
      ! DO iNode=1,8
         NodeX =ElemBaryAndRadius(1:3,iElem)
         Radius=ElemBaryAndRadius( 4 ,iElem)
+        Radius2=Radius*Radius
         !SELECT CASE(iNode)
-        !CASE(1)
-        !  NodeX(1:3)=NodeX(1:3) + (/-Radius,-Radius,-Radius/)
-        !CASE(2)
-        !  NodeX(1:3)=NodeX(1:3) + (/Radius,-Radius,-Radius/)
-        !CASE(3)
-        !  NodeX(1:3)=NodeX(1:3) + (/-Radius,Radius,-Radius/)
-        !CASE(4)
-        !  NodeX(1:3)=NodeX(1:3) + (/Radius,Radius,-Radius/)
-        !CASE(5)
-        !  NodeX(1:3)=NodeX(1:3) + (/-Radius,-Radius,Radius/)
-        !CASE(6)
-        !  NodeX(1:3)=NodeX(1:3) + (/Radius,-Radius,Radius/)
-        !CASE(7)
-        !  NodeX(1:3)=NodeX(1:3) + (/-Radius,Radius,Radius/)
-        !CASE(8)
-        !  NodeX(1:3)=NodeX(1:3) + (/Radius,Radius,Radius/)
-        !END SELECT
         NodeX(:) = NodeX(:) + &
                    casematrix(iCase,1)*Vec1(1:3) + &
                    casematrix(iCase,2)*Vec2(1:3) + &
                    casematrix(iCase,3)*Vec3(1:3) 
-        iBGM = INT((NodeX(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
-        jBGM = INT((NodeX(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
-        kBGM = INT((NodeX(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
-        DO iPBGM = iBGM-FIBGMCellPadding(1),iBGM+FIBGMCellPadding(1)
-          DO jPBGM = jBGM-FIBGMCellPadding(2),jBGM+FIBGMCellPadding(2)
-            DO kPBGM = kBGM-FIBGMCellPadding(3),kBGM+FIBGMCellPadding(3)
-              IF((iPBGM.GT.GEO%FIBGMimax).OR.(iPBGM.LT.GEO%FIBGMimin) .OR. &
-                 (jPBGM.GT.GEO%FIBGMjmax).OR.(jPBGM.LT.GEO%FIBGMjmin) .OR. &
-                 (kPBGM.GT.GEO%FIBGMkmax).OR.(kPBGM.LT.GEO%FIBGMkmin) ) CYCLE
+
+
+        xmin = NodeX(1) -Radius
+        ymin = NodeX(2) -Radius
+        zmin = NodeX(3) -Radius
+        xmax = NodeX(1) +Radius
+        ymax = NodeX(2) +Radius
+        zmax = NodeX(3) +Radius
+
+        ! BGM mesh cells
+        iBGMmin = CEILING((xMin-GEO%xminglob)/GEO%FIBGMdeltas(1))-FIBGMCellPadding(1)
+        iBGMmax = CEILING((xMax-GEO%xminglob)/GEO%FIBGMdeltas(1))+FIBGMCellPadding(1)
+      
+        jBGMmin = CEILING((yMin-GEO%yminglob)/GEO%FIBGMdeltas(2))-FIBGMCellPadding(2)
+        jBGMmax = CEILING((yMax-GEO%yminglob)/GEO%FIBGMdeltas(2))+FIBGMCellPadding(2)
+      
+        kBGMmin = CEILING((zMin-GEO%zminglob)/GEO%FIBGMdeltas(3))-FIBGMCellPadding(3)
+        kBGMmax = CEILING((zMax-GEO%zminglob)/GEO%FIBGMdeltas(3))+FIBGMCellPadding(3)
+      
+        iBGMmin  = MIN(MAX(GEO%FIBGMimin,iBGMmin),GEO%FIBGMimax)
+        jBGMmin  = MIN(MAX(GEO%FIBGMjmin,jBGMmin),GEO%FIBGMjmax)
+        kBGMmin  = MIN(MAX(GEO%FIBGMkmin,kBGMmin),GEO%FIBGMkmax)
+      
+        iBGMmax  = MAX(MIN(GEO%FIBGMimax,iBGMmax),GEO%FIBGMimin)
+        jBGMmax  = MAX(MIN(GEO%FIBGMjmax,jBGMmax),GEO%FIBGMjmin)
+        kBGMmax  = MAX(MIN(GEO%FIBGMkmax,kBGMmax),GEO%FIBGMkmin)
+
+        ! loop over BGM cells    
+        DO iPBGM = iBGMmin,iBGMmax
+          DO jPBGM = jBGMmin,jBGMmax
+            DO kPBGM = kBGMmin,kBGMmax
+              IF(.NOT.ALLOCATED(GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element))CYCLE
               DO iBGMElem = 1, GEO%FIBGM(iPBGM,jPBGM,kPBGM)%nElem
                 ElemID = GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element(iBGMElem)
-                IF((ElemID.LE.1.).OR.(ElemID.GT.PP_nElems))CYCLE
+                IF((ElemID.LT.0).OR.(ElemID.GT.PP_nElems))CYCLE
                 IF(ElemIndex(ElemID).EQ.0)THEN
-                  Vec0=ElemBaryNGeo(1:3,ElemID)-ElemBaryAndRadius(1:3,iElem)
-                  Distance=SQRT(DOT_PRODUCT(Vec0,Vec0)) &
-                          -Radius-ElemRadiusNGeo(ElemID)
-                  IF(Distance.LE.halo_eps)THEN
+                  Vec0=ElemBaryNGeo(1:3,ElemID)-NodeX(1:3)
+                  Distance=(DOT_PRODUCT(Vec0,Vec0)) &
+                          -Radius2-ElemRadius2NGeo(ElemID)
+                  IF(Distance.LE.halo_eps2)THEN
                     NbOfElems=NbOfElems+1
                     ElemIndex(ElemID)=NbofElems
                   END IF ! in range

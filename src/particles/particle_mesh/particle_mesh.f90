@@ -2914,6 +2914,13 @@ GEO%TFIBGMjmin =GEO%FIBGMjmin
 GEO%TFIBGMkmax =GEO%FIBGMkmax
 GEO%TFIBGMkmin =GEO%FIBGMkmin
 
+IF(GEO%directions(1)) BGMCellXmax = BGMimax
+IF(GEO%directions(1)) BGMCellXmin = BGMimin
+IF(GEO%directions(2)) BGMCellYmax = BGMjmax
+IF(GEO%directions(2)) BGMCellYmin = BGMjmin
+IF(GEO%directions(3)) BGMCellZmax = BGMkmax
+IF(GEO%directions(3)) BGMCellZmin = BGMkmin
+
 
 ! get new min max
 DO iElem=PP_nElems+1,nTotalElems
@@ -2924,13 +2931,13 @@ DO iElem=PP_nElems+1,nTotalElems
   xmax = ElemBaryNGeo(1,iElem) +ElemRadiusNGeo(iElem)
   ymax = ElemBaryNGeo(2,iElem) +ElemRadiusNGeo(iElem)
   zmax = ElemBaryNGeo(3,iElem) +ElemRadiusNGeo(iElem)
-
-  BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+   
+  IF(.NOT.GEO%directions(1)) BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+  IF(.NOT.GEO%directions(1)) BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+  IF(.NOT.GEO%directions(2)) BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  IF(.NOT.GEO%directions(2)) BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  IF(.NOT.GEO%directions(3)) BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+  IF(.NOT.GEO%directions(3)) BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
 
   BGMimax=MAX(BGMimax,BGMCellXmax)
   BGMimin=MIN(BGMimin,BGMCellXmin)

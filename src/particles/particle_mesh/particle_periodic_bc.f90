@@ -397,9 +397,9 @@ __STAMP__&
 ,'nPeriodicVectors must be >= 0 and <= 3!',GEO%nPeriodicVectors,999.)
 END IF
 
+GEO%directions=.FALSE.
 IF(GEO%nPeriodicVectors.EQ.0) RETURN
 
-GEO%directions=.FALSE.
 SDEALLOCATE(GEO%DirPeriodicVectors)
 ALLOCATE(GEO%DirPeriodicVectors(1:GEO%nPeriodicVectors))
 ! check if all periodic vectors are cartesian
