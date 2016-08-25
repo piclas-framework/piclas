@@ -2865,7 +2865,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,time
-USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs
+USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs,RKdtFrac
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY:LinearSolver
@@ -2881,6 +2881,7 @@ USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
 USE MOD_Equation,                ONLY:CalcSource
 USE MOD_Equation_Vars,           ONLY:c2_inv
 #ifdef PARTICLES
+USE MOD_Timedisc_Vars,           ONLY:RKdtFrac,RKdtFracTotal
 USE MOD_LinearSolver_Vars,       ONLY:DoUpdateInStage
 USE MOD_Predictor,               ONLY:PartPredictor
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies, doParticleMerge,PartPressureCell
@@ -2889,10 +2890,10 @@ USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_PIC_Vars,                ONLY:PIC
-USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF
+USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ,Species
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF, DoSurfaceFlux
 USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
-USE MOD_part_emission,           ONLY:ParticleInserting
+USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
 USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS, DSMC
 USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
@@ -2929,6 +2930,9 @@ REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: tRatio, tphi, LorentzFacInv
+! particle surface flux
+REAL               :: dtFrac,RandVal
+! RK counter
 INTEGER            :: iCounter !, iStage
 logical :: first
 #ifdef PARTICLES
@@ -3044,6 +3048,7 @@ IF(t.GE.DelayTime)THEN
     END DO ! iPart
   END IF
 END IF
+RKdtFracTotal=0.
 #endif /*PARTICLES*/
 
 IF(iter.EQ.0) CALL DGTimeDerivative_weakForm(t, t, 0,doSource=.FALSE.)
@@ -3139,6 +3144,58 @@ DO iStage=2,nRKStages
         PartState(iPart,1:6)=PartStateN(iPart,1:6)+dt*PartState(iPart,1:6)
       END IF ! ParticleIsExplicit
     END DO ! iPart
+
+    !------------------------------------------------------------------------------------------------------------------------------
+    ! particle surface flux || inflow boundary condition
+    !------------------------------------------------------------------------------------------------------------------------------
+    IF(DoSurfaceFlux)THEN
+      ! first idea
+      IF (iStage.EQ.2) THEN
+        RKdtFrac = RK_c(iStage)
+        RKdtFracTotal=RKdtFracTotal+RKdtFrac
+      ELSE IF (iStage.LT.nRKStages) THEN
+        RKdtFrac = RK_c(iStage)-RK_c(iStage-1)
+        RKdtFracTotal=RKdtFracTotal+RKdtFrac
+      ELSE
+        RKdtFrac = 1.-RK_c(nRKStages)
+        RKdtFracTotal=1.
+      END IF
+      IF(RKdtFrac.GT.0.)THEN
+         !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
+        CALL ParticleSurfaceflux() 
+        dtFrac= dt*RKdtFrac
+        ! now push the particles by their 
+        !SF, new in current RKStage (no forces assumed in this stage)
+        DO iPart=1,PDM%ParticleVecLength
+          IF (PDM%IsNewPart(iPart)) THEN
+            CALL RANDOM_NUMBER(RandVal)
+            PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac*RandVal
+            PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac*RandVal
+            PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac*RandVal
+            PDM%dtFracPush(iPart) = .FALSE.
+            ! -> assuming F=0 and const. v in previous stages with RK_a_rebuilt (see above)
+            Pt(iPart,1:3)=0.
+            ! previous stages and PartStateN
+            PartStateN(iPart,1:6)=PartState(iPart,1:6)
+            IF(Species(PartSpecies(iPart))%IsImplicit)THEN
+              ! implicit reconstruction
+              DO iCounter=2,iStage
+                PartStage(iPart,1:3,iCounter) = PartState(iPart,1:3)
+                PartStage(iPart,4:6,iCounter) = 0.
+                PartStateN(iPart,1:6) = PartStateN(iPart,1:6)-dt*ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+              END DO ! iStage=2,iStage-2
+            ELSE
+              ! explicit reconstruction
+              DO iCounter=2,iStage-1
+                PartStage(iPart,1:3,iCounter) = PartState(iPart,1:3)
+                PartStage(iPart,4:6,iCounter) = 0.
+                PartStateN(iPart,1:6) = PartStateN(iPart,1:6)-dt*ERK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+              END DO ! iStage=2,iStage-2
+            END IF !  implicit,explicit
+          END IF ! ParticleIsNew
+        END DO ! iPart
+      END IF ! RKdtFrac>0
+    END IF ! DoSurfaceFlux
       
 #ifdef MPI
     ! mpi-routines should be extended by additional input: PartisImplicit, better criterion, saves computational time
@@ -3219,9 +3276,22 @@ DO iStage=2,nRKStages
     IF(DoUpdateInStage)THEN
       CALL UpdateNextFreePosition()
     END IF
+    ! surface flux, select if implicit or explicit particle treatment
+    IF(DoSurfaceFlux)THEN
+      IF(RKdtFrac.GT.0.)THEN
+        DO iPart=1,PDM%ParticleVecLength
+          IF(PDM%ParticleInside(iPart))THEN
+            IF(Species(PartSpecies(iPart))%IsImplicit) THEN
+              PartIsImplicit(iPart)=.TRUE.
+            ELSE
+              PartIsImplicit(iPart)=.FALSE.
+            END IF
+          END IF ! ParticleInside
+        END DO ! iPart
+      END IF  ! RKdtFrac>0
+    END IF ! DoSurfaceFlux
   END IF
 #endif /*PARTICLES*/
-
 END DO
 
 #ifdef PARTICLES
@@ -3975,7 +4045,7 @@ INTEGER(KIND=8),INTENT(INOUT) :: iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: tStage,b_dt(1:nRKStages),RK_a_rebuilt(1:nRKStages)
-INTEGER                       :: iPart
+INTEGER                       :: iPart              
 REAL                          :: RandVal, dtFrac
 !===================================================================================================================================
 

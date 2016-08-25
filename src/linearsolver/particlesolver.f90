@@ -220,7 +220,7 @@ INTEGER                      :: iPart
 INTEGER                      :: nInnerPartNewton = 0
 REAL                         :: AbortCritLinSolver,gammaA,gammaB
 !REAL                         :: FieldAtParticle(1:6)
-REAL                         :: DeltaX(1:6)
+REAL                         :: DeltaX(1:6), DeltaX_Norm
 REAL                         :: Pt_tmp(1:6)
 LOGICAL                      :: doParticle(1:PDM%maxParticleNumber)
 !! maybeeee
@@ -348,6 +348,10 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       ! update to new partstate during Newton iteration
       PartXK(:,iPart)=PartXK(:,iPart)+DeltaX
       PartState(iPart,:)=PartXK(:,iPart)
+      DeltaX_Norm=DOT_PRODUCT(DeltaX,DeltaX)
+      IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
+        DoPartInNewton(iPart)=.FALSE.
+      END IF
     END IF ! ParticleInside
   END DO ! iPart
   ! closed form: now move particles
