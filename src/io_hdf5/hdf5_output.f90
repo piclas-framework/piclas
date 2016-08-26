@@ -1061,7 +1061,7 @@ CALL CloseDataFile()
 
 ! Add userblock to hdf5-file
 iError = SYSTEM(H5TOOLSDIR//&
-    'h5jam -u '//TRIM(ProjectName)//'.userblock -i '  //&
+    '/h5jam -u '//TRIM(ProjectName)//'.userblock -i '  //&
     TRIM(FileName))
 
 END SUBROUTINE GenerateFileSkeleton

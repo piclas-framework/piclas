@@ -2936,6 +2936,7 @@ REAL               :: tRatio, tphi, LorentzFacInv
 REAL               :: dtFrac,RandVal
 ! RK counter
 INTEGER            :: iCounter !, iStage
+INTEGER :: nPartsFlux
 logical :: first
 #ifdef PARTICLES
 INTEGER            :: iPart
@@ -3151,6 +3152,7 @@ DO iStage=2,nRKStages
     ! particle surface flux || inflow boundary condition
     !------------------------------------------------------------------------------------------------------------------------------
     IF(DoSurfaceFlux)THEN
+      SWRITE(*,*) 'surfaceflux '
       ! first idea
       IF (iStage.EQ.2) THEN
         RKdtFrac = RK_c(iStage)
@@ -3163,13 +3165,17 @@ DO iStage=2,nRKStages
         RKdtFracTotal=1.
       END IF
       IF(RKdtFrac.GT.0.)THEN
+        SWRITE(*,*) 'calling.... '
          !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
         CALL ParticleSurfaceflux() 
+        SWRITE(*,*) '.... done '
         dtFrac= dt*RKdtFrac
         ! now push the particles by their 
         !SF, new in current RKStage (no forces assumed in this stage)
+        nPartsFlux=0
         DO iPart=1,PDM%ParticleVecLength
           IF (PDM%IsNewPart(iPart)) THEN
+            nPartsFlux=nPartsflux+1
             CALL RANDOM_NUMBER(RandVal)
             PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac*RandVal
             PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac*RandVal
@@ -3181,14 +3187,14 @@ DO iStage=2,nRKStages
             PartStateN(iPart,1:6)=PartState(iPart,1:6)
             IF(Species(PartSpecies(iPart))%IsImplicit)THEN
               ! implicit reconstruction
-              DO iCounter=2,iStage
+              DO iCounter=1,iStage
                 PartStage(iPart,1:3,iCounter) = PartState(iPart,1:3)
                 PartStage(iPart,4:6,iCounter) = 0.
                 PartStateN(iPart,1:6) = PartStateN(iPart,1:6)-dt*ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
               END DO ! iStage=2,iStage-2
             ELSE
               ! explicit reconstruction
-              DO iCounter=2,iStage-1
+              DO iCounter=1,iStage-1
                 PartStage(iPart,1:3,iCounter) = PartState(iPart,1:3)
                 PartStage(iPart,4:6,iCounter) = 0.
                 PartStateN(iPart,1:6) = PartStateN(iPart,1:6)-dt*ERK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
@@ -3196,6 +3202,7 @@ DO iStage=2,nRKStages
             END IF !  implicit,explicit
           END IF ! ParticleIsNew
         END DO ! iPart
+        SWRITE(*,*) 'flux particles', nPartsFlux
       END IF ! RKdtFrac>0
     END IF ! DoSurfaceFlux
       
