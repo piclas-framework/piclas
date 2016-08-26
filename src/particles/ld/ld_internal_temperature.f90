@@ -682,7 +682,6 @@ END SUBROUTINE CalcInternalTemp_LD_third
 SUBROUTINE CalcInternalTemp_LD_third_back(iElem)
 
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,              ONLY : nElems
 USE MOD_Particle_Vars,          ONLY : PEM, BoltzmannConst, Species
 USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
