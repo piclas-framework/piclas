@@ -62,7 +62,7 @@ USE MOD_Particle_MPI_Vars,      ONLY:DoExternalParts
 REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDepo(:,:)
 REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:),xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t, iSFfix
-REAL                      :: Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
+REAL                      :: MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
 REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction, r_sf_average
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
@@ -724,17 +724,16 @@ USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP, sJ
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
-USE MOD_Interpolation_Vars,     ONLY:wGP,swGP
+USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
-USE MOD_Interpolation_Vars,     ONLY:wBary,xGP
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,ElemBaryNGeo,casematrix, NbrOfCases
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
 #ifdef MPI
 ! only required for shape function??
 USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartMPIExchange
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPIExchange
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem,tCartMesh,ElemTime
 #endif  /*MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -754,10 +753,9 @@ INTEGER                          :: firstPart,lastPart
 INTEGER                          :: i,j, k, l, m, iElem, iPart
 LOGICAL                          :: chargedone(1:nElems)!, SAVE_GAUSS             
 LOGICAL                          :: SAVE_GAUSS
-INTEGER                          :: BGMimax,BGMimin,BGMjmax,BGMjmin,BGMkmax,BGMkmin
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
 INTEGER                          :: kk, ll, mm, ppp                                              
-INTEGER                          :: ElemID, iCase, ind, N_in
+INTEGER                          :: ElemID, iCase, ind
 REAL                             :: radius2, S, S1, Fac(4), Fac2(4)
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
 REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
@@ -767,7 +765,7 @@ REAL                             :: ElemSource(nElems,1:4)
 REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
 REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), alpha
 INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
-INTEGER                          :: foundDOF, iSFfix
+INTEGER                          :: iSFfix
 REAL,DIMENSION(3,0:NDepo)        :: L_xi
 REAL                             :: DeltaIntCoeff,prefac, SFfixDistance
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
@@ -2864,7 +2862,7 @@ USE MOD_Particle_MPI_Vars,   ONLY:PartMPI
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iProc,jPorc
+INTEGER                     :: iProc
 INTEGER                     :: k,m,n,m0,n0
 INTEGER                     :: localminmax(6), maxofmin, minofmax                              
 INTEGER                     :: completeminmax(6*PartMPI%nProcs)                              
@@ -3228,8 +3226,6 @@ REAL,INTENT(OUT)        :: GaussDistance(0:N_in,0:N_in,0:N_in)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: i,j,k
-!REAL                    :: tmp(3)
-REAL                    :: tmp(3)
 !===================================================================================================================================
 
 DO k=0,N_in

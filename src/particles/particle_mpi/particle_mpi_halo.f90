@@ -294,7 +294,7 @@ USE MOD_Particle_Mesh_Vars,         ONLY:GEO
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,         ONLY:ElemBaryNGeo,ElemRadiusNGeo
 !USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                  ONLY:NGeo,ElemToSide,nElems,nInnerSides,nBCSides,nSides
+USE MOD_Mesh_Vars,                  ONLY:ElemToSide,nElems,nInnerSides,nBCSides,nSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -502,8 +502,8 @@ SUBROUTINE CheckSimpleMPINeighborhoodByFIBGM(ElemBaryAndRadius,nExternalElems,El
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix
-USE MOD_Particle_MPI_Vars,         ONLY:halo_eps,halo_eps2
-USE MOD_Particle_Mesh_Vars,        ONLY:ElemBaryNGeo,ElemRadiusNGeo,ElemRadius2NGeo
+USE MOD_Particle_MPI_Vars,         ONLY:halo_eps2
+USE MOD_Particle_Mesh_Vars,        ONLY:ElemBaryNGeo,ElemRadius2NGeo
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -514,9 +514,8 @@ INTEGER, INTENT(IN)      :: nExternalElems
 INTEGER, INTENT(INOUT)   :: ElemIndex(PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: iElem, ElemID,iBGMElem,iCase,NbOfElems,iNode
+INTEGER                  :: iElem, ElemID,iBGMElem,iCase,NbOfElems
 INTEGER                  :: iBGMmin,iBGMmax,jBGMmin,jBGMmax,kBGMmin,kBGMmax,iPBGM,jPBGM,kPBGM
-INTEGER                  :: iBGM,jBGM,kBGM
 REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3), NodeX(1:3), Radius,Distance,Vec0(1:3)
 REAL                     :: xmin, xmax, ymin,ymax,zmin,zmax, Radius2
 LOGICAL                  :: IsChecked(1:PP_nElems)

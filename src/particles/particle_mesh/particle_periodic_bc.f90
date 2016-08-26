@@ -127,9 +127,8 @@ USE MOD_Preproc
 USE MOD_Globals,                 ONLY:AlmostZero,AlmostEqual,CROSSNORM
 !USE MOD_Mesh_Vars,               ONLY:Elems,offsetElem,nSides, ElemToSide
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMPISides_MINE,nSides
-USE MOD_Mesh_Vars,               ONLY:ElemToSide,nBCSides,XCL_NGeo,NGeo,BC,SideToElem
+USE MOD_Mesh_Vars,               ONLY:nBCSides,XCL_NGeo,NGeo,BC,SideToElem
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO, SidePeriodicType, SidePeriodicDisplacement
-USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

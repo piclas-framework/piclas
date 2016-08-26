@@ -97,11 +97,9 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic
-USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem,NGeo
+USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
-USE MOD_LoadBalance_Vars,       ONLY:nTracksPerElem
-!USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -282,16 +280,11 @@ SUBROUTINE SingleParticleToExactElement(iPart,doHalo)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
-USE MOD_TimeDisc_Vars,          ONLY:dt
-USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo,IsBCElem,ElemRadius2NGeo
-USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
-USE MOD_PICDepo_Vars,           ONLY:DepositionType
 USE MOD_Particle_Intersection,  ONLY:PartInElemCheck
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
@@ -792,22 +785,24 @@ USE MOD_PreProc
 USE MOD_Globals!,            ONLY : UNIT_StdOut
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
 USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
-USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
+USE MOD_Mesh_Vars,                          ONLY:NGeo
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 #ifndef PP_HDG
 USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
 #endif /*PP_HDG*/
 USE MOD_Equation_Vars,                      ONLY:c
-USE MOD_Particle_Vars,                      ONLY:manualtimestep,dt_part_ratio
+USE MOD_Particle_Vars,                      ONLY:manualtimestep
+#if (PP_TimeDiscMethod==201)
+USE MOD_Particle_Vars,                      ONLY:dt_part_ratio
+#endif
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
 USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartSideToElem
+USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding
 USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
@@ -1636,23 +1631,22 @@ SUBROUTINE GetSFIBGM()
 USE MOD_PreProc
 USE MOD_Globals!,            ONLY : UNIT_StdOut
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemBaryNGeo,ElemRadiusNGeo
-USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
-USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
-USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
+USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
 #ifndef PP_HDG
 USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
 #endif /*PP_HDG*/
 USE MOD_Equation_Vars,                      ONLY:c
-USE MOD_Particle_Vars,                      ONLY:manualtimestep,dt_part_ratio
-USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
+USE MOD_Particle_Vars,                      ONLY:manualtimestep
+#if (PP_TimeDiscMethod==201)
+USE MOD_Particle_Vars,                      ONLY:dt_part_ratio
+#endif
 USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 #ifdef MPI
-USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartSideToElem
+USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding
 USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
@@ -1670,14 +1664,13 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
 !REAL                  :: localXmin,localXmax,localymin,localymax,localzmin,localzmax
 INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax
 REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
-INTEGER                          :: iBGM,jBGM,kBGM,iElem,ilocSide,iSide,SideID
+INTEGER                          :: iBGM,jBGM,kBGM,iElem,iSide
 INTEGER                          :: BGMCellXmax,BGMCellXmin
 INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin
 INTEGER                          :: ALLOCSTAT
 INTEGER                          :: iProc
 REAL                             :: deltaT
-REAL                             :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
 #ifdef MPI
 INTEGER                          :: ii,jj,kk,i,j
 INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
@@ -2426,16 +2419,10 @@ USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
 USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
 USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
-USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
-USE MOD_PICDepo,                            ONLY:InitializeDeposition
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Equation_Vars,                      ONLY:c
-USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartElemToSide,PartSideToElem
-USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI,SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
-USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2868,18 +2855,11 @@ SUBROUTINE AddSimpleHALOCellsToFIBGM()
 USE MOD_PreProc
 USE MOD_Globals!,            ONLY : UNIT_StdOut
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemBaryNGeo,ElemRadiusNGeo
-USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
-USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
-USE MOD_PICDepo,                            ONLY:InitializeDeposition
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping,Distance,ListDistance
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
+USE MOD_Particle_Tracking_Vars,             ONLY:Distance,ListDistance
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Equation_Vars,                      ONLY:c
-USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartElemToSide,PartSideToElem
-USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI,SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
-USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2891,7 +2871,7 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
 ! LOCAL VARIABLES
 INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax, ALLOCSTAT
 REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
-INTEGER                          :: iBGM,jBGM,kBGM,SideID,iElem,ilocSide
+INTEGER                          :: iBGM,jBGM,kBGM,iElem
 INTEGER                          :: BGMCellXmax,BGMCellXmin
 INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin,maxnBGMElems
@@ -3152,14 +3132,11 @@ SUBROUTINE InitElemVolumes()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals!,            ONLY : UNIT_StdOut
-USE MOD_Mesh_Vars,          ONLY:nElems,NGeo,sJ
+USE MOD_Mesh_Vars,          ONLY:nElems,sJ
 USE MOD_Particle_Mesh_Vars, ONLY:GEO
 USE MOD_Interpolation_Vars, ONLY:wGP
 USE MOD_Particle_Vars,      ONLY:usevMPF
 USE MOD_ReadInTools
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,  ONLY:PartMPI
-#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3171,7 +3148,7 @@ USE MOD_Particle_MPI_Vars,  ONLY:PartMPI
 INTEGER           :: iElem
 INTEGER           :: i,j,k
 INTEGER           :: ALLOCSTAT
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N), RECBIM
+REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes)...'
@@ -3226,7 +3203,6 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides
 USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo
-USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 ! IMPLICIT VARIABLE HANDLING
@@ -3424,17 +3400,11 @@ SUBROUTINE PointToExactElement(X_In,Element,isInSide,doHalo)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
-USE MOD_TimeDisc_Vars,          ONLY:dt
-USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,ListDistance,Distance
-USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell,ElemBaryNGeo
+USE MOD_Particle_Tracking_Vars, ONLY:ListDistance,Distance
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
-USE MOD_PICDepo_Vars,           ONLY:DepositionType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3521,8 +3491,6 @@ USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Particle_Mesh_Vars,       ONLY:ElemBaryNGeo
-USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
 USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
 ! IMPLICIT VARIABLE HANDLING
@@ -3533,8 +3501,8 @@ IMPLICIT NONE
 !OUTPUT VARIABLES
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem,SideID,i,j,k
-REAL                    :: Xi(3),XPos(3),Radius,buf
+INTEGER                 :: iElem,i,j,k
+REAL                    :: Xi(3),XPos(3),buf
 REAL                    :: Lag(1:3,0:NGeo)
 !================================================================================================================================
 
@@ -3586,7 +3554,7 @@ IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem,SideID,i,j,k,ilocSide, ALLOCSTAT
-REAL                    :: Xi(3),XPos(3),Radius,buf
+REAL                    :: Xi(3),XPos(3),Radius
 REAL                    :: Lag(1:3,0:NGeo)
 !================================================================================================================================
 
@@ -3908,7 +3876,7 @@ LOGICAL              :: IsCurved
 ! LOCAL VARIABLES
 REAL                 :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                 :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
-INTEGER              :: i,j,k, NGeo3,NGeo2
+INTEGER              :: NGeo3
 !===================================================================================================================================
 
 IsCurved=.FALSE.
@@ -4011,7 +3979,7 @@ SUBROUTINE InsideElemBoundingBox(ParticlePosition,ElemID,InSide)
 ! check is the particles is inside the bounding box, return TRUE/FALSE
 !================================================================================================================================
 USE MOD_Globals_Vars
-USE MOD_Particle_Surfaces_Vars,  ONLY:ElemSlabNormals,ElemSlabIntervals,BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars,  ONLY:ElemSlabNormals,ElemSlabIntervals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -4066,7 +4034,6 @@ SUBROUTINE GetElemAndSideType()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,                 ONLY:ElemBaryNGeo,ElemRadius2NGeo,ElemRadiusNGeo
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,SideID_minus_upper,NGeo,nBCSides,sJ
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
@@ -4099,13 +4066,13 @@ REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
 INTEGER                                  :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
-#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
+#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6) && (PP_TimeDiscMethod<=501 && PP_TimeDiscMethod>=506))  /* RK3 and RK4 only */
 REAL,DIMENSION(1:3,0:NGeo,0:NGeo) :: xNodes
 #endif
 LOGICAL,ALLOCATABLE                     :: SideIsDone(:)
 REAL                                    :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                                    :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
-INTEGER                                 :: i,j,k, NGeo3,NGeo2, nLoop
+INTEGER                                 :: NGeo3,NGeo2, nLoop
 REAL                                    :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
 REAL                                    :: Distance ,maxScaleJ
 REAL                                    :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
@@ -4151,6 +4118,7 @@ nCurvedHalo=0
 nLinearElemsHalo=0
 nCurvedElemsHalo=0
 nBCElemsHalo=0
+isBilinear=.FALSE.
 
 NGeo2=(NGeo+1)*(NGeo+1)
 NGeo3=NGeo2*(NGeo+1)

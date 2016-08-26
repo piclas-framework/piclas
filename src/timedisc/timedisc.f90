@@ -4055,8 +4055,8 @@ USE MOD_Particle_Tracking_vars,ONLY: DoRefMapping
 #ifdef PARTICLES
 USE MOD_PICDepo,               ONLY: Deposition
 USE MOD_PICInterpolation,      ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars,         ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, usevMPF, & 
-                                     doParticleMerge,PartPressureCell,DoSurfaceFlux!,Time
+USE MOD_Particle_Vars,         ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, & 
+                                     doParticleMerge,PartPressureCell,DoSurfaceFlux
 USE MOD_part_RHS,              ONLY: CalcPartRHS
 USE MOD_part_emission,         ONLY: ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                  ONLY: DSMC_main
@@ -4068,8 +4068,7 @@ USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 #endif
-!USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping!,MeasureTrackTime
+USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping
 USE MOD_part_tools,             ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking,      ONLY: ParticleTrackingCurved,ParticleRefTracking
 #endif /*PARTICLES*/

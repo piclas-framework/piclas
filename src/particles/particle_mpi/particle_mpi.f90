@@ -276,9 +276,8 @@ SUBROUTINE SendNbOfParticles(doParticle_In)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloElemToProc, PartSendBuf,PartRecvBuf,PartTargetProc
-USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,Species,PartPosRef
-USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloElemToProc, PartTargetProc
+USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,PEM,PDM,Species,PartPosRef
 USE MOD_Particle_Mesh_Vars,       ONLY:GEO
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend
@@ -298,7 +297,7 @@ INTEGER                       :: iPart,ElemID,iProc
 ! shape function 
 INTEGER                       :: CellX,CellY,CellZ!, iPartShape
 INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1), nDepoProcs, ProcID,LocalProcID
-INTEGER                       :: ALLOCSTAT,nPartShape
+INTEGER                       :: nPartShape
 REAL                          :: ShiftedPart(1:3)
 LOGICAL                       :: PartInBGM
 !===================================================================================================================================
@@ -537,7 +536,7 @@ USE MOD_Particle_Mesh_Vars,       ONLY:GEO
 USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,PartShiftVector, ExtPartCommSize, PartMPIDepoSend
-USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF, ExtPartToFIBGM, NbrOfExtParticles
+USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,  NbrOfExtParticles
 #if defined(IMEX) || defined(IMPA)
 USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
@@ -568,7 +567,6 @@ INTEGER                       :: CellX,CellY,CellZ!, iPartShape
 INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1), nDepoProcs, ProcID, jProc, iExtPart, LocalProcID
 REAL                          :: ShiftedPart(1:3)
 LOGICAL                       :: PartInBGM
-INTEGER                       :: nTotalSendParticles
 #if defined(IMEX) || defined(IMPA)
 INTEGER                       :: iCounter
 #endif /*IMEX*/
@@ -1083,12 +1081,12 @@ SUBROUTINE MPIParticleRecv()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloElemToProc, PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
 USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
-USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,ExtPartCommSize
+USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,ExtPartCommSize
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
 #if defined(IMEX) || defined(IMPA)
 USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
@@ -1118,7 +1116,6 @@ INTEGER                       :: MessageSize, nRecvParticles, nRecvExtParticles
 !INTEGER,ALLOCATABLE           :: RecvArray(:,:), RecvArray_glob(:,:,:)
 !CHARACTER(LEN=64)             :: filename,hilf
 ! shape function 
-REAL                          :: ShiftedPart(1:3)
 INTEGER                       :: iExtPart
 #if defined(IMEX) || defined(IMPA)
 INTEGER                       :: iCounter
@@ -1482,7 +1479,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 ::BezierSideSize,SendID, iSide
-INTEGER                 ::iMPINeighbor
 !===================================================================================================================================
 
 ! funny: should not be required, as sides are built for master and slave sides??
@@ -1542,7 +1538,6 @@ SUBROUTINE InitHaloMesh()
 USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_PreProc
-USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
@@ -1558,7 +1553,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 ::BezierSideSize,SendID, iElem,iSide
+INTEGER                 ::iElem
 INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
 LOGICAL                 :: TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
@@ -1689,7 +1684,6 @@ SUBROUTINE InitSimpleHaloMesh()
 USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_PreProc
-USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
@@ -1705,7 +1699,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 ::BezierSideSize,SendID, iElem,iSide
+INTEGER                 ::iElem
 INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
 LOGICAL                 :: TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
@@ -2352,7 +2346,7 @@ SUBROUTINE CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO
+USE MOD_Mesh_Vars,              ONLY:BC,nGeo,XCL_NGeo,DXCL_NGEO
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
