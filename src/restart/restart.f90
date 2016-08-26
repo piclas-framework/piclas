@@ -164,8 +164,9 @@ USE MOD_DG_Vars,                 ONLY:U
 USE MOD_Mesh_Vars,               ONLY:offsetElem,DoWriteStateToHDF5
 #ifdef PP_HDG
 USE MOD_Mesh_Vars,               ONLY:offsetSide,nSides,nMPISides_YOUR, offsetSide
-#endif /*PP_HDG*/
+#else
 USE MOD_Restart_Vars,            ONLY:Vdm_GaussNRestart_GaussN
+#endif /*PP_HDG*/
 USE MOD_Restart_Vars,            ONLY:DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution
 USE MOD_ChangeBasis,             ONLY:ChangeBasis3D
 USE MOD_HDF5_input ,             ONLY:OpenDataFile,CloseDataFile,ReadArray,ReadAttribute
@@ -190,7 +191,7 @@ USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 #endif
 #ifdef PP_HDG
-USE MOD_HDG_Vars,             ONLY: lambda, nGP_face, nGP_vol, RHS_vol
+USE MOD_HDG_Vars,             ONLY: lambda, nGP_face
 USE MOD_HDG,                  ONLY: RestartHDG
 #endif /*PP_HDG*/
 #endif /*PARTICLES*/
@@ -202,9 +203,14 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#ifndef PP_HDG
 REAL,ALLOCATABLE         :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE         :: U_local2(:,:,:,:,:)
-INTEGER                  :: iElem,iPML
+#endif /*not PP_HDG*/
+INTEGER                  :: iElem
+#ifndef PP_HDG
+INTEGER                  :: iPML
+#endif /*not PP_HDG*/
 #ifdef MPI
 REAL                     :: StartT,EndT
 #endif /*MPI*/

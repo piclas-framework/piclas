@@ -51,12 +51,12 @@ SUBROUTINE ParticlePressureIni()
   USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
   USE MOD_Particle_Mesh_Vars,      ONLY:epsInCell
   USE MOD_Particle_Mesh,           ONLY:PointToExactElement
-  USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide,SideToElem
+  USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide
   USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
   USE MOD_Eval_XYZ,                ONLY:eval_xyz_poly
   USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElem
 #ifdef MPI
-  USE MOD_Mesh_Vars,               ONLY : nSides, nInnerSides, nBCSides
+  USE MOD_Mesh_Vars,               ONLY : nInnerSides, nBCSides
 #endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -632,12 +632,12 @@ SUBROUTINE ParticlePressureCellIni()
   USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
   USE MOD_Particle_Mesh_Vars,      ONLY:epsInCell
   USE MOD_Particle_Mesh,           ONLY:PointToExactElement
-  USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide,SideToElem
+  USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide
   USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
   USE MOD_Eval_XYZ,                ONLY:eval_xyz_poly
   USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElem
 #ifdef MPI
-  USE MOD_Mesh_Vars,               ONLY : nSides, nInnerSides, nBCSides
+  USE MOD_Mesh_Vars,               ONLY : nInnerSides, nBCSides
 #endif
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

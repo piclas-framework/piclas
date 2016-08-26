@@ -41,7 +41,7 @@ SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,e
 USE MOD_PreProc
 USE MOD_Globals,                ONLY:Abort
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,PartState,LastPartPos,KeepWallParticles
+USE MOD_Particle_Vars,          ONLY:PDM,PartSpecies,KeepWallParticles
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 !USE MOD_Particle_Surfaces_Vars, ONLY:BoundingBoxIsEmpty
@@ -54,7 +54,6 @@ USE MOD_DSMC_SurfModel_Tools,   ONLY:Particle_Wall_Adsorb
 !USE MOD_BoundaryTools,          ONLY:SingleParticleToExactElement                                   !
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
-USE MOD_Particle_Vars,          ONLY:Pt_temp!,Pt
 USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
 #endif
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
@@ -72,10 +71,9 @@ INTEGER,INTENT(INOUT)                :: ElemID
 REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                 :: v_2(1:3),v_aux(1:3),n_loc(1:3),RanNum
-INTEGER                              :: BCSideID, WallModeltype, adsorbindex
+REAL                                 :: n_loc(1:3),RanNum
+INTEGER                              :: WallModeltype, adsorbindex
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-REAL                                 :: absPt_temp
 #endif
 LOGICAL                              :: isSpeciesSwap
 !===================================================================================================================================
@@ -119,7 +117,7 @@ CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
-    CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide which WallModel is used
@@ -208,7 +206,7 @@ END SELECT !PartBound%MapToPartBC(BC(SideID)
 END SUBROUTINE GetBoundaryInteraction
 
 
-SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID)
+SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -240,7 +238,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                   :: iPart,SideID
 REAL,INTENT(IN)                      :: xi,eta
-INTEGER,INTENT(IN)                   :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
@@ -289,7 +286,7 @@ CASE(2) !PartBound%ReflectiveBC)
 !-----------------------------------------------------------------------------------------------------------------------------------
   !---- swap species?
   IF (PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(BC(SideID))).gt.0) THEN
-    CALL SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
+    CALL SpeciesSwap(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
   END IF
   IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
     ! Decide which WallModel is used
@@ -391,26 +388,25 @@ SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall
-USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample,nSurfSample
+USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,ElemBaryNGeo,PartSideToElem
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,nSpecies,PartSpecies,Species
 USE MOD_Particle_Surfaces_vars, ONLY:SideNormVec,SideType,epsilontol
 USE MOD_Mesh_Vars,              ONLY:BC
-USE MOD_DSMC_Vars,              ONLY:PartStateIntEn, SpecDSMC, DSMC, useDSMC
-USE MOD_DSMC_Vars,              ONLY:CollisMode, AnalyzeSurfCollis
+USE MOD_DSMC_Vars,              ONLY:DSMC
+USE MOD_DSMC_Vars,              ONLY:AnalyzeSurfCollis
 USE MOD_LD_Vars,                ONLY: useLD
 !#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 #if defined(LSERK)
-USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM!,Pt
-!USE MOD_TimeDisc_Vars,          ONLY:RK_a!,iStage
+USE MOD_Particle_Vars,          ONLY:Pt_temp,PDM
 #endif
 #ifdef IMPA
 USE MOD_Particle_Vars,          ONLY:PartQ,F_PartX0
 USE MOD_LinearSolver_Vars,      ONLY:PartXk
 #endif /*IMPA*/
 USE MOD_Particle_Vars,          ONLY:WriteMacroValues
-USE MOD_TImeDisc_Vars,          ONLY:dt,tend,time
+USE MOD_TImeDisc_Vars,          ONLY:tend,time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -437,7 +433,7 @@ REAL                                 :: PartDiff(3)
 INTEGER                              :: ElemID
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 !REAL                                 :: oneMinus!=0.99999999
-REAL                                  :: epsLength,epsReflect
+REAL                                  :: epsLength
 REAL                                 :: Xitild,EtaTild
 INTEGER                              :: p,q, SurfSideID
 LOGICAL                              :: Symmetry
@@ -609,11 +605,11 @@ SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,Pa
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR,myRank
+USE MOD_Globals,                ONLY:CROSSNORM,abort,UNITVECTOR
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,ElemBaryNGeo,PartSideToElem
 USE MOD_Particle_Boundary_Vars, ONLY:PartBound,SurfMesh,SampWall
-USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample,nSurfSample
+USE MOD_Particle_Boundary_Vars, ONLY:dXiEQ_SurfSample
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos,Species,BoltzmannConst,PartSpecies,nSpecies
 #if defined(LSERK)
@@ -644,7 +640,6 @@ REAL                                 :: VibQuantNewR                            
 !REAL,PARAMETER                       :: oneMinus=0.99999999
 INTEGER                              :: ElemID
 REAL                                 :: v_help(3)
-REAL                                 :: oneMinus                
 REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
 REAL                                 :: EtraWall, EtraNew
 REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
@@ -653,14 +648,14 @@ REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, Ve
 REAL                                 :: Xitild,EtaTild
 !REAL                                 :: WallTransACC
 INTEGER                              :: p,q, SurfSideID
-REAL                                 :: POI_fak, TildPos(3),TildTrajectory(3)
+REAL                                 :: POI_fak,TildTrajectory(3)
 ! Polyatomic Molecules
 REAL, ALLOCATABLE                    :: RanNumPoly(:), VibQuantNewRPoly(:)
 INTEGER                              :: iPolyatMole, iDOF
 INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 ! REAL, ALLOCATABLE                    :: VecXVibPolyFP(:), VecYVibPolyFP(:), CmrVibPolyFP(:)
 ! REAL, ALLOCATABLE                    :: EVPolyNewFP(:), EVPolyWallFP(:)
-REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
+!REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
 !===================================================================================================================================
 
 !OneMinus=1.0-epsInCell
@@ -1062,7 +1057,7 @@ PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 
 END SUBROUTINE DiffuseReflection
 
-SUBROUTINE SpeciesSwap(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,BCSideID)
+SUBROUTINE SpeciesSwap(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the Species Swap on ReflectiveBC
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1082,10 +1077,9 @@ USE MOD_TimeDisc_Vars,          ONLY:TEnd,Time
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES 
-REAL,INTENT(INOUT)                :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+REAL,INTENT(INOUT)                :: PartTrajectory(1:3), alpha
 REAL,INTENT(IN)                   :: xi, eta
 INTEGER,INTENT(IN)                :: PartID, GlobSideID
-INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(INOUT)             :: IsSpeciesSwap
