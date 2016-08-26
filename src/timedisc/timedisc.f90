@@ -2939,6 +2939,7 @@ INTEGER            :: iCounter !, iStage
 INTEGER :: nPartsFlux
 logical :: first
 #ifdef PARTICLES
+REAL               :: RKSumC_inv
 INTEGER            :: iPart
 #endif /*PARTICLES*/
 !===================================================================================================================================
@@ -2960,6 +2961,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 END IF
 ! select, if particles are treated implicitly or explicitly
 CALL SelectImplicitParticles()
+RKSumC_inv=1.0/SUM(RK_C)
 ! partstaten is set AFTER VeloToImp
 #endif
 
@@ -3154,22 +3156,49 @@ DO iStage=2,nRKStages
     IF(DoSurfaceFlux)THEN
       SWRITE(*,*) 'surfaceflux '
       ! first idea
-      IF (iStage.EQ.2) THEN
-        RKdtFrac = RK_c(iStage)
-        RKdtFracTotal=RKdtFracTotal+RKdtFrac
-      ELSE IF (iStage.LT.nRKStages) THEN
-        RKdtFrac = RK_c(iStage)-RK_c(iStage-1)
-        RKdtFracTotal=RKdtFracTotal+RKdtFrac
-      ELSE
-        RKdtFrac = 1.-RK_c(nRKStages)
-        RKdtFracTotal=1.
-      END IF
-      IF(RKdtFrac.GT.0.)THEN
+      !IF (iStage.EQ.2) THEN
+      !  RKdtFrac = RK_c(iStage)
+      !  RKdtFracTotal=RKdtFracTotal+RKdtFrac
+      !ELSE IF ((iStage.LE.nRKStages).AND.(iStage.GT.2)) THEN
+      !  RKdtFrac = RK_c(iStage)-RK_c(iStage-1)
+      !  RKdtFracTotal=RKdtFracTotal+RKdtFrac
+      !END IF
+
+      RkdtFrac=RK_c(iStage)*RKSumC_inv
+      RKdtFracTotal=RKdtFracTotal+RKdtFrac
+
+      !IF (iStage.EQ.2) THEN
+      !  RKdtFrac = RK_c(iStage)
+      !  RKdtFracTotal=RKdtFracTotal+RKdtFrac
+      !ELSE IF ((iStage.LE.nRKStages).AND.(iStage.GT.2)) THEN
+      !  RKdtFrac = RK_c(iStage)-RK_c(iStage-1)
+      !  RKdtFracTotal=RKdtFracTotal+RKdtFrac
+      !END IF
+
+
+      ! !IF (iStage.EQ.2) THEN
+      ! stupid idea: result: particle density is uneven
+      !RKdtFrac = 1.0/REAL(nRKStages-1)
+      !RKdtFracTotal=RKdtFracTotal+RKdtFrac
+
+
+      !RKdtFrac = ESDIRK_a(iStage,iStage)
+      !RKdtFracTotal=RKdtFracTotal+RKdtFrac
+      SWRITE(*,*) ' rkstuff ', RK_c(iStage), RKdtFrac, RKdtFracTotal
+      !RKdtFrac = 1./REAL(nRKStages-1)
+      !RKdtFracTotal=RKdtFracTotal+RKdtFrac
+
+      !IF(RKdtFrac.GT.0.)THEN
         SWRITE(*,*) 'calling.... '
          !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
         CALL ParticleSurfaceflux() 
         SWRITE(*,*) '.... done '
-        dtFrac= dt*RKdtFrac
+        ! PO: normal RK: the timefrac is part of the total RKdtFrac because during this step, a certain number of particles is 
+        !     emitted
+        !dtFrac= dt*RKdtFracTotal ! added total instead of normal....?
+        dtFrac= dt*RK_c(iStage) ! added total instead of normal....?
+        !dtFrac= dt*RKdtFrac ! added total instead of normal....?
+        !dtFrac= dt*ESDIRK_a(iStage,iStage) ! added total instead of normal....?
         ! now push the particles by their 
         !SF, new in current RKStage (no forces assumed in this stage)
         nPartsFlux=0
@@ -3200,10 +3229,11 @@ DO iStage=2,nRKStages
                 PartStateN(iPart,1:6) = PartStateN(iPart,1:6)-dt*ERK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
               END DO ! iStage=2,iStage-2
             END IF !  implicit,explicit
+            PDM%IsNewPart(iPart)=.FALSE.
           END IF ! ParticleIsNew
         END DO ! iPart
         SWRITE(*,*) 'flux particles', nPartsFlux
-      END IF ! RKdtFrac>0
+      !END IF ! RKdtFrac>0
     END IF ! DoSurfaceFlux
       
 #ifdef MPI
