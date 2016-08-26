@@ -69,7 +69,7 @@ SUBROUTINE CalcMetrics(NodeCoords)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,               ONLY:NGeo,dXCL_NGeo,XCL_NGeo,Vdm_NGeo_CLNGeo
-USE MOD_Mesh_Vars,               ONLY:Vdm_CLNGeo_GaussN,Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
+USE MOD_Mesh_Vars,               ONLY:Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
 USE MOD_Mesh_Vars,               ONLY:DCL_NGeo,DCL_N
 USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:nElems,sideID_minus_upper,nBCSides
@@ -352,7 +352,6 @@ SUBROUTINE CalcSurfMetrics(JaCL_N,XCL_N,iElem)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals,     ONLY:CROSS
-USE MOD_Mesh_Vars,   ONLY:NGeo
 USE MOD_Mesh_Vars,   ONLY:Vdm_CLN_GaussN
 USE MOD_Mesh_Vars,   ONLY:ElemToSide,BCFace_xGP,nBCSides,Face_xGP
 USE MOD_Mesh_Vars,   ONLY:NormVec,TangVec1,TangVec2,SurfElem

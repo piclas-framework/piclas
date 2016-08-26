@@ -155,7 +155,7 @@ USE MOD_Mesh_Vars,          ONLY:GETNEWELEM,GETNEWSIDE
 USE MOD_LoadBalance_Vars,   ONLY:ElemWeight
 #ifdef MPI
 USE MOD_io_hdf5
-USE MOD_LoadBalance_Vars,   ONLY:nLoadBalance, LoadDistri, PartDistri,ParticleMPIWeight,WeightSum,TargetWeight,DoLoadBalance
+USE MOD_LoadBalance_Vars,   ONLY:LoadDistri, PartDistri,ParticleMPIWeight,WeightSum,TargetWeight,DoLoadBalance
 USE MOD_LoadBalance_Vars,   ONLY:ElemTime,nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_LoadDistribution,   ONLY:SingleStepOptimalPartition
 USE MOD_MPI_Vars,           ONLY:offsetElemMPI,nMPISides_Proc,nNbProcs,NbProc
@@ -683,13 +683,13 @@ ALLOCATE(ElemTime(1:nElems))
 ElemTime=0.
 SDEALLOCATE(nPartsPerElem)
 ALLOCATE(nPartsPerElem(1:nElems))
-nPartsPerElem=0.
+nPartsPerElem=0
 SDEALLOCATE(nDeposPerElem)
 ALLOCATE(nDeposPerElem(1:nElems))
-nDeposPerElem=0.
+nDeposPerElem=0
 SDEALLOCATE(nTracksPerElem)
 ALLOCATE(nTracksPerElem(1:nElems))
-nTracksPerElem=0.
+nTracksPerElem=0
 ! --
 #else /* MPI */
 nElems=nGlobalElems   !local number of Elements 

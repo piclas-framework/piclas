@@ -526,7 +526,7 @@ USE MOD_Mesh_Vars,     ONLY : Elem_xGP                  ! for shape function: xy
 !USE MOD_PIC_Analyze,   ONLY : CalcDepositedCharge
 #if defined(LSERK) ||  defined(IMEX) || defined(IMPA)
 USE MOD_Equation_Vars, ONLY : DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars, ONLY : dt, sdtCFLOne!, RK_B, iStage  
+USE MOD_TimeDisc_Vars, ONLY : sdtCFLOne!, RK_B, iStage  
 USE MOD_DG_Vars,       ONLY : U
 #endif /*LSERK*/
 ! IMPLICIT VARIABLE HANDLING

@@ -62,9 +62,8 @@ USE MOD_Globals,                ONLY:Almostzero
 USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,OnePlusEps,BezierControlPoints3D,SideType,BezierClipHit&
-                                    ,BezierControlPoints3D,SideNormVec
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,IsBCElem,PartBCSideList
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,BezierControlPoints3D,SideNormVec
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartBCSideList
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
@@ -196,17 +195,19 @@ SUBROUTINE ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,a
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,            ONLY:PI
-USE MOD_Globals,                 ONLY:Cross,abort,MyRank,UNIT_stdOut,AlmostZero
+USE MOD_Globals,                 ONLY:Cross,abort,UNIT_stdOut,AlmostZero
 USE MOD_Mesh_Vars,               ONLY:NGeo,nBCSides,nSides,BC
 USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierNewtonAngle
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,BezierClipTolerance,BezierClipMaxIntersec,BezierClipMaxIter
+USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,BezierNewtonAngle
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+#ifdef CODE_ANALYZE
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipMaxIntersec,BezierClipMaxIter
+#endif
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
-USE MOD_Particle_Surfaces_Vars,  ONLY:arrayNchooseK,BoundingBoxIsEmpty
+USE MOD_Particle_Surfaces_Vars,  ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideSlabNormals,epsilonTol
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-!USE MOD_TimeDisc_Vars,           ONLY:iter
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars,  ONLY:rBoundingBoxChecks,rPerformBezierClip,rPerformBezierNewton
 #endif /*CODE_ANALYZE*/
@@ -236,7 +237,7 @@ LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter,isInter
 REAL                                     :: XiNewton(2)
 REAL                                     :: PartFaceAngle,dXi,dEta
-REAL                                     :: Interval1D,dInterVal1D
+!REAL                                     :: Interval1D,dInterVal1D
 !===================================================================================================================================
 !PartTrajectory = PartTrajectory
 ! set alpha to minus 1, asume no intersection
@@ -508,10 +509,9 @@ RECURSIVE SUBROUTINE BezierClip(firstClip,BezierControlPoints2D,PartTrajectory,l
 !USE MOD_Globals,                 ONLY:MyRank
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:XiArray,EtaArray,locAlpha,locXi,locEta
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipMaxIter,ArrayNchooseK,FacNchooseK,BezierClipMaxIntersec
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,MinusEps,epsilontol,BezierClipHit,BezierSplitLimit
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipMaxIter,FacNchooseK,BezierClipMaxIntersec
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,epsilontol,BezierClipHit,BezierSplitLimit
 USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_TimeDisc_Vars,           ONLY:iter
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -540,7 +540,6 @@ REAL                                 :: BezierControlPoints2D_temp2(2,0:NGeo,0:N
 INTEGER                              :: p,q,l,iDeCasteljau
 REAL                                 :: Xi,Eta,XiMin,EtaMin,XiMax,EtaMax,XiSplit,EtaSplit,alpha
 REAL                                 :: ZeroDistance,BezierClipTolerance2
-INTEGER                              :: ElemID
 LOGICAL                              :: DoXiClip,DoEtaClip,DoCheck
 INTEGER                              :: iClip
 REAL                                 :: alphaNorm
@@ -1380,8 +1379,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipHit,BezierClipMaxIter,BezierControlPoints3D,epsilontol
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
-USE MOD_Particle_Surfaces_Vars,  ONLY:facNchooseK,D_Bezier
-USE MOD_TimeDisc_Vars,           ONLY:iter
+USE MOD_Particle_Surfaces_Vars,  ONLY:D_Bezier
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1510,7 +1508,7 @@ LOGICAL,INTENT(INOUT)                :: DoCheck
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: Length,alpha(2),dalpha, doPro,dcorr
-REAL,DIMENSION(2)                    :: LXi, Leta, M,N
+REAL,DIMENSION(2)                    :: LXi, Leta
 !================================================================================================================================
 
 LXi=(BezierControlPoints2D(:,a,b)-BezierControlPoints2D(:,0,0))+&
@@ -1657,7 +1655,6 @@ SUBROUTINE CalcSminSmax(minmax,Smin,Smax)
 ! find upper and lower intersection with convex hull (or no intersection)
 ! find the largest and smallest roots of the convex hull, pre-sorted values minmax(:,:) are required
 !================================================================================================================================
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
 USE MOD_Mesh_Vars,               ONLY:NGeo,Xi_NGeo,DeltaXi_NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipTolerance,BezierClipHit
 ! IMPLICIT VARIABLE HANDLING
@@ -1746,8 +1743,6 @@ FUNCTION InsideBoundingBox(ParticlePosition,SideID)
 ! check is the particles is inside the bounding box, return TRUE/FALSE
 !================================================================================================================================
 USE MOD_Globals_Vars
-USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff!,epsilontol
-USE MOD_Particle_Vars,           ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1793,11 +1788,8 @@ FUNCTION BoundingBoxIntersection(PartTrajectory,lengthPartTrajectory,iPart,SideI
 ! check if the particle trajectory penetrates the bounding box, return TRUE/FALSE
 !================================================================================================================================
 USE MOD_Globals_Vars
-!USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol,BiLinearCoeff
-USE MOD_Particle_Surfaces_Vars,   ONLY:BiLinearCoeff
-USE MOD_Particle_Vars,            ONLY:PartState,LastPartPos
+USE MOD_Particle_Vars,            ONLY:LastPartPos
 USE MOD_Particle_Surfaces_Vars,   ONLY:SideSlabNormals,SideSlabIntervals,BezierControlPoints3D
-USE MOD_TimeDisc_Vars,               ONLY:iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -1868,16 +1860,14 @@ SUBROUTINE ComputePlanarIntersectionBezier(isHit,PartTrajectory,lengthPartTrajec
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals!,                 ONLY:Cross,abort
-USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
-USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
-USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierClipHit
+USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Mesh_Vars,      ONLY:SidePeriodicDisplacement,SidePeriodicType
+USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierClipHit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
 !USE MOD_Equations_Vars,          ONLY:epsMach
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
-USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2064,14 +2054,13 @@ SUBROUTINE ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPart
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
-USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
-USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierClipHit
+USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Mesh_Vars,      ONLY:SidePeriodicDisplacement,SidePeriodicType
+USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,OnePlusEps,SideDistance
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
-USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2317,10 +2306,8 @@ SUBROUTINE ComputeBiLinearIntersectionSuperSampled2(isHit,xNodes,PartTrajectory,
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,BezierClipHit
-USE MOD_Particle_Vars,ONLY:PartState
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,BezierClipHit
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
-USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2523,10 +2510,8 @@ USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,Beziercliphit
-USE MOD_Particle_Vars,ONLY:PartState
-USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList,nTotalBCSides
+USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
-USE MOD_Timedisc_vars,           ONLY: iter
 #ifdef MPI
 USE MOD_Mesh_Vars,               ONLY:BC
 #endif /*MPI*/
@@ -2548,8 +2533,8 @@ LOGICAL,INTENT(OUT)               :: isHit
 REAL,DIMENSION(4)                 :: a1,a2
 REAL,DIMENSION(1:3,1:4)           :: BiLinearCoeff
 REAL                              :: A,B,C,alphaNorm
-REAL                              :: xi(2),eta(2),t(2), normVec(3)
-INTEGER                           :: nInter,nRoot,BCSideID
+REAL                              :: xi(2),eta(2),t(2)!, normVec(3)
+INTEGER                           :: nInter,nRoot!,BCSideID
 !===================================================================================================================================
 
 ! set alpha to minus one // no interesction
@@ -2933,7 +2918,7 @@ FUNCTION ComputeSurfaceDistance2(BiLinearCoeff,xi,eta,PartTrajectory,iPart)
 ! ramsey paper algorithm 3.4
 !================================================================================================================================
 USE MOD_Particle_Surfaces_Vars,   ONLY:epsilontol
-USE MOD_Particle_Vars,            ONLY:PartState,LastPartPos
+USE MOD_Particle_Vars,            ONLY:LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -3017,17 +3002,15 @@ SUBROUTINE ComputePlanarIntersectionBezierRobust2(isHit,PartTrajectory,lengthPar
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals!,                 ONLY:Cross,abort
-USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Mesh_Vars,               ONLY:NGeo
-USE MOD_Particle_Vars,           ONLY:LastPartPos,PartState
-USE MOD_Particle_Mesh_Vars,      ONLY:GEO,PartElemToSide,SidePeriodicDisplacement,SidePeriodicType
-USE MOD_Particle_Surfaces_Vars,  ONLY:BiLinearCoeff, SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierClipHit
+USE MOD_Particle_Vars,           ONLY:LastPartPos
+USE MOD_Particle_Mesh_Vars,      ONLY:SidePeriodicDisplacement,SidePeriodicType
+USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,OnePlusEps,SideDistance,BezierClipHit
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
 !USE MOD_Equations_Vars,          ONLY:epsMach
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
-USE MOD_Timedisc_vars,           ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -3044,7 +3027,7 @@ LOGICAL,INTENT(OUT)               :: isHit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(1:3)               :: P0,P1,P2
-REAL                              :: NormVec(1:3),locDistance,Inter1(1:3), alphaNorm
+REAL                              :: NormVec(1:3),locDistance,alphaNorm
 REAL                              :: locBezierControlPoints3D(1:3,0:1,0:1)
 REAL,DIMENSION(2:4)               :: a1,a2
 REAL                              :: a,b,c
