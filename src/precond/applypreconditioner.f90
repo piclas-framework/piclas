@@ -102,7 +102,7 @@ SUBROUTINE ApplyILU(Vin,Vout)
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars      ,ONLY: nDOFelem
 USE MOD_CSR_Vars               ,ONLY: DE,IL,IU
-USE MOD_CSR_Vars               ,ONLY: nUNonZeros,nLNonZeros,nMTriangle
+USE MOD_CSR_Vars               ,ONLY: nMTriangle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -115,8 +115,7 @@ REAL,INTENT(OUT)                                      :: Vout(1:nDOFElem,1:PP_nE
 ! LOCAL VARIABLES
 REAL                                               :: Vcalc(1:nDOFElem,1:PP_nElems)
 INTEGER                                               :: ii,k1,k2,jj,iEntry,iElem
-REAL                                                  :: tS,tE
-logical::test
+!logical::test
 !==================================================================================================================================
 
 !test=.FALSE.
@@ -206,8 +205,6 @@ SUBROUTINE ApplyBILU0_BCSR(Vin,Vout)
 !==================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_LinearSolver_Vars      ,ONLY:nDOFelem,nDOFLine
-USE MOD_Precond_Vars           ,ONLY:nBlockSize
 USE MOD_ILU_Vars               ,ONLY:BlockAA,BlockIA,BlockJA,nBDOF,BlockDiag
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

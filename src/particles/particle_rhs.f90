@@ -299,7 +299,7 @@ FUNCTION RELATIVISTIC_PUSH(PartID,FieldAtParticle,LorentzFacInvIn)
 ! MODULES
 USE MOD_Globals,           ONLY : cross
 USE MOD_Particle_Vars,     ONLY : PartState, Species, PartSpecies
-USE MOD_Equation_Vars,     ONLY : c2_inv, c2
+USE MOD_Equation_Vars,     ONLY : c2_inv
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -408,8 +408,8 @@ SUBROUTINE PartVeloToImp(VeloToImp,doParticle_In)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Vars,          ONLY : PDM, PartState, Pt, Species, PartSpecies, PartLorentzType
-USE MOD_Equation_Vars,          ONLY : c2_inv, c ,c2
+USE MOD_Particle_Vars,          ONLY : PDM, PartState, PartLorentzType
+USE MOD_Equation_Vars,          ONLY : c2_inv
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

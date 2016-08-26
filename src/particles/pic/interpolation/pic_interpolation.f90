@@ -119,7 +119,6 @@ USE MOD_PICInterpolation_Vars,   ONLY:usecurvedExternalField,FieldAtParticle,ext
 USE MOD_PICInterpolation_Vars,   ONLY:InterpolationElemLoop
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
 USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
-USE MOD_Particle_Mesh_Vars,ONLY:epsOneCell
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
 #endif
@@ -461,14 +460,13 @@ SUBROUTINE InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Vars,           ONLY:PartPosRef,PDM,PartState,PEM,PartPosGauss
+USE MOD_Particle_Vars,           ONLY:PartPosRef,PartState,PEM,PartPosGauss
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_DG_Vars,                 ONLY:U
 USE MOD_PIC_Vars!,      ONLY: 
 USE MOD_PICInterpolation_Vars,   ONLY:usecurvedExternalField,externalField,DoInterpolation,InterpolationType
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
 USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
-USE MOD_Particle_Mesh_Vars,      ONLY:epsOneCell
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
 #endif

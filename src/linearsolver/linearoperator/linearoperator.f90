@@ -58,7 +58,7 @@ USE MOD_DG_Vars,            ONLY:U,Ut
 USE MOD_DG,                 ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver_Vars,  ONLY:mass
 USE MOD_Equation_Vars,      ONLY:DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,      ONLY:dt,sdtCFLOne
+USE MOD_TimeDisc_Vars,      ONLY:sdtCFLOne
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -118,7 +118,7 @@ USE MOD_Equation,          ONLY:CalcSource
 USE MOD_Equation,          ONLY:DivCleaningDamping
 USE MOD_LinearSolver_Vars, ONLY:ImplicitSource, LinSolverRHS,mass
 USE MOD_Equation_Vars,     ONLY:DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,     ONLY:dt,sdtCFLOne
+USE MOD_TimeDisc_Vars,     ONLY:sdtCFLOne
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -339,7 +339,7 @@ REAL,INTENT(IN)   :: b(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
 REAL,INTENT(OUT)  :: resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iVar,i,j,k,iElem
+INTEGER           :: iVar,i,j,k
 !===================================================================================================================================
 
 resu=0.
