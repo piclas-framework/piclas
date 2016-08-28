@@ -625,15 +625,7 @@ DO !iter_t=0,MaxIter
 #endif /*MPI*/
     CalcTimeStart=BOLTZPLATZTIME()
   ENDIF   
-  IF(time.GE.tEnd) THEN  ! done, worst case: one additional time step
-    IF(MPIroot)THEN
-      IF(DoSwapMesh) Call SwapMesh()
-    END IF
-!#ifdef MPI
-    !CALL MPI_BARRIER(PartMPI%COMM,IERROR)
-!#endif /*MPI*/
-    EXIT
-  END IF
+  IF(time.GE.tEnd)EXIT ! done, worst case: one additional time step
 END DO ! iter_t
 !CALL FinalizeAnalyze
 END SUBROUTINE TimeDisc
