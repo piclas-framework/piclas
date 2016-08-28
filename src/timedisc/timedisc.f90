@@ -197,6 +197,7 @@ USE MOD_LoadBalance_Vars,      ONLY: nSkipAnalyze
 #ifdef MPI
 USE MOD_LoadBalance,           ONLY: LoadBalance,LoadMeasure,ComputeParticleWeightAndLoad,ComputeElemLoad
 USE MOD_LoadBalance_Vars,      ONLY: DoLoadBalance
+!USE MOD_Particle_MPI_Vars,     ONLY: PartMPI
 #endif /*MPI*/
 #if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars, ONLY:totalIterLinearSolver
@@ -625,7 +626,12 @@ DO !iter_t=0,MaxIter
     CalcTimeStart=BOLTZPLATZTIME()
   ENDIF   
   IF(time.GE.tEnd) THEN  ! done, worst case: one additional time step
-    IF(DoSwapMesh) Call SwapMesh()
+    IF(MPIroot)THEN
+      IF(DoSwapMesh) Call SwapMesh()
+    END IF
+!#ifdef MPI
+    !CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+!#endif /*MPI*/
     EXIT
   END IF
 END DO ! iter_t

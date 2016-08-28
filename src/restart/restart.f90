@@ -193,6 +193,7 @@ USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 #ifdef PP_HDG
 USE MOD_HDG_Vars,             ONLY: lambda, nGP_face
 USE MOD_HDG,                  ONLY: RestartHDG
+USE MOD_HDF5_Input,           ONLY: File_ID,DatasetExists
 #endif /*PP_HDG*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
@@ -206,11 +207,11 @@ IMPLICIT NONE
 #ifndef PP_HDG
 REAL,ALLOCATABLE         :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE         :: U_local2(:,:,:,:,:)
+INTEGER                  :: iPML
+#else
+LOGICAL                  :: DG_SolutionLambdaExists,DG_SolutionUExists
 #endif /*not PP_HDG*/
 INTEGER                  :: iElem
-#ifndef PP_HDG
-INTEGER                  :: iPML
-#endif /*not PP_HDG*/
 #ifdef MPI
 REAL                     :: StartT,EndT
 #endif /*MPI*/
@@ -258,9 +259,20 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
 #endif
 #elif defined PP_HDG
-    CALL ReadArray('DG_SolutionLambda',3,(/PP_nVar,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
-    CALL ReadArray('DG_SolutionU',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-    CALL RestartHDG(U)
+    CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
+    IF(DG_SolutionUExists)THEN
+      CALL ReadArray('DG_SolutionU',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+    ELSE
+      CALL ReadArray('DG_Solution' ,5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
+    END IF
+    CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
+    IF(DG_SolutionLambdaExists)THEN
+      CALL ReadArray('DG_SolutionLambda',3,(/PP_nVar,nGP_face,nSides-nMPISides_YOUR/),offsetSide,3,RealArray=lambda)
+      CALL RestartHDG(U) !
+    ELSE
+      lambda=0.
+    END IF
+
 #else
     CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
     IF(DoPML)THEN
