@@ -2934,7 +2934,6 @@ REAL               :: tRatio, tphi, LorentzFacInv
 REAL               :: dtFrac,RandVal
 ! RK counter
 INTEGER            :: iCounter !, iStage
-INTEGER :: nPartsFlux
 logical :: first
 #ifdef PARTICLES
 INTEGER            :: iPart,iSpec,iSF
@@ -3162,104 +3161,29 @@ DO iStage=2,nRKStages
     ! particle surface flux || inflow boundary condition
     !------------------------------------------------------------------------------------------------------------------------------
     IF(DoSurfaceFlux)THEN
-      SWRITE(*,*) 'surfaceflux '
-      ! first idea
+      ! insert the paritcles during each RK stage, later removed 
       RKdtFrac      = RK_c(iStage)
       RKdtFracTotal = RK_c(iStage)
 
-      !IF (iStage.EQ.2) THEN
-      !  RKdtFrac = RK_c(iStage)
-      !  RKdtFracTotal=RKdtFracTotal+RKdtFrac
-      !ELSE IF ((iStage.LE.nRKStages).AND.(iStage.GT.2)) THEN
-      !  RKdtFrac = RK_c(iStage)-RK_c(iStage-1)
-      !  RKdtFracTotal=RKdtFracTotal+RKdtFrac
-      !END IF
-
-      !RkdtFrac=RK_c(iStage)*RKSumC_inv
-      !RKdtFracTotal=RKdtFracTotal+RKdtFrac
-
-      !IF (iStage.EQ.nRKStages) THEN
-      !  RKdtFrac = 0.
-      !  RKdtFracTotal=1.
-      !ELSE 
-      !  RKdtFrac =RkdtFrac+ ESDIRK_a(iStage,iStage)
-      !  RKdtFracTotal=RKdtFracTotal+RKdtFrac
-      !END IF
-
-      !IF (iStage.EQ.2) THEN
-      !  RKdtFrac = RK_c(iStage)
-      !  RKdtFracTotal=RKdtFracTotal+RKdtFrac
-      !ELSE IF ((iStage.LE.nRKStages).AND.(iStage.GT.2)) THEN
-      !  RKdtFrac = RK_c(iStage)-RK_c(iStage-1)
-      !  RKdtFracTotal=RKdtFracTotal+RKdtFrac
-      !END IF
-
-
-      ! !IF (iStage.EQ.2) THEN
-      ! stupid idea: result: particle density is uneven
-!       RKdtFrac = 1.0/REAL(nRKStages-1)
-!       RKdtFracTotal=RKdtFracTotal+RKdtFrac
-! 
-
-      !RKdtFrac = ESDIRK_a(iStage,iStage)
-      !RKdtFracTotal=RKdtFracTotal+RKdtFrac
-      SWRITE(*,*) ' rkstuff ', RK_c(iStage), RKdtFrac, RKdtFracTotal
-      !RKdtFrac = 1./REAL(nRKStages-1)
-      !RKdtFracTotal=RKdtFracTotal+RKdtFrac
-
-      !IF(RKdtFrac.GT.0.)THEN
-        SWRITE(*,*) 'calling.... '
-         !dtFracPush (SurfFlux): LastPartPos and LastElem already set!
-        CALL ParticleSurfaceflux() 
-        SWRITE(*,*) '.... done '
-        ! PO: normal RK: the timefrac is part of the total RKdtFrac because during this step, a certain number of particles is 
-        !     emitted
-        !dtFrac= dt*RKdtFracTotal ! added total instead of normal....?
-        !dtFrac= dt*RK_c(iStage) ! added total instead of normal....?
-        dtFrac= dt*RKdtFrac ! added total instead of normal....?
-        !dtFrac=RkdtFracTotal*dt
-        !dtFrac= dt*ESDIRK_a(iStage,iStage) ! added total instead of normal....?
-        ! now push the particles by their 
-        !SF, new in current RKStage (no forces assumed in this stage)
-        nPartsFlux=0
-        DO iPart=1,PDM%ParticleVecLength
-          IF (PDM%IsNewPart(iPart)) THEN
-            nPartsFlux=nPartsflux+1
-            CALL RANDOM_NUMBER(RandVal)
-            PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac*RandVal
-            PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac*RandVal
-            PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac*RandVal
-            PartIsImplicit(iPart)=.FALSE.
-            IF(iStage.EQ.nRKStages)THEN
-              ! -> assuming F=0 and const. v in previous stages with RK_a_rebuilt (see above)
-              Pt(iPart,1:3)=0.
-            END IF
-       !     PDM%dtFracPush(iPart) = .FALSE.
-       !     ! previous stages and PartStateN
-       !     PartStateN(iPart,1:6)=PartState(iPart,1:6)
-       !     IF(Species(PartSpecies(iPart))%IsImplicit)THEN
-       !       ! implicit reconstruction
-       !       DO iCounter=1,iStage-1
-       !         PartStage(iPart,1:3,iCounter) = PartState(iPart,4:6)
-       !         PartStage(iPart,4:6,iCounter) = 0.
-       !         PartStateN(iPart,1:6) = PartStateN(iPart,1:6)-dt*ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
-       !       END DO ! iStage=2,iStage-2
-       !       IF(iStage.EQ.nRKStages)THEN
-       !         PartStateN(iPart,1:3) = PartStateN(iPart,1:3)-dt*ESDIRK_a(iStage,iCounter)*PartState(iPart,4:6)
-       !       END IF
-       !     ELSE
-       !       ! explicit reconstruction
-       !       DO iCounter=1,iStage-1
-       !         PartStage(iPart,1:3,iCounter) = PartState(iPart,4:6)
-       !         PartStage(iPart,4:6,iCounter) = 0.
-       !         PartStateN(iPart,1:6) = PartStateN(iPart,1:6)-dt*ERK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
-       !       END DO ! iStage=2,iStage-2
-       !     END IF !  implicit,explicit
-       !     PDM%IsNewPart(iPart)=.FALSE.
-          END IF ! ParticleIsNew
-        END DO ! iPart
-        SWRITE(*,*) 'flux particles', nPartsFlux
-      !END IF ! RKdtFrac>0
+      CALL ParticleSurfaceflux() 
+      ! PO: normal RK: the timefrac is part of the total RKdtFrac because during this step, a certain number of particles is 
+      !     emitted
+      dtFrac= dt*RKdtFrac ! added total instead of normal....?
+      ! now push the particles by their 
+      !SF, new in current RKStage (no forces assumed in this stage)
+      DO iPart=1,PDM%ParticleVecLength
+        IF (PDM%IsNewPart(iPart)) THEN
+          CALL RANDOM_NUMBER(RandVal)
+          PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac*RandVal
+          PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac*RandVal
+          PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac*RandVal
+          PartIsImplicit(iPart)=.FALSE.
+          IF(iStage.EQ.nRKStages)THEN
+            ! -> assuming F=0 and const. v in previous stages with RK_a_rebuilt (see above)
+            Pt(iPart,1:3)=0.
+          END IF
+        END IF ! ParticleIsNew
+      END DO ! iPart
     END IF ! DoSurfaceFlux
       
 #ifdef MPI
@@ -3488,19 +3412,6 @@ IF (t.GE.DelayTime) THEN
 
 END IF
 #endif /*PARTICLES*/
-
-
-nPartsFlux=0
-DO iPart=1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart))THEN
-    nPartsFlux=nPartsFlux+1
-  END IF ! ParticleInside
-END DO ! iPart
-SWRITE(*,*) ' nPartsIn', nPartsflux, ' should be 125k per dt'
-SWRITE(*,*) ' PartXmin', MINVAL(PartState(:,1)), ' should be 0.000 '
-SWRITE(*,*) ' PartXmax', MAXVAL(PartState(:,1)), ' should be 0.025 '
-SWRITE(*,*) ' ds', MAXVAL(PartState(:,1))-MINVAL(PartState(:,1)), ' should be 0.025 '
-  
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DSMC
