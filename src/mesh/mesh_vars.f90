@@ -11,17 +11,23 @@ PUBLIC
 SAVE
 LOGICAL          :: DoWriteStateToHDF5           ! only write HDF5 output if this is true
 !-----------------------------------------------------------------------------------------------------------------------------------
+! SwapMesh
+!-----------------------------------------------------------------------------------------------------------------------------------
+LOGICAL           :: DoSwapMesh                   ! flag for SwapMesh routines
+CHARACTER(LEN=255):: SwapMeshExePath              ! path to swapmesh binary
+INTEGER           :: SwapMeshLevel                ! 0: initial grid, 1: first swap mesh, 2: second swap mesh
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! basis
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER           :: NGeo                        ! polynomial degree of geometric transformation
-REAL,ALLOCATABLE  :: Xi_NGeo(:)                  ! 1D equidistant point positions for curved elements (during readin)
-REAL              :: DeltaXi_NGeo
-REAL,ALLOCATABLE  :: Vdm_CLN_GaussN(:,:)
-REAL,ALLOCATABLE  :: Vdm_CLNGeo_CLN(:,:)
-REAL,ALLOCATABLE  :: Vdm_CLNGeo_GaussN(:,:)  
-REAL,ALLOCATABLE  :: Vdm_NGeo_CLNGeo(:,:)  
-REAL,ALLOCATABLE  :: DCL_NGeo(:,:)  
-REAL,ALLOCATABLE  :: DCL_N(:,:)  
+INTEGER          :: NGeo                        ! polynomial degree of geometric transformation
+REAL,ALLOCATABLE :: Xi_NGeo(:)                  ! 1D equidistant point positions for curved elements (during readin)
+REAL             :: DeltaXi_NGeo
+REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)
+REAL,ALLOCATABLE :: Vdm_CLNGeo_CLN(:,:)
+REAL,ALLOCATABLE :: Vdm_CLNGeo_GaussN(:,:)  
+REAL,ALLOCATABLE :: Vdm_NGeo_CLNGeo(:,:)  
+REAL,ALLOCATABLE :: DCL_NGeo(:,:)  
+REAL,ALLOCATABLE :: DCL_N(:,:)  
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -27,8 +27,8 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 !===================================================================================================================================
 ! Update and sample DSMC-values for adsorption, desorption and reactions on surfaces
 !===================================================================================================================================
-  USE MOD_PARTICLE_Vars,          ONLY : nSpecies, PDM
-  USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, PEM, Species
+  USE MOD_PARTICLE_Vars,          ONLY : nSpecies
+  USE MOD_PARTICLE_Vars,          ONLY : KeepWallParticles, Species
   USE MOD_DSMC_Vars,              ONLY : DSMC, Adsorption
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !===================================================================================================================================
@@ -84,46 +84,40 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 
 END SUBROUTINE DSMC_Update_Wall_Vars  
     
-SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex) 
+SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex) 
 !===================================================================================================================================
 ! Particle Adsorption after wall collision
 !===================================================================================================================================
   USE MOD_DSMC_Analyze,           ONLY : CalcWallSample
   USE MOD_Particle_Vars,          ONLY : WriteMacroValues, KeepWallParticles, PDM
-  USE MOD_Particle_Vars,          ONLY : PartState,LastPartPos,Species,BoltzmannConst,PartSpecies,nSpecies
-  USE MOD_Mesh_Vars,              ONLY : ElemToSide, BC
-  USE MOD_DSMC_Vars,              ONLY : useDSMC, CollisMode, Adsorption
+  USE MOD_Particle_Vars,          ONLY : PartState,LastPartPos,Species,BoltzmannConst,PartSpecies
+  USE MOD_Mesh_Vars,              ONLY : BC
+  USE MOD_DSMC_Vars,              ONLY : CollisMode, Adsorption
   USE MOD_DSMC_Vars,              ONLY : PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
-  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, dXiEQ_SurfSample, Partbound
+  USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, dXiEQ_SurfSample, Partbound
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
 !===================================================================================================================================
    IMPLICIT NONE
 !===================================================================================================================================
 ! argument list declaration
   INTEGER,INTENT(INOUT)            :: adsindex
-  REAL,INTENT(INOUT)               :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+  REAL,INTENT(INOUT)               :: PartTrajectory(1:3), alpha
   REAL,INTENT(IN)                  :: xi, eta
   INTEGER,INTENT(IN)               :: PartID, GlobSideID
   LOGICAL,INTENT(IN)               :: IsSpeciesSwap
 ! LOCAL VARIABLES
   INTEGER                              :: locBCID, VibQuant, VibQuantNew, VibQuantWall
   REAL                                 :: VibQuantNewR
-  INTEGER                              :: ElemID
-  REAL                                 :: v_help(3)
-  REAL                                 :: oneMinus                
-  REAL                                 :: VeloReal, RanNum, EtraOld, VeloCrad, Fak_D
+  REAL                                 :: VeloReal, RanNum, EtraOld
   REAL                                 :: EtraWall, EtraNew
   REAL                                 :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC
-  REAL                                 :: n_loc(1:3), tang1(1:3),tang2(1:3), NewVelo(3)
-  REAL                                 :: ErotNew, ErotWall, EVibNew, Phi, Cmr, VeloCx, VeloCy, VeloCz
+  REAL                                 :: ErotNew, ErotWall, EVibNew
   REAL                                 :: Xitild,EtaTild
-  INTEGER                              :: p,q, SurfSideID
-  REAL                                 :: POI_fak, TildPos(3),TildTrajectory(3)
+  INTEGER                              :: p,q
 ! Polyatomic Molecules
   REAL, ALLOCATABLE                    :: RanNumPoly(:), VibQuantNewRPoly(:)
   INTEGER                              :: iPolyatMole, iDOF
   INTEGER, ALLOCATABLE                 :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
-  REAL                                 :: ErotOldPoly(3), ErotNewPoly(3), ErotWallPoly(3), CmrRotPoly(3)
 ! Local variable declaration            
   REAL                             :: maxPart
   INTEGER                          :: SurfSide, iSpec
@@ -240,7 +234,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
           END IF
           IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
                       * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(iSpec)%MacroParticleFactor
-          IntArray(5) = IntArray(5) + VibQuantWall * BoltzmannConst &
+          IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
                       * SpecDSMC(iSpec)%CharaTVib * Species(iSpec)%MacroParticleFactor
         END DO
       ELSE
@@ -270,7 +264,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,lengthPartTrajectory,alpha,xi,eta
     
 !----  Sampling at walls
     IF ((DSMC%CalcSurfaceVal.AND.(Time.ge.(1-DSMC%TimeFracSamp)*TEnd)).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroValues)) THEN
-      CALL CalcWallSample(PartID,SurfSide,p,q,Transarray,IntArray,PartTrajectory,lengthPartTrajectory,alpha,IsSpeciesSwap)
+      CALL CalcWallSample(PartID,SurfSide,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap)
     END IF
     
   ELSE
@@ -1152,8 +1146,11 @@ SUBROUTINE CalcAdsorbProb()
 !===================================================================================================================================
 ! Models for adsorption probability calculation
 !===================================================================================================================================
-  USE MOD_Particle_Vars,          ONLY : nSpecies, Species
-  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
+  USE MOD_Particle_Vars,          ONLY : nSpecies
+  USE MOD_DSMC_Vars,              ONLY : Adsorption
+#if (PP_TimeDiscMethod==42)
+USE MOD_DSMC_Vars,              ONLY : DSMC
+#endif
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !===================================================================================================================================
   IMPLICIT NONE
@@ -1235,9 +1232,9 @@ SUBROUTINE CalcDesorbProb()
 ! Models for desorption probability calculation
 !===================================================================================================================================
   USE MOD_Globals_Vars,           ONLY : PlanckConst
-  USE MOD_Particle_Vars,          ONLY : nSpecies, Species, BoltzmannConst
+  USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst
   USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
+  USE MOD_DSMC_Vars,              ONLY : Adsorption
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
   USE MOD_TimeDisc_Vars,          ONLY : dt
 #if (PP_TimeDiscMethod==42)  
@@ -1427,7 +1424,7 @@ SUBROUTINE PartitionFuncAct(iSpec, Temp, VarPartitionFuncAct, Surfdensity)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,       ONLY : PlanckConst
-USE MOD_DSMC_Vars,          ONLY : DSMC, SpecDSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars,          ONLY : SpecDSMC, PolyatomMolDSMC
 USE MOD_Particle_Vars,      ONLY : BoltzmannConst, Species
 !===================================================================================================================================
 IMPLICIT NONE
@@ -1443,7 +1440,7 @@ REAL, INTENT(OUT)             :: VarPartitionFuncAct
 ! LOCAL VARIABLES
 REAL, PARAMETER               :: Pi=3.14159265358979323846_8
 INTEGER                       :: iPolyatMole, iDOF
-REAL                          :: Qtra, Qrot, Qvib, Qelec
+REAL                          :: Qtra, Qrot, Qvib
 !===================================================================================================================================
   Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))/Surfdensity
   IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
@@ -1482,8 +1479,8 @@ SUBROUTINE PartitionFuncSurf(iSpec, Temp, VarPartitionFuncSurf)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,       ONLY : PlanckConst
-USE MOD_DSMC_Vars,          ONLY : DSMC, SpecDSMC, PolyatomMolDSMC
-USE MOD_Particle_Vars,      ONLY : BoltzmannConst, Species
+USE MOD_DSMC_Vars,          ONLY : SpecDSMC, PolyatomMolDSMC
+USE MOD_Particle_Vars,      ONLY : BoltzmannConst
 !===================================================================================================================================
 IMPLICIT NONE
 !===================================================================================================================================
@@ -1497,11 +1494,12 @@ REAL, INTENT(OUT)             :: VarPartitionFuncSurf
 ! LOCAL VARIABLES
 REAL, PARAMETER               :: Pi=3.14159265358979323846_8
 INTEGER                       :: iPolyatMole, iDOF
-REAL                          :: Qtra, Qrot, Qvib, Qelec
+REAL                          :: Qtra, Qrot, Qvib
 !===================================================================================================================================
   Qtra = 1
   IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
         Qvib = Qvib * EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (2. * Temp)) &
                 / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))

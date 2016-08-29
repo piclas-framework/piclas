@@ -62,7 +62,7 @@ INTEGER                                 :: RefMappingGuess                      
 REAL                                    :: RefMappingEps                                  ! tolerance for Netwton to get xi from X
 REAL                                    :: epsInCell                                      ! tolerance for eps for particle 
                                                                                           ! inside of ref element
-REAL                                    :: epsOneCell                                     ! tolerance for particle in 
+REAL,ALLOCATABLE                        :: epsOneCell(:)                                  ! tolerance for particle in 
                                                                                           ! inside ref element 1+epsinCell
 
 !LOGICAL                                 :: DoRefMapping                  ! tracking by mapping particle into reference element
@@ -119,6 +119,15 @@ TYPE tGeometry
   INTEGER                                :: FIBGMjmax                         ! biggest index of FastInitBGM (y)
   INTEGER                                :: FIBGMkmin                         ! smallest index of FastInitBGM (z)
   INTEGER                                :: FIBGMkmax                         ! biggest index of FastInitBGM (z)
+
+  TYPE (tFastInitBGM),ALLOCATABLE        :: TFIBGM(:,:,:)  !       =>NULL()   ! FastInitBackgroundMesh
+  INTEGER                                :: TFIBGMimin                        ! smallest index of FastInitBGM (x)
+  INTEGER                                :: TFIBGMimax                        ! biggest index of FastInitBGM (x)
+  INTEGER                                :: TFIBGMjmin                        ! smallest index of FastInitBGM (y)
+  INTEGER                                :: TFIBGMjmax                        ! biggest index of FastInitBGM (y)
+  INTEGER                                :: TFIBGMkmin                        ! smallest index of FastInitBGM (z)
+  INTEGER                                :: TFIBGMkmax                        ! biggest index of FastInitBGM (z)
+
   INTEGER,ALLOCATABLE                    :: ElemToFIBGM(:,:)                  ! range of FIGMB cells per element
                                                                               ! 1:6,1:nTotalElems, xmin,max,yminmax,...
   REAL, ALLOCATABLE                      :: Volume(:)                         ! Volume(nElems) for nearest_blurrycenter

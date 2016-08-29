@@ -31,12 +31,18 @@ INTERFACE WriteParticlePartitionInformation
   MODULE PROCEDURE WriteParticlePartitionInformation
 END INTERFACE
 
+INTERFACE IdentifySimpleHaloMPINeighborhood
+  MODULE PROCEDURE IdentifySimpleHaloMPINeighborhood
+END INTERFACE
+
+
 !INTERFACE WriteParticleMappingPartitionInformation
 !  MODULE PROCEDURE WriteParticleMappingPartitionInformation
 !END INTERFACE
 
 
 PUBLIC :: IdentifyHaloMPINeighborhood,ExchangeHaloGeometry,ExchangeMappedHaloGeometry
+PUBLIC :: IdentifySimpleHaloMPINeighborhood
 PUBLIC :: WriteParticlePartitionInformation!,WriteParticleMappingPartitionInformation
 
 !===================================================================================================================================
@@ -123,6 +129,7 @@ DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
     END DO ! iBGM
   END DO ! jBGM
 END DO ! kBGM
+
 !IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Send:   ', SendMsg%nMPISides
 
 !--- NOTE: IF SENDMSG%NNODES IS 0 AT THIS POINT, THEN I SHOULD BE ABLE TO RETURN HERE!!!
@@ -273,6 +280,408 @@ IF (RecvMsg%nMPISides.GT.0) THEN
 END IF
 
 END SUBROUTINE IdentifyHaloMPINeighborhood
+
+
+SUBROUTINE IdentifySimpleHaloMPINeighborhood(iProc,ElemIndex)
+!===================================================================================================================================
+! Searches for sides in the neighborhood of MPI-neighbors
+! mark all Sides for communication which are in range of halo_eps of own MPI_Sides
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Mesh_Vars,         ONLY:GEO
+USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
+USE MOD_Particle_Mesh_Vars,         ONLY:ElemBaryNGeo,ElemRadiusNGeo
+!USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
+USE MOD_Mesh_Vars,                  ONLY:ElemToSide,nElems,nInnerSides,nBCSides,nSides
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER, INTENT(IN)   :: iProc  ! MPI proc with which the local proc has to exchange boundary information
+INTEGER, INTENT(INOUT):: ElemIndex(PP_nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iBGM,jBGM,kBGM,iNBProc,iElem,ElemID,ilocSide,SideID
+INTEGER                     :: DataSize
+! MPI exchange
+TYPE tMPIElemMessage
+  REAL(KIND=8), ALLOCATABLE :: ElemBaryAndRadius(:,:) ! BezierSides of boundary faces
+  INTEGER(KIND=4)           :: nMPIElems              ! number of Sides to send
+END TYPE
+TYPE(tMPIElemMessage)       :: SendMsg
+TYPE(tMPIElemMessage)       :: RecvMsg
+INTEGER                     :: ALLOCSTAT
+!=================================================================================================================================
+
+! 1) Exchange Sides:
+!    Each proc receives all sides that lie in FIBGM cells within an  eps-distance of FIBGM cells containing 
+!    any of my own MPI sides.
+! 2) Go through each FIBGM cell and if there are MPI-Neighbors, search the neighbor  surrounding FIBGM
+!     cells for my own MPI sides.
+
+! Step1: find Sides of myProc that are within halo_eps distance to iProc
+
+! here only MPI Sides.... why not INNER Sides, too????????/
+! PO: correction: we send only the MPI sides, because only the MPI-Faces has to be checked, not the interior faces for
+!     distance calulation. if MPI-Side is in range, then all the other sides are in range, too.
+!     caution: maybe there can be a special case, in which the nBCSides are in HaloRange but not the MPI-Side
+ElemIndex(:)=0
+SendMsg%nMPIElems=0
+DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
+  DO jBGM=GEO%FIBGMjmin,GEO%FIBGMjmax
+    DO iBGM=GEO%FIBGMimin,GEO%FIBGMimax
+      IF (.NOT.ALLOCATED(GEO%FIBGM(iBGM,jBGM,kBGM)%PaddingProcs)) CYCLE
+      IF (GEO%FIBGM(iBGM,jBGM,kBGM)%PaddingProcs(1).LE.0) CYCLE       ! -1 if ???
+      DO iNBProc = 2,GEO%FIBGM(iBGM,jBGM,kBGM)%PaddingProcs(1)+1
+        IF (GEO%FIBGM(iBGM,jBGM,kBGM)%PaddingProcs(iNBProc).EQ.iProc) THEN
+          DO iElem = 1, GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
+            ElemID = GEO%FIBGM(iBGM,jBGM,kBGM)%Element(iElem)
+            IF((ElemID.LT.1).OR.(ElemID.GT.PP_nElems)) CYCLE
+            DO iLocSide=1,6
+              SideID=ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+              IF(SideID.GT.0)THEN
+                IF(SideID.GT.nSides) CYCLE
+                !IF((SideID.LE.nBCSides).OR.(SideID.GT.(nBCSides+nInnerSides)))THEN
+                ! PO bc sides does not have to be checked
+                IF(SideID.GT.(nBCSides+nInnerSides))THEN
+                  !IF(SideID.GT.(nInnerSides+nBCSides).AND.(SideIndex(SideID).EQ.0))THEN
+                  ! because of implicit, but here I send for checking, other process sends the required halo region
+                  IF(ElemIndex(ElemID).EQ.0)THEN
+                    SendMsg%nMPIElems=SendMsg%nMPIElems+1
+                    ElemIndex(ElemID)=SendMsg%nMPIElems
+                  END IF
+                END IF
+              END IF
+            END DO ! ilocSide
+          END DO ! iElem
+        END IF ! shapeProcs(i).EQ.iProc
+      END DO ! iNBProc
+    END DO ! iBGM
+  END DO ! jBGM
+END DO ! kBGM
+
+
+
+!IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Send:   ', SendMsg%nMPIElems
+
+!--- NOTE: IF SENDMSG%NNODES IS 0 AT THIS POINT, THEN I SHOULD BE ABLE TO RETURN HERE!!!
+!          This is not done yet because I'm not sure whether there are still inconsistencies in the code...
+
+!--- Debugging information
+LOGWRITE(*,*)' nMPIElems for iProc=',iProc,':',SendMsg%nMPIElems
+!IPWRITE(UNIT_stdOut,*)' nMPIElems for iProc=',iProc,':',SendMsg%nMPIElems
+
+!--- Send number of MPI sides to MPI neighbor iProc and receive number of MPI
+!    sides from MPI neighbor iProc (immediate neighbor or not)
+IF (PartMPI%MyRank.LT.iProc) THEN
+  CALL MPI_SEND(SendMsg%nMPIElems,1,MPI_INTEGER,iProc,1101,PartMPI%COMM,IERROR)
+  CALL MPI_RECV(RecvMsg%nMPIElems,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,MPISTATUS,IERROR)
+ELSE IF (PartMPI%MyRank.GT.iProc) THEN
+  CALL MPI_RECV(RecvMsg%nMPIElems,1,MPI_INTEGER,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
+  CALL MPI_SEND(SendMsg%nMPIElems,1,MPI_INTEGER,iProc,1102,PartMPI%COMM,IERROR)
+END IF
+
+!IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Receive:', RecvMsg%nMPIElems
+
+!--- Allocate Message
+IF (SendMsg%nMPIElems.GT.0) THEN
+  ALLOCATE(SendMsg%ElemBaryAndRadius(1:4,1:SendMsg%nMPIElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+    __STAMP__&
+    ,'Could not allocate SendMessage%ElemBaryAndRadius ',SendMsg%nMPIElems)
+  END IF
+  SendMsg%ElemBaryAndRadius=0.
+END IF
+IF (RecvMsg%nMPIElems.GT.0) THEN
+  ALLOCATE(RecvMsg%ElemBaryAndRadius(1:4,1:RecvMsg%nMPIElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+    __STAMP__&
+    ,'Could not allocate RecvMessage%ElemBaryAndRadius ',RecvMsg%nMPIElems)
+  END IF
+  RecvMsg%ElemBaryAndRadius=0.
+END IF
+
+!--- Send any (corner-) nodes from the MPI-sides to the MPI-neighbor iProc
+!    and receive iProc's (corner-) nodes in return
+!--- fill send buffers
+!--- Step 2: send myproc MPI-side-nodes to iProc
+DO iElem=1,nElems
+  IF(ElemIndex(iElem).NE.0)THEN
+     SendMsg%ElemBaryAndRadius(1:3,ElemIndex(iElem))=ElemBaryNGeo(1:3,iElem)
+     SendMsg%ElemBaryAndRadius( 4 ,ElemIndex(iElem))=ElemRadiusNGeo(iElem)
+  END IF ! SideIndex NE.0
+END DO ! iElem
+
+! CALL WriteDebugNodes(SendMsg%Nodes,SendMsg%nNodes,iProc)
+!--- send and receive data
+DataSize=4
+IF(PartMPI%MyRank.LT.iProc)THEN
+  IF (SendMsg%nMPIElems.GT.0) CALL MPI_SEND(SendMsg%ElemBaryAndRadius   & 
+                                           ,SendMsg%nMPIElems*DataSize  &
+                                           ,MPI_DOUBLE_PRECISION        &
+                                           ,iProc                       &
+                                           ,1103                        &
+                                           ,PartMPI%COMM                &
+                                           ,IERROR                      )
+  IF (RecvMsg%nMPIElems.GT.0) CALL MPI_RECV(RecvMsg%ElemBaryAndRadius   &
+                                           ,RecvMsg%nMPIElems*DataSize  &
+                                           ,MPI_DOUBLE_PRECISION        &
+                                           ,iProc                       &
+                                           ,1104                        &
+                                           ,PartMPI%COMM                &
+                                           ,MPISTATUS                   &
+                                           ,IERROR                      )
+ELSE IF(PartMPI%MyRank.GT.iProc)THEN
+  IF (RecvMsg%nMPIElems.GT.0) CALL MPI_RECV(RecvMsg%ElemBaryAndRadius   &
+                                           ,RecvMsg%nMPIElems*DataSize  &
+                                           ,MPI_DOUBLE_PRECISION        &
+                                           ,iProc                       &
+                                           ,1103                        &
+                                           ,PartMPI%COMM                &
+                                           ,MPISTATUS                   &
+                                           ,IERROR                      )
+  IF (SendMsg%nMPIElems.GT.0) CALL MPI_SEND(SendMsg%ElemBaryAndRadius   &
+                                           ,SendMsg%nMPIElems*DataSize  &
+                                           ,MPI_DOUBLE_PRECISION        &
+                                           ,iProc                       &
+                                           ,1104                        &
+                                           ,PartMPI%COMM                &
+                                           ,IERROR                      )
+END IF
+
+
+
+
+! PO
+! For each side, identifz the FIBGM cell(s) in which the side resides and
+! search the surrounding nPaddingCells for neighboring elements
+! For idiots: iProc and tells me which sides are on his MPI bound,
+!             and I check which sides are within eps range
+
+ElemIndex(:)=0
+IF (RecvMsg%nMPIElems.GT.0) THEN
+  CALL CheckSimpleMPINeighborhoodByFIBGM(RecvMsg%ElemBaryAndRadius,RecvMsg%nMPIElems,ElemIndex)
+END IF
+
+!--- Deallocate Messages
+IF (SendMsg%nMPIElems.GT.0) THEN
+  DEALLOCATE(SendMsg%ElemBaryAndRadius, STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+    __STAMP__&
+    ,'Could not deallocate SendMessage%ElemBaryAndRadius proc ',iProc)
+  END IF
+END IF
+IF (RecvMsg%nMPIElems.GT.0) THEN
+  DEALLOCATE(RecvMsg%ElemBaryAndRadius, STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+    __STAMP__&
+    ,'Could not deallocate RecvMessage%ElemBaryAndRadius proc ',iProc)
+  END IF
+END IF
+
+END SUBROUTINE IdentifySimpleHaloMPINeighborhood
+
+
+SUBROUTINE CheckSimpleMPINeighborhoodByFIBGM(ElemBaryAndRadius,nExternalElems,ElemIndex)
+!===================================================================================================================================
+! Compute distance of MPI-Side to my-Sides, if distance below helo_eps2 distance, mark size for MPI-Exchange
+! Question: Why does one does not mark the INNER Sides, too??
+!           Then, the halo region would only require the elements inside of itself and not only the MPI sides...??
+!           Or is it sufficient?
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix
+USE MOD_Particle_MPI_Vars,         ONLY:halo_eps2
+USE MOD_Particle_Mesh_Vars,        ONLY:ElemBaryNGeo,ElemRadius2NGeo
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,    INTENT(IN)      :: ElemBaryAndRadius(1:4,1:nExternalElems)
+INTEGER, INTENT(IN)      :: nExternalElems
+! OUTPUT VARIABLES
+INTEGER, INTENT(INOUT)   :: ElemIndex(PP_nElems)
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: iElem, ElemID,iBGMElem,iCase,NbOfElems
+INTEGER                  :: iBGMmin,iBGMmax,jBGMmin,jBGMmax,kBGMmin,kBGMmax,iPBGM,jPBGM,kPBGM
+REAL                     :: Vec1(1:3),Vec2(1:3),Vec3(1:3), NodeX(1:3), Radius,Distance,Vec0(1:3)
+REAL                     :: xmin, xmax, ymin,ymax,zmin,zmax, Radius2
+LOGICAL                  :: IsChecked(1:PP_nElems)
+!===================================================================================================================================
+
+! For each (NGeo+1)^2 BezierControlPoint of each side, the FIBGM cell(s) in which the side 
+! resides is identified and the surrouding nPaddingCells for each neighboring element
+! are searched
+!--- for idiots: get BezierControlPoints of myProc that are within eps distance to MPI-bound 
+!                of iProc
+ElemIndex=0
+NBOfElems=0
+
+DO iElem=1,nExternalElems
+  IsChecked=.FALSE.
+  ! check only the min-max values
+  ! get elem extension based on barycenter and radius
+  NodeX(1:3) = ElemBaryAndRadius(1:3,iElem) 
+  Radius     = ElemBaryAndRadius( 4 ,iElem)
+
+  xmin = NodeX(1) -Radius
+  ymin = NodeX(2) -Radius
+  zmin = NodeX(3) -Radius
+  xmax = NodeX(1) +Radius
+  ymax = NodeX(2) +Radius
+  zmax = NodeX(3) +Radius
+  Radius2=Radius*Radius
+
+  ! BGM mesh cells
+  iBGMmin = CEILING((xMin-GEO%xminglob)/GEO%FIBGMdeltas(1))-FIBGMCellPadding(1)
+  iBGMmax = CEILING((xMax-GEO%xminglob)/GEO%FIBGMdeltas(1))+FIBGMCellPadding(1)
+
+  jBGMmin = CEILING((yMin-GEO%yminglob)/GEO%FIBGMdeltas(2))-FIBGMCellPadding(2)
+  jBGMmax = CEILING((yMax-GEO%yminglob)/GEO%FIBGMdeltas(2))+FIBGMCellPadding(2)
+
+  kBGMmin = CEILING((zMin-GEO%zminglob)/GEO%FIBGMdeltas(3))-FIBGMCellPadding(3)
+  kBGMmax = CEILING((zMax-GEO%zminglob)/GEO%FIBGMdeltas(3))+FIBGMCellPadding(3)
+
+  iBGMmin  = MAX(GEO%FIBGMimin,iBGMmin)
+  jBGMmin  = MAX(GEO%FIBGMjmin,jBGMmin)
+  kBGMmin  = MAX(GEO%FIBGMkmin,kBGMmin)
+
+  iBGMmax  = MIN(GEO%FIBGMimax,iBGMmax)
+  jBGMmax  = MIN(GEO%FIBGMjmax,jBGMmax)
+  kBGMmax  = MIN(GEO%FIBGMkmax,kBGMmax)
+
+  ! loop over BGM cells    
+  DO iPBGM = iBGMmin,iBGMmax
+    DO jPBGM = jBGMmin,jBGMmax
+      DO kPBGM = kBGMmin,kBGMmax
+        IF(.NOT.ALLOCATED(GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element))CYCLE
+        !IF((iPBGM.GT.GEO%FIBGMimax).OR.(iPBGM.LT.GEO%FIBGMimin) .OR. &
+        !   (jPBGM.GT.GEO%FIBGMjmax).OR.(jPBGM.LT.GEO%FIBGMjmin) .OR. &
+        !   (kPBGM.GT.GEO%FIBGMkmax).OR.(kPBGM.LT.GEO%FIBGMkmin) ) CYCLE
+        DO iBGMElem = 1, GEO%FIBGM(iPBGM,jPBGM,kPBGM)%nElem
+          ElemID = GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element(iBGMElem)
+          !IF((ElemID.LE.0.).OR.(ElemID.GT.PP_nElems))CYCLE
+          IF(IsChecked(ElemID)) THEN
+            CYCLE
+          ELSE
+            IF(ElemIndex(ElemID).EQ.0)THEN
+              Vec0=ElemBaryNGeo(1:3,ElemID)-ElemBaryAndRadius(1:3,iElem)
+              !Distance=SQRT(DOT_PRODUCT(Vec0,Vec0)) &
+              !        -Radius-ElemRadiusNGeo(ElemID)
+              Distance=(DOT_PRODUCT(Vec0,Vec0)) &
+                      -Radius2-ElemRadius2NGeo(ElemID)
+              IF(Distance.LE.halo_eps2)THEN
+                NbOfElems=NbOfElems+1
+                ElemIndex(ElemID)=NbofElems
+              END IF ! in range
+              IsChecked(ElemID)=.TRUE.
+            END IF ! ElemIndex(ElemID).EQ.0
+          END IF
+        END DO ! iBGMElem
+      END DO ! kPBGM
+    END DO ! jPBGM
+  END DO ! i PBGM
+END DO ! iElem
+
+
+!--- if there are periodic boundaries, they need to be taken into account as well:
+IF (GEO%nPeriodicVectors.GT.0) THEN
+  Vec1(1:3) = 0.
+  Vec2(1:3) = 0.
+  Vec3(1:3) = 0.
+  IF (GEO%nPeriodicVectors.EQ.1) THEN
+    Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+  END IF
+  IF (GEO%nPeriodicVectors.EQ.2) THEN
+    Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+    Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+  END IF
+  IF (GEO%nPeriodicVectors.EQ.3) THEN
+    Vec1(1:3) = GEO%PeriodicVectors(1:3,1)
+    Vec2(1:3) = GEO%PeriodicVectors(1:3,2)
+    Vec3(1:3) = GEO%PeriodicVectors(1:3,3)
+  END IF
+  !--- check sides shifted by periodic vectors, add to SideIndex if match
+  DO iElem=1,nExternalElems
+    DO iCase = 1, NbrOfCases
+      IF ((casematrix(iCase,1).EQ.0) .AND. &  ! DON'T DO THE UNMOVED PART, HAS BEEN DONE ABOVE
+          (casematrix(iCase,2).EQ.0) .AND. &
+          (casematrix(iCase,3).EQ.0)) CYCLE
+     ! DO iNode=1,8
+        NodeX =ElemBaryAndRadius(1:3,iElem)
+        Radius=ElemBaryAndRadius( 4 ,iElem)
+        Radius2=Radius*Radius
+        !SELECT CASE(iNode)
+        NodeX(:) = NodeX(:) + &
+                   casematrix(iCase,1)*Vec1(1:3) + &
+                   casematrix(iCase,2)*Vec2(1:3) + &
+                   casematrix(iCase,3)*Vec3(1:3) 
+
+
+        xmin = NodeX(1) -Radius
+        ymin = NodeX(2) -Radius
+        zmin = NodeX(3) -Radius
+        xmax = NodeX(1) +Radius
+        ymax = NodeX(2) +Radius
+        zmax = NodeX(3) +Radius
+
+        ! BGM mesh cells
+        iBGMmin = CEILING((xMin-GEO%xminglob)/GEO%FIBGMdeltas(1))-FIBGMCellPadding(1)
+        iBGMmax = CEILING((xMax-GEO%xminglob)/GEO%FIBGMdeltas(1))+FIBGMCellPadding(1)
+      
+        jBGMmin = CEILING((yMin-GEO%yminglob)/GEO%FIBGMdeltas(2))-FIBGMCellPadding(2)
+        jBGMmax = CEILING((yMax-GEO%yminglob)/GEO%FIBGMdeltas(2))+FIBGMCellPadding(2)
+      
+        kBGMmin = CEILING((zMin-GEO%zminglob)/GEO%FIBGMdeltas(3))-FIBGMCellPadding(3)
+        kBGMmax = CEILING((zMax-GEO%zminglob)/GEO%FIBGMdeltas(3))+FIBGMCellPadding(3)
+      
+        iBGMmin  = MIN(MAX(GEO%FIBGMimin,iBGMmin),GEO%FIBGMimax)
+        jBGMmin  = MIN(MAX(GEO%FIBGMjmin,jBGMmin),GEO%FIBGMjmax)
+        kBGMmin  = MIN(MAX(GEO%FIBGMkmin,kBGMmin),GEO%FIBGMkmax)
+      
+        iBGMmax  = MAX(MIN(GEO%FIBGMimax,iBGMmax),GEO%FIBGMimin)
+        jBGMmax  = MAX(MIN(GEO%FIBGMjmax,jBGMmax),GEO%FIBGMjmin)
+        kBGMmax  = MAX(MIN(GEO%FIBGMkmax,kBGMmax),GEO%FIBGMkmin)
+
+        ! loop over BGM cells    
+        DO iPBGM = iBGMmin,iBGMmax
+          DO jPBGM = jBGMmin,jBGMmax
+            DO kPBGM = kBGMmin,kBGMmax
+              IF(.NOT.ALLOCATED(GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element))CYCLE
+              DO iBGMElem = 1, GEO%FIBGM(iPBGM,jPBGM,kPBGM)%nElem
+                ElemID = GEO%FIBGM(iPBGM,jPBGM,kPBGM)%Element(iBGMElem)
+                IF((ElemID.LT.0).OR.(ElemID.GT.PP_nElems))CYCLE
+                IF(ElemIndex(ElemID).EQ.0)THEN
+                  Vec0=ElemBaryNGeo(1:3,ElemID)-NodeX(1:3)
+                  Distance=(DOT_PRODUCT(Vec0,Vec0)) &
+                          -Radius2-ElemRadius2NGeo(ElemID)
+                  IF(Distance.LE.halo_eps2)THEN
+                    NbOfElems=NbOfElems+1
+                    ElemIndex(ElemID)=NbofElems
+                  END IF ! in range
+                END IF ! ElemIndex(ElemID).EQ.0
+              END DO ! iBGMElem
+            END DO ! kPBGM
+          END DO ! jPBGM
+        END DO ! iPBGM
+     ! END DO ! Node=1,8
+    END DO ! iCase
+  END DO ! iElem
+END IF  ! nperiodicvectors>0
+
+END SUBROUTINE CheckSimpleMPINeighborhoodByFIBGM
 
 
 SUBROUTINE CheckMPINeighborhoodByFIBGM(BezierSides3D,nExternalSides,SideIndex,ElemIndex)
@@ -1316,6 +1725,7 @@ IF(DoRefMapping)THEN
               nDoubleBezier=nDoubleBezier+1
             IF(nDoubleBezier.EQ.2) THEN
               isDoubleSide=.TRUE.
+              IPWRITE(*,*) ' Found a double side in halo region! Error!'
               EXIT
             END IF
           END DO ! iOldSide
@@ -1419,6 +1829,7 @@ __STAMP__&
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
     END DO ! iElem
     ! missing connection info to MPI-Neighbor-ElemID
+    ! i think, that here happens the wrong stuff
     DO iSide=nBCSides+nInnerSides+1,nSides
       ElemID=PartSideToElem(S2E_ELEM_ID,iSide)
       ElemID2=PartSideToElem(S2E_NB_ELEM_ID,iSide)
@@ -1426,12 +1837,12 @@ __STAMP__&
       locSideID=-1
       IF( ElemID .GE. 1 .AND. ElemID .LE. PP_nElems) THEN
         HostElemID=ElemID
-        locSideID = SideToElem(S2E_LOC_SIDE_ID,iSide)
+        locSideID = PartSideToElem(S2E_LOC_SIDE_ID,iSide)
         flip=0
       END IF
       IF( ElemID2 .GE. 1 .AND. ElemID2 .LE. PP_nElems) THEN
         HostElemID=ElemID2
-        locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+        locSideID = PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)
         flip=1
       END IF
       SELECT CASE(locSideID)
@@ -1501,26 +1912,28 @@ __STAMP__&
       END DO ! iElem=PP_nElems+1,nTotalElems
     END DO ! iSide=nBCSides+nInnerSides+1,nSides
     ! build rest: PartElemToElem, PartLocSideID
-    DO iElem=PP_nElems+1,nTotalElems
-      DO ilocSide=1,6
-        flip   = PartElemToSide(E2S_FLIP,ilocSide,iElem)
-        SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-        ! check of sideid
-        HaloSideID=SideID-tmpnSides
-        IF(HaloSideID.LE.tmpnSides) CYCLE 
-        IF(isDone(HaloSideID)) CYCLE
-        IF(flip.EQ.0)THEN
-          ! SideID of slave
-          PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-          PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_ELEM_ID,SideID)
-        ELSE
-          ! SideID of master
-          PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_LOC_SIDE_ID,SideID)
-          PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_ELEM_ID,SideID)
-        END IF
-        isDone(HaloSideID)=.TRUE.
-      END DO ! ilocSide
-    END DO ! Elem
+    ! here happens bullshit
+    ! PO DEBUG, WRONG
+    ! DO iElem=PP_nElems+1,nTotalElems
+    !   DO ilocSide=1,6
+    !     flip   = PartElemToSide(E2S_FLIP,ilocSide,iElem)
+    !     SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+    !     ! check of sideid
+    !     HaloSideID=SideID-tmpnSides
+    !     IF(HaloSideID.LE.tmpnSides) CYCLE 
+    !     IF(isDone(HaloSideID)) CYCLE
+    !     IF(flip.EQ.0)THEN
+    !       ! SideID of slave
+    !       PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+    !       PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_NB_ELEM_ID,SideID)
+    !     ELSE
+    !       ! SideID of master
+    !       PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=PartSideToElem(S2E_LOC_SIDE_ID,SideID)
+    !       PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=PartSideToElem(S2E_ELEM_ID,SideID)
+    !     END IF
+    !     isDone(HaloSideID)=.TRUE.
+    !   END DO ! ilocSide
+    ! END DO ! Elem
     IF(.NOT.PartMPI%isMPINeighbor(iProc))THEN
       PartMPI%isMPINeighbor(iProc) = .true.
       PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
@@ -1940,7 +2353,7 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
   __STAMP__&
   ,'Could not allocate PartSideToElem')
 PartSideToElem=-1
-PartSideToElem(:,1:nOldSides  )              =DummySideToElem(:,1:nOldSides)
+PartSideToElem(1:5,1:nOldSides  )              =DummySideToElem(1:5,1:nOldSides)
 DEALLOCATE(DummySideToElem)
 !print*,' done side to elem',myrank
 ! PartElemToElem

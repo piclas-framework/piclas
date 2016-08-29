@@ -61,11 +61,12 @@ USE MOD_Particle_MPI_Vars,      ONLY:DoExternalParts
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: wBary_tmp(:),Vdm_GaussN_EquiN(:,:), Vdm_GaussN_NDepo(:,:)
 REAL,ALLOCATABLE          :: dummy(:,:,:,:),dummy2(:,:,:,:),xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t
-REAL                      :: Temp(3), MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
-REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, m, dir, weightrun, mm, r, s, t, iSFfix
+REAL                      :: MappedGauss(1:PP_N+1), xmin, ymin, zmin, xmax, ymax, zmax, x0
+REAL                      :: auxiliary(0:3),weight(1:3,0:3), nTotalDOF, VolumeShapeFunction, r_sf_average
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
+CHARACTER(32)             :: hilf
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
@@ -175,6 +176,38 @@ CASE('shape_function')
                         * (REAL(alpha_sf) + 1.)/(PI*(r_sf**3))
   r2_sf = r_sf * r_sf 
   r2_sf_inv = 1./r2_sf
+  !-- fixes for shape func depo at planar BCs
+  NbrOfSFdepoFixes = GETINT('PIC-NbrOfSFdepoFixes','0')
+  IF (NbrOfSFdepoFixes.GT.0) THEN
+    SDEALLOCATE(SFdepoFixesGeo)
+    SDEALLOCATE(SFdepoFixesChargeMult)
+    ALLOCATE(SFdepoFixesGeo(1:NbrOfSFdepoFixes,1:2,1:3),STAT=ALLOCSTAT)  !1:nFixes;1:2(base,normal);1:3(x,y,z)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesGeo!')
+    END IF
+    ALLOCATE(SFdepoFixesChargeMult(1:NbrOfSFdepoFixes),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) THEN
+      CALL abort(__STAMP__, &
+        'ERROR in pic_depo.f90: Cannot allocate SFdepoFixesChargeMult!')
+    END IF
+    DO iSFfix=1,NbrOfSFdepoFixes
+      WRITE(UNIT=hilf,FMT='(I2)') iSFfix
+      SFdepoFixesGeo(iSFfix,1,1:3) = &
+        GETREALARRAY('PIC-SFdepoFixes'//TRIM(hilf)//'-Basepoint',3,'0. , 0. , 0.')
+      SFdepoFixesGeo(iSFfix,2,1:3) = &
+        GETREALARRAY('PIC-SFdepoFixes'//TRIM(hilf)//'-Normal',3,'1. , 0. , 0.') !directed outwards
+      IF (SFdepoFixesGeo(iSFfix,2,1)**2 + SFdepoFixesGeo(iSFfix,2,2)**2 + SFdepoFixesGeo(iSFfix,2,3)**2 .GT. 0.) THEN
+        SFdepoFixesGeo(iSFfix,2,1:3) = SFdepoFixesGeo(iSFfix,2,1:3) &
+          / SQRT(SFdepoFixesGeo(iSFfix,2,1)**2 + SFdepoFixesGeo(iSFfix,2,2)**2 + SFdepoFixesGeo(iSFfix,2,3)**2)
+      ELSE
+        CALL abort(__STAMP__&
+          ,' SFdepoFixesXX-Normal is zero for Fix ',iSFfix)
+      END IF
+      SFdepoFixesChargeMult(iSFfix) = &
+        GETREAL('PIC-SFdepoFixes'//TRIM(hilf)//'-ChargeMult','1.')
+    END DO
+  END IF
   VolumeShapeFunction=4./3.*PI*r_sf*r2_sf
   nTotalDOF=REAL(nGlobalElems)*REAL((PP_N+1)**3)
   IF(MPIRoot)THEN
@@ -299,7 +332,7 @@ CASE('shape_function_1d')
   DoExternalParts=.TRUE.
 #endif /*MPI*/
 
-CASE('cylindrical_shape_function')
+CASE('shape_function_cylindrical','shape_function_spherical')
   !IF(.NOT.DoRefMapping) CALL abort(&
   !  __STAMP__&
   !  ,' Shape function has to be used with ref element tracking.')
@@ -311,16 +344,34 @@ CASE('cylindrical_shape_function')
   !IF (ALLOCSTAT.NE.0) THEN
   !  CALL abort(__STAMP__&
   !    ' Cannot allocate ExtPartToFIBGM!')
-  r_sf       = GETREAL('PIC-shapefunction-radius','1.')
-  r_sf0      = GETREAL('PIC-shapefunction-radius0','1.')
-  r_sf_scale = GETREAL('PIC-shapefunction-scale','0.')
-  alpha_sf   = GETINT('PIC-shapefunction-alpha','2')
+  IF(TRIM(DepositionType).EQ.'shape_function_cylindrical')THEN
+    SfRadiusInt=2
+  ELSE
+    SfRadiusInt=3
+  END IF
+  r_sf       = GETREAL   ('PIC-shapefunction-radius','1.')
+  r_sf0      = GETREAL   ('PIC-shapefunction-radius0','1.')
+  r_sf_scale = GETREAL   ('PIC-shapefunction-scale','0.')
+  alpha_sf   = GETINT    ('PIC-shapefunction-alpha','2')
   DoSFEqui   = GETLOGICAL('PIC-shapefunction-equi','F')
   BetaFac    = beta(1.5, REAL(alpha_sf) + 1.)
   w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) &
                         * (REAL(alpha_sf) + 1.)!/(PI*(r_sf**3))
   r2_sf = r_sf * r_sf 
   r2_sf_inv = 1./r2_sf
+
+  r_sf_average=0.5*(r_sf+r_sf0)
+  VolumeShapeFunction=4./3.*PI*r_sf_average*r_sf_average
+  nTotalDOF=REAL(nGlobalElems)*REAL((PP_N+1)**3)
+  IF(MPIRoot)THEN
+    IF(VolumeShapeFunction.GT.GEO%MeshVolume) &
+      CALL abort(&
+      __STAMP__&
+      ,'ShapeFunctionVolume > MeshVolume')
+  END IF
+  
+  SWRITE(UNIT_stdOut,'(A,F12.6)') ' | Average DOFs in Shape-Function |                      ' , &
+      nTotalDOF*VolumeShapeFunction/GEO%MeshVolume
 
   ALLOCATE(ElemDepo_xGP(1:3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(&
@@ -673,17 +724,16 @@ USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY:PI
 USE MOD_Mesh_Vars,              ONLY:nElems, Elem_xGP, sJ
 USE MOD_ChangeBasis,            ONLY:ChangeBasis3D
-USE MOD_Interpolation_Vars,     ONLY:wGP,swGP
+USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Basis,                  ONLY:LagrangeInterpolationPolys,BernSteinPolynomial
-USE MOD_Interpolation_Vars,     ONLY:wBary,xGP
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO,ElemBaryNGeo,casematrix, NbrOfCases
+USE MOD_Particle_Mesh_Vars,     ONLY:GEO,casematrix, NbrOfCases
 #ifdef MPI
 ! only required for shape function??
 USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartMPIExchange
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPIExchange
 USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem,tCartMesh,ElemTime
 #endif  /*MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -703,11 +753,10 @@ INTEGER                          :: firstPart,lastPart
 INTEGER                          :: i,j, k, l, m, iElem, iPart
 LOGICAL                          :: chargedone(1:nElems)!, SAVE_GAUSS             
 LOGICAL                          :: SAVE_GAUSS
-INTEGER                          :: BGMimax,BGMimin,BGMjmax,BGMjmin,BGMkmax,BGMkmin
 INTEGER                          :: kmin, kmax, lmin, lmax, mmin, mmax                           
 INTEGER                          :: kk, ll, mm, ppp                                              
-INTEGER                          :: ElemID, iCase, ind, N_in
-REAL                             :: radius2, S, S1, Fac(4)
+INTEGER                          :: ElemID, iCase, ind
+REAL                             :: radius2, S, S1, Fac(4), Fac2(4)
 !REAL                             :: GaussDistance(0:PP_N,0:PP_N,0:PP_N)
 REAL, ALLOCATABLE                :: BGMSourceCellVol(:,:,:,:,:), tempsource(:,:,:), tempgridsource(:)
 REAL                             :: Vec1(1:3), Vec2(1:3), Vec3(1:3), ShiftedPart(1:3)
@@ -716,9 +765,9 @@ REAL                             :: ElemSource(nElems,1:4)
 REAL                             :: Charge, TSource(1:4), auxiliary(0:3),weight(1:3,0:3), locweight
 REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), alpha
 INTEGER                          :: PosInd(3),r,ss,t,u,v,w, dir, weightrun
-INTEGER                          :: foundDOF
+INTEGER                          :: iSFfix
 REAL,DIMENSION(3,0:NDepo)        :: L_xi
-REAL                             :: DeltaIntCoeff,prefac
+REAL                             :: DeltaIntCoeff,prefac, SFfixDistance
 REAL                             :: local_r_sf, local_r2_sf, local_r2_sf_inv
 #ifdef MPI
 ! load balance
@@ -825,7 +874,7 @@ CASE('cell_volweight')
       IF(DoRefMapping)THEN
         TempPartPos(1:3)=PartPosRef(1:3,iPart)
       ELSE
-        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos,iElem,iPart)
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),TempPartPos,iElem)
       END IF
       TSource(:) = 0.0
 !#if (PP_nVar==8)
@@ -1002,19 +1051,36 @@ CASE('shape_function')
     !IF (PDM%ParticleInside(iPart)) THEN
     IF (DoParticle(iPart)) THEN
       IF (usevMPF) THEN
-        Fac(4)= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)*w_sf
+        Fac2(4)= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)*w_sf
       ELSE
-        Fac(4)= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor*w_sf
+        Fac2(4)= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor*w_sf
       END IF ! usevMPF
-      !IF(fac(4).GT.0.) print*,'charge pos'
-      Fac(1:3) = PartState(iPart,4:6)*Fac(4)
+      Fac2(1:3) = PartState(iPart,4:6)*Fac2(4)
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
-        chargedone(:) = .FALSE.
         DO ind = 1,3
           ShiftedPart(ind) = PartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
+        DO iSFfix = 0,NbrOfSFdepoFixes
+        chargedone(:) = .FALSE.
+        IF (iSFfix.GT.0) THEN !SFdepoFixes
+          SFfixDistance = SFdepoFixesGeo(iSFfix,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfix,1,1)) &
+                        + SFdepoFixesGeo(iSFfix,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfix,1,2)) &
+                        + SFdepoFixesGeo(iSFfix,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfix,1,3))
+          IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
+            ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfix,2,1:3)
+          ELSE IF (SFfixDistance .GT. 0.) THEN
+            CALL abort(&
+__STAMP__, &
+              'Particle is outside of SF-Fix-Plane!')
+          ELSE
+            CYCLE !SF of mirrored particle would not reach any DOF
+          END IF
+          Fac = Fac2 * SFdepoFixesChargeMult(iSFfix)
+        ELSE
+          Fac = Fac2
+        END IF
         kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
         kmax = MIN(kmax,GEO%FIBGMimax)
         kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
@@ -1067,6 +1133,7 @@ CASE('shape_function')
             END DO ! mm
           END DO ! ll
         END DO ! kk
+        END DO !iSFfix
       END DO ! iCase (periodicity)
     END IF ! inside
   END DO ! i
@@ -1092,18 +1159,35 @@ CASE('shape_function')
     
     DO iPart=1,NbrOfextParticles  !external Particles
       IF (usevMPF) THEN
-        Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC * ExtPartMPF(iPart)*w_sf
+        Fac2(4)= Species(ExtPartSpecies(iPart))%ChargeIC * ExtPartMPF(iPart)*w_sf
       ELSE
-        Fac(4)= Species(ExtPartSpecies(iPart))%ChargeIC * Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf
+        Fac2(4)= Species(ExtPartSpecies(iPart))%ChargeIC * Species(ExtPartSpecies(iPart))%MacroParticleFactor*w_sf
       END IF ! usevMPF
-      Fac(1:3) = ExtPartState(iPart,4:6)*Fac(4)
+      Fac2(1:3) = ExtPartState(iPart,4:6)*Fac2(4)
       !-- determine which background mesh cells (and interpolation points within) need to be considered
       DO iCase = 1, NbrOfCases
-        chargedone(:) = .FALSE.
         DO ind = 1,3
           ShiftedPart(ind) = ExtPartState(iPart,ind) + casematrix(iCase,1)*Vec1(ind) + &
                casematrix(iCase,2)*Vec2(ind) + casematrix(iCase,3)*Vec3(ind)
         END DO
+        DO iSFfix = 0,NbrOfSFdepoFixes
+        chargedone(:) = .FALSE.
+        IF (iSFfix.GT.0) THEN !SFdepoFixes
+          SFfixDistance = SFdepoFixesGeo(iSFfix,2,1)*(ShiftedPart(1)-SFdepoFixesGeo(iSFfix,1,1)) &
+                        + SFdepoFixesGeo(iSFfix,2,2)*(ShiftedPart(2)-SFdepoFixesGeo(iSFfix,1,2)) &
+                        + SFdepoFixesGeo(iSFfix,2,3)*(ShiftedPart(3)-SFdepoFixesGeo(iSFfix,1,3))
+          IF ( (SFfixDistance.GE.-r_sf) .AND. (SFfixDistance.LE.0.) ) THEN
+            ShiftedPart(1:3) = ShiftedPart(1:3) - 2.*SFfixDistance*SFdepoFixesGeo(iSFfix,2,1:3)
+          ELSE IF (SFfixDistance .GT. 0.) THEN
+            CALL abort(__STAMP__, &
+              'Particle is outside of SF-Fix-Plane!')
+          ELSE
+            CYCLE !SF of mirrored particle would not reach any DOF
+          END IF
+          Fac = Fac2 * SFdepoFixesChargeMult(iSFfix)
+        ELSE
+          Fac = Fac2
+        END IF
         kmax = CEILING((ShiftedPart(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
         kmax = MIN(kmax,GEO%FIBGMimax)
         kmin = FLOOR((ShiftedPart(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
@@ -1157,6 +1241,7 @@ CASE('shape_function')
             END DO ! mm
           END DO ! ll
         END DO ! kk
+        END DO !iSFfix
       END DO
     END DO
     ! deallocate external state
@@ -1769,7 +1854,7 @@ CASE('shape_function_1d')
 
 
 
-CASE('cylindrical_shape_function')
+CASE('shape_function_cylindrical','shape_function_spherical')
   IF((DoInnerParts).AND.(LastPart.LT.firstPart)) RETURN
   Vec1(1:3) = 0.
   Vec2(1:3) = 0.
@@ -1790,7 +1875,7 @@ CASE('cylindrical_shape_function')
     !IF (PDM%ParticleInside(iPart)) THEN
     IF (DoParticle(iPart)) THEN
       ! compute local radius
-      local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:2),PartState(iPart,1:2)))
+      local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:SfRadiusInt),PartState(iPart,1:SfRadiusInt)))
       local_r2_sf=local_r_sf*local_r_sf
       local_r2_sf_inv=1./local_r2_sf
       IF (usevMPF) THEN
@@ -1883,7 +1968,7 @@ CASE('cylindrical_shape_function')
     END IF
     
     DO iPart=1,NbrOfextParticles  !external Particles
-      local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:2),PartState(iPart,1:2)))
+      local_r_sf= r_sf0 * (1.0 + r_sf_scale*DOT_PRODUCT(PartState(iPart,1:SfRadiusInt),PartState(iPart,1:SfRadiusInt)))
       local_r2_sf=local_r_sf*local_r_sf
       local_r2_sf_inv=1./local_r2_sf
       IF (usevMPF) THEN
@@ -1987,7 +2072,7 @@ CASE('delta_distri')
           END IF ! usevMPF
           ! Map Particle to -1|1 space (re-used in interpolation)
           IF(.NOT.DoRefMapping)THEN
-            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
           END IF
           ! get value of test function at particle position
           SELECT CASE(DeltaType)
@@ -2777,7 +2862,7 @@ USE MOD_Particle_MPI_Vars,   ONLY:PartMPI
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iProc,jPorc
+INTEGER                     :: iProc
 INTEGER                     :: k,m,n,m0,n0
 INTEGER                     :: localminmax(6), maxofmin, minofmax                              
 INTEGER                     :: completeminmax(6*PartMPI%nProcs)                              
@@ -3141,8 +3226,6 @@ REAL,INTENT(OUT)        :: GaussDistance(0:N_in,0:N_in,0:N_in)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: i,j,k
-!REAL                    :: tmp(3)
-REAL                    :: tmp(3)
 !===================================================================================================================================
 
 DO k=0,N_in

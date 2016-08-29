@@ -127,9 +127,8 @@ USE MOD_Preproc
 USE MOD_Globals,                 ONLY:AlmostZero,AlmostEqual,CROSSNORM
 !USE MOD_Mesh_Vars,               ONLY:Elems,offsetElem,nSides, ElemToSide
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMPISides_MINE,nSides
-USE MOD_Mesh_Vars,               ONLY:ElemToSide,nBCSides,XCL_NGeo,NGeo,BC,SideToElem
+USE MOD_Mesh_Vars,               ONLY:nBCSides,XCL_NGeo,NGeo,BC,SideToElem
 USE MOD_Particle_Mesh_Vars,      ONLY:GEO, SidePeriodicType, SidePeriodicDisplacement
-USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -397,9 +396,9 @@ __STAMP__&
 ,'nPeriodicVectors must be >= 0 and <= 3!',GEO%nPeriodicVectors,999.)
 END IF
 
+GEO%directions=.FALSE.
 IF(GEO%nPeriodicVectors.EQ.0) RETURN
 
-GEO%directions=.FALSE.
 SDEALLOCATE(GEO%DirPeriodicVectors)
 ALLOCATE(GEO%DirPeriodicVectors(1:GEO%nPeriodicVectors))
 ! check if all periodic vectors are cartesian

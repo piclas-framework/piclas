@@ -58,7 +58,7 @@ USE MOD_DG_Vars,            ONLY:U,Ut
 USE MOD_DG,                 ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver_Vars,  ONLY:mass
 USE MOD_Equation_Vars,      ONLY:DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,      ONLY:dt,sdtCFLOne
+USE MOD_TimeDisc_Vars,      ONLY:sdtCFLOne
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -118,7 +118,7 @@ USE MOD_Equation,          ONLY:CalcSource
 USE MOD_Equation,          ONLY:DivCleaningDamping
 USE MOD_LinearSolver_Vars, ONLY:ImplicitSource, LinSolverRHS,mass
 USE MOD_Equation_Vars,     ONLY:DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,     ONLY:dt,sdtCFLOne
+USE MOD_TimeDisc_Vars,     ONLY:sdtCFLOne
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -129,7 +129,7 @@ REAL,INTENT(IN)  :: t,Coeff
 REAL,INTENT(OUT) :: Y(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL             :: rTmp,locMass
+REAL             :: rTmp(1:8),locMass
 INTEGER          :: i,j,k,iElem,iVar
 !===================================================================================================================================
 
@@ -139,34 +139,33 @@ INTEGER          :: i,j,k,iElem,iVar
 
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.FALSE.)
 !Y = LinSolverRHS - X0 +coeff*ut
+#ifndef PP_HDG
 CALL CalcSource(t,1.0,ImplicitSource)
+#endif
+
 IF(DoParabolicDamping)THEN
-  !rTmp=1.0-(fDamping-1.0)*dt*sdTCFLOne
-  rTmp=1.0-(fDamping-1.0)*coeff*sdTCFLOne
-  DO iElem=1,PP_nElems
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-          locMass=mass(1,i,j,k,iElem)
-          DO iVar=1,6
-            Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
-                                                -U(iVar,i,j,k,iElem)               &
-                                           +coeff*Ut(iVar,i,j,k,iElem)             &
-                                           +coeff*ImplicitSource(iVar,i,j,k,iElem) )
-          END DO ! iVar=1,6
-          DO iVar=7,PP_nVar
-            Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
-                                           -rTmp*U(iVar,i,j,k,iElem)               &
-                                           +coeff*Ut(iVar,i,j,k,iElem)             &
-                                           +coeff*ImplicitSource(iVar,i,j,k,iElem) )
-          END DO ! iVar=7,PP_nVar
-        END DO ! i=0,PP_N
-      END DO ! j=0,PP_N
-    END DO ! k=0,PP_N
-  END DO ! iElem=1,PP_nElems
+  rTmp(1:6)=1.0
+  rTmp( 7 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
+  rTmp( 8 )=1.0-(fDamping-1.0)*coeff*sdTCFLOne
 ELSE
-  Y = mass*(LinSolverRHS - U +coeff*ut + coeff*ImplicitSource)
+  rTmp(1:8)=1.0
 END IF
+
+DO iElem=1,PP_nElems
+  DO k=0,PP_N
+    DO j=0,PP_N
+      DO i=0,PP_N
+        locMass=mass(1,i,j,k,iElem)
+        DO iVar=1,PP_nVar
+          Y(iVar,i,j,k,iElem) = locMass*( LinSolverRHS(iVar,i,j,k,iElem)         &
+                                         -rTmp(iVar)*U(iVar,i,j,k,iElem)         &
+                                         +    coeff*Ut(iVar,i,j,k,iElem)         &
+                                         +coeff*ImplicitSource(iVar,i,j,k,iElem) )
+        END DO ! iVar=1,PP_nVar
+      END DO ! i=0,PP_N
+    END DO ! j=0,PP_N
+  END DO ! k=0,PP_N
+END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE MatrixVectorSource
 
@@ -257,9 +256,10 @@ USE MOD_PreProc
 USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Globals,                 ONLY:Abort
 USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
-USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
+USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping,c2_inv
 USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType,Pt
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
+USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
+                                     ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 ! IMPLICIT VARIABLE HANDLING
@@ -276,6 +276,7 @@ REAL,INTENT(OUT)   :: Y(1:6)
 ! LOCAL VARIABLES
 REAL               :: X_abs,epsFD
 REAL               :: PartT(1:6)
+REAL               :: LorentzFacInv
 !REAL               :: FieldAtParticle(1:6)
 !REAL               :: typ_v_abs, XK_V, sign_XK_V
 !===================================================================================================================================
@@ -291,18 +292,29 @@ EpsFD= rEps0/SQRT(X_abs)
 PartState(PartID,1:6) = PartXK(1:6,PartID)+EpsFD*X
 ! compute fields at particle position, if relaxation freez, therefore use fixed field and pt
 !CALL InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
-PartT(1:3)=PartState(PartID,4:6) ! funny, or PartXK
-PartT(4:6)=Pt(PartID,1:3)
+!PartT(4:6)=Pt(PartID,1:3)
 SELECT CASE(PartLorentzType)
+CASE(0)
+  PartT(4:6) = NON_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
+  LorentzFacInv = 1.0
 CASE(1)
   PartT(4:6) = SLOW_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
+  LorentzFacInv = 1.0
 CASE(3)
   PartT(4:6) = FAST_RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6))
+  LorentzFacInv = 1.0
+CASE(5)
+  LorentzFacInv=1.0+DOT_PRODUCT(PartState(PartID,4:6),PartState(PartID,4:6))*c2_inv      
+  LorentzFacInv=1.0/SQRT(LorentzFacInv)
+  PartT(4:6) = RELATIVISTIC_PUSH(PartID,FieldAtParticle(PartID,1:6),LorentzFacInvIn=LorentzFacInv)
 CASE DEFAULT
 CALL abort(&
 __STAMP__ &
 ,' Given PartLorentzType does not exist!',PartLorentzType)
 END SELECT
+PartT(1)=LorentzFacInv*PartState(PartID,4) ! funny, or PartXK
+PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
+PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
 ! or frozen version
 Y = (X - (coeff/EpsFD)*(PartT - R_PartXk(:,PartID)))
 
@@ -327,7 +339,7 @@ REAL,INTENT(IN)   :: b(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
 REAL,INTENT(OUT)  :: resu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iVar,i,j,k,iElem
+INTEGER           :: iVar,i,j,k
 !===================================================================================================================================
 
 resu=0.

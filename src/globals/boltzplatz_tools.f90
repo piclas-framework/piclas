@@ -29,7 +29,9 @@ USE MOD_Mesh,                      ONLY:FinalizeMesh
 USE MOD_Equation,                  ONLY:FinalizeEquation
 USE MOD_GetBoundaryFlux,           ONLY:FinalizeBC
 USE MOD_DG,                        ONLY:FinalizeDG
+#ifndef PP_HDG
 USE MOD_PML,                       ONLY:FinalizePML
+#endif /*PP_HDG*/
 USE MOD_Filter,                    ONLY:FinalizeFilter
 USE MOD_Analyze,                   ONLY:FinalizeAnalyze
 USE MOD_RecordPoints,              ONLY:FinalizeRecordPoints
@@ -78,7 +80,9 @@ CALL FinalizeDG()
 CALL FinalizeCSR()
 CALL FinalizeLinearSolver()
 #endif /*IMEX*/
+#ifndef PP_HDG
 CALL FinalizePML()
+#endif /*PP_HDG*/
 CALL FinalizeEquation()
 CALL FinalizeBC()
 IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
@@ -131,7 +135,9 @@ USE MOD_Mesh,               ONLY:InitMesh
 USE MOD_Equation,           ONLY:InitEquation
 USE MOD_GetBoundaryFlux,    ONLY:InitBC
 USE MOD_DG,                 ONLY:InitDG
+#ifndef PP_HDG
 USE MOD_PML,                ONLY:InitPML
+#endif /*PP_HDG*/
 USE MOD_Filter,             ONLY:InitFilter
 USE MOD_Analyze,            ONLY:InitAnalyze
 USE MOD_RecordPoints,       ONLY:InitRecordPoints
@@ -196,7 +202,9 @@ CALL InitBC()
 !1#ifdef PARTICLES
 !CALL InitParticles()
 !#endif
+#ifndef PP_HDG
 CALL InitPML()
+#endif /*PP_HDG*/
 CALL InitDG()
 CALL InitFilter()
 !CALL InitTimeDisc()

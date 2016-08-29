@@ -13,6 +13,8 @@ USE MOD_IO_HDF5,           ONLY:InitIO
 USE MOD_TimeDisc,          ONLY:InitTimeDisc,FinalizeTimeDisc,TimeDisc
 USE MOD_MPI,               ONLY:InitMPI
 USE MOD_RecordPoints_Vars, ONLY:RP_Data
+USE MOD_Mesh_Vars,         ONLY: DoSwapMesh
+USE MOD_Mesh,              ONLY: SwapMesh
 #ifdef PP_HDG
 USE MOD_HDG,              ONLY:InitHDG
 #endif
@@ -142,6 +144,10 @@ SWRITE(UNIT_stdOut,'(132("="))')
 
 ! Run Simulation
 CALL TimeDisc()
+! Do SwapMesh
+IF(MPIroot)THEN
+  IF(DoSwapMesh) Call SwapMesh()
+END IF
 
 !Finalize
 CALL FinalizeBoltzplatz(IsLoadBalance=.FALSE.)

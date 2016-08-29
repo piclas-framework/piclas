@@ -38,7 +38,6 @@ SUBROUTINE ConstructJacRiemann(nVec_loc,SurfElem_loc,Aside)
 ! MODULES
 USE MOD_PreProc ! PP_N
 USE MOD_Equation_Vars,  ONLY: eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_LinearSolver_Vars,  ONLY: nDOFSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -54,7 +53,7 @@ REAL,DIMENSION(8,8,0:PP_N,0:PP_N),INTENT(OUT)  :: Aside
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 REAL                                             :: n_loc(3), A_p(8,8)
-INTEGER                                          :: i,j, s,r
+INTEGER                                          :: i,j
 !===================================================================================================================================
 ! Gauss point i,j
 
@@ -125,7 +124,6 @@ SUBROUTINE ConstructJacNeighborRiemann(nVec_loc,SurfElem_loc,Aside)
 ! MODULES
 USE MOD_PreProc ! PP_N
 USE MOD_Equation_Vars,  ONLY: eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_LinearSolver_Vars,  ONLY: nDOFSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -140,7 +138,7 @@ REAL,DIMENSION(8,8,0:PP_N,0:PP_N),INTENT(OUT)  :: Aside
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 REAL                                             :: n_loc(3), A_m(8,8)
-INTEGER                                          :: i,j, s,r
+INTEGER                                          :: i,j
 !===================================================================================================================================
 ! Gauss point i,j
 
@@ -210,7 +208,6 @@ SUBROUTINE ConstructJacBCRiemann(BCType,nVec_loc,SurfElem_loc,Aside)
 ! MODULES
 USE MOD_PreProc 
 USE MOD_Equation_Vars,  ONLY: c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_LinearSolver_Vars,  ONLY: nDOFSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -238,7 +235,7 @@ SELECT CASE(BCType)
   ! as long as it does not depend on interior value
     ! has to be nullyfied as long as it does not depend on inner values
     Aside(:,:,:,:) = 0.
-  CASE(3) ! 1st order absorbing BC 
+  CASE(3,5) ! 1st order absorbing BC 
           ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
 
 ! Gauss point i,j
@@ -351,9 +348,9 @@ CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
     END DO ! p
   END DO ! q
 
-  CASE(5) ! open boundary condition with no force of divergenz cleaning
-    ! has to be nullyfied
-    Aside(:,:,:,:) = 0.
+  !CASE(5) ! open boundary condition with no force of divergenz cleaning
+  !  ! has to be nullyfied
+  !  Aside(:,:,:,:) = 0.
 
 
 END SELECT

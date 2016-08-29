@@ -37,6 +37,7 @@ REAL,ALLOCATABLE                      :: XiNDepo(:)         ! gauss position of 
 REAL,ALLOCATABLE                      :: Vdm_NDepo_GaussN(:,:) ! VdM between different polynomial degrees
 LOGICAL                               :: DoChangeBasis      ! Change polynomial degree
 LOGICAL                               :: DoSFEqui           ! use equidistant points for SF
+INTEGER                               :: SfRadiusInt        ! radius integer for cylindrical and spherical shape function
 REAL,ALLOCATABLE                      :: ElemDepo_xGP(:,:,:,:,:)  ! element xGPs for deposition 
 REAL,ALLOCATABLE                      :: Vdm_EquiN_GaussN(:,:)  ! Vdm from equidistant points to Gauss Points
 INTEGER                               :: alpha_sf           ! shapefuntion exponent 
@@ -59,6 +60,9 @@ INTEGER                               :: VolIntOrder
 REAL,ALLOCATABLE                      :: VolInt_X(:)
 REAL,ALLOCATABLE                      :: VolInt_W(:)
 REAL,ALLOCATABLE                      :: CellVolWeight_Volumes(:,:,:,:)
+INTEGER                               :: NbrOfSFdepoFixes                  !Number of fixes for shape func depo at planar BCs
+REAL    , ALLOCATABLE                 :: SFdepoFixesGeo(:,:,:)             !1:nFixes;1:2(base,normal);1:3(x,y,z) normal outwards!!!
+REAL    , ALLOCATABLE                 :: SFdepoFixesChargeMult(:)          !multiplier for mirrored charges (wall: -1.0, sym: 1.0)
 !REAL,ALLOCATABLE                      :: Vdm_BernSteinN_GaussN(:,:)
 !REAL,ALLOCATABLE                      :: sVdm_BernSteinN_GaussN(:,:)
 !===================================================================================================================================

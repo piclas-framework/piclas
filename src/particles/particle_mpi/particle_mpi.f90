@@ -51,6 +51,10 @@ INTERFACE InitEmissionComm
   MODULE PROCEDURE InitEmissionComm
 END INTERFACE
 
+INTERFACE InitSimpleHaloMesh
+  MODULE PROCEDURE InitSimpleHaloMesh
+END INTERFACE
+
 INTERFACE BoxInProc
   MODULE PROCEDURE BoxInProc
 END INTERFACE
@@ -60,7 +64,7 @@ INTERFACE ExchangeBezierControlPoints3D
 END INTERFACE
 
 PUBLIC :: InitParticleMPI,FinalizeParticleMPI,InitHaloMesh, InitParticleCommSize, IRecvNbOfParticles, MPIParticleSend
-PUBLIC :: MPIParticleRecv
+PUBLIC :: MPIParticleRecv, InitSimpleHaloMesh
 PUBLIC :: InitEmissionComm
 PUBLIC :: ExchangeBezierControlPoints3D
 #else
@@ -272,9 +276,8 @@ SUBROUTINE SendNbOfParticles(doParticle_In)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloElemToProc, PartSendBuf,PartRecvBuf,PartTargetProc
-USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,Species,PartPosRef
-USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloElemToProc, PartTargetProc
+USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,PEM,PDM,Species,PartPosRef
 USE MOD_Particle_Mesh_Vars,       ONLY:GEO
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend
@@ -294,7 +297,7 @@ INTEGER                       :: iPart,ElemID,iProc
 ! shape function 
 INTEGER                       :: CellX,CellY,CellZ!, iPartShape
 INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1), nDepoProcs, ProcID,LocalProcID
-INTEGER                       :: ALLOCSTAT,nPartShape
+INTEGER                       :: nPartShape
 REAL                          :: ShiftedPart(1:3)
 LOGICAL                       :: PartInBGM
 !===================================================================================================================================
@@ -392,22 +395,37 @@ IF(DoExternalParts)THEN
         CellX = INT((ShiftedPart(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
         CellY = INT((ShiftedPart(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
         CellZ = INT((ShiftedPart(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
-        IF (.NOT.ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
-          IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM! Err2'
-          IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',DoParticle(iPart)
-          !IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
-          IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
-          IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
-          IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
-          IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',ShiftedPart(1),',PartY=',ShiftedPart(2),',PartZ=',&
-                  ShiftedPart(3)
-          IF(DoRefMapping)THEN
-            IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartXi=',PartPosRef(1,iPart),',PartEta=',PartPosRef(2,iPart),',PartZeta=',&
-                    PartPosRef(3,iPart)
+        IF ((CellX.GT.GEO%FIBGMimax).OR.(CellX.LT.GEO%FIBGMimin) .OR. &
+            (CellY.GT.GEO%FIBGMjmax).OR.(CellY.LT.GEO%FIBGMjmin) .OR. &
+            (CellZ.GT.GEO%FIBGMkmax).OR.(CellZ.LT.GEO%FIBGMkmin)) THEN
+          CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+          CellX = MIN(GEO%FIBGMimax,CellX)
+          CellX = MAX(GEO%FIBGMimin,CellX)
+          CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+          CellY = MIN(GEO%FIBGMjmax,CellY)
+          CellY = MAX(GEO%FIBGMjmin,CellY)
+          CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+          CellZ = MIN(GEO%FIBGMkmax,CellZ)
+          CellZ = MAX(GEO%FIBGMkmin,CellZ)
+        ELSE
+          IF (.NOT.ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
+            IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM! Err2'
+            IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',DoParticle(iPart)
+            !IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+            IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
+            IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
+            IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
+            IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',ShiftedPart(1),',PartY=',ShiftedPart(2),',PartZ=',&
+                    ShiftedPart(3)
+            IF(DoRefMapping)THEN
+              IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartXi=',PartPosRef(1,iPart)   &
+                                                    ,',PartEta=',PartPosRef(2,iPart) &
+                                                    ,',PartZeta=',PartPosRef(3,iPart)
+            END IF
+            CALL Abort(&
+            __STAMP__&
+            ,'Particle outside BGM! Err2')
           END IF
-          CALL Abort(&
-          __STAMP__&
-          ,'Particle outside BGM! Err2')
         END IF
       ELSE
         IPWRITE(UNIT_errOut,*)'Warning in SendNbOfParticles: Particle outside BGM!'
@@ -518,7 +536,7 @@ USE MOD_Particle_Mesh_Vars,       ONLY:GEO
 USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
 USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,PartShiftVector, ExtPartCommSize, PartMPIDepoSend
-USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF, ExtPartToFIBGM, NbrOfExtParticles
+USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,  NbrOfExtParticles
 #if defined(IMEX) || defined(IMPA)
 USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
 USE MOD_Particle_MPI_Vars,        ONLY:PartCommSize0
@@ -549,7 +567,6 @@ INTEGER                       :: CellX,CellY,CellZ!, iPartShape
 INTEGER                       :: PartDepoProcs(1:PartMPI%nProcs+1), nDepoProcs, ProcID, jProc, iExtPart, LocalProcID
 REAL                          :: ShiftedPart(1:3)
 LOGICAL                       :: PartInBGM
-INTEGER                       :: nTotalSendParticles
 #if defined(IMEX) || defined(IMPA)
 INTEGER                       :: iCounter
 #endif /*IMEX*/
@@ -835,17 +852,31 @@ DO iProc=1, PartMPI%nMPINeighbors
           CellX = INT((ShiftedPart(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
           CellY = INT((ShiftedPart(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
           CellZ = INT((ShiftedPart(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
-          IF (.NOT.ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
-            IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM! Err2'
-            IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
-            IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
-            IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
-            IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
-            IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',ShiftedPart(1),',PartY=',ShiftedPart(2),',PartZ=',&
-                    ShiftedPart(3)
-            CALL Abort(&
-            __STAMP__&
-            ,'Particle outside BGM! Err2')
+          IF ((CellX.GT.GEO%FIBGMimax).OR.(CellX.LT.GEO%FIBGMimin) .OR. &
+              (CellY.GT.GEO%FIBGMjmax).OR.(CellY.LT.GEO%FIBGMjmin) .OR. &
+              (CellZ.GT.GEO%FIBGMkmax).OR.(CellZ.LT.GEO%FIBGMkmin)) THEN
+            CellX = INT((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1
+            CellX = MIN(GEO%FIBGMimax,CellX)
+            CellX = MAX(GEO%FIBGMimin,CellX)
+            CellY = INT((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1
+            CellY = MIN(GEO%FIBGMjmax,CellY)
+            CellY = MAX(GEO%FIBGMjmin,CellY)
+            CellZ = INT((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1
+            CellZ = MIN(GEO%FIBGMkmax,CellZ)
+            CellZ = MAX(GEO%FIBGMkmin,CellZ)
+          ELSE
+            IF (.NOT.ALLOCATED(GEO%FIBGM(CellX,CellY,CellZ)%ShapeProcs)) THEN
+              IPWRITE(UNIT_errOut,*)'ERROR in SendNbOfParticles: Particle outside BGM! Err2'
+              IPWRITE(UNIT_errOut,*)'iPart =',iPart,',ParticleInside =',PDM%ParticleInside(iPart)
+              IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'minX =',GEO%FIBGMimin,',minY =',GEO%FIBGMjmin,',minZ =',GEO%FIBGMkmin
+              IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'CellX=',CellX,',CellY=',CellY,',CellZ=',CellZ
+              IPWRITE(UNIT_errOut,'(I4,3(A,I4))')'maxX =',GEO%FIBGMimax,',maxY =',GEO%FIBGMjmax,',maxZ =',GEO%FIBGMkmax
+              IPWRITE(UNIT_errOut,'(I4,3(A,ES13.5))')'PartX=',ShiftedPart(1),',PartY=',ShiftedPart(2),',PartZ=',&
+                      ShiftedPart(3)
+              CALL Abort(&
+              __STAMP__&
+              ,'Particle outside BGM! Err2')
+            END IF
           END IF
         ELSE
           IPWRITE(UNIT_errOut,*)'Remap particle!'
@@ -1050,12 +1081,12 @@ SUBROUTINE MPIParticleRecv()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_vars,   ONLY:DoRefMapping
-USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartHaloElemToProc, PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
+USE MOD_Particle_MPI_Vars,        ONLY:PartMPI,PartMPIExchange,PartCommSize, PartRecvBuf,PartSendBuf!,iMessage
 USE MOD_Particle_Vars,            ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, Pt_temp,PartPosRef
 USE MOD_DSMC_Vars,                ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn
 USE MOD_LD_Vars,                  ONLY:useLD,PartStateBulkValues
 ! variables for parallel deposition
-USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,PartMPIDepoSend,ExtPartCommSize
+USE MOD_Particle_MPI_Vars,        ONLY:DoExternalParts,ExtPartCommSize
 USE MOD_Particle_MPI_Vars,        ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF
 #if defined(IMEX) || defined(IMPA)
 USE MOD_Particle_Vars,            ONLY:PartStateN,PartStage
@@ -1085,7 +1116,6 @@ INTEGER                       :: MessageSize, nRecvParticles, nRecvExtParticles
 !INTEGER,ALLOCATABLE           :: RecvArray(:,:), RecvArray_glob(:,:,:)
 !CHARACTER(LEN=64)             :: filename,hilf
 ! shape function 
-REAL                          :: ShiftedPart(1:3)
 INTEGER                       :: iExtPart
 #if defined(IMEX) || defined(IMPA)
 INTEGER                       :: iCounter
@@ -1449,7 +1479,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 ::BezierSideSize,SendID, iSide
-INTEGER                 ::iMPINeighbor
 !===================================================================================================================================
 
 ! funny: should not be required, as sides are built for master and slave sides??
@@ -1509,7 +1538,6 @@ SUBROUTINE InitHaloMesh()
 USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_PreProc
-USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D
 USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
@@ -1525,7 +1553,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 ::BezierSideSize,SendID, iElem,iSide
+INTEGER                 ::iElem
 INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
 LOGICAL                 :: TmpNeigh
 INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
@@ -1646,6 +1674,151 @@ END IF
 END SUBROUTINE InitHaloMesh
 
 
+SUBROUTINE InitSimpleHaloMesh()
+!===================================================================================================================================
+! communicate all direct neighbor sides from master to slave
+! has to be called after GetSideType and MPI_INIT of DG solver
+! read required parameters
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_MPI_Vars
+USE MOD_PreProc
+USE MOD_Mesh_Vars,                  ONLY:nSides
+USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
+USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
+USE MOD_Particle_MPI_Halo,          ONLY:IdentifySimpleHaloMPINeighborhood,ExchangeHaloGeometry
+USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 ::iElem
+INTEGER                 ::iProc,ALLOCSTAT,iMPINeighbor
+LOGICAL                 :: TmpNeigh
+INTEGER,ALLOCATABLE     ::SideIndex(:),ElemIndex(:)
+!===================================================================================================================================
+
+
+! dirty hack
+!nTotalBCSides=nSides
+
+ALLOCATE(SideIndex(1:nSides),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+,'  Cannot allocate SideIndex!')
+SideIndex=0
+ALLOCATE(ElemIndex(1:PP_nElems),STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(&
+__STAMP__&
+,'  Cannot allocate ElemIndex!')
+ElemIndex=0
+
+! check epsilondistance
+DO iProc=0,PartMPI%nProcs-1
+  IF(iProc.EQ.PartMPI%MyRank) CYCLE
+  LOGWRITE(*,*)'  - Identify non-immediate MPI-Neighborhood...'
+  !--- AS: identifies which of my node have to be sent to iProc w.r.t. to 
+  !        eps vicinity region.
+  CALL IdentifySimpleHaloMPINeighborhood(iProc,ElemIndex)
+  LOGWRITE(*,*)'    ...Done'
+
+  LOGWRITE(*,*)'  - Exchange Geometry of MPI-Neighborhood...'
+  !IF(.NOT.DoRefMapping)THEN
+  CALL ExchangeHaloGeometry(iProc,ElemIndex)
+  !ELSE
+  !  !CALL ExchangeMappedHaloGeometry(iProc,SideIndex,ElemIndex)
+  !  CALL ExchangeMappedHaloGeometry(iProc,ElemIndex)
+  !END IF
+  LOGWRITE(*,*)'    ...Done'
+  SideIndex(:)=0
+  ElemIndex(:)=0
+END DO 
+DEALLOCATE(SideIndex,STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  CALL abort(&
+__STAMP__&
+,'Could not deallocate SideIndex')
+END IF
+
+IF(DoRefMapping) CALL CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
+
+
+! Make sure PMPIVAR%MPINeighbor is consistent
+DO iProc=0,PartMPI%nProcs-1
+  IF (PartMPI%MyRank.EQ.iProc) CYCLE
+  IF (PartMPI%MyRank.LT.iProc) THEN
+    CALL MPI_SEND(PartMPI%isMPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,IERROR)
+    CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
+  ELSE IF (PartMPI%MyRank.GT.iProc) THEN
+    CALL MPI_RECV(TmpNeigh,1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,MPISTATUS,IERROR)
+    CALL MPI_SEND(PartMPI%isMPINeighbor(iProc),1,MPI_LOGICAL,iProc,1101,PartMPI%COMM,IERROR)
+  END IF
+  !IPWRITE(UNIT_stdOut,*) 'check',tmpneigh,PartMPI%isMPINeighbor(iProc)
+  IF (TmpNeigh.NEQV.PartMPI%isMPINeighbor(iProc)) THEN
+    IF(printMPINeighborWarnings)THEN
+      WRITE(*,*) 'WARNING: MPINeighbor set to TRUE',PartMPI%MyRank,iProc
+    END IF
+    IF(.NOT.PartMPI%isMPINeighbor(iProc))THEN
+      PartMPI%isMPINeighbor(iProc) = .TRUE.
+      PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
+    END IF
+  END IF
+END DO
+
+
+! fill list with neighbor proc id and add local neighbor id to PartHaloElemToProc
+ALLOCATE( PartMPI%MPINeighbor(PartMPI%nMPINeighbors) &
+        , PartMPI%GlobalToLocal(0:PartMPI%nProcs-1)  )
+iMPINeighbor=0
+PartMPI%GlobalToLocal=-1
+!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+!IPWRITE(UNIT_stdOut,*) 'PartMPI%nMPINeighbors',PartMPI%nMPINeighbors
+!IPWRITE(UNIT_stdOut,*) 'blabla',PartMPI%isMPINeighbor
+!CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+DO iProc=0,PartMPI%nProcs-1
+  IF(PartMPI%isMPINeighbor(iProc))THEN
+    iMPINeighbor=iMPINeighbor+1
+    PartMPI%MPINeighbor(iMPINeighbor)=iProc
+    PartMPI%GlobalToLocal(iProc)     =iMPINeighbor
+    DO iElem=PP_nElems+1,nTotalElems
+      IF(iProc.EQ.PartHaloElemToProc(NATIVE_PROC_ID,iElem)) PartHaloElemToProc(LOCAL_PROC_ID,iElem)=iMPINeighbor
+    END DO ! iElem
+  END IF
+END DO
+
+IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
+  __STAMP__&
+  , ' Found number of mpi neighbors does not match! ', iMPINeighbor,REAL(PartMPI%nMPINeighbors))
+
+
+IF(PartMPI%nMPINeighbors.GT.0)THEN
+  IF(ANY(PartHaloElemToProc(LOCAL_PROC_ID,:).EQ.-1)) IPWRITE(UNIT_stdOut,*) ' Local proc id not found'
+  IF(MAXVAL(PartHaloElemToProc(LOCAL_PROC_ID,:)).GT.PartMPI%nMPINeighbors) IPWRITE(UNIT_stdOut,*) ' Local proc id too high.'
+  IF(MINVAL(PartHaloElemToProc(NATIVE_ELEM_ID,:)).LT.1) IPWRITE(UNIT_stdOut,*) ' native elem id too low'
+  IF(MINVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).LT.0) IPWRITE(UNIT_stdOut,*) ' native proc id not found'
+  IF(MAXVAL(PartHaloElemToProc(NATIVE_PROC_ID,:)).GT.PartMPI%nProcs-1) IPWRITE(UNIT_stdOut,*) ' native proc id too high.'
+END IF
+!IPWRITE(UNIT_stdOut,*) ' List Of Neighbor Procs',  PartMPI%nMPINeighbors,PartMPI%MPINeighbor
+
+
+!IF(DepositionType.EQ.'shape_function') THEN
+!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .TRUE.
+!ELSE
+!  PMPIVAR%MPINeighbor(PMPIVAR%iProc) = .FALSE.
+!END IF
+
+!CALL  WriteParticlePartitionInformation()
+
+END SUBROUTINE InitSimpleHaloMesh
+
+
 SUBROUTINE InitEmissionComm()
 !===================================================================================================================================
 ! build emission communicators for particle emission regions
@@ -1656,7 +1829,9 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 USE MOD_Particle_Vars,          ONLY:Species,nSpecies
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
+#ifndef PP_HDG
 USE MOD_CalcTimeStep,           ONLY:CalcTimeStep
+#endif /*PP_HDG*/
 USE MOD_Particle_MPI_Vars,      ONLY:halo_eps
 !USE MOD_Particle_Mesh,          ONLY:BoxInProc
 ! IMPLICIT VARIABLE HANDLING
@@ -1756,7 +1931,9 @@ DO iSpec=1,nSpecies
       IF(Species(iSpec)%Init(iInit)%initialParticleNumber.NE.0)THEN
         lineVector(1:3)=(/0.,0.,Species(iSpec)%Init(iInit)%CuboidHeightIC/)
       ELSE
+#ifndef PP_HDG
         dt = CALCTIMESTEP()
+#endif /*PP_HDG*/
         lineVector(1:3)= dt* Species(iSpec)%Init(iInit)%VeloIC/Species(iSpec)%Init(iInit)%alpha 
       END IF
       xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
@@ -2169,7 +2346,7 @@ SUBROUTINE CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
-USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO
+USE MOD_Mesh_Vars,              ONLY:BC,nGeo,XCL_NGeo,DXCL_NGEO
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D

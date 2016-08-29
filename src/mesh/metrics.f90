@@ -69,7 +69,7 @@ SUBROUTINE CalcMetrics(NodeCoords)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,               ONLY:NGeo,dXCL_NGeo,XCL_NGeo,Vdm_NGeo_CLNGeo
-USE MOD_Mesh_Vars,               ONLY:Vdm_CLNGeo_GaussN,Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
+USE MOD_Mesh_Vars,               ONLY:Vdm_CLNGeo_CLN,Vdm_CLN_GaussN
 USE MOD_Mesh_Vars,               ONLY:DCL_NGeo,DCL_N
 USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:nElems,sideID_minus_upper,nBCSides
@@ -106,7 +106,11 @@ REAL               :: scaledJac(2)
 #ifdef PARTICLES
 INTEGER            :: iSide,lowerLimit
 #endif /*PARTICLES*/
+REAL               :: StartT,EndT
 !===================================================================================================================================
+
+
+StartT=BOLTZPLATZTIME(MPI_COMM_WORLD)
 ALLOCATE(dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo,1:PP_nElems)) !jacobi matrix of the mapping P\in NGeo
 ! null outside!!
 dXCL_NGeo=0.
@@ -331,6 +335,9 @@ SWRITE(UNIT_stdOut,'(A)') ' '
 #endif /*PARTICLES*/
 
 
+endt=BOLTZPLATZTIME(MPI_COMM_WORLD)
+SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took      [',EndT-StartT,'s]'
+
 !#ifdef PARTICLES
 !  CALL GetSideType()
 !#endif /*PARTICLES*/
@@ -345,7 +352,6 @@ SUBROUTINE CalcSurfMetrics(JaCL_N,XCL_N,iElem)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals,     ONLY:CROSS
-USE MOD_Mesh_Vars,   ONLY:NGeo
 USE MOD_Mesh_Vars,   ONLY:Vdm_CLN_GaussN
 USE MOD_Mesh_Vars,   ONLY:ElemToSide,BCFace_xGP,nBCSides,Face_xGP
 USE MOD_Mesh_Vars,   ONLY:NormVec,TangVec1,TangVec2,SurfElem

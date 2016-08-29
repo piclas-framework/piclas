@@ -25,15 +25,20 @@ INTERFACE FinalizePoyntingInt
   MODULE PROCEDURE FinalizePoyntingInt
 END INTERFACE
 
+#if (PP_nVar>=6)
 INTERFACE CalcPoyntingIntegral
   MODULE PROCEDURE CalcPoyntingIntegral
 END INTERFACE
+#endif
 
 INTERFACE CalcPotentialEnergy
   MODULE PROCEDURE CalcPotentialEnergy
 END INTERFACE
 
-PUBLIC:: GetPoyntingIntPlane,FinalizePoyntingInt, CalcPoyntingIntegral, CalcPotentialEnergy
+PUBLIC:: GetPoyntingIntPlane,FinalizePoyntingInt,CalcPotentialEnergy
+#if (PP_nVar>=6)
+PUBLIC:: CalcPoyntingIntegral
+#endif
 #ifndef PARTICLES
 PUBLIC:: AnalyzeField
 #endif /*NOT PARTICLES*/
@@ -151,6 +156,7 @@ END IF ! DoAnalyze
 END SUBROUTINE AnalyzeField
 #endif /*NOT PARTICLES*/
 
+#if (PP_nVar>=6)
 SUBROUTINE CalcPoyntingIntegral(t,doProlong)
 !===================================================================================================================================
 ! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Labatto or Gaus Points is used is missing ... ups
@@ -331,7 +337,10 @@ END DO ! iElems
 CALL OutputPoyntingInt(t,Sabs(:)) 
 
 END SUBROUTINE CalcPoyntingIntegral
+#endif
 
+
+#if (PP_nVar>=6)
 SUBROUTINE PoyntingVector(Uface_in,Sloc)
 !===================================================================================================================================
 ! Calculate the Poynting Vector on a certain face
@@ -360,8 +369,10 @@ DO p = 0,PP_N
 END DO  ! p - PP_N
 
 END SUBROUTINE PoyntingVector
+#endif
 
 
+#if (PP_nVar>=6)
 SUBROUTINE OutputPoyntingInt(t,Sabs)
 !===================================================================================================================================
 ! Output of PoyntingVector Integral to *csv vile
@@ -426,6 +437,7 @@ WRITE(unit_index_PI,'(A1)') ''
 #endif    /* MPI */
 
 END SUBROUTINE OutputPoyntingInt
+#endif
 
 SUBROUTINE GetPoyntingIntPlane()
 !===================================================================================================================================
@@ -579,9 +591,10 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,          ONLY : nElems, sJ
 USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_Equation_Vars,      ONLY : smu0, eps0 
+#ifndef PP_HDG
 USE MOD_DG_Vars,            ONLY : U
 USE MOD_Mesh_Vars,          ONLY : Elem_xGP
-USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax,DoPML
+#endif /*PP_nVar=8*/        
 #ifdef PP_HDG
 #if PP_nVar==1
 USE MOD_Equation_Vars,        ONLY:E
@@ -590,6 +603,8 @@ USE MOD_Equation_Vars,        ONLY:B
 #else
 USE MOD_Equation_Vars,        ONLY:B,E
 #endif /*PP_nVar==1*/
+#else
+USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax,DoPML
 #endif /*PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -609,6 +624,7 @@ REAL              :: WEl_tmp, WMag_tmp, E_abs, B_abs
 Wel=0.
 WMag=0.
 
+#ifndef PP_HDG
 IF(DoPML)THEN
   DO iElem=1,nElems
     !--- Calculate and save volume of element iElem
@@ -642,6 +658,7 @@ IF(DoPML)THEN
 #endif /*PP_nVar=8*/        
   END DO
 ELSE
+#endif /*PP_HDG*/
   DO iElem=1,nElems
     !--- Calculate and save volume of element iElem
     WEl_tmp=0. 
@@ -686,7 +703,9 @@ ELSE
     WMag = WMag + WMag_tmp
 #endif /*PP_nVar=8*/        
   END DO
+#ifndef PP_HDG
 END IF ! noPML
+#endif /*PP_HDG*/
 
 WEl = WEl * eps0 * 0.5 
 WMag = WMag * smu0 * 0.5

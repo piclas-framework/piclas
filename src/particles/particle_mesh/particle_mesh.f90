@@ -26,6 +26,10 @@ INTERFACE InitFIBGM
   MODULE PROCEDURE InitFIBGM
 END INTERFACE
 
+INTERFACE InitSFIBGM
+  MODULE PROCEDURE InitSFIBGM
+END INTERFACE
+
 INTERFACE SingleParticleToExactElement
   MODULE PROCEDURE SingleParticleToExactElement
 END INTERFACE
@@ -77,7 +81,7 @@ END INTERFACE
 PUBLIC::CountPartsPerElem
 PUBLIC::BuildElementBasis,CheckIfCurvedElem,BuildElementOrigin
 PUBLIC::InitElemVolumes,MapRegionToElem,PointToExactElement
-PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
+PUBLIC::InitParticleMesh,FinalizeParticleMesh, InitFIBGM,InitSFIBGM, SingleParticleToExactElement, SingleParticleToExactElementNoMap
 PUBLIC::InsideElemBoundingBox
 !===================================================================================================================================
 !
@@ -93,11 +97,9 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic
-USE MOD_Mesh_Vars,              ONLY:Elems,nElems,nSides,SideToElem,ElemToSide,offsetElem,NGeo
+USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
-USE MOD_LoadBalance_Vars,       ONLY:nTracksPerElem
-!USE MOD_Particle_Surfaces_Vars, ONLY:neighborElemID,neighborLocSideID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -140,8 +142,10 @@ FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
 ! method from xPhysic to parameter space
 RefMappingGuess = GETINT('RefMappingGuess','1')
 RefMappingEps   = GETREAL('RefMappingEps','1e-4')
+
 epsInCell       = SQRT(3.0*RefMappingEps)
-epsOneCell      = 1.0+epsInCell
+!epsOneCell      = 1.0+epsInCell
+
 IF((RefMappingGuess.LT.1).OR.(RefMappingGuess.GT.4))THEN
    CALL abort(&
 __STAMP__ &
@@ -226,6 +230,7 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Tracking_Vars, ONLY: Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -256,6 +261,9 @@ SDEALLOCATE(slenXiEtaZetaBasis)
 SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemRadiusNGeo)
 SDEALLOCATE(ElemRadius2NGeo)
+SDEALLOCATE(EpsOneCell)
+SDEALLOCATE(Distance)
+SDEALLOCATE(ListDistance)
 
 ParticleMeshInitIsDone=.FALSE.
 
@@ -272,18 +280,13 @@ SUBROUTINE SingleParticleToExactElement(iPart,doHalo)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
-USE MOD_TimeDisc_Vars,          ONLY:dt
-USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo,IsBCElem,ElemRadius2NGeo
-USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
-USE MOD_PICDepo_Vars,           ONLY:DepositionType
 USE MOD_Particle_Intersection,  ONLY:PartInElemCheck
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -300,8 +303,6 @@ INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,Cel
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                           :: InElementCheck,ParticleFound                                
 REAL                              :: xi(1:3),vBary(1:3),Distance2
-REAL,ALLOCATABLE                  :: Distance(:)
-INTEGER,ALLOCATABLE               :: ListDistance(:)
 !REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
 !REAL,PARAMETER                    :: eps2=1e-3
 !REAL                              :: epsOne,OneMeps
@@ -333,9 +334,6 @@ CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
 
 !--- check all cells associated with this beckground mesh cell
 nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
-ALLOCATE( Distance(1:nBGMElems) &
-        , ListDistance(1:nBGMElems) )
-
 
 ! get closest element barycenter
 Distance=-1.
@@ -360,8 +358,7 @@ END IF
 
 !print*,'earlier',Distance,ListDistance
 !CALL BubbleSortID(Distance,ListDistance,nBGMElems)
-CALL InsertionSort(Distance,ListDistance,nBGMElems)
-!print*,'after',Distance,ListDistance
+IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
 
 ! loop through sorted list and start by closest element  
 DO iBGMElem=1,nBGMElems
@@ -378,7 +375,7 @@ DO iBGMElem=1,nBGMElems
   CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
   IF(MAXVAL(ABS(Xi)).LE.1.0) THEN ! particle inside
     InElementCheck=.TRUE.
-  ELSE IF(MAXVAL(ABS(Xi)).GT.epsOneCell)THEN ! particle outside
+  ELSE IF(MAXVAL(ABS(Xi)).GT.epsOneCell(ElemID))THEN ! particle outside
   !  print*,'ici'
     InElementCheck=.FALSE.
   ELSE ! particle at face,edge or node, check most possible point
@@ -412,9 +409,6 @@ END DO ! iBGMElem
 IF (.NOT.ParticleFound) THEN
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
-! deallocate lists
-DEALLOCATE( Distance,ListDistance)
-!read*
 END SUBROUTINE SingleParticleToExactElement
 
 
@@ -436,6 +430,7 @@ USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarInterSectionBezier,ComputeBilinearIntersectionSuperSampled2
 USE MOD_Particle_Intersection,  ONLY:ComputeBezierIntersection
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
+USE MOD_Particle_Tracking_Vars, ONLY:Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -453,8 +448,6 @@ INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,Cel
 INTEGER                           :: ilocSide,SideID,flip
 LOGICAL                           :: ParticleFound,isHit
 REAL                              :: lengthPartTrajectory,tmpPos(3),xNodes(1:3,1:4),tmpLastPartPos(1:3),Distance2
-REAL,ALLOCATABLE                  :: Distance(:)
-INTEGER,ALLOCATABLE               :: ListDistance(:)
 REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
 REAL,PARAMETER                    :: eps2=1e-3
 REAL                              :: epsOne,OneMeps,locAlpha(6),xi,eta
@@ -482,8 +475,6 @@ CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
 !--- check all cells associated with this beckground mesh cell
 
 nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
-ALLOCATE( Distance(1:nBGMElems) &
-        , ListDistance(1:nBGMElems) )
 
 ! get closest element barycenter
 Distance=-1.
@@ -510,7 +501,7 @@ IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
 END IF
 
 !CALL BubbleSortID(Distance,ListDistance,nBGMElems)
-CALL InsertionSort(Distance,ListDistance,nBGMElems)
+IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
 ! loop through sorted list and start by closest element  
 tmpPos=PartState(iPart,1:3)
 tmpLastPartPos(1:3)=LastPartPos(iPart,1:3)
@@ -571,7 +562,7 @@ DO iBGMElem=1,nBGMElems
 
 !      CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
 !                                                                                    ,xi,eta  ,iPart,flip,SideID)
-    CASE(BILINEAR,PLANAR_NONRECT)
+    CASE(BILINEAR)
       xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
       xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
       xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
@@ -581,7 +572,7 @@ DO iBGMElem=1,nBGMElems
                                                                                         ,xi,eta,iPart,flip,SideID)
 
 
-    CASE(CURVED)
+    CASE(CURVED,PLANAR_NONRECT)
       CALL ComputeBezierIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                               ,xi ,eta,iPart,SideID)
 
@@ -606,10 +597,98 @@ END DO ! iBGMElem
 IF (.NOT.ParticleFound) THEN
   PDM%ParticleInside(iPart) = .FALSE.
 END IF
-! deallocate lists
-DEALLOCATE( Distance,ListDistance)
-!read*
 END SUBROUTINE SingleParticleToExactElementNoMap
+
+
+SUBROUTINE InitSFIBGM()
+!===================================================================================================================================
+! Build Fast-Init-Background-Mesh.
+! The BGM is a cartesian mesh for easier locating of particles
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_ReadInTools,                        ONLY:GetRealArray,GetLogical
+!USE MOD_Particle_Surfaces,                  ONLY:GetSideType,GetBCSideType!,BuildElementBasis
+USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
+USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
+#ifdef MPI
+USE MOD_Particle_MPI,                       ONLY:InitSimpleHALOMesh
+USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI,printMPINeighborWarnings
+#endif /*MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#ifdef MPI
+REAL                     :: StartT,EndT
+#endif /*MPI*/
+!=================================================================================================================================
+
+!! Read parameter for FastInitBackgroundMesh (FIBGM)
+GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
+GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
+GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
+
+! simplified halo region
+! compute elem bary and elem radius
+ALLOCATE(ElemBaryNGeo(1:3,1:nTotalElems) )
+CALL BuildElementOrigin()
+ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
+        ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
+        ,ElemRadiusNGeo(1:nTotalElems)         &
+        ,ElemRadius2NGeo(1:nTotalElems)        )
+CALL BuildElementBasis()
+
+CALL GetSFIBGM()
+
+#ifdef MPI
+SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
+StartT=MPI_WTIME()
+!CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
+printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.TRUE.')
+CALL InitSimpleHaloMesh()
+#endif /*MPI*/
+
+! remove inner BezierControlPoints3D and SlabNormals, usw.
+IF(DoRefMapping) CALL ReshapeBezierSides()
+
+CALL GetElemAndSideType() 
+
+SDEALLOCATE(XiEtaZetaBasis)
+SDEALLOCATE(slenXiEtaZetaBasis)
+SDEALLOCATE(ElemRadiusNGeo)
+SDEALLOCATE(ElemRadius2NGeo)
+
+ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
+        ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
+        ,ElemRadiusNGeo(1:nTotalElems)         &
+        ,ElemRadius2NGeo(1:nTotalElems)        )
+CALL BuildElementBasis()
+
+
+#ifdef MPI
+! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
+! rebuild is a local operation
+CALL AddSimpleHALOCellsToFIBGM()
+EndT=MPI_WTIME()
+IF(PartMPI%MPIROOT)THEN
+   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
+END IF
+#endif /*MPI*/
+
+!CALL MapElemToFIBGM()
+
+SWRITE(UNIT_stdOut,'(A)')' DONE!' 
+
+END SUBROUTINE InitSFIBGM
 
 
 SUBROUTINE InitFIBGM()
@@ -670,12 +749,19 @@ END IF
 ! remove inner BezierControlPoints3D and SlabNormals, usw.
 IF(DoRefMapping) CALL ReshapeBezierSides()
 
+
 CALL GetElemAndSideType() 
 !! sort element faces by type - linear, bilinear, curved
 !IF(DoRefMapping) THEN !  CALL GetBCSideType()
 !ELSE
 !  CALL GetSideType()
 !END IF
+
+SDEALLOCATE(XiEtaZetaBasis)
+SDEALLOCATE(slenXiEtaZetaBasis)
+SDEALLOCATE(ElemRadiusNGeo)
+SDEALLOCATE(ElemRadius2NGeo)
+
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
@@ -699,20 +785,24 @@ USE MOD_PreProc
 USE MOD_Globals!,            ONLY : UNIT_StdOut
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
 USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
-USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
+USE MOD_Mesh_Vars,                          ONLY:NGeo
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
-USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
+#ifndef PP_HDG
 USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
+#endif /*PP_HDG*/
 USE MOD_Equation_Vars,                      ONLY:c
-USE MOD_Particle_Vars,                      ONLY:manualtimestep,dt_part_ratio
+USE MOD_Particle_Vars,                      ONLY:manualtimestep
+#if (PP_TimeDiscMethod==201)
+USE MOD_Particle_Vars,                      ONLY:dt_part_ratio
+#endif
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
 USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartSideToElem
+USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding
 USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
@@ -867,7 +957,13 @@ BGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
 !--- PO: modified for curved and shape-function influence
 !        c*dt*SafetyFactor+r_cutoff
 IF (ManualTimeStep.EQ.0.0) THEN
+#ifndef PP_HDG
   deltaT=CALCTIMESTEP()
+#else
+   CALL abort(&
+__STAMP__&
+, 'ManualTimeStep is not defined correctly!')
+#endif /*PP_HDG*/
 ELSE
   deltaT=ManualTimeStep
 END IF
@@ -889,9 +985,10 @@ halo_eps2=halo_eps*halo_eps
 SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 halo distance  |    ',halo_eps 
 
 #ifdef MPI
-IF ((DepositionType.EQ.'shape_function') &
-.OR.(DepositionType.EQ.'cylindrical_shape_function') &
-.OR.(DepositionType.EQ.'shape_function_1d'))THEN
+IF ((DepositionType.EQ.'shape_function')             &
+.OR.(DepositionType.EQ.'shape_function_cylindrical') &
+.OR.(DepositionType.EQ.'shape_function_spherical')   &
+.OR.(DepositionType.EQ.'shape_function_1d')          )THEN
   BGMimax = INT((MIN(GEO%xmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
   BGMimin = INT((MAX(GEO%xmin-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
   BGMjmax = INT((MIN(GEO%ymax+halo_eps,GEO%ymaxglob)-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
@@ -1056,6 +1153,793 @@ DO iElem=1,nTotalElems
     zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
     zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
   END DO ! ilocSide
+
+  ! same as above
+  BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+  BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+  BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+  BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+  BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+  BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+  BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+  BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+  BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+  BGMCellZmin = MAX(BGMCellZmin,BGMkmin)     
+  ! add current Element to BGM-Elem
+  DO iBGM = BGMCellXmin,BGMCellXmax
+    DO jBGM = BGMCellYmin,BGMCellYmax
+      DO kBGM = BGMCellZmin,BGMCellZmax
+        GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1    
+        GEO%FIBGM(iBGM,jBGM,kBGM)%Element(GEO%FIBGM(iBGM,jBGM,kBGM)%nElem) = iElem
+      END DO ! kBGM
+    END DO ! jBGM
+  END DO ! iBGM
+END DO ! iElem
+
+
+!IF(mode.EQ.2) RETURN
+#ifdef MPI
+!--- MPI stuff for background mesh (FastinitBGM)
+BGMCells=0 
+ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3))
+DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside and save their indices in BGMCellsArray
+  DO jBGM=BGMjmin, BGMjmax
+    DO kBGM=BGMkmin, BGMkmax
+      IF (GEO%FIBGM(iBGM,jBGM,kBGM)%nElem .GT. 0) THEN
+        !print*,"1",BGMCells*3+1,iBGM
+        !print*,"2",BGMCells*3+2,jBGM
+        !print*,"3",BGMCells*3+3,kBGM
+        BGMCellsArray(BGMCells*3+1)= iBGM
+        BGMCellsArray(BGMCells*3+2)= jBGM
+        BGMCellsArray(BGMCells*3+3)= kBGM
+        BGMCells=BGMCells+1
+      END IF
+    END DO ! kBGM
+  END DO ! jBGM
+END DO ! iBGM
+
+!Communicate number of BGMCells
+CALL MPI_ALLGATHER(BGMCells, 1, MPI_INTEGER, NbrOfBGMCells(0:PartMPI%nProcs-1), 1, MPI_INTEGER, PartMPI%COMM, IERROR) 
+ALLOCATE(GlobalBGMCellsArray(1:SUM(NbrOfBGMCells)*3))
+Displacement(1)=0
+DO i=2, PartMPI%nProcs
+  Displacement(i) = SUM(NbrOfBGMCells(0:i-2))*3
+END DO
+!print*,'displacement',displacement
+!Gather indices of every Procs' Cells
+CALL MPI_ALLGATHERV(BGMCellsArray(1:BGMCells*3), BGMCells*3, MPI_INTEGER, GlobalBGMCellsArray, &    
+                   & NbrOfBGMCells(0:PartMPI%nProcs-1)*3, Displacement, MPI_INTEGER, PartMPI%COMM, IERROR)
+
+!--- JN: first: count required array size for ReducedBGMArray
+!--- TS: Define padding stencil (max of halo and shape padding)
+!        Reason: This padding is used to build the ReducedBGM, so any information 
+!                outside this region is lost 
+FIBGMCellPadding(1:3) = INT(halo_eps/GEO%FIBGMdeltas(1:3))+1
+! halo region already included in BGM
+!FIBGMCellPadding(1:3) = 0
+nShapePaddingX = 0
+nShapePaddingY = 0
+nShapePaddingZ = 0
+IF ((DepositionType.EQ.'shape_function')             &
+.OR.(DepositionType.EQ.'shape_function_cylindrical') &
+.OR.(DepositionType.EQ.'shape_function_spherical')   &
+.OR.(DepositionType.EQ.'shape_function_1d')          )THEN
+  nShapePaddingX = INT(r_sf/GEO%FIBGMdeltas(1)+0.9999999)
+  nShapePaddingY = INT(r_sf/GEO%FIBGMdeltas(2)+0.9999999)
+  nShapePaddingZ = INT(r_sf/GEO%FIBGMdeltas(3)+0.9999999)
+  !IPWRITE(*,*) 'nShapePaddingX',nShapePaddingX
+  !IPWRITE(*,*) 'nShapePaddingY',nShapePaddingY
+  !IPWRITE(*,*) 'nShapePaddingZ',nShapePaddingZ
+ ! IF(mode.EQ.2) THEN
+ !   IF((nShapePaddingX.EQ.0)    &
+ !     .OR.(nShapePaddingY.EQ.0) &
+ !     .OR.(nShapePaddingZ.EQ.0))THEN 
+ !       CALL abort(__STAMP__&
+ !         'Error in stencil calculation for FIBGM and shape function')
+ !   END IF
+ ! END IF
+! 0.999999 in order to prevent stencil to get too big in case of r_sf==c_int*deltas
+!  -> worst case: last 0.000001 gets cut off -> insignificant
+END IF
+nPaddingCellsX = MAX(nShapePaddingX,FIBGMCellPadding(1))
+nPaddingCellsY = MAX(nShapePaddingY,FIBGMCellPadding(2))
+nPaddingCellsZ = MAX(nShapePaddingZ,FIBGMCellPadding(3))
+
+j=0
+CurrentProc=0
+DO i=1, SUM(NbrOfBGMCells)*3, 3
+  IF  (i .GT. SUM(NbrOfBGMCells(0: CurrentProc))*3 .AND. CurrentProc .LT. PartMPI%nProcs-1) THEN
+    CurrentProc=CurrentProc+1
+  END IF
+  IF  (.NOT.(GlobalBGMCellsArray(i) .LT. BGMimin-nPaddingCellsX .OR. GlobalBGMCellsArray(i).GT. BGMimax+nPaddingCellsX &
+      & .OR. GlobalBGMCellsArray(i+1) .LT. BGMjmin-nPaddingCellsY .OR. GlobalBGMCellsArray(i+1) .GT. BGMjmax+nPaddingCellsY &
+      & .OR. GlobalBGMCellsArray(i+2) .LT. BGMkmin-nPaddingCellsZ .OR. GlobalBGMCellsArray(i+2) .GT. BGMkmax+nPaddingCellsZ &
+      & .OR. CurrentProc .EQ. PartMPI%Myrank)) THEN
+    j=j+3
+  END IF
+END DO !i
+
+! Periodic: ReducedBGMArray needs to include cells on the other side of periodic vectors
+! --- PO: CAUTION: changes throuogh curved
+Vec1(1:3) = 0
+Vec2(1:3) = 0
+Vec3(1:3) = 0
+IF (GEO%nPeriodicVectors.GT.0) THEN
+  ! build case matrix
+  IF (GEO%nPeriodicVectors.EQ.1) THEN
+    DO ind = 1,3
+      Vec1(ind) = INT(GEO%PeriodicVectors(ind,1)/GEO%FIBGMdeltas(ind)+0.1)
+    END DO
+  END IF
+  IF (GEO%nPeriodicVectors.EQ.2) THEN
+    DO ind = 1,3
+      Vec1(ind) = INT(GEO%PeriodicVectors(ind,1)/GEO%FIBGMdeltas(ind)+0.1)
+      Vec2(ind) = INT(GEO%PeriodicVectors(ind,2)/GEO%FIBGMdeltas(ind)+0.1)
+    END DO
+  END IF
+  IF (GEO%nPeriodicVectors.EQ.3) THEN
+    DO ind = 1,3
+      Vec1(ind) = INT(GEO%PeriodicVectors(ind,1)/GEO%FIBGMdeltas(ind)+0.1)
+      Vec2(ind) = INT(GEO%PeriodicVectors(ind,2)/GEO%FIBGMdeltas(ind)+0.1)
+      Vec3(ind) = INT(GEO%PeriodicVectors(ind,3)/GEO%FIBGMdeltas(ind)+0.1)
+    END DO
+  END IF
+  CurrentProc=0
+  DO i=1, SUM(NbrOfBGMCells)*3, 3
+    DO iCase = 1, NbrOfCases
+      IF ((casematrix(iCase,1).EQ.0) .AND. &  ! DON'T DO THE UNMOVED PART, HAS BEEN DONE ABOVE
+          (casematrix(iCase,2).EQ.0) .AND. &
+          (casematrix(iCase,3).EQ.0)) CYCLE
+      Shift(1:3) = casematrix(iCase,1)*Vec1(1:3) + &
+                   casematrix(iCase,2)*Vec2(1:3) + &
+                   casematrix(iCase,3)*Vec3(1:3)
+      IF  (i .GT. SUM(NbrOfBGMCells(0: CurrentProc))*3 .AND. CurrentProc .LT. PartMPI%nProcs-1) THEN
+        CurrentProc=CurrentProc+1
+      END IF
+      IF  (.NOT.(GlobalBGMCellsArray(i)  +Shift(1) .LT. BGMimin-nPaddingCellsX &
+           .OR.  GlobalBGMCellsArray(i)  +Shift(1) .GT. BGMimax+nPaddingCellsX &
+           .OR.  GlobalBGMCellsArray(i+1)+Shift(2) .LT. BGMjmin-nPaddingCellsY &
+           .OR.  GlobalBGMCellsArray(i+1)+Shift(2) .GT. BGMjmax+nPaddingCellsY &
+           .OR.  GlobalBGMCellsArray(i+2)+Shift(3) .LT. BGMkmin-nPaddingCellsZ &
+           .OR.  GlobalBGMCellsArray(i+2)+Shift(3) .GT. BGMkmax+nPaddingCellsZ &
+           .OR. CurrentProc .EQ. PartMPI%MyRank)) THEN
+        j=j+3
+      END IF
+    END DO !iCase
+  END DO !i
+END IF !nPeriodic>0
+
+ALLOCATE(ReducedBGMArray(1:j))
+!Reduce GlobalBGMCellsArray: erase cells far away from iprocs domain
+!--- JN: ReducedBGMArray contains data only from other MPI procs!
+
+IF (GEO%nPeriodicVectors.GT.0) THEN  !Periodic (can't be done below because ReducedBGMArray is sorted by proc)
+  j=1
+  CurrentProc=0
+  ReducedBGMArray=0
+  ReducedNbrOfBGMCells=0
+  DO i=1, SUM(NbrOfBGMCells)*3, 3
+    DO iCase = 1, NbrOfCases         ! This time INCLUDING non-moved
+      Shift(1:3) = casematrix(iCase,1)*Vec1(1:3) + &
+                   casematrix(iCase,2)*Vec2(1:3) + &
+                   casematrix(iCase,3)*Vec3(1:3)
+      IF  (i .GT. SUM(NbrOfBGMCells(0: CurrentProc))*3 .AND. CurrentProc .LT. PartMPI%nProcs-1) THEN
+        CurrentProc=CurrentProc+1
+      END IF
+      IF  (.NOT.(GlobalBGMCellsArray(i)   +Shift(1) .LT. BGMimin-nPaddingCellsX &
+           .OR.  GlobalBGMCellsArray(i)   +Shift(1) .GT. BGMimax+nPaddingCellsX &
+           .OR.  GlobalBGMCellsArray(i+1) +Shift(2) .LT. BGMjmin-nPaddingCellsY &
+           .OR.  GlobalBGMCellsArray(i+1) +Shift(2) .GT. BGMjmax+nPaddingCellsY &
+           .OR.  GlobalBGMCellsArray(i+2) +Shift(3) .LT. BGMkmin-nPaddingCellsZ &
+           .OR.  GlobalBGMCellsArray(i+2) +Shift(3) .GT. BGMkmax+nPaddingCellsZ &
+           .OR.  CurrentProc .EQ. PartMPI%MyRank)) THEN
+        ReducedBGMArray(j)=GlobalBGMCellsArray(i)     +Shift(1)
+        ReducedBGMArray(j+1)=GlobalBGMCellsArray(i+1) +Shift(2)
+        ReducedBGMArray(j+2)=GlobalBGMCellsArray(i+2) +Shift(3)
+        j=j+3
+        ReducedNbrOfBGMCells(CurrentProc)=ReducedNbrOfBGMCells(CurrentProc)+1
+      END IF
+    END DO ! iCase
+  END DO !i
+ELSE ! non periodic case
+  j=1
+  CurrentProc=0
+  ReducedBGMArray=0
+  ReducedNbrOfBGMCells=0
+  DO i=1, SUM(NbrOfBGMCells)*3, 3
+    IF  (i .GT. SUM(NbrOfBGMCells(0: CurrentProc))*3 .AND. CurrentProc .LT. PartMPI%nProcs-1) THEN
+      CurrentProc=CurrentProc+1
+    END IF
+    IF  (.NOT.(GlobalBGMCellsArray(i)   .LT. BGMimin-nPaddingCellsX .OR. GlobalBGMCellsArray(i).GT.    BGMimax+nPaddingCellsX &
+        & .OR. GlobalBGMCellsArray(i+1) .LT. BGMjmin-nPaddingCellsY .OR. GlobalBGMCellsArray(i+1) .GT. BGMjmax+nPaddingCellsY &
+        & .OR. GlobalBGMCellsArray(i+2) .LT. BGMkmin-nPaddingCellsZ .OR. GlobalBGMCellsArray(i+2) .GT. BGMkmax+nPaddingCellsZ &
+         & .OR. CurrentProc .EQ. PartMPI%MyRank)) THEN
+      ReducedBGMArray(j  )=GlobalBGMCellsArray(i  )
+      ReducedBGMArray(j+1)=GlobalBGMCellsArray(i+1)
+      ReducedBGMArray(j+2)=GlobalBGMCellsArray(i+2)
+      j=j+3
+      ReducedNbrOfBGMCells(CurrentProc)=ReducedNbrOfBGMCells(CurrentProc)+1
+    END IF
+  END DO !i
+END IF !periodic
+
+
+!--- JN: Determine required size of CellProcList array (hope this works, everytime I try to again understand this
+!        shape function parallelization stuff, I get confused...)
+!--- JN: But therefore we first have to refill BGMCellsArray to not only contain
+!        cells with PIC%FastInitBGM%nElem.GT.0 but also those adjacent to them!
+!--- TS: Actually, not the adjacent cell needs to be considered but a shape_proc stencil
+!        Usually, the shape function radius is chosen to be the size of one BGM, but this 
+!        is not necessarily always true. Hence new shape_proc padding:
+
+BGMCells=0 
+DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside or adjacent and save their indices in BGMCellsArray
+  DO jBGM=BGMjmin, BGMjmax
+    DO kBGM=BGMkmin, BGMkmax
+      iMin=MAX(iBGM-nShapePaddingX,BGMimin); iMax=MIN(iBGM+nShapePaddingX,BGMimax)
+      jMin=MAX(jBGM-nShapePaddingY,BGMjmin); jMax=MIN(jBGM+nShapePaddingY,BGMjmax)
+      kMin=MAX(kBGM-nShapePaddingZ,BGMkmin); kMax=MIN(kBGM+nShapePaddingZ,BGMkmax)
+      IF (SUM(GEO%FIBGM(iMin:iMax,jMin:jMax,kMin:kMax)%nElem) .GT. 0) THEN
+        ! debug here changed i,j,k to ibgm,jbgm,kbgm
+        BGMCellsArray(BGMCells*3+1)= iBGM
+        BGMCellsArray(BGMCells*3+2)= jBGM
+        BGMCellsArray(BGMCells*3+3)= kBGM
+        BGMCells=BGMCells+1
+      END IF
+    END DO !iBGM
+  END DO !jBGM
+END DO !kBGM
+!print*,'BGMCellsArray',BGMCellsArray
+
+! now create a temporary array in which for all BGM Cells + ShapePadding the processes are saved 
+! reason: this way, the ReducedBGM List only needs to be searched once and not once for each BGM Cell+Stencil
+
+! first count the maximum number of procs that exist within each BGM cell (inkl. Shape Padding region)
+ALLOCATE(CellProcNum(BGMimin-nShapePaddingX:BGMimax+nShapePaddingX, &
+                     BGMjmin-nShapePaddingY:BGMjmax+nShapePaddingY, &
+                     BGMkmin-nShapePaddingZ:BGMkmax+nShapePaddingZ))
+CellProcNum = 0
+Procs = 0 ! = maximum number of procs in one BGM cell
+DO j=1, SUM(ReducedNbrOfBGMCells)*3-2, 3
+  IF((ReducedBGMArray(j).GE.BGMimin-nShapePaddingX).AND.(ReducedBGMArray(j).LE.BGMimax+nShapePaddingX))THEN
+    IF((ReducedBGMArray(j+1).GE.BGMjmin-nShapePaddingY).AND.(ReducedBGMArray(j+1).LE.BGMjmax+nShapePaddingY))THEN
+      IF((ReducedBGMArray(j+2).GE.BGMkmin-nShapePaddingZ).AND.(ReducedBGMArray(j+2).LE.BGMkmax+nShapePaddingZ))THEN !inside
+        CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)) = &
+             CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)) + 1
+        Procs = MAX(Procs, CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)))
+      END IF
+    END IF
+  END IF
+END DO
+! allocate the temporary array
+ALLOCATE(CellProcList(BGMimin-nShapePaddingX:BGMimax+nShapePaddingX, &
+                      BGMjmin-nShapePaddingY:BGMjmax+nShapePaddingY, &
+                      BGMkmin-nShapePaddingZ:BGMkmax+nShapePaddingZ, &
+                      1:Procs))
+CellProcList = -1
+
+! fill array with proc numbers
+
+CellProcNum = 0
+j_offset = 0
+DO CurrentProc = 0,PartMPI%nProcs-1
+  DO j = 1+j_offset, ReducedNbrOfBGMCells(CurrentProc)*3-2+j_offset,3
+    IF((ReducedBGMArray(j).GE.BGMimin-nShapePaddingX).AND.(ReducedBGMArray(j).LE.BGMimax+nShapePaddingX))THEN
+      IF((ReducedBGMArray(j+1).GE.BGMjmin-nShapePaddingY).AND.(ReducedBGMArray(j+1).LE.BGMjmax+nShapePaddingY))THEN
+        IF((ReducedBGMArray(j+2).GE.BGMkmin-nShapePaddingZ).AND.(ReducedBGMArray(j+2).LE.BGMkmax+nShapePaddingZ))THEN
+          CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)) = &
+             CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)) + 1
+          CellProcList(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2), &
+             CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2))) = CurrentProc
+        END IF
+      END IF
+    END IF
+  END DO
+  j_offset = j_offset + ReducedNbrOfBGMCells(CurrentProc)*3
+END DO
+! fill real array
+DO Cell=0, BGMCells-1
+  TempProcList=0
+  DO iBGM = BGMCellsArray(Cell*3+1)-nShapePaddingX, BGMCellsArray(Cell*3+1)+nShapePaddingX
+    DO jBGM = BGMCellsArray(Cell*3+2)-nShapePaddingY, BGMCellsArray(Cell*3+2)+nShapePaddingY
+      DO kBGM = BGMCellsArray(Cell*3+3)-nShapePaddingZ, BGMCellsArray(Cell*3+3)+nShapePaddingZ
+        DO m = 1,CellProcNum(iBGM,jBGM,kBGM)
+          TempProcList(CellProcList(iBGM,jBGM,kBGM,m))=1       ! every proc that is within the stencil gets a 1
+        END DO ! m
+        kk = kBGM
+      END DO !kBGM
+      jj = jBGM
+    END DO !jBGM
+    ii = iBGM
+  END DO !iBGM
+  Procs=SUM(TempProcList)
+  IF (Procs.NE.0) THEN
+    ALLOCATE(GEO%FIBGM(ii-nShapePaddingX,jj-nShapePaddingY,kk-nShapePaddingZ)%ShapeProcs(1:Procs+1))
+    GEO%FIBGM(ii-nShapePaddingX,jj-nShapePaddingY,kk-nShapePaddingZ)%ShapeProcs(1) = Procs
+    j=2
+    DO m=0,PartMPI%nProcs-1
+      IF (TempProcList(m) .EQ. 1) THEN
+        IF(.NOT.PartMPI%isMPINeighbor(m))THEN
+          !IF(mode.EQ.2)THEN
+          !  IPWRITE(UNIT_stdOut,*) ' Warning, something wrong with halo region'
+          !  CALL abort(__STAMP__&
+          !      , ' Something wrong with Halo region' )
+          !END IF
+          PartMPI%isMPINeighbor(m) = .true.
+          PartMPI%nMPINeighbors=PartMPI%nMPINeighbors+1
+        END IF
+        GEO%FIBGM(ii-nShapePaddingX,jj-nShapePaddingY,kk-nShapePaddingZ)%ShapeProcs(j)=m
+        j=j+1
+      END IF
+    END DO !m
+  END IF
+END DO !Cell
+
+   !Compare own BGMCells and their Neighbors with ReducedBGMArray and save other Processes in BGM-Cells
+   !--- JN: ReducedBGMArray contains data only from other MPI procs!
+   !--- JN: BGMCellsArray contains in index triplets (i,k,l) all BGM cells containing elements from the local MPI proc
+   !        plus the index triplets of BGM cells adjacent to cells containing elements from the local MPI proc
+
+!   !--- JN: First identify only procs that share the exact same BGM cell as I (SharedProcs)
+!   Procs = 0
+!   CellProcList=-1
+!   DO Cell=0, BGMCells-1
+!     TempProcList=0
+!     i = BGMCellsArray(Cell*3+1)
+!     k = BGMCellsArray(Cell*3+2)
+!     l = BGMCellsArray(Cell*3+3)
+!     IF (GEO%FIBGM(i,k,l)%nElem.EQ.0) CYCLE
+!     CurrentProc=0
+!     m=2
+!     DO j=1, SUM(ReducedNbrOfBGMCells)*3-2, 3
+!       !--- JN: Slide CurrentProc to the MPI Proc that the currently checked BGMCell belongs to
+!       DO WHILE (j .GT. SUM(ReducedNbrOfBGMCells(0: CurrentProc))*3 .AND. CurrentProc .LT. PMPIVAR%nProcs-1)
+!         CurrentProc=CurrentProc+1
+!       END DO
+!       IF (i .EQ. ReducedBGMArray(j) .AND. k .EQ. ReducedBGMArray(j+1) .AND. l .EQ. ReducedBGMArray(j+2)) THEN
+!         IF (m .GT. MaxShapeProcs) THEN
+!           CALL abort(__STAMP__&
+!                                'ERROR in Boundary_PIC.f90: Cellproclist can contain only MaxShapeProcs=',MaxShapeProcs,999.)
+!         END IF
+!         CellProcList(i,k,l,m)=CurrentProc
+!         m=m+1
+!         TempProcList(CurrentProc)=1
+!       END IF
+!     END DO !j
+!     Procs=SUM(TempProcList)
+!     ALLOCATE(GEO%FIBGM(i,k,l)%SharedProcs(1:Procs+1)) 
+!     GEO%FIBGM(i,k,l)%SharedProcs(1) = Procs
+!     j=2
+!     DO m=0,PMPIVAR%nProcs-1
+!       IF (TempProcList(m) .EQ. 1) THEN
+!         GEO%FIBGM(i,k,l)%SharedProcs(j)=m
+!         j=j+1
+!       END IF
+!     END DO !m
+!   END DO !Cell
+
+
+! ----------------------------------------------------------------!
+!--- AS: Do it again for Paddingcells
+DEALLOCATE(CellProcList)
+DEALLOCATE(CellProcNum)
+!--- JN: Determine required size of CellProcList array (hope this works, everytime I try to again understand this
+!        shape function parallelization stuff, I get confused...)
+!--- JN: But therefore we first have to refill BGMCellsArray to not only contain
+!        cells with PIC%FastInitBGM%nElem.GT.0 but also those adjacent and the paddingcells to them!
+BGMCells=0
+DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside or adjacent and save their indices in BGMCellsArray
+  DO jBGM=BGMjmin, BGMjmax
+    DO kBGM=BGMkmin, BGMkmax
+      iMin=MAX(iBGM-nPaddingCellsX,BGMimin); iMax=MIN(iBGM+nPaddingCellsX,BGMimax)
+      jMin=MAX(jBGM-nPaddingCellsY,BGMjmin); jMax=MIN(jBGM+nPaddingCellsY,BGMjmax)
+      kMin=MAX(kBGM-nPaddingCellsZ,BGMkmin); kMax=MIN(kBGM+nPaddingCellsZ,BGMkmax)
+      IF (SUM(GEO%FIBGM(iMin:iMax,jMin:jMax,kMin:kMax)%nElem) .GT. 0) THEN
+        BGMCellsArray(BGMCells*3+1)= iBGM
+        BGMCellsArray(BGMCells*3+2)= jBGM
+        BGMCellsArray(BGMCells*3+3)= kBGM
+        BGMCells=BGMCells+1
+      END IF
+    END DO !iBGM
+  END DO !jBGM
+END DO !kBGM
+
+! now create a temporary array in which for all BGM Cells + ShapePadding the processes are saved 
+! reason: this way, the ReducedBGM List only needs to be searched once and not once for each BGM Cell+Stencil
+
+! first count the maximum number of procs that exist within each BGM cell (inkl. Shape Padding region)
+ALLOCATE(CellProcNum(BGMimin-nPaddingCellsX:BGMimax+nPaddingCellsX, &
+                     BGMjmin-nPaddingCellsY:BGMjmax+nPaddingCellsY, &
+                     BGMkmin-nPaddingCellsZ:BGMkmax+nPaddingCellsZ))
+CellProcNum = 0
+Procs = 0
+DO j=1, SUM(ReducedNbrOfBGMCells)*3-2, 3
+   IF((ReducedBGMArray(j).GE.BGMimin-nPaddingCellsX).AND.(ReducedBGMArray(j).LE.BGMimax+nPaddingCellsX))THEN
+     IF((ReducedBGMArray(j+1).GE.BGMjmin-nPaddingCellsY).AND.(ReducedBGMArray(j+1).LE.BGMjmax+nPaddingCellsY))THEN
+       IF((ReducedBGMArray(j+2).GE.BGMkmin-nPaddingCellsZ).AND.(ReducedBGMArray(j+2).LE.BGMkmax+nPaddingCellsZ))THEN
+        CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)) = &
+             CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)) + 1
+        Procs = MAX(Procs, CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)))
+       END IF
+     END IF
+   END IF
+END DO
+! allocate the temporary array
+ALLOCATE(CellProcList(BGMimin-nPaddingCellsX:BGMimax+nPaddingCellsX, &
+                      BGMjmin-nPaddingCellsY:BGMjmax+nPaddingCellsY, &
+                      BGMkmin-nPaddingCellsZ:BGMkmax+nPaddingCellsZ, &
+                      1:Procs))
+CellProcList = -1
+
+! fill array with proc numbers
+
+CellProcNum = 0
+j_offset = 0
+DO CurrentProc = 0,PartMPI%nProcs-1
+  DO j = 1+j_offset, j_offset+ReducedNbrOfBGMCells(CurrentProc)*3-2,3
+    CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)) = &
+             CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2)) + 1
+    CellProcList(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2), &
+             CellProcNum(ReducedBGMArray(j),ReducedBGMArray(j+1),ReducedBGMArray(j+2))) = CurrentProc
+  END DO
+  j_offset = j_offset + ReducedNbrOfBGMCells(CurrentProc)*3
+END DO
+
+! fill real array
+DO Cell=0, BGMCells-1
+  TempProcList=0
+  DO iBGM = BGMCellsArray(Cell*3+1)-nPaddingCellsX, BGMCellsArray(Cell*3+1)+nPaddingCellsX
+    DO jBGM = BGMCellsArray(Cell*3+2)-nPaddingCellsY, BGMCellsArray(Cell*3+2)+nPaddingCellsY
+      DO kBGM = BGMCellsArray(Cell*3+3)-nPaddingCellsZ, BGMCellsArray(Cell*3+3)+nPaddingCellsZ
+        DO m = 1,CellProcNum(iBGM,jBGM,kBGM)
+          TempProcList(CellProcList(iBGM,jBGM,kBGM,m))=1       ! every proc that is within the stencil gets a 1
+        END DO ! m
+        kk = kBGM
+      END DO !l
+      jj = jBGM
+    END DO !k
+    ii = iBGM
+  END DO !i
+  Procs=SUM(TempProcList)
+  IF (Procs.NE.0) THEN
+    ALLOCATE(GEO%FIBGM(ii-nPaddingCellsX,jj-nPaddingCellsY,kk-nPaddingCellsZ)%PaddingProcs(1:Procs+1))
+    GEO%FIBGM(ii-nPaddingCellsX,jj-nPaddingCellsY,kk-nPaddingCellsZ)%PaddingProcs(1) = Procs
+    j=2
+    DO m=0,PartMPI%nProcs-1
+      IF (TempProcList(m) .EQ. 1) THEN
+        GEO%FIBGM(ii-nPaddingCellsX,jj-nPaddingCellsY,kk-nPaddingCellsZ)%PaddingProcs(j)=m
+        j=j+1
+      END IF
+    END DO !m
+  END IF
+END DO !Cell
+DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, CellProcNum)
+#endif /*MPI*/
+
+END SUBROUTINE GetFIBGM
+
+
+SUBROUTINE GetSFIBGM()
+!===================================================================================================================================
+! build local FIBGM mesh for process local FIBGM mesh including HALO region
+! mode 1: build local BGM and interconnections with other processes
+! mode 2: rebuild BGM including HALO region
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals!,            ONLY : UNIT_StdOut
+USE MOD_Particle_Mesh_Vars,                 ONLY:ElemBaryNGeo,ElemRadiusNGeo
+USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
+USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
+USE MOD_PICDepo,                            ONLY:InitializeDeposition
+USE MOD_Particle_MPI_Vars,                  ONLY:SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
+#ifndef PP_HDG
+USE MOD_CalcTimeStep,                       ONLY:CalcTimeStep
+#endif /*PP_HDG*/
+USE MOD_Equation_Vars,                      ONLY:c
+USE MOD_Particle_Vars,                      ONLY:manualtimestep
+#if (PP_TimeDiscMethod==201)
+USE MOD_Particle_Vars,                      ONLY:dt_part_ratio
+#endif
+USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
+#ifdef MPI
+USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding
+USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
+#endif /*MPI*/
+
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!INTEGER,INTENT(IN)    :: mode
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!REAL                  :: localXmin,localXmax,localymin,localymax,localzmin,localzmax
+INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax
+REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
+INTEGER                          :: iBGM,jBGM,kBGM,iElem,iSide
+INTEGER                          :: BGMCellXmax,BGMCellXmin
+INTEGER                          :: BGMCellYmax,BGMCellYmin
+INTEGER                          :: BGMCellZmax,BGMCellZmin
+INTEGER                          :: ALLOCSTAT
+INTEGER                          :: iProc
+REAL                             :: deltaT
+#ifdef MPI
+INTEGER                          :: ii,jj,kk,i,j
+INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
+INTEGER                          :: imin, imax, kmin, kmax, jmin, jmax
+INTEGER                          :: nPaddingCellsX, nPaddingCellsY, nPaddingCellsZ
+INTEGER                          :: nShapePaddingX, nShapePaddingY, nShapePaddingZ
+INTEGER                          :: NbrOfBGMCells(0:PartMPI%nProcs-1)
+INTEGER                          :: Displacement(1:PartMPI%nProcs)
+INTEGER, ALLOCATABLE             :: BGMCellsArray(:),CellProcNum(:,:,:)
+INTEGER, ALLOCATABLE             :: GlobalBGMCellsArray(:), ReducedBGMArray(:)
+INTEGER                          :: ReducedNbrOfBGMCells(0:PartMPI%nProcs-1)
+INTEGER, ALLOCATABLE             :: CellProcList(:,:,:,:)
+INTEGER                          :: tempproclist(0:PartMPI%nProcs-1)
+INTEGER                          :: Vec1(1:3), Vec2(1:3), Vec3(1:3)
+INTEGER                          :: ind, Shift(1:3), iCase
+INTEGER                          :: j_offset
+#endif /*MPI*/
+!===================================================================================================================================
+
+! zeros
+#ifdef MPI
+ii=0
+jj=0
+kk=0
+#endif /*MPI*/
+
+!#ifdef MPI
+!   !--- If this MPI process does not contain particles, step out
+!   IF (PMPIVAR%GROUP.EQ.MPI_GROUP_EMPTY) RETURN
+!#endif
+!--- calc min and max coordinates for mesh
+xmin = HUGE(1.0)
+xmax =-HUGE(1.0)
+ymin = HUGE(1.0)
+ymax =-HUGE(1.0)
+zmin = HUGE(1.0)
+zmax =-HUGE(1.0)
+
+! serch for min,max of BezierControlPoints, e.g. the convec hull of the domain
+! more accurate, XCL_NGeo
+!DO iElem=1,nTotalElems
+!  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
+!  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
+!  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
+!  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
+!  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
+!  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
+!END DO ! iElem
+
+! bounding box!!
+DO iSide=1,nTotalSides
+  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
+  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,iSide)))
+  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,iSide)))
+  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,iSide)))
+  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,iSide)))
+  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,iSide)))
+END DO ! iSide
+
+GEO%xmin=xmin
+GEO%xmax=xmax
+GEO%ymin=ymin
+GEO%ymax=ymax
+GEO%zmin=zmin
+GEO%zmax=zmax
+
+#ifdef MPI
+  ! allocate and initialize MPINeighbor
+  ALLOCATE(PartMPI%isMPINeighbor(0:PartMPI%nProcs-1))
+  PartMPI%isMPINeighbor(:) = .FALSE.
+  PartMPI%nMPINeighbors=0
+
+! get global min, max
+  CALL MPI_ALLREDUCE(GEO%xmin, GEO%xminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
+  CALL MPI_ALLREDUCE(GEO%ymin, GEO%yminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
+  CALL MPI_ALLREDUCE(GEO%zmin, GEO%zminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
+  CALL MPI_ALLREDUCE(GEO%xmax, GEO%xmaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
+  CALL MPI_ALLREDUCE(GEO%ymax, GEO%ymaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
+  CALL MPI_ALLREDUCE(GEO%zmax, GEO%zmaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
+#else
+  GEO%xminglob=GEO%xmin
+  GEO%yminglob=GEO%ymin
+  GEO%zminglob=GEO%zmin
+  GEO%xmaxglob=GEO%xmax
+  GEO%ymaxglob=GEO%ymax
+  GEO%zmaxglob=GEO%zmax
+#endif   
+
+  CALL InitPeriodicBC()
+  ! reduce beziercontrolpoints to boundary sides
+  !IF(DoRefMapping) CALL ReshapeBezierSides()
+  !CALL InitializeInterpolation() ! not any more required ! has to be called earliear
+  CALL InitializeDeposition()     ! has to remain here, because domain can have changed
+  !CALL InitPIC()                 ! does not depend on domain
+
+! deallocate stuff // required for dynamic load balance
+#ifdef MPI
+IF (ALLOCATED(GEO%FIBGM)) THEN
+  DO iBGM=GEO%FIBGMimin,GEO%FIBGMimax
+    DO jBGM=GEO%FIBGMjmin,GEO%FIBGMjmax
+      DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
+        SDEALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%Element)
+        SDEALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%ShapeProcs)
+        SDEALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%PaddingProcs)
+!           SDEALLOCATE(GEO%FIBGM(i,k,l)%SharedProcs)
+      END DO
+    END DO
+  END DO
+  DEALLOCATE(GEO%FIBGM)
+END IF
+#endif /*MPI*/
+
+!--- compute number of background cells in each direction
+BGMimax = INT((GEO%xmax-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
+BGMimin = INT((GEO%xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
+BGMjmax = INT((GEO%ymax-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
+BGMjmin = INT((GEO%ymin-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
+BGMkmax = INT((GEO%zmax-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
+BGMkmin = INT((GEO%zmin-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
+
+!--- JN: For MPI communication, information also about the neighboring FIBGM cells is needed
+!--- AS: shouldn't we add up here the nPaddingCells? 
+!--- TS: What we need to do is increase the BGM area for shape_function ONLY
+!        Reason: if a particle moves outside the domain, there still needs to be a
+!                BGM with an associated ShapeProc at the particle position
+!        Particle may only move c*dt*Safetyfactor.
+!--- PO: modified for curved and shape-function influence
+!        c*dt*SafetyFactor+r_cutoff
+IF (ManualTimeStep.EQ.0.0) THEN
+#ifndef PP_HDG
+  deltaT=CALCTIMESTEP()
+#else
+   CALL abort(&
+__STAMP__&
+, 'ManualTimeStep is not defined correctly!')
+#endif /*PP_HDG*/
+ELSE
+  deltaT=ManualTimeStep
+END IF
+IF (halo_eps_velo.EQ.0) halo_eps_velo = c
+#if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==1000)
+IF (halo_eps_velo.EQ.c) THEN
+   CALL abort(&
+__STAMP__&
+, 'Halo Eps Velocity for MPI not defined')
+END IF
+#endif
+#if (PP_TimeDiscMethod==201)
+deltaT=CALCTIMESTEP()
+halo_eps = c*deltaT*SafetyFactor*max(dt_part_ratio,1.0)
+#else
+halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
+#endif
+halo_eps2=halo_eps*halo_eps
+SWRITE(UNIT_stdOut,'(A38,E24.12)') ' |                 halo distance  |    ',halo_eps 
+
+#ifdef MPI
+IF ((DepositionType.EQ.'shape_function') &
+.OR.(DepositionType.EQ.'cylindrical_shape_function') &
+.OR.(DepositionType.EQ.'shape_function_1d'))THEN
+  BGMimax = INT((MIN(GEO%xmax+halo_eps,GEO%xmaxglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+1.00001)
+  BGMimin = INT((MAX(GEO%xmin-halo_eps,GEO%xminglob)-GEO%xminglob)/GEO%FIBGMdeltas(1)+0.99999)
+  BGMjmax = INT((MIN(GEO%ymax+halo_eps,GEO%ymaxglob)-GEO%yminglob)/GEO%FIBGMdeltas(2)+1.00001)
+  BGMjmin = INT((MAX(GEO%ymin-halo_eps,GEO%yminglob)-GEO%yminglob)/GEO%FIBGMdeltas(2)+0.99999)
+  BGMkmax = INT((MIN(GEO%zmax+halo_eps,GEO%zmaxglob)-GEO%zminglob)/GEO%FIBGMdeltas(3)+1.00001)
+  BGMkmin = INT((MAX(GEO%zmin-halo_eps,GEO%zminglob)-GEO%zminglob)/GEO%FIBGMdeltas(3)+0.99999)
+END IF
+#endif
+
+!print*,"BGM-Indices:",PartMPI%iProc, BGMimin, BGMimax, BGMjmin, BGMjmax, BGMkmin, BGMkmax
+GEO%FIBGMimax=BGMimax
+GEO%FIBGMimin=BGMimin
+GEO%FIBGMjmax=BGMjmax
+GEO%FIBGMjmin=BGMjmin
+GEO%FIBGMkmax=BGMkmax
+GEO%FIBGMkmin=BGMkmin
+
+! allocate space for BGM
+ALLOCATE(GEO%FIBGM(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+  WRITE(*,'(A,6(I0,A))')'Problem allocating GEO%FIBGM(',BGMimin,':',BGMimax,',', &
+                                                        BGMjmin,':',BGMjmax,',', &
+                                                        BGMkmin,':',BGMkmax,')'
+#ifdef MPI
+  iProc=PartMPI%MyRank
+#else
+  iProc=0
+#endif /*MPI*/
+  CALL abort(&
+__STAMP__&
+, 'Problem allocating GEO%FIBGM!' )
+END IF
+
+! null number of element per BGM cell
+DO iBGM = BGMimin,BGMimax
+   DO jBGM = BGMjmin,BGMjmax
+      DO kBGM = BGMkmin,BGMkmax
+         GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = 0
+      END DO
+   END DO
+END DO
+
+!--- compute number of elements in each background cell
+DO iElem=1,nTotalElems
+  xmin = HUGE(1.0)
+  xmax =-HUGE(1.0)
+  ymin = HUGE(1.0)
+  ymax =-HUGE(1.0)
+  zmin = HUGE(1.0)
+  zmax =-HUGE(1.0)
+
+  ! get elem extension based on barycenter and radius
+  xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
+  ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)
+  zmin = ElemBaryNGeo(3,iElem) -ElemRadiusNGeo(iElem)
+  xmax = ElemBaryNGeo(1,iElem) +ElemRadiusNGeo(iElem)
+  ymax = ElemBaryNGeo(2,iElem) +ElemRadiusNGeo(iElem)
+  zmax = ElemBaryNGeo(3,iElem) +ElemRadiusNGeo(iElem)
+
+
+    !--- find minimum and maximum BGM cell for current element
+  BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+  BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+  BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+  BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+  BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+  BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+  BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+  BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+  BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+  BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
+  ! add ecurrent element to number of BGM-elems
+  DO iBGM = BGMCellXmin,BGMCellXmax
+    DO jBGM = BGMCellYmin,BGMCellYmax
+      DO kBGM = BGMCellZmin,BGMCellZmax
+         GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
+      END DO ! kBGM
+    END DO ! jBGM
+  END DO ! iBGM
+END DO ! iElem
+
+!--- allocate mapping variable and clean number for mapping (below)
+DO iBGM = BGMimin,BGMimax
+  DO jBGM = BGMjmin,BGMjmax
+    DO kBGM = BGMkmin,BGMkmax
+      ALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%Element(1:GEO%FIBGM(iBGM,jBGM,kBGM)%nElem))
+      GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = 0
+    END DO ! kBGM
+  END DO ! jBGM
+END DO ! iBGM
+
+!--- map elements to background cells
+DO iElem=1,nTotalElems
+  xmin = HUGE(1.0)
+  xmax =-HUGE(1.0)
+  ymin = HUGE(1.0)
+  ymax =-HUGE(1.0)
+  zmin = HUGE(1.0)
+  zmax =-HUGE(1.0)
+
+  ! get elem extension based on barycenter and radius
+  xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
+  ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)
+  zmin = ElemBaryNGeo(3,iElem) -ElemRadiusNGeo(iElem)
+  xmax = ElemBaryNGeo(1,iElem) +ElemRadiusNGeo(iElem)
+  ymax = ElemBaryNGeo(2,iElem) +ElemRadiusNGeo(iElem)
+  zmax = ElemBaryNGeo(3,iElem) +ElemRadiusNGeo(iElem)
 
   ! same as above
   BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
@@ -1520,7 +2404,7 @@ END DO !Cell
 DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, CellProcNum)
 #endif /*MPI*/
 
-END SUBROUTINE GetFIBGM
+END SUBROUTINE GetSFIBGM
 
 
 #ifdef MPI
@@ -1535,16 +2419,10 @@ USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
 USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
 USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
-USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
-USE MOD_PICDepo,                            ONLY:InitializeDeposition
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Equation_Vars,                      ONLY:c
-USE MOD_Particle_Mesh_Vars,                 ONLY:FIBGMCellPadding,PartElemToSide,PartSideToElem
-USE MOD_PICDepo_Vars,                       ONLY:DepositionType, r_sf
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI,SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
-USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1967,6 +2845,283 @@ END DO ! iElem
 DEALLOCATE(Elementfound)
 
 END SUBROUTINE AddHALOCellsToFIBGM
+
+
+SUBROUTINE AddSimpleHALOCellsToFIBGM()
+!===================================================================================================================================
+! remap all elements including halo-elements into FIBGM
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals!,            ONLY : UNIT_StdOut
+USE MOD_Particle_Mesh_Vars,                 ONLY:ElemBaryNGeo,ElemRadiusNGeo
+USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
+USE MOD_Particle_Tracking_Vars,             ONLY:Distance,ListDistance
+USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!INTEGER,INTENT(IN)    :: mode
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax, ALLOCSTAT
+REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
+INTEGER                          :: iBGM,jBGM,kBGM,iElem
+INTEGER                          :: BGMCellXmax,BGMCellXmin
+INTEGER                          :: BGMCellYmax,BGMCellYmin
+INTEGER                          :: BGMCellZmax,BGMCellZmin,maxnBGMElems
+LOGICAL, ALLOCATABLE             :: ElementFound(:)
+!===================================================================================================================================
+
+
+! current min,max
+BGMimax=GEO%FIBGMimax
+BGMimin=GEO%FIBGMimin
+BGMjmax=GEO%FIBGMjmax
+BGMjmin=GEO%FIBGMjmin
+BGMkmax=GEO%FIBGMkmax
+BGMkmin=GEO%FIBGMkmin
+
+GEO%TFIBGMimax =GEO%FIBGMimax
+GEO%TFIBGMimin =GEO%FIBGMimin
+GEO%TFIBGMjmax =GEO%FIBGMjmax
+GEO%TFIBGMjmin =GEO%FIBGMjmin
+GEO%TFIBGMkmax =GEO%FIBGMkmax
+GEO%TFIBGMkmin =GEO%FIBGMkmin
+
+IF(GEO%directions(1)) BGMCellXmax = BGMimax
+IF(GEO%directions(1)) BGMCellXmin = BGMimin
+IF(GEO%directions(2)) BGMCellYmax = BGMjmax
+IF(GEO%directions(2)) BGMCellYmin = BGMjmin
+IF(GEO%directions(3)) BGMCellZmax = BGMkmax
+IF(GEO%directions(3)) BGMCellZmin = BGMkmin
+
+
+! get new min max
+DO iElem=PP_nElems+1,nTotalElems
+
+  xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
+  ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)
+  zmin = ElemBaryNGeo(3,iElem) -ElemRadiusNGeo(iElem)
+  xmax = ElemBaryNGeo(1,iElem) +ElemRadiusNGeo(iElem)
+  ymax = ElemBaryNGeo(2,iElem) +ElemRadiusNGeo(iElem)
+  zmax = ElemBaryNGeo(3,iElem) +ElemRadiusNGeo(iElem)
+   
+  IF(.NOT.GEO%directions(1)) BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+  IF(.NOT.GEO%directions(1)) BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+  IF(.NOT.GEO%directions(2)) BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  IF(.NOT.GEO%directions(2)) BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+  IF(.NOT.GEO%directions(3)) BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+  IF(.NOT.GEO%directions(3)) BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+
+  BGMimax=MAX(BGMimax,BGMCellXmax)
+  BGMimin=MIN(BGMimin,BGMCellXmin)
+  BGMjmax=MAX(BGMjmax,BGMCellYmax)
+  BGMjmin=MIN(BGMjmin,BGMCellYmin)
+  BGMkmax=MAX(BGMkmax,BGMCellZmax)
+  BGMkmin=MIN(BGMkmin,BGMCellZmin)
+END DO ! iElem = nElems+1,nTotalElems
+
+
+GEO%TFIBGMimax =BGMimax
+GEO%TFIBGMimin =BGMimin
+GEO%TFIBGMjmax =BGMjmax
+GEO%TFIBGMjmin =BGMjmin
+GEO%TFIBGMkmax =BGMkmax
+GEO%TFIBGMkmin =BGMkmin
+ALLOCATE(GEO%TFIBGM(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+__STAMP__&
+,' ERROR in AddElemsToTFIBGM: Cannot allocate GEO%TFIBGM!')
+END IF
+
+ALLOCATE( ElementFound(1:nTotalElems) )
+ElementFound = .FALSE.
+
+DO iBGM = BGMimin,BGMimax
+  DO jBGM = BGMjmin,BGMjmax
+    DO kBGM = BGMkmin,BGMkmax
+       GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = 0
+    END DO ! kBGM
+  END DO ! jBGM
+END DO ! iBGM
+
+!--- compute number of elements in each background cell
+DO iElem=1,nTotalElems
+  ! get elem extension based on barycenter and radius
+  xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
+  ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)
+  zmin = ElemBaryNGeo(3,iElem) -ElemRadiusNGeo(iElem)
+  xmax = ElemBaryNGeo(1,iElem) +ElemRadiusNGeo(iElem)
+  ymax = ElemBaryNGeo(2,iElem) +ElemRadiusNGeo(iElem)
+  zmax = ElemBaryNGeo(3,iElem) +ElemRadiusNGeo(iElem)
+
+  !--- find minimum and maximum BGM cell for current element
+  IF(GEO%nPeriodicVectors.EQ.0)THEN
+    ! same fancy stuff
+    !BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    !BGMCellXmax = MIN(BGMCellXmax,BGMimax)
+    !BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    !BGMCellXmin = MAX(BGMCellXmin,BGMimin)
+    !BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
+    !BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    !BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
+    !BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
+    !BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    !BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
+    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
+    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
+    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
+    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
+    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
+    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
+  ELSE
+    ! here fancy stuff, because element could be wide out of element range
+    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
+    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
+    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
+    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
+    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
+    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
+  END IF
+  ! add ecurrent element to number of BGM-elems
+  DO iBGM = BGMCellXmin,BGMCellXmax
+    DO jBGM = BGMCellYmin,BGMCellYmax
+      DO kBGM = BGMCellZmin,BGMCellZmax
+         GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1
+         ElementFound(iElem) = .TRUE.
+      END DO ! kBGM
+    END DO ! jBGM
+  END DO ! iBGM
+END DO ! iElem
+
+!--- allocate mapping variable and clean number for mapping (below)
+DO iBGM = BGMimin,BGMimax
+  DO jBGM = BGMjmin,BGMjmax
+    DO kBGM = BGMkmin,BGMkmax
+      ALLOCATE(GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(1:GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem))
+      GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = 0
+    END DO ! kBGM
+  END DO ! jBGM
+END DO ! iBGM
+
+!--- map elements to background cells
+DO iElem=1,nTotalElems
+  ! get elem extension based on barycenter and radius
+  xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
+  ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)
+  zmin = ElemBaryNGeo(3,iElem) -ElemRadiusNGeo(iElem)
+  xmax = ElemBaryNGeo(1,iElem) +ElemRadiusNGeo(iElem)
+  ymax = ElemBaryNGeo(2,iElem) +ElemRadiusNGeo(iElem)
+  zmax = ElemBaryNGeo(3,iElem) +ElemRadiusNGeo(iElem)
+
+  ! same as above
+  IF(GEO%nPeriodicVectors.EQ.0)THEN
+    ! still the fancy stuff
+    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
+    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
+    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
+    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
+    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
+    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
+  ELSE
+    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
+    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
+    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
+    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
+    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
+    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
+  END IF
+  ! add current Element to BGM-Elem
+  DO iBGM = BGMCellXmin,BGMCellXmax
+    DO jBGM = BGMCellYmin,BGMCellYmax
+      DO kBGM = BGMCellZmin,BGMCellZmax
+        GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1    
+        GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem) = iElem
+      END DO ! kBGM
+    END DO ! jBGM
+  END DO ! iBGM
+END DO ! iElem
+
+
+DO iElem=1,nTotalElems
+  IF(.NOT.ElementFound(iElem))THEN
+    ! get elem extension based on barycenter and radius
+    xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
+    ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)
+    zmin = ElemBaryNGeo(3,iElem) -ElemRadiusNGeo(iElem)
+    xmax = ElemBaryNGeo(1,iElem) +ElemRadiusNGeo(iElem)
+    ymax = ElemBaryNGeo(2,iElem) +ElemRadiusNGeo(iElem)
+    zmax = ElemBaryNGeo(3,iElem) +ElemRadiusNGeo(iElem)
+
+
+    IPWRITE(UNIT_stdOut,*) ' FIBGM , iElem'
+    IPWRITE(UNIT_stdOut,*) 'xmin',GEO%xmin,xmin
+    IPWRITE(UNIT_stdOut,*) 'xmax',GEO%xmax,xmax
+    IPWRITE(UNIT_stdOut,*) 'ymin',GEO%ymin,ymin
+    IPWRITE(UNIT_stdOut,*) 'ymax',GEO%ymax,ymax
+    IPWRITE(UNIT_stdOut,*) 'zmin',GEO%zmin,zmin
+    IPWRITE(UNIT_stdOut,*) 'zmax',GEO%zmax,zmax
+    IPWRITE(UNIT_stdOut,*) ' BGM , iBGM'
+    IPWRITE(UNIT_stdOut,*) 'xmin', BGMimin,CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    IPWRITE(UNIT_stdOut,*) 'xmax', BGMimax,CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+    IPWRITE(UNIT_stdOut,*) 'ymin', BGMjmin,CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    IPWRITE(UNIT_stdOut,*) 'ymax', BGMjmax,CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+    IPWRITE(UNIT_stdOut,*) 'zmin', BGMkmin,CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    IPWRITE(UNIT_stdOut,*) 'zmax', BGMkmax,CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    CALL abort(&
+__STAMP__&
+,' Element not located in FIBGM! iElem, myRank',iElem,REAL(PartMPI%MyRank))
+  END IF
+END DO ! iElem
+
+DEALLOCATE(Elementfound)
+
+! and get max number of bgm-elems
+maxnBGMElems=0
+DO iBGM = GEO%TFIBGMimin,GEO%TFIBGMimax
+  DO jBGM = GEO%TFIBGMjmin,GEO%TFIBGMjmax
+    DO kBGM = GEO%TFIBGMkmin,GEO%TFIBGMkmax
+      maxnBGMElems=MAX(maxnBGMElems,GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem)
+    END DO ! kBGM
+  END DO ! jBGM
+END DO ! iBGM
+ALLOCATE(Distance    (1:maxnBGMElems) &
+        ,ListDistance(1:maxnBGMElems) )
+
+END SUBROUTINE AddSimpleHALOCellsToFIBGM
 #endif /*MPI*/
 
 
@@ -1977,14 +3132,11 @@ SUBROUTINE InitElemVolumes()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals!,            ONLY : UNIT_StdOut
-USE MOD_Mesh_Vars,          ONLY:nElems,NGeo,sJ
+USE MOD_Mesh_Vars,          ONLY:nElems,sJ
 USE MOD_Particle_Mesh_Vars, ONLY:GEO
 USE MOD_Interpolation_Vars, ONLY:wGP
 USE MOD_Particle_Vars,      ONLY:usevMPF
 USE MOD_ReadInTools
-#ifdef MPI
-USE MOD_Particle_MPI_Vars,  ONLY:PartMPI
-#endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1996,7 +3148,7 @@ USE MOD_Particle_MPI_Vars,  ONLY:PartMPI
 INTEGER           :: iElem
 INTEGER           :: i,j,k
 INTEGER           :: ALLOCSTAT
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N), RECBIM
+REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION (Element Volumes)...'
@@ -2051,7 +3203,6 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalBCSides,PartBCSideList,nTotalSides
 USE MOD_Mesh_Vars,              ONLY:nSides,nBCSides,NGeo
-USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 ! IMPLICIT VARIABLE HANDLING
@@ -2249,17 +3400,11 @@ SUBROUTINE PointToExactElement(X_In,Element,isInSide,doHalo)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
-USE MOD_TimeDisc_Vars,          ONLY:dt
-USE MOD_Equation_Vars,          ONLY:c_inv,c
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Mesh_Vars,              ONLY:ElemToSide,XCL_NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell,ElemBaryNGeo
+USE MOD_Particle_Tracking_Vars, ONLY:ListDistance,Distance
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
-USE MOD_PICDepo_Vars,           ONLY:DepositionType
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2277,8 +3422,6 @@ INTEGER,INTENT(OUT)                :: Element
 INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                              :: xi(1:3)
-REAL,ALLOCATABLE                  :: Distance(:)
-INTEGER,ALLOCATABLE               :: ListDistance(:)
 !REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
 !REAL,PARAMETER                    :: eps2=1e-3
 !REAL                              :: epsOne,OneMeps
@@ -2306,12 +3449,9 @@ CellZ = MIN(GEO%FIBGMkmax,CellZ)
 
 !--- check all cells associated with this beckground mesh cell
 nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
-ALLOCATE( Distance(1:nBGMElems) &
-        , ListDistance(1:nBGMElems) )
-
 
 ! get closest element barycenter
-Distance=1.
+Distance=-1.
 ListDistance=0
 DO iBGMElem = 1, nBGMElems
   ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
@@ -2322,9 +3462,7 @@ DO iBGMElem = 1, nBGMElems
   ListDistance(iBGMElem)=ElemID
 END DO ! nBGMElems
 
-!print*,'earlier',Distance,ListDistance
-!CALL BubbleSortID(Distance,ListDistance,nBGMElems)
-CALL InsertionSort(Distance,ListDistance,nBGMElems)
+IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
 !print*,'after',Distance,ListDistance
 
 ! loop through sorted list and start by closest element  
@@ -2335,16 +3473,13 @@ DO iBGMElem=1,nBGMElems
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
   CALL Eval_xyz_elemcheck(X_in(1:3),xi,ElemID)
-  IF(ALL(ABS(Xi).LE.epsOneCell)) THEN ! particle inside
+  IF(ALL(ABS(Xi).LE.epsOneCell(ElemID))) THEN ! particle inside
     isInSide=.TRUE.
     Element=ElemID
     EXIT
   END IF
 END DO ! iBGMElem
 
-! deallocate lists
-DEALLOCATE( Distance,ListDistance)
-!read*
 END SUBROUTINE PointToExactElement
 
 
@@ -2356,8 +3491,6 @@ USE MOD_Globals!,                  ONLY:CROSS
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Particle_Mesh_Vars,       ONLY:ElemBaryNGeo
-USE MOD_Particle_Tracking_Vars,   ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,       ONLY:nTotalElems,PartElemToSide
 USE MOD_Basis,                    ONLY:LagrangeInterpolationPolys
 USE MOD_Eval_xyz,                 ONLY:Eval_XYZ_Poly
 ! IMPLICIT VARIABLE HANDLING
@@ -2368,8 +3501,8 @@ IMPLICIT NONE
 !OUTPUT VARIABLES
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem,SideID,i,j,k
-REAL                    :: Xi(3),XPos(3),Radius,buf
+INTEGER                 :: iElem,i,j,k
+REAL                    :: Xi(3),XPos(3),buf
 REAL                    :: Lag(1:3,0:NGeo)
 !================================================================================================================================
 
@@ -2421,7 +3554,7 @@ IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem,SideID,i,j,k,ilocSide, ALLOCSTAT
-REAL                    :: Xi(3),XPos(3),Radius,buf
+REAL                    :: Xi(3),XPos(3),Radius
 REAL                    :: Lag(1:3,0:NGeo)
 !================================================================================================================================
 
@@ -2514,6 +3647,7 @@ DO iElem=1,nTotalElems
     END DO !k=0,NGeo
     XiEtaZetaBasis(1:3,6,iElem)=xPos
   ELSE ! compute particle position in physical space
+    Xi=(/0.0,0.0,0.0/)
     SideID = PartElemToSide(1,XI_PLUS,iElem)
     CALL DeCasteljauInterpolation(NGeo,Xi(1:2),SideID,XiEtaZetaBasis(1:3,1,iElem))
     SideID = PartElemToSide(1,ETA_PLUS,iElem)
@@ -2541,7 +3675,7 @@ DO iElem=1,nTotalElems
   slenXiEtaZetaBasis(4,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,4,iElem),XiEtaZetaBasis(:,4,iElem))
   slenXiEtaZetaBasis(5,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,5,iElem),XiEtaZetaBasis(:,5,iElem))
   slenXiEtaZetaBasis(6,iElem)=1.0/DOT_PRODUCT(XiEtaZetaBasis(:,6,iElem),XiEtaZetaBasis(:,6,iElem))
-  
+
   Radius=0.
   IF(DoRefMapping)THEN ! thats not the bounding box, caution, this box is to small!
     DO k=0,NGeo
@@ -2569,7 +3703,8 @@ DO iElem=1,nTotalElems
   ! elem radius containts 10% tolerance because we are not using the beziercontrolpoints
   ElemRadiusNGeo(iElem)=Radius
   IF(DoRefMapping)THEN
-    ElemRadius2NGeo(iElem)=(Radius*1.10)*(Radius*1.10)
+    !ElemRadius2NGeo(iElem)=(Radius*1.10)*(Radius*1.10)
+    ElemRadius2NGeo(iElem)=(Radius*1.02)*(Radius*1.02)
   ELSE
     ElemRadius2NGeo(iElem)=Radius*Radius
   END IF
@@ -2741,7 +3876,7 @@ LOGICAL              :: IsCurved
 ! LOCAL VARIABLES
 REAL                 :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                 :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
-INTEGER              :: i,j,k, NGeo3,NGeo2
+INTEGER              :: NGeo3
 !===================================================================================================================================
 
 IsCurved=.FALSE.
@@ -2774,6 +3909,7 @@ SUBROUTINE PointsEqual(N,Points1,Points2,IsNotEqual)
 ! compute the distance between two data sets
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
+!USE MOD_Globals,    ONLY:AlmostEqual
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -2843,7 +3979,7 @@ SUBROUTINE InsideElemBoundingBox(ParticlePosition,ElemID,InSide)
 ! check is the particles is inside the bounding box, return TRUE/FALSE
 !================================================================================================================================
 USE MOD_Globals_Vars
-USE MOD_Particle_Surfaces_Vars,  ONLY:ElemSlabNormals,ElemSlabIntervals,BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars,  ONLY:ElemSlabNormals,ElemSlabIntervals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
@@ -2882,26 +4018,31 @@ END IF
 Inside=.TRUE.
 END SUBROUTINE InsideElemBoundingBox
 
+
 SUBROUTINE GetElemAndSideType() 
 !===================================================================================================================================
 ! get the element and side type of each element,depending on the 
 ! used tracking method
 ! 1) Get Elem Type
 ! 2) Get Side Type
+! 3) Halo sides
+! 4) Add BC and Halo-BC sides in halo_eps distance to a certain element (DoRefMapping=F)
+! 5) build epsOneCell for each element
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,SideID_minus_upper,NGeo,nBCSides
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,SideID_minus_upper,NGeo,nBCSides,sJ
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO
 USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,Vdm_CLNGeo1_CLNGeo
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
+USE MOD_Particle_Mesh_Vars,                 ONLY:RefMappingEps,epsOneCell
 #ifdef MPI
 !USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticleMappingPartitionInformation
 USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticlePartitionInformation
@@ -2925,16 +4066,17 @@ REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
 INTEGER                                  :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
-#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6))  /* RK3 and RK4 only */
+#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&((PP_TimeDiscMethod<501 || PP_TimeDiscMethod>506))
 REAL,DIMENSION(1:3,0:NGeo,0:NGeo) :: xNodes
 #endif
 LOGICAL,ALLOCATABLE                     :: SideIsDone(:)
 REAL                                    :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                                    :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
-INTEGER                                 :: i,j,k, NGeo3,NGeo2, nLoop
-REAL                                    :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo)
+INTEGER                                 :: NGeo3,NGeo2, nLoop
+REAL                                    :: XCL_NGeoSideNew(1:3,0:NGeo,0:NGeo),scaleJ
+REAL                                    :: Distance ,maxScaleJ
 REAL                                    :: XCL_NGeoSideOld(1:3,0:NGeo,0:NGeo)
-LOGICAL                                 :: isCurvedSide,isRectangular
+LOGICAL                                 :: isCurvedSide,isRectangular, fullMesh, isBilinear
 !===================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -2976,6 +4118,7 @@ nCurvedHalo=0
 nLinearElemsHalo=0
 nCurvedElemsHalo=0
 nBCElemsHalo=0
+isBilinear=.FALSE.
 
 NGeo2=(NGeo+1)*(NGeo+1)
 NGeo3=NGeo2*(NGeo+1)
@@ -2995,9 +4138,9 @@ DO iElem=1,nLoop
   XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,iElem)
 
   CALL ChangeBasis3D(3,1,NGeo,Vdm_CLNGeo1_CLNGeo,XCL_NGeo1,XCL_NGeoNew)
-
   ! check 3D points
-  CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeo,CurvedElem(iElem))
+  CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),CurvedElem(iElem))
+
   IF(iElem.LE.PP_nElems)THEN
     IF(CurvedElem(iElem))THEN
       nCurvedElems=nCurvedElems+1
@@ -3162,6 +4305,191 @@ DO iElem=1,nLoop
   END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
 
+! build the side type for halo sides
+IF (.NOT.DoRefMapping)THEN
+  DO iSide=1,nTotalSides
+    IF(SideIsDone(iSide)) CYCLE
+    IF(iSide.LE.nSides)THEN
+      IPWRITE(UNIT_StdOut,*) ' Error in local side lists....'
+    END IF
+    ! check all four edges for linearity
+    isLinear=.TRUE.
+    nLoop=NGeo-1
+    ! first edge (0,0)->(NGeo,0)
+    v1=BezierControlPoints3D(:,NGeo,0   ,iSide)-BezierControlPoints3D(:,0,0,  iSide)   
+    DO p=1,nLoop
+      v2=BezierControlPoints3D(:,p,0   ,iSide)-BezierControlPoints3D(:,0,0,  iSide)   
+      v3=CROSS(v1,v2)
+      Length=DOT_PRODUCT(v3,v3)
+      IF(.NOT.ALMOSTZERO(Length))THEN
+        isLinear=.FALSE.
+        EXIT 
+      END IF
+    END DO
+    ! second edge (0,0)->(0,NGeo)
+    IF(isLinear)THEN
+      v1=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,0,0,  iSide)   
+      DO p=1,nLoop
+        v2=BezierControlPoints3D(:,0,p,iSide)-BezierControlPoints3D(:,0,0,  iSide)   
+        v3=CROSS(v1,v2)
+        Length=DOT_PRODUCT(v3,v3)
+        IF(.NOT.ALMOSTZERO(Length))THEN
+          isLinear=.FALSE.
+          EXIT 
+        END IF
+      END DO
+    END IF
+    ! third edge (N,N)->(0,NGeo)
+    IF(isLinear)THEN
+      v1=BezierControlPoints3D(:,0,NGeo,iSide)-BezierControlPoints3D(:,NGeo,NGeo,iSide)   
+      DO p=1,nLoop
+        v2=BezierControlPoints3D(:,0,p,iSide)-BezierControlPoints3D(:,NGeo,NGeo,iSide)   
+        v3=CROSS(v1,v2)
+        Length=DOT_PRODUCT(v3,v3)
+        IF(.NOT.ALMOSTZERO(Length))THEN
+          isLinear=.FALSE.
+          EXIT 
+        END IF
+      END DO
+    END IF
+    ! forth edge (N,N)->(NGeo,0)
+    IF(isLinear)THEN
+      v1=BezierControlPoints3D(:,NGeo,0,iSide)-BezierControlPoints3D(:,NGeo,NGeo,iSide)   
+      DO p=1,nLoop
+        v2=BezierControlPoints3D(:,p,0,iSide)-BezierControlPoints3D(:,NGeo,NGeo,iSide)   
+        v3=CROSS(v1,v2)
+        Length=DOT_PRODUCT(v3,v3)
+        IF(.NOT.ALMOSTZERO(Length))THEN
+          isLinear=.FALSE.
+          EXIT 
+        END IF
+      END DO
+    END IF
+    IF(isLinear)THEN
+      IF(BoundingBoxIsEmpty(iSide))THEN
+        v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+            -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+        
+        v2=(-BezierControlPoints3D(:,0,0   ,iSide)-BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+            +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+        SideNormVec(:,iSide) = CROSSNORM(v1,v2)
+        v1=0.25*(BezierControlPoints3D(:,0,0,iSide)     &
+                +BezierControlPoints3D(:,NGeo,0,iSide)  &
+                +BezierControlPoints3D(:,0,NGeo,iSide)  &
+                +BezierControlPoints3D(:,NGeo,NGeo,iSide))
+        SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+        ! check if it is rectangular
+        isRectangular=.TRUE.
+        v1=BezierControlPoints3D(:,0   ,NGeo,iSide)-BezierControlPoints3D(:,0   ,0   ,iSide)
+        v2=BezierControlPoints3D(:,NGeo,0   ,iSide)-BezierControlPoints3D(:,0   ,0   ,iSide)
+        v3=BezierControlPoints3D(:,NGeo,NGeo,iSide)-BezierControlPoints3D(:,0   ,NGeo,iSide)
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+        IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        IF(isRectangular)THEN
+          v1=BezierControlPoints3D(:,NGeo,NGeo,iSide)-BezierControlPoints3D(:,NGeo,0   ,iSide)
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v2))) isRectangular=.FALSE.
+          IF(.NOT.ALMOSTZERO(DOT_PRODUCT(v1,v3))) isRectangular=.FALSE.
+        END IF
+        IF(isRectangular)THEN
+          SideType(iSide)=PLANAR_RECT
+          IF(iSide.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+          IF(iSide.GT.nSides) nPlanarHalo=nPlanarHalo+1
+#endif /*MPI*/
+        ELSE
+          SideType(iSide)=PLANAR_NONRECT
+          IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+#ifdef MPI
+          IF(SideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
+#endif /*MPI*/
+        END IF
+      ELSE
+        ! check if bilinear 
+        ! isBiLinear=.TRUE.
+        ! IF(NGeo.GT.1)THEN
+        !   ! check a line in xi and in eta for linearity
+        !   nLoop=NGeo-1
+        !   ! first lines (0,1:NGeo-1)->(NGeo,1:NGeo-1)
+        !   DO p=1,nLoop
+        !     IF(isBilinear)THEN
+        !        v1=BezierControlPoints3D(:,NGeo,p   ,iSide)-BezierControlPoints3D(:,0,p,  iSide)   
+        !        DO q=1,nLoop
+        !          v2=BezierControlPoints3D(:,q,p   ,iSide)-BezierControlPoints3D(:,0,p,  iSide)   
+        !          v3=CROSS(v1,v2)
+        !          Length=DOT_PRODUCT(v3,v3)
+        !          IF(.NOT.ALMOSTZERO(Length))THEN
+        !            isBiLinear=.FALSE.
+        !            EXIT 
+        !          END IF
+        !        END DO ! q=1,nLoop
+        !     END IF
+        !   END DO ! p=1,nLOOP
+        !   ! second lines (1:NGeo-1,0)->(1:NGeo-1,nGeo)
+        !   DO p=1,nLoop
+        !     IF(isBilinear)THEN
+        !        v1=BezierControlPoints3D(:,p,NGeo  ,iSide)-BezierControlPoints3D(:,p,0,  iSide)   
+        !        DO q=1,nLoop
+        !          v2=BezierControlPoints3D(:,p,q   ,iSide)-BezierControlPoints3D(:,p,0,  iSide)   
+        !          v3=CROSS(v1,v2)
+        !          Length=DOT_PRODUCT(v3,v3)
+        !          IF(.NOT.ALMOSTZERO(Length))THEN
+        !            isBiLinear=.FALSE.
+        !            EXIT 
+        !          END IF
+        !        END DO ! q=1,nLoop
+        !     END IF
+        !   END DO ! p=1,nLOOP
+        ! END IF
+        IF(isBiLinear)THEN
+          SideType(iSide)=BILINEAR
+          IF(SideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
+#ifdef MPI
+          IF(SideID.GT.nSides) nBilinearHalo=nBilinearHalo+1
+#endif /*MPI*/
+        ELSE ! not bilinear
+          SideType(iSide)=CURVED
+          IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+          IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+#endif /*MPI*/
+          IF(BoundingBoxIsEmpty(iSide))THEN
+            v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+                -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+            
+            v2=(-BezierControlPoints3D(:,0,0   ,iSide)-BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+                +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+            SideNormVec(:,iSide) = CROSSNORM(v1,v2)
+            v1=0.25*(BezierControlPoints3D(:,0,0,iSide)     &
+                    +BezierControlPoints3D(:,NGeo,0,iSide)  &
+                    +BezierControlPoints3D(:,0,NGeo,iSide)  &
+                    +BezierControlPoints3D(:,NGeo,NGeo,iSide))
+            SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+          END IF
+        END IF
+      END IF ! bounding bos is empty
+    ELSE  ! non-linear edges
+      SideType(iSide)=CURVED
+      IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+      IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+#endif /*MPI*/
+      IF(BoundingBoxIsEmpty(iSide))THEN
+        v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+            -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+        
+        v2=(-BezierControlPoints3D(:,0,0   ,iSide)-BezierControlPoints3D(:,NGeo,0   ,iSide)   &
+            +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+        SideNormVec(:,iSide) = CROSSNORM(v1,v2)
+        v1=0.25*(BezierControlPoints3D(:,0,0,iSide)     &
+                +BezierControlPoints3D(:,NGeo,0,iSide)  &
+                +BezierControlPoints3D(:,0,NGeo,iSide)  &
+                +BezierControlPoints3D(:,NGeo,NGeo,iSide))
+        SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+      END IF
+    END IF
+  END DO ! iSide=1,nTotalSides
+END IF
+
 IF(DoRefMapping)THEN
   ! mark elements as bc element
   IsBCElem=.FALSE.
@@ -3183,7 +4511,13 @@ IF(DoRefMapping)THEN
       END IF
     END DO ! ilocSide
   END DO ! iElem
-  
+  ! get distance of halo_eps
+  V1(1) = GEO%xmaxglob-GEO%xminglob
+  V1(2) = GEO%ymaxglob-GEO%yminglob
+  V1(3) = GEO%zmaxglob-GEO%zminglob
+  Distance=DOT_PRODUCT(V1,V1)
+  fullMesh=.FALSE.
+  IF(Distance.LE.halo_eps2) fullMesh=.TRUE.
   ! build list with elements in halo-eps vicinity around bc-elements
   ALLOCATE( BCElem(1:nTotalElems) )
   ALLOCATE( SideIndex(1:nTotalSides) )
@@ -3204,15 +4538,16 @@ IF(DoRefMapping)THEN
     ! loop over all sides
     SideIndex=0
     DO iSide=1,nTotalSides
-      ! ignore sides of the same element
-      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
+      ! only bc sides
       BCSideID  =PartBCSideList(iSide)
       IF(BCSideID.EQ.-1) CYCLE
+      ! ignore sides of the same element
+      IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
       ! next, get all sides in halo-eps vicinity
       DO ilocSide=1,6
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.EQ.-1) CYCLE
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
         BCSideID2 =PartBCSideList(SideID)
         IF(BCSideID2.EQ.-1) CYCLE
         leave=.FALSE.
@@ -3240,46 +4575,68 @@ IF(DoRefMapping)THEN
           IF(leave) EXIT
         END DO ! q
 #else /* no LSERK */
-        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-        !IF(SideID.EQ.-1) CYCLE
-        SELECT CASE(ilocSide)
-        CASE(XI_MINUS)
-          xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
-        CASE(XI_PLUS)
-          xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
-        CASE(ETA_MINUS)
-          xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
-        CASE(ETA_PLUS)
-          xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
-        CASE(ZETA_MINUS)
-          xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
-        CASE(ZETA_PLUS)
-          xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
-        END SELECT
-        leave=.FALSE.
-        ! all points of bc side
-        DO q=0,NGeo
-          DO p=0,NGeo
-            NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
-            ! all nodes of current side
-            DO s=0,NGeo
-              DO r=0,NGeo
-                IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
-                                   ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
-                  IF(SideIndex(iSide).EQ.0)THEN
-                    BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
-                    SideIndex(iSide)=BCElem(iElem)%lastSide
-                    leave=.TRUE.
-                    EXIT
+        ! simplified version
+        IF(fullMesh)THEN
+          IF(SideIndex(iSide).EQ.0)THEN
+            BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+            SideIndex(iSide)=BCElem(iElem)%lastSide
+          END IF
+        ELSE
+          leave=.FALSE.
+          !DO q=0,NGeo
+          !  DO p=0,NGeo
+          !    V1=BezierControlPoints3D(1:3,p,q,BCSideID)-ElemBaryNGeo(1:3,iElem)
+          !    Distance=DOT_PRODUCT(V1,V1)-ElemRadius2NGeo(iElem)
+          !    IF(Distance.LE.halo_eps2)THEN
+          !      IF(SideIndex(iSide).EQ.0)THEN
+          !        BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+          !        SideIndex(iSide)=BCElem(iElem)%lastSide
+          !        leave=.TRUE.
+          !        EXIT
+          !      END IF
+          !    END IF
+          !  END DO ! p=0,NGeo
+          !  IF(leave) EXIT
+          !END DO !  q=0,NGeo
+          SELECT CASE(ilocSide)
+          CASE(XI_MINUS)
+            xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
+          CASE(XI_PLUS)
+            xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
+          CASE(ETA_MINUS)
+            xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
+          CASE(ETA_PLUS)
+            xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
+          CASE(ZETA_MINUS)
+            xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
+          CASE(ZETA_PLUS)
+            xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
+          END SELECT
+          leave=.FALSE.
+          ! all points of bc side
+          DO q=0,NGeo
+            DO p=0,NGeo
+              NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
+              !all nodes of current side
+              DO s=0,NGeo
+                DO r=0,NGeo
+                  IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
+                                     ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
+                    IF(SideIndex(iSide).EQ.0)THEN
+                      BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
+                      SideIndex(iSide)=BCElem(iElem)%lastSide
+                      leave=.TRUE.
+                      EXIT
+                    END IF
                   END IF
-                END IF
-              END DO ! r
+                END DO ! r
+                IF(leave) EXIT
+              END DO ! s
               IF(leave) EXIT
-            END DO ! s
+            END DO ! p
             IF(leave) EXIT
-          END DO ! p
-          IF(leave) EXIT
-        END DO ! q
+          END DO ! q
+        END IF
 #endif
         IF(leave) EXIT
       END DO ! ilocSide
@@ -3362,6 +4719,25 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 CALL WriteParticlePartitionInformation(nPlanar,nBilinear,nCurved,nPlanarHalo,nBilinearHalo,nCurvedHalo &
                                       ,nBCElems,nLinearElems,nCurvedElems,nBCElemsHalo,nLinearElemsHalo,nCurvedElemsHalo)
 #endif
+
+! finally, build epsonecell per element
+IF(DoRefMapping)THEN
+  ALLOCATE(epsOneCell(1:nTotalElems))
+ELSE
+  ALLOCATE(epsOneCell(1:PP_nElems))
+END IF
+
+nLoop=nTotalElems
+IF(.NOT.DoRefMapping) nLoop=PP_nElems
+maxScaleJ=0.
+DO iElem=1,PP_nElems
+  scaleJ=MAXVAL(sJ(:,:,:,iElem))/MINVAL(sJ(:,:,:,iElem))
+  epsOneCell(iElem)=1.0+SQRT(scaleJ*RefMappingEps)
+  maxScaleJ=MAX(scaleJ,maxScaleJ)
+END DO ! iElem=1,nLoop
+DO iElem=PP_nElems+1,nLoop
+  epsOneCell(iElem)=1.0+SQRT(maxScaleJ*RefMappingEps)
+END DO ! iElem=1,nLoop
 
 END SUBROUTINE GetElemAndSideType
 

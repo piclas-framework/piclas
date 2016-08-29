@@ -17,11 +17,16 @@ INTERFACE InitMesh
   MODULE PROCEDURE InitMesh
 END INTERFACE
 
+INTERFACE SwapMesh
+  MODULE PROCEDURE SwapMesh
+END INTERFACE
+
 INTERFACE FinalizeMesh
   MODULE PROCEDURE FinalizeMesh
 END INTERFACE
 
 PUBLIC::InitMesh
+PUBLIC::SwapMesh
 PUBLIC::FinalizeMesh
 !===================================================================================================================================
 
@@ -64,12 +69,12 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE  :: NodeCoords(:,:,:,:,:)
-REAL              :: x(3),PI,meshScale
-INTEGER           :: iElem,i,j,k,iRegions,f,s,p,q, Flip(3)
-INTEGER           :: iSide,countSurfElem,iProc
-CHARACTER(32)       :: hilf2
-INTEGER,ALLOCATABLE :: countSurfElemMPI(:)
+REAL,ALLOCATABLE    :: NodeCoords(:,:,:,:,:)
+REAL                :: x(3),PI,meshScale
+INTEGER             :: iElem,i,j,k!,iRegions
+!CHARACTER(32)       :: hilf2
+CHARACTER(LEN=255)  :: FileName
+LOGICAL             :: ExistFile
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(&
@@ -78,6 +83,31 @@ IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
+
+! SwapMesh: either supply the path to the swapmesh binary or place the binary into the current working directory
+DoSwapMesh=GETLOGICAL('DoSwapMesh','.FALSE.')
+IF(DoSwapMesh)THEN
+  SwapMeshExePath=GETSTR('SwapMeshExePath','')
+  INQUIRE(File=SwapMeshExePath,EXIST=ExistFile)
+  IF(.NOT.ExistFile)THEN ! no path to binary found, look for binary in current directory
+    FileName='./swapmesh'
+    INQUIRE(File=FileName,EXIST=ExistFile)
+    IF(.NOT.ExistFile) THEN
+      SWRITE(UNIT_stdOut,'(A)') ' ERROR: no swapmesh binary found'
+      SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ',TRIM(FileName)
+      SWRITE(UNIT_stdOut,'(A,L)') ' ExistFile:            ',ExistFile
+      DoSwapMesh=.FALSE.
+    ELSE
+      SwapMeshExePath=FileName
+    END IF
+  END IF
+  SwapMeshLevel=GETINT('SwapMeshLevel','0')
+  IF((SwapMeshLevel.LT.0).OR.(SwapMeshLevel.GT.99))THEN
+    CALL abort(&
+    __STAMP__&
+    ,'SwapMeshLEvel<0 or SwapMeshLEvel>99, this is invalid!',999,999.)
+  END IF
+END IF
 
 ! prepare pointer structure (get nElems, etc.)
 MeshFile = GETSTR('MeshFile')
@@ -334,6 +364,207 @@ CALL BuildBezierDMat(NGeo_in,Xi_NGeo,D_Bezier)
 #endif
 
 END SUBROUTINE InitMeshBasis
+
+
+SUBROUTINE SwapMesh()
+!============================================================================================================================
+! use the posti tool swapmesh in order to map the DG solution as well as particles into a new state file with a different 
+! mesh file
+!============================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,  ONLY:ProjectName
+USE MOD_PreProc,       ONLY:PP_N
+USE MOD_Mesh_Vars,     ONLY:SwapMeshExePath,SwapMeshLevel,MeshFile
+USE MOD_Restart_Vars,  ONLY:RestartFile
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------
+!input parameters
+!----------------------------------------------------------------------------------------------------------------------------
+!output parameters
+!----------------------------------------------------------------------------------------------------------------------------
+!local variables
+CHARACTER(LEN=255)  :: LocalName                   ! local project name
+CHARACTER(LEN=255)  :: FileName                    ! names/paths to files
+CHARACTER(LEN=255)  :: NewFolderName,OldFolderName ! names/paths to folders
+LOGICAL             :: objExist                    ! file or folder exist variable
+LOGICAL             :: CreateSwapScript            ! temporary varaible for creating a swapmesh.sh shell script
+LOGICAL             :: LogSwapMesh                 ! create log file for swapmesh: log.swapmesh
+LOGICAL             :: CleanUp                     ! rm old state and mesh file in swapmesh folder
+LOGICAL             :: KeepSwapFile                ! if true, do not remove created swap file, e.g., "PlasmaPlume_NewMesh_State...."
+CHARACTER(LEN=22)   :: ParameterFile               ! swapmesh parameter file containing all conversion information
+CHARACTER(LEN=3)    :: hilf,hilf2                  ! auxiliary variable for INTEGER -> CHARACTER conversion 
+CHARACTER(LEN=255)  :: SYSCOMMAND,SWITCHFOLDER     ! string to fit the system command
+INTEGER             :: iSTATUS                     ! error status return code
+INTEGER             :: StartIndex                  ! get string index (position) of certain substring
+!============================================================================================================================
+ParameterFile='parameter_swapmesh.ini'
+print*,"myrank     = ",myrank
+print*,"RestartFile= ",TRIM(RestartFile)
+print*,"ProjectName= ",TRIM(ProjectName)
+IF(SwapMeshLevel.GT.0)THEN
+  LocalName=TRIM(ProjectName(1:LEN(TRIM(ProjectName))-3))
+ELSE
+  LocalName=TRIM(ProjectName)
+END IF
+print*,"LocalName= ",TRIM(LocalName)
+print*,"MeshFile   = ",TRIM(MeshFile)
+
+! current mesh folder
+WRITE(UNIT=hilf,FMT='(I3)') SwapMeshLevel
+IF(SwapMeshLevel.GT.9)THEN
+  OldFolderName='mesh'//TRIM(ADJUSTL(hilf))
+ELSE
+  OldFolderName='mesh0'//TRIM(ADJUSTL(hilf))
+ENDIF
+
+! check if next level mesh folder exists
+WRITE(UNIT=hilf,FMT='(I3)') SwapMeshLevel+1
+IF(SwapMeshLevel+1.GT.9)THEN
+  NewFolderName='mesh'//TRIM(ADJUSTL(hilf))
+ELSE
+  NewFolderName='mesh0'//TRIM(ADJUSTL(hilf))
+ENDIF
+INQUIRE(File='../'//TRIM(NewFolderName),EXIST=objExist)
+IF(.NOT.objExist)THEN ! no swapmesh folder found
+  SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no swapmesh folder found. Cannot perform swapmesh'
+  SWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(NewFolderName)
+  SWRITE(UNIT_stdOut,'(A,L)') ' objExist:            ',objExist
+ELSE
+  FileName='../'//TRIM(NewFolderName)//'/'//ParameterFile
+  INQUIRE(File=FileName,EXIST=objExist)
+  IF(.NOT.objExist) THEN
+    SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no '//ParameterFile//' found. Cannot perform swapmesh'
+    SWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(FileName)
+    SWRITE(UNIT_stdOut,'(A,L)') ' objExist:            ',objExist
+  ELSE
+    !NewFolderName=FileName
+
+    SWITCHFOLDER='cd ../'//TRIM(NewFolderName)//' && '
+    ! print LocalName and SwapMeshLevel as new mesh file name to parameter_swapmesh.ini
+    ! cd ../meshXX &&  sed -i -e "s/.*MeshFileNew.*/MeshFileNew=PlasmaPlume_01_mesh.h5/" parameter_swapmesh.ini
+    SYSCOMMAND=' sed -i -e "s/.*MeshFileNew.*/MeshFileNew='//&
+               TRIM(LocalName)//'_'//TRIM(NewFolderName(5:6))//'_mesh.h5/" '//ParameterFile
+    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+    
+    ! print current polynomial degree to parameter_swapmesh.ini
+    WRITE(UNIT=hilf,FMT='(I3)') PP_N
+    ! cd ../meshXX && sed -i -e "s/.*NNew.*/NNew=2/" parameter_swapmesh.ini
+    SYSCOMMAND=' sed -i -e "s/.*NNew.*/NNew='//&
+               TRIM(ADJUSTL(hilf))//'/" '//ParameterFile
+    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+    
+    ! create symbolic link to old mesh file and restart file 
+    ! (delete the old links if they exist, they might point to the wrong file)
+    ! cd ../meshXX && rm PlasmaPlume_State_000.000000000000100.h5 > /dev/null 2>&1
+    SYSCOMMAND=' rm '//TRIM(RestartFile)//' > /dev/null 2>&1'
+    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+    ! cd ../meshXX && ln -s ../mesh00/PlasmaPlume_State_000.000000000000100.h5 .
+    SYSCOMMAND=' ln -s ../'//TRIM(OldFolderName)//'/'//TRIM(RestartFile)//' .'
+    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+
+    ! cd ../meshXX && rm PlasmaPlume_mesh.h5 > /dev/null 2>&1
+    SYSCOMMAND=' rm '//TRIM(MeshFile)//' > /dev/null 2>&1'
+    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+    ! cd ../meshXX && ln -s ../mesh00/PlasmaPlume_mesh.h5 .
+    SYSCOMMAND=' ln -s ../'//TRIM(OldFolderName)//'/'//TRIM(MeshFile)//' .'
+    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+
+    ! call swapmesh and create new state file (delete all '_NewMesh_State*' state file of new mesh)
+    ! cd ../meshXX && rm PlasmaPlume_NewMesh_State* > /dev/null 2>&1
+    SYSCOMMAND=' rm '//TRIM(ProjectName)//'_NewMesh_State* > /dev/null 2>&1'
+    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+    SYSCOMMAND=' echo "#!/bin/bash" > swapmesh.sh'
+    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+ 
+    ! run swapmesh executable
+    ! =======================================================================================================================
+    ! CAUTION: CURRENTLY ONLY WORKS IN SINGLE EXECUTION!!!! WHEN STARTED WITH MPIRUN AND PERFORMED BY MPIROOT NOTHING OCCURS!
+    ! =======================================================================================================================
+    CreateSwapScript=.FALSE.
+    IF(CreateSwapScript)THEN
+      ! cd ../mesh01 && echo "/home/stephen/Flexi/ParaViewPlugin_newest_version/build_hdf16/bin/swapmesh parameter_swapmesh.ini 
+      !                       PlasmaPlume_State_000.000000000000100.h5" >> swapmesh.sh && chmod +x swapmesh.sh
+      SYSCOMMAND=' '//ParameterFile//' '//TRIM(RestartFile)//'" >> swapmesh.sh && chmod +x swapmesh.sh'
+      print*,                   TRIM(SWITCHFOLDER)//' echo "'//TRIM(SwapMeshExePath)//TRIM(SYSCOMMAND)
+      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//' echo "'//TRIM(SwapMeshExePath)//TRIM(SYSCOMMAND), &
+      WAIT=.TRUE., EXITSTAT=iSTATUS)
+      !SYSCOMMAND=' nohup ./swapmesh.sh > log.swapmesh &'
+      SYSCOMMAND=' ./swapmesh.sh > log.swapmesh '
+      print*,TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+    ELSE
+      ! cd ../meshXX && ~/build_hdf16/bin/swapmesh parameter_swapmesh.ini PlasmaPlume_State_000.000000000000100.h5
+      LogSwapMesh=.TRUE.
+      IF(LogSwapMesh)THEN
+        SYSCOMMAND=' '//ParameterFile//' '//TRIM(RestartFile)//' > log.swapmesh'
+      ELSE
+        SYSCOMMAND=' '//ParameterFile//' '//TRIM(RestartFile)
+      END IF
+      print*,                   TRIM(SWITCHFOLDER)//' '//TRIM(SwapMeshExePath)//TRIM(SYSCOMMAND)
+      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//' '//TRIM(SwapMeshExePath)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+    END IF
+
+
+
+    ! cd ../meshXX && mv PlasmaPlume_NewMesh_State_000.000000000000100.h5 PlasmaPlume_State_000.000000000000100.h5
+    WRITE(UNIT=hilf,FMT='(I3)') SwapMeshLevel+1
+    IF(SwapMeshLevel+1.GT.9)THEN
+      hilf2=TRIM(ADJUSTL(hilf))
+    ELSE
+      hilf2='0'//TRIM(ADJUSTL(hilf))
+    ENDIF
+
+
+    KeepSwapFile=.FALSE.
+    IF(.NOT.KeepSwapFile)THEN
+      ! move the created state file (remove the "NewMesh" suffix and replace with SwapMeshLevel)
+      StartIndex=INDEX(TRIM(RestartFile),'_State')+7
+      SYSCOMMAND=' mv '//TRIM(ProjectName)//'_NewMesh_State_'//TRIM(RestartFile(StartIndex:LEN(RestartFile)))//' '//&
+                        TRIM(LocalName)//'_'//TRIM(ADJUSTL(hilf2))//'_State_'//TRIM(RestartFile(StartIndex:LEN(RestartFile)))
+      print*,TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+    END IF
+    IF(iSTATUS.NE.0)THEN
+      CALL abort(&
+      __STAMP__&
+      ,'new swapmesh state file could not be created.',999,999.)
+    END IF
+      
+
+    CleanUp=.TRUE.
+    IF(CleanUp)THEN
+      ! Clean up: rm old state and mesh file !
+      ! cd ../meshXX && rm PlasmaPlume_State_000.000000000000100.h5 > /dev/null 2>&1
+      SYSCOMMAND=' rm '//TRIM(RestartFile)//' > /dev/null 2>&1'
+      print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+      ! cd ../mesh02 && rm PlasmaPlume_01_mesh.h5 > /dev/null 2>&1
+      SYSCOMMAND=' rm '//TRIM(MeshFile)//' > /dev/null 2>&1'
+      print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
+      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
+    END IF
+
+!PlasmaPlume_State_
+    
+    
+    
+    
+    
+    
+  END IF
+END IF
+
+END SUBROUTINE SwapMesh
 
 
 SUBROUTINE FinalizeMesh()

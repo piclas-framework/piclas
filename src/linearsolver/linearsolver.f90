@@ -14,7 +14,6 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-
 INTERFACE LinearSolver
   MODULE PROCEDURE LinearSolver
 !  MODULE PROCEDURE LinearSolver_GMRES_P
@@ -117,8 +116,14 @@ Eps2_FullNewton      = Eps_FullNewton*Eps_FullNewton
 FullEisenstatWalker  = GETINT('FullEisenstatWalker','0')
 FullgammaEW          = GETREAL('FullgammaEW','0.9')
 DoPrintConvInfo      = GETLOGICAL('DoPrintConvInfo','F')
+#ifdef PARTICLES
+! flag to enforce updatenextfree position in all rk stages
+DoUpdateInStage =  GETLOGICAL('DoUpdateInStage','.FALSE.')
+! UpdateNextFreePosition in each interation
+UpdateInIter         = GETINT('UpdateInIter','-1')
+IF(UpdateInIter.EQ.-1) UpdateInIter=HUGE(1)
+#endif /*PARTICLES*/
 #endif
-
 
 ALLOCATE(Mass(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 DO iElem=1,PP_nElems
@@ -131,9 +136,6 @@ DO iElem=1,PP_nElems
   END DO !k
 END DO ! iElem=1,PP_nElems
 IF(.NOT.GETLOGICAL('withmass','F')) mass=1.
-
-
-
 
 LinSolver= GETINT('LinSolver','2')
 SELECT CASE(LinSolver)

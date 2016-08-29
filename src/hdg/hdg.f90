@@ -365,7 +365,7 @@ DO iVar = 1, PP_nVar
       ! Determine the exact BC state
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(IniExactFunc,t,0,BCFace_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
+        CALL ExactFunc(IniExactFunc,BCFace_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
       END DO; END DO !p,q
     CASE(4) ! exact BC = Dirichlet BC !!
       ! SPECIAL BC: BCState specifies exactfunc to be used!!
@@ -420,7 +420,7 @@ DO iVar=1, PP_nVar
     DO iElem=1,PP_nElems
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
         r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-        CALL CalcSourceHDG(0.,i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
+        CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
       END DO; END DO; END DO !i,j,k
       RHS_Vol(iVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(iVar,:,iElem)
     END DO !iElem 
@@ -431,7 +431,7 @@ DO iVar=1, PP_nVar
       DO SideID=1,nSides
         DO q=0,PP_N; DO p=0,PP_N
           r=q*(PP_N+1) + p+1
-          CALL ExactFunc(IniExactFunc,t,0,Face_xGP(:,p,q,SideID),lambda(:,r,SideID))
+          CALL ExactFunc(IniExactFunc,Face_xGP(:,p,q,SideID),lambda(:,r,SideID))
         END DO; END DO !p,q
       END DO
     END IF
@@ -636,7 +636,7 @@ DO iVar = 1, PP_nVar
       ! Determine the exact BC state
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(IniExactFunc,t,0,BCFace_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
+        CALL ExactFunc(IniExactFunc,BCFace_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
       END DO; END DO !p,q
     CASE(4) ! exact BC = Dirichlet BC !!
       ! SPECIAL BC: BCState specifies exactfunc to be used!!
@@ -691,7 +691,7 @@ END DO
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    CALL CalcSourceHDG(0.,i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem))
+    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem))
   END DO; END DO; END DO !i,j,k    
   DO iVar = 1, PP_nVar
     RHS_Vol(iVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(iVar,:,iElem)
@@ -703,7 +703,7 @@ IF(onlyPostProc.OR.ExactLambda)THEN
   DO SideID=1,nSides
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      CALL ExactFunc(IniExactFunc,t,0,Face_xGP(:,p,q,SideID),lambda( 1:PP_nVar,r,SideID))
+      CALL ExactFunc(IniExactFunc,Face_xGP(:,p,q,SideID),lambda( 1:PP_nVar,r,SideID))
     END DO; END DO !p,q
   END DO
 END IF
@@ -873,7 +873,7 @@ DO BCsideID=1,nDirichletBCSides
     ! Determine the exact BC state
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      CALL ExactFunc(IniExactFunc,t,0,BCFace_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID))
+      CALL ExactFunc(IniExactFunc,BCFace_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID))
     END DO; END DO !p,q
   CASE(4) ! exact BC = Dirichlet BC !!
     ! SPECIAL BC: BCState specifies exactfunc to be used!!
@@ -908,7 +908,7 @@ END DO !BCsideID=1,nNeumannBCSides
 DO iElem=1,PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    CALL CalcSourceHDG(0.,i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
+    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
   END DO; END DO; END DO !i,j,k
   RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
 END DO !iElem 
@@ -1029,7 +1029,7 @@ DO iter=1,MaxIterFixPoint
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-      CALL CalcSourceHDG(0.,i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
+      CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem))
     END DO; END DO; END DO !i,j,k
     RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
   END DO !iElem 

@@ -23,15 +23,20 @@ INTERFACE InitDG
   MODULE PROCEDURE InitDG
 END INTERFACE
 
+#ifndef PP_HDG
 INTERFACE DGTimeDerivative_weakForm
   MODULE PROCEDURE DGTimeDerivative_weakForm
 END INTERFACE
+#endif /*PP_HDG*/
 
 INTERFACE FinalizeDG
   MODULE PROCEDURE FinalizeDG
 END INTERFACE
 
-PUBLIC::InitDG,DGTimeDerivative_weakForm,FinalizeDG
+PUBLIC::InitDG,FinalizeDG
+#ifndef PP_HDG
+PUBLIC::DGTimeDerivative_weakForm
+#endif /*PP_HDG*/
 #ifdef PP_POIS
 PUBLIC::DGTimeDerivative_weakForm_Pois
 #endif
@@ -53,7 +58,6 @@ USE MOD_Mesh_Vars,          ONLY: nSides
 USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
 USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
 USE MOD_Mesh_Vars,          ONLY: MeshInitIsDone
-USE MOD_PML,                ONLY: TransformPMLVars 
 #ifdef OPTIMIZED
 USE MOD_Riemann,            ONLY: GetRiemannMatrix
 #endif /*OPTIMIZED*/
@@ -123,9 +127,8 @@ USE MOD_DG_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
 USE MOD_PreProc
 USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,Face_xGP
-USE MOD_Mesh_Vars,     ONLY:nBCSides,nInnerSides,nMPISides_MINE
-USE MOD_Mesh_Vars,     ONLY:SideID_minus_upper,SideID_minus_lower,SideID_plus_upper
+USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem!,Face_xGP
+USE MOD_Mesh_Vars,     ONLY:SideID_minus_upper,SideID_minus_lower
 #endif /*MPI*/
 #endif /*PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -197,6 +200,7 @@ TangVec2(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(8:10,:,:,:)
 END SUBROUTINE InitDGbasis
 
 
+#ifndef PP_HDG
 SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv,doSource)
 !===================================================================================================================================
 ! Computes the DG time derivative consisting of Volume Integral and Surface integral for the whole field
@@ -326,12 +330,14 @@ CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
 
 ! Add Source Terms
 IF(doSource) CALL CalcSource(tStage,1.0,Ut)
+
 #ifdef MPI
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 #endif /*MPI*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
+#endif /*PP_HDG*/
 
 #ifdef PP_POIS
 
@@ -470,7 +476,11 @@ DO iElem=1,PP_nElems
   DO k=0,PP_N
     DO j=0,PP_N
       DO i=0,PP_N
+#ifdef PP_HDG
+        CALL ExactFunc(IniExactFunc,Elem_xGP(1:3,i,j,k,iElem),U(1:PP_nVar,i,j,k,iElem))
+#else
         CALL ExactFunc(IniExactFunc,0.,0,Elem_xGP(1:3,i,j,k,iElem),U(1:PP_nVar,i,j,k,iElem))
+#endif
       END DO ! i
     END DO ! j
   END DO !k

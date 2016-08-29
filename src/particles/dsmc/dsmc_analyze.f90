@@ -461,7 +461,7 @@ SUBROUTINE CalcInstantTransTemp(iPartIndx,PartNum)
   USE MOD_Globals
   USE MOD_Preproc
   USE MOD_DSMC_Vars,          ONLY : DSMC, CollInf
-  USE MOD_Particle_Vars,      ONLY : PartState, PartSpecies, Species, PDM, PEM, nSpecies, BoltzmannConst, PartMPF, usevMPF
+  USE MOD_Particle_Vars,      ONLY : PartState, PartSpecies, Species, nSpecies, BoltzmannConst, PartMPF, usevMPF
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -782,7 +782,7 @@ END SELECT
 
 END SUBROUTINE InitHODSMC
 
-SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,lengthPartTrajectory,alpha,IsSpeciesSwap)
+SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap)
 !===================================================================================================================================
 ! Sample Wall values from Particle collisions
 !===================================================================================================================================
@@ -797,7 +797,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,p,q,Transarray,IntArray,PartTrajecto
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES            
   INTEGER,INTENT(IN)                 :: PartID,SurfSideID,p,q
-  REAL,INTENT(IN)                    :: PartTrajectory(1:3), lengthPartTrajectory, alpha
+  REAL,INTENT(IN)                    :: PartTrajectory(1:3), alpha
   REAL,INTENT(IN)                    :: TransArray(1:6) !1-3 trans energies(old,wall,new), 4-6 diff. trans vel. (x,y,z)
   REAL,INTENT(IN)                    :: IntArray(1:6) ! 1-6 internal energies (rot-old,rot-wall,rot-new,vib-old,vib-wall,vib-new)
   LOGICAL,INTENT(IN)                 :: IsSpeciesSwap
@@ -1043,7 +1043,7 @@ CASE('nearest_gausspoint')
       ! Map Particle to -1|1 space (re-used in interpolation)
       ! check with depositions and PartPosRef already mapped
       IF(.NOT.DoRefMapping)THEN
-        CALL Eval_xyz_ElemCheck(PartState(i,1:3),PartPosRef(1:3,i),iElem,i)
+        CALL Eval_xyz_ElemCheck(PartState(i,1:3),PartPosRef(1:3,i),iElem)
       END IF
       !CALL GeoCoordToMap(PartState(i,1:3),PartPosRef(1:3),iElem)
       ! Find out which gausspoint is closest and add up charges and currents
@@ -1133,7 +1133,7 @@ CASE('cell_volweight')
     iElem = PEM%Element(iPart)
     iSpec = PartSpecies(iPart)
     IF(.NOT.DoRefMapping)THEN
-      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
     END IF
     !CALL GeoCoordToMap(PartState(iPart,1:3), TempPartPos(1:3), iElem)
     TSource(:) = 0.0
@@ -2363,7 +2363,7 @@ DO stepz=0, DSMCSampVolWe%OrderVolInt
    DO iElem = 1, GEO%FIBGM(CellX,CellY,CellZ)%nElem
       Element = GEO%FIBGM(CellX,CellY,CellZ)%Element(iElem)
       CALL Eval_xyz_ElemCheck(GuessPos,Xi,Element)
-      IF(MAXVAL(ABS(Xi)).GT.epsOneCell)THEN ! particle outside
+      IF(MAXVAL(ABS(Xi)).GT.epsOneCell(Element))THEN ! particle outside
         alpha1 = (GuessPos(1) / DSMCSampVolWe%BGMdeltas(1)) - i
         alpha2 = (GuessPos(2) / DSMCSampVolWe%BGMdeltas(2)) - j
         alpha3 = (GuessPos(3) / DSMCSampVolWe%BGMdeltas(3)) - k
@@ -2389,7 +2389,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
    USE MOD_HDF5_output,   ONLY:WriteArrayToHDF5,WriteAttributeToHDF5,WriteHDF5Header
    USE MOD_PARTICLE_Vars, ONLY:nSpecies
    USE MOD_Mesh_Vars,     ONLY:offsetElem,nGlobalElems
-   USE MOD_DSMC_Vars,     ONLY:MacroDSMC, CollisMode, DSMC, useDSMC
+   USE MOD_DSMC_Vars,     ONLY:MacroDSMC, CollisMode, DSMC
    USE MOD_Globals_Vars,  ONLY:ProjectName
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE

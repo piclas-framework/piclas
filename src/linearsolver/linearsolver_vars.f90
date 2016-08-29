@@ -37,6 +37,7 @@ INTEGER              :: nPartNewtonIter                                         
 INTEGER              :: FreezePartInNewton                                          ! particle is moved after each Newton step
 REAL                 :: Eps2PartNewton                                              ! PartNewton abort criterion
 LOGICAL              :: EisenstatWalker                                             ! EisenstatWalker for ParticleNewton
+REAL                 :: EpsPartLinSolver                                            ! Abort tolerance for linear solver of parts
 REAL                 :: PartgammaEW                                                 ! gamma value of PartEisenstatWalker
 REAL                 :: rEps0,srEps0                                                ! FD-step-size for PartMV in PartNewton
 REAL,ALLOCATABLE     :: PartXK(:,:)                                                 ! ParticlePosition for linearization
@@ -64,6 +65,14 @@ INTEGER              :: FullEisenstatWalker                                     
                                                                                     ! 1 - Field Solver
                                                                                     ! 2 - Particle Newton and Field Solver
 REAL                 :: FullgammaEW                                                 ! Eisenstat-Walker parameter
+INTEGER              :: PartImplicitMethod                                          ! selection for particle implicit method
+#ifdef PARTICLES
+LOGICAL              :: DoUpdateInStage                                             ! perform updatenextfree position 
+                                                                                    ! in each rk stage
+INTEGER              :: UpdateInIter                                                ! additional update in iteration. required
+                                                                                    ! due to overflow of free positions...
+                                                                                    ! UNFP each nth iteration
+#endif /*PARTICLES*/
 #endif
 !===================================================================================================================================
 END MODULE MOD_LinearSolver_Vars

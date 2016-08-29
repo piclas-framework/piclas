@@ -113,13 +113,14 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Particle_Vars,           ONLY:PartPosRef,PDM,PartState,PEM,PartPosGauss
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+#ifndef PP_HDG
 USE MOD_DG_Vars,                 ONLY:U
+#endif
 USE MOD_PIC_Vars!,      ONLY: 
 USE MOD_PICInterpolation_Vars,   ONLY:usecurvedExternalField,FieldAtParticle,externalField,DoInterpolation,InterpolationType
 USE MOD_PICInterpolation_Vars,   ONLY:InterpolationElemLoop
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
 USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
-USE MOD_Particle_Mesh_Vars,ONLY:epsOneCell
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
 #endif
@@ -153,7 +154,7 @@ REAL                             :: field(6)
 INTEGER                          :: iPart,iElem
 ! for Nearest GaussPoint
 INTEGER                          :: a,b,k,ii,l,m
-#if defined PP_POIS || defined  PP_HDG
+#if defined PP_POIS || (defined PP_HDG && PP_nVar==4)
 REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 #endif /*(PP_POIS||PP_HDG)*/
 !===================================================================================================================================
@@ -218,6 +219,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     !m = INT(PP_N/2)+1
     DO iElem=1,PP_nElems
 #if (PP_nVar==8)
+!
 #ifdef PP_POIS
       HelperU(1:3,:,:,:) = E(1:3,:,:,:,iElem)
       HelperU(4:6,:,:,:) = U(4:6,:,:,:,iElem)
@@ -225,7 +227,9 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
 #else
       CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,U(1:6,:,:,:,iElem),field(1:6),iElem)
 #endif /*PP_POIS*/
-#else 
+!
+#else /*PP_nVar not 8*/
+!
 #ifdef PP_POIS
       CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,E(1:3,:,:,:,iElem),field(1:3),iElem)
 #elif defined PP_HDG
@@ -238,9 +242,10 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       HelperU(4:6,:,:,:) = B(1:3,:,:,:,iElem)
       CALL Eval_xyz_Part2((/0.,0.,0./),6,PP_N,HelperU,field(1:6),iElem)
 #endif /*PP_nVar==1*/
-#else
+#else /*not HDG and not POIS and PP_nVar not 8*/
       CALL Eval_xyz_Part2((/0.,0.,0./),3,PP_N,U(1:3,:,:,:,iElem),field(1:3),iElem)
 #endif /*PP_POIS*/
+!
 #endif /*(PP_nVar==8)*/
       DO iPart=firstPart,LastPart
         IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -293,7 +298,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
           IF(.NOT.PDM%ParticleInside(iPart))CYCLE
           IF(PEM%Element(iPart).EQ.iElem)THEN
             IF(.NOT.DoRefMapping)THEN
-              CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+              CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
             END IF
             !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -376,7 +381,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
         IF(.NOT.PDM%ParticleInside(iPart))CYCLE
         IF(PEM%Element(iPart).EQ.iElem)THEN
           IF(.NOT.DoRefMapping)THEN
-            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem,iPart)
+            CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),iElem)
           END IF
           ! compute exact k,l,m
           !! x-direction
@@ -461,14 +466,15 @@ SUBROUTINE InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Vars,           ONLY:PartPosRef,PDM,PartState,PEM,PartPosGauss
+USE MOD_Particle_Vars,           ONLY:PartPosRef,PartState,PEM,PartPosGauss
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+#ifndef PP_HDG
 USE MOD_DG_Vars,                 ONLY:U
+#endif
 USE MOD_PIC_Vars!,      ONLY: 
 USE MOD_PICInterpolation_Vars,   ONLY:usecurvedExternalField,externalField,DoInterpolation,InterpolationType
 USE MOD_PICDepo_Vars,            ONLY:DepositionType,GaussBorder
 USE MOD_Eval_xyz,                ONLY:Eval_xyz_elemcheck,Eval_XYZ_Curved,Eval_xyz_Part2
-USE MOD_Particle_Mesh_Vars,      ONLY:epsOneCell
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:E
 #endif
@@ -497,7 +503,7 @@ REAL                         :: Pos(3),Field(1:6)
 INTEGER                      :: ElemID
 ! for Nearest GaussPoint
 INTEGER                          :: a,b,k,ii,l,m
-#if defined PP_POIS || defined  PP_HDG
+#if defined PP_POIS || (defined PP_HDG && PP_nVar==4)
 REAL                             :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
 #endif /*(PP_POIS||PP_HDG)*/
 !===================================================================================================================================
@@ -528,6 +534,9 @@ END IF ! use constant external field
 
 IF (DoInterpolation) THEN                 ! skip if no self fields are calculated
   ElemID=PEM%Element(PartID)
+#ifdef MPI
+  IF(ElemID.GT.PP_nElems) RETURN
+#endif
   SELECT CASE(TRIM(InterpolationType))
   CASE('nearest_blurrycenter')
     ! add fields to fields at particle position
@@ -594,7 +603,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
     IF(DoRefMapping .OR. TRIM(DepositionType).EQ.'nearest_gausspoint')THEN
       ! particles have already been mapped in deposition, other eval routine used
       IF(.NOT.DoRefMapping)THEN
-        CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID,PartID)
+        CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
       END IF
       !--- evaluate at Particle position
 #if (PP_nVar==8)
@@ -663,7 +672,7 @@ IF (DoInterpolation) THEN                 ! skip if no self fields are calculate
       b = a-1
     END IF
     IF(.NOT.DoRefMapping)THEN
-      CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID,PartID)
+      CALL Eval_xyz_ElemCheck(PartState(PartID,1:3),PartPosRef(1:3,PartID),ElemID)
     END IF
     ! compute exact k,l,m
     !! x-direction

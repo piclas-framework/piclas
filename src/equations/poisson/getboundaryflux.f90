@@ -14,9 +14,9 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE GetBoundaryFlux
-  MODULE PROCEDURE GetBoundaryFlux
-END INTERFACE
+!INTERFACE GetBoundaryFlux
+  !MODULE PROCEDURE GetBoundaryFlux
+!END INTERFACE
 
 INTERFACE InitBC
   MODULE PROCEDURE InitBC
@@ -26,7 +26,7 @@ INTERFACE FinalizeBC
   MODULE PROCEDURE FinalizeBC
 END INTERFACE
 
-PUBLIC::GetBoundaryFlux
+!PUBLIC::GetBoundaryFlux
 PUBLIC:: InitBC,FinalizeBC
 !===================================================================================================================================
 
@@ -42,7 +42,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Equation_Vars     ,ONLY: EquationInitIsDone
 USE MOD_Equation_Vars     ,ONLY: BCData,nBCByType,BCSideID!,nRefstate
-USE MOD_Equation_Vars     ,ONLY: BCStateFile
+!USE MOD_Equation_Vars     ,ONLY: BCStateFile
 USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType,nBCs
 ! IMPLICIT VARIABLE HANDLING
@@ -133,53 +133,52 @@ END DO
 
 END SUBROUTINE InitBC
 !SUBROUTINE GetBoundaryFlux(F_Face,BCType,BCState,xGP_Face,normal,t,tDeriv,U_Face) ! old
-SUBROUTINE GetBoundaryFlux(t,tDeriv, Flux, U_Minus, NormVec, TangVec1, TangVec2, BCFace_xGP)
-!===================================================================================================================================
-! Computes the boundary values for a given Cartesian mesh face (defined by FaceID)
-! BCType: 1...periodic, 2...exact BC
-! Attention 1: this is only a tensor of local values U_Face and has to be stored into the right U_Left or U_Right in
-!              SUBROUTINE CalcSurfInt
-! Attention 2: U_FacePeriodic is only needed in the case of periodic boundary conditions
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals,ONLY:Abort
-USE MOD_PreProc
-USE MOD_Mesh_Vars    ,  ONLY:nBCSides
-USE MOD_Riemann,ONLY:Riemann
-USE MOD_Equation,ONLY:ExactFunc
-USE MOD_Equation_Vars,ONLY:IniExactFunc
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!INTEGER, INTENT(IN)                  :: BCType,BCState
-!REAL,INTENT(IN)                   :: U_Face(PP_nVar,0:PP_N,0:PP_N)
-!REAL,INTENT(IN)                      :: xGP_Face(3,0:PP_N,0:PP_N)
-!REAL,INTENT(IN)                      :: normal(3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)                      :: t
-INTEGER,INTENT(IN)                   :: tDeriv
-REAL,INTENT(IN)                      :: U_Minus(     PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: NormVec(           3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: TangVec1(          3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: TangVec2(          3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: BCFace_xGP(        3,0:PP_N,0:PP_N,1:nBCSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)                     :: Flux(        PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                              :: p,q
-INTEGER                              :: BCType,BCState,nBCLoc
-REAL                                 :: U_Face_loc(PP_nVar,0:PP_N,0:PP_N)
-!===================================================================================================================================
-SELECT CASE(BCType)
-CASE(1) !Periodic already filled!
-CASE DEFAULT ! unknown BCType
-  CALL abort(&
-__STAMP__&
-,'no BC defined in navierstokes/getboundaryflux.f90!',999,999.)
-END SELECT ! BCType
-END SUBROUTINE GetBoundaryFlux
+!SUBROUTINE GetBoundaryFlux(t,tDeriv, Flux, U_Minus, NormVec, TangVec1, TangVec2, BCFace_xGP)
+!!===================================================================================================================================
+!! Computes the boundary values for a given Cartesian mesh face (defined by FaceID)
+!! BCType: 1...periodic, 2...exact BC
+!! Attention 1: this is only a tensor of local values U_Face and has to be stored into the right U_Left or U_Right in
+!!              SUBROUTINE CalcSurfInt
+!! Attention 2: U_FacePeriodic is only needed in the case of periodic boundary conditions
+!!===================================================================================================================================
+!! MODULES
+!USE MOD_Globals,ONLY:Abort
+!USE MOD_PreProc
+!USE MOD_Mesh_Vars    ,  ONLY:nBCSides
+!USE MOD_Equation,ONLY:ExactFunc
+!USE MOD_Equation_Vars,ONLY:IniExactFunc
+!! IMPLICIT VARIABLE HANDLING
+!IMPLICIT NONE
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT VARIABLES
+!!INTEGER, INTENT(IN)                  :: BCType,BCState
+!!REAL,INTENT(IN)                   :: U_Face(PP_nVar,0:PP_N,0:PP_N)
+!!REAL,INTENT(IN)                      :: xGP_Face(3,0:PP_N,0:PP_N)
+!!REAL,INTENT(IN)                      :: normal(3,0:PP_N,0:PP_N)
+!REAL,INTENT(IN)                      :: t
+!INTEGER,INTENT(IN)                   :: tDeriv
+!REAL,INTENT(IN)                      :: U_Minus(     PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
+!REAL,INTENT(IN)                      :: NormVec(           3,0:PP_N,0:PP_N,1:nBCSides)
+!REAL,INTENT(IN)                      :: TangVec1(          3,0:PP_N,0:PP_N,1:nBCSides)
+!REAL,INTENT(IN)                      :: TangVec2(          3,0:PP_N,0:PP_N,1:nBCSides)
+!REAL,INTENT(IN)                      :: BCFace_xGP(        3,0:PP_N,0:PP_N,1:nBCSides)
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! OUTPUT VARIABLES
+!REAL,INTENT(OUT)                     :: Flux(        PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
+!!-----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!INTEGER                              :: p,q
+!INTEGER                              :: BCType,BCState,nBCLoc
+!REAL                                 :: U_Face_loc(PP_nVar,0:PP_N,0:PP_N)
+!!===================================================================================================================================
+!SELECT CASE(BCType)
+!CASE(1) !Periodic already filled!
+!CASE DEFAULT ! unknown BCType
+  !CALL abort(&
+!__STAMP__&
+!,'no BC defined in navierstokes/getboundaryflux.f90!',999,999.)
+!END SELECT ! BCType
+!END SUBROUTINE GetBoundaryFlux
 
 
 SUBROUTINE FinalizeBC()

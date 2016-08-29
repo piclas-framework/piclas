@@ -34,8 +34,8 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PartStateIntEn,PolyatomMolDSMC
-  USE MOD_Particle_Vars,          ONLY : BoltzmannConst, Species
+  USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PolyatomMolDSMC
+  USE MOD_Particle_Vars,          ONLY : BoltzmannConst
   USE MOD_ReadInTools
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -121,9 +121,8 @@ SUBROUTINE DSMC_FindFirstVibPick(iInitTmp, iSpec, init_or_sf)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst, Species
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
+  USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
+  USE MOD_Particle_Vars,        ONLY : Species
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -619,7 +618,7 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(Ec,iSpec, iPart,FakXi)
 ! three atoms, use only for comparison)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
+  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar
   USE MOD_Particle_Vars,        ONLY : BoltzmannConst
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
@@ -682,7 +681,7 @@ SUBROUTINE DSMC_VibRelaxPoly_MH(Ec,iSpec, iPart,FakXi)
 ! Vibrational relaxation routine with the Metropolis-Hastings method (no burn-in phase)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
+  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar
   USE MOD_Particle_Vars,        ONLY : BoltzmannConst
   USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
 ! IMPLICIT VARIABLE HANDLING
@@ -743,9 +742,7 @@ SUBROUTINE DSMC_RotRelaxPoly(Ec, iPart,FakXi)
 ! Rotational relaxation routine
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC
-  USE MOD_Particle_Vars,        ONLY : BoltzmannConst
-  USE MOD_DSMC_ElectronicModel, ONLY : InitElectronShell
+  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -784,7 +781,7 @@ SUBROUTINE Calc_XiVib_Poly
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_DSMC_Vars,          ONLY : ChemReac,  SpecDSMC, PolyatomMolDSMC, CollInf, DSMC
+  USE MOD_DSMC_Vars,          ONLY : ChemReac,  SpecDSMC, PolyatomMolDSMC, CollInf
   USE MOD_PARTICLE_Vars,      ONLY : BoltzmannConst, nSpecies
   USE MOD_DSMC_Analyze,       ONLY : CalcTVibPoly
 ! IMPLICIT VARIABLE HANDLING
@@ -829,9 +826,9 @@ SUBROUTINE FakXiPoly(iReac, FakXi, Xi_vib1, Xi_vib2)
 ! Calculates the exponent for the distribution of internal energy (Laux, p. 30-32)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,             ONLY : DSMC, SpecDSMC, Coll_pData, PartStateIntEn, ChemReac, PolyatomMolDSMC
+USE MOD_DSMC_Vars,             ONLY : DSMC, SpecDSMC, ChemReac, PolyatomMolDSMC
 USE MOD_DSMC_Vars,             ONLY : CollInf
-USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies
+USE MOD_Particle_Vars,         ONLY : BoltzmannConst
 USE MOD_DSMC_Analyze,          ONLY : CalcTVib, CalcTVibPoly
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -964,9 +961,8 @@ REAL FUNCTION Calc_Beta_Poly(iReac,Xi_Total)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
-  USE MOD_Globals_Vars,       ONLY : Pi
-  USE MOD_DSMC_Vars,          ONLY : ChemReac,  SpecDSMC, PolyatomMolDSMC, CollInf
-  USE MOD_PARTICLE_Vars,      ONLY : BoltzmannConst, PartSpecies
+  USE MOD_DSMC_Vars,          ONLY : ChemReac,  SpecDSMC
+  USE MOD_PARTICLE_Vars,      ONLY : BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

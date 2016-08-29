@@ -54,7 +54,7 @@ INTEGER              :: iHelp,i,j,k,mm,nn,oo,r,s
 INTEGER              :: delta(0:PP_N,0:PP_N)
 LOGICAL              :: first
 INTEGER,ALLOCATABLE  :: TestMat(:,:)
-CHARACTER(LEN=17)    :: strfmt
+!CHARACTER(LEN=17)    :: strfmt
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT ILU                                ...'
 
@@ -180,8 +180,8 @@ SUBROUTINE BuildBILU0BCSR(BJ,iElem)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Basis               ,ONLY:GetInverse
-USE MOD_LinearSolver_Vars   ,ONLY:nDOFELEM,nDOFLine
-USE MOD_ILU_Vars            ,ONLY:BlockAA,BlockIA,BlockJA,nBDOF,BlockDiag
+USE MOD_LinearSolver_Vars   ,ONLY:nDOFELEM
+USE MOD_ILU_Vars            ,ONLY:BlockAA,BlockIA,BlockJA,nBDOF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -192,7 +192,7 @@ INTEGER,INTENT(IN) :: iElem
 REAL,INTENT(INOUT) :: BJ(nDOFELem,nDOFElem)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER            :: s,r,t,k,mm,nn,oo
+INTEGER            :: s,r,t
 REAL               :: epsZero
 REAL               :: dummy(PP_nVar,PP_nVar)
 INTEGER            :: i,j,k1,k2,vn1,vn2

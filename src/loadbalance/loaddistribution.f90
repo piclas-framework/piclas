@@ -38,8 +38,7 @@ SUBROUTINE SingleStepOptimalPartition(OldElems,NewElems,ElemWeight)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,          ONLY:nGlobalElems
-USE MOD_LoadBalance_Vars,   ONLY:WeightSum,TargetWeight
+USE MOD_LoadBalance_Vars,   ONLY:TargetWeight
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -53,7 +52,7 @@ INTEGER,INTENT(OUT)               :: NewElems
 REAL,ALLOCATABLE               :: preSum(:)
 REAL                           :: LowerBoundary
 REAL                           :: UpperBoundary
-INTEGER                        :: iElem, iProc,lowerBound,UpperBound, iRank
+INTEGER                        :: iElem, iRank
 INTEGER                        :: minRank, maxRank, leftOff, lb, ub,mid
 ! MPI-Stuff
 REAL                           :: LoadSend, opt_split, WeightSplit

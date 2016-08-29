@@ -179,16 +179,15 @@ SUBROUTINE SplitParticle(iPart, deltaE,CSquare)
 END SUBROUTINE SplitParticle
 
 
-SUBROUTINE DoEnergyConservation(iPart,iPart2, deltaE,CSquare)                                                                
+SUBROUTINE DoEnergyConservation(iPart,iPart2, deltaE,CSquare)
 !===================================================================================================================================
 ! Split Particles
 !===================================================================================================================================
-  USE MOD_Particle_Vars, ONLY : PDM, PartState, RandomVec, NumRanVec, PartSpecies, PartMPF, PEM, Species, vMPF_relativistic  
-  USE MOD_DSMC_Vars, ONLY : useDSMC, CollisMode, PartStateIntEn       
-  USE MOD_Equation_Vars,          ONLY : c2                                               
+  USE MOD_Particle_Vars, ONLY : PartState, RandomVec, NumRanVec, PartSpecies, PartMPF, Species, vMPF_relativistic  
+  USE MOD_Equation_Vars,          ONLY : c2
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE                                                                                    
+  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER,INTENT(IN)              :: iPart, iPart2
@@ -519,7 +518,7 @@ SUBROUTINE SplitRegion(SpecNum)
 !
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars, ONLY : vMPFMergeCellSplitOrder,PartStateMap, PEM, vMPF_SplitVec, vMPFPolyPoint &
+  USE MOD_Particle_Vars, ONLY : vMPFMergeCellSplitOrder,PartStateMap, vMPF_SplitVec, vMPFPolyPoint &
                                 ,vMPFPolySol, PartMPF, vMPF_oldMPFSum, vMPF_SplitVecBack, PartStatevMPFSpec
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -673,7 +672,7 @@ SUBROUTINE SetMPFParticlePosCube(iElem, FinPartNum)
 !
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars, ONLY : PartState, PEM, vMPFMergeCellSplitOrder, vMPF_OrderVec &
+  USE MOD_Particle_Vars, ONLY : PartState, vMPFMergeCellSplitOrder&
                         , vMPFPolySol, vMPF_SplitVecBack, PartStatevMPFSpec, vMPF_velocityDistribution &
                         , vMPF_NewPosRefElem
   USE MOD_Eval_xyz,           ONLY:Eval_XYZ_Poly
@@ -725,10 +724,9 @@ SUBROUTINE SetMPFParticlePosDensEst(iElem, FinPartNum, SpecNum,PosFailed)
 !
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Particle_Vars, ONLY : PartState, PEM, vMPFMergeCellSplitOrder, vMPF_OrderVec &
-                        , vMPFPolySol, vMPF_SplitVecBack, PartStatevMPFSpec, PartStateMap &
+  USE MOD_Particle_Vars, ONLY : PartState,PartStatevMPFSpec, PartStateMap &
                         , vMPF_oldMPFSum, vMPFOldMPF, vMPF_NewPosRefElem, vMPF_velocityDistribution &
-                        ,vMPFOldPos, vMPFOldVelo, vMPFOldMPF, vMPFNewPosNum, PartMPF, PDM
+                        ,vMPFOldPos, vMPFOldVelo, vMPFNewPosNum, PartMPF, PDM
   USE MOD_Eval_xyz,           ONLY:Eval_XYZ_Poly
   USE MOD_Mesh_Vars,          ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 
@@ -1004,7 +1002,6 @@ FUNCTION GaussCore(bandwidth,oldpos,newpos)
 !
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars, ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde!,Elem_xGP
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1032,7 +1029,6 @@ FUNCTION GaussCore4D(bandwidth,oldpos,oldvelo,newpos,newvelo)
 !
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars, ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde!,Elem_xGP
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1603,7 +1599,7 @@ SUBROUTINE SetNewDistrVeloDensEst(NewPartNum, SpecNum,Csquare)                  
 !===================================================================================================================================
 ! MODULES
   USE MOD_Particle_Vars, ONLY : PartState, Species, PartSpecies, vMPF_oldEngSum, vMPF_oldMomSum, &
-                     PartMPF, PartStatevMPFSpec, vMPFOldBrownVelo, vMPFOldMPF,vMPF_oldMPFSum, PartStateMap &
+                     PartMPF, PartStatevMPFSpec,  PartStateMap &
                     , vMPF_NewPosRefElem, vMPFOldVelo, vMPF_relativistic
   USE MOD_Equation_Vars,          ONLY : c2
   USE MOD_Globals

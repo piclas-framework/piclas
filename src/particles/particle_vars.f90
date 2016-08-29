@@ -176,6 +176,8 @@ TYPE tSurfFluxSubSideData
   REAL                                   :: Velo_t2                          ! Velo comp. of second orth. vector
   REAL                                   :: nVFR                             ! normal volume flow rate through subside
   REAL                                   :: Dmax                             ! maximum Jacobian determinant of subside for opt. ARM
+  REAL,ALLOCATABLE                       :: BezierControlPoints2D(:,:,:)     ! BCP of SubSide projected to VeloVecIC
+                                                                             ! (1:2,0:NGeo,0:NGeo)
 END TYPE tSurfFluxSubSideData
 
 TYPE tSurfaceflux
@@ -185,6 +187,7 @@ TYPE tSurfaceflux
   REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3)
+  LOGICAL                                :: VeloIsNormal                     ! VeloIC is in Surf-Normal instead of VeloVecIC
   LOGICAL                                :: ReduceNoise                      ! reduce stat. noise by global calc. of PartIns
   LOGICAL                                :: AcceptReject                     ! perform ARM for skewness of RefMap-positioning
   INTEGER                                :: ARM_DmaxSampleN                  ! number of sample intervals in xi/eta for Dmax-calc.
@@ -193,9 +196,9 @@ TYPE tSurfaceflux
   REAL                                   :: VFR_total_allProcsTotal          !     -''-, total
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
-  REAL,ALLOCATABLE                       :: BezierControlPoints2D(:,:,:,:)   ! BCP of SubSide projected to VeloVecIC
-                                                                             ! (1:2,0:NGeo,0:NGeo,1:SideNumber)
-  TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)    ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
+  INTEGER(KIND=8)                        :: tmpInsertedParticle              ! tmp Number of all already inserted Particles
+  INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus       ! tmp accumulated "negative" number of inserted Particles
+  TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)      ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
 END TYPE
 
 TYPE tSpecies                                                                ! Particle Data for each Species

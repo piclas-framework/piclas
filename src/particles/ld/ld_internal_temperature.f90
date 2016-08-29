@@ -25,10 +25,9 @@ CONTAINS
 SUBROUTINE CalcInternalTemp_LD_first(iElem)
 
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,              ONLY : nElems
 USE MOD_Particle_Vars,          ONLY : PEM, BoltzmannConst, Species, nSpecies, PartSpecies
 USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
+USE MOD_DSMC_Vars,              ONLY : SpecDSMC, PartStateIntEn, DSMC
 USE MOD_TimeDisc_Vars,          ONLY : dt
 
 !--------------------------------------------------------------------------------------------------!
@@ -118,7 +117,6 @@ END SUBROUTINE CalcInternalTemp_LD_first
 SUBROUTINE CalcInternalTemp_LD_second(iElem)
 
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,              ONLY : nElems
 USE MOD_Particle_Vars,          ONLY : PEM, BoltzmannConst, Species, PartSpecies, PDM, NumRanVec, RandomVec
 USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
@@ -515,7 +513,6 @@ END SUBROUTINE CalcInternalTemp_LD_second
 SUBROUTINE CalcInternalTemp_LD_third(iElem)
 
 USE MOD_LD_Vars
-USE MOD_Mesh_Vars,              ONLY : nElems
 USE MOD_Particle_Vars,          ONLY : PEM, BoltzmannConst, Species, nSpecies, PartSpecies
 USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
@@ -679,119 +676,118 @@ END SUBROUTINE CalcInternalTemp_LD_third
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-SUBROUTINE CalcInternalTemp_LD_third_back(iElem)
-
-USE MOD_LD_Vars
-USE MOD_Mesh_Vars,              ONLY : nElems
-USE MOD_Particle_Vars,          ONLY : PEM, BoltzmannConst, Species
-USE MOD_Particle_Mesh_Vars,     ONLY : GEO
-USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
-USE MOD_TimeDisc_Vars,          ONLY : dt
-
-!--------------------------------------------------------------------------------------------------!
-   IMPLICIT NONE                                                                                  !
-!--------------------------------------------------------------------------------------------------!
-! argument list declaration                                                                        !
-! Local variable declaration                                                                       !
-  INTEGER               :: iPart, nPart, iPartIndx, iSpec
-  REAL                   :: PreTransEnergy, PreRotEnergy, PreVibEnergy, VibTemp, Xi_vib
-  REAL                   :: NewTransEnergy, NewRotEnergy, NewVibEnergy, NewVibTemp, NewXi_vib, EquXi_vib
-  REAL                   :: SumEnergy, EquEnergy, MeanVibQua, NewMeanVibQua
-  REAL                   :: VibRelaPart, RotRelaPart, CollPartion
-  INTEGER                :: PairType 
-  REAL                   :: CRela2
-
-  INTEGER, INTENT(IN)           :: iElem
-
-!--------------------------------------------------------------------------------------------------!
-
-  nPart = PEM%pNumber(iElem)
-  PreVibEnergy = 0.0
-  PreRotEnergy = 0.0
-  iSpec = 1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ACHTUNG!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  PairType = CollInf%Coll_Case(1,1)
-  CRela2 = 8.0 * BoltzmannConst * BulkValues(iElem)%BulkTemperature &
-         / (3.1415926536 * CollInf%MassRed(PairType))
-
-  CollPartion = nPart*nPart/2  & 
-              * CollInf%Cab(PairType)   & ! Cab species comb fac
-              * Species(iSpec)%MacroParticleFactor                  & 
-                      ! weighting Fact, here only one MPF is used!!!
-              / (nPart * 0.5) & !sum of coll cases Sab
-              * CRela2 ** (0.5-SpecDSMC(iSpec)%omegaVHS) &
-                      ! relative velo to the power of (1 -2omega) !! only one omega is used!!
-              * dt / GEO%Volume(iElem) 
-
-  RotRelaPart = SpecDSMC(iSpec)%RotRelaxProb * CollPartion
-  VibRelaPart = SpecDSMC(iSpec)%VibRelaxProb * CollPartion
-
-  PreTransEnergy = 1.0/2.0 * BoltzmannConst * BulkValues(iElem)%BulkTemperature ! per DOF
-
-  iPartIndx = PEM%pStart(iElem)
-  DO ipart = 1, nPart
-    PreVibEnergy = PreVibEnergy + PartStateIntEn(iPartIndx,1)
-    PreRotEnergy = PreRotEnergy + PartStateIntEn(iPartIndx,2)
-    iPartIndx = PEM%pNext(iPartIndx)
-  END DO
-  PreVibEnergy = PreVibEnergy / REAL(nPart)
-  PreRotEnergy = PreRotEnergy / REAL(nPart)
-  MeanVibQua = PreVibEnergy /(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-  VibTemp = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(MeanVibQua-DSMC%GammaQuant))
-
-  IF (MeanVibQua.LE.DSMC%GammaQuant) THEN
-    Xi_vib = 0.0        
-  ELSE
-    Xi_vib = 2.0 * SpecDSMC(iSpec)%CharaTVib/VibTemp / (EXP(SpecDSMC(iSpec)%CharaTVib/VibTemp)-1) &
-           + 2.0*DSMC%GammaQuant*SpecDSMC(iSpec)%CharaTVib/VibTemp
-  END IF
-
-  PreVibEnergy = PreVibEnergy / Xi_vib ! per DOF
-  PreRotEnergy = PreRotEnergy / 2.0 ! per DOF
-
-
-  SumEnergy  = 3.0*PreTransEnergy + 2.0*PreRotEnergy + Xi_vib*PreVibEnergy
-  EquEnergy = ( 3.0*PreTransEnergy + 2.0*PreRotEnergy + Xi_vib*PreVibEnergy ) / (5.0 + Xi_vib)
-
-  NewMeanVibQua = EquEnergy*Xi_vib /(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-
-  NewVibTemp = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(NewMeanVibQua-DSMC%GammaQuant))
-
-  IF (NewMeanVibQua.LE.DSMC%GammaQuant) THEN
-    EquXi_vib = 0.0        
-  ELSE
-    EquXi_vib = 2.0 * SpecDSMC(iSpec)%CharaTVib/NewVibTemp / (EXP(SpecDSMC(iSpec)%CharaTVib/NewVibTemp)-1) &
-           + 2.0*DSMC%GammaQuant*SpecDSMC(iSpec)%CharaTVib/NewVibTemp
-  END IF
-  NewVibEnergy = (1.0-VibRelaPart) * PreVibEnergy * Xi_vib + VibRelaPart * EquEnergy * EquXi_vib
-
-  NewMeanVibQua = NewVibEnergy* Xi_vib /(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
-  NewVibTemp = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(NewMeanVibQua-DSMC%GammaQuant))
-  IF (NewMeanVibQua.LE.DSMC%GammaQuant) THEN
-    NewXi_vib = 0.0        
-  ELSE
-    NewXi_vib = 2.0 * SpecDSMC(iSpec)%CharaTVib/NewVibTemp / (EXP(SpecDSMC(iSpec)%CharaTVib/NewVibTemp)-1) &
-           + 2.0*DSMC%GammaQuant*SpecDSMC(iSpec)%CharaTVib/NewVibTemp
-  END IF
-
-  EquEnergy = (SumEnergy - NewVibEnergy) / 5.0
-
-  NewRotEnergy = (1.0-RotRelaPart) * PreRotEnergy * 2.0 + RotRelaPart * EquEnergy * 2.0
-
-  NewTransEnergy = (SumEnergy - NewRotEnergy - NewVibEnergy)  ! sum of DOF
-
-
-
-  BulkValues(iElem)%BulkTemperature = 2.0/3.0 * NewTransEnergy / BoltzmannConst
-  iPartIndx = PEM%pStart(iElem)
-  DO ipart = 1, nPart
-    PartStateIntEn(iPartIndx,1) = NewVibEnergy
-    PartStateIntEn(iPartIndx,2) = NewRotEnergy
-    iPartIndx = PEM%pNext(iPartIndx)
-  END DO
-
-END SUBROUTINE CalcInternalTemp_LD_third_back
-!-----------------------------------------------------------------------------------------------------------------------------------
+!   SUBROUTINE CalcInternalTemp_LD_third_back(iElem)
+!   
+!   USE MOD_LD_Vars
+!   USE MOD_Particle_Vars,          ONLY : PEM, BoltzmannConst, Species
+!   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
+!   USE MOD_DSMC_Vars,              ONLY : SpecDSMC, CollInf, PartStateIntEn, DSMC
+!   USE MOD_TimeDisc_Vars,          ONLY : dt
+!   
+!   !--------------------------------------------------------------------------------------------------!
+!      IMPLICIT NONE                                                                                  !
+!   !--------------------------------------------------------------------------------------------------!
+!   ! argument list declaration                                                                        !
+!   ! Local variable declaration                                                                       !
+!     INTEGER               :: iPart, nPart, iPartIndx, iSpec
+!     REAL                   :: PreTransEnergy, PreRotEnergy, PreVibEnergy, VibTemp, Xi_vib
+!     REAL                   :: NewTransEnergy, NewRotEnergy, NewVibEnergy, NewVibTemp, NewXi_vib, EquXi_vib
+!     REAL                   :: SumEnergy, EquEnergy, MeanVibQua, NewMeanVibQua
+!     REAL                   :: VibRelaPart, RotRelaPart, CollPartion
+!     INTEGER                :: PairType 
+!     REAL                   :: CRela2
+!   
+!     INTEGER, INTENT(IN)           :: iElem
+!   
+!   !--------------------------------------------------------------------------------------------------!
+!   
+!     nPart = PEM%pNumber(iElem)
+!     PreVibEnergy = 0.0
+!     PreRotEnergy = 0.0
+!     iSpec = 1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ACHTUNG!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!   
+!     PairType = CollInf%Coll_Case(1,1)
+!     CRela2 = 8.0 * BoltzmannConst * BulkValues(iElem)%BulkTemperature &
+!            / (3.1415926536 * CollInf%MassRed(PairType))
+!   
+!     CollPartion = nPart*nPart/2  & 
+!                 * CollInf%Cab(PairType)   & ! Cab species comb fac
+!                 * Species(iSpec)%MacroParticleFactor                  & 
+!                         ! weighting Fact, here only one MPF is used!!!
+!                 / (nPart * 0.5) & !sum of coll cases Sab
+!                 * CRela2 ** (0.5-SpecDSMC(iSpec)%omegaVHS) &
+!                         ! relative velo to the power of (1 -2omega) !! only one omega is used!!
+!                 * dt / GEO%Volume(iElem) 
+!   
+!     RotRelaPart = SpecDSMC(iSpec)%RotRelaxProb * CollPartion
+!     VibRelaPart = SpecDSMC(iSpec)%VibRelaxProb * CollPartion
+!   
+!     PreTransEnergy = 1.0/2.0 * BoltzmannConst * BulkValues(iElem)%BulkTemperature ! per DOF
+!   
+!     iPartIndx = PEM%pStart(iElem)
+!     DO ipart = 1, nPart
+!       PreVibEnergy = PreVibEnergy + PartStateIntEn(iPartIndx,1)
+!       PreRotEnergy = PreRotEnergy + PartStateIntEn(iPartIndx,2)
+!       iPartIndx = PEM%pNext(iPartIndx)
+!     END DO
+!     PreVibEnergy = PreVibEnergy / REAL(nPart)
+!     PreRotEnergy = PreRotEnergy / REAL(nPart)
+!     MeanVibQua = PreVibEnergy /(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+!     VibTemp = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(MeanVibQua-DSMC%GammaQuant))
+!   
+!     IF (MeanVibQua.LE.DSMC%GammaQuant) THEN
+!       Xi_vib = 0.0        
+!     ELSE
+!       Xi_vib = 2.0 * SpecDSMC(iSpec)%CharaTVib/VibTemp / (EXP(SpecDSMC(iSpec)%CharaTVib/VibTemp)-1) &
+!              + 2.0*DSMC%GammaQuant*SpecDSMC(iSpec)%CharaTVib/VibTemp
+!     END IF
+!   
+!     PreVibEnergy = PreVibEnergy / Xi_vib ! per DOF
+!     PreRotEnergy = PreRotEnergy / 2.0 ! per DOF
+!   
+!   
+!     SumEnergy  = 3.0*PreTransEnergy + 2.0*PreRotEnergy + Xi_vib*PreVibEnergy
+!     EquEnergy = ( 3.0*PreTransEnergy + 2.0*PreRotEnergy + Xi_vib*PreVibEnergy ) / (5.0 + Xi_vib)
+!   
+!     NewMeanVibQua = EquEnergy*Xi_vib /(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+!   
+!     NewVibTemp = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(NewMeanVibQua-DSMC%GammaQuant))
+!   
+!     IF (NewMeanVibQua.LE.DSMC%GammaQuant) THEN
+!       EquXi_vib = 0.0        
+!     ELSE
+!       EquXi_vib = 2.0 * SpecDSMC(iSpec)%CharaTVib/NewVibTemp / (EXP(SpecDSMC(iSpec)%CharaTVib/NewVibTemp)-1) &
+!              + 2.0*DSMC%GammaQuant*SpecDSMC(iSpec)%CharaTVib/NewVibTemp
+!     END IF
+!     NewVibEnergy = (1.0-VibRelaPart) * PreVibEnergy * Xi_vib + VibRelaPart * EquEnergy * EquXi_vib
+!   
+!     NewMeanVibQua = NewVibEnergy* Xi_vib /(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
+!     NewVibTemp = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(NewMeanVibQua-DSMC%GammaQuant))
+!     IF (NewMeanVibQua.LE.DSMC%GammaQuant) THEN
+!       NewXi_vib = 0.0        
+!     ELSE
+!       NewXi_vib = 2.0 * SpecDSMC(iSpec)%CharaTVib/NewVibTemp / (EXP(SpecDSMC(iSpec)%CharaTVib/NewVibTemp)-1) &
+!              + 2.0*DSMC%GammaQuant*SpecDSMC(iSpec)%CharaTVib/NewVibTemp
+!     END IF
+!   
+!     EquEnergy = (SumEnergy - NewVibEnergy) / 5.0
+!   
+!     NewRotEnergy = (1.0-RotRelaPart) * PreRotEnergy * 2.0 + RotRelaPart * EquEnergy * 2.0
+!   
+!     NewTransEnergy = (SumEnergy - NewRotEnergy - NewVibEnergy)  ! sum of DOF
+!   
+!   
+!   
+!     BulkValues(iElem)%BulkTemperature = 2.0/3.0 * NewTransEnergy / BoltzmannConst
+!     iPartIndx = PEM%pStart(iElem)
+!     DO ipart = 1, nPart
+!       PartStateIntEn(iPartIndx,1) = NewVibEnergy
+!       PartStateIntEn(iPartIndx,2) = NewRotEnergy
+!       iPartIndx = PEM%pNext(iPartIndx)
+!     END DO
+!   
+!   END SUBROUTINE CalcInternalTemp_LD_third_back
+!   !-----------------------------------------------------------------------------------------------------------------------------------
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 

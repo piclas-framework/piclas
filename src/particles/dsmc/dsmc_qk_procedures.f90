@@ -516,14 +516,17 @@ END IF
 END SUBROUTINE
 
 
-SUBROUTINE QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
+SUBROUTINE QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,NodeVolume,NodePartNum)
 !===================================================================================================================================
 ! Check if colliding ion + electron recombines to neutral atom/ molecule
 ! requires a third collision partner, which has to take a part of the energy
 ! this approach is similar to Birds QK molecular recombination, but modified for ion-electron recombination
 !===================================================================================================================================
-USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, DSMC_RHS
-USE MOD_Particle_Vars,          ONLY: PartSpecies, BoltzmannConst, Species, PEM, PartState, usevMPF
+USE MOD_DSMC_Vars,              ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac!, DSMC_RHS
+#if (PP_TimeDiscMethod==42)
+USE MOD_DSMC_Vars,              ONLY: DSMC
+#endif
+USE MOD_Particle_Vars,          ONLY: PartSpecies, BoltzmannConst, Species, PEM
 USE MOD_Particle_Mesh_Vars,     ONLY: GEO
 USE MOD_DSMC_ChemReact,         ONLY: IonRecomb ! has to be written, missing subroutine
 USE MOD_Globals_Vars,           ONLY: Pi
@@ -539,13 +542,12 @@ INTEGER, INTENT(IN), OPTIONAL       :: NodePartNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL, INTENT(INOUT)              :: RelaxToDo
-INTEGER, INTENT(IN)                 :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                             :: iQuaMax1, iQuaMax2,MaxElecQuant, iQua
-REAL                                :: Volume, nPartNode, omegaAB, ReactionProb, iRan, Vref, coeffT,Tcoll, acorrection, CRela2X
+REAL                                :: Volume, nPartNode, omegaAB, ReactionProb, iRan, Vref, coeffT,Tcoll, acorrection!, CRela2X
 INTEGER                             :: PartReac1,PartReac2
-REAL :: evor, enach
+!REAL :: evor, enach
 !===================================================================================================================================
 
 

@@ -67,6 +67,8 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE SOLVER...'
 
 Eps2PartNewton     =GETREAL('EpsPartNewton','0.001')
 Eps2PartNewton     =Eps2PartNewton**2
+EpsPartLinSolver   =GETREAL('EpsPartLinSolver','0.0')
+IF(EpsPartLinSolver.EQ.0.) EpsPartLinSolver=Eps_LinearSolver
 nPartNewtonIter    =GETINT('nPartNewtonIter','20')
 FreezePartInNewton =GETINT('FreezePartInNewton','1')
 EisenstatWalker    =GETLOGICAL('EisenstatWalker','.FALSE.')
@@ -88,6 +90,10 @@ IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
 ,'Cannot allocate R_PartXK')
 
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+PartImplicitMethod =GETINT('Part-ImplicitMethod','0')
+#endif
+
 END SUBROUTINE InitPartSolver
 
 
@@ -99,7 +105,11 @@ SUBROUTINE SelectImplicitParticles()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Vars,     ONLY:Species,nSpecies,PartSpecies,PartIsImplicit,PDM
+USE MOD_Globals
+USE MOD_Particle_Vars,     ONLY:Species,nSpecies,PartSpecies,PartIsImplicit,PDM,Pt,PartState
+USE MOD_Linearsolver_Vars, ONLY:PartImplicitMethod
+USE MOD_TimeDisc_Vars,     ONLY:dt,nRKStages,iter
+USE MOD_Equation_Vars,     ONLY:c2_inv
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -109,13 +119,53 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER     :: iPart
+REAL        :: NewVelo(3),Vabs,PartGamma,VabsNew
 !===================================================================================================================================
 
 PartIsImplicit=.FALSE.
-DO iPart=1,PDM%ParticleVecLength
-  IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-  IF(Species(PartSpecies(iPart))%IsImplicit) PartIsImplicit(iPart)=.TRUE.
-END DO ! iPart
+SELECT CASE(PartImplicitMethod)
+CASE(0) ! depending on species
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF(Species(PartSpecies(iPart))%IsImplicit) PartIsImplicit(iPart)=.TRUE.
+  END DO ! iPart
+CASE(1) ! selection after simplified, linear push
+  IF(iter.EQ.0)THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+      PartIsImplicit(iPart)=.TRUE.
+    END DO ! iPart
+  ELSE
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+      NewVelo=PartState(iPart,4:6)+dt/REAL(nRKStages-1)*Pt(iPart,1:3)
+      Vabs   =DOT_PRODUCT(NewVelo,NewVelo)
+      IF(Vabs*c2_inv.GT.0.9) PartIsImplicit(iPart)=.TRUE.
+    END DO ! iPart
+  END IF
+CASE(2) ! if gamma exceeds a certain treshold
+  IF(iter.EQ.0)THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+      PartIsImplicit(iPart)=.TRUE.
+    END DO ! iPart
+  ELSE
+    DO iPart=1,PDM%ParticleVecLength
+      IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+      NewVelo=PartState(iPart,4:6)
+      Vabs   =DOT_PRODUCT(NewVelo,NewVelo)
+      PartGamma=1.0-Vabs*c2_inv
+      PartGamma=1.0/SQRT(PartGamma)
+      IF(PartGamma.GT.0.3) PartIsImplicit(iPart)=.TRUE.
+    END DO ! iPart
+  END IF
+! CASE(3) 
+! use the dense output to compute error, if to large, switch to implicit
+CASE DEFAULT
+  IF(MPIRoot)  CALL abort(&
+__STAMP__&
+,' Method to select implicit particles is not implemented!')
+END SELECT
   
 END SUBROUTINE SelectImplicitParticles
 #endif
@@ -143,7 +193,9 @@ USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange,PartMPI
 USE MOD_Particle_MPI_Vars,      ONLY:ExtPartState,ExtPartSpecies,ExtPartMPF,ExtPartToFIBGM,NbrOfExtParticles
 #endif /*MPI*/
 USE MOD_LinearSolver_vars,       ONLY:Eps2PartNewton,nPartNewton, PartgammaEW,nPartNewtonIter,FreezePartInNewton,DoPrintConvInfo
-USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH
+USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
+                                     ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
+USE MOD_Equation_vars,           ONLY:c2_inv
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
@@ -168,13 +220,14 @@ INTEGER                      :: iPart
 INTEGER                      :: nInnerPartNewton = 0
 REAL                         :: AbortCritLinSolver,gammaA,gammaB
 !REAL                         :: FieldAtParticle(1:6)
-REAL                         :: DeltaX(1:6)
+REAL                         :: DeltaX(1:6), DeltaX_Norm
 REAL                         :: Pt_tmp(1:6)
 LOGICAL                      :: doParticle(1:PDM%maxParticleNumber)
 !! maybeeee
 !! and thats maybe local??? || global, has to be set false during communication
 LOGICAL                      :: DoNewton
 REAL                         :: AbortTol
+REAL                         :: LorentzFacInv
 INTEGER:: counter
 !===================================================================================================================================
 
@@ -212,16 +265,25 @@ IF(opt)THEN ! compute zero state
     IF(DoPartInNewton(iPart))THEN
       CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
+      CASE(0)
+        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        LorentzFacInv = 1.0
       CASE(1)
         Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        LorentzFacInv = 1.0
       CASE(3)
         Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        LorentzFacInv = 1.0
+      CASE(5)
+        LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv      
+        LorentzFacInv=1.0/SQRT(LorentzFacInv)
+        Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
       CASE DEFAULT
       END SELECT
       ! PartStateN has to be exchanged by PartQ
-      Pt_tmp(1) = PartState(iPart,4) 
-      Pt_tmp(2) = PartState(iPart,5) 
-      Pt_tmp(3) = PartState(iPart,6) 
+      Pt_tmp(1) = LorentzFacInv*PartState(iPart,4) 
+      Pt_tmp(2) = LorentzFacInv*PartState(iPart,5) 
+      Pt_tmp(3) = LorentzFacInv*PartState(iPart,6) 
       Pt_tmp(4) = Pt(iPart,1) 
       Pt_tmp(5) = Pt(iPart,2) 
       Pt_tmp(6) = Pt(iPart,3)
@@ -262,6 +324,7 @@ IF(DoPrintConvInfo)THEN
   SWRITE(*,*) 'init part',Counter
 END IF
 
+AbortCritLinSolver=0.99
 nInnerPartNewton=-1
 DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change loops, finish particle after particle?
   nInnerPartNewton=nInnerPartNewton+1
@@ -285,6 +348,10 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       ! update to new partstate during Newton iteration
       PartXK(:,iPart)=PartXK(:,iPart)+DeltaX
       PartState(iPart,:)=PartXK(:,iPart)
+      DeltaX_Norm=DOT_PRODUCT(DeltaX,DeltaX)
+      IF(DeltaX_Norm.LT.AbortTol*Norm2_F_PartX0(iPart)) THEN
+        DoPartInNewton(iPart)=.FALSE.
+      END IF
     END IF ! ParticleInside
   END DO ! iPart
   ! closed form: now move particles
@@ -330,25 +397,35 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       PEM%lastElement(iPart)=PEM%Element(iPart)
       IF(MOD(nInnerPartNewton,FreezePartInNewton).EQ.0) CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
       SELECT CASE(PartLorentzType)
+      CASE(0)
+        Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        LorentzFacInv = 1.0
       CASE(1)
         Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        LorentzFacInv = 1.0
       CASE(3)
         Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        LorentzFacInv = 1.0
+      CASE(5)
+        LorentzFacInv=1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv      
+        LorentzFacInv=1.0/SQRT(LorentzFacInv)
+        Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6),LorentzFacInvIn=LorentzFacInv)
       CASE DEFAULT
       CALL abort(&
 __STAMP__&
 ,' Given PartLorentzType does not exist!',PartLorentzType)
       END SELECT
-      R_PartXK(1,iPart)=PartState(iPart,4)
-      R_PartXK(2,iPart)=PartState(iPart,5)
-      R_PartXK(3,iPart)=PartState(iPart,6)
+      R_PartXK(1,iPart)=LorentzFacInv*PartState(iPart,4)
+      R_PartXK(2,iPart)=LorentzFacInv*PartState(iPart,5)
+      R_PartXK(3,iPart)=LorentzFacInv*PartState(iPart,6)
       R_PartXK(4,iPart)=Pt(iPart,1)
       R_PartXK(5,iPart)=Pt(iPart,2)
       R_PartXK(6,iPart)=Pt(iPart,3)
       F_PartXK(:,iPart)=PartState(iPart,:) - PartQ(:,iPart) - coeff*R_PartXK(:,iPart)
       ! vector dot product 
       CALL PartVectorDotProduct(F_PartXK(:,iPart),F_PartXK(:,iPart),Norm2_F_PartXK(iPart))
-      IF(Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)) DoPartInNewton(iPart)=.FALSE.
+      IF((Norm2_F_PartXK(iPart).LT.AbortTol*Norm2_F_PartX0(iPart)).OR.(Norm2_F_PartXK(iPart).LT.1e-12)) &
+          DoPartInNewton(iPart)=.FALSE.
       !IF(nInnerPartNewton.GT.20)THEN
       !  IPWRITE(*,*) 'blubb',iPart, Norm2_F_PartXK(iPart),Norm2_F_PartX0(iPart)
       !END IF
@@ -397,7 +474,7 @@ SUBROUTINE Particle_GMRES(t,coeff,PartID,B,Norm_B,AbortCrit,DeltaX)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_LinearSolver_Vars,    ONLY: eps_LinearSolver,TotalPartIterLinearSolver
+USE MOD_LinearSolver_Vars,    ONLY: epsPartlinSolver,TotalPartIterLinearSolver
 USE MOD_LinearSolver_Vars,    ONLY: nKDim,nRestarts,nPartInnerIter,EisenstatWalker
 USE MOD_LinearOperator,       ONLY: PartMatrixVector, PartVectorDotProduct
 USE MOD_TimeDisc_Vars,        ONLY: dt,iter
@@ -439,10 +516,10 @@ Restart=0
 nPartInnerIter=0
 !Un(:)=PartState(PartID,:)
 IF(iter.EQ.0) THEN
-  AbortCrit=eps_LinearSolver
+  AbortCrit=epsPartlinSolver
 ELSE
   IF (EisenstatWalker .eqv. .FALSE.) THEN
-    AbortCrit=eps_LinearSolver
+    AbortCrit=epsPartlinSolver
   END IF
 END IF
 AbortCrit=Norm_B*AbortCrit

@@ -24,7 +24,6 @@ SUBROUTINE LDPartTreament(iElem)
 
 USE MOD_LD_Vars
 USE MOD_TimeDisc_Vars,         ONLY : dt
-USE MOD_Mesh_Vars,             ONLY : ElemToSide
 USE MOD_Particle_Vars,         ONLY : PEM, PartState!,GEO
 USE MOD_Basis,                 ONLY : GetInverse
 !USE MOD_part_MPFtools,         ONLY : MapToGeo, GeoCoordToMap
@@ -34,19 +33,17 @@ USE MOD_Basis,                 ONLY : GetInverse
 !--------------------------------------------------------------------------------------------------!
 ! argument list declaration                                                                        !
 ! Local variable declaration                                                                       !
-  INTEGER                       :: iNode, iLocSide1, iLocSide2, iLocSide3, iRow, iColumn, iLocSide, iVertex
-  INTEGER                       :: nPart, iPart, iPartIndx, SideID, trinum
-  REAL                          :: PartNewPos(3), PartShift(3)
+  INTEGER                       :: iNode, iLocSide1, iLocSide2, iLocSide3, iLocSide, iVertex
+  INTEGER                       :: nPart, iPart, iPartIndx, trinum
+  REAL                          :: PartShift(3)
   REAL                          :: Matrix(3,3)
   REAL                          :: MatrixInv(3,3)
   REAL                          :: Vector(3,1)
-  REAL                          :: NewNodePos(3,8), PloyCoef(8,3), OldNodePos(3,8)
+  REAL                          :: NewNodePos(3,8)
   REAL                          :: ChosenMeanBaseD1, ChosenMeanBaseD2, ChosenMeanBaseD3
-  REAL                          :: vLAG1, vLAG2, vLAG3, test
+  REAL                          :: vLAG1, vLAG2, vLAG3
   REAL                          :: NVec1(3),NVec2(3),NVec3(3), xi_Out(3),NewHexCentroid(3),OldHexCentroid(3)
-  REAL                          :: NVecOpposite(3,4)
   LOGICAL, ALLOCATABLE        :: PartFound(:)
-  INTEGER                       :: TetraPoint(3)
   REAL                          :: Wert_min, Wert_sum
   REAL                          :: DistVertex, DistPart
 
@@ -183,8 +180,8 @@ USE MOD_Basis,                 ONLY : GetInverse
             PartShift(1:3) = 0.0
             DO iVertex = 1, 4
               IF (iVertex.EQ.4) THEN
-                CALL CalcDistOpposite(iVertex,OldHexCentroid,DistVertex,OldHexCentroid,TetraPoint)
-                CALL CalcDistOpposite(iVertex,OldHexCentroid,DistPart,PartState(iPartIndx,1:3),TetraPoint)
+                !CALL CalcDistOpposite(iVertex,OldHexCentroid,DistVertex,OldHexCentroid,TetraPoint)
+                !CALL CalcDistOpposite(iVertex,OldHexCentroid,DistPart,PartState(iPartIndx,1:3),TetraPoint)
                 PartShift(1) = PartShift(1) + DistPart / DistVertex * &
                              (- OldHexCentroid(1) + NewHexCentroid(1))
                 PartShift(2) = PartShift(2) + DistPart / DistVertex * &
@@ -227,74 +224,73 @@ USE MOD_Basis,                 ONLY : GetInverse
   DEALLOCATE(PartFound)
  
 END SUBROUTINE LDPartTreament
-!--------------------------------------------------------------------------------------------------!
-!--------------------------------------------------------------------------------------------------!
-SUBROUTINE CalcDistOpposite(TetraVertex,OldHexCentroid,DistOpposite,PointCoords,TetraPoint)
-!--------------------------------------------------------------------------------------------------!
-  USE MOD_LD_Vars
-  !USE MOD_Particle_Vars,         ONLY : GEO
-  IMPLICIT NONE                                                                                   !
-!--------------------------------------------------------------------------------------------------!
-  INTEGER, INTENT(IN)                :: TetraVertex
-  REAL, INTENT(IN)                   :: OldHexCentroid(3),PointCoords(3)
-  INTEGER, INTENT(IN)                :: TetraPoint(3)
-  REAL, INTENT(OUT)                  :: DistOpposite
-
-  REAL                                :: Vec1(3), Vec2(3), BaseVec(3)
-  REAL                                :: Fak_a, Fak_b, Fak_c
-!--------------------------------------------------------------------------------------------------!
-!  IF (TetraVertex .EQ. 1) THEN
-!    Vec1(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(2))
-!    Vec1(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(2))
-!    Vec1(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(2))
-!
-!    Vec2(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(3))
-!    Vec2(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(3))
-!    Vec2(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(3))
-!
-!    BaseVec(1:3) = OldHexCentroid(1:3)
-!  ELSE IF (TetraVertex .EQ. 2) THEN
-!    Vec1(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(1))
-!    Vec1(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(1))
-!    Vec1(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(1))
-!
-!    Vec2(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(3))
-!    Vec2(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(3))
-!    Vec2(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(3))
-!
-!    BaseVec(1:3) = OldHexCentroid(1:3) 
-!  ELSE IF (TetraVertex .EQ. 3) THEN
-!    Vec1(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(1))
-!    Vec1(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(1))
-!    Vec1(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(1))
-!
-!    Vec2(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(2))
-!    Vec2(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(2))
-!    Vec2(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(2))
-!
-!    BaseVec(1:3) = OldHexCentroid(1:3)
-!  ELSE ! TetraVertex .EQ. OldHexCentroid
-!    Vec1(1) = - GEO%NodeCoords(1,TetraPoint(1)) + GEO%NodeCoords(1,TetraPoint(2))
-!    Vec1(2) = - GEO%NodeCoords(2,TetraPoint(1)) + GEO%NodeCoords(2,TetraPoint(2))
-!    Vec1(3) = - GEO%NodeCoords(3,TetraPoint(1)) + GEO%NodeCoords(3,TetraPoint(2))
-!
-!    Vec2(1) = - GEO%NodeCoords(1,TetraPoint(1)) + GEO%NodeCoords(1,TetraPoint(3))
-!    Vec2(2) = - GEO%NodeCoords(2,TetraPoint(1)) + GEO%NodeCoords(2,TetraPoint(3))
-!    Vec2(3) = - GEO%NodeCoords(3,TetraPoint(1)) + GEO%NodeCoords(3,TetraPoint(3)) 
-!
-!    BaseVec(1:3) = GEO%NodeCoords(1:3,TetraPoint(1))
-!  END IF
-
-  ! -> Koordinatenform
-!  Fak_a = Vec1(2)*Vec2(3) - Vec2(2)*Vec1(3)
-!  Fak_b = Vec1(3)*Vec2(1) - Vec2(3)*Vec1(1)
-!  Fak_c = Vec1(1)*Vec2(2) - Vec2(1)*Vec1(2)
-!  DistOpposite = ABS((Fak_a*(PointCoords(1)-BaseVec(1))  &
-!             + Fak_b*(PointCoords(2)-BaseVec(2))  &
-!             + Fak_c*(PointCoords(3)-BaseVec(3))) &
-!             / SQRT(Fak_a*Fak_a + Fak_b*Fak_b + Fak_c*Fak_c))
-
-END SUBROUTINE CalcDistOpposite
+!    !--------------------------------------------------------------------------------------------------!
+!    !--------------------------------------------------------------------------------------------------!
+!    SUBROUTINE CalcDistOpposite(TetraVertex,OldHexCentroid,DistOpposite,PointCoords,TetraPoint)
+!    !--------------------------------------------------------------------------------------------------!
+!      USE MOD_LD_Vars
+!      !USE MOD_Particle_Vars,         ONLY : GEO
+!      IMPLICIT NONE                                                                                   !
+!    !--------------------------------------------------------------------------------------------------!
+!      INTEGER, INTENT(IN)                :: TetraVertex
+!      REAL, INTENT(IN)                   :: OldHexCentroid(3),PointCoords(3)
+!      INTEGER, INTENT(IN)                :: TetraPoint(3)
+!      REAL, INTENT(OUT)                  :: DistOpposite
+!    
+!      REAL                                :: Fak_a, Fak_b, Fak_c
+!    !--------------------------------------------------------------------------------------------------!
+!    !  IF (TetraVertex .EQ. 1) THEN
+!    !    Vec1(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(2))
+!    !    Vec1(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(2))
+!    !    Vec1(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(2))
+!    !
+!    !    Vec2(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(3))
+!    !    Vec2(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(3))
+!    !    Vec2(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(3))
+!    !
+!    !    BaseVec(1:3) = OldHexCentroid(1:3)
+!    !  ELSE IF (TetraVertex .EQ. 2) THEN
+!    !    Vec1(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(1))
+!    !    Vec1(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(1))
+!    !    Vec1(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(1))
+!    !
+!    !    Vec2(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(3))
+!    !    Vec2(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(3))
+!    !    Vec2(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(3))
+!    !
+!    !    BaseVec(1:3) = OldHexCentroid(1:3) 
+!    !  ELSE IF (TetraVertex .EQ. 3) THEN
+!    !    Vec1(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(1))
+!    !    Vec1(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(1))
+!    !    Vec1(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(1))
+!    !
+!    !    Vec2(1) = - OldHexCentroid(1) + GEO%NodeCoords(1,TetraPoint(2))
+!    !    Vec2(2) = - OldHexCentroid(2) + GEO%NodeCoords(2,TetraPoint(2))
+!    !    Vec2(3) = - OldHexCentroid(3) + GEO%NodeCoords(3,TetraPoint(2))
+!    !
+!    !    BaseVec(1:3) = OldHexCentroid(1:3)
+!    !  ELSE ! TetraVertex .EQ. OldHexCentroid
+!    !    Vec1(1) = - GEO%NodeCoords(1,TetraPoint(1)) + GEO%NodeCoords(1,TetraPoint(2))
+!    !    Vec1(2) = - GEO%NodeCoords(2,TetraPoint(1)) + GEO%NodeCoords(2,TetraPoint(2))
+!    !    Vec1(3) = - GEO%NodeCoords(3,TetraPoint(1)) + GEO%NodeCoords(3,TetraPoint(2))
+!    !
+!    !    Vec2(1) = - GEO%NodeCoords(1,TetraPoint(1)) + GEO%NodeCoords(1,TetraPoint(3))
+!    !    Vec2(2) = - GEO%NodeCoords(2,TetraPoint(1)) + GEO%NodeCoords(2,TetraPoint(3))
+!    !    Vec2(3) = - GEO%NodeCoords(3,TetraPoint(1)) + GEO%NodeCoords(3,TetraPoint(3)) 
+!    !
+!    !    BaseVec(1:3) = GEO%NodeCoords(1:3,TetraPoint(1))
+!    !  END IF
+!    
+!      ! -> Koordinatenform
+!    !  Fak_a = Vec1(2)*Vec2(3) - Vec2(2)*Vec1(3)
+!    !  Fak_b = Vec1(3)*Vec2(1) - Vec2(3)*Vec1(1)
+!    !  Fak_c = Vec1(1)*Vec2(2) - Vec2(1)*Vec1(2)
+!    !  DistOpposite = ABS((Fak_a*(PointCoords(1)-BaseVec(1))  &
+!    !             + Fak_b*(PointCoords(2)-BaseVec(2))  &
+!    !             + Fak_c*(PointCoords(3)-BaseVec(3))) &
+!    !             / SQRT(Fak_a*Fak_a + Fak_b*Fak_b + Fak_c*Fak_c))
+!    
+!    END SUBROUTINE CalcDistOpposite
 
 !--------------------------------------------------------------------------------------------------!
 

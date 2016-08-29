@@ -617,7 +617,7 @@ SUBROUTINE Calc_Arrhenius_Factors()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
-  USE MOD_DSMC_Vars,          ONLY : ChemReac, DSMC, SpecDSMC, CollInf
+  USE MOD_DSMC_Vars,          ONLY : ChemReac, SpecDSMC, CollInf
   USE MOD_PARTICLE_Vars,      ONLY : nSpecies, BoltzmannConst
   USE MOD_Globals_Vars,       ONLY : Pi
   USE MOD_DSMC_Analyze,       ONLY : CalcTVib
