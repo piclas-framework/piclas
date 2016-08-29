@@ -222,7 +222,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
           END IF
           IntArray(4) = IntArray(4) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) * BoltzmannConst &
                       * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) * Species(iSpec)%MacroParticleFactor
-          IntArray(5) = IntArray(5) + VibQuantWall * BoltzmannConst &
+          IntArray(5) = IntArray(5) + VibQuantWallPoly(iDOF) * BoltzmannConst &
                       * SpecDSMC(iSpec)%CharaTVib * Species(iSpec)%MacroParticleFactor
         END DO
       ELSE
@@ -832,6 +832,7 @@ REAL                          :: Qtra, Qrot, Qvib
   Qtra = 1
   IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
         Qvib = Qvib * EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (2. * Temp)) &
                 / (1. - EXP(-PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / Temp))
