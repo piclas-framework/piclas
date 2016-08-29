@@ -2890,7 +2890,7 @@ USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_PIC_Vars,                ONLY:PIC
-USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ,Species
+USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ,Species,nSpecies
 USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF, DoSurfaceFlux
 USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
@@ -2937,8 +2937,7 @@ INTEGER            :: iCounter !, iStage
 INTEGER :: nPartsFlux
 logical :: first
 #ifdef PARTICLES
-REAL               :: RKSumC_inv
-INTEGER            :: iPart
+INTEGER            :: iPart,iSpec,iSF
 #endif /*PARTICLES*/
 !===================================================================================================================================
 
@@ -2959,7 +2958,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
 END IF
 ! select, if particles are treated implicitly or explicitly
 CALL SelectImplicitParticles()
-RKSumC_inv=1.0/SUM(RK_C)
+!RKSumC_inv=1.0/SUM(RK_C)
 ! partstaten is set AFTER VeloToImp
 #endif
 
@@ -3048,7 +3047,17 @@ IF(t.GE.DelayTime)THEN
         CASE DEFAULT
         END SELECT
       END IF ! ParticleIsImplicit
+      PDM%IsNewPart(iPart)=.FALSE.
     END DO ! iPart
+  END IF
+  IF(DoSurfaceFlux)THEN
+    DO iSpec=1,nSpecies
+      IF (Species(iSpec)%nSurfacefluxBCs .EQ. 0) CYCLE
+      DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+        Species(iSpec)%Surfaceflux(iSF)%tmpInsertedParticle        = Species(iSpec)%Surfaceflux(iSF)%InsertedParticle 
+        Species(iSpec)%Surfaceflux(iSF)%tmpInsertedParticleSurplus = Species(iSpec)%Surfaceflux(iSF)%InsertedParticleSurplus
+      END DO
+    END DO ! iSpec
   END IF
 END IF
 RKdtFracTotal=0.
@@ -3155,6 +3164,9 @@ DO iStage=2,nRKStages
     IF(DoSurfaceFlux)THEN
       SWRITE(*,*) 'surfaceflux '
       ! first idea
+      RKdtFrac      = RK_c(iStage)
+      RKdtFracTotal = RK_c(iStage)
+
       !IF (iStage.EQ.2) THEN
       !  RKdtFrac = RK_c(iStage)
       !  RKdtFracTotal=RKdtFracTotal+RKdtFrac
@@ -3163,8 +3175,8 @@ DO iStage=2,nRKStages
       !  RKdtFracTotal=RKdtFracTotal+RKdtFrac
       !END IF
 
-      RkdtFrac=RK_c(iStage)*RKSumC_inv
-      RKdtFracTotal=RKdtFracTotal+RKdtFrac
+      !RkdtFrac=RK_c(iStage)*RKSumC_inv
+      !RKdtFracTotal=RKdtFracTotal+RKdtFrac
 
       !IF (iStage.EQ.nRKStages) THEN
       !  RKdtFrac = 0.
@@ -3185,9 +3197,9 @@ DO iStage=2,nRKStages
 
       ! !IF (iStage.EQ.2) THEN
       ! stupid idea: result: particle density is uneven
-      !RKdtFrac = 1.0/REAL(nRKStages-1)
-      !RKdtFracTotal=RKdtFracTotal+RKdtFrac
-
+!       RKdtFrac = 1.0/REAL(nRKStages-1)
+!       RKdtFracTotal=RKdtFracTotal+RKdtFrac
+! 
 
       !RKdtFrac = ESDIRK_a(iStage,iStage)
       !RKdtFracTotal=RKdtFracTotal+RKdtFrac
@@ -3217,30 +3229,33 @@ DO iStage=2,nRKStages
             PartState(iPart,1) = PartState(iPart,1) + PartState(iPart,4) * dtFrac*RandVal
             PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac*RandVal
             PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac*RandVal
-            PDM%dtFracPush(iPart) = .FALSE.
-            ! -> assuming F=0 and const. v in previous stages with RK_a_rebuilt (see above)
-            Pt(iPart,1:3)=0.
-            ! previous stages and PartStateN
-            PartStateN(iPart,1:6)=PartState(iPart,1:6)
-            IF(Species(PartSpecies(iPart))%IsImplicit)THEN
-              ! implicit reconstruction
-              DO iCounter=1,iStage-1
-                PartStage(iPart,1:3,iCounter) = PartState(iPart,4:6)
-                PartStage(iPart,4:6,iCounter) = 0.
-                PartStateN(iPart,1:6) = PartStateN(iPart,1:6)-dt*ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
-              END DO ! iStage=2,iStage-2
-              IF(iStage.EQ.nRKStages)THEN
-                PartStateN(iPart,1:3) = PartStateN(iPart,1:3)-dt*ESDIRK_a(iStage,iCounter)*PartState(iPart,4:6)
-              END IF
-            ELSE
-              ! explicit reconstruction
-              DO iCounter=1,iStage-1
-                PartStage(iPart,1:3,iCounter) = PartState(iPart,4:6)
-                PartStage(iPart,4:6,iCounter) = 0.
-                PartStateN(iPart,1:6) = PartStateN(iPart,1:6)-dt*ERK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
-              END DO ! iStage=2,iStage-2
-            END IF !  implicit,explicit
-            PDM%IsNewPart(iPart)=.FALSE.
+            PartIsImplicit(iPart)=.FALSE.
+            IF(iStage.EQ.nRKStages)THEN
+              ! -> assuming F=0 and const. v in previous stages with RK_a_rebuilt (see above)
+              Pt(iPart,1:3)=0.
+            END IF
+       !     PDM%dtFracPush(iPart) = .FALSE.
+       !     ! previous stages and PartStateN
+       !     PartStateN(iPart,1:6)=PartState(iPart,1:6)
+       !     IF(Species(PartSpecies(iPart))%IsImplicit)THEN
+       !       ! implicit reconstruction
+       !       DO iCounter=1,iStage-1
+       !         PartStage(iPart,1:3,iCounter) = PartState(iPart,4:6)
+       !         PartStage(iPart,4:6,iCounter) = 0.
+       !         PartStateN(iPart,1:6) = PartStateN(iPart,1:6)-dt*ESDIRK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+       !       END DO ! iStage=2,iStage-2
+       !       IF(iStage.EQ.nRKStages)THEN
+       !         PartStateN(iPart,1:3) = PartStateN(iPart,1:3)-dt*ESDIRK_a(iStage,iCounter)*PartState(iPart,4:6)
+       !       END IF
+       !     ELSE
+       !       ! explicit reconstruction
+       !       DO iCounter=1,iStage-1
+       !         PartStage(iPart,1:3,iCounter) = PartState(iPart,4:6)
+       !         PartStage(iPart,4:6,iCounter) = 0.
+       !         PartStateN(iPart,1:6) = PartStateN(iPart,1:6)-dt*ERK_a(iStage,iCounter)*PartStage(iPart,1:6,iCounter)
+       !       END DO ! iStage=2,iStage-2
+       !     END IF !  implicit,explicit
+       !     PDM%IsNewPart(iPart)=.FALSE.
           END IF ! ParticleIsNew
         END DO ! iPart
         SWRITE(*,*) 'flux particles', nPartsFlux
@@ -3280,6 +3295,25 @@ DO iStage=2,nRKStages
     CALL CalcSource(tStage,1.,ExplicitSource)
     ! map particle from v to gamma*v
     CALL PartVeloToImp(VeloToImp=.TRUE.,doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+
+    ! delete surface flux particle
+    IF(DoSurfaceFlux)THEN
+      IF(iStage.NE.nRKStages)THEN
+        DO iPart=1,PDM%ParticleVecLength
+          IF (PDM%IsNewPart(iPart)) THEN
+            PDM%IsNewPart(iPart)=.FALSE.
+            PDM%ParticleInside(iPart)=.FALSE.
+          END IF ! ParticleIsNew
+        END DO ! iPart
+        DO iSpec=1,nSpecies
+          IF (Species(iSpec)%nSurfacefluxBCs .EQ. 0) CYCLE
+          DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+            Species(iSpec)%Surfaceflux(iSF)%InsertedParticle        = Species(iSpec)%Surfaceflux(iSF)%tmpInsertedParticle 
+            Species(iSpec)%Surfaceflux(iSF)%InsertedParticleSurplus = Species(iSpec)%Surfaceflux(iSF)%tmpInsertedParticleSurplus
+          END DO
+        END DO ! iSpec
+      END IF
+    END IF ! DoSurfaceFlux
   END IF
 #endif /*PARTICLES*/
 
@@ -3350,6 +3384,10 @@ IF (t.GE.DelayTime) THEN
   ! add here new method
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart))CYCLE
+    IF(PDM%IsNewPart(iPart))THEN
+      PDM%IsNewPart(iPart)=.FALSE.
+      CYCLE
+    END IF
     IF(.NOT.PartIsImplicit(iPart))THEN
       LastPartPos(iPart,1)=PartState(iPart,1)
       LastPartPos(iPart,2)=PartState(iPart,2)

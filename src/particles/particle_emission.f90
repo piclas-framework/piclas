@@ -3440,7 +3440,9 @@ USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell, ElemBaryNGeo
 USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
-
+#if (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
+USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
+#endif
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
 USE MOD_LD_Vars
@@ -3800,7 +3802,7 @@ __STAMP__&
     
     ! compute number of input particles and energy
     IF(CalcPartBalance) THEN
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
       IF((MOD(iter+1,PartAnalyzeStep).EQ.0).AND.(iter.GT.0))THEN ! caution if correct
         nPartInTmp(iSpec)=nPartInTmp(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
@@ -3812,14 +3814,21 @@ __STAMP__&
           PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
         END DO ! iPart
       END IF
+#if ((PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122))
+      IF(iStage.EQ.nRKStages)
+        nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
+        DO iPart=1,NbrOfparticle
+          PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
+        END DO ! iPart
+      END IF
 #else
       nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
       DO iPart=1,NbrOfparticle
         PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
       END DO ! iPart
 #endif
+#endif
     END IF ! CalcPartBalance
-
   END DO !iSF
 END DO !iSpec
 
