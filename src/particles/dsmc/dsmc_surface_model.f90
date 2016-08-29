@@ -589,8 +589,8 @@ DO subsurfxi = 1,nSurfSample
 
   ! calculate number of adsorbates for each species (for analyze)
   DO Coord = 1,3
-  DO AdsorbID = 1,nSitesRemain(Coord)-nSites(Coord)
-    Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
+  DO AdsorbID = 1,nSites(Coord)-nSitesRemain(Coord)
+    Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain(Coord)+AdsorbID)
     iSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos)
     adsorbates(iSpec) = adsorbates(iSpec) + 1
   END DO
@@ -668,17 +668,48 @@ DO subsurfxi = 1,nSurfSample
     jSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species(react_Neigh_pos)
     ! calculate probability for 'reaction' with partner site
     IF (jSpec.EQ.0) THEN !diffusion
-      interatom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nInterAtom
-      E_diff = ( (interatom-2)/(4*interatom-2))*Heat_A
-      CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
-      CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
-      nu_diff = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall) * (3.E-8)**2/4.
-      rate = nu_diff * exp(-E_diff/WallTemp)
-      IF (rate*dt.GT.1) THEN
-        P_diff = 1.
-      ELSE
-        P_diff = rate * dt
-      END IF
+      ! calculate heat of adsorption for actual site
+      sigmaA = 0.
+      DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+        Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
+        Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j)
+        bondorder = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy)
+        sigmaA = sigmaA + ( (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom) &
+              * (1./(bondorder)) * (2.-(1./bondorder)) )
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) - 1
+      END DO
+      Heat_A = Adsorption%HeatOfAdsZero(iSpec) * sigmaA
+      
+      !calculate heat of adsorption for diffusion site
+      sigmaB = 0.
+      DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nInterAtom
+        Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%BondAtomIndx(react_Neigh_pos,j)
+        Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%BondAtomIndy(react_Neigh_pos,j)
+        bondorder = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
+        sigmaB = sigmaB + ( (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nInterAtom) &
+              * (1./(bondorder)) * (2.-(1./bondorder)) )
+      END DO
+      DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+        Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
+        Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j)
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) = &
+              SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
+      END DO
+      Heat_B = Adsorption%HeatOfAdsZero(iSpec) * sigmaB
+      ! calculate diffusion probability
+      P_diff = exp(-(Heat_A - Heat_B)/WallTemp) / (1+exp(-(Heat_A - Heat_B)/Walltemp))
+!       interatom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nInterAtom
+!       E_diff = ( (interatom-2)/(4*interatom-2))*Heat_A
+!       CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
+!       CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
+!       nu_diff = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall) * (3.E-8)**2/4.
+!       rate = nu_diff * exp(-E_diff/WallTemp)
+!       IF (rate*dt.GT.1) THEN
+!         P_diff = 1.
+!       ELSE
+!         P_diff = rate * dt
+!       END IF
       P_actual_react(:) = 0.
     ELSE !reaction
       DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
