@@ -1147,10 +1147,7 @@ SUBROUTINE CalcAdsorbProb()
 ! Models for adsorption probability calculation
 !===================================================================================================================================
   USE MOD_Particle_Vars,          ONLY : nSpecies
-  USE MOD_DSMC_Vars,              ONLY : Adsorption
-#if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_Vars,              ONLY : DSMC
-#endif
+  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 !===================================================================================================================================
   IMPLICIT NONE
@@ -1234,7 +1231,7 @@ SUBROUTINE CalcDesorbProb()
   USE MOD_Globals_Vars,           ONLY : PlanckConst
   USE MOD_Particle_Vars,          ONLY : nSpecies, BoltzmannConst
   USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_DSMC_Vars,              ONLY : Adsorption
+  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
   USE MOD_TimeDisc_Vars,          ONLY : dt
 #if (PP_TimeDiscMethod==42)  
