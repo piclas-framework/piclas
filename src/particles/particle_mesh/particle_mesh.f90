@@ -4066,7 +4066,7 @@ REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
 INTEGER                                  :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
-#if ((PP_TimeDiscMethod!=1) && (PP_TimeDiscMethod!=2) && (PP_TimeDiscMethod!=6) && (PP_TimeDiscMethod<=501 && PP_TimeDiscMethod>=506))  /* RK3 and RK4 only */
+#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&((PP_TimeDiscMethod<501 || PP_TimeDiscMethod>506))
 REAL,DIMENSION(1:3,0:NGeo,0:NGeo) :: xNodes
 #endif
 LOGICAL,ALLOCATABLE                     :: SideIsDone(:)
