@@ -703,11 +703,11 @@ DO iPart=1,PDM%ParticleVecLength
   oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
   ! get background mesh cell of particle
   CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-  CellX = MAX(MIN(GEO%FIBGMimax,CellX),GEO%FIBGMimin)
+  CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
   CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  CellY = MAX(MIN(GEO%FIBGMjmax,CellY),GEO%FIBGMjmin)
+  CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
   CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
+  CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
         
   ! check all cells associated with this beckground mesh cell
   nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
@@ -1002,11 +1002,11 @@ DO iPart=1,PDM%ParticleVecLength
     oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
     ! get background mesh cell of particle
     CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-    CellX = MAX(MIN(GEO%FIBGMimax,CellX),GEO%FIBGMimin)
+    CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
     CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    CellY = MAX(MIN(GEO%FIBGMjmax,CellY),GEO%FIBGMjmin)
+    CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
     CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
+    CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
           
     ! check all cells associated with this background mesh cell
     nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
