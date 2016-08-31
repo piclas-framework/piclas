@@ -134,7 +134,7 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
       END IF
-    ELSE IF (WallModeltype.EQ.1) THEN
+    ELSE IF (WallModeltype.GT.1) THEN
                adsorbindex = 0
 !--- Adsorption               
       CALL Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
@@ -158,11 +158,6 @@ CASE(2) !PartBound%ReflectiveBC)
 __STAMP__,&
 'Boundary_Error: Adsorptionindex switched to unknown value.')
       END IF
-    ELSE IF (WallModeltype.GT.1) THEN
-      WRITE(*,*)'Boundary_PIC: wall model with adsorption chemistry (catalysis) not implemented yet.'
-      CALL Abort(&
-__STAMP__,&
-'wall model 2 not implemented')
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -304,7 +299,7 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
       END IF
-    ELSE IF (WallModeltype.EQ.1) THEN
+    ELSE IF (WallModeltype.GT.1) THEN
                adsorbindex = 0
 !--- Adsorption               
       CALL Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
@@ -329,11 +324,6 @@ CASE(2) !PartBound%ReflectiveBC)
 __STAMP__,&
 'Boundary_Error: Adsorptionindex switched to unknown value.')
       END IF
-    ELSE IF (WallModeltype.GT.1) THEN
-      WRITE(*,*)'Boundary_PIC: wall model with adsorption chemistry (catalysis) not implemented yet.'
-      CALL Abort(&
-__STAMP__,&
-'wall model 2 not implemented')
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------

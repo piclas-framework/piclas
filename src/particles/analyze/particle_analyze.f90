@@ -1277,7 +1277,8 @@ SUBROUTINE CalcSurfRates(WallNumSpec,Adsorbrate,Desorbrate)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars,      ONLY : nSpecies
-USE MOD_DSMC_Vars,          ONLY : Adsorption, DSMC
+USE MOD_DSMC_Vars,          ONLY : Adsorption, DSMC  
+USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1297,6 +1298,12 @@ IF (DSMC%ReservoirRateStatistic) THEN
     Desorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes / WallNumSpec(iSpec)
   END DO
 ELSE
+#if (PP_TimeDiscMethod==42)
+  IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(DSMC%WallModel.EQ.3)) THEN
+    Adsorption%AdsorpInfo(:)%MeanProbAds = Adsorption%AdsorpInfo(:)%MeanProbAds / (REAL(nSurfSample) * REAL(nSurfSample) &
+                                          * REAL(SurfMesh%nSides))
+  END IF
+#endif
   DO iSpec = 1,nSpecies
     Adsorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds
     Desorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
