@@ -132,6 +132,13 @@ CALL InitBoltzplatz(IsLoadBalance=.FALSE.)
 #ifdef PP_HDG
 CALL InitHDG()
 #endif
+! Do SwapMesh
+IF(MPIroot)THEN
+  IF(DoSwapMesh)THEN
+    Call SwapMesh()
+    RETURN
+  END IF
+END IF
 
 ! RESTART
 CALL Restart()
@@ -144,10 +151,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 
 ! Run Simulation
 CALL TimeDisc()
-! Do SwapMesh
-IF(MPIroot)THEN
-  IF(DoSwapMesh) Call SwapMesh()
-END IF
+
 
 !Finalize
 CALL FinalizeBoltzplatz(IsLoadBalance=.FALSE.)
