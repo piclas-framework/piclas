@@ -398,6 +398,8 @@ CHARACTER(LEN=3)    :: hilf,hilf2                  ! auxiliary variable for INTE
 CHARACTER(LEN=255)  :: SYSCOMMAND,SWITCHFOLDER     ! string to fit the system command
 INTEGER             :: iSTATUS                     ! error status return code
 INTEGER             :: StartIndex                  ! get string index (position) of certain substring
+CHARACTER(len=255)  :: cwd                         ! current working directory
+INTEGER             :: cwdLen                      ! string length of cwd
 !============================================================================================================================
 ParameterFile='parameter_swapmesh.ini'
 print*,"myrank     = ",myrank
@@ -418,6 +420,20 @@ IF(SwapMeshLevel.GT.9)THEN
 ELSE
   OldFolderName='mesh0'//TRIM(ADJUSTL(hilf))
 ENDIF
+
+CALL getcwd(cwd)
+cwdLen=LEN(TRIM(cwd))
+!WRITE(*,*) TRIM(cwd)
+!print*,TRIM(cwd(cwdLen-5:cwdLen)) ! e.g. : PlasmaPlume_cylinder/linear/mesh02 -> mesh02
+!print*,TRIM(OldFolderName)        ! e.g. : mesh02
+IF(TRIM(cwd(cwdLen-LEN(TRIM(OldFolderName))+1:cwdLen)).NE.TRIM(OldFolderName))THEN
+  SWRITE(UNIT_stdOut,'(A)')   ' ERROR: something is wrong with the directory or SwapMeshLevel'
+  SWRITE(UNIT_stdOut,'(A,A)') ' cwd:           ',TRIM(cwd)
+  SWRITE(UNIT_stdOut,'(A,I3,A,A)') ' SwapMeshLevel: ',SwapMeshLevel,' -> ',OldFolderName
+  CALL abort(&
+  __STAMP__&
+  ,'Abort. Check SwapMeshLevel.',999,999.)
+END IF
 
 ! check if next level mesh folder exists
 WRITE(UNIT=hilf,FMT='(I3)') SwapMeshLevel+1
@@ -529,6 +545,7 @@ ELSE
     IF(.NOT.KeepSwapFile)THEN
       ! move the created state file (remove the "NewMesh" suffix and replace with SwapMeshLevel)
       StartIndex=INDEX(TRIM(RestartFile),'_State')+7
+      ! cd ../mesh01 && mv PlasmaPlume_01_NewMesh_State_000.000000000002000.h5 PlasmaPlume_01_State_000.000000000002000.h5
       SYSCOMMAND=' mv '//TRIM(ProjectName)//'_NewMesh_State_'//TRIM(RestartFile(StartIndex:LEN(RestartFile)))//' '//&
                         TRIM(LocalName)//'_'//TRIM(ADJUSTL(hilf2))//'_State_'//TRIM(RestartFile(StartIndex:LEN(RestartFile)))
       print*,TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)

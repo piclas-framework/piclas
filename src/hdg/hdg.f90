@@ -46,9 +46,10 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides,nSides,SurfElem,SideToElem
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCSides,nSides,BC
 USE MOD_Particle_Mesh_Vars, ONLY: GEO,NbrOfRegions
-USE MOD_Particle_Vars      ,ONLY :RegionElectronRef
-USE MOD_Equation_Vars      ,ONLY:eps0
-USE MOD_Restart_Vars,    ONLY:DoRestart
+USE MOD_Particle_Vars      ,ONLY: RegionElectronRef
+USE MOD_Equation_Vars      ,ONLY: eps0
+USE MOD_Restart_Vars       ,ONLY: DoRestart
+USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -236,7 +237,9 @@ DO iElem=1,PP_nElems
   Tau(iElem)=2./((SUM(JwGP_vol(:,iElem)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
 END DO !iElem
 
-CALL Elem_Mat()
+IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as only the state file is converted
+  CALL Elem_Mat()
+END IF
 
 ALLOCATE(Fdiag(nGP_face,nSides))
 DO SideID=1,nSides

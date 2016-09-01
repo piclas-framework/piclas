@@ -22,8 +22,26 @@ INTERFACE FinalizeTimeDisc
   MODULE PROCEDURE FinalizeTimeDisc
 END INTERFACE
 
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+INTERFACE TimeStepPoissonByLSERK
+  MODULE PROCEDURE TimeStepPoissonByLSERK
+END INTERFACE
+#endif
+
+#if (PP_TimeDiscMethod==500)
+INTERFACE TimeStepPoisson
+  MODULE PROCEDURE TimeStepPoisson
+END INTERFACE
+#endif
+
 PUBLIC :: InitTimeDisc,FinalizeTimeDisc
 PUBLIC :: TimeDisc
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+PUBLIC :: TimeStepPoissonByLSERK
+#endif
+#if (PP_TimeDiscMethod==500)
+PUBLIC :: TimeStepPoisson
+#endif
 !===================================================================================================================================
 
 CONTAINS
