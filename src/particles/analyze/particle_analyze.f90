@@ -2178,6 +2178,7 @@ USE MOD_Preproc
 USE MOD_Equation_Vars,          ONLY : c2, c2_inv
 USE MOD_Particle_Vars,          ONLY : PartState, PartSpecies, Species
 USE MOD_PARTICLE_Vars,          ONLY : PartMPF, usevMPF
+USE MOD_Particle_Vars,          ONLY : PartLorentzType 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2191,27 +2192,38 @@ REAL                               :: CalcEkinPart
 REAL                               :: partV2, gamma1, Ekin
 !===================================================================================================================================
 
-partV2 = PartState(iPart,4) * PartState(iPart,4) &
-       + PartState(iPart,5) * PartState(iPart,5) &
-       + PartState(iPart,6) * PartState(iPart,6)
-
-IF(usevMPF)THEN
-  IF (partV2.LT.1e6)THEN
-    Ekin= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * PartMPF(iPart)            
-  ELSE
-    gamma1=partV2*c2_inv
-    gamma1=1.0/SQRT(1.-gamma1)
+IF (PartLorentzType.EQ.5)THEN
+  ! gamma v is pushed instead of gamma, therefore, only the relativistic kinetic energy is computed
+  ! compute gamma
+  gamma1=SQRT(1.0+DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv)
+  IF(usevMPF)THEN
     Ekin=PartMPF(iPart)*(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2
-  END IF ! ipartV2
-ELSE ! novMPF
-  IF (partV2.LT.1e6)THEN
-    Ekin= 0.5*Species(PartSpecies(iPart))%MassIC*partV2* Species(PartSpecies(iPart))%MacroParticleFactor
   ELSE
-    gamma1=partV2*c2_inv
-    gamma1=1.0/SQRT(1.-gamma1)
     Ekin= (gamma1-1.0)* Species(PartSpecies(iPart))%MassIC*Species(PartSpecies(iPart))%MacroParticleFactor*c2
-  END IF ! ipartV2
-END IF ! usevMPF
+  END IF
+ELSE
+  partV2 = PartState(iPart,4) * PartState(iPart,4) &
+         + PartState(iPart,5) * PartState(iPart,5) &
+         + PartState(iPart,6) * PartState(iPart,6)
+  
+  IF(usevMPF)THEN
+    IF (partV2.LT.1e6)THEN
+      Ekin= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * PartMPF(iPart)            
+    ELSE
+      gamma1=partV2*c2_inv
+      gamma1=1.0/SQRT(1.-gamma1)
+      Ekin=PartMPF(iPart)*(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2
+    END IF ! ipartV2
+  ELSE ! novMPF
+    IF (partV2.LT.1e6)THEN
+      Ekin= 0.5*Species(PartSpecies(iPart))%MassIC*partV2* Species(PartSpecies(iPart))%MacroParticleFactor
+    ELSE
+      gamma1=partV2*c2_inv
+      gamma1=1.0/SQRT(1.-gamma1)
+      Ekin= (gamma1-1.0)* Species(PartSpecies(iPart))%MassIC*Species(PartSpecies(iPart))%MacroParticleFactor*c2
+    END IF ! ipartV2
+  END IF ! usevMPF
+END IF
 CalcEkinPart=Ekin
 END FUNCTION CalcEkinPart
  

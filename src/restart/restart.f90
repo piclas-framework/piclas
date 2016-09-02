@@ -618,6 +618,7 @@ __STAMP__&
 
 #ifdef PP_HDG
 !print*,RestartTime
+#ifdef PP_HDG
 iter=0
 !print*,iter
 IF(RestartTime.GT.0.0)THEN
@@ -635,6 +636,7 @@ END IF
 
 
 
+#endif /* PP_HDG*/
 
 
 
