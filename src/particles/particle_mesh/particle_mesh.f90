@@ -373,29 +373,36 @@ DO iBGMElem=1,nBGMElems
   END IF
 
   CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
-  IF(MAXVAL(ABS(Xi)).LE.1.0) THEN ! particle inside
+  IF(MAXVAL(ABS(Xi)).LT.epsOneCell(ElemID))THEN ! particle outside
     InElementCheck=.TRUE.
-  ELSE IF(MAXVAL(ABS(Xi)).GT.epsOneCell(ElemID))THEN ! particle outside
-  !  print*,'ici'
-    InElementCheck=.FALSE.
   ELSE ! particle at face,edge or node, check most possible point
-    ! alter particle position
-    ! 1) compute vector to cell centre
-    vBary=ElemBaryNGeo(1:3,ElemID)-PartState(iPart,1:3)
-    ! 2) move particle pos along vector
-    PartState(iPart,1:3) = PartState(iPart,1:3)+epsInCell*VBary(1:3)
-    CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
-    !print*,xi
-    IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
-      InElementCheck=.TRUE.
-    ELSE
-!      IPWRITE(UNIT_stdOut,*) ' PartPos', PartState(iPart,1:3)
-!      IPWRITE(UNIT_stdOut,*) ' xi',      XI(1:3)
-      !SWRITE(*,*) ' Particle not located!'
-      !SWRITE(*,*) ' PartPos', PartState(iPart,1:3)
-      InElementCheck=.FALSE.
-    END IF
+    InElementCheck=.FALSE.
   END IF
+
+
+!  IF(MAXVAL(ABS(Xi)).LE.1.0) THEN ! particle inside
+!    InElementCheck=.TRUE.
+!  ELSE IF(MAXVAL(ABS(Xi)).GT.epsOneCell(ElemID))THEN ! particle outside
+!  !  print*,'ici'
+!    InElementCheck=.FALSE.
+!  ELSE ! particle at face,edge or node, check most possible point
+!    ! alter particle position
+!    ! 1) compute vector to cell centre
+!    vBary=ElemBaryNGeo(1:3,ElemID)-PartState(iPart,1:3)
+!    ! 2) move particle pos along vector
+!    PartState(iPart,1:3) = PartState(iPart,1:3)+epsInCell*VBary(1:3)
+!    CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
+!    !print*,xi
+!    IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
+!      InElementCheck=.TRUE.
+!    ELSE
+!!      IPWRITE(UNIT_stdOut,*) ' PartPos', PartState(iPart,1:3)
+!!      IPWRITE(UNIT_stdOut,*) ' xi',      XI(1:3)
+!      !SWRITE(*,*) ' Particle not located!'
+!      !SWRITE(*,*) ' PartPos', PartState(iPart,1:3)
+!      InElementCheck=.FALSE.
+!    END IF
+!  END IF
   IF (InElementCheck) THEN !  !     print*,Element
  ! read*
     PEM%Element(iPart) = ElemID

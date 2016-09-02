@@ -194,6 +194,13 @@ USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
 USE MOD_HDG_Vars,             ONLY: lambda, nGP_face
 USE MOD_HDG,                  ONLY: RestartHDG
 USE MOD_HDF5_Input,           ONLY: File_ID,DatasetExists
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+USE MOD_TimeDisc,             ONLY: TimeStepPoissonByLSERK
+#endif
+#if (PP_TimeDiscMethod==500)
+USE MOD_TimeDisc,             ONLY:  TimeStepPoisson
+#endif
+USE MOD_TimeDisc_Vars,           ONLY: dt
 #endif /*PP_HDG*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
@@ -227,6 +234,7 @@ REAL,ALLOCATABLE         :: PartData(:,:)
 REAL                     :: xi(3)
 LOGICAL                  :: InElementCheck
 INTEGER                  :: COUNTER, COUNTER2
+INTEGER(KIND=8)          :: iter
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
 INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum
@@ -272,6 +280,8 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
     ELSE
       lambda=0.
     END IF
+
+
 
 #else
     CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
@@ -603,6 +613,29 @@ __STAMP__&
 #endif /*PARTICLES*/
 
   CALL CloseDataFile() 
+
+
+
+!print*,RestartTime
+iter=0
+!print*,iter
+IF(RestartTime.GT.0.0)THEN
+  dt=RestartTime/1e6
+ELSE
+  dt=1e-19
+END IF
+!print*,dt
+
+#if (PP_TimeDiscMethod==500)
+    CALL TimeStepPoisson(RestartTime) ! Euler Explicit, Poisson
+#else
+    CALL TimeStepPoissonByLSERK(RestartTime,iter,0.)  !Runge Kutta Explicit, Poisson
+#endif
+
+
+
+
+
   ! Delete all files that will be rewritten
   IF(DoWriteStateToHDF5) CALL FlushHDF5(RestartTime)
 #ifdef MPI
