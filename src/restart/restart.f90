@@ -173,10 +173,10 @@ USE MOD_HDF5_input ,             ONLY:OpenDataFile,CloseDataFile,ReadArray,ReadA
 USE MOD_HDF5_Output,             ONLY:FlushHDF5
 #ifndef PP_HDG
 USE MOD_PML_Vars,                ONLY:DoPML,PMLToElem,U2,nPMLElems
-#endif /*PP_HDG*/
+#endif /*not PP_HDG*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:Phi
-#endif
+#endif /*PP_POIS*/
 #ifdef PARTICLES
 USE MOD_Particle_Vars,           ONLY:PartState, PartSpecies, PEM, PDM, Species, nSpecies, usevMPF, PartMPF,PartPosRef
 USE MOD_part_tools,              ONLY: UpdateNextFreePosition
@@ -189,16 +189,16 @@ USE MOD_Particle_Mesh_Vars,      ONLY:epsOneCell
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
-#endif
+#endif /*MPI*/
 #ifdef PP_HDG
 USE MOD_HDG_Vars,             ONLY: lambda, nGP_face
 USE MOD_HDG,                  ONLY: RestartHDG
 USE MOD_HDF5_Input,           ONLY: File_ID,DatasetExists
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-USE MOD_TimeDisc,             ONLY: TimeStepPoissonByLSERK
+!USE MOD_TimeDisc,             ONLY: TimeStepPoissonByLSERK
 #endif
 #if (PP_TimeDiscMethod==500)
-USE MOD_TimeDisc,             ONLY:  TimeStepPoisson
+!USE MOD_TimeDisc,             ONLY:  TimeStepPoisson
 #endif
 USE MOD_TimeDisc_Vars,           ONLY: dt
 #endif /*PP_HDG*/
@@ -626,11 +626,11 @@ ELSE
   dt=1e-19
 END IF
 !print*,dt
-#if (PP_TimeDiscMethod==500)
-    CALL TimeStepPoisson(RestartTime) ! Euler Explicit, Poisson
-#else
-    CALL TimeStepPoissonByLSERK(RestartTime,iter,0.)  !Runge Kutta Explicit, Poisson
-#endif
+!#if (PP_TimeDiscMethod==500)
+!    CALL TimeStepPoisson(RestartTime) ! Euler Explicit, Poisson
+!#else
+!    CALL TimeStepPoissonByLSERK(RestartTime,iter,0.)  !Runge Kutta Explicit, Poisson
+!#endif
 #endif /*PP_HDG*/
 
 
