@@ -616,6 +616,7 @@ __STAMP__&
 
 
 
+#ifdef PP_HDG
 !print*,RestartTime
 iter=0
 !print*,iter
@@ -625,12 +626,14 @@ ELSE
   dt=1e-19
 END IF
 !print*,dt
-
 #if (PP_TimeDiscMethod==500)
     CALL TimeStepPoisson(RestartTime) ! Euler Explicit, Poisson
 #else
     CALL TimeStepPoissonByLSERK(RestartTime,iter,0.)  !Runge Kutta Explicit, Poisson
 #endif
+#endif /*PP_HDG*/
+
+
 
 
 
