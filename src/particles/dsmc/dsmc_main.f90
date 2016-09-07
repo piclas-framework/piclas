@@ -31,7 +31,7 @@ SUBROUTINE DSMC_main()
   USE MOD_TimeDisc_Vars,         ONLY : time, iter, TEnd, dt
   USE MOD_Globals
   USE MOD_DSMC_BGGas,            ONLY : DSMC_InitBGGas, DSMC_pairing_bggas, DSMC_FinalizeBGGas
-  USE MOD_Mesh_Vars,             ONLY : nElems,MeshFile
+  USE MOD_Mesh_Vars,             ONLY : nElems, MeshFile
   USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode
   USE MOD_DSMC_Vars,             ONLY : ChemReac
   USE MOD_DSMC_Vars,             ONLY : UseQCrit, SamplingActive, QCritTestStep, QCritLastTest, UseSSD
@@ -39,13 +39,12 @@ SUBROUTINE DSMC_main()
   USE MOD_Particle_Vars,         ONLY : PEM, PDM, usevMPF, BoltzmannConst, WriteMacroValues
   USE MOD_Particle_Analyze_Vars, ONLY : CalcEkin
   USE MOD_DSMC_Analyze,          ONLY : DSMCHO_data_sampling,CalcSurfaceValues, WriteDSMCHOToHDF5, CalcGammaVib
-  USE MOD_DSMC_ChemReact,        ONLY : SetMeanVibQua
+  USE MOD_DSMC_Relaxation,       ONLY : SetMeanVibQua
   USE MOD_DSMC_ParticlePairing,  ONLY : DSMC_pairing_octree, DSMC_pairing_statistical
   USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
   USE MOD_vmpf_collision,        ONLY : DSMC_vmpf_prob
   USE MOD_Particle_Vars,         ONLY : KeepWallParticles
-  USE MOD_DSMC_PolyAtomicModel,  ONLY : Calc_XiVib_Poly
 #if (PP_TimeDiscMethod==1001)
   USE MOD_LD_Vars,               ONLY : BulkValues, LD_DSMC_RHS
 #endif
@@ -114,9 +113,8 @@ SUBROUTINE DSMC_main()
 
       IF (.NOT.DSMC%UseOctree) THEN                                                               ! no octree
         !Calc the mean evib per cell and iter, necessary for dissociation probability
-        IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) THEN
+        IF (CollisMode.EQ.3) THEN
           CALL SetMeanVibQua()
-          IF(DSMC%NumPolyatomMolecs.GT.0) CALL Calc_XiVib_Poly
         END IF
 
         IF (KeepWallParticles) THEN
@@ -150,7 +148,7 @@ SUBROUTINE DSMC_main()
         DEALLOCATE(Coll_pData)
       END IF                                                                                     ! end no octree
       IF(DSMC%CalcQualityFactors) THEN
-        IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
+        IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroValues) THEN
             ! mean collision probability of all collision pairs
             IF(DSMC%CollProbMeanCount.GT.0) THEN
               DSMC%QualityFacSamp(iElem,1) = DSMC%QualityFacSamp(iElem,1) + DSMC%CollProbMax

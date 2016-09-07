@@ -38,7 +38,9 @@ SUBROUTINE DSMC_InitBGGas()
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,            ONLY : Abort
-  USE MOD_DSMC_Vars,          ONLY : BGGas
+  USE MOD_DSMC_Init,          ONLY : DSMC_SetInternalEnr_LauxVFD
+  USE MOD_DSMC_Vars,          ONLY : BGGas, SpecDSMC
+  USE MOD_DSMC_PolyAtomicModel, ONLY : DSMC_SetInternalEnr_Poly
   USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies, PartState, PEM, PartPosRef
   USE MOD_part_emission,      ONLY : SetParticleChargeAndMass, SetParticleVelocity, SetParticleMPF
   USE MOD_part_tools,         ONLY : UpdateNextFreePosition
@@ -69,6 +71,11 @@ __STAMP__&
         PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,iPart)
       END IF
       PartSpecies(PositionNbr) = BGGas%BGGasSpecies
+      IF(SpecDSMC(BGGas%BGGasSpecies)%PolyatomicMol) THEN
+        CALL DSMC_SetInternalEnr_Poly(BGGas%BGGasSpecies,0,PositionNbr,1)
+      ELSE
+        CALL DSMC_SetInternalEnr_LauxVFD(BGGas%BGGasSpecies,0,PositionNbr,1)
+      END IF
       PEM%Element(PositionNbr) = PEM%Element(iPart)
       PDM%ParticleInside(PositionNbr) = .true.
       PEM%pNext(PEM%pEnd(PEM%Element(PositionNbr))) = PositionNbr     ! Next Particle of same Elem (Linked List)
@@ -117,14 +124,14 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
   ALLOCATE(iPartIndx(nPart))
   Coll_pData%Ec=0
   iPartIndx = 0
-  IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
+  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
   DO iLoop = 1, nPart
     iPartIndx(iLoop) = iPart
     CollInf%Coll_SpecPartNum(PartSpecies(iPart)) = CollInf%Coll_SpecPartNum(PartSpecies(iPart)) + 1 
           ! counter for part num of spec per cell   
-    IF ((CollisMode.EQ.3).AND.ChemReac%MeanEVib_Necc) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = &
+    IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) = &
                         ChemReac%MeanEVib_PerIter(PartSpecies(iPart)) &
                         + PartStateIntEn(iPart,1) !Calulation of mean evib per cell and iter, necessary for disso prob 
     iPart = PEM%pNext(iPart)    
@@ -138,6 +145,8 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
     BGGas%BGColl_SpecPartNum = BGGas%BGGasDensity * GEO%Volume(iElem)      &
                                                / Species(BGGas%BGGasSpecies)%MacroParticleFactor
   END IF
+
+  CollInf%Coll_SpecPartNum(BGGas%BGGasSpecies) = BGGas%BGColl_SpecPartNum
 
   DO iPair = 1, nPair 
     DO cPart1 = 1, nPart ! Searching the first non BG particle
@@ -158,7 +167,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
     END DO
     nPart = nPart - 1
 
-    cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1   
+    cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
     cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
     IF (usevMPF) PartMPF(Coll_pData(iPair)%iPart_p2) = PartMPF(Coll_pData(iPair)%iPart_p1) 
     iCase = CollInf%Coll_Case(cSpec1, cSpec2) 

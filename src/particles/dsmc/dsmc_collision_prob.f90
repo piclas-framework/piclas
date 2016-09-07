@@ -68,10 +68,10 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
   END IF
   SELECT CASE(iPType)
 
-    CASE(2,3,4,11,12,21,22)
+    CASE(2,3,4,11,12,21,22,20,30,40)
     ! Atom-Atom,  Atom-Mol, Mol-Mol, Atom-Atomic (non-CEX/MEX) Ion, Molecule-Atomic Ion, Atom-Molecular Ion, Molecule-Molecular Ion
-      SpecNum1 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
-      SpecNum2 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
+      SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
+      SpecNum2 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
       IF (BGGas%BGGasSpecies.NE.0) THEN       
         Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  & 
                 * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
@@ -91,7 +91,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
                 * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
       END IF
 
-    CASE(5) !Atom - Electron ! Molecule - Electron
+    CASE(5,6) !Atom - Electron ! Molecule - Electron
       ALLOCATE(Coll_pData(iPair)%Sigma(0:3))  ! Cross Section of Collision of this pair
       Coll_pData(iPair)%Sigma = 0
 ! ist/war gedacht als relativistische energie, da elektronen ja doch recht schnell werden ...
@@ -122,7 +122,7 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
   
       ! polarization method
-      ! Define what spezies is the atom and is execuded
+      ! Define what species is the atom and is execuded
       IF (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID.eq.1) THEN
         SpecToExec = PartSpecies(Coll_pData(iPair)%iPart_p1) 
       ELSE
@@ -140,8 +140,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
           DoSimpleElectronColl=.TRUE.
       END SELECT
 
-      SpecNum1 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
-      SpecNum2 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
+      SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
+      SpecNum2 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
       ! generally this is only a HS calculation of the prob
       IF (DoSimpleElectronColl) THEN
         ! copy & past from above (atom, molecular,etc.)
@@ -206,8 +206,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       ELSE
         SpecToExec = PartSpecies(Coll_pData(iPair)%iPart_p2)
       END IF
-      SpecNum1 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
-      SpecNum2 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
+      SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
+      SpecNum2 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
       IF(DoSimpleElectronColl)THEN
         ! copy & past from above (atom, molecular,etc.)
         IF (BGGas%BGGasSpecies.NE.0) THEN
@@ -238,8 +238,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       bCEX = ChemReac%CEXb(NbrOfReaction)
       aMEX = ChemReac%MEXa(NbrOfReaction)
       bMEX = ChemReac%MEXb(NbrOfReaction)
-      SpecNum1 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
-      SpecNum2 = INT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
+      SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
+      SpecNum2 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
       IF (Coll_pData(iPair)%CRela2.eq.0.) THEN !avoid log(0)
         Coll_pData(iPair)%Prob=0.
       ELSE
@@ -264,14 +264,42 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
       END IF !avoid log(0)
     CASE(19) !Electron - Atomic CEX/MEX Ion
       Coll_pData(iPair)%Prob = 0
-    CASE(20) !Atomic Ion - Atomic Ion
-      Coll_pData(iPair)%Prob = 0
+!    CASE(20) !Atomic Ion - Atomic Ion
+!      Coll_pData(iPair)%Prob = 0
     CASE(24) !Molecular Ion - Electron
-      Coll_pData(iPair)%Prob = 0
-    CASE(30) !Atomic Ion - Molecular Ion
-      Coll_pData(iPair)%Prob = 0
-    CASE(40) !Molecular Ion - Molecular Ion
-      Coll_pData(iPair)%Prob = 0    
+      ! again simple VHS idea as for molecules, etc. 
+      DoSimpleElectronColl=.TRUE.
+      Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
+      SpecNum1 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p1)),8) !number of particles of spec 1
+      SpecNum2 = NINT(CollInf%Coll_SpecPartNum(PartSpecies(Coll_pData(iPair)%iPart_p2)),8) !number of particles of spec 2
+      IF(DoSimpleElectronColl)THEN
+        ! copy & past from above (atom, molecular,etc.)
+        IF (BGGas%BGGasSpecies.NE.0) THEN
+            Coll_pData(iPair)%Prob = BGGas%BGColl_SpecPartNum/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))  & 
+                    * CollInf%Cab(Coll_pData(iPair)%PairType)                                               & ! Cab species comb fac
+                    * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  & 
+                            ! weighting Fact, here only one MPF is used!!!
+                    * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS) &
+                            ! relative velo to the power of (1 -2omega) !! only one omega is used!!
+                    * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
+        ELSE
+          Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(Coll_pData(iPair)%PairType))                & 
+                  * CollInf%Cab(Coll_pData(iPair)%PairType)           &    ! Cab species comb fac
+                  * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                                & 
+                          ! weighting Fact, here only one MPF is used!!!      
+                    / CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType)                                                  & 
+                  * Coll_pData(iPair)%CRela2 ** (0.5-SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS)        &
+                          ! relative velo to the power of (1 -2omega) !! only one omega is used!!
+                  * dt / Volume                     ! timestep (should be sclaed in time disc)  divided by cell volume
+        END IF
+      ELSE
+       ! collision probability based on polarization
+       Coll_pData(iPair)%Prob=0.
+      END IF
+!    CASE(30) !Atomic Ion - Molecular Ion
+!      Coll_pData(iPair)%Prob = 0
+!    CASE(40) !Molecular Ion - Molecular Ion
+!      Coll_pData(iPair)%Prob = 0    
     CASE DEFAULT
       CALL Abort(&
 __STAMP__&
