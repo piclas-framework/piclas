@@ -48,9 +48,9 @@ USE MOD_DSMC_Analyze,               ONLY: InitHODSMC
 USE MOD_DSMC_ParticlePairing,       ONLY: DSMC_init_octree
 USE MOD_DSMC_SteadyState,           ONLY: DSMC_SteadyStateInit
 USE MOD_TimeDisc_Vars,              ONLY: TEnd
-USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init, InitPartitionFunction
+USE MOD_DSMC_ChemInit,              ONLY: DSMC_chemical_init
 USE MOD_DSMC_SurfModelInit,         ONLY: InitDSMCSurfModel
-USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate
+USE MOD_DSMC_ChemReact,             ONLY: CalcBackwardRate, CalcPartitionFunction
 USE MOD_DSMC_PolyAtomicModel,       ONLY: InitPolyAtomicMolecs, DSMC_FindFirstVibPick, DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 ! IMPLICIT VARIABLE HANDLING
@@ -63,10 +63,11 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf , hilf2
   INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iPolyatMole, iDOF, PartitionArraySize
+  INTEGER               :: iInter
   REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
-  REAL                  :: JToEv
+  REAL                  :: JToEv, Temp
   INTEGER,ALLOCATABLE   :: CalcSurfCollis_SpeciesRead(:) !help array for reading surface stuff
-  REAL                  :: BGGasEVib
+  REAL                  :: BGGasEVib, Qtra, Qrot, Qvib, Qelec
 #if ( PP_TimeDiscMethod ==42 )
   CHARACTER(LEN=64)     :: DebugElectronicStateFilename
   INTEGER               :: ii

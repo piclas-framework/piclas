@@ -395,7 +395,7 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   REAL,ALLOCATABLE                                      :: ElectronicState(:,:)
   INTEGER, ALLOCATABLE                                  :: SortElectronicState(:)
   INTEGER                                               :: iQua, nQuants, iQuaTemp
-  REAL                                                  :: epsbin, tempEnergyDiff, tempEnergy
+  REAL                                                  :: tempEnergyDiff, tempEnergy
 !===================================================================================================================================
   ! Initialize FORTRAN interface.
   CALL H5OPEN_F(err)
@@ -422,7 +422,7 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
     nQuants = 1
     tempEnergy =  ElectronicState(2,1)
     SortElectronicState(1) = nQuants
-    DO iQua = 2, dims(2)-2
+    DO iQua = 2, INT(dims(2),4)-2
       tempEnergyDiff = DiffElecEnergy(tempEnergy, ElectronicState(2,iQua))   
       IF (tempEnergyDiff.LE.DSMC%EpsElecBin) THEN
         SortElectronicState(iQua) = nQuants
@@ -437,7 +437,7 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
 
     ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:dims(1), 0:nQuants) )
     SpecDSMC(iSpec)%ElectronicState = 0.0
-    DO iQua = 1, dims(2)-2
+    DO iQua = 1, INT(dims(2),4)-2
       iQuaTemp = SortElectronicState(iQua)
       SpecDSMC(iSpec)%ElectronicState( 1, iQuaTemp) = SpecDSMC(iSpec)%ElectronicState( 1, iQuaTemp) &
           + ElectronicState(1, iQua)
@@ -554,8 +554,6 @@ REAL FUNCTION CalcXiElec(Telec, iSpec)
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
   INTEGER                         :: ii
-  REAL(KIND=8)                    :: LowerTemp, UpperTemp, MiddleTemp ! upper and lower value of modified zero point search
-  REAL(KIND=8)                    :: eps_prec=1.0e-5   ! precision of zero point search
   REAL(KIND=8)                    :: SumOne, SumTwo    ! both summs
 !===================================================================================================================================
 

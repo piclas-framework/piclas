@@ -1004,6 +1004,7 @@ SUBROUTINE InitQKForwardReac(iReac, PartitionArraySize)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars,       ONLY: Pi
 USE MOD_DSMC_Vars,          ONLY: DSMC, SpecDSMC, PolyatomMolDSMC, QKBackWard, ChemReac, CollInf
 USE MOD_Particle_Vars,      ONLY: BoltzmannConst, Species
 USE MOD_DSMC_ChemReact,     ONLY: gammainc

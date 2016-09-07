@@ -25,7 +25,8 @@ SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 !===================================================================================================================================
 ! MODULES  
   USE MOD_DSMC_Vars,              ONLY : DSMC, SpecDSMC, PartStateIntEn, Coll_pData
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, PartMPF, usevMPF, GEO, PEM
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, BoltzmannConst, PartMPF, usevMPF, PEM
+  USE MOD_Particle_Mesh_Vars,     ONLY : GEO
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
