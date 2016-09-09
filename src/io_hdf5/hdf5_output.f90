@@ -496,7 +496,7 @@ SUBROUTINE WritePMLDataToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems
-USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,U2,nPMLElems
+USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,U2,nPMLElems,nPMLVars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -506,24 +506,39 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: nVar
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 REAL,ALLOCATABLE               :: Upml(:,:,:,:,:)
 INTEGER                        :: iPML
 !===================================================================================================================================
 
-nVar=0
 IF(DoPML)THEN
-  nVar=6
-  ALLOCATE(StrVarNames(nVar))
-  StrVarNames(1)='PMLElectricFieldX'
-  StrVarNames(2)='PMLElectricFieldY'
-  StrVarNames(3)='PMLElectricFieldZ'
-  StrVarNames(4)='PMLMagneticFieldX'
-  StrVarNames(5)='PMLMagneticFieldY'
-  StrVarNames(6)='PMLMagneticFieldZ'
+  ALLOCATE(StrVarNames(nPMLVars))
+  StrVarNames( 1)='PML-ElectricFieldX-P1'
+  StrVarNames( 2)='PML-ElectricFieldX-P2'
+  StrVarNames( 3)='PML-ElectricFieldX-P3'
+  StrVarNames( 4)='PML-ElectricFieldY-P4'
+  StrVarNames( 5)='PML-ElectricFieldY-P5'
+  StrVarNames( 6)='PML-ElectricFieldY-P6'
+  StrVarNames( 7)='PML-ElectricFieldZ-P7'
+  StrVarNames( 8)='PML-ElectricFieldZ-P8'
+  StrVarNames( 9)='PML-ElectricFieldZ-P9'
+  StrVarNames(10)='PML-MagneticFieldX-P10'
+  StrVarNames(11)='PML-MagneticFieldX-P11'
+  StrVarNames(12)='PML-MagneticFieldX-P12'
+  StrVarNames(13)='PML-MagneticFieldY-P13'
+  StrVarNames(14)='PML-MagneticFieldY-P14'
+  StrVarNames(15)='PML-MagneticFieldY-P15'
+  StrVarNames(16)='PML-MagneticFieldZ-P16'
+  StrVarNames(17)='PML-MagneticFieldZ-P17'
+  StrVarNames(18)='PML-MagneticFieldZ-P18'
+  StrVarNames(19)='PML-PhiB-P19'
+  StrVarNames(20)='PML-PhiB-P20'
+  StrVarNames(21)='PML-PhiB-P21'
+  StrVarNames(22)='PML-PsiE-P22'
+  StrVarNames(23)='PML-PsiE-P23'
+  StrVarNames(24)='PML-PsiE-P24'
 
-  ALLOCATE(UPML(6,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+  ALLOCATE(UPML(nPMLVars,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
   UPML=0.0
   DO iPML=1,nPMLElems
     Upml(:,:,:,:,PMLToElem(iPML)) = U2(:,:,:,:,iPML)
@@ -541,8 +556,8 @@ IF(DoPML)THEN
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
                           DataSetName='PML_Solution', rank=5,&
-                          nValGlobal=(/nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                          nVal=      (/nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+                          nValGlobal=(/nPMLVars,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                          nVal=      (/nPMLVars,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
                           offset=    (/0,      0,     0,     0,     offsetElem/),&
                           collective=.TRUE.,RealArray=Upml)
 

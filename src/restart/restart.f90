@@ -172,7 +172,7 @@ USE MOD_ChangeBasis,             ONLY:ChangeBasis3D
 USE MOD_HDF5_input ,             ONLY:OpenDataFile,CloseDataFile,ReadArray,ReadAttribute
 USE MOD_HDF5_Output,             ONLY:FlushHDF5
 #ifndef PP_HDG
-USE MOD_PML_Vars,                ONLY:DoPML,PMLToElem,U2,nPMLElems
+USE MOD_PML_Vars,                ONLY:DoPML,PMLToElem,U2,nPMLElems,nPMLVars
 #endif /*not PP_HDG*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars,           ONLY:Phi
@@ -286,8 +286,8 @@ SWRITE(UNIT_stdOut,*)'Restarting from File:',TRIM(RestartFile)
 #else
     CALL ReadArray('DG_Solution',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
     IF(DoPML)THEN
-      ALLOCATE(U_local(6,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-      CALL ReadArray('PML_Solution',5,(/6,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      ALLOCATE(U_local(nPMLVars,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+      CALL ReadArray('PML_Solution',5,(/nPMLVars,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
       DO iPML=1,nPMLElems
         U2(:,:,:,:,iPML) = U_local(:,:,:,:,PMLToElem(iPML))
       END DO ! iPML
@@ -344,11 +344,11 @@ __STAMP__&
     END DO
     DEALLOCATE(U_local)
     IF(DoPML)THEN
-      ALLOCATE(U_local(6,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      ALLOCATE(U_local2(6,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-      CALL ReadArray('PML_Solution',5,(/6,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
+      ALLOCATE(U_local(nPMLVars,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+      ALLOCATE(U_local2(nPMLVars,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+      CALL ReadArray('PML_Solution',5,(/nPMLVars,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
       DO iElem=1,PP_nElems
-        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U_local2(:,:,:,:,iElem))
+        CALL ChangeBasis3D(nPMLVarsP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U_local2(:,:,:,:,iElem))
       END DO
       DO iPML=1,nPMLElems
         U2(:,:,:,:,iPML) = U_local2(:,:,:,:,PMLToElem(iPML))

@@ -604,7 +604,7 @@ USE MOD_Equation_Vars,        ONLY:B
 USE MOD_Equation_Vars,        ONLY:B,E
 #endif /*PP_nVar==1*/
 #else
-USE MOD_PML_Vars,           ONLY : xyzPhysicalMinMax,DoPML
+USE MOD_PML_Vars,             ONLY:isPMLElem
 #endif /*PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -624,88 +624,48 @@ REAL              :: WEl_tmp, WMag_tmp, E_abs, B_abs
 Wel=0.
 WMag=0.
 
-#ifndef PP_HDG
-IF(DoPML)THEN
-  DO iElem=1,nElems
-    !--- Calculate and save volume of element iElem
-    WEl_tmp=0. 
-    WMag_tmp=0. 
-    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  ! in electromagnetische felder by henke 2011 - springer
-  ! WMag = 1/(2mu) * int_V B^2 dV 
-      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) &
-            + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) &
-            + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
-#if (PP_nVar==8)
-      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) &
-            + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) &
-            + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-#endif /*PP_nVar=8*/        
-      ! if x, y or z is in PML region
-      IF (Elem_xGP(1,i,j,k,iElem) .GE. xyzPhysicalMinMax(1) .AND. Elem_xGP(1,i,j,k,iElem) .LE. xyzPhysicalMinMax(2) .AND. &
-          Elem_xGP(2,i,j,k,iElem) .GE. xyzPhysicalMinMax(3) .AND. Elem_xGP(2,i,j,k,iElem) .LE. xyzPhysicalMinMax(4) .AND. &
-          Elem_xGP(3,i,j,k,iElem) .GE. xyzPhysicalMinMax(5) .AND. Elem_xGP(3,i,j,k,iElem) .LE. xyzPhysicalMinMax(6)) THEN        
-          WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
-#if (PP_nVar==8)
-          WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
-#endif /*PP_nVar=8*/        
-      END IF
-    END DO; END DO; END DO
-    WEl = WEl + WEl_tmp
-#if (PP_nVar==8)
-    WMag = WMag + WMag_tmp
-#endif /*PP_nVar=8*/        
-  END DO
-ELSE
-#endif /*PP_HDG*/
-  DO iElem=1,nElems
-    !--- Calculate and save volume of element iElem
-    WEl_tmp=0. 
-    WMag_tmp=0. 
-    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  ! in electromagnetische felder by henke 2011 - springer
-  ! WMag = 1/(2mu) * int_V B^2 dV 
-
+DO iElem=1,nElems
+  IF(.NOT.isPMLElem(iElem))CYCLE
+  !--- Calculate and save volume of element iElem
+  WEl_tmp=0. 
+  WMag_tmp=0. 
+  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+! in electromagnetische felder by henke 2011 - springer
+! WMag = 1/(2mu) * int_V B^2 dV 
 #ifdef PP_HDG
 #if PP_nVar==1
-      E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+    E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
 #elif PP_nVar==3
-      B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
+    B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #else /*PP_nVar==4*/
-      E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
-      B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
+    E_abs = E(1,i,j,k,iElem)*E(1,i,j,k,iElem) + E(2,i,j,k,iElem)*E(2,i,j,k,iElem) + E(3,i,j,k,iElem)*E(3,i,j,k,iElem)
+    B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #endif /*PP_nVar==1*/
 #else
-      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+    E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
 #endif /*PP_HDG*/
 
 #if (PP_nVar==8)
-      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
+    B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
 #endif /*PP_nVar=8*/        
-
-      ! if x, y or z is in PML region
 #ifdef PP_HDG
 #if PP_nVar==3
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+    WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
 #else /*PP_nVar==4*/
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+    WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
 #endif /*PP_nVar==3*/
 #endif /*PP_HDG*/
-      WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
+    WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs 
 #if (PP_nVar==8)
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+    WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
 #endif /*PP_nVar=8*/        
-    END DO; END DO; END DO
-    WEl = WEl + WEl_tmp
+  END DO; END DO; END DO
+  WEl = WEl + WEl_tmp
 #if (PP_nVar==8)
-    WMag = WMag + WMag_tmp
+  WMag = WMag + WMag_tmp
 #endif /*PP_nVar=8*/        
-  END DO
-#ifndef PP_HDG
-END IF ! noPML
-#endif /*PP_HDG*/
+END DO
 
 WEl = WEl * eps0 * 0.5 
 WMag = WMag * smu0 * 0.5
