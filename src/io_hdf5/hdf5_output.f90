@@ -25,16 +25,16 @@ INTERFACE WriteHDF5Header
   MODULE PROCEDURE WriteHDF5Header
 END INTERFACE
 
-!INTERFACE WriteArrayToHDF5
-!  MODULE PROCEDURE WriteArrayToHDF5
-!END INTERFACE
+INTERFACE GenerateFileSkeleton 
+  MODULE PROCEDURE GenerateFileSkeleton 
+END INTERFACE
 
 INTERFACE WriteAttributeToHDF5
   MODULE PROCEDURE WriteAttributeToHDF5
 END INTERFACE
 
-PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header
-PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5
+PUBLIC :: WriteStateToHDF5,FlushHDF5,WriteHDF5Header,GatheredWriteArray
+PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
 !===================================================================================================================================
 
 CONTAINS
@@ -550,7 +550,7 @@ IF(DoPML)THEN
 #else
     CALL OpenDataFile(FileName,create=.FALSE.)
 #endif
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',nVar,StrArray=StrVarNames)
+    CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',nPMLVars,StrArray=StrVarNames)
     CALL CloseDataFile()
   END IF
 

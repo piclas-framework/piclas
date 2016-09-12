@@ -181,7 +181,6 @@ USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_Mesh,                  ONLY: SwapMesh
 #ifndef PP_HDG
-USE MOD_PML,                   ONLY: TransformPMLVars,BacktransformPMLVars
 USE MOD_PML_Vars,              ONLY: DoPML
 #endif /*PP_HDG*/
 USE MOD_Filter,                ONLY: Filter
@@ -609,13 +608,11 @@ DO !iter_t=0,MaxIter
       ! Analyze for output
       CALL PerformAnalyze(time,iter,tenddiff,forceAnalyze=.TRUE.,OutPut=.TRUE.,LastIter=finalIter)
 #ifndef PP_HDG
-      IF(DoPML) CALL BacktransformPMLVars()
 #endif /*PP_HDG*/
       ! Write state to file
       IF(DoWriteStateToHDF5) CALL WriteStateToHDF5(TRIM(MeshFile),time,tFuture)
 #ifndef PP_HDG
       ! Write state to file
-      IF(DoPML) CALL TransformPMLVars()
 #endif /*PP_HDG*/
 
       ! Write recordpoints data to hdf5

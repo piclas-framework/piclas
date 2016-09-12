@@ -43,7 +43,7 @@ SUBROUTINE InitPML()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
-USE MOD_PML_Vars,      ONLY: PMLRamp,PMLzeta,U2,U2t,Probes,DoPML,PMLzetaGlobal
+USE MOD_PML_Vars,      ONLY: PMLRamp,PMLzeta,U2,U2t,DoPML,PMLzetaGlobal
 USE MOD_PML_Vars,      ONLY: nPMLElems,ElemToPML,PMLToElem,isPMLElem
 USE MOD_PML_Vars,      ONLY: nPMLFaces,FaceToPML,PMLToFace,isPMLFace
 USE MOD_PML_Vars,      ONLY: nPMLInterFaces,FaceToPMLInter,PMLInterToFace,isPMLInterFace
@@ -52,13 +52,18 @@ USE MOD_Mesh_Vars,     ONLY: Elem_xGP,BCFace_xGP,Face_xGP  ! for PML region: xyz
 USE MOD_Mesh_Vars,     ONLY: nSides
 USE MOD_PML_Vars,      ONLY: PMLRampLength
 USE MOD_PML_Vars,      ONLY: PMLzetaEff,PMLalpha
-USE MOD_PML_Vars,      ONLY: PMLnVars
+USE MOD_PML_Vars,      ONLY: nPMLVars
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars,    ONLY:InterpolationInitIsDone
 #endif
-USE MOD_HDF5_output,           ONLY: WriteArrayToHDF5,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
-USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_HDF5_output,           ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
+USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,offsetElem,SideToElem,ElemToSide
 USE MOD_Output_Vars,           ONLY: ProjectName
+#ifdef MPI
+USE MOD_MPI_Vars
+USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -76,19 +81,16 @@ INTEGER             :: iPMLFace,iPMLInterFace,nGlobalPMLElems,nGlobalPMLFaces,nG
 REAL                :: fLinear,fSinus,fPolynomial
 REAL                :: dxMax,dxMin,dyMax,dyMin,dzMax,dzMin
 REAL                :: FaceTolerance
-INTEGER             :: DOFcount
+INTEGER             :: DOFcount,ElemID1,ElemID2,iSide,ilocSide,SideID
 ! for HDF5 output
 INTEGER(HID_T)                 :: Dset_ID
 INTEGER                        :: nVal
 CHARACTER(LEN=255)             :: FileName,FileString,MeshFile255,StrVarNames(PP_nVar),Statedummy
 #ifdef MPI
-LOGICAL                        :: maybe
-REAL                           :: StartT,EndT
-INTEGER,ALLOCATABLE            :: OffsetSideMPI(:)
-INTEGER,ALLOCATABLE            :: CounterSideMPI(:)
-INTEGER                        :: OffSetSide,nGlobalSides
-INTEGER,ALLOCATABLE            :: PMLFaceMPI(:)
+REAL,ALLOCATABLE            :: PMLPlus(:,:,:,:)
+REAL,ALLOCATABLE            :: PMLMinus(:,:,:,:)
 #endif
+REAL                 :: StartT,EndT
 REAL                           :: OutputTime
 REAL                           :: FutureTime
 !===================================================================================================================================
@@ -130,11 +132,11 @@ IF(.NOT.DoPML) THEN
   CALL abort(__STAMP__,&
       'Equation system does not support a PML!',999,999.)
 #endif
-  PMLnVars=0
+  nPMLVars=0
   nPMLElems=0
   RETURN
 ELSE
-  PMLnVars=24
+  nPMLVars=24
 END IF
 
 !===================================================================================================================================
@@ -172,43 +174,53 @@ DO iElem=1,PP_nElems
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
 
-! fancy mpi stuff
 #ifdef MPI
-
-ALLOCATE(offsetSideMPI(0:nProcessors))
-offsetSideMPI=0
-ALLOCATE(countSideMPI(0:nProcessors))
-countSideMPI=0
-CALL MPI_GATHER(nSides,1,MPI_INTEGER,countSideMPI,1,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
-
-IF (MPIROOT) THEN
-  DO iProc=1,nProcessors-1
-    offsetSideMPI(iProc)=SUM(countSideMPI(0:iProc-1))
-  END DO
-  offsetSideMPI(nProcessors)=SUM(countSideMPI(:))
-END IF
-CALL MPI_BCAST (offsetSideMPI,size(offsetSideMPI),MPI_INTEGER,0,MPI_COMM_WORLD,iError)
-offsetSide=offsetSideMPI(MyRank)
-nGlobalSides=offSetSideMPI(nProcessors)
-
-ALLOCATE(PMLFaceMPI(1:nGlobalSides))
-PMLFaceMPI=0
+ALLOCATE(PMLPlus(1,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(PMLMinus(1,0:PP_N,0:PP_N,1:nSides))
+PMLPlus=0.
+PMLMinus=0.
 DO iSide=1,nSides
-  IF(isPMLFace(iSide)) PMLFaceMPI(offSetSide+iSide)=1
-END DO ! iSide=1,nSides
+  IF(isPMLFace(iSide)) PMLPlus(1,:,:,iSide)=1.
+END DO
 
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,PMLFaceMPI,nGlobalSides,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError) 
+! send my info to neighbor 
+CALL StartReceiveMPIData(1,PMLMinus(1,0:PP_N,0:PP_N,SideID_plus_lower:SideID_plus_upper) &
+                          ,SideID_plus_lower,SideID_plus_upper,RecRequest_U,SendID=2) ! Receive MINE
+CALL StartSendMPIData(1,PMLPlus(1,0:PP_N,0:PP_N,SideID_plus_lower:SideID_plus_upper) &
+                       ,SideID_plus_lower,SideID_plus_upper,SendRequest_U,SendID=2) ! Send YOUR
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
+
+! add PMLMinus to PMLPlus and send
+PMLPlus=PMLPlus+PMLMinus
+
+CALL StartReceiveMPIData(1,PMLPlus,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
+CALL StartSendMPIData(1,PMLPlus,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
+CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
 
 DO iSide=1,nSides
-  SideID=OffSetSide+iSide
-  mayBe=.FALSE.
-  IF(PMLFaceMPI(SideID).EQ.1) mayBe=.TRUE.
-  IF((SideToElem(S2E_NB_ELEM_ID,SideID).LT.1).AND.(SideToElem(S2E_ELEM_ID,SideID).LT.1)) mayBe=.FALSE.
-  IF(mayBe) isPMLInterface=.TRUE.
-END DO ! iSide=1,nSides
+  IF(PMLPLUS(1,0,0,iSide).EQ.1)THEN
+    iSPMLInterface(iSide)=.TRUE.
+  END IF
+END DO
 
-DEALLOCATE(PMLFaceMPI(1:nGlobalSides))
+DEALLOCATE(PMLPlus,PMLMinus)
 #endif /*MPI*/
+
+! and fill non-mpi sides
+DO iSide=1,nSides
+  IF(iSPMLInterface(iSide)) CYCLE
+  IF(isPMLFace(iSide))THEN
+    ElemID1=SideToElem(S2E_ELEM_ID,SideID)
+    ElemID2=SideToElem(S2E_NB_ELEM_ID,SideID)
+    IF(ElemID1.LT.1) CYCLE
+    IF(ElemID2.LT.1) CYCLE
+    IF((isPMLElem(ElemID1).AND. .NOT.isPMLElem(ElemID2)) .OR. &
+       (.NOT.isPMLElem(ElemID1).AND.  isPMLElem(ElemID2)) )THEN
+    !IF(isPMLElem(ElemID1).NOT..isPMLElem(ElemID2)) THEN
+      iSPMLInterface(iSide)=.TRUE.
+   END IF
+  END IF
+END DO
 
 
 ! Get number of PML Elems
@@ -761,31 +773,6 @@ IF (PMLwriteFields.EQ.1) THEN
   END DO; END DO; END DO; END DO !iPMLElem,k,j,i
   CLOSE(110)
 END IF
-!===================================================================================================================================
-! find element index for probe points
-!===================================================================================================================================
-!Probes%Coordinates(1,:)=(/5.9,5.9,5.9/)
-!Probes%Coordinates(2,:)=(/5.9,5.9,0.0/)
-!Probes%Coordinates(3,:)=(/5.9,0.0,0.0/)
-!DO iProbe=1,3;
-  !DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    !Probes%Distance(iProbe,i,j,k,iElem)=SQRT((Elem_xGP(1,i,j,k,iElem)-Probes%Coordinates(iProbe,1))**2+&
-                                             !(Elem_xGP(2,i,j,k,iElem)-Probes%Coordinates(iProbe,2))**2+&
-                                             !(Elem_xGP(3,i,j,k,iElem)-Probes%Coordinates(iProbe,3))**2)
-  !END DO; END DO; END DO; END DO;
-  !!print *, "MINVAL(Probes%Distance(iProbe,:,:,:,:))        ",MINVAL(Probes%Distance(iProbe,:,:,:,:))
-  !Probes%iElemMinLoc(iProbe,:)=MINLOC(Probes%Distance(iProbe,:,:,:,:))-(/1,1,1,0/) !weil I,J,K bei 0 beginnen
-  !!print *, "MINLOC(Probes%Distance(iProbe,:,:,:,:))        ",MINLOC(Probes%Distance(iProbe,:,:,:,:))
-  !Probes%Element(iProbe)=Probes%iElemMinLoc(iProbe,4)
-  !!print *, "Probes%Element(iProbe)                         ",Probes%Element(iProbe)
-  !!print *, "Probes%iElemMinLoc(iProbe,:)                 ",Probes%iElemMinLoc(iProbe,:)
-!END DO !iProbe,iElem,k,i,j
-!!NodeMap(:,1)=(/1,4,3,2/)
-!!RESULT = MINVAL(ARRAY, DIM [, MASK]) 
-
-!SWRITE(UNIT_stdOut,'(A)') ' INIT PML DONE...'
-!SWRITE(UNIT_StdOut,'(132("-"))')
-
 
 !===================================================================================================================================
 ! write PMLzetaGlobal field to HDF5 file
@@ -794,10 +781,8 @@ OutputTime=0.0
 FutureTime=0.0
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
-#ifdef MPI
-  StartT=MPI_WTIME()
-#endif
 END IF
+StartT=BOLTZPLATZTIME()
 StrVarNames(1)='PMLzetaGlobalX'
 StrVarNames(2)='PMLzetaGlobalY'
 StrVarNames(3)='PMLzetaGlobalZ'
@@ -823,8 +808,13 @@ nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number
 !read*
 
 ! muss DG solution heißen, damit es vom Paraview State Reader erkannt wird
-CALL WriteArrayToHDF5('DG_Solution',nVal,5,(/3,PP_N+1,PP_N+1,PP_N+1,PP_nElems/) &
-,offsetElem,5,existing=.TRUE.,RealArray=PMLzetaGlobal)
+CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                        DataSetName='DG_Solution', rank=5,&
+                        nValGlobal=(/3,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                        nVal=      (/3,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+                        offset=    (/0,      0,     0,     0,     offsetElem/),&
+                        collective=.TRUE.,RealArray=PMLzetaGlobal)
+
 
 
 ! Close the dataset and property list.
@@ -833,16 +823,10 @@ CALL H5DCLOSE_F(Dset_id, iError)
 ! Close the file.
 CALL CloseDataFile()
 
-#ifdef MPI
 IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
+  EndT=BOLTZPLATZTIME()
   WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 END IF
-#else
-WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
-
-
 
 END SUBROUTINE InitPML
 
@@ -909,7 +893,7 @@ SUBROUTINE PMLTimeDerivative()
 USE MOD_Globals,       ONLY: abort
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY: U,Ut
-USE MOD_PML_Vars,      ONLY: PMLzeta,U2,U2t,PMLnVars
+USE MOD_PML_Vars,      ONLY: PMLzeta,U2,U2t,nPMLVars
 USE MOD_PML_Vars,      ONLY: nPMLElems,ElemToPML,PMLToElem
 USE MOD_PML_Vars,      ONLY: nPMLFaces,FaceToPML,PMLToFace
 USE MOD_Mesh_Vars,     ONLY: Elem_xGP,sJ

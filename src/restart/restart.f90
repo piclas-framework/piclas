@@ -348,7 +348,7 @@ __STAMP__&
       ALLOCATE(U_local2(nPMLVars,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
       CALL ReadArray('PML_Solution',5,(/nPMLVars,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U_local)
       DO iElem=1,PP_nElems
-        CALL ChangeBasis3D(nPMLVarsP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U_local2(:,:,:,:,iElem))
+        CALL ChangeBasis3D(nPMLVars,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U_local2(:,:,:,:,iElem))
       END DO
       DO iPML=1,nPMLElems
         U2(:,:,:,:,iPML) = U_local2(:,:,:,:,PMLToElem(iPML))
