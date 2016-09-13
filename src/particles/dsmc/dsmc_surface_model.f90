@@ -78,8 +78,10 @@ SUBROUTINE DSMC_Update_Wall_Vars()
       CALL CalcSurfDistInteraction()
     END IF
     
-    CALL CalcAdsorbProb()
-    IF (KeepWallParticles) CALL CalcDesorbprob()
+    IF (DSMC%WallModel.EQ.1 .AND. DSMC%WallModel.EQ.2) THEN
+      CALL CalcAdsorbProb()
+      IF (KeepWallParticles) CALL CalcDesorbprob()
+    END IF
   END IF
 
 END SUBROUTINE DSMC_Update_Wall_Vars  
@@ -151,20 +153,22 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
   q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1 
   
-  Adsorption_prob = 0.
   IF (DSMC%WallModel.EQ.3) THEN
-    CALL CalcBackgndProbAdsorb(p,q,SurfSide,PartID,Adsorption_prob)
-#if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds + Adsorption_prob
-#endif
+    CALL CalcBackgndPartAdsorb(p,q,SurfSide,PartID,adsorption_case)
   ELSE
+    adsorption_case = 0
     Adsorption_prob = Adsorption%ProbAds(p,q,SurfSide,iSpec)
+    CALL RANDOM_NUMBER(RanNum)
+    IF ( (Adsorption_prob.GE.RanNum) .AND. & 
+       (Adsorption%Coverage(p,q,SurfSide,iSpec).LT.Adsorption%MaxCoverage(SurfSide,iSpec)) ) THEN
+      adsorption_case = 1
+    END IF
   END IF
   
-  CALL RANDOM_NUMBER(RanNum)
-  IF ( (Adsorption_prob.GE.RanNum) ) THEN !.AND. &
-!        (Adsorption%Coverage(p,q,SurfSide,iSpec).LT.Adsorption%MaxCoverage(SurfSide,iSpec)) ) THEN  
-    
+  SELECT CASE(surf_react_case)
+  !-----------------------------------------------------------------------------------------------------------------------------
+  CASE(1) ! molecular adsorption
+  !-----------------------------------------------------------------------------------------------------------------------------    
     maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
     Adsorption%Coverage(p,q,SurfSide,iSpec) = Adsorption%Coverage(p,q,SurfSide,iSpec) & 
                                                  + Species(iSpec)%MacroParticleFactor/maxPart
@@ -278,7 +282,29 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
       CALL CalcWallSample(PartID,SurfSide,p,q,Transarray,IntArray,PartTrajectory,alpha,IsSpeciesSwap)
     END IF
     
-  ELSE
+  !-----------------------------------------------------------------------------------------------------------------------------
+  CASE(2) ! dissociative adsorption
+  !-----------------------------------------------------------------------------------------------------------------------------
+    maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
+    Adsorption%Coverage(p,q,SurfSide,jSpec) = Adsorption%Coverage(p,q,SurfSide,jSpec) & 
+                                                 + 2*Species(iSpec)%MacroParticleFactor/maxPart
+    adsindex = 1
+#if (PP_TimeDiscMethod==42)
+    Adsorption%AdsorpInfo(jSpec)%NumOfAds = Adsorption%AdsorpInfo(jSpec)%NumOfAds + 2
+#endif
+  !-----------------------------------------------------------------------------------------------------------------------------
+  CASE(3) ! ER-Reaction
+  !-----------------------------------------------------------------------------------------------------------------------------
+    maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
+    Adsorption%Coverage(p,q,SurfSide,jSpec) = Adsorption%Coverage(p,q,SurfSide,jSpec) & 
+                                                 - Species(iSpec)%MacroParticleFactor/maxPart
+    adsindex = 2
+#if (PP_TimeDiscMethod==42)
+    Adsorption%AdsorpInfo(jSpec)%NumOfDes = Adsorption%AdsorpInfo(jSpec)%NumOfDes + 1
+#endif
+  !-----------------------------------------------------------------------------------------------------------------------------
+  CASE DEFAULT ! Reflection
+  !-----------------------------------------------------------------------------------------------------------------------------
     adsindex = 0
   END IF
   
@@ -286,7 +312,7 @@ END SUBROUTINE Particle_Wall_Adsorb
 
 SUBROUTINE Calc_PartNum_Wall_Desorb()
 !===================================================================================================================================
-! calculation of desorbing desorbing particle number when particles deleted at adsorption and inserted at desorption
+! calculation of desorbing particle number when particles deleted at adsorption and inserted at desorption
 !===================================================================================================================================
 USE MOD_Particle_Vars,          ONLY : nSpecies, Species
 USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC
@@ -498,7 +524,7 @@ END DO
 
 END SUBROUTINE CalcDiffusion
 
-SUBROUTINE CalcBackgndProbAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Adsorption_prob)
+SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Adsorption_prob)
 !===================================================================================================================================
 ! Particle Adsorption probability calculation for wallmodel 3
 !===================================================================================================================================
@@ -528,6 +554,7 @@ SUBROUTINE CalcBackgndProbAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Adsorpti
   REAL                             :: VarPartitionFuncAct, VarPartitionFuncWall, VarPartitionFuncGas
   INTEGER , ALLOCATABLE            :: reactadsorbnum(:), adsorbnum(:)
 !---------- reaction variables
+  REAL, PARAMETER                  :: Pi=3.14159265358979323846_8
   INTEGER                          :: react_Neigh, n_react_Neigh, n_empty_Neigh, jSpec, kSpec, ReactNum, PartnerID, LastRemainID
   INTEGER                          :: react_Neigh_pos, surf_react_case, interatom
   REAL                             :: E_a, E_d, E_diff, nu_react, P_diff, sigmaB, nu_diff
@@ -539,40 +566,8 @@ SUBROUTINE CalcBackgndProbAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Adsorpti
   REAL                             :: GasTemp, TransTemp, RotTemp, VibTemp, Xi_Vib
   INTEGER                          :: iDOF, SiteSpec
 !===================================================================================================================================
-  
-  iSpec = PartSpecies(PartID)
-  TransTemp = Species(iSpec)%MassIC * (PartState(PartID,4)**2 + PartState(PartID,5)**2 + PartState(PartID,6)**2) &
-         / (BoltzmannConst * 3)
-  RotTemp = PartStateIntEn(PartID,1) / BoltzmannConst
-  IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20))) THEN
-    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      VibTemp = CalcTVibPoly(PartStateIntEn(PartID,1),iSpec)
-      IF(VibTemp.GT.0) THEN
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-          Xi_Vib = Xi_Vib + 2*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/VibTemp &
-                        /(exp(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/VibTemp) - 1)
-        END DO
-      ELSE
-        Xi_Vib = 0.0
-      END IF
-      GasTemp = (3*TransTemp + SpecDSMC(iSpec)%Xi_Rot*RotTemp + Xi_Vib*VibTemp) &
-                / (3+SpecDSMC(iSpec)%Xi_Rot+Xi_Vib)
-    ELSE
-      VibTemp = CalcTVib(SpecDSMC(iSpec)%CharaTVib,PartStateIntEn(PartID,1),80)
-      IF(VibTemp.GT.0) THEN
-        Xi_Vib = 2*SpecDSMC(iSpec)%CharaTVib/VibTemp/(exp(SpecDSMC(iSpec)%CharaTVib/VibTemp) - 1)
-      ELSE
-        Xi_Vib = 0.0
-      END IF
-      GasTemp = (3*TransTemp + 2*RotTemp + Xi_Vib*VibTemp)/(5+Xi_Vib)
-    END IF
-  ELSE
-    GasTemp = TransTemp
-  END IF
-
-  globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
 ! special TPD (temperature programmed desorption) surface temperature adjustment part
+  globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
 #if (PP_TimeDiscMethod==42)
   IF (Adsorption%TPD) THEN
     WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide))) + (Adsorption%TPD_beta * iter * dt)
@@ -583,127 +578,235 @@ SUBROUTINE CalcBackgndProbAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Adsorpti
 #else
   WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
 #endif
-
+! initialize variables
   Prob_ads = 0.
   ALLOCATE( P_Eley_Rideal(1:Adsorption%ReactNum),&
             Prob_diss(1:Adsorption%ReactNum))
   P_Eley_Rideal(:) = 0.
   Prob_diss(:) = 0.
   
-  Coord = Adsorption%Coordination(iSpec)
   CALL RANDOM_NUMBER(RanNum)
-  AdsorbID = 1 + INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)*RanNum)
-  Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(AdsorbID)
-  SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos)
-
-
-  IF (SiteSpec.EQ.0) THEN
-    ! find empty neighbour positions with same coord
-!     n_empty_Neigh = 0
-!     ALLOCATE(NeighbourID(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours))
-!     DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nNeighbours
-!       Coord2 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,i)
-!       IF (Coord2.GT.0) THEN
-!         IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species( &
-!               SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)) &
-!               .EQ.0) ) THEN
-!           IF (Coord2.EQ.Coord) THEN
-!             n_empty_Neigh = n_empty_Neigh + 1
-!             NeighbourID(n_empty_Neigh) = i
+  AdsorbID = 1 + INT(SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(1)*RanNum)
+  Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%UsedSiteMap(AdsorbID)
+  SiteSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%Species(Surfpos)
+  
+  !---------------------------------------------------------------------------------------------------------------------------------
+  ! search adsorption and reaction positions for random surface position
+  !---------------------------------------------------------------------------------------------------------------------------------
+  ALLOCATE( n_empty_Neigh(1:3),&
+            n_react_Neigh(1:3),&
+            n_Neigh(1:3))
+  n_empty_Neigh(:) = 0
+  n_react_Neigh(:) = 0
+  n_Neigh(:) = 0
+  ALLOCATE(NeighbourID(1:SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%nNeighbours))
+  ! find empty positions for different coordinations
+  DO Coord = 1,3
+  DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%nNeighbours
+    Coord2 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,i)
+    IF (Coord2.EQ.Coord) THEN
+      IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species( &
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,i)) &
+            .EQ.0) ) THEN
+        n_empty_Neigh(Coord) = n_empty_Neigh(Coord) + 1
+        NeighbourID(n_empty_Neigh(Coord)) = i
+        n_Neigh(Coord) = n_Neigh(Coord) + 1
+      END IF
+    END IF
+  END DO
+  END DO
+  ! find occupied positions for different coordinations
+  DO Coord = 1,3
+  DO i = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%nNeighbours
+    Coord2 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighSite(Surfpos,i)
+    IF (Coord2.EQ.Coord) THEN
+      IF ( (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species( &
+            SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,i)) &
+            .NE.0) ) THEN
+        n_react_Neigh(Coord) = n_react_Neigh(Coord) + 1
+        NeighbourID(n_empty_Neigh(1)+n_empty_Neigh(2)+n_empty_Neigh(3)+n_react_Neigh(Coord)) = i
+        n_Neigh(Coord) = n_Neigh(Coord) + 1
+      END IF
+    END IF
+  END DO
+  END DO
+  !---------------------------------------------------------------------------------------------------------------------------------
+    
+  iSpec = PartSpecies(PartID)
+  Coord = Adsorption%Coordination(iSpec)
+  !---------------------------------------------------------------------------------------------------------------------------------
+  ! calculate probability for molecular adsorption
+  !---------------------------------------------------------------------------------------------------------------------------------
+  IF (n_empty_Neigh(Coord).GT.0) THEN
+    CALL RANDOM_NUMBER(RanNum)
+    chosen_Neigh = 1 + INT(n_Neigh(Coord)*RanNum)
+    IF (chosen_Neigh.LE.n_empty_Neigh(Coord)) THEN
+!       ! calculation of molecular adsorption probability with TCE
+!       E_a = 0.
+!       a_f = 8.31e-17
+!       b_f = -0.5
+!       c_f = Adsorption%DensSurfAtoms(SurfSideID) / ( (BoltzmannConst / (2*Pi*Species(iSpec)%MassIC))**0.5 )
+!       ! Testing if the adsorption particle is an atom or molecule, if molecule: is it polyatomic?
+!       IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+!         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+!           iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+!           EZeroPoint_Educt = EZeroPoint_Educt + PolyatomMolDSMC(iPolyatMole)%EZeroPoint
+!           ! Using the mean vibrational degree of freedom within the cell
+!   !        Xi_vib3 = PolyatomMolDSMC(iPolyatMole)%Xi_Vib_Mean
+!           ! Calculation of the vibrational degree of freedom for the particle 
+!           IF (PartStateIntEn(PartID,1).GT.PolyatomMolDSMC(iPolyatMole)%EZeroPoint) THEN
+!             Xi_vib = 2.*(PartStateIntEn(PartID,1)-PolyatomMolDSMC(iPolyatMole)%EZeroPoint) &
+!                     / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), iSpec))
+!           ELSE
+!             Xi_vib = 0.0
 !           END IF
 !         ELSE
-!           DO ReactNum = 1,(Adsorption%DissNum)
-!             IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%Species( &
-!                 SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,i)) &
-!                 .EQ.Adsorption%AssocReact(1,ReactNum,iSpec)) THEN
-!               n_react_Neigh = n_react_Neigh + 1
-!               NeighbourID(n_empty_Neigh+n_react_Neigh) = i
-!               EXIT
-!             END IF
-!           END DO
+!           EZeroPoint_Educt = EZeroPoint_Educt + DSMC%GammaQuant*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib
+!           IF(ChemReac%MeanEVibQua_PerIter(iSpec).GT.0.0) THEN
+!             Xi_vib = 2.0*ChemReac%MeanEVibQua_PerIter(iSpec) &
+!                     * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0)
+!           ELSE
+!             Xi_vib = 0.0
+!           END IF
 !         END IF
+!       ELSE
+!         Xi_vib = 0.0
 !       END IF
-!     END DO
-    
-!     IF ((n_empty_Neigh).GT.0) THEN
-!       ! choose random neighbour site from relevant neighbours
-!       CALL RANDOM_NUMBER(RanNum)
-!       react_Neigh = 1 + INT((n_empty_Neigh) * RanNum)
-!       Coord2 = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighSite(Surfpos,NeighbourID(react_Neigh))
-!       react_Neigh_pos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%NeighPos(Surfpos,NeighbourID(react_Neigh))
-!       DEALLOCATE(NeighbourID)
-!       ! calculate probability for dissociative adsorption
-!       E_d = ((Heat_A * Heat_B)/(Heat_A + Heat_B))
-!       CALL PartitionFuncGas(kSpec, WallTemp, VarPartitionFuncGas)
-!       CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
-!       nu_diss = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / (VarPartitionFuncGas))
-!       rate = nu_diss * exp(-E_d/WallTemp)
-!       Prob_diss = rate * dt
-!     END IF
-    ! calculate probability for molecular adsorption
-    sigmaA = 0.
-    DO j = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
-      Indx = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(Surfpos,j)
-      Indy = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(Surfpos,j)
-      bondorder = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
-      sigmaA = sigmaA + ( (1./SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom) &
-            * (1./(bondorder)) * (2.-(1./bondorder)) )
-    END DO
-    Heat_A = Adsorption%HeatOfAdsZero(iSpec) * sigmaA
-    E_d = -Heat_A
-    CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
-    CALL PartitionFuncGas(iSpec, GasTemp, VarPartitionFuncGas)
-    nu_ads = ((BoltzmannConst*GasTemp)/PlanckConst) * (VarPartitionFuncAct / (VarPartitionFuncGas))
-    rate = nu_ads * exp(-E_d/GasTemp) !* Adsorption%DensSurfAtoms(SurfSideID)*SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID)
-    Prob_ads = rate * dt
-    sum_probabilities = Prob_ads
-!     adsorption_case = 1
-!   ELSE IF ((SiteSpec.GT.0) .AND. ((Adsorption%ReactNum).GT.0)) THEN
-!     ! calculate probability for Eley-Rideal reaction
-!     E_d = ((Heat_A * Heat_B)/(Heat_A + Heat_B))
-!     CALL PartitionFuncAct(kSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
-!     CALL PartitionFuncGas(iSpec, WallTemp, VarPartitionFuncGas)
-!     CALL PartitionFuncSurf(jSpec, WallTemp, VarPartitionFuncWall)
-!     nu_react = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / (VarPartitionFuncWall1 * VarPartitionFuncWall2))
-!     rate = nu_react * exp(-E_d/WallTemp)
-!     P_Eley_Rideal = rate * dt
-!     ! initialize choosing reaction
-!     DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
-!       sum_probabilities = sum_probabilities + P_Eley_Rideal(ReactNum)
-!     END DO
+!       Xi_Total = Xi_vib + Xi_rot + 3
+!       iReac = 1
+!       phi_1 = Adsorption%Arrhenius_Powerfactor(iReac) - 3./2. + Xi_Total
+!       phi_2 = 1 - Xi_Total
+!       Prob_ads = Calc_Beta_Adsorb(iReac,Xi_Total,c_f) * (E_col - E_a)**phi_1 * E_col ** phi_2
+      Prob_ads = 0.
+    ELSE
+      Prob_ads = 0.
+    END IF
   ELSE
-    sum_probabilities = 0
+    Prob_ads = 0.
   END IF
+  !---------------------------------------------------------------------------------------------------------------------------------
+  ! calculate probability for dissociative adsorption
+  !---------------------------------------------------------------------------------------------------------------------------------
+  DO ReactNum = 1,(Adsorption%DissNum)
+    jSpec = Adsorption%DissocReact(1,ReactNum,iSpec)
+    kSpec = Adsorption%DissocReact(1,ReactNum,iSpec)
+    jCoord = Adsorption%Coordination(jSpec)
+    kCoord = Adsorption%Coordination(kSpec)
+    IF ( (jCoord.EQ.kCoord) .AND. (n_empty_Neigh(jCoord).GT.1) ) THEN
+      ! assign availiable neighbour position
+      chosen_Neigh_j = 1
+      chosen_Neigh_k = 2
+      SELECT CASE(jCoord)
+      CASE(1)
+        Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,NeighbourID(chosen_Neigh_j))
+        Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,NeighbourID(chosen_Neigh_k))
+      CASE(2)
+        Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,&
+                                  NeighbourID(n_empty_Neigh(1)+chosen_Neigh_j))
+        Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,&
+                                  NeighbourID(n_empty_Neigh(1)+chosen_Neigh_k))
+      CASE(3)
+        Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,&
+                                  NeighbourID(n_empty_Neigh(1)+n_empty_Neigh(2)+chosen_Neigh_j))
+        Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,&
+                                  NeighbourID(n_empty_Neigh(1)+n_empty_Neigh(2)+chosen_Neigh_k))
+      END SELECT
+      ! calculation of activation energy
+      ! calculation of dissociative adsorption probability with TCE
+    ELSE IF ( (jCoord.NE.kCoord) .AND. (n_empty_Neigh(jCoord).GT.0) .AND. (n_empty_Neigh(kCoord).GT.0) ) THEN
+      ! assign availiable neighbour position
+      CALL RANDOM_NUMBER(RanNum)
+      chosen_Neigh_j = 1 + INT(n_empty_Neigh(jCoord)*RanNum)
+      CALL RANDOM_NUMBER(RanNum)
+      chosen_Neigh_k = 1 + INT(n_empty_Neigh(kCoord)*RanNum)
+      SELECT CASE(jCoord)
+      CASE(1)
+        Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,NeighbourID(chosen_Neigh_j))
+      CASE(2)
+        Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,&
+                                  NeighbourID(n_empty_Neigh(1)+chosen_Neigh_j))
+      CASE(3)
+        Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,&
+                                  NeighbourID(n_empty_Neigh(1)+n_empty_Neigh(2)+chosen_Neigh_j))
+      END SELECT
+      SELECT CASE(kCoord)
+      CASE(1)
+        Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,NeighbourID(chosen_Neigh_k))
+      CASE(2)
+        Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,&
+                                  NeighbourID(n_empty_Neigh(1)+chosen_Neigh_k))
+      CASE(3)
+        Neighpos_k = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,&
+                                  NeighbourID(n_empty_Neigh(1)+n_empty_Neigh(2)+chosen_Neigh_k))
+      END SELECT
+      ! calculation of activation energy
+      ! calculation of dissociative adsorption probability with TCE
+    END IF
+  END DO
+  !---------------------------------------------------------------------------------------------------------------------------------
+  ! calculate probability for Eley-Rideal reaction
+  !---------------------------------------------------------------------------------------------------------------------------------
+  DO ReactNum = 1,(Adsorption%DissNum)
+    ! reaction partner
+    jSpec = Adsorption%AssocReact(1,ReactNum,iSpec)
+    IF (jSpec.EQ.0) CYCLE
+    ! reaction results
+    kSpec = Adsorption%AssocReact(2,ReactNum,iSpec)
+    jCoord = Adsorption%Coordination(jSpec)
+    IF ( n_react_Neigh(jCoord).GT.0 ) THEN
+      CALL RANDOM_NUMBER(RanNum)
+      chosen_Neigh = 1 + INT(n_Neigh(Coord)*RanNum)
+      IF (chosen_Neigh.GT.n_empty_Neigh(Coord)) THEN
+        ! assign availiable reaction position
+        SELECT CASE(jCoord)
+        CASE(1)
+          Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,&
+                                    NeighbourID(n_empty_Neigh(1)+n_empty_Neigh(2)+n_empty_Neigh(3)+chosen_Neigh))
+        CASE(2)
+          Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,&
+                                    NeighbourID(n_empty_Neigh(1)+n_empty_Neigh(2)+n_empty_Neigh(3)+n_react_Neigh(1)&
+                                    +chosen_Neigh))
+        CASE(3)
+          Neighpos_j = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(1)%NeighPos(Surfpos,&
+                                    NeighbourID(n_empty_Neigh(1)+n_empty_Neigh(2)+n_empty_Neigh(3)+n_react_Neigh(1)&
+                                    +n_react_Neigh(2)+chosen_Neigh))
+        END SELECT
+        ! calculation of activation energy
+        ! calculation of reaction probability with TCE
+      END IF
+    END IF
+  END DO
+  !---------------------------------------------------------------------------------------------------------------------------------
+  sum_probabilities = Prob_ads
+  DO ReactNum = 1:Adsorption%ReactNum
+    sum_probabilities = sum_probabilites + Prob_diss(ReactNum) + P_Eley_Rideal(ReactNum)
+  END DO
   
-  Adsorption_prob = sum_probabilities
-
-!   CALL RANDOM_NUMBER(RanNum)
-!   IF (sum_probabilities .GT. RanNum) THEN
-    ! chose surface reaction case (1=scattering, 2=reaction (Eley-Rideal), 3=adsorption)
-!     IF ((SiteSpec.GT.0) .AND. ((Adsorption%ReactNum).GT.0)) THEN
-!       DO ReactNum = 1,(Adsorption%ReactNum)
-!         CALL RANDOM_NUMBER(RanNum)
-!         IF ((P_Eley_Rideal(ReactNum)/sum_probabilities).GT.RanNum) THEN
-!           surf_react_case = 2
-!           EXIT
-!         ELSE
-!           surf_react_case = 1
-!           sum_probabilities = sum_probabilities - P_Eley_Rideal(ReactNum)
-!         END IF
-!       END DO
-!     ELSE
-!       DO ReactNum = 1,(Adsorption%ReactNum)
-!         CALL RANDOM_NUMBER(RanNum)
-!         IF ((Prob_diss(ReactNum)/sum_probabilities).GT.RanNum) THEN
-!           surf_react_case = 2
-!           EXIT
-!         ELSE
-!           surf_react_case = 3
-!           sum_probabilities = sum_probabilities - Prob_diss(ReactNum)
-!         END IF
-!       END DO
-!     END IF
-!   END IF
+  surf_react_case = 1
+  CALL RANDOM_NUMBER(RanNum)
+  IF (sum_probabilities .GT. RanNum) THEN
+    ! chose surface reaction case (1=scattering, 2=reaction (Eley-Rideal), 3=reaction (dissociation), 4=adsorption)
+    DO ReactNum = 1,(Adsorption%ReactNum)
+      CALL RANDOM_NUMBER(RanNum)
+      IF ((P_Eley_Rideal(ReactNum)/sum_probabilities).GT.RanNum) THEN
+        surf_react_case = 2
+        EXIT
+      END IF
+      sum_probabilities = sum_probabilities - P_Eley_Rideal(ReactNum)
+      CALL RANDOM_NUMBER(RanNum)
+      IF ((Prob_diss(ReactNum)/sum_probabilities).GT.RanNum) THEN
+        surf_react_case = 3
+        EXIT
+      END IF
+      sum_probabilities = sum_probabilities - Prob_diss(ReactNum)
+    END DO
+    IF (surf_react_case.EQ.1) THEN
+      CALL RANDOM_NUMBER(RanNum)
+      IF ((Prob_ads/sum_probabilities).GT.RanNum) THEN
+        surf_react_case = 4
+      END IF
+    END IF
+  END IF
 
 !   ! update number of adsorptions
 !   adsorbnum(iSpec) = adsorbnum(iSpec) + 1
@@ -749,7 +852,7 @@ SUBROUTINE CalcBackgndProbAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Adsorpti
 
 DEALLOCATE(P_Eley_Rideal,Prob_diss)
 
-END SUBROUTINE CalcBackgndProbAdsorb
+END SUBROUTINE CalcBackgndPartAdsorb
 
 SUBROUTINE CalcBackgndPartDesorb()
 !===================================================================================================================================
@@ -1783,5 +1886,36 @@ REAL                          :: Qtra, Qrot, Qvib
   VarPartitionFuncSurf = Qtra * Qrot * Qvib
 
 END SUBROUTINE PartitionFuncSurf
+
+REAL FUNCTION Calc_Beta_Adsorb(iReac,Xi_Total,Constant_Adsorb)
+!===================================================================================================================================
+! Calculates the Beta coefficient for molecular (non-associative) adsorption reaction
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+  USE MOD_PARTICLE_Vars,      ONLY : BoltzmannConst
+  USE MOD_DSMC_Vars,          ONLY : Adsorption
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+  INTEGER, INTENT(IN)            :: iReac
+  REAL, INTENT(IN)               :: Xi_Total
+  REAL, INTENT(IN)               :: Constant_Adsorb
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+  IF((Adsorption%Arrhenius_Powerfactor(iReac) - 0.5 + Xi_Total).GT.0.0) THEN
+    Calc_Beta_Adsorb = Adsorption%Arrhenius_Prefactor(iReac) * Constant_Adsorb &
+      * (BoltzmannConst**(0.5 - Adsorption%Arrhenius_Powerfactor(iReac) ) * GAMMA(Xi_Total) &
+      / GAMMA(Adsorption%Arrhenius_Powerfactor(iReac) - 0.5 + Xi_Total)
+  ELSE
+    Calc_Beta_Adsorb = 0.0
+  END IF
+
+END FUNCTION Calc_Beta_Adsorb
 
 END MODULE MOD_DSMC_SurfModel_Tools
