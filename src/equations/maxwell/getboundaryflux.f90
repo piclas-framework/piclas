@@ -145,12 +145,14 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv, Flux, U_Minus, NormVec, TangVec1, TangVec2,
 ! MODULES
 USE MOD_Globals,        ONLY:Abort,CROSS
 USE MOD_PreProc
-USE MOD_Riemann,        ONLY:Riemann
+USE MOD_Riemann,        ONLY:Riemann,RiemannPML
 USE MOD_Equation,       ONLY:ExactFunc
 USE MOD_Equation_vars,  ONLY:c,c_inv
 USE MOD_Mesh_Vars    ,  ONLY:nBCSides,nBCs,BoundaryType
 USE MOD_Equation_Vars,  ONLY:nBCByType,BCSideID
 USE MOD_Equation_Vars,  ONLY:BCData,nBCByType,BCSideID
+USE MOD_PML_Vars,       ONLY: nPMLVars
+USE MOD_PML_Vars,       ONLY: DoPML,isPMLFace
 !USE MOD_Equation_Vars,  ONLY:IniExactFunc! richtig with particles???
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -191,6 +193,11 @@ DO iBC=1,nBCs
         END DO ! p
       END DO ! q
       ! Dirichlet means that we use the gradients from inside the grid cell
+      IF(isPMLFace(iSide)) THEN ! PML version - PML element
+        CALL RiemannPML(F_Face(:,:,:),U_Face(:,:,:),U_Face_loc(:,:,:),         &
+                        normal(:,:,:),tangent1(:,:,:),tangent2(:,:,:))
+      ELSE
+
        CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
    END DO
 
