@@ -496,7 +496,7 @@ SUBROUTINE WritePMLDataToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars     ,ONLY:offsetElem,nGlobalElems
-USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,U2,nPMLElems,nPMLVars
+USE MOD_PML_Vars      ,ONLY:DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -512,7 +512,7 @@ INTEGER                        :: iPML
 !===================================================================================================================================
 
 IF(DoPML)THEN
-  ALLOCATE(StrVarNames(nPMLVars))
+  ALLOCATE(StrVarNames(PMLnVar))
   StrVarNames( 1)='PML-ElectricFieldX-P1'
   StrVarNames( 2)='PML-ElectricFieldX-P2'
   StrVarNames( 3)='PML-ElectricFieldX-P3'
@@ -538,7 +538,7 @@ IF(DoPML)THEN
   StrVarNames(23)='PML-PsiE-P23'
   StrVarNames(24)='PML-PsiE-P24'
 
-  ALLOCATE(UPML(nPMLVars,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+  ALLOCATE(UPML(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
   UPML=0.0
   DO iPML=1,nPMLElems
     Upml(:,:,:,:,PMLToElem(iPML)) = U2(:,:,:,:,iPML)
@@ -550,14 +550,14 @@ IF(DoPML)THEN
 #else
     CALL OpenDataFile(FileName,create=.FALSE.)
 #endif
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',nPMLVars,StrArray=StrVarNames)
+    CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',PMLnVar,StrArray=StrVarNames)
     CALL CloseDataFile()
   END IF
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
                           DataSetName='PML_Solution', rank=5,&
-                          nValGlobal=(/nPMLVars,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                          nVal=      (/nPMLVars,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
+                          nValGlobal=(/PMLnVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
+                          nVal=      (/PMLnVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
                           offset=    (/0,      0,     0,     0,     offsetElem/),&
                           collective=.TRUE.,RealArray=Upml)
 

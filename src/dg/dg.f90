@@ -58,6 +58,7 @@ USE MOD_Mesh_Vars,          ONLY: nSides
 USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
 USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
 USE MOD_Mesh_Vars,          ONLY: MeshInitIsDone
+USE MOD_PML_Vars,           ONLY: PMLnVar ! additional fluxes for the CFS-PML auxiliary variables
 #ifdef OPTIMIZED
 USE MOD_Riemann,            ONLY: GetRiemannMatrix
 #endif /*OPTIMIZED*/
@@ -104,7 +105,7 @@ U_Plus=0.
 #endif /*OPTIMIZED*/
 
 ! unique flux per side
-ALLOCATE(Flux(PP_nVar,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(Flux(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)) ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0) 
 Flux=0.
 
 DGInitIsDone=.TRUE.
@@ -218,6 +219,7 @@ USE MOD_FillFlux,         ONLY:FillFlux
 USE MOD_Mesh_Vars,        ONLY:nSides
 USE MOD_Equation,         ONLY:CalcSource
 USE MOD_Interpolation,    ONLY:ApplyJacobian
+USE MOD_PML_Vars,           ONLY: PMLnVar
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,              ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
@@ -293,7 +295,7 @@ tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 
 tLBStart = LOCALTIME() ! LB Time Start
-CALL StartSendMPIData(PP_nVar,Flux,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
+CALL StartSendMPIData(PP_nVar+PMLnVar,Flux,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
 !CALL StartExchangeMPIData(PP_nVar,Flux,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart

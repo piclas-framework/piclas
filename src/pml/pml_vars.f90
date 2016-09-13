@@ -42,7 +42,7 @@ REAL,ALLOCATABLE                      :: U2t(:,:,:,:,:)                         
 !REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: FPt,FQt,FRt,FLt,FMt,FNt,FSt,FTt
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: PMLzetaEff
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: PMLalpha
-INTEGER                               :: nPMLVars                                    ! is zero or 24 depending
+INTEGER                               :: PMLnVar                                    ! is zero or 24 depending
 ! gradients
 !REAL,ALLOCATABLE                      ::dUdx(:,:,:,:,:),dUdy(:,:,:,:,:),dUdz(:,:,:,:,:)
 !===================================================================================================================================
