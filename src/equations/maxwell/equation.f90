@@ -539,13 +539,13 @@ CASE(15) !Gauß-shape with perfektem Fokus
       local_a0=1.
     ELSE
       scaleR0=1./SQRT(eta*I_0)
-      local_a0=1.0 !Beam_a0*2*PI*ElectronMass*c2/(ElectronCharge*Wavelength)
+      local_a0=Beam_a0*2*PI*ElectronMass*c2/(ElectronCharge*Wavelength)
     END IF
     ! build final coefficients
     WaveBasePoint(idir3)=0.
     scaleR=scaleR*scaleR0*local_a0
     timeFac=COS(WaveNumber*DOT_PRODUCT(WaveVector,x-WaveBasePoint)-omegaW*(t-4*sigma_t))
-    timeFac2=SQRT(EXP(-0.5*((t+4*sigma_t)/sigma_t)**2))
+    timeFac2=SQRT(EXP(-0.5*((t-4*sigma_t)/sigma_t)**2))
     resu(1:3)=scaleR*E_0*timeFac*timeFac2
     resu(4:6)=c_inv*CROSS( WaveVector,resu(1:3)) 
     resu(7:8)=0.
