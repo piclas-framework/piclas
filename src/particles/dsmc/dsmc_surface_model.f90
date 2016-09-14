@@ -128,12 +128,13 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   INTEGER, ALLOCATABLE             :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 ! Local variable declaration            
   REAL                             :: maxPart
-  INTEGER                          :: SurfSide, iSpec, jSpec
+  INTEGER                          :: SurfSide, iSpec
   REAL                             :: VelXold, VelYold, VelZold
   REAL, PARAMETER                  :: PI=3.14159265358979323846
   REAL                             :: IntersectionPos(1:3)
   REAL                             :: TransArray(1:6),IntArray(1:6)
   REAL                             :: Norm_velo, Norm_Ec
+  INTEGER                          :: outSpec(2)
 !===================================================================================================================================
   ! additional states
   locBCID=PartBound%MapToPartBC(BC(GlobSideID))
@@ -183,7 +184,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
     Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,4)*n_loc(2) + PartState(PartID,6)*n_loc(3)
     Norm_Ec = 0.5 * Species(iSpec)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
     
-    CALL CalcBackgndPartAdsorb(p,q,SurfSide,PartID,Norm_Ec,adsorption_case,jSpec)
+    CALL CalcBackgndPartAdsorb(p,q,SurfSide,PartID,Norm_Ec,adsorption_case,outSpec)
   ELSE
     adsorption_case = 0
     Adsorption_prob = Adsorption%ProbAds(p,q,SurfSide,iSpec)
@@ -315,21 +316,24 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   CASE(2) ! dissociative adsorption
   !-----------------------------------------------------------------------------------------------------------------------------
     maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
-    Adsorption%Coverage(p,q,SurfSide,jSpec) = Adsorption%Coverage(p,q,SurfSide,jSpec) & 
-                                                 + 2*Species(iSpec)%MacroParticleFactor/maxPart
+    Adsorption%Coverage(p,q,SurfSide,outSpec(1)) = Adsorption%Coverage(p,q,SurfSide,outSpec(1)) & 
+                                                 * Species(iSpec)%MacroParticleFactor/maxPart
+    Adsorption%Coverage(p,q,SurfSide,outSpec(2)) = Adsorption%Coverage(p,q,SurfSide,outSpec(2)) & 
+                                                 * Species(iSpec)%MacroParticleFactor/maxPart
     adsindex = 1
 #if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(jSpec)%NumOfAds = Adsorption%AdsorpInfo(jSpec)%NumOfAds + 2
+    Adsorption%AdsorpInfo(outSpec(1))%NumOfAds = Adsorption%AdsorpInfo(outSpec(1))%NumOfAds + 1
+    Adsorption%AdsorpInfo(outSpec(2))%NumOfAds = Adsorption%AdsorpInfo(outSpec(2))%NumOfAds + 1
 #endif
   !-----------------------------------------------------------------------------------------------------------------------------
   CASE(3) ! Eley-Rideal reaction
   !-----------------------------------------------------------------------------------------------------------------------------
     maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
-    Adsorption%Coverage(p,q,SurfSide,jSpec) = Adsorption%Coverage(p,q,SurfSide,jSpec) & 
+    Adsorption%Coverage(p,q,SurfSide,outSpec(1)) = Adsorption%Coverage(p,q,SurfSide,outSpec(1)) & 
                                                  - Species(iSpec)%MacroParticleFactor/maxPart
     adsindex = 2
 #if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(jSpec)%NumOfDes = Adsorption%AdsorpInfo(jSpec)%NumOfDes + 1
+    Adsorption%AdsorpInfo(outSpec(1))%NumOfDes = Adsorption%AdsorpInfo(outSpec(1))%NumOfDes + 1
 #endif
   !-----------------------------------------------------------------------------------------------------------------------------
   CASE DEFAULT ! reflection
@@ -573,7 +577,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
 ! argument list declaration
   INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfSideID,PartID
   REAL,INTENT(IN)                  :: Norm_Ec
-  INTEGER,INTENT(OUT)              :: adsorption_case,outSpec
+  INTEGER,INTENT(OUT)              :: adsorption_case
+  INTEGER,INTENT(OUT)              :: outSpec(2)
 ! LOCAL VARIABLES
   INTEGER                          :: iSpec, globSide, iPolyatMole
   INTEGER                          :: Coord, Coord2, i, j, AdsorbID, numSites
@@ -811,14 +816,16 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
       CALL RANDOM_NUMBER(RanNum)
       IF ((P_Eley_Rideal(ReactNum)/sum_probabilities).GT.RanNum) THEN
         adsorption_case = 4
-        outSpec = Adsorption%AssocReact(1,ReactNum,iSpec)
+        outSpec(1) = Adsorption%AssocReact(1,ReactNum,iSpec)
+        outSpec(2) = Adsorption%AssocReact(2,ReactNum,iSpec)
         EXIT
       END IF
       sum_probabilities = sum_probabilities - P_Eley_Rideal(ReactNum)
       CALL RANDOM_NUMBER(RanNum)
       IF ((Prob_diss(ReactNum)/sum_probabilities).GT.RanNum) THEN
         adsorption_case = 3
-        outSpec = Adsorption%DissocReact(1,ReactNum,iSpec)
+        outSpec(1) = Adsorption%DissocReact(1,ReactNum,iSpec)
+        outSpec(2) = Adsorption%DissocReact(2,ReactNum,iSpec)
         EXIT
       END IF
       sum_probabilities = sum_probabilities - Prob_diss(ReactNum)
@@ -827,6 +834,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
       CALL RANDOM_NUMBER(RanNum)
       IF ((Prob_ads/sum_probabilities).GT.RanNum) THEN
         adsorption_case = 1
+        outSpec(1) = 0
+        outSpec(2) = 0
       END IF
     END IF
   END IF
