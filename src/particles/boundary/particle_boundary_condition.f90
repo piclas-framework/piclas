@@ -290,9 +290,9 @@ CASE(2) !PartBound%ReflectiveBC)
     ELSE
       WallModeltype = 0
     END IF
+    BCSideID=PartBCSideList(SideID)
     IF (WallModeltype.EQ.0) THEN !previously used wall interaction model
       CALL RANDOM_NUMBER(RanNum)
-      BCSideID=PartBCSideList(SideID)
       IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
         ! perfectly reflecting, specular re-emission
         CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID)
@@ -315,8 +315,7 @@ CASE(2) !PartBound%ReflectiveBC)
           alpha=-1.
         END IF
       ELSE IF (adsorbindex.EQ.0) THEN
-!--- Inelastic Reflection (not diffuse)  
-        BCSideID=PartBCSideList(SideID)
+!--- Inelastic Reflection (not diffuse) 
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
