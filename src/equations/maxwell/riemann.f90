@@ -371,8 +371,6 @@ DO Count_2=0,PP_N
     !F(8) passt, durch ausgabe getestet
     F(8,Count_1,Count_2)  = F(30,Count_1,Count_2) + F(31,Count_1,Count_2) + F(32,Count_1,Count_2)
     !!==============================================================================================================================
-    !F(9:32,Count_1,Count_2)=0.
-!if(MAXVAL(F(9:32,Count_1,Count_2)).GT.0.) print*,F(9:32,Count_1,Count_2)
   END DO
 END DO
 

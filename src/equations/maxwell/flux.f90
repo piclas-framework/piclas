@@ -38,41 +38,41 @@ INTEGER,INTENT(IN)                                 :: iElem
 REAL,DIMENSION(8,0:PP_N,0:PP_N,0:PP_N),INTENT(OUT) :: f,g,h    ! Cartesian fluxes (iVar,i,j,k)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                :: Uin(8) 
+REAL                :: Uin(8)
 INTEGER             :: i,j,k 
 !===================================================================================================================================
 DO k=0,PP_N
   DO j=0,PP_N
     DO i=0,PP_N
       Uin=U(:,i,j,k,iElem)
-      ! hier der physikalische Fluss ohne die Divergenzkorrektur!
-      !A
-      f(1,i,j,k) = Uin(8)*c_corr_c2          ! phi*chi*c^2
-      f(2,i,j,k) = Uin(6)*c2                 ! B3*c^2
-      f(3,i,j,k) =-Uin(5)*c2                 ! -B2*c^2
-      f(4,i,j,k) = Uin(7)*c_corr             ! psi*c_corr
-      f(5,i,j,k) =-Uin(3)                    ! -E3
-      f(6,i,j,k) = Uin(2)                    ! E2
-      f(7,i,j,k) = Uin(4)*c_corr_c2          ! B1*c_corr*c^2
-      f(8,i,j,k) = Uin(1)*c_corr             ! E1*c_corr
-      !B
-      g(1,i,j,k) =-f(2,i,j,k)                ! -B3*c^2
-      g(2,i,j,k) = f(1,i,j,k)                ! phi*c_corr*c^2
-      g(3,i,j,k) = Uin(4)*c2                 ! B1*c^2
-      g(4,i,j,k) = Uin(3)                    ! E3
-      g(5,i,j,k) = f(4,i,j,k)                ! psi*c_corr
-      g(6,i,j,k) =-Uin(1)                    ! -E1
-      g(7,i,j,k) = Uin(5)*c_corr_c2          ! B2*c_corr*c^2
-      g(8,i,j,k) = Uin(2)*c_corr             ! E2*c_corr
-      !C                                    
-      h(1,i,j,k) =-f(3,i,j,k)                ! B2*c^2
-      h(2,i,j,k) =-g(3,i,j,k)                ! -B1*c^2
-      h(3,i,j,k) = f(1,i,j,k)                ! phi*c_corr*c^2
-      h(4,i,j,k) =-Uin(2)                    ! -E2
-      h(5,i,j,k) = Uin(1)                    ! E1
-      h(6,i,j,k) = f(4,i,j,k)                ! psi*c_corr
-      h(7,i,j,k) = Uin(6)*c_corr_c2          ! B3*c_corr*c^2
-      h(8,i,j,k) = Uin(3)*c_corr             ! E3*c_corr
+        ! hier der physikalische Fluss ohne die Divergenzkorrektur!
+        !A
+        f(1,i,j,k) = Uin(8)*c_corr_c2          ! phi*chi*c^2      P1
+        f(2,i,j,k) = Uin(6)*c2                 ! B3*c^2           Q1
+        f(3,i,j,k) =-Uin(5)*c2                 ! -B2*c^2          R1
+        f(4,i,j,k) = Uin(7)*c_corr             ! psi*c_corr       L1
+        f(5,i,j,k) =-Uin(3)                    ! -E3              M1
+        f(6,i,j,k) = Uin(2)                    ! E2               N1
+        f(7,i,j,k) = Uin(4)*c_corr_c2          ! B1*c_corr*c^2    S1
+        f(8,i,j,k) = Uin(1)*c_corr             ! E1*c_corr        T1
+        !B
+        g(1,i,j,k) =-f(2,i,j,k)                ! -B3*c^2          P2
+        g(2,i,j,k) = f(1,i,j,k)                ! phi*c_corr*c^2   Q2
+        g(3,i,j,k) = Uin(4)*c2                 ! B1*c^2           R2
+        g(4,i,j,k) = Uin(3)                    ! E3               L2
+        g(5,i,j,k) = f(4,i,j,k)                ! psi*c_corr       M2
+        g(6,i,j,k) =-Uin(1)                    ! -E1              N2
+        g(7,i,j,k) = Uin(5)*c_corr_c2          ! B2*c_corr*c^2    S2
+        g(8,i,j,k) = Uin(2)*c_corr             ! E2*c_corr        T2
+        !C                                    
+        h(1,i,j,k) =-f(3,i,j,k)                ! B2*c^2           P3
+        h(2,i,j,k) =-g(3,i,j,k)                ! -B1*c^2          Q3
+        h(3,i,j,k) = f(1,i,j,k)                ! phi*c_corr*c^2   R3
+        h(4,i,j,k) =-Uin(2)                    ! -E2              L3
+        h(5,i,j,k) = Uin(1)                    ! E1               M3
+        h(6,i,j,k) = f(4,i,j,k)                ! psi*c_corr       N3
+        h(7,i,j,k) = Uin(6)*c_corr_c2          ! B3*c_corr*c^2    S3
+        h(8,i,j,k) = Uin(3)*c_corr             ! E3*c_corr        T3
     END DO ! i
   END DO ! j
 END DO ! k
