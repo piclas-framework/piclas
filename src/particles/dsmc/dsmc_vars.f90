@@ -285,6 +285,8 @@ TYPE tAdsorption
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies,36*nSpecies)
   REAL    , ALLOCATABLE                  :: ProbSigDes(:,:,:,:,:)      ! Desorption probability of surface n
                                                                     ! (nSurfSample,nSurfSample,nSurfSide,nSpecies,36*nSpecies)
+  REAL    , ALLOCATABLE                  :: Ads_Powerfactor(:)
+  REAL    , ALLOCATABLE                  :: Ads_Prefactor(:)
   
   TYPE(tAdsorptionInfo), ALLOCATABLE     :: AdsorpInfo(:)           ! Adsorption info for species n (nSpecies)
 END TYPE

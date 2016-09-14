@@ -563,6 +563,10 @@ IF (MaxDissNum.GT.0) THEN
     DO ReactNum = MaxDissNum+1,MaxReactNum
       Adsorption%EDissBond(ReactNum,iSpec) = 0.
     END DO
+    Adsorption%Ads_Powerfactor(iSpec) = &
+        GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Powerfactor','0.')
+    Adsorption%Ads_Prefactor(iSpec) = &
+        GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Prefactor','0.')
   END DO
   ! fill associative reactions species map from defined dssociative reactions
   DO iSpec = 1,nSpecies
