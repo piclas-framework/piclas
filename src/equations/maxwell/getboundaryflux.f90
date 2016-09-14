@@ -149,10 +149,9 @@ USE MOD_Riemann,        ONLY:Riemann,RiemannPML
 USE MOD_Equation,       ONLY:ExactFunc
 USE MOD_Equation_vars,  ONLY:c,c_inv
 USE MOD_Mesh_Vars    ,  ONLY:nBCSides,nBCs,BoundaryType
-USE MOD_Equation_Vars,  ONLY:nBCByType,BCSideID
-USE MOD_Equation_Vars,  ONLY:BCData,nBCByType,BCSideID
-USE MOD_PML_Vars,       ONLY: nPMLVars
-USE MOD_PML_Vars,       ONLY: DoPML,isPMLFace
+USE MOD_Equation_Vars,  ONLY:nBCByType,BCSideID,BCSideID
+USE MOD_PML_Vars,       ONLY:isPMLFace
+USE MOD_PML_Vars,       ONLY:PMLnVar
 !USE MOD_Equation_Vars,  ONLY:IniExactFunc! richtig with particles???
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -167,7 +166,7 @@ REAL,INTENT(IN)                      :: TangVec2(          3,0:PP_N,0:PP_N,1:nBC
 REAL,INTENT(IN)                      :: BCFace_xGP(        3,0:PP_N,0:PP_N,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                     :: Flux(        PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
+REAL,INTENT(OUT)                     :: Flux( PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iBC,iSide,p,q,SideID

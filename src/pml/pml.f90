@@ -52,7 +52,7 @@ USE MOD_Mesh_Vars,     ONLY: Elem_xGP,BCFace_xGP,Face_xGP  ! for PML region: xyz
 USE MOD_Mesh_Vars,     ONLY: nSides
 USE MOD_PML_Vars,      ONLY: PMLRampLength
 USE MOD_PML_Vars,      ONLY: PMLzetaEff,PMLalpha
-USE MOD_PML_Vars,      ONLY: nPMLVars
+USE MOD_PML_Vars,      ONLY: PMLnVar
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars,    ONLY:InterpolationInitIsDone
 #endif
@@ -132,11 +132,11 @@ IF(.NOT.DoPML) THEN
   CALL abort(__STAMP__,&
       'Equation system does not support a PML!',999,999.)
 #endif
-  nPMLVars=0
+  PMLnVar=0
   nPMLElems=0
   RETURN
 ELSE
-  nPMLVars=24
+  PMLnVar=24
 END IF
 
 !===================================================================================================================================
@@ -893,7 +893,7 @@ SUBROUTINE PMLTimeDerivative()
 USE MOD_Globals,       ONLY: abort
 USE MOD_PreProc
 USE MOD_DG_Vars,       ONLY: U,Ut
-USE MOD_PML_Vars,      ONLY: PMLzeta,U2,U2t,nPMLVars
+USE MOD_PML_Vars,      ONLY: PMLzeta,U2,U2t,PMLnVar
 USE MOD_PML_Vars,      ONLY: nPMLElems,ElemToPML,PMLToElem
 USE MOD_PML_Vars,      ONLY: nPMLFaces,FaceToPML,PMLToFace
 USE MOD_Mesh_Vars,     ONLY: Elem_xGP,sJ
@@ -936,6 +936,7 @@ END DO; END DO; END DO; END DO !nPMLElems,k,j,i
 !U2 = U2 * fDamping
 
 ! 2.) DEBUGPML: apply the damping factor only to PML variables for Phi_E and Phi_B
+!               to prevent charge-related instabilities (accumulation of divergence compensation over time)
 U2(19:24,:,:,:,:) = fDamping* U2(19:24,:,:,:,:) 
 
 

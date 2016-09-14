@@ -180,9 +180,6 @@ USE MOD_AnalyzeField,          ONLY: AnalyzeField
 USE MOD_HDF5_output,           ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,DoWriteStateToHDF5
 USE MOD_Mesh,                  ONLY: SwapMesh
-#ifndef PP_HDG
-USE MOD_PML_Vars,              ONLY: DoPML
-#endif /*PP_HDG*/
 USE MOD_Filter,                ONLY: Filter
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
 USE MOD_RecordPoints,          ONLY: RecordPoints,WriteRPToHDF5
@@ -785,14 +782,6 @@ tCurrent(7)=tCurrent(7)+tLBEnd-tLBStart
 ! field solver
 ! time measurement in weakForm
 CALL DGTimeDerivative_weakForm(t,t,0,doSource=.TRUE.)
-CALL DivCleaningDamping()
-
-#ifdef PP_POIS
-! Potential
-CALL DGTimeDerivative_weakForm_Pois(t,t,0)
-CALL DivCleaningDamping_Pois()
-#endif /*PP_POIS*/
-
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
@@ -804,6 +793,14 @@ END IF
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
 #endif /*MPI*/
+CALL DivCleaningDamping()
+
+#ifdef PP_POIS
+! Potential
+CALL DGTimeDerivative_weakForm_Pois(t,t,0)
+CALL DivCleaningDamping_Pois()
+#endif /*PP_POIS*/
+
 
 ! calling the analyze routines
 CALL PerformAnalyze(t,iter,tendDiff,forceAnalyze=.FALSE.,OutPut=.FALSE.)
@@ -970,12 +967,6 @@ DO iStage=2,nRKStages
 
   ! field solver
   CALL DGTimeDerivative_weakForm(t,tStage,0,doSource=.TRUE.)
-  CALL DivCleaningDamping()
-#ifdef PP_POIS
-  CALL DGTimeDerivative_weakForm_Pois(t,tStage,0)
-  CALL DivCleaningDamping_Pois()
-#endif
-
 #ifdef MPI
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
@@ -988,6 +979,13 @@ DO iStage=2,nRKStages
   tCurrent(3)=tCurrent(3)+tLBEnd-tLBStart
   tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
+  CALL DivCleaningDamping()
+#ifdef PP_POIS
+  CALL DGTimeDerivative_weakForm_Pois(t,tStage,0)
+  CALL DivCleaningDamping_Pois()
+#endif
+
+
 
   ! performe RK steps
   ! field step

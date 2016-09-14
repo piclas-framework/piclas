@@ -20,7 +20,6 @@ INTERFACE RiemannPML                  ! wird in src/dg/fillflux.f90 aufgerufen (
   MODULE PROCEDURE RiemannPML
 END INTERFACE
 
-
 PUBLIC::Riemann,RiemannPML
 !===================================================================================================================================
 
@@ -199,7 +198,8 @@ SUBROUTINE RiemannPML(F,U_L,U_R,nv)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N
-USE MOD_Equation_Vars,ONLY:eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
+USE MOD_Equation_Vars,ONLY:c,c2,c_corr,c_corr_c,c_corr_c2
+USE MOD_PML_vars,     ONLY:PMLnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -208,7 +208,7 @@ REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
 REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N) !,t1(3,0:PP_N,0:PP_N),t2(3,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                                 :: F(PP_nVar+24,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)                                 :: F(PP_nVar+PMLnVar,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -223,12 +223,6 @@ INTEGER                                          :: Count_1,Count_2
 DO Count_2=0,PP_N
   DO Count_1=0,PP_N
     n_loc(:)=nv(:,Count_1,Count_2)
-
-!print *,"F(:,Count_1,Count_2) size & shape ",SIZE(F(:,Count_1,Count_2)),shape(F(:,Count_1,Count_2))
-!print *,"U_R(:,Count_1,Count_2)            ",size(U_R(:,Count_1,Count_2)),shape(U_R(:,Count_1,Count_2))
-!print *,"U_L(:,Count_1,Count_2)            ",size(U_L(:,Count_1,Count_2)),shape(U_L(:,Count_1,Count_2))
-!stop
-
 
     ! A^-*U_R + A^+*U_L
     !===============================================================================================================================
@@ -381,15 +375,6 @@ DO Count_2=0,PP_N
 !if(MAXVAL(F(9:32,Count_1,Count_2)).GT.0.) print*,F(9:32,Count_1,Count_2)
   END DO
 END DO
-
-!IF(MAXVAL(F(:,:,:)).EQ.0.0)THEN
-!ELSE
-!print*,MAXVAL(F(:,:,:))
-!END IF
-!IF(MINVAL(F(:,:,:)).EQ.0.0)THEN
-!ELSE
-!print*,MINVAL(F(:,:,:))
-!END IF
 
 END SUBROUTINE RiemannPML
 
