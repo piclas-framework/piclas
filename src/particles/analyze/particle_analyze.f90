@@ -963,7 +963,7 @@ IF (PartMPI%MPIROOT) THEN
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-        WRITE(unit_index,104,ADVANCE='NO') Desorptionrate(iSpec)!*WallCoverage(iSpec)/dt
+        WRITE(unit_index,104,ADVANCE='NO') Desorptionrate(iSpec)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1301,7 +1301,7 @@ ELSE
 #if (PP_TimeDiscMethod==42)
   IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(DSMC%WallModel.EQ.3)) THEN
     Adsorption%AdsorpInfo(:)%MeanProbAds = Adsorption%AdsorpInfo(:)%MeanProbAds / (REAL(nSurfSample) * REAL(nSurfSample) &
-                                          * REAL(SurfMesh%nSides))
+                                          * REAL(SurfMesh%nSides) * REAL(Adsorption%AdsorpInfo(:)%WallCollCount))
   END IF
 #endif
   DO iSpec = 1,nSpecies
