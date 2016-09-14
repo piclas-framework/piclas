@@ -302,7 +302,7 @@ CASE(2) !PartBound%ReflectiveBC)
     ELSE IF (WallModeltype.GT.1) THEN
                adsorbindex = 0
 !--- Adsorption               
-      CALL Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
+      CALL Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,BCSideID)
       IF (adsorbindex.EQ.1) THEN
         IF (KeepWallParticles) THEN
           PDM%ParticleAtWall(iPart) = .TRUE.

@@ -86,7 +86,7 @@ SUBROUTINE DSMC_Update_Wall_Vars()
 
 END SUBROUTINE DSMC_Update_Wall_Vars  
     
-SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex) 
+SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,IsSpeciesSwap,adsindex,BCSideID) 
 !===================================================================================================================================
 ! Particle Adsorption after wall collision
 !===================================================================================================================================
@@ -98,6 +98,8 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   USE MOD_DSMC_Vars,              ONLY : PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
   USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, dXiEQ_SurfSample, Partbound
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
+  USE MOD_Particle_Surfaces_vars, ONLY : SideNormVec,SideType
+  USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBilinear,CalcNormAndTangBezier
 !===================================================================================================================================
    IMPLICIT NONE
 !===================================================================================================================================
@@ -107,6 +109,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   REAL,INTENT(IN)                  :: xi, eta
   INTEGER,INTENT(IN)               :: PartID, GlobSideID
   LOGICAL,INTENT(IN)               :: IsSpeciesSwap
+  INTEGER,INTENT(IN),OPTIONAL      :: BCSideID
 ! LOCAL VARIABLES
   INTEGER                          :: locBCID, VibQuant, VibQuantNew, VibQuantWall
   REAL                             :: VibQuantNewR
@@ -116,6 +119,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   REAL                             :: ErotNew, ErotWall, EVibNew
   REAL                             :: Xitild,EtaTild
   INTEGER                          :: p,q
+  REAL                             :: n_loc(1:3), tang1(1:3),tang2(1:3)
   REAL                             :: Adsorption_Prob
   INTEGER                          :: adsorption_case
 ! Polyatomic Molecules
@@ -129,6 +133,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   REAL, PARAMETER                  :: PI=3.14159265358979323846
   REAL                             :: IntersectionPos(1:3)
   REAL                             :: TransArray(1:6),IntArray(1:6)
+  REAL                             :: Norm_velo, Norm_Ec
 !===================================================================================================================================
   ! additional states
   locBCID=PartBound%MapToPartBC(BC(GlobSideID))
@@ -155,7 +160,30 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1 
   
   IF (DSMC%WallModel.EQ.3) THEN
-    CALL CalcBackgndPartAdsorb(p,q,SurfSide,PartID,adsorption_case,jSpec)
+    IF(PRESENT(BCSideID))THEN
+      SELECT CASE(SideType(BCSideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT)
+        n_loc=SideNormVec(1:3,BCSideID)
+      CASE(BILINEAR)
+        CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,BCSideID)
+      CASE(CURVED)
+        CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,BCSideID)
+      END SELECT 
+    ELSE
+      SELECT CASE(SideType(GlobSideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT)
+        n_loc=SideNormVec(1:3,GlobSideID)
+      CASE(BILINEAR)
+        CALL CalcNormAndTangBilinear(n_loc,tang1,tang2,xi,eta,GlobSideID)
+      CASE(CURVED)
+        CALL CalcNormAndTangBezier(n_loc,tang1,tang2,xi,eta,GlobSideID)
+      END SELECT 
+    END IF
+    
+    Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,4)*n_loc(2) + PartState(PartID,6)*n_loc(3)
+    Norm_Ec = 0.5 * Species(iSpec)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
+    
+    CALL CalcBackgndPartAdsorb(p,q,SurfSide,PartID,Norm_Ec,adsorption_case,jSpec)
   ELSE
     adsorption_case = 0
     Adsorption_prob = Adsorption%ProbAds(p,q,SurfSide,iSpec)
@@ -525,7 +553,7 @@ END DO
 
 END SUBROUTINE CalcDiffusion
 
-SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,adsorption_case,outSpec)
+SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,adsorption_case,outSpec)
 !===================================================================================================================================
 ! Particle Adsorption probability calculation for wallmodel 3
 !===================================================================================================================================
@@ -544,6 +572,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,adsorpti
 !===================================================================================================================================
 ! argument list declaration
   INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfSideID,PartID
+  REAL,INTENT(IN)                  :: Norm_Ec
   INTEGER,INTENT(OUT)              :: adsorption_case,outSpec
 ! LOCAL VARIABLES
   INTEGER                          :: iSpec, globSide, iPolyatMole
@@ -559,6 +588,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,adsorpti
   INTEGER , ALLOCATABLE            :: NeighbourID(:)
   INTEGER                          :: SiteSpec, Neighpos_j, Neighpos_k, chosen_Neigh_j, chosen_Neigh_k, chosen_Neigh
   INTEGER , DIMENSION(1:3)         :: n_empty_Neigh, n_react_Neigh, n_Neigh
+  REAL                             :: E_a, c_f, EZeroPoint_Educt, E_col, phi_1, phi_2, Xi_Total, Xi_vib
 !===================================================================================================================================
 ! special TPD (temperature programmed desorption) surface temperature adjustment part
   globSide = Adsorption%SurfSideToGlobSideMap(SurfSideID)
@@ -632,43 +662,42 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,adsorpti
     CALL RANDOM_NUMBER(RanNum)
     chosen_Neigh = 1 + INT(n_Neigh(Coord)*RanNum)
     IF (chosen_Neigh.LE.n_empty_Neigh(Coord)) THEN
-!       ! calculation of molecular adsorption probability with TCE
-!       E_a = 0.
-!       a_f = 8.31e-17
-!       b_f = -0.5
-!       c_f = Adsorption%DensSurfAtoms(SurfSideID) / ( (BoltzmannConst / (2*Pi*Species(iSpec)%MassIC))**0.5 )
-!       ! Testing if the adsorption particle is an atom or molecule, if molecule: is it polyatomic?
-!       IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
-!         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-!           iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-!           EZeroPoint_Educt = EZeroPoint_Educt + PolyatomMolDSMC(iPolyatMole)%EZeroPoint
-!           ! Using the mean vibrational degree of freedom within the cell
-!   !        Xi_vib3 = PolyatomMolDSMC(iPolyatMole)%Xi_Vib_Mean
-!           ! Calculation of the vibrational degree of freedom for the particle 
-!           IF (PartStateIntEn(PartID,1).GT.PolyatomMolDSMC(iPolyatMole)%EZeroPoint) THEN
-!             Xi_vib = 2.*(PartStateIntEn(PartID,1)-PolyatomMolDSMC(iPolyatMole)%EZeroPoint) &
-!                     / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), iSpec))
-!           ELSE
-!             Xi_vib = 0.0
-!           END IF
-!         ELSE
-!           EZeroPoint_Educt = EZeroPoint_Educt + DSMC%GammaQuant*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib
+      ! calculation of molecular adsorption probability with TCE
+      EZeroPoint_Educt = 0.
+      E_a = 0.
+      c_f = Adsorption%DensSurfAtoms(SurfSideID) / ( (BoltzmannConst / (2*Pi*Species(iSpec)%MassIC))**0.5 )
+!       IF (Norm_Ec.GT.E_a) THEN
+      ! Testing if the adsorption particle is an atom or molecule, if molecule: is it polyatomic?
+      IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+          EZeroPoint_Educt = EZeroPoint_Educt + PolyatomMolDSMC(iPolyatMole)%EZeroPoint
+          ! Calculation of the vibrational degree of freedom for the particle 
+          IF (PartStateIntEn(PartID,1).GT.PolyatomMolDSMC(iPolyatMole)%EZeroPoint) THEN
+            Xi_vib = 2.*(PartStateIntEn(PartID,1)-PolyatomMolDSMC(iPolyatMole)%EZeroPoint) &
+                    / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), iSpec))
+          ELSE
+            Xi_vib = 0.0
+          END IF
+        ELSE
+          EZeroPoint_Educt = EZeroPoint_Educt + DSMC%GammaQuant*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib
+          IF((PartStateIntEn(PartID,1)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib).GT.0.0) THEN
 !           IF(ChemReac%MeanEVibQua_PerIter(iSpec).GT.0.0) THEN
+            Xi_vib = 2.*(PartStateIntEn(PartID,1)-DSMC%GammaQuant*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) &
+                    / (BoltzmannConst*CalcTVib(SpecDSMC(iSpec)%CharaTVib, PartStateIntEn(PartID,1), SpecDSMC(iSpec)%MaxVibQuant))
 !             Xi_vib = 2.0*ChemReac%MeanEVibQua_PerIter(iSpec) &
 !                     * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0)
-!           ELSE
-!             Xi_vib = 0.0
-!           END IF
-!         END IF
-!       ELSE
-!         Xi_vib = 0.0
-!       END IF
-!       Xi_Total = Xi_vib + Xi_rot + 3
-!       iReac = 1
-!       phi_1 = Adsorption%Ads_Powerfactor(iReac) - 3./2. + Xi_Total
-!       phi_2 = 1 - Xi_Total
-!       Prob_ads = Calc_Beta_Adsorb(iReac,Xi_Total,c_f) * (E_col - E_a)**phi_1 * E_col ** phi_2
-      Prob_ads = 0.
+          ELSE
+            Xi_vib = 0.0
+          END IF
+        END IF
+      ELSE
+        Xi_vib = 0.0
+      END IF
+      Xi_Total = Xi_vib + 2 + 3 !Xi_rot + 3
+      phi_1 = Adsorption%Ads_Powerfactor(iSpec) - 3./2. + Xi_Total
+      phi_2 = 1 - Xi_Total
+      Prob_ads = Calc_Beta_Adsorb(iSpec,Xi_Total,c_f) * (Norm_Ec - E_a)**phi_1 * Norm_Ec ** phi_2
     ELSE
       Prob_ads = 0.
     END IF
@@ -1844,7 +1873,7 @@ REAL                          :: Qtra, Qrot, Qvib
 
 END SUBROUTINE PartitionFuncSurf
 
-REAL FUNCTION Calc_Beta_Adsorb(iReac,Xi_Total,Constant_Adsorb)
+REAL FUNCTION Calc_Beta_Adsorb(iSpec,Xi_Total,Constant_Adsorb)
 !===================================================================================================================================
 ! Calculates the Beta coefficient for molecular (non-associative) adsorption reaction
 !===================================================================================================================================
@@ -1856,7 +1885,7 @@ REAL FUNCTION Calc_Beta_Adsorb(iReac,Xi_Total,Constant_Adsorb)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)            :: iReac
+  INTEGER, INTENT(IN)            :: iSpec
   REAL, INTENT(IN)               :: Xi_Total
   REAL, INTENT(IN)               :: Constant_Adsorb
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1865,10 +1894,10 @@ REAL FUNCTION Calc_Beta_Adsorb(iReac,Xi_Total,Constant_Adsorb)
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-  IF((Adsorption%Ads_Powerfactor(iReac) - 0.5 + Xi_Total).GT.0.0) THEN
-    Calc_Beta_Adsorb = Adsorption%Ads_Prefactor(iReac) * Constant_Adsorb &
-      * BoltzmannConst**(0.5 - Adsorption%Ads_Powerfactor(iReac) ) * GAMMA(Xi_Total) &
-      / GAMMA(Adsorption%Ads_Powerfactor(iReac) - 0.5 + Xi_Total) 
+  IF((Adsorption%Ads_Powerfactor(iSpec) - 0.5 + Xi_Total).GT.0.0) THEN
+    Calc_Beta_Adsorb = Adsorption%Ads_Prefactor(iSpec) * Constant_Adsorb &
+      * BoltzmannConst**(0.5 - Adsorption%Ads_Powerfactor(iSpec) ) * GAMMA(Xi_Total) &
+      / GAMMA(Adsorption%Ads_Powerfactor(iSpec) - 0.5 + Xi_Total) 
   ELSE
     Calc_Beta_Adsorb = 0.0
   END IF
