@@ -1298,12 +1298,18 @@ IF (DSMC%ReservoirRateStatistic) THEN
     Desorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes / WallNumSpec(iSpec)
   END DO
 ELSE
-#if (PP_TimeDiscMethod==42)
+
   IF ((.NOT.DSMC%ReservoirRateStatistic).AND.(DSMC%WallModel.EQ.3)) THEN
-    Adsorption%AdsorpInfo(:)%MeanProbAds = Adsorption%AdsorpInfo(:)%MeanProbAds / (REAL(nSurfSample) * REAL(nSurfSample) &
-                                          * REAL(SurfMesh%nSides) * REAL(Adsorption%AdsorpInfo(:)%WallCollCount))
+    DO iSpec = 1,nSpecies
+      IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
+        Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds / (REAL(nSurfSample) * REAL(nSurfSample) &
+                                            * REAL(SurfMesh%nSides) * REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount))
+      ELSE
+        Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
+      END IF
+    END DO
   END IF
-#endif
+  
   DO iSpec = 1,nSpecies
     Adsorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbAds
     Desorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%MeanProbDes
