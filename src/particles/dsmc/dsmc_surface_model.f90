@@ -885,8 +885,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
                       - Species(outSpec(1))%MacroParticleFactor / maxPart
         numSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(outSpec(1)))
         new_adsorbates(:) = 0
-        IF ( new_coverage .GT. (REAL(adsorbates(OutSpec(i)))/REAL(numSites)) ) THEN
-          difference = new_coverage - (REAL(adsorbates(OutSpec(i)))/REAL(numSites))
+        IF ( new_coverage .GT. (REAL(adsorbates(OutSpec(1)))/REAL(numSites)) ) THEN
+          difference = new_coverage - (REAL(adsorbates(OutSpec(1)))/REAL(numSites))
           new_adsorbates(1) = NINT(difference*REAL(numSites))
         END IF
         IF ( (new_adsorbates(1).GT.0) ) CALL AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,new_adsorbates(1),outSpec(1))
