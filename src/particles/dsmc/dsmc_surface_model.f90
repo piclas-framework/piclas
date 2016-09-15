@@ -582,6 +582,8 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
 ! LOCAL VARIABLES
   INTEGER                          :: iSpec, globSide, iPolyatMole
   INTEGER                          :: Coord, Coord2, i, j, AdsorbID, numSites
+  INTEGER                          :: new_adsorbates(2), nSites, nSitesRemain
+  REAL                             :: difference, maxPart, new_coverage
   REAL                             :: WallTemp, RanNum
   REAL                             :: nu_ads, rate, Prob_ads, sigmaA, Heat_A
   REAL , ALLOCATABLE               :: P_Eley_Rideal(:), Prob_diss(:)
@@ -607,6 +609,17 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
 #else
   WallTemp = PartBound%WallTemp(PartBound%MapToPartBC(BC(globSide)))
 #endif
+  ! calculate number of adsorbates for each species
+  adsorbates(:) = 0
+  DO Coord = 1,3
+  nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
+  nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
+  DO AdsorbID = 1,nSites-nSitesRemain
+    Surfpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+AdsorbID)
+    iSpec = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(Surfpos)
+    adsorbates(iSpec) = adsorbates(iSpec) + 1
+  END DO
+  END DO
 ! initialize variables
   Prob_ads = 0.
   ALLOCATE( P_Eley_Rideal(1:Adsorption%ReactNum),&
@@ -819,6 +832,18 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         adsorption_case = 4
         outSpec(1) = Adsorption%AssocReact(1,ReactNum,iSpec)
         outSpec(2) = Adsorption%AssocReact(2,ReactNum,iSpec)
+        ! adjust number of background mapping adsorbates
+        maxPart = Adsorption%DensSurfAtoms(SurfSideID) * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID)
+        IF ( Adsorption%Coordination(outSpec(1)).EQ.2 ) maxPart = maxPart*2
+        new_coverage = Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,outSpec(1)) &
+                      - Species(outSpec(1))%MacroParticleFactor / maxPart
+        numSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(outSpec(1)))
+        new_adsorbates(:) = 0
+        IF ( (REAL(adsorbates(OutSpec(1)))/REAL(numSites)).GT. new_coverage) THEN
+          difference = REAL(adsorbates(OutSpec(1)))/REAL(numSites) - new_coverage
+          new_adsorbates(1) = -NINT(difference*REAL(numSites))
+        END IF
+        IF ( (new_adsorbates(1).LT.0) ) CALL AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,new_adsorbates(1),outSpec(1))
         EXIT
       END IF
       sum_probabilities = sum_probabilities - P_Eley_Rideal(ReactNum)
@@ -828,6 +853,21 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         adsorption_case = 3
         outSpec(1) = Adsorption%DissocReact(1,ReactNum,iSpec)
         outSpec(2) = Adsorption%DissocReact(2,ReactNum,iSpec)
+        ! adjust number of background mapping adsorbates 
+        new_adsorbates(:) = 0
+        DO i = 1,2
+          maxPart = Adsorption%DensSurfAtoms(SurfSideID) * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID)
+          IF ( Adsorption%Coordination(outSpec(i)).EQ.2 ) maxPart = maxPart*2
+          new_coverage = Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,outSpec(i)) &
+                        - Species(outSpec(i))%MacroParticleFactor / maxPart
+          numSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(outSpec(i)))
+          IF ( new_coverage .GT. (REAL(adsorbates(OutSpec(i)))/REAL(numSites)) ) THEN
+            difference = new_coverage - (REAL(adsorbates(OutSpec(i)))/REAL(numSites))
+            new_adsorbates(i) = NINT(difference*REAL(numSites))
+          END IF
+        END DO
+        IF ( (new_adsorbates(1).GT.0) ) CALL AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,new_adsorbates(1),outSpec(1))
+        IF ( (new_adsorbates(2).GT.0) ) CALL AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,new_adsorbates(2),outSpec(2))
         EXIT
       END IF
       sum_probabilities = sum_probabilities - Prob_diss(ReactNum)
@@ -839,6 +879,17 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
         adsorption_case = 1
         outSpec(1) = iSpec
         outSpec(2) = 0
+        maxPart = Adsorption%DensSurfAtoms(SurfSideID) * SurfMesh%SurfaceArea(subsurfxi,subsurfeta,SurfSideID)
+        IF ( Adsorption%Coordination(outSpec(1)).EQ.2 ) maxPart = maxPart*2
+        new_coverage = Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,outSpec(1)) &
+                      - Species(outSpec(1))%MacroParticleFactor / maxPart
+        numSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(outSpec(1)))
+        new_adsorbates(:) = 0
+        IF ( new_coverage .GT. (REAL(adsorbates(OutSpec(i)))/REAL(numSites)) ) THEN
+          difference = new_coverage - (REAL(adsorbates(OutSpec(i)))/REAL(numSites))
+          new_adsorbates(1) = NINT(difference*REAL(numSites))
+        END IF
+        IF ( (new_adsorbates(1).GT.0) ) CALL AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,new_adsorbates(1),outSpec(1))
       END IF
     END IF
   END IF
@@ -1312,6 +1363,88 @@ DEALLOCATE(desorbnum,adsorbnum,nSites,nSitesRemain,remainNum,P_des,adsorbates,En
 DEALLOCATE(P_react,P_actual_react)
 
 END SUBROUTINE CalcBackgndPartDesorb
+
+SUBROUTINE AdjustBackgndAdsNum(subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iSpec)
+!===================================================================================================================================
+! Routine for calculation of number of desorbing particles from background surface distribution
+!===================================================================================================================================
+  USE MOD_Globals_Vars,           ONLY : PlanckConst
+  USE MOD_Particle_Vars,          ONLY : nSpecies, Species, BoltzmannConst
+  USE MOD_Mesh_Vars,              ONLY : BC
+  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo
+  USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
+  USE MOD_TimeDisc_Vars,          ONLY : dt
+#if (PP_TimeDiscMethod==42)  
+  USE MOD_TimeDisc_Vars,          ONLY : iter
+#endif
+!===================================================================================================================================
+   IMPLICIT NONE
+!===================================================================================================================================
+! Local variable declaration
+  INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfSideID,adsorbates_num,iSpec
+! LOCAL VARIABLES
+  INTEGER                          :: dist
+  INTEGER                          :: Coord, Surfnum, Surfpos, UsedSiteMapPos, nSites, nSitesRemain
+  INTEGER                          :: iInterAtom, xpos, ypos
+  REAL                             :: RanNum
+  
+!===================================================================================================================================
+  IF (adsorbates_num.GT.0) THEN
+    ! distribute adsorbates randomly on the surface on the correct site and assign surface atom bond order
+    dist = 1
+    Coord = Adsorption%Coordination(iSpec)
+    Surfnum = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
+    DO WHILE (dist.LE.adsorbates_num) 
+      CALL RANDOM_NUMBER(RanNum)
+      Surfpos = 1 + INT(Surfnum * RanNum)
+      UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos)
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(UsedSiteMapPos) = iSpec
+      ! assign bond order of respective surface atoms in the surfacelattice
+      DO iInterAtom = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+        xpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(UsedSiteMapPos,iInterAtom)
+        ypos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(UsedSiteMapPos,iInterAtom)
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos) = &
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos) + 1
+      END DO
+      ! rearrange UsedSiteMap-Surfpos-array
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfpos) = &
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfnum)
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(Surfnum) = UsedSiteMapPos
+      Surfnum = Surfnum - 1
+      dist = dist + 1
+    END DO
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = Surfnum
+  ELSE IF (adsorbates_num.LT.0) THEN
+    ! remove adsorbates randomly on the surface on the correct site and assign surface atom bond order
+    dist = -1
+    Coord = Adsorption%Coordination(iSpec)
+    nSites = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Coord)
+    nSitesRemain = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord)
+    Surfnum = nSites - nSitesRemain
+    DO WHILE (dist.GE.adsorbates_num) 
+      CALL RANDOM_NUMBER(RanNum)
+      Surfpos = 1 + INT(Surfnum * RanNum)
+      UsedSiteMapPos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+Surfpos)
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%Species(UsedSiteMapPos) = 0
+      ! assign bond order of respective surface atoms in the surfacelattice
+      DO iInterAtom = 1,SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%nInterAtom
+        xpos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndx(UsedSiteMapPos,iInterAtom)
+        ypos = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%BondAtomIndy(UsedSiteMapPos,iInterAtom)
+        SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos) = &
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,xpos,ypos) - 1
+      END DO
+      ! rearrange UsedSiteMap-Surfpos-array
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+Surfpos) = &
+          SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+1)
+      SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord)%UsedSiteMap(nSitesRemain+1) = UsedSiteMapPos
+      Surfnum = Surfnum - 1
+      nSitesRemain = nSitesRemain + 1
+      dist = dist - 1
+    END DO
+    SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Coord) = nSitesRemain
+  END IF
+    
+END SUBROUTINE AdjustBackgndAdsNum
 
 SUBROUTINE CalcDistNumChange()
 !===================================================================================================================================
