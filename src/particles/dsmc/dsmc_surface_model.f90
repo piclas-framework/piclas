@@ -200,11 +200,11 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   CASE(1) ! molecular adsorption
   !-----------------------------------------------------------------------------------------------------------------------------    
     maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
-    Adsorption%Coverage(p,q,SurfSide,iSpec) = Adsorption%Coverage(p,q,SurfSide,iSpec) & 
-                                                 + Species(iSpec)%MacroParticleFactor/maxPart
+    Adsorption%Coverage(p,q,SurfSide,outSpec(1)) = Adsorption%Coverage(p,q,SurfSide,outSpec(1)) & 
+                                                 + Species(outSpec(1))%MacroParticleFactor/maxPart
     adsindex = 1
 #if (PP_TimeDiscMethod==42)
-    Adsorption%AdsorpInfo(iSpec)%NumOfAds = Adsorption%AdsorpInfo(iSpec)%NumOfAds + 1
+    Adsorption%AdsorpInfo(outSpec(1))%NumOfAds = Adsorption%AdsorpInfo(outSpec(1))%NumOfAds + 1
 #endif
 !     ! allocate particle belonging adsorbing side-index and side-subsurface-indexes
 !     IF (KeepWallParticles) THEN
@@ -317,9 +317,9 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   !-----------------------------------------------------------------------------------------------------------------------------
     maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
     Adsorption%Coverage(p,q,SurfSide,outSpec(1)) = Adsorption%Coverage(p,q,SurfSide,outSpec(1)) & 
-                                                 * Species(iSpec)%MacroParticleFactor/maxPart
+                                                 * Species(outSpec(1))%MacroParticleFactor/maxPart
     Adsorption%Coverage(p,q,SurfSide,outSpec(2)) = Adsorption%Coverage(p,q,SurfSide,outSpec(2)) & 
-                                                 * Species(iSpec)%MacroParticleFactor/maxPart
+                                                 * Species(outSpec(2))%MacroParticleFactor/maxPart
     adsindex = 1
 #if (PP_TimeDiscMethod==42)
     Adsorption%AdsorpInfo(outSpec(1))%NumOfAds = Adsorption%AdsorpInfo(outSpec(1))%NumOfAds + 1
@@ -330,7 +330,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   !-----------------------------------------------------------------------------------------------------------------------------
     maxPart = Adsorption%DensSurfAtoms(SurfSide) * SurfMesh%SurfaceArea(p,q,SurfSide)
     Adsorption%Coverage(p,q,SurfSide,outSpec(1)) = Adsorption%Coverage(p,q,SurfSide,outSpec(1)) & 
-                                                 - Species(iSpec)%MacroParticleFactor/maxPart
+                                                 - Species(outSpec(1))%MacroParticleFactor/maxPart
     adsindex = 2
 #if (PP_TimeDiscMethod==42)
     Adsorption%AdsorpInfo(outSpec(1))%NumOfDes = Adsorption%AdsorpInfo(outSpec(1))%NumOfDes + 1
@@ -592,7 +592,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   REAL                             :: sum_probabilities
   INTEGER , ALLOCATABLE            :: NeighbourID(:)
   INTEGER                          :: SiteSpec, Neighpos_j, Neighpos_k, chosen_Neigh_j, chosen_Neigh_k, chosen_Neigh
-  INTEGER , DIMENSION(1:3)         :: n_empty_Neigh, n_react_Neigh, n_Neigh
+  INTEGER                          :: n_empty_Neigh(3), n_react_Neigh(3), n_Neigh(3), adsorbates(nSpecies)
   REAL                             :: E_a, c_f, EZeroPoint_Educt, E_col, phi_1, phi_2, Xi_Total, Xi_vib
 !===================================================================================================================================
 ! special TPD (temperature programmed desorption) surface temperature adjustment part
@@ -815,6 +815,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     DO ReactNum = 1,(Adsorption%ReactNum)
       CALL RANDOM_NUMBER(RanNum)
       IF ((P_Eley_Rideal(ReactNum)/sum_probabilities).GT.RanNum) THEN
+        ! if ER-reaction set output parameters
         adsorption_case = 4
         outSpec(1) = Adsorption%AssocReact(1,ReactNum,iSpec)
         outSpec(2) = Adsorption%AssocReact(2,ReactNum,iSpec)
@@ -823,6 +824,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
       sum_probabilities = sum_probabilities - P_Eley_Rideal(ReactNum)
       CALL RANDOM_NUMBER(RanNum)
       IF ((Prob_diss(ReactNum)/sum_probabilities).GT.RanNum) THEN
+        ! if dissocciative adsorption set output parameters
         adsorption_case = 3
         outSpec(1) = Adsorption%DissocReact(1,ReactNum,iSpec)
         outSpec(2) = Adsorption%DissocReact(2,ReactNum,iSpec)
@@ -833,8 +835,9 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     IF (adsorption_case.EQ.0) THEN
       CALL RANDOM_NUMBER(RanNum)
       IF ((Prob_ads/sum_probabilities).GT.RanNum) THEN
+        ! if molecular adsorption set output parameters
         adsorption_case = 1
-        outSpec(1) = 0
+        outSpec(1) = iSpec
         outSpec(2) = 0
       END IF
     END IF
