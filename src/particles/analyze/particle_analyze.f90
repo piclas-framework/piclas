@@ -1219,7 +1219,7 @@ SUBROUTINE GetWallNumSpec(WallNumSpec,WallCoverage)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars,      ONLY : Species, PartSpecies, PDM, nSpecies, KeepWallParticles
-USE MOD_DSMC_Vars,          ONLY : Adsorption
+USE MOD_DSMC_Vars,          ONLY : Adsorption, DSMC
 USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1260,7 +1260,11 @@ REAL              :: Surface, Coverage(nSpecies), SurfPartDens
     END DO
   ELSE 
     DO i=1,nSpecies
-      WallNumSpec(i) = INT(WallCoverage(i) * Surface * SurfPartDens)
+      IF ( (Adsorption%Coordination(i).EQ.2) .AND. (DSMC%WallModel.EQ.3) ) THEN
+        WallNumSpec(i) = INT(WallCoverage(i) * Surface * SurfPartDens * 2.)
+      ELSE
+        WallNumSpec(i) = INT(WallCoverage(i) * Surface * SurfPartDens)
+      END IF
       IF (WallNumSpec(i).EQ.0) THEN
        WallCoverage(i) = 0.
       END IF

@@ -476,6 +476,8 @@ DO subsurfxi = 1,nSurfSample
   DO iSpec = 1,nSpecies
     Adsorbates = INT(Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,iSpec) &
                 * SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(iSpec)))
+    Adsorption%Coverage(subsurfxi,subsurfeta,SurfSideID,iSpec) = REAL(Adsorbates) &
+        / SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%nSites(Adsorption%Coordination(iSpec))
     IF (SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SitesRemain(Adsorption%Coordination(iSpec)).LT.Adsorbates) THEN
       CALL abort(&
       __STAMP__&
