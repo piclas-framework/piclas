@@ -230,7 +230,8 @@ ALLOCATE(BCFace_xGP(3,0:PP_N,0:PP_N,1:nBCSides))
 
 ! PoyntingVecIntegral
 CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
-IF (CalcPoyntingInt) ALLOCATE(Face_xGP(3,0:PP_N,0:PP_N,1:nSides))
+!IF (CalcPoyntingInt.OR.DoPML) ! DoPML is not loaded yet, however, InitPML needs initMesh 
+ALLOCATE(Face_xGP(3,0:PP_N,0:PP_N,1:nSides)) ! maybe deallocate in initPML if not needed ? -> better: get PP_nFaces somewhere
 
 ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 ALLOCATE(Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))

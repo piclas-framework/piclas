@@ -27,11 +27,8 @@ END INTERFACE
 INTERFACE PMLTimeDerivative
   MODULE PROCEDURE PMLTimeDerivative
 END INTERFACE
-INTERFACE PMLsetZero
-  MODULE PROCEDURE PMLsetZero
-END INTERFACE
 
-PUBLIC::InitPML,FinalizePML,CalcPMLSource,PMLTimeDerivative,PMLsetZero
+PUBLIC::InitPML,FinalizePML,CalcPMLSource,PMLTimeDerivative
 !===================================================================================================================================
 CONTAINS
 
@@ -48,22 +45,13 @@ USE MOD_PML_Vars,      ONLY: nPMLElems,ElemToPML,PMLToElem,isPMLElem
 USE MOD_PML_Vars,      ONLY: nPMLFaces,FaceToPML,PMLToFace,isPMLFace
 USE MOD_PML_Vars,      ONLY: nPMLInterFaces,FaceToPMLInter,PMLInterToFace,isPMLInterFace
 USE MOD_PML_Vars,      ONLY: PMLzeta0,PMLalpha0,xyzPhysicalMinMax,PMLzetaShape,PMLRampLength,PMLspread,PMLwriteFields, PMLzetaNorm
-USE MOD_Mesh_Vars,     ONLY: Elem_xGP,BCFace_xGP,Face_xGP  ! for PML region: xyz position of the Gauss points and Face Gauss points
-USE MOD_Mesh_Vars,     ONLY: nSides
+USE MOD_Mesh_Vars,     ONLY: Elem_xGP,BCFace_xGP,nSides!,Face_xGP  ! for PML region: xyz position of the Gauss points and Face Gauss points
 USE MOD_PML_Vars,      ONLY: PMLRampLength
 USE MOD_PML_Vars,      ONLY: PMLzetaEff,PMLalpha
 USE MOD_PML_Vars,      ONLY: PMLnVar
-#ifdef PARTICLES
-USE MOD_Interpolation_Vars,    ONLY:InterpolationInitIsDone
-#endif
 USE MOD_HDF5_output,           ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
-USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,offsetElem,SideToElem,ElemToSide
+USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,offsetElem
 USE MOD_Output_Vars,           ONLY: ProjectName
-#ifdef MPI
-USE MOD_MPI_Vars
-USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
-#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -72,43 +60,35 @@ USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: i,j,k,iElem,iProbe,iPMLElem,iFace,PP_nFaces,p,q,m
+INTEGER             :: i,j,k,iElem,iPMLElem,iFace,m
 REAL                :: xyzMinMax(6),xi,L,XiN,delta(3),x,y,z
 REAL                :: xyzMinMaxLoc(6)
 REAL                :: zetaVec,zetaVecABS
-INTEGER             :: multVec
 INTEGER             :: iPMLFace,iPMLInterFace,nGlobalPMLElems,nGlobalPMLFaces,nGlobalPMLInterFaces
 REAL                :: fLinear,fSinus,fPolynomial
-REAL                :: dxMax,dxMin,dyMax,dyMin,dzMax,dzMin
-REAL                :: FaceTolerance
-INTEGER             :: DOFcount,ElemID1,ElemID2,iSide,ilocSide,SideID
+INTEGER             :: DOFcount
 ! for HDF5 output
 INTEGER(HID_T)                 :: Dset_ID
 INTEGER                        :: nVal
-CHARACTER(LEN=255)             :: FileName,FileString,MeshFile255,StrVarNames(PP_nVar),Statedummy
+CHARACTER(LEN=255)             :: FileName,StrVarNames(PP_nVar)
 #ifdef MPI
-REAL,ALLOCATABLE            :: PMLPlus(:,:,:,:)
-REAL,ALLOCATABLE            :: PMLMinus(:,:,:,:)
 #endif
 REAL                 :: StartT,EndT
 REAL                           :: OutputTime
 REAL                           :: FutureTime
 !===================================================================================================================================
-
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PML...'
-
 !===================================================================================================================================
 ! Readin
 !===================================================================================================================================
-
 DoPML                  = GETLOGICAL('DoPML','.FALSE.')
-! get information of PML size
 PMLzeta0               = GETREAL('PMLzeta0','0.')
 PMLalpha0              = GETREAL('PMLalpha0','0.')
 xyzPhysicalMinMax(1:6) = GETREALARRAY('xyzPhysicalMinMax',6,'0.0,0.0,0.0,0.0,0.0,0.0')
-IF(ALL(xyzPhysicalMinMax.EQ.0.))THEN
-  xyzPhysicalMinMax(1:6)=HUGE(1.0) ! min
+IF(ALMOSTEQUAL(MAXVAL(xyzPhysicalMinMax),MINVAL(xyzPhysicalMinMax)))THEN
+  xyzPhysicalMinMax(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
+  print*,"no PML region supplied, setting xyzPhysicalMinMax=",xyzPhysicalMinMax
 END IF
 PMLzetaShape           = GETINT('PMLzetaShape','0')
 PMLRampLength          = GETREAL('PMLRampLength','1.')
@@ -117,10 +97,6 @@ PMLwriteFields         = GETINT('PMLwriteFields','0')
 PMLzetaNorm            = GETLOGICAL('PMLzetaNorm','.FALSE.')
 ! caution, in current version read in in mesh
 ! only for Maxwell, PP_nVar=8
-
-ALLOCATE(isPMLElem(1:PP_nElems))
-isPMLElem=.FALSE.
-
 
 IF(.NOT.DoPML) THEN
   SWRITE(UNIT_stdOut,'(A)') ' PML region deactivated. '
@@ -139,88 +115,10 @@ ELSE
   PMLnVar=24
 END IF
 
-!===================================================================================================================================
-! check if Element is PMLElem
-!===================================================================================================================================
-PP_nFaces=SIZE(Face_xGP(1,1,1,:))
-
-ALLOCATE(isPMLFace(1:PP_nFaces))
-ALLOCATE(isPMLInterFace(1:PP_nFaces))
-isPMLFace=.FALSE.
-isPMLInterFace=.FALSE.
+CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,ElementIsInside=.FALSE.) ! find all elements in the PML region
+CALL FindInterfaces(isPMLFace,isPMLInterFace,isPMLElem)                       ! find all faces in the PML region
 
 
-isPMLElem=.TRUE.
-DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  ! x-PML region
-  IF (Elem_xGP(1,i,j,k,iElem) .GT. xyzPhysicalMinMax(1) .AND. Elem_xGP(1,i,j,k,iElem) .LT. xyzPhysicalMinMax(2)) THEN        
-    isPMLElem(iElem) = .FALSE.
-  END IF
-  ! y-PML region
-  IF (Elem_xGP(2,i,j,k,iElem) .GT. xyzPhysicalMinMax(3) .AND. Elem_xGP(2,i,j,k,iElem) .LT. xyzPhysicalMinMax(4)) THEN        
-    isPMLElem(iElem) = .FALSE.
-  END IF
-  ! z-PML region
-  IF (Elem_xGP(3,i,j,k,iElem) .GT. xyzPhysicalMinMax(5) .AND. Elem_xGP(3,i,j,k,iElem) .LT. xyzPhysicalMinMax(6)) THEN        
-    isPMLElem(iElem) = .FALSE.
-  END IF
-END DO; END DO; END DO; END DO !iElem,k,i,j
-
-DO iElem=1,PP_nElems
-  IF(.NOT.isPMLElem(iElem))CYCLE
-  DO ilocSide =1,6
-    SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    isPMLFace(SideID)=.TRUE.
-  END DO ! ilocSide=1,6
-END DO ! iElem=1,PP_nElems
-
-#ifdef MPI
-ALLOCATE(PMLPlus(1,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(PMLMinus(1,0:PP_N,0:PP_N,1:nSides))
-PMLPlus=0.
-PMLMinus=0.
-DO iSide=1,nSides
-  IF(isPMLFace(iSide)) PMLPlus(1,:,:,iSide)=1.
-END DO
-
-! send my info to neighbor 
-CALL StartReceiveMPIData(1,PMLMinus(1,0:PP_N,0:PP_N,SideID_plus_lower:SideID_plus_upper) &
-                          ,SideID_plus_lower,SideID_plus_upper,RecRequest_U,SendID=2) ! Receive MINE
-CALL StartSendMPIData(1,PMLPlus(1,0:PP_N,0:PP_N,SideID_plus_lower:SideID_plus_upper) &
-                       ,SideID_plus_lower,SideID_plus_upper,SendRequest_U,SendID=2) ! Send YOUR
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
-
-! add PMLMinus to PMLPlus and send
-PMLPlus=PMLPlus+PMLMinus
-
-CALL StartReceiveMPIData(1,PMLPlus,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
-CALL StartSendMPIData(1,PMLPlus,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
-CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
-
-DO iSide=1,nSides
-  IF(PMLPLUS(1,0,0,iSide).EQ.1)THEN
-    iSPMLInterface(iSide)=.TRUE.
-  END IF
-END DO
-
-DEALLOCATE(PMLPlus,PMLMinus)
-#endif /*MPI*/
-
-! and fill non-mpi sides
-DO iSide=1,nSides
-  IF(iSPMLInterface(iSide)) CYCLE
-  IF(isPMLFace(iSide))THEN
-    ElemID1=SideToElem(S2E_ELEM_ID,SideID)
-    ElemID2=SideToElem(S2E_NB_ELEM_ID,SideID)
-    IF(ElemID1.LT.1) CYCLE
-    IF(ElemID2.LT.1) CYCLE
-    IF((isPMLElem(ElemID1).AND. .NOT.isPMLElem(ElemID2)) .OR. &
-       (.NOT.isPMLElem(ElemID1).AND.  isPMLElem(ElemID2)) )THEN
-    !IF(isPMLElem(ElemID1).NOT..isPMLElem(ElemID2)) THEN
-      iSPMLInterface(iSide)=.TRUE.
-   END IF
-  END IF
-END DO
 
 
 ! Get number of PML Elems
@@ -228,13 +126,13 @@ nPMLFaces = 0
 nPMLInterFaces = 0
 nPMLElems = 0
 
-DO iFace=1,PP_nFaces
+DO iFace=1,nSides
   IF(isPMLFace(iFace))THEN
     nPMLFaces=nPMLFaces+1
   END IF
 END DO ! iFace
 
-DO iFace=1,PP_nFaces
+DO iFace=1,nSides
   IF(isPMLInterFace(iFace))THEN
     nPMLInterFaces=nPMLInterFaces+1
   END IF
@@ -256,19 +154,19 @@ nGlobalPMLInterfaces=0
   IF(MPIroot)THEN
     write(*,'(A92)') "      myrank              PP_nElems              nPMLElems        nGlobalPMLElems"
     write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nElems             ,nPMLElems       ,nGlobalPMLElems
-    write(*,'(A92)') "      myrank              PP_nFaces              nPMLFaces        nGlobalPMLFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nFaces             ,nPMLFaces       ,nGlobalPMLFaces
-    write(*,'(A92)') "      myrank              PP_nFaces         nPMLInterFaces   nGlobalPMLInterFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nFaces             ,nPMLInterFaces  ,nGlobalPMLInterFaces
+    write(*,'(A92)') "      myrank              nSides              nPMLFaces        nGlobalPMLFaces"
+    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLFaces       ,nGlobalPMLFaces
+    write(*,'(A92)') "      myrank              nSides         nPMLInterFaces   nGlobalPMLInterFaces"
+    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLInterFaces  ,nGlobalPMLInterFaces
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
   IF(.NOT.MPIroot)THEN
     write(*,'(A92)') "      myrank              PP_nElems              nPMLElems        nGlobalPMLElems"
     write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nElems             ,nPMLElems       ,nGlobalPMLElems
-    write(*,'(A92)') "      myrank              PP_nFaces              nPMLFaces        nGlobalPMLFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nFaces             ,nPMLFaces       ,nGlobalPMLFaces
-    write(*,'(A92)') "      myrank              PP_nFaces         nPMLInterFaces   nGlobalPMLInterFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nFaces             ,nPMLInterFaces  ,nGlobalPMLInterFaces
+    write(*,'(A92)') "      myrank              nSides              nPMLFaces        nGlobalPMLFaces"
+    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLFaces       ,nGlobalPMLFaces
+    write(*,'(A92)') "      myrank              nSides         nPMLInterFaces   nGlobalPMLInterFaces"
+    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLInterFaces  ,nGlobalPMLInterFaces
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
   !=======================================================================================================================
@@ -283,19 +181,19 @@ nGlobalPMLInterfaces=0
   IF(MPIroot)THEN
     write(*,'(A92)') "      myrank              PP_nElems              nPMLElems        nGlobalPMLElems"
     write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nElems             ,nPMLElems       ,nGlobalPMLElems
-    write(*,'(A92)') "      myrank              PP_nFaces              nPMLFaces        nGlobalPMLFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nFaces             ,nPMLFaces       ,nGlobalPMLFaces
-    write(*,'(A92)') "      myrank              PP_nFaces         nPMLInterFaces   nGlobalPMLInterFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nFaces             ,nPMLInterFaces  ,nGlobalPMLInterFaces
+    write(*,'(A92)') "      myrank              nSides              nPMLFaces        nGlobalPMLFaces"
+    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLFaces       ,nGlobalPMLFaces
+    write(*,'(A92)') "      myrank              nSides         nPMLInterFaces   nGlobalPMLInterFaces"
+    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLInterFaces  ,nGlobalPMLInterFaces
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
   IF(.NOT.MPIroot)THEN
     write(*,'(A92)') "      myrank              PP_nElems              nPMLElems        nGlobalPMLElems"
     write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nElems             ,nPMLElems       ,nGlobalPMLElems
-    write(*,'(A92)') "      myrank              PP_nFaces              nPMLFaces        nGlobalPMLFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nFaces             ,nPMLFaces       ,nGlobalPMLFaces
-    write(*,'(A92)') "      myrank              PP_nFaces         nPMLInterFaces   nGlobalPMLInterFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nFaces             ,nPMLInterFaces  ,nGlobalPMLInterFaces
+    write(*,'(A92)') "      myrank              nSides              nPMLFaces        nGlobalPMLFaces"
+    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLFaces       ,nGlobalPMLFaces
+    write(*,'(A92)') "      myrank              nSides         nPMLInterFaces   nGlobalPMLInterFaces"
+    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLInterFaces  ,nGlobalPMLInterFaces
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 #else
@@ -313,9 +211,9 @@ END IF
 
 ALLOCATE(ElemToPML(PP_nElems)&
         ,PMLToElem(nPMLElems))
-ALLOCATE(FaceToPML(PP_nFaces)&
+ALLOCATE(FaceToPML(nSides)&
         ,PMLToFace(nPMLFaces))
-ALLOCATE(FaceToPMLInter(PP_nFaces)&
+ALLOCATE(FaceToPMLInter(nSides)&
         ,PMLInterToFace(nPMLInterFaces))
 
 ElemToPML=0
@@ -335,7 +233,7 @@ DO iElem=1,PP_nElems
   END IF
 END DO
 iPMLFace=0
-DO iFace=1,PP_nFaces
+DO iFace=1,nSides
   IF(isPMLFace(iFace))THEN
     iPMLFace=iPMLFace+1
     FaceToPML(iFace) = iPMLFace
@@ -343,7 +241,7 @@ DO iFace=1,PP_nFaces
   END IF
 END DO
 iPMLInterFace=0
-DO iFace=1,PP_nFaces
+DO iFace=1,nSides
   IF(isPMLInterFace(iFace))THEN
     iPMLInterFace=iPMLInterFace+1
     FaceToPMLInter(iFace) = iPMLInterFace
@@ -458,7 +356,7 @@ CASE(1) ! Linear Distribution of the Damping Coefficient
 
 
 
-        DO m=1,3
+        DO m=1,3 ! m=x,y,z
           IF (Elem_xGP(m,i,j,k,iElem) .LT. xyzPhysicalMinMax(2*m-1)) THEN ! 1, 3, 5 
             XiN = ABS (( Elem_xGP(m,i,j,k,iElem)-xyzPhysicalMinMax(2*m-1)   ) / &
                        (        xyzMinMax(2*m-1)-xyzPhysicalMinMax(2*m-1)   ))
@@ -774,6 +672,7 @@ IF (PMLwriteFields.EQ.1) THEN
   CLOSE(110)
 END IF
 
+return
 !===================================================================================================================================
 ! write PMLzetaGlobal field to HDF5 file
 !===================================================================================================================================
@@ -838,13 +737,9 @@ SUBROUTINE CalcPMLSource()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,       ONLY: abort
-USE MOD_Equation_Vars, ONLY: c_corr,c
-USE MOD_DG_Vars,       ONLY: Ut,U
-USE MOD_PML_Vars,      ONLY: nPMLElems,ElemToPML,PMLToElem
-USE MOD_PML_Vars,      ONLY: nPMLFaces,FaceToPML,PMLToFace
+USE MOD_DG_Vars,       ONLY: Ut
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem
 USE MOD_PML_Vars,      ONLY: PMLzeta,U2
-USE MOD_DG_Vars,       ONLY: D !for
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -855,32 +750,15 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k,iPMLElem,m
 !===================================================================================================================================
-!print*,"==========================================================================================================================="
-!print *," CALL CalcPMLSource()"
-!print*,"==========================================================================================================================="
+! sources for the standard variables
 DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  ! sources for the standard variables
   DO m=1,8
-    !print*,"m",m            ! = 1,2,3, 4, 5, 6, 7, 8
-    !print*,"m*3-2",m*3-2    ! = 1,4,7,10,13,16,19,22
-    !print*,"m*3-1",m*3-1    ! = 1,5,8,11,12,17,20,23
-    !print*,"m*3",m*3        ! = 3,6,9,12,15,18,21,24
     Ut(m,i,j,k,PMLToElem(iPMLElem)) = Ut(m,i,j,k,PMLToElem(iPMLElem))  &
                                      -PMLzeta(1,i,j,k,iPMLElem)*U2(m*3-2,i,j,k,iPMLElem) &   ! = 1,4,7,10,13,16,19,22
                                      -PMLzeta(2,i,j,k,iPMLElem)*U2(m*3-1,i,j,k,iPMLElem) &   ! = 2,5,8,11,12,17,20,23
                                      -PMLzeta(3,i,j,k,iPMLElem)*U2(m*3  ,i,j,k,iPMLElem)     ! = 3,6,9,12,15,18,21,24
-                                    !-DOT_PRODUCT(PMLzeta(:,i,j,k,iPMLElem),U2(m*3-2:m*3,i,j,k,iPMLElem))
-
   END DO
-
-
 END DO; END DO; END DO !nPMLElems,k,j,i
-    !print*,"Element:                         ",iPMLElem
-    !print*,"MAXVAL(PMLzeta(:,:,:,:,iPMLElem))",MAXVAL(PMLzeta(1,:,:,:,iPMLElem)),MAXVAL(PMLzeta(2,:,:,:,iPMLElem)),&
-!MAXVAL(PMLzeta(3,:,:,:,iPMLElem))
-    !print*,"MINVAL(PMLzeta(:,:,:,:,iPMLElem))",MINVAL(PMLzeta(1,:,:,:,iPMLElem)),MINVAL(PMLzeta(2,:,:,:,iPMLElem)),&
-!MINVAL(PMLzeta(3,:,:,:,iPMLElem))
-    !print*,"MAXVAL(U2(:,:,:,:,iPMLElem))     ",MAXVAL(U2(:,:,:,:,iPMLElem))
 END DO
 END SUBROUTINE CalcPMLSource
 
@@ -890,13 +768,10 @@ SUBROUTINE PMLTimeDerivative()
 ! 
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,       ONLY: abort
 USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY: U,Ut
-USE MOD_PML_Vars,      ONLY: PMLzeta,U2,U2t,PMLnVar
-USE MOD_PML_Vars,      ONLY: nPMLElems,ElemToPML,PMLToElem
-USE MOD_PML_Vars,      ONLY: nPMLFaces,FaceToPML,PMLToFace
-USE MOD_Mesh_Vars,     ONLY: Elem_xGP,sJ
+USE MOD_PML_Vars,      ONLY: U2,U2t
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem
+USE MOD_Mesh_Vars,     ONLY: sJ
 USE MOD_PML_Vars,      ONLY: PMLzetaEff
 USE MOD_Equation_Vars, ONLY: fDamping
 ! IMPLICIT VARIABLE HANDLING
@@ -944,82 +819,195 @@ U2(19:24,:,:,:,:) = fDamping* U2(19:24,:,:,:,:)
 END SUBROUTINE PMLTimeDerivative
 
 
-SUBROUTINE PMLsetZero()
+SUBROUTINE FindElementInRegion(isElem,region,ElementIsInside)
 !===================================================================================================================================
-! 
+! Check 
 !===================================================================================================================================
 ! MODULES
+USE MOD_PreProc
 USE MOD_Globals,       ONLY: abort
-USE MOD_PreProc
-USE MOD_PML_Vars,      ONLY: nPMLElems
+USE MOD_Mesh_Vars,     ONLY: Elem_xGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: ElementIsInside
+REAL,INTENT(IN)    :: region(1:6)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iPMLElem
+INTEGER             :: iElem,i,j,k,m
 !===================================================================================================================================
-! null here to increase time for communication
-DO iPMLElem=1,nPMLElems
-  !FPt(1:3,:,:,:,iPMLElem) = 0.0 
-  !FQt(1:3,:,:,:,iPMLElem) = 0.0 
-  !FRt(1:3,:,:,:,iPMLElem) = 0.0 
-  !FLt(1:3,:,:,:,iPMLElem) = 0.0 
-  !FMt(1:3,:,:,:,iPMLElem) = 0.0 
-  !FNt(1:3,:,:,:,iPMLElem) = 0.0 
-  !FSt(1:3,:,:,:,iPMLElem) = 0.0 
-  !FTt(1:3,:,:,:,iPMLElem) = 0.0 
-END DO ! iPMLElem=1,nPMLElems
-END SUBROUTINE PMLsetZero
+ALLOCATE(isElem(1:PP_nElems))
+isElem=.FALSE.
+! PML elements are inside of the xyPMLMinMax region
+print*,"Checking region:", region
+IF(ElementIsInside)THEN
+  isElem(:)=.TRUE.
+  print*,"for elemens inside"
+ELSE
+  isElem(:)=.FALSE.
+  print*,"for elemens outside"
+END IF
 
-SUBROUTINE Print_U(t)
-!===============================================================================================================================
-!  
-!===============================================================================================================================
+DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  DO m=1,3 ! m=x,y,z
+    IF ( (Elem_xGP(m,i,j,k,iElem) .LT. region(2*m-1)) .OR. & ! 1,3,5
+         (Elem_xGP(m,i,j,k,iElem) .GT. region(2*m)) ) THEN   ! 2,4,6 ! element is outside
+          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outisde the region
+    END IF
+  END DO
+END DO; END DO; END DO; END DO !iElem,k,j,i
+
+IF(ElementIsInside)THEN
+  print*,"No. of elements INSIDE region: ",COUNT(isElem)
+ELSE
+  print*,"No. of elements OUTSIDE region: ",COUNT(isElem)
+END IF
+
+
+! OLD 
+!    isPMLElem=.TRUE.
+!    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+!      ! x-PML region
+!      IF (Elem_xGP(1,i,j,k,iElem) .GT. xyzPhysicalMinMax(1) .AND. Elem_xGP(1,i,j,k,iElem) .LT. xyzPhysicalMinMax(2)) THEN        
+!        isPMLElem(iElem) = .FALSE.
+!      END IF
+!      ! y-PML region
+!      IF (Elem_xGP(2,i,j,k,iElem) .GT. xyzPhysicalMinMax(3) .AND. Elem_xGP(2,i,j,k,iElem) .LT. xyzPhysicalMinMax(4)) THEN        
+!        isPMLElem(iElem) = .FALSE.
+!      END IF
+!      ! z-PML region
+!      IF (Elem_xGP(3,i,j,k,iElem) .GT. xyzPhysicalMinMax(5) .AND. Elem_xGP(3,i,j,k,iElem) .LT. xyzPhysicalMinMax(6)) THEN        
+!        isPMLElem(iElem) = .FALSE.
+!      END IF
+!    END DO; END DO; END DO; END DO !iElem,k,i,j
+END SUBROUTINE  FindElementInRegion
+
+
+SUBROUTINE FindInterfaces(isFace,isInterFace,isElem)
+!===================================================================================================================================
+! Check if a face is in a special region (e.g. PML) and/or connects a special region (e.g. PML) to the physical region
+!===================================================================================================================================
 ! MODULES
-!USE MOD_PML,              ONLY: Print_U
 USE MOD_PreProc
-USE MOD_DG_Vars,          ONLY: U,Ut
-USE MOD_MESH_VARS,         ONLY: sJ
+USE MOD_Globals,       ONLY: abort,myrank,MPI_COMM_WORLD
+USE MOD_Mesh_Vars,     ONLY: SideToElem,ElemToSide,nSides,nBCSides
+#ifdef MPI
+USE MOD_MPI_Vars
+USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN) :: t
+LOGICAL,INTENT(IN)               :: isElem(1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+LOGICAL,ALLOCATABLE,INTENT(INOUT):: isFace(:)
+LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: I
-REAL,PARAMETER                :: infinity=HUGE(1.)
+REAL,ALLOCATABLE                 :: Plus(:,:,:,:),Minus(:,:,:,:)
+INTEGER                          :: iElem,ilocSide,iSide,SideID
+INTEGER                          :: ElemID(2)
+LOGICAL                          :: printInfo
 !===================================================================================================================================
-print*,"MAXVAL(Ut(:,:,:,:,:))              ",MAXVAL(Ut(:,:,:,:,:))
-do I=1,PP_nElems
-!print*,"U = ",Ut(:,1,1,1,I)
-IF (ISNAN(MAXVAL(Ut(:,1,1,1,I)))) THEN
-  print*,"======================== NaN TERMINATION ========================"
-  print*,"t=",t
-  print*,"I=",I
-  print*,"MAXVAL(Ut(:,1,1,1,I))",MAXVAL(Ut(:,1,1,1,I))
-  stop
-end if
-IF (MAXVAL(Ut(:,1,1,1,I)).GE.infinity) THEN
-  print*,"====================== INFINITY TERMINATION ======================"
-  print*,"t=                                ",t
-  print*,"I=1,PP_nElems                     ",I," (of ",PP_nElems,")"
-  print*,"MAXVAL(sJ(:,:,:,I))              ",MAXVAL(sJ(:,:,:,I))
-  print*,"MINVAL(sJ(:,:,:,I))              ",MINVAL(sJ(:,:,:,I))
-  print*,"MAXVAL(Ut(:,1,1,1,I))              ",MAXVAL(Ut(:,1,1,1,I))
-  print*,"(MAXVAL(Ut(:,1,1,1,I)).GE.infinity)",(MAXVAL(Ut(:,1,1,1,I)).GE.infinity)
-  print*,"ISNAN(MAXVAL(Ut(:,1,1,1,I)))       ",ISNAN(MAXVAL(Ut(:,1,1,1,I)))
-  stop
-end if
-end do
-END SUBROUTINE Print_U
+ALLOCATE(isFace(1:nSides))
+ALLOCATE(isInterFace(1:nSides))
+isFace=.FALSE.
+isInterFace=.FALSE.
+printInfo=.FALSE.
 
+! Check each element for being part of the, e.g. PML, region: set each of the 6 sides to be .TRUE.
+DO iElem=1,PP_nElems
+  IF(.NOT.isElem(iElem))CYCLE
+  DO ilocSide =1,6
+    SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    isFace(SideID)=.TRUE.
+  END DO ! ilocSide=1,6
+END DO ! iElem=1,PP_nElems
+
+#ifdef MPI
+! For MPI sides send the info to all other procs
+! use numbering:    Plus+Minus  = 1: isFace
+!                                 2: isInterFace
+!                                 0: normal face in physical region
+ALLOCATE(Plus(1,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(Minus(1,0:PP_N,0:PP_N,1:nSides))
+Plus=0.
+Minus=0.
+DO iSide=1,nBCSides ! 1.) do BC sides - when they are in a special region (e.g. PML) they need special treatment
+  IF(isFace(iSide))THEN
+    Plus( 1,:,:,iSide)=1. ! set my side true
+    Minus(1,:,:,iSide)=1. ! set my neighbor side true
+  ELSE
+    Minus(1,:,:,iSide)=5. ! for BC sides set value that this side cannot be an InterFace!
+  END IF
+END DO
+DO iSide=nBCSides+1,nSides ! 2.) do inner sides
+  IF(isFace(iSide)) THEN
+    Plus(1,:,:,iSide)=1.  ! set my side true
+    Minus(1,:,:,iSide)=1. ! set my neighbor side true
+  END IF
+END DO
+
+! send my info to neighbor 
+CALL StartReceiveMPIData(1,Minus(1,0:PP_N,0:PP_N,SideID_plus_lower:SideID_plus_upper) &
+                                                ,SideID_plus_lower,SideID_plus_upper,RecRequest_U,SendID=2) ! Receive MINE
+CALL StartSendMPIData(1,Plus(1,0:PP_N,0:PP_N,SideID_plus_lower:SideID_plus_upper) &
+                                            ,SideID_plus_lower,SideID_plus_upper,SendRequest_U,SendID=2) ! Send YOUR
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
+
+! add Minus to Plus and send
+Plus=Plus+Minus
+
+CALL StartReceiveMPIData(1,Plus,1,nSides,RecRequest_Flux ,SendID=1) ! Receive MINE
+CALL StartSendMPIData(   1,Plus,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
+CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
+
+DO iSide=1,nSides
+  IF(Plus(1,0,0,iSide).EQ.1)THEN ! check MPI sides: if one side is .TRUE. and the other is .FALSE. -> InterFace
+    isFace(iSide)=.TRUE. ! when my side is not PML but neighbor is PML
+    isInterFace(iSide)=.TRUE.
+  END IF
+END DO
+
+DEALLOCATE(Plus,Minus)
+#endif /*MPI*/
+
+! and fill non-mpi sides
+DO iSide=1,nSides
+  IF(isInterFace(iSide)) CYCLE ! MPI sides are already finished
+  IF(isFace(iSide))THEN
+    ElemID(1)=SideToElem(S2E_ELEM_ID,iSide)    ! SideID
+    ElemID(2)=SideToElem(S2E_NB_ELEM_ID,iSide) ! SideID
+!print*,"ElemID(:)",ElemID
+    IF(ElemID(1).LT.1) CYCLE
+    IF(ElemID(2).LT.1) CYCLE ! neighbor is BC side
+    IF((isElem(ElemID(1)).AND. .NOT.isElem(ElemID(2))) .OR. &
+  (.NOT.isElem(ElemID(1)).AND.      isElem(ElemID(2))) )THEN
+    !IF(isElem(ElemID(1)).NOT..isElem(ElemID(2))) THEN
+      isInterFace(iSide)=.TRUE.
+!print*,"InterFace!!!"
+!read*
+   END IF
+  END IF
+END DO
+
+
+! test
+DO iSide=nSides,nSides
+  print*,"myrank=",myrank,"--------isInterFace(",iSide,")=",isInterFace(iSide),"  of total= ",COUNT(isInterFace),&
+          "    isFace(",iSide,")=",     isFace(iSide),"  of total= ",COUNT(isFace)
+END DO
+!print*,"should be total 16 (PML-interfaces) and total 100 (PML-faces)"
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+!stop
+END SUBROUTINE  FindInterFaces
 
 
 SUBROUTINE FinalizePML()
@@ -1040,28 +1028,17 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 !RETURN
-!print *, "PMLzeta size, shape and location",SIZE(PMLzeta),shape(PMLzeta),loc(PMLzeta)
-!print *, "U2 size, shape and location     ",SIZE(U2),shape(U2),loc(U2)
 IF(.NOT.DoPML) RETURN
-!print*,"ALLOCATED(PMLzeta)",ALLOCATED(PMLzeta)
 SDEALLOCATE(PMLzeta)
-!print*,"ALLOCATED(U2)",ALLOCATED(U2)
 SDEALLOCATE(U2)
-!print*,"ALLOCATED(U2t)",ALLOCATED(U2t)
-SDEALLOCATE(U2t) !momentan verursacht dies noch einen crash (resolve it !!)
-!print*,"4"
+SDEALLOCATE(U2t)
 SDEALLOCATE(PMLToElem)
-!print*,"5"
 SDEALLOCATE(ElemToPML)
-!print*,"6"
 SDEALLOCATE(PMLToFace)
-!print*,"7"
 SDEALLOCATE(FaceToPML)
 SDEALLOCATE(PMLRamp)
 SDEALLOCATE(isPMLElem)
-!print*,"10"
 SDEALLOCATE(isPMLFace)
-!print*,"11"
 END SUBROUTINE FinalizePML
 
 

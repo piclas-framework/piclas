@@ -518,7 +518,7 @@ USE MOD_Globals,       ONLY : abort
 USE MOD_Globals_Vars,  ONLY : PI
 USE MOD_PreProc
 !USE MOD_DG_Vars,       ONLY : U
-USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega
+USE MOD_Equation_Vars, ONLY : eps0,c_corr,IniExactFunc, DipoleOmega,tPulse
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars,  ONLY : Source
 #endif /*PARTICLES*/
@@ -604,13 +604,24 @@ CASE(14) ! nothing to do
 CASE(41) ! Dipole via temporal Gausspuls
 !t0=TEnd/5, w=t0/4 ! for pulsed Dipole (t0=offset and w=width of pulse)
 !TEnd=30.E-9 -> short pulse for 100ns runtime
+IF(1.EQ.2)THEN ! new formulation with divergence correction considered
   DO iElem=1,PP_nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
       Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
       Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
     END DO; END DO; END DO
   END DO
-
+ELSE ! old/original formulation
+  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N 
+    IF (t.LE.2*tPulse) THEN
+      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
+      IF (shapefunc(r) .GT. 0 ) THEN
+        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - ((shapefunc(r))*Q*d*COS(DipoleOmega*t)*eps0inv)*&
+                            EXP(-(t-tPulse/5)**2/(2*(tPulse/(4*5))**2))
+      END IF
+    END IF
+  END DO; END DO; END DO; END DO
+END IF
 CASE(50,51) ! TE_34,19 Mode - no sources
 CASE DEFAULT
   CALL abort(&
