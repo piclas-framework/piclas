@@ -907,6 +907,7 @@ DO iSide=nBCSides+1,nSides ! 2.) do inner sides
   END IF
 END DO
 IF(printInfo)THEN
+print*,"vorher (Send/Receive)"
 print*,"Plus ",NINT(Plus(1,1,1,:))
 print*,"Minus",NINT(Minus(1,1,1,:))
 read*
@@ -920,8 +921,9 @@ CALL StartSendMPIData(1,Plus(1,0:PP_N,0:PP_N,SideID_plus_lower:SideID_plus_upper
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
 
 ! add Minus to Plus and send
-IF(printInfo)THEN
 Plus=Plus+Minus
+IF(printInfo)THEN
+print*,"nachher (Send/Receive)"
 print*,"Plus ",NINT(Plus(1,1,1,:))
 read*
 END IF
