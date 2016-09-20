@@ -220,6 +220,7 @@ USE MOD_Mesh_Vars,        ONLY:nSides
 USE MOD_Equation,         ONLY:CalcSource
 USE MOD_Interpolation,    ONLY:ApplyJacobian
 USE MOD_PML_Vars,           ONLY: PMLnVar
+USE MOD_PML_Vars,      ONLY: DoPML,U2t
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,              ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
@@ -268,6 +269,7 @@ CALL ProlongToFace(U,U_Minus,U_Plus,doMPISides=.FALSE.)
 !       ARRAYS DO NOT NEED TO BE NULLIFIED, OTHERWISE THEY HAVE TO!
 !CALL VNullify(nTotalU,Ut)
 Ut=0.
+IF(DoPML) U2t=0. ! set U2t for auxiliary variables to zero
 ! compute volume integral contribution and add to ut, first half of all elements
 CALL VolInt(Ut,dofirstElems=.TRUE.)
 
