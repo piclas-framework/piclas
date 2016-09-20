@@ -226,10 +226,12 @@ SUBROUTINE SurfInt2(Flux,Ut,doMPISides)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+#if (PP_NodeType>1)
 USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
+#endif
 USE MOD_Mesh_Vars,          ONLY: SideToElem
 USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-USE MOD_PML_Vars,           ONLY: DoPML,PMLnVar,ElemToPML,U2t,isPMLElem
+USE MOD_PML_Vars,           ONLY: DoPML,PMLnVar,isPMLElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -241,7 +243,7 @@ REAL,INTENT(IN)    :: Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
 REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: ElemID,p,q,l,Flip,SideID,locSideID
+INTEGER            :: ElemID,Flip,SideID,locSideID
 INTEGER            :: firstSideID,lastSideID
 #if (PP_NodeType>1)
 REAL               ::L_HatMinus0,L_HatPlusN 
@@ -305,9 +307,9 @@ SUBROUTINE CalcSurfInt2(Flux,Ut,flip,ElemID,locSideID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
-USE MOD_Mesh_Vars,          ONLY: SideToElem
-USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-USE MOD_PML_Vars,           ONLY: DoPML,PMLnVar,ElemToPML,U2t,isPMLElem
+!USE MOD_Mesh_Vars,          ONLY: SideToElem
+!USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+!USE MOD_PML_Vars,           ONLY: DoPML,PMLnVar,ElemToPML,U2t,isPMLElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -658,9 +660,7 @@ SUBROUTINE CalcSurfInt2PML(Flux,Ut,flip,ElemID,locSideID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
-USE MOD_Mesh_Vars,          ONLY: SideToElem
-USE MOD_Mesh_Vars,          ONLY: nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-USE MOD_PML_Vars,           ONLY: DoPML,PMLnVar,ElemToPML,U2t,isPMLElem
+USE MOD_PML_Vars,           ONLY: PMLnVar,ElemToPML,U2t
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -672,8 +672,8 @@ INTEGER,INTENT(IN) :: flip,ElemID,locSideID
 REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: i,p,q,l
-INTEGER            :: firstSideID,lastSideID
+INTEGER            :: p,q,l
+!INTEGER            :: firstSideID,lastSideID
 #if (PP_NodeType>1)
 REAL            ::L_HatMinus0,L_HatPlusN 
 #endif

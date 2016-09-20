@@ -256,8 +256,8 @@ END DO
 ALLOCATE(PMLRamp       (0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 ALLOCATE(PMLzeta   (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 ! CFS-PML auxiliary variables (24xNxNxNxnElemsx8)
-ALLOCATE(U2       (1:24,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))        
-ALLOCATE(U2t      (1:24,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
+ALLOCATE(U2       (1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))        
+ALLOCATE(U2t      (1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 ALLOCATE(PMLzetaEff(1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 ALLOCATE(PMLalpha  (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 !print *, "PMLzeta size, shape and location",SIZE(PMLzeta),shape(PMLzeta),loc(PMLzeta)
@@ -500,42 +500,11 @@ END IF
 !===================================================================================================================================
 !ACHTUNG: da am interface pmlzeta=0 wird somit durch null geteilt
 DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  ! x-direction
-  !IF (PMLzeta(1,i,j,k,iPMLElem).EQ.0.) THEN
-    !PMLzetaEff(1,i,j,k,iPMLElem) = 0.
-  !ELSE
-    PMLzetaEff(1,i,j,k,iPMLElem) = ( PMLalpha(1,i,j,k,iPMLElem)+PMLzeta(1,i,j,k,iPMLElem) )
-  !END IF
-  ! y-direction
-  !IF (PMLzeta(2,i,j,k,iPMLElem).EQ.0.) THEN
-    !PMLzetaEff(2,i,j,k,iPMLElem) = 0.
-  !ELSE
-    PMLzetaEff(2,i,j,k,iPMLElem) = ( PMLalpha(2,i,j,k,iPMLElem)+PMLzeta(2,i,j,k,iPMLElem) )
-  !END IF
-  ! z-direction
-  !IF (PMLzeta(3,i,j,k,iPMLElem).EQ.0.) THEN
-    !PMLzetaEff(3,i,j,k,iPMLElem) = 0.
-  !ELSE
-    PMLzetaEff(3,i,j,k,iPMLElem) = ( PMLalpha(3,i,j,k,iPMLElem)+PMLzeta(3,i,j,k,iPMLElem) )
-  !END IF
-  !check NaN
-  !if (ISNAN(PMLzetaEff(1,i,j,k,iPMLElem))) THEN
-    !CALL abort(__STAMP__,&
-    !'"PMLzetaEff(1,i,j,k,iPMLElem)" is a NaN',999,999.)
-  !END IF
-  !if (ISNAN(PMLzetaEff(2,i,j,k,iPMLElem))) THEN
-    !CALL abort(__STAMP__,&
-    !'"PMLzetaEff(2,i,j,k,iPMLElem)" is a NaN',999,999.)
-  !END IF
-  !if (ISNAN(PMLzetaEff(3,i,j,k,iPMLElem))) THEN
-    !CALL abort(__STAMP__,&
-    !'"PMLzetaEff(3,i,j,k,iPMLElem)" is a NaN',999,999.)
-  !END IF
+  DO m=1,3 ! m=x,y,z
+    PMLzetaEff(m,i,j,k,iPMLElem) = ( PMLalpha(m,i,j,k,iPMLElem)+PMLzeta(m,i,j,k,iPMLElem) )
+  END DO
 END DO; END DO; END DO; END DO !iPMLElem,k,i,j
 DEALLOCATE(PMLalpha)
-
-
-
 
 !===================================================================================================================================
 ! create global zeta field for parallel output of zeta distribution
@@ -548,8 +517,6 @@ IF(PMLzeta0.GT.0)THEN
     END IF
   END DO!iElem
 END IF
-
-
 
 !===================================================================================================================================
 ! determine Elem_xGP distance to PML interface for PMLRamp
@@ -773,7 +740,7 @@ SUBROUTINE PMLTimeDerivative()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_PML_Vars,      ONLY: U2,U2t
-USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLnVar
 USE MOD_Mesh_Vars,     ONLY: sJ
 USE MOD_PML_Vars,      ONLY: PMLzetaEff
 USE MOD_Equation_Vars, ONLY: fDamping
@@ -790,11 +757,23 @@ INTEGER                         :: i,j,k,iPMLElem,iPMLVar
 ! We have to take the inverse of the Jacobians into account
 ! the '-' sign is due to the movement of the term to the right-hand-side of the equation
 DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  DO iPMLVar=1,24
+  DO iPMLVar=1,PMLnVar
     U2t(iPMLVar,i,j,k,iPMLElem) = - U2t(iPMLVar,i,j,k,iPMLElem) * sJ(i,j,k,PMLToElem(iPMLElem))
   END DO
 END DO; END DO; END DO; END DO !nPMLElems,k,j,i
 
+IF(ANY(U2.GT.1e6))THEN
+DO iPMLElem=1,nPMLElems
+print*,U2(1:24,:,:,:,iPMLElem)
+  print*,iPMLElem
+read*
+END DO
+  stop
+END IF
+IF(ANY(isnan(U2)))THEN
+  print*,"ANY(isnan(U2))"
+  stop
+END IF
 
 ! Add Source Terms
 DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -939,6 +918,11 @@ DO iSide=nBCSides+1,nSides ! 2.) do inner sides
     Minus(1,:,:,iSide)=1. ! set my neighbor side true
   END IF
 END DO
+IF(printInfo)THEN
+print*,"Plus ",NINT(Plus(1,1,1,:))
+print*,"Minus",NINT(Minus(1,1,1,:))
+read*
+END IF
 
 ! send my info to neighbor 
 CALL StartReceiveMPIData(1,Minus(1,0:PP_N,0:PP_N,SideID_plus_lower:SideID_plus_upper) &
@@ -948,13 +932,17 @@ CALL StartSendMPIData(1,Plus(1,0:PP_N,0:PP_N,SideID_plus_lower:SideID_plus_upper
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
 
 ! add Minus to Plus and send
+IF(printInfo)THEN
 Plus=Plus+Minus
+print*,"Plus ",NINT(Plus(1,1,1,:))
+read*
+END IF
 
 CALL StartReceiveMPIData(1,Plus,1,nSides,RecRequest_Flux ,SendID=1) ! Receive MINE
 CALL StartSendMPIData(   1,Plus,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
 CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
 
-DO iSide=1,nSides
+DO iSide=1,nSides ! get MPI Interfaces
   IF(Plus(1,0,0,iSide).EQ.1)THEN ! check MPI sides: if one side is .TRUE. and the other is .FALSE. -> InterFace
     isFace(iSide)=.TRUE. ! when my side is not PML but neighbor is PML
     isInterFace(iSide)=.TRUE.
@@ -964,9 +952,13 @@ END DO
 DEALLOCATE(Plus,Minus)
 #endif /*MPI*/
 ! ---------------------------------------------
+!DO iSide=nSides,nSides
+  !print*,"myrank=",myrank,"--------isInterFace(",iSide,")=",isInterFace(iSide),"  of total= ",COUNT(isInterFace),&
+          !"    isFace(",iSide,")=",     isFace(iSide),"  of total= ",COUNT(isFace)
+!END DO
 
 ! is this still needed ?
-! and fill non-mpi sides
+! and fill non-mpi sides: get local Interfaces
 DO iSide=1,nSides
   IF(isInterFace(iSide)) CYCLE ! MPI sides are already finished
   IF(isFace(iSide))THEN
@@ -978,9 +970,10 @@ DO iSide=1,nSides
     IF((isElem(ElemID(1)).AND. .NOT.isElem(ElemID(2))) .OR. &
   (.NOT.isElem(ElemID(1)).AND.      isElem(ElemID(2))) )THEN
     !IF(isElem(ElemID(1)).NOT..isElem(ElemID(2))) THEN
-      isInterFace(iSide)=.TRUE.
-!print*,"InterFace!!!"
-!read*
+!print*,"iSide=",iSide,"isInterFace(iSide)=",isInterFace(iSide)
+      !isInterFace(iSide)=.TRUE.
+!print*,"                       ",isInterFace(iSide)
+read*
    END IF
   END IF
 END DO
@@ -990,6 +983,9 @@ DO iSide=nSides,nSides
   print*,"myrank=",myrank,"--------isInterFace(",iSide,")=",isInterFace(iSide),"  of total= ",COUNT(isInterFace),&
           "    isFace(",iSide,")=",     isFace(iSide),"  of total= ",COUNT(isFace)
 END DO
+
+!read*
+!stop
 !print*,"should be total 16 (PML-interfaces) and total 100 (PML-faces)"
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 !stop
