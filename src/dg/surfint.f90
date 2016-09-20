@@ -285,6 +285,8 @@ DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   flip      = 0
+  ! if master is mpi-neigbhor: cycle
+  IF(ElemID.LT.1) CYCLE 
   IF(DoPML)THEN 
     IF(isPMLElem(ElemID))THEN
       CALL CalcSurfInt2PML(Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,SideID),Ut,flip,ElemID,locSideID)
