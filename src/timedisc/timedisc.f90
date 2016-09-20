@@ -3196,11 +3196,7 @@ DO iStage=2,nRKStages
           PartState(iPart,2) = PartState(iPart,2) + PartState(iPart,5) * dtFrac*RandVal
           PartState(iPart,3) = PartState(iPart,3) + PartState(iPart,6) * dtFrac*RandVal
           PartIsImplicit(iPart)=.FALSE.
-          IF(iStage.EQ.nRKStages)THEN
-            ! -> assuming F=0 and const. v in previous stages with RK_a_rebuilt (see above)
-            Pt(iPart,1:3)=0.
-          END IF
-          IF(PartLorentType.EQ.5)THEN
+          IF(PartLorentzType.EQ.5)THEN
             ! lorentztype
             LorentzFac=1.0-DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
             LorentzFac=1.0/SQRT(LorentzFac)
@@ -3311,19 +3307,6 @@ DO iStage=2,nRKStages
       CALL UpdateNextFreePosition()
     END IF
     ! surface flux, select if implicit or explicit particle treatment
-    IF(DoSurfaceFlux)THEN
-      IF(RKdtFrac.GT.0.)THEN
-        DO iPart=1,PDM%ParticleVecLength
-          IF(PDM%ParticleInside(iPart))THEN
-            IF(Species(PartSpecies(iPart))%IsImplicit) THEN
-              PartIsImplicit(iPart)=.TRUE.
-            ELSE
-              PartIsImplicit(iPart)=.FALSE.
-            END IF
-          END IF ! ParticleInside
-        END DO ! iPart
-      END IF  ! RKdtFrac>0
-    END IF ! DoSurfaceFlux
   END IF
 #endif /*PARTICLES*/
 END DO
@@ -3334,9 +3317,32 @@ IF (t.GE.DelayTime) THEN
   ! add here new method
   DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.PDM%ParticleInside(iPart))CYCLE
-    IF(PDM%IsNewPart(iPart))THEN
-      PDM%IsNewPart(iPart)=.FALSE.
-      CYCLE
+    IF(DoSurfaceFlux)THEN
+      IF(PDM%IsNewPart(iPart))THEN
+        PDM%IsNewPart(iPart)=.FALSE.
+        PEM%lastElement(iPart)=PEM%Element(iPart)
+        LastPartPos(iPart,1)=PartState(iPart,1)
+        LastPartPos(iPart,2)=PartState(iPart,2)
+        LastPartPos(iPart,3)=PartState(iPart,3)
+        LorentzFac=1.0-DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
+        LorentzFac=1.0/SQRT(LorentzFac)
+        PartState(iPart,4) = LorentzFac*PartState(iPart,4)
+        PartState(iPart,5) = LorentzFac*PartState(iPart,5)
+        PartState(iPart,6) = LorentzFac*PartState(iPart,6)
+        CALL InterpolateFieldToSingleParticle(iPart,FieldAtParticle(iPart,1:6))
+        SELECT CASE(PartLorentzType)
+        CASE(0)
+          Pt(iPart,1:3) = NON_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE(1)
+          Pt(iPart,1:3) = SLOW_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE(3)
+          Pt(iPart,1:3) = FAST_RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE(5)
+          Pt(iPart,1:3) = RELATIVISTIC_PUSH(iPart,FieldAtParticle(iPart,1:6))
+        CASE DEFAULT
+        END SELECT
+        CYCLE
+      END IF
     END IF
     IF(.NOT.PartIsImplicit(iPart))THEN
       LastPartPos(iPart,1)=PartState(iPart,1)
