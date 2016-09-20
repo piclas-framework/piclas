@@ -941,7 +941,6 @@ DEALLOCATE(Plus,Minus)
 #endif /*MPI*/
 ! ---------------------------------------------
 
-! is this still needed ?
 ! and fill non-mpi sides: get local Interfaces
 DO iSide=1,nSides
   IF(isInterFace(iSide)) CYCLE ! MPI sides are already finished
@@ -953,11 +952,7 @@ DO iSide=1,nSides
     IF(ElemID(2).LT.1) CYCLE ! neighbor is boundary side (either BC or MPI side)
     IF((isElem(ElemID(1)).AND. .NOT.isElem(ElemID(2))) .OR. &
   (.NOT.isElem(ElemID(1)).AND.      isElem(ElemID(2))) )THEN
-    !IF(isElem(ElemID(1)).NOT..isElem(ElemID(2))) THEN
-!print*,"iSide=",iSide,"isInterFace(iSide)=",isInterFace(iSide)
-      !isInterFace(iSide)=.TRUE.
-!print*,"                       ",isInterFace(iSide)
-!read*
+      isInterFace(iSide)=.TRUE.
    END IF
   END IF
 END DO
