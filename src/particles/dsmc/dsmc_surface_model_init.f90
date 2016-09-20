@@ -536,7 +536,7 @@ USE MOD_ReadInTools
 ! LOCAL VARIABLES
   CHARACTER(32)                    :: hilf, hilf2
   INTEGER                          :: iSpec, iSpec2, ReactNum, ReactNum2
-  INTEGER                          :: MaxDissNum, MaxReactNum
+  INTEGER                          :: MaxDissNum, MaxReactNum, MaxAssocNum
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY...'
 
@@ -556,27 +556,35 @@ MaxDissNum = 0
 ! END DO
 ! Maximum of defined dissociations for one species
 MaxDissNum = GETINT('Part-Species-MaxDissNum','0')
+MaxAssocNum = 0
+MaxAssocNum = MaxDissNum
 
 ! allocate and initialize dissociative and associative reactions species map
-IF (MaxDissNum.GT.0) THEN
-  MaxReactNum = MaxDissNum + nSpecies
+IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
+  MaxReactNum = MaxDissNum + MaxAssocNum
   ALLOCATE( Adsorption%DissocReact(1:2,1:MaxDissNum,1:nSpecies),&
-            Adsorption%AssocReact(1:2,1:(MaxReactNum-MaxDissNum),1:nSpecies),&
+            Adsorption%Diss_Powerfactor(1:MaxDissNum,1:nSpecies),&
+            Adsorption%Diss_Prefactor(1:MaxDissNum,1:nSpecies),&
+            Adsorption%AssocReact(1:2,1:MaxAssocNum,1:nSpecies),&
             Adsorption%EDissBond(1:MaxReactNum,1:nSpecies))
-  ! Read in dissociative reactions and dissociation bond energies
+  ! Read in dissociative reactions and respective dissociation bond energies
   DO iSpec = 1,nSpecies            
     WRITE(UNIT=hilf,FMT='(I2)') iSpec
     DO ReactNum = 1,MaxDissNum
       WRITE(UNIT=hilf2,FMT='(I2)') ReactNum
       Adsorption%DissocReact(:,ReactNum,iSpec) = &
                                        GETINTARRAY('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Products',2,'0,0')
+      Adsorption%Diss_Powerfactor(ReactNum,iSpec) = &
+                                       GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Adsorption-Powerfactor','0.')
+      Adsorption%Diss_Prefactor(ReactNum,iSpec) = &
+                                       GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Adsorption-Prefactor','0.')
       Adsorption%EDissBond(ReactNum,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-EDissBond','0.')
     END DO
     DO ReactNum = MaxDissNum+1,MaxReactNum
       Adsorption%EDissBond(ReactNum,iSpec) = 0.
     END DO
   END DO
-  ! fill associative reactions species map from defined dssociative reactions
+  ! fill associative reactions species map from defined dissociative reactions
   DO iSpec = 1,nSpecies
     ReactNum = 1
     DO iSpec2 = 1,nSpecies
@@ -600,9 +608,9 @@ IF (MaxDissNum.GT.0) THEN
       Adsorption%AssocReact(:,ReactNum:(MaxReactNum-MaxDissNum),iSpec) = 0
     END IF
   END DO
-ELSE !MaxDissResultsNum = 0
+ELSE !MaxDissNum = 0
   MaxReactNum = 0
-END IF !MaxDissResultsNum > 0
+END IF !MaxDissNum > 0
 ! save defined number of surface reactions
 Adsorption%DissNum = MaxDissNum
 Adsorption%ReactNum = MaxReactNum

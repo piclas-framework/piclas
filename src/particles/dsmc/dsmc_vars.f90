@@ -275,6 +275,8 @@ TYPE tAdsorption
   INTEGER                                :: DissNum                 ! Number of dissociative surface reactions for one species
   INTEGER                                :: ReactNum                ! Number of all surface reactions for one species
   INTEGER , ALLOCATABLE                  :: DissocReact(:,:,:)      ! Resulting species for given dissoc (2,MaxDissNum,nSpecies)
+  REAL    , ALLOCATABLE                  :: Diss_Prefactor(:,:)
+  REAL    , ALLOCATABLE                  :: Diss_Powerfactor(:,:)
   REAL    , ALLOCATABLE                  :: EDissBond(:,:)          ! Bond dissociation energy (K) for diss into resulting species
                                                                     ! (ReactNum,nspecies)
   INTEGER , ALLOCATABLE                  :: AssocReact(:,:,:)       ! Partner species for associative reaction (2,ReactNum,nSpecies)
