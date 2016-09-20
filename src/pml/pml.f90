@@ -762,18 +762,6 @@ DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
   END DO
 END DO; END DO; END DO; END DO !nPMLElems,k,j,i
 
-IF(ANY(U2.GT.1e6))THEN
-DO iPMLElem=1,nPMLElems
-print*,U2(1:24,:,:,:,iPMLElem)
-  print*,iPMLElem
-read*
-END DO
-  stop
-END IF
-IF(ANY(isnan(U2)))THEN
-  print*,"ANY(isnan(U2))"
-  stop
-END IF
 
 ! Add Source Terms
 DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -952,10 +940,6 @@ END DO
 DEALLOCATE(Plus,Minus)
 #endif /*MPI*/
 ! ---------------------------------------------
-!DO iSide=nSides,nSides
-  !print*,"myrank=",myrank,"--------isInterFace(",iSide,")=",isInterFace(iSide),"  of total= ",COUNT(isInterFace),&
-          !"    isFace(",iSide,")=",     isFace(iSide),"  of total= ",COUNT(isFace)
-!END DO
 
 ! is this still needed ?
 ! and fill non-mpi sides: get local Interfaces
@@ -973,7 +957,7 @@ DO iSide=1,nSides
 !print*,"iSide=",iSide,"isInterFace(iSide)=",isInterFace(iSide)
       !isInterFace(iSide)=.TRUE.
 !print*,"                       ",isInterFace(iSide)
-read*
+!read*
    END IF
   END IF
 END DO
@@ -987,7 +971,7 @@ END DO
 !read*
 !stop
 !print*,"should be total 16 (PML-interfaces) and total 100 (PML-faces)"
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+!CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 !stop
 END SUBROUTINE  FindInterFaces
 
