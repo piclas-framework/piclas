@@ -75,15 +75,8 @@ DO SideID=firstSideID,lastSideID
     IF ( isPMLFace(SideID) )THEN ! 1.) RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations 
                                  !     (flux-splitting!)
       CALL RiemannPML(Flux(1:32,:,:,SideID),U_Minus(:,:,:,SideID),U_Plus(:,:,:,SideID), NormVec(:,:,:,SideID))
-      DO q=0,PP_N; DO p=0,PP_N
-          Flux(1:PP_nVar+PMLnVar,p,q,SideID)=Flux(1:32,p,q,SideID)*SurfElem(p,q,SideID)
-      END DO; END DO
     ELSE ! 2.) no PML, standard flux
       CALL Riemann(Flux(1:8,:,:,SideID), U_Minus(:,:,:,SideID),  U_Plus(:,:,:,SideID),NormVec(:,:,:,SideID))
-      DO q=0,PP_N; DO p=0,PP_N
-          Flux(1:PP_nVar,p,q,SideID)=Flux(1:PP_nVar,p,q,SideID)*SurfElem(p,q,SideID)
-      END DO; END DO
-      Flux(1+PP_nVar:PP_nVar+PMLnVar,:,:,SideID)=0. ! Flux for auxiliary variables at the interface is set to zero
     END IF
   ELSE ! no PML, standard flux
     CALL Riemann(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),U_Plus(  :,:,:,SideID),NormVec(:,:,:,SideID))

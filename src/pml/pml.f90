@@ -768,6 +768,7 @@ SUBROUTINE PMLTimeDerivative()
 ! 
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_PreProc
 USE MOD_PML_Vars,      ONLY: U2,U2t
 USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem
@@ -813,8 +814,6 @@ END DO; END DO; END DO; END DO !nPMLElems,k,j,i
 ! 2.) DEBUGPML: apply the damping factor only to PML variables for Phi_E and Phi_B
 !               to prevent charge-related instabilities (accumulation of divergence compensation over time)
 U2(19:24,:,:,:,:) = fDamping* U2(19:24,:,:,:,:) 
-
-
 
 END SUBROUTINE PMLTimeDerivative
 
@@ -983,7 +982,6 @@ DO iSide=1,nSides
    END IF
   END IF
 END DO
-
 
 ! test
 DO iSide=nSides,nSides

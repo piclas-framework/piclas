@@ -285,7 +285,7 @@ tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
 #ifdef MPI
 tLBStart = LOCALTIME() ! LB Time Start
-CALL StartReceiveMPIData(PP_nVar,Flux,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
+CALL StartReceiveMPIData(PP_nVar+PMLnVar,Flux,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 ! fill the global surface flux list

@@ -193,7 +193,7 @@ DO iBC=1,nBCs
         END DO ! p
       END DO ! q
       ! Dirichlet means that we use the gradients from inside the grid cell
-      CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(  :,:,:), NormVec(:,:,:,SideID))
+      CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(  :,:,:), NormVec(:,:,:,SideID))
       IF(DoPML) Flux(9:32,:,:,SideID) = 0.
    END DO
 
@@ -218,13 +218,13 @@ DO iBC=1,nBCs
 
       IF(DoPML)THEN
          IF(isPMLFace(SideID)) THEN ! PML version - PML element
-           CALL RiemannPML(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
          ELSE
-           CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
            Flux(9:32,:,:,SideID) = 0.
          END IF
       ELSE
-         CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
       END IF
     END DO
   
@@ -244,14 +244,14 @@ DO iBC=1,nBCs
       END DO ! q
       IF(DoPML)THEN
          IF(isPMLFace(SideID)) THEN ! PML version - PML element
-           CALL RiemannPML(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
          ELSE
-           CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
            Flux(9:32,:,:,SideID) = 0.
          END IF
       ELSE
          ! Dirichlet means that we use the gradients from inside the grid cell
-         CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
       END IF
     END DO
  
@@ -274,14 +274,14 @@ DO iBC=1,nBCs
       END DO ! q
       IF(DoPML)THEN
          IF(isPMLFace(SideID)) THEN ! PML version - PML element
-           CALL RiemannPML(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
          ELSE
-           CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+           CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
            Flux(9:32,:,:,SideID) = 0.
          END IF
       ELSE
          ! Dirichlet means that we use the gradients from inside the grid cell
-         CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+         CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
       END IF
     END DO
 
@@ -304,14 +304,14 @@ DO iBC=1,nBCs
       END DO ! q
       IF(DoPML)THEN
         IF(isPMLFace(SideID)) THEN ! PML version - PML element
-          CALL RiemannPML(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+          CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
         ELSE
-          CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+          CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
           Flux(9:32,:,:,SideID) = 0.
         END IF
       ELSE
         ! Dirichlet means that we use the gradients from inside the grid cell
-        CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
       END IF
     END DO
 
@@ -333,14 +333,14 @@ DO iBC=1,nBCs
       !CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:),U_Minus_loc(:,:,:),normal(:,:,:))
       IF(DoPML)THEN
         IF(isPMLFace(SideID)) THEN ! PML version - PML element
-          CALL RiemannPML(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+          CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
         ELSE
-          CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+          CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
           Flux(9:32,:,:,SideID) = 0.
         END IF
       ELSE
         ! Dirichlet means that we use the gradients from inside the grid cell
-        CALL Riemann(Flux(:,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
+        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Minus_loc(:,:,:),NormVec(:,:,:,SideID))
       END IF
     END DO
 
@@ -350,14 +350,14 @@ DO iBC=1,nBCs
       SideID=BCSideID(iBC,iSide)
       IF(DoPML)THEN
         IF(isPMLFace(SideID)) THEN ! PML version - PML element
-          CALL RiemannPML(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
+          CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
         ELSE
-          CALL Riemann(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
+          CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
           Flux(9:32,:,:,SideID) = 0.
         END IF
       ELSE
         ! Dirichlet means that we use the gradients from inside the grid cell
-        CALL Riemann(Flux(:,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
+        CALL Riemann(Flux(1:PP_nVar,:,:,SideID),U_Minus( :,:,:,SideID),BCData(:,:,:,SideID),NormVec(:,:,:,SideID))
       END IF
     END DO
   
