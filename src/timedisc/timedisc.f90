@@ -2949,7 +2949,7 @@ REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: tRatio, tphi, LorentzFacInv
 ! particle surface flux
-REAL               :: dtFrac,RandVal
+REAL               :: dtFrac,RandVal, LorentzFac
 ! RK counter
 INTEGER            :: iCounter !, iStage
 logical :: first
@@ -3199,6 +3199,14 @@ DO iStage=2,nRKStages
           IF(iStage.EQ.nRKStages)THEN
             ! -> assuming F=0 and const. v in previous stages with RK_a_rebuilt (see above)
             Pt(iPart,1:3)=0.
+          END IF
+          IF(PartLorentType.EQ.5)THEN
+            ! lorentztype
+            LorentzFac=1.0-DOT_PRODUCT(PartState(iPart,4:6),PartState(iPart,4:6))*c2_inv
+            LorentzFac=1.0/SQRT(LorentzFac)
+            PartState(iPart,4) = LorentzFac*PartState(iPart,4)
+            PartState(iPart,5) = LorentzFac*PartState(iPart,5)
+            PartState(iPart,6) = LorentzFac*PartState(iPart,6)
           END IF
         END IF ! ParticleIsNew
       END DO ! iPart
