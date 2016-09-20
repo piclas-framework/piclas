@@ -540,12 +540,14 @@ DEALLOCATE(PMLalpha)
 !===================================================================================================================================
 ! create global zeta field for parallel output of zeta distribution
 !===================================================================================================================================
-DO iElem=1,PP_nElems
-  IF(isPMLElem(iElem))THEN
-    PMLzetaGlobal(:,:,:,:,iElem)=PMLzeta(:,:,:,:,ElemToPML(iElem))/PMLzeta0
-!print*,"PMLzetaGlobal",PMLzetaGlobal
-  END IF
-END DO!iElem
+IF(PMLzeta0.GT.0)THEN
+  DO iElem=1,PP_nElems
+    IF(isPMLElem(iElem))THEN
+      PMLzetaGlobal(:,:,:,:,iElem)=PMLzeta(:,:,:,:,ElemToPML(iElem))/PMLzeta0
+  !print*,"PMLzetaGlobal",PMLzetaGlobal
+    END IF
+  END DO!iElem
+END IF
 
 
 
