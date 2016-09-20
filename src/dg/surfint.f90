@@ -269,7 +269,7 @@ DO SideID=firstSideID,lastSideID
   locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   flip      = SideToElem(S2E_FLIP,SideID)
   ! ignore MPI-faces and boundary faces
-  IF(ElemID.LT.1) CYCLE 
+  IF(ElemID.LT.0) CYCLE ! boundary side is BC or MPI side
   IF(DoPML)THEN 
     IF(isPMLElem(ElemID))THEN
       CALL CalcSurfInt2PML(Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,SideID),Ut,flip,ElemID,locSideID)
@@ -287,6 +287,7 @@ DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)  
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   flip      = 0
+  IF(ElemID.LT.0) CYCLE ! MPI side is master
   IF(DoPML)THEN 
     IF(isPMLElem(ElemID))THEN
       CALL CalcSurfInt2PML(Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,SideID),Ut,flip,ElemID,locSideID)
