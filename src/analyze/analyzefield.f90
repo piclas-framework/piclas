@@ -603,7 +603,7 @@ USE MOD_Equation_Vars,        ONLY:B
 USE MOD_Equation_Vars,        ONLY:B,E
 #endif /*PP_nVar==1*/
 #else
-USE MOD_PML_Vars,             ONLY:isPMLElem
+USE MOD_PML_Vars,             ONLY:DoPML,isPMLElem
 #endif /*PP_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -624,7 +624,9 @@ Wel=0.
 WMag=0.
 
 DO iElem=1,nElems
-  IF(.NOT.isPMLElem(iElem))CYCLE
+  IF(DoPML)THEN
+    IF(isPMLElem(iElem))CYCLE
+  END IF
   !--- Calculate and save volume of element iElem
   WEl_tmp=0. 
   WMag_tmp=0. 

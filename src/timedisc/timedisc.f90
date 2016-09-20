@@ -658,7 +658,7 @@ USE MOD_Analyze,                 ONLY: PerformAnalyze
 USE MOD_TimeDisc_Vars,           ONLY: dt,iStage
 USE MOD_TimeDisc_Vars,           ONLY: RK_a,RK_b,RK_c,nRKStages
 USE MOD_DG_Vars,                 ONLY: U,Ut!,nTotalU
-USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML
+USE MOD_PML_Vars,                ONLY: U2,U2t,nPMLElems,DoPML,PMLnVar
 USE MOD_PML,                     ONLY: PMLTimeDerivative,CalcPMLSource
 USE MOD_Filter,                  ONLY: Filter
 USE MOD_Equation,                ONLY: DivCleaningDamping
@@ -704,7 +704,7 @@ INTEGER(KIND=8),INTENT(INOUT) :: iter
 ! LOCAL VARIABLES
 !INTEGER                       :: iPart
 REAL                          :: Ut_temp(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) ! temporal variable for Ut
-REAL                          :: U2t_temp(1:6,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
+REAL                          :: U2t_temp(1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems) ! temporal variable for U2t
 REAL                          :: tStage,b_dt(1:nRKStages)
 #ifdef PARTICLES
 REAL                          :: timeStart,timeEnd

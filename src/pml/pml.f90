@@ -867,23 +867,6 @@ ELSE
   print*,"No. of elements OUTSIDE region: ",COUNT(isElem)
 END IF
 
-
-! OLD 
-!    isPMLElem=.TRUE.
-!    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-!      ! x-PML region
-!      IF (Elem_xGP(1,i,j,k,iElem) .GT. xyzPhysicalMinMax(1) .AND. Elem_xGP(1,i,j,k,iElem) .LT. xyzPhysicalMinMax(2)) THEN        
-!        isPMLElem(iElem) = .FALSE.
-!      END IF
-!      ! y-PML region
-!      IF (Elem_xGP(2,i,j,k,iElem) .GT. xyzPhysicalMinMax(3) .AND. Elem_xGP(2,i,j,k,iElem) .LT. xyzPhysicalMinMax(4)) THEN        
-!        isPMLElem(iElem) = .FALSE.
-!      END IF
-!      ! z-PML region
-!      IF (Elem_xGP(3,i,j,k,iElem) .GT. xyzPhysicalMinMax(5) .AND. Elem_xGP(3,i,j,k,iElem) .LT. xyzPhysicalMinMax(6)) THEN        
-!        isPMLElem(iElem) = .FALSE.
-!      END IF
-!    END DO; END DO; END DO; END DO !iElem,k,i,j
 END SUBROUTINE  FindElementInRegion
 
 
@@ -932,6 +915,7 @@ DO iElem=1,PP_nElems
 END DO ! iElem=1,PP_nElems
 
 #ifdef MPI
+! ---------------------------------------------
 ! For MPI sides send the info to all other procs
 ! use numbering:    Plus+Minus  = 1: isFace
 !                                 2: isInterFace
@@ -978,7 +962,9 @@ END DO
 
 DEALLOCATE(Plus,Minus)
 #endif /*MPI*/
+! ---------------------------------------------
 
+! is this still needed ?
 ! and fill non-mpi sides
 DO iSide=1,nSides
   IF(isInterFace(iSide)) CYCLE ! MPI sides are already finished
@@ -987,7 +973,7 @@ DO iSide=1,nSides
     ElemID(2)=SideToElem(S2E_NB_ELEM_ID,iSide) ! SideID
 !print*,"ElemID(:)",ElemID
     IF(ElemID(1).LT.1) CYCLE
-    IF(ElemID(2).LT.1) CYCLE ! neighbor is BC side
+    IF(ElemID(2).LT.1) CYCLE ! neighbor is boundary side (either BC or MPI side)
     IF((isElem(ElemID(1)).AND. .NOT.isElem(ElemID(2))) .OR. &
   (.NOT.isElem(ElemID(1)).AND.      isElem(ElemID(2))) )THEN
     !IF(isElem(ElemID(1)).NOT..isElem(ElemID(2))) THEN
