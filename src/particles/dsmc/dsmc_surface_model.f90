@@ -727,7 +727,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   !---------------------------------------------------------------------------------------------------------------------------------
   DO ReactNum = 1,(Adsorption%DissNum)
     jSpec = Adsorption%DissocReact(1,ReactNum,iSpec)
-    kSpec = Adsorption%DissocReact(1,ReactNum,iSpec)
+    kSpec = Adsorption%DissocReact(2,ReactNum,iSpec)
     jCoord = Adsorption%Coordination(jSpec)
     kCoord = Adsorption%Coordination(kSpec)
     IF ( (jCoord.EQ.kCoord) .AND. (n_empty_Neigh(jCoord).GT.1) ) THEN
@@ -784,7 +784,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   !---------------------------------------------------------------------------------------------------------------------------------
   ! calculate probability for Eley-Rideal reaction
   !---------------------------------------------------------------------------------------------------------------------------------
-  DO ReactNum = 1,(Adsorption%DissNum)
+  DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
     ! reaction partner
     jSpec = Adsorption%AssocReact(1,ReactNum,iSpec)
     IF (jSpec.EQ.0) CYCLE
