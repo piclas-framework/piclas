@@ -281,6 +281,7 @@ TYPE tAdsorption
                                                                     ! (ReactNum,nspecies)
   INTEGER , ALLOCATABLE                  :: AssocReact(:,:,:)       ! Partner species for associative reaction (2,ReactNum,nSpecies)
   INTEGER , ALLOCATABLE                  :: Coordination(:)         ! site bound coordination (1=hollow 2=bridge 3=on-top)(nSpecies)
+  INTEGER , ALLOCATABLE                  :: DiCoord(:)              ! (1:nSpecies) bound via bridge bonding (=1) or chelating (=2)
   REAL    , ALLOCATABLE                  :: Sigma(:,:,:,:,:)        ! Coverage effect on Adsorption energies
   REAL    , ALLOCATABLE                  :: ProbSigma(:,:,:,:,:)    ! Coverage effect on Adsorption energies
   REAL    , ALLOCATABLE                  :: ProbSigAds(:,:,:,:,:)      ! Adsorption probability of surface n

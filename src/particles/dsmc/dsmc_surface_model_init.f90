@@ -74,7 +74,8 @@ IF (DSMC%WallModel.EQ.1) THEN
             Adsorption%Intensification(1:SurfMesh%nSides,1:nSpecies))
 ELSE IF (DSMC%WallModel.GT.1) THEN 
   ALLOCATE( Adsorption%HeatOfAdsZero(1:nSpecies),&
-            Adsorption%Coordination(1:nSpecies))
+            Adsorption%Coordination(1:nSpecies),&
+            Adsorption%DiCoord(1:nSpecies))
   ! initialize info and constants
 END IF
 DO iSpec = 1,nSpecies
@@ -98,6 +99,7 @@ DO iSpec = 1,nSpecies
     Adsorption%Intensification(:,iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Intensification-K','0.')
   ELSE IF (DSMC%WallModel.GT.1) THEN 
     Adsorption%Coordination(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-Coordination','0')
+    Adsorption%DiCoord(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-DiCoordination','0')
     Adsorption%HeatOfAdsZero(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfAdsorption-K','0.')
   END IF
 END DO
@@ -653,6 +655,7 @@ SDEALLOCATE(Adsorption%DissocReact)
 SDEALLOCATE(Adsorption%AssocReact)
 SDEALLOCATE(Adsorption%EDissBond)
 SDEALLOCATE(Adsorption%Coordination)
+SDEALLOCATE(Adsorption%DiCoord)
 
 SDEALLOCATE(Adsorption%MaxCoverage)
 SDEALLOCATE(Adsorption%Coverage)
