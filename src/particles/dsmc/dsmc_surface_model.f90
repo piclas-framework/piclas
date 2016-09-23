@@ -585,9 +585,9 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   INTEGER                          :: new_adsorbates(2), nSites, nSitesRemain
   REAL                             :: difference, maxPart, new_coverage
   REAL                             :: WallTemp, RanNum
-  REAL                             :: nu_ads, rate, Prob_ads, sigmaA, Heat_A
+  REAL                             :: Prob_ads, Heat_A
   REAL , ALLOCATABLE               :: P_Eley_Rideal(:), Prob_diss(:)
-  INTEGER                          :: bondorder, Indx, Indy, Surfpos, ReactNum
+  INTEGER                          :: Surfpos, ReactNum
   INTEGER , ALLOCATABLE            :: reactadsorbnum(:), adsorbnum(:)
   REAL, PARAMETER                  :: Pi=3.14159265358979323846_8
   INTEGER                          :: jSpec, kSpec, jCoord, kCoord
@@ -923,9 +923,9 @@ SUBROUTINE CalcBackgndPartDesorb()
    INTEGER                          :: SurfSideID, iSpec, globSide, subsurfeta, subsurfxi
    INTEGER                          :: Coord, Coord2, i, j, AdsorbID, numSites
    REAL                             :: WallTemp, RanNum
-   REAL                             :: Heat_A, Heat_B, sigmaA, nu_des, rate, P_actual_des
+   REAL                             :: Heat_A, Heat_B, nu_des, rate, P_actual_des
    REAL , ALLOCATABLE               :: P_des(:), Energy(:)
-   INTEGER                          :: bondorder, Indx, Indy, Surfpos
+   INTEGER                          :: Indx, Indy, Surfpos
    REAL                             :: VarPartitionFuncAct, VarPartitionFuncWall
    INTEGER                          :: trace, traceNum
    INTEGER , ALLOCATABLE            :: desorbnum(:), reactdesorbnum(:), adsorbnum(:)
@@ -933,7 +933,7 @@ SUBROUTINE CalcBackgndPartDesorb()
 !---------- reaction variables
    INTEGER                          :: react_Neigh, n_react_Neigh, n_empty_Neigh, jSpec, kSpec, ReactNum, PartnerID, LastRemainID
    INTEGER                          :: react_Neigh_pos, surf_react_case, interatom
-   REAL                             :: E_a, E_d, E_diff, nu_react, P_diff, sigmaB, nu_diff
+   REAL                             :: E_a, E_d, E_diff, nu_react, P_diff, nu_diff
    REAL                             :: Heat_AB, D_AB, sum_probabilities
    REAL                             :: VarPartitionFuncWall1, VarPartitionFuncWall2
    INTEGER , ALLOCATABLE            :: NeighbourID(:)
