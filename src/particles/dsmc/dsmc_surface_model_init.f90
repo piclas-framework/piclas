@@ -576,6 +576,11 @@ IF ( (MaxDissNum.GT.0) .OR. (MaxAssocNum.GT.0) ) THEN
       WRITE(UNIT=hilf2,FMT='(I2)') ReactNum
       Adsorption%DissocReact(:,ReactNum,iSpec) = &
                                        GETINTARRAY('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Products',2,'0,0')
+      IF ((Adsorption%DissocReact(1,ReactNum,iSpec).GT.nSpecies) .OR. (Adsorption%DissocReact(2,ReactNum,iSpec).GT.nSpecies) ) THEN
+        CALL abort(&
+        __STAMP__&
+        ,'Error in Init_SurfChem: Produkt species for reaction '//TRIM(hilf2)//' not defined!')
+      END IF
       Adsorption%Diss_Powerfactor(ReactNum,iSpec) = &
                                        GETREAL('Part-Species'//TRIM(hilf)//'-SurfDiss'//TRIM(hilf2)//'-Adsorption-Powerfactor','0.')
       Adsorption%Diss_Prefactor(ReactNum,iSpec) = &
