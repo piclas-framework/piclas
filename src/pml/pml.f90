@@ -40,7 +40,7 @@ SUBROUTINE InitPML()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
-USE MOD_PML_Vars,      ONLY: PMLRamp,PMLzeta,U2,U2t,DoPML,PMLzetaGlobal
+USE MOD_PML_Vars,      ONLY: PMLRamp,PMLzeta,U2,U2t,DoPML
 USE MOD_PML_Vars,      ONLY: nPMLElems,ElemToPML,PMLToElem,isPMLElem
 USE MOD_PML_Vars,      ONLY: nPMLFaces,FaceToPML,PMLToFace,isPMLFace
 USE MOD_PML_Vars,      ONLY: nPMLInterFaces,FaceToPMLInter,PMLInterToFace,isPMLInterFace
@@ -49,9 +49,10 @@ USE MOD_Mesh_Vars,     ONLY: Elem_xGP,BCFace_xGP,nSides!,Face_xGP  ! for PML reg
 USE MOD_PML_Vars,      ONLY: PMLRampLength
 USE MOD_PML_Vars,      ONLY: PMLzetaEff,PMLalpha
 USE MOD_PML_Vars,      ONLY: PMLnVar
-USE MOD_HDF5_output,           ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
-USE MOD_Mesh_Vars,             ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Output_Vars,           ONLY: ProjectName
+USE MOD_HDF5_output,   ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
+USE MOD_HDF5_output,   ONLY: WritePMLzetaGlobalToHDF5
+USE MOD_Mesh_Vars,     ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Output_Vars,   ONLY: ProjectName
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -67,10 +68,6 @@ REAL                :: zetaVec,zetaVecABS
 INTEGER             :: iPMLFace,iPMLInterFace,nGlobalPMLElems,nGlobalPMLFaces,nGlobalPMLInterFaces
 REAL                :: fLinear,fSinus,fPolynomial
 INTEGER             :: DOFcount
-! for HDF5 output
-INTEGER(HID_T)                 :: Dset_ID
-INTEGER                        :: nVal
-CHARACTER(LEN=255)             :: FileName,StrVarNames(PP_nVar)
 #ifdef MPI
 #endif
 REAL                 :: StartT,EndT
@@ -264,8 +261,6 @@ ALLOCATE(PMLalpha  (1:3,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems))
 !print *, "U2 size, shape and location     ",SIZE(U2),shape(U2),loc(U2)
 ! zero and unity
 ! the local DG solution
-ALLOCATE(PMLzetaGlobal(3,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
-PMLzetaGlobal=0.
 PMLzeta=0.
 U2 =0.
 U2t=0.
@@ -506,17 +501,6 @@ DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 END DO; END DO; END DO; END DO !iPMLElem,k,i,j
 DEALLOCATE(PMLalpha)
 
-!===================================================================================================================================
-! create global zeta field for parallel output of zeta distribution
-!===================================================================================================================================
-IF(PMLzeta0.GT.0)THEN
-  DO iElem=1,PP_nElems
-    IF(isPMLElem(iElem))THEN
-      PMLzetaGlobal(:,:,:,:,iElem)=PMLzeta(:,:,:,:,ElemToPML(iElem))/PMLzeta0
-  !print*,"PMLzetaGlobal",PMLzetaGlobal
-    END IF
-  END DO!iElem
-END IF
 
 !===================================================================================================================================
 ! determine Elem_xGP distance to PML interface for PMLRamp
@@ -641,60 +625,8 @@ IF (PMLwriteFields.EQ.1) THEN
   CLOSE(110)
 END IF
 
-return
-!===================================================================================================================================
-! write PMLzetaGlobal field to HDF5 file
-!===================================================================================================================================
-OutputTime=0.0
-FutureTime=0.0
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
-END IF
-StartT=BOLTZPLATZTIME()
-StrVarNames(1)='PMLzetaGlobalX'
-StrVarNames(2)='PMLzetaGlobalY'
-StrVarNames(3)='PMLzetaGlobalZ'
-
-
-! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PMLZetaGlobal',OutputTime))//'.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('PMLZetaGlobal',3,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
-#ifdef MPI
-CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-#endif
-
-
-!#ifdef MPI
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.)
-!#else
-!  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.)
-!#endif
-
-! Write DG solution ----------------------------------------------------------------------------------------------------------------
-nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
-!print*,"nGlobalElems=",nGlobalElems
-!read*
-
-! muss DG solution heißen, damit es vom Paraview State Reader erkannt wird
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_Solution', rank=5,&
-                        nValGlobal=(/3,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/),&
-                        nVal=      (/3,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),&
-                        offset=    (/0,      0,     0,     0,     offsetElem/),&
-                        collective=.TRUE.,RealArray=PMLzetaGlobal)
-
-
-
-! Close the dataset and property list.
-CALL H5DCLOSE_F(Dset_id, iError)
-
-! Close the file.
-CALL CloseDataFile()
-
-IF(MPIROOT)THEN
-  EndT=BOLTZPLATZTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
+! create a HDF5 file containing the PMLzetaGlobal field
+CALL WritePMLzetaGlobalToHDF5()
 
 END SUBROUTINE InitPML
 
@@ -971,6 +903,8 @@ END DO
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 !stop
 END SUBROUTINE  FindInterFaces
+
+
 
 
 SUBROUTINE FinalizePML()
