@@ -40,19 +40,10 @@ SUBROUTINE InitPML()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
-USE MOD_PML_Vars,      ONLY: PMLRamp,PMLzeta,U2,U2t,DoPML
-USE MOD_PML_Vars,      ONLY: nPMLElems,ElemToPML,PMLToElem,isPMLElem
-USE MOD_PML_Vars,      ONLY: nPMLFaces,FaceToPML,PMLToFace,isPMLFace
-USE MOD_PML_Vars,      ONLY: nPMLInterFaces,FaceToPMLInter,PMLInterToFace,isPMLInterFace
-USE MOD_PML_Vars,      ONLY: PMLzeta0,PMLalpha0,xyzPhysicalMinMax,PMLzetaShape,PMLRampLength,PMLspread,PMLwriteFields, PMLzetaNorm
-USE MOD_Mesh_Vars,     ONLY: Elem_xGP,BCFace_xGP,nSides!,Face_xGP  ! for PML region: xyz position of the Gauss points and Face Gauss points
-USE MOD_PML_Vars,      ONLY: PMLRampLength
-USE MOD_PML_Vars,      ONLY: PMLzetaEff,PMLalpha
-USE MOD_PML_Vars,      ONLY: PMLnVar
+USE MOD_PML_Vars
+USE MOD_Mesh_Vars,     ONLY: Elem_xGP,BCFace_xGP
 USE MOD_HDF5_output,   ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
 USE MOD_HDF5_output,   ONLY: WritePMLzetaGlobalToHDF5
-USE MOD_Mesh_Vars,     ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Output_Vars,   ONLY: ProjectName
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -61,18 +52,13 @@ USE MOD_Output_Vars,   ONLY: ProjectName
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: i,j,k,iElem,iPMLElem,iFace,m
+INTEGER             :: i,j,k,iElem,iPMLElem,m
 REAL                :: xyzMinMax(6),xi,L,XiN,delta(3),x,y,z
 REAL                :: xyzMinMaxLoc(6)
 REAL                :: zetaVec,zetaVecABS
-INTEGER             :: iPMLFace,iPMLInterFace,nGlobalPMLElems,nGlobalPMLFaces,nGlobalPMLInterFaces
+!INTEGER             :: nGlobalPMLElems,nGlobalPMLFaces,nGlobalPMLInterFaces
 REAL                :: fLinear,fSinus,fPolynomial
 INTEGER             :: DOFcount
-#ifdef MPI
-#endif
-REAL                 :: StartT,EndT
-REAL                           :: OutputTime
-REAL                           :: FutureTime
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PML...'
@@ -92,6 +78,13 @@ PMLRampLength          = GETREAL('PMLRampLength','1.')
 PMLspread              = GETINT('PMLspread','0')
 PMLwriteFields         = GETINT('PMLwriteFields','0')
 PMLzetaNorm            = GETLOGICAL('PMLzetaNorm','.FALSE.')
+
+PMLprintInfo           = GETINT('PMLprintInfo','0') ! 0=only root prints PML info, 1=all procs print PML info
+IF(PMLprintInfo.EQ.0)THEN
+  PMLprintInfoProcs=1 ! only root prints infos
+ELSE
+  PMLprintInfoProcs=nProcessors ! all procs print their infos
+END IF
 ! caution, in current version read in in mesh
 ! only for Maxwell, PP_nVar=8
 
@@ -113,138 +106,18 @@ ELSE
 END IF
 
 CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,ElementIsInside=.FALSE.) ! find all elements in the PML region
+
 CALL FindInterfaces(isPMLFace,isPMLInterFace,isPMLElem)                       ! find all faces in the PML region
 
+! Get number of PML Elems, Faces and Interfaces. Create Mappngs PML <-> physical region
+CALL CountAndCreateMappings('PML',&
+                            isPMLElem,isPMLFace,isPMLInterFace,&
+                            nPMLElems,nPMLFaces, nPMLInterFaces,&
+                            ElemToPML,PMLToElem,&
+                            FaceToPML,PMLToFace,&
+                            FaceToPMLInter,PMLInterToFace)
 
 
-
-! Get number of PML Elems
-nPMLFaces = 0
-nPMLInterFaces = 0
-nPMLElems = 0
-
-DO iFace=1,nSides
-  IF(isPMLFace(iFace))THEN
-    nPMLFaces=nPMLFaces+1
-  END IF
-END DO ! iFace
-
-DO iFace=1,nSides
-  IF(isPMLInterFace(iFace))THEN
-    nPMLInterFaces=nPMLInterFaces+1
-  END IF
-END DO ! iFace
-
-DO iElem=1,PP_nElems
-  IF(isPMLElem(iElem))THEN
-    nPMLElems=nPMLElems+1
-  END IF
-END DO ! iElem
-
-
-
-IF(1.EQ.2)THEN
-#ifdef MPI
-nGlobalPMLElems=0
-nGlobalPMLFaces=0
-nGlobalPMLInterfaces=0
-  IF(MPIroot)THEN
-    write(*,'(A92)') "      myrank              PP_nElems              nPMLElems        nGlobalPMLElems"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nElems             ,nPMLElems       ,nGlobalPMLElems
-    write(*,'(A92)') "      myrank              nSides              nPMLFaces        nGlobalPMLFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLFaces       ,nGlobalPMLFaces
-    write(*,'(A92)') "      myrank              nSides         nPMLInterFaces   nGlobalPMLInterFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLInterFaces  ,nGlobalPMLInterFaces
-  END IF
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-  IF(.NOT.MPIroot)THEN
-    write(*,'(A92)') "      myrank              PP_nElems              nPMLElems        nGlobalPMLElems"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nElems             ,nPMLElems       ,nGlobalPMLElems
-    write(*,'(A92)') "      myrank              nSides              nPMLFaces        nGlobalPMLFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLFaces       ,nGlobalPMLFaces
-    write(*,'(A92)') "      myrank              nSides         nPMLInterFaces   nGlobalPMLInterFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLInterFaces  ,nGlobalPMLInterFaces
-  END IF
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-  !=======================================================================================================================
-  CALL MPI_REDUCE(nPMLElems     ,nGlobalPMLElems     ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-  CALL MPI_REDUCE(nPMLFaces     ,nGlobalPMLFaces     ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-  CALL MPI_REDUCE(nPMLInterFaces,nGlobalPMLInterFaces,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-  IF(MPIroot) print *, "============================================================================================"
-  IF(MPIroot) print *, "CALL MPI_REDUCE(nPMLElems,nGlobalPMLElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)" !testing 
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-  !=======================================================================================================================
-  IF(MPIroot)THEN
-    write(*,'(A92)') "      myrank              PP_nElems              nPMLElems        nGlobalPMLElems"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nElems             ,nPMLElems       ,nGlobalPMLElems
-    write(*,'(A92)') "      myrank              nSides              nPMLFaces        nGlobalPMLFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLFaces       ,nGlobalPMLFaces
-    write(*,'(A92)') "      myrank              nSides         nPMLInterFaces   nGlobalPMLInterFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLInterFaces  ,nGlobalPMLInterFaces
-  END IF
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-  IF(.NOT.MPIroot)THEN
-    write(*,'(A92)') "      myrank              PP_nElems              nPMLElems        nGlobalPMLElems"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,PP_nElems             ,nPMLElems       ,nGlobalPMLElems
-    write(*,'(A92)') "      myrank              nSides              nPMLFaces        nGlobalPMLFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLFaces       ,nGlobalPMLFaces
-    write(*,'(A92)') "      myrank              nSides         nPMLInterFaces   nGlobalPMLInterFaces"
-    write(*,'(I23,I23,I23,I23)')       myrank             ,nSides             ,nPMLInterFaces  ,nGlobalPMLInterFaces
-  END IF
-  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-#else
-  nGlobalPMLElems=nPMLElems
-  nGlobalPMLFaces=nPMLFaces
-  nGlobalPMLInterFaces=nPMLInterFaces
-  SWRITE(UNIT_stdOut,'(A,I25,A)') ' Found ', nGlobalPMLElems,' nGlobalPMLElems inside of PML region.'
-  SWRITE(UNIT_stdOut,'(A,I25,A)') ' Found ', nGlobalPMLFaces,' nGlobalPMLFaces inside of PML region.'
-  SWRITE(UNIT_stdOut,'(A,I25,A)') ' Found ', nGlobalPMLInterFaces,' nGlobalPMLInterFaces inside of PML region.'
-#endif /*MPI*/
-END IF
-
-
-
-
-ALLOCATE(ElemToPML(PP_nElems)&
-        ,PMLToElem(nPMLElems))
-ALLOCATE(FaceToPML(nSides)&
-        ,PMLToFace(nPMLFaces))
-ALLOCATE(FaceToPMLInter(nSides)&
-        ,PMLInterToFace(nPMLInterFaces))
-
-ElemToPML=0
-PMLToElem=0
-FaceToPML=0
-PMLToFace=0
-FaceToPMLInter=0
-PMLInterToFace=0
-
-! Create array with mapping
-iPMLElem=0
-DO iElem=1,PP_nElems
-  IF(isPMLElem(iElem))THEN
-    iPMLElem=iPMLElem+1
-    ElemToPML(iElem) = iPMLElem
-    PMLToElem(iPMLElem) = iElem
-  END IF
-END DO
-iPMLFace=0
-DO iFace=1,nSides
-  IF(isPMLFace(iFace))THEN
-    iPMLFace=iPMLFace+1
-    FaceToPML(iFace) = iPMLFace
-    PMLToFace(iPMLFace) = iFace
-  END IF
-END DO
-iPMLInterFace=0
-DO iFace=1,nSides
-  IF(isPMLInterFace(iFace))THEN
-    iPMLInterFace=iPMLInterFace+1
-    FaceToPMLInter(iFace) = iPMLInterFace
-    PMLInterToFace(iPMLInterFace) = iFace
-  END IF
-END DO
 !===================================================================================================================================
 ! allocate field variables
 !===================================================================================================================================
@@ -776,8 +649,9 @@ SUBROUTINE FindInterfaces(isFace,isInterFace,isElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,       ONLY: abort,myrank,MPI_COMM_WORLD
+USE MOD_Globals,       ONLY: abort,myrank,MPI_COMM_WORLD!,nProcessors
 USE MOD_Mesh_Vars,     ONLY: SideToElem,ElemToSide,nSides,nBCSides
+USE MOD_PML_vars,      ONLY: PMLprintInfoProcs
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
@@ -796,7 +670,7 @@ LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE                 :: Plus(:,:,:,:),Minus(:,:,:,:)
 INTEGER                          :: iElem,ilocSide,iSide,SideID
-INTEGER                          :: ElemID(2)
+INTEGER                          :: ElemID(2),I
 LOGICAL                          :: printInfo
 !===================================================================================================================================
 ALLOCATE(isFace(1:nSides))
@@ -892,9 +766,22 @@ DO iSide=1,nSides
 END DO
 
 ! test
-DO iSide=nSides,nSides
-  print*,"myrank=",myrank,"--------isInterFace(",iSide,")=",isInterFace(iSide),"  of total= ",COUNT(isInterFace),&
-          "    isFace(",iSide,")=",     isFace(iSide),"  of total= ",COUNT(isFace)
+PMLprintInfoProcs=1 ! nProcessors
+DO I=0,PMLprintInfoProcs-1
+  IF(I.EQ.myrank)THEN
+    DO iSide=nSides,nSides
+      print*,"myrank=",myrank,"--------isInterFace(",iSide,")=",isInterFace(iSide),"  of total= ",COUNT(isInterFace),&
+              "    isFace(",iSide,")=",     isFace(iSide),"  of total= ",COUNT(isFace)
+    END DO
+
+    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !" myrank=",myrank," PP_nElems=",PP_nElems," nPMLElems=",nPMLElems," nGlobalPMLElems=",nGlobalPMLElems
+    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !" myrank=",myrank," nSides=",nSides," nPMLFaces=",nPMLFaces," nGlobalPMLFaces=",nGlobalPMLFaces
+    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !" myrank=",myrank," nSides=",nSides," nPMLFaces=",nPMLInterFaces," nGlobalPMLFaces=",nGlobalPMLInterFaces
+  END IF
+  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 END DO
 
 !read*
@@ -905,6 +792,155 @@ END DO
 END SUBROUTINE  FindInterFaces
 
 
+SUBROUTINE CountAndCreateMappings(TypeName,&
+                                  isElem,isFace,isInterFace,&
+                                  nElems,nFaces, nInterFaces,&
+                                  ElemToX,XToElem,&
+                                  FaceToX,XToFace,&
+                                  FaceToXInter,XInterToFace)
+!===================================================================================================================================
+! 1.) Count the number of Elements, Faces and Interfaces of the PML/BGK/... region
+! 2.) Create mappings from general element to PML/BGK/... element and vice versa
+!                                  face    to PML/BGK/... face or interface and vice vesa
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars,     ONLY: nSides
+USE MOD_PML_vars,      ONLY: PMLprintInfoProcs
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN)                :: isElem(:),isFace(:),isInterFace(:)
+CHARACTER(LEN=*),INTENT(IN)       :: TypeName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)             :: nFaces,nInterFaces,nElems
+INTEGER,ALLOCATABLE,INTENT(INOUT) :: ElemToX(:),XToElem(:),FaceToX(:),XToFace(:),FaceToXInter(:),XInterToFace(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iElem,iFace,nGlobalElems,nGlobalFaces,nGlobalInterFaces
+INTEGER                           :: iXElem,iXFace,iXInterFace
+INTEGER                           :: I
+!===================================================================================================================================
+! Get number of Elems
+nFaces = 0
+nInterFaces = 0
+nElems = 0
+DO iFace=1,nSides
+  IF(isFace(iFace))THEN
+    nFaces=nFaces+1
+  END IF
+END DO ! iFace
+DO iFace=1,nSides
+  IF(isInterFace(iFace))THEN
+    nInterFaces=nInterFaces+1
+  END IF
+END DO ! iFace
+DO iElem=1,PP_nElems
+  IF(isElem(iElem))THEN
+    nElems=nElems+1
+  END IF
+END DO ! iElem
+!IF(1.EQ.2)THEN
+!===================================================================================================================================
+! print face number infos
+!===================================================================================================================================
+#ifdef MPI
+nGlobalElems=0     
+nGlobalFaces=0     
+nGlobalInterfaces=0
+IF(0.EQ.myrank) print *, "============================================================================================"
+DO I=0,PMLprintInfoProcs-1
+  IF(I.EQ.myrank)THEN
+    write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    " myrank=",myrank," PP_nElems=",PP_nElems," nElems=",nElems," nGlobalElems=",nGlobalElems
+    write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    " myrank=",myrank," nSides=",nSides," nFaces=",nFaces," nGlobalFaces=",nGlobalFaces
+    write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    " myrank=",myrank," nSides=",nSides," nFaces=",nInterFaces," nGlobalFaces=",nGlobalInterFaces
+  END IF
+  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+END DO
+!=======================================================================================================================
+CALL MPI_REDUCE(nElems     ,nGlobalElems     ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+CALL MPI_REDUCE(nFaces     ,nGlobalFaces     ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+CALL MPI_REDUCE(nInterFaces,nGlobalInterFaces,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+IF(MPIroot) print *, "============================================================================================"
+IF(MPIroot) print *, "CALL MPI_REDUCE(nElems,nGlobalElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)" !testing 
+IF(MPIroot) print *, "============================================================================================"
+CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+!=======================================================================================================================
+DO I=0,PMLprintInfoProcs-1
+  IF(I.EQ.myrank)THEN
+    SWRITE(UNIT_stdOut,'(A,I25,A10,A10,A15,A10,A8)') &
+            ' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"Elems inside of "     ,TRIM(TypeName),'-region.'
+    SWRITE(UNIT_stdOut,'(A,I25,A10,A10,A15,A10,A8)') &
+            ' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"Faces inside of "     ,TRIM(TypeName),'-region.'
+    SWRITE(UNIT_stdOut,'(A,I25,A10,A10,A15,A10,A8)') &
+            ' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"InterFaces inside of ",TRIM(TypeName),'-region.'
+  END IF
+  CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+END DO
+IF(0.EQ.myrank) print *, "============================================================================================"
+#else
+nGlobalElems=nElems
+nGlobalFaces=nFaces
+nGlobalInterFaces=nInterFaces
+SWRITE(UNIT_stdOut,'(A,I25,A10,A10,A15,A10,A10)') &
+        ' Found ', nGlobalElems,' nGlobal',TRIM(TypeName),"Elems inside of ",TRIM(TypeName),' region.'
+SWRITE(UNIT_stdOut,'(A,I25,A10,A10,A15,A10,A10)') &
+        ' Found ', nGlobalFaces,' nGlobal',TRIM(TypeName),"Faces inside of ",TRIM(TypeName),' region.'
+SWRITE(UNIT_stdOut,'(A,I25,A10,A10,A15,A10,A10)') &
+        ' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"InterFaces inside of ",TRIM(TypeName),' region.'
+#endif /*MPI*/
+
+!===================================================================================================================================
+! create  mappings: element<->pml-element
+!                      face<->pml-face
+!                      face<->interface
+!===================================================================================================================================
+ALLOCATE(ElemToX(PP_nElems)&
+        ,XToElem(nElems))
+ALLOCATE(FaceToX(nSides)&
+        ,XToFace(nFaces))
+ALLOCATE(FaceToXInter(nSides)&
+        ,XInterToFace(nInterFaces))
+ElemToX=0
+XToElem=0
+FaceToX=0
+XToFace=0
+FaceToXInter=0
+XInterToFace=0
+! Create array with mapping
+iXElem=0
+DO iElem=1,PP_nElems
+  IF(isElem(iElem))THEN
+    iXElem=iXElem+1
+    ElemToX(iElem) = iXElem
+    XToElem(iXElem) = iElem
+  END IF
+END DO
+iXFace=0
+DO iFace=1,nSides
+  IF(isFace(iFace))THEN
+    iXFace=iXFace+1
+    FaceToX(iFace) = iXFace
+    XToFace(iXFace) = iFace
+  END IF
+END DO
+iXInterFace=0
+DO iFace=1,nSides
+  IF(isInterFace(iFace))THEN
+    iXInterFace=iXInterFace+1
+    FaceToXInter(iFace) = iXInterFace
+    XInterToFace(iXInterFace) = iFace
+  END IF
+END DO
+
+END SUBROUTINE CountAndCreateMappings
 
 
 SUBROUTINE FinalizePML()
