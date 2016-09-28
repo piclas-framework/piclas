@@ -1685,7 +1685,7 @@ DO iElem=1,PP_nElems
     END IF
   END IF
 END DO!iElem
-print*,"MAXVAL(PMLzetaGlobal)=",MAXVAL(PMLzetaGlobal),"MAXVAL(PMLzeta)",MAXVAL(PMLzeta)
+!print*,"MAXVAL(PMLzetaGlobal)=",MAXVAL(PMLzetaGlobal),"MAXVAL(PMLzeta)",MAXVAL(PMLzeta)
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
 #ifdef MPI
