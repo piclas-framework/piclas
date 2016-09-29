@@ -306,29 +306,31 @@ SUBROUTINE FindInterfaces(isFace,isInterFace,isElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,       ONLY: abort,myrank,MPI_COMM_WORLD!,nProcessors
-USE MOD_Mesh_Vars,     ONLY: SideToElem,ElemToSide,nSides,nBCSides
+!USE MOD_Globals,       ONLY: abort,myrank,MPI_COMM_WORLD!,nProcessors
+USE MOD_Globals!,       ONLY: UNIT_stdOut,iError
+USE MOD_Mesh_Vars,     ONLY: nSides,nBCSides
 USE MOD_PML_vars,      ONLY: PMLprintInfoProcs
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
+!USE MOD_Mesh_Vars,     ONLY:SideID_plus_upper,SideID_plus_lower
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN)               :: isElem(1:PP_nElems)
+!CHARACTER(LEN=*),INTENT(IN)       :: TypeName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isFace(:)
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isInterFace(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE                 :: Plus(:,:,:,:),Minus(:,:,:,:)
-INTEGER                          :: iElem,ilocSide,iSide,SideID
-INTEGER                          :: ElemID(2),I
-LOGICAL                          :: printInfo
+REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides):: isFace_Plus,isFace_Minus,isFace_combined
+INTEGER                                 :: iSide
+INTEGER                                 :: I!,SideCounterUnity,SideCounterUnityGlobal
+LOGICAL                                 :: printInfo
 !===================================================================================================================================
 ALLOCATE(isFace(1:nSides))
 ALLOCATE(isInterFace(1:nSides))
@@ -337,115 +339,85 @@ isInterFace=.FALSE.
 printInfo=.FALSE.
 
 ! Check each element for being part of the, e.g. PML, region: set each of the 6 sides to be .TRUE.
-DO iElem=1,PP_nElems
-  IF(.NOT.isElem(iElem))CYCLE
-  DO ilocSide =1,6
-    SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    isFace(SideID)=.TRUE.
-  END DO ! ilocSide=1,6
-END DO ! iElem=1,PP_nElems
+!DO iElem=1,PP_nElems
+  !IF(.NOT.isElem(iElem))CYCLE
+  !DO ilocSide =1,6
+    !SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    !isFace(SideID)=.TRUE.
+  !END DO ! ilocSide=1,6
+!END DO ! iElem=1,PP_nElems
 
-#ifdef MPI
 ! ---------------------------------------------
 ! For MPI sides send the info to all other procs
-! use numbering:    Plus+Minus  = 1: isFace
-!                                 2: isInterFace
-!                                 0: normal face in physical region
-ALLOCATE(Plus(1,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(Minus(1,0:PP_N,0:PP_N,1:nSides))
-Plus=0.
-Minus=0.
-DO iSide=1,nBCSides ! 1.) do BC sides - when they are in a special region (e.g. PML) they need special treatment
-  IF(isFace(iSide))THEN
-    Plus( 1,:,:,iSide)=1. ! set my side true
-    Minus(1,:,:,iSide)=1. ! set my neighbor side true
-  ELSE
-    Minus(1,:,:,iSide)=5. ! for BC sides set value that this side cannot be an InterFace!
-  END IF
-END DO
-DO iSide=nBCSides+1,nSides ! 2.) do inner sides
-  IF(isFace(iSide)) THEN
-    Plus(1,:,:,iSide)=1.  ! set my side true
-    Minus(1,:,:,iSide)=1. ! set my neighbor side true
-  END IF
-END DO
-IF(printInfo)THEN
-print*,"vorher (Send/Receive)"
-print*,"Plus ",NINT(Plus(1,1,1,:))
-print*,"Minus",NINT(Minus(1,1,1,:))
-read*
-END IF
+isFace_Plus=0.
+isFace_Minus=0.
+isFace_combined=0.
+CALL ProlongToFace_PMLInfo(isElem,isFace_Minus,isFace_Plus,doMPISides=.FALSE.)
+#ifdef MPI
+CALL ProlongToFace_PMLInfo(isElem,isFace_Minus,isFace_Plus,doMPISides=.TRUE.)
 
 ! send my info to neighbor 
-CALL StartReceiveMPIData(1,Minus(1,0:PP_N,0:PP_N,SideID_plus_lower:SideID_plus_upper) &
-                                                ,SideID_plus_lower,SideID_plus_upper,RecRequest_U,SendID=2) ! Receive MINE
-CALL StartSendMPIData(1,Plus(1,0:PP_N,0:PP_N,SideID_plus_lower:SideID_plus_upper) &
-                                            ,SideID_plus_lower,SideID_plus_upper,SendRequest_U,SendID=2) ! Send YOUR
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
+CALL StartReceiveMPIData(1,isFace_Plus,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
+CALL StartSendMPIData(   1,isFace_Plus,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
 
-! add Minus to Plus and send
-Plus=Plus+Minus
-IF(printInfo)THEN
-print*,"nachher (Send/Receive)"
-print*,"Plus ",NINT(Plus(1,1,1,:))
-read*
-END IF
+CALL StartReceiveMPIData(1,isFace_Minus,1,nSides ,RecRequest_U,SendID=1) ! Receive MINE
+CALL StartSendMPIData(   1,isFace_Minus,1,nSides,SendRequest_U,SendID=1) ! Send YOUR
 
-CALL StartReceiveMPIData(1,Plus,1,nSides,RecRequest_Flux ,SendID=1) ! Receive MINE
-CALL StartSendMPIData(   1,Plus,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
-CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
-
-DO iSide=1,nSides ! get MPI Interfaces
-  IF(Plus(1,0,0,iSide).EQ.1)THEN ! check MPI sides: if one side is .TRUE. and the other is .FALSE. -> InterFace
-    isFace(iSide)=.TRUE. ! when my side is not PML but neighbor is PML
-    isInterFace(iSide)=.TRUE.
-  END IF
-END DO
-
-DEALLOCATE(Plus,Minus)
+CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE -receive YOUR
+CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U,SendID=1) !Send MINE -receive YOUR
 #endif /*MPI*/
-! ---------------------------------------------
 
-! and fill non-mpi sides: get local Interfaces
+! add isFace_Minus to isFace_Plus and send
+isFace_combined=2*isFace_Plus+isFace_Minus
+! use numbering:    2*isFace_Plus+isFace_Minus  = 1: Minus side is PML
+!                                                 2: Plus  side is PML
+!                                                 3: both sides are PML sides
+!                                                 0: normal face in physical region
+
 DO iSide=1,nSides
-  IF(isInterFace(iSide)) CYCLE ! MPI sides are already finished
-  IF(isFace(iSide))THEN
-    ElemID(1)=SideToElem(S2E_ELEM_ID,iSide)    ! SideID
-    ElemID(2)=SideToElem(S2E_NB_ELEM_ID,iSide) ! SideID
-!print*,"ElemID(:)",ElemID
-    IF(ElemID(1).LT.1) CYCLE
-    IF(ElemID(2).LT.1) CYCLE ! neighbor is boundary side (either BC or MPI side)
-    IF((isElem(ElemID(1)).AND. .NOT.isElem(ElemID(2))) .OR. &
-  (.NOT.isElem(ElemID(1)).AND.      isElem(ElemID(2))) )THEN
-      isInterFace(iSide)=.TRUE.
-   END IF
+  IF(isFace_combined(1,0,0,iSide).GT.0)THEN
+    isFace(iSide)=.TRUE. ! mixed or pure PML face:  when my side is not PML but neighbor is PML
+    IF((isFace_combined(1,0,0,iSide).EQ.1).OR.&
+       (isFace_combined(1,0,0,iSide).EQ.2))THEN
+        isInterFace(iSide)=.TRUE. ! set all mixed faces as InterFaces, exclude BCs later on
+    END IF
   END IF
 END DO
+isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
+
+!SideCounterUnity=0
+!DO iSide=1,nSides
+  !IF(isFace_combined(1,0,0,iSide).GT.0)THEN
+    !SideCounterUnity=SideCounterUnity+1
+  !END IF
+!END DO
+!print*,SideCounterUnity
+!CALL MPI_REDUCE(SideCounterUnity,SideCounterUnityGlobal,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+!CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+!DO I=0,PMLprintInfoProcs-1
+  !IF(I.EQ.myrank)THEN
+    !WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+    !' myrank=',myrank,' Found ',SideCounterUnityGlobal,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
+  !END IF
+  !CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
+!END DO
 
 ! test
-PMLprintInfoProcs=1 ! nProcessors
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
     DO iSide=nSides,nSides
-      print*,"myrank=",myrank,"--------isInterFace(",iSide,")=",isInterFace(iSide),"  of total= ",COUNT(isInterFace),&
-              "    isFace(",iSide,")=",     isFace(iSide),"  of total= ",COUNT(isFace)
+      WRITE(UNIT_stdOut,'(A8,I5,A15,I5,A2,L5,A15,I5,A8,I5,A2,L5,A12,I5)')&
+              "myrank=",myrank,&
+       ": isInterFace(",iSide,")=",isInterFace(iSide),&
+       " of total= ",COUNT(isInterFace),&
+       " isFace(",iSide,")=",isFace(iSide),"  of total= ",COUNT(isFace)
     END DO
-
-    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
-    !" myrank=",myrank," PP_nElems=",PP_nElems," nPMLElems=",nPMLElems," nGlobalPMLElems=",nGlobalPMLElems
-    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
-    !" myrank=",myrank," nSides=",nSides," nPMLFaces=",nPMLFaces," nGlobalPMLFaces=",nGlobalPMLFaces
-    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
-    !" myrank=",myrank," nSides=",nSides," nPMLFaces=",nPMLInterFaces," nGlobalPMLFaces=",nGlobalPMLInterFaces
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 END DO
 
-!read*
-!stop
 !print*,"should be total 16 (PML-interfaces) and total 100 (PML-faces)"
 !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-!stop
 END SUBROUTINE  FindInterFaces
 
 
@@ -508,15 +480,21 @@ END DO ! iElem
 nGlobalElems=0     
 nGlobalFaces=0     
 nGlobalInterfaces=0
-IF(0.EQ.myrank) print *, "============================================================================================"
+IF(0.EQ.myrank) WRITE(UNIT_stdOut,'(A)') "========================================================================================="
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
-    write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
-    " myrank=",myrank," PP_nElems=",PP_nElems," nElems=",nElems," nGlobalElems=",nGlobalElems
-    write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
-    " myrank=",myrank," nSides=",nSides," nFaces=",nFaces," nGlobalFaces=",nGlobalFaces
-    write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
-    " myrank=",myrank," nSides=",nSides," nFaces=",nInterFaces," nGlobalFaces=",nGlobalInterFaces
+    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !" myrank=",myrank," PP_nElems=",PP_nElems," nElems=",nElems," nGlobalElems=",nGlobalElems
+    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !" myrank=",myrank," nSides=",nSides," nFaces=",nFaces," nGlobalFaces=",nGlobalFaces
+    !write(*,'(A8,I5,A11,I5,A11,I5,A17,I5)')&
+    !" myrank=",myrank," nSides=",nSides," nFaces=",nInterFaces," nGlobalFaces=",nGlobalInterFaces
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 END DO
@@ -526,33 +504,33 @@ CALL MPI_REDUCE(nElems     ,nGlobalElems     ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_W
 CALL MPI_REDUCE(nFaces     ,nGlobalFaces     ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 CALL MPI_REDUCE(nInterFaces,nGlobalInterFaces,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
-IF(MPIroot) print *, "============================================================================================"
-IF(MPIroot) print *, "CALL MPI_REDUCE(nElems,nGlobalElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)" !testing 
-IF(MPIroot) print *, "============================================================================================"
+IF(MPIroot) WRITE(UNIT_stdOut,'(A)') "============================================================================================"
+IF(MPIroot) WRITE(UNIT_stdOut,'(A)') "CALL MPI_REDUCE(nElems,nGlobalElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)" !testing 
+IF(MPIroot) WRITE(UNIT_stdOut,'(A)') "============================================================================================"
 CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 !=======================================================================================================================
 DO I=0,PMLprintInfoProcs-1
   IF(I.EQ.myrank)THEN
-    WRITE(UNIT_stdOut,'(A8,I5,A,I25,A10,A10,A15,A10,A8)') &
-          ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"Elems inside of "     ,TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I5,A,I25,A10,A10,A15,A10,A8)') &
-          ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"Faces inside of "     ,TRIM(TypeName),'-region.'
-    WRITE(UNIT_stdOut,'(A8,I5,A,I25,A10,A10,A15,A10,A8)') &
-          ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"InterFaces inside of ",TRIM(TypeName),'-region.'
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
+    WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+          ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
   END IF
   CALL MPI_BARRIER(MPI_COMM_WORLD, iError)
 END DO
-IF(0.EQ.myrank) print *, "============================================================================================"
+IF(0.EQ.myrank) WRITE(UNIT_stdOut,'(A)') "========================================================================================="
 #else
 nGlobalElems=nElems
 nGlobalFaces=nFaces
 nGlobalInterFaces=nInterFaces
-SWRITE(UNIT_stdOut,'(A,I25,A10,A10,A15,A10,A10)') &
-        ' Found ', nGlobalElems,' nGlobal',TRIM(TypeName),"Elems inside of ",TRIM(TypeName),' region.'
-SWRITE(UNIT_stdOut,'(A,I25,A10,A10,A15,A10,A10)') &
-        ' Found ', nGlobalFaces,' nGlobal',TRIM(TypeName),"Faces inside of ",TRIM(TypeName),' region.'
-SWRITE(UNIT_stdOut,'(A,I25,A10,A10,A15,A10,A10)') &
-        ' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"InterFaces inside of ",TRIM(TypeName),' region.'
+WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+      ' myrank=',myrank,' Found ', nGlobalElems     ,' nGlobal',TRIM(TypeName),"-Elems inside of      ",TRIM(TypeName),'-region.'
+WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+      ' myrank=',myrank,' Found ', nGlobalFaces     ,' nGlobal',TRIM(TypeName),"-Faces inside of      ",TRIM(TypeName),'-region.'
+WRITE(UNIT_stdOut,'(A8,I5,A,I10,A10,A10,A22,A10,A8)') &
+      ' myrank=',myrank,' Found ', nGlobalInterFaces,' nGlobal',TRIM(TypeName),"-InterFaces inside of ",TRIM(TypeName),'-region.'
 #endif /*MPI*/
 
 !===================================================================================================================================
@@ -902,6 +880,62 @@ SDEALLOCATE(isPMLFace)
 END SUBROUTINE FinalizePML
 
 
+SUBROUTINE ProlongToFace_PMLInfo(isElem,isFace_Minus,isFace_Plus,doMPISides)
+!===================================================================================================================================
+! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
+! integration points, using fast 1D Interpolation and store in global side structure
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+!USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
+USE MOD_PreProc
+USE MOD_Mesh_Vars,          ONLY: SideToElem,nSides
+USE MOD_Mesh_Vars,          ONLY: nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
+!USE MOD_Mesh_Vars,          ONLY: SideID_minus_lower,SideID_minus_upper
+!USE MOD_Mesh_Vars,          ONLY: SideID_plus_lower,SideID_plus_upper
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE 
+LOGICAL,INTENT(IN)              :: isElem(1:PP_nElems) 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: isFace_Minus(1,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT)              :: isFace_Plus( 1,0:PP_N,0:PP_N,1:nSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES 
+INTEGER                         :: i,ElemID(2),SideID,flip(2),LocSideID(2),firstSideID,lastSideID
+!===================================================================================================================================
+IF(doMPISides)THEN
+  ! only YOUR MPI Sides are filled
+  firstSideID = nBCSides+nInnerSides+nMPISides_MINE+1
+  lastSideID  = firstSideID-1+nMPISides_YOUR 
+  flip(1)     = -1
+ELSE
+  ! BCSides, InnerSides and MINE MPISides are filled
+  firstSideID = 1
+  lastSideID  = nBCSides+nInnerSides+nMPISides_MINE
+  flip(1)     = 0
+END IF
+DO SideID=firstSideID,lastSideID
+  ! master side, flip=0
+  ElemID(1)    = SideToElem(S2E_ELEM_ID,SideID)  
+  locSideID(1) = SideToElem(S2E_LOC_SIDE_ID,SideID)
+  ! neighbor side !ElemID,locSideID and flip =-1 if not existing
+  ElemID(2)    = SideToElem(S2E_NB_ELEM_ID,SideID)
+  locSideID(2) = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+  flip(2)      = SideToElem(S2E_FLIP,SideID)
+  DO i=1,2 !first maste then slave side
+    SELECT CASE(Flip(i))
+      CASE(0) ! master side
+        isFace_Minus(:,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+      CASE(1:4) ! slave side
+        isFace_Plus( :,:,:,SideID)=MERGE(1,0,isElem(ElemID(i))) ! if isElem(ElemID(i))=.TRUE. -> 1, else 0
+    END SELECT
+  END DO !i=1,2, masterside & slave side 
+END DO !SideID
+END SUBROUTINE ProlongToFace_PMLInfo
 END MODULE MOD_PML
 
 
