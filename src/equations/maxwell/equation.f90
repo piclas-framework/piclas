@@ -82,8 +82,9 @@ c                  = GETREAL('c0','1.')
 eps0               = GETREAL('eps','1.')
 mu0                = GETREAL('mu','1.')
 smu0               = 1./mu0
-fDamping           = GETREAL('fDamping','0.99')
+fDamping           = GETREAL('fDamping','0.999')
 DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
+CentralFlux        = GETLOGICAL('CentralFlux','.FALSE.')
 !scr            = 1./ GETREAL('c_r','0.18')  !constant for damping
 
 c_test = 1./SQRT(eps0*mu0)

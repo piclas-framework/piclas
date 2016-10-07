@@ -41,6 +41,7 @@ REAL	         	  :: Beam_a0
 REAL              :: I_0
 REAL              :: sigma_t
 REAL              :: omega_0, omega_0_2inv
+LOGICAL           :: CentralFlux
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)
 INTEGER,ALLOCATABLE  :: nBCByType(:)
