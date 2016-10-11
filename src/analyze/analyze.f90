@@ -46,13 +46,13 @@ SUBROUTINE InitAnalyze()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Interpolation_Vars,   ONLY:xGP,wBary,InterpolationInitIsDone
-USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt
+USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt,doAnalyze
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL
 USE MOD_Analyze_Vars,         ONLY:CalcPoyntingInt
 USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
 USE MOD_ReadInTools,          ONLY:GETLOGICAL
 #ifndef PARTICLES
-USE MOD_Particle_Analyze_Vars,ONLY:PartAnalyzeStep, CalcEpot,DoAnalyze
+USE MOD_Particle_Analyze_Vars,ONLY:PartAnalyzeStep, CalcEpot
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars,     ONLY:nSkipAnalyze
 ! IMPLICIT VARIABLE HANDLING
