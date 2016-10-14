@@ -86,6 +86,7 @@ DO iSpec = 1,nSpecies
   Adsorption%AdsorpInfo(iSpec)%WallCollCount = 0
   Adsorption%AdsorpInfo(iSpec)%NumOfAds = 0
   Adsorption%AdsorpInfo(iSpec)%NumOfDes = 0
+  Adsorption%AdsorpInfo(iSpec)%Accomodation = 0
 #endif
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
   IF (DSMC%WallModel.EQ.1) THEN

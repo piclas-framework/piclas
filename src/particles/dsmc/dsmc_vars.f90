@@ -237,6 +237,7 @@ TYPE tAdsorptionInfo
   INTEGER                                :: WallCollCount           ! counter of wallcollisions
   INTEGER                                :: NumOfAds                ! Number of Adsorptions on surfaces
   INTEGER                                :: NumOfDes                ! Number of Desorptions on Surfaces
+  REAL                                   :: Accomodation            ! Accomodation coeffcient calculated from HS-Model
 #endif
 END TYPE
 
