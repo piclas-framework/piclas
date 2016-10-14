@@ -38,28 +38,6 @@ The following libraries are installed locally within Boltzplatz and build automa
          installed with config script: export HDF5_DIR = /opt/hdf5/1.X.X/
          installed with cmake: export HDF5_DIR = /opt/hdf5/1.X.X/shared/cmake/XXX
 
-* [Tecplot IO Library][tecio]: Library to write the proprietary Tecplot binary data format
-
-  Manual Tecio-installation
-  
-* Create new folder and clone  TECIO
-
-         git clone git@129.69.43.151:libs/TECPLOT.git TECPLOT
-         
-* Unzip archive with
-
-         cd TECPLOT && tar xvf tecio-2013.tar.bz2
-        
-* Build tecio
-
-         cd tecio-2013 && ./Runmake linuxg27x64.24 -tecio 
-
-* Move tecio to be found by cmake
-
-         mkdir -p /opt/tecio-2013
-         mv * /opt/tecio-2013
-   
-
 The tools are known to work with the following software versions:
 
 * OpenMPI > 1.8
@@ -89,40 +67,45 @@ To build the Boltzplatz the following steps are needed:
  
 ### Building with ccmake on forhlr1
 
-For building on the forhlr1-cluster, the following steps are needed:
+For building with *CMAKE* on the forhlr1-cluster, the following steps are needed:
 
-* include in .bashrc:
+* include in .bashrc or .profile:
   
-		module unload mpi
-        module load mpi/openmpi/1.8.5_intel
-        module load lib/hdf5/1.8.15-openmpi-1.8.5_intel-intel-15.0
-        module add numlib/mkl
+        module load devel/cmake/3.5
+        module swap compiler/intel compiler/intel/16.0
+        module swap mpi/openmpi mpi/impi/5.1
+        module load lib/hdf5/1.8_intel_16.0
+        export HDF5_DIR=/opt/hdf5/1.8.17_intel_16.0_impi_5.1
 
 * ccmake: as described above, but instead of building hdf5 include the following changes:
 
-        for using the loaded hdf5 module set (ignore the NOT-FOUND message for hdf5 in ccmake):
-            export HDF5_VERSION (not sure, if necessary)
-            export HDF5_DIR=$HDF5_HOME
-        
         set HDF5F90 to TRUE
+        *IGNORE* possible error messages 
 
 ### Building with ccmake on hazelhen
 
 For building on the hazelhen-cluster, the following steps are needed:
 
-* include in .bashrc:
+* include in .bashrc or .profile:
         
 		module unload PrgEnv-cray
         module load PrgEnv-intel
         module load cray-hdf5-parallel
         module load tools/cmake
 
-    Create folder tecio in $HOME. Copy libtecio.a into new folder. Reset TECIO-DIR in ccmake.
+* Profiling with Craypad
 
+    * Compile Boltzplatz with 
+    
+        module load perftools-base && module load perftools-lite && export CRAYPAT_LITE=event_profile
+    
+    * Run boltzplatz with normal submit script
+    * Program has to finish normally! Enough time during execution. Note, that the profiled version is slower, hence, 
+      the testqueue is maybe to short. 
+    * Visualize the *.app2 files 
 
 
 [openmpi]: https://www.open-mpi.org/
 [paraview]: https://www.paraview.org
 [cmake]: https://www.cmake.org
 [hdf5]: https://www.hdfgroup.org/
-[tecio]: http://www.tecplot.com/downloads/tecio-library/
