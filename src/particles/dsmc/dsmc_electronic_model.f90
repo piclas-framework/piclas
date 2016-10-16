@@ -375,7 +375,8 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
 ! use module
   USE MOD_io_hdf5
   USE MOD_Globals
-  USE MOD_DSMC_Vars,                    ONLY: DSMC, SpecDSMC
+  USE MOD_DSMC_Vars,            ONLY: DSMC, SpecDSMC
+  USE MOD_HDF5_Input,           ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -396,11 +397,17 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   INTEGER, ALLOCATABLE                                  :: SortElectronicState(:)
   INTEGER                                               :: iQua, nQuants, iQuaTemp
   REAL                                                  :: tempEnergyDiff, tempEnergy
+  LOGICAL                                               :: DataSetFound
 !===================================================================================================================================
+  SWRITE(*,*) 'Read electronic level entries ',TRIM(dsetname),' from ',DSMC%ElectronicStateDatabase
   ! Initialize FORTRAN interface.
   CALL H5OPEN_F(err)
   ! Open the file.
   CALL H5FOPEN_F (DSMC%ElectronicStateDatabase, H5F_ACC_RDONLY_F, file_id_dsmc, err)
+  CALL DatasetExists(File_ID_DSMC,dsetname,DataSetFound)
+  IF(.NOT.DataSetFound)THEN
+    SWRITE(*,*) 'DataSet not found: ',TRIM(dsetname),DSMC%ElectronicStateDatabase
+  END IF
   ! Open the  dataset.
   CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
   ! Get the file space of the dataset.
@@ -458,7 +465,7 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   ! Close FORTRAN interface.
   CALL H5CLOSE_F(err)
 
-  SWRITE(*,*) 'Read entry ',dsetname,' from ',DSMC%ElectronicStateDatabase
+
 
 END SUBROUTINE ReadSpeciesLevel
 

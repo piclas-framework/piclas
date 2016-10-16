@@ -523,10 +523,11 @@ USE MOD_Globals
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn !, Debug_Energy
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
-USE MOD_Particle_Vars,         ONLY : usevMPF, Species
+USE MOD_Particle_Vars,         ONLY : usevMPF, Species,PartPosRef
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange, TVEEnergyExchange
 USE MOD_DSMC_Relaxation,       ONLY : DSMC_VibRelaxDiatomic
 USE MOD_DSMC_PolyAtomicModel,  ONLY : DSMC_VibRelaxPoly, DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
+USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -647,6 +648,9 @@ END IF
 PDM%ParticleInside(PositionNbr) = .true.
 PartSpecies(PositionNbr) = ChemReac%DefinedReact(iReac,2,3)
 PartState(PositionNbr,1:3) = PartState(React1Inx,1:3)
+IF(DoRefMapping)THEN ! copy particle position in reference state to new particle
+  PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,React1Inx)
+END IF
 
 PartStateIntEn(PositionNbr, 1) = 0.
 PartStateIntEn(PositionNbr, 2) = 0.
@@ -712,7 +716,7 @@ DSMC_RHS(React1Inx,2) = VyPseuAtom + FracMassCent2*RanVeloy - PartState(React1In
 DSMC_RHS(React1Inx,3) = VzPseuAtom + FracMassCent2*RanVeloz - PartState(React1Inx, 6)
 
 !deltaV new formed particle
-PartState(PositionNbr,4:6) = 0
+PartState(PositionNbr,4:6) = 0.
 DSMC_RHS(PositionNbr,1) = VxPseuAtom - FracMassCent1*RanVelox 
 DSMC_RHS(PositionNbr,2) = VyPseuAtom - FracMassCent1*RanVeloy 
 DSMC_RHS(PositionNbr,3) = VzPseuAtom - FracMassCent1*RanVeloz 
