@@ -307,7 +307,7 @@ REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
   ! upper limit: highest possible temperature
   JToEv = 1.602176565E-19  
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-  IF ( MeanEVib .GT. PolyatomMolDSMC(iPolyatMole)%EZeroPoint ) THEN
+  IF ( MeanEVib .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
     LowerTemp = 1.0
     UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*JToEv/BoltzmannConst
     DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
@@ -2094,6 +2094,7 @@ __STAMP__&
     END DO
 END SUBROUTINE MPIVolumeExchangeBGMDSMCHO
 
+
 SUBROUTINE MPIBackgroundMeshInitDSMCHO()  
 !============================================================================================================================
 ! initialize MPI background mesh
@@ -2367,7 +2368,7 @@ DO stepz=0, DSMCSampVolWe%OrderVolInt
         alpha1 = (GuessPos(1) / DSMCSampVolWe%BGMdeltas(1)) - i
         alpha2 = (GuessPos(2) / DSMCSampVolWe%BGMdeltas(2)) - j
         alpha3 = (GuessPos(3) / DSMCSampVolWe%BGMdeltas(3)) - k
-         Found = Found + (1.-ABS(alpha1))*(1.-ABS(alpha2))*(1.-ABS(alpha3)) &
+        Found = Found + (1.-ABS(alpha1))*(1.-ABS(alpha2))*(1.-ABS(alpha3)) &
              *DSMCSampVolWe%w_VolInt(stepx)*DSMCSampVolWe%w_VolInt(stepy)*DSMCSampVolWe%w_VolInt(stepz)
         EXIT
       END IF

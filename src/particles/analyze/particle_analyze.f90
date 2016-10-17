@@ -177,7 +177,7 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_DSMC_Vars,             ONLY: DSMC, CollInf, useDSMC, CollisMode, ChemReac, SpecDSMC, PolyatomMolDSMC
   USE MOD_Restart_Vars,          ONLY: DoRestart
   USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod>=501)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
   USE MOD_TimeDisc_Vars,         ONLY : iter
 #endif
   USE MOD_PIC_Analyze,           ONLY: CalcDepositedCharge
@@ -418,7 +418,7 @@ SUBROUTINE AnalyzeParticles(Time)
           END DO
         END IF
 #endif
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
         IF (CollisMode.GT.1) THEN
           IF(CalcEint) THEN
             DO iSpec=1, nSpecies         
@@ -880,7 +880,7 @@ IF (PartMPI%MPIROOT) THEN
     END IF
 #endif
 
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
     IF (CollisMode.GT.1) THEN
       IF(CalcEint) THEN
         DO iSpec=1, nSpecies
@@ -1674,16 +1674,16 @@ REAL,INTENT(OUT)                :: IntTemp(:,:) , IntEn(:,:)
 ! LOCAL VARIABLES
 INTEGER           :: iPart, iSpec
 INTEGER           :: NumSpec(nSpecies)
-REAL              :: EVib(nSpecies), ERot(nSpecies), Eelec(nSpecies), RealNumSpec(nSpecies), tempVib, EZeroPoint, NumSpecTemp
+REAL              :: EVib(nSpecies), ERot(nSpecies), Eelec(nSpecies), RealNumSpec(nSpecies), tempVib, NumSpecTemp
 !REAL              :: CalcTVib
 !===================================================================================================================================
 NumSpec = 0
-EVib = 0.0
-ERot = 0.0
-Eelec=0.0
+EVib    = 0.
+ERot    = 0.
+Eelec   = 0.
 ! set electronic state to zero
-IntTemp(:,3) = 0.0
-RealNumSpec  = 0.0
+IntTemp(:,3) = 0.
+RealNumSpec  = 0.
 
 ! Sum up internal energies
   DO iPart=1,PDM%ParticleVecLength
@@ -1708,82 +1708,50 @@ RealNumSpec  = 0.0
   END DO
 ! Calc TVib, TRot
   DO iSpec = 1, nSpecies
-    IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)).AND.(NumSpec(iSpec).GT.0)) THEN
-      IF (usevMPF) THEN
-        IntTemp(iSpec,2) = ERot(iSpec)/(BoltzmannConst*RealNumSpec(iSpec))  !Calc TRot
+    IF (usevMPF) THEN
+      NumSpecTemp = RealNumSpec(iSpec)
+    ELSE
+      NumSpecTemp = REAL(NumSpec(iSpec))
+    END IF
+    IF(((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)).AND.(NumSpecTemp.GT.0.0)) THEN
+      IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(SpecDSMC(iSpec)%Xi_Rot.EQ.3)) THEN 
+        IntTemp(iSpec,2) = 2.0*ERot(iSpec)/(3.0*BoltzmannConst*NumSpecTemp)  !Calc TRot          
       ELSE
-        IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(SpecDSMC(iSpec)%Xi_Rot.EQ.3)) THEN 
-          IntTemp(iSpec,2) = 2.0*ERot(iSpec)/(3.0*BoltzmannConst*NumSpec(iSpec))  !Calc TRot          
-        ELSE
-          IntTemp(iSpec,2) = ERot(iSpec)/(BoltzmannConst*NumSpec(iSpec))  !Calc TRot
-        END IF
+        IntTemp(iSpec,2) = ERot(iSpec)/(BoltzmannConst*NumSpecTemp)  !Calc TRot
       END IF
-      IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
-        EZeroPoint = PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%EZeroPoint
-      ELSE
-        EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
-      END IF
-      IF (usevMPF) THEN
-        NumSpecTemp = RealNumSpec(iSpec)
-      ELSE
-        NumSpecTemp = REAL(NumSpec(iSpec))
-      END IF
-      IF (EVib(iSpec)/NumSpecTemp.GT.EZeroPoint) THEN
+      IF (EVib(iSpec)/NumSpecTemp.GT.SpecDSMC(iSpec)%EZeroPoint) THEN
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
-          IntTemp(iSpec,1) = CalcTVibPoly(EVib(iSpec)/NumSpec(iSpec), iSpec)
+          IntTemp(iSpec,1) = CalcTVibPoly(EVib(iSpec)/NumSpecTemp, iSpec)
         ELSE
           IF (DSMC%VibEnergyModel.EQ.0) THEN              ! SHO-model
-            IF (usevMPF) THEN
+            tempVib = (EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant)
+            IF ((tempVib.GT.0.0) &
+              .OR.(EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib).LE.DSMC%GammaQuant)) THEN
               IntTemp(iSpec,1) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(EVib(iSpec) & 
-                              /(RealNumSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
-            ELSE
-              tempVib = (EVib(iSpec)/(NumSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant)
-              IF ((tempVib.LT.0.0) &
-                .OR.(EVib(iSpec)/(NumSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib).LE.DSMC%GammaQuant)) THEN
-                IntTemp(iSpec,1) = 0.0
-              ELSE
-                IntTemp(iSpec,1) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(EVib(iSpec) & 
-                                                /(NumSpec(iSpec)*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
-              END IF
+                                /(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
             END IF
           ELSE                                            ! TSHO-model
-            IF (usevMPF) THEN
-              IntTemp(iSpec,1) = CalcTVib(SpecDSMC(iSpec)%CharaTVib, EVib(iSpec)/RealNumSpec(iSpec), SpecDSMC(iSpec)%MaxVibQuant)
-            ELSE
-              IntTemp(iSpec,1) = CalcTVib(SpecDSMC(iSpec)%CharaTVib, EVib(iSpec)/NumSpec(iSpec), SpecDSMC(iSpec)%MaxVibQuant)
-            END IF
+            IntTemp(iSpec,1) = CalcTVib(SpecDSMC(iSpec)%CharaTVib, EVib(iSpec)/NumSpecTemp, SpecDSMC(iSpec)%MaxVibQuant)
           END IF
         END IF
       ELSE
-        IntTemp(iSpec,1) = 0        
+        IntTemp(iSpec,1) = 0
       END IF
     ELSE
       IntTemp(iSpec,1) = 0
       IntTemp(iSpec,2) = 0
     END IF
-    IF(usevMPF) THEN
-      IF ( DSMC%ElectronicState ) THEN
-        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(NumSpec(iSpec).GT.0))THEN
-          IntTemp(iSpec,3) = CalcTelec( Eelec(iSpec)/RealNumSpec(iSpec),iSpec )
-        ELSE
-          IntTemp(iSpec,3) =0.0
-        END IF
+    IF ( DSMC%ElectronicState ) THEN
+      IF ((NumSpecTemp.GT.0).AND.(SpecDSMC(iSpec)%InterID.NE.4) ) THEN
+        IntTemp(iSpec,3) = CalcTelec(Eelec(iSpec)/NumSpecTemp,iSpec)
         IntEn(iSpec,3) = Eelec(iSpec)
+      ELSE
+        IntEn(iSpec,3) = 0.0
       END IF
-      IntEn(iSpec,1) = EVib(iSpec)
-      IntEn(iSpec,2) = ERot(iSpec)   
-    ELSE
-      IF ( DSMC%ElectronicState ) THEN
-        IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(NumSpec(iSpec).GT.0))THEN
-          IntTemp(iSpec,3) = CalcTelec( Eelec(iSpec)/NumSpec(iSpec),iSpec )
-        ELSE
-          IntTemp(iSpec,3) =0.0
-        END IF
-        IntEn(iSpec,3) = Eelec(iSpec) * Species(iSpec)%MacroParticleFactor
-      END IF
-      IntEn(iSpec,1) = EVib(iSpec) * Species(iSpec)%MacroParticleFactor 
-      IntEn(iSpec,2) = ERot(iSpec) * Species(iSpec)%MacroParticleFactor 
     END IF
+    IntEn(iSpec,1) = EVib(iSpec)
+    IntEn(iSpec,2) = ERot(iSpec)
+    IF(.NOT.usevMPF) IntEn(iSpec,:) = IntEn(iSpec,:) * Species(iSpec)%MacroParticleFactor
   END DO
 
 END SUBROUTINE CalcIntTempsAndEn

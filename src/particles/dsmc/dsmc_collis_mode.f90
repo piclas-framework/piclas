@@ -109,6 +109,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
+  USE MOD_DSMC_Relaxation,         ONLY : DSMC_VibRelaxDiatomic
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -141,7 +142,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   DoElec1 = .FALSE.
   DoElec2 = .FALSE.
   
-  Xi_rel = 2.*(2. - SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS)
+  Xi_rel = 2*(2. - SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%omegaVHS)
     ! DOF of relative motion in VHS model, only for one omega!!
  
   Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2
@@ -169,6 +170,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   END IF
   IF ( DSMC%ElectronicState ) THEN
     ! step as TRUE
+    CALL RANDOM_NUMBER(iRan)
     IF ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID .ne. 4 ) THEN
       IF ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%ElecRelaxProb .GT. iRan ) THEN
         DoElec1 = .TRUE.
@@ -188,6 +190,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
   END IF
   IF ( DSMC%ElectronicState ) THEN
     ! step as TRUE
+    CALL RANDOM_NUMBER(iRan)
     IF (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%InterID.NE.4) THEN
       IF (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%ElecRelaxProb.GT.iRan) THEN
         DoElec2 = .TRUE.
@@ -214,30 +217,39 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
 !--------------------------------------------------------------------------------------------------!
 ! Electronic Relaxation / Transition
 !--------------------------------------------------------------------------------------------------!
-
-  IF(DoElec1.AND.DoVib1) THEN
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)  &
-                         +    PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
+IF (DSMC%DoTEVRRelaxation) THEN
+  IF(.NOT.SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol) THEN
+    IF(DoElec1.AND.DoVib1) THEN
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)  &
+                           +    PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
 #if (PP_TimeDiscMethod == 42)
-    CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2)
+      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi,Coll_pData(iPair)%iPart_p2)
 #else
-    CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi)
+      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi)
 #endif
-    DoElec1=.false.
-    DoVib1=.false.
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)  &
+                           -    PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
+      DoElec1=.false.
+      DoVib1=.false.
+    END IF
   END IF
 
-  IF(DoElec2.AND.DoVib2) THEN
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)  &
-                         +    PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
+  IF(.NOT.SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol) THEN
+    IF(DoElec2.AND.DoVib2) THEN
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)  &
+                           +    PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
 #if (PP_TimeDiscMethod == 42)
-    CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1)
+      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi,Coll_pData(iPair)%iPart_p1)
 #else
-    CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi)
+      CALL TVEEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi)
 #endif
-    DoElec2=.false.
-    DoVib2=.false.
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)  &
+                           -    PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
+      DoElec2=.false.
+      DoVib2=.false.
+    END IF
   END IF
+END IF
 
   ! Relaxation of first particle
   IF ( DoElec1 ) THEN
@@ -252,6 +264,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
       CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p1,FakXi )
     END IF
 #endif
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,3)
   END IF
   ! Electronic relaxation of second particle
   IF ( DoElec2 ) THEN
@@ -266,6 +279,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
       CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,Coll_pData(iPair)%iPart_p2,FakXi )
     END IF
 #endif
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,3)
   END IF
 
 #if (PP_TimeDiscMethod==42)
@@ -279,103 +293,23 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
 !--------------------------------------------------------------------------------------------------!
 
   IF(DoVib1) THEN
-    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
-      CALL DSMC_VibRelaxPoly(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p1),Coll_pData(iPair)%iPart_p1,FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
+    IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol) THEN      
+      CALL DSMC_VibRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1,FakXi)
     ELSE
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) ! adding vib energy to coll energy
-      MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib)  &
-                - DSMC%GammaQuant
-      iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%MaxVibQuant)
-      CALL RANDOM_NUMBER(iRan)
-      iQua = INT(iRan * iQuaMax)
-      CALL RANDOM_NUMBER(iRan)
-      DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
-       !laux diss page 31
-       CALL RANDOM_NUMBER(iRan)
-       iQua = INT(iRan * iQuaMax)
-       CALL RANDOM_NUMBER(iRan)
-      END DO
-
-      IF (usevMPF) THEN
-        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-          Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
-          PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                        * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + Phi * PartStateIntEnTemp
-          ! searche for new vib quant
-          iQua = INT(PartStateIntEnTemp/ &
-                 (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant)
-          CALL RANDOM_NUMBER(iRan)
-          IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
-                     * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant &
-                     - DBLE(iQua)) THEN
-            iQua = iQua + 1
-          END IF
-          PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                        * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
-          DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p1) &
-                              * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1))
-          GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
-        END IF
-      ELSE
-        PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                      * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
-      END IF
+      CALL DSMC_VibRelaxDiatomic(iPair, Coll_pData(iPair)%iPart_p1,FakXi)
     END IF
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
   END IF
 
   IF(DoVib2) THEN
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol) THEN
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
-      CALL DSMC_VibRelaxPoly(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p2),Coll_pData(iPair)%iPart_p2,FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
+      CALL DSMC_VibRelaxPoly(iPair, Coll_pData(iPair)%iPart_p2,FakXi)
     ELSE
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) ! adding vib energy to coll energy
-      MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib)  &
-                - DSMC%GammaQuant
-      iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%MaxVibQuant)
-      CALL RANDOM_NUMBER(iRan)
-      iQua = INT(iRan * iQuaMax)
-      CALL RANDOM_NUMBER(iRan)
-      DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
-       !laux diss page 31
-       CALL RANDOM_NUMBER(iRan)
-       iQua = INT(iRan * iQuaMax)
-       CALL RANDOM_NUMBER(iRan)
-      END DO
-
-      IF (usevMPF) THEN
-        IF (PartMPF(Coll_pData(iPair)%iPart_p2).GT.PartMPF(Coll_pData(iPair)%iPart_p1)) THEN
-          Phi = PartMPF(Coll_pData(iPair)%iPart_p1) / PartMPF(Coll_pData(iPair)%iPart_p2)
-          PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                        * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) + Phi * PartStateIntEnTemp
-          ! searche for new vib quant
-          iQua = INT(PartStateIntEnTemp/ &
-                 (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib) - DSMC%GammaQuant)
-          CALL RANDOM_NUMBER(iRan)
-          IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
-                     * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib) - DSMC%GammaQuant &
-                     - DBLE(iQua)) THEN
-            iQua = iQua + 1
-          END IF
-          PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                        * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib
-          DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p2) &
-                              * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1))
-          GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
-        END IF
-      ELSE
-        PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                      * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) 
-      END IF
+      CALL DSMC_VibRelaxDiatomic(iPair, Coll_pData(iPair)%iPart_p2,FakXi)
     END IF
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
   END IF
 
 !--------------------------------------------------------------------------------------------------! 
@@ -385,7 +319,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol.AND. &
         (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot.EQ.3)) THEN
       FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
-      CALL DSMC_RotRelaxPoly(Coll_pData(iPair)%Ec, Coll_pData(iPair)%iPart_p1, FakXi)      
+      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)      
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
     ELSE
       CALL RANDOM_NUMBER(iRan)
@@ -410,7 +344,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol.AND. &
         (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot.EQ.3)) THEN
       FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
-      CALL DSMC_RotRelaxPoly(Coll_pData(iPair)%Ec, Coll_pData(iPair)%iPart_p2, FakXi)
+      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p2, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
     ELSE
       CALL RANDOM_NUMBER(iRan)
@@ -512,6 +446,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   USE MOD_vmpf_collision,         ONLY : vMPF_PostVelo 
   USE MOD_DSMC_ElectronicModel,   ONLY : ElectronicEnergyExchange, TVEEnergyExchange
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
+  USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -560,14 +495,14 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair, iElem)
   ! calculate probability for rotational/vibrational relaxation for both particles
   IF (SpecDSMC(iSpec)%InterID.EQ.2) THEN
     CALL DSMC_calc_P_vib(iSpec, jSpec, iPair, Xi_rel, ProbVib1, ProbVibMax1)
-    CALL DSMC_calc_P_rot(iSpec, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
+    CALL DSMC_calc_P_rot(iSpec, jSpec, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
     ProbVib1 = 0.
     ProbRot1 = 0.
   END IF
   IF (SpecDSMC(jSpec)%InterID.EQ.2) THEN
     CALL DSMC_calc_P_vib(jSpec, iSpec, iPair, Xi_rel, ProbVib2, ProbVibMax2)
-    CALL DSMC_calc_P_rot(jSpec, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
+    CALL DSMC_calc_P_rot(jSpec, iSpec, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE
     ProbVib2 = 0.
     ProbRot2 = 0.
@@ -656,7 +591,7 @@ __STAMP__&
         ! --------------------------------------------------------------------------------------------------!
         !  Multi-mode relaxation with the Metropolis-Hastings method
         ! --------------------------------------------------------------------------------------------------!
-        CALL DSMC_VibRelaxPoly(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p1),Coll_pData(iPair)%iPart_p1,FakXi)
+        CALL DSMC_VibRelaxPoly(iPair,Coll_pData(iPair)%iPart_p1,FakXi)
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
       ELSE
         ! --------------------------------------------------------------------------------------------------!
@@ -690,46 +625,8 @@ __STAMP__&
                                 - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
       END IF
     ELSE
-      MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)  &
-                - DSMC%GammaQuant
-      iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(iSpec)%MaxVibQuant)
-      CALL RANDOM_NUMBER(iRan)
-      iQua = INT(iRan * iQuaMax)
-      CALL RANDOM_NUMBER(iRan)
-      DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi*BLCorrFact)
-        !laux diss page 31
-        CALL RANDOM_NUMBER(iRan)
-        iQua = INT(iRan * iQuaMax)
-        CALL RANDOM_NUMBER(iRan)
-      END DO
-
-      IF (usevMPF) THEN
-        IF (PartMPF(Coll_pData(iPair)%iPart_p1).GT.PartMPF(Coll_pData(iPair)%iPart_p2)) THEN
-          Phi = PartMPF(Coll_pData(iPair)%iPart_p2) / PartMPF(Coll_pData(iPair)%iPart_p1)
-          PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                        * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + Phi * PartStateIntEnTemp
-          ! searche for new vib quant
-          iQua = INT(PartStateIntEnTemp/ &
-                 (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant)
-          CALL RANDOM_NUMBER(iRan)
-          IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
-                     * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%CharaTVib) - DSMC%GammaQuant &
-                     - DBLE(iQua)) THEN
-            iQua = iQua + 1
-          END IF
-          PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                                                       * SpecDSMC(iSpec)%CharaTVib
-          DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p1) &
-                              * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1))
-          GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
-        END IF
-
-      ELSE
-        PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
-      END IF
+      CALL DSMC_VibRelaxDiatomic(iPair,Coll_pData(iPair)%iPart_p1,FakXi)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,1)
     END IF
 
   END IF
@@ -744,7 +641,7 @@ __STAMP__&
         ! --------------------------------------------------------------------------------------------------!
         !  Multi-mode relaxation with the Metropolis-Hastings method
         ! --------------------------------------------------------------------------------------------------!
-        CALL DSMC_VibRelaxPoly(Coll_pData(iPair)%Ec,PartSpecies(Coll_pData(iPair)%iPart_p2),Coll_pData(iPair)%iPart_p2,FakXi)
+        CALL DSMC_VibRelaxPoly(iPair,Coll_pData(iPair)%iPart_p2,FakXi)
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)
       ELSE
         ! --------------------------------------------------------------------------------------------------!
@@ -778,46 +675,8 @@ __STAMP__&
                                 - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
       END IF
     ELSE
-      MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*SpecDSMC(jSpec)%CharaTVib)  &
-                - DSMC%GammaQuant
-      iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(jSpec)%MaxVibQuant)
-      CALL RANDOM_NUMBER(iRan)
-      iQua = INT(iRan * iQuaMax)
-      CALL RANDOM_NUMBER(iRan)
-      DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi*BLCorrFact)
-        !laux diss page 31
-        CALL RANDOM_NUMBER(iRan)
-        iQua = INT(iRan * iQuaMax)
-        CALL RANDOM_NUMBER(iRan)
-      END DO
-
-      IF (usevMPF) THEN
-        IF (PartMPF(Coll_pData(iPair)%iPart_p2).GT.PartMPF(Coll_pData(iPair)%iPart_p1)) THEN
-          Phi = PartMPF(Coll_pData(iPair)%iPart_p1) / PartMPF(Coll_pData(iPair)%iPart_p2)
-          PartStateIntEnTemp = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                        * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEnTemp
-          PartStateIntEnTemp = (DBLE(1)-Phi) * PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) + Phi * PartStateIntEnTemp
-          ! searche for new vib quant
-          iQua = INT(PartStateIntEnTemp/ &
-                 (BoltzmannConst*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib) - DSMC%GammaQuant)
-          CALL RANDOM_NUMBER(iRan)
-          IF(iRan .LT. PartStateIntEnTemp/(BoltzmannConst &
-                     * SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%CharaTVib) - DSMC%GammaQuant &
-                     - DBLE(iQua)) THEN
-            iQua = iQua + 1
-          END IF
-          PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst &
-                                                       * SpecDSMC(jSpec)%CharaTVib
-          DeltaPartStateIntEn = PartMPF(Coll_pData(iPair)%iPart_p2) &
-                              * (PartStateIntEnTemp - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1))
-          GEO%DeltaEvMPF(iElem) = GEO%DeltaEvMPF(iElem) + DeltaPartStateIntEn
-        END IF
-
-      ELSE
-        PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) = (iQua + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(jSpec)%CharaTVib
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) 
-      END IF
+      CALL DSMC_VibRelaxDiatomic(iPair,Coll_pData(iPair)%iPart_p2,FakXi)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,1)      
     END IF
   END IF
 
@@ -837,7 +696,7 @@ __STAMP__&
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%PolyatomicMol.AND. &
         (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot.EQ.3)) THEN
       FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%Xi_Rot
-      CALL DSMC_RotRelaxPoly(Coll_pData(iPair)%Ec, Coll_pData(iPair)%iPart_p1, FakXi)      
+      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)      
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)
     ! no polyatomic treatment
     ELSE
@@ -877,7 +736,7 @@ __STAMP__&
     IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%PolyatomicMol.AND. &
         (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot.EQ.3)) THEN
       FakXi = FakXi - 0.5*SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%Xi_Rot
-      CALL DSMC_RotRelaxPoly(Coll_pData(iPair)%Ec, Coll_pData(iPair)%iPart_p2, FakXi)
+      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p2, FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
     ELSE
       CALL RANDOM_NUMBER(iRan)
@@ -962,7 +821,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
   USE MOD_Globals,            ONLY : Abort
   USE MOD_DSMC_Vars,          ONLY : CollisMode, Coll_pData, SelectionProc
   USE MOD_DSMC_Vars,          ONLY : DSMC
-  USE MOD_Particle_Vars,      ONLY : PartState
+  USE MOD_Particle_Vars,      ONLY : PartState, WriteMacroValues
   USE MOD_TimeDisc_Vars,      ONLY : TEnd, Time
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -980,7 +839,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
   
   IF(DSMC%CalcQualityFactors) THEN  
-    IF(Time.GE.(1-DSMC%TimeFracSamp)*TEnd) THEN
+    IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroValues) THEN
       DSMC%CollSepDist = DSMC%CollSepDist + SQRT((PartState(Coll_pData(iPair)%iPart_p1,1) &
                                          - PartState(Coll_pData(iPair)%iPart_p2,1))**2 &
                                          +(PartState(Coll_pData(iPair)%iPart_p1,2) &
@@ -1060,10 +919,9 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,                ONLY : Abort
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac
-  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PartState , BoltzmannConst, PEM,  usevMPF
-  USE MOD_DSMC_ChemReact,         ONLY : ElecImpactIoni, MolecDissoc, MolecExch, AtomRecomb, simpleCEX, AssoIonization
-  USE MOD_DSMC_ChemReact,         ONLY : CalcReactionProb
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, ChemReac, PolyatomMolDSMC
+  USE MOD_Particle_Vars,          ONLY : Species, PartSpecies, PartState , BoltzmannConst, PEM, usevMPF, nSpecies
+  USE MOD_DSMC_ChemReact,         ONLY : DSMC_Chemistry, simpleCEX, CalcReactionProb
   USE MOD_Globals,                ONLY : Unit_stdOut
   USE MOD_vmpf_collision,         ONLY : AtomRecomb_vMPF
   USE MOD_Particle_Mesh_Vars,     ONLY : GEO
@@ -1081,13 +939,13 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: CaseOfReaction, iReac, PartToExec, PartReac1, PartReac2, iPart_p3
-  INTEGER                       :: PartToExecSec, PartReac2Sec, iReac2, iReac3, iReac4
-  INTEGER                       :: nPartNode, PairForRec, nPair
-  REAL, PARAMETER               :: JToEv = 1.602176565E-19
-  REAL                          :: EZeroPoint, Volume, sigmaCEX, sigmaMEX
-  REAL (KIND=8)                 :: ReactionProb, ReactionProb2, ReactionProb3, ReactionProb4
-  REAL (KIND=8)                 :: iRan, iRan2, iRan3
+INTEGER                       :: CaseOfReaction, iReac, PartToExec, PartReac2, iPart_p3
+INTEGER                       :: PartToExecSec, PartReac2Sec, iReac2, iReac3, iReac4
+INTEGER                       :: nPartNode, PairForRec, nPair
+REAL, PARAMETER               :: JToEv = 1.602176565E-19
+REAL                          :: EZeroPoint, Volume, sigmaCEX, sigmaMEX
+REAL (KIND=8)                 :: ReactionProb, ReactionProb2, ReactionProb3, ReactionProb4
+REAL (KIND=8)                 :: iRan, iRan2, iRan3
 !===================================================================================================================================
 
   IF (ChemReac%NumOfReact.EQ.0) THEN
@@ -1115,15 +973,12 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
           ChemReac%nPairForRec = ChemReac%nPairForRec + 1
-          Coll_pData(PairForRec)%NeedForRec = .TRUE.
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
-          ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
         ELSE
           iPart_p3 = 0
         END IF
       ELSE
         iPart_p3 = ChemReac%RecombParticle
-        ChemReac%RecombParticle = 0
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
       IF (iPart_p3 .GT. 0) THEN
@@ -1141,12 +996,6 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
         ELSE
 !-----------------------------------------------------------------------------------------------------------------------------------
         ! traditional Recombination
-          Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2           &
-                      + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2)   &
-                      + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)   &
-                      + 0.5 * Species(PartSpecies(iPart_p3))%MassIC                                                   &
-                      * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 )            &
-                      + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
           ! Calculation of reaction probability
           CALL CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
 #if (PP_TimeDiscMethod==42)
@@ -1164,7 +1013,13 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
               IF (usevMPF) THEN
                 CALL AtomRecomb_vMPF(iReac, iPair, iPart_p3, iElem)
               ELSE
-                CALL AtomRecomb(iReac, iPair, iPart_p3)
+                CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
+                IF(ChemReac%RecombParticle.EQ. 0) THEN
+                  Coll_pData(PairForRec)%NeedForRec = .TRUE.
+                  ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ELSE
+                  ChemReac%RecombParticle = 0
+                END IF
               END IF
 #if (PP_TimeDiscMethod==42)
             END IF
@@ -1183,10 +1038,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
       IF (ChemReac%QKProcedure(iReac)) THEN
         CALL QK_dissociation(iPair,iReac,RelaxToDo)
       ELSE
-        ! Reaction propability based on equilibrium method: Reaction based on probability and rate coefficient
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                 &
-                            + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                            + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
+        ! Arrhenius-based reaction probability
         CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
         IF (.NOT.DSMC%ReservoirRateStatistic) THEN
@@ -1200,7 +1052,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
           ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
           IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-            CALL MolecDissoc(iReac, iPair)
+            CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
           END IF
           IF (DSMC%ReservoirRateStatistic) THEN
@@ -1217,10 +1069,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
       IF (ChemReac%QKProcedure(iReac)) THEN
         CALL QK_exchange(iPair,iReac,RelaxToDo)
       ELSE
-        ! equilibrium and continuum based exchange reaction
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                  &
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
+        ! Arrhenius-based reaction probability
         CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
         IF (.NOT.DSMC%ReservoirRateStatistic) THEN
@@ -1234,7 +1083,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
           ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
           IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-            CALL MolecExch(iReac, iPair)
+            CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
           END IF
           IF (DSMC%ReservoirRateStatistic) THEN
@@ -1275,7 +1124,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
               ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
               IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-                CALL MolecExch(iReac, iPair)
+                CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
               END IF
               IF (DSMC%ReservoirRateStatistic) THEN
@@ -1288,10 +1137,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
         END IF
       ELSE
 !-----------------------------------------------------------------------------------------------------------------------------------
-        ! purely Arrhenius rate based reactions
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                  &
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
+        ! Arrhenius-based reaction probability
         ! calculation of dissociation probability
         CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
@@ -1316,7 +1162,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-              CALL MolecDissoc(iReac, iPair)
+              CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1328,7 +1174,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
           ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-              CALL MolecExch(iReac2, iPair)
+              CALL DSMC_Chemistry(iPair, iReac2)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1466,7 +1312,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
               ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
               IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-                CALL MolecDissoc(iReac2, iPair)
+                CALL DSMC_Chemistry(iPair, iReac2)
 #if (PP_TimeDiscMethod==42)
               END IF
               IF (DSMC%ReservoirRateStatistic) THEN
@@ -1479,11 +1325,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
         END IF
       ELSE ! both reactions Arrhenius
 !-----------------------------------------------------------------------------------------------------------------------------------
-        ! Arrehnius rate based reactions
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-        ! calculation of dissociation probability
+        ! Arrhenius-based reaction probability
         CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
         IF (.NOT.DSMC%ReservoirRateStatistic) THEN
@@ -1507,7 +1349,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-              CALL MolecDissoc(iReac, iPair)
+              CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1519,7 +1361,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 #endif
-              CALL MolecDissoc(iReac2, iPair)
+              CALL DSMC_Chemistry(iPair, iReac2)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1531,51 +1373,76 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
         END IF
       END IF
 ! ############################################################################################################################### !
-    CASE(6) ! only associative ionization possible
+    CASE(6) ! ionization or ion recombination
 ! ############################################################################################################################### !
-      iReac = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
-      IF (ChemReac%QKProcedure(iReac)) THEN
-        CALL Abort(&
-__STAMP__&
-,'ERROR! Associative ionization and charge exchange reactions not implemented with QK')
-      END IF
-!-----------------------------------------------------------------------------------------------------------------------------------
-      IF (.NOT.ChemReac%QKProcedure(iReac)) THEN
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2                  &
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-        IF (ChemReac%DefinedReact(iReac,1,1).EQ.PartSpecies(Coll_pData(iPair)%iPart_p1)) THEN
-          PartReac1 = Coll_pData(iPair)%iPart_p1
-          PartReac2 = Coll_pData(iPair)%iPart_p2
+      ! searching third collison partner
+      IF(ChemReac%RecombParticle.EQ. 0) THEN
+        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
+          PairForRec = nPair - ChemReac%nPairForRec
+          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
+          iPart_p3 = Coll_pData(PairForRec)%iPart_p1
         ELSE
-          PartReac1 = Coll_pData(iPair)%iPart_p2
-          PartReac2 = Coll_pData(iPair)%iPart_p1
+          iPart_p3 = 0
         END IF
-
-        CALL CalcReactionProb(iPair,iReac,ReactionProb)
-
-#if (PP_TimeDiscMethod==42)
-        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-          ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reactionrate coeficient
-          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-        END IF
-#endif
-        CALL RANDOM_NUMBER(iRan)
-        IF (ReactionProb.GT.iRan) THEN
-        ! Reservoir simulation for obtaining the reaction rate at one given point does not require to performe the reaction
-#if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirSimuRate) THEN
-#endif      
-          CALL AssoIonization(iReac, iPair)
-#if (PP_TimeDiscMethod==42)
-          END IF
-          IF (DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reactionrate coeficient
-          END IF
-#endif
-          RelaxToDo = .FALSE.
-        END IF
+      ELSE
+        iPart_p3 = ChemReac%RecombParticle
       END IF
+!--------------------------------------------------------------------------------------------------!
+      iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
+!--------------------------------------------------------------------------------------------------!
+#if (PP_TimeDiscMethod==42)
+      IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+      END IF
+#endif
+      ! calculation of recombination probability
+      IF (iPart_p3 .GT. 0) THEN
+        iReac2 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
+                                                                                  PartSpecies(iPart_p3))
+        CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart_p3,nPartNode,Volume)
+      ELSE
+        ReactionProb2 = 0.0
+      END IF
+      CALL RANDOM_NUMBER(iRan)
+      IF(ReactionProb2.GT.iRan) THEN
+#if (PP_TimeDiscMethod==42)
+      IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+        ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+        ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+      END IF
+#endif
+          ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+        IF (.NOT.DSMC%ReservoirSimuRate) THEN
+# endif
+          CALL DSMC_Chemistry(iPair, iReac2, iPart_p3)
+          IF(ChemReac%RecombParticle.EQ. 0) THEN
+            Coll_pData(PairForRec)%NeedForRec = .TRUE.
+            ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+          ELSE
+            ChemReac%RecombParticle = 0
+          END IF
+#if (PP_TimeDiscMethod==42)
+        END IF
+        IF (DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
+        END IF
+        RelaxToDo = .FALSE.
+# endif
+      ELSE
+        ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+        IF (.NOT.DSMC%ReservoirSimuRate) THEN
+# endif
+          CALL QK_ImpactIonization(iPair,iReac,RelaxToDo)
+#if (PP_TimeDiscMethod==42)
+        END IF
+        IF (DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+        END IF
+# endif
+      END IF
+
 ! ############################################################################################################################### !
     CASE(7) ! three diss reactions possible (at least one molecule is polyatomic)
 ! ############################################################################################################################### !
@@ -1589,10 +1456,6 @@ __STAMP__&
 !--------------------------------------------------------------------------------------------------!
       ELSE ! all reactions Arrhenius
 !--------------------------------------------------------------------------------------------------!
-        ! Arrehnius rate based reactions
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
         ! calculation of first dissociation probability
         CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
@@ -1626,7 +1489,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac, iPair)
+              CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF ( DSMC%ReservoirRateStatistic  ) THEN
@@ -1638,7 +1501,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac2, iPair)
+              CALL DSMC_Chemistry(iPair, iReac2)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1650,7 +1513,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac3, iPair)
+              CALL DSMC_Chemistry(iPair, iReac3)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1676,10 +1539,6 @@ __STAMP__&
 !--------------------------------------------------------------------------------------------------!
       ELSE ! all reactions Arrhenius
 !--------------------------------------------------------------------------------------------------!
-        ! Arrehnius rate based reactions
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
         ! calculation of first dissociation probability
         CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
@@ -1722,7 +1581,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac, iPair)
+              CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1734,7 +1593,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac2, iPair)
+              CALL DSMC_Chemistry(iPair, iReac2)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1746,7 +1605,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac3, iPair)
+              CALL DSMC_Chemistry(iPair, iReac3)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1758,7 +1617,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac4, iPair)
+              CALL DSMC_Chemistry(iPair, iReac4)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1784,10 +1643,6 @@ __STAMP__&
 !--------------------------------------------------------------------------------------------------!
       ELSE ! all reactions Arrhenius
 !--------------------------------------------------------------------------------------------------!
-        ! Arrehnius rate based reactions
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
         ! calculation of first dissociation probability
         CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
@@ -1830,7 +1685,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac, iPair)
+              CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1842,7 +1697,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac2, iPair)
+              CALL DSMC_Chemistry(iPair, iReac2)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1854,7 +1709,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac3, iPair)
+              CALL DSMC_Chemistry(iPair, iReac3)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1866,7 +1721,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecExch(iReac4, iPair)
+              CALL DSMC_Chemistry(iPair, iReac4)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1890,10 +1745,6 @@ __STAMP__&
 !--------------------------------------------------------------------------------------------------!
       ELSE ! all reactions Arrhenius
 !--------------------------------------------------------------------------------------------------!
-        ! Arrehnius rate based reactions
-        Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                             + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
         ! calculation of first dissociation probability
           CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
@@ -1927,7 +1778,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac, iPair)
+              CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1939,7 +1790,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecDissoc(iReac2, iPair)
+              CALL DSMC_Chemistry(iPair, iReac2)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1951,7 +1802,7 @@ __STAMP__&
 #if (PP_TimeDiscMethod==42)
             IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-              CALL MolecExch(iReac3, iPair)
+              CALL DSMC_Chemistry(iPair, iReac3)
 #if (PP_TimeDiscMethod==42)
             END IF
             IF (DSMC%ReservoirRateStatistic) THEN
@@ -1970,128 +1821,125 @@ __STAMP__&
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
           ChemReac%nPairForRec = ChemReac%nPairForRec + 1
-          Coll_pData(PairForRec)%NeedForRec = .TRUE.
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
-          ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
         ELSE
           iPart_p3 = 0
         END IF
       ELSE
         iPart_p3 = ChemReac%RecombParticle
-        ChemReac%RecombParticle = 0
       END IF
 !--------------------------------------------------------------------------------------------------!
       iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
       iReac2 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 2)
       iReac3 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 3)
-      IF (iPart_p3 .GT. 0) THEN
-        iReac4 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), &
-                                         PartSpecies(Coll_pData(iPair)%iPart_p2), &
-                                         PartSpecies(iPart_p3))
-        IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) &
-        .OR. ChemReac%QKProcedure(iReac3) .OR. ChemReac%QKProcedure(iReac4)) THEN ! all Q-K
-          CALL Abort(&
+      IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) &
+      .OR. ChemReac%QKProcedure(iReac3)) THEN ! all Q-K
+        CALL Abort(&
 __STAMP__&
 ,'ERROR! Reaction case not supported with Q-K reactions!')
-  !--------------------------------------------------------------------------------------------------!
-        ELSE ! all reactions Arrhenius
-  !--------------------------------------------------------------------------------------------------!
-        ! Arrehnius rate based reactions
-          Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-          ! calculation of first dissociation probability
-          CALL CalcReactionProb(iPair,iReac,ReactionProb)
+!--------------------------------------------------------------------------------------------------!
+      ELSE ! all reactions Arrhenius
+!--------------------------------------------------------------------------------------------------!
+        ! calculation of first dissociation probability
+        CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+        END IF
 # endif
-          ! calculation of second dissociation probability
-            CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+        ! calculation of second dissociation probability
+          CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+        END IF
 # endif
-          ! calculation of exchange probability
-          CALL CalcReactionProb(iPair,iReac3,ReactionProb3)
+        ! calculation of exchange probability
+        CALL CalcReactionProb(iPair,iReac3,ReactionProb3)
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + ReactionProb3  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac3) = ChemReac%ReacCount(iReac3) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + ReactionProb3  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac3) = ChemReac%ReacCount(iReac3) + 1
+        END IF
 #endif
-          ! calculation of recombination probability
-          ! total collision energy (with total kinetic energy of third molecule) for atom/atom recombination)
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + 0.5 * Species(PartSpecies(iPart_p3))%MassIC                 &
-                 * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 )               &
-                 + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
+        ! calculation of recombination probability
+        IF (iPart_p3 .GT. 0) THEN
+          iReac4 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), &
+                                           PartSpecies(Coll_pData(iPair)%iPart_p2), &
+                                           PartSpecies(iPart_p3))
           CALL CalcReactionProb(iPair,iReac4,ReactionProb4,iPart_p3,nPartNode,Volume)
+        ELSE
+          ReactionProb4 = 0.0
+        END IF
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac4) = ChemReac%NumReac(iReac4) + ReactionProb4  ! for calculation of reaction rate coefficient
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac4) = ChemReac%NumReac(iReac4) + ReactionProb4  ! for calculation of reaction rate coefficient
+        END IF
 # endif
-          ! reaction decision
+        ! reaction decision
+        CALL RANDOM_NUMBER(iRan)
+        IF ((ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan) THEN
           CALL RANDOM_NUMBER(iRan)
-          IF ((ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan) THEN
-            CALL RANDOM_NUMBER(iRan)
-            CALL RANDOM_NUMBER(iRan2)
-            CALL RANDOM_NUMBER(iRan3)
-            IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4)).GT.iRan) THEN
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+          CALL RANDOM_NUMBER(iRan2)
+          CALL RANDOM_NUMBER(iRan3)
+          IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3 + ReactionProb4)).GT.iRan) THEN
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
 #if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-                CALL MolecDissoc(iReac, iPair)
+              CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
-            ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan2) THEN
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL MolecDissoc(iReac2, iPair)
-#if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
-            ELSEIF(ReactionProb3/(ReactionProb3 + ReactionProb4).GT.iRan3) THEN
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL MolecExch(iReac3, iPair)
-#if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
-            ELSE
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL AtomRecomb(iReac4, iPair, iPart_p3)
-#if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac4) = ChemReac%NumReac(iReac4) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
             END IF
-            RelaxToDo = .FALSE.
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
+          ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3 + ReactionProb4).GT.iRan2) THEN
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+# endif
+              CALL DSMC_Chemistry(iPair, iReac2)
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
+          ELSEIF(ReactionProb3/(ReactionProb3 + ReactionProb4).GT.iRan3) THEN
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+# endif
+              CALL DSMC_Chemistry(iPair, iReac3)
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
+          ELSE
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+# endif
+              CALL DSMC_Chemistry(iPair, iReac4, iPart_p3)
+              IF(ChemReac%RecombParticle.EQ. 0) THEN
+                Coll_pData(PairForRec)%NeedForRec = .TRUE.
+                ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+              ELSE
+                ChemReac%RecombParticle = 0
+              END IF
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac4) = ChemReac%NumReac(iReac4) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
           END IF
+          RelaxToDo = .FALSE.
         END IF
       END IF
 ! ############################################################################################################################### !
@@ -2102,106 +1950,103 @@ __STAMP__&
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
           ChemReac%nPairForRec = ChemReac%nPairForRec + 1
-          Coll_pData(PairForRec)%NeedForRec = .TRUE.
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
-          ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
         ELSE
           iPart_p3 = 0
         END IF
       ELSE
         iPart_p3 = ChemReac%RecombParticle
-        ChemReac%RecombParticle = 0
       END IF
 !--------------------------------------------------------------------------------------------------!
       iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
       iReac2 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 2)
-      IF (iPart_p3 .GT. 0) THEN
-      iReac3 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
-                                                                                PartSpecies(iPart_p3))
-        IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
-          CALL Abort(&
-__STAMP__&
-,'ERROR! Reaction case not supported with Q-K reactions!')
-  !--------------------------------------------------------------------------------------------------!
-        ELSE ! all reactions Arrhenius
-  !--------------------------------------------------------------------------------------------------!
-          ! Arrehnius rate based reactions
-          Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-          ! calculation of first dissociation probability
-          CALL CalcReactionProb(iPair,iReac,ReactionProb)
+      IF (ChemReac%QKProcedure(iReac).OR.ChemReac%QKProcedure(iReac2)) THEN ! all Q-K
+        CALL Abort(&
+         __STAMP__,&
+        'ERROR! Reaction case not supported with Q-K reactions!')
+!--------------------------------------------------------------------------------------------------!
+      ELSE ! all reactions Arrhenius
+!--------------------------------------------------------------------------------------------------!
+        ! calculation of first dissociation probability
+        CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+        END IF
 #endif
-          ! calculation of second dissociation probability
-            CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+        ! calculation of second dissociation probability
+          CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+        END IF
 #endif
-          ! calculation of recombination probability
-          ! total collision energy (with total kinetic energy of third molecule) for atom/atom recombination
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + 0.5 * Species(PartSpecies(iPart_p3))%MassIC                 &
-                 * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 )               &
-                 + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
+        ! calculation of recombination probability
+        IF (iPart_p3 .GT. 0) THEN
+          iReac3 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
+                                                                                      PartSpecies(iPart_p3))
           CALL CalcReactionProb(iPair,iReac3,ReactionProb3,iPart_p3,nPartNode,Volume)
+        ELSE 
+          ReactionProb3 = 0.0
+        END IF
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + ReactionProb3  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac3) = ChemReac%ReacCount(iReac3) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + ReactionProb3  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac3) = ChemReac%ReacCount(iReac3) + 1
+        END IF
 #endif
+        CALL RANDOM_NUMBER(iRan)
+        IF ((ReactionProb + ReactionProb2 + ReactionProb3).GT.iRan) THEN
           CALL RANDOM_NUMBER(iRan)
-          IF ((ReactionProb + ReactionProb2 + ReactionProb3).GT.iRan) THEN
-            CALL RANDOM_NUMBER(iRan)
-            CALL RANDOM_NUMBER(iRan2)
-            IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3)).GT.iRan) THEN
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+          CALL RANDOM_NUMBER(iRan2)
+          IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3)).GT.iRan) THEN
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
 #if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-                CALL MolecDissoc(iReac, iPair)
+              CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
-            ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3).GT.iRan2) THEN
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL MolecDissoc(iReac2, iPair)
-#if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
-            ELSE
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL AtomRecomb(iReac3, iPair, iPart_p3)
-#if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
             END IF
-            RelaxToDo = .FALSE.
-          END IF ! Prob > iRan
-        END IF ! Q-K
-      END IF ! iPart_p3 > 0
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
+          ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3).GT.iRan2) THEN
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+# endif
+              CALL DSMC_Chemistry(iPair, iReac2)
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
+          ELSE
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+# endif
+              CALL DSMC_Chemistry(iPair, iReac3, iPart_p3)
+              IF(ChemReac%RecombParticle.EQ. 0) THEN
+                Coll_pData(PairForRec)%NeedForRec = .TRUE.
+                ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+              ELSE
+                ChemReac%RecombParticle = 0
+              END IF
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
+          END IF
+          RelaxToDo = .FALSE.
+        END IF ! Prob > iRan
+      END IF ! Q-K
 ! ############################################################################################################################### !
     CASE(13) ! one diss, one exchange and one recomb reaction possible
 ! ############################################################################################################################### !
@@ -2210,106 +2055,103 @@ __STAMP__&
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
           ChemReac%nPairForRec = ChemReac%nPairForRec + 1
-          Coll_pData(PairForRec)%NeedForRec = .TRUE.
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
-          ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
         ELSE
           iPart_p3 = 0
         END IF
       ELSE
         iPart_p3 = ChemReac%RecombParticle
-        ChemReac%RecombParticle = 0
       END IF
 !--------------------------------------------------------------------------------------------------!
       iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
       iReac2 = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 2)
-      IF (iPart_p3 .GT. 0) THEN
-      iReac3 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
-                                                                                PartSpecies(iPart_p3))
-        IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) .OR. ChemReac%QKProcedure(iReac3) ) THEN ! all Q-K
-          CALL Abort(&
-__STAMP__&
-,'ERROR! Reaction case not supported with Q-K reactions!')
-  !--------------------------------------------------------------------------------------------------!
-        ELSE ! all reactions Arrhenius
-  !--------------------------------------------------------------------------------------------------!
-          ! Arrehnius rate based reactions
-          Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-          ! calculation of first dissociation probability
-          CALL CalcReactionProb(iPair,iReac,ReactionProb)
+      IF (ChemReac%QKProcedure(iReac).OR.ChemReac%QKProcedure(iReac2)) THEN ! all Q-K
+        CALL Abort(&
+         __STAMP__,&
+        'ERROR! Reaction case not supported with Q-K reactions!')
+!--------------------------------------------------------------------------------------------------!
+      ELSE ! all reactions Arrhenius
+!--------------------------------------------------------------------------------------------------!
+        ! calculation of first dissociation probability
+        CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+        END IF
 #endif
-          ! calculation of exchange probability
-          CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
+        ! calculation of exchange probability
+        CALL CalcReactionProb(iPair,iReac2,ReactionProb2)
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+        END IF
 #endif
-          ! calculation of recombination probability
-          ! total collision energy (with total kinetic energy of third molecule) for atom/atom recombination
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + 0.5 * Species(PartSpecies(iPart_p3))%MassIC                 &
-                 * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 )               &
-                 + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
+        ! calculation of recombination probability
+        IF (iPart_p3 .GT. 0) THEN
+          iReac3 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
+                                                                                  PartSpecies(iPart_p3))
           CALL CalcReactionProb(iPair,iReac3,ReactionProb3,iPart_p3,nPartNode,Volume)
+        ELSE 
+          ReactionProb3 = 0.0
+        END IF
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + ReactionProb3  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac3) = ChemReac%ReacCount(iReac3) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + ReactionProb3  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac3) = ChemReac%ReacCount(iReac3) + 1
+        END IF
 #endif
+        CALL RANDOM_NUMBER(iRan)
+        IF ((ReactionProb + ReactionProb2 + ReactionProb3).GT.iRan) THEN
           CALL RANDOM_NUMBER(iRan)
-          IF ((ReactionProb + ReactionProb2 + ReactionProb3).GT.iRan) THEN
-            CALL RANDOM_NUMBER(iRan)
-            CALL RANDOM_NUMBER(iRan2)
-            IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3)).GT.iRan) THEN
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+          CALL RANDOM_NUMBER(iRan2)
+          IF((ReactionProb/(ReactionProb + ReactionProb2 + ReactionProb3)).GT.iRan) THEN
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
 #if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-                CALL MolecDissoc(iReac, iPair)
+              CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
-            ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3).GT.iRan2) THEN
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL MolecExch(iReac2, iPair)
-#if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
-            ELSE
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL AtomRecomb(iReac3, iPair, iPart_p3)
-#if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
             END IF
-            RelaxToDo = .FALSE.
-          END IF ! Prob > iRan
-        END IF ! Q-K
-      END IF ! iPart_p3 > 0
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
+          ELSEIF(ReactionProb2/(ReactionProb2 + ReactionProb3).GT.iRan2) THEN
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+# endif
+              CALL DSMC_Chemistry(iPair, iReac2)
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
+          ELSE
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+# endif
+              CALL DSMC_Chemistry(iPair, iReac3, iPart_p3)
+              IF(ChemReac%RecombParticle.EQ. 0) THEN
+                Coll_pData(PairForRec)%NeedForRec = .TRUE.
+                ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+              ELSE
+                ChemReac%RecombParticle = 0
+              END IF
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac3) = ChemReac%NumReac(iReac3) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
+          END IF
+          RelaxToDo = .FALSE.
+        END IF ! Prob > iRan
+      END IF ! Q-K
 ! ############################################################################################################################### !
     CASE(14) ! one diss and one recomb reaction possible
 ! ############################################################################################################################### !
@@ -2318,82 +2160,79 @@ __STAMP__&
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
           ChemReac%nPairForRec = ChemReac%nPairForRec + 1
-          Coll_pData(PairForRec)%NeedForRec = .TRUE.
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
-          ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
         ELSE
           iPart_p3 = 0
         END IF
       ELSE
         iPart_p3 = ChemReac%RecombParticle
-        ChemReac%RecombParticle = 0
       END IF
 !--------------------------------------------------------------------------------------------------!
       iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
-      IF (iPart_p3 .GT. 0) THEN
-      iReac2 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
-                                                                                PartSpecies(iPart_p3))
-        IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) ) THEN ! all Q-K
-          CALL Abort(&
-__STAMP__&
-,'ERROR! Reaction case not supported with Q-K reactions!')
-  !--------------------------------------------------------------------------------------------------!
-        ELSE ! all reactions Arrhenius
-  !--------------------------------------------------------------------------------------------------!
-          ! Arrehnius rate based reactions
-          Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-          ! calculation of first dissociation probability
-          CALL CalcReactionProb(iPair,iReac,ReactionProb)
+      IF(ChemReac%QKProcedure(iReac)) THEN ! all Q-K
+        CALL Abort(&
+         __STAMP__,&
+        'ERROR! Reaction case not supported with Q-K reactions!')
+!--------------------------------------------------------------------------------------------------!
+      ELSE ! all reactions Arrhenius
+!--------------------------------------------------------------------------------------------------!
+        ! calculation of first dissociation probability
+        CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+        END IF
 #endif
-          ! calculation of recombination probability
-          ! total collision energy (with total kinetic energy of third molecule) for atom/atom recombination
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + 0.5 * Species(PartSpecies(iPart_p3))%MassIC                 &
-                 * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 )               &
-                 + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
+        ! calculation of recombination probability
+        IF (iPart_p3 .GT. 0) THEN
+          iReac2 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
+                                                                                    PartSpecies(iPart_p3))
           CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart_p3,nPartNode,Volume)
+        ELSE
+          ReactionProb2 = 0.0
+        END IF
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+        END IF
 #endif
+        CALL RANDOM_NUMBER(iRan)
+        IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
           CALL RANDOM_NUMBER(iRan)
-          IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
-            CALL RANDOM_NUMBER(iRan)
-            IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
 #if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
 # endif
-                CALL MolecDissoc(iReac, iPair)
+              CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
-            ELSE
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL AtomRecomb(iReac2, iPair, iPart_p3)
-#if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
             END IF
-            RelaxToDo = .FALSE.
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
+          ELSE
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+# endif
+              CALL DSMC_Chemistry(iPair, iReac2, iPart_p3)
+              IF(ChemReac%RecombParticle.EQ. 0) THEN
+                Coll_pData(PairForRec)%NeedForRec = .TRUE.
+                ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+              ELSE
+                ChemReac%RecombParticle = 0
+              END IF
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
+            END IF
+# endif
           END IF
+          RelaxToDo = .FALSE.
         END IF
       END IF
 ! ############################################################################################################################### !
@@ -2404,82 +2243,79 @@ __STAMP__&
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
           ChemReac%nPairForRec = ChemReac%nPairForRec + 1
-          Coll_pData(PairForRec)%NeedForRec = .TRUE.
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
-          ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
         ELSE
           iPart_p3 = 0
         END IF
       ELSE
         iPart_p3 = ChemReac%RecombParticle
-        ChemReac%RecombParticle = 0
       END IF
 !--------------------------------------------------------------------------------------------------!
       iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
-      IF (iPart_p3 .GT. 0) THEN
-      iReac2 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
-                                                                                PartSpecies(iPart_p3))
-        IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) ) THEN ! all Q-K
-          CALL Abort(&
-__STAMP__&
-,'ERROR! Reaction case not supported with Q-K reactions!')
-  !--------------------------------------------------------------------------------------------------!
-        ELSE ! all reactions Arrhenius
-  !--------------------------------------------------------------------------------------------------!
-          ! Arrehnius rate based reactions
-          Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-          ! calculation of exchange probability
-          CALL CalcReactionProb(iPair,iReac,ReactionProb)
+      IF(ChemReac%QKProcedure(iReac)) THEN ! all Q-K
+        CALL Abort(&
+         __STAMP__,&
+        'ERROR! Reaction case not supported with Q-K reactions!')
+!--------------------------------------------------------------------------------------------------!
+      ELSE ! all reactions Arrhenius
+!--------------------------------------------------------------------------------------------------!
+        ! calculation of exchange probability
+        CALL CalcReactionProb(iPair,iReac,ReactionProb)
 #if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-          END IF
-# endif
-          ! calculation of recombination probability
-          ! total collision energy (with total kinetic energy of third molecule) for atom/atom recombination)
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + 0.5 * Species(PartSpecies(iPart_p3))%MassIC                 &
-                 * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 )               &
-                 + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
-          CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart_p3,nPartNode,Volume)
-#if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
-          END IF
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+        END IF
 #endif
+        ! calculation of recombination probability (only if third collision partner is available)
+        IF (iPart_p3 .GT. 0) THEN
+          iReac2 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
+                                                                                  PartSpecies(iPart_p3))
+          CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart_p3,nPartNode,Volume)
+        ELSE
+          ReactionProb2 = 0.0
+        END IF
+#if (PP_TimeDiscMethod==42)
+        IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+          ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+          ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+        END IF
+#endif
+        CALL RANDOM_NUMBER(iRan)
+        IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
           CALL RANDOM_NUMBER(iRan)
-          IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
-            CALL RANDOM_NUMBER(iRan)
-            IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+          IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
 #if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL MolecExch(iReac, iPair)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+              CALL DSMC_Chemistry(iPair, iReac)
 #if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
-            ELSE
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL AtomRecomb(iReac2, iPair, iPart_p3)
-#if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
             END IF
-            RelaxToDo = .FALSE.
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+            END IF
+#endif
+          ELSE
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+#if (PP_TimeDiscMethod==42)
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+              CALL DSMC_Chemistry(iPair, iReac2, iPart_p3)
+              IF(ChemReac%RecombParticle.EQ. 0) THEN
+                Coll_pData(PairForRec)%NeedForRec = .TRUE.
+                ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+              ELSE
+                ChemReac%RecombParticle = 0
+              END IF
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
+            END IF
+#endif
           END IF
+          RelaxToDo = .FALSE.
         END IF
       END IF
 
@@ -2523,89 +2359,89 @@ __STAMP__&
 ! ############################################################################################################################### !
     CASE(17) ! one associative ionization and one recomb reaction possible
 ! ############################################################################################################################### !
-      ! searching third collison partner
-      IF(ChemReac%RecombParticle.EQ. 0) THEN
-        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
-          PairForRec = nPair - ChemReac%nPairForRec
-          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
-          Coll_pData(PairForRec)%NeedForRec = .TRUE.
-          iPart_p3 = Coll_pData(PairForRec)%iPart_p1
-          ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
-        ELSE
-          iPart_p3 = 0
-        END IF
-      ELSE
-        iPart_p3 = ChemReac%RecombParticle
-        ChemReac%RecombParticle = 0
-      END IF
-!--------------------------------------------------------------------------------------------------!
-      iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
-      IF (iPart_p3 .GT. 0) THEN
-      iReac2 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
-                                                                                PartSpecies(iPart_p3))
-        IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) ) THEN ! all Q-K
-          CALL Abort(&
-__STAMP__&
-,'ERROR! Reaction case not supported with Q-K reactions!')
-  !--------------------------------------------------------------------------------------------------!
-        ELSE ! all reactions Arrhenius
-  !--------------------------------------------------------------------------------------------------!
-          ! Arrehnius rate based reactions
-          Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
-                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
-          ! calculation of first dissociation probability
-          CALL CalcReactionProb(iPair,iReac,ReactionProb)
-#if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
-          END IF
-#endif
-          ! calculation of recombination probability
-          ! total collision energy (with total kinetic energy of third molecule) for atom/atom recombination
-          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + 0.5 * Species(PartSpecies(iPart_p3))%MassIC                 &
-                 * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 )               &
-                 + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
-          CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart_p3,nPartNode,Volume)
-#if (PP_TimeDiscMethod==42)
-          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
-            ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
-            ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
-          END IF
-#endif
-          CALL RANDOM_NUMBER(iRan)
-          IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
-            CALL RANDOM_NUMBER(iRan)
-            IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL AssoIonization(iReac, iPair)
-#if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
-            ELSE
-              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
-#if (PP_TimeDiscMethod==42)
-              IF (.NOT.DSMC%ReservoirSimuRate) THEN
-# endif
-                CALL AtomRecomb(iReac2, iPair, iPart_p3)
-#if (PP_TimeDiscMethod==42)
-              END IF
-              IF (DSMC%ReservoirRateStatistic) THEN
-                ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
-              END IF
-# endif
-            END IF
-            RelaxToDo = .FALSE.
-          END IF
-        END IF
-      END IF
+!      ! searching third collison partner
+!      IF(ChemReac%RecombParticle.EQ. 0) THEN
+!        IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
+!          PairForRec = nPair - ChemReac%nPairForRec
+!          ChemReac%nPairForRec = ChemReac%nPairForRec + 1
+!          Coll_pData(PairForRec)%NeedForRec = .TRUE.
+!          iPart_p3 = Coll_pData(PairForRec)%iPart_p1
+!          ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+!        ELSE
+!          iPart_p3 = 0
+!        END IF
+!      ELSE
+!        iPart_p3 = ChemReac%RecombParticle
+!        ChemReac%RecombParticle = 0
+!      END IF
+!!--------------------------------------------------------------------------------------------------!
+!      iReac  = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
+!      IF (iPart_p3 .GT. 0) THEN
+!      iReac2 = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), &
+!                                                                                PartSpecies(iPart_p3))
+!        IF ( ChemReac%QKProcedure(iReac) .OR. ChemReac%QKProcedure(iReac2) ) THEN ! all Q-K
+!          CALL Abort(&
+!           __STAMP__,&
+!          'ERROR! Reaction case not supported with Q-K reactions!')
+!  !--------------------------------------------------------------------------------------------------!
+!        ELSE ! all reactions Arrhenius
+!  !--------------------------------------------------------------------------------------------------!
+!          ! Arrehnius rate based reactions
+!          Coll_pData(iPair)%Ec = 0.5 * CollInf%MassRed(Coll_pData(iPair)%PairType)*Coll_pData(iPair)%CRela2 & 
+!                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,1) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,1) &
+!                               + PartStateIntEn(Coll_pData(iPair)%iPart_p1,2) + PartStateIntEn(Coll_pData(iPair)%iPart_p2,2)
+!          ! calculation of first dissociation probability
+!          CALL CalcReactionProb(iPair,iReac,ReactionProb)
+!#if (PP_TimeDiscMethod==42)
+!          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+!            ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+!            ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+!          END IF
+!#endif
+!          ! calculation of recombination probability
+!          ! total collision energy (with total kinetic energy of third molecule) for atom/atom recombination
+!          Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + 0.5 * Species(PartSpecies(iPart_p3))%MassIC                 &
+!                 * ( PartState(iPart_p3,4)**2 + PartState(iPart_p3,5)**2 + PartState(iPart_p3,6)**2 )               &
+!                 + PartStateIntEn(iPart_p3,1) + PartStateIntEn(iPart_p3,2)
+!          CALL CalcReactionProb(iPair,iReac2,ReactionProb2,iPart_p3,nPartNode,Volume)
+!#if (PP_TimeDiscMethod==42)
+!          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+!            ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + ReactionProb2  ! for calculation of reaction rate coefficient
+!            ChemReac%ReacCount(iReac2) = ChemReac%ReacCount(iReac2) + 1
+!          END IF
+!#endif
+!          CALL RANDOM_NUMBER(iRan)
+!          IF ((ReactionProb + ReactionProb2).GT.iRan) THEN
+!            CALL RANDOM_NUMBER(iRan)
+!            IF((ReactionProb/(ReactionProb + ReactionProb2)).GT.iRan) THEN
+!              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+!#if (PP_TimeDiscMethod==42)
+!              IF (.NOT.DSMC%ReservoirSimuRate) THEN
+!# endif
+!                CALL AssoIonization(iReac, iPair)
+!#if (PP_TimeDiscMethod==42)
+!              END IF
+!              IF (DSMC%ReservoirRateStatistic) THEN
+!                ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+!              END IF
+!# endif
+!            ELSE
+!              ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+!#if (PP_TimeDiscMethod==42)
+!              IF (.NOT.DSMC%ReservoirSimuRate) THEN
+!# endif
+!                CALL DSMC_Chemistry(iPair, iReac2, iPart_p3)
+!#if (PP_TimeDiscMethod==42)
+!              END IF
+!              IF (DSMC%ReservoirRateStatistic) THEN
+!                ChemReac%NumReac(iReac2) = ChemReac%NumReac(iReac2) + 1  ! for calculation of reaction rate coefficient
+!              END IF
+!# endif
+!            END IF
+!            RelaxToDo = .FALSE.
+!          END IF
+!        END IF
+!      END IF
 !############################################################################################################################### !
     CASE(18) ! only electron impact ionization possible Ar + e -> Ar(+) + e + e
 ! ############################################################################################################################### !
@@ -2632,23 +2468,23 @@ __STAMP__&
         IF(iPair.LT.(nPair - ChemReac%nPairForRec)) THEN
           PairForRec = nPair - ChemReac%nPairForRec
           ChemReac%nPairForRec = ChemReac%nPairForRec + 1
-          Coll_pData(PairForRec)%NeedForRec = .TRUE.
           iPart_p3 = Coll_pData(PairForRec)%iPart_p1
-          ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
         ELSE
           iPart_p3 = 0
         END IF
       ELSE
         iPart_p3 = ChemReac%RecombParticle
-        ChemReac%RecombParticle = 0
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
       IF ( iPart_p3 .GT. 0 ) THEN
         iReac = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), &
                                   PartSpecies(Coll_pData(iPair)%iPart_p2), &
                                   PartSpecies(iPart_p3))
-      
-        ! fix
+        IF(iReac.EQ.0) THEN
+          iReac = ChemReac%ReactNumRecomb(PartSpecies(Coll_pData(iPair)%iPart_p1), &
+                                          PartSpecies(Coll_pData(iPair)%iPart_p2), &
+                                          PartSpecies(iPart_p3))
+        END IF
 !        IF(SpecDSMC(PartSpecies(iPart_p3))%InterID.NE.4)RETURN
         IF ( ChemReac%QKProcedure(iReac)  ) THEN
           IF ( .NOT. DSMC%ElectronicState ) THEN
@@ -2656,14 +2492,47 @@ __STAMP__&
 __STAMP__&
 ,' ERROR! Atomic electron shell has to be initalized.')
           END IF
-          CALL QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,NodeVolume,NodePartNum)
-        END IF
+          CALL QK_IonRecombination(iPair,iReac,iPart_p3,RelaxToDo,iElem,NodeVolume,NodePartNum)
 !-----------------------------------------------------------------------------------------------------------------------------------
-        IF (.NOT.ChemReac%QKProcedure(iReac)) THEN
-           CALL Abort(&
-__STAMP__&
-,'ERROR! Ion recombination not implemented without QK')
-        END IF
+        ELSE
+        ! traditional Recombination
+          ! Calculation of reaction probability
+          CALL CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
+          
+#if (PP_TimeDiscMethod==42)
+          IF (.NOT.DSMC%ReservoirRateStatistic) THEN
+            ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb  ! for calculation of reaction rate coefficient
+            ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
+          END IF
+#endif
+          CALL RANDOM_NUMBER(iRan)
+          IF (ReactionProb.GT.iRan) THEN
+#if (PP_TimeDiscMethod==42)
+            ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
+            IF (.NOT.DSMC%ReservoirSimuRate) THEN
+#endif
+              IF (usevMPF) THEN
+                CALL Abort(&
+                 __STAMP__,&
+                ' ERROR! IonRecomb not possible using vMPF.')
+              ELSE
+                CALL DSMC_Chemistry(iPair, iReac, iPart_p3)
+                IF(ChemReac%RecombParticle.EQ. 0) THEN
+                  Coll_pData(PairForRec)%NeedForRec = .TRUE.
+                  ChemReac%RecombParticle = Coll_pData(PairForRec)%iPart_p2
+                ELSE
+                  ChemReac%RecombParticle = 0
+                END IF
+              END IF
+#if (PP_TimeDiscMethod==42)
+            END IF
+            IF (DSMC%ReservoirRateStatistic) THEN
+              ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1  ! for calculation of reaction rate coefficient
+            END IF
+#endif
+            RelaxToDo = .FALSE.
+          END IF ! ReactionProb > iRan
+        END IF ! Q-K
       END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
     CASE DEFAULT
@@ -2677,7 +2546,7 @@ __STAMP__&
 END SUBROUTINE ReactionDecision
 
 
-SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
+SUBROUTINE DSMC_calc_P_rot(iSpec, jSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
 !===================================================================================================================================
 ! Calculation of probability for rotational relaxation. Different Models implemented:
 ! 0 - Constant Probability
@@ -2693,7 +2562,7 @@ SUBROUTINE DSMC_calc_P_rot(iSpec, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)       :: iSpec, iPair, iPart
+  INTEGER, INTENT(IN)       :: iSpec, iPair, iPart, jSpec
   REAL, INTENT(IN)          :: Xi_rel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES

@@ -125,7 +125,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4) !dirichlet
+  CASE(2,4,5) !dirichlet
     nDirichletBCsides=nDirichletBCsides+1
   CASE(10,11) !Neumann, 
     nNeumannBCsides=nNeumannBCsides+1
@@ -150,7 +150,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4) !dirichlet
+  CASE(2,4,5) !dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
   CASE(10,11) !Neumann, 
@@ -647,6 +647,17 @@ DO iVar = 1, PP_nVar
         r=q*(PP_N+1) + p+1
   !      CALL ExactFunc(BCstate,t,0,BCFace_xGP(:,p,q,SideID),lambda(r:r,SideID))
        lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
+      END DO; END DO !p,q
+    CASE(5) ! exact BC = Dirichlet BC !!
+!print*,"BCType=",BCType,"    BCsideID=",BCsideID,"     IniExactFunc",IniExactFunc
+!read*
+      DO q=0,PP_N; DO p=0,PP_N
+        r=q*(PP_N+1) + p+1
+        CALL ExactFunc(BCstate,BCFace_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t)
+!print*,"t=",t,"r=",r,"BCstate=",BCstate,"BCFace_xGP(:,p,q,SideID)=",BCFace_xGP(:,p,q,SideID)
+!print*,lambda(iVar,r:r,SideID)
+!read*
+       !lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides
