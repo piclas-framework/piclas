@@ -167,37 +167,56 @@ INTEGER         :: ALLOCSTAT
 !===================================================================================================================================
 
 PartCommSize   = 0  
+! PartState: position and velocity
+PartCommSize   = PartCommSize + 6
+! Tracking: Include Reference coordinates
+IF(DoRefMapping) PartCommSize=PartCommSize+3
+! Species-ID
+PartCommSize   = PartCommSize + 1
+! id of element
+PartCommSize   = PartCommSize + 1
+
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
   IF (usevMPF .AND. DSMC%ElectronicState) THEN
-    PartCommSize = 18
+    ! vib. , rot and electronic energy and macroparticle factor for each particle 
+    PartCommSize = PartCommSize + 4
   ELSE IF (usevMPF ) THEN
-    PartCommSize = 17
+    ! vib. and rot energy and macroparticle factor for each particle 
+    PartCommSize = PartCommSize + 3
   ELSE IF ( DSMC%ElectronicState ) THEN
-    PartCommSize = 17
+    ! vib., rot. and electronic energy 
+    PartCommSize = PartCommSize + 3
   ELSE
-    PartCommSize = 16
+    ! vib. and rot. energy 
+    PartCommSize = PartCommSize + 2
   END IF
 ELSE
-  IF (usevMPF) THEN
-    PartCommSize = 15
-  ELSE
-    PartCommSize = 14
-  END IF
+  ! PIC simulation with MPI
+  IF (usevMPF) PartCommSize = PartCommSize+1 
 END IF
-IF(DoRefMapping) PartCommSize=PartCommSize+3
 
-#if !defined(LSERK) 
-#if defined(IMEX) || defined(IMPA)
-    ! if iStage=0, then the PartStateN is not communicated
-    !PartCommSize = PartCommSize + (iStage-1)*6
-    PartCommSize0=PartCommSize
-#else
-    PartCommSize = PartCommSize - 6
-#endif /*IMEX*/
-#else 
-    !LSERK
-    PartCommSize = PartCommSize + 1 !IsNewPart for RK-Reconstruction
+! time integration
+#if defined(LSERK) 
+! Pt_tmp for pushing: Runge-Kutta derivative of position and velocity
+PartCommSize   = PartCommSize + 6
+! IsNewPart for RK-Reconstruction
+PartCommSize   = PartCommSize + 1 
 #endif
+
+! additional stuff for full RK schemes, e.g. implicit and imex RK
+#if defined(IMEX) || defined(IMPA)
+! communication of partstate at t^n
+PartCommSize   = PartCommSize + 6
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+! communication if particle is implicit or explicit
+PartCommSize   = PartCommSize+1
+! IsNewPart for Surface-Flux: particle are always killed after suface-flux-emission
+PartCommSize   = PartCommSize + 1 
+#endif
+! if iStage=0, then the PartStateN is not communicated
+PartCommSize0  = PartCommSize
+#endif /*IMEX or IMPA*/
+
 
 ALLOCATE( PartMPIExchange%nPartsSend(2,PartMPI%nMPINeighbors)  & 
         , PartMPIExchange%nPartsRecv(2,PartMPI%nMPINeighbors)  &
@@ -584,10 +603,7 @@ PartCommSize=PartCommSize0+ 40 ! PartXk,R_PartXK
 #else
 PartCommSize=PartCommSize0+(iStage-1)*6 +40 ! PartXk,R_PartXK ! and communicate fieldatparticle
 #endif
-#endif /*IMEX*/
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-PartCommSize=PartCommSize+1
-#endif
+#endif /*IMPA*/
 
 ! ! 1) get number of send particles
 ! PartMPIExchange%nPartsSend=0
@@ -749,7 +765,12 @@ DO iProc=1, PartMPI%nMPINeighbors
       ELSE
         PartSendBuf(iProc)%content(jPos+8) = 0.0
       END IF
-      jPos=jPos+1
+      IF (PDM%IsNewPart(iPart)) THEN
+        PartSendBuf(iProc)%content(jPos+9) = 1.
+      ELSE
+        PartSendBuf(iProc)%content(jPos+9) = 0.
+      END IF
+      jPos=jPos+2
 #endif
       !PartSendBuf(iProc)%content(       14+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
@@ -1145,9 +1166,6 @@ PartCommSize=PartCommSize0+ 40 ! PartXk,R_PartXK
 PartCommSize=PartCommSize0+(iStage-1)*6 +40 ! PartXk,R_PartXK
 #endif
 #endif /*IMEX*/
-#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-PartCommSize=PartCommSize+1
-#endif
 
 
 DO iProc=1,PartMPI%nMPINeighbors
@@ -1247,7 +1265,16 @@ DO iProc=1,PartMPI%nMPINeighbors
     ELSE
         PartIsImplicit(PartID) = .FALSE.
     END IF
-    jPos=jPos+1
+    IF ( INT(PartRecvBuf(iProc)%content( 9+jPos)) .EQ. 1) THEN
+      PDM%IsNewPart(PartID)=.TRUE.
+    ELSE IF ( INT(PartRecvBuf(iProc)%content( 9+jPos)) .EQ. 0) THEN
+      PDM%IsNewPart(PartID)=.FALSE.
+    ELSE
+      CALL Abort(&
+        __STAMP__&
+        ,'Error with IsNewPart in MPIParticleRecv!')
+    END IF
+    jPos=jPos+2
 #endif
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     IF(.NOT.UseLD) THEN
