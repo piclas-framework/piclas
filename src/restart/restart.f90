@@ -217,6 +217,7 @@ REAL,ALLOCATABLE         :: U_local2(:,:,:,:,:)
 INTEGER                  :: iPML
 #else
 LOGICAL                  :: DG_SolutionLambdaExists,DG_SolutionUExists
+INTEGER(KIND=8)          :: iter
 #endif /*not PP_HDG*/
 INTEGER                  :: iElem
 #ifdef MPI
@@ -234,7 +235,6 @@ REAL,ALLOCATABLE         :: PartData(:,:)
 REAL                     :: xi(3)
 LOGICAL                  :: InElementCheck
 INTEGER                  :: COUNTER, COUNTER2
-INTEGER(KIND=8)          :: iter
 #ifdef MPI
 REAL, ALLOCATABLE        :: SendBuff(:), RecBuff(:)
 INTEGER                  :: LostParts(0:PartMPI%nProcs-1), Displace(0:PartMPI%nProcs-1),CurrentPartNum

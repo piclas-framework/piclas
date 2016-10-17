@@ -788,6 +788,7 @@ END IF
 END SUBROUTINE AddNodeVolumes
 
 
+#ifdef DONTCOMPILETHIS
 SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 !===================================================================================================================================
 ! Classic statistical pairing method for the use in the octree routines
@@ -797,8 +798,8 @@ SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   USE MOD_DSMC_CollisionProb,    ONLY : DSMC_prob_calc
   USE MOD_DSMC_Collis,           ONLY : DSMC_perform_collision
   USE MOD_vmpf_collision,        ONLY : DSMC_vmpf_prob
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, PairE_vMPF, BGGas, DSMC
-  USE MOD_Particle_Vars,          ONLY : PEM, PartSpecies, nSpecies, PartState, usevMPF, PartMPF
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, CollisMode, PartStateIntEn, ChemReac, PairE_vMPF, BGGas
+  USE MOD_Particle_Vars,          ONLY : PartSpecies, nSpecies, PartState, usevMPF, PartMPF
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -811,9 +812,8 @@ SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: nPair, iPair, iPart, iLoop, cPart1, cPart2, nPart
+  INTEGER                       :: nPair, iPair, iPart, cPart1, cPart2, nPart
   INTEGER                       :: cSpec1, cSpec2, iCase
-  INTEGER, ALLOCATABLE         :: iPartIndx(:) ! List of particles in the cell nec for stat pairing
   REAL                          :: iRan
   REAL                          :: TempMPFFac, MPFFac
 !===================================================================================================================================
@@ -910,5 +910,7 @@ SUBROUTINE FindStatisticalNeigh(iPartIndx_Node, PartNum, iElem, NodeVolume)
   DEALLOCATE(Coll_pData)
   
 END SUBROUTINE FindStatisticalNeigh
+#endif /*DONTCOMPILETHIS,NOOOW*/
+
 
 END MODULE MOD_DSMC_ParticlePairing
