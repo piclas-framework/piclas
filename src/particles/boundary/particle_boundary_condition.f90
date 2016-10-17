@@ -149,6 +149,8 @@ CASE(2) !PartBound%ReflectiveBC)
           PDM%ParticleInside(iPart) = .FALSE.
           alpha=-1.
         END IF
+!       ELSE IF (adsorbindex.EQ.2) THEN
+!         CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
       ELSE IF (adsorbindex.EQ.0) THEN
 !--- Inelastic Reflection              
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
@@ -316,6 +318,8 @@ CASE(2) !PartBound%ReflectiveBC)
           PDM%ParticleInside(iPart) = .FALSE.
           alpha=-1.
         END IF
+!       ELSE IF (adsorbindex.EQ.2) THEN
+!         CALL Particle_ER_Reflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
       ELSE IF (adsorbindex.EQ.0) THEN
 !--- Inelastic Reflection 
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)

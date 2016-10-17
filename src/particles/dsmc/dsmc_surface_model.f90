@@ -161,7 +161,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   p=INT((Xitild +1.0)/dXiEQ_SurfSample)+1
   q=INT((Etatild+1.0)/dXiEQ_SurfSample)+1 
   
-  IF (DSMC%WallModel.EQ.3) THEN
+  IF (DSMC%WallModel.GE.2) THEN
     IF(PRESENT(BCSideID))THEN
       SELECT CASE(SideType(BCSideID))
       CASE(PLANAR_RECT,PLANAR_NONRECT)
@@ -185,7 +185,11 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
     Norm_velo = PartState(PartID,4)*n_loc(1) + PartState(PartID,4)*n_loc(2) + PartState(PartID,6)*n_loc(3)
     Norm_Ec = 0.5 * Species(iSpec)%MassIC * Norm_velo**2 + PartStateIntEn(PartID,1) + PartStateIntEn(PartID,2)
     
-    CALL CalcBackgndPartAdsorb(p,q,SurfSide,PartID,Norm_Ec,adsorption_case,outSpec)
+    IF (DSMC%WallModel.GT.2) THEN
+      CALL CalcBackgndPartAdsorb(p,q,SurfSide,PartID,Norm_Ec,adsorption_case,outSpec)
+    ELSE
+!       CALL CalcPartAdsorb(p,qSurfSide,PartID,Norm_Ec,adsorption_case,outSpec)
+    END IF
   ELSE
     adsorption_case = 0
     Adsorption_prob = Adsorption%ProbAds(p,q,SurfSide,iSpec)
@@ -562,6 +566,31 @@ END DO
 
 END SUBROUTINE CalcDiffusion
 
+! SUBROUTINE CalcPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,adsorption_case,outSpec)
+! !===================================================================================================================================
+! ! Particle Adsorption probability calculation for wallmodel 2
+! !===================================================================================================================================
+!   USE MOD_Globals_Vars,           ONLY : PlanckConst
+!   USE MOD_Particle_Vars,          ONLY : PartState, PartSpecies, nSpecies, Species, BoltzmannConst
+!   USE MOD_Mesh_Vars,              ONLY : BC
+!   USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo, SpecDSMC, PartStateIntEn, PolyatomMolDSMC
+!   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
+!   USE MOD_TimeDisc_Vars,          ONLY : dt
+!   USE MOD_DSMC_Analyze,           ONLY : CalcTVib, CalcTVibPoly
+! #if (PP_TimeDiscMethod==42)  
+!   USE MOD_TimeDisc_Vars,          ONLY : iter
+! #endif
+! !===================================================================================================================================
+!   IMPLICIT NONE
+! !===================================================================================================================================
+! ! argument list declaration
+!   INTEGER,INTENT(IN)               :: subsurfxi,subsurfeta,SurfSideID,PartID
+!   REAL,INTENT(IN)                  :: Norm_Ec
+!   INTEGER,INTENT(OUT)              :: adsorption_case
+!   INTEGER,INTENT(OUT)              :: outSpec(2)
+! ! LOCAL VARIABLES
+! END SUBROUTINE CalcBackgndPartAdsorb
+
 SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,adsorption_case,outSpec)
 !===================================================================================================================================
 ! Particle Adsorption probability calculation for wallmodel 3
@@ -628,7 +657,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     adsorbates(iSpec) = adsorbates(iSpec) + 1
   END DO
   END DO
-! initialize variables
+  ! initialize variables
   Prob_ads = 0.
   ALLOCATE( P_Eley_Rideal(1:Adsorption%ReactNum),&
             Prob_diss(1:Adsorption%ReactNum))
@@ -1149,18 +1178,19 @@ DO subsurfxi = 1,nSurfSample
                 SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%SurfAtomBondOrder(iSpec,Indx,Indy) + 1
         END DO
         ! calculate diffusion probability
+!         P_diff = 0.5
         P_diff = exp(-(Heat_A - Heat_B)/WallTemp) / (1+exp(-(Heat_A - Heat_B)/Walltemp))
-  !       interatom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nInterAtom
-  !       E_diff = ( (interatom-2)/(4*interatom-2))*Heat_A
-  !       CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
-  !       CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
-  !       nu_diff = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall) * (3.E-8)**2/4.
-  !       rate = nu_diff * exp(-E_diff/WallTemp)
-  !       IF (rate*dt.GT.1) THEN
-  !         P_diff = 1.
-  !       ELSE
-  !         P_diff = rate * dt
-  !       END IF
+!         interatom = SurfDistInfo(subsurfxi,subsurfeta,SurfSideID)%AdsMap(Coord2)%nInterAtom
+!         E_diff = ( (interatom-2)/(4*interatom-2))*Heat_A
+!         CALL PartitionFuncAct(iSpec, WallTemp, VarPartitionFuncAct, Adsorption%DensSurfAtoms(SurfSideID))
+!         CALL PartitionFuncSurf(iSpec, WallTemp, VarPartitionFuncWall)
+!         nu_diff = ((BoltzmannConst*WallTemp)/PlanckConst) * (VarPartitionFuncAct / VarPartitionFuncWall) * (3.E-8)**2/4.
+!         rate = nu_diff * exp(-E_diff/WallTemp)
+!         IF (rate*dt.GT.1) THEN
+!           P_diff = 1.
+!         ELSE
+!           P_diff = rate * dt
+!         END IF
         P_actual_react(:) = 0.
       ELSE !reaction
         DO ReactNum = 1,(Adsorption%ReactNum-Adsorption%DissNum)
@@ -2156,6 +2186,15 @@ REAL FUNCTION Calc_Adsorb_Heat(subsurfxi,subsurfeta,SurfSideID,iSpec,Surfpos,IsA
           Heat_B = Adsorption%HeatOfAdsZero(iSpec) * (2.*x(2) - x(2)**2) * (2-1/m(2))/m(2)
           Heat_B = Heat_B**2/(D_BX*Heat_B)
           Calc_Adsorb_Heat = ( A*B*( A + B ) + D_AB*( A - B )**2 ) / ( A*B + D_AB*( A + B ) )
+        
+!           Heat_A = Adsorption%HeatOfAdsZero(iSpec) * (2.*x(1) - x(1)**2)
+!           Heat_M = Adsorption%HeatOfAdsZeroM(iSpec) * (2.*x(1) - x(1)**2)
+!           A = Heat_A * (1- ( (m*Heat_B/( m*Heat_A + Heat_B ))**2) )
+!           
+!           Heat_A = Adsorption%HeatOfAdsZero2(iSpec) * (2.*x(2) - x(2)**2)
+!           Heat_M = Adsorption%HeatOfAdsZeroR(iSpec) * (2.*x(2) - x(2)**2)
+!           B = Heat_A * (1- ( (mtilde*Heat_B/( mtilde*Heat_A + Heat_B ))**2) )
+          
         ELSE IF (Adsorption%DiCoord(iSpec).EQ.2) THEN ! chelate binding (NO2 --> M--O-N-O--M)
           D_AX = Adsorption%EDissBond(1,iSpec)
           Heat_A = Adsorption%HeatOfAdsZero(iSpec) * (2.*x(1) - x(1)**2) * (2-1/m(1))/m(1)

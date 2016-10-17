@@ -545,11 +545,15 @@ SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE CHEMISTRY...'
 
 ! Adsorption constants
 ALLOCATE( Adsorption%Ads_Powerfactor(1:nSpecies),&
-          Adsorption%Ads_Prefactor(1:nSpecies))
+          Adsorption%Ads_Prefactor(1:nSpecies))!,&
+!           Adsorption%ER_Powerfactor(1:nSpecies),&
+!           Adsorption%ER_Prefactor(1:nSpecies))
 DO iSpec = 1,nSpecies            
   WRITE(UNIT=hilf,FMT='(I2)') iSpec
   Adsorption%Ads_Powerfactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Powerfactor','0.')
   Adsorption%Ads_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Adsorption-Prefactor','0.')
+!   Adsorption%ER_Powerfactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-ER-Adsorption-Powerfactor','0.')
+!   Adsorption%ER_Prefactor(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-ER-Adsorption-Prefactor','0.')
 END DO
 
 MaxDissNum = 0
