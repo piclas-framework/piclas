@@ -523,7 +523,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS, CollInf, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars,             ONLY : ChemReac, PartStateIntEn !, Debug_Energy
 USE MOD_Particle_Vars,         ONLY : BoltzmannConst, PartSpecies, PartState, PDM, PEM, NumRanVec, RandomVec
-USE MOD_Particle_Vars,         ONLY : usevMPF, Species,PartPosRef
+USE MOD_Particle_Vars,         ONLY : usevMPF, PartPosRef
 USE MOD_DSMC_ElectronicModel,  ONLY : ElectronicEnergyExchange, TVEEnergyExchange
 USE MOD_DSMC_Relaxation,       ONLY : DSMC_VibRelaxDiatomic
 USE MOD_DSMC_PolyAtomicModel,  ONLY : DSMC_VibRelaxPoly, DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
@@ -541,17 +541,13 @@ USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping
   REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
   REAL                          :: RanVelox, RanVeloy, RanVeloz     ! random relativ velo
   INTEGER                       :: iVec
-  REAL                          :: JToEv, iRan, FacEtraDistri
+  REAL                          :: iRan, FacEtraDistri
   REAL                          :: ERel_React1_React2, ERel_React2_Elec
   INTEGER                       :: PositionNbr, React1Inx, ElecInx
   REAL                          :: VxPseuAtom, VyPseuAtom, VzPseuAtom
   INTEGER                       :: MaxElecQua
   REAL                          :: IonizationEnergy
-  REAL                          :: FakXi, Xi, Debug_Energy(2)
-  INTEGER                       :: iQuaMax, iQua, MaxColQua
-  !REAL                          :: ElecTransfer
-  INTEGER                       :: newSpecies
-  LOGICAL                       :: DoVib, DoRot
+  REAL                          :: FakXi, Xi!, Debug_Energy(2)
 !===================================================================================================================================
 
 
