@@ -66,9 +66,6 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
 
 CALL InitializeVariables()
-#ifdef MPI
-CALL InitParticleCommSize()
-#endif
 IF(useBGField) CALL InitializeBackgroundField()
 
 CALL InitializeParticleEmission()
@@ -83,6 +80,11 @@ ELSE IF (WriteMacroValues) THEN
   DSMC%OutputMeshInit  = .FALSE.
   DSMC%OutputMeshSamp  = .FALSE.
 END IF
+
+#ifdef MPI
+! has to be called AFTER InitializeVariables and InitDSMC 
+CALL InitParticleCommSize()
+#endif
 
 IF(useDSMC .OR. WriteMacroValues) THEN
 ! definition of DSMC sampling values
