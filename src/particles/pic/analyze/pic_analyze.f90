@@ -33,10 +33,11 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,            ONLY:nElems, sJ
 USE MOD_Particle_Vars,        ONLY:PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Interpolation_Vars,   ONLY:wGP
-USE MOD_PICDepo_Vars,         ONLY:Source
 USE MOD_Particle_Analyze_Vars,ONLY:ChargeCalcDone
 #if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars,    ONLY:ImplicitSource
+#else
+USE MOD_PICDepo_Vars,         ONLY:Source
 #endif
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,    ONLY:PartMPI
@@ -112,11 +113,12 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars,              ONLY:sJ
 USE MOD_Particle_Vars,          ONLY:PDM, Species, PartSpecies, usevmpf, PartMPF
 USE MOD_Interpolation_Vars,     ONLY:wGP
-USE MOD_PICDepo_Vars,           ONLY:Source
 USE MOD_Particle_Analyze_Vars,  ONLY:PartCharge
 USE MOD_TimeDisc_Vars,          ONLY:iter
 #if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
 USE MOD_LinearSolver_Vars,      ONLY:ImplicitSource
+#else
+USE MOD_PICDepo_Vars,           ONLY:Source
 #endif
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING

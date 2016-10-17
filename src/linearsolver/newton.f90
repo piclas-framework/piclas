@@ -53,9 +53,8 @@ USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,ExplicitSource,LinSolverRHS,mass
 USE MOD_Equation,                ONLY:CalcSource
-USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping
-USE MOD_TimeDisc_Vars,           ONLY:dt,sdtCFLOne
+USE MOD_TimeDisc_Vars,           ONLY:sdtCFLOne
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -129,22 +128,20 @@ SUBROUTINE FullNewton(t,tStage,coeff)
 USE MOD_Globals
 USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_LinearSolver,            ONLY:LinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,eps_LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:Eps_FullNewton,Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
+USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
+USE MOD_Particle_Vars,           ONLY:PartState,  LastPartPos, DelayTime, PEM, PDM
 USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
 USE MOD_Part_RHS,                ONLY:PartVeloToImp
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_Part_MPFtools,           ONLY:StartParticleMerge
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
-USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 USE MOD_ParticleSolver,          ONLY:ParticleNewton
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 #ifdef MPI
@@ -338,6 +335,7 @@ IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'TotalIterlinearsolver',TotalIterline
 END SUBROUTINE FullNewton
 
 
+#ifdef donotcompilethis
 SUBROUTINE FullNewton2(t,tStage,coeff)
 !===================================================================================================================================
 ! Full Newton with particles and field 
@@ -354,22 +352,20 @@ SUBROUTINE FullNewton2(t,tStage,coeff)
 USE MOD_Globals
 USE MOD_Globals_Vars,            ONLY:EpsMach
 USE MOD_LinearSolver,            ONLY:LinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource, ExplicitSource,eps_LinearSolver
 USE MOD_LinearSolver_Vars,       ONLY:maxFullNewtonIter,totalFullNewtonIter,totalIterLinearSolver
-USE MOD_LinearSolver_Vars,       ONLY:Eps_FullNewton,Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
+USE MOD_LinearSolver_Vars,       ONLY:Eps2_FullNewton,FullEisenstatWalker,FullgammaEW,DoPrintConvInfo
 #ifdef PARTICLES
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
+USE MOD_Particle_Vars,           ONLY:PartState,  LastPartPos, DelayTime, PEM, PDM
 USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
 USE MOD_Part_RHS,                ONLY:PartVeloToImp
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
-USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
 USE MOD_Part_MPFtools,           ONLY:StartParticleMerge
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
-USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 USE MOD_ParticleSolver,          ONLY:ParticleNewton
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -551,6 +547,7 @@ END IF
 IF(DoPrintConvInfo.AND.MPIRoot) WRITE(*,*) 'TotalIterlinearsolver',TotalIterlinearSolver
 
 END SUBROUTINE FullNewton2
+#endif
 
 #endif 
 
@@ -976,7 +973,7 @@ USE MOD_Globals
 USE MOD_DG_Vars,          ONLY: U
 USE MOD_Precond,          ONLY: ApplyPrecond_Elem,ApplyPrecond_DOF,ApplyPrecond_GMRES, ApplyPrecond_Jacobi
 USE MOD_Precond_Vars,     ONLY: PrecondType
-USE MOD_LinearSolver_Vars,    ONLY: LinSolverRHS,ImplicitSource
+USE MOD_LinearSolver_Vars,    ONLY: ImplicitSource
 USE MOD_LinearSolver_Vars,    ONLY: eps_LinearSolver,TotalIterLinearSolver
 USE MOD_LinearSolver_Vars,    ONLY: nKDim,nRestarts,nInnerIter,EisenstatWalker
 USE MOD_LinearOperator,   ONLY: MatrixVector, VectorDotProduct

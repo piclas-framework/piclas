@@ -2607,6 +2607,11 @@ __STAMP__&
 ,'Error! Model for rotational relaxation undefined:',RealInfoOpt=DSMC%RotRelaxProb)
   END IF
 
+  ! disable compiler warnings
+  IF(1.EQ.2)THEN
+    CorrFact=REAL(jSpec)
+  END IF
+
 END SUBROUTINE DSMC_calc_P_rot
 
 

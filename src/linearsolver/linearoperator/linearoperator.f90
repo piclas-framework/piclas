@@ -253,11 +253,10 @@ SUBROUTINE PartMatrixVector(t,Coeff,PartID,X,Y)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Globals,                 ONLY:Abort
 USE MOD_LinearSolver_Vars,       ONLY:reps0,PartXK,R_PartXK
-USE MOD_Equation_Vars,           ONLY:DoParabolicDamping,fDamping,c2_inv
-USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType,Pt
+USE MOD_Equation_Vars,           ONLY:c2_inv
+USE MOD_Particle_Vars,           ONLY:PartState, PartLorentzType
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH &
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
@@ -317,6 +316,11 @@ PartT(2)=LorentzFacInv*PartState(PartID,5) ! funny, or PartXK
 PartT(3)=LorentzFacInv*PartState(PartID,6) ! funny, or PartXK
 ! or frozen version
 Y = (X - (coeff/EpsFD)*(PartT - R_PartXk(:,PartID)))
+
+! compiler warnings
+IF(1.EQ.2)THEN
+  PartT(1)=t
+END IF
 
 END SUBROUTINE PartMatrixVector
 #endif

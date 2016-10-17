@@ -171,10 +171,11 @@ SUBROUTINE AnalyzeParticles(Time)
   USE MOD_Analyze_Vars,          ONLY: DoAnalyze
   USE MOD_Particle_Analyze_Vars!,ONLY: ParticleAnalyzeInitIsDone,CalcCharge,CalcEkin,IsRestart
   USE MOD_PARTICLE_Vars,         ONLY: PartSpecies, PDM, nSpecies, PartMPF, usevMPF, BoltzmannConst
+  USE MOD_DSMC_Vars,             ONLY: DSMC
 #if (PP_TimeDiscMethod==42)
   USE MOD_PARTICLE_Vars,         ONLY: Species
 #endif
-  USE MOD_DSMC_Vars,             ONLY: DSMC, CollInf, useDSMC, CollisMode, ChemReac, SpecDSMC, PolyatomMolDSMC
+  USE MOD_DSMC_Vars,             ONLY: CollInf, useDSMC, CollisMode, ChemReac, SpecDSMC, PolyatomMolDSMC
   USE MOD_Restart_Vars,          ONLY: DoRestart
   USE MOD_AnalyzeField,          ONLY: CalcPotentialEnergy
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
@@ -203,7 +204,9 @@ SUBROUTINE AnalyzeParticles(Time)
   REAL                :: WEl, WMag, NumSpec(nSpecies+1)
   REAL                :: Ekin(nSpecies + 1), Temp(nSpecies+1)
   REAL                :: IntEn(nSpecies,3),IntTemp(nSpecies,3),TempTotal(nSpecies+1), Xi_Vib(nSpecies)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506))
   REAL                :: MaxCollProb, MeanCollProb
+#endif
 #ifdef MPI
   REAL                :: RECBR(nSpecies),RECBR2(nEkin),RECBR1
   INTEGER             :: RECBIM(nSpecies)
@@ -1661,7 +1664,7 @@ SUBROUTINE CalcIntTempsAndEn(IntTemp, IntEn)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars,      ONLY : PartSpecies, Species, PDM, nSpecies, BoltzmannConst, PartMPF, usevMPF
-USE MOD_DSMC_Vars,          ONLY : PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars,          ONLY : PartStateIntEn, SpecDSMC, DSMC
 USE MOD_DSMC_Analyze,       ONLY : CalcTVib, CalcTelec, CalcTVibPoly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

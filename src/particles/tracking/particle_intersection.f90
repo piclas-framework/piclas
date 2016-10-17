@@ -2495,6 +2495,11 @@ ELSE
   END IF ! SideID.LT.nCBSides
 END IF ! nRoot
 
+! compiler warnings
+IF(1.EQ.2)THEN
+  etatild=REAL(flip)
+END IF
+
 END SUBROUTINE ComputeBiLinearIntersectionSuperSampled2
 
 
@@ -2826,6 +2831,11 @@ ELSE
 #endif /*MPI*/
   END IF
 END IF ! nRoot
+
+! compiler warnings
+IF(1.EQ.2)THEN
+  etatild=REAL(flip)
+END IF
 
 END SUBROUTINE ComputeBiLinearIntersectionRobust
 

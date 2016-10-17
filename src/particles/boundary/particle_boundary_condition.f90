@@ -203,6 +203,11 @@ __STAMP__&
 ,' ERROR: PartBound not associated!. (unknown case)',999,999.)
 END SELECT !PartBound%MapToPartBC(BC(SideID)
 
+! compiler warnings
+IF(1.EQ.2)THEN
+  WRITE(*,*) 'ElemID', ElemID
+END IF
+
 END SUBROUTINE GetBoundaryInteraction
 
 
