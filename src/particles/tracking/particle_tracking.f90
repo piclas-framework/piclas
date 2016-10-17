@@ -52,8 +52,11 @@ USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLin
                                          ,ComputePlanarIntersectionBezier,PartInElemCheck
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
 #ifdef MPI
+USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_LoadBalance_Vars,            ONLY:ElemTime
-USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
+USE MOD_Mesh_Vars,                   ONLY:OffSetElem
+USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
+USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
 #endif /*MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -73,7 +76,7 @@ REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
 #ifdef MPI
-REAL                          :: tLBStart,tLBEnd
+REAL                          :: tLBStart,tLBEnd, inElem
 #endif /*MPI*/
 !===================================================================================================================================
 
@@ -239,11 +242,26 @@ DO iPart=1,PDM%ParticleVecLength
 !        print*,'new elem',PEM%Element(ipart)
         PartIsDone=.TRUE.
         IF(.NOT.PDM%ParticleInside(iPart))THEN
-          IPWRITE(UNIT_stdOut,*) 'lost particle with id', ipart
-IPWRITE(UNIT_stdOut,*) 'LastPartPos: ',LastPartPos(ipart,1:3)
-CALL Eval_xyz_ElemCheck(LastPartPos(ipart,1:3),refpos(1:3),PEM%lastElement(ipart))
-IPWRITE(UNIT_stdOut,*) 'LastPartRefPos: ',refpos
-IPWRITE(UNIT_stdOut,*) 'PartState: ',PartState(ipart,1:3)
+          IPWRITE(UNIT_stdOut,*) ' Tolerance Issue during tracing! '
+          IPWRITE(UNIT_stdOut,*) ' Lost particle with id', ipart
+          IPWRITE(UNIT_stdOut,*) ' LastPartPos: ',LastPartPos(ipart,1:3)
+          IPWRITE(UNIT_stdOut,*) ' PartState: ',PartState(ipart,1:3)
+          IPWRITE(UNIT_stdOut,*) ' Compuing PartPosRef of ... '
+          CALL Eval_xyz_ElemCheck(LastPartPos(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
+          IPWRITE(UNIT_stdOut,*) ' LastPartRefPos: ',refpos
+          CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
+          IPWRITE(UNIT_stdOut,*) '     PartRefPos: ',refpos
+#ifdef MPI
+          InElem=PEM%Element(iPart)
+          IF(InElem.LE.PP_nElems)THEN
+            IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
+          ELSE
+            IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+          END IF
+#else
+          IPWRITE(UNIT_stdOut,*) ' ElemID         ', ElemID+offSetElem
+#endif
         END IF
       END IF ! markTol
     END DO ! PartisDone=.FALSE.
