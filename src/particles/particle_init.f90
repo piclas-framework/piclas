@@ -76,7 +76,7 @@ IF (useDSMC) THEN
   IF (useLD) CALL InitLD
 ELSE IF (WriteMacroValues) THEN
   DSMC%CalcSurfaceVal  = .FALSE.
-  DSMC%ElectronicState = .FALSE.
+  DSMC%ElectronicModel = .FALSE.
   DSMC%OutputMeshInit  = .FALSE.
   DSMC%OutputMeshSamp  = .FALSE.
 END IF

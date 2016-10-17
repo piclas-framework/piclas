@@ -361,9 +361,9 @@ __STAMP__&
 
 #ifdef PARTICLES
   IF (useDSMC) THEN
-    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN !int ener + 3, vmpf +1
+    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN !int ener + 3, vmpf +1
       PartDataSize=11
-    ELSE IF ((CollisMode.GT.1).AND.((usevMPF) .OR. (DSMC%ElectronicState)) ) THEN ! int ener + 2 and vmpf +1
+    ELSE IF ((CollisMode.GT.1).AND.((usevMPF) .OR. (DSMC%ElectronicModel)) ) THEN ! int ener + 2 and vmpf +1
                                                                                   ! or int ener + 3 and no vmpf
       PartDataSize=10
     ELSE IF (CollisMode.GT.1) THEN
@@ -401,7 +401,7 @@ __STAMP__&
     PartState(1:locnPart,6)   = PartData(offsetnPart+1:offsetnPart+locnPart,6)
     PartSpecies(1:locnPart)= INT(PartData(offsetnPart+1:offsetnPart+locnPart,7))
     IF (useDSMC) THEN
-      IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
+      IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
         PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
         PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
         PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
@@ -410,7 +410,7 @@ __STAMP__&
         PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
         PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
         PartMPF(1:locnPart)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
-      ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicState)) THEN
+      ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
         PartStateIntEn(1:locnPart,1)=PartData(offsetnPart+1:offsetnPart+locnPart,8)
         PartStateIntEn(1:locnPart,2)=PartData(offsetnPart+1:offsetnPart+locnPart,9)
         PartStateIntEn(1:locnPart,3)=PartData(offsetnPart+1:offsetnPart+locnPart,10)
@@ -519,7 +519,7 @@ __STAMP__&
         SendBuff(COUNTER+1:COUNTER+6) = PartState(i,1:6)
         SendBuff(COUNTER+7)           = REAL(PartSpecies(i))
         IF (useDSMC) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
             SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
             SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
             SendBuff(COUNTER+10) = PartMPF(i)
@@ -528,7 +528,7 @@ __STAMP__&
             SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
             SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
             SendBuff(COUNTER+10) = PartMPF(i)
-          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicState)) THEN
+          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
             SendBuff(COUNTER+8)  = PartStateIntEn(i,1)
             SendBuff(COUNTER+9)  = PartStateIntEn(i,2)
             SendBuff(COUNTER+10) = PartStateIntEn(i,3)
@@ -571,7 +571,7 @@ __STAMP__&
         NbrOfFoundParts = NbrOfFoundParts + 1
         PartSpecies(CurrentPartNum) = INT(RecBuff(COUNTER+7))
         IF (useDSMC) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState)) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel)) THEN
             PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
             PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
             PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+11)
@@ -580,7 +580,7 @@ __STAMP__&
             PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
             PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
             PartMPF(CurrentPartNum)          = RecBuff(COUNTER+10)
-          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicState)) THEN
+          ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel)) THEN
             PartStateIntEn(CurrentPartNum,1) = RecBuff(COUNTER+8)
             PartStateIntEn(CurrentPartNum,2) = RecBuff(COUNTER+9)
             PartStateIntEn(CurrentPartNum,3) = RecBuff(COUNTER+10)

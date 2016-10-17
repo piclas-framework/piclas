@@ -399,14 +399,14 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   REAL                                                  :: tempEnergyDiff, tempEnergy
   LOGICAL                                               :: DataSetFound
 !===================================================================================================================================
-  SWRITE(*,*) 'Read electronic level entries ',TRIM(dsetname),' from ',DSMC%ElectronicStateDatabase
+  SWRITE(*,*) 'Read electronic level entries ',TRIM(dsetname),' from ',DSMC%ElectronicModelDatabase
   ! Initialize FORTRAN interface.
   CALL H5OPEN_F(err)
   ! Open the file.
-  CALL H5FOPEN_F (DSMC%ElectronicStateDatabase, H5F_ACC_RDONLY_F, file_id_dsmc, err)
+  CALL H5FOPEN_F (DSMC%ElectronicModelDatabase, H5F_ACC_RDONLY_F, file_id_dsmc, err)
   CALL DatasetExists(File_ID_DSMC,dsetname,DataSetFound)
   IF(.NOT.DataSetFound)THEN
-    SWRITE(*,*) 'DataSet not found: ',TRIM(dsetname),DSMC%ElectronicStateDatabase
+    SWRITE(*,*) 'DataSet not found: ',TRIM(dsetname),DSMC%ElectronicModelDatabase
   END IF
   ! Open the  dataset.
   CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)

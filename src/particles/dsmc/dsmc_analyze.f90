@@ -938,7 +938,7 @@ SELECT CASE(TRIM(HODSMC%SampleType))
         ELSE
           TSource(8:9) = 0.0
         END IF
-        IF (DSMC%ElectronicState) THEN
+        IF (DSMC%ElectronicModel) THEN
           TSource(10)     =  PartStateIntEn(i,3)
         ELSE
           TSource(10) = 0.0
@@ -1083,7 +1083,7 @@ CASE('nearest_gausspoint')
             Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(i,1:2)
           END IF
         END IF
-        IF (DSMC%ElectronicState) THEN
+        IF (DSMC%ElectronicModel) THEN
           Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
         END IF
       END IF
@@ -1112,7 +1112,7 @@ CASE('cell_mean')
               Source(8:9,kk,ll,mm,iElem, iSpec) = Source(8:9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,1:2)
             END IF
           END IF
-          IF (DSMC%ElectronicState) THEN
+          IF (DSMC%ElectronicModel) THEN
             Source(10,kk,ll,mm,iElem, iSpec) = Source(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
           END IF
         END IF
@@ -1150,7 +1150,7 @@ CASE('cell_volweight')
       ELSE
         TSource(8:9) = 0.0
       END IF
-      IF (DSMC%ElectronicState) THEN
+      IF (DSMC%ElectronicModel) THEN
         TSource(10)     =  PartStateIntEn(iPart,3)
       ELSE
         TSource(10) = 0.0
@@ -1352,7 +1352,7 @@ DO iSpec = 1, nSpecies
                     , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec), SpecDSMC(iSpec)%MaxVibQuant) 
               END IF       
               DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec)/(BoltzmannConst)
-              IF (DSMC%ElectronicState) THEN
+              IF (DSMC%ElectronicModel) THEN
                 DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec), iSpec)
               END IF
             END IF
@@ -1397,7 +1397,7 @@ DO iSpec = 1, nSpecies
                 END IF       
                 DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
                    /(DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
-                IF (DSMC%ElectronicState) THEN
+                IF (DSMC%ElectronicModel) THEN
                   DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
                       /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
@@ -1446,7 +1446,7 @@ DO iSpec = 1, nSpecies
                 END IF       
                 DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
                    /(DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
-                IF (DSMC%ElectronicState) THEN
+                IF (DSMC%ElectronicModel) THEN
                   DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
                       /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
@@ -2519,7 +2519,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
                           collective=.TRUE., RealArray=MacroDSMC(:,:)%Trot)
   END IF
 
-  IF (DSMC%ElectronicState) THEN
+  IF (DSMC%ElectronicModel) THEN
     CALL WriteArrayToHDF5(DataSetName='DSMC_telec', rank=2,&
                           nValGlobal=(/nGlobalElems, nSpecies+1/),&
                           nVal=      (/PP_nElems,    nSpecies+1/),&

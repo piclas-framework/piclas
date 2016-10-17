@@ -399,7 +399,7 @@ SUBROUTINE AnalyzeParticles(Time)
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' ERot',iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
-          IF ( DSMC%ElectronicState ) THEN
+          IF ( DSMC%ElectronicModel ) THEN
             DO iSpec = 1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' EElec',iSpec,' '
@@ -431,7 +431,7 @@ SUBROUTINE AnalyzeParticles(Time)
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-ERot',iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
-            IF (DSMC%ElectronicState) THEN
+            IF (DSMC%ElectronicModel) THEN
               DO iSpec = 1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-EElec',iSpec,' '
@@ -460,7 +460,7 @@ SUBROUTINE AnalyzeParticles(Time)
               WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-TempTotal',iSpec,' '
               OutputCounter = OutputCounter + 1
             END DO
-            IF ( DSMC%ElectronicState ) THEN
+            IF ( DSMC%ElectronicModel ) THEN
               DO iSpec=1, nSpecies
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,'-TempElec',iSpec,' '
@@ -769,7 +769,7 @@ IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
     IntEn(:,1) = sumIntEn(:)
     CALL MPI_REDUCE(IntEn(:,2) , sumIntEn(:)   , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
     IntEn(:,2) = sumIntEn(:) 
-    IF ( DSMC%ElectronicState ) THEN
+    IF ( DSMC%ElectronicModel ) THEN
       CALL MPI_REDUCE(IntTemp(:,3), sumIntTemp(:) , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
       IntTemp(:,3) = sumIntTemp(:) / PartMPI%nProcs
       CALL MPI_REDUCE(IntEN(:,3), sumIntEn(:) , nSpecies , MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
@@ -862,7 +862,7 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,2)
       END DO
-      IF ( DSMC%ElectronicState ) THEN
+      IF ( DSMC%ElectronicModel ) THEN
         DO iSpec=1, nSpecies
         ! currently set to one
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -891,7 +891,7 @@ IF (PartMPI%MPIROOT) THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,104,ADVANCE='NO') IntEn(iSpec,2)
         END DO
-        IF (DSMC%ElectronicState) THEN
+        IF (DSMC%ElectronicModel) THEN
           DO iSpec=1, nSpecies
           ! currently set to one
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -916,7 +916,7 @@ IF (PartMPI%MPIROOT) THEN
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,104,ADVANCE='NO') TempTotal(iSpec)
         END DO
-        IF ( DSMC%ElectronicState ) THEN
+        IF ( DSMC%ElectronicModel ) THEN
           DO iSpec=1, nSpecies
           ! currently set to one
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1007,7 +1007,7 @@ tCurrent(14)=tCurrent(14)+tLBEnd-tLBStart
 #if ( PP_TimeDiscMethod ==42 )
 ! hard coded
 ! array not allocated
-  IF ( DSMC%ElectronicState ) THEN
+  IF ( DSMC%ElectronicModel ) THEN
   IF (DSMC%ReservoirSimuRate) THEN
     IF(Time.GT.0.) CALL ElectronicTransition( Time, NumSpec )
   END IF
@@ -1016,7 +1016,7 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if ( PP_TimeDiscMethod ==42 )
   ! Debug Output for initialized electronic state
-  IF ( DSMC%ElectronicState .AND. DSMC%ReservoirSimuRate) THEN
+  IF ( DSMC%ElectronicModel .AND. DSMC%ReservoirSimuRate) THEN
     DO iSpec = 1, nSpecies
       IF ( SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
         IF (  SpecDSMC(iSpec)%levelcounter(0) .ne. 0) THEN
@@ -1693,13 +1693,13 @@ RealNumSpec  = 0.
         ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2) * PartMPF(iPart)
         NumSpec(PartSpecies(iPart)) = NumSpec(PartSpecies(iPart)) + 1
         RealNumSpec(PartSpecies(iPart)) = RealNumSpec(PartSpecies(iPart)) + PartMPF(iPart)
-        IF ( DSMC%ElectronicState ) THEN
+        IF ( DSMC%ElectronicModel ) THEN
           Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3) * PartMPF(iPart)
         END IF
       ELSE
         EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + PartStateIntEn(iPart,1)
         ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(iPart,2)
-        IF ( DSMC%ElectronicState ) THEN
+        IF ( DSMC%ElectronicModel ) THEN
           Eelec(PartSpecies(iPart)) = Eelec(PartSpecies(iPart)) + PartStateIntEn(iPart,3)
         END IF
        NumSpec(PartSpecies(iPart)) = NumSpec(PartSpecies(iPart)) + 1
@@ -1741,7 +1741,7 @@ RealNumSpec  = 0.
       IntTemp(iSpec,1) = 0
       IntTemp(iSpec,2) = 0
     END IF
-    IF ( DSMC%ElectronicState ) THEN
+    IF ( DSMC%ElectronicModel ) THEN
       IF ((NumSpecTemp.GT.0).AND.(SpecDSMC(iSpec)%InterID.NE.4) ) THEN
         IntTemp(iSpec,3) = CalcTelec(Eelec(iSpec)/NumSpecTemp,iSpec)
         IntEn(iSpec,3) = Eelec(iSpec)
@@ -1946,7 +1946,7 @@ SUBROUTINE ElectronicTransition (  Time, NumSpec )
 ! accary of kf
 !===================================================================================================================================
 
-  IF ( DSMC%ElectronicState ) THEN
+  IF ( DSMC%ElectronicModel ) THEN
   ! kf = d n_of_N^i / dt / ( n_of_N^i n_of_M) )
     DO iSpec = 1, nSpecies
       IF ( SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
@@ -2005,7 +2005,7 @@ SUBROUTINE WriteEletronicTransition ( Time )
 ! accary of kf
 !-----------------------------------------------------------------------------------------------------------------------------------
   bExist = .false.
-  IF ( DSMC%ElectronicState ) THEN
+  IF ( DSMC%ElectronicModel ) THEN
   ! kf = d n_of_N^i / dt / ( n_of_N^i n_of_M) )
     DO iSpec = 1, nSpecies
       IF (SpecDSMC(iSpec)%InterID .ne. 4 ) THEN

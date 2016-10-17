@@ -613,9 +613,9 @@ INTEGER                        :: minnParts
   withDSMC=useDSMC
   IF (withDSMC.AND.(.NOT.(useLD))) THEN
   !IF (withDSMC) THEN
-    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
+    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
       PartDataSize=11
-    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
+    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
                                                                               ! or int energ +3 but no vmpf +1
       PartDataSize=10
     ELSE IF (CollisMode.GT.1) THEN
@@ -626,9 +626,9 @@ INTEGER                        :: minnParts
       PartDataSize=7 !+ 0
     END IF
   ELSE IF (useLD) THEN
-    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicState ) THEN !int ener + 3, vmpf +1
+    IF ((CollisMode.GT.1).AND.(usevMPF) .AND. DSMC%ElectronicModel ) THEN !int ener + 3, vmpf +1
       PartDataSize=16
-    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicState ) ) THEN !int ener + 2 and vmpf + 1
+    ELSE IF ((CollisMode.GT.1).AND.( (usevMPF) .OR. DSMC%ElectronicModel ) ) THEN !int ener + 2 and vmpf + 1
                                                                              ! or int energ +3 but no vmpf +1
       PartDataSize=15
     ELSE IF (CollisMode.GT.1) THEN
@@ -712,7 +712,7 @@ INTEGER                        :: minnParts
         PartData(iPart,7)=REAL(PartSpecies(pcount))
         IF (withDSMC.AND.(.NOT.(useLD))) THEN
         !IF (withDSMC) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState) ) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)    
             PartData(iPart,10)=PartStateIntEn(pcount,3)    
@@ -721,7 +721,7 @@ INTEGER                        :: minnParts
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)    
             PartData(iPart,10)=PartMPF(pcount)
-          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicState) ) THEN
+          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)
             PartData(iPart,10)=PartStateIntEn(pcount,3)
@@ -732,7 +732,7 @@ INTEGER                        :: minnParts
             PartData(iPart,8)=PartMPF(pcount)    
           END IF
         ELSE IF (useLD) THEN
-          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicState) ) THEN
+          IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)    
             PartData(iPart,10)=PartMPF(pcount)
@@ -751,7 +751,7 @@ INTEGER                        :: minnParts
             PartData(iPart,13)=PartStateBulkValues(pcount,3)
             PartData(iPart,14)=PartStateBulkValues(pcount,4)
             PartData(iPart,15)=PartStateBulkValues(pcount,5)
-          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicState) ) THEN
+          ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
             PartData(iPart,8)=PartStateIntEn(pcount,1)
             PartData(iPart,9)=PartStateIntEn(pcount,2)
             PartData(iPart,10)=PartStateIntEn(pcount,3)
@@ -848,7 +848,7 @@ INTEGER                        :: minnParts
   StrVarNames(7)='Species'
   IF(withDSMC.AND.(.NOT.(useLD)))THEN
  ! IF(withDSMC)THEN
-    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicState))THEN
+    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'
@@ -857,7 +857,7 @@ INTEGER                        :: minnParts
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='MPF'
-    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicState) ) THEN
+    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'
@@ -868,7 +868,7 @@ INTEGER                        :: minnParts
       StrVarNames( 8)='MPF'
     END IF
   ELSE IF (useLD) THEN
-    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicState))THEN
+    IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel))THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'
@@ -887,7 +887,7 @@ INTEGER                        :: minnParts
       StrVarNames(13)='BulkVelocityZ'
       StrVarNames(14)='BulkTemperature'
       StrVarNames(15)='BulkDOF'
-    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicState) ) THEN
+    ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel) ) THEN
       StrVarNames( 8)='Vibrational'
       StrVarNames( 9)='Rotational'
       StrVarNames(10)='Electronic'

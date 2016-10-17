@@ -157,8 +157,8 @@ TYPE tDSMC
   REAL, ALLOCATABLE            :: QualityFacSamp(:,:)     ! Sampling of quality factors
                                                             !     1: Time-averaged mean collision prob
                                                             !     2: Mean collision separation distance over mean free path
-  LOGICAL                       :: ElectronicState          ! Flag for Electronic State of atoms and molecules
-  CHARACTER(LEN=64)             :: ElectronicStateDatabase  ! Name of Electronic State Database | h5 file
+  LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
+  CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
   LOGICAL                       :: OutputMeshInit           ! Write Outputmesh (for const. pressure BC) at Init.
   LOGICAL                       :: OutputMeshSamp           ! Write Outputmesh (for const. pressure BC) 

@@ -164,7 +164,7 @@ REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum
 !!!!!!!!!!!!          (SpecDSMC(iSpec)%InterID.EQ.2)) THEN
 !!!!!!!!!!!!          MacroDSMC(iElem,iSpec)%TVib = MacroDSMC(iElem,iSpec)%Temp(4)
 !!!!!!!!!!!!          MacroDSMC(iElem,iSpec)%TRot = MacroDSMC(iElem,iSpec)%Temp(4)
-!!!!!!!!!!!!          IF (DSMC%ElectronicState) THEN
+!!!!!!!!!!!!          IF (DSMC%ElectronicModel) THEN
 !!!!!!!!!!!!            MacroDSMC(iElem,iSpec)%TElec= MacroDSMC(iElem,iSpec)%Temp(4)
 !!!!!!!!!!!!          END IF
 !!!!!!!!!!!!        END IF
@@ -198,7 +198,7 @@ REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum
                                                  + MacroDSMC(iElem,iSpec)%TRot * MacroDSMC(iElem,iSpec)%PartNum
               MolecPartNum                       = MolecPartNum + MacroDSMC(iElem,iSpec)%PartNum
         END IF
-        IF ( DSMC%ElectronicState .AND. (SpecDSMC(iSpec)%InterID.NE.4) ) THEN
+        IF ( DSMC%ElectronicModel .AND. (SpecDSMC(iSpec)%InterID.NE.4) ) THEN
           MacroDSMC(iElem,nSpecies + 1)%TElec = MacroDSMC(iElem, nSpecies+1)%TElec &
                                               + MacroDSMC(iElem,iSpec)%TElec * MacroDSMC(iElem,iSpec)%PartNum
           HeavyPartNum                        = HeavyPartNum + MacroDSMC(iElem,iSpec)%PartNum
@@ -215,7 +215,7 @@ REAL                          :: TVib_TempFac, HeavyPartNum, MolecPartNum
                 MacroDSMC(iElem,nSpecies + 1)%TVib = MacroDSMC(iElem,nSpecies + 1)%TVib / MolecPartNum
                 MacroDSMC(iElem,nSpecies + 1)%TRot = MacroDSMC(iElem,nSpecies + 1)%TRot / MolecPartNum
       END IF
-      IF ( DSMC%ElectronicState ) THEN
+      IF ( DSMC%ElectronicModel ) THEN
         MacroDSMC(iElem,nSpecies + 1)%TElec = MacroDSMC(iElem, nSpecies+1)%TElec / HeavyPartNum
       END IF
     END IF

@@ -177,13 +177,13 @@ PartCommSize   = PartCommSize + 1
 PartCommSize   = PartCommSize + 1
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  IF (usevMPF .AND. DSMC%ElectronicState) THEN
+  IF (usevMPF .AND. DSMC%ElectronicModel) THEN
     ! vib. , rot and electronic energy and macroparticle factor for each particle 
     PartCommSize = PartCommSize + 4
   ELSE IF (usevMPF ) THEN
     ! vib. and rot energy and macroparticle factor for each particle 
     PartCommSize = PartCommSize + 3
-  ELSE IF ( DSMC%ElectronicState ) THEN
+  ELSE IF ( DSMC%ElectronicModel ) THEN
     ! vib., rot. and electronic energy 
     PartCommSize = PartCommSize + 3
   ELSE
@@ -776,7 +776,7 @@ DO iProc=1, PartMPI%nMPINeighbors
       PartSendBuf(iProc)%content(    8+jPos) = REAL(PartHaloElemToProc(NATIVE_ELEM_ID,ElemID),KIND=8)
       IF(.NOT.UseLD) THEN   
         IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-          IF (usevMPF .AND. DSMC%ElectronicState) THEN
+          IF (usevMPF .AND. DSMC%ElectronicModel) THEN
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
             PartSendBuf(iProc)%content(11+jPos) = PartMPF(iPart)
@@ -785,7 +785,7 @@ DO iProc=1, PartMPI%nMPINeighbors
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
             PartSendBuf(iProc)%content(11+jPos) = PartMPF(iPart)
-          ELSE IF ( DSMC%ElectronicState ) THEN
+          ELSE IF ( DSMC%ElectronicModel ) THEN
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
             PartSendBuf(iProc)%content(11+jPos) = PartStateIntEn(iPart, 3)
@@ -800,7 +800,7 @@ DO iProc=1, PartMPI%nMPINeighbors
         END IF
       ELSE ! UseLD == true      =>      useDSMC == true
         IF (CollisMode.GT.1) THEN
-          IF (usevMPF .AND. DSMC%ElectronicState) THEN
+          IF (usevMPF .AND. DSMC%ElectronicModel) THEN
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
             PartSendBuf(iProc)%content(11+jPos) = PartMPF(iPart)
@@ -811,7 +811,7 @@ DO iProc=1, PartMPI%nMPINeighbors
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
             PartSendBuf(iProc)%content(11+jPos) = PartMPF(iPart)
             PartSendBuf(iProc)%content(12+jPos:16+jPos) = PartStateBulkValues(iPart,1:5)
-          ELSE IF ( DSMC%ElectronicState ) THEN
+          ELSE IF ( DSMC%ElectronicModel ) THEN
             PartSendBuf(iProc)%content( 9+jPos) = PartStateIntEn(iPart, 1)
             PartSendBuf(iProc)%content(10+jPos) = PartStateIntEn(iPart, 2)    
             PartSendBuf(iProc)%content(11+jPos) = PartStateIntEn(iPart, 3)
@@ -1279,7 +1279,7 @@ DO iProc=1,PartMPI%nMPINeighbors
     PEM%Element(PartID)     = INT(PartRecvBuf(iProc)%content(8+jPos),KIND=4)
     IF(.NOT.UseLD) THEN
       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-        IF (usevMPF .AND. DSMC%ElectronicState) THEN
+        IF (usevMPF .AND. DSMC%ElectronicModel) THEN
           PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content( 9+jPos)
           PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(10+jPos)
           PartMPF(PartID)           = PartRecvBuf(iProc)%content(11+jPos)
@@ -1288,7 +1288,7 @@ DO iProc=1,PartMPI%nMPINeighbors
           PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content( 9+jPos)
           PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(10+jPos)
           PartMPF(PartID)           = PartRecvBuf(iProc)%content(11+jPos)
-        ELSE IF ( DSMC%ElectronicState) THEN
+        ELSE IF ( DSMC%ElectronicModel) THEN
           PartStateIntEn(PartID, 1) = PartRecvBuf(iProc)%content( 9+jPos)
           PartStateIntEn(PartID, 2) = PartRecvBuf(iProc)%content(10+jPos)
           PartStateIntEn(PartID, 3) = PartRecvBuf(iProc)%content(11+jPos)
@@ -1301,7 +1301,7 @@ DO iProc=1,PartMPI%nMPINeighbors
       END IF
     ELSE ! UseLD == true      =>      useDSMC == true
       IF (CollisMode.GT.1) THEN
-        IF (usevMPF .AND. DSMC%ElectronicState) THEN
+        IF (usevMPF .AND. DSMC%ElectronicModel) THEN
           PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content( 9+jPos)
           PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(10+jPos)
           PartMPF(PartID)                 = PartRecvBuf(iProc)%content(11+jPos)
@@ -1312,7 +1312,7 @@ DO iProc=1,PartMPI%nMPINeighbors
           PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(10+jPos)
           PartMPF(PartID)                 = PartRecvBuf(iProc)%content(11+jPos)
           PartStateBulkValues(PartID,1:5) = PartRecvBuf(iProc)%content(12+jPos:16+jPos)
-        ELSE IF ( DSMC%ElectronicState ) THEN
+        ELSE IF ( DSMC%ElectronicModel ) THEN
           PartStateIntEn(PartID, 1)       = PartRecvBuf(iProc)%content( 9+jPos)
           PartStateIntEn(PartID, 2)       = PartRecvBuf(iProc)%content(10+jPos)
           PartStateIntEn(PartID, 3)       = PartRecvBuf(iProc)%content(11+jPos)

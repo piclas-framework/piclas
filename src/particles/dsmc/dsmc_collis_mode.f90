@@ -166,7 +166,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
       IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%VibRelaxProb.GT.iRan) DoVib1 = .TRUE.
     END IF
   END IF
-  IF ( DSMC%ElectronicState ) THEN
+  IF ( DSMC%ElectronicModel ) THEN
     ! step as TRUE
     CALL RANDOM_NUMBER(iRan)
     IF ( SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p1))%InterID .ne. 4 ) THEN
@@ -186,7 +186,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair, iElem)
       IF(SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%VibRelaxProb.GT.iRan) DoVib2 = .TRUE.
     END IF
   END IF
-  IF ( DSMC%ElectronicState ) THEN
+  IF ( DSMC%ElectronicModel ) THEN
     ! step as TRUE
     CALL RANDOM_NUMBER(iRan)
     IF (SpecDSMC(PartSpecies(Coll_pData(iPair)%iPart_p2))%InterID.NE.4) THEN
@@ -2445,7 +2445,7 @@ __STAMP__&
 ! ############################################################################################################################### !
       iReac = ChemReac%ReactNum(PartSpecies(Coll_pData(iPair)%iPart_p1), PartSpecies(Coll_pData(iPair)%iPart_p2), 1)
       IF (ChemReac%QKProcedure(iReac)) THEN
-        IF ( .NOT. DSMC%ElectronicState ) THEN
+        IF ( .NOT. DSMC%ElectronicModel ) THEN
           CALL Abort(&
 __STAMP__&
 ,'ERROR! Atomic electron shell has to be initalized.')
@@ -2485,7 +2485,7 @@ __STAMP__&
         END IF
 !        IF(SpecDSMC(PartSpecies(iPart_p3))%InterID.NE.4)RETURN
         IF ( ChemReac%QKProcedure(iReac)  ) THEN
-          IF ( .NOT. DSMC%ElectronicState ) THEN
+          IF ( .NOT. DSMC%ElectronicModel ) THEN
             CALL Abort(&
 __STAMP__&
 ,' ERROR! Atomic electron shell has to be initalized.')

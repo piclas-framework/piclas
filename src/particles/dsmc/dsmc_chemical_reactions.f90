@@ -173,7 +173,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Considering the electronic shell (including the addition of the electronic energy to the collision energy)
   !---------------------------------------------------------------------------------------------------------------------------------
-  IF (DSMC%ElectronicState ) THEN
+  IF (DSMC%ElectronicModel ) THEN
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(React1Inx,3) + PartStateIntEn(React2Inx,3)
     IF(SpecDSMC(EductReac(1))%InterID.NE.4) THEN 
       IF(PartStateIntEn(React1Inx,3).GT.0.0)THEN
@@ -211,7 +211,7 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,iPart_p3,nPartNode,Volume)
     IF(EductReac(3).NE.0) THEN
       Xi_Total = Xi_Total + 3. + Xi_vib3 + SpecDSMC(EductReac(3))%Xi_Rot
     END IF
-    IF (DSMC%ElectronicState ) THEN
+    IF (DSMC%ElectronicModel ) THEN
       Xi_Total = Xi_Total + Xi_elec1 + Xi_elec2
       IF(EductReac(3).NE.0) Xi_Total = Xi_Total + Xi_elec3
     END IF
@@ -399,7 +399,7 @@ USE MOD_Particle_Tracking_Vars,ONLY : DoRefmapping
       END IF
       PartStateIntEn(React3Inx, 1) = 0.
       PartStateIntEn(React3Inx, 2) = 0.
-      IF ( DSMC%ElectronicState )  PartStateIntEn(React3Inx, 3) = 0.
+      IF ( DSMC%ElectronicModel )  PartStateIntEn(React3Inx, 3) = 0.
       PEM%Element(React3Inx) = PEM%Element(React1Inx)
     END IF
   END IF
@@ -550,7 +550,7 @@ USE MOD_Particle_Tracking_Vars,ONLY : DoRefmapping
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Considering the electronic shell (including the addition of the electronic energy to the collision energy)
   !---------------------------------------------------------------------------------------------------------------------------------
-  IF (DSMC%ElectronicState) THEN
+  IF (DSMC%ElectronicModel) THEN
     nTelec = 0
     IF((SpecDSMC(EductReac(1))%InterID.NE.4)) THEN
       IF(PartStateIntEn(React1Inx,3).GT.0.0)THEN
@@ -606,7 +606,7 @@ USE MOD_Particle_Tracking_Vars,ONLY : DoRefmapping
       CALL ElectronicEnergyExchange(Coll_pData(iPair)%Ec,React1Inx,FakXi)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(React1Inx,3)
     END IF
-  END IF ! DSMC%ElectronicState
+  END IF ! DSMC%ElectronicModel
   !--------------------------------------------------------------------------------------------------
   ! Vibrational energy exchange
   !--------------------------------------------------------------------------------------------------

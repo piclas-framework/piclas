@@ -114,11 +114,11 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
   DSMC%DoTEVRRelaxation = GETLOGICAL('Particles-DSMC-TEVR-Relaxation','.FALSE.')
   DSMC%WallModel = GETINT('Particles-DSMC-WallModel','0') !0: elastic/diffusive reflection, 1:ad-/desorption, 2:chem. ad-/desorption
   LD_MultiTemperaturMod=GETINT('LD-ModelForMultiTemp','0')
-  DSMC%ElectronicState = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
-  DSMC%ElectronicStateDatabase = GETSTR('Particles-DSMCElectronicDatabase','none')
-  IF ((DSMC%ElectronicStateDatabase .NE. 'none').AND.(CollisMode .GT. 1)) THEN 
+  DSMC%ElectronicModel = GETLOGICAL('Particles-DSMC-ElectronicModel','.FALSE.')
+  DSMC%ElectronicModelDatabase = GETSTR('Particles-DSMCElectronicDatabase','none')
+  IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.(CollisMode .GT. 1)) THEN 
     DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
-  ELSEIF(DSMC%ElectronicState) THEN
+  ELSEIF(DSMC%ElectronicModel) THEN
     CALL Abort(&
         __STAMP__,&
         'ERROR: Electronic model requires a electronic levels database and CollisMode > 1!')
@@ -185,7 +185,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
     END IF
     SpecDSMC(iSpec)%omegaVHS = GETREAL('Part-Species'//TRIM(hilf)//'-omegaVHS','0') ! default case HS 
   ! reading electronic state informations from HDF5 file
-    IF((DSMC%ElectronicStateDatabase .NE. 'none').AND.(SpecDSMC(iSpec)%InterID .NE. 4)) THEN
+    IF((DSMC%ElectronicModelDatabase .NE. 'none').AND.(SpecDSMC(iSpec)%InterID .NE. 4)) THEN
       IF(SpecDSMC(iSpec)%Name.EQ.'none') THEN
         CALL Abort(&
            __STAMP__,&
@@ -279,7 +279,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN ! perform relaxation (molecular) reactions
   ! allocate internal energy arrays
-    IF ( DSMC%ElectronicState ) THEN
+    IF ( DSMC%ElectronicModel ) THEN
       ALLOCATE(PartStateIntEn(PDM%maxParticleNumber,3))
     ELSE
       ALLOCATE(PartStateIntEn(PDM%maxParticleNumber,2))
@@ -300,7 +300,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
       IF(.NOT.(SpecDSMC(iSpec)%InterID.EQ.4)) THEN
         WRITE(UNIT=hilf,FMT='(I2)') iSpec
         SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol','.FALSE.')
-        IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%ElectronicState)  THEN
+        IF(SpecDSMC(iSpec)%PolyatomicMol.AND.DSMC%ElectronicModel)  THEN
           CALL Abort(&
           __STAMP__&
           ,'! Simulation of Polyatomic Molecules and Electronic States are not possible yet!!!')
@@ -395,7 +395,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
             END IF
           END IF
           ! read electronic temperature
-          IF ( DSMC%ElectronicState ) THEN
+          IF ( DSMC%ElectronicModel ) THEN
             WRITE(UNIT=hilf,FMT='(I2)') iSpec
             SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-Tempelec','0.')
             IF (SpecDSMC(iSpec)%Init(iInit)%Telec.EQ.0.) THEN
@@ -431,7 +431,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
             END IF
           END IF
           ! read electronic temperature
-          IF ( DSMC%ElectronicState ) THEN
+          IF ( DSMC%ElectronicModel ) THEN
             WRITE(UNIT=hilf,FMT='(I2)') iSpec
             SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-Tempelec','0.')
             IF (SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec.EQ.0.) THEN
@@ -495,7 +495,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_TimeDiscMethod==42)
-    IF ( DSMC%ElectronicState ) THEN
+    IF ( DSMC%ElectronicModel ) THEN
       DO iSpec = 1, nSpecies
         IF ( SpecDSMC(iSpec)%InterID .eq. 4) THEN
           SpecDSMC(iSpec)%MaxElecQuant = 0
@@ -534,7 +534,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
     
 #if ( PP_TimeDiscMethod ==42 )
     ! Debug Output for initialized electronic state
-    IF ( DSMC%ElectronicState ) THEN
+    IF ( DSMC%ElectronicModel ) THEN
       DO iSpec = 1, nSpecies
         print*,SpecDSMC(iSpec)%InterID
         IF ( SpecDSMC(iSpec)%InterID .ne. 4 ) THEN
@@ -601,7 +601,7 @@ USE MOD_Particle_Boundary_Sampling, ONLY: InitParticleBoundarySampling
             END IF
           END IF
         END IF
-        IF (DSMC%ElectronicStateDatabase .EQ. 'none') THEN
+        IF (DSMC%ElectronicModelDatabase .EQ. 'none') THEN
           SpecDSMC(iSpec)%MaxElecQuant               = GETINT('Part-Species'//TRIM(hilf)//'-NumElectronicLevels','0')
           IF(SpecDSMC(iSpec)%MaxElecQuant.GT.0) THEN
             ALLOCATE(SpecDSMC(iSpec)%ElectronicState(2,0:SpecDSMC(iSpec)%MaxElecQuant-1))
@@ -842,7 +842,7 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set electronic energy
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IF ( DSMC%ElectronicState .and. SpecDSMC(iSpecies)%InterID .ne. 4) THEN
+  IF ( DSMC%ElectronicModel .and. SpecDSMC(iSpecies)%InterID .ne. 4) THEN
     iInitTemp = iInit
     init_or_sfTemp = init_or_sf
     CALL InitElectronShell(iSpecies,iPart,iInitTemp,init_or_sfTemp)
