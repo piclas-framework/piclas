@@ -219,7 +219,7 @@ SUBROUTINE AnalyzeParticles(Time)
   INTEGER             :: ii, iunit, iCase, iTvib,jSpec, WallNumSpec(nSpecies)
   CHARACTER(LEN=64)   :: DebugElectronicStateFilename
   CHARACTER(LEN=350)  :: hilf
-  REAL                :: WallCoverage(nSpecies), Adsorptionrate(nSpecies), Desorptionrate(nSpecies)
+  REAL                :: WallCoverage(nSpecies), Accomodation(nSpecies), Adsorptionrate(nSpecies), Desorptionrate(nSpecies)
   INTEGER             :: iCov
 #endif
   REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
@@ -501,6 +501,11 @@ SUBROUTINE AnalyzeParticles(Time)
 !                 END IF
           DO iSpec = 1, nSpecies
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' alpha', iSpec,' '
+            OutputCounter = OutputCounter + 1
+          END DO
+          DO iSpec = 1, nSpecies
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,I3.3,A5)',ADVANCE='NO') OutputCounter,' Pads', iSpec,' '
             OutputCounter = OutputCounter + 1
           END DO
@@ -764,7 +769,7 @@ tLBStart = LOCALTIME() ! LB Time Start
   END IF
 IF (DSMC%WallModel.GE.1) THEN
   CALL GetWallNumSpec(WallNumSpec,WallCoverage)
-  CALL CalcSurfRates(WallNumSpec,Adsorptionrate,Desorptionrate)
+  CALL CalcSurfRates(WallNumSpec,Accomodation,Adsorptionrate,Desorptionrate)
 END IF
 IF (CollisMode.GT.1) CALL CalcIntTempsAndEn(IntTemp, IntEn)
 ! currently, calculation of internal electronic energy not implemented !
@@ -956,6 +961,10 @@ IF (PartMPI%MPIROOT) THEN
       DO iSpec=1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
         WRITE(unit_index,104,ADVANCE='NO') WallCoverage(iSpec)
+      END DO
+      DO iSpec = 1, nSpecies
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,104,ADVANCE='NO') Accomodation(iSpec)
       END DO
       DO iSpec = 1, nSpecies
         WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1273,7 +1282,7 @@ REAL              :: Surface, Coverage(nSpecies), SurfPartDens
     
 END SUBROUTINE GetWallNumSpec
 
-SUBROUTINE CalcSurfRates(WallNumSpec,Adsorbrate,Desorbrate)
+SUBROUTINE CalcSurfRates(WallNumSpec,Accomodation,Adsorbrate,Desorbrate)
 !===================================================================================================================================
 ! Calculate number of wallparticles for all species
 !===================================================================================================================================
@@ -1290,7 +1299,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER, INTENT(IN)             :: WallNumSpec(nSpecies)
-REAL   , INTENT(OUT)            :: Adsorbrate(nSpecies), Desorbrate(nSpecies)
+REAL   , INTENT(OUT)            :: Adsorbrate(nSpecies), Desorbrate(nSpecies), Accomodation(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iSpec
@@ -1298,8 +1307,15 @@ INTEGER           :: iSpec
 
 IF (DSMC%ReservoirRateStatistic) THEN
   DO iSpec = 1,nSpecies
-    Adsorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfAds / Adsorption%AdsorpInfo(iSpec)%WallCollCount
-    Desorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes / WallNumSpec(iSpec)
+    IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
+        Adsorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfAds / Adsorption%AdsorpInfo(iSpec)%WallCollCount
+        Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / Adsorption%AdsorpInfo(iSpec)%WallCollCount
+        Desorbrate(iSpec) = Adsorption%AdsorpInfo(iSpec)%NumOfDes / WallNumSpec(iSpec)
+      ELSE
+        Adsorbrate(iSpec) = 0.
+        Accomodation(iSpec) = 0.
+        Desorbrate(iSpec) = 0.
+      END IF
   END DO
 ELSE
 
@@ -1308,8 +1324,10 @@ ELSE
       IF (Adsorption%AdsorpInfo(iSpec)%WallCollCount.GT.0) THEN
         Adsorption%AdsorpInfo(iSpec)%MeanProbAds = Adsorption%AdsorpInfo(iSpec)%MeanProbAds / (REAL(nSurfSample) * REAL(nSurfSample) &
                                             * REAL(SurfMesh%nSides) * REAL(Adsorption%AdsorpInfo(iSpec)%WallCollCount))
+        Accomodation(iSpec) = Adsorption%AdsorpInfo(iSpec)%Accomodation / Adsorption%AdsorpInfo(iSpec)%WallCollCount
       ELSE
         Adsorption%AdsorpInfo(iSpec)%MeanProbAds = 0.
+        Accomodation(iSpec) = 0.
       END IF
     END DO
   END IF

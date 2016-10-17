@@ -134,8 +134,8 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
       END IF
-    ELSE IF (WallModeltype.GT.1) THEN
-               adsorbindex = 0
+    ELSE IF (WallModeltype.GT.0) THEN
+      adsorbindex = 0
 !--- Adsorption               
       CALL Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex)
       IF (adsorbindex.EQ.1) THEN
@@ -150,8 +150,10 @@ CASE(2) !PartBound%ReflectiveBC)
           alpha=-1.
         END IF
       ELSE IF (adsorbindex.EQ.0) THEN
-!--- Inelastic Reflection (not diffuse)               
+!--- Inelastic Reflection              
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+      ELSE IF (adsorbindex.EQ.-1) THEN
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
@@ -299,8 +301,8 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
       END IF
-    ELSE IF (WallModeltype.GT.1) THEN
-               adsorbindex = 0
+    ELSE IF (WallModeltype.GT.0) THEN
+      adsorbindex = 0
 !--- Adsorption               
       CALL Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,adsorbindex,BCSideID)
       IF (adsorbindex.EQ.1) THEN
@@ -315,8 +317,10 @@ CASE(2) !PartBound%ReflectiveBC)
           alpha=-1.
         END IF
       ELSE IF (adsorbindex.EQ.0) THEN
-!--- Inelastic Reflection (not diffuse) 
+!--- Inelastic Reflection 
         CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
+      ELSE IF (adsorbindex.EQ.-1) THEN
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
