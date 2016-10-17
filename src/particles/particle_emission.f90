@@ -226,7 +226,7 @@ USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY : UpdateNextFreePosition  
-USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, DSMC, SpecDSMC
+USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
 #if (PP_TimeDiscMethod==300)
@@ -3060,7 +3060,6 @@ USE MOD_Globals_Vars,          ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound,nPartBound
 USE MOD_Particle_Vars,         ONLY: Species, nSpecies, DoSurfaceFlux, BoltzmannConst, DoPoissonRounding
-USE MOD_Particle_Mesh_Vars,    ONLY: GEO
 USE MOD_Mesh_Vars,             ONLY: nBCSides, BC, SideToElem, NGeo
 USE MOD_Particle_Surfaces_Vars,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas
 USE MOD_Particle_Surfaces,      ONLY:GetBezierSampledAreas
@@ -3410,7 +3409,6 @@ SUBROUTINE ParticleSurfaceflux()
 USE MOD_Particle_MPI_Vars,ONLY: PartMPI
 #endif /* MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY : PI
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Timedisc_Vars         , ONLY : iter
 #endif
@@ -3420,7 +3418,7 @@ USE MOD_part_tools             ,ONLY : UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY : useDSMC, CollisMode, SpecDSMC, Adsorption, DSMC
 USE MOD_DSMC_Init              ,ONLY : DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_SetInternalEnr_Poly
-USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh,nSurfSample
+USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh
 #if (PP_TimeDiscMethod==300)
 !USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
 #endif

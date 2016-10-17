@@ -290,11 +290,13 @@ SUBROUTINE IdentifySimpleHaloMPINeighborhood(iProc,ElemIndex)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_MPI_Vars,                   ONLY:OffsetMPISides_send,OffsetMPISides_rec,nNbProcs,NbProc &
+                                        ,nMPISides_send,nMPISides_rec,nMPISides_send,nMPISides_rec
 USE MOD_Particle_Mesh_Vars,         ONLY:GEO
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,         ONLY:ElemBaryNGeo,ElemRadiusNGeo
 !USE MOD_Particle_Tracking_Vars,     ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                  ONLY:ElemToSide,nElems,nInnerSides,nBCSides,nSides
+USE MOD_Mesh_Vars,                  ONLY:ElemToSide,nElems,nInnerSides,nBCSides,nSides,SideToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -306,8 +308,8 @@ INTEGER, INTENT(INOUT):: ElemIndex(PP_nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iBGM,jBGM,kBGM,iNBProc,iElem,ElemID,ilocSide,SideID
-INTEGER                     :: DataSize
+INTEGER                     :: iBGM,jBGM,kBGM,iNBProc,iElem,ElemID,ilocSide,SideID,SendID
+INTEGER                     :: DataSize, firstSide,lastSide,iSide
 ! MPI exchange
 TYPE tMPIElemMessage
   REAL(KIND=8), ALLOCATABLE :: ElemBaryAndRadius(:,:) ! BezierSides of boundary faces
@@ -332,6 +334,43 @@ INTEGER                     :: ALLOCSTAT
 !     caution: maybe there can be a special case, in which the nBCSides are in HaloRange but not the MPI-Side
 ElemIndex(:)=0
 SendMsg%nMPIElems=0
+! first, check if iproc is a DG-neighbor and mark direct MPI interface elements
+DO iNbProc=1,nNbProcs
+  IF(nbProc(iNbProc).NE.iProc) CYCLE
+  ! SendID from flux 
+  ! receive neighbor master sides
+  ! send my Master sides
+  SendID=1
+  ! from MPI-Send, master sides
+  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+    firstSide=OffsetMPISides_send(iNbProc-1,SendID)+1
+    lastSide =OffsetMPISides_send(iNbProc,SendID)
+    DO iSide=firstSide,lastSide
+      ElemID=SideToElem(S2E_ELEM_ID,iSide)
+      IF(ElemID.LT.1) STOP 'wrong'
+      IF(ElemIndex(ElemID).EQ.0)THEN
+        SendMsg%nMPIElems=SendMsg%nMPIElems+1
+        ElemIndex(ElemID)=SendMsg%nMPIElems
+      END IF
+    END DO !  iSide=firstSide,lastSide
+  END IF
+  ! from MPI-recv, slave sides
+  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+    firstSide=OffsetMPISides_rec(iNbProc-1,SendID)+1
+    lastSide =OffsetMPISides_rec(iNbProc,SendID)
+    DO iSide=firstSide,lastSide
+      ElemID=SideToElem(S2E_NB_ELEM_ID,iSide)
+      IF(ElemID.LT.1) STOP 'wrong'
+      IF(ElemIndex(ElemID).EQ.0)THEN
+        SendMsg%nMPIElems=SendMsg%nMPIElems+1
+        ElemIndex(ElemID)=SendMsg%nMPIElems
+      END IF
+    END DO !  iSide=firstSide,lastSide
+  END IF
+END DO ! iNbProc=1,nNbProcs
+
+! next, get informations from halo mesh
+! get over halo sides
 DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
   DO jBGM=GEO%FIBGMjmin,GEO%FIBGMjmax
     DO iBGM=GEO%FIBGMimin,GEO%FIBGMimax
@@ -364,8 +403,6 @@ DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
     END DO ! iBGM
   END DO ! jBGM
 END DO ! kBGM
-
-
 
 !IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Number of Sides-To Send:   ', SendMsg%nMPIElems
 
@@ -502,8 +539,8 @@ SUBROUTINE CheckSimpleMPINeighborhoodByFIBGM(ElemBaryAndRadius,nExternalElems,El
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars,        ONLY:GEO, FIBGMCellPadding,NbrOfCases,casematrix
-USE MOD_Particle_MPI_Vars,         ONLY:halo_eps2
-USE MOD_Particle_Mesh_Vars,        ONLY:ElemBaryNGeo,ElemRadius2NGeo
+USE MOD_Particle_MPI_Vars,         ONLY:halo_eps
+USE MOD_Particle_Mesh_Vars,        ONLY:ElemBaryNGeo,ElemRadiusNGeo
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -580,9 +617,9 @@ DO iElem=1,nExternalElems
               Vec0=ElemBaryNGeo(1:3,ElemID)-ElemBaryAndRadius(1:3,iElem)
               !Distance=SQRT(DOT_PRODUCT(Vec0,Vec0)) &
               !        -Radius-ElemRadiusNGeo(ElemID)
-              Distance=(DOT_PRODUCT(Vec0,Vec0)) &
-                      -Radius2-ElemRadius2NGeo(ElemID)
-              IF(Distance.LE.halo_eps2)THEN
+              Distance=SQRT(DOT_PRODUCT(Vec0,Vec0)) &
+                      -Radius-ElemRadiusNGeo(ElemID)
+              IF((Distance.LE.halo_eps).OR.(Distance.LT.0.))THEN
                 NbOfElems=NbOfElems+1
                 ElemIndex(ElemID)=NbofElems
               END IF ! in range
@@ -665,9 +702,9 @@ IF (GEO%nPeriodicVectors.GT.0) THEN
                 IF((ElemID.LT.0).OR.(ElemID.GT.PP_nElems))CYCLE
                 IF(ElemIndex(ElemID).EQ.0)THEN
                   Vec0=ElemBaryNGeo(1:3,ElemID)-NodeX(1:3)
-                  Distance=(DOT_PRODUCT(Vec0,Vec0)) &
-                          -Radius2-ElemRadius2NGeo(ElemID)
-                  IF(Distance.LE.halo_eps2)THEN
+                  Distance=SQRT(DOT_PRODUCT(Vec0,Vec0)) &
+                          -Radius-ElemRadiusNGeo(ElemID)
+                  IF(Distance.LE.halo_eps)THEN
                     NbOfElems=NbOfElems+1
                     ElemIndex(ElemID)=NbofElems
                   END IF ! in range

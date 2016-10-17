@@ -703,11 +703,11 @@ DO iPart=1,PDM%ParticleVecLength
   oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
   ! get background mesh cell of particle
   CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-  CellX = MAX(MIN(GEO%FIBGMimax,CellX),GEO%FIBGMimin)
+  CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
   CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  CellY = MAX(MIN(GEO%FIBGMjmax,CellY),GEO%FIBGMjmin)
+  CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
   CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
+  CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
         
   ! check all cells associated with this beckground mesh cell
   nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
@@ -895,6 +895,9 @@ USE MOD_MPI_Vars,                ONLY:offsetElemMPI
 USE MOD_Particle_MPI_Vars,       ONLY:PartHaloElemToProc
 USE MOD_LoadBalance_Vars,        ONLY:ElemTime,nTracksPerElem,tTracking
 #endif
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1002,11 +1005,11 @@ DO iPart=1,PDM%ParticleVecLength
     oldElemID = PEM%lastElement(iPart) ! this is not!  a possible elem
     ! get background mesh cell of particle
     CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-    CellX = MAX(MIN(GEO%FIBGMimax,CellX),GEO%FIBGMimin)
+    CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
     CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    CellY = MAX(MIN(GEO%FIBGMjmax,CellY),GEO%FIBGMjmin)
+    CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
     CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
+    CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
           
     ! check all cells associated with this background mesh cell
     nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
@@ -1085,11 +1088,16 @@ DO iPart=1,PDM%ParticleVecLength
           IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldXi
           IPWRITE(UNIT_stdOut,*) ' newxi       ', newXi
           IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+          IPWRITE(UNIT_stdOut,*) ' Implicit    ', PartIsImplicit(iPart)
+#endif
 #ifdef MPI
           InElem=PEM%Element(iPart)
           IF(InElem.LE.PP_nElems)THEN
+            IPWRITE(UNIT_stdout,*) ' halo-elem = F'
             IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
           ELSE
+            IPWRITE(UNIT_stdout,*) ' halo-elem = T'
             IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
                                                    + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
           END IF
@@ -1117,17 +1125,24 @@ __STAMP__ &
               IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldxi
               IPWRITE(UNIT_stdOut,*) ' newxi       ', newxi
               IPWRITE(UNIT_stdOut,*) ' particlepos ', partstate(ipart,1:3)
+#if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
+              IPWRITE(UNIT_stdOut,*) ' Implicit    ', PartIsImplicit(iPart)
+#endif
 #ifdef MPI
               inelem=PEM%Element(ipart)
               IF(inelem.LE.PP_nElems)THEN
+                IPWRITE(UNIT_stdout,*) ' halo-elem = F'
                 IPWRITE(UNIT_stdout,*) ' elemid       ', inelem+offsetelem
               ELSE
+                IPWRITE(UNIT_stdout,*) ' halo-elem = T'
                 IPWRITE(UNIT_stdOut,*) ' elemid       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
                                                          + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
               END IF
               IF(testelem.LE.PP_nElems)THEN
+                IPWRITE(UNIT_stdout,*) ' halo-elem = F'
                 IPWRITE(UNIT_stdout,*) ' testelem       ', testelem+offsetelem
               ELSE
+                IPWRITE(UNIT_stdout,*) ' halo-elem = T'
                 IPWRITE(UNIT_stdOut,*) ' testelem       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
                                                          + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF

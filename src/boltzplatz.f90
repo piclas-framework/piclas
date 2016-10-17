@@ -132,6 +132,20 @@ CALL InitBoltzplatz(IsLoadBalance=.FALSE.)
 #ifdef PP_HDG
 CALL InitHDG()
 #endif
+! Do SwapMesh
+IF(DoSwapMesh)THEN
+  IF(MPIroot)THEN
+    Call SwapMesh()
+    SWRITE(UNIT_stdOut,'(132("="))')
+    SWRITE(UNIT_stdOut,'(A,F8.2,A)') ' SWAPMESH DONE! BOLTZPLATZ DONE! [',Time-StartTime,' sec ]'
+    SWRITE(UNIT_stdOut,'(132("="))')
+    STOP
+  ELSE
+  CALL abort(&
+  __STAMP__&
+  ,'DO NOT CALL SWAPMESH WITH MORE THAN 1 Procs!',iError,999.)
+  END IF
+END IF
 
 ! RESTART
 CALL Restart()
@@ -144,10 +158,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 
 ! Run Simulation
 CALL TimeDisc()
-! Do SwapMesh
-IF(MPIroot)THEN
-  IF(DoSwapMesh) Call SwapMesh()
-END IF
+
 
 !Finalize
 CALL FinalizeBoltzplatz(IsLoadBalance=.FALSE.)
