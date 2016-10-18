@@ -21,6 +21,7 @@ INTEGER           :: SwapMeshLevel                ! 0: initial grid, 1: first sw
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER          :: NGeo                        ! polynomial degree of geometric transformation
 INTEGER          :: NGeoRef                     ! polynomial degree of geometric transformation
+INTEGER          :: NGeoElevated                ! polynomial degree of elevated geometric transformation
 REAL,ALLOCATABLE :: Xi_NGeo(:)                  ! 1D equidistant point positions for curved elements (during readin)
 REAL             :: DeltaXi_NGeo
 REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)

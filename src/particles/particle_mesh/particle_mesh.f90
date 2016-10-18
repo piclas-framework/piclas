@@ -97,7 +97,7 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic
-USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo
+USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
 ! IMPLICIT VARIABLE HANDLING
@@ -160,6 +160,7 @@ END IF
 BezierEpsilonBilinear = GETREAL('BezierEpsilonBilinear','1e-6')
 
 BezierElevation = GETINT('BezierElevation','0')
+NGeoElevated    = NGeo + BezierElevation
 SDEALLOCATE(BezierControlPoints3DElevated)
 ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeo+BezierElevation,0:NGeo+BezierElevation,1:nSides) &
         ,STAT=ALLOCSTAT )

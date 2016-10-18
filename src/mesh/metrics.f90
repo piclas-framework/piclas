@@ -80,9 +80,13 @@ USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU
 #ifdef PARTICLES
+USE MOD_Mesh_Vars,               ONLY:NGeoElevated
+USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
+USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMPISides_MINE
+USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
+                                        ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -416,9 +420,22 @@ END DO !iElem=1,nElems
 
 #ifdef PARTICLES
 SWRITE(UNIT_stdOut,'(A)') ' '
-SWRITE(UNIT_stdOut,'(A)') ' VALIDATION OF BEZIERCONTROLPOINTS ...'
-lowerLimit=SideID_minus_upper
+SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
+StartT2=BOLTZPLATZTIME(MPI_COMM_WORLD)
+lowerLimit = nBCSides+nInnerSides+nMPISides_MINE
+DO iSide=1,lowerLimit
+  !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
+  ! elevation occurs within this routine
+  CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
+                                     ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
+                                     ,SideSlabNormals(1:3,1:3,iSide)                                         &
+                                     ,SideSlabInterVals(1:6,iSide)                                           &
+                                     ,BoundingBoxIsEmpty(iSide)                                              )
+
+END DO
+
 !IF(DoRefMapping) lowerLimit=nBCSides
+lowerLimit=SideID_minus_upper
 DO iSide=1,lowerLimit
   IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
     IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
@@ -426,9 +443,13 @@ DO iSide=1,lowerLimit
   END IF
 END DO 
 
+endT=BOLTZPLATZTIME(MPI_COMM_WORLD)
+BezierTime=BezierTime+endT-StartT2
+
 SWRITE(UNIT_stdOut,'(A)') ' '
 endt=BOLTZPLATZTIME(MPI_COMM_WORLD)
-SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took [',BezierTime - EndT+StartT,'s]'
+SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took [',BezierTime            ,'s]'
+SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT-BezierTime,'s]'
 #else
 endt=BOLTZPLATZTIME(MPI_COMM_WORLD)
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
