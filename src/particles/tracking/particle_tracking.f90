@@ -38,12 +38,12 @@ SUBROUTINE ParticleTrackingCurved(doParticle_In)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mesh_Vars,                   ONLY:NGeo!,NormVec
+USE MOD_Mesh_Vars,                   ONLY:NGeo,BC!,NormVec
 USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,isBCElem
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts
@@ -76,7 +76,8 @@ REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
 #ifdef MPI
-REAL                          :: tLBStart,tLBEnd, inElem
+REAL                          :: tLBStart,tLBEnd
+INTEGER                       :: inElem
 #endif /*MPI*/
 !===================================================================================================================================
 
@@ -205,34 +206,51 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*MPI*/
         END IF
       CASE DEFAULT ! two or more hits
-        ! take last possible intersection, furthest
-        !CALL BubbleSortID(locAlpha,locSideList,6)
-        CALL InsertionSort(locAlpha,locSideList,6)
-!        IF((ipart.eq.40).AND.(iter.GE.68)) THEN
-!        END IF
-        nloc=0
-        DO ilocSide=6,1,-1
-          IF(locAlpha(ilocSide).GT.-1.0)THEN
-            !nloc=nloc+1
-            hitlocSide=locSideList(ilocSide)
-            EXIT
-            !IF(nloc.EQ.nInterSections) EXIT
-          END IF
-        END DO ! ilocSide
-        SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
-        OldElemID=ElemID
-        CALL SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                         ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
-        IF(ElemID.NE.OldElemID)THEN
+        ! more careful with bc elems
+        IF(isBCElem(ElemID))THEN
+          DO ilocSide=1,6
+            SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+            IF(BC(SideID).NE.0)THEN
+              IF(locAlpha(ilocSide).GT.-1.0)THEN
+                ! perform boundary interaction
+                CALL SelectInterSectionType(PartIsDone,doLocSide,ilocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
+                                                 ,xi(ilocSide),eta(ilocSide),localpha(ilocSide),iPart,SideID,ElemID)
+                EXIT
+              END IF
+            END IF
+          END DO
+          markTol=.TRUE.
+        ELSE
+          ! take last possible intersection, furthest
+          CALL InsertionSort(locAlpha,locSideList,6)
+          nloc=0
+          DO ilocSide=1,6
+            IF(locAlpha(ilocSide).GT.-1.0)THEN
+              !nloc=nloc+1
+              hitlocSide=locSideList(ilocSide)
+              EXIT
+              !IF(nloc.EQ.nInterSections) EXIT
+            END IF
+          END DO ! ilocSide
+          SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
+          OldElemID=ElemID
+          CALL SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
+                                           ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
+          IF(ElemID.NE.OldElemID)THEN
 #ifdef MPI
-          tLBEnd = LOCALTIME() ! LB Time End
-          ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
-          tLBStart = LOCALTIME() ! LB Time Start
+            tLBEnd = LOCALTIME() ! LB Time End
+            ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
+            tLBStart = LOCALTIME() ! LB Time Start
 #endif /*MPI*/
+          END IF
+          ! particle moves close to an edge or corner. this is a critical movement because of possible tolerance issues
+          markTol=.TRUE.
         END IF
-        markTol=.TRUE.
       END SELECT
       IF(markTol)THEN
+        IF(.NOT.PDM%ParticleInside(iPart))THEN
+          print*,'blbubbbb'
+        END IF
         CALL PartInElemCheck(iPart,ElemID,isHit)
         !print*,'partid',ipart,'in elem',isHit
         !print*,'old elem',ElemID
