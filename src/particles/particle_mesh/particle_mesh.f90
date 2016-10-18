@@ -1649,7 +1649,7 @@ SUBROUTINE GetSFIBGM()
 USE MOD_PreProc
 USE MOD_Globals!,            ONLY : UNIT_StdOut
 USE MOD_Particle_Mesh_Vars,                 ONLY:ElemBaryNGeo,ElemRadiusNGeo
-USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
+!USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
 USE MOD_Partilce_Periodic_BC,               ONLY:InitPeriodicBC
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
 USE MOD_PICDepo,                            ONLY:InitializeDeposition
@@ -1730,14 +1730,24 @@ zmax =-HUGE(1.0)
 
 ! serch for min,max of BezierControlPoints, e.g. the convec hull of the domain
 ! bounding box!!
-DO iSide=1,nTotalSides
-  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
-  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,iSide)))
-  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,iSide)))
-  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,iSide)))
-  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,iSide)))
-  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,iSide)))
-END DO ! iSide
+!DO iSide=1,nTotalSides
+!  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
+!  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,iSide)))
+!  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,iSide)))
+!  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,iSide)))
+!  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,iSide)))
+!  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,iSide)))
+!END DO ! iSide
+
+DO iElem=1,nTotalElems
+  xmin=MIN(xmin,ElemBaryNGeo(1,iElem)-ElemRadiusNGeo(iElem))
+  xmax=MAX(xmax,ElemBaryNGeo(1,iElem)+ElemRadiusNGeo(iElem))
+  ymin=MIN(ymin,ElemBaryNGeo(2,iElem)-ElemRadiusNGeo(iElem))
+  ymax=MAX(ymax,ElemBaryNGeo(2,iElem)+ElemRadiusNGeo(iElem))
+  zmin=MIN(zmin,ElemBaryNGeo(3,iElem)-ElemRadiusNGeo(iElem))
+  zmax=MAX(zmax,ElemBaryNGeo(3,iElem)+ElemRadiusNGeo(iElem))
+END DO 
+
 
 GEO%xmin=xmin
 GEO%xmax=xmax
@@ -2420,6 +2430,7 @@ USE MOD_PreProc
 USE MOD_Globals!,            ONLY : UNIT_StdOut
 USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
+USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
 USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
 USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
