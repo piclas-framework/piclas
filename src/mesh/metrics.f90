@@ -87,6 +87,9 @@ USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMPISides_MINE
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,       ONLY:PartMPI
+#endif /*MPI*/
 #endif /*PARTICLES*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -411,9 +414,9 @@ DO iElem=1,nElems
   IF(PRESENT(XCL_Ngeo_Out))   XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)= XCL_Ngeo(1:3,0:Ngeo,0:Ngeo,0:Ngeo)
   IF(PRESENT(dXCL_Ngeo_Out)) dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)=dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
 #ifdef PARTICLES
-  StartT2=BOLTZPLATZTIME()
+  CALL CPU_TIME(StartT2)
   CALL GetBezierControlPoints3D(XCL_NGeo(:,:,:,:),iElem)
-  endT=BOLTZPLATZTIME()
+  CALL CPU_TIME(endT)
   BezierTime=BezierTime+endT-StartT2
 #endif /*PARTICLES*/
 END DO !iElem=1,nElems
@@ -422,6 +425,7 @@ END DO !iElem=1,nElems
 SWRITE(UNIT_stdOut,'(A)') ' '
 SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
 StartT2=BOLTZPLATZTIME()
+CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
 lowerLimit = nBCSides+nInnerSides+nMPISides_MINE
 DO iSide=1,lowerLimit
   !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
