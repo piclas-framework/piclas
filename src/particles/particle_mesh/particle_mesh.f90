@@ -486,6 +486,7 @@ nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
 
 ! get closest element barycenter
 Distance=-1.
+
 ListDistance=0
 DO iBGMElem = 1, nBGMElems
   ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
@@ -625,6 +626,8 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,sle
 USE MOD_Particle_MPI,                       ONLY:InitSimpleHALOMesh
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
 USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings
+#else
+USE MOD_Particle_Tracking_Vars,             ONLY:Distance,ListDistance
 #endif /*MPI*/
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
@@ -637,6 +640,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                     :: StartT,EndT
+#ifndef MPI
+INTEGER                  :: maxnBGMElems,iBGM,jBGM,kBGM
+#endif
 !=================================================================================================================================
 
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -699,6 +705,18 @@ EndT=BOLTZPLATZTIME()
 IF(PartMPI%MPIROOT)THEN
    WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
 END IF
+#else
+! and get max number of bgm-elems
+maxnBGMElems=0
+DO iBGM = GEO%TFIBGMimin,GEO%TFIBGMimax
+  DO jBGM = GEO%TFIBGMjmin,GEO%TFIBGMjmax
+    DO kBGM = GEO%TFIBGMkmin,GEO%TFIBGMkmax
+      maxnBGMElems=MAX(maxnBGMElems,GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem)
+    END DO ! kBGM
+  END DO ! jBGM
+END DO ! iBGM
+ALLOCATE(Distance    (1:maxnBGMElems) &
+        ,ListDistance(1:maxnBGMElems) )
 #endif /*MPI*/
 
 !CALL MapElemToFIBGM()
