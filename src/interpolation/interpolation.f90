@@ -249,7 +249,6 @@ SUBROUTINE GetVandermonde(N_in,NodeType_in,N_out,NodeType_out,Vdm_In_Out,Vdm_Out
 ! MODULES
 USE MOD_Preproc
 USE MOD_Basis,             ONLY:BarycentricWeights,InitializeVandermonde
-USE MOD_Interpolation_Vars,ONLY:NodeType
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
