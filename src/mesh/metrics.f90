@@ -149,7 +149,7 @@ REAL               :: StartT,EndT
 !===================================================================================================================================
 
 
-StartT=BOLTZPLATZTIME(MPI_COMM_WORLD)
+StartT=BOLTZPLATZTIME()
 #ifdef PARTICLES
 BezierTime=0.
 #endif
@@ -411,9 +411,9 @@ DO iElem=1,nElems
   IF(PRESENT(XCL_Ngeo_Out))   XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)= XCL_Ngeo(1:3,0:Ngeo,0:Ngeo,0:Ngeo)
   IF(PRESENT(dXCL_Ngeo_Out)) dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)=dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
 #ifdef PARTICLES
-  StartT2=BOLTZPLATZTIME(MPI_COMM_WORLD)
+  StartT2=BOLTZPLATZTIME()
   CALL GetBezierControlPoints3D(XCL_NGeo(:,:,:,:),iElem)
-  endT=BOLTZPLATZTIME(MPI_COMM_WORLD)
+  endT=BOLTZPLATZTIME()
   BezierTime=BezierTime+endT-StartT2
 #endif /*PARTICLES*/
 END DO !iElem=1,nElems
@@ -421,7 +421,7 @@ END DO !iElem=1,nElems
 #ifdef PARTICLES
 SWRITE(UNIT_stdOut,'(A)') ' '
 SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
-StartT2=BOLTZPLATZTIME(MPI_COMM_WORLD)
+StartT2=BOLTZPLATZTIME()
 lowerLimit = nBCSides+nInnerSides+nMPISides_MINE
 DO iSide=1,lowerLimit
   !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
@@ -443,15 +443,15 @@ DO iSide=1,lowerLimit
   END IF
 END DO 
 
-endT=BOLTZPLATZTIME(MPI_COMM_WORLD)
+endT=BOLTZPLATZTIME()
 BezierTime=BezierTime+endT-StartT2
 
 SWRITE(UNIT_stdOut,'(A)') ' '
-endt=BOLTZPLATZTIME(MPI_COMM_WORLD)
+endt=BOLTZPLATZTIME()
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of Bezier control points took [',BezierTime            ,'s]'
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT-BezierTime,'s]'
 #else
-endt=BOLTZPLATZTIME(MPI_COMM_WORLD)
+endt=BOLTZPLATZTIME()
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
 #endif /*PARTICLES*/
 
