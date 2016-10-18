@@ -4047,7 +4047,7 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalBCSi
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO
 USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,Vdm_CLNGeo1_CLNGeo
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,Vdm_CLNGeo1_CLNGeo,BC
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
 USE MOD_Particle_Mesh_Vars,                 ONLY:RefMappingEps,epsOneCell
 #ifdef MPI
@@ -4105,7 +4105,8 @@ IF(DoRefMapping)THEN
 ELSE
   ALLOCATE( SideType(nTotalSides)        &
           , SideDistance(nTotalSides)    &
-          , SideIsDone(nTotalSides)        &
+          , isBCElem(nTotalElems)        &
+          , SideIsDone(nTotalSides)      &
           , SideNormVec(1:3,nTotalSides) )
 END IF
 SideIsDone=.FALSE.
@@ -4686,6 +4687,43 @@ IF(DoRefMapping)THEN
       END IF
     END DO  ! iSide
     SideIndex=0
+  END DO ! iElem
+ELSE
+  ! tracing
+  ! mark only elements with bc-side
+  IsBCElem=.FALSE.
+  nTotalBCElems=0
+  DO iElem=1,nTotalElems
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      IF (SideID.LE.0) CYCLE
+      IF(SideID.LE.nBCSides)THEN ! non-halo elements
+        IF(.NOT.isBCElem(iElem))THEN
+          IsBCElem(iElem)=.TRUE.
+          nTotalBCElems=nTotalBCElems+1
+          IF(SideID.LE.nBCSides)THEN
+            nBCElems=nBCElems+1
+          ELSE
+            nBCElemsHalo=nBCElemsHalo+1
+          END IF
+        END IF ! count only single
+      END IF
+#ifdef MPI
+      IF(SideID.GT.nSides)THEN ! halo elements
+        IF(BC(SideID).NE.0)THEN
+          IF(.NOT.isBCElem(iElem))THEN
+            IsBCElem(iElem)=.TRUE.
+            nTotalBCElems=nTotalBCElems+1
+            IF(SideID.LE.nBCSides)THEN
+              nBCElems=nBCElems+1
+            ELSE
+              nBCElemsHalo=nBCElemsHalo+1
+            END IF
+          END IF ! count only single
+        END IF
+      END IF ! SideID.GT.nSides
+#endif
+    END DO ! ilocSide
   END DO ! iElem
 END IF
 
