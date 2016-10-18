@@ -624,8 +624,9 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,sle
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitSimpleHALOMesh
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI,printMPINeighborWarnings
+USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings
 #endif /*MPI*/
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -635,9 +636,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef MPI
 REAL                     :: StartT,EndT
-#endif /*MPI*/
 !=================================================================================================================================
 
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -647,6 +646,7 @@ GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 ! simplified halo region
 ! compute elem bary and elem radius
+IF(PartMPI%MPIROOT) StartT=BOLTZPLATZTIME()
 ALLOCATE(ElemBaryNGeo(1:3,1:nTotalElems) )
 CALL BuildElementOrigin()
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
@@ -654,12 +654,21 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
+IF(PartMPI%MPIROOT)THEN
+  EndT=BOLTZPLATZTIME()
+  WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init element-basis took          [',EndT-StartT,'s]'
+END IF
 
+IF(PartMPI%MPIROOT) StartT=BOLTZPLATZTIME()
 CALL GetSFIBGM()
+IF(PartMPI%MPIROOT)THEN
+  EndT=BOLTZPLATZTIME()
+  WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init FIBGM took                  [',EndT-StartT,'s]'
+END IF
 
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
-StartT=MPI_WTIME()
+StartT=BOLTZPLATZTIME()
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.TRUE.')
 CALL InitSimpleHaloMesh()
@@ -686,7 +695,7 @@ CALL BuildElementBasis()
 ! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
 ! rebuild is a local operation
 CALL AddSimpleHALOCellsToFIBGM()
-EndT=MPI_WTIME()
+EndT=BOLTZPLATZTIME()
 IF(PartMPI%MPIROOT)THEN
    WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
 END IF
@@ -1718,16 +1727,6 @@ zmin = HUGE(1.0)
 zmax =-HUGE(1.0)
 
 ! serch for min,max of BezierControlPoints, e.g. the convec hull of the domain
-! more accurate, XCL_NGeo
-!DO iElem=1,nTotalElems
-!  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
-!  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
-!  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
-!  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
-!  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
-!  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
-!END DO ! iElem
-
 ! bounding box!!
 DO iSide=1,nTotalSides
   xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
@@ -1883,12 +1882,6 @@ END DO
 
 !--- compute number of elements in each background cell
 DO iElem=1,nTotalElems
-  xmin = HUGE(1.0)
-  xmax =-HUGE(1.0)
-  ymin = HUGE(1.0)
-  ymax =-HUGE(1.0)
-  zmin = HUGE(1.0)
-  zmax =-HUGE(1.0)
 
   ! get elem extension based on barycenter and radius
   xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
@@ -1934,13 +1927,6 @@ END DO ! iBGM
 
 !--- map elements to background cells
 DO iElem=1,nTotalElems
-  xmin = HUGE(1.0)
-  xmax =-HUGE(1.0)
-  ymin = HUGE(1.0)
-  ymax =-HUGE(1.0)
-  zmin = HUGE(1.0)
-  zmax =-HUGE(1.0)
-
   ! get elem extension based on barycenter and radius
   xmin = ElemBaryNGeo(1,iElem) -ElemRadiusNGeo(iElem)
   ymin = ElemBaryNGeo(2,iElem) -ElemRadiusNGeo(iElem)
