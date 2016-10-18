@@ -673,6 +673,8 @@ StartT=BOLTZPLATZTIME()
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.TRUE.')
 CALL InitSimpleHaloMesh()
+#else
+IF(PartMPI%MPIROOT) StartT=BOLTZPLATZTIME()
 #endif /*MPI*/
 
 ! remove inner BezierControlPoints3D and SlabNormals, usw.
@@ -1686,10 +1688,11 @@ INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin
 INTEGER                          :: ALLOCSTAT
 INTEGER                          :: iProc
+INTEGER                          :: nEntry
 REAL                             :: deltaT
 #ifdef MPI
 INTEGER                          :: ii,jj,kk,i,j
-INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs
+INTEGER                          :: BGMCells,  m, CurrentProc, Cell, Procs,Cell3
 INTEGER                          :: imin, imax, kmin, kmax, jmin, jmax
 INTEGER                          :: nPaddingCellsX, nPaddingCellsY, nPaddingCellsZ
 INTEGER                          :: nShapePaddingX, nShapePaddingY, nShapePaddingZ
@@ -1775,9 +1778,9 @@ GEO%zmax=zmax
 ! deallocate stuff // required for dynamic load balance
 #ifdef MPI
 IF (ALLOCATED(GEO%FIBGM)) THEN
-  DO iBGM=GEO%FIBGMimin,GEO%FIBGMimax
+  DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
     DO jBGM=GEO%FIBGMjmin,GEO%FIBGMjmax
-      DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
+      DO iBGM=GEO%FIBGMimin,GEO%FIBGMimax
         SDEALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%Element)
         SDEALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%ShapeProcs)
         SDEALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%PaddingProcs)
@@ -1871,9 +1874,9 @@ __STAMP__&
 END IF
 
 ! null number of element per BGM cell
-DO iBGM = BGMimin,BGMimax
-   DO jBGM = BGMjmin,BGMjmax
-      DO kBGM = BGMkmin,BGMkmax
+DO kBGM = BGMkmin,BGMkmax
+  DO jBGM = BGMjmin,BGMjmax
+    DO iBGM = BGMimin,BGMimax
          GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = 0
       END DO
    END DO
@@ -1905,9 +1908,9 @@ DO iElem=1,nTotalElems
   BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
   BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
   ! add ecurrent element to number of BGM-elems
-  DO iBGM = BGMCellXmin,BGMCellXmax
+  DO kBGM = BGMCellZmin,BGMCellZmax
     DO jBGM = BGMCellYmin,BGMCellYmax
-      DO kBGM = BGMCellZmin,BGMCellZmax
+      DO iBGM = BGMCellXmin,BGMCellXmax
          GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
       END DO ! kBGM
     END DO ! jBGM
@@ -1915,9 +1918,9 @@ DO iElem=1,nTotalElems
 END DO ! iElem
 
 !--- allocate mapping variable and clean number for mapping (below)
-DO iBGM = BGMimin,BGMimax
+DO kBGM = BGMkmin,BGMkmax
   DO jBGM = BGMjmin,BGMjmax
-    DO kBGM = BGMkmin,BGMkmax
+    DO iBGM = BGMimin,BGMimax
       ALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%Element(1:GEO%FIBGM(iBGM,jBGM,kBGM)%nElem))
       GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = 0
     END DO ! kBGM
@@ -1948,11 +1951,14 @@ DO iElem=1,nTotalElems
   BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
   BGMCellZmin = MAX(BGMCellZmin,BGMkmin)     
   ! add current Element to BGM-Elem
-  DO iBGM = BGMCellXmin,BGMCellXmax
+  DO kBGM = BGMCellZmin,BGMCellZmax
     DO jBGM = BGMCellYmin,BGMCellYmax
-      DO kBGM = BGMCellZmin,BGMCellZmax
-        GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1    
-        GEO%FIBGM(iBGM,jBGM,kBGM)%Element(GEO%FIBGM(iBGM,jBGM,kBGM)%nElem) = iElem
+      DO iBGM = BGMCellXmin,BGMCellXmax
+        nEntry = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem
+        nEntry = nEntry+1
+        !GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1    
+        GEO%FIBGM(iBGM,jBGM,kBGM)%Element(nEntry) = iElem
+        GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = nEntry
       END DO ! kBGM
     END DO ! jBGM
   END DO ! iBGM
@@ -1964,9 +1970,9 @@ END DO ! iElem
 !--- MPI stuff for background mesh (FastinitBGM)
 BGMCells=0 
 ALLOCATE(BGMCellsArray(1:(BGMimax-BGMimin+1)*(BGMjmax-BGMjmin+1)*(BGMkmax-BGMkmin+1)*3))
-DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside and save their indices in BGMCellsArray
+DO kBGM=BGMkmin, BGMkmax
   DO jBGM=BGMjmin, BGMjmax
-    DO kBGM=BGMkmin, BGMkmax
+    DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside and save their indices in BGMCellsArray
       IF (GEO%FIBGM(iBGM,jBGM,kBGM)%nElem .GT. 0) THEN
         !print*,"1",BGMCells*3+1,iBGM
         !print*,"2",BGMCells*3+2,jBGM
@@ -2154,9 +2160,10 @@ END IF !periodic
 !        is not necessarily always true. Hence new shape_proc padding:
 
 BGMCells=0 
-DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside or adjacent and save their indices in BGMCellsArray
+!Count BGMCells with Elements inside or adjacent and save their indices in BGMCellsArray
+DO kBGM=BGMkmin, BGMkmax
   DO jBGM=BGMjmin, BGMjmax
-    DO kBGM=BGMkmin, BGMkmax
+    DO iBGM=BGMimin, BGMimax  
       iMin=MAX(iBGM-nShapePaddingX,BGMimin); iMax=MIN(iBGM+nShapePaddingX,BGMimax)
       jMin=MAX(jBGM-nShapePaddingY,BGMjmin); jMax=MIN(jBGM+nShapePaddingY,BGMjmax)
       kMin=MAX(kBGM-nShapePaddingZ,BGMkmin); kMax=MIN(kBGM+nShapePaddingZ,BGMkmax)
@@ -2221,17 +2228,18 @@ END DO
 ! fill real array
 DO Cell=0, BGMCells-1
   TempProcList=0
-  DO iBGM = BGMCellsArray(Cell*3+1)-nShapePaddingX, BGMCellsArray(Cell*3+1)+nShapePaddingX
-    DO jBGM = BGMCellsArray(Cell*3+2)-nShapePaddingY, BGMCellsArray(Cell*3+2)+nShapePaddingY
-      DO kBGM = BGMCellsArray(Cell*3+3)-nShapePaddingZ, BGMCellsArray(Cell*3+3)+nShapePaddingZ
+  Cell3=3*Cell
+  DO kBGM = BGMCellsArray(Cell3+3)-nShapePaddingZ, BGMCellsArray(Cell3+3)+nShapePaddingZ
+    DO jBGM = BGMCellsArray(Cell3+2)-nShapePaddingY, BGMCellsArray(Cell3+2)+nShapePaddingY
+      DO iBGM = BGMCellsArray(Cell3+1)-nShapePaddingX, BGMCellsArray(Cell3+1)+nShapePaddingX
         DO m = 1,CellProcNum(iBGM,jBGM,kBGM)
           TempProcList(CellProcList(iBGM,jBGM,kBGM,m))=1       ! every proc that is within the stencil gets a 1
         END DO ! m
-        kk = kBGM
+        ii = iBGM
       END DO !kBGM
       jj = jBGM
     END DO !jBGM
-    ii = iBGM
+    kk = kBGM
   END DO !iBGM
   Procs=SUM(TempProcList)
   IF (Procs.NE.0) THEN
@@ -2309,9 +2317,9 @@ DEALLOCATE(CellProcNum)
 !--- JN: But therefore we first have to refill BGMCellsArray to not only contain
 !        cells with PIC%FastInitBGM%nElem.GT.0 but also those adjacent and the paddingcells to them!
 BGMCells=0
-DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside or adjacent and save their indices in BGMCellsArray
+DO kBGM=BGMkmin, BGMkmax
   DO jBGM=BGMjmin, BGMjmax
-    DO kBGM=BGMkmin, BGMkmax
+    DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside or adjacent and save their indices in BGMCellsArray
       iMin=MAX(iBGM-nPaddingCellsX,BGMimin); iMax=MIN(iBGM+nPaddingCellsX,BGMimax)
       jMin=MAX(jBGM-nPaddingCellsY,BGMjmin); jMax=MIN(jBGM+nPaddingCellsY,BGMjmax)
       kMin=MAX(kBGM-nPaddingCellsZ,BGMkmin); kMax=MIN(kBGM+nPaddingCellsZ,BGMkmax)
@@ -2369,17 +2377,19 @@ END DO
 ! fill real array
 DO Cell=0, BGMCells-1
   TempProcList=0
-  DO iBGM = BGMCellsArray(Cell*3+1)-nPaddingCellsX, BGMCellsArray(Cell*3+1)+nPaddingCellsX
-    DO jBGM = BGMCellsArray(Cell*3+2)-nPaddingCellsY, BGMCellsArray(Cell*3+2)+nPaddingCellsY
-      DO kBGM = BGMCellsArray(Cell*3+3)-nPaddingCellsZ, BGMCellsArray(Cell*3+3)+nPaddingCellsZ
-        DO m = 1,CellProcNum(iBGM,jBGM,kBGM)
+  Cell3=3*Cell
+  DO kBGM = BGMCellsArray(Cell3+3)-nPaddingCellsZ, BGMCellsArray(Cell3+3)+nPaddingCellsZ
+    DO jBGM = BGMCellsArray(Cell3+2)-nPaddingCellsY, BGMCellsArray(Cell3+2)+nPaddingCellsY
+      DO iBGM = BGMCellsArray(Cell3+1)-nPaddingCellsX, BGMCellsArray(Cell3+1)+nPaddingCellsX
+        nEntry=CellProcNum(iBGM,jBGM,kBGM)
+        DO m = 1,nEntry
           TempProcList(CellProcList(iBGM,jBGM,kBGM,m))=1       ! every proc that is within the stencil gets a 1
         END DO ! m
-        kk = kBGM
+        ii = iBGM
       END DO !l
       jj = jBGM
     END DO !k
-    ii = iBGM
+    kk = kBGM
   END DO !i
   Procs=SUM(TempProcList)
   IF (Procs.NE.0) THEN
@@ -2869,6 +2879,8 @@ INTEGER                          :: iBGM,jBGM,kBGM,iElem
 INTEGER                          :: BGMCellXmax,BGMCellXmin
 INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin,maxnBGMElems
+INTEGER                          :: nEntry
+INTEGER, ALLOCATABLE             :: LocalCounter(:,:,:)
 LOGICAL, ALLOCATABLE             :: ElementFound(:)
 !===================================================================================================================================
 
@@ -2934,6 +2946,13 @@ IF (ALLOCSTAT.NE.0) THEN
 __STAMP__&
 ,' ERROR in AddElemsToTFIBGM: Cannot allocate GEO%TFIBGM!')
 END IF
+ALLOCATE(LocalCounter(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+__STAMP__&
+,' ERROR in AddElemsToTFIBGM: Cannot allocate GEO%TFIBGM!')
+END IF
+
 
 ALLOCATE( ElementFound(1:nTotalElems) )
 ElementFound = .FALSE.
@@ -2941,7 +2960,8 @@ ElementFound = .FALSE.
 DO iBGM = BGMimin,BGMimax
   DO jBGM = BGMjmin,BGMjmax
     DO kBGM = BGMkmin,BGMkmax
-       GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = 0
+       !GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = 0
+       LocalCounter(iBGM,jBGM,kBGM)=0
     END DO ! kBGM
   END DO ! jBGM
 END DO ! iBGM
@@ -2999,10 +3019,11 @@ DO iElem=1,nTotalElems
     BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
   END IF
   ! add ecurrent element to number of BGM-elems
-  DO iBGM = BGMCellXmin,BGMCellXmax
+  DO kBGM = BGMCellZmin,BGMCellZmax
     DO jBGM = BGMCellYmin,BGMCellYmax
-      DO kBGM = BGMCellZmin,BGMCellZmax
-         GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1
+      DO iBGM = BGMCellXmin,BGMCellXmax
+         !GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1
+         LocalCounter(iBGM,jBGM,kBGM) = LocalCounter(iBGM,jBGM,kBGM) + 1
          ElementFound(iElem) = .TRUE.
       END DO ! kBGM
     END DO ! jBGM
@@ -3010,11 +3031,14 @@ DO iElem=1,nTotalElems
 END DO ! iElem
 
 !--- allocate mapping variable and clean number for mapping (below)
-DO iBGM = BGMimin,BGMimax
+DO kBGM = BGMkmin,BGMkmax
   DO jBGM = BGMjmin,BGMjmax
-    DO kBGM = BGMkmin,BGMkmax
-      ALLOCATE(GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(1:GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem))
-      GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = 0
+    DO iBGM = BGMimin,BGMimax
+      nEntry = LocalCounter(iBGM,jBGM,kBGM)
+      GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = nEntry
+      ALLOCATE(GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(1:nEntry))
+      !GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = 0
+      LocalCounter(iBGM,jBGM,kBGM) = 0
     END DO ! kBGM
   END DO ! jBGM
 END DO ! iBGM
@@ -3059,11 +3083,14 @@ DO iElem=1,nTotalElems
     BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
   END IF
   ! add current Element to BGM-Elem
-  DO iBGM = BGMCellXmin,BGMCellXmax
+  DO kBGM = BGMCellZmin,BGMCellZmax
     DO jBGM = BGMCellYmin,BGMCellYmax
-      DO kBGM = BGMCellZmin,BGMCellZmax
-        GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1    
-        GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem) = iElem
+      DO iBGM = BGMCellXmin,BGMCellXmax
+        !GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1    
+        !nEntry = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem
+        LocalCounter(iBGM,jBGM,kBGM) = LocalCounter(iBGM,jBGM,kBGM) + 1    
+        nEntry = LocalCounter(iBGM,jBGM,kBGM)
+        GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(nEntry) = iElem
       END DO ! kBGM
     END DO ! jBGM
   END DO ! iBGM
@@ -3105,15 +3132,17 @@ DEALLOCATE(Elementfound)
 
 ! and get max number of bgm-elems
 maxnBGMElems=0
-DO iBGM = GEO%TFIBGMimin,GEO%TFIBGMimax
+DO kBGM = GEO%TFIBGMkmin,GEO%TFIBGMkmax
   DO jBGM = GEO%TFIBGMjmin,GEO%TFIBGMjmax
-    DO kBGM = GEO%TFIBGMkmin,GEO%TFIBGMkmax
-      maxnBGMElems=MAX(maxnBGMElems,GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem)
+    DO iBGM = GEO%TFIBGMimin,GEO%TFIBGMimax
+      !maxnBGMElems=MAX(maxnBGMElems,GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem)
+      maxnBGMElems=MAX(maxnBGMElems,LocalCounter(iBGM,jBGM,kBGM))
     END DO ! kBGM
   END DO ! jBGM
 END DO ! iBGM
 ALLOCATE(Distance    (1:maxnBGMElems) &
         ,ListDistance(1:maxnBGMElems) )
+DEALLOCATE(LocalCounter)
 
 END SUBROUTINE AddSimpleHALOCellsToFIBGM
 
