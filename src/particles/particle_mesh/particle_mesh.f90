@@ -647,7 +647,7 @@ GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
 ! simplified halo region
 ! compute elem bary and elem radius
-IF(PartMPI%MPIROOT) StartT=BOLTZPLATZTIME()
+StartT=BOLTZPLATZTIME()
 ALLOCATE(ElemBaryNGeo(1:3,1:nTotalElems) )
 CALL BuildElementOrigin()
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
@@ -655,15 +655,15 @@ ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
+EndT=BOLTZPLATZTIME()
 IF(PartMPI%MPIROOT)THEN
-  EndT=BOLTZPLATZTIME()
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init element-basis took          [',EndT-StartT,'s]'
 END IF
 
-IF(PartMPI%MPIROOT) StartT=BOLTZPLATZTIME()
+StartT=BOLTZPLATZTIME()
 CALL GetSFIBGM()
+EndT=BOLTZPLATZTIME()
 IF(PartMPI%MPIROOT)THEN
-  EndT=BOLTZPLATZTIME()
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init FIBGM took                  [',EndT-StartT,'s]'
 END IF
 
@@ -674,7 +674,7 @@ StartT=BOLTZPLATZTIME()
 printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.TRUE.')
 CALL InitSimpleHaloMesh()
 #else
-IF(PartMPI%MPIROOT) StartT=BOLTZPLATZTIME()
+StartT=BOLTZPLATZTIME()
 #endif /*MPI*/
 
 ! remove inner BezierControlPoints3D and SlabNormals, usw.
