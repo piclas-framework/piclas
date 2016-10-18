@@ -142,9 +142,6 @@ PP_nElems=nElems
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
 CALL setLocalSideIDs()
 
-ALLOCATE(XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-XCL_NGeo = 0.
-
 #ifdef MPI
 ! for MPI, we need to exchange flips, so that MINE MPISides have flip>0, YOUR MpiSides flip=0
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
@@ -224,22 +221,22 @@ IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
   END DO
 END IF
 
-
-ALLOCATE(Elem_xGP(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(BCFace_xGP(3,0:PP_N,0:PP_N,1:nBCSides))
-
-! PoyntingVecIntegral
-CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
-IF (CalcPoyntingInt) ALLOCATE(Face_xGP(3,0:PP_N,0:PP_N,1:nSides))
-
+! allocate type Mesh
+ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
+ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 ALLOCATE(Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 ALLOCATE(Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(            sJ(  0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(       NormVec(3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper)) 
-ALLOCATE(      TangVec1(3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper)) 
-ALLOCATE(      TangVec2(3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))  
-ALLOCATE(      SurfElem(  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))  
+ALLOCATE(sJ            (  0:PP_N,0:PP_N,0:PP_N,nElems))
+ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper)) 
+ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper)) 
+ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))  
+ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))  
+
+! PoyntingVecIntegral
+CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
+NGeoRef=3*NGeo ! build jacobian at higher degree
+ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
 
 ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 ! assign 1/detJ (sJ)
@@ -264,17 +261,23 @@ SideBoundingBoxVolume=0.
 crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
 CALL InitMeshBasis(NGeo,PP_N,xGP)
-CALL CalcMetrics(NodeCoords)
-DEALLOCATE(NodeCoords)
 
+! to be moved to Mesh 
 CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
                        SideToVolA,SideToVol2A,CGNS_SideToVol2A)
-#ifndef PARTICLES
-DEALLOCATE(XCL_NGeo)
-#else
+
+#ifdef PARTICLES
+ALLOCATE(XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems))
+XCL_NGeo = 0.
+ALLOCATE(dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo,nElems))
+dXCL_NGeo = 0.
+CALL CalcMetrics(NodeCoords,XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 ! init element volume
 CALL InitElemVolumes()
+#else
+CALL CalcMetrics(NodeCoords,Mesh)
 #endif
+DEALLOCATE(NodeCoords)
 
 MeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -618,7 +621,6 @@ SDEALLOCATE(SideToElem)
 SDEALLOCATE(SideToElem2)
 SDEALLOCATE(BC)
 SDEALLOCATE(Elem_xGP)
-SDEALLOCATE(BCFace_xGP)
 SDEALLOCATE(Metrics_fTilde)
 SDEALLOCATE(Metrics_gTilde)
 SDEALLOCATE(Metrics_hTilde)
