@@ -249,7 +249,7 @@ DO iPart=1,PDM%ParticleVecLength
       END SELECT
       IF(markTol)THEN
         IF(.NOT.PDM%ParticleInside(iPart))THEN
-          print*,'blbubbbb'
+          CYCLE !particle is outside cell
         END IF
         CALL PartInElemCheck(iPart,ElemID,isHit)
         !print*,'partid',ipart,'in elem',isHit
