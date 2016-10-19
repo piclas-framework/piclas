@@ -327,12 +327,6 @@ CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
 CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
 CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
 
-
-
-!   print*,'cell indices',CellX,CellY,CellZ
-!   print*,'number of cells in bgm',GEO%FIBGM(CellX,CellY,CellZ)%nElem
-!   read*
-
 !--- check all cells associated with this beckground mesh cell
 nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
 
@@ -340,7 +334,7 @@ nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
 Distance=-1.
 ListDistance=0
 DO iBGMElem = 1, nBGMElems
-  ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+  ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
   Distance2=(PartState(iPart,1)-ElemBaryNGeo(1,ElemID))*(PartState(iPart,1)-ElemBaryNGeo(1,ElemID)) &
            +(PartState(iPart,2)-ElemBaryNGeo(2,ElemID))*(PartState(iPart,2)-ElemBaryNGeo(2,ElemID)) &
            +(PartState(iPart,3)-ElemBaryNGeo(3,ElemID))*(PartState(iPart,3)-ElemBaryNGeo(3,ElemID)) 
@@ -357,7 +351,6 @@ IF(ALMOSTEQUAL(MAXVAL(Distance),-1.))THEN
   RETURN
 END IF
 
-!print*,'earlier',Distance,ListDistance
 !CALL BubbleSortID(Distance,ListDistance,nBGMElems)
 IF(nBGMElems.GT.1) CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
 
@@ -379,31 +372,6 @@ DO iBGMElem=1,nBGMElems
   ELSE ! particle at face,edge or node, check most possible point
     InElementCheck=.FALSE.
   END IF
-
-
-!  IF(MAXVAL(ABS(Xi)).LE.1.0) THEN ! particle inside
-!    InElementCheck=.TRUE.
-!  ELSE IF(MAXVAL(ABS(Xi)).GT.epsOneCell(ElemID))THEN ! particle outside
-!  !  print*,'ici'
-!    InElementCheck=.FALSE.
-!  ELSE ! particle at face,edge or node, check most possible point
-!    ! alter particle position
-!    ! 1) compute vector to cell centre
-!    vBary=ElemBaryNGeo(1:3,ElemID)-PartState(iPart,1:3)
-!    ! 2) move particle pos along vector
-!    PartState(iPart,1:3) = PartState(iPart,1:3)+epsInCell*VBary(1:3)
-!    CALL Eval_xyz_elemcheck(PartState(iPart,1:3),xi,ElemID)
-!    !print*,xi
-!    IF(ALL(ABS(Xi).LE.1.0)) THEN ! particle inside
-!      InElementCheck=.TRUE.
-!    ELSE
-!!      IPWRITE(UNIT_stdOut,*) ' PartPos', PartState(iPart,1:3)
-!!      IPWRITE(UNIT_stdOut,*) ' xi',      XI(1:3)
-!      !SWRITE(*,*) ' Particle not located!'
-!      !SWRITE(*,*) ' PartPos', PartState(iPart,1:3)
-!      InElementCheck=.FALSE.
-!    END IF
-!  END IF
   IF (InElementCheck) THEN !  !     print*,Element
  ! read*
     PEM%Element(iPart) = ElemID
@@ -478,12 +446,13 @@ CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
 
 nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
 
+
 ! get closest element barycenter
 Distance=-1.
 
 ListDistance=0
 DO iBGMElem = 1, nBGMElems
-  ElemID = GEO%FIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
+  ElemID = GEO%TFIBGM(CellX,CellY,CellZ)%Element(iBGMElem)
   IF(.NOT.DoHALO)THEN
     IF(ElemID.GT.PP_nElems) CYCLE
   END IF
@@ -659,6 +628,8 @@ IMPLICIT NONE
 #ifdef MPI
 REAL                     :: StartT,EndT
 #endif /*MPI*/
+INTEGER                  :: iElem,ElemToBGM(1:6,1:PP_nElems)
+INTEGER,ALLOCATABLE      :: HaloElemToBGM(:,:)
 !=================================================================================================================================
 
 !! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -681,7 +652,13 @@ IF(PartMPI%MPIROOT)THEN
 END IF
 
 StartT=BOLTZPLATZTIME()
-CALL GetFIBGM()
+! get new min max
+CALL GetFIBGMminmax()
+! sort elem in bgm cells
+DO iElem=1,PP_nElems
+  CALL BGMIndexOfElement(iElem,ElemToBGM(1:6,iElem)) 
+END DO ! iElem = nElems+1,nTotalElems
+CALL GetFIBGM(ElemToBGM)
 EndT=BOLTZPLATZTIME()
 IF(PartMPI%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init FIBGM took                  [',EndT-StartT,'s]'
@@ -697,7 +674,18 @@ CALL InitHaloMesh()
 ! rebuild is a local operation
 #endif /*MPI*/
 
-CALL AddHALOCellsToFIBGM()
+IF(nTotalElems.GT.PP_nElems)THEN
+  ALLOCATE(HaloElemToBGM(1:6,PP_nElems+1:nTotalElems))
+  DO iElem=PP_nElems+1,nTotalElems
+    CALL BGMIndexOfElement(iElem,HaloElemToBGM(1:6,iElem)) 
+  END DO ! iElem = nElems+1,nTotalElems
+  CALL AddHALOCellsToFIBGM(ElemToBGM,HaloElemToBGM)
+  DEALLOCATE(HaloElemToBGM)
+ELSE
+  CALL AddHALOCellsToFIBGM(ElemToBGM)
+END IF
+
+
 EndT=MPI_WTIME()
 IF(PartMPI%MPIROOT)THEN
    WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
@@ -729,7 +717,7 @@ SWRITE(UNIT_stdOut,'(A)')' DONE!'
 END SUBROUTINE InitFIBGM
 
 
-SUBROUTINE GetFIBGM()
+SUBROUTINE GetFIBGM(ElemToBGM)
 !===================================================================================================================================
 ! build local FIBGM mesh for process local FIBGM mesh including HALO region
 ! mode 1: build local BGM and interconnections with other processes
@@ -768,13 +756,14 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:NbrOfCases,casematrix
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !INTEGER,INTENT(IN)    :: mode
+INTEGER,INTENT(IN)     :: ElemToBGM(1:6,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL                  :: localXmin,localXmax,localymin,localymax,localzmin,localzmax
 INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax
-REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
+!REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
 INTEGER                          :: iBGM,jBGM,kBGM,iElem,ilocSide,iSide,SideID
 INTEGER                          :: BGMCellXmax,BGMCellXmin
 INTEGER                          :: BGMCellYmax,BGMCellYmin
@@ -809,67 +798,14 @@ jj=0
 kk=0
 #endif /*MPI*/
 
-!#ifdef MPI
-!   !--- If this MPI process does not contain particles, step out
-!   IF (PMPIVAR%GROUP.EQ.MPI_GROUP_EMPTY) RETURN
-!#endif
-!--- calc min and max coordinates for mesh
-xmin = HUGE(1.0)
-xmax =-HUGE(1.0)
-ymin = HUGE(1.0)
-ymax =-HUGE(1.0)
-zmin = HUGE(1.0)
-zmax =-HUGE(1.0)
-
-! serch for min,max of BezierControlPoints, e.g. the convec hull of the domain
-! more accurate, XCL_NGeo
-!DO iElem=1,nTotalElems
-!  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
-!  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
-!  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
-!  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
-!  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
-!  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
-!END DO ! iElem
-
-! bounding box!!
-DO iSide=1,nTotalSides
-  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
-  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,iSide)))
-  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,iSide)))
-  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,iSide)))
-  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,iSide)))
-  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,iSide)))
-END DO ! iSide
-
-GEO%xmin=xmin
-GEO%xmax=xmax
-GEO%ymin=ymin
-GEO%ymax=ymax
-GEO%zmin=zmin
-GEO%zmax=zmax
 
 #ifdef MPI
   ! allocate and initialize MPINeighbor
   ALLOCATE(PartMPI%isMPINeighbor(0:PartMPI%nProcs-1))
   PartMPI%isMPINeighbor(:) = .FALSE.
   PartMPI%nMPINeighbors=0
-
-! get global min, max
-  CALL MPI_ALLREDUCE(GEO%xmin, GEO%xminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
-  CALL MPI_ALLREDUCE(GEO%ymin, GEO%yminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
-  CALL MPI_ALLREDUCE(GEO%zmin, GEO%zminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
-  CALL MPI_ALLREDUCE(GEO%xmax, GEO%xmaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
-  CALL MPI_ALLREDUCE(GEO%ymax, GEO%ymaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
-  CALL MPI_ALLREDUCE(GEO%zmax, GEO%zmaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
-#else
-  GEO%xminglob=GEO%xmin
-  GEO%yminglob=GEO%ymin
-  GEO%zminglob=GEO%zmin
-  GEO%xmaxglob=GEO%xmax
-  GEO%ymaxglob=GEO%ymax
-  GEO%zmaxglob=GEO%zmax
 #endif   
+
 
   CALL InitPeriodicBC()
   ! reduce beziercontrolpoints to boundary sides
@@ -953,7 +889,6 @@ IF ((DepositionType.EQ.'shape_function')             &
 END IF
 #endif
 
-!print*,"BGM-Indices:",PartMPI%iProc, BGMimin, BGMimax, BGMjmin, BGMjmax, BGMkmin, BGMkmax
 GEO%FIBGMimax=BGMimax
 GEO%FIBGMimin=BGMimin
 GEO%FIBGMjmax=BGMjmax
@@ -978,72 +913,23 @@ __STAMP__&
 END IF
 
 ! null number of element per BGM cell
-DO iBGM = BGMimin,BGMimax
+DO kBGM = BGMkmin,BGMkmax
    DO jBGM = BGMjmin,BGMjmax
-      DO kBGM = BGMkmin,BGMkmax
+     DO iBGM = BGMimin,BGMimax
          GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = 0
       END DO
    END DO
 END DO
 
 !--- compute number of elements in each background cell
-DO iElem=1,nTotalElems
-  xmin = HUGE(1.0)
-  xmax =-HUGE(1.0)
-  ymin = HUGE(1.0)
-  ymax =-HUGE(1.0)
-  zmin = HUGE(1.0)
-  zmax =-HUGE(1.0)
-
-  ! use XCL_NGeo of each element :)
-  !xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
-  !xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
-  !ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
-  !ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
-  !zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
-  !zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
-  !! get min,max of BezierControlPoints of Element ! bounding box
-  ! if no master side, control points of sides have to be recomputet, requried for parallel
-  DO iLocSide = 1,6
-    SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, iElem)
-    IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
-      BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-    ELSE
-      SELECT CASE(ilocSide)
-      CASE(XI_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-      CASE(XI_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-      CASE(ETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-      CASE(ETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-      CASE(ZETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-      CASE(ZETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-      END SELECT
-    END IF
-    xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
-    xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
-    ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
-    ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
-    zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
-    zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
-  END DO ! ilocSide
-  !--- find minimum and maximum BGM cell for current element
-  BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  BGMCellXmax = MIN(BGMCellXmax,BGMimax)
-  BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  BGMCellXmin = MAX(BGMCellXmin,BGMimin)
-  BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
-  BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
-  BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
-  BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
+DO iElem=1,PP_nElems
+  ! here fancy stuff, because element could be wide out of element range
+  BGMCellXmin = MIN(MAX(ElemToBGM(1,iElem),BGMimin),BGMimax)
+  BGMCellXmax = MAX(MIN(ElemToBGM(2,iElem),BGMimax),BGMimin)
+  BGMCellYmin = MIN(MAX(ElemToBGM(3,iElem),BGMjmin),BGMjmax)
+  BGMCellYmax = MAX(MIN(ElemToBGM(4,iElem),BGMjmax),BGMjmin)
+  BGMCellZmin = MIN(MAX(ElemToBGM(5,iElem),BGMkmin),BGMkmax)
+  BGMCellZmax = MAX(MIN(ElemToBGM(6,iElem),BGMkmax),BGMkmin)
   ! add ecurrent element to number of BGM-elems
   DO iBGM = BGMCellXmin,BGMCellXmax
     DO jBGM = BGMCellYmin,BGMCellYmax
@@ -1055,9 +941,10 @@ DO iElem=1,nTotalElems
 END DO ! iElem
 
 !--- allocate mapping variable and clean number for mapping (below)
-DO iBGM = BGMimin,BGMimax
+DO kBGM = BGMkmin,BGMkmax
   DO jBGM = BGMjmin,BGMjmax
-    DO kBGM = BGMkmin,BGMkmax
+    DO iBGM = BGMimin,BGMimax
+      IF(GEO%FIBGM(iBGM,jBGM,kBGM)%nElem.EQ.0) CYCLE
       ALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%Element(1:GEO%FIBGM(iBGM,jBGM,kBGM)%nElem))
       GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = 0
     END DO ! kBGM
@@ -1065,67 +952,18 @@ DO iBGM = BGMimin,BGMimax
 END DO ! iBGM
 
 !--- map elements to background cells
-DO iElem=1,nTotalElems
-  xmin = HUGE(1.0)
-  xmax =-HUGE(1.0)
-  ymin = HUGE(1.0)
-  ymax =-HUGE(1.0)
-  zmin = HUGE(1.0)
-  zmax =-HUGE(1.0)
-
-  ! use XCL_NGeo of each element :)
-  !xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
-  !xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
-  !ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
-  !ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
-  !zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
-  !zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
-  !! get min,max of BezierControlPoints of Element
-  DO iLocSide = 1,6
-    SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, iElem)
-    IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
-      BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-    ELSE
-      SELECT CASE(ilocSide)
-      CASE(XI_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-      CASE(XI_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-      CASE(ETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-      CASE(ETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-      CASE(ZETA_MINUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-      CASE(ZETA_PLUS)
-        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-      END SELECT
-    END IF
-    xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
-    xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
-    ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
-    ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
-    zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
-    zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
-  END DO ! ilocSide
-
-  ! same as above
-  BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  BGMCellXmax = MIN(BGMCellXmax,BGMimax)
-  BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-  BGMCellXmin = MAX(BGMCellXmin,BGMimin)
-  BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
-  BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-  BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
-  BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
-  BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-  BGMCellZmin = MAX(BGMCellZmin,BGMkmin)     
+DO iElem=1,PP_nElems
+  ! here fancy stuff, because element could be wide out of element range
+  BGMCellXmin = MIN(MAX(ElemToBGM(1,iElem),BGMimin),BGMimax)
+  BGMCellXmax = MAX(MIN(ElemToBGM(2,iElem),BGMimax),BGMimin)
+  BGMCellYmin = MIN(MAX(ElemToBGM(3,iElem),BGMjmin),BGMjmax)
+  BGMCellYmax = MAX(MIN(ElemToBGM(4,iElem),BGMjmax),BGMjmin)
+  BGMCellZmin = MIN(MAX(ElemToBGM(5,iElem),BGMkmin),BGMkmax)
+  BGMCellZmax = MAX(MIN(ElemToBGM(6,iElem),BGMkmax),BGMkmin)
   ! add current Element to BGM-Elem
-  DO iBGM = BGMCellXmin,BGMCellXmax
+  DO kBGM = BGMCellZmin,BGMCellZmax
     DO jBGM = BGMCellYmin,BGMCellYmax
-      DO kBGM = BGMCellZmin,BGMCellZmax
+      DO iBGM = BGMCellXmin,BGMCellXmax
         GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1    
         GEO%FIBGM(iBGM,jBGM,kBGM)%Element(GEO%FIBGM(iBGM,jBGM,kBGM)%nElem) = iElem
       END DO ! kBGM
@@ -1143,9 +981,6 @@ DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside and save their in
   DO jBGM=BGMjmin, BGMjmax
     DO kBGM=BGMkmin, BGMkmax
       IF (GEO%FIBGM(iBGM,jBGM,kBGM)%nElem .GT. 0) THEN
-        !print*,"1",BGMCells*3+1,iBGM
-        !print*,"2",BGMCells*3+2,jBGM
-        !print*,"3",BGMCells*3+3,kBGM
         BGMCellsArray(BGMCells*3+1)= iBGM
         BGMCellsArray(BGMCells*3+2)= jBGM
         BGMCellsArray(BGMCells*3+3)= kBGM
@@ -1162,7 +997,6 @@ Displacement(1)=0
 DO i=2, PartMPI%nProcs
   Displacement(i) = SUM(NbrOfBGMCells(0:i-2))*3
 END DO
-!print*,'displacement',displacement
 !Gather indices of every Procs' Cells
 CALL MPI_ALLGATHERV(BGMCellsArray(1:BGMCells*3), BGMCells*3, MPI_INTEGER, GlobalBGMCellsArray, &    
                    & NbrOfBGMCells(0:PartMPI%nProcs-1)*3, Displacement, MPI_INTEGER, PartMPI%COMM, IERROR)
@@ -1346,7 +1180,6 @@ DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside or adjacent and s
     END DO !iBGM
   END DO !jBGM
 END DO !kBGM
-!print*,'BGMCellsArray',BGMCellsArray
 
 ! now create a temporary array in which for all BGM Cells + ShapePadding the processes are saved 
 ! reason: this way, the ReducedBGM List only needs to be searched once and not once for each BGM Cell+Stencil
@@ -1796,7 +1629,6 @@ IF ((DepositionType.EQ.'shape_function') &
 END IF
 #endif
 
-!print*,"BGM-Indices:",PartMPI%iProc, BGMimin, BGMimax, BGMjmin, BGMjmax, BGMkmin, BGMkmax
 GEO%FIBGMimax=BGMimax
 GEO%FIBGMimin=BGMimin
 GEO%FIBGMjmax=BGMjmax
@@ -1921,9 +1753,6 @@ DO kBGM=BGMkmin, BGMkmax
   DO jBGM=BGMjmin, BGMjmax
     DO iBGM=BGMimin, BGMimax  !Count BGMCells with Elements inside and save their indices in BGMCellsArray
       IF (GEO%FIBGM(iBGM,jBGM,kBGM)%nElem .GT. 0) THEN
-        !print*,"1",BGMCells*3+1,iBGM
-        !print*,"2",BGMCells*3+2,jBGM
-        !print*,"3",BGMCells*3+3,kBGM
         BGMCellsArray(BGMCells*3+1)= iBGM
         BGMCellsArray(BGMCells*3+2)= jBGM
         BGMCellsArray(BGMCells*3+3)= kBGM
@@ -1940,7 +1769,6 @@ Displacement(1)=0
 DO i=2, PartMPI%nProcs
   Displacement(i) = SUM(NbrOfBGMCells(0:i-2))*3
 END DO
-!print*,'displacement',displacement
 !Gather indices of every Procs' Cells
 CALL MPI_ALLGATHERV(BGMCellsArray(1:BGMCells*3), BGMCells*3, MPI_INTEGER, GlobalBGMCellsArray, &    
                    & NbrOfBGMCells(0:PartMPI%nProcs-1)*3, Displacement, MPI_INTEGER, PartMPI%COMM, IERROR)
@@ -2124,7 +1952,6 @@ DO kBGM=BGMkmin, BGMkmax
     END DO !iBGM
   END DO !jBGM
 END DO !kBGM
-!print*,'BGMCellsArray',BGMCellsArray
 
 ! now create a temporary array in which for all BGM Cells + ShapePadding the processes are saved 
 ! reason: this way, the ReducedBGM List only needs to be searched once and not once for each BGM Cell+Stencil
@@ -2357,7 +2184,7 @@ DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, Ce
 END SUBROUTINE GetSFIBGM
 
 
-SUBROUTINE AddHALOCellsToFIBGM()
+SUBROUTINE AddHALOCellsToFIBGM(ElemToBGM,HaloElemToBGM)
 !===================================================================================================================================
 ! remap all elements including halo-elements into FIBGM
 !===================================================================================================================================
@@ -2379,6 +2206,8 @@ USE MOD_Particle_Tracking_Vars,             ONLY:Distance,ListDistance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !INTEGER,INTENT(IN)    :: mode
+INTEGER,INTENT(IN)               :: ElemToBGM(1:6,1:PP_nElems)
+INTEGER,INTENT(IN),OPTIONAL      :: HaloElemToBGM(1:6,PP_nElems+1:nTotalElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2391,7 +2220,7 @@ INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin
 LOGICAL, ALLOCATABLE             :: ElementFound(:)
 REAL                             :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
-INTEGER                          :: ElemToBGM(6,1:nTotalElems),maxnBGMElems
+INTEGER                          :: maxnBGMElems
 !===================================================================================================================================
 
 
@@ -2417,15 +2246,22 @@ BGMCellYmin = BGMjmin
 BGMCellZmax = BGMkmax
 BGMCellZmin = BGMkmin
 
-! get new min max
 DO iElem=1,nTotalElems
-  CALL BGMIndexOfElement(iElem,ElemToBGM(1:6,iElem)) 
-  IF(.NOT.GEO%directions(1)) BGMCellXmin = ElemToBGM(1,iElem)
-  IF(.NOT.GEO%directions(1)) BGMCellXmax = ElemToBGM(2,iElem)
-  IF(.NOT.GEO%directions(2)) BGMCellYmin = ElemToBGM(3,iElem)
-  IF(.NOT.GEO%directions(2)) BGMCellYmax = ElemToBGM(4,iElem)
-  IF(.NOT.GEO%directions(3)) BGMCellZmin = ElemToBGM(5,iElem)
-  IF(.NOT.GEO%directions(3)) BGMCellZmax = ElemToBGM(6,iElem)
+  IF(iElem.LE.PP_nElems)THEN
+    BGMCellXmin = ElemToBGM(1,iElem)
+    BGMCellXmax = ElemToBGM(2,iElem)
+    BGMCellYmin = ElemToBGM(3,iElem)
+    BGMCellYmax = ElemToBGM(4,iElem)
+    BGMCellZmin = ElemToBGM(5,iElem)
+    BGMCellZmax = ElemToBGM(6,iElem)
+  ELSE
+    IF(.NOT.GEO%directions(1)) BGMCellXmin = HaloElemToBGM(1,iElem)
+    IF(.NOT.GEO%directions(1)) BGMCellXmax = HaloElemToBGM(2,iElem)
+    IF(.NOT.GEO%directions(2)) BGMCellYmin = HaloElemToBGM(3,iElem)
+    IF(.NOT.GEO%directions(2)) BGMCellYmax = HaloElemToBGM(4,iElem)
+    IF(.NOT.GEO%directions(3)) BGMCellZmin = HaloElemToBGM(5,iElem)
+    IF(.NOT.GEO%directions(3)) BGMCellZmax = HaloElemToBGM(6,iElem)
+  END IF
 
   BGMimin=MIN(BGMimin,BGMCellXmin)
   BGMimax=MAX(BGMimax,BGMCellXmax)
@@ -2464,7 +2300,7 @@ END DO ! iBGM
 
 
 !--- compute number of elements in each background cell
-DO iElem=1,nTotalElems
+DO iElem=1,PP_nElems
   !--- find minimum and maximum BGM cell for current element
   ! here fancy stuff, because element could be wide out of element range
   BGMCellXmin = MIN(MAX(ElemToBGM(1,iElem),BGMimin),BGMimax)
@@ -2484,10 +2320,32 @@ DO iElem=1,nTotalElems
   END DO ! iBGM
 END DO ! iElem
 
+DO iElem=PP_nElems+1,nTotalElems
+  !--- find minimum and maximum BGM cell for current element
+  ! here fancy stuff, because element could be wide out of element range
+  BGMCellXmin = MIN(MAX(HaloElemToBGM(1,iElem),BGMimin),BGMimax)
+  BGMCellXmax = MAX(MIN(HaloElemToBGM(2,iElem),BGMimax),BGMimin)
+  BGMCellYmin = MIN(MAX(HaloElemToBGM(3,iElem),BGMjmin),BGMjmax)
+  BGMCellYmax = MAX(MIN(HaloElemToBGM(4,iElem),BGMjmax),BGMjmin)
+  BGMCellZmin = MIN(MAX(HaloElemToBGM(5,iElem),BGMkmin),BGMkmax)
+  BGMCellZmax = MAX(MIN(HaloElemToBGM(6,iElem),BGMkmax),BGMkmin)
+  ! add ecurrent element to number of BGM-elems
+  DO kBGM = BGMCellZmin,BGMCellZmax
+    DO jBGM = BGMCellYmin,BGMCellYmax
+      DO iBGM = BGMCellXmin,BGMCellXmax
+        GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1
+        ElementFound(iElem) = .TRUE.
+      END DO ! kBGM
+    END DO ! jBGM
+  END DO ! iBGM
+END DO ! iElem
+
+
 !--- allocate mapping variable and clean number for mapping (below)
 DO kBGM = BGMkmin,BGMkmax
-  DO iBGM = BGMimin,BGMimax
-    DO jBGM = BGMjmin,BGMjmax
+  DO jBGM = BGMjmin,BGMjmax
+    DO iBGM = BGMimin,BGMimax
+      IF(GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem.EQ.0) CYCLE
       ALLOCATE(GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(1:GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem))
       GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = 0
     END DO ! kBGM
@@ -2495,7 +2353,7 @@ DO kBGM = BGMkmin,BGMkmax
 END DO ! iBGM
 
 !--- map elements to background cells
-DO iElem=1,nTotalElems
+DO iElem=1,PP_nElems
   !--- find minimum and maximum BGM cell for current element
   ! here fancy stuff, because element could be wide out of element range
   BGMCellXmin = MIN(MAX(ElemToBGM(1,iElem),BGMimin),BGMimax)
@@ -2515,9 +2373,29 @@ DO iElem=1,nTotalElems
     END DO ! jBGM
   END DO ! iBGM
 END DO ! iElem
+DO iElem=PP_nElems+1,nTotalElems
+  !--- find minimum and maximum BGM cell for current element
+  ! here fancy stuff, because element could be wide out of element range
+  BGMCellXmin = MIN(MAX(HaloElemToBGM(1,iElem),BGMimin),BGMimax)
+  BGMCellXmax = MAX(MIN(HaloElemToBGM(2,iElem),BGMimax),BGMimin)
+  BGMCellYmin = MIN(MAX(HaloElemToBGM(3,iElem),BGMjmin),BGMjmax)
+  BGMCellYmax = MAX(MIN(HaloElemToBGM(4,iElem),BGMjmax),BGMjmin)
+  BGMCellZmin = MIN(MAX(HaloElemToBGM(5,iElem),BGMkmin),BGMkmax)
+  BGMCellZmax = MAX(MIN(HaloElemToBGM(6,iElem),BGMkmax),BGMkmin)
+
+  ! add current Element to BGM-Elem
+  DO iBGM = BGMCellXmin,BGMCellXmax
+    DO jBGM = BGMCellYmin,BGMCellYmax
+      DO kBGM = BGMCellZmin,BGMCellZmax
+        GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1    
+        GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem) = iElem
+      END DO ! kBGM
+    END DO ! jBGM
+  END DO ! iBGM
+END DO ! iElem
 
 
-DO iElem=1,nTotalElems
+DO iElem=1,PP_nElems
   IF(.NOT.ElementFound(iElem))THEN
     !--- find minimum and maximum BGM cell for current element
     ! here fancy stuff, because element could be wide out of element range
@@ -2548,6 +2426,38 @@ __STAMP__&
   END IF
 END DO ! iElem
 
+DO iElem=PP_nElems+1,nTotalElems
+  IF(.NOT.ElementFound(iElem))THEN
+    !--- find minimum and maximum BGM cell for current element
+    ! here fancy stuff, because element could be wide out of element range
+    BGMCellXmin = HaloElemToBGM(1,iElem)
+    BGMCellXmax = HaloElemToBGM(2,iElem)
+    BGMCellYmin = HaloElemToBGM(3,iElem)
+    BGMCellYmax = HaloElemToBGM(4,iElem)
+    BGMCellZmin = HaloElemToBGM(5,iElem)
+    BGMCellZmax = HaloElemToBGM(6,iElem)
+
+    IPWRITE(UNIT_stdOut,*) ' TFIBGM , iElem'
+    IPWRITE(UNIT_stdOut,*) 'xmin',GEO%xmin,xmin
+    IPWRITE(UNIT_stdOut,*) 'xmax',GEO%xmax,xmax
+    IPWRITE(UNIT_stdOut,*) 'ymin',GEO%ymin,ymin
+    IPWRITE(UNIT_stdOut,*) 'ymax',GEO%ymax,ymax
+    IPWRITE(UNIT_stdOut,*) 'zmin',GEO%zmin,zmin
+    IPWRITE(UNIT_stdOut,*) 'zmax',GEO%zmax,zmax
+    IPWRITE(UNIT_stdOut,*) ' BGM , iBGM'
+    IPWRITE(UNIT_stdOut,*) 'xmin', BGMimin,BGMCellXmin
+    IPWRITE(UNIT_stdOut,*) 'xmax', BGMimax,BGMCellXmax
+    IPWRITE(UNIT_stdOut,*) 'ymin', BGMjmin,BGMCellYmin
+    IPWRITE(UNIT_stdOut,*) 'ymax', BGMjmax,BGMCellYmax
+    IPWRITE(UNIT_stdOut,*) 'zmin', BGMkmin,BGMCellYmin
+    IPWRITE(UNIT_stdOut,*) 'zmax', BGMkmax,BGMCellYmax
+    CALL abort(&
+__STAMP__&
+,' Element not located in FIBGM! iElem, myRank',iElem,REAL(PartMPI%MyRank))
+  END IF
+END DO ! iElem
+
+
 DEALLOCATE(Elementfound)
 
 ! and get max number of bgm-elems
@@ -2562,6 +2472,7 @@ DO kBGM = GEO%TFIBGMkmin,GEO%TFIBGMkmax
 END DO ! iBGM
 ALLOCATE(Distance    (1:maxnBGMElems) &
         ,ListDistance(1:maxnBGMElems) )
+
 
 END SUBROUTINE AddHALOCellsToFIBGM
 
@@ -3179,9 +3090,6 @@ CellY = CEILING((X_in(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
 CellY = MIN(GEO%FIBGMjmax,CellY) 
 CellZ = CEILING((X_in(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
 CellZ = MIN(GEO%FIBGMkmax,CellZ)
-!   print*,'cell indices',CellX,CellY,CellZ
-!   print*,'number of cells in bgm',GEO%FIBGM(CellX,CellY,CellZ)%nElem
-!   read*
 
 !--- check all cells associated with this beckground mesh cell
 nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
@@ -4611,5 +4519,90 @@ ElemToBGM(6) = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
 
 END SUBROUTINE BGMIndexOfElement
 
+
+SUBROUTINE GetFIBGMMinMax() 
+!===================================================================================================================================
+! computes the minimum and maximum value of the FIBGM mesh
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
+USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
+#ifdef MPI
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+#endif /*MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER         :: iSide
+REAL            :: xmin, xmax, ymin, ymax, zmin, zmax
+!===================================================================================================================================
+
+!#ifdef MPI
+!   !--- If this MPI process does not contain particles, step out
+!   IF (PMPIVAR%GROUP.EQ.MPI_GROUP_EMPTY) RETURN
+!#endif
+!--- calc min and max coordinates for mesh
+xmin = HUGE(1.0)
+xmax =-HUGE(1.0)
+ymin = HUGE(1.0)
+ymax =-HUGE(1.0)
+zmin = HUGE(1.0)
+zmax =-HUGE(1.0)
+
+! serch for min,max of BezierControlPoints, e.g. the convec hull of the domain
+! more accurate, XCL_NGeo
+!DO iElem=1,nTotalElems
+!  xmin=MIN(xmin,MINVAL(XCL_NGeo(1,:,:,:,iElem)))
+!  xmax=MAX(xmax,MAXVAL(XCL_NGeo(1,:,:,:,iElem)))
+!  ymin=MIN(ymin,MINVAL(XCL_NGeo(2,:,:,:,iElem)))
+!  ymax=MAX(ymax,MAXVAL(XCL_NGeo(2,:,:,:,iElem)))
+!  zmin=MIN(zmin,MINVAL(XCL_NGeo(3,:,:,:,iElem)))
+!  zmax=MAX(zmax,MAXVAL(XCL_NGeo(3,:,:,:,iElem)))
+!END DO ! iElem
+
+! bounding box!!
+DO iSide=1,nTotalSides
+  xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
+  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,iSide)))
+  ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,iSide)))
+  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D(2,:,:,iSide)))
+  zmin=MIN(zmin,MINVAL(BezierControlPoints3D(3,:,:,iSide)))
+  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D(3,:,:,iSide)))
+END DO ! iSide
+
+GEO%xmin=xmin
+GEO%xmax=xmax
+GEO%ymin=ymin
+GEO%ymax=ymax
+GEO%zmin=zmin
+GEO%zmax=zmax
+
+#ifdef MPI
+! get global min, max
+  CALL MPI_ALLREDUCE(GEO%xmin, GEO%xminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
+  CALL MPI_ALLREDUCE(GEO%ymin, GEO%yminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
+  CALL MPI_ALLREDUCE(GEO%zmin, GEO%zminglob, 1, MPI_DOUBLE_PRECISION, MPI_MIN, PartMPI%COMM, IERROR)
+  CALL MPI_ALLREDUCE(GEO%xmax, GEO%xmaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
+  CALL MPI_ALLREDUCE(GEO%ymax, GEO%ymaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
+  CALL MPI_ALLREDUCE(GEO%zmax, GEO%zmaxglob, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
+#else
+  GEO%xminglob=GEO%xmin
+  GEO%yminglob=GEO%ymin
+  GEO%zminglob=GEO%zmin
+  GEO%xmaxglob=GEO%xmax
+  GEO%ymaxglob=GEO%ymax
+  GEO%zmaxglob=GEO%zmax
+#endif   
+
+
+END SUBROUTINE GetFIBGMMinMax
 
 END MODULE MOD_Particle_Mesh
