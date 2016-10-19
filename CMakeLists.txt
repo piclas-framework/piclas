@@ -117,7 +117,7 @@ ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 
 # code development
 OPTION(BOLTZPLATZ_CODE_ANALYZE "Code Analyze" OFF)
-OPTION(BOLTZPLATZ_CTAGS "Use Ctags" OFF)
+#OPTION(BOLTZPLATZ_CTAGS "Use Ctags" OFF)
 
 # =========================================================================
 # Equation system
@@ -602,12 +602,16 @@ INSTALL(FILES    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_R
 # =========================================================================
 # Ctags
 # =========================================================================
-IF(BOLTZPLATZ_CTAGS)
-  ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt src)
-  ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
-  FIND_PROGRAM(CTAGS_PATH ctags)
-  IF(CTAGS_PATH)
-      MESSAGE(STATUS "Found ctags: ${CTAGS_PATH}")
-      ADD_DEPENDENCIES(boltzplatz tags)
-  ENDIF(CTAGS_PATH)
-ENDIF(BOLTZPLATZ_CTAGS)
+SET(EQNS_WO_ACTUAL ${EQNSYSTEMS})
+LIST(REMOVE_ITEM EQNS_WO_ACTUAL ${BOLTZPLATZ_EQNSYSNAME})
+SET(EXLUDES "")
+FOREACH(item ${EQNS_WO_ACTUAL})
+   SET(EXLUDES "--exclude=src/equations/${item}/*" ${EXLUDES})
+ENDFOREACH()
+ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt ${EXLUDES} src)
+ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
+FIND_PROGRAM(CTAGS_PATH ctags)
+IF(CTAGS_PATH)
+    MESSAGE(STATUS "Found ctags: ${CTAGS_PATH}")
+    ADD_DEPENDENCIES(boltzplatz tags)
+ENDIF(CTAGS_PATH)
