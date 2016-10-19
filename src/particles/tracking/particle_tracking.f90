@@ -66,7 +66,7 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                       :: iPart,ElemID,flip,OldElemID
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections,nLoc
-LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,markTol2
+LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
@@ -101,6 +101,16 @@ DO iPart=1,PDM%ParticleVecLength
       CYCLE
     END IF
     PartTrajectory=PartTrajectory/lengthPartTrajectory
+#ifdef CODE_ANALYZE
+    CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit)
+    IF(.NOT.isHit)THEN 
+     IPWRITE(UNIT_stdOut,*) ' LastPartPos not inside of element '
+    END IF
+    CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
+    IF(.NOT.isHit)THEN 
+     IPWRITE(UNIT_stdOut,*) ' New particle position not inside of element '
+    END IF
+#endif /*CODE_ANALYZE*/
     !lengthPartTrajectory=lengthPartTrajectory
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
@@ -108,7 +118,6 @@ DO iPart=1,PDM%ParticleVecLength
       locAlpha=-1.
       nInterSections=0
       markTol =.FALSE.
-      markTol2=.FALSE.
       DO ilocSide=1,6
         locSideList(ilocSide)=ilocSide
         IF(.NOT.dolocSide(ilocSide)) CYCLE
@@ -145,8 +154,8 @@ DO iPart=1,PDM%ParticleVecLength
         END SELECT
         IF(isHit) THEN
           nInterSections=nInterSections+1
-          IF((ABS(xi(ilocSide)).GE.0.2).OR.(ABS(eta(ilocSide)).GE.0.2)) markTol=.TRUE.
-          IF(ALMOSTZERO(locAlpha(ilocSide))) markTol=.TRUE.
+          IF((ABS(xi(ilocSide)).GE.0.99).OR.(ABS(eta(ilocSide)).GE.0.99)) markTol=.TRUE.
+          !IF(ALMOSTZERO(locAlpha(ilocSide))) markTol=.TRUE.
           !IF((ABS(xi(ilocSide)).GE.0.99).OR.(ABS(eta(ilocSide)).GE.0.99)) markTol=.TRUE.
           !IF(locAlpha(ilocSide)/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
         END IF
@@ -171,7 +180,7 @@ DO iPart=1,PDM%ParticleVecLength
         IF(ElemID.NE.OldElemID)THEN
           ! particle moves in new element, do not check yet, because particle may encounter a boundary condition 
           ! remark: maybe a storage value has to be set to drow?
-          IF(markTol) markTol=.FALSE.
+          markTol=.FALSE.
 #ifdef MPI
           IF(OldElemID.LE.PP_nElems)THEN
             tLBEnd = LOCALTIME() ! LB Time End
@@ -214,7 +223,6 @@ DO iPart=1,PDM%ParticleVecLength
                                            ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
           IF(ElemID.NE.OldElemID)THEN
             markTol=.FALSE.
-            markTol2=.TRUE.
 #ifdef MPI
             tLBEnd = LOCALTIME() ! LB Time End
             ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
@@ -225,7 +233,7 @@ DO iPart=1,PDM%ParticleVecLength
 !        END IF
       END SELECT
     END DO ! PartisDone=.FALSE.
-    IF(markTol.OR.markTol2)THEN
+    IF(markTol)THEN
       IF(.NOT.PDM%ParticleInside(iPart))THEN
         CYCLE !particle is outside cell
       END IF
