@@ -66,7 +66,7 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                       :: iPart,ElemID,flip,OldElemID
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections,nLoc
-LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol
+LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,markTol2
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
@@ -107,7 +107,8 @@ DO iPart=1,PDM%ParticleVecLength
     DO WHILE (.NOT.PartisDone)
       locAlpha=-1.
       nInterSections=0
-      markTol=.FALSE.
+      markTol =.FALSE.
+      markTol2=.FALSE.
       DO ilocSide=1,6
         locSideList(ilocSide)=ilocSide
         IF(.NOT.dolocSide(ilocSide)) CYCLE
@@ -181,20 +182,21 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
       CASE DEFAULT ! two or more hits
         ! more careful with bc elems
-        IF(isBCElem(ElemID))THEN
-          DO ilocSide=1,6
-            SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
-            IF(BC(SideID).NE.0)THEN
-              IF(locAlpha(ilocSide).GT.-1.0)THEN
-                ! perform boundary interaction
-                CALL SelectInterSectionType(PartIsDone,doLocSide,ilocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                                 ,xi(ilocSide),eta(ilocSide),localpha(ilocSide),iPart,SideID,ElemID)
-                EXIT
-              END IF
-            END IF
-          END DO
-          markTol=.TRUE.
-        ELSE
+!        IF(isBCElem(ElemID))THEN
+!          CALL InsertionSort(locAlpha,locSideList,6)
+!          DO ilocSide=1,6
+!            SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+!            IF(BC(SideID).NE.0)THEN
+!              IF(locAlpha(ilocSide).GT.-1.0)THEN
+!                ! perform boundary interaction
+!                CALL SelectInterSectionType(PartIsDone,doLocSide,ilocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
+!                                                 ,xi(ilocSide),eta(ilocSide),localpha(ilocSide),iPart,SideID,ElemID)
+!                EXIT
+!              END IF
+!            END IF
+!          END DO
+!          markTol=.TRUE.
+!        ELSE
           ! take last possible intersection, furthest
           CALL InsertionSort(locAlpha,locSideList,6)
           nloc=0
@@ -211,6 +213,8 @@ DO iPart=1,PDM%ParticleVecLength
           CALL SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
                                            ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
           IF(ElemID.NE.OldElemID)THEN
+            markTol=.FALSE.
+            markTol2=.TRUE.
 #ifdef MPI
             tLBEnd = LOCALTIME() ! LB Time End
             ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
@@ -218,52 +222,51 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*MPI*/
           END IF
           ! particle moves close to an edge or corner. this is a critical movement because of possible tolerance issues
-          markTol=.TRUE.
-        END IF
+!        END IF
       END SELECT
-      IF(markTol)THEN
-        IF(.NOT.PDM%ParticleInside(iPart))THEN
-          CYCLE !particle is outside cell
-        END IF
-        CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
-        PEM%Element(iPart)=ElemID
-        IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)!debug=.TRUE.)
-        PartIsDone=.TRUE.
-        IF(.NOT.PDM%ParticleInside(iPart))THEN
-          IPWRITE(UNIT_stdOut,*) ' Tolerance Issue during tracing! '
-          IPWRITE(UNIT_stdOut,*) ' Lost particle with id', ipart
-          IPWRITE(UNIT_stdOut,*) ' LastPartPos: ',LastPartPos(ipart,1:3)
-          IPWRITE(UNIT_stdOut,*) ' PartState: ',PartState(ipart,1:3)
-          IPWRITE(UNIT_stdOut,*) ' Compuing PartPosRef of ... '
-          CALL Eval_xyz_ElemCheck(LastPartPos(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
-          IPWRITE(UNIT_stdOut,*) ' LastPartRefPos: ',refpos
-          CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
-          IPWRITE(UNIT_stdOut,*) '     PartRefPos: ',refpos
-#ifdef MPI
-          InElem=PEM%Element(iPart)
-          IF(InElem.LE.PP_nElems)THEN
-            IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
-          ELSE
-            IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
-                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
-          END IF
-#else
-          IPWRITE(UNIT_stdOut,*) ' ElemID         ', ElemID+offSetElem
-#endif
-#ifdef MPI
-          InElem=PEM%LastElement(iPart)
-          IF(InElem.LE.PP_nElems)THEN
-            IPWRITE(UNIT_stdOut,*) ' Last-ElemID  ', InElem+offSetElem
-          ELSE
-            IPWRITE(UNIT_stdOut,*) ' Last-ElemID  ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
-                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
-          END IF
-#else
-          IPWRITE(UNIT_stdOut,*) ' Last-ElemID    ', ElemID+offSetElem
-#endif
-        END IF
-      END IF ! markTol
     END DO ! PartisDone=.FALSE.
+    IF(markTol.OR.markTol2)THEN
+      IF(.NOT.PDM%ParticleInside(iPart))THEN
+        CYCLE !particle is outside cell
+      END IF
+      CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
+      PEM%Element(iPart)=ElemID
+      IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)!debug=.TRUE.)
+      PartIsDone=.TRUE.
+      IF(.NOT.PDM%ParticleInside(iPart))THEN
+        IPWRITE(UNIT_stdOut,*) ' Tolerance Issue during tracing! '
+        IPWRITE(UNIT_stdOut,*) ' Lost particle with id', ipart
+        IPWRITE(UNIT_stdOut,*) ' LastPartPos: ',LastPartPos(ipart,1:3)
+        IPWRITE(UNIT_stdOut,*) ' PartState: ',PartState(ipart,1:3)
+        IPWRITE(UNIT_stdOut,*) ' Compuing PartPosRef of ... '
+        CALL Eval_xyz_ElemCheck(LastPartPos(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
+        IPWRITE(UNIT_stdOut,*) ' LastPartRefPos: ',refpos
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),refpos(1:3),PEM%lastElement(ipart))
+        IPWRITE(UNIT_stdOut,*) '     PartRefPos: ',refpos
+#ifdef MPI
+        InElem=PEM%Element(iPart)
+        IF(InElem.LE.PP_nElems)THEN
+          IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
+        ELSE
+          IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+        END IF
+#else
+        IPWRITE(UNIT_stdOut,*) ' ElemID         ', ElemID+offSetElem
+#endif
+#ifdef MPI
+        InElem=PEM%LastElement(iPart)
+        IF(InElem.LE.PP_nElems)THEN
+          IPWRITE(UNIT_stdOut,*) ' Last-ElemID  ', InElem+offSetElem
+        ELSE
+          IPWRITE(UNIT_stdOut,*) ' Last-ElemID  ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+        END IF
+#else
+        IPWRITE(UNIT_stdOut,*) ' Last-ElemID    ', ElemID+offSetElem
+#endif
+      END IF
+    END IF ! markTol
 #ifdef MPI
     tLBEnd = LOCALTIME() ! LB Time End
     IF(PEM%Element(iPart).LE.PP_nElems) ElemTime(PEM%Element(iPart))=ElemTime(PEM%Element(iPart))+tLBEnd-tLBStart
