@@ -106,10 +106,6 @@ DO iPart=1,PDM%ParticleVecLength
     IF(.NOT.isHit)THEN 
      IPWRITE(UNIT_stdOut,*) ' LastPartPos not inside of element '
     END IF
-    CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
-    IF(.NOT.isHit)THEN 
-     IPWRITE(UNIT_stdOut,*) ' New particle position not inside of element '
-    END IF
 #endif /*CODE_ANALYZE*/
     !lengthPartTrajectory=lengthPartTrajectory
     ! track particle vector until the final particle position is achieved
