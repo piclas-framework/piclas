@@ -57,7 +57,7 @@ PUBLIC::PartInElemCheck
 CONTAINS
 
 
-SUBROUTINE PartInElemCheck(PartID,ElemID,Check)
+SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,Check)
 !===================================================================================================================================
 ! Compute the intersection with a Bezier surface
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
@@ -66,17 +66,18 @@ SUBROUTINE PartInElemCheck(PartID,ElemID,Check)
 USE MOD_Globals,                ONLY:Almostzero
 USE MOD_Mesh_Vars,              ONLY:NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
-USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,BezierControlPoints3D,SideNormVec
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartBCSideList
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Vars,          ONLY:PartState
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                       :: ElemID,PartID
+REAL,INTENT(IN)                          :: PartPos_In(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)                      :: Check
@@ -84,25 +85,20 @@ LOGICAL,INTENT(OUT)                      :: Check
 ! LOCAL VARIABLES
 INTEGER                                  :: ilocSide,flip,SideID,BCSideID
 REAL                                     :: PartTrajectory(1:3),NormVec(1:3)
-REAL                                     :: lengthPartTrajectory,tmpPos(3),xNodes(1:3,1:4),tmpLastPartPos(1:3)
+REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPos(1:3),xNodes(1:3,1:4)
 LOGICAL                                  :: isHit
 REAL                                     :: alpha,eta,xi
 !===================================================================================================================================
 
-! backup positions
-tmpPos=PartState(PartID,1:3)
-tmpLastPartPos(1:3)=LastPartPos(PartID,1:3)
 ! virtual move to element barycenter
-LastPartPos(PartID,1:3)=PartState(PartID,1:3)
-PartState(PartID,1:3)=ElemBaryNGeo(:,ElemID)
-PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+PartPos(1:3) =ElemBaryNGeo(1:3,ElemID)
+LastPos(1:3) =PartPos_In(1:3)
+PartTrajectory=PartPos - LastPos
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 IF(ALMOSTZERO(lengthPartTrajectory))THEN
   Check=.TRUE.
-  PartState(PartID,1:3)   = tmpPos
-  LastPartPos(PartID,1:3) = tmpLastPartPos
   ! bugfix by Tilman
   RETURN
 END IF
@@ -187,8 +183,6 @@ DO ilocSide=1,6
 END DO ! ilocSide
 Check=.TRUE.
 IF(isHit) Check=.FALSE.
-PartState(PartID,1:3)   = tmpPos
-LastPartPos(PartID,1:3) = tmpLastPartPos
 
 END SUBROUTINE PartInElemCheck
 
