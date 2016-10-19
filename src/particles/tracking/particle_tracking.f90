@@ -100,9 +100,8 @@ DO iPart=1,PDM%ParticleVecLength
       PartisDone=.TRUE.
       CYCLE
     END IF
-    PartTrajectory=PartTrajectory/lengthPartTrajectory!+epsilontol
-    !PartTrajectory=PartTrajectory/(lengthPartTrajectory+epsilontol)
-    lengthPartTrajectory=lengthPartTrajectory!+epsilontol
+    PartTrajectory=PartTrajectory/lengthPartTrajectory
+    !lengthPartTrajectory=lengthPartTrajectory
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     DO WHILE (.NOT.PartisDone)
@@ -145,7 +144,7 @@ DO iPart=1,PDM%ParticleVecLength
         END SELECT
         IF(isHit) THEN
           nInterSections=nInterSections+1
-          IF((ABS(xi(ilocSide)).GE.1.0).OR.(ABS(eta(ilocSide)).GE.1.0)) markTol=.TRUE.
+          IF((ABS(xi(ilocSide)).GE.0.2).OR.(ABS(eta(ilocSide)).GE.0.2)) markTol=.TRUE.
           IF(ALMOSTZERO(locAlpha(ilocSide))) markTol=.TRUE.
           !IF((ABS(xi(ilocSide)).GE.0.99).OR.(ABS(eta(ilocSide)).GE.0.99)) markTol=.TRUE.
           !IF(locAlpha(ilocSide)/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
@@ -169,6 +168,9 @@ DO iPart=1,PDM%ParticleVecLength
         CALL SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
                                          ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
         IF(ElemID.NE.OldElemID)THEN
+          ! particle moves in new element, do not check yet, because particle may encounter a boundary condition 
+          ! remark: maybe a storage value has to be set to drow?
+          IF(markTol) markTol=.FALSE.
 #ifdef MPI
           IF(OldElemID.LE.PP_nElems)THEN
             tLBEnd = LOCALTIME() ! LB Time End
@@ -223,13 +225,9 @@ DO iPart=1,PDM%ParticleVecLength
         IF(.NOT.PDM%ParticleInside(iPart))THEN
           CYCLE !particle is outside cell
         END IF
-        CALL PartInElemCheck(iPart,ElemID,isHit)
-        !print*,'partid',ipart,'in elem',isHit
-        !print*,'old elem',ElemID
-        !print*,'ipart,loc',ipart,localpha
+        CALL PartInElemCheck(PartState(iPart,1:3),iPart,ElemID,isHit)
         PEM%Element(iPart)=ElemID
         IF(.NOT.isHit) CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.)!debug=.TRUE.)
-!        print*,'new elem',PEM%Element(ipart)
         PartIsDone=.TRUE.
         IF(.NOT.PDM%ParticleInside(iPart))THEN
           IPWRITE(UNIT_stdOut,*) ' Tolerance Issue during tracing! '
@@ -251,6 +249,17 @@ DO iPart=1,PDM%ParticleVecLength
           END IF
 #else
           IPWRITE(UNIT_stdOut,*) ' ElemID         ', ElemID+offSetElem
+#endif
+#ifdef MPI
+          InElem=PEM%LastElement(iPart)
+          IF(InElem.LE.PP_nElems)THEN
+            IPWRITE(UNIT_stdOut,*) ' Last-ElemID  ', InElem+offSetElem
+          ELSE
+            IPWRITE(UNIT_stdOut,*) ' Last-ElemID  ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
+                                                   + PartHaloElemToProc(NATIVE_ELEM_ID,InElem)
+          END IF
+#else
+          IPWRITE(UNIT_stdOut,*) ' Last-ElemID    ', ElemID+offSetElem
 #endif
         END IF
       END IF ! markTol

@@ -70,7 +70,7 @@ USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,BezierContro
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartBCSideList
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Vars,          ONLY:PartState
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -85,20 +85,22 @@ LOGICAL,INTENT(OUT)                      :: Check
 ! LOCAL VARIABLES
 INTEGER                                  :: ilocSide,flip,SideID,BCSideID
 REAL                                     :: PartTrajectory(1:3),NormVec(1:3)
-REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPos(1:3),xNodes(1:3,1:4)
+REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPosTmp(1:3),xNodes(1:3,1:4)
 LOGICAL                                  :: isHit
 REAL                                     :: alpha,eta,xi
 !===================================================================================================================================
 
 ! virtual move to element barycenter
-PartPos(1:3) =ElemBaryNGeo(1:3,ElemID)
-LastPos(1:3) =PartPos_In(1:3)
-PartTrajectory=PartPos - LastPos
+LastPosTmp(1:3) =LastPartPos(PartID,1:3)
+LastPartPos(PartID,1:3) =ElemBaryNGeo(1:3,ElemID)
+PartPos(1:3) =PartPos_In(1:3)
+PartTrajectory=PartPos - LastPartPos(PartID,1:3)
 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 IF(ALMOSTZERO(lengthPartTrajectory))THEN
   Check=.TRUE.
+  LastPartPos(PartID,1:3) = LastPosTmp(1:3) 
   ! bugfix by Tilman
   RETURN
 END IF
@@ -132,8 +134,10 @@ DO ilocSide=1,6
 !    CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
 !                                                                            ,xi                 &
 !                                                                            ,eta                ,PartID,SideID)
-
-
+  CASE(PLANAR_NONRECT)
+    CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha   &
+                                                                                        ,xi &
+                                                                                        ,eta,PartID,flip,SideID)
 
   CASE(PLANAR_RECT)
 
@@ -153,7 +157,7 @@ DO ilocSide=1,6
                                                                                      ,eta      &
                                                                                      ,PartID,flip,SideID)
 
-  CASE(CURVED,PLANAR_NONRECT)
+  CASE(CURVED)
     CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
                                                                             ,xi       &
                                                                             ,eta      ,PartID,SideID)
@@ -183,6 +187,7 @@ DO ilocSide=1,6
 END DO ! ilocSide
 Check=.TRUE.
 IF(isHit) Check=.FALSE.
+LastPartPos(PartID,1:3) = LastPosTmp(1:3) 
 
 END SUBROUTINE PartInElemCheck
 
@@ -2295,6 +2300,7 @@ isHit=.TRUE.
 
 END SUBROUTINE ComputePlanarIntersectionBezierRobust
 
+
 SUBROUTINE ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,flip,SideID)
 !===================================================================================================================================
 ! Compute the intersection with a planar non rectangular face
@@ -2309,7 +2315,6 @@ USE MOD_Particle_Surfaces_Vars,  ONLY:SideType
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,BezierNewtonAngle
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars,  ONLY:locXi,locEta,locAlpha
-USE MOD_Particle_Surfaces_Vars,  ONLY:BoundingBoxIsEmpty
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideSlabNormals,epsilonTol
 USE MOD_Utils,                   ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
@@ -2358,16 +2363,14 @@ isHit=.FALSE.
 rBoundingBoxChecks=rBoundingBoxChecks+1.
 #endif /*CODE_ANALYZE*/
 
-IF(BoundingBoxIsEmpty(SideID))THEN
-  IF(DoRefMapping)THEN
+IF(DoRefMapping)THEN
+  IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
+ELSE
+  ! dependend on master/slave flip
+  IF(flip.EQ.0)THEN
     IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
   ELSE
-    ! dependend on master/slave flip
-    IF(flip.EQ.0)THEN
-      IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
-    ELSE
-      IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).GT.0.)RETURN
-    END IF
+    IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).GT.0.)RETURN
   END IF
 END IF
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
