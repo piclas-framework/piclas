@@ -52,7 +52,7 @@ SUBROUTINE InitParticleAnalyze()
   USE MOD_Preproc
   USE MOD_Analyze_Vars            ,ONLY: DoAnalyze
   USE MOD_Particle_Analyze_Vars  !,ONLY:ParticleAnalyzeInitIsDone, CalcCharge, CalcEkin, CalcEpot 
-  USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY
+  USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
   USE MOD_Particle_Vars           ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -133,6 +133,13 @@ CALL abort(__STAMP__,&
     END IF
   END IF
   TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
+  IF(TrackParticlePosition)THEN
+    printDiff=GETLOGICAL('printDiff','.FALSE.')
+    IF(printDiff)THEN
+      printDiffTime=GETREAL('printDiffTime','12.')
+      printDiffVec=GETREALARRAY('printDiffVec',6,'0.,0.,0.,0.,0.,0.')
+    END IF
+  END IF
   CalcNumSpec   = GETLOGICAL('CalcNumSpec','.FALSE.')
   CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
   CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
@@ -2068,6 +2075,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars,          ONLY:PartState, PDM, PEM
 USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
+USE MOD_Particle_Analyze_Vars,  ONLY:printDiff,printDiffVec,printDiffTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2080,6 +2088,7 @@ REAL,INTENT(IN)                :: time
 INTEGER            :: i,iunit,iPartState
 CHARACTER(LEN=60) :: TrackingFilename!,hilf
 LOGICAL            :: fexist
+REAL               :: diffPos,diffVelo
 !===================================================================================================================================
 
 iunit=GETFREEUNIT()
@@ -2131,7 +2140,18 @@ ELSE
   END DO
   CLOSE(iunit)
 END IF
-
+IF (printDiff) THEN
+  diffPos=0.
+  diffVelo=0.
+  IF (time.GE.printDiffTime) THEN
+    printDiff=.FALSE.
+    DO iPartState=1,3
+      diffPos=diffPos+(printDiffVec(iPartState)-PartState(1,iPartState))**2
+      diffVelo=diffVelo+(printDiffVec(iPartState+3)-PartState(1,iPartState+3))**2
+    END DO
+    WRITE(*,'(A,e24.14,x,e24.14)') 'L2-norm from printDiffVec: ',SQRT(diffPos),SQRT(diffVelo)
+  END IF
+END IF
 104    FORMAT (e25.14)
 
 END SUBROUTINE TrackingParticlePosition
