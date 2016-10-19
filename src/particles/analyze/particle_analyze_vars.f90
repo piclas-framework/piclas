@@ -44,5 +44,8 @@ LOGICAL                       :: DoVerifyCharge                        ! validat
                                                                        ! an output in std.out
 REAL                          :: PartCharge(3)                         ! contains the whole deposited charge and its absolute
                                                                        ! and relative error
+LOGICAL                       :: printDiff
+REAL                          :: printDiffTime
+REAL                          :: printDiffVec(6)
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars
