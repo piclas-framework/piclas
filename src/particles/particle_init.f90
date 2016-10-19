@@ -1020,8 +1020,8 @@ SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...'
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 !-- Finalizing InitializeVariables
-!CALL InitFIBGM()
-CALL InitSFIBGM()
+CALL InitFIBGM()
+!CALL InitSFIBGM()
 #ifdef MPI
 CALL InitEmissionComm()
 #endif /*MPI*/

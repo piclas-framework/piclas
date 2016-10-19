@@ -321,11 +321,11 @@ END IF
 
 ! --- get background mesh cell of particle
 CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-CellX = MAX(MIN(GEO%FIBGMimax,CellX),GEO%FIBGMimin)
+CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
 CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-CellY = MAX(MIN(GEO%FIBGMjmax,CellY),GEO%FIBGMjmin)
+CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
 CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
+CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
 
 
 
@@ -334,7 +334,7 @@ CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
 !   read*
 
 !--- check all cells associated with this beckground mesh cell
-nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
 
 ! get closest element barycenter
 Distance=-1.
@@ -468,15 +468,15 @@ END IF
 
 ! --- get background mesh cell of particle
 CellX = CEILING((PartState(iPart,1)-GEO%xminglob)/GEO%FIBGMdeltas(1)) 
-CellX = MAX(MIN(GEO%FIBGMimax,CellX),GEO%FIBGMimin)
+CellX = MAX(MIN(GEO%TFIBGMimax,CellX),GEO%TFIBGMimin)
 CellY = CEILING((PartState(iPart,2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-CellY = MAX(MIN(GEO%FIBGMjmax,CellY),GEO%FIBGMjmin)
+CellY = MAX(MIN(GEO%TFIBGMjmax,CellY),GEO%TFIBGMjmin)
 CellZ = CEILING((PartState(iPart,3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-CellZ = MAX(MIN(GEO%FIBGMkmax,CellZ),GEO%FIBGMkmin)
+CellZ = MAX(MIN(GEO%TFIBGMkmax,CellZ),GEO%TFIBGMkmin)
 
 !--- check all cells associated with this beckground mesh cell
 
-nBGMElems=GEO%FIBGM(CellX,CellY,CellZ)%nElem
+nBGMElems=GEO%TFIBGM(CellX,CellY,CellZ)%nElem
 
 ! get closest element barycenter
 Distance=-1.
@@ -666,24 +666,42 @@ GEO%FIBGMdeltas(1:3) = GETREALARRAY('Part-FIBGMdeltas',3,'1. , 1. , 1.')
 GEO%FactorFIBGM(1:3) = GETREALARRAY('Part-FactorFIBGM',3,'1. , 1. , 1.')
 GEO%FIBGMdeltas(1:3) = 1./GEO%FactorFIBGM(1:3) * GEO%FIBGMdeltas(1:3)
 
-CALL GetFIBGM()
+! compute elem bary and elem radius
+StartT=BOLTZPLATZTIME()
 ALLOCATE(ElemBaryNGeo(1:3,1:nTotalElems) )
 CALL BuildElementOrigin()
+ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
+        ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
+        ,ElemRadiusNGeo(1:nTotalElems)         &
+        ,ElemRadius2NGeo(1:nTotalElems)        )
+CALL BuildElementBasis()
+EndT=BOLTZPLATZTIME()
+IF(PartMPI%MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init element-basis took          [',EndT-StartT,'s]'
+END IF
 
+StartT=BOLTZPLATZTIME()
+CALL GetFIBGM()
+EndT=BOLTZPLATZTIME()
+IF(PartMPI%MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init FIBGM took                  [',EndT-StartT,'s]'
+END IF
+
+StartT=BOLTZPLATZTIME()
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
-StartT=MPI_WTIME()
 !CALL Initialize()  ! Initialize parallel environment for particle exchange between MPI domains
 printMPINeighborWarnings = GETLOGICAL('printMPINeighborWarnings','.TRUE.')
 CALL InitHaloMesh()
 ! HALO mesh and region build. Unfortunately, the local FIBGM has to be extended to include the HALO elements :(
 ! rebuild is a local operation
+#endif /*MPI*/
+
 CALL AddHALOCellsToFIBGM()
 EndT=MPI_WTIME()
 IF(PartMPI%MPIROOT)THEN
    WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
 END IF
-#endif /*MPI*/
 
 ! remove inner BezierControlPoints3D and SlabNormals, usw.
 IF(DoRefMapping) CALL ReshapeBezierSides()
@@ -700,13 +718,11 @@ SDEALLOCATE(XiEtaZetaBasis)
 SDEALLOCATE(slenXiEtaZetaBasis)
 SDEALLOCATE(ElemRadiusNGeo)
 SDEALLOCATE(ElemRadius2NGeo)
-
 ALLOCATE(XiEtaZetaBasis(1:3,1:6,1:nTotalElems) &
         ,slenXiEtaZetaBasis(1:6,1:nTotalElems) &
         ,ElemRadiusNGeo(1:nTotalElems)         &
         ,ElemRadius2NGeo(1:nTotalElems)        )
 CALL BuildElementBasis()
-!CALL MapElemToFIBGM()
 
 SWRITE(UNIT_stdOut,'(A)')' DONE!' 
 
@@ -2341,7 +2357,6 @@ DEALLOCATE(ReducedBGMArray, BGMCellsArray, CellProcList, GlobalBGMCellsArray, Ce
 END SUBROUTINE GetSFIBGM
 
 
-#ifdef MPI
 SUBROUTINE AddHALOCellsToFIBGM()
 !===================================================================================================================================
 ! remap all elements including halo-elements into FIBGM
@@ -2358,6 +2373,7 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Particle_Tracking_Vars,             ONLY:Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2367,7 +2383,7 @@ USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax
+INTEGER                          :: BGMimin,BGMimax,BGMjmin,BGMjmax,BGMkmin,BGMkmax,Allocstat
 REAL                             :: xmin, xmax, ymin, ymax, zmin, zmax
 INTEGER                          :: iBGM,jBGM,kBGM,SideID,iElem,ilocSide
 INTEGER                          :: BGMCellXmax,BGMCellXmin
@@ -2375,9 +2391,11 @@ INTEGER                          :: BGMCellYmax,BGMCellYmin
 INTEGER                          :: BGMCellZmax,BGMCellZmin
 LOGICAL, ALLOCATABLE             :: ElementFound(:)
 REAL                             :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
+INTEGER                          :: ElemToBGM(6,1:nTotalElems),maxnBGMElems
 !===================================================================================================================================
 
-! simplify writting
+
+! current min,max
 BGMimax=GEO%FIBGMimax
 BGMimin=GEO%FIBGMimin
 BGMjmax=GEO%FIBGMjmax
@@ -2385,147 +2403,81 @@ BGMjmin=GEO%FIBGMjmin
 BGMkmax=GEO%FIBGMkmax
 BGMkmin=GEO%FIBGMkmin
 
-! delete all elements form FIBGM && zero nElems per BGM-cell
-DO iBGM=GEO%FIBGMimin,GEO%FIBGMimax
-  DO jBGM=GEO%FIBGMjmin,GEO%FIBGMjmax
-    DO kBGM=GEO%FIBGMkmin,GEO%FIBGMkmax
-      SDEALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%Element)
-      GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = 0
-    END DO
-  END DO
-END DO
+GEO%TFIBGMimax =GEO%FIBGMimax
+GEO%TFIBGMimin =GEO%FIBGMimin
+GEO%TFIBGMjmax =GEO%FIBGMjmax
+GEO%TFIBGMjmin =GEO%FIBGMjmin
+GEO%TFIBGMkmax =GEO%FIBGMkmax
+GEO%TFIBGMkmin =GEO%FIBGMkmin
+
+BGMCellXmax = BGMimax
+BGMCellXmin = BGMimin
+BGMCellYmax = BGMjmax
+BGMCellYmin = BGMjmin
+BGMCellZmax = BGMkmax
+BGMCellZmin = BGMkmin
+
+! get new min max
+DO iElem=1,nTotalElems
+  CALL BGMIndexOfElement(iElem,ElemToBGM(1:6,iElem)) 
+  IF(.NOT.GEO%directions(1)) BGMCellXmin = ElemToBGM(1,iElem)
+  IF(.NOT.GEO%directions(1)) BGMCellXmax = ElemToBGM(2,iElem)
+  IF(.NOT.GEO%directions(2)) BGMCellYmin = ElemToBGM(3,iElem)
+  IF(.NOT.GEO%directions(2)) BGMCellYmax = ElemToBGM(4,iElem)
+  IF(.NOT.GEO%directions(3)) BGMCellZmin = ElemToBGM(5,iElem)
+  IF(.NOT.GEO%directions(3)) BGMCellZmax = ElemToBGM(6,iElem)
+
+  BGMimin=MIN(BGMimin,BGMCellXmin)
+  BGMimax=MAX(BGMimax,BGMCellXmax)
+  BGMjmin=MIN(BGMjmin,BGMCellYmin)
+  BGMjmax=MAX(BGMjmax,BGMCellYmax)
+  BGMkmin=MIN(BGMkmin,BGMCellZmin)
+  BGMkmax=MAX(BGMkmax,BGMCellZmax)
+
+END DO ! iElem = nElems+1,nTotalElems
+
+GEO%TFIBGMimax =BGMimax
+GEO%TFIBGMimin =BGMimin
+GEO%TFIBGMjmax =BGMjmax
+GEO%TFIBGMjmin =BGMjmin
+GEO%TFIBGMkmax =BGMkmax
+GEO%TFIBGMkmin =BGMkmin
+
+ALLOCATE(GEO%TFIBGM(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(&
+__STAMP__&
+,' ERROR in AddElemsToTFIBGM: Cannot allocate GEO%TFIBGM!')
+END IF
 
 ALLOCATE( ElementFound(1:nTotalElems) )
 ElementFound = .FALSE.
 
+! null number of elements per BGM-Cell
+DO kBGM = BGMkmin,BGMkmax
+  DO jBGM = BGMjmin,BGMjmax
+    DO iBGM = BGMimin,BGMimax
+       GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = 0
+    END DO ! kBGM
+  END DO ! jBGM
+END DO ! iBGM
+
+
 !--- compute number of elements in each background cell
 DO iElem=1,nTotalElems
-  xmin = HUGE(1.0)
-  xmax =-HUGE(1.0)
-  ymin = HUGE(1.0)
-  ymax =-HUGE(1.0)
-  zmin = HUGE(1.0)
-  zmax =-HUGE(1.0)
-
-  ! get min,max of BezierControlPoints of Element
-  DO iLocSide = 1,6
-    SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, iElem)
-    IF(DoRefMapping)THEN
-      IF(SideID.GT.0)THEN
-        IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
-          BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-        ELSE
-          SELECT CASE(ilocSide)
-          CASE(XI_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-          CASE(XI_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ETA_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ETA_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ZETA_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-          CASE(ZETA_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-          END SELECT
-        END IF
-      ELSE
-        SELECT CASE(ilocSide)
-        CASE(XI_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-        CASE(XI_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-        CASE(ETA_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-        CASE(ETA_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-        CASE(ZETA_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-        CASE(ZETA_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-        END SELECT
-      END IF
-    ELSE ! pure tracing
-      BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-      !IF(SideID.LE.nSides)THEN
-      !  IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
-      !    BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-      !  ELSE
-      !    SELECT CASE(ilocSide)
-      !    CASE(XI_MINUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-      !    CASE(XI_PLUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-      !    CASE(ETA_MINUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-      !    CASE(ETA_PLUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-      !    CASE(ZETA_MINUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-      !    CASE(ZETA_PLUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-      !    END SELECT
-      !  END IF
-      !ELSE
-      !  BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-      !END IF
-    END IF
-    xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
-    xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
-    ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
-    ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
-    zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
-    zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
-  END DO ! ilocSide
-
   !--- find minimum and maximum BGM cell for current element
-  IF(GEO%nPeriodicVectors.EQ.0)THEN
-    ! same fancy stuff
-    !BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    !BGMCellXmax = MIN(BGMCellXmax,BGMimax)
-    !BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    !BGMCellXmin = MAX(BGMCellXmin,BGMimin)
-    !BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    !BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
-    !BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    !BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
-    !BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    !BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
-    !BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    !BGMCellZmin = MAX(BGMCellZmin,BGMkmin)      
-    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
-    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
-    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
-    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
-    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
-    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
-  ELSE
-    ! here fancy stuff, because element could be wide out of element range
-    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
-    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
-    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
-    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
-    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
-    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
-  END IF
+  ! here fancy stuff, because element could be wide out of element range
+  BGMCellXmin = MIN(MAX(ElemToBGM(1,iElem),BGMimin),BGMimax)
+  BGMCellXmax = MAX(MIN(ElemToBGM(2,iElem),BGMimax),BGMimin)
+  BGMCellYmin = MIN(MAX(ElemToBGM(3,iElem),BGMjmin),BGMjmax)
+  BGMCellYmax = MAX(MIN(ElemToBGM(4,iElem),BGMjmax),BGMjmin)
+  BGMCellZmin = MIN(MAX(ElemToBGM(5,iElem),BGMkmin),BGMkmax)
+  BGMCellZmax = MAX(MIN(ElemToBGM(6,iElem),BGMkmax),BGMkmin)
   ! add ecurrent element to number of BGM-elems
-  DO iBGM = BGMCellXmin,BGMCellXmax
+  DO kBGM = BGMCellZmin,BGMCellZmax
     DO jBGM = BGMCellYmin,BGMCellYmax
-      DO kBGM = BGMCellZmin,BGMCellZmax
-         GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
+      DO iBGM = BGMCellXmin,BGMCellXmax
+         GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1
          ElementFound(iElem) = .TRUE.
       END DO ! kBGM
     END DO ! jBGM
@@ -2533,143 +2485,32 @@ DO iElem=1,nTotalElems
 END DO ! iElem
 
 !--- allocate mapping variable and clean number for mapping (below)
-DO iBGM = BGMimin,BGMimax
-  DO jBGM = BGMjmin,BGMjmax
-    DO kBGM = BGMkmin,BGMkmax
-      ALLOCATE(GEO%FIBGM(iBGM,jBGM,kBGM)%Element(1:GEO%FIBGM(iBGM,jBGM,kBGM)%nElem))
-      GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = 0
+DO kBGM = BGMkmin,BGMkmax
+  DO iBGM = BGMimin,BGMimax
+    DO jBGM = BGMjmin,BGMjmax
+      ALLOCATE(GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(1:GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem))
+      GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = 0
     END DO ! kBGM
   END DO ! jBGM
 END DO ! iBGM
 
 !--- map elements to background cells
 DO iElem=1,nTotalElems
-  xmin = HUGE(1.0)
-  xmax =-HUGE(1.0)
-  ymin = HUGE(1.0)
-  ymax =-HUGE(1.0)
-  zmin = HUGE(1.0)
-  zmax =-HUGE(1.0)
+  !--- find minimum and maximum BGM cell for current element
+  ! here fancy stuff, because element could be wide out of element range
+  BGMCellXmin = MIN(MAX(ElemToBGM(1,iElem),BGMimin),BGMimax)
+  BGMCellXmax = MAX(MIN(ElemToBGM(2,iElem),BGMimax),BGMimin)
+  BGMCellYmin = MIN(MAX(ElemToBGM(3,iElem),BGMjmin),BGMjmax)
+  BGMCellYmax = MAX(MIN(ElemToBGM(4,iElem),BGMjmax),BGMjmin)
+  BGMCellZmin = MIN(MAX(ElemToBGM(5,iElem),BGMkmin),BGMkmax)
+  BGMCellZmax = MAX(MIN(ElemToBGM(6,iElem),BGMkmax),BGMkmin)
 
-  ! get min,max of BezierControlPoints of Element
-  DO iLocSide = 1,6
-    SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, iElem)
-    IF(DoRefMapping)THEN
-      IF(SideID.GT.0)THEN
-        IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
-          BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-        ELSE
-          SELECT CASE(ilocSide)
-          CASE(XI_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-          CASE(XI_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ETA_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ETA_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ZETA_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-          CASE(ZETA_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-          END SELECT
-        END IF
-      ELSE
-        SELECT CASE(ilocSide)
-        CASE(XI_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-        CASE(XI_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-        CASE(ETA_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-        CASE(ETA_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-        CASE(ZETA_MINUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-        CASE(ZETA_PLUS)
-          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-        END SELECT
-      END IF
-    ELSE ! pure tracing
-      BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-      !IF(SideID.LE.nSides)THEN
-      !  IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
-          BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-      !  ELSE
-      !    SELECT CASE(ilocSide)
-      !    CASE(XI_MINUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-      !    CASE(XI_PLUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-      !    CASE(ETA_MINUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-      !    CASE(ETA_PLUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-      !    CASE(ZETA_MINUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-      !    CASE(ZETA_PLUS)
-      !      CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-      !    END SELECT
-      !  END IF
-      !ELSE
-      !  BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-      !END IF
-    END IF
-    xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
-    xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
-    ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
-    ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
-    zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
-    zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
-  END DO ! ilocSide
-
-  ! same as above
-  IF(GEO%nPeriodicVectors.EQ.0)THEN
-    !BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    !BGMCellXmax = MIN(BGMCellXmax,BGMimax)
-    !BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    !BGMCellXmin = MAX(BGMCellXmin,BGMimin)
-    !BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    !BGMCellYmax = MIN(BGMCellYmax,BGMjmax)
-    !BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    !BGMCellYmin = MAX(BGMCellYmin,BGMjmin)
-    !BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    !BGMCellZmax = MIN(BGMCellZmax,BGMkmax)
-    !BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    !BGMCellZmin = MAX(BGMCellZmin,BGMkmin)     
-    ! still the fancy stuff
-    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
-    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
-    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
-    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
-    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
-    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
-  ELSE
-    BGMCellXmax = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmax = MAX(MIN(BGMCellXmax,BGMimax),BGMimin)
-    BGMCellXmin = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    BGMCellXmin = MIN(MAX(BGMCellXmin,BGMimin),BGMimax)
-    BGMCellYmax = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmax = MAX(MIN(BGMCellYmax,BGMjmax),BGMjmin)
-    BGMCellYmin = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    BGMCellYmin = MIN(MAX(BGMCellYmin,BGMjmin),BGMjmax)
-    BGMCellZmax = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmax = MAX(MIN(BGMCellZmax,BGMkmax),BGMkmin)
-    BGMCellZmin = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    BGMCellZmin = MIN(MAX(BGMCellZmin,BGMkmin),BGMkmax)
-  END IF
   ! add current Element to BGM-Elem
   DO iBGM = BGMCellXmin,BGMCellXmax
     DO jBGM = BGMCellYmin,BGMCellYmax
       DO kBGM = BGMCellZmin,BGMCellZmax
-        GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1    
-        GEO%FIBGM(iBGM,jBGM,kBGM)%Element(GEO%FIBGM(iBGM,jBGM,kBGM)%nElem) = iElem
+        GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem = GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem + 1    
+        GEO%TFIBGM(iBGM,jBGM,kBGM)%Element(GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem) = iElem
       END DO ! kBGM
     END DO ! jBGM
   END DO ! iBGM
@@ -2678,86 +2519,16 @@ END DO ! iElem
 
 DO iElem=1,nTotalElems
   IF(.NOT.ElementFound(iElem))THEN
-    xmin = HUGE(1.0)
-    xmax =-HUGE(1.0)
-    ymin = HUGE(1.0)
-    ymax =-HUGE(1.0)
-    zmin = HUGE(1.0)
-    zmax =-HUGE(1.0)
+    !--- find minimum and maximum BGM cell for current element
+    ! here fancy stuff, because element could be wide out of element range
+    BGMCellXmin = ElemToBGM(1,iElem)
+    BGMCellXmax = ElemToBGM(2,iElem)
+    BGMCellYmin = ElemToBGM(3,iElem)
+    BGMCellYmax = ElemToBGM(4,iElem)
+    BGMCellZmin = ElemToBGM(5,iElem)
+    BGMCellZmax = ElemToBGM(6,iElem)
 
-    ! get min,max of BezierControlPoints of Element
-    DO iLocSide = 1,6
-      SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, iElem)
-      IF(DoRefMapping)THEN
-        IF(SideID.GT.0)THEN
-          IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
-            BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-          ELSE
-            SELECT CASE(ilocSide)
-            CASE(XI_MINUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-            CASE(XI_PLUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-            CASE(ETA_MINUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-            CASE(ETA_PLUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-            CASE(ZETA_MINUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-            CASE(ZETA_PLUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-            END SELECT
-          END IF
-        ELSE
-          SELECT CASE(ilocSide)
-          CASE(XI_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-          CASE(XI_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ETA_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ETA_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-          CASE(ZETA_MINUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-          CASE(ZETA_PLUS)
-            CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-          END SELECT
-        END IF
-      ELSE ! pure tracing
-        IF(SideID.LE.nSides)THEN
-          IF(PartElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN
-            BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-          ELSE
-            SELECT CASE(ilocSide)
-            CASE(XI_MINUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),BezierControlPoints3D_tmp)
-            CASE(XI_PLUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),BezierControlPoints3D_tmp)
-            CASE(ETA_MINUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),BezierControlPoints3D_tmp)
-            CASE(ETA_PLUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),BezierControlPoints3D_tmp)
-            CASE(ZETA_MINUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),BezierControlPoints3D_tmp)
-            CASE(ZETA_PLUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),BezierControlPoints3D_tmp)
-            END SELECT
-          END IF
-        ELSE
-          BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
-        END IF
-        IPWRITE(*,*) "ideID,BezierControlPoints3D_tmp",SideID,BezierControlPoints3D_tmp
-      END IF
-      xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
-      xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
-      ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
-      ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
-      zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
-      zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
-    END DO ! ilocSide
-
-    IPWRITE(UNIT_stdOut,*) ' FIBGM , iElem'
+    IPWRITE(UNIT_stdOut,*) ' TFIBGM , iElem'
     IPWRITE(UNIT_stdOut,*) 'xmin',GEO%xmin,xmin
     IPWRITE(UNIT_stdOut,*) 'xmax',GEO%xmax,xmax
     IPWRITE(UNIT_stdOut,*) 'ymin',GEO%ymin,ymin
@@ -2765,12 +2536,12 @@ DO iElem=1,nTotalElems
     IPWRITE(UNIT_stdOut,*) 'zmin',GEO%zmin,zmin
     IPWRITE(UNIT_stdOut,*) 'zmax',GEO%zmax,zmax
     IPWRITE(UNIT_stdOut,*) ' BGM , iBGM'
-    IPWRITE(UNIT_stdOut,*) 'xmin', BGMimin,CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    IPWRITE(UNIT_stdOut,*) 'xmax', BGMimax,CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
-    IPWRITE(UNIT_stdOut,*) 'ymin', BGMjmin,CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    IPWRITE(UNIT_stdOut,*) 'ymax', BGMjmax,CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
-    IPWRITE(UNIT_stdOut,*) 'zmin', BGMkmin,CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
-    IPWRITE(UNIT_stdOut,*) 'zmax', BGMkmax,CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+    IPWRITE(UNIT_stdOut,*) 'xmin', BGMimin,BGMCellXmin
+    IPWRITE(UNIT_stdOut,*) 'xmax', BGMimax,BGMCellXmax
+    IPWRITE(UNIT_stdOut,*) 'ymin', BGMjmin,BGMCellYmin
+    IPWRITE(UNIT_stdOut,*) 'ymax', BGMjmax,BGMCellYmax
+    IPWRITE(UNIT_stdOut,*) 'zmin', BGMkmin,BGMCellYmin
+    IPWRITE(UNIT_stdOut,*) 'zmax', BGMkmax,BGMCellYmax
     CALL abort(&
 __STAMP__&
 ,' Element not located in FIBGM! iElem, myRank',iElem,REAL(PartMPI%MyRank))
@@ -2779,9 +2550,20 @@ END DO ! iElem
 
 DEALLOCATE(Elementfound)
 
-END SUBROUTINE AddHALOCellsToFIBGM
-#endif
+! and get max number of bgm-elems
+maxnBGMElems=0
+DO kBGM = GEO%TFIBGMkmin,GEO%TFIBGMkmax
+  DO jBGM = GEO%TFIBGMjmin,GEO%TFIBGMjmax
+    DO iBGM = GEO%TFIBGMimin,GEO%TFIBGMimax
+      !maxnBGMElems=MAX(maxnBGMElems,GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem)
+      maxnBGMElems=MAX(maxnBGMElems,GEO%TFIBGM(iBGM,jBGM,kBGM)%nElem)
+    END DO ! kBGM
+  END DO ! jBGM
+END DO ! iBGM
+ALLOCATE(Distance    (1:maxnBGMElems) &
+        ,ListDistance(1:maxnBGMElems) )
 
+END SUBROUTINE AddHALOCellsToFIBGM
 
 
 SUBROUTINE AddSimpleHALOCellsToFIBGM()
@@ -4732,6 +4514,102 @@ DO iElem=PP_nElems+1,nLoop
 END DO ! iElem=1,nLoop
 
 END SUBROUTINE GetElemAndSideType
+
+SUBROUTINE BGMIndexOfElement(ElemID,ElemToBGM) 
+!===================================================================================================================================
+! computes the element indices of an given element in the BGM-mesh
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
+USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
+USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
+USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
+USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
+USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+INTEGER,INTENT(IN)        :: ElemID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)       :: ElemToBGM(1:6)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: ilocSide, SideID
+REAL                      :: xmin,xmax,ymin,ymax,zmin,zmax
+REAL                      :: BezierControlPoints3D_tmp(1:3,0:NGeo,0:NGeo)
+!===================================================================================================================================
+
+xmin = HUGE(1.0)
+xmax =-HUGE(1.0)
+ymin = HUGE(1.0)
+ymax =-HUGE(1.0)
+zmin = HUGE(1.0)
+zmax =-HUGE(1.0)
+
+! get min,max of BezierControlPoints of Element
+DO iLocSide = 1,6
+  SideID = PartElemToSide(E2S_SIDE_ID, ilocSide, ElemID)
+  IF(DoRefMapping)THEN
+    IF(SideID.GT.0)THEN
+      IF(PartElemToSide(E2S_FLIP,ilocSide,ElemID).EQ.0)THEN
+        BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+      ELSE
+        SELECT CASE(ilocSide)
+        CASE(XI_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(XI_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(ETA_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(ETA_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
+        CASE(ZETA_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
+        CASE(ZETA_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
+        END SELECT
+      END IF
+    ELSE
+      SELECT CASE(ilocSide)
+      CASE(XI_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(XI_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(ETA_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(ETA_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,ElemID),BezierControlPoints3D_tmp)
+      CASE(ZETA_MINUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,ElemID),BezierControlPoints3D_tmp)
+      CASE(ZETA_PLUS)
+        CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,ElemID),BezierControlPoints3D_tmp)
+      END SELECT
+    END IF
+  ELSE ! pure tracing
+    BezierControlPoints3d_tmp=BezierControlPoints3D(:,:,:,SideID)
+  END IF
+  xmin=MIN(xmin,MINVAL(BezierControlPoints3D_tmp(1,:,:)))
+  xmax=MAX(xmax,MAXVAL(BezierControlPoints3D_tmp(1,:,:)))
+  ymin=MIN(ymin,MINVAL(BezierControlPoints3D_tmp(2,:,:)))
+  ymax=MAX(ymax,MAXVAL(BezierControlPoints3D_tmp(2,:,:)))
+  zmin=MIN(zmin,MINVAL(BezierControlPoints3D_tmp(3,:,:)))
+  zmax=MAX(zmax,MAXVAL(BezierControlPoints3D_tmp(3,:,:)))
+END DO ! ilocSide
+
+ElemToBGM(1) = CEILING((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))
+ElemToBGM(2) = CEILING((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))
+ElemToBGM(3) = CEILING((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))
+ElemToBGM(4) = CEILING((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))
+ElemToBGM(5) = CEILING((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))
+ElemToBGM(6) = CEILING((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))
+
+
+END SUBROUTINE BGMIndexOfElement
 
 
 END MODULE MOD_Particle_Mesh
