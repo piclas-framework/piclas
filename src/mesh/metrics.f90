@@ -425,7 +425,9 @@ END DO !iElem=1,nElems
 SWRITE(UNIT_stdOut,'(A)') ' '
 SWRITE(UNIT_stdOut,'(A)') 'BEZIERCONTROLPOINTS ...'
 StartT2=BOLTZPLATZTIME()
+#ifdef MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, PartMPI%COMM, IERROR)
+#endif /*MPI*/
 lowerLimit = nBCSides+nInnerSides+nMPISides_MINE
 DO iSide=1,lowerLimit
   !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
