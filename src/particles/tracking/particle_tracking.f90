@@ -45,7 +45,7 @@ USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap,PartInElemCheck
 USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
                                          ,ComputePlanarIntersectionBezier
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection,ComputeBiLinearIntersectionRobust
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarNonrectIntersection
 USE MOD_Mesh_Vars,                   ONLY:OffSetElem
 USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
@@ -123,7 +123,7 @@ DO iPart=1,PDM%ParticleVecLength
         flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
         SELECT CASE(SideType(SideID))
         CASE(PLANAR_RECT)
-          CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+          CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                         ,xi (ilocSide)      &
                                                                                         ,eta(ilocSide)   ,iPart,flip,SideID)
         CASE(PLANAR_NONRECT)
@@ -605,7 +605,7 @@ USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
                                          ,ComputePlanarIntersectionBezier,ComputePlanarIntersectionBezierRobust2
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection,ComputeBiLinearIntersectionRobust
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarNonrectIntersection
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -662,7 +662,7 @@ DO WHILE(DoTracing)
     flip  = 0 
     SELECT CASE(SideType(BCSideID))
     CASE(PLANAR_RECT)
-      CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+      CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                     ,xi (ilocSide)            &
                                                                                     ,eta(ilocSide)   ,PartID,flip,BCSideID)
     CASE(PLANAR_NONRECT)
@@ -1210,7 +1210,7 @@ USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
                                          ,ComputePlanarIntersectionBezier,ComputePlanarIntersectionBezierRobust2
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarNonrectIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection,ComputeBiLinearIntersectionRobust
 USE MOD_Particle_Vars,               ONLY:PartPosRef
 USE MOD_Eval_xyz,                    ONLY:Eval_XYZ_Poly
 USE MOD_Mesh_Vars,                   ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
@@ -1260,7 +1260,7 @@ DO iLocSide=firstSide,LastSide
   flip  = 0 
   SELECT CASE(SideType(BCSideID))
   CASE(PLANAR_RECT)
-    CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+    CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)            &
                                                                                   ,eta(ilocSide)   ,PartID,flip,BCSideID)
   CASE(BILINEAR)

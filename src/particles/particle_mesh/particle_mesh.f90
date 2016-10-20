@@ -410,7 +410,7 @@ USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,BezierControlPoints3D,SideType
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Intersection,  ONLY:ComputePlanarInterSectionBezier,ComputeBilinearIntersectionSuperSampled2
 USE MOD_Particle_Intersection,  ONLY:ComputeBezierIntersection
-USE MOD_Particle_Intersection,  ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
+USE MOD_Particle_Intersection,  ONLY:ComputePlanarRectIntersection,ComputeBiLinearIntersectionRobust
 USE MOD_Particle_Tracking_Vars, ONLY:Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
