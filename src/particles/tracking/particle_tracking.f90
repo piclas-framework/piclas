@@ -378,7 +378,7 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*MPI*/
         CYCLE
       END IF
-    ELSE ! no bc elem, therefore, no bc ineraction possible
+    ELSE ! no bc elem, therefore, no bc interaction possible
       IF(GEO%nPeriodicVectors.GT.0)THEN
         ! call here function for mapping of partpos and lastpartpos
         LastPos=PartState(iPart,1:3)
@@ -525,8 +525,8 @@ CALL abort(&
 __STAMP__ &
 ,'Particle Not inSide of Element, iPart',iPart)
         ELSE ! BCElem
-          !CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart)
-          CALL ComputeFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart)
+          !CALL RefTrackFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart)
+          CALL FallBackFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart)
           LastPos=PartState(iPart,1:3)
           CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved)
           IF(PartIsDone) CYCLE
@@ -589,7 +589,7 @@ END SUBROUTINE ParticleRefTracking
 
 SUBROUTINE ParticleBCTracking(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone,PartisMoved)
 !===================================================================================================================================
-! calculate intersection with boundary and choose boundary interaction type for reference tracking routine
+! Calculate intersection with boundary and choose boundary interaction type for reference tracking routine
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -717,7 +717,7 @@ END SUBROUTINE ParticleBCTracking
 SUBROUTINE SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
                                  ,xi,eta,alpha,PartID,SideID,ElemID)
 !===================================================================================================================================
-! Check which type of interaction (BC,Periodic,innerSide) has to be applied for the face
+! Checks which type of interaction (BC,Periodic,innerSide) has to be applied for the face on the traced particle path
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -1191,9 +1191,9 @@ IF(PRESENT(isMovedOut)) isMovedOut=isMoved
 END SUBROUTINE PeriodicMovement
 
 
-SUBROUTINE ComputeFaceIntersection(ElemID,firstSide,LastSide,nlocSides,PartID)
+SUBROUTINE FallBackFaceIntersection(ElemID,firstSide,LastSide,nlocSides,PartID)
 !===================================================================================================================================
-! read required parameters
+! checks if lost particle intersected with face and left Element
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -1331,7 +1331,7 @@ ELSE
   END DO ! ilocSide
 END IF ! nInter>0
 
-END SUBROUTINE ComputeFaceIntersection
+END SUBROUTINE FallBackFaceIntersection
 
 
 END MODULE MOD_Particle_Tracking
