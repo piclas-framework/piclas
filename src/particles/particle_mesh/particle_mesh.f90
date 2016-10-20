@@ -3314,7 +3314,7 @@ REAL                    :: Lag(1:3,0:NGeo)
 ElemRadiusNGeo=0.
 DO iElem=1,nTotalElems
   ! get point on each side 
-  IF(DoRefMapping)THEN
+  IF(iElem.LE.PP_nElems)THEN
     ! xi plus
     Xi=(/1.0,0.0,0.0/)
     CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))
