@@ -1884,7 +1884,9 @@ C2=P0(2)+P0(3)
 
 sdet=A1*B2-A2*B1
 IF(ABS(sdet).EQ.0)THEN
-  STOP 'error'
+  CALL abort(& 
+  __STAMP__& 
+  ,' ABS(sdet).EQ.0!')
 END IF
 sdet=1.0/sdet
 
@@ -2134,7 +2136,9 @@ C2=P2(1)*P0(1)+P2(2)*P0(2)+P2(3)*P0(3)
 
 sdet=A1*B2-A2*B1
 IF(ABS(sdet).EQ.0)THEN
-  STOP 'error'
+  CALL abort(& 
+  __STAMP__& 
+  ,' ABS(sdet).EQ.0!')
 END IF
 sdet=1.0/sdet
 epsLoc=1.0+100.*epsMach
