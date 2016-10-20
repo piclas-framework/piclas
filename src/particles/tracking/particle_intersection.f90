@@ -25,8 +25,8 @@ INTERFACE ComputePlanarNonrectIntersection
   MODULE PROCEDURE ComputePlanarNonrectIntersection
 END INTERFACE
 
-INTERFACE ComputePlanarInterSectionBezierRobust
-  MODULE PROCEDURE ComputePlanarInterSectionBezierRobust
+INTERFACE ComputePlanarRectInterSection
+  MODULE PROCEDURE ComputePlanarRectInterSection
 END INTERFACE
 
 INTERFACE ComputeBilinearIntersectionRobust
@@ -42,7 +42,7 @@ PUBLIC::ComputeBezierIntersection
 PUBLIC::ComputeBilinearIntersectionSuperSampled2
 PUBLIC::ComputeBilinearIntersectionRobust
 PUBLIC::ComputePlanarInterSectionBezier
-PUBLIC::ComputePlanarInterSectionBezierRobust
+PUBLIC::ComputePlanarRectInterSection
 PUBLIC::ComputePlanarInterSectionBezierRobust2
 PUBLIC::ComputePlanarNonrectIntersection
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1907,7 +1907,7 @@ isHit=.TRUE.
 END SUBROUTINE ComputePlanarIntersectionBezier
 
 
-SUBROUTINE ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,flip,SideID)!,doTest)
+SUBROUTINE ComputePlanarRectIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,flip,SideID)!,doTest)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! equation of plane: P1*xi + P2*eta+P0
@@ -2051,13 +2051,13 @@ P2=0.25*P2
 Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
 P0=-0.25*P0+Inter1
 
-A1=P1(1)+P1(3)
-B1=P2(1)+P2(3)
-C1=P0(1)+P0(3)
+A1=P1(1)*P1(1)+P1(2)*P1(2)+P1(3)*P1(3)
+B1=P2(1)*P1(1)+P2(2)*P1(2)+P2(3)*P1(3)
+C1=P1(1)*P0(1)+P1(2)*P0(2)+P1(3)*P0(3)
 
-A2=P1(2)+P1(3)
-B2=P2(2)+P2(3)
-C2=P0(2)+P0(3)
+A2=B1
+B2=P2(1)*P2(1)+P2(2)*P2(2)+P2(3)*P2(3)
+C2=P2(1)*P0(1)+P2(2)*P0(2)+P2(3)*P0(3)
 
 !IF((ABS(P2(1)).GE.ABS(P2(2))).AND.(ABS(P2(1))).GE.ABS(P2(3)))THEN
 !  xi1= P1(2)-P2(2)/P2(1)*P1(1)
@@ -2140,7 +2140,7 @@ sdet=1.0/sdet
 epsLoc=1.0+100.*epsMach
 
 
-xi=(b2*c1-b1*c2)*sdet
+xi=(B2*C1-B1*C2)*sdet
 !IF(ABS(xi).GT.BezierClipHit)THEN
 
 IF(ABS(xi).GT.epsLoc)THEN
@@ -2150,7 +2150,7 @@ IF(ABS(xi).GT.epsLoc)THEN
 END IF
 
 !eta=-((A1+A2)*xi+C1+C2)/(B1+B2)
-eta=(-a2*c1+a1*c2)*sdet
+eta=(-A2*C1+A1*C2)*sdet
 !IF(ABS(eta).GT.BezierClipHit)THEN
 IF(ABS(eta).GT.epsLoc)THEN
   alpha=-1.0
@@ -2158,7 +2158,7 @@ IF(ABS(eta).GT.epsLoc)THEN
 END IF
 isHit=.TRUE.
 
-END SUBROUTINE ComputePlanarIntersectionBezierRobust
+END SUBROUTINE ComputePlanarRectIntersection
 
 
 SUBROUTINE ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,flip,SideID)
