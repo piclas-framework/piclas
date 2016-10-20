@@ -139,7 +139,7 @@ DO iPart=1,PDM%ParticleVecLength
                                                                                             ,xi (ilocSide)      &
                                                                                             ,eta(ilocSide)      &
                                                                                             ,iPart,flip,SideID)
-        CASE(CURVED)
+        CASE(CURVED,PLANAR_CURVED)
           CALL ComputeBezierIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
                                                                                   ,eta(ilocSide)      ,iPart,SideID)
@@ -383,7 +383,7 @@ DO WHILE(DoTracing)
                                                                                        ,xi (ilocSide)      &
                                                                                        ,eta(ilocSide)      &
                                                                                        ,PartID,flip,BCSideID)
-    CASE(CURVED,PLANAR_NONRECT)
+    CASE(CURVED,PLANAR_NONRECT,PLANAR_CURVED)
       CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                               ,xi (ilocSide)      &
                                                                               ,eta(ilocSide)      ,PartID,BCSideID)
@@ -517,7 +517,7 @@ DO iLocSide=firstSide,LastSide
 !                                                                      ,xi (ilocSide)      &
 !                                                                      ,eta(ilocSide)      ,PartID,SideID)
 
-  CASE(CURVED,PLANAR_NONRECT)
+  CASE(CURVED,PLANAR_NONRECT,PLANAR_CURVED)
     CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                             ,xi (ilocSide)      &
                                                                             ,eta(ilocSide)      ,PartID,BCSideID)
@@ -1425,7 +1425,7 @@ DO iLocSide=firstSide,LastSide
     CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
                                                                                   ,eta(ilocSide)   ,PartID,flip,BCSideID)
-  CASE(CURVED)
+  CASE(CURVED,PLANAR_CURVED)
     CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                             ,xi (ilocSide)      &
                                                                             ,eta(ilocSide)      ,PartID,BCSideID)

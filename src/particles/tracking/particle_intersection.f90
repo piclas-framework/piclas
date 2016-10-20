@@ -157,7 +157,7 @@ DO ilocSide=1,6
                                                                                      ,eta      &
                                                                                      ,PartID,flip,SideID)
 
-  CASE(CURVED)
+  CASE(CURVED,PLANAR_CURVED)
     CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
                                                                             ,xi       &
                                                                             ,eta      ,PartID,SideID)
@@ -170,7 +170,7 @@ DO ilocSide=1,6
         NormVec=SideNormVec(1:3,SideID)
       CASE(BILINEAR)
         CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
-      CASE(CURVED)
+      CASE(CURVED,PLANAR_CURVED)
         CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
       END SELECT 
       IF(DOT_PRODUCT(NormVec,PartState(PartID,4:6)).LT.0.) alpha=-1.0

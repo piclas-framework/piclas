@@ -3701,15 +3701,20 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: iElem, nCurvedElems,nCurvedElemsTot,nLinearElems,nLinearElemsHalo,nBCElemsHalo
-INTEGER                                  :: iSide,p,q, nPlanar,nBilinear,nCurved,nDummy,SideID,TrueSideID,ilocSide,nBCElems
-INTEGER                                  :: nPlanarHalo, nBilinearHalo, nCurvedHalo, nCurvedElemsHalo
+INTEGER                                  :: iElem, nCurvedElems,nCurvedElemsTot
+INTEGER                                  :: iSide,p,q, nDummy,SideID,TrueSideID,ilocSide,nBCElems,nBCelemsTot
+INTEGER                                  :: nPlanarRectangular, nPlanarNonRectangular,nPlanarCurved,nBilinear,nCurved
+INTEGER                                  :: nPlanarRectangularTot, nPlanarNonRectangularTot,nPlanarCurvedTot,nBilinearTot,nCurvedTot
+INTEGER                                  :: nCurvedElemsHalo,nLinearElems,nLinearElemsHalo,nBCElemsHalo
+#ifdef MPI
+INTEGER                                  :: nPlanarRectangularHalo, nPlanarNonRectangularHalo,nPlanarCurvedHalo, &
+                                            nBilinearHalo,nCurvedHalo
+#endif /*MPI*/
 INTEGER                                  :: nSideCount, BCSideID, BCSideID2, s,r
 INTEGER,ALLOCATABLE                      :: SideIndex(:)
 REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
-INTEGER                                  :: nPlanarTot,nBilinearTot,nCurvedTot,nBCElemsTot
 #if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&((PP_TimeDiscMethod<501 || PP_TimeDiscMethod>506))
 REAL,DIMENSION(1:3,0:NGeo,0:NGeo) :: xNodes
 #endif
@@ -3753,16 +3758,23 @@ SideDistance=0.
 SideNormVec=0.
 
 eps=1e-8
-nPlanar=0
-nBilinear=0
-nCurved=0
-nBCElems=0
-nPlanarHalo=0
-nBilinearHalo=0
-nCurvedHalo=0
-nLinearElemsHalo=0
-nCurvedElemsHalo=0
-nBCElemsHalo=0
+
+nPlanarRectangular         = 0
+nPlanarNonRectangular      = 0
+nPlanarCurved              = 0
+nBilinear                  = 0
+nCurved                    = 0
+#ifdef MPI
+nPlanarRectangularHalo     = 0
+nPlanarNonRectangularHalo  = 0
+nPlanarCurvedHalo          = 0
+nBilinearHalo              = 0
+nCurvedHalo                = 0
+#endif /*MPI*/
+nCurvedElemsHalo           = 0
+nLinearElemsHalo           = 0
+nCurvedElemsHalo           = 0
+nBCElemsHalo               = 0
 isBilinear=.FALSE.
 
 NGeo2=(NGeo+1)*(NGeo+1)
@@ -3839,15 +3851,15 @@ DO iElem=1,nLoop
         END IF
         IF(isRectangular)THEN
           SideType(TrueSideID)=PLANAR_RECT
-          IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+          IF(TrueSideID.LE.SideID_Minus_Upper) nPlanarRectangular=nPlanarRectangular+1
 #ifdef MPI
-          IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
+          IF(TrueSideID.GT.nSides) nPlanarRectangularHalo=nPlanarRectangularHalo+1
 #endif /*MPI*/
         ELSE
           SideType(TrueSideID)=PLANAR_NONRECT
-          IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+          IF(SideID.LE.SideID_Minus_Upper) nPlanarNonRectangular=nPlanarNonRectangular+1
 #ifdef MPI
-          IF(SideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
+          IF(SideID.GT.nSides) nPlanarNonRectangularHalo=nPlanarNonRectangularHalo+1
 #endif /*MPI*/
         END IF
       ELSE
@@ -3881,12 +3893,12 @@ DO iElem=1,nLoop
       END SELECT
       CALL PointsEqual(NGeo2,XCL_NGeoSideNew,XCL_NGeoSideOld,isCurvedSide)
       IF(isCurvedSide)THEn
-        SideType(TrueSideID)=CURVED
-        IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
-#ifdef MPI
-        IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
-#endif /*MPI*/
         IF(BoundingBoxIsEmpty(TrueSideID))THEN
+          SideType(TrueSideID)=PLANAR_CURVED
+          IF(SideID.LE.SideID_Minus_Upper) nPlanarCurved=nPlanarCurved+1
+#ifdef MPI
+          IF(SideID.GT.nSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
+#endif /*MPI*/
           v1=(-BezierControlPoints3D(:,0,0   ,TrueSideID)+BezierControlPoints3D(:,NGeo,0   ,TrueSideID)   &
               -BezierControlPoints3D(:,0,NGeo,TrueSideID)+BezierControlPoints3D(:,NGeo,NGeo,TrueSideID) )
           
@@ -3898,6 +3910,12 @@ DO iElem=1,nLoop
                   +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
                   +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
           SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
+        ELSE
+          SideType(TrueSideID)=CURVED
+          IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+          IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+#endif /*MPI*/
         END IF
       ELSE
         IF(BoundingBoxIsEmpty(TrueSideID))THEN
@@ -3926,15 +3944,15 @@ DO iElem=1,nLoop
           END IF
           IF(isRectangular)THEN
             SideType(TrueSideID)=PLANAR_RECT
-            IF(TrueSideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+            IF(TrueSideID.LE.SideID_Minus_Upper) nPlanarRectangular=nPlanarRectangular+1
 #ifdef MPI
-            IF(TrueSideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
+            IF(TrueSideID.GT.nSides) nPlanarRectangularHalo=nPlanarRectangularHalo+1
 #endif /*MPI*/
           ELSE
             SideType(TrueSideID)=PLANAR_NONRECT
-            IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+            IF(SideID.LE.SideID_Minus_Upper) nPlanarNonRectangular=nPlanarNonRectangular+1
 #ifdef MPI
-            IF(SideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
+            IF(SideID.GT.nSides) nPlanarNonRectangularHalo=nPlanarNonRectangularHalo+1
 #endif /*MPI*/
           END IF
         ELSE
@@ -4037,15 +4055,15 @@ IF (.NOT.DoRefMapping)THEN
         END IF
         IF(isRectangular)THEN
           SideType(iSide)=PLANAR_RECT
-          IF(iSide.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+          IF(iSide.LE.SideID_Minus_Upper) nPlanarRectangular=nPlanarRectangular+1
 #ifdef MPI
-          IF(iSide.GT.nSides) nPlanarHalo=nPlanarHalo+1
+          IF(iSide.GT.nSides) nPlanarRectangularHalo=nPlanarRectangularHalo+1
 #endif /*MPI*/
         ELSE
           SideType(iSide)=PLANAR_NONRECT
-          IF(SideID.LE.SideID_Minus_Upper) nPlanar=nPlanar+1
+          IF(SideID.LE.SideID_Minus_Upper) nPlanarNonRectangular=nPlanarNonRectangular+1
 #ifdef MPI
-          IF(SideID.GT.nSides) nPlanarHalo=nPlanarHalo+1
+          IF(SideID.GT.nSides) nPlanarNonRectangularHalo=nPlanarNonRectangularHalo+1
 #endif /*MPI*/
         END IF
       ELSE
@@ -4092,12 +4110,12 @@ IF (.NOT.DoRefMapping)THEN
           IF(SideID.GT.nSides) nBilinearHalo=nBilinearHalo+1
 #endif /*MPI*/
         ELSE ! not bilinear
-          SideType(iSide)=CURVED
-          IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
-#ifdef MPI
-          IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
-#endif /*MPI*/
           IF(BoundingBoxIsEmpty(iSide))THEN
+            SideType(TrueSideID)=PLANAR_CURVED
+            IF(SideID.LE.SideID_Minus_Upper) nPlanarCurved=nPlanarCurved+1
+#ifdef MPI
+            IF(SideID.GT.nSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
+#endif /*MPI*/
             v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
                 -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
             
@@ -4109,16 +4127,22 @@ IF (.NOT.DoRefMapping)THEN
                     +BezierControlPoints3D(:,0,NGeo,iSide)  &
                     +BezierControlPoints3D(:,NGeo,NGeo,iSide))
             SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+          ELSE
+            SideType(TrueSideID)=CURVED
+            IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+            IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+#endif /*MPI*/
           END IF
         END IF
       END IF ! bounding bos is empty
     ELSE  ! non-linear edges
-      SideType(iSide)=CURVED
-      IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
-#ifdef MPI
-      IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
-#endif /*MPI*/
       IF(BoundingBoxIsEmpty(iSide))THEN
+        SideType(iSide)=PLANAR_CURVED
+        IF(SideID.LE.SideID_Minus_Upper) nPlanarCurved=nPlanarCurved+1
+#ifdef MPI
+        IF(SideID.GT.nSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
+#endif /*MPI*/
         v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
             -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
         
@@ -4130,6 +4154,12 @@ IF (.NOT.DoRefMapping)THEN
                 +BezierControlPoints3D(:,0,NGeo,iSide)  &
                 +BezierControlPoints3D(:,NGeo,NGeo,iSide))
         SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
+      ELSE
+        SideType(iSide)=CURVED
+        IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+#ifdef MPI
+        IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+#endif /*MPI*/
       END IF
     END IF
   END DO ! iSide=1,nTotalSides
@@ -4162,8 +4192,7 @@ IF(DoRefMapping)THEN
   V1(3) = GEO%zmaxglob-GEO%zminglob
   Distance=DOT_PRODUCT(V1,V1)
   fullMesh=.FALSE.
-  IF(Distance.LE.halo_eps2) fullMesh=.TRUE.
-  ! build list with elements in halo-eps vicinity around bc-elements
+  IF(Distance.LE.halo_eps2) fullMesh=.TRUE.  ! build list with elements in halo-eps vicinity around bc-elements
   ALLOCATE( BCElem(1:nTotalElems) )
   ALLOCATE( SideIndex(1:nTotalSides) )
   ! number of element local BC-Sides
@@ -4366,39 +4395,48 @@ END IF
 
 #ifdef MPI
 IF(MPIRoot) THEN
-  CALL MPI_REDUCE(nPlanar,nPlanarTot  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  CALL MPI_REDUCE(nBilinear,nBilinearTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  CALL MPI_REDUCE(nCurved,nCurvedTot  ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nPlanarRectangular   ,nPlanarRectangularTot   ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nPlanarNonRectangular,nPlanarNonRectangularTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nBilinear            ,nBilinearTot            ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nPlanarCurved        ,nPlanarCurvedTot        ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nCurved              ,nCurvedTot              ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
   CALL MPI_REDUCE(nCurvedElems,nCurvedElemsTot,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
   IF(DoRefMapping) CALL MPI_REDUCE(nBCElems,nBCElemsTot ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
 ELSE ! no Root
-  CALL MPI_REDUCE(nPlanar  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  CALL MPI_REDUCE(nBilinear,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  CALL MPI_REDUCE(nCurved  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
-  CALL MPI_REDUCE(nCurvedElems,nDummy,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(nPlanarRectangular     ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nPlanarNonRectangular  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nBilinear              ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nPlanarCurved          ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nCurved                ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+  CALL MPI_REDUCE(nCurvedElems           ,nDummy,1,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
   IF(DoRefMapping) CALL MPI_REDUCE(nBCElems  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
 END IF
 #else
-nPlanarTot=nPlanar
-nBilinearTot=nBilinear
-nCurvedTot=nCurved
-nCurvedElemsTot=nCurvedElems
-nBCElemstot=nBCElems
+nPlanarRectangularTot   =nPlanarRectangularTot
+nPlanarNonRectangularTot=nPlanarNonRectangularTot
+nBilinearTot            =nBilinear
+nPlanarCurvedTot        =nPlanarCurved
+nCurvedTot              =nCurved
+nCurvedElemsTot         =nCurvedElems
+IF(DorefMapping) nBCElemstot=nBCElems
 #endif /*MPI*/
 
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar     faces: ', nPlanartot
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear  faces: ', nBilineartot
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved     faces: ', nCurvedtot
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar-rectangular     faces: ', nPlanarRectangulartot
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar-non-rectangular faces: ', nPlanarNonRectangulartot
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of bi-linear              faces: ', nBilineartot
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of planar-curved          faces: ', nPlanarCurvedtot
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved                 faces: ', nCurvedtot
 ! and add number of curved elems
 IF(DoRefMapping)THEN
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of BC-adjoined elems: ', nBCElemstot
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of BC-adjoined            elems: ', nBCElemstot
 END IF
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of (bi-)linear elems: ', nGlobalElems-nCurvedElemsTot
-SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved      elems: ', nCurvedElemsTot
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of (bi-)linear            elems: ', nGlobalElems-nCurvedElemsTot
+SWRITE(UNIT_StdOut,'(A,I8)') ' Number of curved                 elems: ', nCurvedElemsTot
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 #ifdef MPI
-CALL WriteParticlePartitionInformation(nPlanar,nBilinear,nCurved,nPlanarHalo,nBilinearHalo,nCurvedHalo &
+CALL WriteParticlePartitionInformation(nPlanarRectangular+nPlanarNonRectangular,nBilinear,nCurved+nPlanarCurved,                    &
+                                       nPlanarRectangularHalo+nPlanarNonRectangularHalo,nBilinearHalo,nCurvedHalo+nPlanarCurvedHalo &
                                       ,nBCElems,nLinearElems,nCurvedElems,nBCElemsHalo,nLinearElemsHalo,nCurvedElemsHalo)
 #endif
 

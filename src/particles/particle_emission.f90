@@ -3697,7 +3697,7 @@ __STAMP__&
             CASE(PLANAR_RECT,PLANAR_NONRECT)
               LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
               + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (1.0-epsInCell)
-            CASE(BILINEAR,CURVED) !to be changed into more efficient method using known xi
+            CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
               CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
               DO iLoop=1,3 !shift border-RefCoords into elem
                 IF( ABS(Particle_pos(iLoop)) .GT. 1.0-epsInCell ) THEN
