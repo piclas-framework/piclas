@@ -408,9 +408,6 @@ USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,ElemBaryNGeo,ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,BezierControlPoints3D,SideType
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
-USE MOD_Particle_Intersection,  ONLY:ComputePlanarInterSectionBezier,ComputeBilinearIntersectionSuperSampled2
-USE MOD_Particle_Intersection,  ONLY:ComputeBezierIntersection
-USE MOD_Particle_Intersection,  ONLY:ComputePlanarRectIntersection,ComputeBiLinearIntersectionRobust
 USE MOD_Particle_Tracking_Vars, ONLY:Distance,ListDistance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE                                                                                   
@@ -515,8 +512,10 @@ USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,BezierControlPoints3D,SideNormVec
 USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartBCSideList
 USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Intersection,  ONLY:ComputePlanarIntersectionBezier,ComputePlanarNonrectIntersection
-USE MOD_Particle_Intersection,  ONLY:ComputeBiLinearIntersectionRobust,ComputeBezierIntersection
+USE MOD_Particle_Intersection,  ONLY:ComputePlanarRectIntersection
+USE MOD_Particle_Intersection,  ONLY:ComputePlanarNonrectIntersection
+USE MOD_Particle_Intersection,  ONLY:ComputeBiLinearIntersection
+USE MOD_Particle_Intersection,  ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
 ! IMPLICIT VARIABLE HANDLING
@@ -567,7 +566,7 @@ DO ilocSide=1,6
   
   SELECT CASE(SideType(SideID))
   CASE(PLANAR_RECT)
-    CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta ,PartID,flip,SideID)
+    CALL ComputePlanarRectIntersection(ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta ,PartID,flip,SideID)
   CASE(PLANAR_NONRECT)
     CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
   CASE(BILINEAR)
@@ -575,9 +574,9 @@ DO ilocSide=1,6
     xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
     xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
     xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
-    CALL ComputeBiLinearIntersectionRobust(isHit,xNodes,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
+    CALL ComputeBiLinearIntersection(isHit,xNodes,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
   CASE(CURVED,PLANAR_CURVED)
-    CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID)
+    CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID)
   END SELECT
   IF(DoRefMapping)THEN
     IF(alpha.GT.-1)THEN

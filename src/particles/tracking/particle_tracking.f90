@@ -43,10 +43,10 @@ USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap,PartInElemCheck
-USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
-                                         ,ComputePlanarIntersectionBezier
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection,ComputeBiLinearIntersectionRobust
+USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarNonrectIntersection
+USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Mesh_Vars,                   ONLY:OffSetElem
 USE MOD_Eval_xyz,                    ONLY:eval_xyz_elemcheck
 #ifdef MPI
@@ -135,13 +135,13 @@ DO iPart=1,PDM%ParticleVecLength
           xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
           xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
           xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
-          CALL ComputeBiLinearIntersectionRobust(isHit,xNodes &
+          CALL ComputeBiLinearIntersection(isHit,xNodes &
                                                 ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                             ,xi (ilocSide)      &
                                                                                             ,eta(ilocSide)      &
                                                                                             ,iPart,flip,SideID)
         CASE(CURVED,PLANAR_CURVED)
-          CALL ComputeBezierIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+          CALL ComputeCurvedIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
                                                                                   ,eta(ilocSide)      ,iPart,SideID)
         CASE DEFAULT
@@ -603,10 +603,10 @@ USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
 USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
-                                         ,ComputePlanarIntersectionBezier,ComputePlanarIntersectionBezierRobust2
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection,ComputeBiLinearIntersectionRobust
+USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarNonrectIntersection
+USE MOD_Particle_Intersection,       ONLY:ComputeBiLinearIntersection
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -674,13 +674,13 @@ DO WHILE(DoTracing)
       xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
       xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
       xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,BCSideID)
-      CALL ComputeBiLinearIntersectionRobust(isHit,xNodes &
+      CALL ComputeBiLinearIntersection(isHit,xNodes &
                                                    ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                        ,xi (ilocSide)      &
                                                                                        ,eta(ilocSide)      &
                                                                                        ,PartID,flip,BCSideID)
     CASE(CURVED,PLANAR_CURVED)
-      CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+      CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                               ,xi (ilocSide)      &
                                                                               ,eta(ilocSide)      ,PartID,BCSideID)
     END SELECT
@@ -1207,10 +1207,10 @@ USE MOD_Particle_Mesh_Vars,          ONLY:ElemBaryNGeo
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
 USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
-                                         ,ComputePlanarIntersectionBezier,ComputePlanarIntersectionBezierRobust2
+USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarNonrectIntersection
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection,ComputeBiLinearIntersectionRobust
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
+USE MOD_Particle_INtersection,       ONLY:ComputeBiLinearIntersection
 USE MOD_Particle_Vars,               ONLY:PartPosRef
 USE MOD_Eval_xyz,                    ONLY:Eval_XYZ_Poly
 USE MOD_Mesh_Vars,                   ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
@@ -1268,7 +1268,7 @@ DO iLocSide=firstSide,LastSide
     xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
     xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
     xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,BCSideID)
-    CALL ComputeBiLinearIntersectionRobust(isHit,xNodes &
+    CALL ComputeBiLinearIntersection(isHit,xNodes &
                                                  ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                      ,xi (ilocSide)      &
                                                                                      ,eta(ilocSide)      &
@@ -1278,7 +1278,7 @@ DO iLocSide=firstSide,LastSide
                                                                                   ,xi (ilocSide)      &
                                                                                   ,eta(ilocSide)   ,PartID,flip,BCSideID)
   CASE(CURVED,PLANAR_CURVED)
-    CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+    CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                             ,xi (ilocSide)      &
                                                                             ,eta(ilocSide)      ,PartID,BCSideID)
   END SELECT
