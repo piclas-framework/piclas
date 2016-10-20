@@ -184,7 +184,7 @@ USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM
 USE MOD_TimeDisc_Vars,           ONLY:dt,iter
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
 USE MOD_LinearOperator,          ONLY:PartVectorDotProduct
-USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_Part_RHS,                ONLY:CalcPartRHS
 #ifdef MPI
@@ -366,7 +366,7 @@ DO WHILE((DoNewton) .AND. (nInnerPartNewton.LT.nPartNewtonIter))  ! maybe change
       CALL ParticleRefTracking(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
     ELSE
       ! input value: which list:DoPartInNewton or PDM%ParticleInisde?
-      CALL ParticleTrackingCurved(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
+      CALL ParticleTracing(doParticle_In=DoPartInNewton(1:PDM%ParticleVecLength)) 
     END IF
 #ifdef MPI
     ! send number of particles
