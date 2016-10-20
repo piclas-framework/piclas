@@ -9,25 +9,31 @@ MODULE MOD_Particle_Tracking
 IMPLICIT NONE
 PUBLIC
 
-INTERFACE ParticleTrackingCurved
-  MODULE PROCEDURE ParticleTrackingCurved
+INTERFACE ParticleTracing
+  MODULE PROCEDURE ParticleTracing
 END INTERFACE
 
 INTERFACE ParticleRefTracking
-  MODULE PROCEDURE ParticleRefTrackingfast
+  MODULE PROCEDURE ParticleRefTracking
 END INTERFACE
 
-PUBLIC::ParticleTrackingCurved
+INTERFACE PartInElemCheck
+  MODULE PROCEDURE PartInElemCheck
+END INTERFACE
+
+PUBLIC::ParticleTracing
 PUBLIC::ParticleRefTracking
+PUBLIC::PartInElemCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE ParticleTrackingCurved(doParticle_In)
+SUBROUTINE ParticleTracing(doParticle_In)
 !===================================================================================================================================
-! read required parameters
+! Routine for tracing moving particles, calculate intersection and boundary interaction
+! in case of no reference tracking (dorefmapping = false)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -43,7 +49,7 @@ USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap
 USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
-                                         ,ComputePlanarIntersectionBezier,PartInElemCheck
+                                         ,ComputePlanarIntersectionBezier
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarNonrectIntersection
 USE MOD_Mesh_Vars,                   ONLY:OffSetElem
@@ -287,286 +293,12 @@ DO iPart=1,PDM%ParticleVecLength
   END IF ! Part inside
 END DO ! iPart
 
-END SUBROUTINE ParticleTrackingCurved
+END SUBROUTINE ParticleTracing
 
 
-SUBROUTINE ParticleBCTrackingfast(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone,PartisMoved)
+SUBROUTINE ParticleRefTracking(doParticle_In)
 !===================================================================================================================================
-! read required parameters
-!===================================================================================================================================
-! MODULES
-USE MOD_Preproc
-USE MOD_Globals
-USE MOD_Mesh_Vars,                   ONLY:NGeo!,NormVec
-USE MOD_Particle_Vars,               ONLY:PEM,PDM
-USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
-USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO
-USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
-                                         ,ComputePlanarIntersectionBezier,ComputePlanarIntersectionBezierRobust2
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: PartID,ElemID,firstSide,LastSide,nlocSides
-LOGICAL,INTENT(INOUT)         :: PartisDone
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES!
-LOGICAL,INTENT(INOUT)         :: PartisMoved
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide), hitlocSide
-LOGICAL                       :: ishit
-REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
-INTEGER                       :: nInter,flip,BCSideID
-REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
-LOGICAL                       :: DoTracing,PeriMoved
-!===================================================================================================================================
-
-
-PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                         +PartTrajectory(2)*PartTrajectory(2) &
-                         +PartTrajectory(3)*PartTrajectory(3) )
-
-IF(ALMOSTZERO(lengthPartTrajectory))THEN
-  PEM%Element(PartID)=ElemID
-  PartIsDone=.TRUE.
-  RETURN
-END IF
-
-PartTrajectory=PartTrajectory/lengthPartTrajectory
-
-PartisMoved=.FALSE.
-DoTracing=.TRUE.
-DO WHILE(DoTracing)
-  IF(GEO%nPeriodicVectors.GT.0)THEN
-    ! call here function for mapping of partpos and lastpartpos
-    CALL PeriodicMovement(PartID,PeriMoved)
-  ELSE
-    PeriMoved=.FALSE.
-  END IF
-  locAlpha=-1.0
-  nInter=0
-  !nlocSides=lastSide-firstSide+1
-  DO iLocSide=firstSide,LastSide
-    ! track particle vector until the final particle position is achieved
-    SideID=BCElem(ElemID)%BCSideID(ilocSide)
-    BCSideID=PartBCSideList(SideID)
-    locSideList(ilocSide)=ilocSide
-    ! get correct flip
-    flip  = 0 
-    SELECT CASE(SideType(BCSideID))
-    CASE(PLANAR_RECT)
-
-      !CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-      !                                                                              ,xi (ilocSide)            &
-      !                                                                              ,eta(ilocSide)   ,PartID,flip,BCSideID)
-
-      !CALL ComputePlanarIntersectionBezier(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-      CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                    ,xi (ilocSide)            &
-                                                                                    ,eta(ilocSide)   ,PartID,flip,BCSideID)
-    CASE(BILINEAR)
-      xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
-      xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
-      xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
-      xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,BCSideID)
-      CALL ComputeBiLinearIntersectionRobust(isHit,xNodes &
-                                                   ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                       ,xi (ilocSide)      &
-                                                                                       ,eta(ilocSide)      &
-                                                                                       ,PartID,flip,BCSideID)
-    CASE(CURVED,PLANAR_NONRECT,PLANAR_CURVED)
-      CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                              ,xi (ilocSide)      &
-                                                                              ,eta(ilocSide)      ,PartID,BCSideID)
-    END SELECT
-    IF(locAlpha(ilocSide).GT.-1.0)THEN
-      nInter=nInter+1
-    END IF
-  END DO ! ilocSide
-  
-  IF(nInter.EQ.0)THEN
-    IF(.NOT.PeriMoved) DoTracing=.FALSE. 
-  ELSE
-    ! take first possible intersection
-    !CALL BubbleSortID(locAlpha,locSideList,6)
-    PartIsMoved=.TRUE.
-    CALL InsertionSort(locAlpha,locSideList,nlocSides)
-    ilocSide=LastSide-nInter+1
-    hitlocSide=locSideList(ilocSide)
-    SideID=BCElem(ElemID)%BCSideID(hitlocSide)
-    BCSideID=PartBCSideList(SideID)
-    CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                      ,xi(hitlocSide)     &
-                                                                      ,eta(hitlocSide)    &
-                                                                      ,PartId,SideID)
-    IF(.NOT.PDM%ParticleInside(PartID)) THEN
-      PartisDone = .TRUE.
-       RETURN
-     END IF
-  END IF ! nInter>0
-END DO
-
-END SUBROUTINE ParticleBCTrackingfast
-
-
-SUBROUTINE ParticleBCTracking(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone)
-!===================================================================================================================================
-! read required parameters
-!===================================================================================================================================
-! MODULES
-USE MOD_Preproc
-USE MOD_Globals
-USE MOD_Mesh_Vars,                   ONLY:NGeo!,NormVec
-USE MOD_Particle_Vars,               ONLY:PEM,PDM
-USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
-USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
-USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
-USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
-USE MOD_Particle_Mesh_Vars,          ONLY:BCElem
-USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
-                                         ,ComputePlanarIntersectionBezier,ComputePlanarIntersectionBezierRobust2
-USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: PartID,ElemID,firstSide,LastSide,nlocSides
-LOGICAL,INTENT(INOUT)         :: PartisDone
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide), hitlocSide
-LOGICAL                       :: dolocSide(firstSide:lastSide),ishit
-REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
-INTEGER                       :: nInter,flip,BCSideID
-REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
-!===================================================================================================================================
-
-IF(LastSide.EQ.0) RETURN
-
-PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
-lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
-                         +PartTrajectory(2)*PartTrajectory(2) &
-                         +PartTrajectory(3)*PartTrajectory(3) )
-
-IF(ALMOSTZERO(lengthPartTrajectory))THEN
-  PEM%Element(PartID)=ElemID
-  PartIsDone=.TRUE.
-  RETURN
-END IF
-
-PartTrajectory=PartTrajectory/lengthPartTrajectory
-!lengthPartTrajectory=lengthPartTrajectory!+epsilontol
-
-locAlpha=-1.0
-nInter=0
-dolocSide=.TRUE.
-!nlocSides=lastSide-firstSide+1
-DO iLocSide=firstSide,LastSide
-  ! track particle vector until the final particle position is achieved
-  SideID=BCElem(ElemID)%BCSideID(ilocSide)
-  BCSideID=PartBCSideList(SideID)
-  locSideList(ilocSide)=ilocSide
-  ! get correct flip
-  flip  = 0 
-  SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR_RECT)
-    !CALL ComputePlanarIntersectionBezier(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-    CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                  ,xi (ilocSide)            &
-                                                                                  ,eta(ilocSide)   ,PartID,flip,BCSideID)
-
-!    CALL ComputePlanarIntersectionBezierRobust2(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-!                                                                                  ,xi (ilocSide)      &
-!                                                                                  ,eta(ilocSide)   ,PartID,flip,BCSideID)
-!
-!                                                                            !,eta(ilocSide)   ,PartID,ilocSide,SideID,ElemID)
-  CASE(BILINEAR)
-    xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
-    xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
-    xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
-    xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,BCSideID)
-    !CALL ComputeBiLinearIntersectionSuperSampled2(isHit,xNodes &
-    CALL ComputeBiLinearIntersectionRobust(isHit,xNodes &
-                                                 ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                     ,xi (ilocSide)      &
-                                                                                     ,eta(ilocSide)      &
-                                                                                     ,PartID,flip,BCSideID)
-
-    !CALL ComputeBiLinearIntersectionSuperSampled2(isHit,[BezierControlPoints3D(1:3,0   ,0   ,SideID)  &
-    !                                                    ,BezierControlPoints3D(1:3,NGeo,0   ,SideID)  &
-    !                                                    ,BezierControlPoints3D(1:3,NGeo,NGeo,SideID)  &
-    !                                                    ,BezierControlPoints3D(1:3,0   ,NGeo,SideID)] &
-    !                                                    ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-    !                                                                                        ,xi (ilocSide)      &
-    !                                                                                        ,eta(ilocSide)  ,PartID,flip,SideID)
-!    CALL ComputeBezierIntersection(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-!                                                                      ,xi (ilocSide)      &
-!                                                                      ,eta(ilocSide)      ,PartID,SideID)
-
-  CASE(CURVED,PLANAR_NONRECT,PLANAR_CURVED)
-    CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                            ,xi (ilocSide)      &
-                                                                            ,eta(ilocSide)      ,PartID,BCSideID)
-  END SELECT
-  IF(locAlpha(ilocSide).GT.-1.0)THEN
-    nInter=nInter+1
-  END IF
-END DO ! ilocSide
-
-IF(nInter.EQ.0) THEN
-  RETURN
-ELSE
-  ! take first possible intersection
-  !CALL BubbleSortID(locAlpha,locSideList,6)
-  CALL InsertionSort(locAlpha,locSideList,nlocSides)
-  ilocSide=LastSide-nInter+1
-  hitlocSide=locSideList(ilocSide)
-  SideID=BCElem(ElemID)%BCSideID(hitlocSide)
-  BCSideID=PartBCSideList(SideID)
-  CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                    ,xi(hitlocSide)     &
-                                                                    ,eta(hitlocSide)    &
-                                                                    ,PartId,SideID)
-  IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
-  RETURN
-  !DO ilocSide=firstSide,LastSide
-  !DO ilocSide=LastSide
-  !  IF(locAlpha(ilocSide).GT.-1.0)THEN
-  !    hitlocSide=locSideList(ilocSide)
-  !    !SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
-  !    SideID=BCElem(ElemID)%BCSideID(hitlocSide)
-  !    BCSideID=PartBCSideList(SideID)
-  !    CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-  !                                                                      ,xi(hitlocSide)     &
-  !                                                                      ,eta(hitlocSide)    &
-  !                                                                      ,PartId,SideID)
-  !    IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
-  !    RETURN
-  !  END IF ! locAlpha>-1.0
-  !END DO ! ilocSide
-END IF ! nInter>0
-
-END SUBROUTINE ParticleBCTracking
-
-
-SUBROUTINE ParticleRefTrackingfast(doParticle_In)
-!===================================================================================================================================
-! Compute the intersection with a Bezier surface
-! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
+! Reference Tracking for particle without treatment of each inner faces
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -631,7 +363,7 @@ DO iPart=1,PDM%ParticleVecLength
     ! sanity check
     PartIsDone=.FALSE.
     IF(IsBCElem(ElemID))THEN
-      CALL ParticleBCTrackingfast(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved)
+      CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved)
       IF(PartIsDone) CYCLE
       IF(PartIsMoved)THEN
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
@@ -801,7 +533,7 @@ __STAMP__ &
           !CALL ComputeFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart)
           CALL ComputeFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart)
           LastPos=PartState(iPart,1:3)
-          CALL ParticleBCTrackingfast(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved)
+          CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved)
           IF(PartIsDone) CYCLE
           CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),TestElem)
           ! false, reallocate particle
@@ -857,13 +589,140 @@ __STAMP__ &
   END IF
 END DO ! iPart
 
-END SUBROUTINE ParticleRefTrackingfast
+END SUBROUTINE ParticleRefTracking
+
+
+SUBROUTINE ParticleBCTracking(ElemID,firstSide,LastSide,nlocSides,PartId,PartisDone,PartisMoved)
+!===================================================================================================================================
+! calculate intersection with boundary and choose boundary interaction type for reference tracking routine
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+USE MOD_Mesh_Vars,                   ONLY:NGeo!,NormVec
+USE MOD_Particle_Vars,               ONLY:PEM,PDM
+USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
+USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
+USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
+USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
+USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteractionRef
+USE MOD_Particle_Mesh_Vars,          ONLY:BCElem,GEO
+USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
+USE MOD_Particle_Intersection,       ONLY:ComputeBezierIntersection,ComputeBiLinearIntersectionSuperSampled2 &
+                                         ,ComputePlanarIntersectionBezier,ComputePlanarIntersectionBezierRobust2
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarIntersectionBezierRobust,ComputeBiLinearIntersectionRobust
+USE MOD_Particle_Intersection,       ONLY:ComputePlanarNonrectIntersection
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: PartID,ElemID,firstSide,LastSide,nlocSides
+LOGICAL,INTENT(INOUT)         :: PartisDone
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES!
+LOGICAL,INTENT(INOUT)         :: PartisMoved
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide,SideID, locSideList(firstSide:lastSide), hitlocSide
+LOGICAL                       :: ishit
+REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
+INTEGER                       :: nInter,flip,BCSideID
+REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
+LOGICAL                       :: DoTracing,PeriMoved
+!===================================================================================================================================
+
+
+PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
+lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                         +PartTrajectory(2)*PartTrajectory(2) &
+                         +PartTrajectory(3)*PartTrajectory(3) )
+
+IF(ALMOSTZERO(lengthPartTrajectory))THEN
+  PEM%Element(PartID)=ElemID
+  PartIsDone=.TRUE.
+  RETURN
+END IF
+
+PartTrajectory=PartTrajectory/lengthPartTrajectory
+
+PartisMoved=.FALSE.
+DoTracing=.TRUE.
+DO WHILE(DoTracing)
+  IF(GEO%nPeriodicVectors.GT.0)THEN
+    ! call here function for mapping of partpos and lastpartpos
+    CALL PeriodicMovement(PartID,PeriMoved)
+  ELSE
+    PeriMoved=.FALSE.
+  END IF
+  locAlpha=-1.0
+  nInter=0
+  !nlocSides=lastSide-firstSide+1
+  DO iLocSide=firstSide,LastSide
+    ! track particle vector until the final particle position is achieved
+    SideID=BCElem(ElemID)%BCSideID(ilocSide)
+    BCSideID=PartBCSideList(SideID)
+    locSideList(ilocSide)=ilocSide
+    ! get correct flip
+    flip  = 0 
+    SELECT CASE(SideType(BCSideID))
+    CASE(PLANAR_RECT)
+      CALL ComputePlanarIntersectionBezierRobust(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                    ,xi (ilocSide)            &
+                                                                                    ,eta(ilocSide)   ,PartID,flip,BCSideID)
+    CASE(PLANAR_NONRECT)
+      CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                    ,xi (ilocSide)      &
+                                                                                    ,eta(ilocSide)   ,PartID,flip,BCSideID)
+    CASE(BILINEAR)
+      xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
+      xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
+      xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
+      xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,BCSideID)
+      CALL ComputeBiLinearIntersectionRobust(isHit,xNodes &
+                                                   ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                       ,xi (ilocSide)      &
+                                                                                       ,eta(ilocSide)      &
+                                                                                       ,PartID,flip,BCSideID)
+    CASE(CURVED,PLANAR_CURVED)
+      CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                              ,xi (ilocSide)      &
+                                                                              ,eta(ilocSide)      ,PartID,BCSideID)
+    END SELECT
+    IF(locAlpha(ilocSide).GT.-1.0)THEN
+      nInter=nInter+1
+    END IF
+  END DO ! ilocSide
+  
+  IF(nInter.EQ.0)THEN
+    IF(.NOT.PeriMoved) DoTracing=.FALSE. 
+  ELSE
+    ! take first possible intersection
+    !CALL BubbleSortID(locAlpha,locSideList,6)
+    PartIsMoved=.TRUE.
+    CALL InsertionSort(locAlpha,locSideList,nlocSides)
+    ilocSide=LastSide-nInter+1
+    hitlocSide=locSideList(ilocSide)
+    SideID=BCElem(ElemID)%BCSideID(hitlocSide)
+    BCSideID=PartBCSideList(SideID)
+    CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                      ,xi(hitlocSide)     &
+                                                                      ,eta(hitlocSide)    &
+                                                                      ,PartId,SideID)
+    IF(.NOT.PDM%ParticleInside(PartID)) THEN
+      PartisDone = .TRUE.
+       RETURN
+     END IF
+  END IF ! nInter>0
+END DO
+
+END SUBROUTINE ParticleBCTracking
 
 
 SUBROUTINE SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
                                  ,xi,eta,alpha,PartID,SideID,ElemID)
 !===================================================================================================================================
-! read required parameters
+! Check which type of interaction (BC,Periodic,innerSide) has to be applied for the face
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -1378,7 +1237,6 @@ REAL                          :: tmpPos(3), tmpLastPartPos(3),tmpVec(3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
 !===================================================================================================================================
 
-
 tmpPos=PartState(PartID,1:3)
 tmpLastPartPos(1:3)=LastPartPos(PartID,1:3)
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
@@ -1393,7 +1251,6 @@ lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                          +PartTrajectory(2)*PartTrajectory(2) &
                          +PartTrajectory(3)*PartTrajectory(3) )
 PartTrajectory=PartTrajectory/lengthPartTrajectory
-
 
 locAlpha=-1.0
 nInter=0
@@ -1480,6 +1337,110 @@ ELSE
 END IF ! nInter>0
 
 END SUBROUTINE ComputeFaceIntersection
+
+
+SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,Check)
+!===================================================================================================================================
+! Checks if particle is in Element
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals,                ONLY:Almostzero
+USE MOD_Mesh_Vars,              ONLY:NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideType,BezierControlPoints3D,SideNormVec
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartBCSideList
+USE MOD_Particle_Surfaces,      ONLY:CalcNormAndTangBilinear,CalcNormAndTangBezier
+USE MOD_Particle_Intersection,  ONLY:ComputePlanarIntersectionBezier,ComputePlanarNonrectIntersection
+USE MOD_Particle_Intersection,  ONLY:ComputeBiLinearIntersectionRobust,ComputeBezierIntersection
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
+USE MOD_Particle_Vars,          ONLY:PartState,LastPartPos
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                       :: ElemID,PartID
+REAL,INTENT(IN)                          :: PartPos_In(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)                      :: Check
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                  :: ilocSide,flip,SideID,BCSideID
+REAL                                     :: PartTrajectory(1:3),NormVec(1:3)
+REAL                                     :: lengthPartTrajectory,PartPos(1:3),LastPosTmp(1:3),xNodes(1:3,1:4)
+LOGICAL                                  :: isHit
+REAL                                     :: alpha,eta,xi
+!===================================================================================================================================
+
+! virtual move to element barycenter
+LastPosTmp(1:3) =LastPartPos(PartID,1:3)
+LastPartPos(PartID,1:3) =ElemBaryNGeo(1:3,ElemID)
+PartPos(1:3) =PartPos_In(1:3)
+PartTrajectory=PartPos - LastPartPos(PartID,1:3)
+lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                         +PartTrajectory(2)*PartTrajectory(2) &
+                         +PartTrajectory(3)*PartTrajectory(3) )
+IF(ALMOSTZERO(lengthPartTrajectory))THEN
+  Check=.TRUE.
+  LastPartPos(PartID,1:3) = LastPosTmp(1:3) 
+  ! bugfix by Tilman
+  RETURN
+END IF
+PartTrajectory=PartTrajectory/lengthPartTrajectory
+isHit=.FALSE.
+DO ilocSide=1,6
+  !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+  SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+  flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
+  IF(DoRefMapping)THEN
+    IF(SideID.LT.1) CYCLE
+    BCSideID=SideID
+    SideID=PartBCSideList(BCSideID)
+    IF(SideID.LT.1) CYCLE
+  END IF
+  
+  SELECT CASE(SideType(SideID))
+  CASE(PLANAR_RECT)
+    CALL ComputePlanarIntersectionBezier(ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta ,PartID,flip,SideID)
+  CASE(PLANAR_NONRECT)
+    CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
+  CASE(BILINEAR)
+    xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
+    xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
+    xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
+    xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
+    CALL ComputeBiLinearIntersectionRobust(isHit,xNodes,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
+  CASE(CURVED,PLANAR_CURVED)
+    CALL ComputeBezierIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID)
+  END SELECT
+  IF(DoRefMapping)THEN
+    IF(alpha.GT.-1)THEN
+      SELECT CASE(SideType(SideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
+        NormVec=SideNormVec(1:3,SideID)
+      CASE(BILINEAR)
+        CALL CalcNormAndTangBilinear(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
+      CASE(CURVED)
+        CALL CalcNormAndTangBezier(nVec=NormVec,xi=xi,eta=eta,SideID=SideID)
+      END SELECT 
+      IF(DOT_PRODUCT(NormVec,PartState(PartID,4:6)).LT.0.) alpha=-1.0
+    END IF
+  END IF
+  IF(alpha.GT.-1.0) THEN
+    !IF((ABS(xi).GT.1.0).OR.(ABS(eta).GT.1.0)) THEN
+    !IF((ABS(xi).GT.BezierClipHit).OR.(ABS(eta).GT.BezierClipHit)) THEN
+    !  isHit=.FALSE.
+    !END IF
+    isHit=.TRUE.
+  END IF
+  IF(isHit) EXIT
+END DO ! ilocSide
+Check=.TRUE.
+IF(isHit) Check=.FALSE.
+LastPartPos(PartID,1:3) = LastPosTmp(1:3) 
+
+END SUBROUTINE PartInElemCheck
 
 
 END MODULE MOD_Particle_Tracking

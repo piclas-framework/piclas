@@ -136,7 +136,6 @@ USE MOD_LinearSolver_Vars,       ONLY:Eps_FullNewton,Eps2_FullNewton,FullEisenst
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton,UpdateInIter
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
-USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
 USE MOD_Part_RHS,                ONLY:PartVeloToImp
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
@@ -189,13 +188,6 @@ IF (t.GE.DelayTime) THEN
 #ifdef MPI
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
-#endif /*MPI*/
-!  IF(DoRefMapping)THEN
-!    CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-!  ELSE
-!    CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-!  END IF
-#ifdef MPI
   ! here: could use deposition as hiding, not done yet
   ! send number of particles
   CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
@@ -285,13 +277,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
 #ifdef MPI
     ! open receive buffer for number of particles
     CALL IRecvNbofParticles()
-#endif /*MPI*/
-!    IF(DoRefMapping)THEN
-!      CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-!    ELSE
-!      CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-!    END IF
-#ifdef MPI
     ! here: could use deposition as hiding, not done yet
     ! send number of particles
     CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
@@ -361,7 +346,6 @@ USE MOD_LinearSolver_Vars,       ONLY:Eps_FullNewton,Eps2_FullNewton,FullEisenst
 USE MOD_LinearSolver_Vars,       ONLY:Eps2PartNewton
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM
-USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
 USE MOD_Part_RHS,                ONLY:PartVeloToImp
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
@@ -412,13 +396,6 @@ IF (t.GE.DelayTime) THEN
 #ifdef MPI
   ! open receive buffer for number of particles
   CALL IRecvNbofParticles()
-#endif /*MPI*/
-!  IF(DoRefMapping)THEN
-!    CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-!  ELSE
-!    CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-!  END IF
-#ifdef MPI
   ! here: could use deposition as hiding, not done yet
   ! send number of particles
   CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
@@ -502,13 +479,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(Norm_R.GT.Norm_R0*Eps2_Ful
 #ifdef MPI
     ! open receive buffer for number of particles
     CALL IRecvNbofParticles()
-#endif /*MPI*/
-!    IF(DoRefMapping)THEN
-!      CALL ParticleRefTracking(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-!    ELSE
-!      CALL ParticleTrackingCurved(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))
-!    END IF
-#ifdef MPI
     ! here: could use deposition as hiding, not done yet
     ! send number of particles
     CALL SendNbOfParticles(doParticle_In=PartIsImplicit(1:PDM%ParticleVecLength))

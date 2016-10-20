@@ -685,7 +685,7 @@ USE MOD_PICInterpolation,        ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars,           ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, & 
                                         doParticleMerge,PartPressureCell
 USE MOD_part_RHS,                ONLY: CalcPartRHS
-USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_part_emission,           ONLY: ParticleInserting
 USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
@@ -892,7 +892,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -1069,7 +1069,7 @@ DO iStage=2,nRKStages
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
-      CALL ParticleTrackingCurved()
+      CALL ParticleTracing()
     END IF
     IF(MeasureTrackTime) THEN
       CALL CPU_TIME(TimeEnd)
@@ -1264,7 +1264,7 @@ END IF
 ! #ifdef MPI
 ! CALL IRecvNbofParticles()
 ! #endif /*MPI*/
-! CALL ParticleTrackingCurved()
+! CALL ParticleTracing()
 ! #ifdef MPI
 ! CALL MPIParticleSend()
 ! #endif /*MPI*/
@@ -1340,7 +1340,7 @@ END IF
 ! #ifdef MPI
 !     CALL IRecvNbofParticles()
 ! #endif
-!     CALL ParticleTrackingCurved()
+!     CALL ParticleTracing()
 ! #ifdef MPI
 !     CALL MPIParticleSend()
 ! #endif
@@ -1460,7 +1460,7 @@ USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb, DSMC_Update_Wall_Vars
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -1523,7 +1523,7 @@ REAL    :: RandVal, dtFrac
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -1596,7 +1596,7 @@ USE MOD_part_MPFtools,    ONLY : StartParticleMerge
 USE MOD_PIC_Analyze,      ONLY: VerifyDepositedCharge
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
@@ -1663,7 +1663,7 @@ IF ((t.GE.DelayTime)) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -1774,7 +1774,7 @@ USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb, DSMC_Update_Wall_Vars
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -1884,7 +1884,7 @@ ELSE
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -1994,7 +1994,7 @@ END IF
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -2073,7 +2073,7 @@ USE MOD_part_RHS,                ONLY: CalcPartRHS
 USE MOD_part_emission,           ONLY: ParticleInserting
 USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS, DSMC
-USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -2194,7 +2194,7 @@ DO iStage=2,nRKStages
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
-      CALL ParticleTrackingCurved()
+      CALL ParticleTracing()
     END IF
 #ifdef MPI
     ! send number of particles
@@ -2291,7 +2291,7 @@ IF ((t.GE.DelayTime).OR.(t.EQ.0)) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
 #ifdef MPI
   ! send number of particles
@@ -2480,7 +2480,7 @@ USE MOD_part_emission,           ONLY: ParticleInserting
 USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS
 USE MOD_ParticleSolver,          ONLY: ParticleNewton
-!USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+!USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 !USE MOD_Particle_Tracking_vars,  ONLY: DoRefMapping
 !#ifdef MPI
 !USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -2568,7 +2568,7 @@ IF (t.GE.DelayTime) THEN
 !  IF(DoRefMapping)THEN
 !    CALL ParticleRefTracking()
 !  ELSE
-!   CALL ParticleTrackingCurved()
+!   CALL ParticleTracing()
 !  END IF
 !#ifdef MPI
 !  ! send number of particles
@@ -2640,7 +2640,7 @@ USE MOD_part_RHS,                ONLY: CalcPartRHS
 USE MOD_part_emission,           ONLY: ParticleInserting
 USE MOD_DSMC,                    ONLY: DSMC_main
 USE MOD_DSMC_Vars,               ONLY: useDSMC, DSMC_RHS, DSMC
-USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 USE MOD_ParticleSolver,          ONLY: ParticleNewton
 #ifdef MPI
@@ -2801,7 +2801,7 @@ DO iStage=2,nRKStages
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
-      CALL ParticleTrackingCurved()
+      CALL ParticleTracing()
     END IF
 #ifdef MPI
     ! here: could use deposition as hiding, not done yet
@@ -2914,7 +2914,7 @@ USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
 USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS, DSMC
-USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
 USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
@@ -3217,7 +3217,7 @@ DO iStage=2,nRKStages
       ! tracking routines has to be extended for optional flag, like deposition
       CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     ELSE
-      CALL ParticleTrackingCurved(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+      CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
     END IF
 #ifdef MPI
     ! send number of particles
@@ -3418,8 +3418,8 @@ IF (t.GE.DelayTime) THEN
     CALL ParticleRefTracking()
     !CALL ParticleRefTracking(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   ELSE
-    CALL ParticleTrackingCurved()
-    !CALL ParticleTrackingCurved(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
+    CALL ParticleTracing()
+    !CALL ParticleTracing(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
   END IF
 #ifdef MPI
   ! send number of particles
@@ -3525,7 +3525,7 @@ USE MOD_PIC_Analyze,             ONLY: VerifyDepositedCharge
 USE MOD_Particle_Analyze_Vars,   ONLY: DoVerifyCharge
 USE MOD_part_tools,              ONLY : UpdateNextFreePosition
 USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
@@ -3593,7 +3593,7 @@ END IF
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -3712,7 +3712,7 @@ USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_part_tools,              ONLY:UpdateNextFreePosition
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange
@@ -3779,7 +3779,7 @@ END IF
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
   IF(MeasureTrackTime) THEN
     CALL CPU_TIME(TimeEnd)
@@ -3905,7 +3905,7 @@ USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 !USE MOD_PIC_Analyze,      ONLY: CalcDepositedCharge
 USE MOD_part_tools,              ONLY: UpdateNextFreePosition
 USE MOD_Particle_Tracking_vars,  ONLY: tTracking,tLocalization,DoRefMapping!,MeasureTrackTime
-USE MOD_Particle_Tracking,       ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY: ParticleTracing,ParticleRefTracking
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -3991,7 +3991,7 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
 #ifdef MPI
   CALL SendNbOfParticles() ! send number of particles
@@ -4074,7 +4074,7 @@ USE MOD_Particle_MPI_Vars,       ONLY: PartMPIExchange
 #endif
 USE MOD_Particle_Tracking_vars, ONLY: DoRefMapping
 USE MOD_part_tools,             ONLY: UpdateNextFreePosition
-USE MOD_Particle_Tracking,      ONLY: ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,      ONLY: ParticleTracing,ParticleRefTracking
 #endif /*PARTICLES*/
 USE MOD_HDG           ,ONLY: HDG
 ! IMPLICIT VARIABLE HANDLING
@@ -4193,7 +4193,7 @@ IF ((t.GE.DelayTime).OR.(iter.EQ.0)) THEN
   IF(DoRefMapping)THEN
     CALL ParticleRefTracking()
   ELSE
-    CALL ParticleTrackingCurved()
+    CALL ParticleTracing()
   END IF
 #ifdef MPI
   CALL SendNbOfParticles() ! send number of particles
@@ -4297,7 +4297,7 @@ DO iStage=2,nRKStages
     IF(DoRefMapping)THEN
       CALL ParticleRefTracking()
     ELSE
-      CALL ParticleTrackingCurved()
+      CALL ParticleTracing()
     END IF
 #ifdef MPI
     CALL SendNbOfParticles() ! send number of particles
