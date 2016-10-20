@@ -490,10 +490,10 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
   PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
   v_old = PartState(PartID,4:6)
 
-  ! move particle a bit in interior
-  ElemID=PartSideToElem(S2E_ELEM_ID,SideID)
-  v_help=LastPartPos(PartID,1:3)-ElemBaryNGeo(1:3,ElemID)
-  LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*MAX(1.0-epsInCell/SQRT(DOT_PRODUCT(v_help,v_help)),0.)
+ ! ! move particle a bit in interior
+ ! ElemID=PartSideToElem(S2E_ELEM_ID,SideID)
+ ! v_help=LastPartPos(PartID,1:3)-ElemBaryNGeo(1:3,ElemID)
+ ! LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*MAX(1.0-epsInCell/SQRT(DOT_PRODUCT(v_help,v_help)),0.)
 
   ! new velocity vector 
   !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
