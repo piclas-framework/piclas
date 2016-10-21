@@ -723,8 +723,9 @@ USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_Particle_Mesh_Vars,                 ONLY:XiEtaZetaBasis,ElemBaryNGeo,slenXiEtaZetaBasis,ElemRadiusNGeo,ElemRadius2NGeo
 #ifdef MPI
 USE MOD_Particle_MPI,                       ONLY:InitHALOMesh
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI,printMPINeighborWarnings
+USE MOD_Particle_MPI_Vars,                  ONLY:printMPINeighborWarnings
 #endif /*MPI*/
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -734,9 +735,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef MPI
 REAL                     :: StartT,EndT
-#endif /*MPI*/
 INTEGER                  :: iElem,ElemToBGM(1:6,1:PP_nElems)
 INTEGER,ALLOCATABLE      :: HaloElemToBGM(:,:)
 !=================================================================================================================================
@@ -795,7 +794,7 @@ ELSE
 END IF
 
 
-EndT=MPI_WTIME()
+EndT=BOLTZPLATZTIME()
 IF(PartMPI%MPIROOT)THEN
    WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
 END IF
