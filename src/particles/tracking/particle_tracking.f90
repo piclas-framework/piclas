@@ -87,16 +87,16 @@ ELSE
   DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
 END IF
 
-IF(iter.EQ.0)THEN
-  IF(iStage.EQ.1)THEN
-    print*,'particle inside',PDM%ParticleInside(1)
-    print*,'changed pos'
-    PartState(1,1:6) =(/0.,0.3,0.,0.,1.,0./)
-    print*,'new pos',PartState(1,1:3) 
-    print*,'new velo',PartState(1,4:6) 
-    read*
-  END IF
-END IF
+!IF(iter.EQ.0)THEN
+!  IF(iStage.EQ.1)THEN
+!    print*,'particle inside',PDM%ParticleInside(1)
+!    print*,'changed pos'
+!    PartState(1,1:6) =(/0.,0.3,0.,0.,1.,0./)
+!    print*,'new pos',PartState(1,1:3) 
+!    print*,'new velo',PartState(1,4:6) 
+!    read*
+!  END IF
+!END IF
 
 DO iPart=1,PDM%ParticleVecLength
   IF(DoParticle(iPart))THEN
@@ -130,11 +130,8 @@ DO iPart=1,PDM%ParticleVecLength
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     local=0
-    print*,'--------------------------------'
-    print*,'dolocside',dolocSide
     DO WHILE (.NOT.PartisDone)
       local=local+1
-      print*,'tracing loop', local
       locAlpha=-1.
       nInterSections=0
       markTol =.FALSE.
@@ -144,7 +141,6 @@ DO iPart=1,PDM%ParticleVecLength
         !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
         flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
-        print*,'SideType',ilocSide,SideType(SideID),SideID
         SELECT CASE(SideType(SideID))
         CASE(PLANAR_RECT)
           CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
@@ -181,8 +177,6 @@ DO iPart=1,PDM%ParticleVecLength
           !IF(locAlpha(ilocSide)/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
         END IF
       END DO ! ilocSide
-      print*,'localpha',localpha
-      print*,'----'
       !IF((ipart.eq.40).AND.(iter.GE.68)) print*,' nIntersections',nIntersections
       SELECT CASE(nInterSections)
       CASE(0) ! no intersection
@@ -209,10 +203,6 @@ DO iPart=1,PDM%ParticleVecLength
               lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                                        +PartTrajectory(2)*PartTrajectory(2) &
                                        +PartTrajectory(3)*PartTrajectory(3) )
-              print*,'localpha',localpha
-              print*,'length',lengthPartTrajectory
-              print*,'last,new',OldElemID,ElemID
-              read*
               IF(ALMOSTZERO(lengthPartTrajectory))THEN
                 PartisDone=.TRUE.
               END IF
@@ -272,10 +262,6 @@ DO iPart=1,PDM%ParticleVecLength
                 lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
                                          +PartTrajectory(2)*PartTrajectory(2) &
                                          +PartTrajectory(3)*PartTrajectory(3) )
-                print*,'localpha',localpha
-                print*,'length',lengthPartTrajectory
-                print*,'last,new',OldElemID,ElemID
-                read*
                 IF(ALMOSTZERO(lengthPartTrajectory))THEN
                   PartisDone=.TRUE.
                 END IF
@@ -693,6 +679,7 @@ REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastS
 INTEGER                       :: nInter,flip,BCSideID
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
 LOGICAL                       :: DoTracing,PeriMoved,Reflected
+integer :: iloop
 !===================================================================================================================================
 
 
@@ -711,7 +698,9 @@ PartTrajectory=PartTrajectory/lengthPartTrajectory
 
 PartisMoved=.FALSE.
 DoTracing=.TRUE.
+iloop=0
 DO WHILE(DoTracing)
+  iloop=iloop+1
   IF(GEO%nPeriodicVectors.GT.0)THEN
     ! call here function for mapping of partpos and lastpartpos
     CALL PeriodicMovement(PartID,PeriMoved)
@@ -780,7 +769,7 @@ DO WHILE(DoTracing)
       PartisDone = .TRUE.
        RETURN
     END IF
-    IF(.NOT.reflected) DoTracing=.TRUE.
+    IF(.NOT.reflected) DoTracing=.FALSE.
   END IF ! nInter>0
 END DO
 

@@ -168,7 +168,6 @@ IF((PartFaceAngle.LT.BezierNewtonAngle))THEN ! 1° = 0.01745rad: critical side a
 #ifdef CODE_ANALYZE
 rPerformBezierClip=rPerformBezierClip+1.
 #endif /*CODE_ANALYZE*/
-  !print*,"bezier"
   !  this part in a new function or subroutine
   locAlpha=-1.0
   iClipIter=1
@@ -670,7 +669,6 @@ DO iClipIter=iClipIter,BezierClipMaxIter
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       ! TOP, Bernstein polynomial B(n,k,x) = (1/(2^n))*choose(n,k)*(x+1).^k.*(1-x).^(n-k)
       IF(XiMax.NE.1.0)THEN
-        !print*,'do it 1'
         BezierControlPoints2D_temp=0.
         PlusXi=1.0+XiMax
         MinusXi=1.0-XiMax
@@ -806,10 +804,6 @@ DO iClipIter=iClipIter,BezierClipMaxIter
     !      YEAR = {2005},
 !    IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.BezierClipTolerance)THEN ! which tolerance is best used?
 !      DoEtaClip=.FALSE. ! stop considering this direction
-      !print*,"IF(MAXVAL(minmax(1,:))-MINVAL(minmax(2,:)).LT.BezierClipTolerance)THEN"
-      !print*,MAXVAL(minmax(1,:))-MINVAL(minmax(2,:))
-      !print*,"BezierClipTolerance",BezierClipTolerance
-      !read*
       !print*,"1"
 !    ELSE
       ! calc Smin and Smax and check boundaries
@@ -1972,7 +1966,6 @@ ELSE
 END IF
 coeffA=DOT_PRODUCT(NormVec,PartTrajectory)
 
-print*,'rec',coeffA
 !! corresponding to particle starting in plane
 !! interaction should be computed in last step
 IF(ABS(coeffA).EQ.0.)  RETURN
@@ -2239,15 +2232,12 @@ IF(DoRefMapping)THEN
 ELSE
   ! dependend on master/slave flip
   coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory)
-  print*,'non-rec',coeffA
   IF(ABS(coeffA).EQ.0.) RETURN
-  print*,'still in non-rec'
   IF(flip.EQ.0)THEN
     IF(coeffA.LT.0.)RETURN
   ELSE
     IF(coeffA.GT.0.)RETURN
   END IF
-  print*,'still in non-rec2'
 END IF
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
 IF(.NOT.InsideBoundingBox(LastPartPos(iPart,1:3),SideID))THEN ! the old particle position is not inside the bounding box
