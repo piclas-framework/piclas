@@ -120,7 +120,10 @@ DO iPart=1,PDM%ParticleVecLength
 #ifdef CODE_ANALYZE
     CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit)
     IF(.NOT.isHit)THEN 
-     IPWRITE(UNIT_stdOut,*) ' LastPartPos not inside of element '
+     IPWRITE(UNIT_stdOut,*) ' LastPartPos not inside of element, ElemID=',ElemID
+     CALL abort(&
+     __STAMP__ &
+     ,'iPart=. ',iPart)
     END IF
 #endif /*CODE_ANALYZE*/
     !lengthPartTrajectory=lengthPartTrajectory
