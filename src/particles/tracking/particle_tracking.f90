@@ -54,6 +54,8 @@ USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_LoadBalance_Vars,            ONLY:ElemTime
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
 #endif /*MPI*/
+
+USE MOD_TimeDisc_Vars, ONLY:iter,istage
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -76,12 +78,24 @@ REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes
 REAL                          :: tLBStart,tLBEnd
 INTEGER                       :: inElem
 #endif /*MPI*/
+INTEGER ::local
 !===================================================================================================================================
 
 IF(PRESENT(DoParticle_IN))THEN
   DoParticle=PDM%ParticleInside(1:PDM%ParticleVecLength).AND.DoParticle_In
 ELSE
   DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
+END IF
+
+IF(iter.EQ.0)THEN
+  IF(iStage.EQ.1)THEN
+    print*,'particle inside',PDM%ParticleInside(1)
+    print*,'changed pos'
+    PartState(1,1:6) =(/0.,0.3,0.,0.,1.,0./)
+    print*,'new pos',PartState(1,1:3) 
+    print*,'new velo',PartState(1,4:6) 
+    read*
+  END IF
 END IF
 
 DO iPart=1,PDM%ParticleVecLength
@@ -112,7 +126,12 @@ DO iPart=1,PDM%ParticleVecLength
     !lengthPartTrajectory=lengthPartTrajectory
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
+    local=0
+    print*,'--------------------------------'
+    print*,'dolocside',dolocSide
     DO WHILE (.NOT.PartisDone)
+      local=local+1
+      print*,'tracing loop', local
       locAlpha=-1.
       nInterSections=0
       markTol =.FALSE.
@@ -122,6 +141,7 @@ DO iPart=1,PDM%ParticleVecLength
         !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
         flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
+        print*,'SideType',ilocSide,SideType(SideID),SideID
         SELECT CASE(SideType(SideID))
         CASE(PLANAR_RECT)
           CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
@@ -158,6 +178,8 @@ DO iPart=1,PDM%ParticleVecLength
           !IF(locAlpha(ilocSide)/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
         END IF
       END DO ! ilocSide
+      print*,'localpha',localpha
+      print*,'----'
       !IF((ipart.eq.40).AND.(iter.GE.68)) print*,' nIntersections',nIntersections
       SELECT CASE(nInterSections)
       CASE(0) ! no intersection
@@ -178,6 +200,20 @@ DO iPart=1,PDM%ParticleVecLength
               ! remark: maybe a storage value has to be set to drow?
               markTol=.FALSE.
               SwitchedElement=.TRUE.
+              ! move particle to intersection
+              LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + localpha(ilocSide)*PartTrajectory
+              PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+              lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                                       +PartTrajectory(2)*PartTrajectory(2) &
+                                       +PartTrajectory(3)*PartTrajectory(3) )
+              print*,'localpha',localpha
+              print*,'length',lengthPartTrajectory
+              print*,'last,new',OldElemID,ElemID
+              read*
+              IF(ALMOSTZERO(lengthPartTrajectory))THEN
+                PartisDone=.TRUE.
+              END IF
+              PartTrajectory=PartTrajectory/lengthPartTrajectory
 #ifdef MPI
               IF(OldElemID.LE.PP_nElems)THEN
                 tLBEnd = LOCALTIME() ! LB Time End
@@ -227,6 +263,20 @@ DO iPart=1,PDM%ParticleVecLength
               IF(ElemID.NE.OldElemID)THEN
                 markTol=.FALSE.
                 SwitchedElement=.TRUE.
+                ! move particle to intersection
+                LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + localpha(ilocSide)*PartTrajectory
+                PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+                lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                                         +PartTrajectory(2)*PartTrajectory(2) &
+                                         +PartTrajectory(3)*PartTrajectory(3) )
+                print*,'localpha',localpha
+                print*,'length',lengthPartTrajectory
+                print*,'last,new',OldElemID,ElemID
+                read*
+                IF(ALMOSTZERO(lengthPartTrajectory))THEN
+                  PartisDone=.TRUE.
+                END IF
+                PartTrajectory=PartTrajectory/lengthPartTrajectory
 #ifdef MPI    
                 tLBEnd = LOCALTIME() ! LB Time End
                 ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
