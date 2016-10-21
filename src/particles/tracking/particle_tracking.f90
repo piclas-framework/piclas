@@ -67,8 +67,8 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
-INTEGER                       :: iPart,ElemID,flip,OldElemID
-INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections,nLoc
+INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem
+INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections
 LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,Reflected,SwitchedElement
 INTEGER                       :: Collision
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
@@ -86,17 +86,6 @@ IF(PRESENT(DoParticle_IN))THEN
 ELSE
   DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
 END IF
-
-!IF(iter.EQ.0)THEN
-!  IF(iStage.EQ.1)THEN
-!    print*,'particle inside',PDM%ParticleInside(1)
-!    print*,'changed pos'
-!    PartState(1,1:6) =(/0.,0.3,0.,0.,1.,0./)
-!    print*,'new pos',PartState(1,1:3) 
-!    print*,'new velo',PartState(1,4:6) 
-!    read*
-!  END IF
-!END IF
 
 DO iPart=1,PDM%ParticleVecLength
   IF(DoParticle(iPart))THEN
@@ -130,8 +119,8 @@ DO iPart=1,PDM%ParticleVecLength
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
     local=0
+    firstElem=ElemID
     DO WHILE (.NOT.PartisDone)
-      local=local+1
       locAlpha=-1.
       nInterSections=0
       markTol =.FALSE.
@@ -195,6 +184,14 @@ DO iPart=1,PDM%ParticleVecLength
             IF(ElemID.NE.OldElemID)THEN
               ! particle moves in new element, do not check yet, because particle may encounter a boundary condition 
               ! remark: maybe a storage value has to be set to drow?
+              ! particle is re-entered in cell without bc intersection, tolerance issue
+              IF(firstElem.EQ.ElemID)THEN
+                IPWRITE(UNIT_stdOut,*) ' Warning: Particle located at undefined location. '
+                IPWRITE(UNIT_stdOut,*) ' Removing particle with id: ',iPart
+                PartIsDone=.TRUE.
+                PDM%ParticleInside(iPart)=.FALSE.
+                EXIT
+              END IF
               markTol=.FALSE.
               SwitchedElement=.TRUE.
               ! move particle to intersection
@@ -216,7 +213,10 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*MPI*/
               EXIT
             END IF
-            IF(Reflected) EXIT
+            IF(Reflected) THEN
+              firstElem=ElemID
+              EXIT
+            END IF
           END IF
         END DO ! ilocSide
         IF((.NOT.Reflected).AND.(.NOT.SwitchedElement)) THEN
@@ -242,11 +242,9 @@ DO iPart=1,PDM%ParticleVecLength
 !        ELSE
           ! take last possible intersection, furthest
           CALL InsertionSort(locAlpha,locSideList,6)
-          nloc=0
           SwitchedElement=.FALSE.
           DO ilocSide=1,6
             IF(locAlpha(ilocSide).GT.-1.0)THEN
-              !nloc=nloc+1
               hitlocSide=locSideList(ilocSide)
 
               SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
@@ -254,6 +252,13 @@ DO iPart=1,PDM%ParticleVecLength
               CALL SelectInterSectionType(PartIsDone,reflected,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
                                                ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
               IF(ElemID.NE.OldElemID)THEN
+                IF(firstElem.EQ.ElemID)THEN
+                  IPWRITE(UNIT_stdOut,*) ' Warning: Particle located at undefined location. '
+                  IPWRITE(UNIT_stdOut,*) ' Removing particle with id: ',iPart
+                  PartIsDone=.TRUE.
+                  PDM%ParticleInside(iPart)=.FALSE.
+                  EXIT
+                END IF
                 markTol=.FALSE.
                 SwitchedElement=.TRUE.
                 ! move particle to intersection
@@ -273,7 +278,10 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*MPI*/
                 EXIT
               END IF
-              IF(Reflected) EXIT
+              IF(Reflected) THEN
+                firstElem=ElemID
+                EXIT
+              END IF
             END IF
           END DO ! ilocSide
           IF((.NOT.Reflected).AND.(.NOT.SwitchedElement)) THEN
