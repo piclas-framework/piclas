@@ -258,6 +258,7 @@ LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter,isInter
 REAL                                     :: XiNewton(2)
 REAL                                     :: PartFaceAngle,dXi,dEta
+REAL                                     :: coeffA
 !REAL                                     :: Interval1D,dInterVal1D
 !===================================================================================================================================
 !PartTrajectory = PartTrajectory
@@ -275,10 +276,12 @@ IF(DoRefMapping)THEN
   IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
 ELSE
   ! dependend on master/slave flip
+  coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory) 
+  IF(ABS(coeffA).EQ.0.) RETURN
   IF(flip.EQ.0)THEN
-    IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
+    IF(coeffA.LT.0.)RETURN
   ELSE
-    IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).GT.0.)RETURN
+    IF(coeffA.GT.0.)RETURN
   END IF
 END IF
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem

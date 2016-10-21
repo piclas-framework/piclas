@@ -54,6 +54,8 @@ USE MOD_Particle_MPI_Vars,           ONLY:PartHaloElemToProc
 USE MOD_LoadBalance_Vars,            ONLY:ElemTime
 USE MOD_MPI_Vars,                    ONLY:offsetElemMPI
 #endif /*MPI*/
+
+USE MOD_TimeDisc_Vars, ONLY:iter,istage
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -67,7 +69,8 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                       :: iPart,ElemID,flip,OldElemID
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections,nLoc
-LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol
+LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,Reflected,SwitchedElement
+INTEGER                       :: Collision
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
 !INTEGER                       :: lastlocSide
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
@@ -75,6 +78,7 @@ REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes
 REAL                          :: tLBStart,tLBEnd
 INTEGER                       :: inElem
 #endif /*MPI*/
+INTEGER ::local
 !===================================================================================================================================
 
 IF(PRESENT(DoParticle_IN))THEN
@@ -82,6 +86,17 @@ IF(PRESENT(DoParticle_IN))THEN
 ELSE
   DoParticle(1:PDM%ParticleVecLength)=PDM%ParticleInside(1:PDM%ParticleVecLength)
 END IF
+
+!IF(iter.EQ.0)THEN
+!  IF(iStage.EQ.1)THEN
+!    print*,'particle inside',PDM%ParticleInside(1)
+!    print*,'changed pos'
+!    PartState(1,1:6) =(/0.,0.3,0.,0.,1.,0./)
+!    print*,'new pos',PartState(1,1:3) 
+!    print*,'new velo',PartState(1,4:6) 
+!    read*
+!  END IF
+!END IF
 
 DO iPart=1,PDM%ParticleVecLength
   IF(DoParticle(iPart))THEN
@@ -105,13 +120,18 @@ DO iPart=1,PDM%ParticleVecLength
 #ifdef CODE_ANALYZE
     CALL PartInElemCheck(LastPartPos(iPart,1:3),iPart,ElemID,isHit)
     IF(.NOT.isHit)THEN 
-     IPWRITE(UNIT_stdOut,*) ' LastPartPos not inside of element '
+     IPWRITE(UNIT_stdOut,*) ' LastPartPos not inside of element, ElemID=',ElemID
+     CALL abort(&
+     __STAMP__ &
+     ,'iPart=. ',iPart)
     END IF
 #endif /*CODE_ANALYZE*/
     !lengthPartTrajectory=lengthPartTrajectory
     ! track particle vector until the final particle position is achieved
     dolocSide=.TRUE.
+    local=0
     DO WHILE (.NOT.PartisDone)
+      local=local+1
       locAlpha=-1.
       nInterSections=0
       markTol =.FALSE.
@@ -164,30 +184,47 @@ DO iPart=1,PDM%ParticleVecLength
         PartisDone=.TRUE.
       CASE(1) ! one intersection
         ! get intersection side
+        SwitchedElement=.FALSE.
         DO ilocSide=1,6
           IF(locAlpha(ilocSide).GT.-1.0) THEN
             hitlocSide=ilocSide
-            EXIT
+            SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
+            OldElemID=ElemID
+            CALL SelectInterSectionType(PartIsDone,reflected,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
+                                             ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
+            IF(ElemID.NE.OldElemID)THEN
+              ! particle moves in new element, do not check yet, because particle may encounter a boundary condition 
+              ! remark: maybe a storage value has to be set to drow?
+              markTol=.FALSE.
+              SwitchedElement=.TRUE.
+              ! move particle to intersection
+              LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + localpha(ilocSide)*PartTrajectory
+              PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+              lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                                       +PartTrajectory(2)*PartTrajectory(2) &
+                                       +PartTrajectory(3)*PartTrajectory(3) )
+              IF(ALMOSTZERO(lengthPartTrajectory))THEN
+                PartisDone=.TRUE.
+              END IF
+              PartTrajectory=PartTrajectory/lengthPartTrajectory
+#ifdef MPI
+              IF(OldElemID.LE.PP_nElems)THEN
+                tLBEnd = LOCALTIME() ! LB Time End
+                ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
+                tLBStart = LOCALTIME() ! LB Time Start
+              END IF
+#endif /*MPI*/
+              EXIT
+            END IF
+            IF(Reflected) EXIT
           END IF
         END DO ! ilocSide
-        SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
-        OldElemID=ElemID
-        CALL SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                         ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
-        IF(ElemID.NE.OldElemID)THEN
-          ! particle moves in new element, do not check yet, because particle may encounter a boundary condition 
-          ! remark: maybe a storage value has to be set to drow?
-          markTol=.FALSE.
-#ifdef MPI
-          IF(OldElemID.LE.PP_nElems)THEN
-            tLBEnd = LOCALTIME() ! LB Time End
-            ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
-            tLBStart = LOCALTIME() ! LB Time Start
-          END IF
-#endif /*MPI*/
+        IF((.NOT.Reflected).AND.(.NOT.SwitchedElement)) THEN
+          PartIsDone=.TRUE.
+          EXIT 
         END IF
       CASE DEFAULT ! two or more hits
-        ! more careful with bc elems
+        ! more careful witEh bc elems
 !        IF(isBCElem(ElemID))THEN
 !          CALL InsertionSort(locAlpha,locSideList,6)
 !          DO ilocSide=1,6
@@ -206,27 +243,44 @@ DO iPart=1,PDM%ParticleVecLength
           ! take last possible intersection, furthest
           CALL InsertionSort(locAlpha,locSideList,6)
           nloc=0
+          SwitchedElement=.FALSE.
           DO ilocSide=1,6
             IF(locAlpha(ilocSide).GT.-1.0)THEN
               !nloc=nloc+1
               hitlocSide=locSideList(ilocSide)
-              EXIT
-              !IF(nloc.EQ.nInterSections) EXIT
+
+              SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
+              OldElemID=ElemID
+              CALL SelectInterSectionType(PartIsDone,reflected,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
+                                               ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
+              IF(ElemID.NE.OldElemID)THEN
+                markTol=.FALSE.
+                SwitchedElement=.TRUE.
+                ! move particle to intersection
+                LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + localpha(ilocSide)*PartTrajectory
+                PartTrajectory=PartState(iPart,1:3) - LastPartPos(iPart,1:3)
+                lengthPartTrajectory=SQRT(PartTrajectory(1)*PartTrajectory(1) &
+                                         +PartTrajectory(2)*PartTrajectory(2) &
+                                         +PartTrajectory(3)*PartTrajectory(3) )
+                IF(ALMOSTZERO(lengthPartTrajectory))THEN
+                  PartisDone=.TRUE.
+                END IF
+                PartTrajectory=PartTrajectory/lengthPartTrajectory
+#ifdef MPI    
+                tLBEnd = LOCALTIME() ! LB Time End
+                ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
+                tLBStart = LOCALTIME() ! LB Time Start
+#endif /*MPI*/
+                EXIT
+              END IF
+              IF(Reflected) EXIT
             END IF
           END DO ! ilocSide
-          SideID=PartElemToSide(E2S_SIDE_ID,hitlocSide,ElemID)
-          OldElemID=ElemID
-          CALL SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
-                                           ,xi(hitlocSide),eta(hitlocSide),localpha(ilocSide),iPart,SideID,ElemID)
-          IF(ElemID.NE.OldElemID)THEN
-            markTol=.FALSE.
-#ifdef MPI
-            tLBEnd = LOCALTIME() ! LB Time End
-            ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
-            tLBStart = LOCALTIME() ! LB Time Start
-#endif /*MPI*/
+          IF((.NOT.Reflected).AND.(.NOT.SwitchedElement)) THEN
+            PartIsDone=.TRUE.
+            EXIT 
           END IF
-          ! particle moves close to an edge or corner. this is a critical movement because of possible tolerance issues
+         ! particle moves close to an edge or corner. this is a critical movement because of possible tolerance issues
 !        END IF
       END SELECT
     END DO ! PartisDone=.FALSE.
@@ -624,7 +678,8 @@ LOGICAL                       :: ishit
 REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
 INTEGER                       :: nInter,flip,BCSideID
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
-LOGICAL                       :: DoTracing,PeriMoved
+LOGICAL                       :: DoTracing,PeriMoved,Reflected
+integer :: iloop
 !===================================================================================================================================
 
 
@@ -643,7 +698,9 @@ PartTrajectory=PartTrajectory/lengthPartTrajectory
 
 PartisMoved=.FALSE.
 DoTracing=.TRUE.
+iloop=0
 DO WHILE(DoTracing)
+  iloop=iloop+1
   IF(GEO%nPeriodicVectors.GT.0)THEN
     ! call here function for mapping of partpos and lastpartpos
     CALL PeriodicMovement(PartID,PeriMoved)
@@ -696,25 +753,30 @@ DO WHILE(DoTracing)
     !CALL BubbleSortID(locAlpha,locSideList,6)
     PartIsMoved=.TRUE.
     CALL InsertionSort(locAlpha,locSideList,nlocSides)
-    ilocSide=LastSide-nInter+1
-    hitlocSide=locSideList(ilocSide)
-    SideID=BCElem(ElemID)%BCSideID(hitlocSide)
-    BCSideID=PartBCSideList(SideID)
-    CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                      ,xi(hitlocSide)     &
-                                                                      ,eta(hitlocSide)    &
-                                                                      ,PartId,SideID)
+    DO ilocSide=1,nlocSides
+      IF(locAlpha(ilocSide).GT.-1)THEN
+        hitlocSide=locSideList(ilocSide)
+        SideID=BCElem(ElemID)%BCSideID(hitlocSide)
+        BCSideID=PartBCSideList(SideID)
+        CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                          ,xi(hitlocSide)     &
+                                                                          ,eta(hitlocSide)    &
+                                                                          ,PartId,SideID,reflected)
+        IF(reflected) EXIT
+      END IF
+    END DO
     IF(.NOT.PDM%ParticleInside(PartID)) THEN
       PartisDone = .TRUE.
        RETURN
-     END IF
+    END IF
+    IF(.NOT.reflected) DoTracing=.FALSE.
   END IF ! nInter>0
 END DO
 
 END SUBROUTINE ParticleBCTracking
 
 
-SUBROUTINE SelectInterSectionType(PartIsDone,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
+SUBROUTINE SelectInterSectionType(PartIsDone,Reflected,doLocSide,hitlocSide,ilocSide,PartTrajectory,lengthPartTrajectory &
                                  ,xi,eta,alpha,PartID,SideID,ElemID)
 !===================================================================================================================================
 ! Checks which type of interaction (BC,Periodic,innerSide) has to be applied for the face on the traced particle path
@@ -741,6 +803,7 @@ REAL,INTENT(INOUT)                :: Xi,Eta,Alpha
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(INOUT)             :: PartIsDone
+LOGICAL,INTENT(OUT)               :: Reflected
 LOGICAL,INTENT(INOUT)             :: DoLocSide(1:6)
 INTEGER,INTENT(INOUT)             :: ElemID
 REAL,INTENT(INOUT),DIMENSION(1:3) :: PartTrajectory
@@ -753,7 +816,7 @@ IF(SideID.LE.nBCSides)THEN
   ! check if interesction is possible and take first intersection
   CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha &
                                                                  ,xi    &
-                                                                 ,eta   ,PartID,SideID,ElemID)
+                                                                 ,eta   ,PartID,SideID,ElemID,reflected)
 
   IF(.NOT.PDM%ParticleInside(PartID)) PartisDone = .TRUE.
   dolocSide=.TRUE.
@@ -789,7 +852,7 @@ ELSE ! no BC Side
         ! encountered a bc side
         CALL GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,Alpha &
                                                                        ,xi    &
-                                                                       ,eta   ,PartID,SideID,ElemID)
+                                                                       ,eta   ,PartID,SideID,ElemID,reflected)
         dolocSide=.TRUE.
         IF(SideType(SideID).EQ.PLANAR_RECT) THEN !also for PLANAR_NONRECT?
           dolocSide(hitlocSide)=.FALSE.

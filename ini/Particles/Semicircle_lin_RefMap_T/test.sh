@@ -1,3 +1,3 @@
 rm *.csv
 rm *State*
-../../../bin/boltzplatz parameter_semicircle.ini
+./boltzplatz parameter_semicircle.ini
