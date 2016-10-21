@@ -642,7 +642,7 @@ LOGICAL                       :: ishit
 REAL                          :: localpha(firstSide:lastSide),xi(firstSide:lastSide),eta(firstSide:lastSide)
 INTEGER                       :: nInter,flip,BCSideID
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
-LOGICAL                       :: DoTracing,PeriMoved
+LOGICAL                       :: DoTracing,PeriMoved,Reflected
 !===================================================================================================================================
 
 
@@ -714,18 +714,23 @@ DO WHILE(DoTracing)
     !CALL BubbleSortID(locAlpha,locSideList,6)
     PartIsMoved=.TRUE.
     CALL InsertionSort(locAlpha,locSideList,nlocSides)
-    ilocSide=LastSide-nInter+1
-    hitlocSide=locSideList(ilocSide)
-    SideID=BCElem(ElemID)%BCSideID(hitlocSide)
-    BCSideID=PartBCSideList(SideID)
-    CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                      ,xi(hitlocSide)     &
-                                                                      ,eta(hitlocSide)    &
-                                                                      ,PartId,SideID)
+    DO ilocSide=1,nlocSides
+      IF(locAlpha(ilocSide).GT.-1)THEN
+        hitlocSide=locSideList(ilocSide)
+        SideID=BCElem(ElemID)%BCSideID(hitlocSide)
+        BCSideID=PartBCSideList(SideID)
+        CALL GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                          ,xi(hitlocSide)     &
+                                                                          ,eta(hitlocSide)    &
+                                                                          ,PartId,SideID,reflected)
+        IF(reflected) EXIT
+      END IF
+    END DO
     IF(.NOT.PDM%ParticleInside(PartID)) THEN
       PartisDone = .TRUE.
        RETURN
-     END IF
+    END IF
+    IF(.NOT.reflected) DoTracing=.TRUE.
   END IF ! nInter>0
 END DO
 
