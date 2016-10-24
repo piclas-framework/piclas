@@ -36,7 +36,16 @@ PUBLIC::ComputeCurvedIntersection
 CONTAINS
 
 
-SUBROUTINE ComputePlanarRectIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,flip,SideID)!,doTest)
+SUBROUTINE ComputePlanarRectIntersection(isHit                       &
+                                        ,PartTrajectory              &
+                                        ,lengthPartTrajectory        &
+                                        ,alpha                       &
+                                        ,xi                          &
+                                        ,eta                         &
+                                        ,iPart                       &
+                                        ,flip                        &
+                                        ,SideID                      &
+                                        ,opt_CriticalParllelInSide   )  
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
 ! equation of plane: P1*xi + P2*eta+P0
@@ -67,6 +76,7 @@ INTEGER,INTENT(IN)                :: flip
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                  :: alpha,xi,eta
 LOGICAL,INTENT(OUT)               :: isHit
+LOGICAL,INTENT(OUT),OPTIONAL      :: opt_CriticalParllelInSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(1:3)               :: P0,P1,P2
@@ -77,7 +87,7 @@ REAL                              :: a1,a2,b1,b2,c1,c2
 REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3)
 REAL                              :: sdet
 REAL                              :: epsLoc
-LOGICAL                           :: Parallel
+LOGICAL                           :: CriticalParallelInSide
 !INTEGER                           :: flip
 !===================================================================================================================================
 
@@ -99,8 +109,8 @@ coeffA=DOT_PRODUCT(NormVec,PartTrajectory)
 
 !! corresponding to particle starting in plane
 !! interaction should be computed in last step
-Parallel=.FALSE.
-IF(ALMOSTZERO(coeffA)) Parallel=.TRUE.
+CriticalParallelInSide=.FALSE.
+IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
 
 ! extension for periodic sides
 IF(.NOT.DoRefMapping)THEN
@@ -147,14 +157,17 @@ ELSE
  locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
 END IF
 
-IF(Parallel)THEN ! particle parallel to side
+IF(CriticalParallelInSide)THEN ! particle parallel to side
   IF(ALMOSTZERO(locSideDistance))THEN ! particle on/in side
+    IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
     ! move particle eps into interior 
     alpha=-1.
     RETURN
   END IF
   alpha=-1.
   RETURN
+ELSE
+  IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
 END IF
 
 IF(locSideDistance.LT.-100*epsMach)THEN
@@ -222,7 +235,16 @@ isHit=.TRUE.
 END SUBROUTINE ComputePlanarRectIntersection
 
 
-SUBROUTINE ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,flip,SideID)
+SUBROUTINE ComputePlanarNonrectIntersection(isHit                       &
+                                           ,PartTrajectory              &
+                                           ,lengthPartTrajectory        &
+                                           ,alpha                       &
+                                           ,xi                          &
+                                           ,eta                         &
+                                           ,iPart                       &
+                                           ,flip                        &
+                                           ,SideID                      &
+                                           ,opt_CriticalParllelInSide)
 !===================================================================================================================================
 ! Compute the intersection with a planar non rectangular face
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
@@ -257,6 +279,7 @@ INTEGER,INTENT(IN)                       :: flip
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                         :: alpha,xi,eta
 LOGICAL,INTENT(OUT)                      :: isHit
+LOGICAL,INTENT(OUT),OPTIONAL             :: opt_CriticalParllelInSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                     :: n1(3),n2(3)
@@ -267,7 +290,7 @@ REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGe
 REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
 #endif /*CODE_ANALYZE*/
 INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID!,realInterID
-LOGICAL                                  :: firstClip
+LOGICAL                                  :: CriticalParallelInSide
 INTEGER                                  :: realnInter,isInter
 REAL                                     :: XiNewton(2)
 REAL                                     :: PartFaceAngle,dXi,dEta
@@ -285,12 +308,13 @@ isHit=.FALSE.
 rBoundingBoxChecks=rBoundingBoxChecks+1.
 #endif /*CODE_ANALYZE*/
 
+CriticalParallelInSide=.FALSE.
 IF(DoRefMapping)THEN
   IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
 ELSE
   ! dependend on master/slave flip
   coeffA=DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory) 
-  IF(ABS(coeffA).EQ.0.) RETURN
+  IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
   IF(flip.EQ.0)THEN
     IF(coeffA.LT.0.)RETURN
   ELSE
@@ -313,12 +337,6 @@ ELSE
   n1=(/ PartTrajectory(3) , PartTrajectory(3) , -PartTrajectory(1)-PartTrajectory(2) /)
 END IF
 
-! check angle to boundingbox (height normal vector)
-PartFaceAngle=ABS(0.5*PI - ACOS(DOT_PRODUCT(PartTrajectory,SideSlabNormals(:,2,SideID))))
-IF(ALMOSTZERO(PartFaceAngle*180/ACOS(-1.)))THEN
-  n1=n1 +epsilontol
-END IF
-
 n1=n1/SQRT(DOT_PRODUCT(n1,n1))
 n2(:)=(/ PartTrajectory(2)*n1(3)-PartTrajectory(3)*n1(2) &
        , PartTrajectory(3)*n1(1)-PartTrajectory(1)*n1(3) &
@@ -338,6 +356,13 @@ nInterSections=0
 IF(locAlpha(1).GT.-1) nInterSections=1
 locXi (1)=XiNewton(1)
 locEta(1)=XiNewton(2)
+
+IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+IF(CriticalParallelInSide)THEN
+  IF(ALMOSTZERO(locAlpha(1))) THEN
+    IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
+  END IF
+END IF
 
 SELECT CASE(nInterSections)
 CASE(0)
@@ -600,7 +625,7 @@ END IF ! nRoot
 
 END SUBROUTINE ComputeBiLinearIntersection
 
-SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+SUBROUTINE ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,opt_CriticalParllelInSide)
 !===================================================================================================================================
 ! Compute the intersection with a Bezier surface
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
@@ -635,6 +660,7 @@ INTEGER,INTENT(IN)                       :: iPart,SideID
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                         :: alpha,xi,eta
 LOGICAL,INTENT(OUT)                      :: isHit
+LOGICAL,INTENT(OUT),OPTIONAL             :: opt_CriticalParllelInSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                     :: n1(3),n2(3)
@@ -649,6 +675,7 @@ LOGICAL                                  :: firstClip
 INTEGER                                  :: realnInter,isInter
 REAL                                     :: XiNewton(2)
 REAL                                     :: PartFaceAngle,dXi,dEta
+LOGICAL                                  :: CriticalParallelInSide
 !REAL                                     :: Interval1D,dInterVal1D
 !===================================================================================================================================
 !PartTrajectory = PartTrajectory
@@ -662,11 +689,12 @@ isHit=.FALSE.
 rBoundingBoxChecks=rBoundingBoxChecks+1.
 #endif /*CODE_ANALYZE*/
 
+CriticalParallelInSide=.FALSE.
 IF(BoundingBoxIsEmpty(SideID))THEN
   IF(DoRefMapping)THEN
     IF(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory).LT.0.)RETURN
   ELSE
-    IF(ALMOSTZERO(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory)))RETURN
+    IF(ALMOSTZERO(DOT_PRODUCT(SideNormVec(1:3,SideID),PartTrajectory))) CriticalParallelInSide=.TRUE.
   END IF
 END IF
 ! 1.) Check if LastPartPos or PartState are within the bounding box. If yes then compute a Bezier intersection problem
@@ -791,6 +819,12 @@ CASE(1)
   xi =locXi (1)
   eta=loceta(1)
   isHit=.TRUE.
+  IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+  IF(CriticalParallelInSide)THEN
+    IF(ALMOSTZERO(alpha))THEN
+      IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
+    END IF
+  END IF
   RETURN
 CASE DEFAULT
   ! more than one intersection
@@ -827,6 +861,12 @@ CASE DEFAULT
             eta=loceta(locID(iInter))
             DEALLOCATE(locID)
             isHit=.TRUE.
+            IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+            IF(CriticalParallelInSide)THEN
+              IF(ALMOSTZERO(alpha))THEN
+                IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
+              END IF
+            END IF
             RETURN 
           END IF
         END DO ! iInter
@@ -844,6 +884,12 @@ CASE DEFAULT
           DEALLOCATE(locID)
           alpha=-1.0
           isHit=.FALSE.
+          IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+          IF(CriticalParallelInSide)THEN
+            IF(ALMOSTZERO(alpha))THEN
+              IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
+            END IF
+          END IF
           RETURN ! leave and enter a cell multiple times
         ELSE
           alpha=locAlpha(isInter)
@@ -851,6 +897,12 @@ CASE DEFAULT
           eta=loceta(locID(isInter))
           isHit=.TRUE.
           DEALLOCATE(locID)
+          IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+          IF(CriticalParallelInSide)THEN
+            IF(ALMOSTZERO(alpha))THEN
+              IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
+            END IF
+          END IF
           RETURN
         END IF
       END IF ! inner Side
@@ -866,6 +918,12 @@ CASE DEFAULT
           eta=loceta(locID(iInter))
           DEALLOCATE(locID)
           isHit=.TRUE.
+          IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+          IF(CriticalParallelInSide)THEN
+            IF(ALMOSTZERO(alpha))THEN
+              IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
+            END IF
+          END IF
           RETURN 
         END IF
       END DO ! iInter
@@ -883,12 +941,24 @@ CASE DEFAULT
         DEALLOCATE(locID)
         alpha=-1.0
         isHit=.FALSE.
+        IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+        IF(CriticalParallelInSide)THEN
+          IF(ALMOSTZERO(alpha))THEN
+            IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
+          END IF
+        END IF
         RETURN ! leave and enter a cell multiple times
       ELSE
         alpha=locAlpha(isInter)
         xi =locXi (locID(isInter))
         eta=loceta(locID(isInter))
         isHit=.TRUE.
+        IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+        IF(CriticalParallelInSide)THEN
+          IF(ALMOSTZERO(alpha))THEN
+            IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
+          END IF
+        END IF
         DEALLOCATE(locID)
         RETURN
       END IF

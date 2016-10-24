@@ -102,7 +102,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
-USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic
+USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts
 USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
@@ -138,7 +138,10 @@ __STAMP__&
 ,'  Cannot allocate particle mesh vars!')
 
 
-DoRefMapping    = GETLOGICAL('DoRefMapping',".TRUE.")
+DoRefMapping       = GETLOGICAL('DoRefMapping',".TRUE.")
+CountNbOfLostParts = GETLOGICAL('CountNbOfLostParts',".FALSE.")
+nLostParts         = 0 
+
 !IF(.NOT.DoRefMapping) THEN
 !  SDEALLOCATE(nTracksPerElem)
 !END IF
@@ -3312,7 +3315,7 @@ REAL                    :: Lag(1:3,0:NGeo)
 ElemRadiusNGeo=0.
 DO iElem=1,nTotalElems
   ! get point on each side 
-  IF(iElem.LE.PP_nElems)THEN
+  IF((iElem.LE.PP_nElems).OR.(DoRefMapping))THEN
     ! xi plus
     Xi=(/1.0,0.0,0.0/)
     CALL LagrangeInterpolationPolys(Xi(1),NGeo,XiCL_NGeo,wBaryCL_NGeo,Lag(1,:))

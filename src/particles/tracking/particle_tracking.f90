@@ -41,7 +41,7 @@ USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,isBCElem
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
-USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts
+USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts, CountNbOfLostParts , nLostParts
 USE MOD_Particle_Mesh,               ONLY:SingleParticleToExactElementNoMap,PartInElemCheck
 USE MOD_Particle_Intersection,       ONLY:ComputeCurvedIntersection
 USE MOD_Particle_Intersection,       ONLY:ComputePlanarRectInterSection
@@ -69,7 +69,7 @@ LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                       :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                       :: iPart,ElemID,flip,OldElemID,firstElem
 INTEGER                       :: ilocSide,SideID, locSideList(1:6), hitlocSide,nInterSections
-LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,Reflected,SwitchedElement
+LOGICAL                       :: PartisDone,dolocSide(1:6),isHit,markTol,Reflected,SwitchedElement,isCriticalParallelInFace
 INTEGER                       :: Collision
 REAL                          :: localpha(1:6),xi(1:6),eta(1:6),refpos(1:3)
 !INTEGER                       :: lastlocSide
@@ -130,15 +130,19 @@ DO iPart=1,PDM%ParticleVecLength
         !SideID=ElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
         flip  = PartElemToSide(E2S_FLIP,ilocSide,ElemID)
+        isCriticalParallelInFace=.FALSE.
         SELECT CASE(SideType(SideID))
         CASE(PLANAR_RECT)
-          CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+          CALL ComputePlanarRectInterSection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide)   &
                                                                                         ,xi (ilocSide)      &
-                                                                                        ,eta(ilocSide)   ,iPart,flip,SideID)
+                                                                                        ,eta(ilocSide)      &
+                                                                                        ,iPart,flip,SideID  & 
+                                                                                        ,isCriticalParallelInFace)
         !CASE(PLANAR_NONRECT)
         !  CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
         !                                                                                ,xi (ilocSide)      &
-        !                                                                                ,eta(ilocSide)   ,iPart,flip,SideID)
+        !                                                                                ,eta(ilocSide)   ,iPart,flip,SideID &
+        !                                                                                ,isCriticalParallelInFace)
         CASE(BILINEAR,PLANAR_NONRECT)
           xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
           xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
@@ -152,12 +156,21 @@ DO iPart=1,PDM%ParticleVecLength
         CASE(CURVED,PLANAR_CURVED)
           CALL ComputeCurvedIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
-                                                                                  ,eta(ilocSide)      ,iPart,SideID)
+                                                                                  ,eta(ilocSide)      ,iPart,SideID &
+                                                                                  ,isCriticalParallelInFace)
         CASE DEFAULT
           CALL abort(&
           __STAMP__ &
           ,' Missing required side-data. Please increase halo region. ',SideID)
         END SELECT
+        IF(isCriticalParallelInFace)THEN
+          IPWRITE(UNIT_stdOut,*) ' Warning: Particle located inside of face and moves parallel to side. Undefined position. '
+          IPWRITE(UNIT_stdOut,*) ' Removing particle with id: ',iPart
+          PartIsDone=.TRUE.
+          PDM%ParticleInside(iPart)=.FALSE.
+          IF(CountNbOfLostParts) nLostParts=nLostParts+1
+          EXIT
+        END IF
         IF(isHit) THEN
           nInterSections=nInterSections+1
           IF((ABS(xi(ilocSide)).GE.0.99).OR.(ABS(eta(ilocSide)).GE.0.99)) markTol=.TRUE.
@@ -190,6 +203,7 @@ DO iPart=1,PDM%ParticleVecLength
               IF(firstElem.EQ.ElemID)THEN
                 IPWRITE(UNIT_stdOut,*) ' Warning: Particle located at undefined location. '
                 IPWRITE(UNIT_stdOut,*) ' Removing particle with id: ',iPart
+                IF(CountNbOfLostParts) nLostParts=nLostParts+1
                 PartIsDone=.TRUE.
                 PDM%ParticleInside(iPart)=.FALSE.
                 EXIT
@@ -260,6 +274,7 @@ DO iPart=1,PDM%ParticleVecLength
                   IPWRITE(UNIT_stdOut,*) ' Removing particle with id: ',iPart
                   PartIsDone=.TRUE.
                   PDM%ParticleInside(iPart)=.FALSE.
+                  IF(CountNbOfLostParts) nLostParts=nLostParts+1
                   EXIT
                 END IF
                 !markTol=.FALSE.
@@ -335,6 +350,7 @@ DO iPart=1,PDM%ParticleVecLength
 #else
         IPWRITE(UNIT_stdOut,*) ' Last-ElemID    ', ElemID+offSetElem
 #endif
+        IF(CountNbOfLostParts) nLostParts=nLostParts+1
       END IF
     END IF ! markTol
 #ifdef MPI

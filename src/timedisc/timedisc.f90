@@ -192,7 +192,7 @@ USE MOD_PICDepo,               ONLY: Deposition!, DepositionMPF
 USE MOD_PICDepo_Vars,          ONLY: DepositionType
 USE MOD_Particle_Output,       ONLY: Visualize_Particles
 USE MOD_PARTICLE_Vars,         ONLY: ManualTimeStep, useManualTimestep, WriteMacroValues, MacroValSampTime
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime,CountNbOfLostParts,nLostParts
 #if (PP_TimeDiscMethod==201||PP_TimeDiscMethod==200)
 USE MOD_PARTICLE_Vars,         ONLY: dt_maxwell,dt_max_particles,dt_part_ratio,MaxwellIterNum,NextTimeStepAdjustmentIter
 USE MOD_Particle_Mesh_Vars,    ONLY: Geo
@@ -250,6 +250,9 @@ INTEGER                      :: MaximumIterNum, iPart
 LOGICAL                      :: NoPartInside
 #endif
 LOGICAL                      :: finalIter
+#ifdef PARTICLES
+INTEGER                      :: nLostPartsTot
+#endif /*PARTICLES*/
 !===================================================================================================================================
 ! init
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -569,6 +572,19 @@ DO !iter_t=0,MaxIter
 #else
     IF( iAnalyze.EQ.nSkipAnalyze .OR. ALMOSTEQUAL(dt,tEndDiff))THEN
 #endif /*MPI*/
+#ifdef PARTICLES
+    IF(CountNbOfLostParts)THEN
+#ifdef MPI
+      IF(MPIRoot) THEN
+        CALL MPI_REDUCE(nLostParts,nLostPartsTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+      ELSE ! no Root
+        CALL MPI_REDUCE(nLostParts,nLostPartsTot,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+      END IF
+#else
+      nLostPartsTot=nLostParts
+#endif /*MPI*/
+    END IF
+#endif /*PARICLES*/
       IF(MPIroot)THEN
         ! Get calculation time per DOF
         CalcTimeEnd=(CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
@@ -579,6 +595,11 @@ DO !iter_t=0,MaxIter
         WRITE(UNIT_stdOut,'(A,ES12.5,A)')' CALCULATION TIME PER TSTEP/DOF: [',CalcTimeEnd,' sec ]'
         WRITE(UNIT_StdOut,'(A,ES16.7)')' Timestep  : ',dt_Min
         WRITE(UNIT_stdOut,'(A,ES16.7)')'#Timesteps : ',REAL(iter)
+#ifdef PARTICLES
+        IF(CountNbOfLostParts)THEN
+          WRITE(UNIT_stdOut,'(A,I12)')' NbOfLostParticle : ',nLostPartsTot
+        END IF
+#endif /*PARICLES*/
       END IF !MPIroot
 #if defined(IMEX) || (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
       SWRITE(UNIT_stdOut,'(132("="))')
@@ -617,7 +638,6 @@ DO !iter_t=0,MaxIter
       ! Write state to file
       IF(DoPML) CALL TransformPMLVars()
 #endif /*PP_HDG*/
-
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
 !#ifdef MPI
