@@ -77,6 +77,7 @@ REAL                              :: a1,a2,b1,b2,c1,c2
 REAL                              :: coeffA,locSideDistance,SideBasePoint(1:3)
 REAL                              :: sdet
 REAL                              :: epsLoc
+LOGICAL                           :: Parallel
 !INTEGER                           :: flip
 !===================================================================================================================================
 
@@ -98,7 +99,8 @@ coeffA=DOT_PRODUCT(NormVec,PartTrajectory)
 
 !! corresponding to particle starting in plane
 !! interaction should be computed in last step
-IF(ABS(coeffA).EQ.0.)  RETURN
+Parallel=.FALSE.
+IF(ALMOSTZERO(coeffA)) Parallel=.TRUE.
 
 ! extension for periodic sides
 IF(.NOT.DoRefMapping)THEN
@@ -143,6 +145,16 @@ ELSE
  locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
  locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
  locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+END IF
+
+IF(Parallel)THEN ! particle parallel to side
+  IF(ALMOSTZERO(locSideDistance))THEN ! particle on/in side
+    ! move particle eps into interior 
+    alpha=-1.
+    RETURN
+  END IF
+  alpha=-1.
+  RETURN
 END IF
 
 IF(locSideDistance.LT.-100*epsMach)THEN
@@ -208,6 +220,7 @@ END IF
 isHit=.TRUE.
 
 END SUBROUTINE ComputePlanarRectIntersection
+
 
 SUBROUTINE ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,flip,SideID)
 !===================================================================================================================================
