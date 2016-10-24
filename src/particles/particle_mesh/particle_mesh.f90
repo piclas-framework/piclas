@@ -4519,8 +4519,8 @@ ELSE ! no Root
   IF(DoRefMapping) CALL MPI_REDUCE(nBCElems  ,nDummy,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
 END IF
 #else
-nPlanarRectangularTot   =nPlanarRectangularTot
-nPlanarNonRectangularTot=nPlanarNonRectangularTot
+nPlanarRectangularTot   =nPlanarRectangular
+nPlanarNonRectangularTot=nPlanarNonRectangular
 nBilinearTot            =nBilinear
 nPlanarCurvedTot        =nPlanarCurved
 nCurvedTot              =nCurved
