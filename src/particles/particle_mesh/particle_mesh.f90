@@ -3871,6 +3871,7 @@ nPlanarNonRectangular      = 0
 nPlanarCurved              = 0
 nBilinear                  = 0
 nCurved                    = 0
+nBCElems                   = 0
 #ifdef MPI
 nPlanarRectangularHalo     = 0
 nPlanarNonRectangularHalo  = 0
