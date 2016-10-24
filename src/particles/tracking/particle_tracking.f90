@@ -161,11 +161,12 @@ DO iPart=1,PDM%ParticleVecLength
         IF(isHit) THEN
           nInterSections=nInterSections+1
           IF((ABS(xi(ilocSide)).GE.0.99).OR.(ABS(eta(ilocSide)).GE.0.99)) markTol=.TRUE.
-          !IF(ALMOSTZERO(locAlpha(ilocSide))) markTol=.TRUE.
+          IF(ALMOSTZERO(locAlpha(ilocSide))) markTol=.TRUE.
+          IF(locAlpha(ilocSide)/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
           !IF((ABS(xi(ilocSide)).GE.0.99).OR.(ABS(eta(ilocSide)).GE.0.99)) markTol=.TRUE.
-          !IF(locAlpha(ilocSide)/lengthPartTrajectory.GE.0.99) markTol=.TRUE.
         END IF
       END DO ! ilocSide
+      ! debug and testing
       !IF((ipart.eq.40).AND.(iter.GE.68)) print*,' nIntersections',nIntersections
       SELECT CASE(nInterSections)
       CASE(0) ! no intersection
@@ -174,6 +175,7 @@ DO iPart=1,PDM%ParticleVecLength
       CASE(1) ! one intersection
         ! get intersection side
         SwitchedElement=.FALSE.
+        reflected=.FALSE.
         DO ilocSide=1,6
           IF(locAlpha(ilocSide).GT.-1.0) THEN
             hitlocSide=ilocSide
@@ -192,7 +194,7 @@ DO iPart=1,PDM%ParticleVecLength
                 PDM%ParticleInside(iPart)=.FALSE.
                 EXIT
               END IF
-              markTol=.FALSE.
+              !markTol=.FALSE.
               SwitchedElement=.TRUE.
               ! move particle to intersection
               LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + localpha(ilocSide)*PartTrajectory
@@ -243,6 +245,7 @@ DO iPart=1,PDM%ParticleVecLength
           ! take last possible intersection, furthest
           CALL InsertionSort(locAlpha,locSideList,6)
           SwitchedElement=.FALSE.
+          reflected=.FALSE.
           DO ilocSide=1,6
             IF(locAlpha(ilocSide).GT.-1.0)THEN
               hitlocSide=locSideList(ilocSide)
@@ -259,7 +262,7 @@ DO iPart=1,PDM%ParticleVecLength
                   PDM%ParticleInside(iPart)=.FALSE.
                   EXIT
                 END IF
-                markTol=.FALSE.
+                !markTol=.FALSE.
                 SwitchedElement=.TRUE.
                 ! move particle to intersection
                 LastPartPos(iPart,1:3) = LastPartPos(iPart,1:3) + localpha(ilocSide)*PartTrajectory
