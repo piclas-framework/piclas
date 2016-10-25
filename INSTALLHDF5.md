@@ -26,4 +26,3 @@ The following libraries are installed locally within Boltzplatz and build automa
          
          installed with config script: export HDF5_DIR = /opt/hdf5/1.X.X/
          installed with cmake: export HDF5_DIR = /opt/hdf5/1.X.X/shared/cmake/XXX
-

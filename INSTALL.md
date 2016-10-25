@@ -68,4 +68,3 @@ Custom configuration of compiler options may be done using
 
         $boltzplatz parameter_boltzplatz.ini (DSMCSpecies.ini)  StateFile.h5
 
-

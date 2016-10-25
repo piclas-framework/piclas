@@ -19,4 +19,3 @@ For building on the hazelhen-cluster, the following steps are needed:
     * Program has to finish normally! Enough time during execution. Note, that the profiled version is slower, hence, 
       the testqueue is maybe to short. 
     * Visualize the *.app2 files 
-
