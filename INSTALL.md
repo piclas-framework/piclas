@@ -23,15 +23,25 @@ The required packages for the Ubuntu Linux distributions are listed in table \re
 
 Table: Required debian packages under Ubuntu.
 
+
 ## Compiling the code
 
 * Open a terminal
+* clone the GIT repository: 
+
+		git clone git@gitlab.iag.uni-stuttgart.de:piclas/boltzplatz.git
+
 * Change into the Boltzplatz directory
 * Create a new subdirectory and use CMake to configure and compile the code
+* Create a CMake build directory and choose the build options for Boltzplatz
 
-        mkdir build; cd build
-        cmake ../
-        make
+		mkdir -p build && cd build 
+    ccmake ../
+
+* Configure the build using CMake; ENABLE_ triggers the build of the corresponding tool.
+* Build Boltzplatz using CMake:
+
+		make
 
 The executables **Boltzplatz** is contained in your Boltzplatz directory in `build/bin/`.
 
@@ -57,3 +67,5 @@ Custom configuration of compiler options may be done using
 * Restart a simulation
 
         $boltzplatz parameter_boltzplatz.ini (DSMCSpecies.ini)  StateFile.h5
+
+
