@@ -59,7 +59,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Mesh_Vars,      ONLY:SidePeriodicDisplacement,SidePeriodicType
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,OnePlusEps,SideDistance
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,BaseVectors0,BaseVectors1,BaseVectors2
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
 !USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
@@ -117,31 +117,10 @@ IF(.NOT.DoRefMapping)THEN
  IF(SidePeriodicType(SideID).EQ.0)THEN
    locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
    alpha=locSideDistance/coeffA
-   locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
-   locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
-   locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
-   locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
  ELSE
-   locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
-   locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
-   locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
-   locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
-   SideBasePoint=0.25*(locBezierControlPoints3D(:,0,0) &
-                      +locBezierControlPoints3D(:,0,1) & 
-                      +locBezierControlPoints3D(:,1,0) &
-                      +locBezierControlPoints3D(:,1,1) )
+   SideBasePoint = 0.25*BaseVectors0(:,SideID)
    ! nothing to do for master side, Side of elem to which owns the BezierPoints
-   IF(flip.EQ.0)THEN
-     locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
-     locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
-     locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
-     locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
-   ELSE
-     locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)      -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-     locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-     locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-     locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-     ! caution, displacement is for master side computed, therefore, slave side requires negative displacement
+   IF(flip.NE.0)THEN
      SideBasePoint=SideBasePoint-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
    END IF
    !locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),NormVec)
@@ -151,10 +130,6 @@ IF(.NOT.DoRefMapping)THEN
 ELSE
  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
  alpha=locSideDistance/coeffA
- locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
- locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
- locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
- locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
 END IF
 
 IF(CriticalParallelInSide)THEN ! particle parallel to side
@@ -186,19 +161,11 @@ IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
   RETURN
 END IF
 
-P1=(-locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)   &
-    -locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )
-
-P2=(-locBezierControlPoints3D(:,0,0)-locBezierControlPoints3D(:,1,0)   &
-    +locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )
-
-P0=(locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)    &
-   +locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) ) 
-
-P1=0.25*P1
-P2=0.25*P2
+! iSide_temp = SideID2PlanarSideID(SideID)
 Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-P0=-0.25*P0+Inter1
+P0=-SideBasePoint+Inter1
+P1 = 0.25*BaseVectors1(:,SideID)
+P2 = 0.25*BaseVectors2(:,SideID)
 
 A1=P1(1)*P1(1)+P1(2)*P1(2)+P1(3)*P1(3)
 B1=P2(1)*P1(1)+P2(2)*P1(2)+P2(3)*P1(3)
