@@ -1,5 +1,8 @@
 # Welcome to Boltzplatz
 
+[![build status](https://gitlabext.iag.uni-stuttgart.de/piclas/boltzplatz/badges/master/build.svg)](https://gitlabext.iag.uni-stuttgart.de/piclas/boltzplatz/builds/)
+
+
 ## Instructions to build Boltzplatz git version
 
 The following steps are needed to build Boltzplatz. Be sure that you have installed the following prerequisites:
