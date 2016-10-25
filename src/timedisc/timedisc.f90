@@ -2930,15 +2930,9 @@ USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM
 USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
-<<<<<<< HEAD
-USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS, DSMC
-USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
-USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
-=======
 USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS
-USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
->>>>>>> clean.warnings
 USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
