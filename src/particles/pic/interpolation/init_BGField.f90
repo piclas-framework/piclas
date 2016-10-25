@@ -38,7 +38,7 @@ USE MOD_ReadInTools,            ONLY:GETSTR,GETINT,GETREAL
 USE MOD_HDF5_Input,             ONLY:OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID,ReadArray
 USE MOD_PICInterpolation_Vars,  ONLY:InterpolationType,NBG,BGType,BGField
 USE MOD_PICInterpolation_Vars,  ONLY:BGField_xGP,BGField_wGP,BGField_wBary,BGDataSize
-USE MOD_Interpolation_Vars,     ONLY:StrNodeType
+USE MOD_Interpolation_Vars,     ONLY:NodeType
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -155,7 +155,7 @@ CASE DEFAULT
 END SELECT
 CALL BarycentricWeights(NBG,BGField_xGP,BGField_wBary)
 
-IF(TRIM(NodeType_BGField).NE.TRIM(StrNodeType))THEN
+IF(TRIM(NodeType_BGField).NE.TRIM(NodeType))THEN
   SWRITE(UNIT_stdOut,'(A)')' WARNING: NodeType of BF-Field does not equal DG-NodeType. No ChangeBasis.'
 END IF
 

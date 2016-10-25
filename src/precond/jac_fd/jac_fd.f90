@@ -100,7 +100,7 @@ SUBROUTINE Jac_FD_slow(t,tStage,tDeriv,iElem,dRdU)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Jac_FD_Vars,   ONLY: R_xkEps,Xk,sreps0,reps0,Rxk
+USE MOD_Jac_FD_Vars,   ONLY: Xk,sreps0,reps0,Rxk
 USE MOD_LinearSolver_Vars, ONLY: nDOFelem
 USE MOD_DG,            ONLY: DGTimeDerivative_WeakForm
 USE MOD_DG_Vars,       ONLY: U,Ut
@@ -196,27 +196,6 @@ END DO !iProc
 CALL DGTimeDerivative_WeakForm(t,tStage,tDeriv,doSource=.TRUE.)
 
 END SUBROUTINE Jac_FD_slow
-
-
-SUBROUTINE FinalizeJac_FD()
-!===================================================================================================================================
-! Deallocate global variable U (solution) and Ut (dg time derivative).
-!===================================================================================================================================
-! MODULES
-USE MOD_Jac_FD_vars
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES 
-!===================================================================================================================================
-
-SDEALLOCATE(R_xkEps)
-PrecondFdInitisDone = .FALSE.
-END SUBROUTINE FinalizeJac_FD
 
 
 END MODULE MOD_Jac_FD

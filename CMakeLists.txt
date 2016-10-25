@@ -117,7 +117,7 @@ ADD_DEFINITIONS(-DPP_nElems=NELEMZ)
 
 # code development
 OPTION(BOLTZPLATZ_CODE_ANALYZE "Code Analyze" OFF)
-OPTION(BOLTZPLATZ_CTAGS "Use Ctags" OFF)
+#OPTION(BOLTZPLATZ_CTAGS "Use Ctags" OFF)
 
 # =========================================================================
 # Equation system
@@ -323,8 +323,9 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   # set Flags
   SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -ffree-line-length-0 -DGNU")
   SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O3 -march=native  -finline-functions")
-  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -pg -O3 -march=native  -finline-functions")
-  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -ggdb3 -fbounds-check -finit-real=nan -fbacktrace  -Wall")
+  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -g -pg ")
+  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -g -O0 -ggdb3 -fbounds-check -finit-real=snan -fbacktrace  -Wall")
+  SET (CMAKE_Fortran_FLAGS_SANI    "${CMAKE_Fortran_FLAGS} -g -O0 -ggdb3 -fbounds-check -finit-real=snan -fbacktrace  -Wall -fsanitize=address,undefined -fno-omit-frame-pointer -Wc-binding-type")
   # add flags only for compiling not linking!
   SET (BOLTZPLATZ_COMPILE_FLAGS "-xf95-cpp-input")
 
@@ -602,12 +603,16 @@ INSTALL(FILES    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake ${CMAKE_R
 # =========================================================================
 # Ctags
 # =========================================================================
-IF(BOLTZPLATZ_CTAGS)
-  ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt src)
-  ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
-  FIND_PROGRAM(CTAGS_PATH ctags)
-  IF(CTAGS_PATH)
-      MESSAGE(STATUS "Found ctags: ${CTAGS_PATH}")
-      ADD_DEPENDENCIES(boltzplatz tags)
-  ENDIF(CTAGS_PATH)
-ENDIF(BOLTZPLATZ_CTAGS)
+SET(EQNS_WO_ACTUAL ${EQNSYSTEMS})
+LIST(REMOVE_ITEM EQNS_WO_ACTUAL ${BOLTZPLATZ_EQNSYSNAME})
+SET(EXLUDES "")
+FOREACH(item ${EQNS_WO_ACTUAL})
+   SET(EXLUDES "--exclude=src/equations/${item}/*" ${EXLUDES})
+ENDFOREACH()
+ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ctags -R -f ctags.txt ${EXLUDES} src)
+ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
+FIND_PROGRAM(CTAGS_PATH ctags)
+IF(CTAGS_PATH)
+    MESSAGE(STATUS "Found ctags: ${CTAGS_PATH}")
+    ADD_DEPENDENCIES(boltzplatz tags)
+ENDIF(CTAGS_PATH)

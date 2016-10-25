@@ -928,8 +928,8 @@ FileString=TRIM(FileName)//'.h5'
 
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-IF(SurfCOMM%MPIOutputRoot)THEN
 #ifdef MPI
+IF(SurfCOMM%MPIOutputRoot)THEN
   CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.)
 #else
   CALL OpenDataFile(FileString,create=.TRUE.)
@@ -959,9 +959,9 @@ IF(SurfCOMM%MPIOutputRoot)THEN
 
   CALL CloseDataFile()
   DEALLOCATE(StrVarNames)
+#ifdef MPI
 END IF
 
-#ifdef MPI
 CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
 #endif /*MPI*/
 

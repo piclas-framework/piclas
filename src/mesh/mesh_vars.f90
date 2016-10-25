@@ -20,6 +20,8 @@ INTEGER           :: SwapMeshLevel                ! 0: initial grid, 1: first sw
 ! basis
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER          :: NGeo                        ! polynomial degree of geometric transformation
+INTEGER          :: NGeoRef                     ! polynomial degree of geometric transformation
+INTEGER          :: NGeoElevated                ! polynomial degree of elevated geometric transformation
 REAL,ALLOCATABLE :: Xi_NGeo(:)                  ! 1D equidistant point positions for curved elements (during readin)
 REAL             :: DeltaXi_NGeo
 REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)
@@ -32,7 +34,7 @@ REAL,ALLOCATABLE :: DCL_N(:,:)
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE :: Elem_xGP(:,:,:,:,:)   ! XYZ positions (first index 1:3) of the volume Gauss Point
-REAL,ALLOCATABLE :: BCFace_xGP(:,:,:,:)   ! XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+REAL,ALLOCATABLE :: Face_xGP(:,:,:,:)   ! XYZ positions (first index 1:3) of the Boundary Face Gauss Point
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Metrics on GaussPoints 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -53,6 +55,7 @@ LOGICAL,ALLOCATABLE :: CurvedElem(:)
 REAL,ALLOCATABLE    :: XiCL_NGeo(:)
 REAL,ALLOCATABLE    :: XCL_NGeo(:,:,:,:,:)
 REAL,ALLOCATABLE    :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCATABLE    :: detJac_Ref(:,:,:,:,:)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! surface vectors 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -116,7 +119,6 @@ LOGICAL          :: CrossProductMetrics=.FALSE.
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! PoyntingVectorIntegral variables
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE    :: Face_xGP(:,:,:,:)     ! XYZ positions (first index 1:3) of the Face Gauss Point
 INTEGER             :: nPoyntingIntSides=0   ! Sides for the calculation of the poynting vector
 LOGICAL,ALLOCATABLE :: isPoyntingIntSide(:)  ! number of all PoyntingInt sides
 INTEGER,ALLOCATABLE :: whichPoyntingPlane(:) ! number of plane used for calculation of poynting vector

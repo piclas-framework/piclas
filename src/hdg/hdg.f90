@@ -313,7 +313,7 @@ USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars,     ONLY:IniExactFunc
 USE MOD_Equation_Vars,     ONLY:chitens_face
-USE MOD_Mesh_Vars,         ONLY:Face_xGP,BCface_xGP,BoundaryType,nSides,BC!,Elem_xGP
+USE MOD_Mesh_Vars,         ONLY:Face_xGP,BoundaryType,nSides,BC!,Elem_xGP
 USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
@@ -368,13 +368,13 @@ DO iVar = 1, PP_nVar
       ! Determine the exact BC state
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(IniExactFunc,BCFace_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
+        CALL ExactFunc(IniExactFunc,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
       END DO; END DO !p,q
     CASE(4) ! exact BC = Dirichlet BC !!
       ! SPECIAL BC: BCState specifies exactfunc to be used!!
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-  !      CALL ExactFunc(BCstate,t,0,BCFace_xGP(:,p,q,SideID),lambda(r:r,SideID))
+  !      CALL ExactFunc(BCstate,t,0,Face_xGP(:,p,q,SideID),lambda(r:r,SideID))
          IF (iVar.EQ.1) THEN
            lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
          ELSE
@@ -585,7 +585,7 @@ USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars,     ONLY:IniExactFunc
 USE MOD_Equation_Vars,     ONLY:chitens_face
-USE MOD_Mesh_Vars,         ONLY:Face_xGP,BCface_xGP,BoundaryType,nSides,BC!,Elem_xGP
+USE MOD_Mesh_Vars,         ONLY:Face_xGP,BoundaryType,nSides,BC!,Elem_xGP
 USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
@@ -639,13 +639,13 @@ DO iVar = 1, PP_nVar
       ! Determine the exact BC state
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(IniExactFunc,BCFace_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
+        CALL ExactFunc(IniExactFunc,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID))
       END DO; END DO !p,q
     CASE(4) ! exact BC = Dirichlet BC !!
       ! SPECIAL BC: BCState specifies exactfunc to be used!!
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-  !      CALL ExactFunc(BCstate,t,0,BCFace_xGP(:,p,q,SideID),lambda(r:r,SideID))
+  !      CALL ExactFunc(BCstate,t,0,Face_xGP(:,p,q,SideID),lambda(r:r,SideID))
        lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
       END DO; END DO !p,q
     CASE(5) ! exact BC = Dirichlet BC !!
@@ -653,8 +653,8 @@ DO iVar = 1, PP_nVar
 !read*
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
-        CALL ExactFunc(BCstate,BCFace_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t)
-!print*,"t=",t,"r=",r,"BCstate=",BCstate,"BCFace_xGP(:,p,q,SideID)=",BCFace_xGP(:,p,q,SideID)
+        CALL ExactFunc(BCstate,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t)
+!print*,"t=",t,"r=",r,"BCstate=",BCstate,"Face_xGP(:,p,q,SideID)=",Face_xGP(:,p,q,SideID)
 !print*,lambda(iVar,r:r,SideID)
 !read*
        !lambda(iVar,r:r,SideID)=PartBound%Voltage(PartBound%MapToPartBC(BC(SideID)))
@@ -830,7 +830,7 @@ USE MOD_HDG_Vars
 USE MOD_Equation,          ONLY:CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars,     ONLY:IniExactFunc, eps0
 USE MOD_Equation_Vars,     ONLY:chitens_face
-USE MOD_Mesh_Vars,         ONLY:BCface_xGP,BoundaryType,nSides,BC!,Elem_xGP,Face_xGP
+USE MOD_Mesh_Vars,         ONLY:Face_xGP,BoundaryType,nSides,BC!,Elem_xGP,Face_xGP
 USE MOD_Mesh_Vars,         ONLY:ElemToSide,NormVec,SurfElem
 USE MOD_Interpolation_Vars,ONLY:wGP
 USE MOD_Particle_Vars     ,ONLY:  RegionElectronRef
@@ -887,7 +887,7 @@ DO BCsideID=1,nDirichletBCSides
     ! Determine the exact BC state
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
-      CALL ExactFunc(IniExactFunc,BCFace_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID))
+      CALL ExactFunc(IniExactFunc,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID))
     END DO; END DO !p,q
   CASE(4) ! exact BC = Dirichlet BC !!
     ! SPECIAL BC: BCState specifies exactfunc to be used!!

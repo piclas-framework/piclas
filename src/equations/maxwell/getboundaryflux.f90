@@ -160,8 +160,8 @@ REAL,INTENT(IN)                      :: t
 INTEGER,INTENT(IN)                   :: tDeriv
 REAL,INTENT(IN)                      :: U_Minus(     PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
 REAL,INTENT(IN)                      :: NormVec(           3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: TangVec1(          3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: TangVec2(          3,0:PP_N,0:PP_N,1:nBCSides)
+REAL,INTENT(IN),OPTIONAL             :: TangVec1(          3,0:PP_N,0:PP_N,1:nBCSides)
+REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:PP_N,0:PP_N,1:nBCSides)
 REAL,INTENT(IN)                      :: BCFace_xGP(        3,0:PP_N,0:PP_N,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -311,6 +311,11 @@ __STAMP__&
         ,'no BC defined in maxwell/getboundaryflux.f90!')
   END SELECT ! BCType
 END DO ! iBC=1,nBC
+
+IF(1.EQ.2)THEN
+  epsBC=TangVec1(1,1,1,1)
+  epsBC=TangVec2(1,1,1,1)
+END IF
 
 END SUBROUTINE GetBoundaryFlux
 

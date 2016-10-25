@@ -50,7 +50,7 @@ SUBROUTINE zigset( ) !jsrseed )
 
    !  Tables for RNOR
    q = vn*EXP(half*dn*dn)
-   kn(0) = (dn/q)*m1
+   kn(0) = INT((dn/q)*m1)
    kn(1) = 0
    wn(0) = q/m1
    wn(127) = dn/m1
@@ -58,7 +58,7 @@ SUBROUTINE zigset( ) !jsrseed )
    fn(127) = EXP( -half*dn*dn )
    DO  i = 126, 1, -1
       dn = SQRT( -2.0_DP * LOG( vn/dn + EXP( -half*dn*dn ) ) )
-      kn(i+1) = (dn/tn)*m1
+      kn(i+1) = INT((dn/tn)*m1)
       tn = dn
       fn(i) = EXP(-half*dn*dn)
       wn(i) = dn/m1
@@ -66,7 +66,7 @@ SUBROUTINE zigset( ) !jsrseed )
 
    !  Tables for REXP
    q = ve*EXP( de )
-   ke(0) = (de/q)*m2
+   ke(0) = INT((de/q)*m2)
    ke(1) = 0
    we(0) = q/m2
    we(255) = de/m2
@@ -74,7 +74,7 @@ SUBROUTINE zigset( ) !jsrseed )
    fe(255) = EXP( -de )
    DO  i = 254, 1, -1
       de = -LOG( ve/de + EXP( -de ) )
-      ke(i+1) = m2 * (de/te)
+      ke(i+1) = INT(m2 * (de/te))
       te = de
       fe(i) = EXP( -de )
       we(i) = de/m2

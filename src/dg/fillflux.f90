@@ -34,7 +34,7 @@ USE MOD_Mesh_Vars,       ONLY:nSides,nBCSides,nInnerSides,nMPISides_MINE
 USE MOD_Riemann,         ONLY:Riemann
 USE MOD_Mesh_Vars,       ONLY:SideID_plus_lower,SideID_plus_upper
 USE MOD_Mesh_Vars,       ONLY:SideID_minus_lower,SideID_minus_upper
-USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,BCFace_xGP
+USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
 USE MOD_GetBoundaryFlux, ONLY:GetBoundaryFlux
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -74,7 +74,12 @@ DO SideID=firstSideID,lastSideID
 END DO ! SideID
   
 IF(.NOT.doMPISides)THEN
-  CALL GetBoundaryFlux(t,tDeriv, Flux ,U_Minus ,NormVec, TangVec1, TangVec2, BCFace_xGP)
+  CALL GetBoundaryFlux(t,tDeriv,Flux           (1:PP_nVar,0:PP_N,0:PP_N,1:nBCSides) &
+                               ,U_Minus        (1:PP_nVar,0:PP_N,0:PP_N,1:nBCSides) &
+                               ,NormVec        (1:3      ,0:PP_N,0:PP_N,1:nBCSides) &
+                               ,TangVec1       (1:3      ,0:PP_N,0:PP_N,1:nBCSides) &
+                               ,TangVec2       (1:3      ,0:PP_N,0:PP_N,1:nBCSides) &
+                               ,Face_XGP       (1:3      ,0:PP_N,0:PP_N,1:nBCSides) )
 END IF
 
 ! Apply surface element size

@@ -1500,9 +1500,10 @@ SUBROUTINE ExchangeBezierControlPoints3D()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_MPI_Vars
-USE MOD_Mesh_Vars,                  ONLY:NGeo,nSides,nUniqueSides,NGeo
+USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,nUniqueSides
 USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
-USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals
+USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
+                                        ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1548,7 +1549,13 @@ END DO !iProc=1,nNBProcs
 
 ! build my slave sides (your master are already built)
 DO iSide=nUniqueSides+1,nSides
-  CALL GetSideSlabNormalsAndIntervals(NGeo,iSide) ! elevation occurs within this routine
+  !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
+  ! elevation occurs within this routine
+  CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
+                                     ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
+                                     ,SideSlabNormals(1:3,1:3,iSide)                                         &
+                                     ,SideSlabInterVals(1:6,iSide)                                           &
+                                     ,BoundingBoxIsEmpty(iSide)                                              )
 END DO
 
 DO iSide=1,nSides

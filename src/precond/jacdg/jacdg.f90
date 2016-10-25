@@ -43,7 +43,6 @@ SUBROUTINE InitJacDG()
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_JacDG_Vars
-USE MOD_LinearSolver_Vars      ,ONLY:nGP3D,nDOFELEM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -109,7 +108,7 @@ INTEGER,INTENT(IN) :: iElem
 REAL,INTENT(OUT)   :: Vout(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER            :: i,j,k,mm,nn,oo,ll
+INTEGER            :: i,j,k,ll
 INTEGER            :: iVar, jVar
 !REAL               :: delta(0:PP_N,0:PP_N)
 !===================================================================================================================================

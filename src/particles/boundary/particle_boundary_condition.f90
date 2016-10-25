@@ -27,7 +27,7 @@ PUBLIC::GetBoundaryInteraction,GetBoundaryInteractionRef
 
 CONTAINS
 
-SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID)
+SUBROUTINE GetBoundaryInteraction(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,ElemID,reflected)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -69,6 +69,7 @@ REAL,INTENT(IN)                      :: xi,eta
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)                :: ElemID
 REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
+LOGICAL,INTENT(OUT)                  :: Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: n_loc(1:3),RanNum
@@ -84,6 +85,7 @@ __STAMP__&
 ,' ERROR: PartBound not allocated!.',999,999.)
 END IF
 IsSpeciesSwap=.FALSE.
+Reflected    =.FALSE.
 ! Select the corresponding boundary condition and calculate particle treatment
 SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -92,7 +94,7 @@ CASE(1) !PartBound%OpenBC)
   IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
     !BCSideID=PartBCSideList(SideID)
     SELECT CASE(SideType(SideID))
-    CASE(PLANAR_RECT,PLANAR_NONRECT)
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
       n_loc=SideNormVec(1:3,SideID)
     CASE(BILINEAR)
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
@@ -130,9 +132,9 @@ CASE(2) !PartBound%ReflectiveBC)
       CALL RANDOM_NUMBER(RanNum)
       IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
         ! perfectly reflecting, specular re-emission
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=reflected)
       ELSE
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=reflected)
       END IF
     ELSE IF (WallModeltype.EQ.1) THEN
                adsorbindex = 0
@@ -151,7 +153,7 @@ CASE(2) !PartBound%ReflectiveBC)
         END IF
       ELSE IF (adsorbindex.EQ.0) THEN
 !--- Inelastic Reflection (not diffuse)               
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Reflected=reflected)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
@@ -194,8 +196,8 @@ __STAMP__&
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
-  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,opt_Symmetry=.TRUE.)
-
+  CALL  PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
+                                       ,opt_Symmetry=.TRUE.,opt_Reflected=reflected)
 
 CASE DEFAULT
 CALL abort(&
@@ -203,10 +205,15 @@ __STAMP__&
 ,' ERROR: PartBound not associated!. (unknown case)',999,999.)
 END SELECT !PartBound%MapToPartBC(BC(SideID)
 
+! compiler warnings
+IF(1.EQ.2)THEN
+  WRITE(*,*) 'ElemID', ElemID
+END IF
+
 END SUBROUTINE GetBoundaryInteraction
 
 
-SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID)
+SUBROUTINE GetBoundaryInteractionRef(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,reflected)
 !===================================================================================================================================
 ! Computes the post boundary state of a particle that interacts with a boundary condition
 !  OpenBC                  = 1  
@@ -245,6 +252,7 @@ REAL,INTENT(IN)                      :: xi,eta
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)                   :: alpha,PartTrajectory(1:3),lengthPartTrajectory
+LOGICAL,INTENT(OUT)                  :: reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: RanNum,n_loc(1:3)
@@ -258,6 +266,7 @@ __STAMP__&
 ,' ERROR: PartBound not allocated!.',999,999.)
 END IF
 IsSpeciesSwap=.FALSE.
+Reflected    =.FALSE.
 ! Select the corresponding boundary condition and calculate particle treatment
 SELECT CASE(PartBound%TargetBoundCond(PartBound%MapToPartBC(BC(SideID))))
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -266,7 +275,7 @@ CASE(1) !PartBound%OpenBC)
   IF(alpha/lengthPartTrajectory.LE.epsilontol)THEN !if particle is close to BC, it encounters the BC only if it leaves element/grid
     BCSideID=PartBCSideList(SideID)
     SELECT CASE(SideType(BCSideID))
-    CASE(PLANAR_RECT,PLANAR_NONRECT)
+    CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
       n_loc=SideNormVec(1:3,BCSideID)
     CASE(BILINEAR)
       CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
@@ -307,9 +316,11 @@ CASE(2) !PartBound%ReflectiveBC)
       BCSideID=PartBCSideList(SideID)
       IF(RanNum.GE.PartBound%MomentumACC(PartBound%MapToPartBC(BC(SideID)))) THEN
         ! perfectly reflecting, specular re-emission
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
+                              ,BCSideID=BCSideID,opt_reflected=reflected)
       ELSE
-        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID)
+        CALL DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap&
+                              ,BCSideID=BCSideID,opt_reflected=reflected)
       END IF
     ELSE IF (WallModeltype.EQ.1) THEN
                adsorbindex = 0
@@ -329,7 +340,8 @@ CASE(2) !PartBound%ReflectiveBC)
       ELSE IF (adsorbindex.EQ.0) THEN
 !--- Inelastic Reflection (not diffuse)  
         BCSideID=PartBCSideList(SideID)
-        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID)
+        CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
+                              ,BCSideID=BCSideID,opt_reflected=reflected)
       ELSE
         WRITE(*,*)'Boundary_PIC: Adsorption error.'
         CALL Abort(&
@@ -374,9 +386,8 @@ __STAMP__&
 CASE(10) !PartBound%SymmetryBC
 !-----------------------------------------------------------------------------------------------------------------------------------
   BCSideID=PartBCSideList(SideID)
-  CALL PerfectReflection(&
-    PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap,BCSideID=BCSideID,opt_Symmetry=.TRUE.)
-
+  CALL PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,iPart,SideID,IsSpeciesSwap &
+                        ,BCSideID=BCSideID,opt_Symmetry=.TRUE.,opt_reflected=reflected)
 
 CASE DEFAULT
 CALL abort(&
@@ -387,7 +398,8 @@ END SELECT !PartBound%MapToPartBC(BC(SideID)
 END SUBROUTINE GetBoundaryInteractionRef
 
 
-SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,BCSideID,opt_Symmetry)
+SUBROUTINE PerfectReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,BCSideID,opt_Symmetry&
+                                           ,opt_Reflected)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -426,6 +438,7 @@ INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT),OPTIONAL      :: opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: v_old(1:3),v_2(1:3),v_aux(1:3),n_loc(1:3), v_help(3), WallVelo(3)
@@ -452,7 +465,7 @@ WallVelo=PartBound%WallVelo(1:3,PartBound%MapToPartBC(BC(SideID)))
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT)
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
     n_loc=SideNormVec(1:3,BCSideID)
   CASE(BILINEAR)
     CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=BCSideID)
@@ -461,7 +474,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   SELECT CASE(SideType(SideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT)
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
     n_loc=SideNormVec(1:3,SideID)
   CASE(BILINEAR)
     CALL CalcNormAndTangBilinear(nVec=n_loc,xi=xi,eta=eta,SideID=SideID)
@@ -475,7 +488,12 @@ ELSE
   Symmetry = .FALSE.
 END IF
 
-IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) RETURN
+IF(DOT_PRODUCT(PartTrajectory,n_loc).LE.0.) THEN
+  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+  RETURN
+ELSE
+  IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+END IF
 
 ! In vector notation: r_neu = r_alt + T - 2*((1-alpha)*<T,n>)*n
 v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTrajectory(1:3),n_loc))*n_loc
@@ -490,10 +508,10 @@ v_aux                  = -2.0*((LengthPartTrajectory-alpha)*DOT_PRODUCT(PartTraj
   PartState(PartID,1:3)   = PartState(PartID,1:3)+v_aux
   v_old = PartState(PartID,4:6)
 
-  ! move particle a bit in interior
-  ElemID=PartSideToElem(S2E_ELEM_ID,SideID)
-  v_help=LastPartPos(PartID,1:3)-ElemBaryNGeo(1:3,ElemID)
-  LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*MAX(1.0-epsInCell/SQRT(DOT_PRODUCT(v_help,v_help)),0.)
+ ! ! move particle a bit in interior
+ ! ElemID=PartSideToElem(S2E_ELEM_ID,SideID)
+ ! v_help=LastPartPos(PartID,1:3)-ElemBaryNGeo(1:3,ElemID)
+ ! LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*MAX(1.0-epsInCell/SQRT(DOT_PRODUCT(v_help,v_help)),0.)
 
   ! new velocity vector 
   !v_2=(1-alpha)*PartTrajectory(1:3)+v_aux
@@ -604,7 +622,7 @@ __STAMP__&
 END SUBROUTINE PerfectReflection
 
 
-SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,BCSideID)
+SUBROUTINE DiffuseReflection(PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,SideID,IsSpeciesSwap,BCSideID,opt_Reflected)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the diffuse reflection in 3D
 ! only implemented for DoRefMapping tracking
@@ -640,6 +658,7 @@ LOGICAL,INTENT(IN)                :: IsSpeciesSwap
 INTEGER,INTENT(IN),OPTIONAL       :: BCSideID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT),OPTIONAL      :: Opt_Reflected
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: locBCID, vibQuant, vibQuantNew, VibQuantWall
@@ -678,7 +697,7 @@ RotACC       = PartBound%RotACC(locBCID)
 
 IF(PRESENT(BCSideID))THEN
   SELECT CASE(SideType(BCSideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT)
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
     n_loc=SideNormVec(1:3,BCSideID)
     tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,BCSideID)-BezierControlPoints3D(:,0,0,BCSideID))
     tang2=CROSSNORM(n_loc,tang1)
@@ -691,7 +710,7 @@ IF(PRESENT(BCSideID))THEN
   END SELECT 
 ELSE
   SELECT CASE(SideType(SideID))
-  CASE(PLANAR_RECT,PLANAR_NONRECT)
+  CASE(PLANAR_RECT,PLANAR_NONRECT,PLANAR_CURVED)
     n_loc=SideNormVec(1:3,SideID)
     tang1=UNITVECTOR(BezierControlPoints3D(:,NGeo,0,SideID)-BezierControlPoints3D(:,0,0,SideID))
     tang2=CROSSNORM(n_loc,tang1)
@@ -704,7 +723,12 @@ ELSE
   END SELECT 
 END IF
 
-IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  RETURN
+IF(DOT_PRODUCT(n_loc,PartTrajectory).LT.0.)  THEN
+  IF(PRESENT(opt_Reflected)) opt_Reflected=.FALSE.
+  RETURN
+ELSE
+  IF(PRESENT(opt_Reflected)) opt_Reflected=.TRUE.
+END IF
 
 ! calculate new velocity vector (Extended Maxwellian Model)
 VeloReal = SQRT(PartState(PartID,4) * PartState(PartID,4) + &
@@ -756,10 +780,11 @@ NewVelo = VeloCx*tang1-tang2*VeloCy-VeloCz*n_loc
 ! intersection point with surface
 LastPartPos(PartID,1:3) = LastPartPos(PartID,1:3) + PartTrajectory(1:3)*alpha
 
-ElemID=PartSideToElem(S2E_ELEM_ID,SideID)
-v_help=LastPartPos(PartID,1:3)-ElemBaryNGeo(1:3,ElemID)
-!LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*MAX(1.0-epsInCell/SQRT(DOT_PRODUCT(v_help,v_help)),0.)
-LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*(1.0-epsInCell)
+! should not be required any-more
+!ElemID=PartSideToElem(S2E_ELEM_ID,SideID)
+!v_help=LastPartPos(PartID,1:3)-ElemBaryNGeo(1:3,ElemID)
+!!LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*MAX(1.0-epsInCell/SQRT(DOT_PRODUCT(v_help,v_help)),0.)
+!LastPartPos(PartID,1:3)=ElemBaryNGeo(1:3,ElemID)+v_help*(1.0-epsInCell)
 
 ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
 !TildPos       =PartState(PartID,1:3)-dt*RKdtFrac*PartState(PartID,4:6)

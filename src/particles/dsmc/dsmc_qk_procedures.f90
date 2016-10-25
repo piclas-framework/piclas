@@ -947,6 +947,11 @@ IF (ReactionProb.GT.iRan) THEN
 !print*, evor, enach, evor-enach
 !read*
 END IF
+
+IF(1.EQ.2)THEN
+  iQua=iElem
+END IF
+
 END SUBROUTINE QK_IonRecombination
 
 
