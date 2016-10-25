@@ -935,7 +935,6 @@ SUBROUTINE GetBezierControlPoints3DElevated(NGeo,NGeoElevated,BezierControlPoint
 !===================================================================================================================================
 ! MODULES
 !USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,BezierControlPoints3DElevated,BezierElevation
-USE MOD_Particle_Surfaces_Vars,   ONLY:BezierElevation
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES

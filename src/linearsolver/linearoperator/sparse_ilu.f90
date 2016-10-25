@@ -37,7 +37,7 @@ SUBROUTINE InitSparseILU()
 ! MODULES
 USE MOD_PreProc
 USE MOD_LinearSolver_Vars      ,ONLY:nDOFelem
-USE MOD_CSR_Vars               ,ONLY:nUNonZeros,nLNonZeros,nMTriangle
+USE MOD_CSR_Vars               ,ONLY:nUNonZeros,nLNonZeros
 USE MOD_CSR_Vars               ,ONLY:DE,IL,IU
 USE MOD_Precond_Vars           ,ONLY:PrecondType
 ! IMPLICIT VARIABLE HANDLING
@@ -66,7 +66,7 @@ SUBROUTINE FinalizeSparseILU()
 ! Init Sparse ILU
 !===================================================================================================================================
 ! MODULES
-USE MOD_CSR_Vars   ,ONLY: nUNonZeros,nLNonZeros,nMtriangle
+USE MOD_CSR_Vars   ,ONLY: nUNonZeros,nLNonZeros
 USE MOD_CSR_Vars   ,ONLY: DE,IU,IL
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -104,28 +104,13 @@ INTEGER,INTENT(IN)          :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: ii,kk,jj,iEntry
-LOGICAL                     :: first,last
-INTEGER                     :: k1,k2
-REAL,ALLOCATABLE            :: Vin(:),Vresu1(:),Vresu2(:),B(:)
+LOGICAL                     :: first
 REAL                        :: Sparsity
 INTEGER                     :: lastLine,lineNonZero
 LOGICAL                     :: singleValue
-REAL                        :: epsZero,diff
-REAL                        :: L(nDOFELEM,nDOFElem)
-REAL                        :: U(nDOFELEM,nDOFElem)
-REAL                        :: LU(nDOFElem,nDOFElem)
-INTEGER                     :: lowerEntry, upperEntry
-CHARACTER(LEN=17)                                     :: strfmt
-CHARACTER(LEN=64)                                     :: filename
-
+REAL                        :: epsZero
 ! check
-REAL,DIMENSION(nDofElem,nDofElem)       :: PLOC,Ainv
-REAL,DIMENSION(nDofelem*nDofelem)       :: Work
-REAL:: vtild(1:nDOFELEM), vResu3(nDOFElem)
-INTEGER,DIMENSION(ndofelem):: IPIV
-INTEGER :: INFO,lwork, autsch
-integer::r,s
-REAL :: temp
+REAL,DIMENSION(nDofElem,nDofElem)       :: PLOC!,Ainv
 !===================================================================================================================================
 
 !epsZero=0.5*EPSILON(0.0)

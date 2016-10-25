@@ -46,13 +46,14 @@ SUBROUTINE InitAnalyze()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Interpolation_Vars,   ONLY:xGP,wBary,InterpolationInitIsDone
-USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt,doAnalyze
+USE MOD_Analyze_Vars,         ONLY:Nanalyze,AnalyzeInitIsDone,Analyze_dt
 USE MOD_ReadInTools,          ONLY:GETINT,GETREAL
 USE MOD_Analyze_Vars,         ONLY:CalcPoyntingInt
 USE MOD_AnalyzeField,         ONLY:GetPoyntingIntPlane
 USE MOD_ReadInTools,          ONLY:GETLOGICAL
 #ifndef PARTICLES
 USE MOD_Particle_Analyze_Vars,ONLY:PartAnalyzeStep, CalcEpot
+USE MOD_Analyze_Vars,         ONLY:doAnalyze
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars,     ONLY:nSkipAnalyze
 ! IMPLICIT VARIABLE HANDLING
@@ -344,7 +345,9 @@ USE MOD_Analyze_Vars,          ONLY: CalcPoyntingInt,DoAnalyze
 USE MOD_AnalyzeField,          ONLY: CalcPoyntingIntegral
 #endif
 USE MOD_RecordPoints,          ONLY: RecordPoints
+#if defined(LSERK) || defined(IMEX) || defined(IMPA) || (PP_TimeDiscMethod==110)
 USE MOD_RecordPoints_Vars,     ONLY: RP_onProc
+#endif
 USE MOD_Particle_Analyze_Vars, ONLY: PartAnalyzeStep
 #if (PP_TimeDiscMethod==42)
 USE MOD_TimeDisc_Vars,         ONLY: dt

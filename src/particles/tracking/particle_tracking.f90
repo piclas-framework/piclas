@@ -440,14 +440,15 @@ DO iPart=1,PDM%ParticleVecLength
     PartIsDone=.FALSE.
     IF(IsBCElem(ElemID))THEN
       CALL ParticleBCTracking(ElemID,1,BCElem(ElemID)%lastSide,BCElem(ElemID)%lastSide,iPart,PartIsDone,PartIsMoved)
-      IF(PartIsDone) CYCLE
-      IF(PartIsMoved)THEN
+      IF(PartIsDone) CYCLE ! particle has left domain by a boundary condition
+      IF(PartIsMoved)THEN ! particle is reflected at a wall
         CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
       ELSE
-#if ((PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6))  /* only LSERK */
-      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
+        ! particle has not encountered any boundary condition
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID,DoReUseMap=.TRUE.)
 #else
-      CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
+        CALL Eval_xyz_ElemCheck(PartState(iPart,1:3),PartPosRef(1:3,iPart),ElemID)
 #endif
       END IF
 !      IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.epsOneCell(ElemID)) THEN ! particle is inside 
@@ -952,7 +953,7 @@ REAL                            :: MoveVector(1:3)
 LOGICAL                         :: isMoved
 #ifdef IMPA
 INTEGER                         :: iCounter
-REAL                            :: DeltaP(6),Norm
+REAL                            :: DeltaP(6)
 #endif /*IMPA*/
 #ifdef IMEX
 INTEGER                         :: iCounter

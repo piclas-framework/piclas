@@ -1475,16 +1475,15 @@ USE MOD_TimeDisc_Vars,    ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals,          ONLY : abort
 USE MOD_Particle_Vars,    ONLY : KeepWallParticles
 USE MOD_Particle_Vars,    ONLY : PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroValues
-USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode, Adsorption
+USE MOD_DSMC_Vars,        ONLY : DSMC_RHS, DSMC, CollisMode
 USE MOD_DSMC,             ONLY : DSMC_main
 USE MOD_part_tools,       ONLY : UpdateNextFreePosition
 USE MOD_part_emission,    ONLY : ParticleInserting, ParticleSurfaceflux
-USE MOD_Particle_Tracking_vars, ONLY: tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+USE MOD_Particle_Tracking_vars, ONLY: tTracking,DoRefMapping,MeasureTrackTime
 USE MOD_Particle_Tracking,ONLY: ParticleTracing,ParticleRefTracking
 USE MOD_DSMC_SurfModel_Tools,   ONLY: Calc_PartNum_Wall_Desorb, DSMC_Update_Wall_Vars
 #ifdef MPI
 USE MOD_Particle_MPI,     ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars,ONLY: PartMPIExchange
 #endif /*MPI*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
@@ -2902,17 +2901,16 @@ SUBROUTINE TimeStepByImplicitRK(t)
 USE MOD_Globals
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages,time
+USE MOD_TimeDisc_Vars,           ONLY:dt,iter,iStage, nRKStages
 USE MOD_TimeDisc_Vars,           ONLY:ERK_a,ESDIRK_a,RK_b,RK_c,RK_bs,RKdtFrac
 USE MOD_DG_Vars,                 ONLY:U,Ut
 USE MOD_DG,                      ONLY:DGTimeDerivative_weakForm
 USE MOD_LinearSolver,            ONLY:LinearSolver
 USE MOD_Predictor,               ONLY:Predictor,StorePredictor
-USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,eps_LinearSolver,DoPrintConvInfo
+USE MOD_LinearSolver_Vars,       ONLY:ImplicitSource,LinSolverRHS, ExplicitSource,DoPrintConvInfo
 USE MOD_Equation,                ONLY:DivCleaningDamping
 #ifdef maxwell
 USE MOD_Precond,                 ONLY:BuildPrecond
-USE MOD_Precond_Vars,            ONLY:PrecondType
 #endif /*maxwell*/
 USE MOD_JacDG,                   ONLY:BuildJacDG
 USE MOD_Newton,                  ONLY:ImplicitNorm,FullNewton
@@ -2922,20 +2920,25 @@ USE MOD_Equation_Vars,           ONLY:c2_inv
 USE MOD_Timedisc_Vars,           ONLY:RKdtFrac,RKdtFracTotal
 USE MOD_LinearSolver_Vars,       ONLY:DoUpdateInStage
 USE MOD_Predictor,               ONLY:PartPredictor
-USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType,PartSpecies, doParticleMerge,PartPressureCell
+USE MOD_Particle_Vars,           ONLY:PartIsImplicit,PartLorentzType, doParticleMerge,PartPressureCell
 USE MOD_Particle_Analyze_Vars,   ONLY:DoVerifyCharge
 USE MOD_PIC_Analyze,             ONLY:VerifyDepositedCharge
 USE MOD_PICDepo,                 ONLY:Deposition
 USE MOD_PICInterpolation,        ONLY:InterpolateFieldToParticle
-USE MOD_PIC_Vars,                ONLY:PIC
 USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage, PartQ,Species,nSpecies
-USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM, usevMPF, DoSurfaceFlux
+USE MOD_Particle_Vars,           ONLY:PartState, Pt, LastPartPos, DelayTime, PEM, PDM,  DoSurfaceFlux
 USE MOD_part_RHS,                ONLY:CalcPartRHS,PartVeloToImp
 USE MOD_part_emission,           ONLY:ParticleInserting, ParticleSurfaceflux
 USE MOD_DSMC,                    ONLY:DSMC_main
+<<<<<<< HEAD
 USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS, DSMC
 USE MOD_Particle_Tracking,       ONLY:ParticleTracing,ParticleRefTracking
 USE MOD_Particle_Tracking_vars,  ONLY:tTracking,tLocalization,DoRefMapping,MeasureTrackTime
+=======
+USE MOD_DSMC_Vars,               ONLY:useDSMC, DSMC_RHS
+USE MOD_Particle_Tracking,       ONLY:ParticleTrackingCurved,ParticleRefTracking
+USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
+>>>>>>> clean.warnings
 USE MOD_ParticleSolver,          ONLY:ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS,                ONLY:SLOW_RELATIVISTIC_PUSH,FAST_RELATIVISTIC_PUSH&
                                      ,RELATIVISTIC_PUSH,NON_RELATIVISTIC_PUSH
@@ -2967,12 +2970,11 @@ REAL               :: sgamma
 REAL               :: Un(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 REAL               :: FieldStage (1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
 REAL               :: FieldSource(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:5)
-REAL               :: tRatio, tphi, LorentzFacInv
+REAL               :: tRatio, LorentzFacInv
 ! particle surface flux
 REAL               :: dtFrac,RandVal, LorentzFac
 ! RK counter
 INTEGER            :: iCounter !, iStage
-logical :: first
 #ifdef PARTICLES
 INTEGER            :: iPart,iSpec,iSF
 #endif /*PARTICLES*/

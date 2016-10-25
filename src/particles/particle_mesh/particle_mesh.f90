@@ -292,7 +292,7 @@ USE MOD_Preproc
 USE MOD_Particle_Vars,          ONLY:PartState,PEM,PDM,PartPosRef
 USE MOD_Particle_Mesh_Vars,     ONLY:Geo
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
-USE MOD_Particle_Mesh_Vars,     ONLY:epsInCell,epsOneCell,ElemBaryNGeo,IsBCElem,ElemRadius2NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:epsOneCell,ElemBaryNGeo,IsBCElem,ElemRadius2NGeo
 USE MOD_Eval_xyz,               ONLY:eval_xyz_elemcheck
 USE MOD_Utils,                  ONLY:InsertionSort !BubbleSortID
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,Distance,ListDistance
@@ -311,10 +311,7 @@ LOGICAL,INTENT(IN)                :: doHalo
 INTEGER                           :: iBGMElem,nBGMElems, ElemID, CellX,CellY,CellZ
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                           :: InElementCheck,ParticleFound                                
-REAL                              :: xi(1:3),vBary(1:3),Distance2
-!REAL,PARAMETER                    :: eps=1e-8 ! same value as in eval_xyz_elem
-!REAL,PARAMETER                    :: eps2=1e-3
-!REAL                              :: epsOne,OneMeps
+REAL                              :: xi(1:3),Distance2
 !===================================================================================================================================
 
 !epsOne=1.0+epsInCell
@@ -3820,13 +3817,16 @@ INTEGER                                  :: nCurvedElemsHalo,nLinearElems,nLinea
 INTEGER                                  :: nPlanarRectangularHalo, nPlanarNonRectangularHalo,nPlanarCurvedHalo, &
                                             nBilinearHalo,nCurvedHalo
 #endif /*MPI*/
-INTEGER                                  :: nSideCount, BCSideID, BCSideID2, s,r
+INTEGER                                  :: nSideCount, BCSideID,  s,r
 INTEGER,ALLOCATABLE                      :: SideIndex(:)
 REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
 #if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&((PP_TimeDiscMethod<501 || PP_TimeDiscMethod>506))
 REAL,DIMENSION(1:3,0:NGeo,0:NGeo) :: xNodes
+#endif
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+INTEGER                                 :: BCSideID2
 #endif
 LOGICAL,ALLOCATABLE                     :: SideIsDone(:)
 REAL                                    :: XCL_NGeo1(1:3,0:1,0:1,0:1)

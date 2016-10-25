@@ -209,7 +209,7 @@ SUBROUTINE ExactFunc(ExactFunction,t,tDeriv,x,resu)
 USE MOD_Globals
 USE MOD_Globals_Vars,            ONLY:PI,ElectronMass,ElectronCharge
 USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol
-USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,c2_inv,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
+USE MOD_Equation_Vars,           ONLY:c,c2,eps0,mu0,WaveVector,WaveLength,c_inv,WaveBasePoint,Beam_a0 &
                                      ,I_0,tFWHM, sigma_t, omega_0_2inv
 # if (PP_TimeDiscMethod==1)
 USE MOD_TimeDisc_vars,ONLY:dt
@@ -243,7 +243,7 @@ REAL, PARAMETER                 :: k0=3562.936537,h=1489.378411    ! aux. Consta
 REAL, PARAMETER                 :: omegaG=3.562936537e+3           ! aux. Constants for Gyrotron
 REAL                            :: E_0(1:3), omegaW                ! electric field and omega for plane wave
 REAL                            :: WaveNumber                      ! wavenumber
-REAL                            :: scaleR0,local_a0,scaleR,timeFac,WaveFace,timeFac2
+REAL                            :: scaleR0,local_a0,scaleR,timeFac,timeFac2
 INTEGER, PARAMETER              :: mG=34,nG=19                     ! aux. Constants for Gyrotron
 INTEGER                         :: idir1,idir2,idir3
 REAL                            :: eta

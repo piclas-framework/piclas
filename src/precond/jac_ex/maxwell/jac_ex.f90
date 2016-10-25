@@ -86,7 +86,6 @@ SUBROUTINE Jac_Ex(iElem,BJ)
 !===================================================================================================================================
 ! MODULES
 USE MOD_LinearSolver_Vars ,ONLY:nDOFElem
-USE MOD_DG_Vars           ,ONLY:U
 USE MOD_JacSurfInt        ,ONLY:DGJacSurfInt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -98,8 +97,6 @@ INTEGER,INTENT(IN) :: iElem
 REAL,INTENT(INOUT) :: BJ(1:nDOFelem,1:nDOFelem)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER            :: idir  ! direction counter
-INTEGER            :: i,j
 !===================================================================================================================================
 
 ! element local preconditioner
@@ -115,7 +112,6 @@ SUBROUTINE Jac_Ex_Neighbor(locSideID,iElem,BJ)
 !===================================================================================================================================
 ! MODULES
 USE MOD_LinearSolver_Vars ,ONLY:nDOFElem
-USE MOD_DG_Vars       ,ONLY:U
 USE MOD_JacSurfInt    ,ONLY:DGJacSurfInt_Neighbor
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -127,8 +123,6 @@ INTEGER,INTENT(IN) :: iElem,locSideID
 REAL,INTENT(INOUT) :: BJ(1:nDOFelem,1:nDOFelem)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER            :: idir  ! direction counter
-INTEGER            :: i,j
 !===================================================================================================================================
 
 ! element local preconditioner
@@ -144,7 +138,7 @@ SUBROUTINE  DGVolIntJac(BJ,iElem)
 ! MODULES
 USE MOD_PreProc
 USE MOD_DG_Vars       ,ONLY: D_hat
-USE MOD_Mesh_Vars     ,ONLY: Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,sJ
+USE MOD_Mesh_Vars     ,ONLY: Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 USE MOD_LinearSolver_Vars ,ONLY: nDOFelem
 USE MOD_Jacobian      ,ONLY: EvalFluxJacobian
 ! IMPLICIT VARIABLE HANDLING
@@ -157,8 +151,8 @@ INTEGER,INTENT(IN) :: iElem
 REAL,INTENT(INOUT)    :: BJ(1:nDOFelem,1:nDOFelem)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
-INTEGER                                                 :: i,j,k,mm,nn,oo
-INTEGER                                                 :: r,s,r1,r2,r3,ll,vn1,vn2
+INTEGER                                                 :: i,mm,nn,oo
+INTEGER                                                 :: s,r1,r2,r3,ll,vn1,vn2
 REAL                                                    :: delta(0:PP_N,0:PP_N)
 REAL,DIMENSION(PP_nVar,PP_nVar)                         :: fJac,gJac,hJac
 REAL,DIMENSION(PP_nVar,PP_nVar)                         :: fJacTilde,gJacTilde,hJacTilde
@@ -253,7 +247,7 @@ SUBROUTINE  DGVolIntJac1D(dRdXi,dRdEta,dRdZeta,iElem)
 ! MODULES
 USE MOD_PreProc
 USE MOD_DG_Vars       ,ONLY: D_hat
-USE MOD_Mesh_Vars     ,ONLY: Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,sJ
+USE MOD_Mesh_Vars     ,ONLY: Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 USE MOD_LinearSolver_Vars ,ONLY: nDOFLine
 USE MOD_Jacobian      ,ONLY: EvalFluxJacobian
 ! IMPLICIT VARIABLE HANDLING

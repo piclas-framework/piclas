@@ -3814,7 +3814,7 @@ __STAMP__&
           PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
         END DO ! iPart
       END IF
-#if ((PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122))
+#if (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
       IF(iStage.EQ.nRKStages)
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle

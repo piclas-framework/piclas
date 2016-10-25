@@ -232,6 +232,11 @@ END IF
 !  !eval_vec = (/30,40,50/)
 !  CALL eval_xyz(eval_vec,6,PP_N,U(1:6,:,:,:,iElem),U_eval,iElem)
 !END DO !iElem
+
+IF(1.EQ.2)THEN
+  WRITE(*,*) (OutputTime)
+END IF
+
 END SUBROUTINE Visualize
 
 

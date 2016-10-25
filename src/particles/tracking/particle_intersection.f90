@@ -2317,8 +2317,6 @@ END DO!i
 maxvalue=MAXVAL(alpha(1,:))
 minvalue=MINVAL(alpha(2,:))
 
-
-
 IF(maxvalue.LE.minvalue)THEN!smallest interval exists with atleast one point
   !IF((maxvalue.LT.lengthPartTrajectory+epsilontol).AND.(maxvalue+epsilontol.GT.0.))THEN
   IF((maxvalue.LT.lengthPartTrajectory+100.*epsMach).AND.(maxvalue+100.*epsMach.GT.0.))THEN
