@@ -36,8 +36,8 @@ REAL              :: rCutoff
 REAL              :: WaveVector(1:3)
 REAL              :: WaveLength
 REAL,DIMENSION(3) :: WaveBasePoint
-REAL	         	  :: tFWHM
-REAL	         	  :: Beam_a0
+REAL              :: tFWHM
+REAL              :: Beam_a0
 REAL              :: I_0
 REAL              :: sigma_t
 REAL              :: omega_0, omega_0_2inv

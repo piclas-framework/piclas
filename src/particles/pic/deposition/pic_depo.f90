@@ -3205,6 +3205,7 @@ FUNCTION beta(z,w)
 END FUNCTION beta 
 
 
+#ifdef donotcompilethis
 SUBROUTINE ComputeGaussDistance(N_In,scaleR,X_in,Elem_xGP,GaussDistance) 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! compute all distance between X_in and given array 
@@ -3246,6 +3247,7 @@ END DO ! k=0,N_in
 !END DO ! i = 1,N_in
 
 END SUBROUTINE ComputeGaussDistance
+#endif
 
 
 SUBROUTINE FinalizeDeposition() 

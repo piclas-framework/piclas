@@ -66,9 +66,6 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
 
 CALL InitializeVariables()
-#ifdef MPI
-CALL InitParticleCommSize()
-#endif
 IF(useBGField) CALL InitializeBackgroundField()
 
 CALL InitializeParticleEmission()
@@ -79,10 +76,15 @@ IF (useDSMC) THEN
   IF (useLD) CALL InitLD
 ELSE IF (WriteMacroValues) THEN
   DSMC%CalcSurfaceVal  = .FALSE.
-  DSMC%ElectronicState = .FALSE.
+  DSMC%ElectronicModel = .FALSE.
   DSMC%OutputMeshInit  = .FALSE.
   DSMC%OutputMeshSamp  = .FALSE.
 END IF
+
+#ifdef MPI
+! has to be called AFTER InitializeVariables and InitDSMC 
+CALL InitParticleCommSize()
+#endif
 
 IF(useDSMC .OR. WriteMacroValues) THEN
 ! definition of DSMC sampling values
@@ -1018,8 +1020,8 @@ SWRITE(UNIT_stdOut,'(A)')' INIT FIBGM...'
 SafetyFactor  =GETREAL('Part-SafetyFactor','1.0')
 halo_eps_velo =GETREAL('Particles-HaloEpsVelo','0')
 !-- Finalizing InitializeVariables
-!CALL InitFIBGM()
-CALL InitSFIBGM()
+CALL InitFIBGM()
+!CALL InitSFIBGM()
 #ifdef MPI
 CALL InitEmissionComm()
 #endif /*MPI*/

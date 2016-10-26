@@ -307,7 +307,7 @@ REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
   ! upper limit: highest possible temperature
   JToEv = 1.602176565E-19  
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-  IF ( MeanEVib .GT. PolyatomMolDSMC(iPolyatMole)%EZeroPoint ) THEN
+  IF ( MeanEVib .GT. SpecDSMC(iSpec)%EZeroPoint) THEN
     LowerTemp = 1.0
     UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*JToEv/BoltzmannConst
     DO WHILE ( ABS( UpperTemp - LowerTemp ) .GT. eps_prec )
@@ -938,7 +938,7 @@ SELECT CASE(TRIM(HODSMC%SampleType))
         ELSE
           TSource(8:9) = 0.0
         END IF
-        IF (DSMC%ElectronicState) THEN
+        IF (DSMC%ElectronicModel) THEN
           TSource(10)     =  PartStateIntEn(i,3)
         ELSE
           TSource(10) = 0.0
@@ -1083,7 +1083,7 @@ CASE('nearest_gausspoint')
             Source(8:9,k,l,m,iElem, iSpec) = Source(8:9,k,l,m,iElem, iSpec) + PartStateIntEn(i,1:2)
           END IF
         END IF
-        IF (DSMC%ElectronicState) THEN
+        IF (DSMC%ElectronicModel) THEN
           Source(10,k,l,m,iElem, iSpec) = Source(10,k,l,m,iElem, iSpec) + PartStateIntEn(i,3)
         END IF
       END IF
@@ -1112,7 +1112,7 @@ CASE('cell_mean')
               Source(8:9,kk,ll,mm,iElem, iSpec) = Source(8:9,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,1:2)
             END IF
           END IF
-          IF (DSMC%ElectronicState) THEN
+          IF (DSMC%ElectronicModel) THEN
             Source(10,kk,ll,mm,iElem, iSpec) = Source(10,kk,ll,mm,iElem, iSpec) + PartStateIntEn(i,3)
           END IF
         END IF
@@ -1150,7 +1150,7 @@ CASE('cell_volweight')
       ELSE
         TSource(8:9) = 0.0
       END IF
-      IF (DSMC%ElectronicState) THEN
+      IF (DSMC%ElectronicModel) THEN
         TSource(10)     =  PartStateIntEn(iPart,3)
       ELSE
         TSource(10) = 0.0
@@ -1352,7 +1352,7 @@ DO iSpec = 1, nSpecies
                     , DSMC_HOSolution(8,kk,ll,mm, iElem, iSpec), SpecDSMC(iSpec)%MaxVibQuant) 
               END IF       
               DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec)/(BoltzmannConst)
-              IF (DSMC%ElectronicState) THEN
+              IF (DSMC%ElectronicModel) THEN
                 DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec), iSpec)
               END IF
             END IF
@@ -1397,7 +1397,7 @@ DO iSpec = 1, nSpecies
                 END IF       
                 DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
                    /(DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
-                IF (DSMC%ElectronicState) THEN
+                IF (DSMC%ElectronicModel) THEN
                   DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
                       /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
@@ -1446,7 +1446,7 @@ DO iSpec = 1, nSpecies
                 END IF       
                 DSMC_MacroVal(9,kk,ll,mm, iElem) = DSMC_HOSolution(9,kk,ll,mm, iElem, iSpec) &
                    /(DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec)*BoltzmannConst)
-                IF (DSMC%ElectronicState) THEN
+                IF (DSMC%ElectronicModel) THEN
                   DSMC_MacroVal(10,kk,ll,mm, iElem)= CalcTelec( DSMC_HOSolution(10,kk,ll,mm, iElem, iSpec)&
                       /DSMC_HOSolution(11,kk,ll,mm, iElem, iSpec), iSpec)
                 END IF
@@ -2094,6 +2094,7 @@ __STAMP__&
     END DO
 END SUBROUTINE MPIVolumeExchangeBGMDSMCHO
 
+
 SUBROUTINE MPIBackgroundMeshInitDSMCHO()  
 !============================================================================================================================
 ! initialize MPI background mesh
@@ -2367,7 +2368,7 @@ DO stepz=0, DSMCSampVolWe%OrderVolInt
         alpha1 = (GuessPos(1) / DSMCSampVolWe%BGMdeltas(1)) - i
         alpha2 = (GuessPos(2) / DSMCSampVolWe%BGMdeltas(2)) - j
         alpha3 = (GuessPos(3) / DSMCSampVolWe%BGMdeltas(3)) - k
-         Found = Found + (1.-ABS(alpha1))*(1.-ABS(alpha2))*(1.-ABS(alpha3)) &
+        Found = Found + (1.-ABS(alpha1))*(1.-ABS(alpha2))*(1.-ABS(alpha3)) &
              *DSMCSampVolWe%w_VolInt(stepx)*DSMCSampVolWe%w_VolInt(stepy)*DSMCSampVolWe%w_VolInt(stepz)
         EXIT
       END IF
@@ -2518,7 +2519,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
                           collective=.TRUE., RealArray=MacroDSMC(:,:)%Trot)
   END IF
 
-  IF (DSMC%ElectronicState) THEN
+  IF (DSMC%ElectronicModel) THEN
     CALL WriteArrayToHDF5(DataSetName='DSMC_telec', rank=2,&
                           nValGlobal=(/nGlobalElems, nSpecies+1/),&
                           nVal=      (/PP_nElems,    nSpecies+1/),&

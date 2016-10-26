@@ -16,9 +16,7 @@ SAVE
 REAL                          :: Debug_Energy(2)=0.0        ! debug variable energy conservation
 INTEGER                       :: DSMCSumOfFormedParticles   !number of formed particles per iteration in chemical reactions
                                                             ! for counting the nextfreeparticleposition
-
 REAL  , ALLOCATABLE           :: DSMC_RHS(:,:)              ! RHS of the DSMC Method/ deltaV (npartmax, direction)
-
 INTEGER                       :: CollisMode                 ! Mode of Collision:, ini_1
                                                             !    0: No Collisions (=free molecular flow with DSMC-Sampling-Routines)
                                                             !    1: Elastic Collision
@@ -32,7 +30,6 @@ INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
 REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! (npartmax,1:3) with 2nd index: Evib, Erot, Eel
-INTEGER , ALLOCATABLE         :: PartElecQua(:)
 
 INTEGER                         :: LD_MultiTemperaturMod   ! Modell choice for MultiTemperature
                                                               ! 0 = no MultiTemperature Modeling
@@ -108,15 +105,17 @@ TYPE tSpeciesDSMC                                           ! DSMC Species Param
   REAL,ALLOCATABLE,DIMENSION(:,:) :: ElectronicState        ! Array with electronic State for each species
                                                             ! first  index: 1 - degeneracy & 2 - char. Temp,el
                                                             ! second index: energy level
-  INTEGER                           :: NumElecLevels        !
   INTEGER                           :: SymmetryFactor
   REAL                              :: CharaTRot
   REAL, ALLOCATABLE                :: PartitionFunction(:)  ! Partition function for each species in given temperature range
+  REAL                              :: EZeroPoint           ! Zero point energy for molecules
+  REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
 
 TYPE tDSMC 
+  REAL                          :: EpsElecBin               ! percentage parameter of electronic energy level merging
   REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot), 
                                                             ! should be 0.5 or 0
   INTEGER(KIND=8), ALLOCATABLE  :: NumColl(:)               ! Number of Collision for each case + entire Collision number
@@ -132,6 +131,7 @@ TYPE tDSMC
   INTEGER                       :: VibEnergyModel           ! Model for vibration Energy: 
                                                             !       0: SHO (default value!)
                                                             !       1: TSHO 
+  LOGICAL                       :: DoTEVRRelaxation         ! Flag for T-V-E-R or more simple T-V-R T-E-R relaxation
   INTEGER                       :: PartNumOctreeNode        ! Max Number of Particles per Octree Node
   INTEGER                       :: PartNumOctreeNodeMin     ! Min Number of Particles per Octree Node
   LOGICAL                       :: UseOctree                ! Flag for Octree
@@ -157,8 +157,8 @@ TYPE tDSMC
   REAL, ALLOCATABLE            :: QualityFacSamp(:,:)     ! Sampling of quality factors
                                                             !     1: Time-averaged mean collision prob
                                                             !     2: Mean collision separation distance over mean free path
-  LOGICAL                       :: ElectronicState          ! Flag for Electronic State of atoms and molecules
-  CHARACTER(LEN=64)             :: ElectronicStateDatabase  ! Name of Electronic State Database | h5 file
+  LOGICAL                       :: ElectronicModel          ! Flag for Electronic State of atoms and molecules
+  CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
   LOGICAL                       :: OutputMeshInit           ! Write Outputmesh (for const. pressure BC) at Init.
   LOGICAL                       :: OutputMeshSamp           ! Write Outputmesh (for const. pressure BC) 
@@ -174,6 +174,7 @@ TYPE tDSMC
   REAL                          :: VibRelaxProb              ! Model for calculation of vibrational relaxation probability, ini_1
                                                             !    0-1: constant probability (0: no relaxation)
                                                             !    2: Boyd's model, with correction from Abe
+  REAL                          :: ElecRelaxProb              ! electronic relaxation probability
   LOGICAL                       :: PolySingleMode             ! Separate relaxation of each vibrational mode of a polyatomic in a
                                                                ! loop over all vibrational modes (every mode has its own corrected
                                                                ! relaxation probability, comparison with the same random number
@@ -369,8 +370,6 @@ TYPE tReactInfo
                                                             ! (quant num part1, quant num part2) 
    REAL,  ALLOCATABLE             :: Beta_Rec_Arrhenius(:,:)  ! Beta_d for calculation of the Recombination reaction probability 
                                                             ! (nSpecies, quant num part3)
-   REAL,  ALLOCATABLE             :: Beta_Ion_Arrhenius(:,:)  ! Beta_d for calculation of the Ionization reaction probability 
-                                                            ! (quant num part3)
    INTEGER, ALLOCATABLE           :: StoichCoeff(:,:)     ! Stoichiometric coefficient (nSpecies,1:2) (1: reactants, 2: products)
 END TYPE   
 
@@ -385,7 +384,6 @@ TYPE tChemReactions
   REAL, ALLOCATABLE               :: ReacCollMean(:)        ! Mean Collision Probability for each reaction number
   INTEGER, ALLOCATABLE            :: ReacCollMeanCount(:)   ! counter for mean Collision Probability max for each reaction number
 !  INTEGER(KIND=8), ALLOCATABLE    :: NumReac(:)            ! Number of occured reactions for each reaction number
-  LOGICAL                         :: MeanEVib_Necc          ! Flag if the MeanEVibQua_PerIter is necessary to calculate
   CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
                                                             !    i (electron impact ionization)
                                                             !    R (molecular recombination
@@ -432,7 +430,7 @@ TYPE tChemReactions
    INTEGER                       :: RecombParticle = 0      ! P. Index for Recombination, if zero -> no recomb particle avaible
    INTEGER                       :: nPairForRec
    REAL, ALLOCATABLE             :: Hab(:)                  ! Factor Hab of Arrhenius Ansatz for diatomic/polyatomic molecs
-   TYPE(tReactInfo), ALLOCATABLE  :: ReactInfo(:)           ! Informations of Reactions (nReactions)   
+   TYPE(tReactInfo), ALLOCATABLE  :: ReactInfo(:)           ! Informations of Reactions (nReactions)
 END TYPE
 
 TYPE tTreeNode
@@ -447,7 +445,14 @@ TYPE tTreeNode
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
- 
+
+
+TYPE tQKBackWard
+  REAL, ALLOCATABLE               :: ForwardRate(:)
+END TYPE
+
+TYPE(tQKBackWard), ALLOCATABLE    :: QKBackWard(:)       
+
 REAL                              :: realtime               ! realtime of simulation
 
 TYPE tPolyatomMolDSMC !DSMC Species Param
@@ -458,7 +463,6 @@ TYPE tPolyatomMolDSMC !DSMC Species Param
   INTEGER,ALLOCATABLE           :: LastVibQuantNums(:,:)    ! Last quantum numbers for vibrational inserting (VibDOF,nInits)
   INTEGER, ALLOCATABLE          :: MaxVibQuantDOF(:)      ! Max Vib Quant for each DOF
   REAL                            :: Xi_Vib_Mean            ! mean xi vib for chemical reactions             
-  REAL                            :: EZeroPoint
   REAL                            :: TVib
   REAL, ALLOCATABLE              :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
   REAL, ALLOCATABLE              :: VibRelaxProb(:)
@@ -540,12 +544,6 @@ REAL, ALLOCATABLE                 :: MK_Trend(:)    ! Normalized Trend Parameter
                                                                 ! (-1<x<1 = steady state) (number of Elements)
 REAL, ALLOCATABLE                 :: HValue(:)                  ! Entropy Parameter (Boltzmann's H-Theorem) (number of Elements)
 !-----------------------------------------------convergence criteria-------------------------------------------------
-
-! already defined in particle_boundary_vars.f90
-! INTEGER                           :: nSurfSample             ! polynomial degree of surface supersampling
-! REAL,ALLOCATABLE                  :: XiEq_Surf(:)            ! position of equidistant interpolation points on surface
-! REAL                              :: deltaXiEQ_Surf              ! delta of equidistant surface sampling
-
 TYPE tSampleCartmesh_VolWe
   REAL                                  :: BGMdeltas(3)       ! Backgroundmesh size in x,y,z
   REAL                                  :: FactorBGM(3)       ! Divider for BGM (to allow real numbers)

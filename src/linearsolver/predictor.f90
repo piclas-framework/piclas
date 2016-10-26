@@ -110,6 +110,7 @@ REAL               :: tphi2,tphi3
 INTEGER            :: iCounter
 !===================================================================================================================================
 
+
 SELECT CASE(PredictorType)
   CASE(0)
     ! trival guess
@@ -160,8 +161,17 @@ __STAMP__&
   CASE DEFAULT
 END SELECT
 
-END SUBROUTINE Predictor
+! disable warnings
+IF(1.EQ.2)THEN
+  iCounter=iStage
+  iCounter=INT(tPhi)
+  tphi    =Un(1,1,1,1,1)
+  tphi    =FieldSource(1,1,1,1,1,1)
+  tphi    =FieldStage(1,1,1,1,1,1)
+  tphi    =dt
+END IF
 
+END SUBROUTINE Predictor
 
 #if defined(PARTICLES) && IMPA
 SUBROUTINE PartPredictor(iStage,dt,PartID)

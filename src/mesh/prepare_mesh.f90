@@ -64,7 +64,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER   :: iElem,FirstElemInd,LastElemInd, iProc
+INTEGER   :: iElem,FirstElemInd,LastElemInd
 INTEGER   :: iLocSide,iSide,iInnerSide,iBCSide
 INTEGER   :: i,j
 INTEGER   :: PeriodicBCMap(nBCs)       !connected periodic BCs
@@ -81,6 +81,7 @@ CHARACTER(LEN=4)      :: hilf
 #ifdef PP_HDG
 #ifdef MPI
 INTEGER, ALLOCATABLE         :: offsetSideMPI(:)
+INTEGER                      :: iProc
 #endif /*MPI*/
 #endif /*PP_HDG*/
 #endif

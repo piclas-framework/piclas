@@ -50,7 +50,7 @@ USE MOD_ReadInTools
 USE MOD_PML_Vars,            ONLY: PMLzeta,U2,U2t,Probes,DoPML,ntotalPML
 USE MOD_PML_Vars,            ONLY: nPMLElems,ElemtoPML,PMLtoElem
 USE MOD_PML_Vars,            ONLY: PMLzeta0,xyzPhysicalMinMax,PMLzetaShape,PMLspread,PMLwritezeta, PMLzetaNorm
-USE MOD_Mesh_Vars,           ONLY: Elem_xGP,BCFace_xGP  ! for PML region: xyz position of the Gauss points and Face Gauss points
+USE MOD_Mesh_Vars,           ONLY: Elem_xGP,Face_xGP,nBCSides  ! for PML region: xyz position of the Gauss points and Face Gauss points
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -174,8 +174,8 @@ U2t=0.0
 !===================================================================================================================================
 !determine PMLzeta values for each interpolation point
 !===================================================================================================================================
-xyzMinMax(:) = (/MINVAL(BCFace_xGP(1,:,:,:)),MAXVAL(BCFace_xGP(1,:,:,:)),MINVAL(BCFace_xGP(2,:,:,:)),&
-                 MAXVAL(BCFace_xGP(2,:,:,:)),MINVAL(BCFace_xGP(3,:,:,:)),MAXVAL(BCFace_xGP(3,:,:,:))/)
+xyzMinMax(:) = (/MINVAL(Face_xGP(1,:,:,1:nBCSides)),MAXVAL(Face_xGP(1,:,:,1:nBCSides)),MINVAL(Face_xGP(2,:,:,1:nBCSides)),&
+                 MAXVAL(Face_xGP(2,:,:,1:nBCSides)),MINVAL(Face_xGP(3,:,:,1:nBCSides)),MAXVAL(Face_xGP(3,:,:,1:nBCSides))/)
 !print *, "xyzMinMax",xyzMinMax
 SELECT CASE (PMLzetaShape)
 CASE(0) ! Constant Distribution of the Damping Coefficient

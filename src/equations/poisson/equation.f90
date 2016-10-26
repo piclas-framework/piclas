@@ -74,6 +74,8 @@ IniExactFunc = GETINT('IniExactFunc')
 IniCenter    = GETREALARRAY('IniCenter',3,'0.,0.,0.')
 IniAmplitude = GETREAL('IniAmplitude','0.1')
 IniHalfwidth = GETREAL('IniHalfwidth','0.1')
+ACfrequency = GETREAL('ACfrequency','0.0')
+ACamplitude = GETREAL('ACamplitude','0.0')
 c_inv  = 1./c
 c2     = c*c
 smu0=1./mu0
@@ -109,7 +111,7 @@ END SUBROUTINE InitEquation
 
 
 
-SUBROUTINE ExactFunc(ExactFunction,x,resu) 
+SUBROUTINE ExactFunc(ExactFunction,x,resu,t) 
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -117,12 +119,14 @@ SUBROUTINE ExactFunc(ExactFunction,x,resu)
 USE MOD_Globals,ONLY:Abort
 USE MOD_Equation_Vars,ONLY:Pi
 USE MOD_Equation_Vars,ONLY: IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_Equation_Vars,ONLY: ACfrequency,ACamplitude
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: x(3)              
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
+REAL,INTENT(IN),OPTIONAl        :: t ! time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative variables
@@ -147,6 +151,15 @@ CASE(2) !sinus
   Amplitude=0.3
   Omega=2.*Pi*Frequency
   Resu(:)=1.+Amplitude*SIN(Omega*SUM(Cent))
+CASE(31) !sinus
+!Print*,"here 31"
+  Omega=2.*Pi*ACfrequency
+  Resu(:)=ACamplitude*SIN(Omega*t)
+CASE(32) !sinus
+resu=0.
+return
+  Omega=2.*Pi*ACfrequency
+  Resu(:)=ACamplitude*SIN(Omega*t-Pi)
 CASE(102) !linear: z=-1: 0, z=1, 1000
   resu(:)=(1+x(3))*1000.
 CASE(103) !dipole

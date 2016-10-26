@@ -96,7 +96,7 @@ SUBROUTINE Particle_Wall_Adsorb(PartTrajectory,alpha,xi,eta,PartID,GlobSideID,Is
   USE MOD_Particle_Vars,          ONLY : PartState,LastPartPos,Species,BoltzmannConst,PartSpecies
   USE MOD_Mesh_Vars,              ONLY : BC
   USE MOD_DSMC_Vars,              ONLY : CollisMode, Adsorption
-  USE MOD_DSMC_Vars,              ONLY : PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
+  USE MOD_DSMC_Vars,              ONLY : PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
   USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh, dXiEQ_SurfSample, Partbound
   USE MOD_TimeDisc_Vars,          ONLY : TEnd, time
   USE MOD_Particle_Surfaces_vars, ONLY : SideNormVec,SideType
@@ -598,7 +598,7 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
   USE MOD_Globals_Vars,           ONLY : PlanckConst
   USE MOD_Particle_Vars,          ONLY : PartState, PartSpecies, nSpecies, Species, BoltzmannConst
   USE MOD_Mesh_Vars,              ONLY : BC
-  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo, SpecDSMC, PartStateIntEn, PolyatomMolDSMC
+  USE MOD_DSMC_Vars,              ONLY : Adsorption, DSMC, SurfDistInfo, SpecDSMC, PartStateIntEn
   USE MOD_Particle_Boundary_Vars, ONLY : nSurfSample, SurfMesh, PartBound
   USE MOD_TimeDisc_Vars,          ONLY : dt
   USE MOD_DSMC_Analyze,           ONLY : CalcTVib, CalcTVibPoly
@@ -707,10 +707,10 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
     IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        EZeroPoint_Educt = EZeroPoint_Educt + PolyatomMolDSMC(iPolyatMole)%EZeroPoint
+        EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(iPolyatMole)%EZeroPoint
         ! Calculation of the vibrational degree of freedom for the particle 
-        IF (PartStateIntEn(PartID,1).GT.PolyatomMolDSMC(iPolyatMole)%EZeroPoint) THEN
-          Xi_vib = 2.*(PartStateIntEn(PartID,1)-PolyatomMolDSMC(iPolyatMole)%EZeroPoint) &
+        IF (PartStateIntEn(PartID,1).GT.SpecDSMC(iPolyatMole)%EZeroPoint) THEN
+          Xi_vib = 2.*(PartStateIntEn(PartID,1)-SpecDSMC(iPolyatMole)%EZeroPoint) &
                   / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), iSpec))
         ELSE
           Xi_vib = 0.0
@@ -842,10 +842,10 @@ SUBROUTINE CalcBackgndPartAdsorb(subsurfxi,subsurfeta,SurfSideID,PartID,Norm_Ec,
       IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
           iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-          EZeroPoint_Educt = EZeroPoint_Educt + PolyatomMolDSMC(iPolyatMole)%EZeroPoint
+          EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(iPolyatMole)%EZeroPoint
           ! Calculation of the vibrational degree of freedom for the particle 
-          IF (PartStateIntEn(PartID,1).GT.PolyatomMolDSMC(iPolyatMole)%EZeroPoint) THEN
-            Xi_vib = 2.*(PartStateIntEn(PartID,1)-PolyatomMolDSMC(iPolyatMole)%EZeroPoint) &
+          IF (PartStateIntEn(PartID,1).GT.SpecDSMC(iPolyatMole)%EZeroPoint) THEN
+            Xi_vib = 2.*(PartStateIntEn(PartID,1)-SpecDSMC(iPolyatMole)%EZeroPoint) &
                     / (BoltzmannConst*CalcTVibPoly(PartStateIntEn(PartID,1), iSpec))
           ELSE
             Xi_vib = 0.0
@@ -1795,6 +1795,7 @@ SUBROUTINE CalcDesorbProb()
   USE MOD_TimeDisc_Vars,          ONLY : dt
 #if (PP_TimeDiscMethod==42)  
   USE MOD_TimeDisc_Vars,          ONLY : iter
+  USE MOD_DSMC_Vars,              ONLY : DSMC
 #endif
 !===================================================================================================================================
    IMPLICIT NONE

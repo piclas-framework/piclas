@@ -80,7 +80,8 @@
 #define PLANAR_RECT   0
 #define PLANAR_NONRECT   1
 #define BILINEAR 2
-#define CURVED   3
+#define PLANAR_CURVED   3
+#define CURVED   4
 
 ! entries for PartHaloToProc
 #define NATIVE_ELEM_ID  1

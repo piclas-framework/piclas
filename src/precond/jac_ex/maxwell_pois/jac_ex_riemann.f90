@@ -38,7 +38,6 @@ SUBROUTINE ConstructJacRiemann(nVec_loc,SurfElem_loc,Aside)
 ! MODULES
 USE MOD_PreProc ! PP_N
 USE MOD_Equation_Vars,  ONLY: eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_LinearSolver_Vars,  ONLY: nDOFSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -54,7 +53,7 @@ REAL,DIMENSION(8,8,0:PP_N,0:PP_N),INTENT(OUT)  :: Aside
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 REAL                                             :: n_loc(3), A_p(8,8)
-INTEGER                                          :: i,j, s,r
+INTEGER                                          :: i,j
 !===================================================================================================================================
 ! Gauss point i,j
 
@@ -125,7 +124,6 @@ SUBROUTINE ConstructJacNeighborRiemann(nVec_loc,SurfElem_loc,Aside)
 ! MODULES
 USE MOD_PreProc ! PP_N
 USE MOD_Equation_Vars,  ONLY: eta_c,c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_LinearSolver_Vars,  ONLY: nDOFSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -140,7 +138,7 @@ REAL,DIMENSION(8,8,0:PP_N,0:PP_N),INTENT(OUT)  :: Aside
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES 
 REAL                                             :: n_loc(3), A_m(8,8)
-INTEGER                                          :: i,j, s,r
+INTEGER                                          :: i,j
 !===================================================================================================================================
 ! Gauss point i,j
 
@@ -210,7 +208,6 @@ SUBROUTINE ConstructJacBCRiemann(BCType,nVec_loc,SurfElem_loc,Aside)
 ! MODULES
 USE MOD_PreProc 
 USE MOD_Equation_Vars,  ONLY: c,c2,c_corr,c_corr_c,c_corr_c2
-USE MOD_LinearSolver_Vars,  ONLY: nDOFSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

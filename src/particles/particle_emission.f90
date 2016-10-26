@@ -3422,9 +3422,10 @@ USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh
 #if (PP_TimeDiscMethod==300)
 !USE MOD_FPFlow_Init,   ONLY : SetInternalEnr_InitFP
 #endif
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
 USE MOD_Particle_Analyze_Vars  ,ONLY: nPartInTmp,PartEkinInTmp,PartAnalyzeStep
+USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 #endif
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal,Time
 USE MOD_Particle_Analyze       ,ONLY: CalcEkinPart
@@ -3440,6 +3441,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: epsInCell, ElemBaryNGeo
 USE MOD_Eval_xyz               ,ONLY: Eval_xyz_ElemCheck, Eval_XYZ_Poly
 #if (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
 USE MOD_Timedisc_Vars          ,ONLY: iStage,nRKStages
+USE MOD_Particle_Analyze_Vars  ,ONLY: nPartIn,PartEkinIn
 #endif
 #if (PP_TimeDiscMethod==1000) || (PP_TimeDiscMethod==1001)
 USE MOD_LD_Init                ,ONLY : CalcDegreeOfFreedom
@@ -3695,7 +3697,7 @@ __STAMP__&
             CASE(PLANAR_RECT,PLANAR_NONRECT)
               LastPartPos(ParticleIndexNbr,1:3)=ElemBaryNGeo(1:3,ElemID) &
               + (PartState(ParticleIndexNbr,1:3)-ElemBaryNGeo(1:3,ElemID)) * (1.0-epsInCell)
-            CASE(BILINEAR,CURVED) !to be changed into more efficient method using known xi
+            CASE(BILINEAR,CURVED,PLANAR_CURVED) !to be changed into more efficient method using known xi
               CALL Eval_xyz_ElemCheck(PartState(ParticleIndexNbr,1:3),Particle_pos(1:3),ElemID) !RefMap PartState
               DO iLoop=1,3 !shift border-RefCoords into elem
                 IF( ABS(Particle_pos(iLoop)) .GT. 1.0-epsInCell ) THEN
@@ -3812,7 +3814,7 @@ __STAMP__&
           PartEkinIn(PartSpecies(iPart))=PartEkinIn(PartSpecies(iPart))+CalcEkinPart(iPart)
         END DO ! iPart
       END IF
-#if ((PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122))
+#if (PP_TimeDiscMethod==121)||(PP_TimeDiscMethod==122)
       IF(iStage.EQ.nRKStages)
         nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
         DO iPart=1,NbrOfparticle
