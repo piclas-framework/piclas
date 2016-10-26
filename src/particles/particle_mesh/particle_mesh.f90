@@ -4586,6 +4586,7 @@ USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,        ONLY:DoRefMapping
 USE MOD_Mesh_Vars,                     ONLY:nElems,NGeo,nBCSides
 USE MOD_Particle_Surfaces_Vars,        ONLY:BezierControlPoints3D,BaseVectors0,BaseVectors1,BaseVectors2
+! USE MOD_Particle_Surfaces_Vars,        ONLY:SideID2PlanarSideID
 USE MOD_Particle_Surfaces_Vars,        ONLY:SideType
 USE MOD_Particle_Mesh_Vars,            ONLY:nTotalSides,nTotalBCSides,nTotalElems,nTotalBCElems,PartElemToSide
 USE MOD_Particle_Mesh_Vars,            ONLY:SidePeriodicDisplacement,SidePeriodicType
@@ -4597,13 +4598,25 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                               :: iElem, flip, iSide, iLocSide
+! INTEGER                               :: iSide_temp
 !===================================================================================================================================
 IF(.NOT.DoRefMapping)THEN
+!   ALLOCATE(SideID2PlanarSideID(1:nTotalSides))
+!   SideID2PlanarSideID(:) = 0
+!   iSide_temp = 0
+!   DO iSide=1,nTotalSides
+!     IF (SideType(iSide).EQ.PLANAR_RECT) THEN
+!       iSide_temp = iSide_temp + 1
+!       SideID2PlanarSideID(iSide) = iSide_temp
+!     END IF
+!   END DO
+  
   ALLOCATE(BaseVectors0(1:3,1:nTotalSides),BaseVectors1(1:3,1:nTotalSides),BaseVectors2(1:3,1:nTotalSides))
    
   DO iSide=1,nTotalSides
     ! extension for periodic sides
     IF((SidePeriodicType(iSide).EQ.0) .AND. (SideType(iSide).EQ.PLANAR_RECT))THEN
+!       iSide_temp = SideID2PlanarSideID(iSide)
       BaseVectors0(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)+BezierControlPoints3D(:,NGeo,0,iSide)   &
                                 +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
       BaseVectors1(:,iSide) = (-BezierControlPoints3D(:,0,0,iSide)+BezierControlPoints3D(:,NGeo,0,iSide)   &
