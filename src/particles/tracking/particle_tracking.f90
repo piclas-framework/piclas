@@ -144,10 +144,10 @@ DO iPart=1,PDM%ParticleVecLength
         !                                                                                ,eta(ilocSide)   ,iPart,flip,SideID &
         !                                                                                ,isCriticalParallelInFace)
         CASE(BILINEAR,PLANAR_NONRECT)
-      CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                       ,xi (ilocSide)      &
-                                                                                       ,eta(ilocSide)      &
-                                                                                       ,iPart,flip,SideID)
+          CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                        ,xi (ilocSide)      &
+                                                                                        ,eta(ilocSide)      &
+                                                                                        ,iPart,flip,SideID)
         CASE(CURVED,PLANAR_CURVED)
           CALL ComputeCurvedIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
@@ -1345,10 +1345,10 @@ DO iLocSide=firstSide,LastSide
                                                                                   ,xi (ilocSide)            &
                                                                                   ,eta(ilocSide)   ,PartID,flip,BCSideID)
   CASE(BILINEAR,PLANAR_NONRECT)
-      CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                       ,xi (ilocSide)      &
-                                                                                       ,eta(ilocSide)      &
-                                                                                       ,PartID,flip,BCSideID)
+    CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                      ,xi (ilocSide)      &
+                                                                                      ,eta(ilocSide)      &
+                                                                                      ,PartID,flip,BCSideID)
   !CASE(PLANAR_NONRECT)
   !  CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
   !                                                                                ,xi (ilocSide)      &
