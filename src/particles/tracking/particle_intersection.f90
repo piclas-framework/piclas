@@ -349,7 +349,7 @@ END SELECT
 
 END SUBROUTINE ComputePlanarNonrectIntersection
 
-SUBROUTINE ComputeBiLinearIntersection(isHit,xNodes,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
+SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
                                                    ,iPart,flip,SideID)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
@@ -359,7 +359,7 @@ SUBROUTINE ComputeBiLinearIntersection(isHit,xNodes,PartTrajectory,lengthPartTra
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,Beziercliphit
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,Beziercliphit,BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 #ifdef MPI
@@ -372,7 +372,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
-REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
 INTEGER,INTENT(IN)                :: iPart,SideID,flip
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -394,11 +393,22 @@ etatild=-2.0
 isHit=.FALSE.
 
 ! compute initial vectors
-BiLinearCoeff(:,1) = xNodes(:,1)-xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
-BiLinearCoeff(:,2) =-xNodes(:,1)+xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
-BiLinearCoeff(:,3) =-xNodes(:,1)-xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
-BiLinearCoeff(:,4) = xNodes(:,1)+xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
-BiLinearCoeff= 0.25*BiLinearCoeff
+BiLinearCoeff(:,1) = 0.25*BaseVectors3(:,SideID)
+BiLinearCoeff(:,2) = 0.25*BaseVectors1(:,SideID)
+BiLinearCoeff(:,3) = 0.25*BaseVectors2(:,SideID)
+BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
+
+! a1(1)= 0.25 * (BaseVectors3(1,SideID)*PartTrajectory(3) - BaseVectors3(3,SideID)*PartTrajectory(1))
+! a1(2)= 0.25 * (BaseVectors1(1,SideID)*PartTrajectory(3) - BaseVectors1(3,SideID)*PartTrajectory(1))
+! a1(3)= 0.25 * (BaseVectors2(1,SideID)*PartTrajectory(3) - BaseVectors2(3,SideID)*PartTrajectory(1))
+! a1(4)=(0.25*BaseVectors0(1,SideID)-LastPartPos(iPart,1))*PartTrajectory(3) &
+!      -(0.25*BaseVectors0(3,SideID)-LastPartPos(iPart,3))*PartTrajectory(1)
+!      
+! a2(1)= 0.25 * (BaseVectors3(2,SideID)*PartTrajectory(3) - BaseVectors3(3,SideID)*PartTrajectory(2))
+! a2(2)= 0.25 * (BaseVectors1(2,SideID)*PartTrajectory(3) - BaseVectors1(3,SideID)*PartTrajectory(2))
+! a2(3)= 0.25 * (BaseVectors2(2,SideID)*PartTrajectory(3) - BaseVectors2(3,SideID)*PartTrajectory(2))
+! a2(4)=(0.25*BaseVectors0(2,SideID)-LastPartPos(iPart,2))*PartTrajectory(3) &
+!      -(0.25*BaseVectors0(3,SideID)-LastPartPos(iPart,3))*PartTrajectory(2)
 
 ! compute product with particle trajectory
 a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)

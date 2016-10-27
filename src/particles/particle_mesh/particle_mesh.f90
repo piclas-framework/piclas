@@ -571,11 +571,10 @@ DO ilocSide=1,6
   !CASE(PLANAR_NONRECT)
   !  CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
   CASE(BILINEAR,PLANAR_NONRECT)
-    xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
-    xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
-    xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
-    xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
-    CALL ComputeBiLinearIntersection(isHit,xNodes,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
+      CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
+                                                                                       ,xi      &
+                                                                                       ,eta      &
+                                                                                       ,PartID,flip,SideID)
   CASE(CURVED,PLANAR_CURVED)
     CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID)
   END SELECT
@@ -4585,11 +4584,11 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,        ONLY:DoRefMapping
 USE MOD_Mesh_Vars,                     ONLY:nElems,NGeo,nBCSides
-USE MOD_Particle_Surfaces_Vars,        ONLY:BezierControlPoints3D,BaseVectors0,BaseVectors1,BaseVectors2
+USE MOD_Particle_Surfaces_Vars,        ONLY:BezierControlPoints3D,BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3
 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideID2PlanarSideID
 USE MOD_Particle_Surfaces_Vars,        ONLY:SideType
 USE MOD_Particle_Mesh_Vars,            ONLY:nTotalSides,nTotalBCSides,nTotalElems,nTotalBCElems,PartElemToSide
-USE MOD_Particle_Mesh_Vars,            ONLY:SidePeriodicDisplacement,SidePeriodicType
+USE MOD_Particle_Mesh_Vars,            ONLY:SidePeriodicDisplacement,SidePeriodicType, PartBCSideList
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
@@ -4611,11 +4610,16 @@ IF(.NOT.DoRefMapping)THEN
 !     END IF
 !   END DO
   
-  ALLOCATE(BaseVectors0(1:3,1:nTotalSides),BaseVectors1(1:3,1:nTotalSides),BaseVectors2(1:3,1:nTotalSides))
+  ALLOCATE( BaseVectors0(1:3,1:nTotalSides),&
+            BaseVectors1(1:3,1:nTotalSides),&
+            BaseVectors2(1:3,1:nTotalSides),&
+            BaseVectors3(1:3,1:nTotalSides))
    
   DO iSide=1,nTotalSides
     ! extension for periodic sides
-    IF((SidePeriodicType(iSide).EQ.0) .AND. (SideType(iSide).EQ.PLANAR_RECT))THEN
+    IF((SidePeriodicType(iSide).EQ.0) ) THEN
+!     .AND. ((SideType(iSide).EQ.PLANAR_RECT) &
+!        .OR. (SideType(iSide).EQ.PLANAR_NONRECT) .OR. (SideType(iSide).EQ.BILINEAR)))THEN
 !       iSide_temp = SideID2PlanarSideID(iSide)
       BaseVectors0(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)+BezierControlPoints3D(:,NGeo,0,iSide)   &
                                 +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
@@ -4623,6 +4627,8 @@ IF(.NOT.DoRefMapping)THEN
                                 -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
       BaseVectors2(:,iSide) = (-BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
                                 +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+      BaseVectors3(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
+                                -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
 !     ELSE
 !       BaseVectors0(:,iSide)=(+(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
 !                               +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &

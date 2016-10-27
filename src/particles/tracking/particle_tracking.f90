@@ -144,15 +144,10 @@ DO iPart=1,PDM%ParticleVecLength
         !                                                                                ,eta(ilocSide)   ,iPart,flip,SideID &
         !                                                                                ,isCriticalParallelInFace)
         CASE(BILINEAR,PLANAR_NONRECT)
-          xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
-          xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
-          xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
-          xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
-          CALL ComputeBiLinearIntersection(isHit,xNodes &
-                                                ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                            ,xi (ilocSide)      &
-                                                                                            ,eta(ilocSide)      &
-                                                                                            ,iPart,flip,SideID)
+      CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                       ,xi (ilocSide)      &
+                                                                                       ,eta(ilocSide)      &
+                                                                                       ,iPart,flip,SideID)
         CASE(CURVED,PLANAR_CURVED)
           CALL ComputeCurvedIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
@@ -755,12 +750,7 @@ DO WHILE(DoTracing)
     !                                                                                ,xi (ilocSide)      &
     !                                                                                ,eta(ilocSide)   ,PartID,flip,BCSideID)
     CASE(BILINEAR,PLANAR_NONRECT)
-      xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
-      xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
-      xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
-      xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,BCSideID)
-      CALL ComputeBiLinearIntersection(isHit,xNodes &
-                                                   ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+      CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                        ,xi (ilocSide)      &
                                                                                        ,eta(ilocSide)      &
                                                                                        ,PartID,flip,BCSideID)
@@ -1355,15 +1345,10 @@ DO iLocSide=firstSide,LastSide
                                                                                   ,xi (ilocSide)            &
                                                                                   ,eta(ilocSide)   ,PartID,flip,BCSideID)
   CASE(BILINEAR,PLANAR_NONRECT)
-    xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
-    xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
-    xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
-    xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,BCSideID)
-    CALL ComputeBiLinearIntersection(isHit,xNodes &
-                                                 ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                     ,xi (ilocSide)      &
-                                                                                     ,eta(ilocSide)      &
-                                                                                     ,PartID,flip,BCSideID)
+      CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                       ,xi (ilocSide)      &
+                                                                                       ,eta(ilocSide)      &
+                                                                                       ,PartID,flip,BCSideID)
   !CASE(PLANAR_NONRECT)
   !  CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
   !                                                                                ,xi (ilocSide)      &
