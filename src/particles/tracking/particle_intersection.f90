@@ -163,7 +163,7 @@ END IF
 
 ! iSide_temp = SideID2PlanarSideID(SideID)
 Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-P0=-SideBasePoint+Inter1
+P0 =-0.25*BaseVectors0(:,SideID)+Inter1
 P1 = 0.25*BaseVectors1(:,SideID)
 P2 = 0.25*BaseVectors2(:,SideID)
 
