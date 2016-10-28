@@ -3717,9 +3717,10 @@ INTEGER             :: iElem
 ! first communicate the bezierControlPoints (slave information is missing)
 CALL ExchangeBezierControlPoints3D()
 #endif /*MPI*/
-DO iElem=1,nElems
- CALL GetElemSlabNormalsAndIntervals(NGeo,iElem)
-END DO !iElem=1,nElems
+! feature is not used, hence commented out!
+!DO iElem=1,nElems
+! CALL GetElemSlabNormalsAndIntervals(NGeo,iElem)
+!END DO !iElem=1,nElems
 #endif /*PARTICLES*/
 
 
