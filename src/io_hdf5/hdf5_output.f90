@@ -1584,6 +1584,7 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset,collective=.FALSE.,IntegerArray =IntegerArray)
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                    offset,collective=.FALSE.,StrArray =StrArray)
+      CALL CloseDataFile()
     ELSE 
       CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,communicatorOpt=OutputCOMM)
       IF(PRESENT(RealArray)) CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
@@ -1592,8 +1593,9 @@ IF(.NOT.DoNotSplit)THEN
                                                    offset,collective,IntegerArray =IntegerArray)
       IF(PRESENT(StrArray))  CALL WriteArrayToHDF5(DataSetName,rank,nValGlobal,nVal,&
                                                    offset,collective,StrArray =StrArray)
+      CALL CloseDataFile()
     END IF
-    CALL CloseDataFile()
+    CALL MPI_BARRIER(OutputCOMM,IERROR)
     CALL MPI_COMM_FREE(OutputCOMM,iERROR)
   END IF
   ! MPI Barrier is requried, that the other procs don't open the datafile while this procs are still writring
