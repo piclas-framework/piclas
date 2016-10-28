@@ -2515,12 +2515,12 @@ DO iElem=1,PP_nElems
     BGMCellZmax = ElemToBGM(6,iElem)
 
     IPWRITE(UNIT_stdOut,*) ' TFIBGM , iElem'
-    IPWRITE(UNIT_stdOut,*) 'xmin',GEO%xmin,xmin
-    IPWRITE(UNIT_stdOut,*) 'xmax',GEO%xmax,xmax
-    IPWRITE(UNIT_stdOut,*) 'ymin',GEO%ymin,ymin
-    IPWRITE(UNIT_stdOut,*) 'ymax',GEO%ymax,ymax
-    IPWRITE(UNIT_stdOut,*) 'zmin',GEO%zmin,zmin
-    IPWRITE(UNIT_stdOut,*) 'zmax',GEO%zmax,zmax
+    IPWRITE(UNIT_stdOut,*) 'xmin',GEO%xmin
+    IPWRITE(UNIT_stdOut,*) 'xmax',GEO%xmax
+    IPWRITE(UNIT_stdOut,*) 'ymin',GEO%ymin
+    IPWRITE(UNIT_stdOut,*) 'ymax',GEO%ymax
+    IPWRITE(UNIT_stdOut,*) 'zmin',GEO%zmin
+    IPWRITE(UNIT_stdOut,*) 'zmax',GEO%zmax
     IPWRITE(UNIT_stdOut,*) ' BGM , iBGM'
     IPWRITE(UNIT_stdOut,*) 'xmin', BGMimin,BGMCellXmin
     IPWRITE(UNIT_stdOut,*) 'xmax', BGMimax,BGMCellXmax
