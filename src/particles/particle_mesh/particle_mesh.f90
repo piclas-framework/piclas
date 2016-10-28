@@ -4583,12 +4583,14 @@ SUBROUTINE GetPlanarSideBaseVectors()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,        ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                     ONLY:NGeo,nBCSides
-USE MOD_Particle_Surfaces_Vars,        ONLY:BezierControlPoints3D,BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3
+USE MOD_Mesh_Vars,                     ONLY:NGeo
+USE MOD_Particle_Surfaces_Vars,        ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3
+USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip,BaseVectors3flip
 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideID2PlanarSideID
 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideType
 USE MOD_Particle_Mesh_Vars,            ONLY:nTotalSides,nTotalBCSides
-! USE MOD_Particle_Mesh_Vars,            ONLY:SidePeriodicDisplacement
+USE MOD_Particle_Mesh_Vars,            ONLY:SidePeriodicDisplacement,GEO
 USE MOD_Particle_Mesh_Vars,            ONLY:SidePeriodicType, PartBCSideList
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -4615,37 +4617,43 @@ IF(.NOT.DoRefMapping)THEN
             BaseVectors1(1:3,1:nTotalSides),&
             BaseVectors2(1:3,1:nTotalSides),&
             BaseVectors3(1:3,1:nTotalSides))
+  IF (GEO%nPeriodicVectors.GT.0) THEN
+    ALLOCATE( BaseVectors0flip(1:3,1:nTotalSides),&
+              BaseVectors1flip(1:3,1:nTotalSides),&
+              BaseVectors2flip(1:3,1:nTotalSides),&
+              BaseVectors3flip(1:3,1:nTotalSides))
+  END IF
    
   DO iSide=1,nTotalSides
     ! extension for periodic sides
-    IF((SidePeriodicType(iSide).EQ.0) ) THEN
-!     .AND. ((SideType(iSide).EQ.PLANAR_RECT) &
+!     IF ((SideType(iSide).EQ.PLANAR_RECT) &
 !        .OR. (SideType(iSide).EQ.PLANAR_NONRECT) .OR. (SideType(iSide).EQ.BILINEAR)))THEN
 !       iSide_temp = SideID2PlanarSideID(iSide)
-      BaseVectors0(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)+BezierControlPoints3D(:,NGeo,0,iSide)   &
-                                +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
-      BaseVectors1(:,iSide) = (-BezierControlPoints3D(:,0,0,iSide)+BezierControlPoints3D(:,NGeo,0,iSide)   &
-                                -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
-      BaseVectors2(:,iSide) = (-BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
-                                +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
-      BaseVectors3(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
-                                -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
-!     ELSE
-!       BaseVectors0(:,iSide)=(+(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                               +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                               +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                               +(BezierControlPoints3D(:,NGeo,NGeo,iSide) &
-!                               -SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
-!       BaseVectors1(:,iSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                               +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                               -(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                               +(BezierControlPoints3D(:,NGeo,NGeo,iSide) &
-!                               -SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
-!       BaseVectors2(:,iSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                               -(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                               +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                               +(BezierControlPoints3D(:,NGeo,NGeo,iSide) &
-!                               -SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
+    BaseVectors0(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)+BezierControlPoints3D(:,NGeo,0,iSide)   &
+                              +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+    BaseVectors1(:,iSide) = (-BezierControlPoints3D(:,0,0,iSide)+BezierControlPoints3D(:,NGeo,0,iSide)   &
+                              -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+    BaseVectors2(:,iSide) = (-BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
+                              +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+    BaseVectors3(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
+                              -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+    IF ( (SidePeriodicType(iSide).NE.0) ) THEN
+      BaseVectors0flip(:,iSide)=(+(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
+      BaseVectors1flip(:,iSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              -(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
+      BaseVectors2flip(:,iSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              -(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
+      BaseVectors3flip(:,iSide) = (+(BezierControlPoints3D(:,0,0,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                               -(BezierControlPoints3D(:,NGeo,0,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                               -(BezierControlPoints3D(:,0,NGeo,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                               +(BezierControlPoints3D(:,NGeo,NGeo,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) )
     END IF
   END DO ! iSide
 ELSE
@@ -4657,32 +4665,14 @@ ELSE
     BCSide = PartBCSideList(iSide)
     ! extension for periodic sides
     IF(BCSide.EQ.-1) CYCLE
-    IF((SidePeriodicType(iSide).EQ.0) )THEN !.AND. (SideType(BCSide).EQ.PLANAR_RECT))THEN
-      BaseVectors0(:,BCSide) = (+BezierControlPoints3D(:,0,0,BCSide)+BezierControlPoints3D(:,NGeo,0,BCSide)   &
-                                +BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
-      BaseVectors1(:,BCSide) = (-BezierControlPoints3D(:,0,0,BCSide)+BezierControlPoints3D(:,NGeo,0,BCSide)   &
-                                -BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
-      BaseVectors2(:,BCSide) = (-BezierControlPoints3D(:,0,0,BCSide)-BezierControlPoints3D(:,NGeo,0,BCSide)   &
-                                +BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
-      BaseVectors3(:,BCSide) = (+BezierControlPoints3D(:,0,0,BCSide)-BezierControlPoints3D(:,NGeo,0,BCSide)   &
-                                -BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
-!     ELSE
-!       BaseVectors0(:,BCSide)=(+(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                                 +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                                 +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                                 +(BezierControlPoints3D(:,NGeo,NGeo,iSide) &
-!                                 -SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
-!       BaseVectors1(:,BCSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                                 +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                                 -(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                                 +(BezierControlPoints3D(:,NGeo,NGeo,iSide) &
-!                                 -SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
-!       BaseVectors2(:,BCSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                                 -(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                                 +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-!                                 +(BezierControlPoints3D(:,NGeo,NGeo,iSide) &
-!                                 -SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
-    END IF
+    BaseVectors0(:,BCSide) = (+BezierControlPoints3D(:,0,0,BCSide)+BezierControlPoints3D(:,NGeo,0,BCSide)   &
+                              +BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
+    BaseVectors1(:,BCSide) = (-BezierControlPoints3D(:,0,0,BCSide)+BezierControlPoints3D(:,NGeo,0,BCSide)   &
+                              -BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
+    BaseVectors2(:,BCSide) = (-BezierControlPoints3D(:,0,0,BCSide)-BezierControlPoints3D(:,NGeo,0,BCSide)   &
+                              +BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
+    BaseVectors3(:,BCSide) = (+BezierControlPoints3D(:,0,0,BCSide)-BezierControlPoints3D(:,NGeo,0,BCSide)   &
+                              -BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
   END DO ! iSide
 END IF
 

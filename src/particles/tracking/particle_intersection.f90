@@ -55,14 +55,12 @@ SUBROUTINE ComputePlanarRectIntersection(isHit                       &
 ! MODULES
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Globals_Vars,            ONLY:epsMach
-USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Mesh_Vars,      ONLY:SidePeriodicDisplacement,SidePeriodicType
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,OnePlusEps,SideDistance
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D,BaseVectors0,BaseVectors1,BaseVectors2
+USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2
+USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-!USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
-!USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -114,24 +112,20 @@ IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
 
 ! extension for periodic sides
 IF(.NOT.DoRefMapping)THEN
- IF(SidePeriodicType(SideID).EQ.0)THEN
-   locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
-   alpha=locSideDistance/coeffA
- ELSE
-   SideBasePoint = 0.25*BaseVectors0(:,SideID)
-   ! nothing to do for master side, Side of elem to which owns the BezierPoints
-   IF(flip.NE.0)THEN
-     SideBasePoint=SideBasePoint-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-   END IF
-   !locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),NormVec)
-   locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
-   alpha=locSideDistance/coeffA
- END IF ! SidePeriodicType
+  IF(SidePeriodicType(SideID).EQ.0)THEN
+    locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
+  ELSE
+    IF (flip.EQ.0) THEN
+      locSideDistance=DOT_PRODUCT(0.25*BaseVectors0(:,SideID)-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
+    ELSE ! nothing to do for master side, Side of elem to which owns the BezierPoints
+      locSideDistance=DOT_PRODUCT(0.25*BaseVectors0flip(:,SideID)-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
+    END IF
+  END IF ! SidePeriodicType
 ELSE
- locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
- alpha=locSideDistance/coeffA
+  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
 END IF
-
+alpha=locSideDistance/coeffA
+  
 IF(CriticalParallelInSide)THEN ! particle parallel to side
   IF(ALMOSTZERO(locSideDistance))THEN ! particle on/in side
     IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
@@ -161,11 +155,35 @@ IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
   RETURN
 END IF
 
-! iSide_temp = SideID2PlanarSideID(SideID)
-Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-P0 =-0.25*BaseVectors0(:,SideID)+Inter1
-P1 = 0.25*BaseVectors1(:,SideID)
-P2 = 0.25*BaseVectors2(:,SideID)
+IF(.NOT.DoRefMapping)THEN
+  IF(SidePeriodicType(SideID).EQ.0)THEN
+    ! iSide_temp = SideID2PlanarSideID(SideID)
+    Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
+    P0 =-0.25*BaseVectors0(:,SideID)+Inter1
+    P1 = 0.25*BaseVectors1(:,SideID)
+    P2 = 0.25*BaseVectors2(:,SideID)
+  ELSE
+    IF (flip.EQ.0) THEN
+      ! iSide_temp = SideID2PlanarSideID(SideID)
+      Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
+      P0 =-0.25*BaseVectors0(:,SideID)+Inter1
+      P1 = 0.25*BaseVectors1(:,SideID)
+      P2 = 0.25*BaseVectors2(:,SideID)
+    ELSE
+      ! iSide_temp = SideID2PlanarSideID(SideID)
+      Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
+      P0 =-0.25*BaseVectors0flip(:,SideID)+Inter1
+      P1 = 0.25*BaseVectors1flip(:,SideID)
+      P2 = 0.25*BaseVectors2flip(:,SideID)
+    END IF
+  END IF ! SidePeriodicType
+ELSE
+  ! iSide_temp = SideID2PlanarSideID(SideID)
+  Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
+  P0 =-0.25*BaseVectors0(:,SideID)+Inter1
+  P1 = 0.25*BaseVectors1(:,SideID)
+  P2 = 0.25*BaseVectors2(:,SideID)
+END IF
 
 A1=P1(1)*P1(1)+P1(2)*P1(2)+P1(3)*P1(3)
 B1=P2(1)*P1(1)+P2(2)*P1(2)+P2(3)*P1(3)
