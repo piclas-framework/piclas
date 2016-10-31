@@ -69,16 +69,16 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE    :: NodeCoords(:,:,:,:,:)
 REAL                :: x(3),PI,meshScale
-INTEGER             :: iElem,i,j,k!,iRegions
+REAL,POINTER        :: coords(:,:,:,:,:)
+INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
-LOGICAL             :: ExistFile
-INTEGER           :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
-INTEGER           :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
-INTEGER           :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
-INTEGER           :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
+LOGICAL             :: validMesh
+INTEGER             :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
+INTEGER             :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
+INTEGER             :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
+INTEGER             :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(&
@@ -115,6 +115,10 @@ END IF
 
 ! prepare pointer structure (get nElems, etc.)
 MeshFile = GETSTR('MeshFile')
+validMesh = ISVALIDMESHFILE(MeshFile)
+IF(.NOT.validMesh) &
+    CALL CollectiveStop(__STAMP__,'ERROR - Mesh file not a valid HDF5 mesh.')
+
 
 useCurveds=GETLOGICAL('useCurveds','.TRUE.')
 DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5','.TRUE.')
@@ -138,7 +142,7 @@ ELSE
   END IF
 END IF
 
-CALL readMesh(MeshFile,NodeCoords) !set nElems
+CALL readMesh(MeshFile) !set nElems
 
 !schmutz fink
 PP_nElems=nElems
@@ -199,17 +203,8 @@ LOGWRITE(*,'(A30,I8,I8)')'first/lastMortarMPISide  ', firstMortarMPISide  ,lastM
 LOGWRITE(*,*)'-------------------------------------------------------'
 
 
-
-!lower and upper index of U/gradUx/y/z _plus
-!lower and upper index of U/gradUx/y/z _plus
-!#ifdef PP_HDG
-!sideID_minus_upper = nBCSides+nInnerSides+nMPISides
-!#else
-!sideID_minus_upper = nBCSides+nInnerSides+nMPISides_MINE
-!#endif /*PP_HDG*/
-
 ! check with mortars
-nUniqueSides       = nBCSides+nInnerSides
+nUniqueSides       = nBCSides+nInnerSides+nMPISides_MINE
 #ifdef PP_HDG
 #ifdef MPI
 CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
@@ -221,14 +216,12 @@ nGlobalUniqueSides=nSides
 ! fill ElemToSide, SideToElem,BC
 ALLOCATE(ElemToSide(2,6,nElems))
 ALLOCATE(SideToElem(5,nSides))
-ALLOCATE(SideToElem2(4,2*nInnerSides+nBCSides+nMPISides))
 ALLOCATE(BC(1:nSides))
-!ALLOCATE(AnalyzeSide(1:nSides))
+ALLOCATE(AnalyzeSide(1:nSides))
 ElemToSide  = 0
 SideToElem  = -1   !mapping side to elem, sorted by side ID (for surfint)
-SideToElem2 = -1   !mapping side to elem, sorted by elem ID (for ProlongToFace) 
 BC          = 0
-!AnalyzeSide = 0
+AnalyzeSide = 0
 
 !NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
 ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
@@ -239,60 +232,68 @@ MortarInfo=-1
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 CALL fillMeshInfo()
 
-! PO: is done in particle_Init
-!!-- Read parameters for region mapping
-!NbrOfRegions = GETINT('NbrOfRegions','0')
-!IF (NbrOfRegions .GT. 0) THEN
-!  ALLOCATE(RegionBounds(1:6,1:NbrOfRegions))
-!  DO iRegions=1,NbrOfRegions
-!    WRITE(UNIT=hilf2,FMT='(I2)') iRegions
-!    RegionBounds(1:6,iRegions) = GETREALARRAY('RegionBounds'//TRIM(hilf2),6,'0. , 0. , 0. , 0. , 0. , 0.')
-!  END DO
-!END IF
-
 #ifdef PARTICLES
 ! save geometry information for particle tracking
 CALL InitParticleMesh()
-!CALL InitElemVolumes()
 #endif
-
 
 ! dealloacte pointers
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
 CALL deleteMeshPointer()
 
+! build necessary mappings
+CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
+                       SideToVolA,SideToVol2A,CGNS_SideToVol2A,FS2M)
+
+! if trees are available: compute metrics on tree level and interpolate to elements
+interpolateFromTree=.FALSE.
+IF(isMortarMesh) interpolateFromTree=GETLOGICAL('interpolateFromTree','.TRUE.')
+IF(interpolateFromTree)THEN
+  coords=>TreeCoords
+  NGeo=NGeoTree
+  nElemsLoc=nTrees
+ELSE
+  coords=>NodeCoords
+  nElemsLoc=nElems
+ENDIF
+
 ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 ! scale and deform mesh if desired (warning: no mesh output!)
 meshScale=GETREAL('meshScale','1.0')
 IF(ABS(meshScale-1.).GT.1e-14)&
-  NodeCoords = NodeCoords*meshScale
+  Coords =Coords*meshScale
 
 IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
   Pi = ACOS(-1.) 
   DO iElem=1,nElems
     DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
-      x(:)=NodeCoords(:,i,j,k,iElem)
-      NodeCoords(:,i,j,k,iElem) = x+ 0.1*SIN(Pi*x(1))*SIN(Pi*x(2))*SIN(Pi*x(3))
+      x(:)=Coords(:,i,j,k,iElem)
+      Coords(:,i,j,k,iElem) = x+ 0.1*SIN(Pi*x(1))*SIN(Pi*x(2))*SIN(Pi*x(3))
     END DO; END DO; END DO;
   END DO
 END IF
 
 ! allocate type Mesh
+! volume data
 ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
+ALLOCATE(      dXCL_N(3,3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! temp
 ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 ALLOCATE(Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 ALLOCATE(Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 ALLOCATE(sJ            (  0:PP_N,0:PP_N,0:PP_N,nElems))
+NGeoRef=3*NGeo ! build jacobian at higher degree
+ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
+
+! surface data
+ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides)) 
 ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides)) 
 ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))  
 ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))  
+ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
 
 ! PoyntingVecIntegral
 CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
-NGeoRef=3*NGeo ! build jacobian at higher degree
-ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
 
 ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
 ! assign 1/detJ (sJ)
@@ -318,9 +319,6 @@ crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
 CALL InitMeshBasis(NGeo,PP_N,xGP)
 
-! to be moved to Mesh 
-CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
-                       SideToVolA,SideToVol2A,CGNS_SideToVol2A)
 
 #ifdef PARTICLES
 ALLOCATE(XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems))
@@ -334,6 +332,8 @@ CALL InitElemVolumes()
 CALL CalcMetrics(NodeCoords)
 #endif
 DEALLOCATE(NodeCoords)
+DEALLOCATE(dXCL_N)
+DEALLOCATE(Ja_Face)
 
 MeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -697,6 +697,7 @@ SDEALLOCATE(CGNS_VolToSideA)
 SDEALLOCATE(SideToVolA)
 SDEALLOCATE(SideToVol2A)
 SDEALLOCATE(CGNS_SideToVol2A)
+SDEALLOCATE(FS2M)
 SDEALLOCATE(DetJac_Ref)
 SDEALLOCATE(Vdm_CLNGeo1_CLNGeo)
 SDEALLOCATE(wBaryCL_NGeo1)

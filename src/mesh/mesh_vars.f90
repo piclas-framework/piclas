@@ -36,7 +36,7 @@ REAL,ALLOCATABLE :: DCL_N(:,:)
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! will be used in the future
-!REAL,ALLOCATABLE,TARGET :: NodeCoords(:,:,:,:,:) !< XYZ positions (equidistant,NGeo) of element interpolation points from meshfile
+REAL,ALLOCATABLE,TARGET :: NodeCoords(:,:,:,:,:) !< XYZ positions (equidistant,NGeo) of element interpolation points from meshfile
 REAL,ALLOCATABLE :: Elem_xGP(:,:,:,:,:)   !< XYZ positions (first index 1:3) of the volume Gauss Point
 REAL,ALLOCATABLE :: Face_xGP(:,:,:,:)   !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -72,6 +72,7 @@ LOGICAL,ALLOCATABLE :: CurvedElem(:)
 REAL,ALLOCATABLE    :: XiCL_NGeo(:)
 REAL,ALLOCATABLE    :: XCL_NGeo(:,:,:,:,:)
 REAL,ALLOCATABLE    :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCATABLE    :: dXCL_N(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
 REAL,ALLOCATABLE    :: detJac_Ref(:,:,:,:,:)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! surface vectors 
@@ -91,6 +92,7 @@ INTEGER,ALLOCATABLE :: CGNS_VolToSideA(:,:,:,:,:)
 INTEGER,ALLOCATABLE :: CGNS_SideToVol2A(:,:,:,:)
 INTEGER,ALLOCATABLE :: SideToVolA(:,:,:,:,:,:)
 INTEGER,ALLOCATABLE :: SideToVol2A(:,:,:,:,:)
+INTEGER,ALLOCATABLE :: FS2M(:,:,:,:)     !< flip slave side to master and reverse
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! mapping from element to sides and sides to element
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -99,19 +101,19 @@ INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) !< SideID    = ElemToSide(E2S_SIDE_ID,Z
 INTEGER,ALLOCATABLE :: SideToElem(:,:)   !< ElemID    = SideToElem(S2E_ELEM_ID,SideID)
                                          !< NB_ElemID = SideToElem(S2E_NB_ELEM_ID,SideID)
                                          !< locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
-INTEGER,ALLOCATABLE :: SideToElem2(:,:)  !< ElemID    = SideToElem2(S2E2_ELEM_ID,SideID)  
-                                         !< SideID    = SideToElem2(S2E2_SIDE_ID,SideID)  
-                                         !< locSideID = SideToElem2(S2E2_LOC_SIDE_ID,SideID)
-                                         !< flip      = SideToElem2(S2E2_FLIP,SideID)
 INTEGER,ALLOCATABLE :: BC(:)             !< BCIndex   = BC(SideID), 1:nCSides
 INTEGER,ALLOCATABLE :: BoundaryType(:,:) !< BCType    = BoundaryType(BC(SideID),BC_TYPE)
                                          !< BCState   = BoundaryType(BC(SideID),BC_STATE)
 INTEGER,ALLOCATABLE :: AnalyzeSide(:)    !< Marks, wheter a side belongs to a group of analyze sides (e.g. to a BC group)
                                          !< SurfIndex = AnalyzeSide(SideID), 1:nSides
+
+INTEGER,PARAMETER :: NormalDirs(6) = (/ 3 , 2 , 1 , 2 , 1 , 3 /) !< normal vector direction for element local side
+INTEGER,PARAMETER :: TangDirs(6)   = (/ 1 , 3 , 2 , 3 , 2 , 1 /) !< first tangential vector direction for element local side
+REAL   ,PARAMETER :: NormalSigns(6)= (/-1.,-1., 1., 1.,-1., 1./) !< normal vector sign for element local side
+
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Volume/Side mappings filled by mappings.f90 - not all available there are currently used!
 !----------------------------------------------------------------------------------------------------------------------------------
-!INTEGER,ALLOCATABLE :: FS2M(:,:,:,:)     !< flip slave side to master and reverse
 !INTEGER,ALLOCATABLE :: V2S(:,:,:,:,:,:)  !< volume to side mapping
 !INTEGER,ALLOCATABLE :: V2S2(:,:,:,:,:)   !< volume to side mapping 2
 !INTEGER,ALLOCATABLE :: S2V(:,:,:,:,:,:)  !< side to volume
@@ -210,10 +212,6 @@ TYPE tNode
 END TYPE tNode
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE(tElemPtr),POINTER         :: Elems(:)
-! removing with mortar
-TYPE(tElem),POINTER            :: aElem
-TYPE(tSide),POINTER            :: aSide,bSide
-INTEGER          :: nNodes=0            ! total number of nodes in mesh nElems*(NGeo+1)**3
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL          :: MeshInitIsDone =.FALSE.
 !===================================================================================================================================

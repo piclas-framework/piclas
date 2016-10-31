@@ -86,6 +86,10 @@ INTERFACE GetSPDInverse
    MODULE PROCEDURE GetSPDInverse
 END INTERFACE
 
+INTERFACE LegendrePolynomialAndDerivative
+   MODULE PROCEDURE LegendrePolynomialAndDerivative
+END INTERFACE
+
 PUBLIC::INV
 PUBLIC::BuildLegendreVdm
 !#ifdef PARTICLES
@@ -103,6 +107,7 @@ PUBLIC::ChebyGaussLobNodesAndWeights
 PUBLIC::PolynomialDerivativeMatrix
 PUBLIC::BarycentricWeights
 PUBLIC::LagrangeInterpolationPolys
+PUBLIC::LegendrePolynomialAndDerivative
 PUBLIC::GetInverse
 PUBLIC::GetSPDInverse
 

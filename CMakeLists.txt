@@ -519,6 +519,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 FILE(GLOB_RECURSE boltzplatzF90 ./src/analyze/*.f90
                                 ./src/filter/*.f90
                                 ./src/globals/*.f90
+                                ./src/mortar/*.f90
                                 ./src/interpolation/basis.f90
                                 ./src/interpolation/interpolation.f90
                                 ./src/interpolation/interpolation_vars.f90

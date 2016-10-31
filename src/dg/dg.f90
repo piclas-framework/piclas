@@ -220,6 +220,7 @@ USE MOD_FillFlux,         ONLY:FillFlux
 USE MOD_Mesh_Vars,        ONLY:nSides
 USE MOD_Equation,         ONLY:CalcSource
 USE MOD_Interpolation,    ONLY:ApplyJacobian
+USE MOD_FillMortar,       ONLY:U_Mortar,Flux_Mortar
 #ifdef MPI
 USE MOD_MPI_Vars
 USE MOD_MPI,              ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
@@ -251,6 +252,7 @@ tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.TRUE.)
+CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
 tLBStart = LOCALTIME() ! LB Time Start
@@ -262,6 +264,7 @@ tLBStart = LOCALTIME() ! LB Time Start
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.FALSE.)
+CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
 ! Nullify arrays
 ! NOTE: IF NEW DG_VOLINT AND LIFTING_VOLINT ARE USED AND CALLED FIRST,
 !       ARRAYS DO NOT NEED TO BE NULLIFIED, OTHERWISE THEY HAVE TO!
@@ -303,6 +306,7 @@ tLBStart = LOCALTIME() ! LB Time Start
 
 ! fill the all surface fluxes on this proc
 CALL FillFlux(t,tDeriv,Flux,U_master,U_slave,doMPISides=.FALSE.)
+CALL Flux_Mortar(Flux,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
 CALL SurfInt(Flux,Ut,doMPISides=.FALSE.)
 
@@ -320,6 +324,7 @@ tCurrent(2)=tCurrent(2)+tLBEnd-tLBStart
 
 !FINALIZE Fluxes for MPI Sides
 tLBStart = LOCALTIME() ! LB Time Start
+CALL Flux_Mortar(Flux,doMPISides=.TRUE.)
 CALL SurfInt(Flux,Ut,doMPISides=.TRUE.)
 tLBEnd = LOCALTIME() ! LB Time End
 tCurrent(1)=tCurrent(1)+tLBEnd-tLBStart
