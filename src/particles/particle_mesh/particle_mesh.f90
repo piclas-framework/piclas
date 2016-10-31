@@ -571,11 +571,10 @@ DO ilocSide=1,6
   !CASE(PLANAR_NONRECT)
   !  CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
   CASE(BILINEAR,PLANAR_NONRECT)
-    xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
-    xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
-    xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
-    xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
-    CALL ComputeBiLinearIntersection(isHit,xNodes,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
+      CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha &
+                                                                                       ,xi      &
+                                                                                       ,eta      &
+                                                                                       ,PartID,flip,SideID)
   CASE(CURVED,PLANAR_CURVED)
     CALL ComputeCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,SideID)
   END SELECT
@@ -679,7 +678,8 @@ StartT=BOLTZPLATZTIME()
 ! remove inner BezierControlPoints3D and SlabNormals, usw.
 IF(DoRefMapping) CALL ReshapeBezierSides()
 
-CALL GetElemAndSideType() 
+CALL GetElemAndSideType()
+CALL GetPlanarSideBaseVectors()
 
 SDEALLOCATE(XiEtaZetaBasis)
 SDEALLOCATE(slenXiEtaZetaBasis)
@@ -803,7 +803,8 @@ END IF
 IF(DoRefMapping) CALL ReshapeBezierSides()
 
 
-CALL GetElemAndSideType() 
+CALL GetElemAndSideType()
+CALL GetPlanarSideBaseVectors()
 !! sort element faces by type - linear, bilinear, curved
 !IF(DoRefMapping) THEN !  CALL GetBCSideType()
 !ELSE
@@ -1004,6 +1005,7 @@ GEO%FIBGMjmin=BGMjmin
 GEO%FIBGMkmax=BGMkmax
 GEO%FIBGMkmin=BGMkmin
 
+
 ! allocate space for BGM
 ALLOCATE(GEO%FIBGM(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
@@ -1113,7 +1115,14 @@ CALL MPI_ALLGATHERV(BGMCellsArray(1:BGMCells*3), BGMCells*3, MPI_INTEGER, Global
 !--- TS: Define padding stencil (max of halo and shape padding)
 !        Reason: This padding is used to build the ReducedBGM, so any information 
 !                outside this region is lost 
-FIBGMCellPadding(1:3) = INT(halo_eps/GEO%FIBGMdeltas(1:3))+1
+IF (GEO%nPeriodicVectors.GT.0) THEN  !Periodic (can't be done below because ReducedBGMArray is sorted by proc)
+  FIBGMCellPadding(1:3)=1
+  IF(.NOT.GEO%directions(1)) FIBGMCellPadding(1) = INT(halo_eps/GEO%FIBGMdeltas(1))+1
+  IF(.NOT.GEO%directions(2)) FIBGMCellPadding(2) = INT(halo_eps/GEO%FIBGMdeltas(2))+1
+  IF(.NOT.GEO%directions(3)) FIBGMCellPadding(3) = INT(halo_eps/GEO%FIBGMdeltas(3))+1
+ELSE
+  FIBGMCellPadding(1:3) = INT(halo_eps/GEO%FIBGMdeltas(1:3))+1
+END IF
 ! halo region already included in BGM
 !FIBGMCellPadding(1:3) = 0
 nShapePaddingX = 0
@@ -2354,6 +2363,7 @@ BGMCellYmin = BGMjmin
 BGMCellZmax = BGMkmax
 BGMCellZmin = BGMkmin
 
+
 DO iElem=1,nTotalElems
   IF(iElem.LE.PP_nElems)THEN
     BGMCellXmin = ElemToBGM(1,iElem)
@@ -2515,12 +2525,12 @@ DO iElem=1,PP_nElems
     BGMCellZmax = ElemToBGM(6,iElem)
 
     IPWRITE(UNIT_stdOut,*) ' TFIBGM , iElem'
-    IPWRITE(UNIT_stdOut,*) 'xmin',GEO%xmin,xmin
-    IPWRITE(UNIT_stdOut,*) 'xmax',GEO%xmax,xmax
-    IPWRITE(UNIT_stdOut,*) 'ymin',GEO%ymin,ymin
-    IPWRITE(UNIT_stdOut,*) 'ymax',GEO%ymax,ymax
-    IPWRITE(UNIT_stdOut,*) 'zmin',GEO%zmin,zmin
-    IPWRITE(UNIT_stdOut,*) 'zmax',GEO%zmax,zmax
+    IPWRITE(UNIT_stdOut,*) 'xmin',GEO%xmin
+    IPWRITE(UNIT_stdOut,*) 'xmax',GEO%xmax
+    IPWRITE(UNIT_stdOut,*) 'ymin',GEO%ymin
+    IPWRITE(UNIT_stdOut,*) 'ymax',GEO%ymax
+    IPWRITE(UNIT_stdOut,*) 'zmin',GEO%zmin
+    IPWRITE(UNIT_stdOut,*) 'zmax',GEO%zmax
     IPWRITE(UNIT_stdOut,*) ' BGM , iBGM'
     IPWRITE(UNIT_stdOut,*) 'xmin', BGMimin,BGMCellXmin
     IPWRITE(UNIT_stdOut,*) 'xmax', BGMimax,BGMCellXmax
@@ -3697,7 +3707,7 @@ SUBROUTINE InitElemBoundingBox()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Mesh_Vars,               ONLY:nElems,NGeo
-USE MOD_Particle_Surfaces,       ONLY:GetElemSlabNormalsAndIntervals
+!USE MOD_Particle_Surfaces,       ONLY:GetElemSlabNormalsAndIntervals
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:ExchangeBezierControlPoints3d
 #endif /*MPI*/
@@ -3824,7 +3834,7 @@ INTEGER,ALLOCATABLE                      :: SideIndex(:)
 REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
-#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&((PP_TimeDiscMethod<501 || PP_TimeDiscMethod>506))
+#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)
 REAL,DIMENSION(1:3,0:NGeo,0:NGeo) :: xNodes
 #endif
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -4311,7 +4321,10 @@ IF(DoRefMapping)THEN
   ! number of element local BC-Sides
   DO iElem=1,nTotalElems
     BCElem(iElem)%nInnerSides=0
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
+    ! IMPORTANT: for purely explicit pushes with Maxwell's equations, the particle can only move the the next
+    !            and cloesest halo-cells. Hence, a particle may hit only its own bc sides in limited space
+    ! FOR TimeDiscs 501-506, the particle may move further, hence it is required to perform this check! 
     IF(.NOT.isBCElem(iElem)) CYCLE
 #endif
     DO ilocSide=1,6
@@ -4334,7 +4347,7 @@ IF(DoRefMapping)THEN
       DO ilocSide=1,6
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.EQ.-1) CYCLE
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
         BCSideID2 =PartBCSideList(SideID)
         IF(BCSideID2.EQ.-1) CYCLE
         leave=.FALSE.
@@ -4573,6 +4586,110 @@ DO iElem=PP_nElems+1,nLoop
 END DO ! iElem=1,nLoop
 
 END SUBROUTINE GetElemAndSideType
+
+SUBROUTINE GetPlanarSideBaseVectors()
+!===================================================================================================================================
+! computes the face base vector for planar face intersection calculation
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Tracking_Vars,        ONLY:DoRefMapping
+USE MOD_Mesh_Vars,                     ONLY:NGeo
+USE MOD_Particle_Surfaces_Vars,        ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3
+USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip,BaseVectors3flip
+! USE MOD_Particle_Surfaces_Vars,        ONLY:SideID2PlanarSideID
+! USE MOD_Particle_Surfaces_Vars,        ONLY:SideType
+USE MOD_Particle_Mesh_Vars,            ONLY:nTotalSides,nTotalBCSides
+USE MOD_Particle_Mesh_Vars,            ONLY:SidePeriodicDisplacement,GEO
+USE MOD_Particle_Mesh_Vars,            ONLY:SidePeriodicType, PartBCSideList
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                               :: iSide, BCSide
+! INTEGER                               :: iSide_temp
+!===================================================================================================================================
+IF(.NOT.DoRefMapping)THEN
+!   ALLOCATE(SideID2PlanarSideID(1:nTotalSides))
+!   SideID2PlanarSideID(:) = 0
+!   iSide_temp = 0
+!   DO iSide=1,nTotalSides
+!     IF (SideType(iSide).EQ.PLANAR_RECT) THEN
+!       iSide_temp = iSide_temp + 1
+!       SideID2PlanarSideID(iSide) = iSide_temp
+!     END IF
+!   END DO
+  
+  ALLOCATE( BaseVectors0(1:3,1:nTotalSides),&
+            BaseVectors1(1:3,1:nTotalSides),&
+            BaseVectors2(1:3,1:nTotalSides),&
+            BaseVectors3(1:3,1:nTotalSides))
+  IF (GEO%nPeriodicVectors.GT.0) THEN
+    ALLOCATE( BaseVectors0flip(1:3,1:nTotalSides),&
+              BaseVectors1flip(1:3,1:nTotalSides),&
+              BaseVectors2flip(1:3,1:nTotalSides),&
+              BaseVectors3flip(1:3,1:nTotalSides))
+  END IF
+   
+  DO iSide=1,nTotalSides
+    ! extension for periodic sides
+!     IF ((SideType(iSide).EQ.PLANAR_RECT) &
+!        .OR. (SideType(iSide).EQ.PLANAR_NONRECT) .OR. (SideType(iSide).EQ.BILINEAR)))THEN
+!       iSide_temp = SideID2PlanarSideID(iSide)
+    BaseVectors0(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)+BezierControlPoints3D(:,NGeo,0,iSide)   &
+                              +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+    BaseVectors1(:,iSide) = (-BezierControlPoints3D(:,0,0,iSide)+BezierControlPoints3D(:,NGeo,0,iSide)   &
+                              -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+    BaseVectors2(:,iSide) = (-BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
+                              +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+    BaseVectors3(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
+                              -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
+    IF ( (SidePeriodicType(iSide).NE.0) ) THEN
+      BaseVectors0flip(:,iSide)=(+(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
+      BaseVectors1flip(:,iSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              -(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
+      BaseVectors2flip(:,iSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              -(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                              +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
+      BaseVectors3flip(:,iSide) = (+(BezierControlPoints3D(:,0,0,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                               -(BezierControlPoints3D(:,NGeo,0,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                               -(BezierControlPoints3D(:,0,NGeo,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+                               +(BezierControlPoints3D(:,NGeo,NGeo,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) )
+    END IF
+  END DO ! iSide
+ELSE
+  ALLOCATE( BaseVectors0(1:3,1:nTotalBCSides),&
+            BaseVectors1(1:3,1:nTotalBCSides),&
+            BaseVectors2(1:3,1:nTotalBCSides),&
+            BaseVectors3(1:3,1:nTotalBCSides))
+  DO iSide=1,nTotalSides
+    BCSide = PartBCSideList(iSide)
+    ! extension for periodic sides
+    IF(BCSide.EQ.-1) CYCLE
+    BaseVectors0(:,BCSide) = (+BezierControlPoints3D(:,0,0,BCSide)+BezierControlPoints3D(:,NGeo,0,BCSide)   &
+                              +BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
+    BaseVectors1(:,BCSide) = (-BezierControlPoints3D(:,0,0,BCSide)+BezierControlPoints3D(:,NGeo,0,BCSide)   &
+                              -BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
+    BaseVectors2(:,BCSide) = (-BezierControlPoints3D(:,0,0,BCSide)-BezierControlPoints3D(:,NGeo,0,BCSide)   &
+                              +BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
+    BaseVectors3(:,BCSide) = (+BezierControlPoints3D(:,0,0,BCSide)-BezierControlPoints3D(:,NGeo,0,BCSide)   &
+                              -BezierControlPoints3D(:,0,NGeo,BCSide)+BezierControlPoints3D(:,NGeo,NGeo,BCSide) )
+  END DO ! iSide
+END IF
+
+END SUBROUTINE GetPlanarSideBaseVectors
 
 SUBROUTINE BGMIndexOfElement(ElemID,ElemToBGM) 
 !===================================================================================================================================
