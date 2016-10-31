@@ -1004,6 +1004,7 @@ GEO%FIBGMjmin=BGMjmin
 GEO%FIBGMkmax=BGMkmax
 GEO%FIBGMkmin=BGMkmin
 
+
 ! allocate space for BGM
 ALLOCATE(GEO%FIBGM(BGMimin:BGMimax,BGMjmin:BGMjmax,BGMkmin:BGMkmax), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
@@ -1113,7 +1114,14 @@ CALL MPI_ALLGATHERV(BGMCellsArray(1:BGMCells*3), BGMCells*3, MPI_INTEGER, Global
 !--- TS: Define padding stencil (max of halo and shape padding)
 !        Reason: This padding is used to build the ReducedBGM, so any information 
 !                outside this region is lost 
-FIBGMCellPadding(1:3) = INT(halo_eps/GEO%FIBGMdeltas(1:3))+1
+IF (GEO%nPeriodicVectors.GT.0) THEN  !Periodic (can't be done below because ReducedBGMArray is sorted by proc)
+  FIBGMCellPadding(1:3)=1
+  IF(.NOT.GEO%directions(1)) FIBGMCellPadding(1) = INT(halo_eps/GEO%FIBGMdeltas(1))+1
+  IF(.NOT.GEO%directions(2)) FIBGMCellPadding(2) = INT(halo_eps/GEO%FIBGMdeltas(2))+1
+  IF(.NOT.GEO%directions(3)) FIBGMCellPadding(3) = INT(halo_eps/GEO%FIBGMdeltas(3))+1
+ELSE
+  FIBGMCellPadding(1:3) = INT(halo_eps/GEO%FIBGMdeltas(1:3))+1
+END IF
 ! halo region already included in BGM
 !FIBGMCellPadding(1:3) = 0
 nShapePaddingX = 0
@@ -2353,6 +2361,7 @@ BGMCellYmax = BGMjmax
 BGMCellYmin = BGMjmin
 BGMCellZmax = BGMkmax
 BGMCellZmin = BGMkmin
+
 
 DO iElem=1,nTotalElems
   IF(iElem.LE.PP_nElems)THEN
@@ -3824,7 +3833,7 @@ INTEGER,ALLOCATABLE                      :: SideIndex(:)
 REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
-#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)&&((PP_TimeDiscMethod<501 || PP_TimeDiscMethod>506))
+#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)
 REAL,DIMENSION(1:3,0:NGeo,0:NGeo) :: xNodes
 #endif
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
@@ -4311,7 +4320,10 @@ IF(DoRefMapping)THEN
   ! number of element local BC-Sides
   DO iElem=1,nTotalElems
     BCElem(iElem)%nInnerSides=0
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
+    ! IMPORTANT: for purely explicit pushes with Maxwell's equations, the particle can only move the the next
+    !            and cloesest halo-cells. Hence, a particle may hit only its own bc sides in limited space
+    ! FOR TimeDiscs 501-506, the particle may move further, hence it is required to perform this check! 
     IF(.NOT.isBCElem(iElem)) CYCLE
 #endif
     DO ilocSide=1,6
@@ -4334,7 +4346,7 @@ IF(DoRefMapping)THEN
       DO ilocSide=1,6
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.EQ.-1) CYCLE
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
         BCSideID2 =PartBCSideList(SideID)
         IF(BCSideID2.EQ.-1) CYCLE
         leave=.FALSE.
