@@ -75,6 +75,10 @@ INTEGER             :: iElem,i,j,k!,iRegions
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
 LOGICAL             :: ExistFile
+INTEGER           :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
+INTEGER           :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
+INTEGER           :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
+INTEGER           :: lastSlaveSide       ! upper side ID of array U_slave/gradUx_slave...
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(&
@@ -148,6 +152,72 @@ SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
 CALL exchangeFlip()
 #endif
 
+!RANGES
+!-----------------|-----------------|-------------------|
+!    U_master     | U_slave         |    FLUX           |
+!-----------------|-----------------|-------------------|
+!  BCsides        |                 |    BCSides        |
+!  InnerMortars   |                 |    InnerMortars   |
+!  InnerSides     | InnerSides      |    InnerSides     |
+!  MPI_MINE sides | MPI_MINE sides  |    MPI_MINE sides |
+!                 | MPI_YOUR sides  |    MPI_YOUR sides |
+!  MPIMortars     |                 |    MPIMortars     |
+!-----------------|-----------------|-------------------|
+
+firstBCSide          = 1
+firstMortarInnerSide = firstBCSide         +nBCSides
+firstInnerSide       = firstMortarInnerSide+nMortarInnerSides
+firstMPISide_MINE    = firstInnerSide      +nInnerSides
+firstMPISide_YOUR    = firstMPISide_MINE   +nMPISides_MINE
+firstMortarMPISide   = firstMPISide_YOUR   +nMPISides_YOUR
+
+lastBCSide           = firstMortarInnerSide-1
+lastMortarInnerSide  = firstInnerSide    -1
+lastInnerSide        = firstMPISide_MINE -1
+lastMPISide_MINE     = firstMPISide_YOUR -1
+lastMPISide_YOUR     = firstMortarMPISide-1
+lastMortarMPISide    = nSides
+
+
+firstMasterSide = 1
+lastMasterSide  = nSides
+firstSlaveSide  = firstInnerSide
+lastSlaveSide   = lastMPISide_YOUR
+nSidesMaster    = lastMasterSide-firstMasterSide+1
+nSidesSlave     = lastSlaveSide -firstSlaveSide+1
+
+LOGWRITE(*,*)'-------------------------------------------------------'
+LOGWRITE(*,'(A25,I8)')   'first/lastMasterSide     ', firstMasterSide,lastMasterSide
+LOGWRITE(*,'(A25,I8)')   'first/lastSlaveSide      ', firstSlaveSide, lastSlaveSide
+LOGWRITE(*,*)'-------------------------------------------------------'
+LOGWRITE(*,'(A25,I8,I8)')'first/lastBCSide         ', firstBCSide         ,lastBCSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMortarInnerSide', firstMortarInnerSide,lastMortarInnerSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastInnerSide      ', firstInnerSide      ,lastInnerSide
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_MINE   ', firstMPISide_MINE   ,lastMPISide_MINE
+LOGWRITE(*,'(A25,I8,I8)')'first/lastMPISide_YOUR   ', firstMPISide_YOUR   ,lastMPISide_YOUR
+LOGWRITE(*,'(A30,I8,I8)')'first/lastMortarMPISide  ', firstMortarMPISide  ,lastMortarMPISide
+LOGWRITE(*,*)'-------------------------------------------------------'
+
+
+
+!lower and upper index of U/gradUx/y/z _plus
+!lower and upper index of U/gradUx/y/z _plus
+!#ifdef PP_HDG
+!sideID_minus_upper = nBCSides+nInnerSides+nMPISides
+!#else
+!sideID_minus_upper = nBCSides+nInnerSides+nMPISides_MINE
+!#endif /*PP_HDG*/
+
+! check with mortars
+nUniqueSides       = nBCSides+nInnerSides
+#ifdef PP_HDG
+#ifdef MPI
+CALL MPI_ALLREDUCE(nUniqueSides,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
+#else
+nGlobalUniqueSides=nSides
+#endif
+#endif
+
 ! fill ElemToSide, SideToElem,BC
 ALLOCATE(ElemToSide(2,6,nElems))
 ALLOCATE(SideToElem(5,nSides))
@@ -160,25 +230,11 @@ SideToElem2 = -1   !mapping side to elem, sorted by elem ID (for ProlongToFace)
 BC          = 0
 !AnalyzeSide = 0
 
-!lower and upper index of U/gradUx/y/z _plus
-!lower and upper index of U/gradUx/y/z _plus
-#ifdef PP_HDG
-sideID_minus_upper = nBCSides+nInnerSides+nMPISides
-#else
-sideID_minus_upper = nBCSides+nInnerSides+nMPISides_MINE
-#endif /*PP_HDG*/
-sideID_minus_lower = 1
-nUniqueSides       = nBCSides+nInnerSides+nMPISides_MINE
-sideID_plus_lower  = nBCSides+1
-sideID_plus_upper  = nBCSides+nInnerSides+nMPISides
-
-#ifdef PP_HDG
-#ifdef MPI
-CALL MPI_ALLREDUCE(SideID_Minus_Upper,nGlobalUniqueSides,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,iError)
-#else
-nGlobalUniqueSides=SideID_minus_upper
-#endif
-#endif
+!NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
+ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
+ALLOCATE(MortarInfo(MI_FLIP,4,nMortarSides)) ! [1]: 1: Neighbour sides, 2: Flip, [2]: small sides
+MortarType=-1
+MortarInfo=-1
 
 SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 CALL fillMeshInfo()
@@ -228,10 +284,10 @@ ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 ALLOCATE(Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 ALLOCATE(Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
 ALLOCATE(sJ            (  0:PP_N,0:PP_N,0:PP_N,nElems))
-ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper)) 
-ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper)) 
-ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))  
-ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,sideID_minus_lower:sideID_minus_upper))  
+ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides)) 
+ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides)) 
+ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))  
+ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))  
 
 ! PoyntingVecIntegral
 CalcPoyntingInt = GETLOGICAL('CalcPoyntingVecIntegral','.FALSE.')
@@ -275,7 +331,7 @@ CALL CalcMetrics(NodeCoords,XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 ! init element volume
 CALL InitElemVolumes()
 #else
-CALL CalcMetrics(NodeCoords,Mesh)
+CALL CalcMetrics(NodeCoords)
 #endif
 DEALLOCATE(NodeCoords)
 

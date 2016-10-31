@@ -55,7 +55,7 @@ REAL,ALLOCATABLE                      :: Phit(:,:,:,:,:)
 ! number of array items in U, Ut, gradUx, gradUy, gradUz after allocated
 INTEGER                               :: nTotalPhi
 ! interior face values for all elements
-REAL,ALLOCATABLE                      :: Phi_Minus(:,:,:,:),Phi_Plus(:,:,:,:)
+REAL,ALLOCATABLE                      :: Phi_master(:,:,:,:),Phi_slave(:,:,:,:)
 REAL,ALLOCATABLE                      :: FluxPhi(:,:,:,:)
 
 !===================================================================================================================================

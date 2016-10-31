@@ -75,6 +75,10 @@
 #define BC_STATE 2
 #define BC_ALPHA 3
 
+! Entry position in BC
+#define MI_SIDEID 1
+#define MI_FLIP   2
+
 !#define DEBUGMESH
 
 #define PLANAR_RECT   0

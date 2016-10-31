@@ -3797,7 +3797,7 @@ SUBROUTINE GetElemAndSideType()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
-USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,SideID_minus_upper,NGeo,nBCSides,sJ
+USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,NGeo,nBCSides,sJ
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
@@ -3974,20 +3974,20 @@ DO iElem=1,nLoop
         END IF
         IF(isRectangular)THEN
           SideType(TrueSideID)=PLANAR_RECT
-          IF(TrueSideID.LE.SideID_Minus_Upper) nPlanarRectangular=nPlanarRectangular+1
+          IF(TrueSideID.LE.nSides) nPlanarRectangular=nPlanarRectangular+1
 #ifdef MPI
           IF(TrueSideID.GT.nSides) nPlanarRectangularHalo=nPlanarRectangularHalo+1
 #endif /*MPI*/
         ELSE
           SideType(TrueSideID)=PLANAR_NONRECT
-          IF(SideID.LE.SideID_Minus_Upper) nPlanarNonRectangular=nPlanarNonRectangular+1
+          IF(SideID.LE.nSides) nPlanarNonRectangular=nPlanarNonRectangular+1
 #ifdef MPI
           IF(SideID.GT.nSides) nPlanarNonRectangularHalo=nPlanarNonRectangularHalo+1
 #endif /*MPI*/
         END IF
       ELSE
         SideType(TrueSideID)=BILINEAR
-        IF(SideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
+        IF(SideID.LE.nSides) nBiLinear=nBiLinear+1
 #ifdef MPI
         IF(SideID.GT.nSides) nBilinearHalo=nBilinearHalo+1
 #endif /*MPI*/
@@ -4018,7 +4018,7 @@ DO iElem=1,nLoop
       IF(isCurvedSide)THEn
         IF(BoundingBoxIsEmpty(TrueSideID))THEN
           SideType(TrueSideID)=PLANAR_CURVED
-          IF(SideID.LE.SideID_Minus_Upper) nPlanarCurved=nPlanarCurved+1
+          IF(SideID.LE.nSides) nPlanarCurved=nPlanarCurved+1
 #ifdef MPI
           IF(SideID.GT.nSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
 #endif /*MPI*/
@@ -4035,7 +4035,7 @@ DO iElem=1,nLoop
           SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
         ELSE
           SideType(TrueSideID)=CURVED
-          IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+          IF(SideID.LE.nSides) nCurved=nCurved+1
 #ifdef MPI
           IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
 #endif /*MPI*/
@@ -4067,20 +4067,20 @@ DO iElem=1,nLoop
           END IF
           IF(isRectangular)THEN
             SideType(TrueSideID)=PLANAR_RECT
-            IF(TrueSideID.LE.SideID_Minus_Upper) nPlanarRectangular=nPlanarRectangular+1
+            IF(TrueSideID.LE.nSides) nPlanarRectangular=nPlanarRectangular+1
 #ifdef MPI
             IF(TrueSideID.GT.nSides) nPlanarRectangularHalo=nPlanarRectangularHalo+1
 #endif /*MPI*/
           ELSE
             SideType(TrueSideID)=PLANAR_NONRECT
-            IF(SideID.LE.SideID_Minus_Upper) nPlanarNonRectangular=nPlanarNonRectangular+1
+            IF(SideID.LE.nSides) nPlanarNonRectangular=nPlanarNonRectangular+1
 #ifdef MPI
             IF(SideID.GT.nSides) nPlanarNonRectangularHalo=nPlanarNonRectangularHalo+1
 #endif /*MPI*/
           END IF
         ELSE
           SideType(TrueSideID)=BILINEAR
-          IF(SideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
+          IF(SideID.LE.nSides) nBiLinear=nBiLinear+1
 #ifdef MPI
           IF(SideID.GT.nSides) nBilinearHalo=nBilinearHalo+1
 #endif /*MPI*/
@@ -4178,13 +4178,13 @@ IF (.NOT.DoRefMapping)THEN
         END IF
         IF(isRectangular)THEN
           SideType(iSide)=PLANAR_RECT
-          IF(iSide.LE.SideID_Minus_Upper) nPlanarRectangular=nPlanarRectangular+1
+          IF(iSide.LE.nSides) nPlanarRectangular=nPlanarRectangular+1
 #ifdef MPI
           IF(iSide.GT.nSides) nPlanarRectangularHalo=nPlanarRectangularHalo+1
 #endif /*MPI*/
         ELSE
           SideType(iSide)=PLANAR_NONRECT
-          IF(SideID.LE.SideID_Minus_Upper) nPlanarNonRectangular=nPlanarNonRectangular+1
+          IF(SideID.LE.nSides) nPlanarNonRectangular=nPlanarNonRectangular+1
 #ifdef MPI
           IF(SideID.GT.nSides) nPlanarNonRectangularHalo=nPlanarNonRectangularHalo+1
 #endif /*MPI*/
@@ -4228,14 +4228,14 @@ IF (.NOT.DoRefMapping)THEN
         ! END IF
         IF(isBiLinear)THEN
           SideType(iSide)=BILINEAR
-          IF(SideID.LE.SideID_Minus_Upper) nBiLinear=nBiLinear+1
+          IF(SideID.LE.nSides) nBiLinear=nBiLinear+1
 #ifdef MPI
           IF(SideID.GT.nSides) nBilinearHalo=nBilinearHalo+1
 #endif /*MPI*/
         ELSE ! not bilinear
           IF(BoundingBoxIsEmpty(iSide))THEN
             SideType(TrueSideID)=PLANAR_CURVED
-            IF(SideID.LE.SideID_Minus_Upper) nPlanarCurved=nPlanarCurved+1
+            IF(SideID.LE.nSides) nPlanarCurved=nPlanarCurved+1
 #ifdef MPI
             IF(SideID.GT.nSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
 #endif /*MPI*/
@@ -4252,7 +4252,7 @@ IF (.NOT.DoRefMapping)THEN
             SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
           ELSE
             SideType(TrueSideID)=CURVED
-            IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+            IF(SideID.LE.nSides) nCurved=nCurved+1
 #ifdef MPI
             IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
 #endif /*MPI*/
@@ -4262,7 +4262,7 @@ IF (.NOT.DoRefMapping)THEN
     ELSE  ! non-linear edges
       IF(BoundingBoxIsEmpty(iSide))THEN
         SideType(iSide)=PLANAR_CURVED
-        IF(SideID.LE.SideID_Minus_Upper) nPlanarCurved=nPlanarCurved+1
+        IF(SideID.LE.nSides) nPlanarCurved=nPlanarCurved+1
 #ifdef MPI
         IF(SideID.GT.nSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
 #endif /*MPI*/
@@ -4279,7 +4279,7 @@ IF (.NOT.DoRefMapping)THEN
         SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
       ELSE
         SideType(iSide)=CURVED
-        IF(SideID.LE.SideID_Minus_Upper) nCurved=nCurved+1
+        IF(SideID.LE.nSides) nCurved=nCurved+1
 #ifdef MPI
         IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
 #endif /*MPI*/

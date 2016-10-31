@@ -345,7 +345,7 @@ SUBROUTINE FillFlux_BC_Pois(t,tDeriv,Flux)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Equation_Vars,   ONLY: Phi_Minus
+USE MOD_Equation_Vars,   ONLY: Phi_master
 USE MOD_Mesh_Vars,       ONLY: NormVec,SurfElem,BCFace_xGP,BC,BoundaryType
 USE MOD_Mesh_Vars,       ONLY: nSides,nBCSides
 USE MOD_Equation_Vars,   ONLY: IniExactFunc
@@ -369,7 +369,7 @@ DO SideID=1,nBCSides
   BCState=Boundarytype(BC(SideID),BC_STATE)
   IF (BCState.EQ.0)BCState=IniExactFunc
   CALL GetBoundaryFlux_Pois(Flux(:,:,:,SideID),BCType,BCState,BCFace_xGP(:,:,:,SideID),NormVec(:,:,:,SideID), &
-                t,tDeriv,Phi_Minus(:,:,:,SideID) ,SideID)
+                t,tDeriv,Phi_master(:,:,:,SideID) ,SideID)
   DO q=0,PP_N
     DO p=0,PP_N
       Flux(:,p,q,SideID)=Flux(:,p,q,SideID)*SurfElem(p,q,SideID)

@@ -71,10 +71,10 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,               ONLY:NGeo,NGeoRef
 USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,Elem_xGP,crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:Face_xGP,normVec,surfElem,TangVec1,TangVec2
-USE MOD_Mesh_Vars,               ONLY:nElems,sideID_minus_upper,nBCSides
+USE MOD_Mesh_Vars,               ONLY:nElems,nSides,nBCSides
 USE MOD_Mesh_Vars,               ONLY:detJac_Ref
 USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
-USE MOD_Mesh_Vars,               ONLY:nElems,sideID_minus_upper,nBCSides
+USE MOD_Mesh_Vars,               ONLY:nElems,nSides,nBCSides
 USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
@@ -441,7 +441,7 @@ DO iSide=1,lowerLimit
 END DO
 
 !IF(DoRefMapping) lowerLimit=nBCSides
-lowerLimit=SideID_minus_upper
+lowerLimit=nSides
 DO iSide=1,lowerLimit
   IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
     IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
@@ -474,7 +474,7 @@ SUBROUTINE CalcSurfMetrics(Nloc,JaCL_N,XCL_N,Vdm_CLN_N,iElem,NormVec,TangVec1,Ta
 USE MOD_PreProc
 USE MOD_Globals,     ONLY:CROSS
 USE MOD_Mesh_Vars,   ONLY:ElemToSide,nBCSides,nBCSides,nSides!,MortarType
-USE MOD_Mesh_Vars,   ONLY:sideid_minus_lower,sideid_minus_upper,nBCSides
+USE MOD_Mesh_Vars,   ONLY:nSides,nBCSides
 USE MOD_Mappings,    ONLY:CGNS_SideToVol2
 USE MOD_ChangeBasis, ONLY:ChangeBasis2D
 !USE MOD_Mortar_Geo,  ONLY:MortarGeo
@@ -490,10 +490,10 @@ REAL,INTENT(IN)    :: XCL_N(     3,0:Nloc,0:Nloc,0:Nloc)  !< (IN) element geo. i
 REAL,INTENT(IN)    :: Vdm_CLN_N(   0:Nloc,0:Nloc)         !< (IN) Vandermonde matrix from Cheby-Lob on N to final nodeset on N
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)   ::    NormVec(3,0:Nloc,0:Nloc,SideID_minus_Lower:SideID_minus_Upper) !< (OUT) element face normal vectors
-REAL,INTENT(OUT)   ::   TangVec1(3,0:Nloc,0:Nloc,SideID_minus_Lower:SideID_minus_Upper) !< (OUT) element face tangential vectors
-REAL,INTENT(OUT)   ::   TangVec2(3,0:Nloc,0:Nloc,SideID_minus_Lower:SideID_minus_Upper) !< (OUT) element face tangential vectors
-REAL,INTENT(OUT)   ::   SurfElem(  0:Nloc,0:Nloc,SideID_minus_Lower:SideID_minus_Upper) !< (OUT) element face surface area
+REAL,INTENT(OUT)   ::    NormVec(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face normal vectors
+REAL,INTENT(OUT)   ::   TangVec1(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
+REAL,INTENT(OUT)   ::   TangVec2(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
+REAL,INTENT(OUT)   ::   SurfElem(  0:Nloc,0:Nloc,1:nSides) !< (OUT) element face surface area
 REAL,INTENT(OUT)   :: Face_xGP(3,0:Nloc,0:Nloc,1:nSides)                       !< (OUT) element face interpolation points
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES

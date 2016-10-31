@@ -166,7 +166,7 @@ USE MOD_Mesh_Vars             ,ONLY:isPoyntingIntSide,nElems, SurfElem, NormVec,
 USE MOD_Mesh_Vars             ,ONLY:ElemToSide
 USE MOD_Analyze_Vars          ,ONLY:nPoyntingIntPlanes, S!, STEM
 USE MOD_Interpolation_Vars    ,ONLY:L_Minus,L_Plus,wGPSurf
-USE MOD_DG_Vars               ,ONLY:U,U_Minus
+USE MOD_DG_Vars               ,ONLY:U,U_master
 USE MOD_Equation_Vars         ,ONLY:smu0
 #ifdef MPI
   USE MOD_Globals
@@ -306,7 +306,7 @@ DO iELEM = 1, nElems
         END SELECT
 #endif
         ELSE ! no prolonge to face
-          Uface=U_Minus(:,:,:,SideID)
+          Uface=U_master(:,:,:,SideID)
         END IF ! Prolong
         ! calculate poynting vector
         iPoyntingSide = iPoyntingSide + 1
