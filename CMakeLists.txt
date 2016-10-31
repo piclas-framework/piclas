@@ -344,6 +344,15 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
    # add flags only for compiling not linking!
    SET (BOLTZPLATZ_COMPILE_FLAGS "-fpp -assume bscc")
 
+ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
+  # set Flags
+  SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -f free -s real64 -em -DCRAY")
+  SET (CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS} -O3 -hfp3 -p . -rm")
+  #  SET (CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS} -O3 -hfp3 -p . -rm")
+  SET (CMAKE_Fortran_FLAGS_DEBUG   "${CMAKE_Fortran_FLAGS} -O0 -eD -rm")
+  # add flags only for compiling not linking!
+  SET (BOLTZPLATZ_COMPILE_FLAGS "-F")
+
 ELSE()
    MESSAGE(ERROR "Unknown compiler")
 ENDIF()

@@ -689,7 +689,7 @@ ELSE
 #ifdef PP_HDG
 #if PP_nVar==3
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
-#else /*PP_nVar==4*/
+#elif PP_nVar==4
       WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
 #endif /*PP_nVar==3*/
 #endif /*PP_HDG*/

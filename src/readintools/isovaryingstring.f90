@@ -45,9 +45,9 @@ module MOD_ISO_VARYING_STRING
 ! ******************************************************************************
 !
 ! Author    : Rich Townsend <rhdt@bartol.udel.edu>
-! Synopsis  : Definition of iso_varying_string module, conformant to the API 
-!             specified in ISO/IEC 1539-2:2000 (varying-length strings for 
-!             Fortran 95). 
+! Synopsis  : Definition of iso_varying_string module, conformant to the API
+!             specified in ISO/IEC 1539-2:2000 (varying-length strings for
+!             Fortran 95).
 ! Version   : 1.3-F
 ! Thanks    : Lawrie Schonfelder (bugfixes and design pointers), Walt Brainerd
 !             (conversion to F).
@@ -93,19 +93,19 @@ USE,INTRINSIC :: iso_c_binding
      module procedure op_ne_CH_VS
      module procedure op_ne_VS_CH
   end interface operator (/=)
-  
+
   interface operator(<)
      module procedure op_lt_VS_VS
      module procedure op_lt_CH_VS
      module procedure op_lt_VS_CH
   end interface operator (<)
-  
+
   interface operator(<=)
      module procedure op_le_VS_VS
      module procedure op_le_CH_VS
      module procedure op_le_VS_CH
   end interface operator (<=)
-  
+
   interface operator(>=)
      module procedure op_ge_VS_VS
      module procedure op_ge_CH_VS
@@ -117,7 +117,7 @@ USE,INTRINSIC :: iso_c_binding
      module procedure op_gt_CH_VS
      module procedure op_gt_VS_CH
   end interface operator (>)
-  
+
   interface adjustl
      module procedure adjustl_
   end interface adjustl
@@ -158,7 +158,7 @@ USE,INTRINSIC :: iso_c_binding
      module procedure lge_CH_VS
      module procedure lge_VS_CH
   end interface lge
-  
+
   interface lgt
      module procedure lgt_VS_VS
      module procedure lgt_CH_VS
@@ -475,7 +475,7 @@ contains
     type(varying_string), intent(in) :: string_b
     type(varying_string)             :: concat_string
 
-! Concatenate a character string and a varying 
+! Concatenate a character string and a varying
 ! string
 
     concat_string = op_concat_VS_VS(var_str(string_a), string_b)
@@ -531,7 +531,7 @@ contains
     type(varying_string), intent(in) :: string_b
     logical                          :: op_eq
 
-! Compare (==) a character string and a varying 
+! Compare (==) a character string and a varying
 ! string
 
     op_eq = string_a == char(string_b)
@@ -662,7 +662,7 @@ contains
     character(LEN=*), intent(in)     :: string_b
     logical                          :: op_lt
 
-! Compare (<) a varying string and a character 
+! Compare (<) a varying string and a character
 ! string
 
     op_lt = char(string_a) < string_b
@@ -699,7 +699,7 @@ contains
     type(varying_string), intent(in) :: string_b
     logical                          :: op_le
 
-! Compare (<=) a character string and a varying 
+! Compare (<=) a character string and a varying
 ! string
 
     op_le = string_a <= char(string_b)
@@ -718,7 +718,7 @@ contains
     character(LEN=*), intent(in)     :: string_b
     logical                          :: op_le
 
-! Compare (<=) a varying string and a character 
+! Compare (<=) a varying string and a character
 ! string
 
     op_le = char(string_a) <= string_b
@@ -877,6 +877,48 @@ contains
 
 !****
 
+  elemental function len_ (string) result (length)
+
+    type(varying_string), intent(in) :: string
+    integer                          :: length
+
+! Get the length of a varying string
+
+    if(ALLOCATED(string%chars)) then
+       length = SIZE(string%chars)-1
+    else
+       length = 0
+    endif
+
+! Finish
+
+    return
+
+  end function len_
+
+!****
+
+  elemental function len_trim_ (string) result (length)
+
+    type(varying_string), intent(in) :: string
+    integer                          :: length
+
+! Get the trimmed length of a varying string
+
+    if(ALLOCATED(string%chars)) then
+       length = LEN_TRIM(char(string))
+    else
+       length = 0
+    endif
+
+! Finish
+
+    return
+
+  end function len_trim_
+
+!****
+
   pure function char_auto (string) result (char_string)
 
     type(varying_string), intent(in) :: string
@@ -886,7 +928,7 @@ contains
 
 ! Convert a varying string into a character string
 ! (automatic length)
-    
+
     forall(i_char = 1:len(string))
        char_string(i_char:i_char) = string%chars(i_char)
     end forall
@@ -941,7 +983,7 @@ contains
     type(varying_string), intent(in) :: c
     integer                          :: i
 
-! Get the position in the processor collating 
+! Get the position in the processor collating
 ! sequence of a varying string character
 
     i = ICHAR(char(c))
@@ -1011,48 +1053,6 @@ contains
     return
 
   end function index_VS_CH
-
-!****
-
-  elemental function len_ (string) result (length)
-
-    type(varying_string), intent(in) :: string
-    integer                          :: length
-
-! Get the length of a varying string
-
-    if(ALLOCATED(string%chars)) then
-       length = SIZE(string%chars)-1
-    else
-       length = 0
-    endif
-
-! Finish
-
-    return
-
-  end function len_
-
-!****
-
-  elemental function len_trim_ (string) result (length)
-
-    type(varying_string), intent(in) :: string
-    integer                          :: length
-
-! Get the trimmed length of a varying string
-
-    if(ALLOCATED(string%chars)) then
-       length = LEN_TRIM(char(string))
-    else
-       length = 0
-    endif
-
-! Finish
-
-    return
-
-  end function len_trim_
 
 !****
 
@@ -1305,7 +1305,7 @@ contains
     logical, intent(in), optional    :: back
     integer                          :: i
 
-! Scan a varying string for occurrences of 
+! Scan a varying string for occurrences of
 ! characters in a varying-string set
 
     i = SCAN(char(string), char(set), back)
@@ -1315,7 +1315,7 @@ contains
     return
 
   end function scan_VS_VS
-    
+
 !****
 
   elemental function scan_CH_VS (string, set, back) result (i)
@@ -1325,7 +1325,7 @@ contains
     logical, intent(in), optional    :: back
     integer                          :: i
 
-! Scan a character string for occurrences of 
+! Scan a character string for occurrences of
 ! characters in a varying-string set
 
     i = SCAN(string, char(set), back)
@@ -1335,7 +1335,7 @@ contains
     return
 
   end function scan_CH_VS
-    
+
 !****
 
   elemental function scan_VS_CH (string, set, back) result (i)
@@ -1345,7 +1345,7 @@ contains
     logical, intent(in), optional    :: back
     integer                          :: i
 
-! Scan a varying string for occurrences of 
+! Scan a varying string for occurrences of
 ! characters in a character-string set
 
     i = SCAN(char(string), set, back)
@@ -1355,7 +1355,7 @@ contains
     return
 
   end function scan_VS_CH
-    
+
 !****
 
   elemental function trim_ (string) result (trim_string)
@@ -1402,7 +1402,7 @@ contains
     logical, intent(in), optional    :: back
     integer                          :: i
 
-! Verify a character string for occurrences of 
+! Verify a character string for occurrences of
 ! characters in a varying-string set
 
     i = VERIFY(string, char(set), back)
@@ -1422,7 +1422,7 @@ contains
     logical, intent(in), optional    :: back
     integer                          :: i
 
-! Verify a varying string for occurrences of 
+! Verify a varying string for occurrences of
 ! characters in a character-string set
 
     i = VERIFY(char(string), set, back)
@@ -1770,7 +1770,7 @@ contains
     type(varying_string), intent(in) :: string
     integer, intent(out), optional   :: iostat
 
-! Append a varying string to the current record of 
+! Append a varying string to the current record of
 ! the default unit
 
     call put(char(string), iostat)
@@ -1778,7 +1778,7 @@ contains
 ! Finish
 
   end subroutine put_VS
-    
+
 !****
 
   subroutine put_CH (string, iostat)
@@ -1786,7 +1786,7 @@ contains
     character(LEN=*), intent(in)   :: string
     integer, intent(out), optional :: iostat
 
-! Append a character string to the current record of 
+! Append a character string to the current record of
 ! the default unit
 
     if(PRESENT(iostat)) then
@@ -1807,7 +1807,7 @@ contains
     type(varying_string), intent(in) :: string
     integer, intent(out), optional   :: iostat
 
-! Append a varying string to the current record of 
+! Append a varying string to the current record of
 ! the specified unit
 
     call put(unit, char(string), iostat)
@@ -1826,7 +1826,7 @@ contains
     character(LEN=*), intent(in)   :: string
     integer, intent(out), optional :: iostat
 
-! Append a character string to the current record of 
+! Append a character string to the current record of
 ! the specified unit
 
     if(PRESENT(iostat)) then
@@ -1848,7 +1848,7 @@ contains
     type(varying_string), intent(in) :: string
     integer, intent(out), optional   :: iostat
 
-! Append a varying string to the current record of 
+! Append a varying string to the current record of
 ! the default unit, terminating the record
 
     call put_line(char(string), iostat)
@@ -1866,7 +1866,7 @@ contains
     character(LEN=*), intent(in)   :: string
     integer, intent(out), optional :: iostat
 
-! Append a varying string to the current record of 
+! Append a varying string to the current record of
 ! the default unit, terminating the record
 
     if(PRESENT(iostat)) then
@@ -1889,7 +1889,7 @@ contains
     type(varying_string), intent(in) :: string
     integer, intent(out), optional   :: iostat
 
-! Append a varying string to the current record of 
+! Append a varying string to the current record of
 ! the specified unit, terminating the record
 
     call put_line(unit, char(string), iostat)
@@ -1908,7 +1908,7 @@ contains
     character(LEN=*), intent(in)   :: string
     integer, intent(out), optional :: iostat
 
-! Append a varying string to the current record of 
+! Append a varying string to the current record of
 ! the specified unit, terminating the record
 
     if(PRESENT(iostat)) then
@@ -2471,7 +2471,7 @@ contains
 ! Handle special cases when LEN(target) == 0. Such
 ! instances are prohibited by the standard, but
 ! since this function is elemental, no error can be
-! thrown. Therefore, it makes sense to handle them 
+! thrown. Therefore, it makes sense to handle them
 ! in a sensible manner
 
     if(LEN(target) == 0) then
@@ -2608,7 +2608,7 @@ contains
   FUNCTION c_ptr_new_VS(string) RESULT(c_ptr_new)
   TYPE(varying_string),INTENT(in),TARGET :: string
   TYPE(c_ptr) :: c_ptr_new
-  
+
   c_ptr_new = C_LOC(string%chars(1))
 
   END FUNCTION c_ptr_new_VS

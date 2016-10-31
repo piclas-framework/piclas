@@ -992,7 +992,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars,ONLY: ProjectName
 USE MOD_Mesh_Vars  ,ONLY: nGlobalElems
 USE MOD_ReadInTools,ONLY: GetParameters
-#ifndef GNU 
+#ifdef INTEL 
 USE IFPORT,                 ONLY:SYSTEM
 #endif
 !USE MOD_PreProcFlags
@@ -1060,9 +1060,9 @@ CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
 CALL CloseDataFile()
 
 ! Add userblock to hdf5-file
-iError = SYSTEM(H5TOOLSDIR//&
+CALL EXECUTE_COMMAND_LINE(H5TOOLSDIR//&
     '/h5jam -u '//TRIM(ProjectName)//'.userblock -i '  //&
-    TRIM(FileName))
+     TRIM(FileName),EXITSTAT=iError)
 
 END SUBROUTINE GenerateFileSkeleton
 

@@ -211,8 +211,16 @@ IF(PRESENT(SingleOpt))THEN
   IF(SingleOpt.AND.(.NOT.MPIRoot)) RETURN
 END IF
 #endif
-IntInfo  = MERGE(IntInfoOpt ,999 ,PRESENT(IntInfoOpt) )
-RealInfo = MERGE(RealInfoOpt,999.,PRESENT(RealInfoOpt))
+IF(PRESENT(IntInfoOpt))THEN
+  IntInfo=IntInfoOpt
+ELSE
+  IntInfo=999
+END IF
+IF(PRESENT(RealInfoOpt))THEN
+  RealInfo=RealInfoOpt
+ELSE
+  RealInfo=999.
+END IF
 WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,*)'_____________________________________________________________________________'
 WRITE(UNIT_stdOut,*)'Program abort caused on Proc ',myRank,' in File : ',TRIM(SourceFile),' Line ',SourceLine
