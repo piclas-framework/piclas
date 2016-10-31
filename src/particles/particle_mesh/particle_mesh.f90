@@ -3698,7 +3698,7 @@ SUBROUTINE InitElemBoundingBox()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Mesh_Vars,               ONLY:nElems,NGeo
-USE MOD_Particle_Surfaces,       ONLY:GetElemSlabNormalsAndIntervals
+!USE MOD_Particle_Surfaces,       ONLY:GetElemSlabNormalsAndIntervals
 #ifdef MPI
 USE MOD_Particle_MPI,            ONLY:ExchangeBezierControlPoints3d
 #endif /*MPI*/
@@ -3718,9 +3718,9 @@ INTEGER             :: iElem
 ! first communicate the bezierControlPoints (slave information is missing)
 CALL ExchangeBezierControlPoints3D()
 #endif /*MPI*/
-DO iElem=1,nElems
- CALL GetElemSlabNormalsAndIntervals(NGeo,iElem)
-END DO !iElem=1,nElems
+!DO iElem=1,nElems
+! CALL GetElemSlabNormalsAndIntervals(NGeo,iElem)
+!END DO !iElem=1,nElems
 #endif /*PARTICLES*/
 
 
