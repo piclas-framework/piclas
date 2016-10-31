@@ -120,6 +120,11 @@ DO iPart=1,PDM%ParticleVecLength
     dolocSide=.TRUE.
     local=0
     firstElem=ElemID
+    CALL CheckPlanarInside(iPart,ElemID,PartisDone)
+    IF (PartisDone) THEN
+      PEM%Element(iPart) = ElemID
+      CYCLE
+    END IF
     DO WHILE (.NOT.PartisDone)
       locAlpha=-1.
       nInterSections=0
@@ -144,15 +149,10 @@ DO iPart=1,PDM%ParticleVecLength
         !                                                                                ,eta(ilocSide)   ,iPart,flip,SideID &
         !                                                                                ,isCriticalParallelInFace)
         CASE(BILINEAR,PLANAR_NONRECT)
-          xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,SideID)
-          xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,SideID)
-          xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,SideID)
-          xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,SideID)
-          CALL ComputeBiLinearIntersection(isHit,xNodes &
-                                                ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                            ,xi (ilocSide)      &
-                                                                                            ,eta(ilocSide)      &
-                                                                                            ,iPart,flip,SideID)
+          CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                        ,xi (ilocSide)      &
+                                                                                        ,eta(ilocSide)      &
+                                                                                        ,iPart,flip,SideID)
         CASE(CURVED,PLANAR_CURVED)
           CALL ComputeCurvedIntersection(ishit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                   ,xi (ilocSide)      &
@@ -755,12 +755,7 @@ DO WHILE(DoTracing)
     !                                                                                ,xi (ilocSide)      &
     !                                                                                ,eta(ilocSide)   ,PartID,flip,BCSideID)
     CASE(BILINEAR,PLANAR_NONRECT)
-      xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
-      xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
-      xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
-      xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,BCSideID)
-      CALL ComputeBiLinearIntersection(isHit,xNodes &
-                                                   ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+      CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
                                                                                        ,xi (ilocSide)      &
                                                                                        ,eta(ilocSide)      &
                                                                                        ,PartID,flip,BCSideID)
@@ -1355,15 +1350,10 @@ DO iLocSide=firstSide,LastSide
                                                                                   ,xi (ilocSide)            &
                                                                                   ,eta(ilocSide)   ,PartID,flip,BCSideID)
   CASE(BILINEAR,PLANAR_NONRECT)
-    xNodes(1:3,1)=BezierControlPoints3D(1:3,0   ,0   ,BCSideID)
-    xNodes(1:3,2)=BezierControlPoints3D(1:3,NGeo,0   ,BCSideID)
-    xNodes(1:3,3)=BezierControlPoints3D(1:3,NGeo,NGeo,BCSideID)
-    xNodes(1:3,4)=BezierControlPoints3D(1:3,0   ,NGeo,BCSideID)
-    CALL ComputeBiLinearIntersection(isHit,xNodes &
-                                                 ,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
-                                                                                     ,xi (ilocSide)      &
-                                                                                     ,eta(ilocSide)      &
-                                                                                     ,PartID,flip,BCSideID)
+    CALL ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
+                                                                                      ,xi (ilocSide)      &
+                                                                                      ,eta(ilocSide)      &
+                                                                                      ,PartID,flip,BCSideID)
   !CASE(PLANAR_NONRECT)
   !  CALL ComputePlanarNonrectIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha(ilocSide) &
   !                                                                                ,xi (ilocSide)      &
@@ -1424,5 +1414,64 @@ END IF ! nInter>0
 
 END SUBROUTINE FallBackFaceIntersection
 
+SUBROUTINE CheckPlanarInside(PartID,ElemID,PartisDone)
+!===================================================================================================================================
+! checks if lost particle intersected with face and left Element
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+USE MOD_Particle_Vars,               ONLY:PartState
+USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
+USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
+USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
+USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)            :: PartID,ElemID
+LOGICAL,INTENT(INOUT)         :: PartisDone
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: ilocSide, SideID, flip, PlanarSideNum
+REAL                          :: NormVec(1:3), vector_face2particle(1:3), Direction
+!===================================================================================================================================
+PartisDone = .TRUE.
+PlanarSideNum = 0
+
+DO ilocSide=1,6
+  SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID)
+  SELECT CASE(SideType(SideID))
+  CASE(PLANAR_RECT,PLANAR_NONRECT)
+    CYCLE
+  CASE DEFAULT
+    PartisDone = .FALSE.
+    RETURN
+  END SELECT
+END DO
+
+DO ilocSide=1,6
+  SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+  flip =   PartElemToSide(E2S_FLIP,ilocSide,ElemID)
+  ! new with flip
+  IF(flip.EQ.0)THEN
+    NormVec = SideNormVec(1:3,SideID)
+  ELSE
+    NormVec = -SideNormVec(1:3,SideID)
+  END IF
+  vector_face2particle(1:3) = PartState(PartID,1:3) - BezierControlPoints3D(1:3,0,0,SideID)
+  Direction = DOT_PRODUCT(NormVec,vector_face2particle)
+  
+  IF ( (Direction.GE.0.) .OR. (ALMOSTZERO(Direction)) ) THEN
+    PartisDone = .FALSE.
+  END IF
+END DO
+
+END SUBROUTINE CheckPlanarInside
 
 END MODULE MOD_Particle_Tracking

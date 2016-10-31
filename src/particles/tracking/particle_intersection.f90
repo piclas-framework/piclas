@@ -55,14 +55,12 @@ SUBROUTINE ComputePlanarRectIntersection(isHit                       &
 ! MODULES
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Globals_Vars,            ONLY:epsMach
-USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Particle_Mesh_Vars,      ONLY:SidePeriodicDisplacement,SidePeriodicType
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,OnePlusEps,SideDistance
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2
+USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-!USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElementNoMap
-!USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -114,49 +112,20 @@ IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
 
 ! extension for periodic sides
 IF(.NOT.DoRefMapping)THEN
- IF(SidePeriodicType(SideID).EQ.0)THEN
-   locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
-   alpha=locSideDistance/coeffA
-   locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
-   locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
-   locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
-   locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
- ELSE
-   locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
-   locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
-   locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
-   locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
-   SideBasePoint=0.25*(locBezierControlPoints3D(:,0,0) &
-                      +locBezierControlPoints3D(:,0,1) & 
-                      +locBezierControlPoints3D(:,1,0) &
-                      +locBezierControlPoints3D(:,1,1) )
-   ! nothing to do for master side, Side of elem to which owns the BezierPoints
-   IF(flip.EQ.0)THEN
-     locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
-     locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
-     locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
-     locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
-   ELSE
-     locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)      -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-     locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-     locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)   -SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-     locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-     ! caution, displacement is for master side computed, therefore, slave side requires negative displacement
-     SideBasePoint=SideBasePoint-SidePeriodicDisplacement(:,SidePeriodicType(SideID))
-   END IF
-   !locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),NormVec)
-   locSideDistance=DOT_PRODUCT(SideBasePoint-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
-   alpha=locSideDistance/coeffA
- END IF ! SidePeriodicType
+  IF(SidePeriodicType(SideID).EQ.0)THEN
+    locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
+  ELSE
+    IF (flip.EQ.0) THEN
+      locSideDistance=DOT_PRODUCT(0.25*BaseVectors0(:,SideID)-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
+    ELSE ! nothing to do for master side, Side of elem to which owns the BezierPoints
+      locSideDistance=DOT_PRODUCT(0.25*BaseVectors0flip(:,SideID)-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
+    END IF
+  END IF ! SidePeriodicType
 ELSE
- locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
- alpha=locSideDistance/coeffA
- locBezierControlPoints3D(:,0,0)=BezierControlPoints3D(:,0,0,SideID)
- locBezierControlPoints3D(:,0,1)=BezierControlPoints3D(:,0,NGeo,SideID)
- locBezierControlPoints3D(:,1,0)=BezierControlPoints3D(:,NGeo,0,SideID)
- locBezierControlPoints3D(:,1,1)=BezierControlPoints3D(:,NGeo,NGeo,SideID)
+  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
 END IF
-
+alpha=locSideDistance/coeffA
+  
 IF(CriticalParallelInSide)THEN ! particle parallel to side
   IF(ALMOSTZERO(locSideDistance))THEN ! particle on/in side
     IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.TRUE.
@@ -186,19 +155,35 @@ IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
   RETURN
 END IF
 
-P1=(-locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)   &
-    -locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )
-
-P2=(-locBezierControlPoints3D(:,0,0)-locBezierControlPoints3D(:,1,0)   &
-    +locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) )
-
-P0=(locBezierControlPoints3D(:,0,0)+locBezierControlPoints3D(:,1,0)    &
-   +locBezierControlPoints3D(:,0,1)+locBezierControlPoints3D(:,1,1) ) 
-
-P1=0.25*P1
-P2=0.25*P2
-Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-P0=-0.25*P0+Inter1
+IF(.NOT.DoRefMapping)THEN
+  IF(SidePeriodicType(SideID).EQ.0)THEN
+    ! iSide_temp = SideID2PlanarSideID(SideID)
+    Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
+    P0 =-0.25*BaseVectors0(:,SideID)+Inter1
+    P1 = 0.25*BaseVectors1(:,SideID)
+    P2 = 0.25*BaseVectors2(:,SideID)
+  ELSE
+    IF (flip.EQ.0) THEN
+      ! iSide_temp = SideID2PlanarSideID(SideID)
+      Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
+      P0 =-0.25*BaseVectors0(:,SideID)+Inter1
+      P1 = 0.25*BaseVectors1(:,SideID)
+      P2 = 0.25*BaseVectors2(:,SideID)
+    ELSE
+      ! iSide_temp = SideID2PlanarSideID(SideID)
+      Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
+      P0 =-0.25*BaseVectors0flip(:,SideID)+Inter1
+      P1 = 0.25*BaseVectors1flip(:,SideID)
+      P2 = 0.25*BaseVectors2flip(:,SideID)
+    END IF
+  END IF ! SidePeriodicType
+ELSE
+  ! iSide_temp = SideID2PlanarSideID(SideID)
+  Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
+  P0 =-0.25*BaseVectors0(:,SideID)+Inter1
+  P1 = 0.25*BaseVectors1(:,SideID)
+  P2 = 0.25*BaseVectors2(:,SideID)
+END IF
 
 A1=P1(1)*P1(1)+P1(2)*P1(2)+P1(3)*P1(3)
 B1=P2(1)*P1(1)+P2(2)*P1(2)+P2(3)*P1(3)
@@ -382,7 +367,7 @@ END SELECT
 
 END SUBROUTINE ComputePlanarNonrectIntersection
 
-SUBROUTINE ComputeBiLinearIntersection(isHit,xNodes,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
+SUBROUTINE ComputeBiLinearIntersection(isHit,PartTrajectory,lengthPartTrajectory,alpha,xitild,etatild &
                                                    ,iPart,flip,SideID)
 !===================================================================================================================================
 ! Compute the Intersection with planar surface
@@ -392,7 +377,7 @@ SUBROUTINE ComputeBiLinearIntersection(isHit,xNodes,PartTrajectory,lengthPartTra
 USE MOD_Globals
 USE MOD_Particle_Vars,           ONLY:LastPartPos
 USE MOD_Mesh_Vars,               ONLY:nBCSides,nSides
-USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,Beziercliphit
+USE MOD_Particle_Surfaces_Vars,  ONLY:epsilontol,OnePlusEps,Beziercliphit,BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3
 USE MOD_Particle_Mesh_Vars,          ONLY:PartBCSideList
 !USE MOD_Particle_Surfaces_Vars,  ONLY:OnePlusEps,SideIsPlanar,BiLinearCoeff,SideNormVec
 #ifdef MPI
@@ -405,7 +390,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN),DIMENSION(1:3)    :: PartTrajectory
 REAL,INTENT(IN)                   :: lengthPartTrajectory
-REAL,INTENT(IN),DIMENSION(1:3,4)  :: xNodes
 INTEGER,INTENT(IN)                :: iPart,SideID,flip
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -427,11 +411,22 @@ etatild=-2.0
 isHit=.FALSE.
 
 ! compute initial vectors
-BiLinearCoeff(:,1) = xNodes(:,1)-xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
-BiLinearCoeff(:,2) =-xNodes(:,1)+xNodes(:,2)+xNodes(:,3)-xNodes(:,4)
-BiLinearCoeff(:,3) =-xNodes(:,1)-xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
-BiLinearCoeff(:,4) = xNodes(:,1)+xNodes(:,2)+xNodes(:,3)+xNodes(:,4)
-BiLinearCoeff= 0.25*BiLinearCoeff
+BiLinearCoeff(:,1) = 0.25*BaseVectors3(:,SideID)
+BiLinearCoeff(:,2) = 0.25*BaseVectors1(:,SideID)
+BiLinearCoeff(:,3) = 0.25*BaseVectors2(:,SideID)
+BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
+
+! a1(1)= 0.25 * (BaseVectors3(1,SideID)*PartTrajectory(3) - BaseVectors3(3,SideID)*PartTrajectory(1))
+! a1(2)= 0.25 * (BaseVectors1(1,SideID)*PartTrajectory(3) - BaseVectors1(3,SideID)*PartTrajectory(1))
+! a1(3)= 0.25 * (BaseVectors2(1,SideID)*PartTrajectory(3) - BaseVectors2(3,SideID)*PartTrajectory(1))
+! a1(4)=(0.25*BaseVectors0(1,SideID)-LastPartPos(iPart,1))*PartTrajectory(3) &
+!      -(0.25*BaseVectors0(3,SideID)-LastPartPos(iPart,3))*PartTrajectory(1)
+!      
+! a2(1)= 0.25 * (BaseVectors3(2,SideID)*PartTrajectory(3) - BaseVectors3(3,SideID)*PartTrajectory(2))
+! a2(2)= 0.25 * (BaseVectors1(2,SideID)*PartTrajectory(3) - BaseVectors1(3,SideID)*PartTrajectory(2))
+! a2(3)= 0.25 * (BaseVectors2(2,SideID)*PartTrajectory(3) - BaseVectors2(3,SideID)*PartTrajectory(2))
+! a2(4)=(0.25*BaseVectors0(2,SideID)-LastPartPos(iPart,2))*PartTrajectory(3) &
+!      -(0.25*BaseVectors0(3,SideID)-LastPartPos(iPart,3))*PartTrajectory(2)
 
 ! compute product with particle trajectory
 a1(1)= BilinearCoeff(1,1)*PartTrajectory(3) - BilinearCoeff(3,1)*PartTrajectory(1)
