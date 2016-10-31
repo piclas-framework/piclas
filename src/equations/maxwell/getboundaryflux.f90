@@ -356,6 +356,7 @@ USE MOD_Basis,              ONLY:BarycentricWeights,InitializeVandermonde
 USE MOD_Interpolation_Vars, ONLY:xGP
 USE MOD_ChangeBasis,        ONLY:ChangeBasis3D
 USE MOD_ProlongToFace,      ONLY:ProlongToFace_BC
+USE MOD_Interpolation_Vars, ONLY:NodeType
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

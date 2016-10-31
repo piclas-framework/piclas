@@ -77,11 +77,11 @@ USE MOD_Mesh_Vars,               ONLY:detJac_Ref,Ja_Face
 USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:NodeCoords,TreeCoords,Elem_xGP
 USE MOD_Mesh_Vars,               ONLY:ElemToTree,xiMinMax,interpolateFromTree
-USE MOD_Mesh_Vars,               ONLY:nElems,nSides,nBCSides
+USE MOD_Mesh_Vars,               ONLY:nElems,nSides,nBCSides,offSetElem
 USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU
+USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
 #ifdef PARTICLES
 USE MOD_Mesh_Vars,               ONLY:NGeoElevated
 USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
@@ -160,7 +160,6 @@ Metrics_fTilde=0.
 Metrics_gTilde=0.
 Metrics_hTilde=0.
 ! 
-Cyclic=(/1,2,3,1,2/)
 
 ! Initialize Vandermonde and D matrices
 ! Only use modal Vandermonde for terms that need to be conserved as Jacobian if N_out>PP_N
@@ -452,17 +451,17 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN) :: Nloc                                !< (IN) polynomial degree
 INTEGER,INTENT(IN) :: iElem                               !< (IN) element index
-REAL,INTENT(IN)    :: JaCL_N(  3,3,0:Nloc,0:Nloc,0:Nloc)  !< (IN) volume metrics of element
-REAL,INTENT(IN)    :: XCL_N(     3,0:Nloc,0:Nloc,0:Nloc)  !< (IN) element geo. interpolation points (CL)
+REAL,INTENT(IN)    :: JaCL_N(1:3,1:3,0:Nloc,0:Nloc,0:Nloc)  !< (IN) volume metrics of element
+REAL,INTENT(IN)    :: XCL_N(     1:3,0:Nloc,0:Nloc,0:Nloc)  !< (IN) element geo. interpolation points (CL)
 REAL,INTENT(IN)    :: Vdm_CLN_N(   0:Nloc,0:Nloc)         !< (IN) Vandermonde matrix from Cheby-Lob on N to final nodeset on N
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)   ::    NormVec(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face normal vectors
-REAL,INTENT(OUT)   ::   TangVec1(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
-REAL,INTENT(OUT)   ::   TangVec2(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
+REAL,INTENT(OUT)   ::    NormVec(1:3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face normal vectors
+REAL,INTENT(OUT)   ::   TangVec1(1:3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
+REAL,INTENT(OUT)   ::   TangVec2(1:3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
 REAL,INTENT(OUT)   ::   SurfElem(  0:Nloc,0:Nloc,1:nSides) !< (OUT) element face surface area
-REAL,INTENT(OUT)   :: Face_xGP(3,0:Nloc,0:Nloc,1:nSides)                       !< (OUT) element face interpolation points
-REAL,INTENT(OUT),OPTIONAL :: Ja_Face(3,3,0:Nloc,0:Nloc,1:nSides)  !< (OUT) surface metrics
+REAL,INTENT(OUT)   :: Face_xGP(1:3,0:Nloc,0:Nloc,1:nSides)                       !< (OUT) element face interpolation points
+REAL,INTENT(OUT),OPTIONAL :: Ja_Face(1:3,1:3,0:Nloc,0:Nloc,1:nSides)  !< (OUT) surface metrics
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: p,q,pq(2),dd,iLocSide,SideID,SideID2,iMortar,nbSideIDs(4)
@@ -531,21 +530,21 @@ DO iLocSide=1,6
 
   NormalDir=NormalDirs(iLocSide); TangDir=TangDirs(iLocSide); NormalSign=NormalSigns(iLocSide)
   CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Ja_Face_l,&
-                         NormVec(:,:,:,0,SideID),TangVec1(:,:,:,0,SideID),&
-                         TangVec2(:,:,:,0,SideID),SurfElem(:,:,0,SideID))
+                         NormVec(:,:,:,SideID),TangVec1(:,:,:,SideID),&
+                         TangVec2(:,:,:,SideID),SurfElem(:,:,SideID))
 
   !compute metrics for mortar faces, interpolate Ja_Face to small sides
   IF(MortarType(1,SideID).GT.0)THEN
-    CALL Mortar_CalcSurfMetrics(SideID,Nloc,Ja_Face_l,Face_xGP(:,:,:,0,SideID),&
+    CALL Mortar_CalcSurfMetrics(SideID,Nloc,Ja_Face_l,Face_xGP(:,:,:,SideID),&
                                             Mortar_Ja,Mortar_xGP,nbSideIDs)
     DO iMortar=1,4
       SideID2=nbSideIDs(iMortar)
       IF(SideID2.LT.1) CYCLE ! for MPI sides some sides are built from the inside and for type 2/3 there are only 2 neighbours
       IF(PRESENT(Ja_Face)) Ja_Face(:,:,:,:,SideID2)=Mortar_Ja(:,:,:,:,iMortar)
-      Face_xGP(:,:,:,0,SideID2) = Mortar_xGP(:,:,:,iMortar)
+      Face_xGP(:,:,:,SideID2) = Mortar_xGP(:,:,:,iMortar)
       CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Mortar_Ja(:,:,:,:,iMortar),&
-                             NormVec(:,:,:,0,SideID2),TangVec1(:,:,:,0,SideID2),&
-                             TangVec2(:,:,:,0,SideID2),SurfElem(:,:,0,SideID2))
+                             NormVec(:,:,:,SideID2),TangVec1(:,:,:,SideID2),&
+                             TangVec2(:,:,:,SideID2),SurfElem(:,:,SideID2))
     END DO
 
   END IF
