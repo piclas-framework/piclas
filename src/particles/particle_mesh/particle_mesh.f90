@@ -4693,6 +4693,7 @@ END IF
 
 END SUBROUTINE GetPlanarSideBaseVectors
 
+
 SUBROUTINE BGMIndexOfElement(ElemID,ElemToBGM) 
 !===================================================================================================================================
 ! computes the element indices of an given element in the BGM-mesh

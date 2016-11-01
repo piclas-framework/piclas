@@ -538,7 +538,7 @@ DO iPart=1,PDM%ParticleVecLength
 
       !CALL BubbleSortID(Distance,ListDistance,nBGMElems)
       CALL InsertionSort(Distance(1:nBGMElems),ListDistance(1:nBGMElems),nBGMElems)
-    ELSE
+    ELSE IF(nBGMElems.EQ.1)THEN
       Distance(1)=0.
       ListDistance(1)=GEO%TFIBGM(CellX,CellY,CellZ)%Element(1)
     END IF
