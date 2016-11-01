@@ -1052,7 +1052,6 @@ ELSE
   END DO
 END IF
 DEALLOCATE(MPISideCount)
-
 #endif /*MPI*/
 
 ReduceData(1)=nElems

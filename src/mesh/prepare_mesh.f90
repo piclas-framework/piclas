@@ -223,6 +223,7 @@ LOGWRITE(*,*)'-------------------------------------------------------'
 
 nMPISides_MINE=0
 nMPISides_YOUR=0
+
 #ifdef MPI
 ! SPLITTING MPISides in MINE and YOURS
 ALLOCATE(nMPISides_MINE_Proc(1:nNbProcs),nMPISides_YOUR_Proc(1:nNbProcs))
@@ -252,7 +253,6 @@ DO iNbProc=1,nNbProcs
   offsetMPISides_YOUR(iNbProc)=offsetMPISides_YOUR(iNbProc-1)+nMPISides_YOUR_Proc(iNbProc)
 END DO
 
-IF(nProcessors.EQ.1) RETURN
 DO iNbProc=1,nNbProcs
   ALLOCATE(SideIDMap(nMPISides_Proc(iNbProc)))
   iSide=0
