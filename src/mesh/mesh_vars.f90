@@ -157,6 +157,11 @@ INTEGER             :: nMortarInnerSides=0     !< number of inner mortar sides
 INTEGER             :: nMortarMPISides=0       !< number of mortar MPI sides
 INTEGER,ALLOCATABLE :: MortarType(:,:)         !< Type of mortar [1] and position in mortar list [1:nSides]
 INTEGER,ALLOCATABLE :: MortarInfo(:,:,:)       !< 1:2,1:4,1:nMortarSides: [1] nbSideID / flip, [2] max 4 mortar sides, [3] sides
+!----------------------------------------------------------------------------------------------------------------------------------
+INTEGER(KIND=8),ALLOCATABLE     :: ElemToElemGlob(:,:,:)             !< mapping from element to neighbor element in global ids
+                                                                     !< [1:4] (mortar) neighbors
+                                                                     !< [1:6] local sides
+                                                                     !< [OffSetElem+1:OffsetElem+PP_nElems]
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=255),ALLOCATABLE   :: BoundaryName(:)
 CHARACTER(LEN=255)               :: MeshFile        !< name of hdf5 meshfile (write with ending .h5!)

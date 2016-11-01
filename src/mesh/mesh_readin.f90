@@ -266,7 +266,7 @@ IF(MPIRoot)THEN
   IF(nGlobalElems.LT.nProcessors) &
      CALL abort(&
 __STAMP__&
-,' Number of elements < number of processors')
+,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
 END IF
 
 #ifdef MPI
