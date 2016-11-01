@@ -4381,6 +4381,7 @@ IF(DoRefMapping)THEN
             BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
             SideIndex(iSide)=BCElem(iElem)%lastSide
           END IF
+          leave=.TRUE.
         ELSE
           leave=.FALSE.
           !DO q=0,NGeo
