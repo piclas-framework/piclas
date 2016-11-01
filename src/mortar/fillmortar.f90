@@ -83,6 +83,7 @@ firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
 M1=>M_0_1; M2=>M_0_2
 
 DO MortarSideID=firstMortarSideID,lastMortarSideID
+  !
   SELECT CASE(MortarType(1,MortarSideID))
   CASE(1) !1->4
     !first in eta
