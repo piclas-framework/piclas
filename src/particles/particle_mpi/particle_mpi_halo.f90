@@ -1982,7 +1982,7 @@ __STAMP__&
       IF(SUM(ABS(SideSlabNormals(:,:,iSide))).EQ.0)THEN
         CALL abort(&
 __STAMP__&
-          ,' SideSlabNormals is zero!')
+          ,' SideSlabNormals is zero!,iSide',iSide)
       END IF
     END DO 
   END IF ! RecvMsg%nSides>0

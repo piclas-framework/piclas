@@ -1500,7 +1500,8 @@ SUBROUTINE ExchangeBezierControlPoints3D()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_MPI_Vars
-USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,nUniqueSides,MortarSlave2MasterInfo
+USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,firstMPISide_YOUR,MortarSlave2MasterInfo,firstMPISide_MINE &
+                                        ,firstMortarMPISide,lastMortarMPISide,lastMPISide_YOUR
 USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
@@ -1512,12 +1513,26 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 ::BezierSideSize,SendID, iSide
+INTEGER                 ::BezierSideSize,SendID, iSide,SideID
 !===================================================================================================================================
 
 ! funny: should not be required, as sides are built for master and slave sides??
 ! communicate the MPI Master Sides to Slaves
 ! all processes have now filled sides and can compute the particles inside the proc region
+
+! copy the BezierControlPoints3D from Master-MPI-Mortar sides to small-mortar side slave side
+! this copy has to be performed in the non-mpi-case, as well
+DO iSide=1,nSides
+  SideID=MortarSlave2MasterInfo(iSide)
+  IF(SideID.EQ.-1)CYCLE
+  BezierControlPoints3D(:,:,:,iSide)= BezierControlPoints3D(:,:,:,SideID)
+  BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide)= &
+      BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,SideID)
+  SideSlabNormals(1:3,1:3,iSide) = SideSlabNormals(1:3,1:3,SideID)                                        
+  SideSlabInterVals(1:6,iSide)   = SideSlabInterVals(1:6,SideID)                                           
+  BoundingBoxIsEmpty(iSide)      = BoundingBoxIsEmpty(SideID)                                              
+END DO ! iSide=firstMPISide_YOUR,nSides
+
 SendID=1
 BezierSideSize=3*(NGeo+1)*(NGeo+1)
 DO iNbProc=1,nNbProcs
@@ -1548,10 +1563,22 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 
 ! build my slave sides (your master are already built)
-DO iSide=nUniqueSides+1,nSides
+!UpperLimit=nSides
+!IF(nNbProcs.EQ.0) UpperLimit=nUniqueSides
+DO iSide=firstMPISide_YOUR,lastMPISide_YOUR
   !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
   ! elevation occurs within this routine
-  IF(MortarSlave2MasterInfo(iSide).NE.-1)CYCLE
+  CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
+                                     ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
+                                     ,SideSlabNormals(1:3,1:3,iSide)                                         &
+                                     ,SideSlabInterVals(1:6,iSide)                                           &
+                                     ,BoundingBoxIsEmpty(iSide)                                              )
+END DO
+
+DO iSide=firstMortarMPISide,lastMortarMPISide
+  !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
+  ! elevation occurs within this routine
+  IF(MortarSlave2MasterInfo(iSide).NE.-1) CYCLE
   CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
                                      ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
                                      ,SideSlabNormals(1:3,1:3,iSide)                                         &
@@ -1560,15 +1587,16 @@ DO iSide=nUniqueSides+1,nSides
 END DO
 
 DO iSide=1,nSides
-  IF(MortarSlave2MasterInfo(iSide).NE.-1)CYCLE
+  !IF(MortarSlave2MasterInfo(iSide).NE.-1)CYCLE
   IF(SUM(ABS(SideSlabIntervals(:,iSide))).EQ.0)THEN
     CALL abort(&
     __STAMP__&
-    ,'  Zero bounding box found!')
+    ,'  Zero bounding box found!, iSide',iSide)
   END IF
 END DO
 
 END SUBROUTINE ExchangeBezierControlPoints3D
+
 
 SUBROUTINE InitHaloMesh()
 !===================================================================================================================================

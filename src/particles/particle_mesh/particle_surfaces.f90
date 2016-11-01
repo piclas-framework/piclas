@@ -475,7 +475,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars,                ONLY:ElemToSide,NGeo
 USE MOD_Particle_Surfaces_Vars,   ONLY:BezierControlPoints3D,sVdm_Bezier
-USE MOD_Mesh_Vars,                ONLY:nBCSides,nMortarInnerSides,nInnerSides,nMPISides_MINE
+USE MOD_Mesh_Vars,                ONLY:nSides
 USE MOD_ChangeBasis,              ONLY:ChangeBasis2D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -494,7 +494,8 @@ REAL                              :: tmp(3,0:NGeo,0:NGeo)
 
 !===================================================================================================================================
 ! BCSides, InnerSides and MINE MPISides are filled
-lastSideID  = nBCSides+nMortarInnerSides+nInnerSides+nMPISides_MINE
+!lastSideID  = nBCSides+nMortarInnerSides+nInnerSides+nMPISides_MINE
+lastSideID  = nSides
 !IF(DoRefMapping) lastSideID  = nBCSides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) XI_MINUS

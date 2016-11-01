@@ -4588,6 +4588,7 @@ END DO ! iElem=1,nLoop
 
 END SUBROUTINE GetElemAndSideType
 
+
 SUBROUTINE GetPlanarSideBaseVectors()
 !===================================================================================================================================
 ! computes the face base vector for planar face intersection calculation

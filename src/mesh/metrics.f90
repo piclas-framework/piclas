@@ -83,7 +83,7 @@ USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars,      ONLY:NodeTypeG,NodeTypeGL,NodeTypeCL,NodeTypeVISU,NodeType,xGP
 #ifdef PARTICLES
-USE MOD_Mesh_Vars,               ONLY:NGeoElevated
+USE MOD_Mesh_Vars,               ONLY:NGeoElevated,firstMortarMPISide,lastMortarMPISide
 USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
@@ -396,7 +396,8 @@ StartT2=BOLTZPLATZTIME()
 CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
 #endif /*MPI*/
 lowerLimit = nBCSides+nMortarInnerSides+nInnerSides+nMPISides_MINE
-DO iSide=1,lowerLimit
+!DO iSide=1,lowerLimit
+DO iSide=1,nSides
   !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
   ! elevation occurs within this routine
   IF (MortarSlave2MasterInfo(iSide).NE.-1) CYCLE
@@ -417,6 +418,13 @@ DO iSide=1,lowerLimit
     IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
   END IF
 END DO 
+DO iSide=firstMortarMPISide,lastMortarMPISide
+  IF (MortarSlave2MasterInfo(iSide).EQ.-1) CYCLE
+  IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
+    IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
+    IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
+  END IF
+END DO 
 
 endT=BOLTZPLATZTIME()
 BezierTime=BezierTime+endT-StartT2
@@ -429,8 +437,6 @@ SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took     
 endt=BOLTZPLATZTIME()
 SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
 #endif /*PARTICLES*/
-
-
 
 END SUBROUTINE CalcMetrics 
 
