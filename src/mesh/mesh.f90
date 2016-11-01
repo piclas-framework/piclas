@@ -325,11 +325,11 @@ ALLOCATE(XCL_NGeo(3,0:NGeo,0:NGeo,0:NGeo,nElems))
 XCL_NGeo = 0.
 ALLOCATE(dXCL_NGeo(3,3,0:NGeo,0:NGeo,0:NGeo,nElems))
 dXCL_NGeo = 0.
-CALL CalcMetrics(NodeCoords,XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 ! init element volume
 CALL InitElemVolumes()
 #else
-CALL CalcMetrics(NodeCoords)
+CALL CalcMetrics()
 #endif
 DEALLOCATE(NodeCoords)
 DEALLOCATE(dXCL_N)

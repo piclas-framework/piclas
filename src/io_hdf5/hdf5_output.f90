@@ -84,10 +84,10 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
-#ifdef PARTICLE
+#ifdef PARTICLES
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER                        :: nVar
-#endif /*PARTICLE*/
+#endif /*PARTICLES*/
 #ifdef MPI
 REAL                           :: StartT,EndT
 #endif /*MPI*/
@@ -1062,10 +1062,10 @@ CALL WriteAttributeToHDF5(File_ID,'NComputation',1,IntegerScalar=PP_N)
 
 CALL CloseDataFile()
 
-! Add userblock to hdf5-file
-CALL EXECUTE_COMMAND_LINE(H5TOOLSDIR//&
-    '/h5jam -u '//TRIM(ProjectName)//'.userblock -i '  //&
-     TRIM(FileName),EXITSTAT=iError)
+! ! Add userblock to hdf5-file
+! CALL EXECUTE_COMMAND_LINE(H5TOOLSDIR//&
+!     '/h5jam -u '//TRIM(ProjectName)//'.userblock -i '  //&
+!      TRIM(FileName),EXITSTAT=iError)
 
 END SUBROUTINE GenerateFileSkeleton
 
