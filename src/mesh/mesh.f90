@@ -226,6 +226,7 @@ AnalyzeSide = 0
 !NOTE: nMortarSides=nMortarInnerSides+nMortarMPISides
 ALLOCATE(MortarType(2,1:nSides))              ! 1: Type, 2: Index in MortarInfo
 ALLOCATE(MortarInfo(MI_FLIP,4,nMortarSides)) ! [1]: 1: Neighbour sides, 2: Flip, [2]: small sides
+ALLOCATE(MortarSlave2MasterInfo(1:nSides))
 MortarType=-1
 MortarInfo=-1
 
