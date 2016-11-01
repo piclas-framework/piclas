@@ -1500,7 +1500,7 @@ SUBROUTINE ExchangeBezierControlPoints3D()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_MPI_Vars
-USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,nUniqueSides
+USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,nUniqueSides,MortarSlave2MasterInfo
 USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
@@ -1551,6 +1551,7 @@ END DO !iProc=1,nNBProcs
 DO iSide=nUniqueSides+1,nSides
   !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
   ! elevation occurs within this routine
+  IF(MortarSlave2MasterInfo(iSide).NE.-1)CYCLE
   CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
                                      ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
                                      ,SideSlabNormals(1:3,1:3,iSide)                                         &
@@ -1559,6 +1560,7 @@ DO iSide=nUniqueSides+1,nSides
 END DO
 
 DO iSide=1,nSides
+  IF(MortarSlave2MasterInfo(iSide).NE.-1)CYCLE
   IF(SUM(ABS(SideSlabIntervals(:,iSide))).EQ.0)THEN
     CALL abort(&
     __STAMP__&

@@ -1421,6 +1421,7 @@ SUBROUTINE CheckPlanarInside(PartID,ElemID,PartisDone)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
+USE MOD_Mesh_Vars,                   ONLY:MortarSlave2MasterInfo
 USE MOD_Particle_Vars,               ONLY:PartState
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideNormVec
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
@@ -1438,7 +1439,7 @@ LOGICAL,INTENT(INOUT)         :: PartisDone
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: ilocSide, SideID, flip, PlanarSideNum
+INTEGER                       :: ilocSide, SideID,SideID2, flip, PlanarSideNum
 REAL                          :: NormVec(1:3), vector_face2particle(1:3), Direction
 !===================================================================================================================================
 PartisDone = .TRUE.
@@ -1457,6 +1458,8 @@ END DO
 
 DO ilocSide=1,6
   SideID = PartElemToSide(E2S_SIDE_ID,ilocSide,ElemID) 
+  SideID2=MortarSlave2MasterInfo(SideID)
+  IF(SideID2.GT.0) SideID=SideID2
   flip =   PartElemToSide(E2S_FLIP,ilocSide,ElemID)
   ! new with flip
   IF(flip.EQ.0)THEN

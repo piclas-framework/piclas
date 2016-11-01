@@ -4701,7 +4701,7 @@ USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
 USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
 USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
-USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
+USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo,MortarSlave2MasterInfo
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide
@@ -4796,6 +4796,7 @@ SUBROUTINE GetFIBGMMinMax()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
+USE MOD_Mesh_Vars,                          ONLY:MortarSlave2MasterInfo
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
 #ifdef MPI
@@ -4838,6 +4839,7 @@ zmax =-HUGE(1.0)
 
 ! bounding box!!
 DO iSide=1,nTotalSides
+  IF(MortarSlave2MasterInfo(iSide).NE.-1) CYCLE
   xmin=MIN(xmin,MINVAL(BezierControlPoints3D(1,:,:,iSide)))
   xmax=MAX(xmax,MAXVAL(BezierControlPoints3D(1,:,:,iSide)))
   ymin=MIN(ymin,MINVAL(BezierControlPoints3D(2,:,:,iSide)))
