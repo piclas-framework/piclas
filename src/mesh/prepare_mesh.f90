@@ -642,10 +642,10 @@ SUBROUTINE fillMeshInfo()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars,ONLY:tElem,tSide,Elems
-USE MOD_Mesh_Vars,ONLY: nElems,offsetElem,nBCSides
+USE MOD_Mesh_Vars,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
 USE MOD_Mesh_Vars,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
-USE MOD_Mesh_Vars,ONLY: MortarType,MortarInfo
+USE MOD_Mesh_Vars,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
 USE MOD_Mesh_Vars,ONLY:BoundaryType ! is required for particles and periodic sides!!
 #ifdef MPI
 USE MOD_MPI_vars
@@ -726,6 +726,17 @@ DO iElem=1,nElems
     END IF !mortarSide
   END DO ! LocSideID
 END DO ! iElem
+
+MortarSlave2MasterInfo(:) = -1
+DO SideID=1,nSides
+  IF (MortarType(MI_SIDEID,SideID).NE.-1) THEN
+    DO iMortar=1,4
+      IF (MortarInfo(MI_SIDEID,iMortar,MortarType(2,SideID)).NE.-1) THEN
+      MortarSlave2MasterInfo(MortarInfo(MI_SIDEID,iMortar,MortarType(2,SideID))) = SideID
+      END IF
+    END DO
+  END IF
+END DO
 
 #ifdef MPI
 IF(MPIroot)THEN

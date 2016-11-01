@@ -87,7 +87,8 @@ USE MOD_Mesh_Vars,               ONLY:NGeoElevated
 USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-USE MOD_Mesh_Vars,               ONLY:nInnerSides,nMPISides_MINE
+USE MOD_Mesh_Vars,               ONLY:nInnerSides,nMPISides_MINE,nMortarInnerSides
+USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
 #ifdef MPI
@@ -394,10 +395,11 @@ StartT2=BOLTZPLATZTIME()
 #ifdef MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
 #endif /*MPI*/
-lowerLimit = nBCSides+nInnerSides+nMPISides_MINE
+lowerLimit = nBCSides+nMortarInnerSides+nInnerSides+nMPISides_MINE
 DO iSide=1,lowerLimit
   !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
   ! elevation occurs within this routine
+  IF (MortarSlave2MasterInfo(iSide).NE.-1) CYCLE
   CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
                                      ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
                                      ,SideSlabNormals(1:3,1:3,iSide)                                         &
@@ -407,8 +409,9 @@ DO iSide=1,lowerLimit
 END DO
 
 !IF(DoRefMapping) lowerLimit=nBCSides
-lowerLimit=nSides
+! lowerLimit=nSides
 DO iSide=1,lowerLimit
+  IF (MortarSlave2MasterInfo(iSide).NE.-1) CYCLE
   IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
     IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
     IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
