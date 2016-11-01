@@ -30,7 +30,7 @@ SUBROUTINE FillFlux(t,tDeriv,Flux,U_master,U_slave,doMPISides)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Mesh_Vars,       ONLY:NormVec,SurfElem
-USE MOD_Mesh_Vars,       ONLY:nSides,nBCSides,nInnerSides,nMPISides_MINE
+USE MOD_Mesh_Vars,       ONLY:nSides,nBCSides,nInnerSides
 USE MOD_Riemann,         ONLY:Riemann
 USE MOD_Mesh_Vars,       ONLY:NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
 USE MOD_GetBoundaryFlux, ONLY:GetBoundaryFlux
@@ -66,8 +66,6 @@ ELSE
   firstSideID = firstBCSide    ! include BCs for master sides
   lastSideID = lastInnerSide
 END IF
-!firstSideID=nBCSides+1
-!lastSideID  =nBCSides+nInnerSides+nMPISides_MINE
 
 ! Compute fluxes on PP_N, no additional interpolation required
 DO SideID=firstSideID,lastSideID

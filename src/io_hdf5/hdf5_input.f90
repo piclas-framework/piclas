@@ -17,6 +17,10 @@ INTERFACE ISVALIDHDF5FILE
   MODULE PROCEDURE ISVALIDHDF5FILE
 END INTERFACE
 
+INTERFACE ISVALIDMESHFILE
+  MODULE PROCEDURE ISVALIDMESHFILE
+END INTERFACE
+
 INTERFACE GetHDF5NextFileName
   MODULE PROCEDURE GetHDF5NextFileName
 END INTERFACE
@@ -42,7 +46,7 @@ INTERFACE ReadAttribute
 END INTERFACE
 
 
-PUBLIC :: ISVALIDHDF5FILE,GetDataSize,GetDataProps,GetHDF5NextFileName
+PUBLIC :: ISVALIDHDF5FILE,ISVALIDMESHFILE,GetDataSize,GetDataProps,GetHDF5NextFileName
 PUBLIC :: ReadArray,ReadAttribute
 PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
 PUBLIC :: OpenDataFile,CloseDataFile ! Subroutines that need to be public
@@ -118,6 +122,66 @@ ELSE
 END IF
 END FUNCTION ISVALIDHDF5FILE
 
+
+!==================================================================================================================================
+!> Subroutine to check if a file is a valid mesh file
+!==================================================================================================================================
+FUNCTION ISVALIDMESHFILE(MeshFileName)
+! MODULES
+USE MOD_Globals
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName    !< name of mesh file to be checked
+LOGICAL                        :: isValidMeshFile !< result: file is valid mesh file
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                        :: NGeoExists,fileExists
+INTEGER(HID_T)                 :: Plist_ID
+!==================================================================================================================================
+! Disable error messages
+CALL H5ESET_AUTO_F(0, iError)
+
+! Initialize FORTRAN predefined datatypes
+CALL H5OPEN_F(iError)
+! Create property list
+CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_ID, iError)
+#ifdef MPI
+! Setup file access property list with parallel I/O access (MPI)
+CALL H5PSET_FAPL_MPIO_F(Plist_ID,MPI_COMM_WORLD, MPIInfo, iError)
+#endif /* MPI */
+
+! Check if file exists
+INQUIRE(FILE=TRIM(MeshFileName),EXIST=fileExists)
+IF(.NOT.fileExists) THEN
+  CALL abort(__STAMP__,'ERROR: Mesh file '//TRIM(MeshFileName)//' does not exist.')
+  isValidMeshFile = .FALSE.
+  RETURN
+END IF
+
+! Open HDF5 file
+CALL H5FOPEN_F(TRIM(MeshFileName), H5F_ACC_RDONLY_F, File_ID, iError,access_prp = Plist_ID)
+IF(iError.EQ.0) THEN
+  isValidMeshFile=.TRUE.
+
+  ! Check NGeo attribute --------------------------------------------------------------------------------------------------------
+  CALL DatasetExists(File_ID,'Ngeo',NGeoExists,attrib=.TRUE.)
+  IF (.NOT.NGeoExists) isValidMeshFile = .FALSE.
+
+  ! Close property list
+  CALL H5PCLOSE_F(Plist_ID, iError)
+  ! Close the file.
+  CALL H5FCLOSE_F(File_ID, iError)
+  ! Close FORTRAN predefined datatypes
+  CALL H5CLOSE_F(iError)
+ELSE
+  isValidMeshFile=.FALSE.
+  ! Close property list
+  CALL H5PCLOSE_F(Plist_ID, iError)
+  ! Close FORTRAN predefined datatypes
+  CALL H5CLOSE_F(iError)
+END IF
+END FUNCTION ISVALIDMESHFILE
 
 
 SUBROUTINE GetHDF5DataSize(Loc_ID,DSetName,nDims,Size)

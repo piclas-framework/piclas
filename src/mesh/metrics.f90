@@ -72,12 +72,12 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,               ONLY:NGeo,NGeoRef
 USE MOD_Mesh_Vars,               ONLY:sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:Face_xGP,normVec,surfElem,TangVec1,TangVec2
-USE MOD_Mesh_Vars,               ONLY:nElems,nSides,nBCSides,dXCL_N
+USE MOD_Mesh_Vars,               ONLY:nElems,nBCSides,dXCL_N
 USE MOD_Mesh_Vars,               ONLY:detJac_Ref,Ja_Face
 USE MOD_Mesh_Vars,               ONLY:crossProductMetrics
 USE MOD_Mesh_Vars,               ONLY:NodeCoords,TreeCoords,Elem_xGP
 USE MOD_Mesh_Vars,               ONLY:ElemToTree,xiMinMax,interpolateFromTree
-USE MOD_Mesh_Vars,               ONLY:nElems,nSides,nBCSides,offSetElem
+USE MOD_Mesh_Vars,               ONLY:nElems,nSides,offSetElem
 USE MOD_Interpolation,           ONLY:GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis,             ONLY:changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis,                   ONLY:LagrangeInterpolationPolys
@@ -87,7 +87,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeoElevated
 USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-USE MOD_Mesh_Vars,               ONLY:nBCSides,nInnerSides,nMPISides_MINE
+USE MOD_Mesh_Vars,               ONLY:nInnerSides,nMPISides_MINE
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
 #ifdef MPI
@@ -431,7 +431,6 @@ SWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took     
 
 END SUBROUTINE CalcMetrics 
 
-
 SUBROUTINE CalcSurfMetrics(Nloc,JaCL_N,XCL_N,Vdm_CLN_N,iElem,NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
 !===================================================================================================================================
 ! Compute normal and tangential vectors from element metrics. Input is JaCL_N, the 3D element metrics on Cebychev-Lobatto points
@@ -456,12 +455,12 @@ REAL,INTENT(IN)    :: XCL_N(     1:3,0:Nloc,0:Nloc,0:Nloc)  !< (IN) element geo.
 REAL,INTENT(IN)    :: Vdm_CLN_N(   0:Nloc,0:Nloc)         !< (IN) Vandermonde matrix from Cheby-Lob on N to final nodeset on N
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)   ::    NormVec(1:3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face normal vectors
-REAL,INTENT(OUT)   ::   TangVec1(1:3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
-REAL,INTENT(OUT)   ::   TangVec2(1:3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
+REAL,INTENT(OUT)   ::    NormVec(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face normal vectors
+REAL,INTENT(OUT)   ::   TangVec1(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
+REAL,INTENT(OUT)   ::   TangVec2(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
 REAL,INTENT(OUT)   ::   SurfElem(  0:Nloc,0:Nloc,1:nSides) !< (OUT) element face surface area
 REAL,INTENT(OUT)   :: Face_xGP(1:3,0:Nloc,0:Nloc,1:nSides)                       !< (OUT) element face interpolation points
-REAL,INTENT(OUT),OPTIONAL :: Ja_Face(1:3,1:3,0:Nloc,0:Nloc,1:nSides)  !< (OUT) surface metrics
+REAL,INTENT(OUT),OPTIONAL :: Ja_Face(3,3,0:Nloc,0:Nloc,1:nSides)  !< (OUT) surface metrics
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: p,q,pq(2),dd,iLocSide,SideID,SideID2,iMortar,nbSideIDs(4)

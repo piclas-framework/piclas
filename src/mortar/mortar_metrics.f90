@@ -23,7 +23,7 @@ PUBLIC::Mortar_CalcSurfMetrics
 
 CONTAINS
 
-SUBROUTINE Mortar_CalcSurfMetrics(SideID,Face_Ja,Face_xGP,Mortar_Ja,Mortar_xGP,nbSideID)
+SUBROUTINE Mortar_CalcSurfMetrics(SideID,Nloc,Face_Ja,Face_xGP,Mortar_Ja,Mortar_xGP,nbSideID)
 !===================================================================================================================================
 !> Interpolates surface metrics Ja and xGP on face from master to slave (small) mortar sides.
 !> 1D interpolation operators M_0_1,M_0_2 are built locally per polynomial degree.
@@ -58,19 +58,20 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: SideID                         !< SideID of mortar master side
-REAL,INTENT(IN)    :: Face_Ja(  3,3,0:PP_N,0:PP_N)   !< surface metrics of side
-REAL,INTENT(IN)    :: Face_xGP(   3,0:PP_N,0:PP_N)   !< face xGP
-REAL,INTENT(OUT)   :: Mortar_Ja(3,3,0:PP_N,0:PP_N,4) !< mortarized surface metrics of side
-REAL,INTENT(OUT)   :: Mortar_xGP( 3,0:PP_N,0:PP_N,4) !< mortarized face xGP
+INTEGER,INTENT(IN) :: Nloc                           !< polynomial degree
+REAL,INTENT(IN)    :: Face_Ja(  3,3,0:Nloc,0:Nloc)   !< surface metrics of side
+REAL,INTENT(IN)    :: Face_xGP(   3,0:Nloc,0:Nloc)   !< face xGP
+REAL,INTENT(OUT)   :: Mortar_Ja(3,3,0:Nloc,0:Nloc,4) !< mortarized surface metrics of side
+REAL,INTENT(OUT)   :: Mortar_xGP( 3,0:Nloc,0:Nloc,4) !< mortarized face xGP
 INTEGER,INTENT(OUT):: nbSideID(4)                    !< index of neighbour sideIDs
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER  :: p,q,dir1,dir2,iNb,jNb,ind,SideIDMortar
-REAL     :: M_0_12(0:PP_N,0:PP_N,2),M_0_12_h(0:PP_N,0:PP_N,2)
-REAL     :: Mortar_Ja2(1:3,1:3,0:PP_N,0:PP_N)
-REAL     :: Mortar_xGP2 (  1:3,0:PP_N,0:PP_N)
+REAL     :: M_0_12(0:Nloc,0:Nloc,2),M_0_12_h(0:Nloc,0:Nloc,2)
+REAL     :: Mortar_Ja2(1:3,1:3,0:Nloc,0:Nloc)
+REAL     :: Mortar_xGP2 (  1:3,0:Nloc,0:Nloc)
 !==================================================================================================================================
-CALL MortarBasis_BigToSmall(0,PP_N,NodeType,M_0_12(:,:,1),M_0_12(:,:,2))
+CALL MortarBasis_BigToSmall(0,Nloc,NodeType,M_0_12(:,:,1),M_0_12(:,:,2))
 ! ATTENTION: MortarBasis_BigToSmall computes the transposed matrices, which is useful when they are used
 !            in hand-written matrix multiplications. For the use with the intrinsic MATMUL, they must be transposed.
 M_0_12_h(:,:,1)=0.5*TRANSPOSE(M_0_12(:,:,1))
@@ -88,28 +89,28 @@ CASE(1) !1->4
   !inb=2,jNb=2 > Nb=4
   !first in xi
   DO iNb=1,2
-    DO q=0,PP_N
+    DO q=0,Nloc
       DO dir1=1,3
         DO dir2=1,3
           Mortar_Ja2(dir1,dir2,:,q)=MATMUL(M_0_12_h(:,:,iNb),Face_Ja(dir1,dir2,:,q))
         END DO !dir2=1,3
         Mortar_xGP2(dir1,:,q)      =MATMUL(M_0_12(  :,:,iNb),Face_xGP(dir1,:,q))
       END DO !dir1=1,3
-    END DO !q=0,PP_N
+    END DO !q=0,Nloc
     !now in eta
     DO jNb=1,2
       ind=iNb+2*(jNb-1)
       IF(MortarInfo(E2S_FLIP,ind,SideIDMortar).GT.0) CYCLE !no slave sides (MPI)
       nbSideID(ind)=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
 
-      DO p=0,PP_N
+      DO p=0,Nloc
         DO dir1=1,3
           DO dir2=1,3
             Mortar_Ja(dir1,dir2,p,:,ind)=MATMUL(M_0_12_h(:,:,jNb),Mortar_Ja2(dir1,dir2,p,:))
           END DO !dir2=1,3
           Mortar_xGP(dir1,p,:,ind)      =MATMUL(M_0_12(  :,:,jNb),Mortar_xGP2(dir1,p,:))
         END DO !dir1=1,3
-      END DO !p=0,PP_N
+      END DO !p=0,Nloc
     END DO !jNb
   END DO !iNb
 
@@ -118,14 +119,14 @@ CASE(2) !1->2 in eta
     IF(MortarInfo(E2S_FLIP,jNb,SideIDMortar).GT.0) CYCLE !no slave sides (MPI)
     nbSideID(jNb)=MortarInfo(E2S_SIDE_ID,jNb,SideIDMortar)
 
-    DO p=0,PP_N
+    DO p=0,Nloc
       DO dir1=1,3
         DO dir2=1,3
           Mortar_Ja(dir1,dir2,p,:,jNb)=MATMUL(M_0_12_h(:,:,jNb),Face_Ja(dir1,dir2,p,:))
         END DO !dir2=1,3
         Mortar_xGP(dir1,p,:,jNb)      =MATMUL(M_0_12(  :,:,jNb),Face_xGP(dir1,p,:))
       END DO !dir1=1,3
-    END DO !p=0,PP_N
+    END DO !p=0,Nloc
   END DO !jNb
 
 CASE(3) !1->2 in xi
@@ -133,14 +134,14 @@ CASE(3) !1->2 in xi
     IF(MortarInfo(E2S_FLIP,iNb,SideIDMortar).GT.0) CYCLE !no slave sides (MPI)
     nbSideID(iNb)=MortarInfo(E2S_SIDE_ID,iNb,SideIDMortar)
 
-    DO q=0,PP_N
+    DO q=0,Nloc
       DO dir1=1,3
         DO dir2=1,3
           Mortar_Ja(dir1,dir2,:,q,iNb)=MATMUL(M_0_12_h(:,:,iNb),Face_Ja(dir1,dir2,:,q))
         END DO !dir2=1,3
         Mortar_xGP(dir1,:,q,iNb)      =MATMUL(M_0_12(  :,:,iNb),Face_xGP(dir1,:,q))
       END DO !dir1=1,3
-    END DO !q=0,PP_N
+    END DO !q=0,Nloc
   END DO !iNb
 
 END SELECT !MortarType

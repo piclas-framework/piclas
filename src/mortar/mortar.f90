@@ -45,6 +45,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone,NodeType 
+USE MOD_Interpolation     ,ONLY: GetNodesAndWeights
 USE MOD_Mortar_Vars
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

@@ -47,6 +47,10 @@ INTERFACE Abort
   MODULE PROCEDURE AbortProg
 END INTERFACE Abort
 
+INTERFACE CollectiveStop
+  MODULE PROCEDURE CollectiveStop
+END INTERFACE CollectiveStop
+
 INTERFACE INTSTAMP
   MODULE PROCEDURE INTSTAMP
 END INTERFACE INTSTAMP
@@ -237,6 +241,62 @@ CALL MPI_ABORT(MPI_COMM_WORLD,iError,errOut)
 #endif
 STOP 0001
 END SUBROUTINE AbortProg
+
+!==================================================================================================================================
+!> \brief Safely terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
+!> 
+!> Safely terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
+!> Terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
+!> This routine can only be used if ALL processes are guaranteed to generate the same error at the same time!
+!> Prime use is to exit FLEXI without MPI errors and with a single error message if some parameters are not set in the init
+!> routines or a file is not found.
+!>
+!> Criteria where CollectiveStop may be used:
+!> 0. In case of doubt stick with Abort, which is always safe!
+!> 1. A routine is BY DESIGN (!) called by all processes, i.e. does not permit to be called by single processes or subgroups.
+!> 2. The criteria for the CollectiveStop must be identical among all processors.
+!> 3. The routine is only used during the init phase.
+!> 4. The error must not originate from MPI errors (e.g. during MPI init)
+!> 5. The error must not originate from checking roundof errors (e.g. accuracy of interpolation matrices)
+!>
+!==================================================================================================================================
+SUBROUTINE CollectiveStop(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfo,RealInfo)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*)                  :: SourceFile      !< Source file where error has occurred
+INTEGER                           :: SourceLine      !< Line in source file
+CHARACTER(LEN=*)                  :: CompDate        !< Compilation date
+CHARACTER(LEN=*)                  :: CompTime        !< Compilation time
+CHARACTER(LEN=*)                  :: ErrorMessage    !< Error message
+INTEGER,OPTIONAL                  :: IntInfo         !< Error info (integer)
+REAL,OPTIONAL                     :: RealInfo        !< Error info (real)
+!   There is no way back!
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=50)                 :: IntString,RealString
+!==================================================================================================================================
+IntString = ""
+RealString = ""
+
+IF (PRESENT(IntInfo))  WRITE(IntString,"(A,I0)")  "\nIntInfo:  ", IntInfo
+IF (PRESENT(RealInfo)) WRITE(RealString,"(A,F24.19)") "\nRealInfo: ", RealInfo
+
+SWRITE(UNIT_stdOut,*) '_____________________________________________________________________________\n', &
+                     'Program abort caused on Proc ',myRank, '\n', &
+                     '  in File : ',TRIM(SourceFile),' Line ',SourceLine, '\n', &
+                     '  This file was compiled at ',TRIM(CompDate),'  ',TRIM(CompTime), '\n', &
+                     'Message: ',TRIM(ErrorMessage), &
+                     TRIM(IntString), TRIM(RealString)
+
+CALL FLUSH(UNIT_stdOut)
+#ifdef MPI
+CALL MPI_FINALIZE(iError)
+#endif
+ERROR STOP 1
+END SUBROUTINE CollectiveStop
+
 
 
 SUBROUTINE CreateErrFile()

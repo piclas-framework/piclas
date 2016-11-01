@@ -74,7 +74,7 @@ REAL,POINTER        :: coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
 !CHARACTER(32)       :: hilf2
 CHARACTER(LEN=255)  :: FileName
-LOGICAL             :: validMesh
+LOGICAL             :: validMesh,ExistFile
 INTEGER             :: firstMasterSide     ! lower side ID of array U_master/gradUx_master...
 INTEGER             :: lastMasterSide      ! upper side ID of array U_master/gradUx_master...
 INTEGER             :: firstSlaveSide      ! lower side ID of array U_slave/gradUx_slave...
@@ -674,7 +674,6 @@ SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)
 SDEALLOCATE(ElemToSide)
 SDEALLOCATE(SideToElem)
-SDEALLOCATE(SideToElem2)
 SDEALLOCATE(BC)
 SDEALLOCATE(Elem_xGP)
 SDEALLOCATE(Metrics_fTilde)

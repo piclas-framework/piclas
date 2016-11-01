@@ -65,7 +65,8 @@ USE MOD_LoadBalance_Vars, ONLY: DoLoadBalance,nLoadBalance, LoadDistri, PartDist
 #ifdef MPI
 USE MOD_ReadInTools,      ONLY: GETLOGICAL
 USE MOD_MPI_Vars,         ONLY: nNbProcs,NbProc,nMPISides_Proc,nMPISides_MINE_Proc,nMPISides_YOUR_Proc
-USE MOD_MPI_Vars,         ONLY: offsetMPISides_MINE,offsetMPISides_YOUR
+USE MOD_MPI_Vars,         ONLY: offsetMPISides_MINE,offsetMPISides_YOUR,nMPISides_send,offSetMPISides_send
+USE MOD_MPI_Vars,         ONLY: nMPISides_rec, OffsetMPISides_rec
 #endif
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -523,7 +524,7 @@ IF(MPIroot)THEN
   WRITE(ioUnit,*)'total number of Elems,',SUM(Procinfo_glob(1,:))
 
   WRITE(ioUnit,'(15(A23))')'Rank','nElems','nParts','Load','nSides','nInnerSides','nBCSides','nMPISides', &
-      'nMPISides_MINE','nNBProcs' &
+      'nMPISides_MINE','nNBProcs' ,&
               'nMortarInnerSides', 'nMortarMPISides', 'nSmallMortInnerSides', 'nSmallMortMPISidesMINE', 'nSmallMortMPISidesYOUR'
   WRITE(ioUnit,'(345("="))')
   !statistics
@@ -647,7 +648,6 @@ USE MOD_Mesh_Vars,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide
 USE MOD_Mesh_Vars,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars,ONLY:BoundaryType ! is required for particles and periodic sides!!
 #ifdef MPI
-USE MOD_Mesh_Vars,ONLY:nMPISides
 USE MOD_MPI_vars
 #endif
 IMPLICIT NONE
@@ -662,9 +662,9 @@ TYPE(tElem),POINTER :: aElem
 TYPE(tSide),POINTER :: aSide,mSide
 INTEGER             :: iElem,LocSideID,nSides_flip(0:4),SideID
 INTEGER             :: nSides_MortarType(1:3),iMortar
-!#ifdef MPI
-!INTEGER             :: dummy(0:4)
-!#endif
+#ifdef MPI
+INTEGER             :: dummy(0:4)
+#endif
 !===================================================================================================================================
 ! ELement to Side mapping
 nSides_flip=0
@@ -795,7 +795,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 TYPE(tElem),POINTER :: aElem
 TYPE(tSide),POINTER :: aSide
-INTEGER             :: iElem,LocSideID,iNbProc
+INTEGER             :: iElem,LocSideID
 INTEGER             :: iMortar,nMortars
 INTEGER             :: Flip_MINE(offsetMPISides_MINE(0)+1:offsetMPISides_MINE(nNBProcs))
 INTEGER             :: Flip_YOUR(offsetMPISides_YOUR(0)+1:offsetMPISides_YOUR(nNBProcs))

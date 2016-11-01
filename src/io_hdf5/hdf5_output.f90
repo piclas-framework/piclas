@@ -84,8 +84,10 @@ REAL,INTENT(IN),OPTIONAL       :: FutureTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
+#ifdef PARTICLE
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER                        :: nVar
+#endif /*PARTICLE*/
 #ifdef MPI
 REAL                           :: StartT,EndT
 #endif /*MPI*/
