@@ -1501,7 +1501,7 @@ SUBROUTINE ExchangeBezierControlPoints3D()
 USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_Mesh_Vars,                  ONLY:NGeo,NGeoElevated,nSides,firstMPISide_YOUR,MortarSlave2MasterInfo,firstMPISide_MINE &
-                                        ,firstMortarMPISide,lastMortarMPISide,lastMPISide_YOUR
+                                        ,firstMortarMPISide,lastMortarMPISide,lastMPISide_YOUR,SideToElem
 USE MOD_Particle_Surfaces,          ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_vars,     ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
@@ -1513,25 +1513,12 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 ::BezierSideSize,SendID, iSide,SideID
+INTEGER                 ::BezierSideSize,SendID, iSide,SideID,ElemID
 !===================================================================================================================================
 
 ! funny: should not be required, as sides are built for master and slave sides??
 ! communicate the MPI Master Sides to Slaves
 ! all processes have now filled sides and can compute the particles inside the proc region
-
-! copy the BezierControlPoints3D from Master-MPI-Mortar sides to small-mortar side slave side
-! this copy has to be performed in the non-mpi-case, as well
-DO iSide=1,nSides
-  SideID=MortarSlave2MasterInfo(iSide)
-  IF(SideID.EQ.-1)CYCLE
-  BezierControlPoints3D(:,:,:,iSide)= BezierControlPoints3D(:,:,:,SideID)
-  BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide)= &
-      BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,SideID)
-  SideSlabNormals(1:3,1:3,iSide) = SideSlabNormals(1:3,1:3,SideID)                                        
-  SideSlabInterVals(1:6,iSide)   = SideSlabInterVals(1:6,SideID)                                           
-  BoundingBoxIsEmpty(iSide)      = BoundingBoxIsEmpty(SideID)                                              
-END DO ! iSide=firstMPISide_YOUR,nSides
 
 SendID=1
 BezierSideSize=3*(NGeo+1)*(NGeo+1)
@@ -1562,11 +1549,8 @@ DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest_Flux(iNbProc),MPIStatus,iError)
 END DO !iProc=1,nNBProcs
 
-! build my slave sides (your master are already built)
-!UpperLimit=nSides
-!IF(nNbProcs.EQ.0) UpperLimit=nUniqueSides
+! build the bounding box for YOUR-MPI-sides without mortar sides
 DO iSide=firstMPISide_YOUR,lastMPISide_YOUR
-  !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
   ! elevation occurs within this routine
   CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
                                      ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
@@ -1575,10 +1559,14 @@ DO iSide=firstMPISide_YOUR,lastMPISide_YOUR
                                      ,BoundingBoxIsEmpty(iSide)                                              )
 END DO
 
+! build the bounding box for missing MPI-mortar sides, or YOUR mortar sides
+! actually, I do not know, if this is requried
 DO iSide=firstMortarMPISide,lastMortarMPISide
-  !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
+  ElemID=SideToElem(S2E_ELEM_ID,iSide)
+  SideID=MortarSlave2MasterInfo(iSide)
+  IF(ElemID.NE.-1) CYCLE
+  IF(SideID.EQ.-1) CYCLE
   ! elevation occurs within this routine
-  IF(MortarSlave2MasterInfo(iSide).NE.-1) CYCLE
   CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
                                      ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
                                      ,SideSlabNormals(1:3,1:3,iSide)                                         &

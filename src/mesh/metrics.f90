@@ -87,7 +87,7 @@ USE MOD_Mesh_Vars,               ONLY:NGeoElevated,firstMortarMPISide,lastMortar
 USE MOD_Particle_Surfaces,       ONLY:GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces,       ONLY:GetBezierControlPoints3D
 USE MOD_Particle_Tracking_Vars,  ONLY:DoRefMapping
-USE MOD_Mesh_Vars,               ONLY:nInnerSides,nMPISides_MINE,nMortarInnerSides
+USE MOD_Mesh_Vars,               ONLY:nInnerSides,nMPISides_MINE,nMortarInnerSides,SideToElem
 USE MOD_Mesh_Vars,               ONLY:MortarSlave2MasterInfo
 USE MOD_Particle_Surfaces_vars,  ONLY:BezierControlPoints3D,SideSlabIntervals,BezierControlPoints3DElevated &
                                         ,SideSlabIntervals,SideSlabNormals,BoundingBoxIsEmpty
@@ -144,7 +144,7 @@ REAL    :: xiCL_N(0:PP_N)   ,wBaryCL_N(0:PP_N)
 REAL    :: xi0(3),dxi(3),length(3)
 
 #ifdef PARTICLES
-INTEGER            :: iSide,lowerLimit
+INTEGER            :: iSide,lowerLimit,ElemID,SideID
 REAL               :: StartT2,BezierTime
 #endif /*PARTICLES*/
 REAL               :: StartT,EndT
@@ -395,31 +395,43 @@ StartT2=BOLTZPLATZTIME()
 #ifdef MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE, BezierTime, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, IERROR)
 #endif /*MPI*/
-lowerLimit = nBCSides+nMortarInnerSides+nInnerSides+nMPISides_MINE
-!DO iSide=1,lowerLimit
-DO iSide=1,nSides
-  !CALL GetSideSlabNormalsAndIntervals(iSide) ! elevation occurs within this routine
+
+#ifdef MPI
+lowerLimit=nSides ! all incl. my mortar sides
+#else
+lowerLimit=nBCSides+nMortarInnerSides+nInnerSides+nMPISides_MINE
+#endif /*MPI*/
+
+! copy BezierControlPoints from master sides to slave sides for MINE mortar sides
+DO iSide=1,lowerLimit
+  SideID=MortarSlave2MasterInfo(iSide)
+  IF(SideID.EQ.-1)CYCLE
+  BezierControlPoints3D(:,:,:,iSide)= BezierControlPoints3D(:,:,:,SideID)
+END DO ! iSide=firstMPISide_YOUR,nSides
+
+! Next, build the BezierControlPoints,SideSlabNormals,SideSlabIntervals and BoundingBoxIsEmpty for 
+! nBCSides, nInnerMortarSides, nInnerSides, nMPISides_MINE and MINE mortar sides
+! this requires check for flip and MortarSlave2Master
+DO iSide=1,lowerLimit
+  ! check flip or mortar sideid
+  ElemID=SideToElem(S2E_ELEM_ID,iSide)
+  SideID=MortarSlave2MasterInfo(iSide)
   ! elevation occurs within this routine
-  IF (MortarSlave2MasterInfo(iSide).NE.-1) CYCLE
+  IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
+  !IF((flip.EQ.0).OR.(SideID.GT.0))THEN
   CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,iSide)                         &
                                      ,BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,iSide) &
                                      ,SideSlabNormals(1:3,1:3,iSide)                                         &
                                      ,SideSlabInterVals(1:6,iSide)                                           &
                                      ,BoundingBoxIsEmpty(iSide)                                              )
-
 END DO
 
-!IF(DoRefMapping) lowerLimit=nBCSides
-! lowerLimit=nSides
+! here, check the BC-control-points
 DO iSide=1,lowerLimit
-  IF (MortarSlave2MasterInfo(iSide).NE.-1) CYCLE
-  IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
-    IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
-    IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
-  END IF
-END DO 
-DO iSide=firstMortarMPISide,lastMortarMPISide
-  IF (MortarSlave2MasterInfo(iSide).EQ.-1) CYCLE
+  ElemID=SideToElem(S2E_ELEM_ID,iSide)
+  SideID=MortarSlave2MasterInfo(iSide)
+  ! elevation occurs within this routine
+  IF((ElemID.EQ.-1).AND.(SideID.EQ.-1)) CYCLE
   IF(SUM(ABS(BezierControlPoints3D(:,:,:,iSide))).LT.1e-10)THEN
     IPWRITE(UNIT_stdOut,'(I6,A,I6)') ' Warning, BezierControlPoint is zero! SideID:', iSide
     IPWRITE(UNIT_stdOut,*) 'Points',BezierControlPoints3D(:,:,:,iSide)
