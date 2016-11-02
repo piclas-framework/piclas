@@ -3822,12 +3822,7 @@ INTEGER,ALLOCATABLE                      :: SideIndex(:)
 REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
-#if (PP_TimeDiscMethod!=1)&&(PP_TimeDiscMethod!=2)&&(PP_TimeDiscMethod!=6)
-REAL,DIMENSION(1:3,0:NGeo,0:NGeo) :: xNodes
-#endif
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-INTEGER                                 :: BCSideID2
-#endif
+REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
 LOGICAL,ALLOCATABLE                     :: SideIsDone(:)
 REAL                                    :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                                    :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
