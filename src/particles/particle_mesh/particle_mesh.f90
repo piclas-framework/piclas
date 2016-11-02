@@ -4203,9 +4203,9 @@ IF (.NOT.DoRefMapping)THEN
 #endif /*MPI*/
         ELSE
           SideType(iSide)=PLANAR_NONRECT
-          IF(SideID.LE.nSides) nPlanarNonRectangular=nPlanarNonRectangular+1
+          IF(iSide.LE.nSides) nPlanarNonRectangular=nPlanarNonRectangular+1
 #ifdef MPI
-          IF(SideID.GT.nSides) nPlanarNonRectangularHalo=nPlanarNonRectangularHalo+1
+          IF(iSide.GT.nSides) nPlanarNonRectangularHalo=nPlanarNonRectangularHalo+1
 #endif /*MPI*/
         END IF
       ELSE
@@ -4247,16 +4247,16 @@ IF (.NOT.DoRefMapping)THEN
         ! END IF
         IF(isBiLinear)THEN
           SideType(iSide)=BILINEAR
-          IF(SideID.LE.nSides) nBiLinear=nBiLinear+1
+          IF(iSide.LE.nSides) nBiLinear=nBiLinear+1
 #ifdef MPI
-          IF(SideID.GT.nSides) nBilinearHalo=nBilinearHalo+1
+          IF(iSide.GT.nSides) nBilinearHalo=nBilinearHalo+1
 #endif /*MPI*/
         ELSE ! not bilinear
           IF(BoundingBoxIsEmpty(iSide))THEN
-            SideType(TrueSideID)=PLANAR_CURVED
-            IF(SideID.LE.nSides) nPlanarCurved=nPlanarCurved+1
+            SideType(iSide)=PLANAR_CURVED
+            IF(iSide.LE.nSides) nPlanarCurved=nPlanarCurved+1
 #ifdef MPI
-            IF(SideID.GT.nSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
+            IF(iSide.GT.nSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
 #endif /*MPI*/
             v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
                 -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
@@ -4270,10 +4270,10 @@ IF (.NOT.DoRefMapping)THEN
                     +BezierControlPoints3D(:,NGeo,NGeo,iSide))
             SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
           ELSE
-            SideType(TrueSideID)=CURVED
-            IF(SideID.LE.nSides) nCurved=nCurved+1
+            SideType(iSide)=CURVED
+            IF(iSide.LE.nSides) nCurved=nCurved+1
 #ifdef MPI
-            IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+            IF(iSide.GT.nSides) nCurvedHalo=nCurvedHalo+1
 #endif /*MPI*/
           END IF
         END IF
@@ -4281,9 +4281,9 @@ IF (.NOT.DoRefMapping)THEN
     ELSE  ! non-linear edges
       IF(BoundingBoxIsEmpty(iSide))THEN
         SideType(iSide)=PLANAR_CURVED
-        IF(SideID.LE.nSides) nPlanarCurved=nPlanarCurved+1
+        IF(iSide.LE.nSides) nPlanarCurved=nPlanarCurved+1
 #ifdef MPI
-        IF(SideID.GT.nSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
+        IF(iSide.GT.nSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
 #endif /*MPI*/
         ! get normal vector and side distance
         v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
@@ -4299,9 +4299,9 @@ IF (.NOT.DoRefMapping)THEN
         SideDistance(iSide)=DOT_PRODUCT(v1,SideNormVec(:,iSide))
       ELSE
         SideType(iSide)=CURVED
-        IF(SideID.LE.nSides) nCurved=nCurved+1
+        IF(iSide.LE.nSides) nCurved=nCurved+1
 #ifdef MPI
-        IF(SideID.GT.nSides) nCurvedHalo=nCurvedHalo+1
+        IF(iSide.GT.nSides) nCurvedHalo=nCurvedHalo+1
 #endif /*MPI*/
       END IF
     END IF
