@@ -651,6 +651,7 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
+USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
 #ifdef PARTICLES
 !USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D,SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
 #endif
@@ -715,6 +716,7 @@ SDEALLOCATE(wBaryCL_NGeo1)
 SDEALLOCATE(XiCL_NGeo1)
 SDEALLOCATE(CurvedElem)
 SDEALLOCATE(VolToSideIJKA)
+SDEALLOCATE(SideBoundingBoxVolume)
 MeshInitIsDone = .FALSE.
 END SUBROUTINE FinalizeMesh
 
