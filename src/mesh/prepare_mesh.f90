@@ -890,7 +890,13 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   IF(nMPISides_YOUR_Proc(iNbProc).GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
+  IF(iERROR.NE.0) CALL abort(&
+  __STAMP__&
+  ,' MPI-Error during flip-exchange. iError', iERROR)
   IF(nMPISides_MINE_Proc(iNBProc).GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
+  IF(iERROR.NE.0) CALL abort(&
+  __STAMP__&
+  ,' MPI-Error during flip-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
@@ -962,27 +968,68 @@ DO iElem=1,nElems
   END DO ! LocSideID
 END DO ! iElem
 
+! first communication: Slave to Master
 DO iNbProc=1,nNbProcs
   ! Start send flip from MINE
-  IF(nMPISides_MINE_Proc(iNbProc).GT.0)THEN
-    SideID_start=OffsetMPISides_MINE(iNbProc-1)+1
-    SideID_end  =OffsetMPISides_YOUR(iNbProc)
-    nSendVal    =SideID_end-SideID_start+1
+  nSendVal    =nMPISides_send(iNBProc,2)
+  SideID_start=OffsetMPISides_send(iNbProc-1,2)+1  
+  SideID_end  =OffsetMPISides_send(iNbProc,2)    
+  IF(nSendVal.GT.0)THEN
     CALL MPI_ISEND(ElemID_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
                     nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
   END IF
   ! Start receive flip to YOUR
-  IF(nMPISides_YOUR_Proc(iNbProc).GT.0)THEN
-    SideID_start=OffsetMPISides_MINE(iNbProc-1)+1
-    SideID_end  =OffsetMPISides_YOUR(iNbProc)
-    nRecVal     =SideID_end-SideID_start+1
+  nRecVal     =nMPISides_rec(iNbProc,2)
+  SideID_start=OffsetMPISides_rec(iNbProc-1,2)+1
+  SideID_end  =OffsetMPISides_rec(iNbProc,2)
+  IF(nRecVal.GT.0)THEN
     CALL MPI_IRECV(ElemID_YOUR(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
                     nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
   END IF
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
-  IF(nMPISides_YOUR_Proc(iNbProc).GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
-  IF(nMPISides_MINE_Proc(iNBProc).GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
+  nRecVal     =nMPISides_rec(iNbProc,2)
+  IF(nRecVal.GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
+  IF(iERROR.NE.0) CALL abort(&
+  __STAMP__&
+  ,' MPI-Error during ElemID-exchange. iError', iERROR)
+  nSendVal    =nMPISides_send(iNBProc,2)
+  IF(nSendVal.GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
+  IF(iERROR.NE.0) CALL abort(&
+  __STAMP__&
+  ,' MPI-Error during ElemID-exchange. iError', iERROR)
+END DO !iProc=1,nNBProcs
+
+! second communication: Master to Slave 
+DO iNbProc=1,nNbProcs
+  ! Start send flip from MINE
+  nSendVal    =nMPISides_send(iNBProc,1)
+  SideID_start=OffsetMPISides_send(iNbProc-1,1)+1  
+  SideID_end  =OffsetMPISides_send(iNbProc,1)    
+  IF(nSendVal.GT.0)THEN
+    CALL MPI_ISEND(ElemID_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
+  END IF
+  ! Start receive flip to YOUR
+  nRecVal     =nMPISides_rec(iNbProc,1)
+  SideID_start=OffsetMPISides_rec(iNbProc-1,1)+1
+  SideID_end  =OffsetMPISides_rec(iNbProc,1)
+  IF(nRecVal.GT.0)THEN
+    CALL MPI_IRECV(ElemID_YOUR(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+  END IF
+END DO !iProc=1,nNBProcs
+DO iNbProc=1,nNbProcs
+  nRecVal     =nMPISides_rec(iNbProc,1)
+  IF(nRecVal.GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
+  IF(iERROR.NE.0) CALL abort(&
+  __STAMP__&
+  ,' MPI-Error during ElemID-exchange. iError', iERROR)
+  nSendVal    =nMPISides_send(iNBProc,1)
+  IF(nSendVal.GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
+  IF(iERROR.NE.0) CALL abort(&
+  __STAMP__&
+  ,' MPI-Error during ElemID-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 
 DO iElem=1,nElems

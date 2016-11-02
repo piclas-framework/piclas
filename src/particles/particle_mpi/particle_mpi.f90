@@ -1543,10 +1543,16 @@ END DO !iProc=1,nNBProcs
 
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest_Flux(iNbProc) ,MPIStatus,iError)
+  IF(iERROR.NE.0) CALL abort(&
+  __STAMP__&
+  ,' MPI-Error during BezierControlPoint-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 ! Check send operations
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest_Flux(iNbProc),MPIStatus,iError)
+  IF(iERROR.NE.0) CALL abort(&
+  __STAMP__&
+  ,' MPI-Error during BezierControlPoint-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 
 ! build the bounding box for YOUR-MPI-sides without mortar sides
