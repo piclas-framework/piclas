@@ -2405,7 +2405,7 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:BC,nGeo,XCL_NGeo,DXCL_NGEO
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem!,PartElemToElemGlob
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
@@ -2451,15 +2451,15 @@ __STAMP__&
       END DO ! j=0,NGeo
     END DO ! k=0,NGeo
   END IF ! DoRefMapping
-  ! PartElemToElem 
-  DO ilocSide=1,6
-    IF(PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)) CALL abort(&
-       __STAMP__&
-       , ' Error in PartElemToElem')
-    IF(PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)) CALL abort(&
-       __STAMP__&
-       , ' Error in PartElemToElem')
-  END DO ! ilocSide=1,6
+!  ! PartElemToElem 
+!  DO ilocSide=1,6
+!    IF(PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)) CALL abort(&
+!       __STAMP__&
+!       , ' Error in PartElemToElem')
+!    IF(PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem).NE.PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)) CALL abort(&
+!       __STAMP__&
+!       , ' Error in PartElemToElem')
+!  END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
 IF(DoRefMapping)THEN
   ! PartBCSideList

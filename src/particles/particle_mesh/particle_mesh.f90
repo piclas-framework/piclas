@@ -242,7 +242,7 @@ IMPLICIT NONE
 SDEALLOCATE(PartElemToSide)
 SDEALLOCATE(PartSideToElem)
 SDEALLOCATE(PartElemToElemGlob)
-SDEALLOCATE(PartElemToElem)
+SDEALLOCATE(PartElemToElemAndSide)
 SDEALLOCATE(PartBCSideList)
 SDEALLOCATE(SidePeriodicType)
 SDEALLOCATE(SidePeriodicDisplacement)
@@ -792,6 +792,7 @@ IF(DoRefMapping) CALL ReshapeBezierSides()
 
 CALL GetElemAndSideType()
 CALL GetPlanarSideBaseVectors()
+CALL ElemConnectivity()
 !! sort element faces by type - linear, bilinear, curved
 !IF(DoRefMapping) THEN !  CALL GetBCSideType()
 !ELSE
@@ -3819,6 +3820,7 @@ INTEGER                                  :: nPlanarRectangularHalo, nPlanarNonRe
                                             nBilinearHalo,nCurvedHalo
 #endif /*MPI*/
 INTEGER                                  :: nSideCount, BCSideID,  s,r
+INTEGER                                  :: iHaloElem,ElemID
 INTEGER,ALLOCATABLE                      :: SideIndex(:)
 REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
@@ -4675,6 +4677,94 @@ END IF
 END SUBROUTINE GetPlanarSideBaseVectors
 
 
+SUBROUTINE ElemConnectivity() 
+!===================================================================================================================================
+! computes the element connectivity between different elements, inclusive the halo region
+! and mortar interfaces
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Mesh_Vars,  ONLY:PartElemToElemGlob, PartElemToElemAndSide,nTotalElems
+USE MOD_Particle_MPI_Vars,   ONLY:PartHaloElemToProc
+USE MOD_Mesh_Vars,           ONLY:OffSetElem
+#ifdef MPI
+USE MOD_MPI_Vars,            ONLY:OffSetElemMPI
+#endif /*MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iElem,ilocSide,iMortar,GlobalElemID,ProcID,ilocSide2,iMortar2,NbElemID,ElemID
+#ifdef MPI
+INTEGER                       :: iHaloElem,HaloGlobalElemID
+#endif /*MPI*/
+!===================================================================================================================================
+
+SDEALLOCATE(PartElemToElemAndSide)
+ALLOCATE(PartElemToElemAndSide(1:8,1:6,1:nTotalElems))
+                      ! [1]1:4 - MortarNeighborElemID
+                      ! [1]5:8 -       Neighbor locSideID
+                      ! [2]1:6 - locSideID
+                      ! [3]    - nTotalElems 
+                      ! if the connections points to an element which is not in MY region (MY elems + halo elems)
+                      ! then this connection points to -1
+! now, map the PartElemToElemGlob to local elemids
+PartElemToElemAndSide=-1
+! loop over all Elems and map the neighbor element to local coordinates
+DO iElem=1,nTotalElems
+  DO ilocSide=1,6
+    DO iMortar=1,4
+      GlobalElemID=PartElemToElemGlob(iMortar,ilocSide,iElem)
+      IF(GlobalElemID.LE.0) CYCLE
+      ! check if the element is in MY range of elements
+      IF((GlobalElemID.GE.OffSetElem+1).AND.(GlobalElemID.LE.(OffSetElem+PP_nElems)))THEN
+        PartElemToElemAndSide(iMortar,ilocSide,iElem)=GlobalElemID-OffSetElem
+        CYCLE
+      END IF
+#ifdef MPI
+      ! neighbor element not found, hence, it can be a halo element
+      DO iHaloElem=PP_nElems+1,nTotalElems
+        ProcID=PartHaloElemToProc(NATIVE_PROC_ID,iHaloElem)
+        HaloGlobalElemID=offSetElemMPI(ProcID) + PartHaloElemToProc(NATIVE_ELEM_ID,iHaloElem)
+        IF(HaloGlobalElemID.EQ.GlobalElemID)THEN
+          PartElemToElemAndSide(iMortar,ilocSide,iElem)=iHaloElem
+          EXIT
+        END IF
+      END DO ! iHaloElem=1,nTotalElems
+#endif /*MPI*/
+    END DO ! iMortar=1,4
+  END DO ! ilocSide=1,6
+END DO ! iElem=1,PP_nElems
+
+! which local side of neighbor element is connected to MY element
+DO iElem=1,nTotalElems
+  DO ilocSide=1,6
+    DO iMortar=1,4
+      NBElemID=PartElemToElemAndSide(iMortar,ilocSide,iElem)
+      IF(NBElemID.EQ.-1) CYCLE
+      ! loop  over all local sides of neighbor element to find the right face
+      DO ilocSide2=1,6
+        DO iMortar2=1,4
+          ElemID=PartElemToElemAndSide(iMortar2,ilocSide2,NBElemID)
+          IF(ElemID.NE.iElem) CYCLE
+          ! finally, found matching local sides
+          PartElemToElemAndSide(iMortar+4,ilocSide,iElem)=ilocSide2
+        END DO ! iMortar=1,4
+      END DO ! ilocSide=1,6
+    END DO ! iMortar=1,4
+  END DO ! ilocSide=1,6
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE ElemConnectivity
+
+
 SUBROUTINE BGMIndexOfElement(ElemID,ElemToBGM) 
 !===================================================================================================================================
 ! computes the element indices of an given element in the BGM-mesh
@@ -4685,7 +4775,7 @@ USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,sVdm_Bezier
 USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
 USE MOD_Mesh_Vars,                          ONLY:XCL_NGeo
-USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo,MortarSlave2MasterInfo
+USE MOD_Mesh_Vars,                          ONLY:nSides,NGeo
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems
 USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide

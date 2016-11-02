@@ -54,7 +54,7 @@ SUBROUTINE ParticlePressureIni()
   USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide
   USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
   USE MOD_Eval_XYZ,                ONLY:eval_xyz_poly
-  USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElem
+  USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElemAndSide
 #ifdef MPI
   USE MOD_Mesh_Vars,               ONLY : nInnerSides, nBCSides
 #endif
@@ -279,8 +279,8 @@ __STAMP__&
             DO iElem = nInterOld, nInterest
               Element = TempElemPartlyInside(iElem)
               DO ilocSide = 1, 6
-                ExamElem =PartElemToElem(E2E_NB_ELEM_ID    ,ilocSide,Element)
-                locSideID=PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,Element)
+                ExamElem =PartElemToElemAndSide(1,ilocSide,Element)
+                locSideID=PartElemToElemAndSide(5,ilocSide,Element)
                 IF(ExamElem.EQ.-1) CYCLE
                 IF(ExamElem.GT.PP_nElems) CYCLE
                 IF (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN
@@ -533,8 +533,8 @@ __STAMP__&
             DO iElem = nInterOld,nInterest
               Element = TempElemPartlyInside(iElem)
               DO ilocSide = 1, 6
-                ExamElem =PartElemToElem(E2E_NB_ELEM_ID    ,ilocSide,Element)
-                locSideID=PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,Element)
+                ExamElem =PartElemToElemAndSide(1    ,ilocSide,Element)
+                locSideID=PartElemToElemAndSide(5,ilocSide,Element)
                 IF(ExamElem.EQ.-1) CYCLE
                 IF(ExamElem.GT.PP_nElems) CYCLE
                 IF (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN
@@ -635,7 +635,7 @@ SUBROUTINE ParticlePressureCellIni()
   USE MOD_Mesh_Vars,               ONLY:nElems,ElemToSide
   USE MOD_Mesh_Vars,               ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
   USE MOD_Eval_XYZ,                ONLY:eval_xyz_poly
-  USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElem
+  USE MOD_Particle_Mesh_Vars,      ONLY:PartElemToElemAndSide
 #ifdef MPI
   USE MOD_Mesh_Vars,               ONLY : nInnerSides, nBCSides
 #endif
@@ -856,8 +856,8 @@ __STAMP__&
             DO iElem = nInterOld, nInterest
               Element = TempElemPartlyInside(iElem)
               DO ilocSide = 1, 6
-                ExamElem =PartElemToElem(E2E_NB_ELEM_ID,ilocSide,Element)
-                locSideID=PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,Element)
+                ExamElem =PartElemToElemAndSide(1,ilocSide,Element)
+                locSideID=PartElemToElemAndSide(5,ilocSide,Element)
                 IF(ExamElem.EQ.-1) CYCLE
                 IF(ExamElem.GT.PP_nElems) CYCLE
                 IF (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN
@@ -1109,8 +1109,8 @@ __STAMP__&
             DO iElem = nInterOld,nInterest
               Element = TempElemPartlyInside(iElem)
               DO ilocSide = 1, 6
-                ExamElem =PartElemToElem   (E2E_NB_ELEM_ID,ilocSide,Element)
-                locSideID=PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,Element)
+                ExamElem =PartElemToElemAndSide(1,ilocSide,Element)
+                locSideID=PartElemToElemAndSide(5,ilocSide,Element)
                 IF(ExamElem.EQ.-1) CYCLE
                 IF(ExamElem.GT.PP_nElems) CYCLE
                 IF (Species(iSpec)%Init(iInit)%ConstPress%ElemStat(ExamElem) .EQ. 3) THEN

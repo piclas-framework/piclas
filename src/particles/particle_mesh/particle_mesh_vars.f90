@@ -43,8 +43,12 @@ INTEGER,ALLOCATABLE :: PartSideToElem(:,:)                                      
 INTEGER(KIND=8),ALLOCATABLE :: PartElemToElemGlob(:,:,:)                                      ! Mapping from ElemToElem
                                                                                           ! 1:4,1:6,1:nTotalElems
                                                                                           ! now in global-elem-ids !!!
-INTEGER(KIND=4),ALLOCATABLE :: PartElemToElem(:,:,:)                                          ! Mapping from ElemToElem
-                                                                                          ! 1:4,1:6,1:nTotalElems
+INTEGER(KIND=4),ALLOCATABLE :: PartElemToElemAndSide(:,:,:)                               ! Mapping from ElemToElem
+                                                                                          ! 1:8,1:6,1:nTotalElems
+                                                                                          ! [1]1:4 - MortarNeighborElemID
+                                                                                          ! [1]5:8 -       Neighbor locSideID
+                                                                                          ! [2]1:6 - locSideID
+                                                                                          ! [3]    - nTotalElems 
                                                                                           ! now in global-elem-ids !!!
 INTEGER             :: nTotalSides                                                        ! total nb. of sides (my+halo)
 INTEGER             :: nTotalElems                                                        ! total nb. of elems (my+halo)
