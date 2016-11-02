@@ -379,13 +379,14 @@ SUBROUTINE ParticleRefTracking(doParticle_In)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals!,                 ONLY:Cross,abort
-USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef
+USE MOD_Particle_Vars,           ONLY:PDM,PEM,PartState,PartPosRef,LastPartPos
 USE MOD_Mesh_Vars,               ONLY:OffSetElem
 USE MOD_Eval_xyz,                ONLY:eval_xyz_elemcheck
 USE MOD_Particle_Tracking_Vars,  ONLY:nTracks,Distance,ListDistance
 USE MOD_Particle_Mesh_Vars,      ONLY:Geo,IsBCElem,BCElem,epsOneCell
 USE MOD_Utils,                   ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo,ElemRadius2NGeo
+USE MOD_Particle_MPI_Vars,       ONLY:halo_eps2
 USE MOD_Particle_Mesh,           ONLY:SingleParticleToExactElement,PartInElemCheck
 USE MOD_Eval_xyz,                ONLY:Eval_XYZ_Poly
 #ifdef MPI
@@ -408,7 +409,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
 LOGICAL                           :: doParticle(1:PDM%ParticleVecLength)
 INTEGER                           :: iPart, ElemID,oldElemID,newElemID
 INTEGER                           :: CellX,CellY,CellZ,iBGMElem,nBGMElems
-REAL                              :: oldXi(3),newXi(3), LastPos(3)
+REAL                              :: oldXi(3),newXi(3), LastPos(3),vec(3)
 !REAL                              :: epsOne
 #ifdef MPI
 INTEGER                           :: InElem
@@ -582,19 +583,22 @@ DO iPart=1,PDM%ParticleVecLength
         IF(.NOT.IsBCElem(TestElem))THEN
           ! ausgabe
           IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with internal element '
-          IPWRITE(UNIT_stdOut,*) ' xi          ', PartPosRef(1:3,iPart)
-          IPWRITE(UNIT_stdOut,*) ' epsOneCell  ', epsOneCell(TestElem)
-          IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldXi
-          IPWRITE(UNIT_stdOut,*) ' newxi       ', newXi
-          IPWRITE(UNIT_stdOut,*) ' ParticlePos ', PartState(iPart,1:3)
+          IPWRITE(UNIT_stdOut,*) ' xi                     ', PartPosRef(1:3,iPart)
+          IPWRITE(UNIT_stdOut,*) ' epsOneCell             ', epsOneCell(TestElem)
+          IPWRITE(UNIT_stdOut,*) ' oldxi                  ', oldXi
+          IPWRITE(UNIT_stdOut,*) ' newxi                  ', newXi
+          IPWRITE(UNIT_stdOut,*) ' ParticlePos            ', PartState(iPart,1:3)
+          IPWRITE(UNIT_stdOut,*) ' LastPartPos            ', LastPartPos(iPart,1:3)
+          Vec=PartState(iPart,1:3)-LastPartPos(iPart,1:3)
+          IPWRITE(UNIT_stdOut,*) ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-          IPWRITE(UNIT_stdOut,*) ' Implicit    ', PartIsImplicit(iPart)
+          IPWRITE(UNIT_stdOut,*) ' Implicit                ', PartIsImplicit(iPart)
 #endif
 #ifdef MPI
           InElem=PEM%Element(iPart)
           IF(InElem.LE.PP_nElems)THEN
             IPWRITE(UNIT_stdout,*) ' halo-elem = F'
-            IPWRITE(UNIT_stdOut,*) ' ElemID       ', InElem+offSetElem
+            IPWRITE(UNIT_stdOut,*) ' ElemID                ', InElem+offSetElem
           ELSE
             IPWRITE(UNIT_stdout,*) ' halo-elem = T'
             IPWRITE(UNIT_stdOut,*) ' ElemID       ', offSetElemMPI(PartHaloElemToProc(NATIVE_PROC_ID,InElem)) &
@@ -608,6 +612,7 @@ __STAMP__ &
 ,'Particle Not inSide of Element, iPart',iPart)
         ELSE ! BCElem
           !CALL RefTrackFaceIntersection(ElemID,1,BCElem(ElemID)%nInnerSides,BCElem(ElemID)%nInnerSides,iPart)
+          ! no fall back algorithm
           CALL FallBackFaceIntersection(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart)
           LastPos=PartState(iPart,1:3)
           CALL ParticleBCTracking(TestElem,1,BCElem(TestElem)%lastSide,BCElem(TestElem)%lastSide,iPart,PartIsDone,PartIsMoved)
@@ -619,35 +624,38 @@ __STAMP__ &
             CALL SingleParticleToExactElement(iPart,doHalo=.TRUE.)                                                             
             IF(.NOT.PDM%ParticleInside(iPart)) THEN
               IPWRITE(UNIT_stdOut,*) ' Tolerance Issue with BC element '
-              IPWRITE(UNIT_stdOut,*) ' xi          ', partposref(1:3,ipart)
-              IPWRITE(UNIT_stdOut,*) ' epsonecell  ', epsonecell
-              IPWRITE(UNIT_stdOut,*) ' oldxi       ', oldxi
-              IPWRITE(UNIT_stdOut,*) ' newxi       ', newxi
-              IPWRITE(UNIT_stdOut,*) ' particlepos ', partstate(ipart,1:3)
+              IPWRITE(UNIT_stdOut,*) ' xi                     ', partposref(1:3,ipart)
+              IPWRITE(UNIT_stdOut,*) ' epsonecell             ', epsonecell
+              IPWRITE(UNIT_stdOut,*) ' oldxi                  ', oldxi
+              IPWRITE(UNIT_stdOut,*) ' newxi                  ', newxi
+              IPWRITE(UNIT_stdOut,*) ' particlepos            ', partstate(ipart,1:3)
+              IPWRITE(UNIT_stdOut,*) ' LastPartPos            ', LastPartPos(iPart,1:3)
+              Vec=PartState(iPart,1:3)-LastPartPos(iPart,1:3)
+              IPWRITE(UNIT_stdOut,*) ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
 #if (PP_TimeDiscMethod==121) || (PP_TimeDiscMethod==122)
-              IPWRITE(UNIT_stdOut,*) ' Implicit    ', PartIsImplicit(iPart)
+              IPWRITE(UNIT_stdOut,*) ' Implicit               ', PartIsImplicit(iPart)
 #endif
 #ifdef MPI
               inelem=PEM%Element(ipart)
               IF(inelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,*) ' halo-elem = F'
-                IPWRITE(UNIT_stdout,*) ' elemid       ', inelem+offsetelem
+                IPWRITE(UNIT_stdout,*) ' elemid               ', inelem+offsetelem
               ELSE
                 IPWRITE(UNIT_stdout,*) ' halo-elem = T'
-                IPWRITE(UNIT_stdOut,*) ' elemid       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
-                                                         + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
+                IPWRITE(UNIT_stdOut,*) ' elemid               ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
+                                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
               END IF
               IF(testelem.LE.PP_nElems)THEN
                 IPWRITE(UNIT_stdout,*) ' halo-elem = F'
-                IPWRITE(UNIT_stdout,*) ' testelem       ', testelem+offsetelem
+                IPWRITE(UNIT_stdout,*) ' testelem             ', testelem+offsetelem
               ELSE
-                IPWRITE(UNIT_stdout,*) ' halo-elem = T'
-                IPWRITE(UNIT_stdOut,*) ' testelem       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
-                                                         + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
+                IPWRITE(UNIT_stdout,*) ' halo-elem = T'      
+                IPWRITE(UNIT_stdOut,*) ' testelem             ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
+                                                               + PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
               END IF
 
 #else
-              IPWRITE(UNIt_stdOut,*) ' elemid       ', pem%element(ipart)+offsetelem
+              IPWRITE(UNIt_stdOut,*) ' elemid                 ', pem%element(ipart)+offsetelem
 #endif
               CALL abort(&
     __STAMP__ &
@@ -1318,6 +1326,7 @@ REAL                          :: tmpPos(3), tmpLastPartPos(3),tmpVec(3)
 REAL                          :: PartTrajectory(1:3),lengthPartTrajectory,xNodes(1:3,1:4)
 !===================================================================================================================================
 
+IPWRITE(*,*) ' Performing fallback algorithm. PartID: ', PartID
 tmpPos=PartState(PartID,1:3)
 tmpLastPartPos(1:3)=LastPartPos(PartID,1:3)
 PartTrajectory=PartState(PartID,1:3) - LastPartPos(PartID,1:3)
