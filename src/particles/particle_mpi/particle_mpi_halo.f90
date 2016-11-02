@@ -1679,8 +1679,8 @@ IF(DoRefMapping)THEN
         IF(SideID.GT.0)THEN
           ! fill PartElemToSide
           newSideID=tmpnSides+SideID
-          PartElemToSide(1,iLocSide,NewElemID)=newSideID
-          PartElemToSide(2,iLocSide,NewElemID)=0
+          PartElemToSide(E2S_SIDE_ID,iLocSide,NewElemID)=newSideID
+          PartElemToSide(E2S_FLIP,iLocSide,NewElemID)=0
           ! and SideToElem
           PartSideToElem(S2E_ELEM_ID,newSideID)=newElemID
         END IF

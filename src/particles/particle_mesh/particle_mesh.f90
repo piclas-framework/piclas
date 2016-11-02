@@ -3787,11 +3787,13 @@ USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElem
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
-USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO
+USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO,ElemBaryNGeo
 USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,Vdm_CLNGeo1_CLNGeo,BC
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
 USE MOD_Particle_Mesh_Vars,                 ONLY:RefMappingEps,epsOneCell
+USE MOD_ChangeBasis,                        ONLY:ChangeBasis2D
+USE MOD_Particle_Surfaces_Vars,             ONLY:sVdm_Bezier
 #ifdef MPI
 !USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticleMappingPartitionInformation
 USE MOD_Particle_MPI_HALO,                  ONLY:WriteParticlePartitionInformation
@@ -3810,7 +3812,7 @@ INTEGER                                  :: iElem, nCurvedElems,nCurvedElemsTot
 INTEGER                                  :: iSide,p,q, nDummy,SideID,TrueSideID,ilocSide,nBCElems,nBCelemsTot
 INTEGER                                  :: nPlanarRectangular, nPlanarNonRectangular,nPlanarCurved,nBilinear,nCurved
 INTEGER                                  :: nPlanarRectangularTot, nPlanarNonRectangularTot,nPlanarCurvedTot,nBilinearTot,nCurvedTot
-INTEGER                                  :: nCurvedElemsHalo,nLinearElems,nLinearElemsHalo,nBCElemsHalo
+INTEGER                                  :: nCurvedElemsHalo,nLinearElems,nLinearElemsHalo,nBCElemsHalo,flip
 #ifdef MPI
 INTEGER                                  :: nPlanarRectangularHalo, nPlanarNonRectangularHalo,nPlanarCurvedHalo, &
                                             nBilinearHalo,nCurvedHalo
@@ -3867,6 +3869,7 @@ SideNormVec=0.
 
 eps=1e-8
 
+! zero counter for side and elem types
 nPlanarRectangular         = 0
 nPlanarNonRectangular      = 0
 nPlanarCurved              = 0
@@ -3888,12 +3891,15 @@ isBilinear=.FALSE.
 
 NGeo2=(NGeo+1)*(NGeo+1)
 NGeo3=NGeo2*(NGeo+1)
+! set loop index for DoRefMapping and Tracing
 nLoop=nTotalElems
 IF(.NOT.DoRefMapping) nLoop=PP_nElems
+
+! decide if element is (bi-)linear or curbed
+! decide if sides are planar-rect, planar-nonrect, planar-curved, bilinear or curved 
 DO iElem=1,nLoop
   ! 1) check if elem is curved
-  !   a) map coordinates to compute bilinear mapping
-  ! fill dummy
+  !   a) get the coordinates of the eight nodes of the hexahedral
   XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,iElem)
   XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,iElem)
   XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  ,iElem)
@@ -3903,10 +3909,15 @@ DO iElem=1,nLoop
   XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo,iElem)
   XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,iElem)
 
+  !  b) interpolate from the nodes to NGeo
+  !     Compare the bi-liner mapping with the used mapping
+  !     For NGeo=1, this should always be true, because the mappings are identical
   CALL ChangeBasis3D(3,1,NGeo,Vdm_CLNGeo1_CLNGeo,XCL_NGeo1,XCL_NGeoNew)
-  ! check 3D points
+  ! check the coordinates of all Chebychev-Lobatto geometry points between the bi-linear and used
+  ! mapping
   CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),CurvedElem(iElem))
 
+  ! count elements by type and in own and halo region
   IF(iElem.LE.PP_nElems)THEN
     IF(CurvedElem(iElem))THEN
       nCurvedElems=nCurvedElems+1
@@ -3922,16 +3933,20 @@ DO iElem=1,nLoop
   END IF
 
   ! 2) check sides
+  ! loop over all 6 sides of element
+  ! a) check if the sides are straight
+  ! b) use curved information to decide side type
   DO ilocSide=1,6
     SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF (SideID.EQ.-1) CYCLE
+    flip  =PartElemToSide(E2S_FLIP,ilocSide,iElem)
+    IF (SideID.LE.0) CYCLE
+    IF (SideIsDone(SideID)) CYCLE
     IF(DoRefMapping)THEN
       TrueSideID=PartBCSideList(SideID)
       IF(TrueSideID.EQ.-1)CYCLE
     ELSE
       TrueSideID=SideID
     END IF
-    IF (SideIsDone(TrueSideID)) CYCLE
     IF(.NOT.CurvedElem(iElem))THEN
       ! linear element
       IF(BoundingBoxIsEmpty(TrueSideID))THEN
@@ -3945,6 +3960,13 @@ DO iElem=1,nLoop
                 +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
                 +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
                 +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+        ! check if normal vector points outwards
+        v2=v1-ElemBaryNGeo(:,iElem)
+        IF(flip.EQ.0)THEN
+          IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+        ELSE
+          IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
+        END IF
         SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
         ! check if it is rectangular
         isRectangular=.TRUE.
@@ -4018,6 +4040,13 @@ DO iElem=1,nLoop
                   +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
                   +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
                   +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+          ! check if normal vector points outwards
+          v2=v1-ElemBaryNGeo(:,iElem)
+          IF(flip.EQ.0)THEN
+            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+          ELSE
+            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
+          END IF
           SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
         ELSE
           SideType(TrueSideID)=CURVED
@@ -4038,6 +4067,13 @@ DO iElem=1,nLoop
                   +BezierControlPoints3D(:,NGeo,0,TrueSideID)  &
                   +BezierControlPoints3D(:,0,NGeo,TrueSideID)  &
                   +BezierControlPoints3D(:,NGeo,NGeo,TrueSideID))
+          ! check if normal vector points outwards
+          v2=v1-ElemBaryNGeo(:,iElem)
+          IF(flip.EQ.0)THEN
+            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+          ELSE
+            IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
+          END IF
           SideDistance(TrueSideID)=DOT_PRODUCT(v1,SideNormVec(:,TrueSideID))
           ! check if it is rectangular
           isRectangular=.TRUE.
@@ -4077,13 +4113,14 @@ DO iElem=1,nLoop
   END DO ! ilocSide=1,6
 END DO ! iElem=1,nTotalElems
 
-! build the side type for halo sides
+! build the side type for halo sides for tracing, DoRefMapping=F
+! a) check if face sides are straight
+! b) check if all edges are perpendicular to each other
+! c) with bounding box:
+!    sort to sidetype
 IF (.NOT.DoRefMapping)THEN
   DO iSide=1,nTotalSides
     IF(SideIsDone(iSide)) CYCLE
-    IF(iSide.LE.nSides)THEN
-      IPWRITE(UNIT_StdOut,*) ' Error in local side lists....'
-    END IF
     ! check all four edges for linearity
     isLinear=.TRUE.
     nLoop=NGeo-1
@@ -4139,6 +4176,7 @@ IF (.NOT.DoRefMapping)THEN
     END IF
     IF(isLinear)THEN
       IF(BoundingBoxIsEmpty(iSide))THEN
+        ! get normal vector and side distance
         v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
             -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
         
@@ -4252,6 +4290,7 @@ IF (.NOT.DoRefMapping)THEN
 #ifdef MPI
         IF(SideID.GT.nSides) nPlanarCurvedHalo=nPlanarCurvedHalo+1
 #endif /*MPI*/
+        ! get normal vector and side distance
         v1=(-BezierControlPoints3D(:,0,0   ,iSide)+BezierControlPoints3D(:,NGeo,0   ,iSide)   &
             -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
         
@@ -4274,8 +4313,14 @@ IF (.NOT.DoRefMapping)THEN
   END DO ! iSide=1,nTotalSides
 END IF
 
+! decide if element:  
+! DoRefMapping=T
+! a) HAS own bc faces
+! b) HAS bc-face in halo_eps distance
+! DoRefMapping=F
+! a) HAS own bc faces
 IF(DoRefMapping)THEN
-  ! mark elements as bc element
+  ! mark elements as bc element if they have a local-BC side
   IsBCElem=.FALSE.
   nTotalBCElems=0
   DO iElem=1,nTotalElems
@@ -4295,33 +4340,31 @@ IF(DoRefMapping)THEN
       END IF
     END DO ! ilocSide
   END DO ! iElem
-  ! get distance of halo_eps
+  ! for simplifications
+  ! get distance of diagonal of mesh
   V1(1) = GEO%xmaxglob-GEO%xminglob
   V1(2) = GEO%ymaxglob-GEO%yminglob
   V1(3) = GEO%zmaxglob-GEO%zminglob
   Distance=DOT_PRODUCT(V1,V1)
   fullMesh=.FALSE.
-  IF(Distance.LE.halo_eps2) fullMesh=.TRUE.  ! build list with elements in halo-eps vicinity around bc-elements
+  ! build list with elements in halo-eps vicinity around bc-elements
+  IF(Distance.LE.halo_eps2) fullMesh=.TRUE.  
+  ! allocate the types for the element to bc-side mapping
   ALLOCATE( BCElem(1:nTotalElems) )
   ALLOCATE( SideIndex(1:nTotalSides) )
   ! number of element local BC-Sides
   DO iElem=1,nTotalElems
+    ! mark my sides
     BCElem(iElem)%nInnerSides=0
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
-    ! IMPORTANT: for purely explicit pushes with Maxwell's equations, the particle can only move the the next
-    !            and cloesest halo-cells. Hence, a particle may hit only its own bc sides in limited space
-    ! FOR TimeDiscs 501-506, the particle may move further, hence it is required to perform this check! 
-    IF(.NOT.isBCElem(iElem)) CYCLE
-#endif
     DO ilocSide=1,6
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-      IF(SideID.EQ.-1) CYCLE
+      IF(SideID.LE.0) CYCLE
       IF(PartBCSideList(SideID).EQ.-1) CYCLE
       BCElem(iElem)%nInnerSides = BCElem(iElem)%nInnerSides+1
       !END IF
     END DO ! ilocSide
     BCElem(iElem)%lastSide=BCElem(iElem)%nInnerSides
-    ! loop over all sides
+    ! loop over all sides, exclusive of own sides
     SideIndex=0
     DO iSide=1,nTotalSides
       ! only bc sides
@@ -4333,72 +4376,32 @@ IF(DoRefMapping)THEN
       DO ilocSide=1,6
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
         IF(SideID.EQ.-1) CYCLE
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
-        BCSideID2 =PartBCSideList(SideID)
-        IF(BCSideID2.EQ.-1) CYCLE
-        leave=.FALSE.
-        ! all points of bc side
-        DO q=0,NGeo
-          DO p=0,NGeo
-            NodeX(:) = BezierControlPoints3D(:,p,q,BCSideID)
-            ! all nodes of current side
-            DO s=0,NGeo
-              DO r=0,NGeo
-                IF(SQRT(DOT_Product(BezierControlPoints3D(:,r,s,BCSideID2)-NodeX &
-                                   ,BezierControlPoints3D(:,r,s,BCSideID2)-NodeX )).LE.halo_eps)THEN
-                  IF(SideIndex(iSide).EQ.0)THEN
-                    BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
-                    SideIndex(iSide)=BCElem(iElem)%lastSide
-                    leave=.TRUE.
-                    EXIT
-                  END IF
-                END IF
-              END DO ! r
-              IF(leave) EXIT
-            END DO ! s
-            IF(leave) EXIT
-          END DO ! p
-          IF(leave) EXIT
-        END DO ! q
-#else /* no LSERK */
-        ! simplified version
+        ! simplified version for full-mesh
         IF(fullMesh)THEN
           IF(SideIndex(iSide).EQ.0)THEN
             BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
             SideIndex(iSide)=BCElem(iElem)%lastSide
           END IF
-          leave=.TRUE.
+          EXIT
         ELSE
-          leave=.FALSE.
-          !DO q=0,NGeo
-          !  DO p=0,NGeo
-          !    V1=BezierControlPoints3D(1:3,p,q,BCSideID)-ElemBaryNGeo(1:3,iElem)
-          !    Distance=DOT_PRODUCT(V1,V1)-ElemRadius2NGeo(iElem)
-          !    IF(Distance.LE.halo_eps2)THEN
-          !      IF(SideIndex(iSide).EQ.0)THEN
-          !        BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
-          !        SideIndex(iSide)=BCElem(iElem)%lastSide
-          !        leave=.TRUE.
-          !        EXIT
-          !      END IF
-          !    END IF
-          !  END DO ! p=0,NGeo
-          !  IF(leave) EXIT
-          !END DO !  q=0,NGeo
-          SELECT CASE(ilocSide)
-          CASE(XI_MINUS)
-            xNodes=XCL_NGeo(1:3,0,0:NGeo,0:NGeo,iElem)
-          CASE(XI_PLUS)
-            xNodes=XCL_NGeo(1:3,NGeo,0:NGeo,0:NGeo,iElem)
-          CASE(ETA_MINUS)
-            xNodes=XCL_NGeo(1:3,0:NGeo,0,0:NGeo,iElem)
-          CASE(ETA_PLUS)
-            xNodes=XCL_NGeo(1:3,0:NGeo,NGeo,0:NGeo,iElem)
-          CASE(ZETA_MINUS)
-            xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,0,iElem)
-          CASE(ZETA_PLUS)
-            xNodes=XCL_NGeo(1:3,0:NGeo,0:NGeo,NGeo,iElem)
-          END SELECT
+          IF(PartBCSideList(SideID).GT.0) THEN
+            xNodes=BezierControlPoints3D(:,:,:,PartBCSideList(SideID))
+          ELSE
+            SELECT CASE(ilocSide)
+            CASE(XI_MINUS)
+              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),xNodes)
+            CASE(XI_PLUS)
+              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),xNodes)
+            CASE(ETA_MINUS)
+              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),xNodes)
+            CASE(ETA_PLUS)
+              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),xNodes)
+            CASE(ZETA_MINUS)
+              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),xNodes)
+            CASE(ZETA_PLUS)
+              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),xNodes)
+            END SELECT
+          END IF
           leave=.FALSE.
           ! all points of bc side
           DO q=0,NGeo
@@ -4424,11 +4427,9 @@ IF(DoRefMapping)THEN
             IF(leave) EXIT
           END DO ! q
         END IF
-#endif
-        IF(leave) EXIT
       END DO ! ilocSide
     END DO ! iSide
-    ! finally, allocate the bc side list
+    ! finally, allocate the bc side list and fill the list
     IF(BCElem(iElem)%lastSide.EQ.0) CYCLE
     ! set true, only required for elements without an own bc side
     IF(.NOT.isBCElem(iElem))THEN
@@ -4446,23 +4447,20 @@ IF(DoRefMapping)THEN
     IF(BCElem(iElem)%nInnerSides.GT.0)THEN
       DO ilocSide=1,6
         SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-        IF(SideID.EQ.-1) CYCLE
+        IF(SideID.LE.0) CYCLE
         BCSideID=PartBCSideList(SideID)
-        IF(BCSideID.EQ.-1) CYCLE
-       ! IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
+        IF(BCSideID.LE.0) CYCLE
         nSideCount=nSideCount+1
-        !BCElem(iElem)%BCSideID(nSideCount)= BCSideID
-        BCElem(iElem)%BCSideID(nSideCount)= SideID
-        !END IF
+        BCElem(iElem)%BCSideID(nSideCount)=SideID
       END DO ! ilocSide
     END IF ! nInnerSides.GT.0
     ! 2) outer sides
     DO iSide=1,nTotalSides
       IF(SideIndex(iSide).GT.0)THEN
         nSideCount=nSideCount+1
-        BCSideID=PartBCSideList(iSide)
         !BCElem(iElem)%BCSideID(nSideCount)=BCSideID
-        BCElem(iElem)%BCSideID(nSideCount)=iSide
+        !BCSideID=PartBCSideList(iSide)
+        BCElem(iElem)%BCSideID(nSideCount)=iSide !iSide
       END IF
     END DO  ! iSide
     SideIndex=0
@@ -4504,6 +4502,16 @@ ELSE
 #endif
     END DO ! ilocSide
   END DO ! iElem
+END IF
+
+IF(DoRefMapping)THEN
+  DO iSide=1,nTotalSides
+    BCSideID=PartBCSideList(iSide)
+    IF(BCSideID.EQ.-1)CYCLE
+    IF(SUM(ABS(SideNormVec(:,BCSideID))).EQ.0)THEN
+      IPWRITE(*,*) iside
+    END IF
+  END DO
 END IF
 
 #ifdef MPI

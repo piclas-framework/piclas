@@ -124,7 +124,6 @@ IF(.NOT.DoRefMapping)THEN
 ELSE
   locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
 END IF
-alpha=locSideDistance/coeffA
   
 IF(CriticalParallelInSide)THEN ! particle parallel to side
   IF(ALMOSTZERO(locSideDistance))THEN ! particle on/in side
@@ -137,6 +136,7 @@ IF(CriticalParallelInSide)THEN ! particle parallel to side
   RETURN
 ELSE
   IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
+  alpha=locSideDistance/coeffA
 END IF
 
 IF(locSideDistance.LT.-100*epsMach)THEN
