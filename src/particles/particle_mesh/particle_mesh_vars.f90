@@ -35,14 +35,14 @@ INTEGER,ALLOCATABLE :: PartElemToSide(:,:,:)                                    
                                                                                           ! ElemToSide: my geometry + halo
                                                                                           ! geometry + halo information
                                                                                           
+
 INTEGER,ALLOCATABLE :: PartSideToElem(:,:)                                                ! extended list: 1:5,1:6,1:nTotalSides
                                                                                           ! SideToElem: my geometry + halo
                                                                                           ! geometry + halo information
 
-INTEGER,ALLOCATABLE :: PartElemToElem(:,:,:)                                              ! Mapping from ElemToElem
-                                                                                          ! 1:2,1:6,1:nTotalElems
-                                                                                          ! 1 - E2E_NB_ELEM_ID 
-                                                                                          ! 2 - E2E_NB_LOC_SIDE_ID 
+INTEGER(KIND=8),ALLOCATABLE :: PartElemToElem(:,:,:)                                      ! Mapping from ElemToElem
+                                                                                          ! 1:4,1:6,1:nTotalElems
+                                                                                          ! now in global-elem-ids !!!
 INTEGER             :: nTotalSides                                                        ! total nb. of sides (my+halo)
 INTEGER             :: nTotalElems                                                        ! total nb. of elems (my+halo)
 

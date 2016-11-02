@@ -1605,7 +1605,7 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,                  ONLY:nSides
 USE MOD_Particle_Tracking_vars,     ONLY:DoRefMapping
 USE MOD_Particle_MPI_Vars,          ONLY:PartMPI,PartHaloElemToProc,printMPINeighborWarnings
-USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry,ExchangeMappedHaloGeometry
+USE MOD_Particle_MPI_Halo,          ONLY:IdentifyHaloMPINeighborhood,ExchangeHaloGeometry
 USE MOD_Particle_Mesh_Vars,         ONLY:nTotalElems,nTotalSides,nTotalBCSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1648,13 +1648,7 @@ DO iProc=0,PartMPI%nProcs-1
   LOGWRITE(*,*)'    ...Done'
 
   LOGWRITE(*,*)'  - Exchange Geometry of MPI-Neighborhood...'
-  !IF(.NOT.DoRefMapping)THEN
-    !CALL ExchangeHaloGeometry(iProc,SideIndex,ElemIndex)
-    CALL ExchangeHaloGeometry(iProc,ElemIndex)
-  !ELSE
-  !  !CALL ExchangeMappedHaloGeometry(iProc,SideIndex,ElemIndex)
-  !  CALL ExchangeMappedHaloGeometry(iProc,ElemIndex)
-  !END IF
+  CALL ExchangeHaloGeometry(iProc,ElemIndex)
   LOGWRITE(*,*)'    ...Done'
   SideIndex(:)=0
   ElemIndex(:)=0
@@ -1715,7 +1709,6 @@ END DO
 IF(iMPINeighbor.NE.PartMPI%nMPINeighbors) CALL abort(&
   __STAMP__&
   , ' Found number of mpi neighbors does not match! ', iMPINeighbor,REAL(PartMPI%nMPINeighbors))
-
 
 IF(PartMPI%nMPINeighbors.GT.0)THEN
   IF(ANY(PartHaloElemToProc(LOCAL_PROC_ID,:).EQ.-1)) IPWRITE(UNIT_stdOut,*) ' Local proc id not found'

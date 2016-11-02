@@ -103,7 +103,7 @@ USE MOD_Preproc
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierEpsilonBilinear,BezierElevation,BezierControlPoints3DElevated
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping,MeasureTrackTime,FastPeriodic,CountNbOfLostParts,nLostParts
-USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated
+USE MOD_Mesh_Vars,              ONLY:nElems,nSides,SideToElem,ElemToSide,NGeo,NGeoElevated,OffSetElem,ElemToElemGlob
 USE MOD_ReadInTools,            ONLY:GETREAL,GETINT,GETLOGICAL,GetRealArray
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierSampleN,BezierSampleXi
 ! IMPLICIT VARIABLE HANDLING
@@ -116,7 +116,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: ALLOCSTAT
-INTEGER           :: iElem, ilocSide,SideID,flip,iSide,iSample
+INTEGER           :: iElem, ilocSide,SideID,flip,iSide,iSample,ElemIDGlob
 CHARACTER(LEN=2)  :: hilf
 !===================================================================================================================================
 
@@ -131,7 +131,7 @@ nTotalBCSides=nSides
 nTotalElems=nElems
 ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalSides)    &
         ,PartSideToElem(1:5,1:nTotalSides)        &
-        ,PartElemToElem(1:2,1:6,1:nTotalElems)    &
+        ,PartElemToElem(1:4,1:6,1:nTotalElems)    &
         ,STAT=ALLOCSTAT                      )
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
@@ -204,27 +204,13 @@ DO iElem=1,PP_nElems
   DO iLocSide=1,6
     PartElemToSide(:,iLocSide,iElem)=ElemToSide(:,iLocSide,iElem)
   END DO 
+  ElemIDGlob=OffSetElem+iElem
+  PartElemToElem(1:4,1:6,iElem)=ElemToElemGlob(1:4,1:6,ElemIDGlob)
 END DO
 DO iSide=1,nSides
   PartSideToElem(:,iSide)=SideToElem(:,iSide)
 END DO 
 
-! get conection
-DO iElem=1,PP_nElems
-  DO ilocSide=1,6
-    flip = ElemToSide(E2S_FLIP,ilocSide,iElem)
-    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(flip.EQ.0)THEN
-      ! SideID of slave
-      PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-      PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=SideToElem(S2E_NB_ELEM_ID,SideID)
-    ELSE
-      ! SideID of master
-      PartElemToElem(E2E_NB_LOC_SIDE_ID,ilocSide,iElem)=SideToElem(S2E_LOC_SIDE_ID,SideID)
-      PartElemToElem(E2E_NB_ELEM_ID,ilocSide,iElem)=SideToElem(S2E_ELEM_ID,SideID)
-    END IF
-  END DO ! ilocSide
-END DO ! Elem
 
 ParticleMeshInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH DONE!'
@@ -4800,7 +4786,7 @@ SUBROUTINE GetFIBGMMinMax()
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars,                 ONLY:GEO
 USE MOD_Mesh_Vars,                          ONLY:MortarSlave2MasterInfo
-USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalElems,nTotalSides
+USE MOD_Particle_Mesh_Vars,                 ONLY:GEO,nTotalSides
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D
 #ifdef MPI
 USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
