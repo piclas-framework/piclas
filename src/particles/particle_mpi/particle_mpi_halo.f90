@@ -922,7 +922,7 @@ USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:nElems, nSides, nBCSides, nInnerSides, ElemToSide, BC,nGeo,SideToElem
 USE MOD_Mesh_Vars,              ONLY:MortarSlave2MasterInfo,OffSetElem,ElemToElemGlob
 USE MOD_Particle_Mesh_Vars,     ONLY:nTotalSides,nTotalElems,SidePeriodicType,PartBCSideList
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem,GEO,nTotalBCSides,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,GEO,nTotalBCSides,ElemBaryNGeo
 !USE MOD_Particle_Surfaces_Vars, ONLY:ElemSlabNormals,ElemSlabIntervals  
 USE MOD_Mesh_Vars,              ONLY:XCL_NGeo,dXCL_NGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
@@ -1687,7 +1687,7 @@ IF(DoRefMapping)THEN
       END DO 
       ! list from ElemToElemGlob mapped to process local element
       ! new list points from local-elem-id to global
-      PartElemToElem(1:4,1:6,newElemID) = RecvMsg%ElemToElemGlob(1:4,1:6,iElem)
+      PartElemToElemGlob(1:4,1:6,newElemID) = RecvMsg%ElemToElemGlob(1:4,1:6,iElem)
     END DO
 
     IF(.NOT.PartMPI%isMPINeighbor(iProc))THEN
@@ -1931,7 +1931,7 @@ USE MOD_Preproc
 USE MOD_Particle_MPI_Vars,      ONLY:PartHaloElemToProc
 USE MOD_Mesh_Vars,              ONLY:BC,nGeo,nElems,XCL_NGeo,DXCL_NGEO,OffSetElem
 USE MOD_Particle_Mesh_Vars,     ONLY:SidePeriodicType,PartBCSideList
-USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElem,ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,PartElemToElemGlob,ElemBaryNGeo
 USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars, ONLY:DoRefMapping
 USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
@@ -2128,19 +2128,19 @@ PartSideToElem=-1
 PartSideToElem(1:5,1:nOldSides  )              =DummySideToElem(1:5,1:nOldSides)
 DEALLOCATE(DummySideToElem)
 !print*,' done side to elem',myrank
-! PartElemToElem
+! PartElemToElemGlob
 ALLOCATE(DummyElemToElem(1:4,1:6,1:nOldElems))
 IF (.NOT.ALLOCATED(DummyElemToElem)) CALL abort(&
     __STAMP__&
  ,'Could not allocate ElemIndex')
-DummyElemToElem=PartElemToElem
-DEALLOCATE(PartElemToElem)
-ALLOCATE(PartElemToElem(1:4,1:6,1:nTotalElems),STAT=ALLOCSTAT)
+DummyElemToElem=PartElemToElemGlob
+DEALLOCATE(PartElemToElemGlob)
+ALLOCATE(PartElemToElemGlob(1:4,1:6,1:nTotalElems),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
  ,'Could not allocate ElemIndex')
-PartElemToElem=-1
-PartElemToElem(1:4,1:6,1:nOldElems)            =DummyElemToElem(1:4,1:6,1:nOldElems)
+PartElemToElemGlob=-1
+PartElemToElemGlob(1:4,1:6,1:nOldElems)            =DummyElemToElem(1:4,1:6,1:nOldElems)
 DEALLOCATE(DummyElemToElem)
 IF(DoRefMapping)THEN
   ! BezierControlPoints3D

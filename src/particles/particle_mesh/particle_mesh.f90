@@ -131,7 +131,7 @@ nTotalBCSides=nSides
 nTotalElems=nElems
 ALLOCATE(PartElemToSide(1:2,1:6,1:nTotalSides)    &
         ,PartSideToElem(1:5,1:nTotalSides)        &
-        ,PartElemToElem(1:4,1:6,1:nTotalElems)    &
+        ,PartElemToElemGlob(1:4,1:6,1:nTotalElems)&
         ,STAT=ALLOCSTAT                      )
 IF (ALLOCSTAT.NE.0) CALL abort(&
 __STAMP__&
@@ -205,7 +205,7 @@ DO iElem=1,PP_nElems
     PartElemToSide(:,iLocSide,iElem)=ElemToSide(:,iLocSide,iElem)
   END DO 
   ElemIDGlob=OffSetElem+iElem
-  PartElemToElem(1:4,1:6,iElem)=ElemToElemGlob(1:4,1:6,ElemIDGlob)
+  PartElemToElemGlob(1:4,1:6,iElem)=ElemToElemGlob(1:4,1:6,ElemIDGlob)
 END DO
 DO iSide=1,nSides
   PartSideToElem(:,iSide)=SideToElem(:,iSide)
@@ -241,6 +241,7 @@ IMPLICIT NONE
 
 SDEALLOCATE(PartElemToSide)
 SDEALLOCATE(PartSideToElem)
+SDEALLOCATE(PartElemToElemGlob)
 SDEALLOCATE(PartElemToElem)
 SDEALLOCATE(PartBCSideList)
 SDEALLOCATE(SidePeriodicType)
