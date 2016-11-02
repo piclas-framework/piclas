@@ -664,6 +664,7 @@ IMPLICIT NONE
 !local variables
 !============================================================================================================================
 ! Deallocate global variables, needs to go somewhere else later
+! geometry information and VDMS
 SDEALLOCATE(Xi_NGeo)
 SDEALLOCATE(DCL_N)
 SDEALLOCATE(DCL_NGeo)
@@ -671,11 +672,15 @@ SDEALLOCATE(VdM_CLN_GaussN)
 SDEALLOCATE(VdM_CLNGeo_GaussN)
 SDEALLOCATE(Vdm_CLNGeo_CLN)
 SDEALLOCATE(Vdm_NGeo_CLNgeo)
+! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)
+! mapping from elems to sides and vice-versa
 SDEALLOCATE(ElemToSide)
+SDEALLOCATE(AnalyzeSide)
 SDEALLOCATE(SideToElem)
 SDEALLOCATE(BC)
+! elem-xgp and metrics
 SDEALLOCATE(Elem_xGP)
 SDEALLOCATE(Metrics_fTilde)
 SDEALLOCATE(Metrics_gTilde)
@@ -692,6 +697,11 @@ SDEALLOCATE(dXCL_NGeo)
 SDEALLOCATE(Face_xGP)
 SDEALLOCATE(wbaryCL_NGeo)
 SDEALLOCATE(XiCL_NGeo)
+! mortars
+SDEALLOCATE(MortarType)
+SDEALLOCATE(MortarInfo)
+SDEALLOCATE(MortarSlave2MasterInfo)
+! mappings
 SDEALLOCATE(VolToSideA)
 SDEALLOCATE(VolToSide2A)
 SDEALLOCATE(CGNS_VolToSideA)
