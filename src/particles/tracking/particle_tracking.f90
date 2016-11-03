@@ -290,9 +290,11 @@ DO iPart=1,PDM%ParticleVecLength
                 END IF
                 PartTrajectory=PartTrajectory/lengthPartTrajectory
 #ifdef MPI    
-                tLBEnd = LOCALTIME() ! LB Time End
-                ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
-                tLBStart = LOCALTIME() ! LB Time Start
+                IF(OldElemID.LE.PP_nElems)THEN
+                  tLBEnd = LOCALTIME() ! LB Time End
+                  ElemTime(OldELemID)=ElemTime(OldElemID)+tLBEnd-tLBStart
+                  tLBStart = LOCALTIME() ! LB Time Start
+                END IF
 #endif /*MPI*/
                 EXIT
               END IF
