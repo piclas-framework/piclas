@@ -163,6 +163,7 @@ CHARACTER(LEN=4)  :: hilf
 INTEGER           :: iounit,iProc,iOut,iWeigth,iList,listZeros
 INTEGER           :: nWeights(2,3)
 REAL              :: PartWeight(3,2)
+REAL              :: MaxWeight, MinWeight !dummy so far, used in timedisc-call
 
 !===================================================================================================================================
 
@@ -363,7 +364,7 @@ nLoadIter  =0
 ! compute current load
 CALL CalculateProcWeights()
 ! compute impalance 
-CALL ComputeImbalance(CurrentImbalance,ElemWeight)
+CALL ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemWeight)
 
 PerformLoadBalance=.FALSE.
 IF(CurrentImbalance.GT.DeviationThreshold*LastImbalance) PerformLoadBalance=.TRUE.
@@ -372,7 +373,7 @@ IF(CurrentImbalance.GT.DeviationThreshold*LastImbalance) PerformLoadBalance=.TRU
 END SUBROUTINE ComputeParticleWeightAndLoad
 
 
-SUBROUTINE ComputeElemLoad(CurrentImbalance,PerformLoadbalance) 
+SUBROUTINE ComputeElemLoad(CurrentImbalance,PerformLoadbalance,time) 
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! compute the element load
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -390,22 +391,30 @@ USE MOD_LoadBalance_Vars,        ONLY:nPartsPerElem,nDeposPerElem,nTracksPerElem
 USE MOD_Particle_Tracking_vars,  ONLY:DoRefMapping
 USE MOD_PICDepo_Vars,            ONLY:DepositionType
 #endif /*PARTICLES*/
+USE MOD_Particle_Analyze_Vars,   ONLY:IsRestart
+USE MOD_LoadBalance_Vars,        ONLY:TargetWeight,WeightOutput
+USE MOD_TimeDisc_Vars,           ONLY:iter
+
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES 
+REAL ,INTENT(IN)             :: time
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)           :: PerformLoadBalance
 REAL ,INTENT(OUT)             :: Currentimbalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem
+INTEGER               :: iElem,ioUnit
 REAL                  :: tDG, tPML
 INTEGER(KIND=8)       :: HelpSum
 #ifdef PARTICLES
 REAL                  :: stotalDepos,stotalParts,sTotalTracks
 REAL                  :: tParts
 #endif /*PARTICLES*/
+REAL                  :: MaxWeight, MinWeight
+LOGICAL               :: isOpen, FileExists
+CHARACTER(LEN=255)    :: outfile
 !===================================================================================================================================
 
 nLoadBalance=nLoadBalance+1
@@ -486,8 +495,30 @@ DO iElem=1,PP_nElems
 #endif /*PARTICLES*/
 END DO ! iElem=1,PP_nElems
 
+CALL ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemTime)
 
-CALL ComputeImbalance(CurrentImbalance,ElemTime)
+! Fill .csv file for parformance analysis and load blaaaance
+IF(MPIRoot)THEN
+  WeightOutput(1) = MinWeight        - WeightOutput(1)
+  WeightOutput(2) = MaxWeight        - WeightOutput(2)
+  WeightOutput(3) = CurrentImbalance - WeightOutput(3)
+  WeightOutput(4) = TargetWeight     - WeightOutput(4)
+  outfile='ElemTimeStatistics.csv'
+  INQUIRE(FILE=TRIM(outfile),EXIST=FileExists)
+  !IF (isRestart .and. FileExists) THEN
+  IF(FileExists)THEN
+    ioUnit=GETFREEUNIT()
+    OPEN(UNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
+    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') time
+    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') WeightOutput(1)
+    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') WeightOutput(2)
+    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') WeightOutput(3)
+    WRITE(ioUnit,'(ES25.10)',ADVANCE='NO') WeightOutput(4)
+    WRITE(ioUnit,'(A1)') ' '
+    CLOSE(ioUnit) 
+  END IF
+END IF !IF(MPIRoot)
+
 
 PerformLoadBalance=.FALSE.
 IF(CurrentImbalance.GT.DeviationThreshold*LastImbalance) PerformLoadBalance=.TRUE.
@@ -535,7 +566,7 @@ REAL,INTENT(IN)      :: Currentimbalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: Newimbalance
+REAL              :: Newimbalance, MaxWeight, MinWeight
 !===================================================================================================================================
 
 
@@ -561,7 +592,7 @@ CALL Restart()
 !CALL CalculateProcWeights()
 
 !! compute impalance 
-CALL ComputeImbalance(NewImbalance,ElemWeight)
+CALL ComputeImbalance(NewImbalance,MaxWeight,MinWeight,ElemWeight)
 
 IF( NewImbalance.GT.DeviationThreshold*LastImbalance   &
   .OR. NewImbalance.GT.CurrentImbalance ) THEN
@@ -569,6 +600,8 @@ IF( NewImbalance.GT.DeviationThreshold*LastImbalance   &
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' LastImbalance:    ', LastImBalance
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' CurrentImbalance: ', CurrentImbalance
   SWRITE(UNIT_stdOut,'(A25,E15.7)') ' NewImbalance: '    , NewImbalance
+  !SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MaxWeight:    '    , MaxWeight
+  !SWRITE(UNIT_stdOut,'(A25,E15.7)') ' MinWeight: '       , MinWeight
 END IF
  
 LastImbalance=NewImBalance
@@ -706,7 +739,7 @@ END DO ! iElem
 END SUBROUTINE CalculateProcWeights
 
 
-SUBROUTINE ComputeImbalance(CurrentImbalance,ElemWeight)
+SUBROUTINE ComputeImbalance(CurrentImbalance,MaxWeight,MinWeight,ElemWeight)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! subroutine to compute the imbalance
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -722,19 +755,20 @@ IMPLICIT NONE
 REAL,INTENT(IN)            :: ElemWeight(1:PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)           :: CurrentImbalance
+REAL,INTENT(OUT)           :: CurrentImbalance, MaxWeight, MinWeight
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: MaxWeight
+!REAL                       :: MaxWeight
 !===================================================================================================================================
 
 WeightSum=SUM(ElemWeight)
 
 IF(ALMOSTZERO(WeightSum))THEN
-  IPWRITE(*,*) 'nix'
+  IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)'
 END IF
 CALL MPI_ALLREDUCE(WeightSum,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 CALL MPI_ALLREDUCE(WeightSum,MaxWeight,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(WeightSum,MinWeight,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
 
 TargetWeight=TargetWeight/nProcessors
 

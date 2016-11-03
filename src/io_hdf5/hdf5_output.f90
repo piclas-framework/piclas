@@ -318,7 +318,7 @@ SUBROUTINE WriteElemWeightToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY:offsetElem,nGlobalElems
-USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,ElemWeight
+USE MOD_LoadBalance_Vars ,ONLY:ElemTime,nLoadBalance,ElemWeight,WeightOutput
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -367,6 +367,9 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
 !
 DEALLOCATE(StrVarNames)
 ElemTime=0.
+IF(MPIRoot)THEN
+  WeightOutput=0. ! elem time statistics
+END IF
 
 END SUBROUTINE WriteElemWeightToHDF5
 
