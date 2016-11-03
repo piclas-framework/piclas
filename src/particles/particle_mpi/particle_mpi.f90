@@ -1662,7 +1662,6 @@ END IF
 
 IF(DoRefMapping) CALL CheckArrays(nTotalSides,nTotalElems,nTotalBCSides)
 
-
 ! Make sure PMPIVAR%MPINeighbor is consistent
 DO iProc=0,PartMPI%nProcs-1
   IF (PartMPI%MyRank.EQ.iProc) CYCLE
