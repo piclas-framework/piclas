@@ -245,6 +245,9 @@ SDEALLOCATE(BezierSampleXi)
 SDEALLOCATE(SurfMeshSubSideData)
 SDEALLOCATE(SurfMeshSideAreas)
 SDEALLOCATE(BCdata_auxSF)
+#ifdef CODE_ANALYZE
+SDEALLOCATE(SideBoundingBoxVolume)
+#endif
 !SDEALLOCATE(gElemBCSide)
 ParticleSurfaceInitIsDone=.FALSE.
 
