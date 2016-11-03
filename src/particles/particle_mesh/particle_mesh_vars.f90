@@ -55,6 +55,7 @@ INTEGER             :: nTotalElems                                              
 
 LOGICAL,ALLOCATABLE :: IsBCElem(:)                                                        ! is a BC elem 
                                                                                           ! or BC in halo-eps distance to BC
+INTEGER,ALLOCATABLE :: ElemType(:)              !< Type of Element 1: only planar side, 2: one bilinear side 3. one curved side
 INTEGER             :: nTotalBCSides                                                      ! total number of BC sides (my+halo)
 INTEGER             :: nTotalBCElems                                                      ! total number of bc elems (my+halo)
 INTEGER,ALLOCATABLE :: PartBCSideList(:)                                                  ! mapping from SideID to BCSideID
