@@ -132,6 +132,7 @@ IF(CriticalParallelInSide)THEN ! particle parallel to side
     alpha=-1.
     RETURN
   END IF
+  IF(PRESENT(opt_CriticalParllelInSide)) opt_CriticalParllelInSide=.FALSE.
   alpha=-1.
   RETURN
 ELSE
