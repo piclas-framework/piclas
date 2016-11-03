@@ -38,7 +38,7 @@ USE MOD_Particle_Vars,               ONLY:PEM,PDM
 USE MOD_Particle_Vars,               ONLY:PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars,      ONLY:SideType
 USE MOD_Particle_Surfaces_Vars,      ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,isBCElem
+USE MOD_Particle_Mesh_Vars,          ONLY:PartElemToSide,isBCElem,ElemType
 USE MOD_Particle_Boundary_Condition, ONLY:GetBoundaryInteraction
 USE MOD_Utils,                       ONLY:BubbleSortID,InsertionSort
 USE MOD_Particle_Tracking_vars,      ONLY:ntracks,nCurrentParts, CountNbOfLostParts , nLostParts
@@ -120,10 +120,12 @@ DO iPart=1,PDM%ParticleVecLength
     dolocSide=.TRUE.
     local=0
     firstElem=ElemID
-    CALL CheckPlanarInside(iPart,ElemID,PartisDone)
-    IF (PartisDone) THEN
-      PEM%Element(iPart) = ElemID
-      CYCLE
+    IF (ElemType(ElemID).EQ.1) THEN
+      CALL CheckPlanarInside(iPart,ElemID,PartisDone)
+      IF (PartisDone) THEN
+        PEM%Element(iPart) = ElemID
+        CYCLE
+      END IF
     END IF
     DO WHILE (.NOT.PartisDone)
       locAlpha=-1.
