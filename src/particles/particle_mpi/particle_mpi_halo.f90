@@ -1363,7 +1363,6 @@ DO iElem = 1,nElems
   IF (ElemIndex(iElem).NE.0) THEN
     SendMsg%ElemToElemGlob(1:4,1:6,ElemIndex(iElem)) = &
             PartElemToElemGlob(1:4,1:6,iElem)
-        IF(Myrank.EQ.1) WRITE(*,*) 'sending...',PartElemToElemGlob(1:4,1:6,iElem)
   END IF
 END DO
 
@@ -1830,8 +1829,6 @@ ELSE ! DoRefMappping=F
       ElemBaryNGeo(1:3,newElemID) = RecvMsg%ElemBaryNGeo(1:3,iElem)
       ! list from ElemToElemGlob mapped to process local element
       ! new list points from local-elem-id to global
-      SWRITE(*,*) '--------------------------newElemID,iElem',newElemID,iElem
-      SWRITE(*,*) '--------------------------',RecvMsg%ElemToElemGlob(1:4,1:6,iElem)
       PartElemToElemGlob(1:4,1:6,newElemID) = RecvMsg%ElemToElemGlob(1:4,1:6,iElem)
     END DO ! iElem
     ! build rest: PartElemToElem, PartLocSideID
