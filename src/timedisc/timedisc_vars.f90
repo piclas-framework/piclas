@@ -28,7 +28,11 @@ LOGICAL          :: DoDisplayIter
 LOGICAL          :: DoDisplayEmissionWarnings
 LOGICAl          :: TimediscInitIsDone = .FALSE.
 REAL             :: TimeDG, TimeParticle
-
+REAL             :: dt_Min
+#if (PP_TimeDiscMethod==201)
+REAL             :: dt_temp
+INTEGER          :: MaximumIterNum
+#endif
 #if (PP_TimeDiscMethod==100)
 INTEGER,PARAMETER  :: nRKStages=1
 #endif

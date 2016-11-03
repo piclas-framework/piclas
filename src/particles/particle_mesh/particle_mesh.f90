@@ -247,6 +247,7 @@ SDEALLOCATE(PartBCSideList)
 SDEALLOCATE(SidePeriodicType)
 SDEALLOCATE(SidePeriodicDisplacement)
 SDEALLOCATE(IsBCElem)
+SDEALLOCATE(ElemType)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%Volume)
@@ -3788,8 +3789,9 @@ USE MOD_Particle_Tracking_Vars,             ONLY:DoRefMapping
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,nSides,NGeo,nBCSides,sJ
 USE MOD_Particle_Surfaces_Vars,             ONLY:BezierControlPoints3D,BoundingBoxIsEmpty,SideType,SideNormVec,SideDistance
 USE MOD_Particle_Mesh_Vars,                 ONLY:nTotalSides,IsBCElem,nTotalBCSides,nTotalElems,nTotalBCElems
-USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
+USE MOD_Particle_Mesh_Vars,                 ONLY:ElemType
 USE MOD_Particle_Mesh_Vars,                 ONLY:PartElemToSide,BCElem,PartSideToElem,PartBCSideList,nTotalBCSides,GEO,ElemBaryNGeo
+USE MOD_Particle_MPI_Vars,                  ONLY:PartMPI
 USE MOD_Particle_MPI_Vars,                  ONLY:halo_eps,halo_eps2
 USE MOD_Mesh_Vars,                          ONLY:CurvedElem,XCL_NGeo,nGlobalElems,Vdm_CLNGeo1_CLNGeo,BC
 USE MOD_ChangeBasis,                        ONLY:changeBasis3D
@@ -3825,7 +3827,7 @@ INTEGER,ALLOCATABLE                      :: SideIndex(:)
 REAL,DIMENSION(1:3)                      :: v1,v2,NodeX,v3
 REAL                                     :: length,eps
 LOGICAL                                  :: isLinear,leave
-REAL,DIMENSION(1:3,0:NGeo,0:NGeo)        :: xNodes
+REAL,DIMENSION(1:3,0:NGeo,0:NGeo,1:6,1:nTotalElems)        :: xNodes
 LOGICAL,ALLOCATABLE                     :: SideIsDone(:)
 REAL                                    :: XCL_NGeo1(1:3,0:1,0:1,0:1)
 REAL                                    :: XCL_NGeoNew(1:3,0:NGeo,0:NGeo,0:NGeo)
@@ -3842,6 +3844,10 @@ SWRITE(UNIT_StdOut,'(A)') ' Get Element and Side Type incl. HALO-Sides...'
 ! elements
 ALLOCATE(CurvedElem(1:nTotalElems))
 CurvedElem=.FALSE.
+IF (.NOT.DoRefMapping) THEN
+  ALLOCATE(ElemType(1:nTotalElems))
+  ElemType=-1
+END IF
 nCurvedElems=0
 nLinearElems=0
 
@@ -4302,6 +4308,32 @@ IF (.NOT.DoRefMapping)THEN
   END DO ! iElem=1,nTotalElems
 END IF
 
+! fill Element type checking sides
+IF (.NOT.DoRefMapping) THEN
+  DO iElem=1,nTotalElems
+    DO ilocSide=1,6
+      SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+      SELECT CASE(SideType(SideID))
+      CASE(PLANAR_RECT,PLANAR_NONRECT)
+        IF (ElemType(iElem).GE.1) THEN
+          CYCLE
+        ELSE
+          ElemType(iElem) = 1
+        END IF
+      CASE(BILINEAR)
+        IF (ElemType(iElem).GE.2) THEN
+          CYCLE
+        ELSE
+          ElemType(iElem) = 2
+        END IF
+      CASE(PLANAR_CURVED,CURVED)
+        ElemType(iElem) = 3
+        EXIT
+      END SELECT
+    END DO ! ilocSide=1,6
+  END DO ! iElem=1,nTotalElems
+END IF
+
 ! decide if element:  
 ! DoRefMapping=T
 ! a) HAS own bc faces
@@ -4316,6 +4348,24 @@ IF(DoRefMapping)THEN
     DO ilocSide=1,6
       SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
       IF (SideID.LE.0) CYCLE
+      IF (PartBCSideList(SideID).GT.0) THEN
+        xNodes(:,:,:,ilocSide,iElem)=BezierControlPoints3D(:,:,:,PartBCSideList(SideID))
+      ELSE
+        SELECT CASE(ilocSide)
+        CASE(XI_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),xNodes(:,:,:,ilocSide,iElem))
+        CASE(XI_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),xNodes(:,:,:,ilocSide,iElem))
+        CASE(ETA_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),xNodes(:,:,:,ilocSide,iElem))
+        CASE(ETA_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),xNodes(:,:,:,ilocSide,iElem))
+        CASE(ZETA_MINUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),xNodes(:,:,:,ilocSide,iElem))
+        CASE(ZETA_PLUS)
+          CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),xNodes(:,:,:,ilocSide,iElem))
+        END SELECT
+      END IF
       IF((SideID.LE.nBCSides).OR.(SideID.GT.nSides))THEN
         IF(.NOT.isBCElem(iElem))THEN
           IsBCElem(iElem)=.TRUE.
@@ -4363,7 +4413,7 @@ IF(DoRefMapping)THEN
       IF(PartSideToElem(S2E_ELEM_ID,iSide).EQ.iElem) CYCLE
       ! next, get all sides in halo-eps vicinity
       DO ilocSide=1,6
-        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+        SideID=PartElemToSide(E2S_SIDE_ID,ilocSide,PartSideToElem(S2E_ELEM_ID,iSide))
         IF(SideID.EQ.-1) CYCLE
         ! simplified version for full-mesh
         IF(fullMesh)THEN
@@ -4373,24 +4423,6 @@ IF(DoRefMapping)THEN
           END IF
           EXIT
         ELSE
-          IF(PartBCSideList(SideID).GT.0) THEN
-            xNodes=BezierControlPoints3D(:,:,:,PartBCSideList(SideID))
-          ELSE
-            SELECT CASE(ilocSide)
-            CASE(XI_MINUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,0,:,:,iElem),xNodes)
-            CASE(XI_PLUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,NGeo,:,:,iElem),xNodes)
-            CASE(ETA_MINUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,0,:,iElem),xNodes)
-            CASE(ETA_PLUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,NGeo,:,iElem),xNodes)
-            CASE(ZETA_MINUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,0,iElem),xNodes)
-            CASE(ZETA_PLUS)
-              CALL ChangeBasis2D(3,NGeo,NGeo,sVdm_Bezier,XCL_NGeo(1:3,:,:,NGeo,iElem),xNodes)
-            END SELECT
-          END IF
           leave=.FALSE.
           ! all points of bc side
           DO q=0,NGeo
@@ -4399,8 +4431,8 @@ IF(DoRefMapping)THEN
               !all nodes of current side
               DO s=0,NGeo
                 DO r=0,NGeo
-                  IF(SQRT(DOT_Product(xNodes(:,r,s)-NodeX &
-                                     ,xNodes(:,r,s)-NodeX )).LE.halo_eps)THEN
+                  IF(SQRT(DOT_Product(xNodes(:,r,s,ilocSide,iElem)-NodeX &
+                                     ,xNodes(:,r,s,ilocSide,iElem)-NodeX )).LE.halo_eps)THEN
                     IF(SideIndex(iSide).EQ.0)THEN
                       BCElem(iElem)%lastSide=BCElem(iElem)%lastSide+1
                       SideIndex(iSide)=BCElem(iElem)%lastSide
