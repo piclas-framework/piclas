@@ -4525,16 +4525,6 @@ ELSE
   END DO ! iElem
 END IF
 
-IF(DoRefMapping)THEN
-  DO iSide=1,nTotalSides
-    BCSideID=PartBCSideList(iSide)
-    IF(BCSideID.EQ.-1)CYCLE
-    IF(SUM(ABS(SideNormVec(:,BCSideID))).EQ.0)THEN
-      IPWRITE(*,*) iside
-    END IF
-  END DO
-END IF
-
 #ifdef MPI
 IF(MPIRoot) THEN
   CALL MPI_REDUCE(nPlanarRectangular   ,nPlanarRectangularTot   ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
