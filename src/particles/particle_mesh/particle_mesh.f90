@@ -4701,9 +4701,12 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem,ilocSide,iMortar,GlobalElemID,ProcID,ilocSide2,iMortar2,NbElemID,ElemID
+INTEGER                       :: iElem,ilocSide,iMortar,ProcID,ilocSide2,iMortar2,NbElemID,ElemID
+INTEGER(KIND=8)               :: GlobalElemID
+LOGICAL                       :: found
 #ifdef MPI
-INTEGER                       :: iHaloElem,HaloGlobalElemID
+INTEGER                       :: iHaloElem
+INTEGER(KIND=8)               :: HaloGlobalElemID
 #endif /*MPI*/
 !===================================================================================================================================
 
@@ -4733,6 +4736,7 @@ DO iElem=1,nTotalElems
       DO iHaloElem=PP_nElems+1,nTotalElems
         ProcID=PartHaloElemToProc(NATIVE_PROC_ID,iHaloElem)
         HaloGlobalElemID=offSetElemMPI(ProcID) + PartHaloElemToProc(NATIVE_ELEM_ID,iHaloElem)
+        CHECKSAFEINT(HaloGlobalElemID,4)
         IF(HaloGlobalElemID.EQ.GlobalElemID)THEN
           PartElemToElemAndSide(iMortar,ilocSide,iElem)=iHaloElem
           EXIT
@@ -4749,18 +4753,48 @@ DO iElem=1,nTotalElems
     DO iMortar=1,4
       NBElemID=PartElemToElemAndSide(iMortar,ilocSide,iElem)
       IF(NBElemID.EQ.-1) CYCLE
+      found=.FALSE.
       ! loop  over all local sides of neighbor element to find the right face
       DO ilocSide2=1,6
         DO iMortar2=1,4
           ElemID=PartElemToElemAndSide(iMortar2,ilocSide2,NBElemID)
-          IF(ElemID.NE.iElem) CYCLE
-          ! finally, found matching local sides
-          PartElemToElemAndSide(iMortar+4,ilocSide,iElem)=ilocSide2
+          IF(ElemID.LE.0) CYCLE
+          IF(ElemID.EQ.iElem) THEN
+            ! finally, found matching local sides
+            PartElemToElemAndSide(iMortar+4,ilocSide,iElem)=ilocSide2
+            Found=.TRUE.
+            EXIT
+          END IF
         END DO ! iMortar=1,4
+        IF(Found) EXIT
       END DO ! ilocSide=1,6
     END DO ! iMortar=1,4
   END DO ! ilocSide=1,6
 END DO ! iElem=1,PP_nElems
+
+! sanity check
+DO iElem=1,nTotalElems
+  DO ilocSide=1,6
+    DO iMortar=1,4
+      IF((PartElemToElemAndSide(iMortar,ilocSide,iElem).GT.0).AND.(PartElemToElemAndSide(iMortar+4,ilocSide,iElem).EQ.-1))THEN
+        IPWRITE(UNIT_StdOut,*) ' iElem:     ', iElem
+        IPWRITE(UNIT_StdOut,*) ' ilocSide:  ', ilocSide
+        IPWRITE(UNIT_StdOut,*) ' NBElem-ID: ', PartElemToElemAndSide(iMortar,ilocSide,iElem)
+        CALL abort(&
+__STAMP__&
+        , ' Error in ElemConnectivity. Found no neighbor locSideID. iElem,ilocSide',iElem,REAL(ilocSide))
+      END IF
+      IF((PartElemToElemAndSide(iMortar,ilocSide,iElem).EQ.-1).AND.(PartElemToElemAndSide(iMortar+4,ilocSide,iElem).GT.-1))THEN
+        IPWRITE(UNIT_StdOut,*) ' iElem:     ', iElem
+        IPWRITE(UNIT_StdOut,*) ' ilocSide:  ', ilocSide
+        IPWRITE(UNIT_StdOut,*) ' NBElem-ID: ', PartElemToElemAndSide(iMortar,ilocSide,iElem)
+        CALL abort(&
+__STAMP__&
+        , ' Error in ElemConnectivity. Found no neighbor ElemID. iElem,ilocSide',iElem,REAL(ilocSide))
+      END IF
+    END DO ! iMortar=1,4
+  END DO ! ilocSide=1,6
+END DO
 
 END SUBROUTINE ElemConnectivity
 
