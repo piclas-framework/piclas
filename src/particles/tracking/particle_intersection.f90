@@ -56,7 +56,6 @@ SUBROUTINE ComputePlanarRectIntersection(isHit                       &
 USE MOD_Globals!,                 ONLY:Cross,abort
 USE MOD_Globals_Vars,            ONLY:epsMach
 USE MOD_Particle_Vars,           ONLY:LastPartPos
-USE MOD_Particle_Mesh_Vars,      ONLY:SidePeriodicDisplacement,SidePeriodicType
 USE MOD_Particle_Surfaces_Vars,  ONLY:SideNormVec,epsilontol,OnePlusEps,SideDistance
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0,BaseVectors1,BaseVectors2
 USE MOD_Particle_Surfaces_Vars,  ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip
@@ -112,15 +111,7 @@ IF(ALMOSTZERO(coeffA)) CriticalParallelInSide=.TRUE.
 
 ! extension for periodic sides
 IF(.NOT.DoRefMapping)THEN
-  IF(SidePeriodicType(SideID).EQ.0)THEN
-    locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
-  ELSE
-    IF (flip.EQ.0) THEN
-      locSideDistance=DOT_PRODUCT(0.25*BaseVectors0(:,SideID)-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
-    ELSE ! nothing to do for master side, Side of elem to which owns the BezierPoints
-      locSideDistance=DOT_PRODUCT(0.25*BaseVectors0flip(:,SideID)-LastPartPos(iPart,1:3),SideNormVec(:,SideID))
-    END IF
-  END IF ! SidePeriodicType
+  locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
 ELSE
   locSideDistance=locDistance-DOT_PRODUCT(LastPartPos(iPart,1:3),NormVec)
 END IF
@@ -157,27 +148,10 @@ IF((alphaNorm.GT.OnePlusEps) .OR.(alphaNorm.LT.-epsilontol))THEN
 END IF
 
 IF(.NOT.DoRefMapping)THEN
-  IF(SidePeriodicType(SideID).EQ.0)THEN
-    ! iSide_temp = SideID2PlanarSideID(SideID)
-    Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-    P0 =-0.25*BaseVectors0(:,SideID)+Inter1
-    P1 = 0.25*BaseVectors1(:,SideID)
-    P2 = 0.25*BaseVectors2(:,SideID)
-  ELSE
-    IF (flip.EQ.0) THEN
-      ! iSide_temp = SideID2PlanarSideID(SideID)
-      Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-      P0 =-0.25*BaseVectors0(:,SideID)+Inter1
-      P1 = 0.25*BaseVectors1(:,SideID)
-      P2 = 0.25*BaseVectors2(:,SideID)
-    ELSE
-      ! iSide_temp = SideID2PlanarSideID(SideID)
-      Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
-      P0 =-0.25*BaseVectors0flip(:,SideID)+Inter1
-      P1 = 0.25*BaseVectors1flip(:,SideID)
-      P2 = 0.25*BaseVectors2flip(:,SideID)
-    END IF
-  END IF ! SidePeriodicType
+  ! iSide_temp = SideID2PlanarSideID(SideID)
+  Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory
+  P0 =-0.25*BaseVectors0(:,SideID)+Inter1
+  P1 = 0.25*BaseVectors1(:,SideID)
 ELSE
   ! iSide_temp = SideID2PlanarSideID(SideID)
   Inter1=LastPartPos(iPart,1:3)+alpha*PartTrajectory

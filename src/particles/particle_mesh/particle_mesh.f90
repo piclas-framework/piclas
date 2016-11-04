@@ -760,6 +760,7 @@ IF(PartMPI%MPIROOT)THEN
   WRITE(UNIT_stdOut,'(A,F12.3,A)',ADVANCE='YES')' Init FIBGM took                  [',EndT-StartT,'s]'
 END IF
 
+IF(.NOT.DoRefMapping) CALL ExtendToPeriodicSides()
 StartT=BOLTZPLATZTIME()
 #ifdef MPI
 SWRITE(UNIT_stdOut,'(A)')' INIT HALO REGION...' 
@@ -781,7 +782,6 @@ ELSE
   CALL AddHALOCellsToFIBGM(ElemToBGM)
 END IF
 
-
 EndT=BOLTZPLATZTIME()
 IF(PartMPI%MPIROOT)THEN
    WRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Construction of halo region took [',EndT-StartT,'s]'
@@ -789,7 +789,6 @@ END IF
 
 ! remove inner BezierControlPoints3D and SlabNormals, usw.
 IF(DoRefMapping) CALL ReshapeBezierSides()
-
 
 CALL GetElemAndSideType()
 CALL GetPlanarSideBaseVectors()
@@ -3522,8 +3521,6 @@ BGMjmin=GEO%FIBGMjmin
 BGMkmax=GEO%FIBGMkmax
 BGMkmin=GEO%FIBGMkmin
 
-
-
 DO iElem=1,LastElem
   xmin=HUGE(1.)
   ymin=HUGE(1.)
@@ -3968,6 +3965,9 @@ DO iElem=1,nLoop
         v2=v1-ElemBaryNGeo(:,iElem)
         IF(flip.EQ.0)THEN
           IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+        ELSE IF(flip.EQ.-1)THEN
+          SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+          PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
         ELSE
           IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
         END IF
@@ -4048,6 +4048,9 @@ DO iElem=1,nLoop
           v2=v1-ElemBaryNGeo(:,iElem)
           IF(flip.EQ.0)THEN
             IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+          ELSE IF(flip.EQ.-1)THEN
+            SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+            PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
           ELSE
             IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
           END IF
@@ -4075,6 +4078,9 @@ DO iElem=1,nLoop
           v2=v1-ElemBaryNGeo(:,iElem)
           IF(flip.EQ.0)THEN
             IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).LT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+          ELSE IF(flip.EQ.-1)THEN
+            SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID) 
+            PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
           ELSE
             IF(DOT_PRODUCT(v2,SideNormVec(:,TrueSideID)).GT.0) SideNormVec(:,TrueSideID)=-SideNormVec(:,TrueSideID)
           END IF
@@ -4199,6 +4205,9 @@ IF (.NOT.DoRefMapping)THEN
           v2=v1-ElemBaryNGeo(:,iElem)
           IF(flip.EQ.0)THEN
             IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID) 
+          ELSE IF(flip.EQ.-1)THEN
+            SideNormVec(:,SideID)=-SideNormVec(:,SideID) 
+            PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
           ELSE
             IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
           END IF
@@ -4256,6 +4265,9 @@ IF (.NOT.DoRefMapping)THEN
               v2=v1-ElemBaryNGeo(:,iElem)
               IF(flip.EQ.0)THEN
                 IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID) 
+              ELSE IF(flip.EQ.-1)THEN
+                SideNormVec(:,SideID)=-SideNormVec(:,SideID) 
+                PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
               ELSE
                 IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
               END IF
@@ -4291,6 +4303,9 @@ IF (.NOT.DoRefMapping)THEN
           v2=v1-ElemBaryNGeo(:,iElem)
           IF(flip.EQ.0)THEN
             IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).LT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID) 
+          ELSE IF(flip.EQ.-1)THEN
+            SideNormVec(:,SideID)=-SideNormVec(:,SideID) 
+            PartElemToSide(E2S_FLIP,ilocSide,iElem) = 0
           ELSE
             IF(DOT_PRODUCT(v2,SideNormVec(:,SideID)).GT.0) SideNormVec(:,SideID)=-SideNormVec(:,SideID)
           END IF
@@ -4606,7 +4621,7 @@ USE MOD_Particle_Tracking_Vars,        ONLY:DoRefMapping
 USE MOD_Mesh_Vars,                     ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,        ONLY:BezierControlPoints3D
 USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0,BaseVectors1,BaseVectors2,BaseVectors3
-USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip,BaseVectors3flip
+!USE MOD_Particle_Surfaces_Vars,        ONLY:BaseVectors0flip,BaseVectors1flip,BaseVectors2flip,BaseVectors3flip
 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideID2PlanarSideID
 ! USE MOD_Particle_Surfaces_Vars,        ONLY:SideType
 USE MOD_Particle_Mesh_Vars,            ONLY:nTotalSides,nTotalBCSides
@@ -4637,12 +4652,12 @@ IF(.NOT.DoRefMapping)THEN
             BaseVectors1(1:3,1:nTotalSides),&
             BaseVectors2(1:3,1:nTotalSides),&
             BaseVectors3(1:3,1:nTotalSides))
-  IF (GEO%nPeriodicVectors.GT.0) THEN
-    ALLOCATE( BaseVectors0flip(1:3,1:nTotalSides),&
-              BaseVectors1flip(1:3,1:nTotalSides),&
-              BaseVectors2flip(1:3,1:nTotalSides),&
-              BaseVectors3flip(1:3,1:nTotalSides))
-  END IF
+  !IF (GEO%nPeriodicVectors.GT.0) THEN
+  !  ALLOCATE( BaseVectors0flip(1:3,1:nTotalSides),&
+  !            BaseVectors1flip(1:3,1:nTotalSides),&
+  !            BaseVectors2flip(1:3,1:nTotalSides),&
+  !            BaseVectors3flip(1:3,1:nTotalSides))
+  !END IF
    
   DO iSide=1,nTotalSides
     ! extension for periodic sides
@@ -4657,24 +4672,24 @@ IF(.NOT.DoRefMapping)THEN
                               +BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
     BaseVectors3(:,iSide) = (+BezierControlPoints3D(:,0,0,iSide)-BezierControlPoints3D(:,NGeo,0,iSide)   &
                               -BezierControlPoints3D(:,0,NGeo,iSide)+BezierControlPoints3D(:,NGeo,NGeo,iSide) )
-    IF ( (SidePeriodicType(iSide).NE.0) ) THEN
-      BaseVectors0flip(:,iSide)=(+(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                              +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                              +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                              +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
-      BaseVectors1flip(:,iSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                              +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                              -(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                              +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
-      BaseVectors2flip(:,iSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                              -(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                              +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                              +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
-      BaseVectors3flip(:,iSide) = (+(BezierControlPoints3D(:,0,0,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                               -(BezierControlPoints3D(:,NGeo,0,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                               -(BezierControlPoints3D(:,0,NGeo,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
-                               +(BezierControlPoints3D(:,NGeo,NGeo,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) )
-    END IF
+    !IF ( (SidePeriodicType(iSide).NE.0) ) THEN
+    !  BaseVectors0flip(:,iSide)=(+(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                          +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                          +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                          +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
+    !  BaseVectors1flip(:,iSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                          +(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                          -(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                          +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
+    !  BaseVectors2flip(:,iSide) =(-(BezierControlPoints3D(:,0,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                          -(BezierControlPoints3D(:,NGeo,0,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                          +(BezierControlPoints3D(:,0,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                          +(BezierControlPoints3D(:,NGeo,NGeo,iSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ))
+    !  BaseVectors3flip(:,iSide) = (+(BezierControlPoints3D(:,0,0,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                           -(BezierControlPoints3D(:,NGeo,0,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                           -(BezierControlPoints3D(:,0,NGeo,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) &
+    !                           +(BezierControlPoints3D(:,NGeo,NGeo,BCSide)-SidePeriodicDisplacement(:,SidePeriodicType(iSide)) ) )
+    !END IF
   END DO ! iSide
 ELSE
   ALLOCATE( BaseVectors0(1:3,1:nTotalBCSides),&
@@ -4820,6 +4835,172 @@ END DO
 
 END SUBROUTINE ElemConnectivity
 
+
+SUBROUTINE ExtendToPeriodicSides() 
+!===================================================================================================================================
+! increases to side list to periodic sides
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+USE MOD_Mesh_Vars,              ONLY:MortarType,BC,NGeo
+USE MOD_Particle_Mesh_Vars,     ONLY:PartElemToSide,PartSideToElem,nTotalSides,SidePeriodicType,SidePeriodicDisplacement
+USE MOD_Particle_Mesh_Vars,     ONLY:nTotalElems
+USE MOD_Particle_Surfaces_Vars, ONLY:BezierControlPoints3D
+USE MOD_Particle_Surfaces_Vars, ONLY:SideSlabNormals,SideSlabIntervals,BoundingBoxIsEmpty
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES 
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                              :: iSide,nPeriodicSides,NBElemID,tmpnSides,NBlocSideID,p,q,iElem,ElemID
+INTEGER                              :: ilocSide,flip,SideID
+REAL,ALLOCATABLE                     :: DummyBezierControlPoints3D(:,:,:,:)                                
+REAL,ALLOCATABLE,DIMENSION(:,:,:)    :: DummySideSlabNormals                  ! normal vectors of bounding slab box
+REAL,ALLOCATABLE,DIMENSION(:,:)      :: DummySideSlabIntervals               ! intervalls beta1, beta2, beta3
+!REAL,ALLOCATABLE,DIMENSION(:,:)      :: DummySidePeriodicDisplacement        ! intervalls beta1, beta2, beta3
+LOGICAL,ALLOCATABLE,DIMENSION(:)     :: DummyBoundingBoxIsEmpty
+INTEGER,ALLOCATABLE,DIMENSION(:)     :: DummyBC
+INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyMortarType
+INTEGER,ALLOCATABLE,DIMENSION(:,:)   :: DummyPartSideToElem
+INTEGER,ALLOCATABLE,DIMENSION(:)     :: DummySidePeriodicType
+!===================================================================================================================================
+
+nPeriodicSides=0
+DO iSide=1,nTotalSides
+  IF(SidePeriodicType(iSide).GT.0)THEN
+    NBElemID=PartSideToElem(S2E_NB_ELEM_ID,iSide)
+    ElemID  =PartSideToElem(S2E_ELEM_ID,iSide)
+    IF((NBElemID.GT.0).AND.(ElemID.GT.0))nPeriodicSides=nPeriodicSides+1
+  END IF
+END DO
+
+IF(nPeriodicSides.GT.0)THEN
+
+  ALLOCATE(DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
+  ALLOCATE(DummySideSlabNormals(1:3,1:3,1:nTotalSides))
+  ALLOCATE(DummySideSlabIntervals(1:6,1:nTotalSides))
+  !ALLOCATE(DummySidePeriodicDisplacement(1:3,1:nTotalSides))
+  ALLOCATE(DummyBoundingBoxIsEmpty(1:nTotalSides))
+  ALLOCATE(DummyBC(1:nTotalSides))
+  ALLOCATE(DummyMortarType(1:2,1:nTotalSides))
+  ALLOCATE(DummyPartSideToElem(1:5,1:nTotalSides))
+  ALLOCATE(DummySidePeriodicType(1:nTotalSides))
+  
+  ! copy data to backup
+  DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides) = BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides)
+  DummySideSlabNormals(1:3,1:3,1:nTotalSides)                 = SideSlabNormals(1:3,1:3,1:nTotalSides)
+  DummySideSlabIntervals(1:6,1:nTotalSides)                   = SideSlabIntervals(1:6,1:nTotalSides)
+  !DummySidePeriodicDisplacement(1:3,1:nTotalSides)            = SidePeriodicDisplacement(1:3,1:nTotalSides)
+  DummyBoundingBoxIsEmpty(1:nTotalSides)                      = BoundingBoxIsEmpty(1:nTotalSides)
+  DummyBC(1:nTotalSides)                                      = BC(1:nTotalSides)
+  DummyMortarType(1:2,1:nTotalSides)                          = MortarType(1:2,1:nTotalSides)
+  DummyPartSideTOElem(1:5,1:nTotalSides)                      = PartSideTOElem(1:5,1:nTotalSides)
+  DummySidePeriodicType(1:nTotalSides)                        = SidePeriodicType(1:nTotalSides)
+
+  ! deallocate old values and reallocate
+  DEALLOCATE(BezierControlPoints3D)
+  DEALLOCATE(SideSlabNormals)
+  DEALLOCATE(SideSlabIntervals)
+  DEALLOCATE(BoundingBoxIsEmpty)
+  !DEALLOCATE(SidePeriodicDisplacement)
+  DEALLOCATE(BC)
+  DEALLOCATE(MortarType)
+  DEALLOCATE(PartSideToElem)
+  DEALLOCATE(SidePeriodicType)
+
+  tmpnSides  =nTotalSides 
+  nTotalSides=nTotalSides+nPeriodicSides
+  ALLOCATE(BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:nTotalSides))
+  ALLOCATE(SideSlabNormals(1:3,1:3,1:nTotalSides))
+  ALLOCATE(SideSlabIntervals(1:6,1:nTotalSides))
+  ALLOCATE(BoundingBoxIsEmpty(1:nTotalSides))
+  ALLOCATE(BC(1:nTotalSides))
+  ALLOCATE(MortarType(1:2,1:nTotalSides))
+  ALLOCATE(PartSideToElem(1:5,1:nTotalSides))
+  ALLOCATE(SidePeriodicType(1:nTotalSides))
+  !ALLOCATE(SidePeriodicDisplacement(1:3,1:nTotalSides))
+
+  BezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides) = DummyBezierControlPoints3d(1:3,0:NGeo,0:NGeo,1:tmpnSides)
+  SideSlabNormals(1:3,1:3,1:tmpnSides)                 = DummySideSlabNormals(1:3,1:3,1:tmpnSides)
+  SideSlabIntervals(1:6,1:tmpnSides)                   = DummySideSlabIntervals(1:6,1:tmpnSides)
+  BoundingBoxIsEmpty(1:tmpnSides)                      = DummyBoundingBoxIsEmpty(1:tmpnSides)
+  !SidePeriodicDisplacement(1:3,1:nTotalSides)          = DummySidePeriodicDisplacement(1:3,1:nTotalSides)
+  BC(1:tmpnSides)                                      = DummyBC(1:tmpnSides)
+  MortarType(1:2,1:tmpnSides)                          = DummyMortarType(1:2,1:tmpnSides)
+  PartSideToElem(1:5,1:tmpnSides)                      = DummyPartSideTOElem(1:5,1:tmpnSides)
+  SidePeriodicType(1:tmpnSides)                        = DummySidePeriodicType(1:tmpnSides)
+
+  nPeriodicSides=tmpnSides
+  DO iSide=1,tmpnSides
+    IF(DummySidePeriodicType(iSide).GT.0)THEN
+      NBElemID=DummyPartSideToElem(S2E_NB_ELEM_ID,iSide)
+      ElemID  =PartSideToElem(S2E_ELEM_ID,iSide)
+      IF(NBElemID.GT.0) THEN
+        IF(ElemID.LT.0)THEN
+          NBlocSideID=PartSideToElem(S2E_NB_LOC_SIDE_ID,iSide)   
+          PartElemToSide(E2S_SIDE_ID,NBlocSideID,NBElemID) = iSide ! do not change
+          ! the flip has to be set to -1, artificial master side
+          PartElemToSide(E2S_FLIP,NBlocSideID,NBElemID) = -1
+          DO q=0,NGeo
+            DO p=0,NGeo
+              BezierControlPoints3d(1:3,p,q,nPeriodicSides)  = DummyBezierControlPoints3d(1:3,p,q,iSide) &
+                                                             - SidePeriodicDisplacement(1:3,SidePeriodicType(iSide))
+            END DO ! p=0,NGeo
+          END DO ! q=0,NGeo
+          IF(MOD(SidePeriodicType(nPeriodicSides),2).EQ.1)THEN
+            SidePeriodicType(nPeriodicSides) = SidePeriodicType(nPeriodicSides) -1
+          ELSE
+            SidePeriodicType(nPeriodicSides) = SidePeriodicType(nPeriodicSides) +1
+          END IF
+        ELSE
+          nPeriodicSides=nPeriodicSides+1
+          DO q=0,NGeo
+            DO p=0,NGeo
+              BezierControlPoints3d(1:3,p,q,nPeriodicSides)  = DummyBezierControlPoints3d(1:3,p,q,iSide) &
+                                                             + SidePeriodicDisplacement(1:3,SidePeriodicType(iSide))
+            END DO ! p=0,NGeo
+          END DO ! q=0,NGeo
+          SideSlabNormals(1:3,1:3,nPeriodicSides)                  = DummySideSlabNormals(1:3,1:3,iSide)
+          SideSlabIntervals(1:6,nPeriodicSides)                    = DummySideSlabIntervals(1:6,iSide)
+          BoundingBoxIsEmpty(nPeriodicSides)                       = DummyBoundingBoxIsEmpty(iSide)
+          BC(nPeriodicSides)                                       = DummyBC(iSide)
+          MortarType(1:2,nPeriodicSides)                           = DummyMortarType(1:2,iSide)
+          PartSideToElem(1:5,nPeriodicSides)                       = DummyPartSideTOElem(1:5,iSide)
+          SidePeriodicType(nPeriodicSides)                         = DummySidePeriodicType(iSide)
+  !        SidePeriodicDisplacement(1:3,nPeriodicSides)             = DummySidePeriodicDisplacement(1:3,iSide)
+          PartSideToElem(S2E_NB_ELEM_ID,nPeriodicSides)=NBElemID
+          NBlocSideID=PartSideToElem(S2E_NB_LOC_SIDE_ID,nPeriodicSides)   
+          PartElemToSide(E2S_SIDE_ID,NBlocSideID,NBElemID) = nPeriodicSides
+          ! the flip has to be set to -1, artificial master side
+          !PartElemToSide(E2S_FLIP,NBlocSideID,NBElemID) = 0
+          PartElemToSide(E2S_FLIP,NBlocSideID,NBElemID) = -1
+          IF(MOD(SidePeriodicType(nPeriodicSides),2).EQ.0)THEN
+            SidePeriodicType(nPeriodicSides) = SidePeriodicType(nPeriodicSides) -1
+          ELSE
+            SidePeriodicType(nPeriodicSides) = SidePeriodicType(nPeriodicSides) +1
+          END IF
+        END IF
+      END IF
+    END IF
+  END DO
+
+  ! deallocate dummy  
+  DEALLOCATE(DummyBezierControlPoints3D)
+  DEALLOCATE(DummySideSlabNormals)
+  DEALLOCATE(DummySideSlabIntervals)
+  DEALLOCATE(DummyBoundingBoxIsEmpty)
+  DEALLOCATE(DummyBC)
+  DEALLOCATE(DummyMortarType)
+  DEALLOCATE(DummyPartSideToElem)
+  DEALLOCATE(DummySidePeriodicType)
+
+END IF ! nPeriodicSides .GT.0
+
+END SUBROUTINE ExtendToPeriodicSides
 
 SUBROUTINE BGMIndexOfElement(ElemID,ElemToBGM) 
 !===================================================================================================================================
