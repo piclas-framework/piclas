@@ -504,7 +504,7 @@ DO !iter_t=0,MaxIter
     CalcTimeEnd=BOLTZPLATZTIME()
 #ifdef MPI
     !CALL ComputeParticleWeightAndLoad(CurrentImbalance,PerformLoadBalance)
-    CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance)
+    CALL ComputeElemLoad(CurrentImbalance,PerformLoadBalance,time)
 #endif /*MPI*/
     ! future time
     nAnalyze=nAnalyze+1
